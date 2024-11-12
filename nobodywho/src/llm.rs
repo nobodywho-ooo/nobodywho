@@ -36,7 +36,13 @@ pub fn get_model(model_path: &str) -> Arc<LlamaModel> {
     // HACK: only offload anything to the gpu if we can find a dedicated GPU
     //       there seems to be a bug which results in garbage tokens if we over-allocate an integrated GPU
     //       while using the vulkan backend. See: https://github.com/nobodywho-ooo/nobodywho-rs/pull/14
-    let model_params = LlamaModelParams::default().with_n_gpu_layers(if has_discrete_gpu() || cfg!(target_os = "macos") { 1000000 } else { 0 });
+    let model_params = LlamaModelParams::default().with_n_gpu_layers(
+        if has_discrete_gpu() || cfg!(target_os = "macos") {
+            1000
+        } else {
+            0
+        },
+    );
     let model_params = pin!(model_params);
     Arc::new(LlamaModel::load_from_file(&LLAMA_BACKEND, model_path, &model_params).unwrap())
 }
@@ -46,11 +52,13 @@ pub fn apply_chat_template(model: Model, chat: Vec<(String, String)>) -> Result<
         .into_iter()
         .map(|t| LlamaChatMessage::new(t.0, t.1).map_err(|e| e.to_string()))
         .collect();
-    let chat_string = model.apply_chat_template(None, chat_result?, true).map_err(|e| e.to_string())?;
+    let chat_string = model
+        .apply_chat_template(None, chat_result?, true)
+        .map_err(|e| e.to_string())?;
     Ok(chat_string)
 }
 
-pub fn run_worker(
+pub fn run_completion_worker(
     model: Arc<LlamaModel>,
     prompt_rx: Receiver<String>,
     completion_tx: Sender<LLMOutput>,
@@ -133,10 +141,45 @@ pub fn run_worker(
     }
 }
 
+pub fn run_embedding_worker(
+    model: Arc<LlamaModel>,
+    prompt_rx: Receiver<String>,
+    completion_tx: Sender<Vec<f32>>,
+    seed: u32,
+) {
+    let n_threads = num_cpus::get() as i32;
+    let ctx_params = LlamaContextParams::default()
+        .with_seed(seed)
+        .with_n_threads(n_threads)
+        .with_embeddings(true);
+
+    let mut ctx = model.new_context(&LLAMA_BACKEND, ctx_params).unwrap();
+
+    while let Ok(prompt) = prompt_rx.recv() {
+        let mut batch = LlamaBatch::new(ctx.n_ctx() as usize, 1);
+
+        let tokens_list = ctx.model.str_to_token(&prompt, AddBos::Always).unwrap();
+
+        batch
+            .add_sequence(&tokens_list, 0, false)
+            .expect("Failed to add sequence");
+
+        ctx.clear_kv_cache();
+
+        ctx.decode(&mut batch).unwrap();
+
+        let embedding = ctx.embeddings_seq_ith(0).unwrap().to_vec();
+
+        completion_tx.send(embedding).unwrap();
+    }
+}
+
 macro_rules! test_model_path {
     () => {
-        std::env::var("TEST_MODEL").unwrap_or("model.bin".to_string()).as_str()
-    }
+        std::env::var("TEST_MODEL")
+            .unwrap_or("model.bin".to_string())
+            .as_str()
+    };
 }
 
 #[cfg(test)]
@@ -152,7 +195,7 @@ mod tests {
         let (prompt_tx, prompt_rx) = std::sync::mpsc::channel();
         let (completion_tx, completion_rx) = std::sync::mpsc::channel();
 
-        std::thread::spawn(move || run_worker(model, prompt_rx, completion_tx, 1234));
+        std::thread::spawn(move || run_completion_worker(model, prompt_rx, completion_tx, 1234));
 
         prompt_tx.send("Count to five: 1, 2, ".to_string()).unwrap();
 
@@ -183,7 +226,7 @@ mod tests {
         let (prompt_tx, prompt_rx) = std::sync::mpsc::channel();
         let (completion_tx, completion_rx) = std::sync::mpsc::channel();
 
-        std::thread::spawn(|| run_worker(model, prompt_rx, completion_tx, 1234));
+        std::thread::spawn(|| run_completion_worker(model, prompt_rx, completion_tx, 1234));
 
         let chat: Vec<LlamaChatMessage> = vec![
             LlamaChatMessage::new(
