@@ -174,10 +174,32 @@ pub fn run_embedding_worker(
     }
 }
 
+fn dotproduct(a: &[f32], b: &[f32]) -> f32 {
+    assert!(a.len() == b.len());
+    a.iter().zip(b.iter()).map(|(x, y)| x * y).sum()
+}
+
+fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
+    let norm_a = dotproduct(a, a).sqrt();
+    let norm_b = dotproduct(b, b).sqrt();
+    if norm_a == 0. || norm_b == 0. {
+        return f32::NAN;
+    }
+    dotproduct(a, b) / (norm_a * norm_b)
+}
+
 macro_rules! test_model_path {
     () => {
         std::env::var("TEST_MODEL")
-            .unwrap_or("model.bin".to_string())
+            .unwrap_or("model.gguf".to_string())
+            .as_str()
+    };
+}
+
+macro_rules! test_embeddings_model_path {
+    () => {
+        std::env::var("TEST_EMBEDDINGS_MODEL")
+            .unwrap_or("embeddings.gguf".to_string())
             .as_str()
     };
 }
@@ -286,6 +308,59 @@ mod tests {
         assert!(
             result.contains("Danish"),
             "Expected completion to contain 'Danish', got: {result}"
+        );
+    }
+
+    #[test]
+    fn test_embeddings() {
+        let model = get_model(test_embeddings_model_path!());
+
+        let (prompt_tx, prompt_rx) = std::sync::mpsc::channel();
+        let (embedding_tx, embedding_rx) = std::sync::mpsc::channel();
+
+        std::thread::spawn(|| run_embedding_worker(model, prompt_rx, embedding_tx, 1234));
+
+        prompt_tx
+            .send("Copenhagen is the capital of Denmark.".to_string())
+            .unwrap();
+        let copenhagen_embedding = embedding_rx.recv().unwrap();
+        assert_ne!(copenhagen_embedding, vec![]);
+
+        prompt_tx
+            .send("Berlin is the capital of Germany.".to_string())
+            .unwrap();
+        let berlin_embedding = embedding_rx.recv().unwrap();
+        assert_ne!(berlin_embedding, vec![]);
+
+        prompt_tx
+            .send("Your mother was a hamster and your father smelt of elderberries!".to_string())
+            .unwrap();
+        let insult_embedding = embedding_rx.recv().unwrap();
+        assert_ne!(insult_embedding, vec![]);
+
+        assert!(
+            insult_embedding.len() == berlin_embedding.len()
+                && berlin_embedding.len() == copenhagen_embedding.len()
+                && copenhagen_embedding.len() == insult_embedding.len(),
+            "not all embedding lengths were equal"
+        );
+
+        // cosine similarity should not care about order
+        assert_eq!(
+            cosine_similarity(&copenhagen_embedding, &berlin_embedding),
+            cosine_similarity(&berlin_embedding, &copenhagen_embedding)
+        );
+
+        // any vector should have cosine similarity 1 to itself
+        assert_eq!(
+            cosine_similarity(&copenhagen_embedding, &copenhagen_embedding),
+            1.0
+        );
+
+        // the insult should have a lower similarity than the two geography sentences
+        assert!(
+            cosine_similarity(&copenhagen_embedding, &insult_embedding)
+                < cosine_similarity(&copenhagen_embedding, &berlin_embedding)
         );
     }
 }
