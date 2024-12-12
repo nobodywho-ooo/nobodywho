@@ -83,8 +83,11 @@ pub fn get_model(
     Ok(Arc::new(model))
 }
 
-// random candidates
-pub struct SamplerConfig {
+pub enum SamplerConfig {
+    MirostatV2(MirostatV2Config)
+}
+
+pub struct MirostatV2Config {
     pub seed: u32,
     pub temperature: f32,
     pub penalty_last_n: i32,
@@ -97,44 +100,45 @@ pub struct SamplerConfig {
     pub mirostat_eta: f32,
 }
 
-impl Default for SamplerConfig {
-    fn default() -> Self {
-        SamplerConfig {
-            seed: 1234,
-            temperature: 0.8,
-            penalty_last_n: -1,
-            penalty_repeat: 0.0,
-            penalty_freq: 0.0,
-            penalty_present: 0.0,
-            penalize_nl: false,
-            ignore_eos: false,
-            mirostat_tau: 5.0,
-            mirostat_eta: 0.1,
+// defaults here match the defaults read from `llama-cli --help`
+pub const DEFAULT_SAMPLER_CONFIG: SamplerConfig = SamplerConfig::MirostatV2( MirostatV2Config {
+    seed: 1234,
+    temperature: 0.8,
+    penalty_last_n: -1,
+    penalty_repeat: 0.0,
+    penalty_freq: 0.0,
+    penalty_present: 0.0,
+    penalize_nl: false,
+    ignore_eos: false,
+    mirostat_tau: 5.0,
+    mirostat_eta: 0.1,
+});
+
+fn make_sampler(model: &LlamaModel, sampler_config: SamplerConfig) -> LlamaSampler {
+    // init mirostat sampler
+    match sampler_config {
+        SamplerConfig::MirostatV2(config) => {
+            LlamaSampler::chain(
+                [
+                    LlamaSampler::penalties(
+                        model.n_vocab(),
+                        model.token_eos().0,
+                        model.token_nl().0,
+                        config.penalty_last_n,
+                        config.penalty_repeat,
+                        config.penalty_freq,
+                        config.penalty_present,
+                        config.penalize_nl,
+                        config.ignore_eos,
+                    ),
+                    LlamaSampler::temp(config.temperature),
+                    //LlamaSampler::mirostat_v2(config.seed, config.mirostat_tau, config.mirostat_eta),
+                    LlamaSampler::dist(config.seed),
+                ],
+                true, // no pperf
+            )
         }
     }
-}
-
-fn make_sampler(model: &LlamaModel, config: SamplerConfig) -> LlamaSampler {
-    // init mirostat sampler
-    LlamaSampler::chain(
-        [
-            LlamaSampler::penalties(
-                model.n_vocab(),
-                model.token_eos().0,
-                model.token_nl().0,
-                config.penalty_last_n,
-                config.penalty_repeat,
-                config.penalty_freq,
-                config.penalty_present,
-                config.penalize_nl,
-                config.ignore_eos,
-            ),
-            LlamaSampler::temp(config.temperature),
-            //LlamaSampler::mirostat_v2(config.seed, config.mirostat_tau, config.mirostat_eta),
-            LlamaSampler::dist(config.seed),
-        ],
-        true, // Do not calculate performance metrics
-    )
 }
 
 #[derive(Debug, thiserror::Error)]
