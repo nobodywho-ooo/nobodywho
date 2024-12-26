@@ -10,8 +10,9 @@ rustPlatform.buildRustPackage {
   cargoLock = {
     lockFile = ./Cargo.lock;
     outputHashes = {
-      "gdextension-api-0.2.0" = "sha256-kIkOMwbO63pnmwG3nyM0gMtWhCKSMqz6fmd2nQ22wHg=";
-      "godot-0.1.3" = "sha256-T4HVbQ707obITx2dYAO8UYDM9Dvk6LMn6G3Ue8M1KqU=";
+      "gdextension-api-0.2.1" = "sha256-YkMbzObJGnmQa1XGT4ApRrfqAeOz7CktJrhYks8z0RY=";
+      "godot-0.2.0" = "sha256-jv0SsEiVrjCcOCVgc43gsTRk6HTImyRkRpZQRQD6rwc=";
+      "llama-cpp-2-0.1.86" = "sha256-Fe8WPO1NAISGGDkX5UWM8ubekYbnnAwEcKf0De5x9AQ=";
     };
   };
   env.LIBCLANG_PATH = "${libclang.lib}/lib/libclang.so";
