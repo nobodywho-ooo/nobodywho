@@ -17,7 +17,6 @@ sqlite-vec = "0.1.5"
 thiserror = "2.0.3"
 minijinja = { version = "2.5.0", features = ["builtins", "json", "loader"] }
 serde = { version = "1.0.215", features = ["derive"] }
-wgpu = "23.0.0"
 chrono = "0.4.39"
 
 [target.'cfg(not(target_os = "macos"))'.dependencies]
