@@ -301,7 +301,7 @@ fn run_completion_worker_result(
             if n_cur + batch.n_tokens() >= ctx.n_ctx() as i32 {
                 n_cur -= apply_context_shifting(&mut ctx, n_cur)?;
 
-                assert!(n_cur + batch.n_tokens() >= ctx.n_ctx() as i32);
+                assert!(n_cur + batch.n_tokens() < ctx.n_ctx() as i32);
             }
 
             // Process current batch
