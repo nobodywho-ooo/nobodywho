@@ -26,14 +26,20 @@ pub enum LLMOutput {
 pub type Model = Arc<LlamaModel>;
 
 pub fn has_discrete_gpu() -> bool {
-    // Use the `wgpu` crate to enumerate GPUs,
-    // label them as CPU, Integrated GPU, and Discrete GPU
-    // and return true only if one of them is a discrete gpu.
-    // TODO: how does this act on macos?
-    wgpu::Instance::default()
-        .enumerate_adapters(wgpu::Backends::all())
-        .into_iter()
-        .any(|a| a.get_info().device_type == wgpu::DeviceType::DiscreteGpu)
+    // TODO: Upstream a safe API for accessing the ggml backend API
+    unsafe {
+        for i in 0..llama_cpp_sys_2::ggml_backend_dev_count() {
+            let dev = llama_cpp_sys_2::ggml_backend_dev_get(i);
+
+            if llama_cpp_sys_2::ggml_backend_dev_type(dev)
+                == llama_cpp_sys_2::GGML_BACKEND_DEVICE_TYPE_GPU
+            {
+                return true;
+            }
+        }
+    }
+
+    false
 }
 
 #[derive(Debug, thiserror::Error)]
