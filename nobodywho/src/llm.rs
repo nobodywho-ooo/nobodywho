@@ -26,14 +26,20 @@ pub enum LLMOutput {
 pub type Model = Arc<LlamaModel>;
 
 pub fn has_discrete_gpu() -> bool {
-    // Use the `wgpu` crate to enumerate GPUs,
-    // label them as CPU, Integrated GPU, and Discrete GPU
-    // and return true only if one of them is a discrete gpu.
-    // TODO: how does this act on macos?
-    wgpu::Instance::default()
-        .enumerate_adapters(wgpu::Backends::all())
-        .into_iter()
-        .any(|a| a.get_info().device_type == wgpu::DeviceType::DiscreteGpu)
+    // TODO: Upstream a safe API for accessing the ggml backend API
+    unsafe {
+        for i in 0..llama_cpp_sys_2::ggml_backend_dev_count() {
+            let dev = llama_cpp_sys_2::ggml_backend_dev_get(i);
+
+            if llama_cpp_sys_2::ggml_backend_dev_type(dev)
+                == llama_cpp_sys_2::GGML_BACKEND_DEVICE_TYPE_GPU
+            {
+                return true;
+            }
+        }
+    }
+
+    false
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -48,20 +54,19 @@ pub fn get_model(
     model_path: &str,
     use_gpu_if_available: bool,
 ) -> Result<Arc<LlamaModel>, LoadModelError> {
-    // HACK: only offload anything to the gpu if we can find a dedicated GPU
-    //       there seems to be a bug which results in garbage tokens if we over-allocate an integrated GPU
-    //       while using the vulkan backend. See: https://github.com/nobodywho-ooo/nobodywho-rs/pull/14
     if !std::path::Path::new(model_path).exists() {
         return Err(LoadModelError::ModelNotFound(model_path.into()));
     }
 
+    // TODO: `LlamaModelParams` uses all devices by default. Set it to an empty list once an upstream device API is available.
     let model_params = LlamaModelParams::default().with_n_gpu_layers(
-        if use_gpu_if_available && (has_discrete_gpu() || cfg!(target_os = "macos")) {
-            1000000
+        if use_gpu_if_available && has_discrete_gpu() {
+            u32::MAX
         } else {
             0
         },
     );
+
     let model_params = pin!(model_params);
     let model =
         LlamaModel::load_from_file(&LLAMA_BACKEND, model_path, &model_params).map_err(|e| {
