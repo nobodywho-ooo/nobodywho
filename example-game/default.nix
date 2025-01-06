@@ -3,6 +3,12 @@ let
   model = fetchurl {
     name = "gemma-2-2b-it-Q4_K_M.gguf";
     url = "https://huggingface.co/bartowski/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_M.gguf";
+    hash = "sha256-4K7oUGDxaPDy2Ec9fqQc4vMjDBvBN0hHUF6lmSiKd4c=";
+  };
+  embedding_model = fetchurl {
+    name = "bge-small-en-v1.5-q8_0.gguf";
+    url = "https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf";
+    hash = "sha256-7Djo2hQllrqpExJK5QVQ3ihLaRa/WVd+8vDLlmDC9RQ=";
   };
 in
 stdenv.mkDerivation {
@@ -34,6 +40,7 @@ stdenv.mkDerivation {
     ${godot_4}/bin/godot4 --verbose --headless --export-debug "Linux" $out/game
     ${godot_4}/bin/godot4 --verbose --headless --export-debug "Linux" $out/game
 
-    cp ${model} $out/
+    cp ${model} $out/gemma-2-2b-it-Q4_K_M.gguf
+    cp ${embedding_model} $out/bge-small-en-v1.5-q8_0.gguf
   '';
 }
