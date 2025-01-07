@@ -33,13 +33,15 @@ pub struct ChatState {
     chat_template: String,
     length: usize,
     eos_token: String,
-    bos_token: String
+    bos_token: String,
 }
 
 /// given a chat history where the first two messages are from system and user
 /// return a history where the first message is from user, and contains the system prompt as well.
 /// (this is what llama.cpp does for the gemma template too)
-fn concat_system_and_first_user_messages(messages: &[Message]) -> Result<Vec<Message>, minijinja::Error> {
+fn concat_system_and_first_user_messages(
+    messages: &[Message],
+) -> Result<Vec<Message>, minijinja::Error> {
     if messages.len() < 2 || messages[0].role != "system" || messages[1].role != "user" {
         // HACK: this should probably be a custom ChatStateError, and nont a minijinja error
         //       but this was quick and easy rn, and we "abuse" the minijinja errors for
@@ -47,11 +49,11 @@ fn concat_system_and_first_user_messages(messages: &[Message]) -> Result<Vec<Mes
         return Err(minijinja::Error::new(
             minijinja::ErrorKind::InvalidOperation,
             "Cannot replace system prompt unless the first two messages are from system and user roles."
-        ))
+        ));
     }
     let new_first_message = Message {
         role: "user".to_string(),
-        content: format!("{}\n\n{}", messages[0].content, messages[1].content)
+        content: format!("{}\n\n{}", messages[0].content, messages[1].content),
     };
     let new_messages = vec![new_first_message]
         .into_iter()
@@ -90,15 +92,23 @@ impl ChatState {
             Err(err) => match err.kind() {
                 minijinja::ErrorKind::InvalidOperation => {
                     if err.to_string().contains("System role not supported") {
-                        // this is the error message we get when rendering the gemma2
+                        // this is the error message we get when rendering the gemma2 template
+                        // concat the first two messages and try again
+                        self.messages = concat_system_and_first_user_messages(&self.messages)?;
+                        self.render()
+                    } else if err.to_string().contains(
+                        "Conversation roles must alternate user/assistant/user/assistant/...",
+                    ) {
+                        // this is the error we get when rendering the mistral 7b v0.3 template,
+                        // which, like gemma2, does not support the system role
                         // concat the first two messages and try again
                         self.messages = concat_system_and_first_user_messages(&self.messages)?;
                         self.render()
                     } else {
                         Err(err)
                     }
-                },
-                _ => Err(err)
+                }
+                _ => Err(err),
             },
         }
     }
@@ -142,7 +152,10 @@ Hello, world!<|eot_id|><|start_header_id|>assistant<|end_header_id|>
         // https://huggingface.co/docs/transformers/main/chat_templating#callable-functions
 
         let result = strftime_now("%Y-%m-%d");
-        assert!(result.len() == 10, "Expected format YYYY-MM-DD to be 10 chars");
+        assert!(
+            result.len() == 10,
+            "Expected format YYYY-MM-DD to be 10 chars"
+        );
 
         let result = strftime_now("%H:%M:%S");
         assert!(result.len() == 8, "Expected format HH:MM:SS to be 8 chars");
