@@ -185,6 +185,16 @@ jobs:
       - name: "Run unit tests"
         run: cargo test -- --nocapture --test-threads=1
         working-directory: ./nobodywho
+  
+  nix-flake-check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v27
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: nix build '.#game'
+      - run: nix flake check
 
 
   zip-distributable:
