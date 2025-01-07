@@ -18,3 +18,5 @@ func _ready():
 	var low_similarity = cosine_similarity(irrelevant_embd, dragon_hill_embd)
 	var high_similarity = cosine_similarity(dragon_hill_embd, dragon_hungry_embd) 
 	assert(low_similarity < high_similarity)
+	print("✨ embeddings completed")
+

@@ -10,4 +10,4 @@ func _ready():
 
 	# wait for the response
 	var response = await response_finished
-	print("Got response: " + response)
+	print("✨ Got response: " + response)
