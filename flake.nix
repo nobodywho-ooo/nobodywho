@@ -7,14 +7,24 @@
   outputs = { nixpkgs, flake-utils, ... }:
     flake-utils.lib.eachDefaultSystem (system:
     let
-      pkgs = (import nixpkgs { system = system; });
+      pkgs = (import nixpkgs {
+        system = system;
+         config.allowUnfreePredicate = pkg: builtins.elem (pkgs.lib.getName pkg) [
+             "steam-run"
+             "steam-original"
+         ];
+      });
       nobodywho = pkgs.callPackage ./nobodywho {};
-      game = pkgs.callPackage ./example-game { inherit nobodywho; };
+      integration-test = pkgs.callPackage ./example-game { inherit nobodywho; };
+      run-integration-test = pkgs.runCommand "checkgame" {} ''
+        cd ${integration-test}
+        ${pkgs.steam-run}/bin/steam-run ./game --headless
+      '';
     in
   {
       packages.default = nobodywho;
-      packages.game = game;
-      checks.default = game;
+      packages.game = integration-test;
+      checks.default = run-integration-test;
       devShells.default = import ./nobodywho/shell.nix { inherit pkgs; };
   });
 }
