@@ -186,7 +186,7 @@ jobs:
         run: cargo test -- --nocapture --test-threads=1
         working-directory: ./nobodywho
   
-  nix-flake-check:
+  integration-test:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -194,7 +194,7 @@ jobs:
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
       - run: nix build '.#game'
-      - run: nix flake check
+      - run: cd result && ./game --headless
 
 
   zip-distributable:
