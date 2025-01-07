@@ -1,6 +1,6 @@
 extends NobodyWhoEmbedding
 
-func _ready():
+func run_test():
 	# configure node
 	self.model_node = get_node("../EmbeddingModel")
 
@@ -17,6 +17,7 @@ func _ready():
 	# test similarity
 	var low_similarity = cosine_similarity(irrelevant_embd, dragon_hill_embd)
 	var high_similarity = cosine_similarity(dragon_hill_embd, dragon_hungry_embd) 
-	assert(low_similarity < high_similarity)
+	var result = low_similarity < high_similarity
+	assert(result)
 	print("✨ embeddings completed")
-
+	return result
