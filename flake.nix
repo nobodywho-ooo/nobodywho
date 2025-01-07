@@ -12,6 +12,7 @@
          config.allowUnfreePredicate = pkg: builtins.elem (pkgs.lib.getName pkg) [
              "steam-run"
              "steam-original"
+             "steam-unwrapped"
          ];
       });
       nobodywho = pkgs.callPackage ./nobodywho {};
