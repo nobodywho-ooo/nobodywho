@@ -350,8 +350,9 @@ fn run_completion_worker_result(
         response.clear();
     }
 
-    // This should be unreachable as the receiver loop only exits on error
-    unreachable!();
+    // We can't really throw an error here, since the other end of our channels seem to have died
+    // but it's not `unreachable!()`, since we do end up here once the channels die.
+    Ok(()) // accept our fate
 }
 pub enum EmbeddingsOutput {
     Embedding(Vec<f32>),
