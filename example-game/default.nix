@@ -42,5 +42,8 @@ stdenv.mkDerivation {
 
     cp ${model} $out/gemma-2-2b-it-Q4_K_M.gguf
     cp ${embedding_model} $out/bge-small-en-v1.5-q8_0.gguf
+
+    # Patch binaries.
+    patchelf --set-interpreter $(cat $NIX_CC/nix-support/dynamic-linker) $out/game
   '';
 }
