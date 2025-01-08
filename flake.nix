@@ -25,7 +25,7 @@
     in
   {
       packages.default = nobodywho;
-      packages.game = integration-test;
+      packages.integration-test = integration-test;
       checks.default = run-integration-test;
       devShells.default = import ./nobodywho/shell.nix { inherit pkgs; };
   });

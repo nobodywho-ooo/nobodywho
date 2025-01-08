@@ -198,7 +198,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y vulkan-tools
       - name: "build integration test"
-        run: "nix flake build '.#game'"
+        run: "nix build '.#integration-test'"
       - name: "run integration test"
         run: |
           cd result
