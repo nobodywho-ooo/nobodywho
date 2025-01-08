@@ -4,15 +4,34 @@
 [![Matrix](https://img.shields.io/badge/Matrix-000?logo=matrix&logoColor=fff)](https://matrix.to/#/#nobodywho:matrix.org)
 [![Mastodon](https://img.shields.io/badge/Mastodon-6364FF?logo=mastodon&logoColor=fff&style=flat-square)](https://mastodon.gamedev.place/@nobodywho)
 [![Godot Engine](https://img.shields.io/badge/Godot-%23FFFFFF.svg?logo=godot-engine)](https://godotengine.org/asset-library/asset/2886)
+![GitHub Sponsors](https://img.shields.io/github/sponsors/nobodywho-ooo)
+
 
 NobodyWho is a plugin for the Godot game engine that lets you interact with local LLMs for interactive storytelling.
 
+
+## At a Glance
+
+* 🏃 Run LLM-driven characters locally without internet
+* ⚡ Super fast inference on GPU powered by Vulkan or Metal
+* 🔧 Easy setup - just two nodes to get started
+* 🎯 Perfect for games, interactive stories, and NPCs
+* 💻 Cross-platform: Windows, Linux, macOS
 
 ## How to Install
 
 You can install it from inside the Godot editor: In Godot 4.3+, go to AssetLib and search for "NobodyWho".
 
 ...or you can grab a specific version from our [github releases page.](https://github.com/nobodywho-ooo/nobodywho/releases) You can install these zip files by going to the "AssetLib" tab in Godot and selecting "Import".
+
+## How to Help 
+
+* ⭐ Star the repo and spread the word about NobodyWho!
+* Join our [Discord](https://discord.gg/qhaMc2qCYB) or [Matrix](https://matrix.to/#/#nobodywho:matrix.org) communities
+* Found a bug? Open an issue!
+* Submit your own PR - contributions welcome
+* 💝 [Become a sponsor](https://github.com/sponsors/nobodywho-ooo) to support development
+* Help improve docs or write tutorials
 
 
 ## Getting started
@@ -84,3 +103,5 @@ func _ready():
     var high_similarity = cosine_similarity(dragon_hill_embd, dragon_hungry_embd) 
     assert(low_similarity < high_similarity)
 ```
+
+
