@@ -7,19 +7,13 @@
   outputs = { nixpkgs, flake-utils, ... }:
     flake-utils.lib.eachDefaultSystem (system:
     let
-      pkgs = (import nixpkgs {
-        system = system;
-         config.allowUnfreePredicate = pkg: builtins.elem (pkgs.lib.getName pkg) [
-             "steam-run"
-             "steam-original"
-             "steam-unwrapped"
-         ];
-      });
+      pkgs = (import nixpkgs { system = system; });
       nobodywho = pkgs.callPackage ./nobodywho {};
       integration-test = pkgs.callPackage ./example-game { inherit nobodywho; };
       run-integration-test = pkgs.runCommand "checkgame" { nativeBuildInputs = with pkgs; [ mesa.drivers ]; } ''
         cd ${integration-test}
-        ${pkgs.steam-run}/bin/steam-run ./game --headless
+        export HOME=$TMPDIR
+        ./game --headless
         touch $out
       '';
     in
