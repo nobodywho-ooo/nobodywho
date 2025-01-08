@@ -31,9 +31,9 @@ rustPlatform.buildRustPackage {
     };
   };
   env.TEST_MODEL = fetchurl {
-    name = "gemma-2-2b-it-Q5_K_M.gguf";
-    url = "https://huggingface.co/bartowski/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q5_K_M.gguf";
-    sha256 = "1njh254wpsg2j4wi686zabg63n42fmkgdmf9v3cl1zbydybdardy";
+    name = "gemma-2-2b-it-Q4_K_M.gguf";
+    url = "https://huggingface.co/bartowski/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_M.gguf";
+    hash = "sha256-4K7oUGDxaPDy2Ec9fqQc4vMjDBvBN0hHUF6lmSiKd4c=";
   };
   env.TEST_EMBEDDINGS_MODEL = fetchurl {
     name = "bge-small-en-v1.5-q8_0.gguf";
