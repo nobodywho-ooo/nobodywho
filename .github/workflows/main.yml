@@ -190,20 +190,9 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - uses: cachix/install-nix-action@v27
-        with:
-          github_access_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: "Install deps from distro"
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y vulkan-tools
-      - name: "build integration test"
-        run: "nix build '.#integration-test'"
-      - name: "run integration test"
-        run: |
-          cd result
-          ./game --headless
-
+      - uses: nixbuild/nix-quick-install-action@v27
+      - name: "nix flake check"
+        run: "nix flake check -L"
 
   zip-distributable:
     needs: [cargo-build-linux, cargo-build-macos, cargo-build-windows]
