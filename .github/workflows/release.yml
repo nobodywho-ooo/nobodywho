@@ -1,0 +1,39 @@
+name: "Release"
+on:
+  workflow_call:
+
+jobs:
+  zip-distributable:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v3
+        with:
+          path: binaries
+      
+      - name: Create ZIP files
+        run: |
+          cd binaries
+          zip -j linux-release.zip linux-binary/*
+          zip -j windows-release.zip windows-binary/*
+          zip -j macos-release.zip macos-binary/*
+      
+      - uses: actions/upload-artifact@v3
+        with:
+          name: release-zips
+          path: binaries/*.zip
+
+  create-github-release:
+    needs: [zip-distributable]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v3
+        with:
+          name: release-zips
+          
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            linux-release.zip
+            windows-release.zip
+            macos-release.zip

@@ -1,0 +1,22 @@
+name: "Test"
+on:
+  workflow_call:
+
+jobs:
+  cargo-test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test
+      - run: cargo clippy -- -D warnings
+      - run: cargo fmt --check
+
+  nix-flake-check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: nixbuild/nix-quick-install-action@v27
+      - name: "nix flake check"
+        run: "nix flake check -L"
+
