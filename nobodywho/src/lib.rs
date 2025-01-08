@@ -346,16 +346,16 @@ impl NobodyWhoChat {
 ///
 /// func _ready():
 ///     # configure node
-///     self.model_node = get_node("../EmbeddingModel""""""")
+///     self.model_node = get_node(“../EmbeddingModel”)
 ///
 ///     # generate some embeddings
-///     embed("The dragon is on the hill.")
+///     embed(“The dragon is on the hill.”)
 ///     var dragon_hill_embd = await self.embedding_finished
 ///
-///     embed("The dragon is hungry for humans.")
+///     embed(“The dragon is hungry for humans.”)
 ///     var dragon_hungry_embd = await self.embedding_finished
 ///
-///     embed("This doesn't matter.")
+///     embed(“This does not matter.”)
 ///     var irrelevant_embd = await self.embedding_finished
 ///
 ///     # test similarity,
