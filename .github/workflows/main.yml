@@ -186,21 +186,14 @@ jobs:
         run: cargo test -- --nocapture --test-threads=1
         working-directory: ./nobodywho
   
-  integration-test:
+  nix-flake-check:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - name: "Install deps from distro"
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y mesa-vulkan-drivers vulkan-tools
-      - name: "Debug: list vulkan drivers"
-        run: "vulkaninfo --summary"
       - uses: cachix/install-nix-action@v27
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
-      - run: nix build '.#game'
-      - run: cd result && ./game --headless
+      - run: nix flake check
 
 
   zip-distributable:

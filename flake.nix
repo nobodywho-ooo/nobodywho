@@ -17,9 +17,10 @@
       });
       nobodywho = pkgs.callPackage ./nobodywho {};
       integration-test = pkgs.callPackage ./example-game { inherit nobodywho; };
-      run-integration-test = pkgs.runCommand "checkgame" {} ''
+      run-integration-test = pkgs.runCommand "checkgame" { nativeBuildInputs = with pkgs; [ mesa.drivers ]; } ''
         cd ${integration-test}
         ${pkgs.steam-run}/bin/steam-run ./game --headless
+        touch $out
       '';
     in
   {
