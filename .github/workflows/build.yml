@@ -6,8 +6,8 @@ on:
         type: boolean
         default: true
 
-
 jobs:
+
   cargo-build-linux:
     runs-on: ubuntu-24.04
     strategy:
@@ -96,12 +96,18 @@ jobs:
       - name: "Rename built file"
         run: cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/nobodywho.dll ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.dll
 
+      - name: "Rename built files"
+        run: |
+          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/nobodywho.dll ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.dll
+          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/nobodywho.pdb ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.pdb
+
       - name: "Upload build artifacts"
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}-${{ matrix.profile }}
-          path: ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.dll
-
+          path: |
+            ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.dll
+            ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.pdb
 
   cargo-build-macos:
     runs-on: macos-15
