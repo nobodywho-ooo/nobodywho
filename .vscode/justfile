@@ -1,0 +1,40 @@
+#!/usr/bin/env just --justfile
+
+# Set the default recipe to build
+default: build
+
+# Main build recipe that runs both rust and copy-files
+build: rust copy-files
+
+# Build the Rust project
+rust:
+    cd ../nobodywho && \
+    RUST_BACKTRACE=full \
+    CARGO_PROFILE_DEV_BUILD_OVERRIDE_DEBUG=true \
+    VULKAN_SDK="C:\\VulkanSDK\\vulkan" \
+    cargo build
+
+# Copy the built files to the Godot project
+copy-files:
+    mkdir -p ../example-game/addons/nobodywho
+    cp ../nobodywho/target/debug/nobodywho.dll "../example-game/addons/nobodywho/nobodywho-x86_64-pc-windows-msvc-release.dll"
+    cp ../nobodywho/nobodywho.gdextension "../example-game/addons/nobodywho/nobodywho.gdextension"
+    cp ../assets/icon.svg "../example-game/addons/nobodywho/icon.svg"
+
+# Debug extension task to check file locations
+debug-extension:
+    @echo "Checking source files..."
+    ls -l ../nobodywho/target/debug/nobodywho.dll
+    @echo
+    @echo "Checking addon..."
+    ls -l "../example-game/addons/nobodywho/nobodywho-x86_64-pc-windows-msvc-release.dll"
+    ls -l "../example-game/addons/nobodywho/nobodywho.gdextension"
+    ls -l "../example-game/addons/nobodywho/icon.svg"
+    @echo
+    @echo "Checking gdextension content..."
+    cat "../example-game/addons/nobodywho/nobodywho.gdextension"
+
+# Clean build artifacts
+clean:
+    cd ../nobodywho && cargo clean
+    rm -rf "../example-game/addons/nobodywho" 

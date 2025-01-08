@@ -6,34 +6,45 @@ jobs:
   zip-distributable:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/download-artifact@v3
-        with:
-          path: binaries
-      
-      - name: Create ZIP files
-        run: |
-          cd binaries
-          zip -j linux-release.zip linux-binary/*
-          zip -j windows-release.zip windows-binary/*
-          zip -j macos-release.zip macos-binary/*
-      
-      - uses: actions/upload-artifact@v3
-        with:
-          name: release-zips
-          path: binaries/*.zip
+        - uses: actions/checkout@v4
+  
+        - name: "Download all build artifacts"
+          uses: actions/download-artifact@v4
+          with:
+            path: ./artifacts
+  
+        - name: "Make directory structure for release zip"
+          run: |
+            mkdir -p nobodywho-release/bin/addons/nobodywho
+            # copy in nobodywho libs
+            cp ./artifacts/*/*nobodywho* ./nobodywho-release/bin/addons/nobodywho/
+            # copy in gdextension metadata
+            cp ./nobodywho/nobodywho.gdextension ./nobodywho-release/bin/addons/nobodywho/
+            cp ./assets/icon.svg ./nobodywho-release/bin/addons/nobodywho/
+        - name: "Upload zipped build artifacts"
+          uses: actions/upload-artifact@v4
+          with:
+            name: nobodywho-all-platforms
+            path: ./nobodywho-release
 
   create-github-release:
     needs: [zip-distributable]
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/download-artifact@v3
+      - name: "Download build artifacts"
+        uses: actions/download-artifact@v4
         with:
-          name: release-zips
-          
-      - name: Create Release
+          name: nobodywho-all-platforms
+          path: ./nobodywho-release
+
+      - name: "Make zip file"
+        working-directory: ./nobodywho-release
+        run: zip -r "../nobodywho-${{ github.ref_name }}.zip" ./**
+
+      - name: "Create GitHub Release"
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            linux-release.zip
-            windows-release.zip
-            macos-release.zip
+          files: "./nobodywho-${{ github.ref_name }}.zip"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
