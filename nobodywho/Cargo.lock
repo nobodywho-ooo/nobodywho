@@ -307,6 +307,7 @@ version = "0.2.2"
 source = "git+https://github.com/godot-rust/gdext?branch=master#6a5d19d5f8e7563730ccd4738e46f398726b222a"
 dependencies = [
  "godot-bindings",
+ "markdown",
  "proc-macro2",
  "quote",
  "venial",
