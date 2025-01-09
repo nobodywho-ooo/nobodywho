@@ -185,7 +185,14 @@ jobs:
       - name: "Run unit tests"
         run: cargo test -- --nocapture --test-threads=1
         working-directory: ./nobodywho
-
+  
+  nix-flake-check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: nixbuild/nix-quick-install-action@v27
+      - name: "nix flake check"
+        run: "nix flake check -L"
 
   zip-distributable:
     needs: [cargo-build-linux, cargo-build-macos, cargo-build-windows]

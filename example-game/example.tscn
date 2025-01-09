@@ -1,6 +1,7 @@
-[gd_scene load_steps=3 format=3 uid="uid://qir8gkg0qx5w"]
+[gd_scene load_steps=4 format=3 uid="uid://qir8gkg0qx5w"]
 
 [ext_resource type="Script" path="res://chat.gd" id="1_178kq"]
+[ext_resource type="Script" path="res://run_tests.gd" id="1_mssk2"]
 [ext_resource type="Script" path="res://embedding.gd" id="2_rcagm"]
 
 [node name="Control" type="Control"]
@@ -10,6 +11,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+script = ExtResource("1_mssk2")
 
 [node name="ChatModel" type="NobodyWhoModel" parent="."]
 model_path = "res://gemma-2-2b-it-Q4_K_M.gguf"

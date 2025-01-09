@@ -8,9 +8,19 @@
     flake-utils.lib.eachDefaultSystem (system:
     let
       pkgs = (import nixpkgs { system = system; });
+      nobodywho = pkgs.callPackage ./nobodywho {};
+      integration-test = pkgs.callPackage ./example-game { inherit nobodywho; };
+      run-integration-test = pkgs.runCommand "checkgame" { nativeBuildInputs = with pkgs; [ mesa.drivers ]; } ''
+        cd ${integration-test}
+        export HOME=$TMPDIR
+        ./game --headless
+        touch $out
+      '';
     in
   {
-      packages.default = pkgs.callPackage ./nobodywho {};
+      packages.default = nobodywho;
+      packages.integration-test = integration-test;
+      checks.default = run-integration-test;
       devShells.default = import ./nobodywho/shell.nix { inherit pkgs; };
   });
 }
