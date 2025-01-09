@@ -302,8 +302,8 @@ fn run_completion_worker_result(
 
         // Token generation loop
         loop {
-            // Check for context window overflow
-            if n_cur + batch.n_tokens() >= ctx.n_ctx() as i32 {
+            // Check for context window overflow (the -4 comes from the llama.cpp implementation)
+            if n_cur + batch.n_tokens() >= ctx.n_ctx() as i32 - 4 {
                 n_cur -= apply_context_shifting(&mut ctx, n_cur)?;
 
                 assert!(n_cur + batch.n_tokens() < ctx.n_ctx() as i32);
