@@ -7,7 +7,9 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - uses: nixbuild/nix-quick-install-action@v27
+      - uses: cachix/install-nix-action@v27
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
       - name: "nix flake check"
         run: "nix flake check -L"
 
