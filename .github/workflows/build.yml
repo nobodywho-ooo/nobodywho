@@ -1,0 +1,150 @@
+name: "Build"
+on:
+  workflow_call:
+    inputs:
+      upload_artifacts:
+        type: boolean
+        default: true
+
+jobs:
+
+  cargo-build-linux:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - "x86_64-unknown-linux-gnu"
+        profile:
+          - "debug"
+          - "release"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Cache Cargo Home"
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo
+            nobodywho/target
+          key: ${{ runner.os }}-cargo-home-${{ matrix.target }}-${{ matrix.profile }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-home-${{ matrix.target }}-${{ matrix.profile }}-
+      - name: "Setup rust toolchain"
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          . "$HOME/.cargo/env"
+          rustup update stable
+          rustup default stable
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      - name: "Install distro dependencies"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
+      - name: "Compile for linux"
+        run: cargo build --verbose ${{ matrix.profile == 'release' && '--release' || '' }}
+        working-directory: ./nobodywho
+
+      - name: "Rename built file"
+        run: cp ./nobodywho/target/${{ matrix.profile }}/libnobodywho.so ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.so
+
+      - name: "Upload build artifact"
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}-${{ matrix.profile }}
+          path: ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.so
+
+  cargo-build-windows:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - "x86_64-pc-windows-msvc"
+        profile:
+          - "debug"
+          - "release"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: "Cache Cargo Home"
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo
+          key: ${{ runner.os }}-cargo-home-${{ matrix.target }}-${{ matrix.profile }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-home-${{ matrix.target }}-${{ matrix.profile }}-
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+
+      - name: Install Vulkan SDK
+        uses: jakoch/install-vulkan-sdk-action@v1.0.0
+        with:
+          vulkan_version: 1.3.296.0
+          install_runtime: true
+          cache: true
+          stripdown: true
+
+      - name: Build with Cargo
+        run: cargo build --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }}
+        working-directory: nobodywho
+
+      - name: "Rename built file"
+        run: cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/nobodywho.dll ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.dll
+
+      - name: "Rename built files"
+        run: |
+          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/nobodywho.dll ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.dll
+          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/nobodywho.pdb ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.pdb
+
+      - name: "Upload build artifacts"
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}-${{ matrix.profile }}
+          path: |
+            ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.dll
+            ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.pdb
+
+  cargo-build-macos:
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        target: 
+          - "x86_64-apple-darwin"
+          - "aarch64-apple-darwin"
+        profile:
+          - "debug"
+          - "release"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Cache Cargo Home"
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo
+          key: ${{ runner.os }}-cargo-home-${{ matrix.target }}-${{ matrix.profile }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-home-${{ matrix.target }}-${{ matrix.profile }}-
+      - run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          . "$HOME/.cargo/env"
+          rustup update stable
+          rustup default stable
+          rustup target add ${{ matrix.target }}
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      - run: cargo build --verbose ${{ matrix.profile == 'release' && '--release' || '' }}
+        working-directory: ./nobodywho
+
+      - name: "Rename built file"
+        run: cp ./nobodywho/target/${{ matrix.profile }}/libnobodywho.dylib ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.dylib
+
+      - name: "Upload build artifact"
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}-${{ matrix.profile }}
+          path: ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.dylib
