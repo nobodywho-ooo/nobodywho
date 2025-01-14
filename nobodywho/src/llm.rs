@@ -591,7 +591,10 @@ mod tests {
         });
 
         dog_prompt_tx
-            .send("Hi! What kind of animal are you? What sound do you make a lot?".to_string())
+            .send(
+                "Hi! What kind of animal are you? Show me by making the sound you make."
+                    .to_string(),
+            )
             .unwrap();
 
         cat_prompt_tx
