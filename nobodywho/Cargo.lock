@@ -537,6 +537,7 @@ dependencies = [
  "chrono",
  "encoding_rs",
  "godot",
+ "lazy_static",
  "llama-cpp-2",
  "llama-cpp-sys-2",
  "minijinja",

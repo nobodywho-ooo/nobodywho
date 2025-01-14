@@ -1,4 +1,5 @@
 use crate::chat_state;
+use lazy_static::lazy_static;
 use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::context::LlamaContext;
 use llama_cpp_2::llama_backend::LlamaBackend;
@@ -10,9 +11,13 @@ use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 use std::pin::pin;
 use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{Arc, LazyLock};
+use std::sync::{Arc, LazyLock, Mutex};
 
 const MAX_TOKEN_STR_LEN: usize = 128;
+
+lazy_static! {
+    static ref GLOBAL_INFERENCE_LOCK: Mutex<()> = Mutex::new(());
+}
 
 static LLAMA_BACKEND: LazyLock<LlamaBackend> =
     LazyLock::new(|| LlamaBackend::init().expect("Failed to initialize llama backend"));
@@ -289,6 +294,8 @@ fn run_completion_worker_result(
 
     // Main message processing loop
     while let Ok(content) = message_rx.recv() {
+        let _has_lock = GLOBAL_INFERENCE_LOCK.lock();
+
         // Add user message to chat state
         chat_state.add_message("user".to_string(), content);
 
