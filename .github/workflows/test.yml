@@ -7,46 +7,27 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - uses: DeterminateSystems/nix-installer-action@main
+      - run: |
+          sh <(curl -L https://nixos.org/nix/install) --no-daemon
+      - name: Restore and cache Nix store
+        uses: nix-community/cache-nix-action@v5
+        with:
+          # restore and save a cache using this key
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix') }}
+          # if there's no cache hit, restore a cache by this prefix
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+          # collect garbage until Nix store size (in bytes) is at most this number
+          # before trying to save a new cache
+          gc-max-store-size-linux: 10000000000
+          # do purge caches
+          purge: true
+          # purge all versions of the cache
+          purge-prefixes: cache-${{ runner.os }}-
+          # created more than this number of seconds ago relative to the start of the `Post Restore` phase
+          purge-created: 0
+          # except the version with the `primary-key`, if it exists
+          purge-primary-key: never
       - name: "nix flake check"
-        run: "nix flake check -L"
-
-  cargo-test:
-      runs-on: ubuntu-24.04
-      strategy:
-        fail-fast: false
-      steps:
-        - uses: actions/checkout@v4
-
-        - name: "Cache Cargo Home"
-          uses: actions/cache@v4
-          with:
-            path: |
-              ~/.cargo
-              nobodywho/target
-            key: ${{ runner.os }}-cargo-home-${{ matrix.target }}-${{ matrix.profile }}-${{ hashFiles('**/Cargo.lock') }}
-            restore-keys: |
-              ${{ runner.os }}-cargo-home-${{ matrix.target }}-${{ matrix.profile }}-
-
-        - name: "Set up rust toolchain"
-          run: |
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-            . "$HOME/.cargo/env"
-            rustup update stable
-            rustup default stable
-            echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
-        - name: "Install deps from distro"
-          run: |
-            sudo apt-get update
-            sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc mesa-vulkan-drivers
-
-        - name: "Download test model"
-          run: wget "https://huggingface.co/bartowski/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q5_K_M.gguf" -O ./nobodywho/model.gguf
-
-        - name: "Download embeddings model"
-          run: wget "https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf" -O ./nobodywho/embeddings.gguf
-
-        - name: "Run unit tests"
-          run: cargo test -- --nocapture --test-threads=1
-          working-directory: ./nobodywho
+        run: |
+          . /home/runner/.nix-profile/etc/profile.d/nix.sh
+          nix --extra-experimental-features nix-command --extra-experimental-features flakes flake check -L
