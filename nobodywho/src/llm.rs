@@ -171,6 +171,9 @@ pub enum WorkerError {
 
     #[error("Could not send newly generated token out to the game engine.")]
     SendError, // this is actually a SendError<LLMOutput>, but that becomes recursive and weord.
+
+    #[error("Global Inference Lock was poisoned.")]
+    GILPoisonError, // this is actually a std::sync::PoisonError<std::sync::MutexGuard<'static, ()>>, but that doesn't implement Send, so we do this
 }
 
 /// Adds a sequence of tokens to the batch for processing.
@@ -294,7 +297,13 @@ fn run_completion_worker_result(
 
     // Main message processing loop
     while let Ok(content) = message_rx.recv() {
-        let _has_lock = GLOBAL_INFERENCE_LOCK.lock();
+        // HACK
+        // this is needed because contexts referencing the same model are not thread safe
+        // if two contexts referencing the same model try to decode at the same time,
+        // then llama.cpp segfaults and everybody dies and i become sad
+        let inference_lock = GLOBAL_INFERENCE_LOCK
+            .lock()
+            .map_err(|_| WorkerError::GILPoisonError)?;
 
         // Add user message to chat state
         chat_state.add_message("user".to_string(), content);
@@ -355,6 +364,10 @@ fn run_completion_worker_result(
             .map_err(|_| WorkerError::SendError)?;
 
         response.clear();
+
+        // I drop the inference_lock explicitly here because I think the rust
+        // compiler might otherwise optimize and drop it early
+        drop(inference_lock);
     }
 
     // We can't really throw an error here, since the other end of our channels seem to have died
@@ -392,6 +405,11 @@ pub fn run_embedding_worker_result(
     let mut ctx = model.new_context(&LLAMA_BACKEND, ctx_params)?;
 
     while let Ok(text) = text_rx.recv() {
+        // HACK see comment in completion worker
+        let inference_lock = GLOBAL_INFERENCE_LOCK
+            .lock()
+            .map_err(|_| WorkerError::GILPoisonError)?;
+
         let mut batch = LlamaBatch::new(ctx.n_ctx() as usize, 1);
 
         let tokens = ctx.model.str_to_token(&text, AddBos::Always)?;
@@ -406,6 +424,8 @@ pub fn run_embedding_worker_result(
         embedding_tx
             .send(EmbeddingsOutput::Embedding(embedding))
             .map_err(|_| WorkerError::SendError)?;
+
+        drop(inference_lock);
     }
     Ok(())
 }
