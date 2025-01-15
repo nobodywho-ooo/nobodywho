@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - uses: cachix/install-nix-action@v27
+      - run: sh <(curl -L https://nixos.org/nix/install) --no-daemon
       - name: Restore and cache Nix store
         uses: nix-community/cache-nix-action@v5
         with:
