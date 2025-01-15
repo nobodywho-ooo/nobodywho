@@ -7,10 +7,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - uses: DeterminateSystems/nix-installer-action@main
-        with:
-          github_access_token: ${{ secrets.GITHUB_TOKEN }}
-
+      - uses: nixbuild/nix-quick-install-action@v29
       - name: Restore and cache Nix store
         uses: nix-community/cache-nix-action@v5
         with:
