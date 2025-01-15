@@ -216,6 +216,7 @@ fn add_sequence(
 /// * `Ok(n_discard)` - Number of tokens discarded from start of context
 /// * `Err(WorkerError)` - If cache operations fail
 fn apply_context_shifting(ctx: &mut LlamaContext, pos: i32) -> Result<i32, WorkerError> {
+    println!("✨ shifting context");
     let n_discard = pos / 2;
 
     // Delete the first `n_discard` tokens
@@ -660,6 +661,52 @@ mod tests {
         assert!(
             result.contains("meow"),
             "Expected completion to contain 'meow', got: {result}"
+        );
+    }
+
+    #[test]
+    fn test_context_shifting() {
+        let model = get_model(test_model_path!(), true).unwrap();
+
+        let (prompt_tx, prompt_rx) = std::sync::mpsc::channel();
+        let (completion_tx, completion_rx) = std::sync::mpsc::channel();
+
+        let system_prompt = "You are a helpful assistant.".to_string();
+        std::thread::spawn(|| {
+            run_completion_worker(
+                model,
+                prompt_rx,
+                completion_tx,
+                SamplerConfig::default(),
+                128, // very low context size. will be exceeded immediately
+                system_prompt,
+            )
+        });
+
+        prompt_tx
+            .send("Please count down from 100. Begin like this: 100, 99, 98...".to_string())
+            .unwrap();
+
+        let result: String;
+        loop {
+            match completion_rx.recv() {
+                Ok(LLMOutput::Token(t)) => {
+                    println!("new token: {t}");
+                }
+                Ok(LLMOutput::Done(response)) => {
+                    result = response;
+                    break;
+                }
+                Ok(LLMOutput::FatalErr(e)) => {
+                    println!("got fatal error: {e}");
+                    panic!();
+                }
+                _ => unreachable!(),
+            }
+        }
+        assert!(
+            result.contains("3, 2, 1"),
+            "Expected completion to contain '3, 2, 1', got: {result}"
         );
     }
 }
