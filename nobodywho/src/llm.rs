@@ -1,4 +1,5 @@
 use crate::chat_state;
+use lazy_static::lazy_static;
 use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::context::LlamaContext;
 use llama_cpp_2::llama_backend::LlamaBackend;
@@ -10,9 +11,13 @@ use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 use std::pin::pin;
 use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{Arc, LazyLock};
+use std::sync::{Arc, LazyLock, Mutex};
 
 const MAX_TOKEN_STR_LEN: usize = 128;
+
+lazy_static! {
+    static ref GLOBAL_INFERENCE_LOCK: Mutex<()> = Mutex::new(());
+}
 
 static LLAMA_BACKEND: LazyLock<LlamaBackend> =
     LazyLock::new(|| LlamaBackend::init().expect("Failed to initialize llama backend"));
@@ -166,6 +171,9 @@ pub enum WorkerError {
 
     #[error("Could not send newly generated token out to the game engine.")]
     SendError, // this is actually a SendError<LLMOutput>, but that becomes recursive and weord.
+
+    #[error("Global Inference Lock was poisoned.")]
+    GILPoisonError, // this is actually a std::sync::PoisonError<std::sync::MutexGuard<'static, ()>>, but that doesn't implement Send, so we do this
 }
 
 /// Adds a sequence of tokens to the batch for processing.
@@ -289,6 +297,14 @@ fn run_completion_worker_result(
 
     // Main message processing loop
     while let Ok(content) = message_rx.recv() {
+        // HACK
+        // this is needed because contexts referencing the same model are not thread safe
+        // if two contexts referencing the same model try to decode at the same time,
+        // then llama.cpp segfaults and everybody dies and i become sad
+        let inference_lock = GLOBAL_INFERENCE_LOCK
+            .lock()
+            .map_err(|_| WorkerError::GILPoisonError)?;
+
         // Add user message to chat state
         chat_state.add_message("user".to_string(), content);
 
@@ -348,6 +364,10 @@ fn run_completion_worker_result(
             .map_err(|_| WorkerError::SendError)?;
 
         response.clear();
+
+        // I drop the inference_lock explicitly here because I think the rust
+        // compiler might otherwise optimize and drop it early
+        drop(inference_lock);
     }
 
     // We can't really throw an error here, since the other end of our channels seem to have died
@@ -385,6 +405,11 @@ pub fn run_embedding_worker_result(
     let mut ctx = model.new_context(&LLAMA_BACKEND, ctx_params)?;
 
     while let Ok(text) = text_rx.recv() {
+        // HACK see comment in completion worker
+        let inference_lock = GLOBAL_INFERENCE_LOCK
+            .lock()
+            .map_err(|_| WorkerError::GILPoisonError)?;
+
         let mut batch = LlamaBatch::new(ctx.n_ctx() as usize, 1);
 
         let tokens = ctx.model.str_to_token(&text, AddBos::Always)?;
@@ -399,6 +424,8 @@ pub fn run_embedding_worker_result(
         embedding_tx
             .send(EmbeddingsOutput::Embedding(embedding))
             .map_err(|_| WorkerError::SendError)?;
+
+        drop(inference_lock);
     }
     Ok(())
 }
@@ -553,6 +580,86 @@ mod tests {
         assert!(
             cosine_similarity(&copenhagen_embedding, &insult_embedding)
                 < cosine_similarity(&copenhagen_embedding, &berlin_embedding)
+        );
+    }
+
+    #[test]
+    fn test_multiple_contexts_single_model() {
+        let model = get_model(test_model_path!(), true).unwrap();
+
+        let (dog_prompt_tx, dog_prompt_rx) = std::sync::mpsc::channel();
+        let (dog_completion_tx, dog_completion_rx) = std::sync::mpsc::channel();
+
+        let model_clone = model.clone();
+        let dog_prompt = "You're a dog. You say 'woof' a lot!".to_string();
+        std::thread::spawn(|| {
+            run_completion_worker(
+                model_clone,
+                dog_prompt_rx,
+                dog_completion_tx,
+                SamplerConfig::default(),
+                4096,
+                dog_prompt,
+            )
+        });
+
+        let cat_prompt = "You're a cat. You say 'meow' a lot!".to_string();
+        let (cat_prompt_tx, cat_prompt_rx) = std::sync::mpsc::channel();
+        let (cat_completion_tx, cat_completion_rx) = std::sync::mpsc::channel();
+        std::thread::spawn(|| {
+            run_completion_worker(
+                model,
+                cat_prompt_rx,
+                cat_completion_tx,
+                SamplerConfig::default(),
+                4096,
+                cat_prompt,
+            )
+        });
+
+        dog_prompt_tx
+            .send(
+                "Hi! What kind of animal are you? Show me by making the sound you make."
+                    .to_string(),
+            )
+            .unwrap();
+
+        cat_prompt_tx
+            .send("Hi! What kind of animal are you? What sound do you make a lot?".to_string())
+            .unwrap();
+
+        // read dog output
+        let result: String;
+        loop {
+            match dog_completion_rx.recv() {
+                Ok(LLMOutput::Token(_)) => {}
+                Ok(LLMOutput::Done(response)) => {
+                    result = response;
+                    break;
+                }
+                _ => unreachable!(),
+            }
+        }
+        assert!(
+            result.contains("woof"),
+            "Expected completion to contain 'woof', got: {result}"
+        );
+
+        // read cat output
+        let result: String;
+        loop {
+            match cat_completion_rx.recv() {
+                Ok(LLMOutput::Token(_)) => {}
+                Ok(LLMOutput::Done(response)) => {
+                    result = response;
+                    break;
+                }
+                _ => unreachable!(),
+            }
+        }
+        assert!(
+            result.contains("meow"),
+            "Expected completion to contain 'meow', got: {result}"
         );
     }
 }
