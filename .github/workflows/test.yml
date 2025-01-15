@@ -7,6 +7,12 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - run: |
+          # this stuff is apparently needed to make the nix install action work on self-hosted runners
+          # Ensure USER is set
+          export USER=${USER:-$(whoami)}
+          # Optional: Print for debugging
+          echo "USER=$USER"
       - uses: nixbuild/nix-quick-install-action@v29
       - name: Restore and cache Nix store
         uses: nix-community/cache-nix-action@v5
