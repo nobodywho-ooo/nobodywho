@@ -7,6 +7,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - name: "Install distro dependencies"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sqlite3 # ...needed to install nix
       - run: |
           sh <(curl -L https://nixos.org/nix/install) --no-daemon
       - name: Restore and cache Nix store
