@@ -24,6 +24,8 @@ You can install it from inside the Godot editor: In Godot 4.3+, go to AssetLib a
 
 ...or you can grab a specific version from our [github releases page.](https://github.com/nobodywho-ooo/nobodywho/releases) You can install these zip files by going to the "AssetLib" tab in Godot and selecting "Import".
 
+Make sure that the ignore asset root option is set in the import dialogue.
+
 ## How to Help 
 
 * ⭐ Star the repo and spread the word about NobodyWho!
