@@ -216,14 +216,50 @@ fn add_sequence(
 /// * `Ok(n_discard)` - Number of tokens discarded from start of context
 /// * `Err(WorkerError)` - If cache operations fail
 fn apply_context_shifting(ctx: &mut LlamaContext, pos: i32) -> Result<i32, WorkerError> {
-    println!("✨ shifting context");
+    assert!(
+        pos == ctx.get_kv_cache_token_count(),
+        "pos != token count, pos: {}, token count: {}",
+        pos,
+        ctx.get_kv_cache_token_count()
+    );
+
     let n_discard = pos / 2;
+
+    println!(
+        "✨ shifting context, pos: {}, n_discard: {}",
+        pos, n_discard
+    );
+    // Print the context
+
+    // Print token count before shifting
+    let before = ctx.get_kv_cache_token_count();
+
+    println!(
+        "Token count before shifting: {}",
+        ctx.get_kv_cache_token_count()
+    );
 
     // Delete the first `n_discard` tokens
     ctx.clear_kv_cache_seq(Some(0), None, Some(n_discard as u32))?;
 
     // Shift the context left with `n_discard` tokens
     ctx.kv_cache_seq_add(0, Some(n_discard as u32), Some(pos as u32), -n_discard)?;
+
+    let after = ctx.get_kv_cache_token_count();
+
+    assert!(
+        before - n_discard == after,
+        "Token count mismatch after shifting, expected: {}, got: {}, at pos: {}",
+        before - n_discard,
+        after,
+        pos
+    );
+
+    // Print token count after shifting
+    println!(
+        "Token count after shifting: {}",
+        ctx.get_kv_cache_token_count()
+    );
 
     Ok(n_discard)
 }
@@ -320,15 +356,42 @@ fn run_completion_worker_result(
         // Token generation loop
         loop {
             // Check for context window overflow (the -4 comes from the llama.cpp implementation)
-            if n_cur + batch.n_tokens() >= ctx.n_ctx() as i32 - 4 {
+
+            if n_cur + batch.n_tokens() >= (ctx.n_ctx()) as i32 {
+                // Assert that the token count is what we expect
+                assert!(
+                    n_cur == ctx.get_kv_cache_token_count(),
+                    "Expected token count to be equal to n_cur. n_cur: {}, token count: {}",
+                    n_cur,
+                    ctx.get_kv_cache_token_count()
+                );
+                // Debug log before and after shifting
+                println!(
+                    "Before shifting: n_cur: {}, batch.n_tokens: {}, n_ctx: {}",
+                    n_cur,
+                    batch.n_tokens(),
+                    ctx.n_ctx()
+                );
                 n_cur -= apply_context_shifting(&mut ctx, n_cur)?;
+
+                println!(
+                    "After shifting: n_cur: {}, batch.n_tokens: {}, n_ctx: {}",
+                    n_cur,
+                    batch.n_tokens(),
+                    ctx.n_ctx()
+                );
 
                 assert!(n_cur + batch.n_tokens() < ctx.n_ctx() as i32);
             }
+            // Assert that batch is not empty
+            assert!(batch.n_tokens() > 0);
 
             // Process current batch
-            ctx.decode(&mut batch)?;
+            // Print the position of the last token in the context
+            // println!("Before decode n_cur: {}", n_cur);
+            ctx.decode(&mut batch).unwrap();
             n_cur += batch.n_tokens();
+            println!("After decode n_cur: {}", n_cur);
 
             // Sample next token
             let new_token: LlamaToken = sampler.sample(&ctx, -1);
@@ -357,6 +420,7 @@ fn run_completion_worker_result(
 
         // Process final batch and update chat state
         ctx.decode(&mut batch)?;
+
         chat_state.add_message("assistant".to_string(), response.clone());
 
         // Send completion signal
@@ -642,7 +706,7 @@ mod tests {
             }
         }
         assert!(
-            result.contains("woof"),
+            result.contains("Woof"),
             "Expected completion to contain 'woof', got: {result}"
         );
 
@@ -684,14 +748,14 @@ mod tests {
         });
 
         prompt_tx
-            .send("Please count down from 100. Begin like this: 100, 99, 98...".to_string())
+            .send("Please count down from 100 and 0.".to_string())
             .unwrap();
 
         let result: String;
         loop {
             match completion_rx.recv() {
                 Ok(LLMOutput::Token(t)) => {
-                    println!("new token: {t}");
+                    //println!("new token: {t}");
                 }
                 Ok(LLMOutput::Done(response)) => {
                     result = response;
