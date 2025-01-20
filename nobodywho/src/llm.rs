@@ -1,4 +1,3 @@
-use crate::chat_state;
 use lazy_static::lazy_static;
 use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::context::LlamaContext;
