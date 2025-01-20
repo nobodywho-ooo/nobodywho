@@ -1,4 +1,3 @@
-use crate::chat_state;
 use lazy_static::lazy_static;
 use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::context::LlamaContext;
@@ -7,11 +6,12 @@ use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::model::{AddBos, Special};
-use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 use std::pin::pin;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, LazyLock, Mutex};
+use crate::chat_state;
+use crate::sampler_config::{make_sampler, SamplerConfig};
 
 const MAX_TOKEN_STR_LEN: usize = 128;
 
@@ -81,60 +81,6 @@ pub fn get_model(
             ))
         })?;
     Ok(Arc::new(model))
-}
-
-// random candidates
-pub struct SamplerConfig {
-    pub seed: u32,
-    pub temperature: f32,
-    pub penalty_last_n: i32,
-    pub penalty_repeat: f32,
-    pub penalty_freq: f32,
-    pub penalty_present: f32,
-    pub penalize_nl: bool,
-    pub ignore_eos: bool,
-    pub mirostat_tau: f32,
-    pub mirostat_eta: f32,
-}
-
-impl Default for SamplerConfig {
-    fn default() -> Self {
-        SamplerConfig {
-            seed: 1234,
-            temperature: 0.8,
-            penalty_last_n: -1,
-            penalty_repeat: 0.0,
-            penalty_freq: 0.0,
-            penalty_present: 0.0,
-            penalize_nl: false,
-            ignore_eos: false,
-            mirostat_tau: 5.0,
-            mirostat_eta: 0.1,
-        }
-    }
-}
-
-fn make_sampler(model: &LlamaModel, config: SamplerConfig) -> LlamaSampler {
-    // init mirostat sampler
-    LlamaSampler::chain(
-        [
-            LlamaSampler::penalties(
-                model.n_vocab(),
-                model.token_eos().0,
-                model.token_nl().0,
-                config.penalty_last_n,
-                config.penalty_repeat,
-                config.penalty_freq,
-                config.penalty_present,
-                config.penalize_nl,
-                config.ignore_eos,
-            ),
-            LlamaSampler::temp(config.temperature),
-            //LlamaSampler::mirostat_v2(config.seed, config.mirostat_tau, config.mirostat_eta),
-            LlamaSampler::dist(config.seed),
-        ],
-        true, // Do not calculate performance metrics
-    )
 }
 
 #[derive(Debug, thiserror::Error)]
