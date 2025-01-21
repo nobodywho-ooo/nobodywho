@@ -33,5 +33,5 @@ jobs:
           purge-primary-key: never
       - name: "nix flake check"
         run: |
-          . /home/runner/.nix-profile/etc/profile.d/nix.sh
+          . ~/.nix-profile/etc/profile.d/nix.sh
           nix --extra-experimental-features nix-command --extra-experimental-features flakes flake check -L
