@@ -107,3 +107,12 @@ func _ready():
 ```
 
 
+## Licensing
+
+There has been some confusion about the licensing terms of this plugin. To clarify:
+
+You are allowed to use this plugin in proprietary and commercial projects, free of charge.
+
+If you distribute modified versions of the code *in this repo*, you must open source those changes.
+
+Feel free to make proprietary games using NobodyWho, but don't make a proprietary fork of NobodyWho.
