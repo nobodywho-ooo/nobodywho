@@ -1,0 +1,146 @@
+[gd_scene load_steps=4 format=3 uid="uid://bvcdl8qvga2hb"]
+
+[ext_resource type="Script" path="res://chat.gd" id="1_f7oge"]
+[ext_resource type="Texture2D" uid="uid://hii23mlqlori" path="res://icon.svg" id="2_gaslb"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_kl35e"]
+
+[node name="World" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="ChatModel" type="NobodyWhoModel" parent="."]
+model_path = "res://MN-12b-RP-Ink-Q4_K_M.gguf"
+
+[node name="EmbeddingModel" type="NobodyWhoModel" parent="."]
+model_path = "res://bge-large-en-v1.5-q8_0.gguf"
+
+[node name="NobodyWhoChat" type="NobodyWhoChat" parent="." node_paths=PackedStringArray("model_node")]
+model_node = NodePath("../ChatModel")
+system_prompt = "The following is a roleplay dialogue between a player and a video game NPC.
+You will play as the NPC, a medieval-fantasy potionshop shopkeeper.
+Only respond with the utterances of the NPC. Don't include any descriptions or actions in your response. Only say what the shopkeeper character would say. Respond concisely.
+
+The shop has the following potions:
+A potion of minor healing. It's a red potion in a small spherical bottle. It heals 20 HP and costs 3 silver.
+A potion of mana. It's a blue potion in a tall and narrow test-tube. It gives 5 mana and costs 1 gold.
+A potion of strength. It's an orange potion in a big square flask. It gives +10 strength for 1 minute and costs 5 gold.
+
+The shop contains only those three potions, and no more.
+
+Never break character, always stay in the role of the shopkeeper."
+script = ExtResource("1_f7oge")
+
+[node name="NobodyWhoEmbedding" type="NobodyWhoEmbedding" parent="." node_paths=PackedStringArray("model_node")]
+model_node = NodePath("../EmbeddingModel")
+unique_name_in_owner = true
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+position = Vector2(586, 306)
+texture = ExtResource("2_gaslb")
+
+[node name="ConfirmBox" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -149.0
+offset_top = -56.5
+offset_right = 149.0
+offset_bottom = 56.5
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="ConfirmBox"]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ConfirmBox/MarginContainer"]
+layout_mode = 2
+
+[node name="ConfirmLabel" type="Label" parent="ConfirmBox/MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Purchase 1 health potion for 3 gold?"
+horizontal_alignment = 1
+
+[node name="YesButton" type="Button" parent="ConfirmBox/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Yes"
+
+[node name="NoButton" type="Button" parent="ConfirmBox/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "No"
+
+[node name="ChatBox" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 0
+
+[node name="HBoxContainer" type="HBoxContainer" parent="ChatBox"]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -128.0
+grow_horizontal = 2
+grow_vertical = 0
+
+[node name="MarginContainer" type="MarginContainer" parent="ChatBox/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 20
+
+[node name="TextEdit" type="TextEdit" parent="ChatBox/HBoxContainer/MarginContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 128)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+theme_override_styles/normal = SubResource("StyleBoxEmpty_kl35e")
+placeholder_text = "Write what you want to say here..."
+wrap_mode = 1
+scroll_fit_content_height = true
+
+[node name="SendButton" type="Button" parent="ChatBox/HBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 0)
+layout_mode = 2
+text = "SEND"
+
+[node name="OkButton" type="Button" parent="ChatBox/HBoxContainer"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(64, 0)
+layout_mode = 2
+text = "OK"
+
+[connection signal="response_finished" from="NobodyWhoChat" to="NobodyWhoChat" method="_on_response_finished"]
+[connection signal="response_updated" from="NobodyWhoChat" to="NobodyWhoChat" method="_on_response_updated"]
+[connection signal="pressed" from="ConfirmBox/MarginContainer/VBoxContainer/YesButton" to="NobodyWhoChat" method="_on_yes_button_pressed"]
+[connection signal="pressed" from="ConfirmBox/MarginContainer/VBoxContainer/NoButton" to="NobodyWhoChat" method="_on_no_button_pressed"]
+[connection signal="pressed" from="ChatBox/HBoxContainer/SendButton" to="NobodyWhoChat" method="_on_send_button_pressed"]
+[connection signal="pressed" from="ChatBox/HBoxContainer/OkButton" to="NobodyWhoChat" method="_on_ok_button_pressed"]
