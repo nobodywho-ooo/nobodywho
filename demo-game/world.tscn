@@ -1,9 +1,25 @@
-[gd_scene load_steps=4 format=3 uid="uid://bvcdl8qvga2hb"]
+[gd_scene load_steps=5 format=3 uid="uid://bvcdl8qvga2hb"]
 
 [ext_resource type="Script" path="res://chat.gd" id="1_f7oge"]
-[ext_resource type="Texture2D" uid="uid://hii23mlqlori" path="res://icon.svg" id="2_gaslb"]
+[ext_resource type="Texture2D" uid="uid://bg2u7yyo5vql6" path="res://00046-1991569093.png" id="2_s42j2"]
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_kl35e"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_jb2pp"]
+bg_color = Color(0.203922, 0.231373, 0.380392, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.678944, 0.678944, 0.678943, 1)
+corner_radius_top_left = 20
+corner_radius_top_right = 20
+corner_radius_bottom_right = 20
+corner_radius_bottom_left = 20
+expand_margin_left = 10.0
+expand_margin_top = 10.0
+expand_margin_right = 10.0
+expand_margin_bottom = 10.0
 
 [node name="World" type="Control"]
 layout_mode = 3
@@ -23,8 +39,9 @@ model_path = "res://bge-large-en-v1.5-q8_0.gguf"
 
 [node name="NobodyWhoChat" type="NobodyWhoChat" parent="." node_paths=PackedStringArray("model_node")]
 model_node = NodePath("../ChatModel")
-system_prompt = "The following is a roleplay dialogue between a player and a video game NPC.
-You will play as the NPC, a medieval-fantasy potionshop shopkeeper.
+system_prompt = "The following is a roleplay dialogue between the user and you.
+You will play as the NPC, a medieval-fantasy potionshop shopkeeper named Foobar..
+You are a young woman with named Foobar. You are the owner of the potion shop. You are friendly, but serious.
 Only respond with the utterances of the NPC. Don't include any descriptions or actions in your response. Only say what the shopkeeper character would say. Respond concisely.
 
 The shop has the following potions:
@@ -34,7 +51,12 @@ A potion of strength. It's an orange potion in a big square flask. It gives +10 
 
 The shop contains only those three potions, and no more.
 
-Never break character, always stay in the role of the shopkeeper."
+If the user asks to buy a potion, you should wait for them to confirm the purchase before handing them the potion.
+
+Never break character, always stay in the role of the shopkeeper.
+Don't describe your actions.
+Don't use the \"*\" character.
+Stick to answering questions that the user asks."
 script = ExtResource("1_f7oge")
 
 [node name="NobodyWhoEmbedding" type="NobodyWhoEmbedding" parent="." node_paths=PackedStringArray("model_node")]
@@ -42,49 +64,8 @@ model_node = NodePath("../EmbeddingModel")
 unique_name_in_owner = true
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
-position = Vector2(586, 306)
-texture = ExtResource("2_gaslb")
-
-[node name="ConfirmBox" type="PanelContainer" parent="."]
-unique_name_in_owner = true
-visible = false
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -149.0
-offset_top = -56.5
-offset_right = 149.0
-offset_bottom = 56.5
-grow_horizontal = 2
-grow_vertical = 2
-
-[node name="MarginContainer" type="MarginContainer" parent="ConfirmBox"]
-layout_mode = 2
-theme_override_constants/margin_left = 10
-theme_override_constants/margin_top = 10
-theme_override_constants/margin_right = 10
-theme_override_constants/margin_bottom = 10
-
-[node name="VBoxContainer" type="VBoxContainer" parent="ConfirmBox/MarginContainer"]
-layout_mode = 2
-
-[node name="ConfirmLabel" type="Label" parent="ConfirmBox/MarginContainer/VBoxContainer"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "Purchase 1 health potion for 3 gold?"
-horizontal_alignment = 1
-
-[node name="YesButton" type="Button" parent="ConfirmBox/MarginContainer/VBoxContainer"]
-layout_mode = 2
-size_flags_horizontal = 3
-text = "Yes"
-
-[node name="NoButton" type="Button" parent="ConfirmBox/MarginContainer/VBoxContainer"]
-layout_mode = 2
-text = "No"
+position = Vector2(640, 360)
+texture = ExtResource("2_s42j2")
 
 [node name="ChatBox" type="Panel" parent="."]
 layout_mode = 1
@@ -131,16 +112,67 @@ custom_minimum_size = Vector2(64, 0)
 layout_mode = 2
 text = "SEND"
 
-[node name="OkButton" type="Button" parent="ChatBox/HBoxContainer"]
+[node name="SpeechBubble" type="PanelContainer" parent="."]
+layout_mode = 0
+offset_left = 680.0
+offset_top = 180.0
+offset_right = 1080.0
+offset_bottom = 280.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_jb2pp")
+
+[node name="SpeechBubbleLabel" type="Label" parent="SpeechBubble"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(400, 0)
+layout_mode = 2
+size_flags_vertical = 1
+text = "Welcome!"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="ConfirmBox" type="PanelContainer" parent="."]
 unique_name_in_owner = true
 visible = false
-custom_minimum_size = Vector2(64, 0)
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -149.0
+offset_top = -56.5
+offset_right = 149.0
+offset_bottom = 56.5
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="ConfirmBox"]
 layout_mode = 2
-text = "OK"
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ConfirmBox/MarginContainer"]
+layout_mode = 2
+
+[node name="ConfirmLabel" type="Label" parent="ConfirmBox/MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Purchase 1 health potion for 3 gold?"
+horizontal_alignment = 1
+
+[node name="YesButton" type="Button" parent="ConfirmBox/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Yes"
+
+[node name="NoButton" type="Button" parent="ConfirmBox/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "No"
 
 [connection signal="response_finished" from="NobodyWhoChat" to="NobodyWhoChat" method="_on_response_finished"]
 [connection signal="response_updated" from="NobodyWhoChat" to="NobodyWhoChat" method="_on_response_updated"]
+[connection signal="pressed" from="ChatBox/HBoxContainer/SendButton" to="NobodyWhoChat" method="_on_send_button_pressed"]
 [connection signal="pressed" from="ConfirmBox/MarginContainer/VBoxContainer/YesButton" to="NobodyWhoChat" method="_on_yes_button_pressed"]
 [connection signal="pressed" from="ConfirmBox/MarginContainer/VBoxContainer/NoButton" to="NobodyWhoChat" method="_on_no_button_pressed"]
-[connection signal="pressed" from="ChatBox/HBoxContainer/SendButton" to="NobodyWhoChat" method="_on_send_button_pressed"]
-[connection signal="pressed" from="ChatBox/HBoxContainer/OkButton" to="NobodyWhoChat" method="_on_ok_button_pressed"]

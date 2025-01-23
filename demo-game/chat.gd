@@ -7,33 +7,31 @@ func _ready() -> void:
 	start_worker()
 
 func _on_response_updated(new_token: String) -> void:
-	%TextEdit.text += new_token
+	%SpeechBubbleLabel.text += new_token
 
 func _on_response_finished(response: String) -> void:
-	%OkButton.disabled = false
+	# re-enable text input
+	%TextEdit.editable = true
+	%TextEdit.text = ""
 
 func _on_send_button_pressed() -> void:
-	var potion = await match_sentence(%TextEdit.text)
-	if potion != null:
-		confirm_buy_potion(potion)
+	# disable the input box
+	%TextEdit.editable = false
+	
+	# fetch the text
+	var text = %TextEdit.text
+	
+	# reset the speech bubble
+	%SpeechBubbleLabel.text = ""
 	
 	# send user text to the llm
 	say(%TextEdit.text)
 	
-	# reset the input box
-	%TextEdit.text = ""
-	%TextEdit.editable = false
-	
-	# show the other button
-	%SendButton.visible = false
-	%OkButton.visible = true
-	%OkButton.disabled = true
-
-func _on_ok_button_pressed() -> void:
-	%TextEdit.editable = true
-	%TextEdit.text = ""
-	%OkButton.visible = false
-	%SendButton.visible = true
+	# test if they asked to buy a potion
+	var potion = await match_sentence(%TextEdit.text)
+	await response_finished
+	if potion != null:
+		confirm_buy_potion(potion)
 
 func confirm_buy_potion(potion: String):
 	selected_potion = potion
@@ -104,6 +102,8 @@ func buy_selected_potion():
 		pass
 	elif selected_potion == "strength_potion":
 		pass
+	say("*user buys a " + selected_potion + "*")
+	%SpeechBubbleLabel.text = ""
 	selected_potion = null
 
 func _on_yes_button_pressed() -> void:
