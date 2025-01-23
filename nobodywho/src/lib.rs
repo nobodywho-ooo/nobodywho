@@ -1,93 +1,19 @@
 mod chat_state;
 mod db;
 mod llm;
+mod sampler_config;
+mod sampler_resource;
 
 use godot::classes::{INode, ProjectSettings};
 use godot::prelude::*;
-use llm::{run_completion_worker, run_embedding_worker, SamplerConfig};
+use llm::{run_completion_worker, run_embedding_worker};
+use sampler_resource::NobodyWhoSampler;
 use std::sync::mpsc::{Receiver, Sender};
 
 struct NobodyWhoExtension;
 
 #[gdextension]
 unsafe impl ExtensionLibrary for NobodyWhoExtension {}
-
-#[derive(GodotClass)]
-#[class(tool, base=Resource)]
-/// Sampler configuration for the LLM.
-/// This will decide how the LLM selects the next token from the logit probabilities.
-struct NobodyWhoSampler {
-    base: Base<Resource>,
-
-    #[export]
-    /// The seed to use for the LLM.
-    seed: u32,
-    #[export]
-    /// The temperature for the LLM. This controls the randomness of the LLM. A high temperature
-    /// will make the LLM "creative" with its responses, while a low score will make it more deterministic.
-    temperature: f32,
-    #[export]
-    /// The repeat-last-n option controls the number of tokens in the history to consider for penalizing repetition. A larger value will look further back in the generated text to prevent repetitions, while a smaller value will only consider recent tokens. A value of 0 disables the penalty,
-    penalty_last_n: i32,
-    #[export]
-    /// The repeat-penalty option helps prevent the model from generating repetitive or monotonous text. A higher value (e.g., 1.5) will penalize repetitions more strongly, while a lower value (e.g., 0.9) will be more lenient. The default value is 1.
-    penalty_repeat: f32,
-    #[export]
-    /// Decreases the likelihood of repeating tokens based on how often they appear.
-    penalty_freq: f32,
-    #[export]
-    /// Binary penalty if the token has apeared before.
-    penalty_present: f32,
-    #[export]
-    /// Penalizes newlines.
-    penalize_nl: bool,
-    #[export]
-    /// Ignores end of sentence tokens.
-    ignore_eos: bool,
-    #[export]
-    /// Sets the Mirostat target entropy (tau), which represents the desired perplexity value for the generated text. Adjusting the target entropy allows you to control the balance between coherence and diversity in the generated text. A lower value will result in more focused and coherent text, while a higher value will lead to more diverse and potentially less coherent text. The default value is 5.0.
-    mirostat_tau: f32,
-    #[export]
-    /// Sets the Mirostat learning rate (eta). The learning rate influences how quickly the algorithm responds to feedback from the generated text. A lower learning rate will result in slower adjustments, while a higher learning rate will make the algorithm more responsive. The default value is 0.1.
-    mirostat_eta: f32,
-}
-
-#[godot_api]
-impl IResource for NobodyWhoSampler {
-    fn init(base: Base<Resource>) -> Self {
-        let sampler_config = SamplerConfig::default();
-        Self {
-            base,
-            seed: sampler_config.seed,
-            temperature: sampler_config.temperature,
-            penalty_last_n: sampler_config.penalty_last_n,
-            penalty_repeat: sampler_config.penalty_repeat,
-            penalty_freq: sampler_config.penalty_freq,
-            penalty_present: sampler_config.penalty_present,
-            penalize_nl: sampler_config.penalize_nl,
-            ignore_eos: sampler_config.ignore_eos,
-            mirostat_tau: sampler_config.mirostat_tau,
-            mirostat_eta: sampler_config.mirostat_eta,
-        }
-    }
-}
-
-impl NobodyWhoSampler {
-    pub fn get_sampler_config(&self) -> llm::SamplerConfig {
-        llm::SamplerConfig {
-            seed: self.seed,
-            temperature: self.temperature,
-            penalty_last_n: self.penalty_last_n,
-            penalty_repeat: self.penalty_repeat,
-            penalty_freq: self.penalty_freq,
-            penalty_present: self.penalty_present,
-            penalize_nl: self.penalize_nl,
-            ignore_eos: self.ignore_eos,
-            mirostat_tau: self.mirostat_tau,
-            mirostat_eta: self.mirostat_eta,
-        }
-    }
-}
 
 #[derive(GodotClass)]
 #[class(base=Node)]
@@ -249,12 +175,12 @@ impl NobodyWhoChat {
         Ok(model)
     }
 
-    fn get_sampler_config(&mut self) -> SamplerConfig {
+    fn get_sampler_config(&mut self) -> sampler_config::SamplerConfig {
         if let Some(gd_sampler) = self.sampler.as_mut() {
             let nobody_sampler: GdRef<NobodyWhoSampler> = gd_sampler.bind();
-            nobody_sampler.get_sampler_config()
+            nobody_sampler.sampler_config.clone()
         } else {
-            SamplerConfig::default()
+            sampler_config::SamplerConfig::default()
         }
     }
 

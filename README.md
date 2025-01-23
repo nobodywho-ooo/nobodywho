@@ -3,8 +3,8 @@
 [![Discord](https://img.shields.io/discord/1308812521456799765?logo=discord&style=flat-square)](https://discord.gg/qhaMc2qCYB)
 [![Matrix](https://img.shields.io/badge/Matrix-000?logo=matrix&logoColor=fff)](https://matrix.to/#/#nobodywho:matrix.org)
 [![Mastodon](https://img.shields.io/badge/Mastodon-6364FF?logo=mastodon&logoColor=fff&style=flat-square)](https://mastodon.gamedev.place/@nobodywho)
-[![Godot Engine](https://img.shields.io/badge/Godot-%23FFFFFF.svg?logo=godot-engine)](https://godotengine.org/asset-library/asset/2886)
-![GitHub Sponsors](https://img.shields.io/github/sponsors/nobodywho-ooo)
+[![Godot Engine](https://img.shields.io/badge/Godot-%23FFFFFF.svg?logo=godot-engine&style=flat-square)](https://godotengine.org/asset-library/asset/2886)
+![GitHub Sponsors](https://img.shields.io/github/sponsors/nobodywho-ooo?style=flat-square)
 
 
 NobodyWho is a plugin for the Godot game engine that lets you interact with local LLMs for interactive storytelling.
@@ -23,6 +23,8 @@ NobodyWho is a plugin for the Godot game engine that lets you interact with loca
 You can install it from inside the Godot editor: In Godot 4.3+, go to AssetLib and search for "NobodyWho".
 
 ...or you can grab a specific version from our [github releases page.](https://github.com/nobodywho-ooo/nobodywho/releases) You can install these zip files by going to the "AssetLib" tab in Godot and selecting "Import".
+
+Make sure that the ignore asset root option is set in the import dialogue.
 
 ## How to Help 
 
@@ -105,3 +107,12 @@ func _ready():
 ```
 
 
+## Licensing
+
+There has been some confusion about the licensing terms of this plugin. To clarify:
+
+You are allowed to use this plugin in proprietary and commercial projects, free of charge.
+
+If you distribute modified versions of the code *in this repo*, you must open source those changes.
+
+Feel free to make proprietary games using NobodyWho, but don't make a proprietary fork of NobodyWho.
