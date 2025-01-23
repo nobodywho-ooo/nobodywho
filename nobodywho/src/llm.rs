@@ -298,8 +298,6 @@ fn run_completion_worker_result(
         loop {
             // Check for context window overflow (it was in the end before)
             if n_past >= ctx.n_ctx() as i32 - 1 {
-                println!("Applying context shifting");
-
                 n_past -= apply_context_shifting(&mut ctx, n_past)?;
 
                 assert!(n_past + batch.n_tokens() < ctx.n_ctx() as i32);
@@ -318,8 +316,6 @@ fn run_completion_worker_result(
             ctx.decode(&mut batch).unwrap();
 
             n_past += batch.n_tokens();
-
-            // println!("n_past: {}", n_past);
 
             // Check for end of generation (do not append the EOG token to the response)
             if ctx.model.is_eog_token(new_token) {
@@ -669,11 +665,9 @@ mod tests {
             )
         });
 
-        println!("HERE BEFORE");
         prompt_tx
             .send("Please count down from 10 to 0, like this: Current 10, target 0. Current 9, target 0...".to_string())
             .unwrap();
-        println!("HERE AFTER");
 
         let result: String;
         loop {
