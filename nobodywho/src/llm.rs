@@ -119,15 +119,10 @@ fn make_sampler(model: &LlamaModel, config: SamplerConfig) -> LlamaSampler {
     LlamaSampler::chain(
         [
             LlamaSampler::penalties(
-                model.n_vocab(),
-                model.token_eos().0,
-                model.token_nl().0,
-                config.penalty_last_n,
+                -1,
                 config.penalty_repeat,
                 config.penalty_freq,
                 config.penalty_present,
-                config.penalize_nl,
-                config.ignore_eos,
             ),
             LlamaSampler::temp(config.temperature),
             //LlamaSampler::mirostat_v2(config.seed, config.mirostat_tau, config.mirostat_eta),
@@ -204,6 +199,14 @@ fn add_sequence(
     Ok(())
 }
 
+fn print_kv_cache(ctx: &mut LlamaContext) {
+    let mut kv_cache_view = ctx.new_kv_cache_view(1);
+    kv_cache_view.update();
+    for cell in kv_cache_view.cells() {
+        println!("cell: {:?}", cell);
+    }
+}
+
 /// Performs context window shifting by discarding old tokens and shifting remaining ones left.
 /// This prevents context overflow by removing older tokens when nearing context length limits.
 /// As implemented in <https://github.com/ggerganov/llama.cpp/blob/3b4f2e33e2cbfca621e623c4b92b88da57a8c2f4/examples/main/main.cpp#L528>
@@ -215,51 +218,31 @@ fn add_sequence(
 /// # Returns
 /// * `Ok(n_discard)` - Number of tokens discarded from start of context
 /// * `Err(WorkerError)` - If cache operations fail
-fn apply_context_shifting(ctx: &mut LlamaContext, pos: i32) -> Result<i32, WorkerError> {
-    assert!(
-        pos == ctx.get_kv_cache_token_count(),
-        "pos != token count, pos: {}, token count: {}",
-        pos,
-        ctx.get_kv_cache_token_count()
-    );
+fn apply_context_shifting(ctx: &mut LlamaContext, n_past: i32) -> Result<i32, WorkerError> {
+    let n_keep = 0;
+    let n_left = n_past - n_keep;
+    let n_discard = n_left / 2;
 
-    let n_discard = pos / 2;
-
-    println!(
-        "✨ shifting context, pos: {}, n_discard: {}",
-        pos, n_discard
-    );
-    // Print the context
-
-    // Print token count before shifting
-    let before = ctx.get_kv_cache_token_count();
-
-    println!(
-        "Token count before shifting: {}",
-        ctx.get_kv_cache_token_count()
-    );
+    debug_assert!(n_past == ctx.get_kv_cache_token_count());
 
     // Delete the first `n_discard` tokens
-    ctx.clear_kv_cache_seq(Some(0), None, Some(n_discard as u32))?;
+    ctx.clear_kv_cache_seq(
+        Some(0),
+        Some(n_keep as u32),
+        Some((n_keep + n_discard) as u32),
+    )?;
+
+    debug_assert!(n_past - n_discard == ctx.get_kv_cache_token_count());
 
     // Shift the context left with `n_discard` tokens
-    ctx.kv_cache_seq_add(0, Some(n_discard as u32), Some(pos as u32), -n_discard)?;
+    ctx.kv_cache_seq_add(
+        0,
+        Some((n_keep + n_discard) as u32),
+        Some(n_past as u32),
+        -n_discard,
+    )?;
 
-    let after = ctx.get_kv_cache_token_count();
-
-    assert!(
-        before - n_discard == after,
-        "Token count mismatch after shifting, expected: {}, got: {}, at pos: {}",
-        before - n_discard,
-        after,
-        pos
-    );
-
-    // Print token count after shifting
-    println!(
-        "Token count after shifting: {}",
-        ctx.get_kv_cache_token_count()
-    );
+    ctx.kv_cache_update();
 
     Ok(n_discard)
 }
@@ -329,7 +312,7 @@ fn run_completion_worker_result(
 
     chat_state.add_message("system".to_string(), system_prompt);
 
-    let mut n_cur = 0; // Current position in context window
+    let mut n_past = 0; // Current position in context window
     let mut response = String::new();
 
     // Main message processing loop
@@ -349,55 +332,45 @@ fn run_completion_worker_result(
         let diff = chat_state.render_diff()?;
         let tokens = ctx.model.str_to_token(&diff, AddBos::Always)?;
 
+        assert!(tokens.len() > 0);
+        assert!(tokens.len() < n_ctx as usize);
+
         // Create batch for processing tokens
         let mut batch = LlamaBatch::new(ctx.n_ctx() as usize, 1);
-        add_sequence(&mut batch, &tokens, n_cur, &[0])?;
+        add_sequence(&mut batch, &tokens, n_past, &[0])?;
+
+        ctx.decode(&mut batch)?;
+
+        n_past += tokens.len() as i32;
 
         // Token generation loop
         loop {
-            // Check for context window overflow (the -4 comes from the llama.cpp implementation)
+            // Check for context window overflow (it was in the end before)
+            if n_past >= ctx.n_ctx() as i32 - 1 {
+                println!("Applying context shifting");
 
-            if n_cur + batch.n_tokens() >= (ctx.n_ctx()) as i32 {
-                // Assert that the token count is what we expect
-                assert!(
-                    n_cur == ctx.get_kv_cache_token_count(),
-                    "Expected token count to be equal to n_cur. n_cur: {}, token count: {}",
-                    n_cur,
-                    ctx.get_kv_cache_token_count()
-                );
-                // Debug log before and after shifting
-                println!(
-                    "Before shifting: n_cur: {}, batch.n_tokens: {}, n_ctx: {}",
-                    n_cur,
-                    batch.n_tokens(),
-                    ctx.n_ctx()
-                );
-                n_cur -= apply_context_shifting(&mut ctx, n_cur)?;
+                n_past -= apply_context_shifting(&mut ctx, n_past)?;
 
-                println!(
-                    "After shifting: n_cur: {}, batch.n_tokens: {}, n_ctx: {}",
-                    n_cur,
-                    batch.n_tokens(),
-                    ctx.n_ctx()
-                );
-
-                assert!(n_cur + batch.n_tokens() < ctx.n_ctx() as i32);
+                assert!(n_past + batch.n_tokens() < ctx.n_ctx() as i32);
             }
-            // Assert that batch is not empty
-            assert!(batch.n_tokens() > 0);
-
-            // Process current batch
-            // Print the position of the last token in the context
-            // println!("Before decode n_cur: {}", n_cur);
-            ctx.decode(&mut batch).unwrap();
-            n_cur += batch.n_tokens();
-            println!("After decode n_cur: {}", n_cur);
 
             // Sample next token
             let new_token: LlamaToken = sampler.sample(&ctx, -1);
             sampler.accept(new_token);
 
-            // Check for end of generation
+            // Process current batch
+            batch.clear();
+            batch.add(new_token, n_past, &[0], true)?;
+
+            assert!(batch.n_tokens() == 1);
+
+            ctx.decode(&mut batch).unwrap();
+
+            n_past += batch.n_tokens();
+
+            // println!("n_past: {}", n_past);
+
+            // Check for end of generation (do not append the EOG token to the response)
             if ctx.model.is_eog_token(new_token) {
                 break;
             }
@@ -408,19 +381,17 @@ fn run_completion_worker_result(
                 MAX_TOKEN_STR_LEN,
                 Special::Tokenize,
             )?;
+
             response.push_str(&output_string);
+
             completion_tx
                 .send(LLMOutput::Token(output_string))
                 .map_err(|_| WorkerError::SendError)?;
 
-            // Prepare batch for next token
-            batch.clear();
-            batch.add(new_token, n_cur, &[0], true)?;
+            debug_assert!(n_past == ctx.get_kv_cache_token_count());
         }
 
-        // Process final batch and update chat state
-        ctx.decode(&mut batch)?;
-
+        // Update chat state with generated response
         chat_state.add_message("assistant".to_string(), response.clone());
 
         // Send completion signal
@@ -748,14 +719,14 @@ mod tests {
         });
 
         prompt_tx
-            .send("Please count down from 100 and 0.".to_string())
+            .send("Please count down from 10 to 0, like this: Current 10, target 0. Current 9, target: 0...".to_string())
             .unwrap();
 
         let result: String;
         loop {
             match completion_rx.recv() {
                 Ok(LLMOutput::Token(t)) => {
-                    //println!("new token: {t}");
+                    println!("new token: {t}");
                 }
                 Ok(LLMOutput::Done(response)) => {
                     result = response;
@@ -769,8 +740,8 @@ mod tests {
             }
         }
         assert!(
-            result.contains("3, 2, 1"),
-            "Expected completion to contain '3, 2, 1', got: {result}"
+            result.contains("Current 0, target 0"),
+            "Expected completion to contain 'Current 0, target 0', got: {result}"
         );
     }
 }
