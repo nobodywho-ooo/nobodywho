@@ -570,51 +570,49 @@ mod tests {
     fn test_multiple_contexts_single_model() {
         let model = get_model(test_model_path!(), true).unwrap();
 
-        let (dog_prompt_tx, dog_prompt_rx) = std::sync::mpsc::channel();
-        let (dog_completion_tx, dog_completion_rx) = std::sync::mpsc::channel();
+        let trivia_bot_system_prompt = "You are a trivia bot. You are asked a question, and you provide an answer. Be concise and only provide the answer".to_string();
+        let (denmark_prompt_tx, denmark_prompt_rx) = std::sync::mpsc::channel();
+        let (denmark_completion_tx, denmark_completion_rx) = std::sync::mpsc::channel();
 
         let model_clone = model.clone();
-        let dog_prompt = "You're a dog. You say 'woof' a lot!".to_string();
         std::thread::spawn(|| {
             run_completion_worker(
                 model_clone,
-                dog_prompt_rx,
-                dog_completion_tx,
+                denmark_prompt_rx,
+                denmark_completion_tx,
                 SamplerConfig::default(),
                 4096,
-                dog_prompt,
+                trivia_bot_system_prompt,
             )
         });
 
-        let cat_prompt = "Act like a cat. You say 'meow' a lot!".to_string();
-        let (cat_prompt_tx, cat_prompt_rx) = std::sync::mpsc::channel();
-        let (cat_completion_tx, cat_completion_rx) = std::sync::mpsc::channel();
+        let trivia_bot_system_prompt = "You are a trivia bot. You are asked a question, and you provide an answer. Be concise and only provide the answer".to_string();
+        let (germany_prompt_tx, germany_prompt_rx) = std::sync::mpsc::channel();
+        let (germany_completion_tx, germany_completion_rx) = std::sync::mpsc::channel();
+
         std::thread::spawn(|| {
             run_completion_worker(
                 model,
-                cat_prompt_rx,
-                cat_completion_tx,
+                germany_prompt_rx,
+                germany_completion_tx,
                 SamplerConfig::default(),
                 4096,
-                cat_prompt,
+                trivia_bot_system_prompt,
             )
         });
 
-        dog_prompt_tx
-            .send(
-                "Hi! What kind of animal are you? Show me by making the sound you make."
-                    .to_string(),
-            )
+        denmark_prompt_tx
+            .send("What is the capital of Denmark?".to_string())
             .unwrap();
 
-        cat_prompt_tx
-            .send("Hi! What kind of animal are you? What sound do you make a lot?".to_string())
+        germany_prompt_tx
+            .send("What is the capital of Germany?".to_string())
             .unwrap();
 
         // read dog output
         let result: String;
         loop {
-            match dog_completion_rx.recv() {
+            match denmark_completion_rx.recv() {
                 Ok(LLMOutput::Token(_)) => {}
                 Ok(LLMOutput::Done(response)) => {
                     result = response;
@@ -624,14 +622,14 @@ mod tests {
             }
         }
         assert!(
-            result.to_lowercase().contains("woof"),
-            "Expected completion to contain 'woof', got: {result}"
+            result.to_lowercase().contains("copenhagen"),
+            "Expected completion to contain 'Copenhagen', got: {result}"
         );
 
         // read cat output
         let result: String;
         loop {
-            match cat_completion_rx.recv() {
+            match germany_completion_rx.recv() {
                 Ok(LLMOutput::Token(_)) => {}
                 Ok(LLMOutput::Done(response)) => {
                     result = response;
@@ -641,8 +639,8 @@ mod tests {
             }
         }
         assert!(
-            result.to_lowercase().contains("meow"),
-            "Expected completion to contain 'meow', got: {result}"
+            result.to_lowercase().contains("berlin"),
+            "Expected completion to contain 'Berlin', got: {result}"
         );
     }
 
