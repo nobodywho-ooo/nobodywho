@@ -27,13 +27,13 @@ rustPlatform.buildRustPackage {
     outputHashes = {
       "gdextension-api-0.2.1" = "sha256-YkMbzObJGnmQa1XGT4ApRrfqAeOz7CktJrhYks8z0RY=";
       "godot-0.2.2" = "sha256-6q7BcQ/6WvzJdVmyAVGPMtuIDJFYKaRrkv3/JQBi11M=";
-      "llama-cpp-2-0.1.86" = "sha256-Fe8WPO1NAISGGDkX5UWM8ubekYbnnAwEcKf0De5x9AQ=";
+      "llama-cpp-2-0.1.90" = "sha256-SUY4Hb2DAjDonQMEIyKXoXRygxBh/M+CeyQBviqg46g=";
     };
   };
   env.TEST_MODEL = fetchurl {
-    name = "gemma-2-2b-it-Q4_K_M.gguf";
-    url = "https://huggingface.co/bartowski/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_M.gguf";
-    hash = "sha256-4K7oUGDxaPDy2Ec9fqQc4vMjDBvBN0hHUF6lmSiKd4c=";
+    name = "qwen2.5-1.5b-instruct-q4_0.gguf";
+    url = "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_0.gguf";
+    hash = "sha256-3NgZ/wlIUsOPq6aHPY/wydUerbKERTnlIEKuXWR7v9s=";
   };
   env.TEST_EMBEDDINGS_MODEL = fetchurl {
     name = "bge-small-en-v1.5-q8_0.gguf";
