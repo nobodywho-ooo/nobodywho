@@ -12,8 +12,11 @@ jobs:
         run: |
           apt-get update
           apt-get install -y sqlite3 # ...needed to install nix
-      - run: |
-          sh <(curl -L https://nixos.org/nix/install) --no-daemon
+      - name: Install Nix
+        shell: bash  # Explicitly use bash
+        run: |
+          curl -L https://nixos.org/nix/install > install.sh
+          bash install.sh --no-daemon
       - name: Restore and cache Nix store
         uses: nix-community/cache-nix-action@v5
         with:
