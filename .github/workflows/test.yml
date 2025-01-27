@@ -11,7 +11,7 @@ jobs:
       - name: "Install distro dependencies"
         run: |
           apt-get update
-          apt-get install -y sqlite3 curl xz-utils # ...needed to install nix
+          apt-get install -y sqlite3 curl xz-utils sudo # ...needed to install nix
       - name: Install Nix
         shell: bash  # Explicitly use bash
         run: |
