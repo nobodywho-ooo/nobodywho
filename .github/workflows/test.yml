@@ -11,7 +11,7 @@ jobs:
       - name: "Install distro dependencies"
         # because nothing works if we dont have node isntalled
         run: |
-          nix-env -iA sqlite3 nodejs
+          nix-env -iA sqlite nodejs
       - uses: actions/checkout@v4
       - name: Restore and cache Nix store
         uses: nix-community/cache-nix-action@v5
