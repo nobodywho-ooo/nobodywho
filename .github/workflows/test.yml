@@ -5,14 +5,14 @@ on:
 jobs:
   nix-flake-check:
     runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/nixos/nix
     steps:
       - uses: actions/checkout@v4
       - name: "Install distro dependencies"
         run: |
           sudo apt-get update
           sudo apt-get install -y sqlite3 # ...needed to install nix
-      - run: |
-          sh <(curl -L https://nixos.org/nix/install) --no-daemon
       - name: Restore and cache Nix store
         uses: nix-community/cache-nix-action@v5
         with:
@@ -33,5 +33,4 @@ jobs:
           purge-primary-key: never
       - name: "nix flake check"
         run: |
-          . ~/.nix-profile/etc/profile.d/nix.sh
           nix --extra-experimental-features nix-command --extra-experimental-features flakes flake check -L
