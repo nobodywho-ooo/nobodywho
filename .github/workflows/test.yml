@@ -8,10 +8,11 @@ jobs:
     container:
       image: ghcr.io/nixos/nix
     steps:
-      - uses: actions/checkout@v4
       - name: "Install distro dependencies"
+        # because nothing works if we dont have node isntalled
         run: |
           nix-env -iA sqlite3 nodejs
+      - uses: actions/checkout@v4
       - name: Restore and cache Nix store
         uses: nix-community/cache-nix-action@v5
         with:
