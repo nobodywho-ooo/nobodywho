@@ -121,7 +121,7 @@ impl ChatState {
         let diff = text[self.length..].to_string();
 
         // note the length of this template render
-        self.length = text.len();
+        self.length = text.len() - 1;
 
         Ok(diff)
     }
