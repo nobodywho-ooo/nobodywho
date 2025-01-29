@@ -340,6 +340,9 @@ fn run_completion_worker_result(
 
         // Update chat state with generated response
         chat_state.add_message("assistant".to_string(), response.clone());
+        // render template again, just to set the length of the last template render
+        // b/c the next diff should include only the next user msg, and not this assistant msg
+        chat_state.render_diff()?;
 
         // Send completion signal
         completion_tx
