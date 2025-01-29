@@ -24,7 +24,7 @@ Small demo of a use-case. This video was recorded in real time on a laptop, to g
 
 ![](./assets/foobars-potionshop.gif)
 
-![](./assets/foobars-potionshop.webm)
+![](./assets/foobars-potionshop.mp4)
 
 ## How to Install
 
