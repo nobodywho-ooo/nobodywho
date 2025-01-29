@@ -126,5 +126,10 @@ If you distribute modified versions of the code *in this repo*, you must open so
 Feel free to make proprietary games using NobodyWho, but don't make a proprietary fork of NobodyWho.
 
 
+# Featured Examples
+
+* [The Asteroid](https://github.com/cesare-montresor/TheAsteroid)
+    * A game where you can chat with the crew of a spacestation to figure out what happened in the accident.
+    
 
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](code_of_conduct.md) 
