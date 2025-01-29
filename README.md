@@ -116,3 +116,10 @@ You are allowed to use this plugin in proprietary and commercial projects, free 
 If you distribute modified versions of the code *in this repo*, you must open source those changes.
 
 Feel free to make proprietary games using NobodyWho, but don't make a proprietary fork of NobodyWho.
+
+
+# Featured Examples
+
+* [The Asteroid](https://github.com/cesare-montresor/TheAsteroid)
+    * A game where you can chat with the crew of a spacestation to figure out what happened in the accident.
+    
