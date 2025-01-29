@@ -1,9 +1,9 @@
 { nobodywho, stdenv, fetchurl, godot_4, godot_4-export-templates }:
 let
   model = fetchurl {
-    name = "gemma-2-2b-it-Q4_K_M.gguf";
-    url = "https://huggingface.co/bartowski/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_M.gguf";
-    hash = "sha256-4K7oUGDxaPDy2Ec9fqQc4vMjDBvBN0hHUF6lmSiKd4c=";
+    name = "qwen2.5-1.5b-instruct-q4_0.gguf";
+    url = "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_0.gguf";
+    hash = "sha256-3NgZ/wlIUsOPq6aHPY/wydUerbKERTnlIEKuXWR7v9s=";
   };
   embedding_model = fetchurl {
     name = "bge-small-en-v1.5-q8_0.gguf";
@@ -40,7 +40,7 @@ stdenv.mkDerivation {
     ${godot_4}/bin/godot4 --verbose --headless --export-debug "Linux" $out/game
     ${godot_4}/bin/godot4 --verbose --headless --export-debug "Linux" $out/game
 
-    cp ${model} $out/gemma-2-2b-it-Q4_K_M.gguf
+    cp ${model} $out/qwen2.5-1.5b-instruct-q4_0.gguf
     cp ${embedding_model} $out/bge-small-en-v1.5-q8_0.gguf
 
     # Patch binaries.

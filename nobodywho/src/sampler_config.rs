@@ -8,8 +8,6 @@ pub struct SamplerConfig {
     pub penalty_repeat: f32,
     pub penalty_freq: f32,
     pub penalty_present: f32,
-    pub penalize_nl: bool,
-    pub ignore_eos: bool,
 }
 
 impl Default for SamplerConfig {
@@ -19,8 +17,6 @@ impl Default for SamplerConfig {
             penalty_repeat: 0.0,
             penalty_freq: 0.0,
             penalty_present: 0.0,
-            penalize_nl: false,
-            ignore_eos: false,
             method: SamplerMethod::MirostatV2(MirostatV2 {
                 seed: 1234,
                 temperature: 0.8,
@@ -216,15 +212,10 @@ impl Default for MirostatV2 {
 pub fn make_sampler(model: &LlamaModel, sampler_config: SamplerConfig) -> LlamaSampler {
     // init mirostat sampler
     let penalties = LlamaSampler::penalties(
-        model.n_vocab(),
-        model.token_eos().0,
-        model.token_nl().0,
         sampler_config.penalty_last_n,
         sampler_config.penalty_repeat,
         sampler_config.penalty_freq,
         sampler_config.penalty_present,
-        sampler_config.penalize_nl,
-        sampler_config.ignore_eos,
     );
     let chainvec = match sampler_config.method {
         SamplerMethod::Greedy(_) => {

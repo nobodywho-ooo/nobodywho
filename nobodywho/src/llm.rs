@@ -1,3 +1,5 @@
+use crate::chat_state;
+use crate::sampler_config::{make_sampler, SamplerConfig};
 use lazy_static::lazy_static;
 use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::context::LlamaContext;
@@ -10,8 +12,6 @@ use llama_cpp_2::token::LlamaToken;
 use std::pin::pin;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, LazyLock, Mutex};
-use crate::chat_state;
-use crate::sampler_config::{make_sampler, SamplerConfig};
 
 const MAX_TOKEN_STR_LEN: usize = 128;
 
@@ -150,6 +150,14 @@ fn add_sequence(
     Ok(())
 }
 
+fn print_kv_cache(ctx: &mut LlamaContext) {
+    let mut kv_cache_view = ctx.new_kv_cache_view(1);
+    kv_cache_view.update();
+    for cell in kv_cache_view.cells() {
+        println!("cell: {:?}", cell);
+    }
+}
+
 /// Performs context window shifting by discarding old tokens and shifting remaining ones left.
 /// This prevents context overflow by removing older tokens when nearing context length limits.
 /// As implemented in <https://github.com/ggerganov/llama.cpp/blob/3b4f2e33e2cbfca621e623c4b92b88da57a8c2f4/examples/main/main.cpp#L528>
@@ -161,14 +169,31 @@ fn add_sequence(
 /// # Returns
 /// * `Ok(n_discard)` - Number of tokens discarded from start of context
 /// * `Err(WorkerError)` - If cache operations fail
-fn apply_context_shifting(ctx: &mut LlamaContext, pos: i32) -> Result<i32, WorkerError> {
-    let n_discard = pos / 2;
+fn apply_context_shifting(ctx: &mut LlamaContext, n_past: i32) -> Result<i32, WorkerError> {
+    let n_keep = 0;
+    let n_left = n_past - n_keep;
+    let n_discard = n_left / 2;
+
+    debug_assert!(n_past == ctx.get_kv_cache_token_count());
 
     // Delete the first `n_discard` tokens
-    ctx.clear_kv_cache_seq(Some(0), None, Some(n_discard as u32))?;
+    ctx.clear_kv_cache_seq(
+        Some(0),
+        Some(n_keep as u32),
+        Some((n_keep + n_discard) as u32),
+    )?;
+
+    debug_assert!(n_past - n_discard == ctx.get_kv_cache_token_count());
 
     // Shift the context left with `n_discard` tokens
-    ctx.kv_cache_seq_add(0, Some(n_discard as u32), Some(pos as u32), -n_discard)?;
+    ctx.kv_cache_seq_add(
+        0,
+        Some((n_keep + n_discard) as u32),
+        Some(n_past as u32),
+        -n_discard,
+    )?;
+
+    ctx.kv_cache_update();
 
     Ok(n_discard)
 }
@@ -238,7 +263,7 @@ fn run_completion_worker_result(
 
     chat_state.add_message("system".to_string(), system_prompt);
 
-    let mut n_cur = 0; // Current position in context window
+    let mut n_past = 0; // Current position in context window
     let mut response = String::new();
 
     // Main message processing loop
@@ -258,28 +283,41 @@ fn run_completion_worker_result(
         let diff = chat_state.render_diff()?;
         let tokens = ctx.model.str_to_token(&diff, AddBos::Always)?;
 
+        assert!(tokens.len() > 0);
+        assert!(tokens.len() < n_ctx as usize);
+
         // Create batch for processing tokens
         let mut batch = LlamaBatch::new(ctx.n_ctx() as usize, 1);
-        add_sequence(&mut batch, &tokens, n_cur, &[0])?;
+        add_sequence(&mut batch, &tokens, n_past, &[0])?;
+
+        ctx.decode(&mut batch)?;
+
+        n_past += tokens.len() as i32;
 
         // Token generation loop
         loop {
-            // Check for context window overflow (the -4 comes from the llama.cpp implementation)
-            if n_cur + batch.n_tokens() >= ctx.n_ctx() as i32 - 4 {
-                n_cur -= apply_context_shifting(&mut ctx, n_cur)?;
+            // Check for context window overflow (it was in the end before)
+            if n_past >= ctx.n_ctx() as i32 - 1 {
+                n_past -= apply_context_shifting(&mut ctx, n_past)?;
 
-                assert!(n_cur + batch.n_tokens() < ctx.n_ctx() as i32);
+                assert!(n_past + batch.n_tokens() < ctx.n_ctx() as i32);
             }
-
-            // Process current batch
-            ctx.decode(&mut batch)?;
-            n_cur += batch.n_tokens();
 
             // Sample next token
             let new_token: LlamaToken = sampler.sample(&ctx, -1);
             sampler.accept(new_token);
 
-            // Check for end of generation
+            // Process current batch
+            batch.clear();
+            batch.add(new_token, n_past, &[0], true)?;
+
+            assert!(batch.n_tokens() == 1);
+
+            ctx.decode(&mut batch).unwrap();
+
+            n_past += batch.n_tokens();
+
+            // Check for end of generation (do not append the EOG token to the response)
             if ctx.model.is_eog_token(new_token) {
                 break;
             }
@@ -290,18 +328,17 @@ fn run_completion_worker_result(
                 MAX_TOKEN_STR_LEN,
                 Special::Tokenize,
             )?;
+
             response.push_str(&output_string);
+
             completion_tx
                 .send(LLMOutput::Token(output_string))
                 .map_err(|_| WorkerError::SendError)?;
 
-            // Prepare batch for next token
-            batch.clear();
-            batch.add(new_token, n_cur, &[0], true)?;
+            debug_assert!(n_past == ctx.get_kv_cache_token_count());
         }
 
-        // Process final batch and update chat state
-        ctx.decode(&mut batch)?;
+        // Update chat state with generated response
         chat_state.add_message("assistant".to_string(), response.clone());
 
         // Send completion signal
@@ -533,51 +570,49 @@ mod tests {
     fn test_multiple_contexts_single_model() {
         let model = get_model(test_model_path!(), true).unwrap();
 
-        let (dog_prompt_tx, dog_prompt_rx) = std::sync::mpsc::channel();
-        let (dog_completion_tx, dog_completion_rx) = std::sync::mpsc::channel();
+        let trivia_bot_system_prompt = "You are a trivia bot. You are asked a question, and you provide an answer. Be concise and only provide the answer".to_string();
+        let (denmark_prompt_tx, denmark_prompt_rx) = std::sync::mpsc::channel();
+        let (denmark_completion_tx, denmark_completion_rx) = std::sync::mpsc::channel();
 
         let model_clone = model.clone();
-        let dog_prompt = "You're a dog. You say 'woof' a lot!".to_string();
         std::thread::spawn(|| {
             run_completion_worker(
                 model_clone,
-                dog_prompt_rx,
-                dog_completion_tx,
+                denmark_prompt_rx,
+                denmark_completion_tx,
                 SamplerConfig::default(),
                 4096,
-                dog_prompt,
+                trivia_bot_system_prompt,
             )
         });
 
-        let cat_prompt = "You're a cat. You say 'meow' a lot!".to_string();
-        let (cat_prompt_tx, cat_prompt_rx) = std::sync::mpsc::channel();
-        let (cat_completion_tx, cat_completion_rx) = std::sync::mpsc::channel();
+        let trivia_bot_system_prompt = "You are a trivia bot. You are asked a question, and you provide an answer. Be concise and only provide the answer".to_string();
+        let (germany_prompt_tx, germany_prompt_rx) = std::sync::mpsc::channel();
+        let (germany_completion_tx, germany_completion_rx) = std::sync::mpsc::channel();
+
         std::thread::spawn(|| {
             run_completion_worker(
                 model,
-                cat_prompt_rx,
-                cat_completion_tx,
+                germany_prompt_rx,
+                germany_completion_tx,
                 SamplerConfig::default(),
                 4096,
-                cat_prompt,
+                trivia_bot_system_prompt,
             )
         });
 
-        dog_prompt_tx
-            .send(
-                "Hi! What kind of animal are you? Show me by making the sound you make."
-                    .to_string(),
-            )
+        denmark_prompt_tx
+            .send("What is the capital of Denmark?".to_string())
             .unwrap();
 
-        cat_prompt_tx
-            .send("Hi! What kind of animal are you? What sound do you make a lot?".to_string())
+        germany_prompt_tx
+            .send("What is the capital of Germany?".to_string())
             .unwrap();
 
         // read dog output
         let result: String;
         loop {
-            match dog_completion_rx.recv() {
+            match denmark_completion_rx.recv() {
                 Ok(LLMOutput::Token(_)) => {}
                 Ok(LLMOutput::Done(response)) => {
                     result = response;
@@ -587,14 +622,14 @@ mod tests {
             }
         }
         assert!(
-            result.contains("woof"),
-            "Expected completion to contain 'woof', got: {result}"
+            result.to_lowercase().contains("copenhagen"),
+            "Expected completion to contain 'Copenhagen', got: {result}"
         );
 
         // read cat output
         let result: String;
         loop {
-            match cat_completion_rx.recv() {
+            match germany_completion_rx.recv() {
                 Ok(LLMOutput::Token(_)) => {}
                 Ok(LLMOutput::Done(response)) => {
                     result = response;
@@ -604,8 +639,54 @@ mod tests {
             }
         }
         assert!(
-            result.contains("meow"),
-            "Expected completion to contain 'meow', got: {result}"
+            result.to_lowercase().contains("berlin"),
+            "Expected completion to contain 'Berlin', got: {result}"
+        );
+    }
+
+    #[test]
+    fn test_context_shifting() {
+        let model = get_model(test_model_path!(), true).unwrap();
+
+        let (prompt_tx, prompt_rx) = std::sync::mpsc::channel();
+        let (completion_tx, completion_rx) = std::sync::mpsc::channel();
+
+        let system_prompt = "You are a helpful assistant.".to_string();
+        std::thread::spawn(|| {
+            run_completion_worker(
+                model,
+                prompt_rx,
+                completion_tx,
+                SamplerConfig::default(),
+                100, // very low context size. will be exceeded immediately
+                system_prompt,
+            )
+        });
+
+        prompt_tx
+            .send("Please count down from 10 to 0, like this: Current 10, target 0. Current 9, target 0...".to_string())
+            .unwrap();
+
+        let result: String;
+        loop {
+            match completion_rx.recv() {
+                Ok(LLMOutput::Token(t)) => {
+                    println!("new token: {t}");
+                }
+                Ok(LLMOutput::Done(response)) => {
+                    result = response;
+                    break;
+                }
+                Ok(LLMOutput::FatalErr(e)) => {
+                    println!("got fatal error: {e}");
+                    panic!();
+                }
+                _ => unreachable!(),
+            }
+        }
+        assert!(
+            result.contains("Current 1, target 0"),
+            "Expected completion to contain 'Current 0, target 0', got: {result}"
         );
     }
 }

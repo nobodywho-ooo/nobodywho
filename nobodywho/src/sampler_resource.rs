@@ -160,9 +160,7 @@ impl IResource for NobodyWhoSampler {
                 penalty_last_n: i32,
                 penalty_repeat: f32,
                 penalty_freq: f32,
-                penalty_present: f32,
-                penalize_nl: bool,
-                ignore_eos: bool
+                penalty_present: f32
             },
             methods: {
                 Greedy { },
@@ -186,9 +184,7 @@ impl IResource for NobodyWhoSampler {
                 penalty_last_n: i32,
                 penalty_repeat: f32,
                 penalty_freq: f32,
-                penalty_present: f32,
-                penalize_nl: bool,
-                ignore_eos: bool
+                penalty_present: f32
             },
             methods: {
                 Greedy { },
@@ -212,9 +208,7 @@ impl IResource for NobodyWhoSampler {
                 penalty_last_n: i32,
                 penalty_repeat: f32,
                 penalty_freq: f32,
-                penalty_present: f32,
-                penalize_nl: bool,
-                ignore_eos: bool
+                penalty_present: f32
             },
             methods: {
                 Greedy { },

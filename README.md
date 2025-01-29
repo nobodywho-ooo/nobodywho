@@ -124,3 +124,7 @@ You are allowed to use this plugin in proprietary and commercial projects, free 
 If you distribute modified versions of the code *in this repo*, you must open source those changes.
 
 Feel free to make proprietary games using NobodyWho, but don't make a proprietary fork of NobodyWho.
+
+
+
+[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](code_of_conduct.md) 
