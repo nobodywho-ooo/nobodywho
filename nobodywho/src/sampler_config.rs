@@ -252,7 +252,7 @@ pub fn make_sampler(model: &LlamaModel, sampler_config: SamplerConfig) -> LlamaS
         SamplerMethod::MinP(conf) => {
             vec![
                 penalties,
-                LlamaSampler::top_p(conf.min_p, conf.min_keep as usize),
+                LlamaSampler::min_p(conf.min_p, conf.min_keep as usize),
                 LlamaSampler::dist(conf.seed),
             ]
         }
