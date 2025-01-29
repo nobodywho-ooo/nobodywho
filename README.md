@@ -30,7 +30,7 @@ The code for this showcase is in the [demo-game](./demo-game) folder of this rep
 
 You can install it from inside the Godot editor: In Godot 4.3+, go to AssetLib and search for "NobodyWho".
 
-...or you can grab a specific version from our [github releases page.](https://github.com/nobodywho-ooo/nobodywho/releases) You can install these zip files by going to the "AssetLib" tab in Godot and selecting "Import".
+...or you can grab a specific version from our [GitHub releases page.](https://github.com/nobodywho-ooo/nobodywho/releases) You can install these zip files by going to the "AssetLib" tab in Godot and selecting "Import".
 
 Make sure that the ignore asset root option is set in the import dialogue.
 
