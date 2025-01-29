@@ -9,7 +9,7 @@
     let
       pkgs = (import nixpkgs { system = system; });
       nobodywho = pkgs.callPackage ./nobodywho {};
-      integration-test = pkgs.callPackage ./example-game { inherit nobodywho; };
+      integration-test = pkgs.callPackage ./integration-test { inherit nobodywho; };
       run-integration-test = pkgs.runCommand "checkgame" { nativeBuildInputs = with pkgs; [ mesa.drivers ]; } ''
         cd ${integration-test}
         export HOME=$TMPDIR
