@@ -18,6 +18,14 @@ NobodyWho is a plugin for the Godot game engine that lets you interact with loca
 * 🎯 Perfect for games, interactive stories, and NPCs
 * 💻 Cross-platform: Windows, Linux, macOS
 
+## Demo
+
+Small demo of a use-case. This video was recorded in real time on a laptop, to give you an idea of performance.
+
+![](./assets/foobars-potionshop.gif)
+
+![](./assets/foobars-potionshop.webm)
+
 ## How to Install
 
 You can install it from inside the Godot editor: In Godot 4.3+, go to AssetLib and search for "NobodyWho".
