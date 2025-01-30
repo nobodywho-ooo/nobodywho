@@ -22,7 +22,7 @@ fn strftime_now(format_str: &str) -> String {
     chrono::Local::now().format(format_str).to_string()
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Debug)]
 pub struct Message {
     pub role: String,
     pub content: String,
@@ -82,7 +82,7 @@ impl ChatState {
 
         let ctx = context! {
             messages => &self.messages,
-            add_generation_prompt => true,
+            add_generation_prompt => self.messages.last().map_or(false, |msg| msg.role == "user"),
             eos_token => self.eos_token,
             bos_token => self.bos_token,
         };
@@ -121,7 +121,7 @@ impl ChatState {
         let diff = text[self.length..].to_string();
 
         // note the length of this template render
-        self.length = text.len() - 1;
+        self.length = text.len();
 
         Ok(diff)
     }
