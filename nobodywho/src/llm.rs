@@ -9,6 +9,7 @@ use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::model::{AddBos, Special};
 use llama_cpp_2::token::LlamaToken;
+use std::collections::VecDeque;
 use std::pin::pin;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, LazyLock, Mutex};
@@ -268,7 +269,17 @@ fn run_completion_worker_result(
 
     let mut n_past = 0; // Current position in context window
     let mut response = String::new();
-    let mut last_n_tokens: Vec<LlamaToken> = Vec::with_capacity(8);
+
+    // initialize last_n_tokens
+    // used to check for stop tokens
+    // needs to be multiple tokens, in case one of the "stop tokens"
+    // actually tokenizes to several tokens
+    let longest_stop_token: usize = stop_tokens.iter().try_fold(0, |acc, token_str| {
+        model
+            .str_to_token(&token_str, AddBos::Never)
+            .map(|tokens| acc.max(tokens.len()))
+    })?;
+    let mut last_n_tokens: VecDeque<String> = VecDeque::with_capacity(longest_stop_token);
 
     // Main message processing loop
     while let Ok(content) = message_rx.recv() {
@@ -336,18 +347,18 @@ fn run_completion_worker_result(
             response.push_str(&output_string);
 
             completion_tx
-                .send(LLMOutput::Token(output_string))
+                .send(LLMOutput::Token(output_string.clone()))
                 .map_err(|_| WorkerError::SendError)?;
 
             debug_assert!(n_past == ctx.get_kv_cache_token_count());
 
             // Check for stop tokens
             if stop_tokens.len() > 0 {
-                last_n_tokens.push(new_token);
-                if last_n_tokens.len() > 8 {
-                    last_n_tokens.remove(0);
+                if last_n_tokens.len() >= longest_stop_token {
+                    last_n_tokens.pop_front();
                 }
-                if has_stop_tokens(&ctx, &last_n_tokens, &stop_tokens)? {
+                last_n_tokens.push_back(output_string);
+                if has_stop_tokens(&last_n_tokens, &stop_tokens) {
                     break;
                 }
             }
@@ -378,36 +389,21 @@ fn run_completion_worker_result(
 
 /// Checks if the current generation should stop based on stop tokens.
 /// This prevents the model from continuing after a stop sequence is detected.
-/// 
 ///
 /// # Arguments
-/// * `ctx` - LLaMA context for token conversion
 /// * `last_n_tokens` - The last few tokens generated
 /// * `stop_tokens` - List of token sequences that should stop generation
 ///
 /// # Returns
-/// * `Ok(should_stop)` - Whether generation should stop
-/// * `Err(WorkerError)` - If token operations fail
-fn has_stop_tokens(
-    ctx: &LlamaContext,
-    last_n_tokens: &[LlamaToken],
-    stop_tokens: &[String],
-) -> Result<bool, WorkerError> {
+/// * `should_stop` - Whether generation should stop
+fn has_stop_tokens(last_n_tokens: &VecDeque<String>, stop_tokens: &[String]) -> bool {
     if last_n_tokens.is_empty() || stop_tokens.is_empty() {
-        return Ok(false);
+        return false;
     }
-
-    let tokens_str = last_n_tokens.iter()
-        .map(|&t| ctx.model.token_to_str(t, Special::Tokenize))
-        .collect::<Result<String, _>>()?;
-    
-    for stop_token in stop_tokens {
-        if tokens_str.contains(stop_token) {
-            return Ok(true);
-        }
-    }
-
-    Ok(false)
+    let last_n_concatenated: String = last_n_tokens.iter().fold(String::new(), |acc, x| acc + x);
+    stop_tokens
+        .iter()
+        .any(|stop_token| last_n_concatenated.ends_with(stop_token))
 }
 
 pub enum EmbeddingsOutput {
@@ -768,7 +764,10 @@ mod tests {
         });
 
         prompt_tx
-            .send("List these animals in alphabetical order: cat, dog, giraffe, horse, lion, mouse".to_string())
+            .send(
+                "List these animals in alphabetical order: cat, dog, giraffe, horse, lion, mouse. Keep them in lowercase."
+                    .to_string(),
+            )
             .unwrap();
 
         let result: String;
