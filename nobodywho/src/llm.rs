@@ -403,7 +403,7 @@ fn has_stop_tokens(last_n_tokens: &VecDeque<String>, stop_tokens: &[String]) -> 
     let last_n_concatenated: String = last_n_tokens.iter().fold(String::new(), |acc, x| acc + x);
     stop_tokens
         .iter()
-        .any(|stop_token| last_n_concatenated.ends_with(stop_token))
+        .any(|stop_token| last_n_concatenated.contains(stop_token))
 }
 
 pub enum EmbeddingsOutput {
