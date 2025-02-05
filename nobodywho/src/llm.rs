@@ -748,4 +748,64 @@ mod tests {
             "Expected completion to contain 'Current 0, target 0', got: {result}"
         );
     }
+
+    #[test]
+    fn test_stop_tokens() {
+        let model = get_model(test_model_path!(), true).unwrap();
+
+        let (prompt_tx, prompt_rx) = std::sync::mpsc::channel();
+        let (completion_tx, completion_rx) = std::sync::mpsc::channel();
+
+        let system_prompt = "You are a helpful assistant.".to_string();
+        std::thread::spawn(|| {
+            run_completion_worker(
+                model,
+                prompt_rx,
+                completion_tx,
+                SamplerConfig::default(),
+                4096,
+                system_prompt,
+                vec!["horse".to_string()], // Stop at "horse"
+            )
+        });
+
+        prompt_tx
+            .send("List these animals in alphabetical order: cat, dog, giraffe, horse, lion, mouse".to_string())
+            .unwrap();
+
+        let result: String;
+        loop {
+            match completion_rx.recv() {
+                Ok(LLMOutput::Token(t)) => {
+                    println!("new token: {t}");
+                }
+                Ok(LLMOutput::Done(response)) => {
+                    result = response;
+                    break;
+                }
+                Ok(LLMOutput::FatalErr(e)) => {
+                    println!("got fatal error: {e}");
+                    panic!();
+                }
+                _ => unreachable!(),
+            }
+        }
+
+        assert!(
+            result.to_lowercase().contains("giraffe"),
+            "Expected output to contain text before stop token. Got: {result}"
+        );
+        assert!(
+            result.to_lowercase().contains("horse"),
+            "Expected output to contain stop token. Got: {result}"
+        );
+        assert!(
+            !result.to_lowercase().contains("lion"),
+            "Expected output to stop at stop token, but continued. Got: {result}"
+        );
+        assert!(
+            !result.to_lowercase().contains("mouse"),
+            "Expected output to stop at stop token, but continued. Got: {result}"
+        );
+    }
 }
