@@ -325,10 +325,6 @@ fn run_completion_worker_result(
                 break;
             }
 
-            // Check for stop tokens
-            if check_stop_tokens(&ctx, &[new_token], &stop_tokens)? {
-                break;
-            }
 
             // Convert token to text and stream to user
             let output_string = ctx.model.token_to_str_with_size(
@@ -344,6 +340,12 @@ fn run_completion_worker_result(
                 .map_err(|_| WorkerError::SendError)?;
 
             debug_assert!(n_past == ctx.get_kv_cache_token_count());
+
+            // Check for stop tokens
+            if has_stop_tokens(&ctx, &[new_token], &stop_tokens)? {
+                break;
+            }
+            
         }
 
         // Update chat state with generated response
@@ -381,7 +383,7 @@ fn run_completion_worker_result(
 /// # Returns
 /// * `Ok(should_stop)` - Whether generation should stop
 /// * `Err(WorkerError)` - If token operations fail
-fn check_stop_tokens(
+fn has_stop_tokens(
     ctx: &LlamaContext,
     last_tokens: &[LlamaToken],
     stop_tokens: &[String],
