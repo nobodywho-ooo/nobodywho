@@ -532,7 +532,7 @@ checksum = "e943b2c21337b7e3ec6678500687cdc741b7639ad457f234693352075c082204"
 
 [[package]]
 name = "nobodywho"
-version = "4.4.3"
+version = "4.5.0"
 dependencies = [
  "chrono",
  "encoding_rs",
