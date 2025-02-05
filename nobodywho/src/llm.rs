@@ -323,11 +323,13 @@ fn run_completion_worker_result(
             }
 
             // Convert token to text and stream to user
-            let output_string = ctx.model.token_to_str_with_size(
-                new_token,
-                MAX_TOKEN_STR_LEN,
-                Special::Tokenize,
-            )?;
+            let output_string = ctx
+                .model
+                .token_to_str_with_size(new_token, MAX_TOKEN_STR_LEN, Special::Tokenize)
+                .unwrap_or("�".to_string());
+            // fall back to "U+FFFD REPLACEMENT CHARACTER"
+            // when encountering bytes that aren't valid UTF-8
+            // wikipedia: "used to replace an unknown, unrecognised, or unrepresentable character"
 
             response.push_str(&output_string);
 
