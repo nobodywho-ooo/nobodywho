@@ -114,7 +114,7 @@ struct NobodyWhoChat {
 
 
     #[export]
-    /// The system prompt for the chat, this is the basic instructions for the LLM's behavior.
+    /// Stop tokens to stop generation at these specified tokens.
     stop_tokens: PackedStringArray,
 
     #[export]
