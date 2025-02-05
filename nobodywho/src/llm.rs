@@ -205,6 +205,7 @@ pub fn run_completion_worker(
     sampler_config: SamplerConfig,
     n_ctx: u32,
     system_prompt: String,
+    stop_tokens: Vec<String>,
 ) {
     if let Err(msg) = run_completion_worker_result(
         model,
@@ -213,6 +214,7 @@ pub fn run_completion_worker(
         sampler_config,
         n_ctx,
         system_prompt,
+        stop_tokens,
     ) {
         // Forward fatal errors to the consumer
         completion_tx
@@ -230,7 +232,7 @@ pub fn run_completion_worker(
 /// * `sampler_config` - Configuration for the token sampler
 /// * `n_ctx` - Maximum context length
 /// * `system_prompt` - System prompt to initialize the chat
-///
+/// * `stop_tokens` - Tokens to stop generation at
 /// # Returns
 /// * `Ok(())` if the worker exits normally
 /// * `Err(WorkerError)` on fatal errors
@@ -241,6 +243,7 @@ fn run_completion_worker_result(
     sampler_config: SamplerConfig,
     n_ctx: u32,
     system_prompt: String,
+    stop_tokens: Vec<String>,
 ) -> Result<(), WorkerError> {
     // Set up context parameters using available parallelism
     let n_threads = std::thread::available_parallelism()?.get() as i32;
@@ -265,6 +268,7 @@ fn run_completion_worker_result(
 
     let mut n_past = 0; // Current position in context window
     let mut response = String::new();
+    let mut last_n_tokens: Vec<LlamaToken> = Vec::with_capacity(8);
 
     // Main message processing loop
     while let Ok(content) = message_rx.recv() {
@@ -336,6 +340,17 @@ fn run_completion_worker_result(
                 .map_err(|_| WorkerError::SendError)?;
 
             debug_assert!(n_past == ctx.get_kv_cache_token_count());
+
+            // Check for stop tokens
+            if stop_tokens.len() > 0 {
+                last_n_tokens.push(new_token);
+                if last_n_tokens.len() > 8 {
+                    last_n_tokens.remove(0);
+                }
+                if has_stop_tokens(&ctx, &last_n_tokens, &stop_tokens)? {
+                    break;
+                }
+            }
         }
 
         // Update chat state with generated response
@@ -360,6 +375,41 @@ fn run_completion_worker_result(
     // but it's not `unreachable!()`, since we do end up here once the channels die.
     Ok(()) // accept our fate
 }
+
+/// Checks if the current generation should stop based on stop tokens.
+/// This prevents the model from continuing after a stop sequence is detected.
+/// 
+///
+/// # Arguments
+/// * `ctx` - LLaMA context for token conversion
+/// * `last_n_tokens` - The last few tokens generated
+/// * `stop_tokens` - List of token sequences that should stop generation
+///
+/// # Returns
+/// * `Ok(should_stop)` - Whether generation should stop
+/// * `Err(WorkerError)` - If token operations fail
+fn has_stop_tokens(
+    ctx: &LlamaContext,
+    last_n_tokens: &[LlamaToken],
+    stop_tokens: &[String],
+) -> Result<bool, WorkerError> {
+    if last_n_tokens.is_empty() || stop_tokens.is_empty() {
+        return Ok(false);
+    }
+
+    let tokens_str = last_n_tokens.iter()
+        .map(|&t| ctx.model.token_to_str(t, Special::Tokenize))
+        .collect::<Result<String, _>>()?;
+    
+    for stop_token in stop_tokens {
+        if tokens_str.contains(stop_token) {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
+}
+
 pub enum EmbeddingsOutput {
     Embedding(Vec<f32>),
     FatalError(WorkerError),
@@ -466,6 +516,7 @@ mod tests {
                 SamplerConfig::default(),
                 4096,
                 system_prompt,
+                vec![],
             )
         });
 
@@ -586,6 +637,7 @@ mod tests {
                 SamplerConfig::default(),
                 4096,
                 trivia_bot_system_prompt,
+                vec![],
             )
         });
 
@@ -601,6 +653,7 @@ mod tests {
                 SamplerConfig::default(),
                 4096,
                 trivia_bot_system_prompt,
+                vec![],
             )
         });
 
@@ -663,6 +716,7 @@ mod tests {
                 SamplerConfig::default(),
                 100, // very low context size. will be exceeded immediately
                 system_prompt,
+                vec![],
             )
         });
 
@@ -690,6 +744,66 @@ mod tests {
         assert!(
             result.contains("Current 1, target 0"),
             "Expected completion to contain 'Current 0, target 0', got: {result}"
+        );
+    }
+
+    #[test]
+    fn test_stop_tokens() {
+        let model = get_model(test_model_path!(), true).unwrap();
+
+        let (prompt_tx, prompt_rx) = std::sync::mpsc::channel();
+        let (completion_tx, completion_rx) = std::sync::mpsc::channel();
+
+        let system_prompt = "You are a helpful assistant.".to_string();
+        std::thread::spawn(|| {
+            run_completion_worker(
+                model,
+                prompt_rx,
+                completion_tx,
+                SamplerConfig::default(),
+                4096,
+                system_prompt,
+                vec!["horse".to_string()], // Stop at "horse"
+            )
+        });
+
+        prompt_tx
+            .send("List these animals in alphabetical order: cat, dog, giraffe, horse, lion, mouse".to_string())
+            .unwrap();
+
+        let result: String;
+        loop {
+            match completion_rx.recv() {
+                Ok(LLMOutput::Token(t)) => {
+                    println!("new token: {t}");
+                }
+                Ok(LLMOutput::Done(response)) => {
+                    result = response;
+                    break;
+                }
+                Ok(LLMOutput::FatalErr(e)) => {
+                    println!("got fatal error: {e}");
+                    panic!();
+                }
+                _ => unreachable!(),
+            }
+        }
+
+        assert!(
+            result.to_lowercase().contains("giraffe"),
+            "Expected output to contain text before stop token. Got: {result}"
+        );
+        assert!(
+            result.to_lowercase().contains("horse"),
+            "Expected output to contain stop token. Got: {result}"
+        );
+        assert!(
+            !result.to_lowercase().contains("lion"),
+            "Expected output to stop at stop token, but continued. Got: {result}"
+        );
+        assert!(
+            !result.to_lowercase().contains("mouse"),
+            "Expected output to stop at stop token, but continued. Got: {result}"
         );
     }
 }
