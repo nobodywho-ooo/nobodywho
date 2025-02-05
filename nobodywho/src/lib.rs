@@ -112,6 +112,11 @@ struct NobodyWhoChat {
     /// The system prompt for the chat, this is the basic instructions for the LLM's behavior.
     system_prompt: GString,
 
+
+    #[export]
+    /// The system prompt for the chat, this is the basic instructions for the LLM's behavior.
+    stop_tokens: PackedStringArray,
+
     #[export]
     /// This is the maximum number of tokens that can be stored in the chat history. It will delete information from the chat history if it exceeds this limit.
     /// Higher values use more VRAM, but allow for longer "short term memory" for the LLM.
@@ -130,6 +135,7 @@ impl INode for NobodyWhoChat {
             model_node: None,
             sampler: None,
             system_prompt: "".into(),
+            stop_tokens: PackedStringArray::new(),
             context_length: 4096,
             prompt_tx: None,
             completion_rx: None,
@@ -201,6 +207,7 @@ impl NobodyWhoChat {
             // start the llm worker
             let n_ctx = self.context_length;
             let system_prompt = self.system_prompt.to_string();
+            let stop_tokens: Vec<String> = self.stop_tokens.to_vec().into_iter().map(|g| g.to_string()).collect();
             std::thread::spawn(move || {
                 run_completion_worker(
                     model,
@@ -209,6 +216,7 @@ impl NobodyWhoChat {
                     sampler_config,
                     n_ctx,
                     system_prompt,
+                    stop_tokens,
                 );
             });
 

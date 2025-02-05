@@ -205,6 +205,7 @@ pub fn run_completion_worker(
     sampler_config: SamplerConfig,
     n_ctx: u32,
     system_prompt: String,
+    stop_tokens: Vec<String>,
 ) {
     if let Err(msg) = run_completion_worker_result(
         model,
@@ -213,6 +214,7 @@ pub fn run_completion_worker(
         sampler_config,
         n_ctx,
         system_prompt,
+        stop_tokens,
     ) {
         // Forward fatal errors to the consumer
         completion_tx
@@ -230,7 +232,7 @@ pub fn run_completion_worker(
 /// * `sampler_config` - Configuration for the token sampler
 /// * `n_ctx` - Maximum context length
 /// * `system_prompt` - System prompt to initialize the chat
-///
+/// * `stop_tokens` - Tokens to stop generation at
 /// # Returns
 /// * `Ok(())` if the worker exits normally
 /// * `Err(WorkerError)` on fatal errors
@@ -241,6 +243,7 @@ fn run_completion_worker_result(
     sampler_config: SamplerConfig,
     n_ctx: u32,
     system_prompt: String,
+    stop_tokens: Vec<String>,
 ) -> Result<(), WorkerError> {
     // Set up context parameters using available parallelism
     let n_threads = std::thread::available_parallelism()?.get() as i32;
@@ -322,6 +325,11 @@ fn run_completion_worker_result(
                 break;
             }
 
+            // Check for stop tokens
+            if check_stop_tokens(&ctx, &[new_token], &stop_tokens)? {
+                break;
+            }
+
             // Convert token to text and stream to user
             let output_string = ctx.model.token_to_str_with_size(
                 new_token,
@@ -360,6 +368,48 @@ fn run_completion_worker_result(
     // but it's not `unreachable!()`, since we do end up here once the channels die.
     Ok(()) // accept our fate
 }
+
+/// Checks if the current generation should stop based on stop tokens.
+/// This prevents the model from continuing after a stop sequence is detected.
+/// 
+///
+/// # Arguments
+/// * `ctx` - LLaMA context for token conversion
+/// * `last_tokens` - The last few tokens generated
+/// * `stop_tokens` - List of token sequences that should stop generation
+///
+/// # Returns
+/// * `Ok(should_stop)` - Whether generation should stop
+/// * `Err(WorkerError)` - If token operations fail
+fn check_stop_tokens(
+    ctx: &LlamaContext,
+    last_tokens: &[LlamaToken],
+    stop_tokens: &[String],
+) -> Result<bool, WorkerError> {
+    // Convert last tokens to string for comparison
+    let last_output = last_tokens.iter()
+        .map(|&t| ctx.model.token_to_str(t, Special::Tokenize))
+        .collect::<Result<String, _>>()?;
+
+    // Check each stop token
+    for stop_token in stop_tokens {
+        // First try exact token match for efficiency
+        if last_tokens.len() == 1 {
+            let token_str = ctx.model.token_to_str(last_tokens[0], Special::Tokenize)?;
+            if token_str == *stop_token {
+                return Ok(true);
+            }
+        }
+
+        // Then check for stop sequence in the output
+        if last_output.contains(stop_token) {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
+}
+
 pub enum EmbeddingsOutput {
     Embedding(Vec<f32>),
     FatalError(WorkerError),
@@ -466,6 +516,7 @@ mod tests {
                 SamplerConfig::default(),
                 4096,
                 system_prompt,
+                vec![],
             )
         });
 
@@ -586,6 +637,7 @@ mod tests {
                 SamplerConfig::default(),
                 4096,
                 trivia_bot_system_prompt,
+                vec![],
             )
         });
 
@@ -601,6 +653,7 @@ mod tests {
                 SamplerConfig::default(),
                 4096,
                 trivia_bot_system_prompt,
+                vec![],
             )
         });
 
@@ -663,6 +716,7 @@ mod tests {
                 SamplerConfig::default(),
                 100, // very low context size. will be exceeded immediately
                 system_prompt,
+                vec![],
             )
         });
 
