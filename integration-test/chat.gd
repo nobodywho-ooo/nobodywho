@@ -8,7 +8,7 @@ func run_test():
 	
 	assert(await test_say())
 	assert(await test_antiprompts())
-
+	assert(await test_antiprompts_multitokens())
 	return true
 
 func test_say():
@@ -21,16 +21,35 @@ func test_say():
 	return true
 
 func test_antiprompts():
-	stop_tokens = PackedStringArray(["horse"])
+	stop_tokens = PackedStringArray(["fly"])
 	start_worker() # restart the worker to include the antiprompts
 	
-	say("List these animals in alphabetical order: cat, dog, giraffe, horse, lion, mouse")
+	say("List these animals in alphabetical order: cat, dog, fly, lion, mouse")
 	var response = await response_finished
 
 	print("✨ Got antiprompt response: " + response)
 
-	assert("giraffe" in response, "Should not stop before the antiprompt")
-	assert("horse" in response, "Should reach the antiprompt")
+	assert("dog" in response, "Should not stop before the antiprompt")
+	assert("fly" in response, "Should reach the antiprompt")
+	assert(not "lion" in response, "Should stop at antiprompt")
+	assert(not "mouse" in response, "Should not continue past antiprompt")
+	
+	return true
+
+
+func test_antiprompts_multitokens():
+	stop_tokens = PackedStringArray(["horse-rider"])
+	system_prompt = "You only list the words in alphabetical order. nothing else."
+
+	start_worker() # restart the worker to include the antiprompts
+	
+	say("List all the words in alphabetical order: dog, horse-rider, lion, mouse")
+	var response = await response_finished
+
+	print("✨ Got antiprompt response: " + response)
+
+	assert("dog" in response, "Should not stop before the antiprompt")
+	assert("horse-rider" in response, "Should reach the antiprompt")
 	assert(not "lion" in response, "Should stop at antiprompt")
 	assert(not "mouse" in response, "Should not continue past antiprompt")
 	

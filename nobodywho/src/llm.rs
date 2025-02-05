@@ -268,6 +268,7 @@ fn run_completion_worker_result(
 
     let mut n_past = 0; // Current position in context window
     let mut response = String::new();
+    let mut last_n_tokens: Vec<LlamaToken> = Vec::with_capacity(8);
 
     // Main message processing loop
     while let Ok(content) = message_rx.recv() {
@@ -325,7 +326,6 @@ fn run_completion_worker_result(
                 break;
             }
 
-
             // Convert token to text and stream to user
             let output_string = ctx.model.token_to_str_with_size(
                 new_token,
@@ -342,10 +342,15 @@ fn run_completion_worker_result(
             debug_assert!(n_past == ctx.get_kv_cache_token_count());
 
             // Check for stop tokens
-            if has_stop_tokens(&ctx, &[new_token], &stop_tokens)? {
-                break;
+            if stop_tokens.len() > 0 {
+                last_n_tokens.push(new_token);
+                if last_n_tokens.len() > 8 {
+                    last_n_tokens.remove(0);
+                }
+                if has_stop_tokens(&ctx, &last_n_tokens, &stop_tokens)? {
+                    break;
+                }
             }
-            
         }
 
         // Update chat state with generated response
@@ -377,7 +382,7 @@ fn run_completion_worker_result(
 ///
 /// # Arguments
 /// * `ctx` - LLaMA context for token conversion
-/// * `last_tokens` - The last few tokens generated
+/// * `last_n_tokens` - The last few tokens generated
 /// * `stop_tokens` - List of token sequences that should stop generation
 ///
 /// # Returns
@@ -385,26 +390,19 @@ fn run_completion_worker_result(
 /// * `Err(WorkerError)` - If token operations fail
 fn has_stop_tokens(
     ctx: &LlamaContext,
-    last_tokens: &[LlamaToken],
+    last_n_tokens: &[LlamaToken],
     stop_tokens: &[String],
 ) -> Result<bool, WorkerError> {
-    // Convert last tokens to string for comparison
-    let last_output = last_tokens.iter()
+    if last_n_tokens.is_empty() || stop_tokens.is_empty() {
+        return Ok(false);
+    }
+
+    let tokens_str = last_n_tokens.iter()
         .map(|&t| ctx.model.token_to_str(t, Special::Tokenize))
         .collect::<Result<String, _>>()?;
-
-    // Check each stop token
+    
     for stop_token in stop_tokens {
-        // First try exact token match for efficiency
-        if last_tokens.len() == 1 {
-            let token_str = ctx.model.token_to_str(last_tokens[0], Special::Tokenize)?;
-            if token_str == *stop_token {
-                return Ok(true);
-            }
-        }
-
-        // Then check for stop sequence in the output
-        if last_output.contains(stop_token) {
+        if tokens_str.contains(stop_token) {
             return Ok(true);
         }
     }
