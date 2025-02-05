@@ -9,6 +9,7 @@ use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::model::{AddBos, Special};
 use llama_cpp_2::token::LlamaToken;
+use std::collections::VecDeque;
 use std::pin::pin;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, LazyLock, Mutex};
@@ -205,6 +206,7 @@ pub fn run_completion_worker(
     sampler_config: SamplerConfig,
     n_ctx: u32,
     system_prompt: String,
+    stop_tokens: Vec<String>,
 ) {
     if let Err(msg) = run_completion_worker_result(
         model,
@@ -213,6 +215,7 @@ pub fn run_completion_worker(
         sampler_config,
         n_ctx,
         system_prompt,
+        stop_tokens,
     ) {
         // Forward fatal errors to the consumer
         completion_tx
@@ -230,7 +233,7 @@ pub fn run_completion_worker(
 /// * `sampler_config` - Configuration for the token sampler
 /// * `n_ctx` - Maximum context length
 /// * `system_prompt` - System prompt to initialize the chat
-///
+/// * `stop_tokens` - Tokens to stop generation at
 /// # Returns
 /// * `Ok(())` if the worker exits normally
 /// * `Err(WorkerError)` on fatal errors
@@ -241,6 +244,7 @@ fn run_completion_worker_result(
     sampler_config: SamplerConfig,
     n_ctx: u32,
     system_prompt: String,
+    stop_tokens: Vec<String>,
 ) -> Result<(), WorkerError> {
     // Set up context parameters using available parallelism
     let n_threads = std::thread::available_parallelism()?.get() as i32;
@@ -265,6 +269,17 @@ fn run_completion_worker_result(
 
     let mut n_past = 0; // Current position in context window
     let mut response = String::new();
+
+    // initialize last_n_tokens
+    // used to check for stop tokens
+    // needs to be multiple tokens, in case one of the "stop tokens"
+    // actually tokenizes to several tokens
+    let longest_stop_token: usize = stop_tokens.iter().try_fold(0, |acc, token_str| {
+        model
+            .str_to_token(&token_str, AddBos::Never)
+            .map(|tokens| acc.max(tokens.len()))
+    })?;
+    let mut last_n_tokens: VecDeque<String> = VecDeque::with_capacity(longest_stop_token);
 
     // Main message processing loop
     while let Ok(content) = message_rx.recv() {
@@ -334,10 +349,21 @@ fn run_completion_worker_result(
             response.push_str(&output_string);
 
             completion_tx
-                .send(LLMOutput::Token(output_string))
+                .send(LLMOutput::Token(output_string.clone()))
                 .map_err(|_| WorkerError::SendError)?;
 
             debug_assert!(n_past == ctx.get_kv_cache_token_count());
+
+            // Check for stop tokens
+            if stop_tokens.len() > 0 {
+                if last_n_tokens.len() >= longest_stop_token {
+                    last_n_tokens.pop_front();
+                }
+                last_n_tokens.push_back(output_string);
+                if has_stop_tokens(&last_n_tokens, &stop_tokens) {
+                    break;
+                }
+            }
         }
 
         // Update chat state with generated response
@@ -362,6 +388,26 @@ fn run_completion_worker_result(
     // but it's not `unreachable!()`, since we do end up here once the channels die.
     Ok(()) // accept our fate
 }
+
+/// Checks if the current generation should stop based on stop tokens.
+/// This prevents the model from continuing after a stop sequence is detected.
+///
+/// # Arguments
+/// * `last_n_tokens` - The last few tokens generated
+/// * `stop_tokens` - List of token sequences that should stop generation
+///
+/// # Returns
+/// * `should_stop` - Whether generation should stop
+fn has_stop_tokens(last_n_tokens: &VecDeque<String>, stop_tokens: &[String]) -> bool {
+    if last_n_tokens.is_empty() || stop_tokens.is_empty() {
+        return false;
+    }
+    let last_n_concatenated: String = last_n_tokens.iter().fold(String::new(), |acc, x| acc + x);
+    stop_tokens
+        .iter()
+        .any(|stop_token| last_n_concatenated.contains(stop_token))
+}
+
 pub enum EmbeddingsOutput {
     Embedding(Vec<f32>),
     FatalError(WorkerError),
@@ -468,6 +514,7 @@ mod tests {
                 SamplerConfig::default(),
                 4096,
                 system_prompt,
+                vec![],
             )
         });
 
@@ -588,6 +635,7 @@ mod tests {
                 SamplerConfig::default(),
                 4096,
                 trivia_bot_system_prompt,
+                vec![],
             )
         });
 
@@ -603,6 +651,7 @@ mod tests {
                 SamplerConfig::default(),
                 4096,
                 trivia_bot_system_prompt,
+                vec![],
             )
         });
 
@@ -665,6 +714,7 @@ mod tests {
                 SamplerConfig::default(),
                 100, // very low context size. will be exceeded immediately
                 system_prompt,
+                vec![],
             )
         });
 
@@ -692,6 +742,69 @@ mod tests {
         assert!(
             result.contains("Current 1, target 0"),
             "Expected completion to contain 'Current 0, target 0', got: {result}"
+        );
+    }
+
+    #[test]
+    fn test_stop_tokens() {
+        let model = get_model(test_model_path!(), true).unwrap();
+
+        let (prompt_tx, prompt_rx) = std::sync::mpsc::channel();
+        let (completion_tx, completion_rx) = std::sync::mpsc::channel();
+
+        let system_prompt = "You are a helpful assistant.".to_string();
+        std::thread::spawn(|| {
+            run_completion_worker(
+                model,
+                prompt_rx,
+                completion_tx,
+                SamplerConfig::default(),
+                4096,
+                system_prompt,
+                vec!["horse".to_string()], // Stop at "horse"
+            )
+        });
+
+        prompt_tx
+            .send(
+                "List these animals in alphabetical order: cat, dog, giraffe, horse, lion, mouse. Keep them in lowercase."
+                    .to_string(),
+            )
+            .unwrap();
+
+        let result: String;
+        loop {
+            match completion_rx.recv() {
+                Ok(LLMOutput::Token(t)) => {
+                    println!("new token: {t}");
+                }
+                Ok(LLMOutput::Done(response)) => {
+                    result = response;
+                    break;
+                }
+                Ok(LLMOutput::FatalErr(e)) => {
+                    println!("got fatal error: {e}");
+                    panic!();
+                }
+                _ => unreachable!(),
+            }
+        }
+
+        assert!(
+            result.to_lowercase().contains("giraffe"),
+            "Expected output to contain text before stop token. Got: {result}"
+        );
+        assert!(
+            result.to_lowercase().contains("horse"),
+            "Expected output to contain stop token. Got: {result}"
+        );
+        assert!(
+            !result.to_lowercase().contains("lion"),
+            "Expected output to stop at stop token, but continued. Got: {result}"
+        );
+        assert!(
+            !result.to_lowercase().contains("mouse"),
+            "Expected output to stop at stop token, but continued. Got: {result}"
         );
     }
 }
