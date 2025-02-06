@@ -104,7 +104,7 @@ pub enum WorkerError {
     #[error("Llama.cpp failed decoding: {0}")]
     DecodeError(#[from] llama_cpp_2::DecodeError),
 
-    #[error("Lama.cpp failed fetching chat template: {0}")]
+    #[error("Lama.cpp failed fetching chat template from the model file. This is likely because you're using an older GGUF file, which might not include a chat template. For example, this is the case for most LLaMA2-based GGUF files. Try using a more recent GGUF model file. If you want to check if a given model includes a chat template, you can use the gguf-dump script from llama.cpp. Here is a more technical detailed error: {0}")]
     ChatTemplateError(#[from] llama_cpp_2::ChatTemplateError),
 
     #[error("Lama.cpp failed fetching chat template: {0}")]
@@ -113,11 +113,8 @@ pub enum WorkerError {
     #[error("Failed applying the jinja chat template: {0}")]
     ApplyTemplateError(#[from] minijinja::Error),
 
-    #[error("Context exceeded maximum length")]
-    ContextLengthExceededError,
-
     #[error("Could not send newly generated token out to the game engine.")]
-    SendError, // this is actually a SendError<LLMOutput>, but that becomes recursive and weord.
+    SendError, // this is actually a SendError<LLMOutput>, but that becomes recursive and weird.
 
     #[error("Global Inference Lock was poisoned.")]
     GILPoisonError, // this is actually a std::sync::PoisonError<std::sync::MutexGuard<'static, ()>>, but that doesn't implement Send, so we do this
