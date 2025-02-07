@@ -1,6 +1,6 @@
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::sampling::LlamaSampler;
-use thiserror::Error;
+
 
 #[derive(Clone)]
 pub struct SamplerConfig {
@@ -9,7 +9,9 @@ pub struct SamplerConfig {
     pub penalty_repeat: f32,
     pub penalty_freq: f32,
     pub penalty_present: f32,
-    pub grammar: Option<GrammarConfig>,
+    pub use_grammar: bool,
+    pub grammar_path: String,
+    pub root_def: String,
 }
 
 impl Default for SamplerConfig {
@@ -19,7 +21,9 @@ impl Default for SamplerConfig {
             penalty_repeat: 0.0,
             penalty_freq: 0.0,
             penalty_present: 0.0,
-            grammar: None,
+            use_grammar: false,
+            grammar_path: "".into(),
+            root_def: "root ::= object".into(),
             method: SamplerMethod::MirostatV2(MirostatV2 {
                 seed: 1234,
                 temperature: 0.8,
@@ -214,45 +218,6 @@ impl Default for MirostatV2 {
     }
 }
 
-/// ----- Grammar Config -----
-
-#[derive(Debug, thiserror::Error)]
-pub enum GrammarError {
-    #[error("Failed to read grammar file: {0}")]
-    FileReadError(#[from] std::io::Error),
-    #[error("Invalid grammar file path")]
-    InvalidPath,
-}
-
-
-#[derive(Clone)]
-pub struct GrammarConfig {
-    pub grammar_str: String,
-    pub grammar_root: String,
-}
-
-impl GrammarConfig {
-    /// Creates a new GrammarConfig from a file path
-    /// 
-    /// # Arguments
-    /// * `path` - Absolute path to the grammar file
-    /// 
-    /// # Returns
-    /// * `Ok(GrammarConfig)` if file was read successfully
-    /// * `Err(GrammarError)` if file couldn't be read
-    pub fn from_file(path: &str) -> Result<Self, GrammarError> {
-        if path.is_empty() {
-            return Err(GrammarError::InvalidPath);
-        }
-        
-        let grammar_str = std::fs::read_to_string(path)?;
-        
-        Ok(Self {
-            grammar_str,
-            grammar_root: "root".into(),
-        })
-    }
-}
 
 
 
@@ -260,12 +225,17 @@ pub fn make_sampler(model: &LlamaModel, sampler_config: SamplerConfig) -> LlamaS
     let mut chainvec = Vec::new();
 
     // Add grammar sampler first if configured
-    if let Some(grammar) = &sampler_config.grammar {
+    if sampler_config.use_grammar {
+        // read grammar file to string
+        let grammar_str = std::fs::read_to_string(&sampler_config.grammar_path).unwrap();
+        let grammar_root: String = sampler_config.root_def;
+        
         chainvec.push(LlamaSampler::grammar(
             model,
-            &grammar.grammar_str,
-            &grammar.grammar_root,
-        ));
+            grammar_str,
+            grammar_root,
+            )
+        );
     }
 
     // Add penalties

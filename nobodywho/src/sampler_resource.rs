@@ -35,26 +35,13 @@ pub struct NobodyWhoSampler {
     /// The gbnf format can be read about here: https://github.com/ggerganov/llama.cpp/blob/master/grammars/README.md
     #[export(file = "*.gbnf")]
     grammar_path: GString,
+    
+    /// Path to the grammar file. For many good examples, see:
+    /// https://github.com/ggerganov/llama.cpp/tree/master/grammars
+    /// The gbnf format can be read about here: https://github.com/ggerganov/llama.cpp/blob/master/grammars/README.md
+    #[export(file = "*.gbnf")]
+    root_def: GString,
 
-}
-
-impl NobodyWhoSampler {
-    fn update_grammar_config(&mut self) {
-        self.sampler_config.grammar = if self.use_grammar && !self.grammar_path.is_empty() {
-            let project_settings = ProjectSettings::singleton();
-            let grammar_path = project_settings.globalize_path(&self.grammar_path);
-            
-            match sampler_config::GrammarConfig::from_file(&grammar_path.to_string()) {
-                Ok(config) => Some(config),
-                Err(err) => {
-                    godot_error!("Failed to load grammar: {}", err);
-                    None
-                }
-            }
-        } else {
-            None
-        };
-    }
 }
 
 macro_rules! property_list {
@@ -107,8 +94,6 @@ macro_rules! get_property {
                     (sampler_config::SamplerMethod::$variant(conf), stringify!($variant_field)) => Some(Variant::from(conf.$variant_field)),
                 )*
             )*
-            (_, "use_grammar") => Some(Variant::from($self.use_grammar)),
-            (_, "grammar_path") => Some(Variant::from($self.grammar_path.clone())),
             _ => None
         }
     }};
@@ -157,16 +142,6 @@ macro_rules! set_property {
                     }
                 )*
             )*
-            (_, "use_grammar") => {
-                $self.use_grammar = bool::try_from_variant(&$value)
-                    .expect("Unexpected type for use_grammar");
-                $self.update_grammar_config();
-            },
-            (_, "grammar_path") => {
-                $self.grammar_path = GString::try_from_variant(&$value)
-                    .expect("Unexpected type for grammar_path");
-                $self.update_grammar_config();
-            },
             (variant, field_name) => godot_warn!("Bad combination of method variant and property name: {:?} {:?}", variant, field_name),
         }
         true
@@ -194,6 +169,7 @@ impl IResource for NobodyWhoSampler {
             base,
             use_grammar: false,
             grammar_path: "".into(),
+            root_def: "root ::= object".into(),
         }
     }
 
@@ -204,7 +180,10 @@ impl IResource for NobodyWhoSampler {
                 penalty_last_n: i32,
                 penalty_repeat: f32,
                 penalty_freq: f32,
-                penalty_present: f32
+                penalty_present: f32,
+                use_grammar: bool,
+                grammar_path: GString,
+                root_def: GString
             },
             methods: {
                 Greedy { },
@@ -228,7 +207,10 @@ impl IResource for NobodyWhoSampler {
                 penalty_last_n: i32,
                 penalty_repeat: f32,
                 penalty_freq: f32,
-                penalty_present: f32
+                penalty_present: f32,
+                use_grammar: bool,
+                grammar_path: GString,
+                root_def: GString
             },
             methods: {
                 Greedy { },
@@ -252,7 +234,10 @@ impl IResource for NobodyWhoSampler {
                 penalty_last_n: i32,
                 penalty_repeat: f32,
                 penalty_freq: f32,
-                penalty_present: f32
+                penalty_present: f32,
+                use_grammar: bool,
+                grammar_path: GString,
+                root_def: GString
             },
             methods: {
                 Greedy { },
