@@ -1,0 +1,11 @@
+[gd_scene load_steps=3 format=3 uid="uid://xxxxxxxxxxxxx"]
+
+[ext_resource type="Script" path="res://grammar_test.gd" id="1_xxxxx"]
+
+[node name="GrammarTest" type="Node"]
+script = ExtResource("1_xxxxx")
+
+[node name="Model" type="NobodyWhoModel" parent="."]
+model_path = "res://qwen2.5-1.5b-instruct-q4_0.gguf"
+
+[node name="Chat" type="NobodyWhoChat" parent="."] 
