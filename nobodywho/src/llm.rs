@@ -303,10 +303,11 @@ fn run_completion_worker_result(
                 assert!(n_past + batch.n_tokens() < ctx.n_ctx() as i32);
             }
 
-            // Sample next token
+            // Sample next token, no need to use sampler.accept as sample already accepts the token. 
+            // using sampler.accept() will cause the sampler to crash when using grammar sampling.
+            // https://github.com/utilityai/llama-cpp-rs/issues/604
             let new_token: LlamaToken = sampler.sample(&ctx, -1);
-            sampler.accept(new_token);
-
+            
             // Process current batch
             batch.clear();
             batch.add(new_token, n_past, &[0], true)?;

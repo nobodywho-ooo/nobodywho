@@ -235,12 +235,9 @@ pub fn make_sampler(model: &LlamaModel, sampler_config: SamplerConfig) -> LlamaS
                 ));
             },
             Err(e) => {
-                println!("Failed to read grammar file: {}. Error: {}. Skipping grammar sampler.", 
-                    sampler_config.grammar_path, e);
+                println!("Read grammar file failed: {}", e);
             }
         }
-    } else {
-        println!("\n\n#### No grammar sampler configured");
     }
 
     // Add penalties

@@ -192,7 +192,7 @@ impl IResource for NobodyWhoSampler {
             base,
             use_grammar: false,
             grammar_path: "".into(),
-            root_def: "root ::= object".into(),
+            root_def: "root".into(),
         }
     }
 
