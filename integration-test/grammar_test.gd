@@ -11,7 +11,6 @@ func _ready():
 	chat.system_prompt = "You are a character creator for a fantasy game. You will be given a list of properties and you will need to fill out thoe properties.s"
 	
 	# Start worker first to ensure model is loaded
-	chat.start_worker()
 	
 	print("Model loaded, configuring sampler...")
 	
@@ -25,6 +24,8 @@ func _ready():
 	sampler.use_grammar = true
 	sampler.grammar_path = "res://grammars/json.gbnf"
 	chat.sampler = sampler
+	chat.start_worker()
+	
 	
 	test_json_output()
 

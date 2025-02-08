@@ -85,7 +85,7 @@ macro_rules! get_property {
         match (&$self.sampler_config.method, $property.to_string().as_str()) {
             (_, "method") => Some(Variant::from($self.method)),
             $(
-                (_, stringify!($base_field)) => Some(Variant::from($self.sampler_config.$base_field)),
+                (_, stringify!($base_field)) => Some(Variant::from($self.sampler_config.$base_field.clone())),
             )*
             $(
                 // makes patterns like this:
@@ -103,8 +103,8 @@ macro_rules! set_property {
     ($self:expr,
      $property:expr,
      $value:expr,
-     base: {$($base_field:ident : $base_type:ty),*},
-     methods: {$($variant:ident { $($variant_field:ident : $variant_type:ty),*}),*}
+     base: {$($base_field:ident : $base_type:ty),* $(,)*}, // matches all base object fields and commas
+     methods: {$($variant:ident { $($variant_field:ident : $variant_type:ty),* $(,)*}),* $(,)*} // matches all method fields and commas
      ) => {{
         match (&mut $self.sampler_config.method, $property.to_string().as_str()) {
             (_, "method") => {
