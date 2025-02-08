@@ -1,7 +1,6 @@
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::sampling::LlamaSampler;
 
-
 #[derive(Clone)]
 pub struct SamplerConfig {
     pub method: SamplerMethod,
@@ -227,15 +226,21 @@ pub fn make_sampler(model: &LlamaModel, sampler_config: SamplerConfig) -> LlamaS
     // Add grammar sampler first if configured
     if sampler_config.use_grammar {
         // read grammar file to string
-        let grammar_str = std::fs::read_to_string(&sampler_config.grammar_path).unwrap();
-        let grammar_root: String = sampler_config.root_def;
-        
-        chainvec.push(LlamaSampler::grammar(
-            model,
-            grammar_str,
-            grammar_root,
-            )
-        );
+        match std::fs::read_to_string(&sampler_config.grammar_path) {
+            Ok(grammar_str) => {
+                chainvec.push(LlamaSampler::grammar(
+                    model,
+                    &grammar_str,
+                    &sampler_config.root_def,
+                ));
+            },
+            Err(e) => {
+                println!("Failed to read grammar file: {}. Error: {}. Skipping grammar sampler.", 
+                    sampler_config.grammar_path, e);
+            }
+        }
+    } else {
+        println!("\n\n#### No grammar sampler configured");
     }
 
     // Add penalties

@@ -14,17 +14,21 @@ func _ready():
 	
 	print("Model loaded, configuring sampler...")
 	
-	# Configure the sampler with JSON grammar
+
 	var sampler = NobodyWhoSampler.new()
-	sampler.method = "Temperature" # Set method first
-	sampler.temperature = 0.8 # Set temperature
-	sampler.seed = randi() % 1000 # Now seed will work (and value is within u32 range)
-	
-	print("Setting up grammar...")
+	sampler.method = "Temperature"
+	sampler.temperature = 0.8
+
+	# Configure the sampler with JSON grammar
 	sampler.use_grammar = true
 	sampler.grammar_path = "res://grammars/json.gbnf"
+	sampler.root_def = "root"
+	
 	chat.sampler = sampler
 	chat.start_worker()
+	chat.response_updated.connect(func(res):
+		print(res)
+	)
 	
 	
 	test_json_output()

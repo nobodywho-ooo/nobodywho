@@ -84,6 +84,9 @@ macro_rules! get_property {
      ) => {{
         match (&$self.sampler_config.method, $property.to_string().as_str()) {
             (_, "method") => Some(Variant::from($self.method)),
+            (_, "use_grammar") => Some(Variant::from($self.use_grammar)),
+            (_, "grammar_path") => Some(Variant::from($self.grammar_path.clone())),
+            (_, "root_def") => Some(Variant::from($self.root_def.clone())),
             $(
                 (_, stringify!($base_field)) => Some(Variant::from($self.sampler_config.$base_field.clone())),
             )*
@@ -103,8 +106,8 @@ macro_rules! set_property {
     ($self:expr,
      $property:expr,
      $value:expr,
-     base: {$($base_field:ident : $base_type:ty),* $(,)*}, // matches all base object fields and commas
-     methods: {$($variant:ident { $($variant_field:ident : $variant_type:ty),* $(,)*}),* $(,)*} // matches all method fields and commas
+     base: {$($base_field:ident : $base_type:ty),*},
+     methods: {$($variant:ident { $($variant_field:ident : $variant_type:ty),*}),*}
      ) => {{
         match (&mut $self.sampler_config.method, $property.to_string().as_str()) {
             (_, "method") => {
@@ -122,23 +125,43 @@ macro_rules! set_property {
                     .upcast::<Object>()
                     .notify_property_list_changed();
             },
+            // Handle grammar fields directly
+            (_, "use_grammar") => {
+                $self.use_grammar = bool::try_from_variant(&$value)
+                    .expect("Expected bool for use_grammar");
+                $self.sampler_config.use_grammar = $self.use_grammar;
+            },
+            (_, "grammar_path") => {
+                $self.grammar_path = GString::try_from_variant(&$value)
+                    .expect("Expected GString for grammar_path");
+                $self.sampler_config.grammar_path = ProjectSettings::singleton()
+                    .globalize_path(&$self.grammar_path.to_string())
+                    .to_string();
+            },
+            (_, "root_def") => {
+                $self.root_def = GString::try_from_variant(&$value)
+                    .expect("Expected GString for root_def");
+                $self.sampler_config.root_def = $self.root_def.to_string();
+            },
             $(
                 // generates arms like this:
                 //     (_, "penalty_last_n") => {
                 //         self.sampler_config.penalty_last_n =
                 //             i32::try_from_variant(&value).expect("Unexpected type for penalty_last_n");
                 (_, stringify!($base_field)) => {
-                    $self.sampler_config.$base_field = <$base_type>::try_from_variant(&$value).expect(format!("Unexpected type for {}", stringify!($base_field)).as_str());
+                    $self.sampler_config.$base_field = <$base_type>::try_from_variant(&$value)
+                        .expect(format!("Unexpected type for {}", stringify!($base_field)).as_str());
                 }
             )*
             $(
-                // generates ams like this:
+                // generates arms like this:
                 //     (sampler_config::SamplerMethod::Temperature(conf), "seed") => {
                 //         conf.seed = u32::try_from_variant(&value).expect("Unexpected type for seed");
                 //     }
                 $(
                     (sampler_config::SamplerMethod::$variant(conf), stringify!($variant_field)) => {
-                        conf.$variant_field = <$variant_type>::try_from_variant(&$value).expect(format!("Unexpected type for {}", stringify!($variant_field)).as_str());
+                        conf.$variant_field = <$variant_type>::try_from_variant(&$value)
+                            .expect(format!("Unexpected type for {}", stringify!($variant_field)).as_str());
                     }
                 )*
             )*
@@ -180,10 +203,7 @@ impl IResource for NobodyWhoSampler {
                 penalty_last_n: i32,
                 penalty_repeat: f32,
                 penalty_freq: f32,
-                penalty_present: f32,
-                use_grammar: bool,
-                grammar_path: GString,
-                root_def: GString
+                penalty_present: f32
             },
             methods: {
                 Greedy { },
@@ -207,10 +227,7 @@ impl IResource for NobodyWhoSampler {
                 penalty_last_n: i32,
                 penalty_repeat: f32,
                 penalty_freq: f32,
-                penalty_present: f32,
-                use_grammar: bool,
-                grammar_path: GString,
-                root_def: GString
+                penalty_present: f32
             },
             methods: {
                 Greedy { },
@@ -234,10 +251,7 @@ impl IResource for NobodyWhoSampler {
                 penalty_last_n: i32,
                 penalty_repeat: f32,
                 penalty_freq: f32,
-                penalty_present: f32,
-                use_grammar: bool,
-                grammar_path: GString,
-                root_def: GString
+                penalty_present: f32
             },
             methods: {
                 Greedy { },
