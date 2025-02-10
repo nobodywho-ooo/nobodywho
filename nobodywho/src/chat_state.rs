@@ -15,6 +15,10 @@ static MINIJINJA_ENV: LazyLock<Environment> = LazyLock::new(|| {
         },
     );
     env.add_function("strftime_now", strftime_now);
+
+    // add a bunch of python-isms, like str.split() or dict.get()
+    // was introduced in #106 to fix the deepseek chat template
+    env.set_unknown_method_callback(minijinja_contrib::pycompat::unknown_method_callback);
     env
 });
 
