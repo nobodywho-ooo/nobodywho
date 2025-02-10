@@ -15,6 +15,10 @@ static MINIJINJA_ENV: LazyLock<Environment> = LazyLock::new(|| {
         },
     );
     env.add_function("strftime_now", strftime_now);
+
+    // add a bunch of python-isms, like str.split() or dict.get()
+    // was introduced in #106 to fix the deepseek chat template
+    env.set_unknown_method_callback(minijinja_contrib::pycompat::unknown_method_callback);
     env
 });
 
@@ -159,5 +163,19 @@ Hello, world!<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 
         let result = strftime_now("%H:%M:%S");
         assert!(result.len() == 8, "Expected format HH:MM:SS to be 8 chars");
+    }
+
+    #[test]
+    fn test_deepseek_template() {
+        let template = "{% if not add_generation_prompt is defined %}{% set add_generation_prompt = false %}{% endif %}{% set ns = namespace(is_first=false, is_tool=false, is_output_first=true, system_prompt='') %}{%- for message in messages %}{%- if message['role'] == 'system' %}{% set ns.system_prompt = message['content'] %}{%- endif %}{%- endfor %}{{bos_token}}{{ns.system_prompt}}{%- for message in messages %}{%- if message['role'] == 'user' %}{%- set ns.is_tool = false -%}{{'<｜User｜>' + message['content']}}{%- endif %}{%- if message['role'] == 'assistant' and message['content'] is none %}{%- set ns.is_tool = false -%}{%- for tool in message['tool_calls']%}{%- if not ns.is_first %}{{'<｜Assistant｜><｜tool▁calls▁begin｜><｜tool▁call▁begin｜>' + tool['type'] + '<｜tool▁sep｜>' + tool['function']['name'] + '\\n' + '```json' + '\\n' + tool['function']['arguments'] + '\\n' + '```' + '<｜tool▁call▁end｜>'}}{%- set ns.is_first = true -%}{%- else %}{{'\\n' + '<｜tool▁call▁begin｜>' + tool['type'] + '<｜tool▁sep｜>' + tool['function']['name'] + '\\n' + '```json' + '\\n' + tool['function']['arguments'] + '\\n' + '```' + '<｜tool▁call▁end｜>'}}{{'<｜tool▁calls▁end｜><｜end▁of▁sentence｜>'}}{%- endif %}{%- endfor %}{%- endif %}{%- if message['role'] == 'assistant' and message['content'] is not none %}{%- if ns.is_tool %}{{'<｜tool▁outputs▁end｜>' + message['content'] + '<｜end▁of▁sentence｜>'}}{%- set ns.is_tool = false -%}{%- else %}{% set content = message['content'] %}{% if '</think>' in content %}{% set content = content.split('</think>')[-1] %}{% endif %}{{'<｜Assistant｜>' + content + '<｜end▁of▁sentence｜>'}}{%- endif %}{%- endif %}{%- if message['role'] == 'tool' %}{%- set ns.is_tool = true -%}{%- if ns.is_output_first %}{{'<｜tool▁outputs▁begin｜><｜tool▁output▁begin｜>' + message['content'] + '<｜tool▁output▁end｜>'}}{%- set ns.is_output_first = false %}{%- else %}{{'\\n<｜tool▁output▁begin｜>' + message['content'] + '<｜tool▁output▁end｜>'}}{%- endif %}{%- endif %}{%- endfor -%}{% if ns.is_tool %}{{'<｜tool▁outputs▁end｜>'}}{% endif %}{% if add_generation_prompt and not ns.is_tool %}{{'<｜Assistant｜>'}}{% endif %}";
+        let mut chatstate = ChatState::new(template.into(), "<|bos|>".into(), "<|eos|>".into());
+        chatstate.add_message("user".into(), "Hello, world!".into());
+        chatstate.add_message(
+            "assistant".into(),
+            "<think>beep boop robot thinky</think>".into(),
+        );
+        let rendered = chatstate.render_diff();
+        println!("{:?}", rendered);
+        assert!(rendered.is_ok());
     }
 }
