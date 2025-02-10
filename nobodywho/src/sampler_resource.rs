@@ -36,10 +36,14 @@ pub struct NobodyWhoSampler {
     #[export(file = "*.gbnf")]
     grammar_path: GString,
     
-    /// Path to the grammar file. For many good examples, see:
-    /// https://github.com/ggerganov/llama.cpp/tree/master/grammars
-    /// The gbnf format can be read about here: https://github.com/ggerganov/llama.cpp/blob/master/grammars/README.md
-    #[export(file = "*.gbnf")]
+    /// The root definition of the grammar.
+    /// This is the starting point of the grammar. so if you have a grammar like this:
+    /// root ::= object
+    /// object ::= name " " name
+    /// name ::= "John" | "Jane"
+    /// then the root_def should be "root".
+    /// but you could use name as the root_def if you want to generate names.
+    #[export]
     root_def: GString,
 
 }
@@ -125,7 +129,6 @@ macro_rules! set_property {
                     .upcast::<Object>()
                     .notify_property_list_changed();
             },
-            // Handle grammar fields directly
             (_, "use_grammar") => {
                 $self.use_grammar = bool::try_from_variant(&$value)
                     .expect("Expected bool for use_grammar");
