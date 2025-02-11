@@ -9,9 +9,34 @@ pub struct SamplerConfig {
     pub penalty_freq: f32,
     pub penalty_present: f32,
     pub use_grammar: bool,
-    pub grammar_str: String,
-    pub root_def: String,
+    pub gbnf_grammar: String,
 }
+
+const JSON_GRAMMAR: &str = r#"root   ::= object
+value  ::= object | array | string | number | ("true" | "false" | "null") ws
+
+object ::=
+"{" ws (
+            string ":" ws value
+    ("," ws string ":" ws value)*
+)? "}" ws
+
+array  ::=
+"[" ws (
+            value
+    ("," ws value)*
+)? "]" ws
+
+string ::=
+"\"" (
+    [^"\\\x7F\x00-\x1F] |
+    "\\" (["\\bfnrt] | "u" [0-9a-fA-F]{4}) # escapes
+)* "\"" ws
+
+number ::= ("-"? ([0-9] | [1-9] [0-9]{0,15})) ("." [0-9]+)? ([eE] [-+]? [0-9] [1-9]{0,15})? ws
+
+# Optional space: by convention, applied in this grammar after literal chars when allowed
+ws ::= | " " | "\n" [ \t]{0,20}"#;
 
 impl Default for SamplerConfig {
     fn default() -> Self {
@@ -21,33 +46,7 @@ impl Default for SamplerConfig {
             penalty_freq: 0.0,
             penalty_present: 0.0,
             use_grammar: false,
-            grammar_str: r#"root   ::= object
-                        value  ::= object | array | string | number | ("true" | "false" | "null") ws
-
-                        object ::=
-                        "{" ws (
-                                    string ":" ws value
-                            ("," ws string ":" ws value)*
-                        )? "}" ws
-
-                        array  ::=
-                        "[" ws (
-                                    value
-                            ("," ws value)*
-                        )? "]" ws
-
-                        string ::=
-                        "\"" (
-                            [^"\\\x7F\x00-\x1F] |
-                            "\\" (["\\bfnrt] | "u" [0-9a-fA-F]{4}) # escapes
-                        )* "\"" ws
-
-                        number ::= ("-"? ([0-9] | [1-9] [0-9]{0,15})) ("." [0-9]+)? ([eE] [-+]? [0-9] [1-9]{0,15})? ws
-
-                        # Optional space: by convention, applied in this grammar after literal chars when allowed
-                        ws ::= | " " | "\n" [ \t]{0,20}
-                    "#.into(),
-            root_def: "root".into(),
+            gbnf_grammar: JSON_GRAMMAR.into(),
             method: SamplerMethod::MirostatV2(MirostatV2 {
                 seed: 1234,
                 temperature: 0.8,
@@ -242,9 +241,6 @@ impl Default for MirostatV2 {
     }
 }
 
-
-
-
 pub fn make_sampler(model: &LlamaModel, sampler_config: SamplerConfig) -> LlamaSampler {
     let mut chainvec = Vec::new();
 
@@ -252,8 +248,8 @@ pub fn make_sampler(model: &LlamaModel, sampler_config: SamplerConfig) -> LlamaS
     if sampler_config.use_grammar {
         chainvec.push(LlamaSampler::grammar(
             model,
-            &sampler_config.grammar_str,
-            &sampler_config.root_def,
+            &sampler_config.gbnf_grammar,
+            "root",
         ));
     }
 
