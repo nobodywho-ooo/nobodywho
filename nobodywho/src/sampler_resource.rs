@@ -1,6 +1,7 @@
 use crate::sampler_config;
+use godot::global::PropertyHint;
+use godot::meta::PropertyHintInfo;
 use godot::prelude::*;
-use godot::classes::ProjectSettings;
 
 #[derive(GodotConvert, Var, Export, Debug, Clone, Copy)]
 #[godot(via=GString)]
@@ -26,39 +27,17 @@ pub struct NobodyWhoSampler {
     method: SamplerMethodName,
 
     pub sampler_config: sampler_config::SamplerConfig,
-
-    #[export]
-    use_grammar: bool,
-
-    /// Grammar syntax, works like a vocabulary, but with inheritance. 
-    /// Defaults to using the json grammar.
-    /// For a indepth explanation og the gbnf format, see:
-    /// https://github.com/ggerganov/llama.cpp/tree/master/grammars
-    #[export]
-    #[var(hint = MULTILINE_TEXT)]
-    grammar_str: GString,
-    
-    /// The root definition of the grammar.
-    /// This is the starting point of the grammar. so if you have a grammar like this:
-    /// root ::= object
-    /// object ::= name " " name
-    /// name ::= "John" | "Jane"
-    /// then the root_def should be "root".
-    /// but you could use name as the root_def if you want to generate names.
-    #[export]
-    root_def: GString,
-
 }
 
 macro_rules! property_list {
     ($self:expr,
-     base: {$($base_field:ident : $base_type:ty),*},
+     base: {$($base_field:ident : $base_type:ty : $property_hint:ident),*},
      methods: {$($variant:ident { $($field:ident : $type:ty),*}),*}
      ) => {
         {
             let base_properties = vec![
                 $(
-                    godot::meta::PropertyInfo::new_export::<$base_type>(stringify!($base_field)),
+                    godot::meta::PropertyInfo::new_export::<$base_type>(stringify!($base_field)).with_hint_info(PropertyHintInfo { hint: PropertyHint::$property_hint, hint_string: GString::new() }),
                 )*
             ];
             let method_properties = match $self.method {
@@ -90,9 +69,6 @@ macro_rules! get_property {
      ) => {{
         match (&$self.sampler_config.method, $property.to_string().as_str()) {
             (_, "method") => Some(Variant::from($self.method)),
-            (_, "use_grammar") => Some(Variant::from($self.use_grammar)),
-            (_, "grammar_str") => Some(Variant::from($self.grammar_str.clone())),
-            (_, "root_def") => Some(Variant::from($self.root_def.clone())),
             $(
                 (_, stringify!($base_field)) => Some(Variant::from($self.sampler_config.$base_field.clone())),
             )*
@@ -130,23 +106,6 @@ macro_rules! set_property {
                     .to_gd()
                     .upcast::<Object>()
                     .notify_property_list_changed();
-            },
-            (_, "use_grammar") => {
-                $self.use_grammar = bool::try_from_variant(&$value)
-                    .expect("Expected bool for use_grammar");
-                $self.sampler_config.use_grammar = $self.use_grammar;
-            },
-            (_, "grammar_str") => {
-                $self.grammar_str = GString::try_from_variant(&$value)
-                    .expect("Expected GString for grammar_str");
-                $self.sampler_config.grammar_str = ProjectSettings::singleton()
-                    .globalize_path(&$self.grammar_str.to_string())
-                    .to_string();
-            },
-            (_, "root_def") => {
-                $self.root_def = GString::try_from_variant(&$value)
-                    .expect("Expected GString for root_def");
-                $self.sampler_config.root_def = $self.root_def.to_string();
             },
             $(
                 // generates arms like this:
@@ -195,9 +154,6 @@ impl IResource for NobodyWhoSampler {
             method: methodname,
             sampler_config: sampler_config::SamplerConfig::default(),
             base,
-            use_grammar: false,
-            grammar_str: "".into(),
-            root_def: "root".into(),
         }
     }
 
@@ -205,10 +161,12 @@ impl IResource for NobodyWhoSampler {
         property_list!(
             self,
             base: {
-                penalty_last_n: i32,
-                penalty_repeat: f32,
-                penalty_freq: f32,
-                penalty_present: f32
+                penalty_last_n: i32 : NONE,
+                penalty_repeat: f32 : NONE,
+                penalty_freq: f32 : NONE,
+                penalty_present: f32 : NONE,
+                use_grammar: bool : NONE,
+                gbnf_grammar: GString : MULTILINE_TEXT
             },
             methods: {
                 Greedy { },
@@ -232,7 +190,9 @@ impl IResource for NobodyWhoSampler {
                 penalty_last_n: i32,
                 penalty_repeat: f32,
                 penalty_freq: f32,
-                penalty_present: f32
+                penalty_present: f32,
+                use_grammar: bool,
+                gbnf_grammar: String
             },
             methods: {
                 Greedy { },
@@ -256,7 +216,9 @@ impl IResource for NobodyWhoSampler {
                 penalty_last_n: i32,
                 penalty_repeat: f32,
                 penalty_freq: f32,
-                penalty_present: f32
+                penalty_present: f32,
+                use_grammar: bool,
+                gbnf_grammar: String
             },
             methods: {
                 Greedy { },
