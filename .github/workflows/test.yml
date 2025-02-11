@@ -5,14 +5,18 @@ on:
 jobs:
   nix-flake-check:
     runs-on: ubuntu-24.04
+    container: ubuntu:noble
     steps:
       - uses: actions/checkout@v4
       - name: "Install distro dependencies"
         run: |
-          sudo apt-get update
-          sudo apt-get install -y sqlite3 # ...needed to install nix
-      - run: |
-          sh <(curl -L https://nixos.org/nix/install) --no-daemon
+          apt-get update
+          apt-get install -y sqlite3 curl xz-utils sudo # ...needed to install nix
+      - name: Install Nix
+        shell: bash  # Explicitly use bash
+        run: |
+          curl -L https://nixos.org/nix/install > install.sh
+          bash install.sh --no-daemon
       - name: Restore and cache Nix store
         uses: nix-community/cache-nix-action@v5
         with:
