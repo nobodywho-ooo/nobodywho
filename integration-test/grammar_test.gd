@@ -21,7 +21,7 @@ func run_test() -> bool:
 
 func test_custom_grammar():
 
-	chat.sampler.grammar_str = "root ::= \"Should not use this\" \nname ::= \"John The Flipper Ripper\""
+	chat.sampler.gbnf_grammar = "root ::= \"Should not use this\" \nname ::= \"John The Flipper Ripper\""
 	chat.sampler.root_def = "name"
 	chat.start_worker()
 
