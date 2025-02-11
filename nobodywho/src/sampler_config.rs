@@ -271,16 +271,14 @@ pub fn make_sampler(model: &LlamaModel, sampler_config: SamplerConfig) -> LlamaS
             chainvec.push(LlamaSampler::greedy());
         }
         SamplerMethod::DRY(conf) => {
-            chainvec.push(
-                LlamaSampler::dry(
-                    model,
-                    conf.dry_multiplier,
-                    conf.dry_base,
-                    conf.dry_allowed_length,
-                    conf.dry_penalty_last_n,
-                    vec!["\n", ":", "\"", "*"],
-                ),
-            );
+            chainvec.push(LlamaSampler::dry(
+                model,
+                conf.dry_multiplier,
+                conf.dry_base,
+                conf.dry_allowed_length,
+                conf.dry_penalty_last_n,
+                vec!["\n", ":", "\"", "*"],
+            ));
             chainvec.push(LlamaSampler::dist(conf.seed));
         }
         SamplerMethod::TopK(conf) => {
@@ -296,14 +294,12 @@ pub fn make_sampler(model: &LlamaModel, sampler_config: SamplerConfig) -> LlamaS
             chainvec.push(LlamaSampler::dist(conf.seed));
         }
         SamplerMethod::XTC(conf) => {
-            chainvec.push(
-                LlamaSampler::xtc(
-                    conf.xtc_probability,
-                    conf.xtc_threshold,
-                    conf.min_keep as usize,
-                    conf.seed,
-                ),
-            );
+            chainvec.push(LlamaSampler::xtc(
+                conf.xtc_probability,
+                conf.xtc_threshold,
+                conf.min_keep as usize,
+                conf.seed,
+            ));
             chainvec.push(LlamaSampler::dist(conf.seed));
         }
         SamplerMethod::TypicalP(conf) => {
@@ -316,7 +312,13 @@ pub fn make_sampler(model: &LlamaModel, sampler_config: SamplerConfig) -> LlamaS
         }
         SamplerMethod::MirostatV1(conf) => {
             chainvec.push(LlamaSampler::temp(conf.temperature));
-            chainvec.push(LlamaSampler::mirostat(model.n_vocab(), conf.seed, conf.tau, conf.eta, 100));
+            chainvec.push(LlamaSampler::mirostat(
+                model.n_vocab(),
+                conf.seed,
+                conf.tau,
+                conf.eta,
+                100,
+            ));
         }
         SamplerMethod::MirostatV2(conf) => {
             chainvec.push(LlamaSampler::temp(conf.temperature));
