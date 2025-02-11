@@ -12,7 +12,8 @@ pub struct SamplerConfig {
     pub gbnf_grammar: String,
 }
 
-const JSON_GRAMMAR: &str = r#"root   ::= object
+const JSON_GRAMMAR: &str = r#"# this default gbnf grammar forces valid json output
+root   ::= object
 value  ::= object | array | string | number | ("true" | "false" | "null") ws
 
 object ::=
