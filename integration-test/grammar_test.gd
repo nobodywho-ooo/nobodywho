@@ -9,7 +9,6 @@ func _ready():
 	chat.system_prompt = "You are a character creator for a fantasy game. You will be given a list of properties and you will need to fill out thoe properties.s"
 
 	chat.sampler = NobodyWhoSampler.new()
-	chat.sampler.method = "Greedy"
 	chat.sampler.use_grammar = true
 		
 	chat.start_worker()
