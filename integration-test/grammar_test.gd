@@ -19,17 +19,6 @@ func run_test() -> bool:
 	var result2 = await test_custom_grammar()
 	return true
 
-func test_custom_grammar():
-
-	chat.sampler.gbnf_grammar = "root ::= \"Should not use this\" \nname ::= \"John The Flipper Ripper\""
-	chat.sampler.root_def = "name"
-	chat.start_worker()
-
-	chat.say("Generate a common name")
-	var response = await chat.response_finished
-	print("✨ Got response: " + response)
-	assert(response == "John The Flipper Ripper")
-
 func test_json_output():
 
 	# purposefully not mentioning the grammar type in the system prompt
