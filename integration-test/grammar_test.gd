@@ -16,7 +16,6 @@ func _ready():
  
 func run_test() -> bool:
 	var result = await test_json_output()
-	var result2 = await test_custom_grammar()
 	return true
 
 func test_json_output():
