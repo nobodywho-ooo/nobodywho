@@ -8,7 +8,36 @@ pub struct SamplerConfig {
     pub penalty_repeat: f32,
     pub penalty_freq: f32,
     pub penalty_present: f32,
+    pub use_grammar: bool,
+    pub gbnf_grammar: String,
 }
+
+const JSON_GRAMMAR: &str = r#"# this default gbnf grammar forces valid json output
+root   ::= object
+value  ::= object | array | string | number | ("true" | "false" | "null") ws
+
+object ::=
+"{" ws (
+            string ":" ws value
+    ("," ws string ":" ws value)*
+)? "}" ws
+
+array  ::=
+"[" ws (
+            value
+    ("," ws value)*
+)? "]" ws
+
+string ::=
+"\"" (
+    [^"\\\x7F\x00-\x1F] |
+    "\\" (["\\bfnrt] | "u" [0-9a-fA-F]{4}) # escapes
+)* "\"" ws
+
+number ::= ("-"? ([0-9] | [1-9] [0-9]{0,15})) ("." [0-9]+)? ([eE] [-+]? [0-9] [1-9]{0,15})? ws
+
+# Optional space: by convention, applied in this grammar after literal chars when allowed
+ws ::= | " " | "\n" [ \t]{0,20}"#;
 
 impl Default for SamplerConfig {
     fn default() -> Self {
@@ -17,6 +46,8 @@ impl Default for SamplerConfig {
             penalty_repeat: 0.0,
             penalty_freq: 0.0,
             penalty_present: 0.0,
+            use_grammar: false,
+            gbnf_grammar: JSON_GRAMMAR.into(),
             method: SamplerMethod::MirostatV2(MirostatV2 {
                 seed: 1234,
                 temperature: 0.8,
@@ -26,6 +57,8 @@ impl Default for SamplerConfig {
         }
     }
 }
+
+/// ----- Sampler Methods -----
 
 #[derive(Clone, Debug)]
 pub enum SamplerMethod {
@@ -210,93 +243,85 @@ impl Default for MirostatV2 {
 }
 
 pub fn make_sampler(model: &LlamaModel, sampler_config: SamplerConfig) -> LlamaSampler {
-    // init mirostat sampler
-    let penalties = LlamaSampler::penalties(
+    let mut chainvec = Vec::new();
+
+    // Add grammar sampler first if configured
+    if sampler_config.use_grammar {
+        chainvec.push(LlamaSampler::grammar(
+            model,
+            &sampler_config.gbnf_grammar,
+            "root",
+        ));
+    }
+
+    // Add penalties
+    chainvec.push(LlamaSampler::penalties(
         sampler_config.penalty_last_n,
         sampler_config.penalty_repeat,
         sampler_config.penalty_freq,
         sampler_config.penalty_present,
-    );
-    let chainvec = match sampler_config.method {
+    ));
+
+    // Add method-specific samplers
+    match sampler_config.method {
         SamplerMethod::Greedy(_) => {
-            vec![penalties, LlamaSampler::greedy()]
+            chainvec.push(LlamaSampler::greedy());
         }
         SamplerMethod::DRY(conf) => {
-            vec![
-                penalties,
-                LlamaSampler::dry(
-                    model,
-                    conf.dry_multiplier,
-                    conf.dry_base,
-                    conf.dry_allowed_length,
-                    conf.dry_penalty_last_n,
-                    vec!["\n", ":", "\"", "*"],
-                ),
-                LlamaSampler::dist(conf.seed),
-            ]
+            chainvec.push(LlamaSampler::dry(
+                model,
+                conf.dry_multiplier,
+                conf.dry_base,
+                conf.dry_allowed_length,
+                conf.dry_penalty_last_n,
+                vec!["\n", ":", "\"", "*"],
+            ));
+            chainvec.push(LlamaSampler::dist(conf.seed));
         }
         SamplerMethod::TopK(conf) => {
-            vec![
-                penalties,
-                LlamaSampler::top_k(conf.top_k),
-                LlamaSampler::dist(conf.seed),
-            ]
+            chainvec.push(LlamaSampler::top_k(conf.top_k));
+            chainvec.push(LlamaSampler::dist(conf.seed));
         }
         SamplerMethod::TopP(conf) => {
-            vec![
-                penalties,
-                LlamaSampler::top_p(conf.top_p, conf.min_keep as usize),
-                LlamaSampler::dist(conf.seed),
-            ]
+            chainvec.push(LlamaSampler::top_p(conf.top_p, conf.min_keep as usize));
+            chainvec.push(LlamaSampler::dist(conf.seed));
         }
         SamplerMethod::MinP(conf) => {
-            vec![
-                penalties,
-                LlamaSampler::min_p(conf.min_p, conf.min_keep as usize),
-                LlamaSampler::dist(conf.seed),
-            ]
+            chainvec.push(LlamaSampler::min_p(conf.min_p, conf.min_keep as usize));
+            chainvec.push(LlamaSampler::dist(conf.seed));
         }
         SamplerMethod::XTC(conf) => {
-            vec![
-                penalties,
-                LlamaSampler::xtc(
-                    conf.xtc_probability,
-                    conf.xtc_threshold,
-                    conf.min_keep as usize,
-                    conf.seed,
-                ),
-                LlamaSampler::dist(conf.seed),
-            ]
+            chainvec.push(LlamaSampler::xtc(
+                conf.xtc_probability,
+                conf.xtc_threshold,
+                conf.min_keep as usize,
+                conf.seed,
+            ));
+            chainvec.push(LlamaSampler::dist(conf.seed));
         }
         SamplerMethod::TypicalP(conf) => {
-            vec![
-                penalties,
-                LlamaSampler::typical(conf.typ_p, conf.min_keep as usize),
-                LlamaSampler::dist(conf.seed),
-            ]
+            chainvec.push(LlamaSampler::typical(conf.typ_p, conf.min_keep as usize));
+            chainvec.push(LlamaSampler::dist(conf.seed));
         }
         SamplerMethod::Temperature(conf) => {
-            vec![
-                penalties,
-                LlamaSampler::temp(conf.temperature),
-                LlamaSampler::dist(conf.seed),
-            ]
+            chainvec.push(LlamaSampler::temp(conf.temperature));
+            chainvec.push(LlamaSampler::dist(conf.seed));
         }
         SamplerMethod::MirostatV1(conf) => {
-            vec![
-                penalties,
-                LlamaSampler::temp(conf.temperature),
-                LlamaSampler::mirostat(model.n_vocab(), conf.seed, conf.tau, conf.eta, 100),
-                // this "100" is a mysterious value borrowed from llama.cpp's sampling.cpp
-            ]
+            chainvec.push(LlamaSampler::temp(conf.temperature));
+            chainvec.push(LlamaSampler::mirostat(
+                model.n_vocab(),
+                conf.seed,
+                conf.tau,
+                conf.eta,
+                100,
+            ));
         }
         SamplerMethod::MirostatV2(conf) => {
-            vec![
-                penalties,
-                LlamaSampler::temp(conf.temperature),
-                LlamaSampler::mirostat_v2(conf.seed, conf.tau, conf.eta),
-            ]
+            chainvec.push(LlamaSampler::temp(conf.temperature));
+            chainvec.push(LlamaSampler::mirostat_v2(conf.seed, conf.tau, conf.eta));
         }
-    };
+    }
+
     LlamaSampler::chain(chainvec, true)
 }

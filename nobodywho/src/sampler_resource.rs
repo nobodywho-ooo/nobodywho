@@ -1,4 +1,6 @@
 use crate::sampler_config;
+use godot::global::PropertyHint;
+use godot::meta::PropertyHintInfo;
 use godot::prelude::*;
 
 #[derive(GodotConvert, Var, Export, Debug, Clone, Copy)]
@@ -29,13 +31,13 @@ pub struct NobodyWhoSampler {
 
 macro_rules! property_list {
     ($self:expr,
-     base: {$($base_field:ident : $base_type:ty),*},
+     base: {$($base_field:ident : $base_type:ty : $property_hint:ident),*},
      methods: {$($variant:ident { $($field:ident : $type:ty),*}),*}
      ) => {
         {
             let base_properties = vec![
                 $(
-                    godot::meta::PropertyInfo::new_export::<$base_type>(stringify!($base_field)),
+                    godot::meta::PropertyInfo::new_export::<$base_type>(stringify!($base_field)).with_hint_info(PropertyHintInfo { hint: PropertyHint::$property_hint, hint_string: GString::new() }),
                 )*
             ];
             let method_properties = match $self.method {
@@ -68,7 +70,7 @@ macro_rules! get_property {
         match (&$self.sampler_config.method, $property.to_string().as_str()) {
             (_, "method") => Some(Variant::from($self.method)),
             $(
-                (_, stringify!($base_field)) => Some(Variant::from($self.sampler_config.$base_field)),
+                (_, stringify!($base_field)) => Some(Variant::from($self.sampler_config.$base_field.clone())),
             )*
             $(
                 // makes patterns like this:
@@ -111,17 +113,19 @@ macro_rules! set_property {
                 //         self.sampler_config.penalty_last_n =
                 //             i32::try_from_variant(&value).expect("Unexpected type for penalty_last_n");
                 (_, stringify!($base_field)) => {
-                    $self.sampler_config.$base_field = <$base_type>::try_from_variant(&$value).expect(format!("Unexpected type for {}", stringify!($base_field)).as_str());
+                    $self.sampler_config.$base_field = <$base_type>::try_from_variant(&$value)
+                        .expect(format!("Unexpected type for {}", stringify!($base_field)).as_str());
                 }
             )*
             $(
-                // generates ams like this:
+                // generates arms like this:
                 //     (sampler_config::SamplerMethod::Temperature(conf), "seed") => {
                 //         conf.seed = u32::try_from_variant(&value).expect("Unexpected type for seed");
                 //     }
                 $(
                     (sampler_config::SamplerMethod::$variant(conf), stringify!($variant_field)) => {
-                        conf.$variant_field = <$variant_type>::try_from_variant(&$value).expect(format!("Unexpected type for {}", stringify!($variant_field)).as_str());
+                        conf.$variant_field = <$variant_type>::try_from_variant(&$value)
+                            .expect(format!("Unexpected type for {}", stringify!($variant_field)).as_str());
                     }
                 )*
             )*
@@ -157,10 +161,12 @@ impl IResource for NobodyWhoSampler {
         property_list!(
             self,
             base: {
-                penalty_last_n: i32,
-                penalty_repeat: f32,
-                penalty_freq: f32,
-                penalty_present: f32
+                penalty_last_n: i32 : NONE,
+                penalty_repeat: f32 : NONE,
+                penalty_freq: f32 : NONE,
+                penalty_present: f32 : NONE,
+                use_grammar: bool : NONE,
+                gbnf_grammar: GString : MULTILINE_TEXT
             },
             methods: {
                 Greedy { },
@@ -184,7 +190,9 @@ impl IResource for NobodyWhoSampler {
                 penalty_last_n: i32,
                 penalty_repeat: f32,
                 penalty_freq: f32,
-                penalty_present: f32
+                penalty_present: f32,
+                use_grammar: bool,
+                gbnf_grammar: String
             },
             methods: {
                 Greedy { },
@@ -208,7 +216,9 @@ impl IResource for NobodyWhoSampler {
                 penalty_last_n: i32,
                 penalty_repeat: f32,
                 penalty_freq: f32,
-                penalty_present: f32
+                penalty_present: f32,
+                use_grammar: bool,
+                gbnf_grammar: String
             },
             methods: {
                 Greedy { },
