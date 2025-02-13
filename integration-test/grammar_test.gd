@@ -3,7 +3,7 @@ class_name test_grammar extends Node
 @onready var model = $Model
 @onready var chat = $Chat
 
-func _ready():    
+func run_test() -> bool:
 	chat.model_node = model
 	# purposefully not mentioning the grammar in the system prompt
 	chat.system_prompt = "You are a character creator for a fantasy game. You will be given a list of properties and you will need to fill out thoe properties.s"
@@ -12,8 +12,7 @@ func _ready():
 	chat.sampler.use_grammar = true
 		
 	chat.start_worker()
- 
-func run_test() -> bool:
+
 	var result = await test_json_output()
 	return true
 
