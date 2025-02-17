@@ -1,0 +1,16 @@
+[gd_scene load_steps=2 format=3 uid="uid://bb7twauxe36jr"]
+
+[ext_resource type="Script" path="res://benchmark.gd" id="1_6wcdy"]
+
+[node name="Node" type="Node"]
+
+[node name="NobodyWhoChat" type="NobodyWhoChat" parent="." node_paths=PackedStringArray("model_node")]
+model_node = NodePath("../NobodyWhoModel")
+system_prompt = "You are just running a benchmark. Right now. I'll ask you to repeat the word \"apple\" 1000 times. Just respond with the world apple 1000 times."
+script = ExtResource("1_6wcdy")
+
+[node name="NobodyWhoModel" type="NobodyWhoModel" parent="."]
+model_path = "res://Meta-Llama-3-8B-Instruct.Q4_K_M.gguf"
+
+[connection signal="response_finished" from="NobodyWhoChat" to="NobodyWhoChat" method="_on_response_finished"]
+[connection signal="response_updated" from="NobodyWhoChat" to="NobodyWhoChat" method="_on_response_updated"]
