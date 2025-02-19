@@ -23,7 +23,7 @@ stdenv.mkDerivation {
     # copy in gdextension stuff
     rm ./nobodywho.gdextension
     mkdir -p ./bin/
-    cp ${nobodywho}/lib/libnobodywho.so ./bin/libnobodywho.so
+    cp ${nobodywho}/lib/libnobodywho_godot.so ./bin/libnobodywho_godot.so
     cat << EOF > bin/nobodywho.gdextension
     [configuration]
     entry_symbol = "gdext_rust_init"
@@ -31,8 +31,8 @@ stdenv.mkDerivation {
     reloadable = true
 
     [libraries]
-    linux.debug.x86_64 =     "res://bin/libnobodywho.so"
-    linux.release.x86_64 =   "res://bin/libnobodywho.so"
+    linux.debug.x86_64 =     "res://bin/libnobodywho_godot.so"
+    linux.release.x86_64 =   "res://bin/libnobodywho_godot.so"
     EOF
 
     # build game
