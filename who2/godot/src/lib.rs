@@ -1,14 +1,13 @@
-mod chat_state;
 mod db;
-mod llm;
-mod sampler_config;
 mod sampler_resource;
 
 use godot::classes::{INode, ProjectSettings};
 use godot::prelude::*;
-use llm::{run_completion_worker, run_embedding_worker};
-use sampler_resource::NobodyWhoSampler;
+use nobodywho::core::{llm, sampler_config};
 use std::sync::mpsc::{Receiver, Sender};
+
+use crate::sampler_resource::NobodyWhoSampler;
+
 
 struct NobodyWhoExtension;
 
@@ -209,7 +208,7 @@ impl NobodyWhoChat {
             let system_prompt = self.system_prompt.to_string();
             let stop_tokens: Vec<String> = self.stop_tokens.to_vec().into_iter().map(|g| g.to_string()).collect();
             std::thread::spawn(move || {
-                run_completion_worker(
+                llm::run_completion_worker(
                     model,
                     prompt_rx,
                     completion_tx,
@@ -374,7 +373,7 @@ impl NobodyWhoEmbedding {
 
             // start the llm worker
             std::thread::spawn(move || {
-                run_embedding_worker(model, text_rx, embedding_tx);
+                llm::run_embedding_worker(model, text_rx, embedding_tx);
             });
 
             Ok(())

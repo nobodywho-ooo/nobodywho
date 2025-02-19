@@ -1,5 +1,5 @@
 [package]
-name = "godot"
+name = "nobodywho_godot"
 version = "4.6.0"
 edition = "2021"
 
@@ -8,10 +8,11 @@ crate-type = ["cdylib"] # Compile this crate to a dynamic C library.
 path = "src/lib.rs"
 
 [dependencies]
+nobodywho = { path = "../core" }
 godot = { git = "https://github.com/godot-rust/gdext", branch = "master", features = [
     "experimental-threads",
     "register-docs",
 ] }
 rusqlite = { version = "0.33.0", features = ["bundled"] }
 sqlite-vec = "0.1.5"
- 
+

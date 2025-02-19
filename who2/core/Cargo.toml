@@ -1,11 +1,10 @@
 [package]
-name = "nobodywho-core"
+name = "nobodywho"
 version = "4.6.0"
 edition = "2021"
 
 [lib]
-crate-type = ["cdylib"] # Compile this crate to a dynamic C library.
-path = "src/lib.rs"  # Ensure this points to the correct library file
+path = "src/lib.rs"
 
 [dependencies]
 encoding_rs = "0.8.34"

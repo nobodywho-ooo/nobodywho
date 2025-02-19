@@ -3,3 +3,4 @@ members = [
     "core",
     "godot",
 ]
+resolver = "2"
