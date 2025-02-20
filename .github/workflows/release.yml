@@ -29,7 +29,7 @@ jobs:
           uses: actions/upload-artifact@v4
           with:
             name: nobodywho-${{ matrix.integration }}-all-platforms
-            path: ./${{ matrix.integration }}nobodywho-release
+            path: ./nobodywho-${{ matrix.integration }}-release
 
   create-github-release:
     needs: [zip-distributable]
@@ -44,10 +44,10 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: nobodywho-${{ matrix.integration }}-all-platforms
-          path: ./${{ matrix.integration }}nobodywho-release
+          path: ./nobodywho-${{ matrix.integration }}-release
 
       - name: "Make zip file"
-        working-directory: ./${{ matrix.integration }}nobodywho-release
+        working-directory: ./nobodywho-${{ matrix.integration }}-release
         run: zip -r "../nobodywho-${{ matrix.integration }}-${{ github.ref_name }}.zip" ./**
 
       - name: "Create GitHub Release"
