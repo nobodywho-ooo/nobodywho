@@ -47,13 +47,13 @@ jobs:
         working-directory: ./nobodywho
 
       - name: "Rename built file"
-        run: cp ./nobodywho/target/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.so ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.so
+        run: cp ./nobodywho/target/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.so ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.target }}-${{ matrix.profile }}
-          path: ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.so
+          name: ${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
+          path: ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
 
   cargo-build-windows:
     runs-on: windows-latest
@@ -96,21 +96,18 @@ jobs:
         run: cargo build --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }}
         working-directory: nobodywho
 
-      - name: "Rename built file"
-        run: cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.dll ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.dll
-
       - name: "Rename built files"
         run: |
-          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.dll ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.dll
-          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.pdb ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.pdb
+          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.dll ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dll
+          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.pdb ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
 
       - name: "Upload build artifacts"
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.target }}-${{ matrix.profile }}
+          name: ${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
           path: |
-            ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.dll
-            ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.pdb
+            ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dll
+            ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
 
   cargo-build-macos:
     runs-on: macos-15
@@ -146,10 +143,10 @@ jobs:
         working-directory: ./nobodywho
 
       - name: "Rename built file"
-        run: cp ./nobodywho/target/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.dylib
+        run: cp ./nobodywho/target/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.target }}-${{ matrix.profile }}
-          path: ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.dylib
+          name: ${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
+          path: ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
