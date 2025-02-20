@@ -17,6 +17,8 @@ jobs:
         profile:
           - "debug"
           - "release"
+        integration:
+          - "godot"
     steps:
       - uses: actions/checkout@v4
 
@@ -26,9 +28,9 @@ jobs:
           path: |
             ~/.cargo
             nobodywho/target
-          key: ${{ runner.os }}-cargo-home-${{ matrix.target }}-${{ matrix.profile }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-home-${{ matrix.target }}-${{ matrix.profile }}-
+            ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}-
       - name: "Setup rust toolchain"
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
@@ -45,13 +47,13 @@ jobs:
         working-directory: ./nobodywho
 
       - name: "Rename built file"
-        run: cp ./nobodywho/target/${{ matrix.profile }}/libnobodywho.so ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.so
+        run: cp ./nobodywho/target/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.so ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.target }}-${{ matrix.profile }}
-          path: ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.so
+          name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
+          path: ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
 
   cargo-build-windows:
     runs-on: windows-latest
@@ -63,6 +65,8 @@ jobs:
         profile:
           - "debug"
           - "release"
+        integration:
+          - "godot"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -70,10 +74,12 @@ jobs:
       - name: "Cache Cargo Home"
         uses: actions/cache@v4
         with:
-          path: ~/.cargo
-          key: ${{ runner.os }}-cargo-home-${{ matrix.target }}-${{ matrix.profile }}-${{ hashFiles('**/Cargo.lock') }}
+          path: |
+            ~/.cargo
+            nobodywho/target
+          key: ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-home-${{ matrix.target }}-${{ matrix.profile }}-
+            ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}-
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
@@ -92,21 +98,18 @@ jobs:
         run: cargo build --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }}
         working-directory: nobodywho
 
-      - name: "Rename built file"
-        run: cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/nobodywho.dll ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.dll
-
       - name: "Rename built files"
         run: |
-          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/nobodywho.dll ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.dll
-          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/nobodywho.pdb ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.pdb
+          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.dll ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dll
+          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.pdb ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
 
       - name: "Upload build artifacts"
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.target }}-${{ matrix.profile }}
+          name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
           path: |
-            ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.dll
-            ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.pdb
+            ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dll
+            ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
 
   cargo-build-macos:
     runs-on: macos-15
@@ -119,6 +122,8 @@ jobs:
         profile:
           - "debug"
           - "release"
+        integration:
+          - "godot"
     steps:
       - uses: actions/checkout@v4
 
@@ -126,9 +131,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cargo
-          key: ${{ runner.os }}-cargo-home-${{ matrix.target }}-${{ matrix.profile }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-home-${{ matrix.target }}-${{ matrix.profile }}-
+            ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}-
       - run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           . "$HOME/.cargo/env"
@@ -140,10 +145,10 @@ jobs:
         working-directory: ./nobodywho
 
       - name: "Rename built file"
-        run: cp ./nobodywho/target/${{ matrix.profile }}/libnobodywho.dylib ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.dylib
+        run: cp ./nobodywho/target/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.target }}-${{ matrix.profile }}
-          path: ./nobodywho-${{ matrix.target }}-${{ matrix.profile }}.dylib
+          name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
+          path: ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib

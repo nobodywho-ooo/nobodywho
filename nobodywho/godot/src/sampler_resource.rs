@@ -1,4 +1,4 @@
-use crate::sampler_config;
+use nobodywho::core::sampler_config;
 use godot::global::PropertyHint;
 use godot::meta::PropertyHintInfo;
 use godot::prelude::*;

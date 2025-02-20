@@ -4,11 +4,13 @@
 rustPlatform.buildRustPackage {
   pname = "nobody";
   version = "0.0.0";
-  src = ./.;
+  src = ./..;
+  buildAndTestSubdir = "godot";
   nativeBuildInputs = [
     llvmPackages_12.bintools
     cmake
     rustPlatform.bindgenHook
+    rustPlatform.cargoBuildHook
     vulkan-headers
     vulkan-loader
     shaderc
@@ -23,7 +25,7 @@ rustPlatform.buildRustPackage {
     mesa.drivers
   ];
   cargoLock = {
-    lockFile = ./Cargo.lock;
+    lockFile = ../Cargo.lock;
     outputHashes = {
       "gdextension-api-0.2.1" = "sha256-YkMbzObJGnmQa1XGT4ApRrfqAeOz7CktJrhYks8z0RY=";
       "godot-0.2.2" = "sha256-6q7BcQ/6WvzJdVmyAVGPMtuIDJFYKaRrkv3/JQBi11M=";
