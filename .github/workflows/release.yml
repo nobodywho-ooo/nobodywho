@@ -23,7 +23,7 @@ jobs:
             # copy in nobodywho libs
             cp ./artifacts/*/*nobodywho-${{ matrix.integration }}* ./nobodywho-release/${{ matrix.integration }}/bin/addons/nobodywho/
             # copy in gdextension metadata
-            cp ./nobodywho/nobodywho.gdextension ./nobodywho-release/${{ matrix.integration }}/bin/addons/nobodywho/
+            cp ./nobodywho/godot/nobodywho.gdextension ./nobodywho-release/${{ matrix.integration }}/bin/addons/nobodywho/
             cp ./assets/icon.svg ./nobodywho-release/${{ matrix.integration }}/bin/addons/nobodywho/
         - name: "Upload zipped build artifacts"
           uses: actions/upload-artifact@v4

@@ -1,4 +1,3 @@
-mod db;
 mod sampler_resource;
 
 use godot::classes::{INode, ProjectSettings};
@@ -7,7 +6,6 @@ use nobodywho::core::{llm, sampler_config};
 use std::sync::mpsc::{Receiver, Sender};
 
 use crate::sampler_resource::NobodyWhoSampler;
-
 
 struct NobodyWhoExtension;
 
@@ -111,7 +109,6 @@ struct NobodyWhoChat {
     /// The system prompt for the chat, this is the basic instructions for the LLM's behavior.
     system_prompt: GString,
 
-
     #[export]
     /// Stop tokens to stop generation at these specified tokens.
     stop_tokens: PackedStringArray,
@@ -206,7 +203,12 @@ impl NobodyWhoChat {
             // start the llm worker
             let n_ctx = self.context_length;
             let system_prompt = self.system_prompt.to_string();
-            let stop_tokens: Vec<String> = self.stop_tokens.to_vec().into_iter().map(|g| g.to_string()).collect();
+            let stop_tokens: Vec<String> = self
+                .stop_tokens
+                .to_vec()
+                .into_iter()
+                .map(|g| g.to_string())
+                .collect();
             std::thread::spawn(move || {
                 llm::run_completion_worker(
                     model,

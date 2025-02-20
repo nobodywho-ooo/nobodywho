@@ -8,7 +8,7 @@
     flake-utils.lib.eachDefaultSystem (system:
     let
       pkgs = (import nixpkgs { system = system; });
-      nobodywho = pkgs.callPackage ./nobodywho {};
+      nobodywho = pkgs.callPackage ./nobodywho/godot {};
       godot-integration-test = pkgs.callPackage ./nobodywho/godot/integration-test { inherit nobodywho; };
       run-godot-integration-test = pkgs.runCommand "checkgame" { nativeBuildInputs = with pkgs; [ mesa.drivers ]; } ''
         cd ${godot-integration-test}

@@ -1,5 +1,5 @@
 [package]
-name = "nobodywho_godot"
+name = "nobodywho-godot"
 version = "4.6.1"
 edition = "2021"
 
@@ -13,6 +13,3 @@ godot = { git = "https://github.com/godot-rust/gdext", branch = "master", featur
     "experimental-threads",
     "register-docs",
 ] }
-rusqlite = { version = "0.33.0", features = ["bundled"] }
-sqlite-vec = "0.1.5"
-
