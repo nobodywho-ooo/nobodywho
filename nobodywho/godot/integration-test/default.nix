@@ -37,7 +37,7 @@ stdenv.mkDerivation {
 
     # build game
     mkdir -p $out
-    ${godot_4}/bin/godot4 --verbose --headless --export-debug "Linux" $out/game
+    ${godot_4}/bin/godot4 --verbose --headless --import
     ${godot_4}/bin/godot4 --verbose --headless --export-debug "Linux" $out/game
 
     cp ${model} $out/qwen2.5-1.5b-instruct-q4_0.gguf
