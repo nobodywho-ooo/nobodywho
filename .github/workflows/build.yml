@@ -52,7 +52,7 @@ jobs:
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
+          name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
           path: ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
 
   cargo-build-windows:
@@ -74,7 +74,9 @@ jobs:
       - name: "Cache Cargo Home"
         uses: actions/cache@v4
         with:
-          path: ~/.cargo
+          path: |
+            ~/.cargo
+            nobodywho/target
           key: ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}-
@@ -104,7 +106,7 @@ jobs:
       - name: "Upload build artifacts"
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
+          name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
           path: |
             ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dll
             ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
@@ -148,5 +150,5 @@ jobs:
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
+          name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
           path: ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
