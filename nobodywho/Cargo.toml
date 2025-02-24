@@ -1,29 +1,8 @@
-[package]
-name = "nobodywho"
-version = "4.6.0"
-edition = "2021"
+[workspace]
+members = [
+    "core",
+    "godot",
+]
 
-[lib]
-crate-type = ["cdylib"] # Compile this crate to a dynamic C library.
-
-[dependencies]
-encoding_rs = "0.8.34"
-godot = { git = "https://github.com/godot-rust/gdext", branch = "master", features = [
-    "experimental-threads",
-    "register-docs",
-] }
-rusqlite = { version = "0.32.1", features = ["bundled"] }
-sqlite-vec = "0.1.5"
-thiserror = "2.0.3"
-minijinja = { version = "2.5.0", features = ["builtins", "json", "loader"] }
-serde = { version = "1.0.215", features = ["derive"] }
-chrono = "0.4.39"
-llama-cpp-sys-2 = { git = "https://github.com/utilityai/llama-cpp-rs.git", rev = "5f49768" }
-llama-cpp-2 = { git = "https://github.com/utilityai/llama-cpp-rs.git", rev = "5f49768" }
-lazy_static = "1.5.0"
-minijinja-contrib = { version = "2.7.0", features = ["pycompat"] }
-
-[target.'cfg(not(target_os = "macos"))'.dependencies]
-llama-cpp-2 = { git = "https://github.com/utilityai/llama-cpp-rs.git", rev = "5f49768", features = ["vulkan"] }
-
- 
+# edition = "2021" implies resolver = "2".
+resolver = "2"

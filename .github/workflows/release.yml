@@ -5,6 +5,10 @@ on:
 jobs:
   zip-distributable:
     runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        integration:
+          - "godot"
     steps:
         - uses: actions/checkout@v4
   
@@ -15,32 +19,36 @@ jobs:
   
         - name: "Make directory structure for release zip"
           run: |
-            mkdir -p nobodywho-release/bin/addons/nobodywho
+            mkdir -p nobodywho-release/${{ matrix.integration }}/bin/addons/nobodywho
             # copy in nobodywho libs
-            cp ./artifacts/*/*nobodywho* ./nobodywho-release/bin/addons/nobodywho/
+            cp ./artifacts/*/*nobodywho-${{ matrix.integration }}* ./nobodywho-release/${{ matrix.integration }}/bin/addons/nobodywho/
             # copy in gdextension metadata
-            cp ./nobodywho/nobodywho.gdextension ./nobodywho-release/bin/addons/nobodywho/
-            cp ./assets/icon.svg ./nobodywho-release/bin/addons/nobodywho/
+            cp ./nobodywho/godot/nobodywho.gdextension ./nobodywho-release/${{ matrix.integration }}/bin/addons/nobodywho/
+            cp ./assets/icon.svg ./nobodywho-release/${{ matrix.integration }}/bin/addons/nobodywho/
         - name: "Upload zipped build artifacts"
           uses: actions/upload-artifact@v4
           with:
-            name: nobodywho-all-platforms
-            path: ./nobodywho-release
+            name: nobodywho-${{ matrix.integration }}-all-platforms
+            path: ./nobodywho-release/${{ matrix.integration }}
 
   create-github-release:
     needs: [zip-distributable]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        integration:
+          - "godot"
     steps:
       - name: "Download build artifacts"
         uses: actions/download-artifact@v4
         with:
-          name: nobodywho-all-platforms
-          path: ./nobodywho-release
+          name: nobodywho-${{ matrix.integration }}-all-platforms
+          path: ./nobodywho-release/${{ matrix.integration }}
 
       - name: "Make zip file"
-        working-directory: ./nobodywho-release
-        run: zip -r "../nobodywho-${{ github.ref_name }}.zip" ./**
+        working-directory: ./nobodywho-${{ matrix.integration }}-release
+        run: zip -r "../nobodywho-${{ matrix.integration }}-${{ github.ref_name }}.zip" ./**
 
       - name: "Create GitHub Release"
         uses: softprops/action-gh-release@v1
