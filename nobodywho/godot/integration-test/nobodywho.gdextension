@@ -4,11 +4,16 @@ compatibility_minimum = 4.3
 reloadable = true
 
 [libraries]
-linux.debug.x86_64 =     "res://../../target/debug/libnobodywho_godot.so"
-linux.release.x86_64 =   "res://../../target/release/libnobodywho_godot.so"
-windows.debug.x86_64 =   "res://../../target/debug/nobodywho_godot.dll"
-windows.release.x86_64 = "res://../../target/release/nobodywho_godot.dll"
-macos.debug =            "res://../../target/debug/libnobodywho_godot.dylib"
-macos.release =          "res://../../target/release/libnobodywho_godot.dylib"
-macos.debug.arm64 =      "res://../../target/debug/libnobodywho_godot.dylib"
-macos.release.arm64 =    "res://../../target/release/libnobodywho_godot.dylib"
+linux.debug.x86_64 =     "res://bin/libnobodywho_godot.so"
+linux.release.x86_64 =   "res://bin/libnobodywho_godot.so"
+windows.debug.x86_64 =   "res://bin/nobodywho-godot-x86_64-pc-windows-msvc-release.dll"
+windows.release.x86_64 = "res://bin/nobodywho-godot-x86_64-pc-windows-msvc-release.dll"
+macos.debug =            "res://bin/nobodywho-godot-x86_64-apple-darwin-debug.dylib"
+macos.release =          "res://bin/nobodywho-godot-x86_64-apple-darwin-release.dylib"
+macos.debug.arm64 =      "res://bin/nobodywho-godot-aarch64-apple-darwin-debug.dylib"
+macos.release.arm64 =    "res://bin/nobodywho-godot-aarch64-apple-darwin-release.dylib"
+
+[icons]
+NobodyWhoModel =            "res://icon.svg"
+NobodyWhoChat =             "res://icon.svg"
+NobodyWhoEmbedding =        "res://icon.svg"
