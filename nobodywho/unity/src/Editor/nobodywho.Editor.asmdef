@@ -1,0 +1,6 @@
+{
+    "name": "nobodywho.Editor",
+    "references": [],
+    "includePlatforms": ["Editor"],
+    "excludePlatforms": []
+} 

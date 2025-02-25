@@ -1,0 +1,37 @@
+# Unity generated on test runs
+integration-test/[Ll]ibrary
+integration-test/[Tt]emp/
+integration-test/[Oo]bj/
+integration-test/[Bb]uild/
+integration-test/[Bb]uilds/
+integration-test/[Ll]ogs/
+integration-test/[Uu]ser[Ss]ettings/
+integration-test/[Aa]ssets/[Rr]esources/
+*-results.xml
+integration-test/ProjectSettings/*
+
+# Unity3D generated meta files
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+
+# Unity3D generated file on crash reports
+sysinfo.txt
+
+# Builds
+*.apk
+*.aab
+*.unitypackage
+*.app
+
+# Crashlytics generated file
+crashlytics-build.properties
+
+# Environment files
+.env
+*.ulf
+
+# Nix
+.direnv
+result
+result-*
