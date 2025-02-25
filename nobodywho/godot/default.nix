@@ -1,4 +1,4 @@
-{ fetchurl, rustPlatform, libclang, llvmPackages_12, stdenv, lib, cmake, vulkan-headers, vulkan-loader, vulkan-tools, shaderc, mesa }:
+{ fetchurl, rustPlatform, libclang, llvmPackages_12, stdenv, lib, cmake, vulkan-headers, vulkan-loader, vulkan-tools, shaderc, mesa, git }:
 
 
 rustPlatform.buildRustPackage {
@@ -7,6 +7,7 @@ rustPlatform.buildRustPackage {
   src = ./..;
   buildAndTestSubdir = "godot";
   nativeBuildInputs = [
+    git
     llvmPackages_12.bintools
     cmake
     rustPlatform.bindgenHook
