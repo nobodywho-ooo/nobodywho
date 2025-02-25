@@ -8,19 +8,11 @@
     flake-utils.lib.eachDefaultSystem (system:
     let
       pkgs = (import nixpkgs { system = system; });
-      nobodywho = pkgs.callPackage ./nobodywho/godot {};
-      godot-integration-test = pkgs.callPackage ./nobodywho/godot/integration-test { inherit nobodywho; };
-      run-godot-integration-test = pkgs.runCommand "checkgame" { nativeBuildInputs = with pkgs; [ mesa.drivers ]; } ''
-        cd ${godot-integration-test}
-        export HOME=$TMPDIR
-        ./game --headless
-        touch $out
-      '';
+      nobodywho = pkgs.callPackage ./nobodywho {};
     in
-  {
-      packages.default = nobodywho;
-      packages.godot-integration-test = godot-integration-test;
-      checks.default = run-godot-integration-test;
+    { 
+      packages = nobodywho.packages;
+      checks = nobodywho.checks; 
       devShells.default = import ./nobodywho/shell.nix { inherit pkgs; };
-  });
+    });
 }
