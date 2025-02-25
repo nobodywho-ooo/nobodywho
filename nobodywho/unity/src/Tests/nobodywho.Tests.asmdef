@@ -1,0 +1,11 @@
+{
+    "name": "nobodywho.Tests",
+    "references": [
+        "nobodywho"
+    ],
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": []
+} 
