@@ -113,6 +113,9 @@ pub enum WorkerError {
     #[error("Failed applying the jinja chat template: {0}")]
     ApplyTemplateError(#[from] minijinja::Error),
 
+    #[error("Could not parse chat template as UTF8: {0}")]
+    TemplateUtf8Error(#[from] std::str::Utf8Error),
+
     #[error("Could not send newly generated token out to the game engine.")]
     SendError, // this is actually a SendError<LLMOutput>, but that becomes recursive and weird.
 
@@ -257,7 +260,7 @@ fn run_completion_worker_result(
 
     // Initialize chat state with model's chat template
     let mut chat_state = chat_state::ChatState::new(
-        model.get_chat_template(4_000)?,
+        model.get_chat_template()?.to_string()?,
         model.token_to_str(model.token_bos(), Special::Tokenize)?,
         model.token_to_str(model.token_eos(), Special::Tokenize)?,
     );
@@ -315,11 +318,11 @@ fn run_completion_worker_result(
                 assert!(n_past + batch.n_tokens() < ctx.n_ctx() as i32);
             }
 
-            // Sample next token, no need to use sampler.accept as sample already accepts the token. 
+            // Sample next token, no need to use sampler.accept as sample already accepts the token.
             // using sampler.accept() will cause the sampler to crash when using grammar sampling.
             // https://github.com/utilityai/llama-cpp-rs/issues/604
             let new_token: LlamaToken = sampler.sample(&ctx, -1);
-            
+
             // Process current batch
             batch.clear();
             batch.add(new_token, n_past, &[0], true)?;
