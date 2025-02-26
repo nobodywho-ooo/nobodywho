@@ -1,4 +1,4 @@
-{ fetchurl, rustPlatform, libclang, llvmPackages_12, stdenv, lib, cmake, vulkan-headers, vulkan-loader, vulkan-tools, shaderc, mesa }:
+{ fetchurl, rustPlatform, libclang, llvmPackages_12, stdenv, lib, cmake, vulkan-headers, vulkan-loader, vulkan-tools, shaderc, mesa, git }:
 
 
 rustPlatform.buildRustPackage {
@@ -7,6 +7,7 @@ rustPlatform.buildRustPackage {
   src = ./..;
   buildAndTestSubdir = "godot";
   nativeBuildInputs = [
+    git
     llvmPackages_12.bintools
     cmake
     rustPlatform.bindgenHook
@@ -28,8 +29,8 @@ rustPlatform.buildRustPackage {
     lockFile = ../Cargo.lock;
     outputHashes = {
       "gdextension-api-0.2.1" = "sha256-YkMbzObJGnmQa1XGT4ApRrfqAeOz7CktJrhYks8z0RY=";
-      "godot-0.2.2" = "sha256-6q7BcQ/6WvzJdVmyAVGPMtuIDJFYKaRrkv3/JQBi11M=";
-      "llama-cpp-2-0.1.90" = "sha256-SUY4Hb2DAjDonQMEIyKXoXRygxBh/M+CeyQBviqg46g=";
+      "godot-0.2.4" = "sha256-mQcI5PO1rTYeKg+2FH7tSbq6+nk3R5kqHGZ+f797e34=";
+      "llama-cpp-2-0.1.103" = "sha256-rYaU4LzxzCfKtlzXZorwGEo9gPSNDYB4UwJybWv0Aco=";
     };
   };
   env.TEST_MODEL = fetchurl {
