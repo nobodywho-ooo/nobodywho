@@ -179,6 +179,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "find_cuda_helper"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f9f9e65c593dd01ac77daad909ea4ad17f0d6d1776193fc8ea766356177abdad"
+dependencies = [
+ "glob",
+]
+
+[[package]]
 name = "gdextension-api"
 version = "0.2.1"
 source = "git+https://github.com/godot-rust/godot4-prebuilt?branch=releases#53fa4a856d93ac01d87deb8f57c6851179dfacec"
@@ -408,8 +417,8 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-2"
-version = "0.1.101"
-source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs.git?branch=nobodywho-hotfix#770de7905f1751bc6e9d555467b5c5e068c30951"
+version = "0.1.103"
+source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs.git?branch=fix-buildinfo-copy-fail-fallback#5f3a29ed9445a50a64acc4d331c8a1e914e0fe91"
 dependencies = [
  "enumflags2",
  "llama-cpp-sys-2",
@@ -420,12 +429,13 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-sys-2"
-version = "0.1.101"
-source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs.git?branch=nobodywho-hotfix#770de7905f1751bc6e9d555467b5c5e068c30951"
+version = "0.1.103"
+source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs.git?branch=fix-buildinfo-copy-fail-fallback#5f3a29ed9445a50a64acc4d331c8a1e914e0fe91"
 dependencies = [
  "bindgen",
  "cc",
  "cmake",
+ "find_cuda_helper",
  "glob",
  "walkdir",
 ]
