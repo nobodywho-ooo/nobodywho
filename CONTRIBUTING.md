@@ -20,8 +20,9 @@ First off, thanks for taking the time to contribute! 🎉
 3. Run `nix develop` from any directory in the repo. To activate a development shell with rustup and libclang.
 4. Install the stable rust toolchain using rustup (if you haven't already).
 5. To compile the plugin: run `cargo build` from the nobodywho dir to build the plugin.
-6. To run unit tests: run `cargo test -- --nocapture --test-threads=1` from the nobodywho dir
-7. When done, run `nix flake check` to run all tests.
+6. Set the TEST_MODEL env var to be a path to a Qwen 2.5 1.5B Instruct model in the GGUF format.
+7. To run unit tests: run `cargo test -- --nocapture --test-threads=1` from the nobodywho dir
+8. When done, run `nix flake check` to run all tests.
 
 ### On Windows
 
@@ -29,7 +30,8 @@ First off, thanks for taking the time to contribute! 🎉
 2. Install cmake, llvm, and msvc.
 3. Install the Vulkan SDK, and set the VULKAN_SDK environment variable.
 4. To compile the plugin: run `cargo build` from the nobodywho dir to build the plugin.
-5. To run unit tests: run `cargo test -- --nocapture --test-threads=1` from the nobodywho dir
+5. Set the TEST_MODEL env var to be a path to a Qwen 2.5 1.5B Instruct model in the GGUF format.
+6. To run unit tests: run `cargo test -- --nocapture --test-threads=1` from the nobodywho dir
 
 ## Pull Request Process
 
