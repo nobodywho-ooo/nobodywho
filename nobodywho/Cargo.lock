@@ -418,7 +418,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-2"
 version = "0.1.103"
-source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs.git?branch=fix-buildinfo-copy-fail-fallback#5f3a29ed9445a50a64acc4d331c8a1e914e0fe91"
+source = "git+https://github.com/utilityai/llama-cpp-rs.git?rev=b0d355c#b0d355c59a0c1ee91f7bcda984efa43834610e6f"
 dependencies = [
  "enumflags2",
  "llama-cpp-sys-2",
@@ -430,7 +430,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-sys-2"
 version = "0.1.103"
-source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs.git?branch=fix-buildinfo-copy-fail-fallback#5f3a29ed9445a50a64acc4d331c8a1e914e0fe91"
+source = "git+https://github.com/utilityai/llama-cpp-rs.git?rev=b0d355c#b0d355c59a0c1ee91f7bcda984efa43834610e6f"
 dependencies = [
  "bindgen",
  "cc",
