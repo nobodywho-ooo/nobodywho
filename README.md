@@ -5,9 +5,10 @@
 [![Mastodon](https://img.shields.io/badge/Mastodon-6364FF?logo=mastodon&logoColor=fff&style=flat-square)](https://mastodon.gamedev.place/@nobodywho)
 [![Godot Engine](https://img.shields.io/badge/Godot-%23FFFFFF.svg?logo=godot-engine&style=flat-square)](https://godotengine.org/asset-library/asset/2886)
 ![GitHub Sponsors](https://img.shields.io/github/sponsors/nobodywho-ooo?style=flat-square)
+[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg?style=flat-square)](CODE_OF_CONDUCT.md) 
 
 
-NobodyWho is a plugin for the Godot game engine that lets you interact with local LLMs for interactive storytelling.
+NobodyWho is a plugin that lets you interact with local LLMs in the Godot game engine, with more plugins in development.
 
 
 ## At a Glance
@@ -17,6 +18,7 @@ NobodyWho is a plugin for the Godot game engine that lets you interact with loca
 * 🔧 Easy setup - just two nodes to get started
 * 🎯 Perfect for games, interactive stories, and NPCs
 * 💻 Cross-platform: Windows, Linux, macOS
+* 🦙 Powered by the wonderful [llama.cpp](https://github.com/ggml-org/llama.cpp)
 
 ## Demo video
 
@@ -114,6 +116,35 @@ func _ready():
     assert(low_similarity < high_similarity)
 ```
 
+## Frequently Asked Questions
+
+### Once I export my Godot project, it can no longer find the model file.
+
+Exports are a bit weird for now: Llama.cpp expects a path to a GGUF file on your filesystem, while Godot really wants to package everything in one big .pck file.
+
+The solution (for now) is to manually copy your chosen GGUF file into the export directory (the folder with your exported game executable).
+
+We're looking into solutions for including this file automatically.
+
+### Where do I find good models to use?
+
+New language models are coming out at a breakneck pace. If you search the web for "best language models for roleplay" or something similar, you'll probably find results that are several months or years old. You want to use something newer.
+
+We recommend checking leaderboards like [The GPU-Poor LLM Gladiator Arena](https://huggingface.co/spaces/k-mktr/gpu-poor-llm-arena), or [OpenRouter's Roleplay Rankings](https://openrouter.ai/rankings/roleplay).
+Once you select a model, remember that you need a quantization of it in the GGUF format.
+The huggingface user [bartowski](https://huggingface.co/bartowski) regularly uploads GGUF quantizations for *a lot* of new models.
+
+Selecting the best model for your usecase is mostly about finding the right tradeoff between speed, memory usage and quality of the responses.
+Using bigger models general will yield better responses, but raise minimum system requirements and slow down generation speed.
+
+### Can I export to HTML5, Android or iOS?
+
+Currently only Linux, MacOS, and Windows are supported platforms.
+
+Mobile exports seem very feasible. See issues [#114](https://github.com/nobodywho-ooo/nobodywho/issues/114), [#66](https://github.com/nobodywho-ooo/nobodywho/issues/66), and [#67](https://github.com/nobodywho-ooo/nobodywho/pull/67) for progress.
+
+Web exports will be a bit trickier to get right. See issue [#111](https://github.com/nobodywho-ooo/nobodywho/issues/111).
+
 
 ## Licensing
 
@@ -128,8 +159,21 @@ Feel free to make proprietary games using NobodyWho, but don't make a proprietar
 
 # Featured Examples
 
+* [Neophyte](https://dragoonflypj.itch.io/neophyte)
+	* Describe your actions and use the items you buy with your words to finish off the enemies.
+* [The Merchant's Road](https://svntax.itch.io/the-merchants-road)
+	* An LLM-driven text adventure where you guard a merchant in his travels.
+* [Who Farted in the Eleveator?](https://osuika.itch.io/who-farted-in-the-elevator)
+	* LLM game where you talk to NPCs about farting in the elevator.
+* [Procedural](https://agreene5.itch.io/procedural-gungeon)
+	* A procedurally generated 2D shooter that takes place in an infinite dungeon.
+* [The Black Box](https://profour.itch.io/the-black-box)
+	* Half Life inspired short story with a mysterious Black Box.
+* [Ai rgument](https://blueoctopus.itch.io/ai-rgument)
+	* A party game where you argue a position before an AI judge.
+* [The World Will End in 60 Seconds!](https://coffeepasta.itch.io/the-world-will-end-in-60-seconds)
+	* What will you do before it’s all over?
+* [Stonecot Prototype](https://windarthouse.itch.io/stonecot-prototype)
+	* Stonecot Prototype is a stripped-down, experimental build of Mythara Chronicles, showcasing AI-driven party interactions and a prototype main quest. 
 * [The Asteroid](https://github.com/cesare-montresor/TheAsteroid)
     * A game where you can chat with the crew of a spacestation to figure out what happened in the accident.
-    
-
-[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](code_of_conduct.md) 
