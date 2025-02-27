@@ -35,5 +35,4 @@ jobs:
       - name: "nix flake check"
         run: |
           . ~/.nix-profile/etc/profile.d/nix.sh
-          # XXX: temporarily disable integration tests for faster iteration on workflow
-          # nix --extra-experimental-features nix-command --extra-experimental-features flakes flake check -L
+          nix --extra-experimental-features nix-command --extra-experimental-features flakes flake check -L
