@@ -7,12 +7,24 @@
   outputs = { nixpkgs, flake-utils, ... }:
     flake-utils.lib.eachDefaultSystem (system:
     let
-      pkgs = (import nixpkgs { system = system; });
+      pkgs = (import nixpkgs { 
+        system = system;
+        config.allowUnfree = true;  # Required for Unity
+      });
       nobodywho = pkgs.callPackage ./nobodywho {};
     in
     { 
-      packages = nobodywho.packages;
-      checks = nobodywho.checks; 
-      devShells.default = import ./nobodywho/shell.nix { inherit pkgs; };
+      packages = {
+        nobodywho = nobodywho.core;
+        unity = nobodywho.unity;
+        # godot = nobodywho.godot;
+        
+      };
+      checks = {
+        unity-test =nobodywho.checks.unity-test;
+      };
+      devShells = {
+        default = import ./nobodywho/shell.nix { inherit pkgs; };
+      };
     });
 }

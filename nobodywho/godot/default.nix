@@ -64,7 +64,7 @@ let
 
 in {
   packages = {
-    default = godot;
+    inherit godot;
   };
   checks = {
     godot-integration-test = run-integration-test;
