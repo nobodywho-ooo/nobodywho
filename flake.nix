@@ -9,12 +9,19 @@
     let
       pkgs = (import nixpkgs { 
         system = system;
-        config.allowUnfree = true;  # Required for Unity
+        config = {
+          allowUnfree = true;  # Required for Unity
+          permittedInsecurePackages = [
+            "freeimage-unstable-2021-11-01"
+            "openssl-1.1.1w"
+          ];
+        };
       });
       nobodywho = pkgs.callPackage ./nobodywho {};
     in
     { 
       packages = {
+        default = nobodywho.unity;
         nobodywho = nobodywho.core;
         unity = nobodywho.unity;
         # godot = nobodywho.godot;
