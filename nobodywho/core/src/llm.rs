@@ -238,7 +238,7 @@ impl LLMActorHandle {
         let (message_tx, message_rx) = std::sync::mpsc::channel();
         let (completion_tx, completion_rx) = std::sync::mpsc::channel();
 
-        let mut chat_state = chat_state::ChatState::new(
+        let chat_state = chat_state::ChatState::new(
             params
                 .model
                 .get_chat_template()
@@ -319,10 +319,10 @@ struct WorkerState<'a> {
 }
 
 pub struct LLMActorParams {
-    model: Arc<LlamaModel>,
-    sampler_config: SamplerConfig,
-    n_ctx: u32,
-    stop_tokens: Vec<String>,
+    pub model: Arc<LlamaModel>,
+    pub sampler_config: SamplerConfig,
+    pub n_ctx: u32,
+    pub stop_tokens: Vec<String>,
 }
 
 fn completion_worker_actor(
