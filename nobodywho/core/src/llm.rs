@@ -203,18 +203,13 @@ fn apply_context_shifting(ctx: &mut LlamaContext, n_past: i32) -> Result<i32, Wo
     Ok(n_discard)
 }
 
-pub struct LLMActorHandle {
-    message_tx: Sender<WorkerMsg>,
-    completion_rx: Receiver<LLMOutput>,
-    completion_tx: Sender<LLMOutput>,
+pub struct LLMChat {
+    actor: LLMActorHandle,
     chat_state: chat_state::ChatState,
 }
 
-impl LLMActorHandle {
+impl LLMChat {
     pub fn new(params: LLMActorParams) -> Self {
-        let (message_tx, message_rx) = std::sync::mpsc::channel();
-        let (completion_tx, completion_rx) = std::sync::mpsc::channel();
-
         let template = params
             .model
             .get_chat_template()
@@ -230,19 +225,9 @@ impl LLMActorHandle {
             .token_to_str(params.model.token_eos(), Special::Tokenize)
             .expect("TODO");
 
-        dbg!(&template);
-        dbg!(&eos);
-        dbg!(&bos);
-
-        let chat_state = chat_state::ChatState::new(template, bos, eos);
-
-        std::thread::spawn(|| completion_worker_actor(message_rx, params));
-
         Self {
-            message_tx,
-            completion_rx,
-            completion_tx,
-            chat_state,
+            actor: LLMActorHandle::new(params),
+            chat_state: chat_state::ChatState::new(template, bos, eos),
         }
     }
 
@@ -258,10 +243,9 @@ impl LLMActorHandle {
         self.chat_state.add_message("user".to_string(), text);
         let diff = self.chat_state.render_diff()?;
         // ask worker to read it
-        self.message_tx.send(WorkerMsg::ReadString(diff))?;
+        self.actor.read(diff)?;
         // ask worker to generate a response
-        self.message_tx
-            .send(WorkerMsg::WriteUntilDone(self.completion_tx.clone()))?;
+        self.actor.write_until_done()?;
         Ok(())
     }
 
@@ -277,19 +261,20 @@ impl LLMActorHandle {
         }
     }
 
-    pub fn try_recv(self: &mut Self) -> Result<LLMOutput, std::sync::mpsc::TryRecvError> {
-        let out = self.completion_rx.try_recv()?;
+    pub fn recv(self: &mut Self) -> Result<LLMOutput, std::sync::mpsc::RecvError> {
+        let out = self.actor.recv()?;
         self.handle_llmoutput(&out);
         Ok(out)
     }
 
-    pub fn recv(self: &mut Self) -> Result<LLMOutput, std::sync::mpsc::RecvError> {
-        let out = self.completion_rx.recv()?;
+    pub fn try_recv(self: &mut Self) -> Result<LLMOutput, std::sync::mpsc::TryRecvError> {
+        let out = self.actor.try_recv()?;
         self.handle_llmoutput(&out);
         Ok(out)
     }
 
     pub fn get_response_blocking(self: &mut Self) -> Result<String, WorkerError> {
+        // read until `Done`, then return
         loop {
             match self.recv() {
                 Ok(LLMOutput::Done(response)) => return Ok(response),
@@ -298,6 +283,45 @@ impl LLMActorHandle {
                 Err(err) => return Err(err.into()),
             }
         }
+    }
+}
+
+pub struct LLMActorHandle {
+    message_tx: Sender<WorkerMsg>,
+    completion_rx: Receiver<LLMOutput>,
+    completion_tx: Sender<LLMOutput>,
+}
+
+impl LLMActorHandle {
+    pub fn new(params: LLMActorParams) -> Self {
+        let (message_tx, message_rx) = std::sync::mpsc::channel();
+        let (completion_tx, completion_rx) = std::sync::mpsc::channel();
+
+        std::thread::spawn(|| completion_worker_actor(message_rx, params));
+
+        Self {
+            message_tx,
+            completion_rx,
+            completion_tx,
+        }
+    }
+
+    pub fn read(&self, text: String) -> Result<(), std::sync::mpsc::SendError<WorkerMsg>> {
+        self.message_tx.send(WorkerMsg::ReadString(text))
+    }
+
+    pub fn write_until_done(&self) -> Result<(), std::sync::mpsc::SendError<WorkerMsg>> {
+        // TODO: this could return a tokio stream?
+        self.message_tx
+            .send(WorkerMsg::WriteUntilDone(self.completion_tx.clone()))
+    }
+
+    pub fn try_recv(self: &mut Self) -> Result<LLMOutput, std::sync::mpsc::TryRecvError> {
+        self.completion_rx.try_recv()
+    }
+
+    pub fn recv(self: &mut Self) -> Result<LLMOutput, std::sync::mpsc::RecvError> {
+        self.completion_rx.recv()
     }
 }
 
@@ -406,10 +430,6 @@ fn handle_msg(mut state: WorkerState, msg: WorkerMsg) -> Result<WorkerState, Wor
     match msg {
         WorkerMsg::ReadString(text) => {
             let tokens = state.ctx.model.str_to_token(&text, AddBos::Never)?;
-            dbg!(state
-                .ctx
-                .model
-                .str_to_token("</tool_call>", AddBos::Never)?);
 
             debug_assert!(tokens.len() > 0);
             debug_assert!(tokens.len() < state.ctx.n_ctx() as usize);
@@ -599,12 +619,11 @@ mod tests {
             use_embeddings: false,
         };
 
-        let mut actor = LLMActorHandle::new(params).with_system_message(system_prompt);
-        actor
-            .say("What is the capital of Denmark?".to_string())
+        let mut chat = LLMChat::new(params).with_system_message(system_prompt);
+        chat.say("What is the capital of Denmark?".to_string())
             .expect("say() failed");
 
-        let response = actor
+        let response = chat
             .get_response_blocking()
             .expect("Getting repsonse failed.");
 
@@ -613,10 +632,9 @@ mod tests {
             "Expected completion to contain 'Copenhagen', got: {response}"
         );
 
-        actor
-            .say("What language do they speak there?".to_string())
+        chat.say("What language do they speak there?".to_string())
             .expect("say() failed");
-        let response = actor
+        let response = chat
             .get_response_blocking()
             .expect("Getting response failed");
 
@@ -700,27 +718,26 @@ mod tests {
             stop_tokens: vec![],
             use_embeddings: false,
         };
-        let mut dk_actor =
-            LLMActorHandle::new(params.clone()).with_system_message(system_prompt.clone());
-        let mut de_actor = LLMActorHandle::new(params).with_system_message(system_prompt);
+        let mut dk_chat = LLMChat::new(params.clone()).with_system_message(system_prompt.clone());
+        let mut de_chat = LLMChat::new(params).with_system_message(system_prompt);
 
-        dk_actor
+        dk_chat
             .say("What is the capital of Denmark?".to_string())
             .unwrap();
 
-        de_actor
+        de_chat
             .say("What is the capital of Germany?".to_string())
             .unwrap();
 
         // read dk output
-        let result = dk_actor.get_response_blocking().unwrap();
+        let result = dk_chat.get_response_blocking().unwrap();
         assert!(
             result.to_lowercase().contains("copenhagen"),
             "Expected completion to contain 'Copenhagen', got: {result}"
         );
 
         // read cat output
-        let result = de_actor.get_response_blocking().unwrap();
+        let result = de_chat.get_response_blocking().unwrap();
         assert!(
             result.to_lowercase().contains("berlin"),
             "Expected completion to contain 'Berlin', got: {result}"
@@ -739,14 +756,13 @@ mod tests {
             stop_tokens: vec![],
             use_embeddings: false,
         };
-        let mut actor =
-            LLMActorHandle::new(params.clone()).with_system_message(system_prompt.clone());
+        let mut chat = LLMChat::new(params.clone()).with_system_message(system_prompt.clone());
 
-        actor
+        chat
             .say("Please count down from 10 to 0, like this: Current 10, target 0. Current 9, target 0...".to_string())
             .unwrap();
 
-        let result = actor.get_response_blocking().unwrap();
+        let result = chat.get_response_blocking().unwrap();
         assert!(
             result.contains("Current 1, target 0"),
             "Expected completion to contain 'Current 0, target 0', got: {result}"
@@ -765,9 +781,9 @@ mod tests {
             stop_tokens: vec!["horse".to_string()],
             use_embeddings: false,
         };
-        let mut actor = LLMActorHandle::new(params.clone()).with_system_message(system_prompt);
-        actor.say("List these animals in alphabetical order: cat, dog, giraffe, horse, lion, mouse. Keep them in lowercase.".to_string()).unwrap();
-        let result = actor.get_response_blocking().unwrap();
+        let mut chat = LLMChat::new(params.clone()).with_system_message(system_prompt);
+        chat.say("List these animals in alphabetical order: cat, dog, giraffe, horse, lion, mouse. Keep them in lowercase.".to_string()).unwrap();
+        let result = chat.get_response_blocking().unwrap();
 
         assert!(
             result.to_lowercase().contains("giraffe"),
