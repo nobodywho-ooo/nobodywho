@@ -118,7 +118,7 @@ struct NobodyWhoChat {
     /// Higher values use more VRAM, but allow for longer "short term memory" for the LLM.
     context_length: u32,
 
-    actor: Option<llm::LLMActorHandle>,
+    chat: Option<llm::LLMChat>,
 
     base: Base<Node>,
 }
@@ -134,15 +134,14 @@ impl INode for NobodyWhoChat {
             stop_tokens: PackedStringArray::new(),
             context_length: 4096,
 
-            // state
-            actor: None,
+            chat: None,
             base,
         }
     }
 
     fn physics_process(&mut self, _delta: f64) {
-        while let Some(actor) = self.actor.as_mut() {
-            match actor.try_recv() {
+        while let Some(chat) = self.chat.as_mut() {
+            match chat.try_recv() {
                 Ok(llm::LLMOutput::Token(token)) => {
                     self.base_mut()
                         .emit_signal("response_updated", &[Variant::from(token)]);
@@ -153,13 +152,13 @@ impl INode for NobodyWhoChat {
                 }
                 Ok(llm::LLMOutput::FatalErr(msg)) => {
                     godot_error!("Model worker crashed: {msg}");
-                    self.actor = None;
+                    self.chat = None;
                 }
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                     godot_error!("Model output channel died. Did the LLM worker crash?");
                     // set hanging channel to None
                     // this prevents repeating the dead channel error message foreve
-                    self.actor = None;
+                    self.chat = None;
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => {
                     break;
@@ -210,10 +209,10 @@ impl NobodyWhoChat {
             };
 
             // start the llm worker
-            let actor = llm::LLMActorHandle::new(params)
-                .with_system_message(self.system_prompt.to_string());
+            let chat =
+                llm::LLMChat::new(params).with_system_message(self.system_prompt.to_string());
 
-            self.actor = Some(actor);
+            self.chat = Some(chat);
 
             Ok(())
         };
@@ -225,12 +224,12 @@ impl NobodyWhoChat {
     }
 
     fn send_message(&mut self, content: String) {
-        if let Some(actor) = self.actor.as_mut() {
-            let resp = actor.say(content);
+        if let Some(chat) = self.chat.as_mut() {
+            let resp = chat.say(content);
             if let Err(msg) = resp {
                 // check error
                 godot_error!("Couldn't say to worker: {:?}", msg);
-                self.actor = None;
+                self.chat = None;
             }
         } else {
             godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
