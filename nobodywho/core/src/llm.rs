@@ -375,15 +375,6 @@ fn completion_worker_actor(
     Ok(()) // accept our fate
 }
 
-fn read_one(
-    ctx: &mut LlamaContext,
-    small_batch: &mut LlamaBatch,
-    n_past: i32,
-    token: LlamaToken,
-) -> Result<(), WorkerError> {
-    Ok(())
-}
-
 pub enum WorkerMsg {
     ReadString(String),
     WriteUntilDone(Sender<LLMOutput>),
@@ -787,7 +778,11 @@ mod tests {
                     result = response;
                     break;
                 }
-                _ => unreachable!(),
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+                err => {
+                    dbg!(err);
+                    unreachable!()
+                }
             }
         }
 
@@ -807,6 +802,7 @@ mod tests {
                     result = response;
                     break;
                 }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
                 _ => unreachable!(),
             }
         }
