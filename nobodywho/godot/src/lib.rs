@@ -142,7 +142,7 @@ impl INode for NobodyWhoChat {
 
     fn physics_process(&mut self, _delta: f64) {
         while let Some(actor) = self.actor.as_mut() {
-            match actor.try_get() {
+            match actor.try_recv() {
                 Ok(llm::LLMOutput::Token(token)) => {
                     self.base_mut()
                         .emit_signal("response_updated", &[Variant::from(token)]);
@@ -206,6 +206,7 @@ impl NobodyWhoChat {
                 sampler_config,
                 stop_tokens,
                 n_ctx: self.context_length,
+                use_embeddings: false,
             };
 
             // start the llm worker
