@@ -8,6 +8,7 @@ use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::model::{AddBos, Special};
+use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 use std::collections::VecDeque;
 use std::pin::pin;
@@ -23,6 +24,7 @@ lazy_static! {
 static LLAMA_BACKEND: LazyLock<LlamaBackend> =
     LazyLock::new(|| LlamaBackend::init().expect("Failed to initialize llama backend"));
 
+#[derive(Debug)]
 pub enum LLMOutput {
     Token(String),
     FatalErr(WorkerError),
@@ -140,8 +142,8 @@ fn add_sequence(
     pos: i32,
     seq_ids: &[i32],
 ) -> Result<(), WorkerError> {
+    batch.clear();
     let n_tokens = tokens.len();
-
     for (i, token) in (0..).zip(tokens.iter()) {
         // Only compute logits for the last token to save computation
         let output_logits = i == n_tokens - 1;
@@ -224,6 +226,263 @@ pub fn run_completion_worker(
     }
 }
 
+pub struct LLMActorHandle {
+    message_tx: Sender<WorkerMsg>,
+    completion_rx: Receiver<LLMOutput>,
+    completion_tx: Sender<LLMOutput>,
+    chat_state: chat_state::ChatState,
+}
+
+impl LLMActorHandle {
+    pub fn new(params: LLMActorParams) -> Self {
+        let (message_tx, message_rx) = std::sync::mpsc::channel();
+        let (completion_tx, completion_rx) = std::sync::mpsc::channel();
+
+        let mut chat_state = chat_state::ChatState::new(
+            params
+                .model
+                .get_chat_template()
+                .expect("TODO: handle no template")
+                .to_string()
+                .expect("TODO: handle bad template"),
+            params
+                .model
+                .token_to_str(params.model.token_bos(), Special::Tokenize)
+                .expect("TODO"),
+            params
+                .model
+                .token_to_str(params.model.token_eos(), Special::Tokenize)
+                .expect("TODO"),
+        );
+
+        let completion_tx_clone = completion_tx.clone();
+        std::thread::spawn(|| completion_worker_actor(message_rx, completion_tx_clone, params));
+
+        Self {
+            message_tx,
+            completion_rx,
+            completion_tx,
+            chat_state,
+        }
+    }
+
+    pub fn with_system_message(mut self: Self, system_prompt: String) -> Self {
+        // Initialize chat state with model's chat template
+        self.chat_state
+            .add_message("system".to_string(), system_prompt);
+        self
+    }
+
+    pub fn say(self: &mut Self, text: String) -> Result<(), SayError> {
+        // Add user message to chat state
+        self.chat_state.add_message("user".to_string(), text);
+        let diff = self.chat_state.render_diff()?;
+        // ask worker to read it
+        self.message_tx.send(WorkerMsg::ReadString(diff))?;
+        // ask worker to generate a response
+        self.message_tx
+            .send(WorkerMsg::WriteUntilDone(self.completion_tx.clone()))?;
+        Ok(())
+    }
+
+    pub fn try_get(self: &mut Self) -> Result<LLMOutput, std::sync::mpsc::TryRecvError> {
+        let out = self.completion_rx.try_recv()?;
+        match out {
+            LLMOutput::FatalErr(_) => Ok(out),
+            LLMOutput::Token(_) => Ok(out),
+            LLMOutput::Done(response) => {
+                self.chat_state
+                    .add_message("assistant".to_string(), response.clone());
+                self.chat_state.render_diff().expect("TODO: handle err");
+                Ok(LLMOutput::Done(response))
+            }
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum SayError {
+    #[error("Template rendering error: {0}")]
+    TemplateError(#[from] minijinja::Error),
+
+    #[error("Error sending message: {0}")]
+    SendError(#[from] std::sync::mpsc::SendError<WorkerMsg>),
+}
+
+struct WorkerState<'a> {
+    n_past: i32,
+    ctx: LlamaContext<'a>,
+    sampler: LlamaSampler,
+    big_batch: LlamaBatch,
+    small_batch: LlamaBatch,
+    stop_tokens: Vec<String>,
+}
+
+pub struct LLMActorParams {
+    model: Arc<LlamaModel>,
+    sampler_config: SamplerConfig,
+    n_ctx: u32,
+    stop_tokens: Vec<String>,
+}
+
+fn completion_worker_actor(
+    message_rx: Receiver<WorkerMsg>,
+    completion_tx: Sender<LLMOutput>,
+    params: LLMActorParams,
+) -> Result<(), WorkerError> {
+    let model = params.model;
+
+    // Set up context parameters using available parallelism
+    let ctx = {
+        let n_threads = std::thread::available_parallelism()?.get() as i32;
+        let n_ctx = std::cmp::min(params.n_ctx, model.n_ctx_train());
+        let ctx_params = LlamaContextParams::default()
+            .with_n_ctx(std::num::NonZero::new(n_ctx))
+            .with_n_threads(n_threads)
+            .with_n_threads_batch(n_threads);
+
+        // Create inference context and sampler
+        model.new_context(&LLAMA_BACKEND, ctx_params)?
+    };
+
+    let big_batch = LlamaBatch::new(ctx.n_ctx() as usize, 1);
+    let small_batch = LlamaBatch::new(1, 1);
+
+    let mut state = WorkerState {
+        n_past: 0,
+        stop_tokens: params.stop_tokens,
+        sampler: make_sampler(&model, params.sampler_config),
+        ctx,
+        big_batch,
+        small_batch,
+    };
+
+    // listen for messages
+    while let Ok(msg) = message_rx.recv() {
+        match handle_msg(state, msg) {
+            Ok(newstate) => {
+                state = newstate;
+            }
+            Err(err) => {
+                return Err(err);
+            } // worker died. report error and give up
+              // completion_tx.send(LLMOutput::FatalErr(err)).map_err(|_| WorkerError::SendError)?;
+        }
+    }
+
+    // we only reach this code mressage_rx.recv() fails
+    // this only happens when all senders are dropped
+    Ok(()) // accept our fate
+}
+
+fn read_one(
+    ctx: &mut LlamaContext,
+    small_batch: &mut LlamaBatch,
+    n_past: i32,
+    token: LlamaToken,
+) -> Result<(), WorkerError> {
+    Ok(())
+}
+
+pub enum WorkerMsg {
+    ReadString(String),
+    WriteUntilDone(Sender<LLMOutput>),
+}
+
+fn handle_msg(mut state: WorkerState, msg: WorkerMsg) -> Result<WorkerState, WorkerError> {
+    match msg {
+        WorkerMsg::ReadString(text) => {
+            let tokens = state.ctx.model.str_to_token(&text, AddBos::Always)?;
+
+            debug_assert!(tokens.len() > 0);
+            debug_assert!(tokens.len() < state.ctx.n_ctx() as usize);
+
+            add_sequence(&mut state.big_batch, &tokens, state.n_past, &[0])?;
+
+            state.ctx.decode(&mut state.big_batch)?;
+
+            Ok(WorkerState {
+                n_past: state.n_past + tokens.len() as i32,
+                ..state
+            })
+        }
+        WorkerMsg::WriteUntilDone(respond_to) => {
+            // Token generation loop
+            // TODO: would .with_capacity help here?
+            let mut full_response: String = String::new();
+
+            // HACK
+            // this is needed because contexts referencing the same model are not thread safe
+            // if two contexts referencing the same model try to decode at the same time,
+            // then llama.cpp segfaults and everybody dies and i become sad
+            let inference_lock = GLOBAL_INFERENCE_LOCK
+                .lock()
+                .map_err(|_| WorkerError::GILPoisonError)?;
+
+            loop {
+                // Check for context window overflow (it was in the end before)
+                if state.n_past >= state.ctx.n_ctx() as i32 - 1 {
+                    state.n_past -= apply_context_shifting(&mut state.ctx, state.n_past)?;
+                    // TODO: big_batch isn't populated here...
+                    debug_assert!(
+                        state.n_past + state.big_batch.n_tokens() < state.ctx.n_ctx() as i32
+                    );
+                }
+
+                // Sample next token, no need to use sampler.accept as sample already accepts the token.
+                // using sampler.accept() will cause the sampler to crash when using grammar sampling.
+                // https://github.com/utilityai/llama-cpp-rs/issues/604
+                let new_token: LlamaToken = state.sampler.sample(&state.ctx, -1);
+
+                // batch of one
+                state.small_batch.clear();
+                state.small_batch.add(new_token, state.n_past, &[0], true)?;
+
+                // llm go brr
+                state.ctx.decode(&mut state.small_batch)?;
+
+                // keep count
+                state.n_past += 1;
+
+                debug_assert!(state.n_past == state.ctx.get_kv_cache_token_count());
+
+                // Convert token to text and stream to user
+                let output_string = state
+                    .ctx
+                    .model
+                    .token_to_str_with_size(new_token, MAX_TOKEN_STR_LEN, Special::Tokenize)
+                    .unwrap_or("�".to_string());
+                // fall back to "U+FFFD REPLACEMENT CHARACTER"
+                // when encountering bytes that aren't valid UTF-8
+                // wikipedia: "used to replace an unknown, unrecognised, or unrepresentable character"
+
+                let has_stop_tokens = state
+                    .stop_tokens
+                    .iter()
+                    .any(|stop_token| full_response.contains(stop_token));
+                let has_eog = state.ctx.model.is_eog_token(new_token);
+                if !has_eog {
+                    full_response.push_str(&output_string);
+                    respond_to
+                        .send(LLMOutput::Token(output_string.clone()))
+                        .map_err(|_| WorkerError::SendError)?;
+                }
+
+                if has_eog || has_stop_tokens {
+                    break;
+                }
+            }
+            drop(inference_lock);
+
+            // we're done!
+            respond_to
+                .send(LLMOutput::Done(full_response))
+                .map_err(|_| WorkerError::SendError)?;
+            Ok(state)
+        } // WorkerMsg::GetEmbeddings => Ok(state),
+    }
+}
+
 /// Core implementation of the completion worker.
 ///
 /// # Arguments
@@ -247,15 +506,17 @@ fn run_completion_worker_result(
     stop_tokens: Vec<String>,
 ) -> Result<(), WorkerError> {
     // Set up context parameters using available parallelism
-    let n_threads = std::thread::available_parallelism()?.get() as i32;
-    let n_ctx = std::cmp::min(n_ctx, model.n_ctx_train());
-    let ctx_params = LlamaContextParams::default()
-        .with_n_ctx(std::num::NonZero::new(n_ctx))
-        .with_n_threads(n_threads)
-        .with_n_threads_batch(n_threads);
+    let mut ctx = {
+        let n_threads = std::thread::available_parallelism()?.get() as i32;
+        let n_ctx = std::cmp::min(n_ctx, model.n_ctx_train());
+        let ctx_params = LlamaContextParams::default()
+            .with_n_ctx(std::num::NonZero::new(n_ctx))
+            .with_n_threads(n_threads)
+            .with_n_threads_batch(n_threads);
 
-    // Create inference context and sampler
-    let mut ctx = model.new_context(&LLAMA_BACKEND, ctx_params)?;
+        // Create inference context and sampler
+        model.new_context(&LLAMA_BACKEND, ctx_params)?
+    };
     let mut sampler = make_sampler(&model, sampler_config);
 
     // Initialize chat state with model's chat template
@@ -264,7 +525,6 @@ fn run_completion_worker_result(
         model.token_to_str(model.token_bos(), Special::Tokenize)?,
         model.token_to_str(model.token_eos(), Special::Tokenize)?,
     );
-
     chat_state.add_message("system".to_string(), system_prompt);
 
     let mut n_past = 0; // Current position in context window
@@ -280,6 +540,9 @@ fn run_completion_worker_result(
             .map(|tokens| acc.max(tokens.len()))
     })?;
     let mut last_n_tokens: VecDeque<String> = VecDeque::with_capacity(longest_stop_token);
+
+    // Create batch for processing tokens
+    let mut batch = LlamaBatch::new(ctx.n_ctx() as usize, 1);
 
     // Main message processing loop
     while let Ok(content) = message_rx.recv() {
@@ -298,11 +561,10 @@ fn run_completion_worker_result(
         let diff = chat_state.render_diff()?;
         let tokens = ctx.model.str_to_token(&diff, AddBos::Always)?;
 
-        assert!(tokens.len() > 0);
-        assert!(tokens.len() < n_ctx as usize);
+        // TODO: here
+        debug_assert!(tokens.len() > 0);
+        debug_assert!(tokens.len() < n_ctx as usize);
 
-        // Create batch for processing tokens
-        let mut batch = LlamaBatch::new(ctx.n_ctx() as usize, 1);
         add_sequence(&mut batch, &tokens, n_past, &[0])?;
 
         ctx.decode(&mut batch)?;
@@ -497,6 +759,62 @@ mod tests {
                 .unwrap_or("embeddings.gguf".to_string())
                 .as_str()
         };
+    }
+
+    #[test]
+    fn test_actor_chat() {
+        let model = get_model(test_model_path!(), true).unwrap();
+        let system_prompt =
+            "You are a helpful assistant. The user asks you a question, and you provide an answer."
+                .to_string();
+
+        let params = LLMActorParams {
+            model,
+            sampler_config: SamplerConfig::default(),
+            n_ctx: 4096,
+            stop_tokens: vec![],
+        };
+
+        let mut actor = LLMActorHandle::new(params).with_system_message(system_prompt);
+        let result = actor.say("What is the capital of Denmark?".to_string());
+        assert!(result.is_ok());
+
+        let result: String;
+        loop {
+            match actor.try_get() {
+                Ok(LLMOutput::Token(_)) => {}
+                Ok(LLMOutput::Done(response)) => {
+                    result = response;
+                    break;
+                }
+                _ => unreachable!(),
+            }
+        }
+
+        assert!(
+            result.contains("Copenhagen"),
+            "Expected completion to contain 'Copenhagen', got: {result}"
+        );
+
+        let result = actor.say("What langauge do they speak there?".to_string());
+        assert!(result.is_ok());
+
+        let result: String;
+        loop {
+            match actor.try_get() {
+                Ok(LLMOutput::Token(_)) => {}
+                Ok(LLMOutput::Done(response)) => {
+                    result = response;
+                    break;
+                }
+                _ => unreachable!(),
+            }
+        }
+
+        assert!(
+            result.contains("Danish"),
+            "Expected completion to contain 'Danish', got: {result}"
+        );
     }
 
     #[test]
