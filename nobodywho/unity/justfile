@@ -54,81 +54,119 @@ default:
 
 # Launch Unity
 unity *args: _ensure-license
-    unity_editor \
+    unity-editor \
         -username "$UNITY_USERNAME" \
         -password "$UNITY_PASSWORD" \
-        -projectPath "$(pwd)/integration-test" \
+        -projectPath "$(pwd)/UnityProject" \
         {{args}}
 
 # Run Unity tests and display results
 test: _ensure-license
     #!/usr/bin/env bash
-    echo "🧪 Running Unity tests..."
+    echo "🧪 Running Unity package tests..."
     
-    # Run the tests
-    unity_editor \
+    # Create a temporary directory in the user's home directory
+    TEMP_DIR="$(pwd)/unity-test-$(date +%s)"
+    mkdir -p "$TEMP_DIR"
+    echo "📁 Created temporary project at: $TEMP_DIR"
+    
+    # Check if the core DLL exists
+    if [ ! -f "./src/Runtime/Plugins/x86_64/libnobodywho.so" ]; then
+        echo "❌ Core DLL not found at ./src/Runtime/Plugins/x86_64/libnobodywho.so"
+        echo "Checking if it exists in other locations..."
+        find .. -name "libnobodywho.so" 2>/dev/null
+        echo "Please build the core library first with 'cd ../core && cargo build'"
+        exit 1
+    fi    
+    # Initialize a basic Unity project for testing
+    unity-editor \
+        -batchmode \
+        -createProject "$TEMP_DIR" \
+        -addPackage "com.unity.test-framework@1.4.5" \
+        -quit
+
+    # Copy package to test project
+    mkdir -p "$TEMP_DIR/Packages/com.test.package"
+    cp -r src/* "$TEMP_DIR/Packages/com.test.package/"
+    
+    echo "🚀 Running Unity tests..."
+    # Run the tests using Unity's test framework
+    unity-editor \
         -username "$UNITY_USERNAME" \
         -password "$UNITY_PASSWORD" \
-        -projectPath "$(pwd)/integration-test" \
+        -projectPath "$TEMP_DIR" \
         -batchmode \
         -runTests \
         -testResults "$(pwd)/test-results.xml" \
-        -testPlatform PlayMode
+        -testPlatform PlayMode \
+        -logFile "$(pwd)/unity-test.log"
     
-    # Get test results
-    RESULTS=$(just _parse_test_results)
-    IFS=':' read -r TOTAL PASSED FAILED SKIPPED DURATION <<< "$RESULTS"
+    UNITY_EXIT_CODE=$?
+    echo "Unity exited with code: $UNITY_EXIT_CODE"
     
-    echo ""
-    echo "📊 Test Results Summary:"
-    echo "===================="
-    
-    # Display summary
-    echo "✨ Total Tests: $TOTAL"
-    echo "✅ Passed: $PASSED"
-    echo "❌ Failed: $FAILED"
-    echo "⏭️  Skipped: $SKIPPED"
-    echo "⏱️  Duration: $DURATION seconds"
-    echo ""
-    
-    # If there are failures, show them
-    if [ "$FAILED" -gt 0 ]; then
-        echo "Failed Tests:"
-        echo "============"
-        echo ""
-        
-        # Get all failed test names
-        FAILED_TESTS=$(xmllint --xpath "//test-case[@result='Failed']/@name" test-results.xml 2>/dev/null | tr ' ' '\n' | sed 's/name="\(.*\)"/\1/')
-        
-        # For each failed test, get its message
-        echo "$FAILED_TESTS" | while IFS= read -r test_name; do
-            if [ ! -z "$test_name" ]; then
-                # Get the failure message for this test
-                message=$(xmllint --xpath "string(//test-case[@name='$test_name']//failure/message)" test-results.xml 2>/dev/null | sed 's/\[\[CDATA\[\(.*\)\]\]\>/\1/')
-                
-                echo "❌ $test_name"
-                echo "-------------------"
-                echo "$message"
-                echo ""
-            fi
-        done
+    # Check if Unity log exists and show the last part
+    if [ -f "unity-test.log" ]; then
+        echo "📜 Last 50 lines of Unity log:"
+        tail -n 50 unity-test.log
     fi
     
-    # Exit with failure if any tests failed
-    [ "$FAILED" -eq 0 ]
-
-# Build and update the Unity plugin in integration tests
-build-plugin: _ensure-license
-    #!/usr/bin/env bash
-    echo "🔨 Building Unity plugin..."
+    # Get test results if they exist
+    if [ -f "$(pwd)/test-results.xml" ]; then
+        RESULTS=$(just _parse_test_results)
+        IFS=':' read -r TOTAL PASSED FAILED SKIPPED DURATION <<< "$RESULTS"
+        
+        echo ""
+        echo "📊 Test Results Summary:"
+        echo "===================="
+        
+        # Display summary
+        echo "✨ Total Tests: $TOTAL"
+        echo "✅ Passed: $PASSED"
+        echo "❌ Failed: $FAILED"
+        echo "⏭️  Skipped: $SKIPPED"
+        echo "⏱️  Duration: $DURATION seconds"
+        echo ""
+        
+        # If there are failures, show them
+        if [ "$FAILED" -gt 0 ]; then
+            echo "Failed Tests:"
+            echo "============"
+            echo ""
+            
+            # Get all failed test names
+            FAILED_TESTS=$(xmllint --xpath "//test-case[@result='Failed']/@name" test-results.xml 2>/dev/null | tr ' ' '\n' | sed 's/name="\(.*\)"/\1/')
+            
+            # For each failed test, get its message
+            echo "$FAILED_TESTS" | while IFS= read -r test_name; do
+                if [ ! -z "$test_name" ]; then
+                    # Get the failure message for this test
+                    message=$(xmllint --xpath "string(//test-case[@name='$test_name']//failure/message)" test-results.xml 2>/dev/null | sed 's/\[\[CDATA\[\(.*\)\]\]\>/\1/')
+                    
+                    echo "❌ $test_name"
+                    echo "-------------------"
+                    echo "$message"
+                    echo ""
+                fi
+            done
+        fi
+    else
+        echo "❌ No test results XML file was generated"
+        echo "Checking for any error logs in the temporary project directory..."
+        find "$TEMP_DIR" -name "*.log" -exec echo "Found log: {}" \; -exec tail -n 20 {} \;
+    fi
     
-    # Create plugin directory if it doesn't exist
-    mkdir -p "integration-test/Assets/Plugins/NobodyWho"
+    # Clean up the temporary directory
+    rm -rf "$TEMP_DIR"
+    rm -rf "$(pwd)/unity-test.log"
+    echo "🧹 Cleaned up temporary project"
     
-    # Build the plugin (adjust build command based on your actual build process)
-    dotnet build src/NobodyWho.Unity/NobodyWho.Unity.csproj -c Release
-    
-    # Copy built plugin to integration test assets
-    cp src/NobodyWho.Unity/bin/Release/net4x/* "integration-test/Assets/Plugins/NobodyWho/"
-    
-    echo "✅ Plugin updated successfully"
+    # Exit with failure if any tests failed or if no results were found
+    if [ ! -f "test-results.xml" ]; then
+        exit 1
+    elif [ "$FAILED" -gt 0 ]; then
+        rm -rf "$(pwd)/test-results.xml"
+        exit 1
+    else
+        rm -rf "$(pwd)/test-results.xml"
+        exit 0
+    fi
