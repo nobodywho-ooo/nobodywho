@@ -21,10 +21,10 @@
     in
     { 
       packages = {
-        default = nobodywho.unity;
+        default = nobodywho.core;
         nobodywho = nobodywho.core;
-        unity = nobodywho.unity;
-        # godot = nobodywho.godot;
+        unity = nobodywho.unity-editor;
+        godot = nobodywho.godot;
         
       };
       checks = {

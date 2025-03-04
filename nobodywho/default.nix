@@ -3,30 +3,20 @@
 # Techdept: 
 #  Currently this system is rebuilding all dependencies for every build. Nothing is cached and
 #  the godot and unity package will have to be rebuild whenever there is a change to any of the packages.
-# some of this is due to the usage of rustPlatform.buildRustPackage
-# we have tried to use crane, but there is a bug in the build.rs of rustbindings (so it requires upstream fix to either llama.cpp, rustbindings or crane)
+#  some of this is due to the usage of rustPlatform.buildRustPackage
+#  we have tried to use crane, but there is a bug in the build.rs of rustbindings (so it requires upstream fix to either llama.cpp, rustbindings or crane)
 let
   # Import core first
   core = pkgs.callPackage ./core {};
+  nobodywho = core.nobodywho;
   
-  # # Pass the core package to godot
-  # godot = pkgs.callPackage ./godot { 
-  #   inherit core;
-  # };
-  
-  # Import unity module
-  unity = pkgs.callPackage ./unity { 
-    inherit core;
-  };
+  godot = pkgs.callPackage ./godot { inherit nobodywho; };
+  unity = pkgs.callPackage ./unity { inherit nobodywho; };
   
 in {
-  core = core.nobodywho;
-  unity = unity.unity_editor;
-  # packages = {
-  #   # Export each package with the correct name
-  #   #godot = godot.packages.godot;
-  #   #unity = unity.unity_editor;
-  # };
+  core = nobodywho;
+  unity-editor = unity.unity-editor;
+  godot = godot.godot;
   
   # Merge checks from all modules
   checks = (lib.mapAttrs (name: value: value) unity.checks);
