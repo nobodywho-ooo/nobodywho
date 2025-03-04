@@ -13,6 +13,7 @@ use llama_cpp_2::token::LlamaToken;
 use std::pin::pin;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, LazyLock, Mutex};
+use tracing::instrument;
 
 const MAX_TOKEN_STR_LEN: usize = 128;
 
@@ -26,8 +27,9 @@ static LLAMA_BACKEND: LazyLock<LlamaBackend> =
 #[derive(Debug)]
 pub enum LLMOutput {
     Token(String),
-    FatalErr(WorkerError),
     Done(String),
+    Embedding(Vec<f32>),
+    FatalErr(WorkerError),
 }
 
 pub type Model = Arc<LlamaModel>;
@@ -85,76 +87,6 @@ pub fn get_model(
     Ok(Arc::new(model))
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum WorkerError {
-    #[error("Could not determine number of threads available: {0}")]
-    ThreadCountError(#[from] std::io::Error),
-
-    #[error("Could not create context: {0}")]
-    CreateContextError(#[from] llama_cpp_2::LlamaContextLoadError),
-
-    #[error("Could not tokenize string: {0}")]
-    TokenizerError(#[from] llama_cpp_2::StringToTokenError),
-
-    #[error("Could not detokenize string: {0}")]
-    Detokenize(#[from] llama_cpp_2::TokenToStringError),
-
-    #[error("Could not add token to batch: {0}")]
-    BatchAddError(#[from] llama_cpp_2::llama_batch::BatchAddError),
-
-    #[error("Llama.cpp failed decoding: {0}")]
-    DecodeError(#[from] llama_cpp_2::DecodeError),
-
-    #[error("Lama.cpp failed fetching chat template from the model file. This is likely because you're using an older GGUF file, which might not include a chat template. For example, this is the case for most LLaMA2-based GGUF files. Try using a more recent GGUF model file. If you want to check if a given model includes a chat template, you can use the gguf-dump script from llama.cpp. Here is a more technical detailed error: {0}")]
-    ChatTemplateError(#[from] llama_cpp_2::ChatTemplateError),
-
-    #[error("Llama.cpp failed fetching chat template: {0}")]
-    KvCacheConversionError(#[from] llama_cpp_2::context::kv_cache::KvCacheConversionError),
-
-    #[error("Failed applying the jinja chat template: {0}")]
-    ApplyTemplateError(#[from] minijinja::Error),
-
-    #[error("Could not parse chat template as UTF8: {0}")]
-    TemplateUtf8Error(#[from] std::str::Utf8Error),
-
-    #[error("Could not send newly generated token out to the game engine.")]
-    SendError, // this is actually a SendError<LLMOutput>, but that becomes recursive and weird
-
-    #[error("Could not receive from channel: {0}")]
-    RecvError(#[from] std::sync::mpsc::RecvError),
-
-    #[error("Global Inference Lock was poisoned.")]
-    GILPoisonError, // this is actually a std::sync::PoisonError<std::sync::MutexGuard<'static, ()>>, but that doesn't implement Send, so we do this
-}
-
-/// Adds a sequence of tokens to the batch for processing.
-///
-/// # Arguments
-/// * `batch` - The batch to add tokens to
-/// * `tokens` - The sequence of tokens to add
-/// * `pos` - The starting position in the context
-/// * `seq_ids` - Sequence IDs for the tokens
-///
-/// # Returns
-/// * `Ok(())` if successful
-/// * `Err(WorkerError)` if batch addition fails
-fn add_sequence(
-    batch: &mut LlamaBatch,
-    tokens: &[LlamaToken],
-    pos: i32,
-    seq_ids: &[i32],
-) -> Result<(), WorkerError> {
-    batch.clear();
-    let n_tokens = tokens.len();
-    for (i, token) in (0..).zip(tokens.iter()) {
-        // Only compute logits for the last token to save computation
-        let output_logits = i == n_tokens - 1;
-        batch.add(*token, pos + i as i32, seq_ids, output_logits)?;
-    }
-
-    Ok(())
-}
-
 fn print_kv_cache(ctx: &mut LlamaContext) {
     let mut kv_cache_view = ctx.new_kv_cache_view(1);
     kv_cache_view.update();
@@ -174,7 +106,10 @@ fn print_kv_cache(ctx: &mut LlamaContext) {
 /// # Returns
 /// * `Ok(n_discard)` - Number of tokens discarded from start of context
 /// * `Err(WorkerError)` - If cache operations fail
-fn apply_context_shifting(ctx: &mut LlamaContext, n_past: i32) -> Result<i32, WorkerError> {
+fn apply_context_shifting(
+    ctx: &mut LlamaContext,
+    n_past: i32,
+) -> Result<i32, llama_cpp_2::context::kv_cache::KvCacheConversionError> {
     let n_keep = 0;
     let n_left = n_past - n_keep;
     let n_discard = n_left / 2;
@@ -208,27 +143,41 @@ pub struct LLMChat {
     chat_state: chat_state::ChatState,
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum SayError {
+    #[error("Template rendering error: {0}")]
+    TemplateError(#[from] minijinja::Error),
+
+    #[error("Error sending message: {0}")]
+    SendError(#[from] std::sync::mpsc::SendError<WorkerMsg>),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum LLMChatError {
+    #[error("Lama.cpp failed fetching chat template from the model file. This is likely because you're using an older GGUF file, which might not include a chat template. For example, this is the case for most LLaMA2-based GGUF files. Try using a more recent GGUF model file. If you want to check if a given model includes a chat template, you can use the gguf-dump script from llama.cpp. Here is a more technical detailed error: {0}")]
+    ChatTemplateError(#[from] llama_cpp_2::ChatTemplateError),
+
+    #[error("Could not parse chat template as UTF8: {0}")]
+    TemplateUtf8Error(#[from] std::str::Utf8Error),
+
+    #[error("Could not detokenize string: {0}")]
+    Detokenize(#[from] llama_cpp_2::TokenToStringError),
+}
+
 impl LLMChat {
-    pub fn new(params: LLMActorParams) -> Self {
-        let template = params
-            .model
-            .get_chat_template()
-            .expect("TODO: handle no template")
-            .to_string()
-            .expect("TODO: handle bad template");
+    pub fn new(params: LLMActorParams) -> Result<Self, LLMChatError> {
+        let template = params.model.get_chat_template()?.to_string()?;
         let bos = params
             .model
-            .token_to_str(params.model.token_bos(), Special::Tokenize)
-            .expect("TODO");
+            .token_to_str(params.model.token_bos(), Special::Tokenize)?;
         let eos = params
             .model
-            .token_to_str(params.model.token_eos(), Special::Tokenize)
-            .expect("TODO");
+            .token_to_str(params.model.token_eos(), Special::Tokenize)?;
+        let chat_state = chat_state::ChatState::new(template, bos, eos);
 
-        Self {
-            actor: LLMActorHandle::new(params),
-            chat_state: chat_state::ChatState::new(template, bos, eos),
-        }
+        let actor = LLMActorHandle::new(params);
+
+        Ok(Self { actor, chat_state })
     }
 
     pub fn with_system_message(mut self: Self, system_prompt: String) -> Self {
@@ -253,10 +202,11 @@ impl LLMChat {
         match out {
             LLMOutput::FatalErr(_) => (),
             LLMOutput::Token(_) => (),
+            LLMOutput::Embedding(_) => unreachable!("got embeddings. this shouldn't be possible"),
             LLMOutput::Done(response) => {
                 self.chat_state
                     .add_message("assistant".to_string(), response.clone());
-                self.chat_state.render_diff().expect("TODO: handle err");
+                let _ = self.chat_state.render_diff();
             }
         }
     }
@@ -286,54 +236,6 @@ impl LLMChat {
     }
 }
 
-pub struct LLMActorHandle {
-    message_tx: Sender<WorkerMsg>,
-    completion_rx: Receiver<LLMOutput>,
-    completion_tx: Sender<LLMOutput>,
-}
-
-impl LLMActorHandle {
-    pub fn new(params: LLMActorParams) -> Self {
-        let (message_tx, message_rx) = std::sync::mpsc::channel();
-        let (completion_tx, completion_rx) = std::sync::mpsc::channel();
-
-        std::thread::spawn(|| completion_worker_actor(message_rx, params));
-
-        Self {
-            message_tx,
-            completion_rx,
-            completion_tx,
-        }
-    }
-
-    pub fn read(&self, text: String) -> Result<(), std::sync::mpsc::SendError<WorkerMsg>> {
-        self.message_tx.send(WorkerMsg::ReadString(text))
-    }
-
-    pub fn write_until_done(&self) -> Result<(), std::sync::mpsc::SendError<WorkerMsg>> {
-        // TODO: this could return a tokio stream?
-        self.message_tx
-            .send(WorkerMsg::WriteUntilDone(self.completion_tx.clone()))
-    }
-
-    pub fn try_recv(self: &mut Self) -> Result<LLMOutput, std::sync::mpsc::TryRecvError> {
-        self.completion_rx.try_recv()
-    }
-
-    pub fn recv(self: &mut Self) -> Result<LLMOutput, std::sync::mpsc::RecvError> {
-        self.completion_rx.recv()
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum SayError {
-    #[error("Template rendering error: {0}")]
-    TemplateError(#[from] minijinja::Error),
-
-    #[error("Error sending message: {0}")]
-    SendError(#[from] std::sync::mpsc::SendError<WorkerMsg>),
-}
-
 /// Parameters for configuring an LLM actor instance.
 ///
 /// This struct contains the configuration needed to create a new LLM actor,
@@ -353,8 +255,57 @@ pub struct LLMActorParams {
     pub use_embeddings: bool,
 }
 
+pub struct LLMActorHandle {
+    message_tx: Sender<WorkerMsg>,
+    completion_rx: Receiver<LLMOutput>,
+}
+
+impl LLMActorHandle {
+    pub fn new(params: LLMActorParams) -> Self {
+        let (message_tx, message_rx) = std::sync::mpsc::channel();
+        let (completion_tx, completion_rx) = std::sync::mpsc::channel();
+
+        std::thread::spawn(move || {
+            completion_worker_actor(message_rx, completion_tx.clone(), params)
+                .map_err(|e| completion_tx.send(LLMOutput::FatalErr(e)))
+        });
+
+        Self {
+            message_tx,
+            completion_rx,
+        }
+    }
+
+    pub fn read(&self, text: String) -> Result<(), std::sync::mpsc::SendError<WorkerMsg>> {
+        self.message_tx.send(WorkerMsg::ReadString(text))
+    }
+
+    pub fn write_until_done(&self) -> Result<(), std::sync::mpsc::SendError<WorkerMsg>> {
+        self.message_tx.send(WorkerMsg::WriteUntilDone)
+    }
+
+    pub fn reset_context(&self) -> Result<(), std::sync::mpsc::SendError<WorkerMsg>> {
+        self.message_tx.send(WorkerMsg::ResetContext)
+    }
+
+    pub fn embed(&self, text: String) -> Result<(), std::sync::mpsc::SendError<WorkerMsg>> {
+        let _ = self.reset_context()?;
+        let _ = self.read(text)?;
+        self.message_tx.send(WorkerMsg::GetEmbedding)
+    }
+
+    pub fn try_recv(self: &mut Self) -> Result<LLMOutput, std::sync::mpsc::TryRecvError> {
+        self.completion_rx.try_recv()
+    }
+
+    pub fn recv(self: &mut Self) -> Result<LLMOutput, std::sync::mpsc::RecvError> {
+        self.completion_rx.recv()
+    }
+}
+
 fn completion_worker_actor(
     message_rx: Receiver<WorkerMsg>,
+    completion_tx: Sender<LLMOutput>,
     params: LLMActorParams,
 ) -> Result<(), WorkerError> {
     let model = params.model;
@@ -387,22 +338,23 @@ fn completion_worker_actor(
 
     // listen for messages
     while let Ok(msg) = message_rx.recv() {
-        match handle_msg(state, msg) {
+        match handle_msg(state, msg, completion_tx.clone()) {
             Ok(newstate) => {
                 state = newstate;
             }
             Err(err) => {
+                // worker died. report error and give up
                 return Err(err);
-            } // worker died. report error and give up
-              // completion_tx.send(LLMOutput::FatalErr(err)).map_err(|_| WorkerError::SendError)?;
+            }
         }
     }
 
-    // we only reach this code mressage_rx.recv() fails
+    // we only reach this code message_rx.recv() fails
     // this only happens when all senders are dropped
     Ok(()) // accept our fate
 }
 
+#[derive(Debug)]
 struct WorkerState<'a> {
     n_past: i32,
     ctx: LlamaContext<'a>,
@@ -412,13 +364,66 @@ struct WorkerState<'a> {
     stop_tokens: Vec<String>,
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum WorkerError {
+    #[error("Could not determine number of threads available: {0}")]
+    ThreadCountError(#[from] std::io::Error),
+
+    #[error("Could not create context: {0}")]
+    CreateContextError(#[from] llama_cpp_2::LlamaContextLoadError),
+
+    // #[error("Could not tokenize string: {0}")]
+    // TokenizerError(#[from] llama_cpp_2::StringToTokenError),
+
+    // #[error("Could not detokenize string: {0}")]
+    // Detokenize(#[from] llama_cpp_2::TokenToStringError),
+
+    // #[error("Could not add token to batch: {0}")]
+    // BatchAddError(#[from] llama_cpp_2::llama_batch::BatchAddError),
+
+    // #[error("Llama.cpp failed decoding: {0}")]
+    // DecodeError(#[from] llama_cpp_2::DecodeError),
+
+    // #[error("Lama.cpp failed fetching chat template from the model file. This is likely because you're using an older GGUF file, which might not include a chat template. For example, this is the case for most LLaMA2-based GGUF files. Try using a more recent GGUF model file. If you want to check if a given model includes a chat template, you can use the gguf-dump script from llama.cpp. Here is a more technical detailed error: {0}")]
+    // ChatTemplateError(#[from] llama_cpp_2::ChatTemplateError),
+
+    // #[error("Llama.cpp failed fetching chat template: {0}")]
+    // KvCacheConversionError(#[from] llama_cpp_2::context::kv_cache::KvCacheConversionError),
+
+    // #[error("Failed applying the jinja chat template: {0}")]
+    // ApplyTemplateError(#[from] minijinja::Error),
+
+    // #[error("Could not parse chat template as UTF8: {0}")]
+    // TemplateUtf8Error(#[from] std::str::Utf8Error),
+    #[error("Could not send newly generated token out to the game engine.")]
+    SendError, // this is actually a SendError<LLMOutput>, but that becomes recursive and weird
+
+    #[error("Could not receive from channel: {0}")]
+    RecvError(#[from] std::sync::mpsc::RecvError),
+
+    #[error("Global Inference Lock was poisoned.")]
+    GILPoisonError, // this is actually a std::sync::PoisonError<std::sync::MutexGuard<'static, ()>>, but that doesn't implement Send, so we do this
+
+    #[error("Error reading string: {0}")]
+    ReadError(#[from] ReadError),
+
+    #[error("Error generating text: {0}")]
+    WriteError(#[from] WriteError),
+}
+
+#[derive(Debug)]
 pub enum WorkerMsg {
     ReadString(String),
-    WriteUntilDone(Sender<LLMOutput>),
+    WriteUntilDone,
+    GetEmbedding,
     ResetContext,
 }
 
-fn handle_msg(mut state: WorkerState, msg: WorkerMsg) -> Result<WorkerState, WorkerError> {
+fn handle_msg(
+    mut state: WorkerState,
+    msg: WorkerMsg,
+    tx: Sender<LLMOutput>,
+) -> Result<WorkerState, WorkerError> {
     // HACK
     // this is needed because contexts referencing the same model are not thread safe
     // if two contexts referencing the same model try to decode at the same time,
@@ -427,82 +432,13 @@ fn handle_msg(mut state: WorkerState, msg: WorkerMsg) -> Result<WorkerState, Wor
         .lock()
         .map_err(|_| WorkerError::GILPoisonError)?;
 
+    println!("MSG {:?}", msg);
     match msg {
-        WorkerMsg::ReadString(text) => {
-            let tokens = state.ctx.model.str_to_token(&text, AddBos::Never)?;
-
-            debug_assert!(tokens.len() > 0);
-            debug_assert!(tokens.len() < state.ctx.n_ctx() as usize);
-
-            add_sequence(&mut state.big_batch, &tokens, state.n_past, &[0])?;
-
-            state.ctx.decode(&mut state.big_batch)?;
-
-            Ok(WorkerState {
-                n_past: state.n_past + tokens.len() as i32,
-                ..state
-            })
-        }
-        WorkerMsg::WriteUntilDone(respond_to) => {
-            // Token generation loop
-
-            // pre-allocating 4096 bytes for the response string
-            // 4096 is a very randomly chosen number. how does this affect performance?
-            let mut full_response: String = String::with_capacity(4096);
-
-            loop {
-                // Check for context window overflow (it was in the end before)
-                if state.n_past >= state.ctx.n_ctx() as i32 - 1 {
-                    state.n_past -= apply_context_shifting(&mut state.ctx, state.n_past)?;
-                    // check count
-                    debug_assert!(state.n_past == state.ctx.get_kv_cache_token_count());
-                }
-
-                // Sample next token, no need to use sampler.accept as sample already accepts the token.
-                // using sampler.accept() will cause the sampler to crash when using grammar sampling.
-                // https://github.com/utilityai/llama-cpp-rs/issues/604
-                let new_token: LlamaToken = state.sampler.sample(&state.ctx, -1);
-
-                // batch of one
-                state.small_batch.clear();
-                state.small_batch.add(new_token, state.n_past, &[0], true)?;
-                state.ctx.decode(&mut state.small_batch)?; // llm go brr
-                state.n_past += 1; // keep count
-
-                // check count
-                // XXX: this one is slow
-                // debug_assert!(state.n_past == state.ctx.get_kv_cache_token_count());
-
-                // Convert token to text
-                let output_string = state
-                    .ctx
-                    .model
-                    .token_to_str_with_size(new_token, MAX_TOKEN_STR_LEN, Special::Tokenize)
-                    .unwrap_or("�".to_string());
-                // fall back to "U+FFFD REPLACEMENT CHARACTER"
-                // when encountering bytes that aren't valid UTF-8
-                // wikipedia: "used to replace an unknown, unrecognised, or unrepresentable character"
-
-                let has_stop_tokens = state
-                    .stop_tokens
-                    .iter()
-                    .any(|stop_token| full_response.contains(stop_token));
-                let has_eog = state.ctx.model.is_eog_token(new_token);
-
-                if !has_eog {
-                    full_response.push_str(&output_string);
-                    respond_to
-                        .send(LLMOutput::Token(output_string.clone()))
-                        .map_err(|_| WorkerError::SendError)?;
-                }
-                if has_eog || has_stop_tokens {
-                    break;
-                }
-            }
-
-            // we're done!
-            respond_to
-                .send(LLMOutput::Done(full_response))
+        WorkerMsg::ReadString(text) => Ok(read_string(state, text)?),
+        WorkerMsg::WriteUntilDone => Ok(write_until_done(state, tx)?),
+        WorkerMsg::GetEmbedding => {
+            let embedding = state.ctx.embeddings_seq_ith(0).unwrap().to_vec();
+            tx.send(LLMOutput::Embedding(embedding))
                 .map_err(|_| WorkerError::SendError)?;
             Ok(state)
         }
@@ -514,60 +450,132 @@ fn handle_msg(mut state: WorkerState, msg: WorkerMsg) -> Result<WorkerState, Wor
     }
 }
 
-pub enum EmbeddingsOutput {
-    Embedding(Vec<f32>),
-    FatalError(WorkerError),
+#[derive(Debug, thiserror::Error)]
+pub enum ReadError {
+    #[error("Could not tokenize string: {0}")]
+    TokenizerError(#[from] llama_cpp_2::StringToTokenError),
+
+    #[error("Could not add to batch: {0}")]
+    BatchAddError(#[from] llama_cpp_2::llama_batch::BatchAddError),
+
+    #[error("Llama.cpp failed decoding: {0}")]
+    DecodeError(#[from] llama_cpp_2::DecodeError),
 }
 
-pub fn run_embedding_worker(
-    model: Arc<LlamaModel>,
-    text_rx: Receiver<String>,
-    embedding_tx: Sender<EmbeddingsOutput>,
-) {
-    // this function is a pretty thin wrapper to send back an `Err` if we get it
-    if let Err(msg) = run_embedding_worker_result(model, text_rx, &embedding_tx) {
-        embedding_tx
-            .send(EmbeddingsOutput::FatalError(msg))
-            .expect("Could not send llm worker fatal error back to consumer.");
+#[instrument]
+fn read_string(mut state: WorkerState, text: String) -> Result<WorkerState, ReadError> {
+    let tokens = state.ctx.model.str_to_token(&text, AddBos::Never)?;
+
+    debug_assert!(tokens.len() > 0);
+    debug_assert!(tokens.len() < state.ctx.n_ctx() as usize);
+
+    {
+        state.big_batch.clear();
+        let seq_ids = &[0];
+        let n_tokens = tokens.len();
+        for (i, token) in (0..).zip(tokens.iter()) {
+            // Only compute logits for the last token to save computation
+            let output_logits = i == n_tokens - 1;
+            state
+                .big_batch
+                .add(*token, state.n_past + i as i32, seq_ids, output_logits)?;
+        }
     }
+
+    state.ctx.decode(&mut state.big_batch)?;
+
+    Ok(WorkerState {
+        n_past: state.n_past + tokens.len() as i32,
+        ..state
+    })
 }
 
-pub fn run_embedding_worker_result(
-    model: Arc<LlamaModel>,
-    text_rx: Receiver<String>,
-    embedding_tx: &Sender<EmbeddingsOutput>,
-) -> Result<(), WorkerError> {
-    let n_threads = std::thread::available_parallelism()?.get() as i32;
-    let ctx_params = LlamaContextParams::default()
-        .with_n_threads(n_threads)
-        .with_embeddings(true);
+pub enum WriteOutput {
+    Token(String),
+    Done(String),
+}
 
-    let mut ctx = model.new_context(&LLAMA_BACKEND, ctx_params)?;
+#[derive(Debug, thiserror::Error)]
+pub enum WriteError {
+    #[error("Could not apply context shifting: {0}")]
+    ContextShiftError(#[from] llama_cpp_2::context::kv_cache::KvCacheConversionError),
 
-    while let Ok(text) = text_rx.recv() {
-        // HACK see comment in completion worker
-        let inference_lock = GLOBAL_INFERENCE_LOCK
-            .lock()
-            .map_err(|_| WorkerError::GILPoisonError)?;
+    #[error("Could not add token to batch: {0}")]
+    BatchAddError(#[from] llama_cpp_2::llama_batch::BatchAddError),
 
-        let mut batch = LlamaBatch::new(ctx.n_ctx() as usize, 1);
+    #[error("Llama.cpp failed decoding: {0}")]
+    DecodeError(#[from] llama_cpp_2::DecodeError),
 
-        let tokens = ctx.model.str_to_token(&text, AddBos::Always)?;
+    #[error("Error sending message")]
+    SendError,
+}
 
-        add_sequence(&mut batch, &tokens, 0, &[0]).expect("Failed to add sequence");
+#[instrument]
+fn write_until_done(
+    mut state: WorkerState,
+    respond_to: Sender<LLMOutput>,
+) -> Result<WorkerState, WriteError> {
+    // Token generation loop
 
-        ctx.clear_kv_cache();
+    // pre-allocating 4096 bytes for the response string
+    // 4096 is a very randomly chosen number. how does this affect performance?
+    let mut full_response: String = String::with_capacity(4096);
 
-        ctx.decode(&mut batch)?;
+    loop {
+        // Check for context window overflow (it was in the end before)
+        if state.n_past >= state.ctx.n_ctx() as i32 - 1 {
+            state.n_past -= apply_context_shifting(&mut state.ctx, state.n_past)?;
+            // check count
+            debug_assert!(state.n_past == state.ctx.get_kv_cache_token_count());
+        }
 
-        let embedding = ctx.embeddings_seq_ith(0).unwrap().to_vec();
-        embedding_tx
-            .send(EmbeddingsOutput::Embedding(embedding))
-            .map_err(|_| WorkerError::SendError)?;
+        // Sample next token, no need to use sampler.accept as sample already accepts the token.
+        // using sampler.accept() will cause the sampler to crash when using grammar sampling.
+        // https://github.com/utilityai/llama-cpp-rs/issues/604
+        let new_token: LlamaToken = state.sampler.sample(&state.ctx, -1);
 
-        drop(inference_lock);
+        // batch of one
+        state.small_batch.clear();
+        state.small_batch.add(new_token, state.n_past, &[0], true)?;
+        state.ctx.decode(&mut state.small_batch)?; // llm go brr
+        state.n_past += 1; // keep count
+
+        // check count
+        // XXX: this one is slow
+        // debug_assert!(state.n_past == state.ctx.get_kv_cache_token_count());
+
+        // Convert token to text
+        let output_string = state
+            .ctx
+            .model
+            .token_to_str_with_size(new_token, MAX_TOKEN_STR_LEN, Special::Tokenize)
+            .unwrap_or("�".to_string());
+        // fall back to "U+FFFD REPLACEMENT CHARACTER"
+        // when encountering bytes that aren't valid UTF-8
+        // wikipedia: "used to replace an unknown, unrecognised, or unrepresentable character"
+
+        let has_stop_tokens = state
+            .stop_tokens
+            .iter()
+            .any(|stop_token| full_response.contains(stop_token));
+        let has_eog = state.ctx.model.is_eog_token(new_token);
+
+        if !has_eog {
+            full_response.push_str(&output_string);
+            respond_to
+                .send(LLMOutput::Token(output_string.clone()))
+                .map_err(|_| WriteError::SendError)?;
+        }
+        if has_eog || has_stop_tokens {
+            break;
+        }
     }
-    Ok(())
+
+    // we're done!
+    respond_to
+        .send(LLMOutput::Done(full_response))
+        .map_err(|_| WriteError::SendError)?;
+    Ok(state)
 }
 
 fn dotproduct(a: &[f32], b: &[f32]) -> f32 {
@@ -597,11 +605,12 @@ mod tests {
     }
 
     macro_rules! test_embeddings_model_path {
-        () => {
+        () => {{
+            tracing_subscriber::fmt::init();
             std::env::var("TEST_EMBEDDINGS_MODEL")
                 .unwrap_or("embeddings.gguf".to_string())
                 .as_str()
-        };
+        }};
     }
 
     #[test]
@@ -648,32 +657,37 @@ mod tests {
     fn test_embeddings() {
         let model = get_model(test_embeddings_model_path!(), true).unwrap();
 
-        let (prompt_tx, prompt_rx) = std::sync::mpsc::channel();
-        let (embedding_tx, embedding_rx) = std::sync::mpsc::channel();
+        let params = LLMActorParams {
+            model,
+            sampler_config: SamplerConfig::default(),
+            n_ctx: 4096,
+            stop_tokens: vec![],
+            use_embeddings: true,
+        };
 
-        std::thread::spawn(|| run_embedding_worker(model, prompt_rx, embedding_tx));
+        let mut actor = LLMActorHandle::new(params);
 
-        prompt_tx
-            .send("Copenhagen is the capital of Denmark.".to_string())
+        actor
+            .embed("Copenhagen is the capital of Denmark.".to_string())
             .unwrap();
-        let copenhagen_embedding = match embedding_rx.recv() {
-            Ok(EmbeddingsOutput::Embedding(vec)) => vec,
+        let copenhagen_embedding = match actor.recv() {
+            Ok(LLMOutput::Embedding(vec)) => vec,
             _ => panic!(),
         };
 
-        prompt_tx
-            .send("Berlin is the capital of Germany.".to_string())
+        actor
+            .embed("Berlin is the capital of Germany.".to_string())
             .unwrap();
-        let berlin_embedding = match embedding_rx.recv() {
-            Ok(EmbeddingsOutput::Embedding(vec)) => vec,
+        let berlin_embedding = match actor.recv() {
+            Ok(LLMOutput::Embedding(vec)) => vec,
             _ => panic!(),
         };
 
-        prompt_tx
-            .send("Your mother was a hamster and your father smelt of elderberries!".to_string())
+        actor
+            .embed("Your mother was a hamster and your father smelt of elderberries!".to_string())
             .unwrap();
-        let insult_embedding = match embedding_rx.recv() {
-            Ok(EmbeddingsOutput::Embedding(vec)) => vec,
+        let insult_embedding = match actor.recv() {
+            Ok(LLMOutput::Embedding(vec)) => vec,
             _ => panic!(),
         };
 
