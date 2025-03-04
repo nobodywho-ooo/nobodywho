@@ -63,9 +63,7 @@ let
   '';
 
 in {
-  packages = {
-    inherit godot;
-  };
+  godot = godot;
   checks = {
     godot-integration-test = run-integration-test;
   };
