@@ -16,6 +16,8 @@ llama-cpp-sys-2 = { git = "https://github.com/utilityai/llama-cpp-rs.git", branc
 llama-cpp-2 = { git = "https://github.com/utilityai/llama-cpp-rs.git", branch = "update-llama-cpp-2025-03-17" }
 lazy_static = "1.5.0"
 minijinja-contrib = { version = "2.7.0", features = ["pycompat"] }
+tracing = { version = "0.1.41", features = ["attributes"] }
+tracing-subscriber = "0.3.19"
 
 [target.'cfg(not(target_os = "macos"))'.dependencies]
 llama-cpp-2 = { git = "https://github.com/utilityai/llama-cpp-rs.git", branch = "update-llama-cpp-2025-03-17", features = ["vulkan"] }

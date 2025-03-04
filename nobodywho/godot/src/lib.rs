@@ -154,6 +154,9 @@ impl INode for NobodyWhoChat {
                     godot_error!("Model worker crashed: {msg}");
                     self.chat = None;
                 }
+                Ok(llm::LLMOutput::Embedding(_vec)) => {
+                    unreachable!("got embeddings in NobodyWhoChat. this shouldn't be possible.")
+                }
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                     godot_error!("Model output channel died. Did the LLM worker crash?");
                     // set hanging channel to None
@@ -302,9 +305,7 @@ struct NobodyWhoEmbedding {
     #[export]
     /// The model node for the embedding.
     model_node: Option<Gd<NobodyWhoModel>>,
-
-    text_tx: Option<Sender<String>>,
-    embedding_rx: Option<Receiver<llm::EmbeddingsOutput>>,
+    actor: Option<llm::LLMActorHandle>,
     base: Base<Node>,
 }
 
@@ -313,32 +314,33 @@ impl INode for NobodyWhoEmbedding {
     fn init(base: Base<Node>) -> Self {
         Self {
             model_node: None,
-            text_tx: None,
-            embedding_rx: None,
+            actor: None,
             base,
         }
     }
 
     fn physics_process(&mut self, _delta: f64) {
-        while let Some(rx) = self.embedding_rx.as_ref() {
-            match rx.try_recv() {
-                Ok(llm::EmbeddingsOutput::FatalError(errmsg)) => {
+        while let Some(actor) = self.actor.as_mut() {
+            match actor.try_recv() {
+                Ok(llm::LLMOutput::FatalErr(errmsg)) => {
                     godot_error!("Embeddings worker crashed: {errmsg}");
-                    self.embedding_rx = None; // un-set here to avoid spamming error message
+                    self.actor = None; // un-set here to avoid spamming error message
                 }
-                Ok(llm::EmbeddingsOutput::Embedding(embd)) => {
+                Ok(llm::LLMOutput::Embedding(embd)) => {
                     self.base_mut().emit_signal(
                         "embedding_finished",
                         &[PackedFloat32Array::from(embd).to_variant()],
                     );
                 }
+                Ok(llm::LLMOutput::Token(_token)) => unreachable!(),
+                Ok(llm::LLMOutput::Done(_token)) => unreachable!(),
                 Err(std::sync::mpsc::TryRecvError::Empty) => {
                     // got nothing yet - no worries
                     break;
                 }
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                     godot_error!("Unexpected: Embeddings worker channel disconnected");
-                    self.embedding_rx = None; // un-set here to avoid spamming error message
+                    self.actor = None; // un-set here to avoid spamming error message
                 }
             }
         }
@@ -365,16 +367,19 @@ impl NobodyWhoEmbedding {
         let mut result = || -> Result<(), String> {
             let model = self.get_model()?;
 
-            // make and store channels for communicating with the llm worker thread
-            let (embedding_tx, embedding_rx) = std::sync::mpsc::channel();
-            let (text_tx, text_rx) = std::sync::mpsc::channel();
-            self.embedding_rx = Some(embedding_rx);
-            self.text_tx = Some(text_tx);
+            let sampler_config = nobodywho::sampler_config::SamplerConfig::default();
 
-            // start the llm worker
-            std::thread::spawn(move || {
-                llm::run_embedding_worker(model, text_rx, embedding_tx);
-            });
+            // TODO: sampler_config and stop_tokens actually aren't needed here
+            // TODO: n_ctx should be configurable
+            let params = llm::LLMActorParams {
+                model,
+                sampler_config,
+                stop_tokens: vec![],
+                n_ctx: 4096,
+                use_embeddings: true,
+            };
+
+            self.actor = Some(llm::LLMActorHandle::new(params));
 
             Ok(())
         };
@@ -390,8 +395,8 @@ impl NobodyWhoEmbedding {
     /// The signal will return a PackedFloat32Array.
     fn embed(&mut self, text: String) -> Signal {
         // returns signal, so that you can `var vec = await embed("Hello, world!")`
-        if let Some(tx) = &self.text_tx {
-            if tx.send(text).is_err() {
+        if let Some(actor) = &self.actor {
+            if actor.embed(text).is_err() {
                 godot_error!("Embedding worker died.");
             }
         } else {
