@@ -155,7 +155,7 @@ impl INode for NobodyWhoChat {
                     self.chat = None;
                 }
                 Ok(llm::LLMOutput::Embedding(_vec)) => {
-                    unreachable!("got embeddings in NobodyWhoChat. this shouldn't be possible.")
+                    unreachable!("Got embeddings in NobodyWhoChat. this shouldn't be possible.")
                 }
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                     godot_error!("Model output channel died. Did the LLM worker crash?");
@@ -203,6 +203,7 @@ impl NobodyWhoChat {
                 .into_iter()
                 .map(|g| g.to_string())
                 .collect();
+
             let params = llm::LLMActorParams {
                 model,
                 sampler_config,
@@ -212,11 +213,11 @@ impl NobodyWhoChat {
             };
 
             // start the llm worker
-            let chat =
-                llm::LLMChat::new(params).with_system_message(self.system_prompt.to_string());
+            let chat = llm::LLMChat::new(params)
+                .map_err(|e| format!("{:?}", e))?
+                .with_system_message(self.system_prompt.to_string());
 
             self.chat = Some(chat);
-
             Ok(())
         };
 
@@ -332,8 +333,12 @@ impl INode for NobodyWhoEmbedding {
                         &[PackedFloat32Array::from(embd).to_variant()],
                     );
                 }
-                Ok(llm::LLMOutput::Token(_token)) => unreachable!(),
-                Ok(llm::LLMOutput::Done(_token)) => unreachable!(),
+                Ok(llm::LLMOutput::Token(_token)) => {
+                    unreachable!("Token in NobodyWhoEmbedding")
+                }
+                Ok(llm::LLMOutput::Done(_token)) => {
+                    unreachable!("Response in NobodyWhoEmbedding")
+                }
                 Err(std::sync::mpsc::TryRecvError::Empty) => {
                     // got nothing yet - no worries
                     break;
