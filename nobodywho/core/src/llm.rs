@@ -13,8 +13,6 @@ use llama_cpp_2::token::LlamaToken;
 use std::pin::pin;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, LazyLock, Mutex};
-use tracing::instrument;
-use tracing::{debug, info, warn};
 
 const MAX_TOKEN_STR_LEN: usize = 128;
 
@@ -85,10 +83,10 @@ pub fn get_model(
                 model_path, e
             ))
         })?;
-    debug!("Loaded model: {model_path}");
     Ok(Arc::new(model))
 }
 
+#[allow(dead_code)]
 fn print_kv_cache(ctx: &mut LlamaContext) {
     let mut kv_cache_view = ctx.new_kv_cache_view(1);
     kv_cache_view.update();
@@ -189,7 +187,7 @@ impl LLMChat {
         self
     }
 
-    pub fn say(self: &mut Self, text: String) -> Result<(), SayError> {
+    pub fn say(&mut self, text: String) -> Result<(), SayError> {
         // Add user message to chat state
         self.chat_state.add_message("user".to_string(), text);
         let diff = self.chat_state.render_diff()?;
@@ -200,7 +198,7 @@ impl LLMChat {
         Ok(())
     }
 
-    fn handle_llmoutput(self: &mut Self, out: &LLMOutput) {
+    fn handle_llmoutput(&mut self, out: &LLMOutput) {
         match out {
             LLMOutput::FatalErr(_) => (),
             LLMOutput::Token(_) => (),
@@ -213,19 +211,19 @@ impl LLMChat {
         }
     }
 
-    pub fn recv(self: &mut Self) -> Result<LLMOutput, std::sync::mpsc::RecvError> {
+    pub fn recv(&mut self) -> Result<LLMOutput, std::sync::mpsc::RecvError> {
         let out = self.actor.recv()?;
         self.handle_llmoutput(&out);
         Ok(out)
     }
 
-    pub fn try_recv(self: &mut Self) -> Result<LLMOutput, std::sync::mpsc::TryRecvError> {
+    pub fn try_recv(&mut self) -> Result<LLMOutput, std::sync::mpsc::TryRecvError> {
         let out = self.actor.try_recv()?;
         self.handle_llmoutput(&out);
         Ok(out)
     }
 
-    pub fn get_response_blocking(self: &mut Self) -> Result<String, WorkerError> {
+    pub fn get_response_blocking(&mut self) -> Result<String, WorkerError> {
         // read until `Done`, then return
         loop {
             match self.recv() {
@@ -296,11 +294,11 @@ impl LLMActorHandle {
         self.message_tx.send(WorkerMsg::GetEmbedding)
     }
 
-    pub fn try_recv(self: &mut Self) -> Result<LLMOutput, std::sync::mpsc::TryRecvError> {
+    pub fn try_recv(&mut self) -> Result<LLMOutput, std::sync::mpsc::TryRecvError> {
         self.completion_rx.try_recv()
     }
 
-    pub fn recv(self: &mut Self) -> Result<LLMOutput, std::sync::mpsc::RecvError> {
+    pub fn recv(&mut self) -> Result<LLMOutput, std::sync::mpsc::RecvError> {
         self.completion_rx.recv()
     }
 }
@@ -440,12 +438,9 @@ pub enum ReadError {
     DecodeError(#[from] llama_cpp_2::DecodeError),
 }
 
-#[instrument]
 fn read_string(mut state: WorkerState, text: String) -> Result<WorkerState, ReadError> {
-    info!("Reading string: \"{text}\"");
     let tokens = state.ctx.model.str_to_token(&text, AddBos::Never)?;
     let n_tokens = tokens.len();
-    info!("String was {n_tokens} tokens");
 
     debug_assert!(tokens.len() > 0);
     debug_assert!(tokens.len() < state.ctx.n_ctx() as usize);
@@ -490,7 +485,6 @@ pub enum WriteError {
     SendError,
 }
 
-#[instrument]
 fn write_until_done(
     mut state: WorkerState,
     respond_to: Sender<LLMOutput>,
@@ -506,6 +500,7 @@ fn write_until_done(
         if state.n_past >= state.ctx.n_ctx() as i32 - 1 {
             state.n_past -= apply_context_shifting(&mut state.ctx, state.n_past)?;
             // check count
+            // XXX: this check is slow
             debug_assert!(state.n_past == state.ctx.get_kv_cache_token_count());
         }
 
@@ -519,10 +514,6 @@ fn write_until_done(
         state.small_batch.add(new_token, state.n_past, &[0], true)?;
         state.ctx.decode(&mut state.small_batch)?; // llm go brr
         state.n_past += 1; // keep count
-
-        // check count
-        // XXX: this one is slow
-        // debug_assert!(state.n_past == state.ctx.get_kv_cache_token_count());
 
         // Convert token to text
         let output_string = state
@@ -594,9 +585,6 @@ mod tests {
 
     #[test]
     fn test_actor_chat() {
-        tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::INFO)
-            .init();
         let model = get_model(test_model_path!(), true).unwrap();
         let system_prompt =
             "You are a helpful assistant. The user asks you a question, and you provide an answer."
