@@ -5,5 +5,8 @@ edition = "2021"
 
 [lib]
 crate-type = ["cdylib"]
+path = "src/lib.rs"
 
-[dependencies] 
+[dependencies]
+nobodywho = { path = "../core" }
+
