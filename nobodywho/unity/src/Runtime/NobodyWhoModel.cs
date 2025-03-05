@@ -1,38 +1,37 @@
 using UnityEngine;
+using System;
+
+
 
 namespace NobodyWho
 {
     public class Model : MonoBehaviour
     {
+        // TODO: make a file picker for this instead. for now, just use the StreamingAssets folder.
         public string modelPath = "model.gguf";
         public bool useGpuIfAvailable = true;
-        private Model model;
+        private IntPtr modelHandle;
 
-        // Using unsafe to allow direct memory access since Rust data structures 
-        // are passed as raw pointers that need to be marshalled in C#
-        public unsafe Model GetModel()
+
+        // Return a pointer to the model instead of a managed object
+        // TODO: implement marshalling, maybe? 
+        public IntPtr GetModel()
         {
-            if (model != null)
+            if (modelHandle != IntPtr.Zero)
             {
-                return model;
+                return modelHandle;
             }
 
             string fullPath = System.IO.Path.Combine(Application.streamingAssetsPath, modelPath);
 
             try
             {
-                // The Rust code uses llm::get_model, which gets exported as get_model in the DLL
-                // We need to declare this import somewhere (likely in a NativeBindings.cs file):
-                // [DllImport("nobodywho")]
-                // public static extern IntPtr get_model(string path, bool use_gpu);
-                IntPtr modelHandle = NobodyWhoBindings.get_model(fullPath, useGpuIfAvailable);
+                modelHandle = Native.get_model(fullPath, useGpuIfAvailable);
                 if (modelHandle == IntPtr.Zero)
                 {
                     throw new System.Exception("Failed to load model - null pointer returned from get_model");
                 }
-                
-                model = new Model(modelHandle); // Wrap the native pointer in managed Model class
-                return model;
+                return modelHandle;
             }
             catch (System.Exception e)
             {
