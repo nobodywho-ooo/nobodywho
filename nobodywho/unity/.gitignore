@@ -1,12 +1,5 @@
 # Unity generated on test runs
-integration-test/[Ll]ibrary
-integration-test/[Tt]emp/
-integration-test/[Oo]bj/
-integration-test/[Bb]uild/
-integration-test/[Bb]uilds/
-integration-test/[Ll]ogs/
-integration-test/[Uu]ser[Ss]ettings/
-integration-test/[Aa]ssets/[Rr]esources/
+src/Runtime/Plugins
 *-results.xml
 integration-test/ProjectSettings/*
 
@@ -34,4 +27,10 @@ crashlytics-build.properties
 # Nix
 .direnv
 result
-result-*
+resul*
+temp*
+.temp*
+# Unity
+*.log
+*.xml
+*.meta
