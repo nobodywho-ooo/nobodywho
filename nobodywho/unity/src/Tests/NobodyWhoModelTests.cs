@@ -3,19 +3,21 @@ using UnityEngine;
 using UnityEngine.TestTools;
 using System.Collections;
 using System;
+using System.IO;
+using NobodyWho;
 
-namespace NobodyWho.Tests
+namespace Tests
 {
     public class NobodyWhoModelTests
     {
         private GameObject testObject;
-        private NobodyWhoModel model;
+        private NobodyWho.Model model;
 
         [SetUp]
         public void Setup()
         {
             testObject = new GameObject("TestModel");
-            model = testObject.AddComponent<NobodyWhoModel>();
+            model = testObject.AddComponent<NobodyWho.Model>();
         }
 
         [TearDown]
@@ -31,8 +33,8 @@ namespace NobodyWho.Tests
         public void WhenModelPathIsInvalid_ShouldReturnError()
         {
             
-            model.ModelPath = "/path/that/does/not/exist.gguf";
-            var exception = Assert.Throws<FileNotFoundException>(() => model.LoadModel());
+            model.modelPath = "/path/that/does/not/exist.gguf";
+            var exception = Assert.Throws<FileNotFoundException>(() => model.GetModel());
             Assert.That(exception.Message, Contains.Substring("Model file not found"));
         }
         
@@ -40,9 +42,9 @@ namespace NobodyWho.Tests
         [Test] 
         public void WhenModelPathIsGGUF_ShouldLoadModel()
         {
-            model.ModelPath = "test_model.gguf";
-            var result = model.LoadModel();
-            Assert.That(result, Is.Not.Null);
+            model.modelPath = "test_model.gguf";
+            var model_handle = model.GetModel();
+            Assert.That(model_handle, Is.Not.Null);
         }
         
     }
