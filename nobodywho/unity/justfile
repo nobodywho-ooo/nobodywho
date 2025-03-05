@@ -52,48 +52,80 @@ _ensure-license:
 default:
     @just --list
 
-# Launch Unity
-unity *args: _ensure-license
+temp_project: kill_temp_projects
+    #!/usr/bin/env bash    
+    TEMP_DIR="$(pwd)/temp-project-$(date +%s)"
+    mkdir -p "$TEMP_DIR"
+    
     unity-editor \
-        -username "$UNITY_USERNAME" \
-        -password "$UNITY_PASSWORD" \
-        -projectPath "$(pwd)/UnityProject" \
-        {{args}}
+        -batchmode \
+        -createProject "$TEMP_DIR" \
+        -quit
+    
+    mkdir -p "$TEMP_DIR/Packages/com.nobodywho.core"
+    cp -r src/* "$TEMP_DIR/Packages/com.nobodywho.core/"
+    
+    echo "✅ Temporary project created at: $TEMP_DIR"
+    
+    echo "$TEMP_DIR" > .temp_project_path
 
-# Run Unity tests and display results
-test: _ensure-license
+# Kill any temporary Unity projects created by temp_project
+kill_temp_projects:
+    #!/usr/bin/env bash
+    rm -rf ./temp-project-*
+    rm ./temp_project_path
+
+build_plugin:
+    #!/usr/bin/env bash
+    cargo build
+    mkdir -p ./src/Runtime/Plugins/x86_64
+    cp "../target/debug/libunity_plugin.so" "./src/Runtime/Plugins/x86_64/libnobodywho.so"
+    
+    echo "✅ Build complete!"
+
+run_unity: _ensure-license temp_project
+    #!/usr/bin/env bash
+    echo "🚀 Running Unity..."
+    if [ ! -f .temp_project_path ]; then
+        echo "❌ No temporary project path found. Did temp_project fail?"
+        exit 1
+    fi
+    TEMP_DIR=$(cat .temp_project_path)
+    unity-editor -projectPath "$TEMP_DIR"
+
+    just kill_temp_projects
+
+# Run Unity tests and display results 
+test VERBOSE="false": _ensure-license build_plugin temp_project 
     #!/usr/bin/env bash
     echo "🧪 Running Unity package tests..."
     
-    # Create a temporary directory in the user's home directory
-    TEMP_DIR="$(pwd)/unity-test-$(date +%s)"
-    mkdir -p "$TEMP_DIR"
-    echo "📁 Created temporary project at: $TEMP_DIR"
+    # Get the temporary project path
+    if [ ! -f .temp_project_path ]; then
+        echo "❌ No temporary project path found. Did temp_project fail?"
+        exit 1
+    fi
+    TEMP_DIR=$(cat .temp_project_path)
     
     # Check if the core DLL exists
     if [ ! -f "./src/Runtime/Plugins/x86_64/libnobodywho.so" ]; then
         echo "❌ Core DLL not found at ./src/Runtime/Plugins/x86_64/libnobodywho.so"
         echo "Checking if it exists in other locations..."
         find .. -name "libnobodywho.so" 2>/dev/null
-        echo "Please build the core library first with 'cd ../core && cargo build'"
+        echo "Please build the library first with 'just build'"
         exit 1
-    fi    
-    # Initialize a basic Unity project for testing
+    fi
+    
+    # Add the test framework to the project
     unity-editor \
         -batchmode \
-        -createProject "$TEMP_DIR" \
+        -projectPath "$TEMP_DIR" \
         -addPackage "com.unity.test-framework@1.4.5" \
         -quit
-
-    # Copy package to test project
-    mkdir -p "$TEMP_DIR/Packages/com.test.package"
-    cp -r src/* "$TEMP_DIR/Packages/com.test.package/"
     
     echo "🚀 Running Unity tests..."
     # Run the tests using Unity's test framework
     unity-editor \
-        -username "$UNITY_USERNAME" \
-        -password "$UNITY_PASSWORD" \
         -projectPath "$TEMP_DIR" \
         -batchmode \
         -runTests \
@@ -106,10 +138,23 @@ test: _ensure-license
     
     # Check if Unity log exists and show the last part
     if [ -f "unity-test.log" ]; then
-        echo "📜 Last 50 lines of Unity log:"
-        tail -n 50 unity-test.log
+        if [ "${VERBOSE:-}" = "true" ]; then
+            cat unity-test.log
+        else
+            sed -n '/##### Custom Environment Variables/,$p' unity-test.log
+        fi
     fi
     
+    TEST_RESULT=0
+    just _parse_result "$TEMP_DIR" || TEST_RESULT=$?
+    just kill_temp_projects
+    
+    rm -rf "$(pwd)/unity-test.log"
+    rm -rf "$(pwd)/test-results.xml"
+    exit $TEST_RESULT
+
+_parse_result TEMP_DIR="":
+    #!/usr/bin/env bash
     # Get test results if they exist
     if [ -f "$(pwd)/test-results.xml" ]; then
         RESULTS=$(just _parse_test_results)
@@ -149,24 +194,18 @@ test: _ensure-license
                 fi
             done
         fi
+        
+        # Return status code based on test results
+        if [ "$FAILED" -gt 0 ]; then
+            exit 1
+        else
+            exit 0
+        fi
     else
         echo "❌ No test results XML file was generated"
-        echo "Checking for any error logs in the temporary project directory..."
-        find "$TEMP_DIR" -name "*.log" -exec echo "Found log: {}" \; -exec tail -n 20 {} \;
-    fi
-    
-    # Clean up the temporary directory
-    rm -rf "$TEMP_DIR"
-    rm -rf "$(pwd)/unity-test.log"
-    echo "🧹 Cleaned up temporary project"
-    
-    # Exit with failure if any tests failed or if no results were found
-    if [ ! -f "test-results.xml" ]; then
+        if [ ! -z "$TEMP_DIR" ]; then
+            echo "Checking for any error logs in the temporary project directory..."
+            find "$TEMP_DIR" -name "*.log" -exec echo "Found log: {}" \; -exec tail -n 20 {} \;
+        fi
         exit 1
-    elif [ "$FAILED" -gt 0 ]; then
-        rm -rf "$(pwd)/test-results.xml"
-        exit 1
-    else
-        rm -rf "$(pwd)/test-results.xml"
-        exit 0
     fi

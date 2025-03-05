@@ -807,6 +807,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "00e2473a93778eb0bad35909dff6a10d28e63f792f16ed15e404fca9d5eeedbe"
 
 [[package]]
+name = "unity-plugin"
+version = "0.1.0"
+dependencies = [
+ "nobodywho",
+]
+
+[[package]]
 name = "uuid"
 version = "1.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
