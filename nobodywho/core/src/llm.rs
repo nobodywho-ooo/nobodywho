@@ -14,6 +14,7 @@ use std::pin::pin;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, LazyLock, Mutex};
 use tracing::instrument;
+use tracing::{debug, info, warn};
 
 const MAX_TOKEN_STR_LEN: usize = 128;
 
@@ -84,6 +85,7 @@ pub fn get_model(
                 model_path, e
             ))
         })?;
+    debug!("Loaded model: {model_path}");
     Ok(Arc::new(model))
 }
 
@@ -372,29 +374,12 @@ pub enum WorkerError {
     #[error("Could not create context: {0}")]
     CreateContextError(#[from] llama_cpp_2::LlamaContextLoadError),
 
-    // #[error("Could not tokenize string: {0}")]
-    // TokenizerError(#[from] llama_cpp_2::StringToTokenError),
+    #[error("Error reading string: {0}")]
+    ReadError(#[from] ReadError),
 
-    // #[error("Could not detokenize string: {0}")]
-    // Detokenize(#[from] llama_cpp_2::TokenToStringError),
+    #[error("Error generating text: {0}")]
+    WriteError(#[from] WriteError),
 
-    // #[error("Could not add token to batch: {0}")]
-    // BatchAddError(#[from] llama_cpp_2::llama_batch::BatchAddError),
-
-    // #[error("Llama.cpp failed decoding: {0}")]
-    // DecodeError(#[from] llama_cpp_2::DecodeError),
-
-    // #[error("Lama.cpp failed fetching chat template from the model file. This is likely because you're using an older GGUF file, which might not include a chat template. For example, this is the case for most LLaMA2-based GGUF files. Try using a more recent GGUF model file. If you want to check if a given model includes a chat template, you can use the gguf-dump script from llama.cpp. Here is a more technical detailed error: {0}")]
-    // ChatTemplateError(#[from] llama_cpp_2::ChatTemplateError),
-
-    // #[error("Llama.cpp failed fetching chat template: {0}")]
-    // KvCacheConversionError(#[from] llama_cpp_2::context::kv_cache::KvCacheConversionError),
-
-    // #[error("Failed applying the jinja chat template: {0}")]
-    // ApplyTemplateError(#[from] minijinja::Error),
-
-    // #[error("Could not parse chat template as UTF8: {0}")]
-    // TemplateUtf8Error(#[from] std::str::Utf8Error),
     #[error("Could not send newly generated token out to the game engine.")]
     SendError, // this is actually a SendError<LLMOutput>, but that becomes recursive and weird
 
@@ -403,12 +388,6 @@ pub enum WorkerError {
 
     #[error("Global Inference Lock was poisoned.")]
     GILPoisonError, // this is actually a std::sync::PoisonError<std::sync::MutexGuard<'static, ()>>, but that doesn't implement Send, so we do this
-
-    #[error("Error reading string: {0}")]
-    ReadError(#[from] ReadError),
-
-    #[error("Error generating text: {0}")]
-    WriteError(#[from] WriteError),
 }
 
 #[derive(Debug)]
@@ -432,7 +411,6 @@ fn handle_msg(
         .lock()
         .map_err(|_| WorkerError::GILPoisonError)?;
 
-    println!("MSG {:?}", msg);
     match msg {
         WorkerMsg::ReadString(text) => Ok(read_string(state, text)?),
         WorkerMsg::WriteUntilDone => Ok(write_until_done(state, tx)?),
@@ -464,7 +442,10 @@ pub enum ReadError {
 
 #[instrument]
 fn read_string(mut state: WorkerState, text: String) -> Result<WorkerState, ReadError> {
+    info!("Reading string: \"{text}\"");
     let tokens = state.ctx.model.str_to_token(&text, AddBos::Never)?;
+    let n_tokens = tokens.len();
+    info!("String was {n_tokens} tokens");
 
     debug_assert!(tokens.len() > 0);
     debug_assert!(tokens.len() < state.ctx.n_ctx() as usize);
@@ -472,7 +453,6 @@ fn read_string(mut state: WorkerState, text: String) -> Result<WorkerState, Read
     {
         state.big_batch.clear();
         let seq_ids = &[0];
-        let n_tokens = tokens.len();
         for (i, token) in (0..).zip(tokens.iter()) {
             // Only compute logits for the last token to save computation
             let output_logits = i == n_tokens - 1;
@@ -563,7 +543,7 @@ fn write_until_done(
         if !has_eog {
             full_response.push_str(&output_string);
             respond_to
-                .send(LLMOutput::Token(output_string.clone()))
+                .send(LLMOutput::Token(output_string))
                 .map_err(|_| WriteError::SendError)?;
         }
         if has_eog || has_stop_tokens {
@@ -606,7 +586,6 @@ mod tests {
 
     macro_rules! test_embeddings_model_path {
         () => {{
-            tracing_subscriber::fmt::init();
             std::env::var("TEST_EMBEDDINGS_MODEL")
                 .unwrap_or("embeddings.gguf".to_string())
                 .as_str()
@@ -615,6 +594,9 @@ mod tests {
 
     #[test]
     fn test_actor_chat() {
+        tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::INFO)
+            .init();
         let model = get_model(test_model_path!(), true).unwrap();
         let system_prompt =
             "You are a helpful assistant. The user asks you a question, and you provide an answer."
@@ -628,7 +610,9 @@ mod tests {
             use_embeddings: false,
         };
 
-        let mut chat = LLMChat::new(params).with_system_message(system_prompt);
+        let mut chat = LLMChat::new(params)
+            .unwrap()
+            .with_system_message(system_prompt);
         chat.say("What is the capital of Denmark?".to_string())
             .expect("say() failed");
 
@@ -732,8 +716,12 @@ mod tests {
             stop_tokens: vec![],
             use_embeddings: false,
         };
-        let mut dk_chat = LLMChat::new(params.clone()).with_system_message(system_prompt.clone());
-        let mut de_chat = LLMChat::new(params).with_system_message(system_prompt);
+        let mut dk_chat = LLMChat::new(params.clone())
+            .unwrap()
+            .with_system_message(system_prompt.clone());
+        let mut de_chat = LLMChat::new(params)
+            .unwrap()
+            .with_system_message(system_prompt);
 
         dk_chat
             .say("What is the capital of Denmark?".to_string())
@@ -770,7 +758,9 @@ mod tests {
             stop_tokens: vec![],
             use_embeddings: false,
         };
-        let mut chat = LLMChat::new(params.clone()).with_system_message(system_prompt.clone());
+        let mut chat = LLMChat::new(params.clone())
+            .unwrap()
+            .with_system_message(system_prompt.clone());
 
         chat
             .say("Please count down from 10 to 0, like this: Current 10, target 0. Current 9, target 0...".to_string())
@@ -795,7 +785,9 @@ mod tests {
             stop_tokens: vec!["horse".to_string()],
             use_embeddings: false,
         };
-        let mut chat = LLMChat::new(params.clone()).with_system_message(system_prompt);
+        let mut chat = LLMChat::new(params.clone())
+            .unwrap()
+            .with_system_message(system_prompt);
         chat.say("List these animals in alphabetical order: cat, dog, giraffe, horse, lion, mouse. Keep them in lowercase.".to_string()).unwrap();
         let result = chat.get_response_blocking().unwrap();
 
