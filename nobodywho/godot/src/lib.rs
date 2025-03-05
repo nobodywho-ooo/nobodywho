@@ -3,7 +3,6 @@ mod sampler_resource;
 use godot::classes::{INode, ProjectSettings};
 use godot::prelude::*;
 use nobodywho::core::{llm, sampler_config};
-use std::sync::mpsc::{Receiver, Sender};
 
 use crate::sampler_resource::NobodyWhoSampler;
 
