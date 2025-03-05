@@ -18,6 +18,7 @@ namespace Tests
         {
             testObject = new GameObject("TestModel");
             model = testObject.AddComponent<NobodyWho.Model>();
+            Directory.CreateDirectory(Application.streamingAssetsPath);
         }
 
         [TearDown]
@@ -30,12 +31,18 @@ namespace Tests
         }
 
         [Test]
-        public void WhenModelPathIsInvalid_ShouldReturnError()
+        public void WhenModelIsWrong_ShouldThrowInvalidModelError()
         {
+            // Create a fake GGUF file with invalid content
+            string tempPath = Path.Combine(Application.streamingAssetsPath, "invalid.gguf");
+            File.WriteAllText(tempPath, "This is not a valid GGUF file");
             
-            model.modelPath = "/path/that/does/not/exist.gguf";
-            var exception = Assert.Throws<FileNotFoundException>(() => model.GetModel());
-            Assert.That(exception.Message, Contains.Substring("Model file not found"));
+            model.modelPath = "invalid.gguf";
+            var exception = Assert.Throws<ModelLoadException>(() => model.GetModel());
+
+            Assert.That(exception.ErrorType, Is.EqualTo(ModelErrorType.InvalidModel), "Error type should be InvalidModel");
+            // Cleanup
+            File.Delete(tempPath);
         }
         
         // TODO: add a build step for the model in create temp project. otherwise this will fail.
@@ -44,8 +51,7 @@ namespace Tests
         {
             model.modelPath = "test_model.gguf";
             var model_handle = model.GetModel();
-            Assert.That(model_handle, Is.Not.Null);
+            Assert.That(model_handle, Is.Not.EqualTo(IntPtr.Zero));
         }
-        
     }
 } 
