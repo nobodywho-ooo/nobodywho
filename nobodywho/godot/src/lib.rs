@@ -2,7 +2,7 @@ mod sampler_resource;
 
 use godot::classes::{INode, ProjectSettings};
 use godot::prelude::*;
-use nobodywho::core::{llm, sampler_config};
+use nobodywho::{llm, sampler_config};
 
 use crate::sampler_resource::NobodyWhoSampler;
 
