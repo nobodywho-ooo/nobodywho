@@ -67,13 +67,12 @@ temp_project: kill_temp_projects
     
     echo "✅ Temporary project created at: $TEMP_DIR"
     
-    echo "$TEMP_DIR" > .temp_project_path
+    echo "$TEMP_DIR" > .temp-project-path
 
 # Kill any temporary Unity projects created by temp_project
 kill_temp_projects:
     #!/usr/bin/env bash
     rm -rf ./temp-project-*
-    rm ./temp_project_path
 
 build_plugin:
     #!/usr/bin/env bash
@@ -86,11 +85,11 @@ build_plugin:
 run_unity: _ensure-license temp_project
     #!/usr/bin/env bash
     echo "🚀 Running Unity..."
-    if [ ! -f .temp_project_path ]; then
+    if [ ! -f .temp-project-path ]; then
         echo "❌ No temporary project path found. Did temp_project fail?"
         exit 1
     fi
-    TEMP_DIR=$(cat .temp_project_path)
+    TEMP_DIR=$(cat .temp-project-path)
     unity-editor -projectPath "$TEMP_DIR"
 
     just kill_temp_projects
@@ -98,14 +97,12 @@ run_unity: _ensure-license temp_project
 # Run Unity tests and display results 
 test VERBOSE="false": _ensure-license build_plugin temp_project 
     #!/usr/bin/env bash
-    echo "🧪 Running Unity package tests..."
-    
     # Get the temporary project path
-    if [ ! -f .temp_project_path ]; then
+    if [ ! -f .temp-project-path ]; then
         echo "❌ No temporary project path found. Did temp_project fail?"
         exit 1
     fi
-    TEMP_DIR=$(cat .temp_project_path)
+    TEMP_DIR=$(cat .temp-project-path)
     
     # Check if the core DLL exists
     if [ ! -f "./src/Runtime/Plugins/x86_64/libnobodywho.so" ]; then
