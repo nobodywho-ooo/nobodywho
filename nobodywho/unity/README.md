@@ -1,77 +1,42 @@
-# Unity Minimal Project
+# Unity Integration
 
-A minimal Unity project setup with testing capabilities, using Nix for reproducible development environments.
+This directory contains a Unity package for the NobodyWho project.
 
-## Features
 
-- 🎮 Unity 6000.0.34f1
-- 🧪 Unity Test Framework
-- ❄️ Nix development environment
-- 🔧 Just task runner for common operations
+## Installation
 
-## Prerequisites
+TBD...
 
-- Nix package manager
+## Dev setup:
+
+requirements: 
+- nix
 - Unity account (for license)
-- Git
 
-## Getting Started
+Unity's licensing is a bit of a pain, so we cant create a properly sandboxed dev environment.
+Due to this, we use a Justfile to run the Unity editor with a custom build script.
+The unity executable is downloaded by the `nix develop` command. But the license needs to be downloaded manually.
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/emilnorsker/unity-dev-template.git
-   cd unity-dev-template
-   ```
+This should just be done once, though and then it should be saved to your home folder.
 
-2. Copy the environment template:
-   ```bash
-   cp .template.env .env
-   ```
+New tests shoudl be add in the src/Tests folder. As long as they are in the Tests namespace, they will be run automatically.
 
-3. Fill in your Unity credentials in `.env`
 
-4. Enter the development shell:
-   ```bash
-   nix develop
-   ```
+### Just commands
 
-5. Start Unity:
-   ```bash
-   just unity
-   ```
-
-## Development
-
-### Running Tests
-
-Run all PlayMode tests with nice output:
 ```bash
+# run the unity editor with the build script - it will prompt you with instructions for getting the license
+# if you do not have one already.
+just run-unity
+
+# run the tests
+# this creates a temp project and runs the tests in it
 just test
 ```
 
-Example output:
-```
-🧪 Running Unity tests...
+These commands works by creating a temp project and copying the necessary files into it everytime you run it.
 
-📊 Test Results Summary:
-====================
-✨ Total Tests: 1
-✅ Passed: 1
-❌ Failed: 0
-⏭️  Skipped: 0
-⏱️  Duration: 0.42 seconds
-```
 
-You can also run tests with custom parameters:
-```bash
-just unity -batchmode -runTests -testPlatform PlayMode
-```
 
-Test results will be saved to `test-results.xml` in the project root.
 
-## Project Structure
 
-- `UnityProject/` - Unity project files
-- `flake.nix` - Nix development environment
-- `justfile` - Task runner commands
-- `.env` - Local environment configuration 
