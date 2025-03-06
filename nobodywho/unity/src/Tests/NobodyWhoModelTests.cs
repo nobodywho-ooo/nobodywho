@@ -46,7 +46,7 @@ namespace Tests
         [Test] 
         public void WhenModelPathIsGGUF_ShouldLoadModel()
         {
-            model.modelPath = "test_model.gguf";
+            model.modelPath = "qwen2.5-1.5b-instruct-q4_0.gguf";
             var model_handle = model.GetModel();
             Assert.That(model_handle, Is.Not.EqualTo(IntPtr.Zero));
         }
