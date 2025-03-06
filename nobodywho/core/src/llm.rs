@@ -11,10 +11,15 @@ use llama_cpp_2::model::{AddBos, Special};
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 use std::pin::pin;
-use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, LazyLock, Mutex};
+use tokio;
+use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::{mpsc, oneshot};
+use tokio_stream::StreamExt;
 
 const MAX_TOKEN_STR_LEN: usize = 128;
+
+const CHANNEL_SIZE: usize = 32; // this number is very arbitrary
 
 lazy_static! {
     static ref GLOBAL_INFERENCE_LOCK: Mutex<()> = Mutex::new(());
@@ -147,9 +152,6 @@ pub struct LLMChat {
 pub enum SayError {
     #[error("Template rendering error: {0}")]
     TemplateError(#[from] minijinja::Error),
-
-    #[error("Error sending message: {0}")]
-    SendError(#[from] std::sync::mpsc::SendError<WorkerMsg>),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -164,76 +166,66 @@ pub enum LLMChatError {
     Detokenize(#[from] llama_cpp_2::TokenToStringError),
 }
 
-impl LLMChat {
-    pub fn new(params: LLMActorParams) -> Result<Self, LLMChatError> {
-        let template = params.model.get_chat_template()?.to_string()?;
-        let bos = params
-            .model
-            .token_to_str(params.model.token_bos(), Special::Tokenize)?;
-        let eos = params
-            .model
-            .token_to_str(params.model.token_eos(), Special::Tokenize)?;
-        let chat_state = chat_state::ChatState::new(template, bos, eos);
+pub trait Engine {
+    fn emit_token(&self, token: String);
+    fn emit_response(&self, resp: String);
+    fn emit_error(&self, err: String);
+}
 
-        let actor = LLMActorHandle::new(params);
+pub async fn simple_chat_loop(
+    params: LLMActorParams,
+    system_prompt: String,
+    mut say_rx: Receiver<String>,
+    engine: Box<dyn Engine>,
+) -> Result<(), LLMChatError> {
+    // init chat state
+    let template = params.model.get_chat_template()?.to_string()?;
+    let bos = params
+        .model
+        .token_to_str(params.model.token_bos(), Special::Tokenize)?;
+    let eos = params
+        .model
+        .token_to_str(params.model.token_eos(), Special::Tokenize)?;
+    let mut chat_state = chat_state::ChatState::new(template, bos, eos);
+    chat_state.add_message("system".to_string(), system_prompt);
 
-        Ok(Self { actor, chat_state })
+    // init actor
+    let actor = LLMActorHandle::new(params);
+
+    // wait for message from user
+    while let Some(message) = say_rx.recv().await {
+        chat_state.add_message("user".to_string(), message);
+        let diff = chat_state.render_diff().expect("TODO: handle err");
+
+        // read text into llm context
+        // XXX: awaiting here means that we could end up waiting for up to one frame
+        //      between having finished reading, and beginning to generate.
+        //      a bit awkward... can we make it faster?
+        actor.read(diff).await;
+
+        // ask llm to respond
+        let response_stream = actor.write_until_done().await;
+
+        let full_response = response_stream
+            .fold(None, |_, out| match out {
+                Err(err) => {
+                    engine.emit_error(format!("{err:?}"));
+                    None // TODO: error handling
+                }
+                Ok(WriteOutput::Token(token)) => {
+                    engine.emit_token(token);
+                    None
+                }
+                Ok(WriteOutput::Done(resp)) => Some(resp),
+            })
+            .await
+            .expect("TODO: error handling");
+
+        engine.emit_response(full_response.clone());
+        chat_state.add_message("assistant".to_string(), full_response);
+        let _ = chat_state.render_diff();
     }
-
-    pub fn with_system_message(mut self: Self, system_prompt: String) -> Self {
-        // Initialize chat state with model's chat template
-        self.chat_state
-            .add_message("system".to_string(), system_prompt);
-        self
-    }
-
-    pub fn say(&mut self, text: String) -> Result<(), SayError> {
-        // Add user message to chat state
-        self.chat_state.add_message("user".to_string(), text);
-        let diff = self.chat_state.render_diff()?;
-        // ask worker to read it
-        self.actor.read(diff)?;
-        // ask worker to generate a response
-        self.actor.write_until_done()?;
-        Ok(())
-    }
-
-    fn handle_llmoutput(&mut self, out: &LLMOutput) {
-        match out {
-            LLMOutput::FatalErr(_) => (),
-            LLMOutput::Token(_) => (),
-            LLMOutput::Embedding(_) => unreachable!("got embeddings. this shouldn't be possible"),
-            LLMOutput::Done(response) => {
-                self.chat_state
-                    .add_message("assistant".to_string(), response.clone());
-                let _ = self.chat_state.render_diff();
-            }
-        }
-    }
-
-    pub fn recv(&mut self) -> Result<LLMOutput, std::sync::mpsc::RecvError> {
-        let out = self.actor.recv()?;
-        self.handle_llmoutput(&out);
-        Ok(out)
-    }
-
-    pub fn try_recv(&mut self) -> Result<LLMOutput, std::sync::mpsc::TryRecvError> {
-        let out = self.actor.try_recv()?;
-        self.handle_llmoutput(&out);
-        Ok(out)
-    }
-
-    pub fn get_response_blocking(&mut self) -> Result<String, WorkerError> {
-        // read until `Done`, then return
-        loop {
-            match self.recv() {
-                Ok(LLMOutput::Done(response)) => return Ok(response),
-                Ok(LLMOutput::FatalErr(err)) => return Err(err),
-                Ok(_) => continue,
-                Err(err) => return Err(err.into()),
-            }
-        }
-    }
+    todo!("emit error here")
 }
 
 /// Parameters for configuring an LLM actor instance.
@@ -262,13 +254,10 @@ pub struct LLMActorHandle {
 
 impl LLMActorHandle {
     pub fn new(params: LLMActorParams) -> Self {
-        let (message_tx, message_rx) = std::sync::mpsc::channel();
-        let (completion_tx, completion_rx) = std::sync::mpsc::channel();
+        let (message_tx, message_rx) = mpsc::channel(CHANNEL_SIZE);
+        let (completion_tx, completion_rx) = mpsc::channel(CHANNEL_SIZE);
 
-        std::thread::spawn(move || {
-            completion_worker_actor(message_rx, completion_tx.clone(), params)
-                .map_err(|e| completion_tx.send(LLMOutput::FatalErr(e)))
-        });
+        std::thread::spawn(move || completion_worker_actor(message_rx, completion_tx, params));
 
         Self {
             message_tx,
@@ -276,35 +265,46 @@ impl LLMActorHandle {
         }
     }
 
-    pub fn read(&self, text: String) -> Result<(), std::sync::mpsc::SendError<WorkerMsg>> {
-        self.message_tx.send(WorkerMsg::ReadString(text))
+    pub async fn read(&self, text: String) {
+        self.message_tx
+            .send(WorkerMsg::ReadString(text))
+            .await
+            .expect("todo: handle error")
     }
 
-    pub fn write_until_done(&self) -> Result<(), std::sync::mpsc::SendError<WorkerMsg>> {
-        self.message_tx.send(WorkerMsg::WriteUntilDone)
+    pub async fn write_until_done(
+        &self,
+    ) -> tokio_stream::wrappers::ReceiverStream<Result<WriteOutput, WriteError>> {
+        let (respond_to, response_channel) = mpsc::channel(CHANNEL_SIZE);
+        let _ = self
+            .message_tx
+            .send(WorkerMsg::WriteUntilDone(respond_to))
+            .await;
+        response_channel.into()
     }
 
-    pub fn reset_context(&self) -> Result<(), std::sync::mpsc::SendError<WorkerMsg>> {
-        self.message_tx.send(WorkerMsg::ResetContext)
+    pub async fn reset_context(&self) {
+        self.message_tx
+            .send(WorkerMsg::ResetContext)
+            .await
+            .expect("todo: handle error")
     }
 
-    pub fn embed(&self, text: String) -> Result<(), std::sync::mpsc::SendError<WorkerMsg>> {
-        let _ = self.reset_context()?;
-        let _ = self.read(text)?;
-        self.message_tx.send(WorkerMsg::GetEmbedding)
-    }
+    pub async fn embed(
+        &self,
+        text: String,
+    ) -> Result<Result<Vec<f32>, llama_cpp_2::EmbeddingsError>, oneshot::error::RecvError> {
+        self.reset_context().await;
+        self.read(text).await;
 
-    pub fn try_recv(&mut self) -> Result<LLMOutput, std::sync::mpsc::TryRecvError> {
-        self.completion_rx.try_recv()
-    }
-
-    pub fn recv(&mut self) -> Result<LLMOutput, std::sync::mpsc::RecvError> {
-        self.completion_rx.recv()
+        let (respond_to, response_channel) = oneshot::channel();
+        let _ = self.message_tx.send(WorkerMsg::GetEmbedding(respond_to));
+        response_channel.await
     }
 }
 
 fn completion_worker_actor(
-    message_rx: Receiver<WorkerMsg>,
+    mut message_rx: Receiver<WorkerMsg>,
     completion_tx: Sender<LLMOutput>,
     params: LLMActorParams,
 ) -> Result<(), WorkerError> {
@@ -337,8 +337,8 @@ fn completion_worker_actor(
     };
 
     // listen for messages
-    while let Ok(msg) = message_rx.recv() {
-        match handle_msg(state, msg, completion_tx.clone()) {
+    while let Some(msg) = tokio::runtime::Handle::current().block_on(message_rx.recv()) {
+        match handle_msg(state, msg) {
             Ok(newstate) => {
                 state = newstate;
             }
@@ -381,9 +381,8 @@ pub enum WorkerError {
     #[error("Could not send newly generated token out to the game engine.")]
     SendError, // this is actually a SendError<LLMOutput>, but that becomes recursive and weird
 
-    #[error("Could not receive from channel: {0}")]
-    RecvError(#[from] std::sync::mpsc::RecvError),
-
+    // #[error("Could not receive from channel: {0}")]
+    // RecvError(#[from] mpsc::error::RecvError),
     #[error("Global Inference Lock was poisoned.")]
     GILPoisonError, // this is actually a std::sync::PoisonError<std::sync::MutexGuard<'static, ()>>, but that doesn't implement Send, so we do this
 }
@@ -391,16 +390,12 @@ pub enum WorkerError {
 #[derive(Debug)]
 pub enum WorkerMsg {
     ReadString(String),
-    WriteUntilDone,
-    GetEmbedding,
+    WriteUntilDone(mpsc::Sender<Result<WriteOutput, WriteError>>),
+    GetEmbedding(oneshot::Sender<Result<Vec<f32>, llama_cpp_2::EmbeddingsError>>),
     ResetContext,
 }
 
-fn handle_msg(
-    mut state: WorkerState,
-    msg: WorkerMsg,
-    tx: Sender<LLMOutput>,
-) -> Result<WorkerState, WorkerError> {
+fn handle_msg(mut state: WorkerState, msg: WorkerMsg) -> Result<WorkerState, WorkerError> {
     // HACK
     // this is needed because contexts referencing the same model are not thread safe
     // if two contexts referencing the same model try to decode at the same time,
@@ -411,11 +406,10 @@ fn handle_msg(
 
     match msg {
         WorkerMsg::ReadString(text) => Ok(read_string(state, text)?),
-        WorkerMsg::WriteUntilDone => Ok(write_until_done(state, tx)?),
-        WorkerMsg::GetEmbedding => {
+        WorkerMsg::WriteUntilDone(respond_to) => Ok(write_until_done(state, respond_to)?),
+        WorkerMsg::GetEmbedding(respond_to) => {
             let embedding = state.ctx.embeddings_seq_ith(0).unwrap().to_vec();
-            tx.send(LLMOutput::Embedding(embedding))
-                .map_err(|_| WorkerError::SendError)?;
+            let _ = respond_to.send(Ok(embedding));
             Ok(state)
         }
         WorkerMsg::ResetContext => {
@@ -487,7 +481,7 @@ pub enum WriteError {
 
 fn write_until_done(
     mut state: WorkerState,
-    respond_to: Sender<LLMOutput>,
+    respond_to: Sender<Result<WriteOutput, WriteError>>,
 ) -> Result<WorkerState, WriteError> {
     // Token generation loop
 
@@ -533,9 +527,7 @@ fn write_until_done(
 
         if !has_eog {
             full_response.push_str(&output_string);
-            respond_to
-                .send(LLMOutput::Token(output_string))
-                .map_err(|_| WriteError::SendError)?;
+            let _ = respond_to.send(Ok(WriteOutput::Token(output_string)));
         }
         if has_eog || has_stop_tokens {
             break;
@@ -543,9 +535,7 @@ fn write_until_done(
     }
 
     // we're done!
-    respond_to
-        .send(LLMOutput::Done(full_response))
-        .map_err(|_| WriteError::SendError)?;
+    let _ = respond_to.send(Ok(WriteOutput::Done(full_response)));
     Ok(state)
 }
 
@@ -583,8 +573,8 @@ mod tests {
         }};
     }
 
-    #[test]
-    fn test_actor_chat() {
+    #[tokio::test]
+    async fn test_actor_chat() {
         let model = get_model(test_model_path!(), true).unwrap();
         let system_prompt =
             "You are a helpful assistant. The user asks you a question, and you provide an answer."
@@ -601,7 +591,9 @@ mod tests {
         let mut chat = LLMChat::new(params)
             .unwrap()
             .with_system_message(system_prompt);
-        chat.say("What is the capital of Denmark?".to_string())
+        let response_stream = chat
+            .say("What is the capital of Denmark?".to_string())
+            .await
             .expect("say() failed");
 
         let response = chat
