@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace NobodyWho
 {
@@ -12,6 +13,7 @@ namespace NobodyWho
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
         public static extern IntPtr get_model(
             [MarshalAs(UnmanagedType.LPUTF8Str)] string model_path,
-            bool use_gpu);
+            bool use_gpu,
+            [MarshalAs(UnmanagedType.LPStr)] StringBuilder error_buf);
     }
 } 

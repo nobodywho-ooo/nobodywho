@@ -2,6 +2,7 @@ using UnityEngine;
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace NobodyWho {
 
@@ -14,21 +15,18 @@ namespace NobodyWho {
             if (modelHandle != IntPtr.Zero) {
                 return modelHandle;
             }
-
-            string fullPath = Path.Combine(Application.streamingAssetsPath, modelPath);
-
             try {
-                var result = NativeBindings.get_model(fullPath, useGpuIfAvailable);
+                string fullPath = Path.Combine(Application.streamingAssetsPath, modelPath);
+                var errorBuffer = new StringBuilder(256);
+                var result = NativeBindings.get_model(fullPath, useGpuIfAvailable, errorBuffer);
                 
-                // checks if the result is a string error message, or a valid model handle
-                string potentialError = Marshal.PtrToStringUTF8(result); // if this
-                if (!string.IsNullOrEmpty(potentialError)) {
-                    throw new NobodyWhoException(potentialError);
+                if (result == IntPtr.Zero) {
+                    throw new NobodyWhoException(errorBuffer.ToString());
                 }
-
+                
                 modelHandle = result;
                 return modelHandle;
-
+                
             } catch (Exception e) {
                 throw new NobodyWhoException(e.Message);
             }
