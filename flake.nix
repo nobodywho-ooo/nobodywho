@@ -28,7 +28,7 @@
         
       };
       checks = {
-        unity-test =nobodywho.checks.unity-test;
+        default = nobodywho.checks.godot-integration-test;
       };
       devShells = {
         default = import ./nobodywho/shell.nix { inherit pkgs; };

@@ -50,7 +50,7 @@ let
   };
 
   integration-test = pkgs.callPackage ./integration-test {
-    inherit godot;  # Pass the godot package we just built
+    inherit godot;
   };
 
   run-integration-test = pkgs.runCommand "checkgame" {
