@@ -1,6 +1,6 @@
 { pkgs, lib }:
 
-# Techdept: 
+# TODO: fix techdebt: 
 #  Currently this system is rebuilding all dependencies for every build. Nothing is cached and
 #  the godot and unity package will have to be rebuild whenever there is a change to any of the packages.
 #  some of this is due to the usage of rustPlatform.buildRustPackage
@@ -8,18 +8,16 @@
 let
   # Import core first
   core = pkgs.callPackage ./core {};
-  nobodywho = core.nobodywho;
+  core-pkg = core.nobodywho;
   
-  godot = pkgs.callPackage ./godot { inherit nobodywho; };
-  unity = pkgs.callPackage ./unity { inherit nobodywho; };
+  godot-pkg = pkgs.callPackage ./godot { nobodywho = core-pkg; };
+  unity = pkgs.callPackage ./unity { nobodywho = core-pkg; };
   
 in {
-  core = nobodywho;
+  core = core-pkg;
   unity-editor = unity.unity-editor;
-  godot = godot.godot;
+  godot = godot-pkg.godot;
   
-  # Merge checks from all modules
-  checks = (lib.mapAttrs (name: value: value) unity.checks);
-    # (lib.mapAttrs (name: value: value) godot.checks)
-    
+  # TODO: fix techdebt: we can't run unity test through here :/
+  checks = (lib.mapAttrs (name: value: value) godot-pkg.checks);
 }
