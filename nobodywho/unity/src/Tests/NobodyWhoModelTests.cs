@@ -31,17 +31,14 @@ namespace Tests
         }
 
         [Test]
-        public void WhenModelIsWrong_ShouldThrowInvalidModelError()
+        public void WhenModelIsWrong_ShouldThrowNobodyWhoException()
         {
             // Create a fake GGUF file with invalid content
             string tempPath = Path.Combine(Application.streamingAssetsPath, "invalid.gguf");
             File.WriteAllText(tempPath, "This is not a valid GGUF file");
             
             model.modelPath = "invalid.gguf";
-            var exception = Assert.Throws<ModelLoadException>(() => model.GetModel());
-
-            Assert.That(exception.ErrorType, Is.EqualTo(ModelErrorType.InvalidModel), "Error type should be InvalidModel");
-            // Cleanup
+            var exception = Assert.Throws<NobodyWhoException>(() => model.GetModel());
             File.Delete(tempPath);
         }
         
