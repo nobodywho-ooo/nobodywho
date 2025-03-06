@@ -2,31 +2,20 @@
 set shell := ["bash", "-c"]
 set dotenv-load := true
 
+# Cache configuration
+CACHE_DIR := ".temp-project-cache"
+PROJECT_CACHE := CACHE_DIR + "/project-template"
+MODEL_CACHE := CACHE_DIR + "/models"
+PACKAGE_CACHE := CACHE_DIR + "/packages"
+TEMP_PROJECT := "temp-project"
+MODEL_FILENAME := "qwen2.5-1.5b-instruct-q4_0.gguf"
+MODEL_URL := "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_0.gguf"
 
-_parse_test_results:
-    #!/usr/bin/env bash
-    if [ ! -f "test-results.xml" ]; then
-        echo "❌ No test results found!"
-        exit 1
-    fi
-    
-    # Parse the XML file using xmllint with default values if not found
-    TOTAL=$(xmllint --xpath "string(/test-run/@total)" test-results.xml 2>/dev/null || echo "0")
-    PASSED=$(xmllint --xpath "string(/test-run/@passed)" test-results.xml 2>/dev/null || echo "0")
-    FAILED=$(xmllint --xpath "string(/test-run/@failed)" test-results.xml 2>/dev/null || echo "0")
-    SKIPPED=$(xmllint --xpath "string(/test-run/@skipped)" test-results.xml 2>/dev/null || echo "0")
-    DURATION=$(xmllint --xpath "string(/test-run/@duration)" test-results.xml 2>/dev/null || echo "0")
-    
-    # Convert empty strings to 0
-    TOTAL=${TOTAL:-0}
-    PASSED=${PASSED:-0}
-    FAILED=${FAILED:-0}
-    SKIPPED=${SKIPPED:-0}
-    DURATION=${DURATION:-0}
-    
-    # Output in a format that can be captured
-    echo "$TOTAL:$PASSED:$FAILED:$SKIPPED:$DURATION"
+default:
+    just test
 
+_ensure-cache-dirs:
+    mkdir -p "{{PROJECT_CACHE}}" "{{MODEL_CACHE}}" "{{PACKAGE_CACHE}}"
 
 _ensure-license:
     #!/usr/bin/env bash
@@ -48,33 +37,55 @@ _ensure-license:
         exit 1
     fi
 
+_hash-source-files:
+    #!/usr/bin/env bash
+    find src -type f -exec sha256sum {} \; | sort | sha256sum | cut -d' ' -f1
 
-default:
-    @just --list
+_ensure-temp-project: _ensure-license
+    #!/usr/bin/env bash
+    # Check if temp project already exists
+    if [ -d "{{TEMP_PROJECT}}" ]; then
+        # Update source files only
+        mkdir -p "{{TEMP_PROJECT}}/Packages/com.nobodywho.core"
+        cp -r src/* "{{TEMP_PROJECT}}/Packages/com.nobodywho.core/"
+        echo "✅ Updated source files in existing project"
+        exit 0
+    fi
 
-temp_project: kill_temp_projects
-    #!/usr/bin/env bash    
-    TEMP_DIR="$(pwd)/temp-project-$(date +%s)"
-    mkdir -p "$TEMP_DIR"
-    
+    echo "🔨 Creating new project..."
+    # Create fresh project
     unity-editor \
         -batchmode \
-        -createProject "$TEMP_DIR" \
+        -createProject "{{TEMP_PROJECT}}" \
+        -quit
+        
+    # Install test framework
+    unity-editor \
+        -batchmode \
+        -projectPath "{{TEMP_PROJECT}}" \
+        -addPackage "com.unity.test-framework@1.4.5" \
         -quit
     
-    mkdir -p "$TEMP_DIR/Packages/com.nobodywho.core"
-    cp -r src/* "$TEMP_DIR/Packages/com.nobodywho.core/"
+    # Copy source files
+    mkdir -p "{{TEMP_PROJECT}}/Packages/com.nobodywho.core"
+    cp -r src/* "{{TEMP_PROJECT}}/Packages/com.nobodywho.core/"
     
-    echo "✅ Temporary project created at: $TEMP_DIR"
+    # Ensure model exists
+    STREAMING_ASSETS="{{TEMP_PROJECT}}/Assets/StreamingAssets"
+    mkdir -p "$STREAMING_ASSETS"
+    if [ ! -f "$STREAMING_ASSETS/{{MODEL_FILENAME}}" ]; then
+        echo "📥 Downloading model..."
+        curl -L --fail --progress-bar "{{MODEL_URL}}" -o "$STREAMING_ASSETS/{{MODEL_FILENAME}}"
+    fi
     
-    echo "$TEMP_DIR" > .temp-project-path
+    echo "✅ Temporary project ready at: {{TEMP_PROJECT}}"
 
-# Kill any temporary Unity projects created by temp_project
-kill_temp_projects:
-    #!/usr/bin/env bash
-    rm -rf ./temp-project-*
+# Clean all caches and temporary files
+clean-all:
+    rm -rf "{{TEMP_PROJECT}}"
+    rm -rf "{{CACHE_DIR}}"
 
-build_plugin:
+build-plugin:
     #!/usr/bin/env bash
     cargo build
     mkdir -p ./src/Runtime/Plugins/x86_64
@@ -82,121 +93,48 @@ build_plugin:
     
     echo "✅ Build complete!"
 
-run_unity: _ensure-license temp_project
+run-unity: _ensure-temp-project
     #!/usr/bin/env bash
     echo "🚀 Running Unity..."
-    if [ ! -f .temp-project-path ]; then
-        echo "❌ No temporary project path found. Did temp_project fail?"
-        exit 1
-    fi
-    TEMP_DIR=$(cat .temp-project-path)
-    unity-editor -projectPath "$TEMP_DIR"
+    unity-editor -projectPath "{{TEMP_PROJECT}}"
 
-    just kill_temp_projects
-
-_ensure_model:
+test VERBOSE="false": _ensure-temp-project build-plugin
     #!/usr/bin/env bash
-    # Define cache directory in user's home
-    CACHE_DIR="$HOME/.cache/nobodywho/models"
-    MODEL_FILENAME="model.gguf"
-    MODEL_URL="https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_0.gguf"
-    MODEL_HASH="sha256-3NgZ/wlIUsOPq6aHPY/wydUerbKERTnlIEKuXWR7v9s="
-    
-    # Create cache directory if it doesn't exist
-    mkdir -p "$CACHE_DIR"
-    
-    # Check if model exists in cache and has correct hash
-    CACHED_MODEL="$CACHE_DIR/$MODEL_FILENAME"
-    if [ -f "$CACHED_MODEL" ]; then
-        CURRENT_HASH=$(sha256sum "$CACHED_MODEL" | cut -d' ' -f1)
-        EXPECTED_HASH=$(echo "$MODEL_HASH" | cut -d'-' -f2)
-        if [ "$CURRENT_HASH" = "$EXPECTED_HASH" ]; then
-            echo "✅ Model already cached and verified"
-        else
-            echo "🔄 Cached model hash mismatch, re-downloading..."
-            wget -O "$CACHED_MODEL" "$MODEL_URL"
-        fi
-    else
-        echo "📥 Downloading model..."
-        wget -O "$CACHED_MODEL" "$MODEL_URL"
-    fi
-    
-    # Get temp project path
-    if [ ! -f .temp-project-path ]; then
-        echo "❌ No temporary project path found. Did temp_project fail?"
-        exit 1
-    fi
-    TEMP_DIR=$(cat .temp-project-path)
-    
-    # Ensure streaming assets directory exists
-    STREAMING_ASSETS="$TEMP_DIR/Assets/StreamingAssets"
-    mkdir -p "$STREAMING_ASSETS"
-    
-    # Copy model to streaming assets
-    cp "$CACHED_MODEL" "$STREAMING_ASSETS/$MODEL_FILENAME"
-    echo "✅ Model copied to streaming assets"
-
-# Run Unity tests and display results 
-test VERBOSE="false": _ensure-license build_plugin temp_project _ensure_model
-    #!/usr/bin/env bash
-    # Get the temporary project path
-    if [ ! -f .temp-project-path ]; then
-        echo "❌ No temporary project path found. Did temp_project fail?"
-        exit 1
-    fi
-    TEMP_DIR=$(cat .temp-project-path)
-    
-    # Check if the core DLL exists
-    if [ ! -f "./src/Runtime/Plugins/x86_64/libnobodywho.so" ]; then
-        echo "❌ Core DLL not found at ./src/Runtime/Plugins/x86_64/libnobodywho.so"
-        echo "Checking if it exists in other locations..."
-        find .. -name "libnobodywho.so" 2>/dev/null
-        echo "Please build the library first with 'just build'"
-        exit 1
-    fi
-    
-    # Add the test framework to the project
-    unity-editor \
-        -batchmode \
-        -projectPath "$TEMP_DIR" \
-        -addPackage "com.unity.test-framework@1.4.5" \
-        -quit
-    
     echo "🚀 Running Unity tests..."
-    # Run the tests using Unity's test framework
+
+    # Start Unity in background and stream its log
     unity-editor \
-        -projectPath "$TEMP_DIR" \
+        -projectPath "{{TEMP_PROJECT}}" \
         -batchmode \
         -runTests \
         -testResults "$(pwd)/test-results.xml" \
         -testPlatform PlayMode \
-        -logFile "$(pwd)/unity-test.log"
+        -logFile "$(pwd)/unity-test.log" &
     
+    UNITY_PID=$!
+
+    # stream the logs while unity is running
+    tail -f unity-test.log &
+    TAIL_PID=$!
+
+    wait $UNITY_PID
     UNITY_EXIT_CODE=$?
+    
+    kill $TAIL_PID
     echo "Unity exited with code: $UNITY_EXIT_CODE"
     
-    # Check if Unity log exists and show the last part
-    if [ -f "unity-test.log" ]; then
-        if [ "${VERBOSE:-}" = "true" ]; then
-            cat unity-test.log
-        else
-            sed -n '/##### Custom Environment Variables/,$p' unity-test.log
-        fi
-    fi
-    
     TEST_RESULT=0
-    just _parse_result "$TEMP_DIR" || TEST_RESULT=$?
-    just kill_temp_projects
+    just _parse-result || TEST_RESULT=$?
     
     rm -rf "$(pwd)/unity-test.log"
     rm -rf "$(pwd)/test-results.xml"
     exit $TEST_RESULT
 
-_parse_result TEMP_DIR="":
+_parse-result:
     #!/usr/bin/env bash
     # Get test results if they exist
     if [ -f "$(pwd)/test-results.xml" ]; then
-        RESULTS=$(just _parse_test_results)
+        RESULTS=$(just _parse-test-results)
         IFS=':' read -r TOTAL PASSED FAILED SKIPPED DURATION <<< "$RESULTS"
         
         echo ""
@@ -207,7 +145,6 @@ _parse_result TEMP_DIR="":
         echo "✨ Total Tests: $TOTAL"
         echo "✅ Passed: $PASSED"
         echo "❌ Failed: $FAILED"
-        echo "⏭️  Skipped: $SKIPPED"
         echo "⏱️  Duration: $DURATION seconds"
         echo ""
         
@@ -242,9 +179,30 @@ _parse_result TEMP_DIR="":
         fi
     else
         echo "❌ No test results XML file was generated"
-        if [ ! -z "$TEMP_DIR" ]; then
-            echo "Checking for any error logs in the temporary project directory..."
-            find "$TEMP_DIR" -name "*.log" -exec echo "Found log: {}" \; -exec tail -n 20 {} \;
-        fi
         exit 1
     fi
+
+_parse-test-results:
+    #!/usr/bin/env bash
+    if [ ! -f "test-results.xml" ]; then
+        echo "❌ No test results found!"
+        exit 1
+    fi
+    
+    # Parse the XML file using xmllint with default values if not found
+    TOTAL=$(xmllint --xpath "string(/test-run/@total)" test-results.xml 2>/dev/null || echo "0")
+    PASSED=$(xmllint --xpath "string(/test-run/@passed)" test-results.xml 2>/dev/null || echo "0")
+    FAILED=$(xmllint --xpath "string(/test-run/@failed)" test-results.xml 2>/dev/null || echo "0")
+    SKIPPED=$(xmllint --xpath "string(/test-run/@skipped)" test-results.xml 2>/dev/null || echo "0")
+    DURATION=$(xmllint --xpath "string(/test-run/@duration)" test-results.xml 2>/dev/null || echo "0")
+    
+    # Convert empty strings to 0
+    TOTAL=${TOTAL:-0}
+    PASSED=${PASSED:-0}
+    FAILED=${FAILED:-0}
+    SKIPPED=${SKIPPED:-0}
+    DURATION=${DURATION:-0}
+    
+    # Output in a format that can be captured
+    echo "$TOTAL:$PASSED:$FAILED:$SKIPPED:$DURATION"
+
