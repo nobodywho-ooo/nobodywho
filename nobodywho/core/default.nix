@@ -3,7 +3,7 @@
 let
   nobodywho = rustPlatform.buildRustPackage {
     pname = "nobodywho";
-    version = "0.0.0";
+    version = "1.0.0";
     src = ./..;
     nativeBuildInputs = [
       llvmPackages_12.bintools
