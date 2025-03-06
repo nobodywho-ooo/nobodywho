@@ -28,9 +28,9 @@ let
     cargoLock = {
       lockFile = ../Cargo.lock;
       outputHashes = {
-        "gdextension-api-0.2.1" = "sha256-YkMbzObJGnmQa1XGT4ApRrfqAeOz7CktJrhYks8z0RY=";
-        "godot-0.2.2" = "sha256-6q7BcQ/6WvzJdVmyAVGPMtuIDJFYKaRrkv3/JQBi11M=";
-        "llama-cpp-2-0.1.90" = "sha256-SUY4Hb2DAjDonQMEIyKXoXRygxBh/M+CeyQBviqg46g=";
+        "gdextension-api-0.2.2" = "sha256-gaxM73OzriSDm6tLRuMTOZxCLky9oS1nq6zTsm0g4tA=";
+        "godot-0.2.4" = "sha256-XzJlnbx4OxWtT6AesmeEmg2SDqGC1UDgZFffSbEJNZI=";
+        "llama-cpp-2-0.1.103" = "sha256-rYaU4LzxzCfKtlzXZorwGEo9gPSNDYB4UwJybWv0Aco=";
       };
     };
     env.TEST_MODEL = fetchurl {
