@@ -110,10 +110,11 @@ test VERBOSE="false": _ensure-temp-project build-plugin
         -testResults "$(pwd)/test-results.xml" \
         -testPlatform PlayMode \
         -logFile "$(pwd)/unity-test.log" &
-    
+
     UNITY_PID=$!
 
-    # stream the logs while unity is running
+    # wait for the editor to start, otherwise we cant find the log file
+    sleep 0.5
     tail -f unity-test.log &
     TAIL_PID=$!
 

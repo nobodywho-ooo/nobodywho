@@ -1,38 +1,39 @@
-use std::ffi::{CStr, CString, c_void, c_char};
+use std::ffi::{CStr, c_void, c_char};
 use nobodywho::core::llm;
 
-// FFI function for Unity integration
+fn copy_to_error_buf(error_buf: *mut c_char, message: &str) {
+    unsafe {
+        std::ptr::copy_nonoverlapping(
+            message.as_ptr() as *const c_char,
+            error_buf,
+            message.len()
+        );
+        *error_buf.add(message.len()) = 0;
+    }
+}
+
 #[no_mangle]
-pub extern "C" fn get_model(path: *const c_char, use_gpu: bool) -> *mut c_void {
-    // Safely convert C string to Rust string
+pub extern "C" fn get_model(path: *const c_char, use_gpu: bool, error_buf: *mut c_char) -> *mut c_void {
+
+    if error_buf.is_null() { return std::ptr::null_mut(); }
+
     let path_str = unsafe {
-        if path.is_null() {
-            let error = CString::new("Null path provided").unwrap();
-            return error.into_raw() as *mut c_void;
-        }
         match CStr::from_ptr(path).to_str() {
             Ok(s) => s,
             Err(_) => {
-                let error = CString::new("Invalid UTF-8 in path").unwrap();
-                return error.into_raw() as *mut c_void;
+                copy_to_error_buf(error_buf, "Invalid UTF-8 in path");
+                return std::ptr::null_mut();
             }
         }
     };
     
-    // Call the actual LLM function
     match llm::get_model(path_str, use_gpu) {
         Ok(model) => {
-            // Box the model and convert to raw pointer
-            let boxed_model = Box::new(model);
-            Box::into_raw(boxed_model) as *mut c_void
+            Box::into_raw(Box::new(model)) as *mut c_void
         }
         Err(err) => {
-            let message = match err {
-                llm::LoadModelError::ModelNotFound(msg) => msg,
-                llm::LoadModelError::InvalidModel(msg) => msg,
-            };
-            
-            CString::new(message).unwrap().into_raw() as *mut c_void
+            copy_to_error_buf(error_buf, &err.to_string());
+            std::ptr::null_mut()
         }
     }
 }
