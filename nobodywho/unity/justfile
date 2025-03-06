@@ -94,8 +94,50 @@ run_unity: _ensure-license temp_project
 
     just kill_temp_projects
 
+_ensure_model:
+    #!/usr/bin/env bash
+    # Define cache directory in user's home
+    CACHE_DIR="$HOME/.cache/nobodywho/models"
+    MODEL_FILENAME="model.gguf"
+    MODEL_URL="https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_0.gguf"
+    MODEL_HASH="sha256-3NgZ/wlIUsOPq6aHPY/wydUerbKERTnlIEKuXWR7v9s="
+    
+    # Create cache directory if it doesn't exist
+    mkdir -p "$CACHE_DIR"
+    
+    # Check if model exists in cache and has correct hash
+    CACHED_MODEL="$CACHE_DIR/$MODEL_FILENAME"
+    if [ -f "$CACHED_MODEL" ]; then
+        CURRENT_HASH=$(sha256sum "$CACHED_MODEL" | cut -d' ' -f1)
+        EXPECTED_HASH=$(echo "$MODEL_HASH" | cut -d'-' -f2)
+        if [ "$CURRENT_HASH" = "$EXPECTED_HASH" ]; then
+            echo "✅ Model already cached and verified"
+        else
+            echo "🔄 Cached model hash mismatch, re-downloading..."
+            wget -O "$CACHED_MODEL" "$MODEL_URL"
+        fi
+    else
+        echo "📥 Downloading model..."
+        wget -O "$CACHED_MODEL" "$MODEL_URL"
+    fi
+    
+    # Get temp project path
+    if [ ! -f .temp-project-path ]; then
+        echo "❌ No temporary project path found. Did temp_project fail?"
+        exit 1
+    fi
+    TEMP_DIR=$(cat .temp-project-path)
+    
+    # Ensure streaming assets directory exists
+    STREAMING_ASSETS="$TEMP_DIR/Assets/StreamingAssets"
+    mkdir -p "$STREAMING_ASSETS"
+    
+    # Copy model to streaming assets
+    cp "$CACHED_MODEL" "$STREAMING_ASSETS/$MODEL_FILENAME"
+    echo "✅ Model copied to streaming assets"
+
 # Run Unity tests and display results 
-test VERBOSE="false": _ensure-license build_plugin temp_project 
+test VERBOSE="false": _ensure-license build_plugin temp_project _ensure_model
     #!/usr/bin/env bash
     # Get the temporary project path
     if [ ! -f .temp-project-path ]; then
