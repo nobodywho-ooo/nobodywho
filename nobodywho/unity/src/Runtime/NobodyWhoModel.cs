@@ -3,62 +3,34 @@ using System;
 using System.IO;
 using System.Runtime.InteropServices;
 
-namespace NobodyWho
-{
-    public class ModelLoadException : Exception
-    {
-        public ModelErrorType ErrorType { get; }
+namespace NobodyWho {
 
-        public ModelLoadException(ModelErrorType errorType, string message) 
-            : base(message)
-        {
-            ErrorType = errorType;
-        }
-    }
-
-    public class Model : MonoBehaviour
-    {
-        // TODO: make a file picker for this instead. for now, just use the StreamingAssets folder.
+    public class Model : MonoBehaviour {
         public string modelPath = "model.gguf";
         public bool useGpuIfAvailable = true;
         private IntPtr modelHandle;
 
-        // Return a pointer to the model instead of a managed object
-        public IntPtr GetModel()
-        {
-            if (modelHandle != IntPtr.Zero)
-            {
+        public IntPtr GetModel() {
+            if (modelHandle != IntPtr.Zero) {
                 return modelHandle;
             }
 
             string fullPath = Path.Combine(Application.streamingAssetsPath, modelPath);
 
-            try
-            {
-                var result = Native.get_model(fullPath, useGpuIfAvailable);
+            try {
+                var result = NativeBindings.get_model(fullPath, useGpuIfAvailable);
                 
-                if (!result.success)
-                {
-                    string errorMessage = "Unknown error";
-                    if (result.errorMessage != IntPtr.Zero)
-                    {
-                        errorMessage = Marshal.PtrToStringUTF8(result.errorMessage);
-                    }
-                    
-                    throw new ModelLoadException(result.errorType, errorMessage);
+                // checks if the result is a string error message, or a valid model handle
+                string potentialError = Marshal.PtrToStringUTF8(result); // if this
+                if (!string.IsNullOrEmpty(potentialError)) {
+                    throw new NobodyWhoException(potentialError);
                 }
 
-                modelHandle = result.handle;
+                modelHandle = result;
                 return modelHandle;
-            }
-            catch (ModelLoadException)
-            {
-                throw; // Re-throw ModelLoadException as is
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"Could not load model: {e.Message}");
-                throw;
+
+            } catch (Exception e) {
+                throw new NobodyWhoException(e.Message);
             }
         }
     }
