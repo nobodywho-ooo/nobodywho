@@ -16,10 +16,11 @@ use tokio;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::{mpsc, oneshot};
 use tokio_stream::StreamExt;
+use tracing::{debug, info, warn};
 
 const MAX_TOKEN_STR_LEN: usize = 128;
 
-const CHANNEL_SIZE: usize = 32; // this number is very arbitrary
+const CHANNEL_SIZE: usize = 4096; // this number is very arbitrary
 
 lazy_static! {
     static ref GLOBAL_INFERENCE_LOCK: Mutex<()> = Mutex::new(());
@@ -143,11 +144,6 @@ fn apply_context_shifting(
     Ok(n_discard)
 }
 
-pub struct LLMChat {
-    actor: LLMActorHandle,
-    chat_state: chat_state::ChatState,
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum SayError {
     #[error("Template rendering error: {0}")]
@@ -178,6 +174,8 @@ pub async fn simple_chat_loop(
     mut say_rx: Receiver<String>,
     engine: Box<dyn Engine>,
 ) -> Result<(), LLMChatError> {
+    info!("Entering simple chat loop");
+
     // init chat state
     let template = params.model.get_chat_template()?.to_string()?;
     let bos = params
@@ -188,9 +186,11 @@ pub async fn simple_chat_loop(
         .token_to_str(params.model.token_eos(), Special::Tokenize)?;
     let mut chat_state = chat_state::ChatState::new(template, bos, eos);
     chat_state.add_message("system".to_string(), system_prompt);
+    info!("Initialized chat state.");
 
     // init actor
-    let actor = LLMActorHandle::new(params);
+    let actor = LLMActorHandle::new(params).await.expect("todo: error");
+    info!("Initialized actor.");
 
     // wait for message from user
     while let Some(message) = say_rx.recv().await {
@@ -207,16 +207,19 @@ pub async fn simple_chat_loop(
         let response_stream = actor.write_until_done().await;
 
         let full_response = response_stream
-            .fold(None, |_, out| match out {
-                Err(err) => {
-                    engine.emit_error(format!("{err:?}"));
-                    None // TODO: error handling
+            .fold(None, |_, out| {
+                println!("{out:?}");
+                match out {
+                    Err(err) => {
+                        engine.emit_error(format!("{err:?}"));
+                        None // TODO: error handling
+                    }
+                    Ok(WriteOutput::Token(token)) => {
+                        engine.emit_token(token);
+                        None
+                    }
+                    Ok(WriteOutput::Done(resp)) => Some(resp),
                 }
-                Ok(WriteOutput::Token(token)) => {
-                    engine.emit_token(token);
-                    None
-                }
-                Ok(WriteOutput::Done(resp)) => Some(resp),
             })
             .await
             .expect("TODO: error handling");
@@ -249,19 +252,21 @@ pub struct LLMActorParams {
 
 pub struct LLMActorHandle {
     message_tx: Sender<WorkerMsg>,
-    completion_rx: Receiver<LLMOutput>,
 }
 
 impl LLMActorHandle {
-    pub fn new(params: LLMActorParams) -> Self {
+    pub async fn new(params: LLMActorParams) -> Result<Self, InitWorkerError> {
         let (message_tx, message_rx) = mpsc::channel(CHANNEL_SIZE);
-        let (completion_tx, completion_rx) = mpsc::channel(CHANNEL_SIZE);
+        let (init_tx, init_rx) = oneshot::channel();
 
-        std::thread::spawn(move || completion_worker_actor(message_rx, completion_tx, params));
+        tokio::task::spawn_local(
+            async move { completion_worker_actor(message_rx, init_tx, params) },
+        );
 
-        Self {
-            message_tx,
-            completion_rx,
+        match init_rx.await {
+            Ok(Ok(())) => Ok(Self { message_tx }),
+            Ok(Err(e)) => Err(e),
+            Err(_recverr) => Err(InitWorkerError::NoResponse),
         }
     }
 
@@ -303,17 +308,51 @@ impl LLMActorHandle {
     }
 }
 
-fn completion_worker_actor(
+async fn completion_worker_actor(
     mut message_rx: Receiver<WorkerMsg>,
-    completion_tx: Sender<LLMOutput>,
+    init_tx: oneshot::Sender<Result<(), InitWorkerError>>,
     params: LLMActorParams,
-) -> Result<(), WorkerError> {
-    let model = params.model;
+) {
+    match init_worker(&params) {
+        Ok(state) => {
+            init_tx.send(Ok(())).expect("TODO: handle err");
+            let mut state = state;
+            // listen for messages
+            while let Some(msg) = message_rx.recv().await {
+                match handle_msg(state, msg) {
+                    Ok(newstate) => {
+                        state = newstate;
+                    }
+                    Err(_err) => {
+                        return; // we died.
+                    }
+                }
+            } // message queue dropped. we died.
+        }
+        Err(initerr) => {
+            init_tx.send(Err(initerr)).expect("TODO: handle err");
+        }
+    }
+}
 
+#[derive(Debug, thiserror::Error)]
+pub enum InitWorkerError {
+    #[error("Could not determine number of threads available: {0}")]
+    ThreadCountError(#[from] std::io::Error),
+
+    #[error("Could not create context: {0}")]
+    CreateContextError(#[from] llama_cpp_2::LlamaContextLoadError),
+
+    #[error("Got no response after initializing worker.")]
+    NoResponse,
+}
+
+fn init_worker(params: &LLMActorParams) -> Result<WorkerState, InitWorkerError> {
+    info!("initializing a new worker");
     // Set up context parameters using available parallelism
     let ctx = {
         let n_threads = std::thread::available_parallelism()?.get() as i32;
-        let n_ctx = std::cmp::min(params.n_ctx, model.n_ctx_train());
+        let n_ctx = std::cmp::min(params.n_ctx, params.model.n_ctx_train());
         let ctx_params = LlamaContextParams::default()
             .with_n_ctx(std::num::NonZero::new(n_ctx))
             .with_n_threads(n_threads)
@@ -321,37 +360,21 @@ fn completion_worker_actor(
             .with_embeddings(params.use_embeddings);
 
         // Create inference context and sampler
-        model.new_context(&LLAMA_BACKEND, ctx_params)?
+        params.model.new_context(&LLAMA_BACKEND, ctx_params)?
     };
 
     let big_batch = LlamaBatch::new(ctx.n_ctx() as usize, 1);
     let small_batch = LlamaBatch::new(1, 1);
 
-    let mut state = WorkerState {
+    let state = WorkerState {
         n_past: 0,
-        stop_tokens: params.stop_tokens,
-        sampler: make_sampler(&model, params.sampler_config),
+        stop_tokens: params.stop_tokens.clone(),
+        sampler: make_sampler(&params.model, params.sampler_config.clone()),
         ctx,
         big_batch,
         small_batch,
     };
-
-    // listen for messages
-    while let Some(msg) = tokio::runtime::Handle::current().block_on(message_rx.recv()) {
-        match handle_msg(state, msg) {
-            Ok(newstate) => {
-                state = newstate;
-            }
-            Err(err) => {
-                // worker died. report error and give up
-                return Err(err);
-            }
-        }
-    }
-
-    // we only reach this code message_rx.recv() fails
-    // this only happens when all senders are dropped
-    Ok(()) // accept our fate
+    Ok(state)
 }
 
 #[derive(Debug)]
@@ -371,6 +394,9 @@ pub enum WorkerError {
 
     #[error("Could not create context: {0}")]
     CreateContextError(#[from] llama_cpp_2::LlamaContextLoadError),
+
+    #[error("Could not initialize worker: {0}")]
+    InitWorkerError(#[from] InitWorkerError),
 
     #[error("Error reading string: {0}")]
     ReadError(#[from] ReadError),
@@ -433,6 +459,7 @@ pub enum ReadError {
 }
 
 fn read_string(mut state: WorkerState, text: String) -> Result<WorkerState, ReadError> {
+    info!("Worker reading string");
     let tokens = state.ctx.model.str_to_token(&text, AddBos::Never)?;
     let n_tokens = tokens.len();
 
@@ -459,6 +486,7 @@ fn read_string(mut state: WorkerState, text: String) -> Result<WorkerState, Read
     })
 }
 
+#[derive(Debug)]
 pub enum WriteOutput {
     Token(String),
     Done(String),
@@ -484,6 +512,7 @@ fn write_until_done(
     respond_to: Sender<Result<WriteOutput, WriteError>>,
 ) -> Result<WorkerState, WriteError> {
     // Token generation loop
+    info!("Worker writing until done");
 
     // pre-allocating 4096 bytes for the response string
     // 4096 is a very randomly chosen number. how does this affect performance?
@@ -573,12 +602,41 @@ mod tests {
         }};
     }
 
-    #[tokio::test]
+    struct MockEngine {
+        response_tx: mpsc::Sender<String>,
+    }
+
+    impl MockEngine {
+        fn new() -> (Self, mpsc::Receiver<String>) {
+            let (response_tx, response_rx) = mpsc::channel(CHANNEL_SIZE);
+            (Self { response_tx }, response_rx)
+        }
+    }
+
+    impl Engine for MockEngine {
+        fn emit_response(&self, resp: String) {
+            let _ = self.response_tx.send(resp);
+        }
+        fn emit_token(&self, token: String) {
+            println!("{token}");
+        }
+        fn emit_error(&self, err: String) {
+            panic!("{err}")
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_actor_chat() {
+        tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::TRACE)
+            .init();
+
         let model = get_model(test_model_path!(), true).unwrap();
         let system_prompt =
             "You are a helpful assistant. The user asks you a question, and you provide an answer."
                 .to_string();
+
+        let (mock_engine, mut response_rx) = MockEngine::new();
 
         let params = LLMActorParams {
             model,
@@ -588,33 +646,40 @@ mod tests {
             use_embeddings: false,
         };
 
-        let mut chat = LLMChat::new(params)
-            .unwrap()
-            .with_system_message(system_prompt);
-        let response_stream = chat
-            .say("What is the capital of Denmark?".to_string())
-            .await
-            .expect("say() failed");
+        let (say_tx, say_rx) = mpsc::channel(CHANNEL_SIZE);
 
-        let response = chat
-            .get_response_blocking()
-            .expect("Getting repsonse failed.");
+        info!("Starting chat loop");
+        let local = tokio::task::LocalSet::new();
+        local.spawn_local(simple_chat_loop(
+            params,
+            system_prompt,
+            say_rx,
+            Box::new(mock_engine),
+        ));
+        info!("Started chat loop.");
 
-        assert!(
-            response.contains("Copenhagen"),
-            "Expected completion to contain 'Copenhagen', got: {response}"
-        );
+        local
+            .run_until(async move {
+                let _ = say_tx
+                    .send("What is the capital of Denmark?".to_string())
+                    .await;
+                let response = response_rx.recv().await.unwrap();
+                assert!(
+                    response.contains("Copenhagen"),
+                    "Expected completion to contain 'Copenhagen', got: {response}"
+                );
 
-        chat.say("What language do they speak there?".to_string())
-            .expect("say() failed");
-        let response = chat
-            .get_response_blocking()
-            .expect("Getting response failed");
+                let _ = say_tx
+                    .send("What language do they speak there?".to_string())
+                    .await;
+                let response = response_rx.recv().await.unwrap();
 
-        assert!(
-            response.contains("Danish"),
-            "Expected completion to contain 'Danish', got: {response}"
-        );
+                assert!(
+                    response.contains("Danish"),
+                    "Expected completion to contain 'Danish', got: {response}"
+                );
+            })
+            .await;
     }
 
     #[test]

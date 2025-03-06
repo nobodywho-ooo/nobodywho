@@ -142,12 +142,10 @@ impl INode for NobodyWhoChat {
         while let Some(chat) = self.chat.as_mut() {
             match chat.try_recv() {
                 Ok(llm::LLMOutput::Token(token)) => {
-                    self.base_mut()
-                        .emit_signal("response_updated", &[Variant::from(token)]);
+                    self.signals().response_updated().emit(token);
                 }
                 Ok(llm::LLMOutput::Done(response)) => {
-                    self.base_mut()
-                        .emit_signal("response_finished", &[Variant::from(response)]);
+                    self.signals().response_finished().emit(response);
                 }
                 Ok(llm::LLMOutput::FatalErr(msg)) => {
                     godot_error!("Model worker crashed: {msg}");
@@ -327,10 +325,9 @@ impl INode for NobodyWhoEmbedding {
                     self.actor = None; // un-set here to avoid spamming error message
                 }
                 Ok(llm::LLMOutput::Embedding(embd)) => {
-                    self.base_mut().emit_signal(
-                        "embedding_finished",
-                        &[PackedFloat32Array::from(embd).to_variant()],
-                    );
+                    self.signals()
+                        .embedding_finished()
+                        .emit(PackedFloat32Array::from(embd));
                 }
                 Ok(llm::LLMOutput::Token(_token)) => {
                     unreachable!("Token in NobodyWhoEmbedding")
