@@ -117,9 +117,23 @@ struct NobodyWhoChat {
     /// Higher values use more VRAM, but allow for longer "short term memory" for the LLM.
     context_length: u32,
 
-    chat: Option<llm::LLMChat>,
-
     base: Base<Node>,
+}
+
+struct GodotChatAdapter {
+    emit_node: Gd<NobodyWhoChat>
+}
+
+impl llm::Engine for GodotChatAdapter {
+    fn emit_token(&self, tok: String) {
+        self.emit_node.signals().response_updated().emit(tok)
+    }
+    fn emit_response(&self, resp: String) {
+        self.emit_node.signals().response_finished().emit(resp)
+    }
+    fn emit_error(&self, err: String) {
+        godot_error!("LLM Worker failed: {err}");
+    }
 }
 
 #[godot_api]
@@ -133,7 +147,6 @@ impl INode for NobodyWhoChat {
             stop_tokens: PackedStringArray::new(),
             context_length: 4096,
 
-            chat: None,
             base,
         }
     }
@@ -210,11 +223,12 @@ impl NobodyWhoChat {
             };
 
             // start the llm worker
-            let chat = llm::LLMChat::new(params)
-                .map_err(|e| format!("{:?}", e))?
-                .with_system_message(self.system_prompt.to_string());
+            let (say_tx, say_rx) = tokio::sync::mpsc::channel(4096); // TODO: 4096 is super random
+            let adapter = GodotChatAdapter { emit_node: Gd::from_instance_id(self.instance_id()) };
+            godot::task::spawn(async {
+                llm::simple_chat_loop(params, self.system_prompt.to_string(), say_rx, Box::new(adapter));
+            });
 
-            self.chat = Some(chat);
             Ok(())
         };
 

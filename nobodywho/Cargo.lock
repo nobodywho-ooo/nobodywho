@@ -273,7 +273,7 @@ checksum = "a8d1add55171497b4705a648c6b583acafb01d58050a51727785f0b2c8e0a2b2"
 [[package]]
 name = "godot"
 version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext?branch=master#da23b37e1f253e1a8ce356fc027df4e5122183a0"
+source = "git+https://github.com/TitanNano/gdext?branch=jovan%2Fasync_rt#e5b215b0d23b2279006b9e30b9000096484c7c9c"
 dependencies = [
  "godot-core",
  "godot-macros",
@@ -282,7 +282,7 @@ dependencies = [
 [[package]]
 name = "godot-bindings"
 version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext?branch=master#da23b37e1f253e1a8ce356fc027df4e5122183a0"
+source = "git+https://github.com/TitanNano/gdext?branch=jovan%2Fasync_rt#e5b215b0d23b2279006b9e30b9000096484c7c9c"
 dependencies = [
  "gdextension-api",
 ]
@@ -290,12 +290,12 @@ dependencies = [
 [[package]]
 name = "godot-cell"
 version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext?branch=master#da23b37e1f253e1a8ce356fc027df4e5122183a0"
+source = "git+https://github.com/TitanNano/gdext?branch=jovan%2Fasync_rt#e5b215b0d23b2279006b9e30b9000096484c7c9c"
 
 [[package]]
 name = "godot-codegen"
 version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext?branch=master#da23b37e1f253e1a8ce356fc027df4e5122183a0"
+source = "git+https://github.com/TitanNano/gdext?branch=jovan%2Fasync_rt#e5b215b0d23b2279006b9e30b9000096484c7c9c"
 dependencies = [
  "godot-bindings",
  "heck",
@@ -308,7 +308,7 @@ dependencies = [
 [[package]]
 name = "godot-core"
 version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext?branch=master#da23b37e1f253e1a8ce356fc027df4e5122183a0"
+source = "git+https://github.com/TitanNano/gdext?branch=jovan%2Fasync_rt#e5b215b0d23b2279006b9e30b9000096484c7c9c"
 dependencies = [
  "glam",
  "godot-bindings",
@@ -320,7 +320,7 @@ dependencies = [
 [[package]]
 name = "godot-ffi"
 version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext?branch=master#da23b37e1f253e1a8ce356fc027df4e5122183a0"
+source = "git+https://github.com/TitanNano/gdext?branch=jovan%2Fasync_rt#e5b215b0d23b2279006b9e30b9000096484c7c9c"
 dependencies = [
  "gensym",
  "godot-bindings",
@@ -332,7 +332,7 @@ dependencies = [
 [[package]]
 name = "godot-macros"
 version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext?branch=master#da23b37e1f253e1a8ce356fc027df4e5122183a0"
+source = "git+https://github.com/TitanNano/gdext?branch=jovan%2Fasync_rt#e5b215b0d23b2279006b9e30b9000096484c7c9c"
 dependencies = [
  "godot-bindings",
  "litrs",

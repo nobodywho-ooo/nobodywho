@@ -9,7 +9,7 @@ path = "src/lib.rs"
 
 [dependencies]
 nobodywho = { path = "../core" }
-godot = { git = "https://github.com/godot-rust/gdext", branch = "master", features = [
+godot = { git = "https://github.com/TitanNano/gdext", branch = "jovan/async_rt", features = [
     "experimental-threads",
     "register-docs",
 ] }
