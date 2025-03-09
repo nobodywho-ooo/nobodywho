@@ -9,7 +9,8 @@ path = "src/lib.rs"
 
 [dependencies]
 nobodywho = { path = "../core" }
-godot = { git = "https://github.com/TitanNano/gdext", branch = "jovan/async_rt", features = [
+godot = { git = "https://github.com/TitanNano/gdext.git", branch = "jovan/async_rt", features = [
     "experimental-threads",
     "register-docs",
 ] }
+tokio = "1.44.0"

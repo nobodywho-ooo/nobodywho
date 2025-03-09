@@ -16,7 +16,7 @@ use tokio;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::{mpsc, oneshot};
 use tokio_stream::StreamExt;
-use tracing::{debug, info, warn, error, trace};
+use tracing::{debug, error, info, trace, warn};
 
 const MAX_TOKEN_STR_LEN: usize = 128;
 
@@ -162,6 +162,27 @@ pub enum LLMChatError {
     Detokenize(#[from] llama_cpp_2::TokenToStringError),
 }
 
+pub trait EmbedEngine {
+    fn emit_embedding(&self, embd: Vec<f32>);
+}
+
+pub async fn simple_embedding_loop(
+    params: LLMActorParams,
+    mut embed_rx: Receiver<String>,
+    embed_engine: Box<dyn EmbedEngine>,
+) -> Result<(), ()> {
+    let actor = LLMActorHandle::new(params).await.expect("TODO: errors");
+    while let Some(text) = embed_rx.recv().await {
+        let embd = actor
+            .embed(text)
+            .await
+            .expect("TODO: errors")
+            .expect("TODO: errors");
+        embed_engine.emit_embedding(embd);
+    }
+    Ok(())
+}
+
 pub trait Engine {
     fn emit_token(&self, token: String);
     fn emit_response(&self, resp: String);
@@ -261,9 +282,7 @@ impl LLMActorHandle {
         let (message_tx, message_rx) = std::sync::mpsc::channel();
         let (init_tx, init_rx) = oneshot::channel();
 
-        std::thread::spawn(|| {
-            completion_worker_actor(message_rx, init_tx, params)
-        });
+        std::thread::spawn(|| completion_worker_actor(message_rx, init_tx, params));
 
         match init_rx.await {
             Ok(Ok(())) => Ok(Self { message_tx }),
@@ -282,9 +301,7 @@ impl LLMActorHandle {
         &self,
     ) -> tokio_stream::wrappers::ReceiverStream<Result<WriteOutput, WriteError>> {
         let (respond_to, response_channel) = mpsc::channel(CHANNEL_SIZE);
-        let _ = self
-            .message_tx
-            .send(WorkerMsg::WriteUntilDone(respond_to));
+        let _ = self.message_tx.send(WorkerMsg::WriteUntilDone(respond_to));
         response_channel.into()
     }
 
@@ -536,7 +553,7 @@ fn write_until_done(
         state.small_batch.add(new_token, state.n_past, &[0], true)?;
 
         // llm go brr
-        state.ctx.decode(&mut state.small_batch)?; 
+        state.ctx.decode(&mut state.small_batch)?;
         state.n_past += 1; // keep count
 
         // Convert token to text
