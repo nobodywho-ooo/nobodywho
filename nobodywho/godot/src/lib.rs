@@ -4,13 +4,34 @@ use godot::classes::{INode, ProjectSettings};
 use godot::prelude::*;
 use nobodywho::{llm, sampler_config};
 use tokio;
+use tracing::{debug, error, info, trace, warn};
 
 use crate::sampler_resource::NobodyWhoSampler;
+
+// Static guard to ensure initialization happens only once
+static TRACING_INIT: std::sync::Once = std::sync::Once::new();
+
+// Initialize tracing early when the library is loaded
+fn init_tracing() {
+    TRACING_INIT.call_once(|| {
+        // Try to initialize, but handle the case if it's already initialized
+        let _ = tracing_subscriber::fmt::Subscriber::builder()
+            .with_max_level(tracing::Level::TRACE)
+            .try_init();
+
+        // This will log even if the subscriber initialization failed
+        eprintln!("Tracing setup complete");
+    });
+}
 
 struct NobodyWhoExtension;
 
 #[gdextension]
-unsafe impl ExtensionLibrary for NobodyWhoExtension {}
+unsafe impl ExtensionLibrary for NobodyWhoExtension {
+    fn on_level_init(_: InitLevel) {
+        init_tracing()
+    }
+}
 
 #[derive(GodotClass)]
 #[class(base=Node)]
@@ -142,6 +163,8 @@ impl llm::Engine for GodotChatAdapter {
 #[godot_api]
 impl INode for NobodyWhoChat {
     fn init(base: Base<Node>) -> Self {
+        info!("Initializing NobodyWhoChat.");
+
         Self {
             // config
             model_node: None,
@@ -179,6 +202,7 @@ impl NobodyWhoChat {
     /// Starts the LLM worker thread. This is required before you can send messages to the LLM.
     /// This fuction is blocking and can be a bit slow, so you may want to be strategic about when you call it.
     fn start_worker(&mut self) {
+        info!("Starting chat worker...");
         let mut result = || -> Result<(), String> {
             let model = self.get_model()?;
             let sampler_config = self.get_sampler_config();
@@ -237,6 +261,7 @@ impl NobodyWhoChat {
     /// Sends a message to the LLM.
     /// This will start the inference process. meaning you can also listen on the `response_updated` and `response_finished` signals to get the response.
     fn say(&mut self, message: String) {
+        info!("say(\"{message}\")");
         self.send_message(message);
     }
 
@@ -318,10 +343,19 @@ struct EmbeddingsAdapter {
 
 impl llm::EmbedEngine for EmbeddingsAdapter {
     fn emit_embedding(&self, embd: Vec<f32>) {
+        trace!("EMITTING: {embd:?}");
         self.emit_node
             .signals()
             .embedding_finished()
             .emit(embd.into());
+    }
+}
+
+struct MockEmbeddingsAdapter {}
+
+impl llm::EmbedEngine for MockEmbeddingsAdapter {
+    fn emit_embedding(&self, embd: Vec<f32>) {
+        debug!("GOT EMBED: {embd:?}");
     }
 }
 
@@ -342,6 +376,7 @@ impl NobodyWhoEmbedding {
     #[func]
     /// Starts the embedding worker thread. This is called automatically when you call `embed`, if it wasn't already called.
     fn start_worker(&mut self) {
+        info!("Starting embedding worker...");
         let mut result = || -> Result<(), String> {
             let model = self.get_model()?;
 
@@ -358,12 +393,16 @@ impl NobodyWhoEmbedding {
             };
 
             let (embed_tx, embed_rx) = tokio::sync::mpsc::channel(4096); // TODO: this number is super random
-            self.embed_tx = Some(embed_tx);
+            self.embed_tx = Some(embed_tx.clone());
+
             let adapter = EmbeddingsAdapter {
                 emit_node: self.to_gd(),
             };
+            // let adapter = MockEmbeddingsAdapter {};
             godot::task::spawn(async {
-                llm::simple_embedding_loop(params, embed_rx, Box::new(adapter)).await;
+                llm::simple_embedding_loop(params, embed_rx, Box::new(adapter))
+                    .await
+                    .expect("TODO: handle error");
             });
 
             Ok(())
@@ -379,6 +418,7 @@ impl NobodyWhoEmbedding {
     /// Generates the embedding of a text string. This will return a signal that you can use to wait for the embedding.
     /// The signal will return a PackedFloat32Array.
     fn embed(&mut self, text: String) -> Signal {
+        info!("Embedding: \"{text}\"");
         // returns signal, so that you can `var vec = await embed("Hello, world!")
         //
         //

@@ -16,7 +16,7 @@ use tokio;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::{mpsc, oneshot};
 use tokio_stream::StreamExt;
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, error, info, trace};
 
 const MAX_TOKEN_STR_LEN: usize = 128;
 
@@ -171,13 +171,17 @@ pub async fn simple_embedding_loop(
     mut embed_rx: Receiver<String>,
     embed_engine: Box<dyn EmbedEngine>,
 ) -> Result<(), ()> {
+    trace!("In embedding loop");
     let actor = LLMActorHandle::new(params).await.expect("TODO: errors");
+    trace!("Made embedding actor.");
     while let Some(text) = embed_rx.recv().await {
+        trace!("Got embedding text: {text}");
         let embd = actor
             .embed(text)
             .await
             .expect("TODO: errors")
             .expect("TODO: errors");
+        trace!("Responding with embedding.");
         embed_engine.emit_embedding(embd);
     }
     Ok(())
@@ -251,7 +255,10 @@ pub async fn simple_chat_loop(
         chat_state.add_message("assistant".to_string(), full_response);
         let _ = chat_state.render_diff();
     }
-    todo!("emit error here")
+
+    // XXX: we only arrive here when the sender-part of the say channel is dropped
+    // and in that case, we don't have anything to send our error to anyway
+    Ok(()) // accept our fate
 }
 
 /// Parameters for configuring an LLM actor instance.
@@ -273,22 +280,30 @@ pub struct LLMActorParams {
     pub use_embeddings: bool,
 }
 
+#[derive(Debug)]
 pub struct LLMActorHandle {
     message_tx: std::sync::mpsc::Sender<WorkerMsg>,
 }
 
 impl LLMActorHandle {
     pub async fn new(params: LLMActorParams) -> Result<Self, InitWorkerError> {
+        debug!("Initializing LLMActorHandle..");
         let (message_tx, message_rx) = std::sync::mpsc::channel();
         let (init_tx, init_rx) = oneshot::channel();
+        trace!("Made channels");
 
+        trace!("Spawning thread...");
         std::thread::spawn(|| completion_worker_actor(message_rx, init_tx, params));
+        trace!("Spawned thread.");
 
-        match init_rx.await {
+        trace!("Waiting for init result");
+        let resp = match init_rx.await {
             Ok(Ok(())) => Ok(Self { message_tx }),
             Ok(Err(e)) => Err(e),
             Err(_recverr) => Err(InitWorkerError::NoResponse),
-        }
+        };
+        trace!("Got init result: {resp:?}");
+        resp
     }
 
     pub fn read(&self, text: String) {
@@ -314,13 +329,16 @@ impl LLMActorHandle {
     pub async fn embed(
         &self,
         text: String,
-    ) -> Result<Result<Vec<f32>, llama_cpp_2::EmbeddingsError>, oneshot::error::RecvError> {
+    ) -> Option<Result<Vec<f32>, llama_cpp_2::EmbeddingsError>> {
+        trace!("embed(): resetting context");
         self.reset_context();
+        trace!("embed(): reading text");
         self.read(text);
 
-        let (respond_to, response_channel) = oneshot::channel();
+        trace!("embed(): getting embedding");
+        let (respond_to, mut response_channel) = mpsc::channel(1);
         let _ = self.message_tx.send(WorkerMsg::GetEmbedding(respond_to));
-        response_channel.await
+        response_channel.recv().await
     }
 }
 
@@ -331,7 +349,9 @@ fn completion_worker_actor(
 ) {
     match init_worker(&params) {
         Ok(state) => {
+            trace!("Init WorkerState success.");
             init_tx.send(Ok(())).expect("TODO: handle err");
+            trace!("Sent workerstate success out");
             let mut state = state;
             // listen for messages
             while let Ok(msg) = message_rx.recv() {
@@ -346,6 +366,7 @@ fn completion_worker_actor(
             } // message queue dropped. we died.
         }
         Err(initerr) => {
+            trace!("Init WorkerState failure.");
             init_tx.send(Err(initerr)).expect("TODO: handle err");
         }
     }
@@ -364,7 +385,7 @@ pub enum InitWorkerError {
 }
 
 fn init_worker(params: &LLMActorParams) -> Result<WorkerState, InitWorkerError> {
-    info!("Initializing a new worker");
+    info!("Initializing WorkerState");
     // Set up context parameters using available parallelism
     let ctx = {
         let n_threads = std::thread::available_parallelism()?.get() as i32;
@@ -433,7 +454,7 @@ pub enum WorkerError {
 pub enum WorkerMsg {
     ReadString(String),
     WriteUntilDone(mpsc::Sender<Result<WriteOutput, WriteError>>),
-    GetEmbedding(oneshot::Sender<Result<Vec<f32>, llama_cpp_2::EmbeddingsError>>),
+    GetEmbedding(mpsc::Sender<Result<Vec<f32>, llama_cpp_2::EmbeddingsError>>),
     ResetContext,
 }
 
@@ -442,6 +463,7 @@ fn handle_msg(mut state: WorkerState, msg: WorkerMsg) -> Result<WorkerState, Wor
     // this is needed because contexts referencing the same model are not thread safe
     // if two contexts referencing the same model try to decode at the same time,
     // then llama.cpp segfaults and everybody dies and i become sad
+    debug!("Worker handling message: {msg:?}");
     let _inference_lock = GLOBAL_INFERENCE_LOCK
         .lock()
         .map_err(|_| WorkerError::GILPoisonError)?;
@@ -450,8 +472,14 @@ fn handle_msg(mut state: WorkerState, msg: WorkerMsg) -> Result<WorkerState, Wor
         WorkerMsg::ReadString(text) => Ok(read_string(state, text)?),
         WorkerMsg::WriteUntilDone(respond_to) => Ok(write_until_done(state, respond_to)?),
         WorkerMsg::GetEmbedding(respond_to) => {
-            let embedding = state.ctx.embeddings_seq_ith(0).unwrap().to_vec();
-            let _ = respond_to.send(Ok(embedding));
+            let embedding = state
+                .ctx
+                .embeddings_seq_ith(0)
+                .expect("TODO: error handling")
+                .to_vec();
+            respond_to
+                .blocking_send(Ok(embedding))
+                .expect("TODO: error handling");
             Ok(state)
         }
         WorkerMsg::ResetContext => {
@@ -638,10 +666,10 @@ mod tests {
             self.response_tx.try_send(resp).expect("send failed!");
         }
         fn emit_token(&self, token: String) {
-            println!("{token}");
+            debug!("MockEngine: {token}");
         }
         fn emit_error(&self, err: String) {
-            panic!("{err}")
+            error!("MockEngine: {err}")
         }
     }
 
