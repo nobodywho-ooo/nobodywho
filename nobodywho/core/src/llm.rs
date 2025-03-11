@@ -160,6 +160,9 @@ pub enum LLMChatError {
 
     #[error("Could not detokenize string: {0}")]
     Detokenize(#[from] llama_cpp_2::TokenToStringError),
+
+    #[error("Failed initializing the LLM worker: {0}")]
+    InitWorkerError(#[from] InitWorkerError),
 }
 
 pub trait EmbedEngine {
@@ -176,13 +179,15 @@ pub async fn simple_embedding_loop(
     trace!("Made embedding actor.");
     while let Some(text) = embed_rx.recv().await {
         trace!("Got embedding text: {text}");
+        actor.read(text);
         let embd = actor
-            .embed(text)
+            .get_embedding()
             .await
             .expect("TODO: errors")
             .expect("TODO: errors");
         trace!("Responding with embedding.");
         embed_engine.emit_embedding(embd);
+        actor.reset_context();
     }
     Ok(())
 }
@@ -214,7 +219,7 @@ pub async fn simple_chat_loop(
     info!("Initialized chat state.");
 
     // init actor
-    let actor = LLMActorHandle::new(params).await.expect("todo: error");
+    let actor = LLMActorHandle::new(params).await?;
     info!("Initialized actor.");
 
     // wait for message from user
@@ -222,14 +227,8 @@ pub async fn simple_chat_loop(
         chat_state.add_message("user".to_string(), message);
         let diff = chat_state.render_diff().expect("TODO: handle err");
 
-        // read text into llm context
-        // XXX: awaiting here means that we could end up waiting for up to one frame
-        //      between having finished reading, and beginning to generate.
-        //      a bit awkward... can we make it faster?
-        actor.read(diff);
-
         // ask llm to respond
-        let response_stream = actor.write_until_done().await;
+        let response_stream = actor.generate_response(diff).await;
 
         let full_response = response_stream
             .fold(None, |_, out| {
@@ -306,10 +305,30 @@ impl LLMActorHandle {
         resp
     }
 
-    pub fn read(&self, text: String) {
-        self.message_tx
-            .send(WorkerMsg::ReadString(text))
-            .expect("todo: handle error")
+    pub fn reset_context(&self) -> Result<(), std::sync::mpsc::SendError<WorkerMsg>> {
+        self.message_tx.send(WorkerMsg::ResetContext)
+    }
+
+    pub async fn read(
+        &self,
+        text: String,
+    ) -> Result<Result<(), ReadError>, oneshot::error::RecvError> {
+        let (respond_to, response_channel) = oneshot::channel();
+        let _ = self
+            .message_tx
+            .send(WorkerMsg::ReadString(text, respond_to));
+        response_channel.await
+    }
+
+    pub async fn generate_response(
+        &self,
+        text: String,
+    ) -> tokio_stream::wrappers::ReceiverStream<Result<WriteOutput, GenerateResponseError>> {
+        let (respond_to, response_channel) = mpsc::channel(CHANNEL_SIZE);
+        let _ = self
+            .message_tx
+            .send(WorkerMsg::GenerateResponse(text, respond_to));
+        response_channel.into()
     }
 
     pub async fn write_until_done(
@@ -320,25 +339,12 @@ impl LLMActorHandle {
         response_channel.into()
     }
 
-    pub fn reset_context(&self) {
-        self.message_tx
-            .send(WorkerMsg::ResetContext)
-            .expect("todo: handle error");
-    }
-
-    pub async fn embed(
+    pub async fn get_embedding(
         &self,
-        text: String,
-    ) -> Option<Result<Vec<f32>, llama_cpp_2::EmbeddingsError>> {
-        trace!("embed(): resetting context");
-        self.reset_context();
-        trace!("embed(): reading text");
-        self.read(text);
-
-        trace!("embed(): getting embedding");
-        let (respond_to, mut response_channel) = mpsc::channel(1);
+    ) -> Result<Result<Vec<f32>, llama_cpp_2::EmbeddingsError>, oneshot::error::RecvError> {
+        let (respond_to, response_channel) = oneshot::channel();
         let _ = self.message_tx.send(WorkerMsg::GetEmbedding(respond_to));
-        response_channel.recv().await
+        response_channel.await
     }
 }
 
@@ -348,12 +354,12 @@ fn completion_worker_actor(
     params: LLMActorParams,
 ) {
     match init_worker(&params) {
-        Ok(state) => {
+        Ok(mut state) => {
             trace!("Init WorkerState success.");
-            init_tx.send(Ok(())).expect("TODO: handle err");
+            let _ = init_tx.send(Ok(())); // no way to recover from this send error
             trace!("Sent workerstate success out");
-            let mut state = state;
-            // listen for messages
+
+            // listen for messages forever
             while let Ok(msg) = message_rx.recv() {
                 match handle_msg(state, msg) {
                     Ok(newstate) => {
@@ -367,7 +373,8 @@ fn completion_worker_actor(
         }
         Err(initerr) => {
             trace!("Init WorkerState failure.");
-            init_tx.send(Err(initerr)).expect("TODO: handle err");
+            let _ = init_tx.send(Err(initerr));
+            // we died. not much to do.
         }
     }
 }
@@ -441,6 +448,9 @@ pub enum WorkerError {
     #[error("Error generating text: {0}")]
     WriteError(#[from] WriteError),
 
+    #[error("Error getting embeddings: {0}")]
+    EmbeddingsError(#[from] llama_cpp_2::EmbeddingsError),
+
     #[error("Could not send newly generated token out to the game engine.")]
     SendError, // this is actually a SendError<LLMOutput>, but that becomes recursive and weird
 
@@ -450,43 +460,73 @@ pub enum WorkerError {
     GILPoisonError, // this is actually a std::sync::PoisonError<std::sync::MutexGuard<'static, ()>>, but that doesn't implement Send, so we do this
 }
 
-#[derive(Debug)]
-pub enum WorkerMsg {
-    ReadString(String),
-    WriteUntilDone(mpsc::Sender<Result<WriteOutput, WriteError>>),
-    GetEmbedding(mpsc::Sender<Result<Vec<f32>, llama_cpp_2::EmbeddingsError>>),
-    ResetContext,
+#[derive(Debug, thiserror::Error)]
+pub enum GenerateResponseError {
+    #[error("Error reading string: {0}")]
+    ReadError(#[from] ReadError),
+
+    #[error("Error generating text: {0}")]
+    WriteError(#[from] WriteError),
 }
 
-fn handle_msg(mut state: WorkerState, msg: WorkerMsg) -> Result<WorkerState, WorkerError> {
+#[derive(Debug)]
+pub enum WorkerMsg {
+    ReadString(String, oneshot::Sender<Result<(), ReadError>>),
+    WriteUntilDone(mpsc::Sender<Result<WriteOutput, WriteError>>),
+    GetEmbedding(oneshot::Sender<Result<Vec<f32>, llama_cpp_2::EmbeddingsError>>),
+    ResetContext,
+    GenerateResponse(
+        String,
+        mpsc::Sender<Result<WriteOutput, GenerateResponseError>>,
+    ),
+}
+
+fn handle_msg(state: WorkerState, msg: WorkerMsg) -> Result<WorkerState, ()> {
     // HACK
     // this is needed because contexts referencing the same model are not thread safe
     // if two contexts referencing the same model try to decode at the same time,
     // then llama.cpp segfaults and everybody dies and i become sad
     debug!("Worker handling message: {msg:?}");
-    let _inference_lock = GLOBAL_INFERENCE_LOCK
-        .lock()
-        .map_err(|_| WorkerError::GILPoisonError)?;
+    let _inference_lock = GLOBAL_INFERENCE_LOCK.lock().expect("GIL mutex poisoned.");
 
     match msg {
-        WorkerMsg::ReadString(text) => Ok(read_string(state, text)?),
-        WorkerMsg::WriteUntilDone(respond_to) => Ok(write_until_done(state, respond_to)?),
-        WorkerMsg::GetEmbedding(respond_to) => {
-            let embedding = state
-                .ctx
-                .embeddings_seq_ith(0)
-                .expect("TODO: error handling")
-                .to_vec();
-            respond_to
-                .blocking_send(Ok(embedding))
-                .expect("TODO: error handling");
-            Ok(state)
-        }
-        WorkerMsg::ResetContext => {
-            state.ctx.clear_kv_cache();
-            state.n_past = 0;
-            Ok(state)
-        }
+        WorkerMsg::ReadString(text, respond_to) => state.read_string(text).map_err(|e| {
+            let _ = respond_to.send(Err(e));
+            ()
+        }),
+        WorkerMsg::WriteUntilDone(respond_to) => state
+            .write_until_done(|out| {
+                let _ = respond_to.blocking_send(Ok(out));
+            })
+            .map_err(|e| {
+                let _ = respond_to.blocking_send(Err(e.into()));
+                ()
+            }),
+        WorkerMsg::GetEmbedding(respond_to) => match state.ctx.embeddings_seq_ith(0) {
+            Ok(embd) => {
+                let _ = respond_to.send(Ok(embd.to_vec()));
+                Ok(state)
+            }
+            Err(e) => {
+                let _ = respond_to.send(Err(e.into()));
+                Err(())
+            }
+        },
+        WorkerMsg::ResetContext => Ok(state.reset_context()),
+        // ReadString then WriteUntil
+        WorkerMsg::GenerateResponse(text, respond_to) => state
+            .read_string(text)
+            .map_err(|e| {
+                let _ = respond_to.blocking_send(Err(e.into()));
+                ()
+            })?
+            .write_until_done(|out| {
+                let _ = respond_to.blocking_send(Ok(out));
+            })
+            .map_err(|e| {
+                let _ = respond_to.blocking_send(Err(e.into()));
+                ()
+            }),
     }
 }
 
@@ -500,34 +540,6 @@ pub enum ReadError {
 
     #[error("Llama.cpp failed decoding: {0}")]
     DecodeError(#[from] llama_cpp_2::DecodeError),
-}
-
-fn read_string(mut state: WorkerState, text: String) -> Result<WorkerState, ReadError> {
-    info!("Worker reading string");
-    let tokens = state.ctx.model.str_to_token(&text, AddBos::Never)?;
-    let n_tokens = tokens.len();
-
-    debug_assert!(tokens.len() > 0);
-    debug_assert!(tokens.len() < state.ctx.n_ctx() as usize);
-
-    {
-        state.big_batch.clear();
-        let seq_ids = &[0];
-        for (i, token) in (0..).zip(tokens.iter()) {
-            // Only compute logits for the last token to save computation
-            let output_logits = i == n_tokens - 1;
-            state
-                .big_batch
-                .add(*token, state.n_past + i as i32, seq_ids, output_logits)?;
-        }
-    }
-
-    state.ctx.decode(&mut state.big_batch)?;
-
-    Ok(WorkerState {
-        n_past: state.n_past + tokens.len() as i32,
-        ..state
-    })
 }
 
 #[derive(Debug)]
@@ -551,69 +563,106 @@ pub enum WriteError {
     SendError,
 }
 
-fn write_until_done(
-    mut state: WorkerState,
-    respond_to: Sender<Result<WriteOutput, WriteError>>,
-) -> Result<WorkerState, WriteError> {
-    // Token generation loop
-    info!("Worker writing until done");
+impl<'a> WorkerState<'a> {
+    fn reset_context(mut self) -> Self {
+        self.ctx.clear_kv_cache();
+        self.n_past = 0;
+        self
+    }
+    fn read_string(mut self, text: String) -> Result<Self, ReadError> {
+        info!("Worker reading string");
+        let tokens = self.ctx.model.str_to_token(&text, AddBos::Never)?;
+        let n_tokens = tokens.len();
 
-    // pre-allocating 4096 bytes for the response string
-    // 4096 is a very randomly chosen number. how does this affect performance?
-    let mut full_response: String = String::with_capacity(4096);
+        debug_assert!(tokens.len() > 0);
+        debug_assert!(tokens.len() < self.ctx.n_ctx() as usize);
 
-    loop {
-        // Check for context window overflow (it was in the end before)
-        if state.n_past >= state.ctx.n_ctx() as i32 - 1 {
-            state.n_past -= apply_context_shifting(&mut state.ctx, state.n_past)?;
-            // check count
-            // XXX: this check is slow
-            debug_assert!(state.n_past == state.ctx.get_kv_cache_token_count());
+        {
+            self.big_batch.clear();
+            let seq_ids = &[0];
+            for (i, token) in (0..).zip(tokens.iter()) {
+                // Only compute logits for the last token to save computation
+                let output_logits = i == n_tokens - 1;
+                self.big_batch
+                    .add(*token, self.n_past + i as i32, seq_ids, output_logits)?;
+            }
         }
 
-        // Sample next token, no need to use sampler.accept as sample already accepts the token.
-        // using sampler.accept() will cause the sampler to crash when using grammar sampling.
-        // https://github.com/utilityai/llama-cpp-rs/issues/604
-        let new_token: LlamaToken = state.sampler.sample(&state.ctx, -1);
+        self.ctx.decode(&mut self.big_batch)?;
 
-        // batch of one
-        state.small_batch.clear();
-        state.small_batch.add(new_token, state.n_past, &[0], true)?;
-
-        // llm go brr
-        state.ctx.decode(&mut state.small_batch)?;
-        state.n_past += 1; // keep count
-
-        // Convert token to text
-        let output_string = state
-            .ctx
-            .model
-            .token_to_str_with_size(new_token, MAX_TOKEN_STR_LEN, Special::Tokenize)
-            .unwrap_or("�".to_string());
-        // fall back to "U+FFFD REPLACEMENT CHARACTER"
-        // when encountering bytes that aren't valid UTF-8
-        // wikipedia: "used to replace an unknown, unrecognised, or unrepresentable character"
-
-        let has_stop_tokens = state
-            .stop_tokens
-            .iter()
-            .any(|stop_token| full_response.contains(stop_token));
-        let has_eog = state.ctx.model.is_eog_token(new_token);
-
-        if !has_eog {
-            full_response.push_str(&output_string);
-            trace!("Sending out token: {output_string}");
-            let _ = respond_to.blocking_send(Ok(WriteOutput::Token(output_string)));
-        }
-        if has_eog || has_stop_tokens {
-            break;
-        }
+        Ok(WorkerState {
+            n_past: self.n_past + tokens.len() as i32,
+            ..self
+        })
     }
 
-    // we're done!
-    trace!("Sending out response: {full_response}");
-    let _ = respond_to.blocking_send(Ok(WriteOutput::Done(full_response)));
-    Ok(state)
+    fn write_until_done<F>(
+        mut self,
+        respond: F, // respond_to: Sender<Result<WriteOutput, WriteError>>,
+    ) -> Result<Self, WriteError>
+    where
+        F: Fn(WriteOutput),
+    {
+        // Token generation loop
+        info!("Worker writing until done");
+
+        // pre-allocating 4096 bytes for the response string
+        // 4096 is a very randomly chosen number. how does this affect performance?
+        let mut full_response: String = String::with_capacity(4096);
+
+        loop {
+            // Check for context window overflow (it was in the end before)
+            if self.n_past >= self.ctx.n_ctx() as i32 - 1 {
+                self.n_past -= apply_context_shifting(&mut self.ctx, self.n_past)?;
+                // check count
+                // XXX: this check is slow
+                debug_assert!(self.n_past == self.ctx.get_kv_cache_token_count());
+            }
+
+            // Sample next token, no need to use sampler.accept as sample already accepts the token.
+            // using sampler.accept() will cause the sampler to crash when using grammar sampling.
+            // https://github.com/utilityai/llama-cpp-rs/issues/604
+            let new_token: LlamaToken = self.sampler.sample(&self.ctx, -1);
+
+            // batch of one
+            self.small_batch.clear();
+            self.small_batch.add(new_token, self.n_past, &[0], true)?;
+
+            // llm go brr
+            self.ctx.decode(&mut self.small_batch)?;
+            self.n_past += 1; // keep count
+
+            // Convert token to text
+            let output_string = self
+                .ctx
+                .model
+                .token_to_str_with_size(new_token, MAX_TOKEN_STR_LEN, Special::Tokenize)
+                .unwrap_or("�".to_string());
+            // fall back to "U+FFFD REPLACEMENT CHARACTER"
+            // when encountering bytes that aren't valid UTF-8
+            // wikipedia: "used to replace an unknown, unrecognised, or unrepresentable character"
+
+            let has_stop_tokens = self
+                .stop_tokens
+                .iter()
+                .any(|stop_token| full_response.contains(stop_token));
+            let has_eog = self.ctx.model.is_eog_token(new_token);
+
+            if !has_eog {
+                full_response.push_str(&output_string);
+                trace!("Sending out token: {output_string}");
+                respond(WriteOutput::Token(output_string));
+            }
+            if has_eog || has_stop_tokens {
+                break;
+            }
+        }
+
+        // we're done!
+        trace!("Sending out response: {full_response}");
+        respond(WriteOutput::Done(full_response));
+        Ok(self)
+    }
 }
 
 fn dotproduct(a: &[f32], b: &[f32]) -> f32 {
