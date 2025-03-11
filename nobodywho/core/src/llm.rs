@@ -1,4 +1,3 @@
-use crate::chat_state;
 use crate::sampler_config::{make_sampler, SamplerConfig};
 use lazy_static::lazy_static;
 use llama_cpp_2::context::params::LlamaContextParams;
@@ -13,9 +12,7 @@ use llama_cpp_2::token::LlamaToken;
 use std::pin::pin;
 use std::sync::{Arc, LazyLock, Mutex};
 use tokio;
-use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::{mpsc, oneshot};
-use tokio_stream::StreamExt;
 use tracing::{debug, error, info, trace};
 
 const MAX_TOKEN_STR_LEN: usize = 128;
@@ -144,122 +141,6 @@ fn apply_context_shifting(
     Ok(n_discard)
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum SayError {
-    #[error("Template rendering error: {0}")]
-    TemplateError(#[from] minijinja::Error),
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum LLMChatError {
-    #[error("Lama.cpp failed fetching chat template from the model file. This is likely because you're using an older GGUF file, which might not include a chat template. For example, this is the case for most LLaMA2-based GGUF files. Try using a more recent GGUF model file. If you want to check if a given model includes a chat template, you can use the gguf-dump script from llama.cpp. Here is a more technical detailed error: {0}")]
-    ChatTemplateError(#[from] llama_cpp_2::ChatTemplateError),
-
-    #[error("Could not parse chat template as UTF8: {0}")]
-    TemplateUtf8Error(#[from] std::str::Utf8Error),
-
-    #[error("Could not detokenize string: {0}")]
-    Detokenize(#[from] llama_cpp_2::TokenToStringError),
-
-    #[error("Failed initializing the LLM worker: {0}")]
-    InitWorkerError(#[from] InitWorkerError),
-}
-
-pub trait EmbedEngine {
-    fn emit_embedding(&self, embd: Vec<f32>);
-}
-
-pub async fn simple_embedding_loop(
-    params: LLMActorParams,
-    mut embed_rx: Receiver<String>,
-    embed_engine: Box<dyn EmbedEngine>,
-) -> Result<(), ()> {
-    trace!("In embedding loop");
-    let actor = LLMActorHandle::new(params).await.expect("TODO: errors");
-    trace!("Made embedding actor.");
-    while let Some(text) = embed_rx.recv().await {
-        trace!("Got embedding text: {text}");
-        actor.read(text);
-        let embd = actor
-            .get_embedding()
-            .await
-            .expect("TODO: errors")
-            .expect("TODO: errors");
-        trace!("Responding with embedding.");
-        embed_engine.emit_embedding(embd);
-        actor.reset_context();
-    }
-    Ok(())
-}
-
-pub trait Engine {
-    fn emit_token(&self, token: String);
-    fn emit_response(&self, resp: String);
-    fn emit_error(&self, err: String);
-}
-
-pub async fn simple_chat_loop(
-    params: LLMActorParams,
-    system_prompt: String,
-    mut say_rx: Receiver<String>,
-    engine: Box<dyn Engine>,
-) -> Result<(), LLMChatError> {
-    info!("Entering simple chat loop");
-
-    // init chat state
-    let template = params.model.get_chat_template()?.to_string()?;
-    let bos = params
-        .model
-        .token_to_str(params.model.token_bos(), Special::Tokenize)?;
-    let eos = params
-        .model
-        .token_to_str(params.model.token_eos(), Special::Tokenize)?;
-    let mut chat_state = chat_state::ChatState::new(template, bos, eos);
-    chat_state.add_message("system".to_string(), system_prompt);
-    info!("Initialized chat state.");
-
-    // init actor
-    let actor = LLMActorHandle::new(params).await?;
-    info!("Initialized actor.");
-
-    // wait for message from user
-    while let Some(message) = say_rx.recv().await {
-        chat_state.add_message("user".to_string(), message);
-        let diff = chat_state.render_diff().expect("TODO: handle err");
-
-        // ask llm to respond
-        let response_stream = actor.generate_response(diff).await;
-
-        let full_response = response_stream
-            .fold(None, |_, out| {
-                debug!("Streamed out: {out:?}");
-                match out {
-                    Err(err) => {
-                        error!("Got error from worker: {err:?}");
-                        engine.emit_error(format!("{err:?}"));
-                        None // TODO: error handling
-                    }
-                    Ok(WriteOutput::Token(token)) => {
-                        trace!("Got new token: {token:?}");
-                        engine.emit_token(token);
-                        None
-                    }
-                    Ok(WriteOutput::Done(resp)) => Some(resp),
-                }
-            })
-            .await
-            .expect("TODO: error handling");
-
-        engine.emit_response(full_response.clone());
-        chat_state.add_message("assistant".to_string(), full_response);
-        let _ = chat_state.render_diff();
-    }
-
-    // XXX: we only arrive here when the sender-part of the say channel is dropped
-    // and in that case, we don't have anything to send our error to anyway
-    Ok(()) // accept our fate
-}
-
 /// Parameters for configuring an LLM actor instance.
 ///
 /// This struct contains the configuration needed to create a new LLM actor,
@@ -320,17 +201,6 @@ impl LLMActorHandle {
         response_channel.await
     }
 
-    pub async fn generate_response(
-        &self,
-        text: String,
-    ) -> tokio_stream::wrappers::ReceiverStream<Result<WriteOutput, GenerateResponseError>> {
-        let (respond_to, response_channel) = mpsc::channel(CHANNEL_SIZE);
-        let _ = self
-            .message_tx
-            .send(WorkerMsg::GenerateResponse(text, respond_to));
-        response_channel.into()
-    }
-
     pub async fn write_until_done(
         &self,
     ) -> tokio_stream::wrappers::ReceiverStream<Result<WriteOutput, WriteError>> {
@@ -346,6 +216,28 @@ impl LLMActorHandle {
         let _ = self.message_tx.send(WorkerMsg::GetEmbedding(respond_to));
         response_channel.await
     }
+
+    pub async fn generate_response(
+        &self,
+        text: String,
+    ) -> tokio_stream::wrappers::ReceiverStream<Result<WriteOutput, GenerateResponseError>> {
+        let (respond_to, response_channel) = mpsc::channel(CHANNEL_SIZE);
+        let _ = self
+            .message_tx
+            .send(WorkerMsg::GenerateResponse(text, respond_to));
+        response_channel.into()
+    }
+
+    pub async fn generate_embedding(
+        &self,
+        text: String,
+    ) -> Result<Vec<f32>, GenerateEmbeddingError> {
+        let (respond_to, response_channel) = oneshot::channel();
+        let _ = self
+            .message_tx
+            .send(WorkerMsg::GenerateEmbedding(text, respond_to));
+        response_channel.await?
+    }
 }
 
 fn completion_worker_actor(
@@ -353,11 +245,9 @@ fn completion_worker_actor(
     init_tx: oneshot::Sender<Result<(), InitWorkerError>>,
     params: LLMActorParams,
 ) {
-    match init_worker(&params) {
+    match WorkerState::new(&params) {
         Ok(mut state) => {
-            trace!("Init WorkerState success.");
             let _ = init_tx.send(Ok(())); // no way to recover from this send error
-            trace!("Sent workerstate success out");
 
             // listen for messages forever
             while let Ok(msg) = message_rx.recv() {
@@ -389,36 +279,6 @@ pub enum InitWorkerError {
 
     #[error("Got no response after initializing worker.")]
     NoResponse,
-}
-
-fn init_worker(params: &LLMActorParams) -> Result<WorkerState, InitWorkerError> {
-    info!("Initializing WorkerState");
-    // Set up context parameters using available parallelism
-    let ctx = {
-        let n_threads = std::thread::available_parallelism()?.get() as i32;
-        let n_ctx = std::cmp::min(params.n_ctx, params.model.n_ctx_train());
-        let ctx_params = LlamaContextParams::default()
-            .with_n_ctx(std::num::NonZero::new(n_ctx))
-            .with_n_threads(n_threads)
-            .with_n_threads_batch(n_threads)
-            .with_embeddings(params.use_embeddings);
-
-        // Create inference context and sampler
-        params.model.new_context(&LLAMA_BACKEND, ctx_params)?
-    };
-
-    let big_batch = LlamaBatch::new(ctx.n_ctx() as usize, 1);
-    let small_batch = LlamaBatch::new(1, 1);
-
-    let state = WorkerState {
-        n_past: 0,
-        stop_tokens: params.stop_tokens.clone(),
-        sampler: make_sampler(&params.model, params.sampler_config.clone()),
-        ctx,
-        big_batch,
-        small_batch,
-    };
-    Ok(state)
 }
 
 #[derive(Debug)]
@@ -469,6 +329,18 @@ pub enum GenerateResponseError {
     WriteError(#[from] WriteError),
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum GenerateEmbeddingError {
+    #[error("Error reading string: {0}")]
+    ReadError(#[from] ReadError),
+
+    #[error("Error generating text: {0}")]
+    EmbeddingsError(#[from] llama_cpp_2::EmbeddingsError),
+
+    #[error("Error receiving response: {0}")]
+    RecvError(#[from] oneshot::error::RecvError),
+}
+
 #[derive(Debug)]
 pub enum WorkerMsg {
     ReadString(String, oneshot::Sender<Result<(), ReadError>>),
@@ -478,6 +350,10 @@ pub enum WorkerMsg {
     GenerateResponse(
         String,
         mpsc::Sender<Result<WriteOutput, GenerateResponseError>>,
+    ),
+    GenerateEmbedding(
+        String,
+        oneshot::Sender<Result<Vec<f32>, GenerateEmbeddingError>>,
     ),
 }
 
@@ -513,7 +389,7 @@ fn handle_msg(state: WorkerState, msg: WorkerMsg) -> Result<WorkerState, ()> {
             }
         },
         WorkerMsg::ResetContext => Ok(state.reset_context()),
-        // ReadString then WriteUntil
+        // read then write text until done
         WorkerMsg::GenerateResponse(text, respond_to) => state
             .read_string(text)
             .map_err(|e| {
@@ -527,6 +403,32 @@ fn handle_msg(state: WorkerState, msg: WorkerMsg) -> Result<WorkerState, ()> {
                 let _ = respond_to.blocking_send(Err(e.into()));
                 ()
             }),
+        // read string then retrieve embedding
+        WorkerMsg::GenerateEmbedding(text, respond_to) => {
+            // try reading the string
+            let state = match state.read_string(text) {
+                Ok(new_state) => new_state,
+                Err(e) => {
+                    // error and return early, moving respond_to only once
+                    let _ = respond_to.send(Err(e.into()));
+                    return Err(());
+                }
+            };
+
+            // try getting embeddings
+            match state.ctx.embeddings_seq_ith(0) {
+                Ok(embd) => {
+                    // success!
+                    let _ = respond_to.send(Ok(embd.to_vec()));
+                    Ok(state.reset_context())
+                }
+                Err(e) => {
+                    // :(
+                    let _ = respond_to.send(Err(e.into()));
+                    Err(())
+                }
+            }
+        }
     }
 }
 
@@ -564,6 +466,36 @@ pub enum WriteError {
 }
 
 impl<'a> WorkerState<'a> {
+    fn new(params: &LLMActorParams) -> Result<WorkerState, InitWorkerError> {
+        info!("Initializing WorkerState");
+        // Set up context parameters using available parallelism
+        let ctx = {
+            let n_threads = std::thread::available_parallelism()?.get() as i32;
+            let n_ctx = std::cmp::min(params.n_ctx, params.model.n_ctx_train());
+            let ctx_params = LlamaContextParams::default()
+                .with_n_ctx(std::num::NonZero::new(n_ctx))
+                .with_n_threads(n_threads)
+                .with_n_threads_batch(n_threads)
+                .with_embeddings(params.use_embeddings);
+
+            // Create inference context and sampler
+            params.model.new_context(&LLAMA_BACKEND, ctx_params)?
+        };
+
+        let big_batch = LlamaBatch::new(ctx.n_ctx() as usize, 1);
+        let small_batch = LlamaBatch::new(1, 1);
+
+        let state = WorkerState {
+            n_past: 0,
+            stop_tokens: params.stop_tokens.clone(),
+            sampler: make_sampler(&params.model, params.sampler_config.clone()),
+            ctx,
+            big_batch,
+            small_batch,
+        };
+        Ok(state)
+    }
+
     fn reset_context(mut self) -> Self {
         self.ctx.clear_kv_cache();
         self.n_past = 0;
@@ -697,84 +629,6 @@ mod tests {
                 .unwrap_or("embeddings.gguf".to_string())
                 .as_str()
         }};
-    }
-
-    struct MockEngine {
-        response_tx: mpsc::Sender<String>,
-    }
-
-    impl MockEngine {
-        fn new() -> (Self, mpsc::Receiver<String>) {
-            let (response_tx, response_rx) = mpsc::channel(CHANNEL_SIZE);
-            (Self { response_tx }, response_rx)
-        }
-    }
-
-    impl Engine for MockEngine {
-        fn emit_response(&self, resp: String) {
-            self.response_tx.try_send(resp).expect("send failed!");
-        }
-        fn emit_token(&self, token: String) {
-            debug!("MockEngine: {token}");
-        }
-        fn emit_error(&self, err: String) {
-            error!("MockEngine: {err}")
-        }
-    }
-
-    #[tokio::test(flavor = "current_thread")]
-    async fn test_actor_chat() {
-        tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::TRACE)
-            .init();
-
-        // Setup
-        let model = get_model(test_model_path!(), true).unwrap();
-        let system_prompt =
-            "You are a helpful assistant. The user asks you a question, and you provide an answer."
-                .to_string();
-        let params = LLMActorParams {
-            model,
-            sampler_config: SamplerConfig::default(),
-            n_ctx: 4096,
-            stop_tokens: vec![],
-            use_embeddings: false,
-        };
-
-        let (mock_engine, mut response_rx) = MockEngine::new();
-        let (say_tx, say_rx) = mpsc::channel(CHANNEL_SIZE);
-
-        let local = tokio::task::LocalSet::new();
-        local.spawn_local(simple_chat_loop(
-            params,
-            system_prompt,
-            say_rx,
-            Box::new(mock_engine),
-        ));
-
-        let check_results = async move {
-            let _ = say_tx
-                .send("What is the capital of Denmark?".to_string())
-                .await;
-            let response = response_rx.recv().await.unwrap();
-            assert!(
-                response.contains("Copenhagen"),
-                "Expected completion to contain 'Copenhagen', got: {response}"
-            );
-
-            let _ = say_tx
-                .send("What language do they speak there?".to_string())
-                .await;
-            let response = response_rx.recv().await.unwrap();
-
-            assert!(
-                response.contains("Danish"),
-                "Expected completion to contain 'Danish', got: {response}"
-            );
-        };
-
-        // run stuff
-        local.run_until(check_results).await;
     }
 
     // #[test]

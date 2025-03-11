@@ -2,9 +2,8 @@ mod sampler_resource;
 
 use godot::classes::{INode, ProjectSettings};
 use godot::prelude::*;
-use nobodywho::{llm, sampler_config};
+use nobodywho::{chat, llm, sampler_config};
 use tokio;
-use tracing::{debug, error, info, trace, warn};
 
 use crate::sampler_resource::NobodyWhoSampler;
 
@@ -144,11 +143,11 @@ struct NobodyWhoChat {
     base: Base<Node>,
 }
 
-struct GodotChatAdapter {
+struct ChatAdapter {
     emit_node: Gd<NobodyWhoChat>,
 }
 
-impl llm::Engine for GodotChatAdapter {
+impl chat::ChatOutput for ChatAdapter {
     fn emit_token(&self, tok: String) {
         self.emit_node.signals().response_updated().emit(tok)
     }
@@ -163,8 +162,6 @@ impl llm::Engine for GodotChatAdapter {
 #[godot_api]
 impl INode for NobodyWhoChat {
     fn init(base: Base<Node>) -> Self {
-        info!("Initializing NobodyWhoChat.");
-
         Self {
             // config
             model_node: None,
@@ -202,7 +199,6 @@ impl NobodyWhoChat {
     /// Starts the LLM worker thread. This is required before you can send messages to the LLM.
     /// This fuction is blocking and can be a bit slow, so you may want to be strategic about when you call it.
     fn start_worker(&mut self) {
-        info!("Starting chat worker...");
         let mut result = || -> Result<(), String> {
             let model = self.get_model()?;
             let sampler_config = self.get_sampler_config();
@@ -224,12 +220,17 @@ impl NobodyWhoChat {
             // start the llm worker
             let (say_tx, say_rx) = tokio::sync::mpsc::channel(4096); // TODO: 4096 is super random
             self.say_tx = Some(say_tx);
-            let adapter = GodotChatAdapter {
+            let adapter = ChatAdapter {
                 emit_node: self.to_gd(),
             };
             let system_prompt = self.system_prompt.to_string();
             godot::task::spawn(async {
-                llm::simple_chat_loop(params, system_prompt, say_rx, Box::new(adapter)).await;
+                chat::simple_chat_loop(params, system_prompt, say_rx, Box::new(adapter))
+                    .await
+                    .unwrap_or_else(|e| {
+                        godot_error!("{e:?}");
+                        ()
+                    })
             });
 
             Ok(())
@@ -261,7 +262,6 @@ impl NobodyWhoChat {
     /// Sends a message to the LLM.
     /// This will start the inference process. meaning you can also listen on the `response_updated` and `response_finished` signals to get the response.
     fn say(&mut self, message: String) {
-        info!("say(\"{message}\")");
         self.send_message(message);
     }
 
@@ -337,25 +337,16 @@ impl INode for NobodyWhoEmbedding {
     }
 }
 
-struct EmbeddingsAdapter {
+struct EmbeddingAdapter {
     emit_node: Gd<NobodyWhoEmbedding>,
 }
 
-impl llm::EmbedEngine for EmbeddingsAdapter {
+impl chat::EmbeddingOutput for EmbeddingAdapter {
     fn emit_embedding(&self, embd: Vec<f32>) {
-        trace!("EMITTING: {embd:?}");
         self.emit_node
             .signals()
             .embedding_finished()
             .emit(embd.into());
-    }
-}
-
-struct MockEmbeddingsAdapter {}
-
-impl llm::EmbedEngine for MockEmbeddingsAdapter {
-    fn emit_embedding(&self, embd: Vec<f32>) {
-        debug!("GOT EMBED: {embd:?}");
     }
 }
 
@@ -376,7 +367,6 @@ impl NobodyWhoEmbedding {
     #[func]
     /// Starts the embedding worker thread. This is called automatically when you call `embed`, if it wasn't already called.
     fn start_worker(&mut self) {
-        info!("Starting embedding worker...");
         let mut result = || -> Result<(), String> {
             let model = self.get_model()?;
 
@@ -395,14 +385,16 @@ impl NobodyWhoEmbedding {
             let (embed_tx, embed_rx) = tokio::sync::mpsc::channel(4096); // TODO: this number is super random
             self.embed_tx = Some(embed_tx.clone());
 
-            let adapter = EmbeddingsAdapter {
+            let adapter = EmbeddingAdapter {
                 emit_node: self.to_gd(),
             };
-            // let adapter = MockEmbeddingsAdapter {};
             godot::task::spawn(async {
-                llm::simple_embedding_loop(params, embed_rx, Box::new(adapter))
+                chat::simple_embedding_loop(params, embed_rx, Box::new(adapter))
                     .await
-                    .expect("TODO: handle error");
+                    .unwrap_or_else(|e| {
+                        godot_error!("{e:?}");
+                        ()
+                    });
             });
 
             Ok(())
@@ -418,7 +410,6 @@ impl NobodyWhoEmbedding {
     /// Generates the embedding of a text string. This will return a signal that you can use to wait for the embedding.
     /// The signal will return a PackedFloat32Array.
     fn embed(&mut self, text: String) -> Signal {
-        info!("Embedding: \"{text}\"");
         // returns signal, so that you can `var vec = await embed("Hello, world!")
         //
         //

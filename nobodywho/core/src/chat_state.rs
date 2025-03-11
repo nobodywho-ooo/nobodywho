@@ -66,6 +66,18 @@ fn concat_system_and_first_user_messages(
     Ok(new_messages)
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum FromModelError {
+    #[error("Lama.cpp failed fetching chat template from the model file. This is likely because you're using an older GGUF file, which might not include a chat template. For example, this is the case for most LLaMA2-based GGUF files. Try using a more recent GGUF model file. If you want to check if a given model includes a chat template, you can use the gguf-dump script from llama.cpp. Here is a more technical detailed error: {0}")]
+    ChatTemplateError(#[from] llama_cpp_2::ChatTemplateError),
+
+    #[error("Could not parse chat template as UTF8: {0}")]
+    TemplateUtf8Error(#[from] std::str::Utf8Error),
+
+    #[error("Could not detokenize string: {0}")]
+    Detokenize(#[from] llama_cpp_2::TokenToStringError),
+}
+
 impl ChatState {
     pub fn new(chat_template: String, bos_token: String, eos_token: String) -> Self {
         Self {
@@ -75,6 +87,14 @@ impl ChatState {
             eos_token,
             bos_token,
         }
+    }
+
+    pub fn from_model(model: &llama_cpp_2::model::LlamaModel) -> Result<Self, FromModelError> {
+        let template = model.get_chat_template()?.to_string()?;
+        let tokenize = llama_cpp_2::model::Special::Tokenize;
+        let bos = model.token_to_str(model.token_bos(), tokenize)?;
+        let eos = model.token_to_str(model.token_eos(), tokenize)?;
+        Ok(Self::new(template, bos, eos))
     }
 
     pub fn add_message(&mut self, role: String, content: String) {
