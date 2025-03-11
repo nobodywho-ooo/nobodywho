@@ -113,6 +113,7 @@ fn apply_context_shifting(
     ctx: &mut LlamaContext,
     n_past: i32,
 ) -> Result<i32, llama_cpp_2::context::kv_cache::KvCacheConversionError> {
+    info!("Applying context shifting.");
     let n_keep = 0;
     let n_left = n_past - n_keep;
     let n_discard = n_left / 2;
@@ -502,9 +503,9 @@ impl<'a> WorkerState<'a> {
         self
     }
     fn read_string(mut self, text: String) -> Result<Self, ReadError> {
-        info!("Worker reading string");
         let tokens = self.ctx.model.str_to_token(&text, AddBos::Never)?;
         let n_tokens = tokens.len();
+        info!("Reading {n_tokens} tokens.");
 
         debug_assert!(tokens.len() > 0);
         debug_assert!(tokens.len() < self.ctx.n_ctx() as usize);
@@ -515,6 +516,7 @@ impl<'a> WorkerState<'a> {
             for (i, token) in (0..).zip(tokens.iter()) {
                 // Only compute logits for the last token to save computation
                 let output_logits = i == n_tokens - 1;
+                trace!("logits: {output_logits:?}");
                 self.big_batch
                     .add(*token, self.n_past + i as i32, seq_ids, output_logits)?;
             }
@@ -554,7 +556,9 @@ impl<'a> WorkerState<'a> {
             // Sample next token, no need to use sampler.accept as sample already accepts the token.
             // using sampler.accept() will cause the sampler to crash when using grammar sampling.
             // https://github.com/utilityai/llama-cpp-rs/issues/604
+            trace!("Applying sampler...");
             let new_token: LlamaToken = self.sampler.sample(&self.ctx, -1);
+            trace!("Sampled new token: {new_token:?}");
 
             // batch of one
             self.small_batch.clear();
@@ -614,6 +618,7 @@ pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio_stream::StreamExt;
 
     macro_rules! test_model_path {
         () => {
@@ -631,114 +636,144 @@ mod tests {
         }};
     }
 
-    // #[test]
-    // fn test_embeddings() {
-    //     let model = get_model(test_embeddings_model_path!(), true).unwrap();
+    async fn response_from_stream(
+        stream: tokio_stream::wrappers::ReceiverStream<Result<WriteOutput, GenerateResponseError>>,
+    ) -> Option<String> {
+        stream
+            .filter_map(|out| match out {
+                Ok(WriteOutput::Done(resp)) => Some(resp),
+                _ => None,
+            })
+            .next()
+            .await
+    }
 
-    //     let params = LLMActorParams {
-    //         model,
-    //         sampler_config: SamplerConfig::default(),
-    //         n_ctx: 4096,
-    //         stop_tokens: vec![],
-    //         use_embeddings: true,
-    //     };
+    #[tokio::test]
+    async fn test_simple_gen() {
+        tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::TRACE)
+            .init();
+        let model = get_model(test_model_path!(), true).unwrap();
 
-    //     let mut actor = LLMActorHandle::new(params);
+        let params = LLMActorParams {
+            model,
+            sampler_config: SamplerConfig::default(),
+            n_ctx: 4096,
+            stop_tokens: vec!["10".to_string()],
+            use_embeddings: false,
+        };
 
-    //     actor
-    //         .embed("Copenhagen is the capital of Denmark.".to_string())
-    //         .unwrap();
-    //     let copenhagen_embedding = match actor.recv() {
-    //         Ok(LLMOutput::Embedding(vec)) => vec,
-    //         _ => panic!(),
-    //     };
+        let actor = LLMActorHandle::new(params)
+            .await
+            .expect("Failed creating actor");
 
-    //     actor
-    //         .embed("Berlin is the capital of Germany.".to_string())
-    //         .unwrap();
-    //     let berlin_embedding = match actor.recv() {
-    //         Ok(LLMOutput::Embedding(vec)) => vec,
-    //         _ => panic!(),
-    //     };
+        let stream = actor
+            .generate_response("I'm gonna count to 10: 1, 2, 3, ".to_string())
+            .await;
 
-    //     actor
-    //         .embed("Your mother was a hamster and your father smelt of elderberries!".to_string())
-    //         .unwrap();
-    //     let insult_embedding = match actor.recv() {
-    //         Ok(LLMOutput::Embedding(vec)) => vec,
-    //         _ => panic!(),
-    //     };
+        let response: String = response_from_stream(stream).await.unwrap();
+        assert!(response.contains("4, 5, 6, 7, 8, 9, 10"));
+    }
 
-    //     assert!(
-    //         insult_embedding.len() == berlin_embedding.len()
-    //             && berlin_embedding.len() == copenhagen_embedding.len()
-    //             && copenhagen_embedding.len() == insult_embedding.len(),
-    //         "not all embedding lengths were equal"
-    //     );
+    #[tokio::test]
+    async fn test_embeddings() {
+        let model = get_model(test_embeddings_model_path!(), true).unwrap();
 
-    //     // cosine similarity should not care about order
-    //     assert_eq!(
-    //         cosine_similarity(&copenhagen_embedding, &berlin_embedding),
-    //         cosine_similarity(&berlin_embedding, &copenhagen_embedding)
-    //     );
+        let params = LLMActorParams {
+            model,
+            sampler_config: SamplerConfig::default(),
+            n_ctx: 4096,
+            stop_tokens: vec![],
+            use_embeddings: true,
+        };
 
-    //     // any vector should have cosine similarity 1 to itself
-    //     // (tolerate small float error)
-    //     assert!(
-    //         (cosine_similarity(&copenhagen_embedding, &copenhagen_embedding) - 1.0).abs() < 0.001,
-    //     );
+        let actor = LLMActorHandle::new(params)
+            .await
+            .expect("Failed creating actor");
 
-    //     // the insult should have a lower similarity than the two geography sentences
-    //     assert!(
-    //         cosine_similarity(&copenhagen_embedding, &insult_embedding)
-    //             < cosine_similarity(&copenhagen_embedding, &berlin_embedding)
-    //     );
-    // }
+        let copenhagen_embedding = actor
+            .generate_embedding("Copenhagen is the capital of Denmark.".to_string())
+            .await
+            .unwrap();
 
-    // #[test]
-    // fn test_multiple_contexts_single_model() {
-    //     let model = get_model(test_model_path!(), true).unwrap();
+        let berlin_embedding = actor
+            .generate_embedding("Berlin is the capital of Germany.".to_string())
+            .await
+            .unwrap();
 
-    //     let system_prompt =
-    //         "You are a helpful assistant. The user asks you a question, and you provide an answer."
-    //             .to_string();
+        let insult_embedding = actor
+            .generate_embedding(
+                "Your mother was a hamster and your father smelt of elderberries!".to_string(),
+            )
+            .await
+            .unwrap();
 
-    //     let params = LLMActorParams {
-    //         model,
-    //         sampler_config: SamplerConfig::default(),
-    //         n_ctx: 4096,
-    //         stop_tokens: vec![],
-    //         use_embeddings: false,
-    //     };
-    //     let mut dk_chat = LLMChat::new(params.clone())
-    //         .unwrap()
-    //         .with_system_message(system_prompt.clone());
-    //     let mut de_chat = LLMChat::new(params)
-    //         .unwrap()
-    //         .with_system_message(system_prompt);
+        assert!(
+            insult_embedding.len() == berlin_embedding.len()
+                && berlin_embedding.len() == copenhagen_embedding.len()
+                && copenhagen_embedding.len() == insult_embedding.len(),
+            "not all embedding lengths were equal"
+        );
 
-    //     dk_chat
-    //         .say("What is the capital of Denmark?".to_string())
-    //         .unwrap();
+        // cosine similarity should not care about order
+        assert_eq!(
+            cosine_similarity(&copenhagen_embedding, &berlin_embedding),
+            cosine_similarity(&berlin_embedding, &copenhagen_embedding)
+        );
 
-    //     de_chat
-    //         .say("What is the capital of Germany?".to_string())
-    //         .unwrap();
+        // any vector should have cosine similarity 1 to itself
+        // (tolerate small float error)
+        assert!(
+            (cosine_similarity(&copenhagen_embedding, &copenhagen_embedding) - 1.0).abs() < 0.001,
+        );
 
-    //     // read dk output
-    //     let result = dk_chat.get_response_blocking().unwrap();
-    //     assert!(
-    //         result.to_lowercase().contains("copenhagen"),
-    //         "Expected completion to contain 'Copenhagen', got: {result}"
-    //     );
+        // the insult should have a lower similarity than the two geography sentences
+        assert!(
+            cosine_similarity(&copenhagen_embedding, &insult_embedding)
+                < cosine_similarity(&copenhagen_embedding, &berlin_embedding)
+        );
+    }
 
-    //     // read cat output
-    //     let result = de_chat.get_response_blocking().unwrap();
-    //     assert!(
-    //         result.to_lowercase().contains("berlin"),
-    //         "Expected completion to contain 'Berlin', got: {result}"
-    //     );
-    // }
+    #[tokio::test]
+    async fn test_multiple_contexts_single_model() {
+        let model = get_model(test_model_path!(), true).unwrap();
+
+        let params = LLMActorParams {
+            model,
+            sampler_config: SamplerConfig::default(),
+            n_ctx: 4096,
+            stop_tokens: vec!["Copenhagen".to_string(), "Berlin".to_string()],
+            use_embeddings: false,
+        };
+        let dk_actor = LLMActorHandle::new(params.clone()).await.unwrap();
+        let de_actor = LLMActorHandle::new(params).await.unwrap();
+
+        let dk_fut = response_from_stream(
+            dk_actor
+                .generate_response("The name of the capital city of Denmark is \"".to_string())
+                .await,
+        );
+
+        let de_fut = response_from_stream(
+            de_actor
+                .generate_response("The capital of Germany is called ".to_string())
+                .await,
+        );
+
+        let (dk_resp, de_resp) = tokio::join!(dk_fut, de_fut);
+
+        let dk_resp = dk_resp.unwrap();
+        let de_resp = de_resp.unwrap();
+
+        assert!(
+            dk_resp.to_lowercase().contains("copenhagen"),
+            "Expected completion to contain 'Copenhagen', got: {dk_resp}"
+        );
+        assert!(
+            de_resp.to_lowercase().contains("berlin"),
+            "Expected completion to contain 'Berlin', got: {de_resp}"
+        );
+    }
 
     // #[test]
     // fn test_context_shifting() {
