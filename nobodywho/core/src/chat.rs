@@ -160,6 +160,8 @@ mod tests {
     async fn test_actor_chat() {
         tracing_subscriber::fmt()
             .with_max_level(tracing::Level::TRACE)
+            .with_timer(tracing_subscriber::fmt::time::uptime())
+            .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE) // Shows timing on span close
             .init();
 
         // Setup

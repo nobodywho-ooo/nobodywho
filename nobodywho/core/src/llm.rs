@@ -13,7 +13,7 @@ use std::pin::pin;
 use std::sync::{Arc, LazyLock, Mutex};
 use tokio;
 use tokio::sync::{mpsc, oneshot};
-use tracing::{debug, error, info, trace};
+use tracing::{debug, debug_span, error, info, trace};
 
 const MAX_TOKEN_STR_LEN: usize = 128;
 
@@ -66,7 +66,9 @@ pub fn get_model(
     use_gpu_if_available: bool,
 ) -> Result<Arc<LlamaModel>, LoadModelError> {
     if !std::path::Path::new(model_path).exists() {
-        return Err(LoadModelError::ModelNotFound(model_path.into()));
+        let e = LoadModelError::ModelNotFound(model_path.into());
+        error!("{e:?}");
+        return Err(e);
     }
 
     // TODO: `LlamaModelParams` uses all devices by default. Set it to an empty list once an upstream device API is available.
@@ -497,11 +499,14 @@ impl<'a> WorkerState<'a> {
         Ok(state)
     }
 
+    #[tracing::instrument(level = "info", skip(self))]
     fn reset_context(mut self) -> Self {
         self.ctx.clear_kv_cache();
         self.n_past = 0;
         self
     }
+
+    #[tracing::instrument(level = "info", skip(self))]
     fn read_string(mut self, text: String) -> Result<Self, ReadError> {
         let tokens = self.ctx.model.str_to_token(&text, AddBos::Never)?;
         let n_tokens = tokens.len();
@@ -516,13 +521,17 @@ impl<'a> WorkerState<'a> {
             for (i, token) in (0..).zip(tokens.iter()) {
                 // Only compute logits for the last token to save computation
                 let output_logits = i == n_tokens - 1;
-                trace!("logits: {output_logits:?}");
                 self.big_batch
                     .add(*token, self.n_past + i as i32, seq_ids, output_logits)?;
             }
         }
 
+        // llm go brr
+        let decode_span = debug_span!("read decode", n_tokens = n_tokens);
+        let decode_guard = decode_span.enter();
         self.ctx.decode(&mut self.big_batch)?;
+        drop(decode_guard);
+        // brrr
 
         Ok(WorkerState {
             n_past: self.n_past + tokens.len() as i32,
@@ -530,6 +539,7 @@ impl<'a> WorkerState<'a> {
         })
     }
 
+    #[tracing::instrument(level = "info", skip(self, respond))]
     fn write_until_done<F>(
         mut self,
         respond: F, // respond_to: Sender<Result<WriteOutput, WriteError>>,
@@ -558,18 +568,20 @@ impl<'a> WorkerState<'a> {
             // https://github.com/utilityai/llama-cpp-rs/issues/604
             trace!("Applying sampler...");
             let new_token: LlamaToken = self.sampler.sample(&self.ctx, -1);
-            trace!("Sampled new token: {new_token:?}");
 
             // batch of one
             self.small_batch.clear();
             self.small_batch.add(new_token, self.n_past, &[0], true)?;
 
             // llm go brr
+            let decode_span = debug_span!("write decode", n_past = self.n_past);
+            let decode_guard = decode_span.enter();
             self.ctx.decode(&mut self.small_batch)?;
+            drop(decode_guard);
             self.n_past += 1; // keep count
 
             // Convert token to text
-            let output_string = self
+            let token_string = self
                 .ctx
                 .model
                 .token_to_str_with_size(new_token, MAX_TOKEN_STR_LEN, Special::Tokenize)
@@ -578,6 +590,7 @@ impl<'a> WorkerState<'a> {
             // when encountering bytes that aren't valid UTF-8
             // wikipedia: "used to replace an unknown, unrecognised, or unrepresentable character"
 
+            trace!(?new_token, ?token_string);
             let has_stop_tokens = self
                 .stop_tokens
                 .iter()
@@ -585,9 +598,9 @@ impl<'a> WorkerState<'a> {
             let has_eog = self.ctx.model.is_eog_token(new_token);
 
             if !has_eog {
-                full_response.push_str(&output_string);
-                trace!("Sending out token: {output_string}");
-                respond(WriteOutput::Token(output_string));
+                full_response.push_str(&token_string);
+                trace!("Sending out token: {token_string}");
+                respond(WriteOutput::Token(token_string));
             }
             if has_eog || has_stop_tokens {
                 break;
@@ -650,9 +663,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_simple_gen() {
-        tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::TRACE)
-            .init();
         let model = get_model(test_model_path!(), true).unwrap();
 
         let params = LLMActorParams {
