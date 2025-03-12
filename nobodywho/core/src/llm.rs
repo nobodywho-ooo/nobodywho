@@ -13,7 +13,7 @@ use std::pin::pin;
 use std::sync::{Arc, LazyLock, Mutex};
 use tokio;
 use tokio::sync::{mpsc, oneshot};
-use tracing::{debug, debug_span, error, info, trace};
+use tracing::{debug, debug_span, error, info, trace, trace_span, warn};
 
 const MAX_TOKEN_STR_LEN: usize = 128;
 
@@ -115,7 +115,7 @@ fn apply_context_shifting(
     ctx: &mut LlamaContext,
     n_past: i32,
 ) -> Result<i32, llama_cpp_2::context::kv_cache::KvCacheConversionError> {
-    info!("Applying context shifting.");
+    warn!("Applying context shifting.");
     let n_keep = 0;
     let n_left = n_past - n_keep;
     let n_discard = n_left / 2;
@@ -574,7 +574,7 @@ impl<'a> WorkerState<'a> {
             self.small_batch.add(new_token, self.n_past, &[0], true)?;
 
             // llm go brr
-            let decode_span = debug_span!("write decode", n_past = self.n_past);
+            let decode_span = trace_span!("write decode", n_past = self.n_past);
             let decode_guard = decode_span.enter();
             self.ctx.decode(&mut self.small_batch)?;
             drop(decode_guard);
@@ -785,32 +785,29 @@ mod tests {
         );
     }
 
-    // #[test]
-    // fn test_context_shifting() {
-    //     let model = get_model(test_model_path!(), true).unwrap();
+    #[tokio::test]
+    async fn test_context_shifting() {
+        let model = get_model(test_model_path!(), true).unwrap();
 
-    //     let system_prompt = "You are a helpful assistant.".to_string();
-    //     let params = LLMActorParams {
-    //         model,
-    //         sampler_config: SamplerConfig::default(),
-    //         n_ctx: 100, // very low context size. will be exceeded immediately
-    //         stop_tokens: vec![],
-    //         use_embeddings: false,
-    //     };
-    //     let mut chat = LLMChat::new(params.clone())
-    //         .unwrap()
-    //         .with_system_message(system_prompt.clone());
+        let params = LLMActorParams {
+            model,
+            sampler_config: SamplerConfig::default(),
+            n_ctx: 20,
+            stop_tokens: vec!["0".to_string()],
+            use_embeddings: false,
+        };
+        let actor = LLMActorHandle::new(params.clone()).await.unwrap();
 
-    //     chat
-    //         .say("Please count down from 10 to 0, like this: Current 10, target 0. Current 9, target 0...".to_string())
-    //         .unwrap();
+        let stream = actor
+            .generate_response("I'm gonna count down from 10 to 0: 10, 9, 8".to_string())
+            .await;
 
-    //     let result = chat.get_response_blocking().unwrap();
-    //     assert!(
-    //         result.contains("Current 1, target 0"),
-    //         "Expected completion to contain 'Current 0, target 0', got: {result}"
-    //     );
-    // }
+        let response = response_from_stream(stream).await.unwrap();
+        assert!(
+            response.contains("5, 4, 3, 2, 1, 0"),
+            "Expected completion to contain 'Current 0, target 0', got: {response}"
+        );
+    }
 
     // #[test]
     // fn test_stop_tokens() {

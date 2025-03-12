@@ -1,4 +1,4 @@
-{ nobodywho, stdenv, fetchurl, godot_4, godot_4-export-templates }:
+{ nobodywho, stdenv, fetchurl, godot_4, godot_4-export-templates, fontconfig }:
 let
   model = fetchurl {
     name = "qwen2.5-1.5b-instruct-q4_0.gguf";
@@ -14,6 +14,7 @@ in
 stdenv.mkDerivation {
   name = "nobodywho example game";
   src = ./.;
+  buildInputs = [ fontconfig ];
   buildPhase = ''
     # setup stuff godot needs: export templates
     export HOME=$TMPDIR
