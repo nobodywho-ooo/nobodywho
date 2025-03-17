@@ -2,7 +2,7 @@ using UnityEngine;
 using System.Collections;
 using UnityEngine.Events;
 using System;
-
+using System.Text;
 namespace NobodyWho {
 
     public class Chat : MonoBehaviour {
