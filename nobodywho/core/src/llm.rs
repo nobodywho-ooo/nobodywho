@@ -141,6 +141,8 @@ fn apply_context_shifting(
 
     ctx.kv_cache_update();
 
+    debug!(target: "Context shifted", ?n_discard);
+
     Ok(n_discard)
 }
 
@@ -792,19 +794,19 @@ mod tests {
         let params = LLMActorParams {
             model,
             sampler_config: SamplerConfig::default(),
-            n_ctx: 20,
-            stop_tokens: vec!["0".to_string()],
+            n_ctx: 64,
+            stop_tokens: vec!["20".to_string()],
             use_embeddings: false,
         };
         let actor = LLMActorHandle::new(params.clone()).await.unwrap();
 
         let stream = actor
-            .generate_response("I'm gonna count down from 10 to 0: 10, 9, 8".to_string())
+            .generate_response("I'm going to count to 20: 1, 2, 3, 4, 5, 6, 7".to_string())
             .await;
 
         let response = response_from_stream(stream).await.unwrap();
         assert!(
-            response.contains("5, 4, 3, 2, 1, 0"),
+            response.contains("15, 16, 17, 18, 19, 20."),
             "Expected completion to contain 'Current 0, target 0', got: {response}"
         );
     }
