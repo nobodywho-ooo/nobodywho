@@ -18,7 +18,7 @@ stdenv.mkDerivation {
     # setup stuff godot needs: export templates
     export HOME=$TMPDIR
     mkdir -p $HOME/.local/share/godot/export_templates
-    ln -s ${godot_4-export-templates} $HOME/.local/share/godot/export_templates/4.3.stable
+    ln -s ${godot_4-export-templates} $HOME/.local/share/godot/export_templates/4.4.stable
 
     # copy in gdextension stuff
     rm ./nobodywho.gdextension

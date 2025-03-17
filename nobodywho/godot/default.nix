@@ -16,21 +16,21 @@ rustPlatform.buildRustPackage {
     vulkan-loader
     shaderc
     vulkan-tools
-    mesa.drivers
+    mesa
   ];
   buildInputs = [
     vulkan-loader
     vulkan-headers
     shaderc
     vulkan-tools
-    mesa.drivers
+    mesa
   ];
   cargoLock = {
     lockFile = ../Cargo.lock;
     outputHashes = {
-      "gdextension-api-0.2.1" = "sha256-YkMbzObJGnmQa1XGT4ApRrfqAeOz7CktJrhYks8z0RY=";
-      "godot-0.2.4" = "sha256-mQcI5PO1rTYeKg+2FH7tSbq6+nk3R5kqHGZ+f797e34=";
-      "llama-cpp-2-0.1.103" = "sha256-rYaU4LzxzCfKtlzXZorwGEo9gPSNDYB4UwJybWv0Aco=";
+      "gdextension-api-0.2.2" = "sha256-gaxM73OzriSDm6tLRuMTOZxCLky9oS1nq6zTsm0g4tA=";
+      "godot-0.2.4" = "sha256-bTLqnwYZJBBAIoEPVAOVIo2SM3oIC537fjRHAG5w5fE=";
+      "llama-cpp-2-0.1.103" = "sha256-T8qxxAC0ygF655EzODIpDjIKS0vRMe68e5rJcP1+PDo=";
     };
   };
   env.TEST_MODEL = fetchurl {
