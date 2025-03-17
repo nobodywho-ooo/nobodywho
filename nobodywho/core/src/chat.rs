@@ -121,16 +121,8 @@ pub async fn simple_embedding_loop(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::llm::get_model;
     use crate::sampler_config::SamplerConfig;
-
-    macro_rules! test_model_path {
-        () => {
-            std::env::var("TEST_MODEL")
-                .unwrap_or("model.gguf".to_string())
-                .as_str()
-        };
-    }
+    use crate::test_utils;
 
     struct MockOutput {
         response_tx: mpsc::Sender<String>,
@@ -158,14 +150,10 @@ mod tests {
 
     #[tokio::test(flavor = "current_thread")]
     async fn test_actor_chat() {
-        tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::TRACE)
-            .with_timer(tracing_subscriber::fmt::time::uptime())
-            .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE) // Shows timing on span close
-            .init();
+        test_utils::init_test_tracing();
 
         // Setup
-        let model = get_model(test_model_path!(), true).unwrap();
+        let model = test_utils::load_test_model();
         let system_prompt =
             "You are a helpful assistant. The user asks you a question, and you provide an answer."
                 .to_string();

@@ -593,10 +593,6 @@ impl<'a> WorkerState<'a> {
             // wikipedia: "used to replace an unknown, unrecognised, or unrepresentable character"
 
             trace!(?new_token, ?token_string);
-            let has_stop_tokens = self
-                .stop_tokens
-                .iter()
-                .any(|stop_token| full_response.contains(stop_token));
             let has_eog = self.ctx.model.is_eog_token(new_token);
 
             if !has_eog {
@@ -604,6 +600,11 @@ impl<'a> WorkerState<'a> {
                 trace!("Sending out token: {token_string}");
                 respond(WriteOutput::Token(token_string));
             }
+
+            let has_stop_tokens = self
+                .stop_tokens
+                .iter()
+                .any(|stop_token| full_response.contains(stop_token));
             if has_eog || has_stop_tokens {
                 break;
             }
@@ -633,23 +634,8 @@ pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils;
     use tokio_stream::StreamExt;
-
-    macro_rules! test_model_path {
-        () => {
-            std::env::var("TEST_MODEL")
-                .unwrap_or("model.gguf".to_string())
-                .as_str()
-        };
-    }
-
-    macro_rules! test_embeddings_model_path {
-        () => {{
-            std::env::var("TEST_EMBEDDINGS_MODEL")
-                .unwrap_or("embeddings.gguf".to_string())
-                .as_str()
-        }};
-    }
 
     async fn response_from_stream(
         stream: tokio_stream::wrappers::ReceiverStream<Result<WriteOutput, GenerateResponseError>>,
@@ -665,7 +651,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_simple_gen() {
-        let model = get_model(test_model_path!(), true).unwrap();
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
 
         let params = LLMActorParams {
             model,
@@ -689,7 +676,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_embeddings() {
-        let model = get_model(test_embeddings_model_path!(), true).unwrap();
+        test_utils::init_test_tracing();
+        let model = test_utils::load_embeddings_model();
 
         let params = LLMActorParams {
             model,
@@ -748,7 +736,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_multiple_contexts_single_model() {
-        let model = get_model(test_model_path!(), true).unwrap();
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
 
         let params = LLMActorParams {
             model,
@@ -789,7 +778,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_context_shifting() {
-        let model = get_model(test_model_path!(), true).unwrap();
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
 
         let params = LLMActorParams {
             model,
@@ -806,44 +796,42 @@ mod tests {
 
         let response = response_from_stream(stream).await.unwrap();
         assert!(
-            response.contains("15, 16, 17, 18, 19, 20."),
-            "Expected completion to contain 'Current 0, target 0', got: {response}"
+            response.contains("15, 16, 17, 18, 19, 20"),
+            "Expected completion to count to 20, got: {response}"
         );
     }
 
-    // #[test]
-    // fn test_stop_tokens() {
-    //     let model = get_model(test_model_path!(), true).unwrap();
+    #[tokio::test]
+    async fn test_stop_tokens() {
+        crate::test_utils::init_test_tracing();
 
-    //     let system_prompt = "You are a helpful assistant.".to_string();
-    //     let params = LLMActorParams {
-    //         model,
-    //         sampler_config: SamplerConfig::default(),
-    //         n_ctx: 4096,
-    //         stop_tokens: vec!["horse".to_string()],
-    //         use_embeddings: false,
-    //     };
-    //     let mut chat = LLMChat::new(params.clone())
-    //         .unwrap()
-    //         .with_system_message(system_prompt);
-    //     chat.say("List these animals in alphabetical order: cat, dog, giraffe, horse, lion, mouse. Keep them in lowercase.".to_string()).unwrap();
-    //     let result = chat.get_response_blocking().unwrap();
+        let model = test_utils::load_test_model();
 
-    //     assert!(
-    //         result.to_lowercase().contains("giraffe"),
-    //         "Expected output to contain text before stop token. Got: {result}"
-    //     );
-    //     assert!(
-    //         result.to_lowercase().contains("horse"),
-    //         "Expected output to contain stop token. Got: {result}"
-    //     );
-    //     assert!(
-    //         !result.to_lowercase().contains("lion"),
-    //         "Expected output to stop at stop token, but continued. Got: {result}"
-    //     );
-    //     assert!(
-    //         !result.to_lowercase().contains("mouse"),
-    //         "Expected output to stop at stop token, but continued. Got: {result}"
-    //     );
-    // }
+        let params = LLMActorParams {
+            model,
+            sampler_config: SamplerConfig::default(),
+            n_ctx: 1024,
+            stop_tokens: vec!["7".to_string()],
+            use_embeddings: false,
+        };
+        let actor = LLMActorHandle::new(params.clone()).await.unwrap();
+        let stream = actor
+            .generate_response("I'm going to count to 10: 1, 2, 3, 4,".to_string())
+            .await;
+
+        let response = response_from_stream(stream).await.unwrap();
+
+        assert!(
+            response.to_lowercase().contains("5, 6, "),
+            "Expected output to contain text before stop token. Got: {response}"
+        );
+        assert!(
+            response.to_lowercase().ends_with("7"),
+            "Expected output to stop at stop token, but continued. Got: {response}"
+        );
+        assert!(
+            !response.to_lowercase().contains("8"),
+            "Expected output to stop at stop token, but continued. Got: {response}"
+        );
+    }
 }
