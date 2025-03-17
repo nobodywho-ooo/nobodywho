@@ -18,7 +18,7 @@ namespace Tests
         {
             testObject = new GameObject("TestModel");
             model = testObject.AddComponent<NobodyWho.Model>();
-            Directory.CreateDirectory(Application.streamingAssetsPath);
+            
         }
 
         [TearDown]
