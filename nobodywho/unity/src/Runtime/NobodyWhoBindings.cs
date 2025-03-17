@@ -34,7 +34,8 @@ namespace NobodyWho
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
         public static extern void send_prompt(
             IntPtr context,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string prompt);
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string prompt,
+            [MarshalAs(UnmanagedType.LPStr)] StringBuilder error_buf);
 
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
         public static extern void destroy_chat_worker(IntPtr context);
