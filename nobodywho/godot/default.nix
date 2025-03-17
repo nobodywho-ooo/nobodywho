@@ -29,8 +29,8 @@ rustPlatform.buildRustPackage {
     lockFile = ../Cargo.lock;
     outputHashes = {
       "gdextension-api-0.2.2" = "sha256-gaxM73OzriSDm6tLRuMTOZxCLky9oS1nq6zTsm0g4tA=";
-      "godot-0.2.4" = "sha256-+MCl2nmaFR/AOgyvdts3j2r+5+1ylAoU4UYXIqTH1Sk=";
-      "llama-cpp-2-0.1.103" = "sha256-rYaU4LzxzCfKtlzXZorwGEo9gPSNDYB4UwJybWv0Aco=";
+      "godot-0.2.4" = "sha256-bTLqnwYZJBBAIoEPVAOVIo2SM3oIC537fjRHAG5w5fE=";
+      "llama-cpp-2-0.1.103" = "sha256-T8qxxAC0ygF655EzODIpDjIKS0vRMe68e5rJcP1+PDo=";
     };
   };
   env.TEST_MODEL = fetchurl {
