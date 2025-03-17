@@ -16,6 +16,7 @@ let
       shaderc
       vulkan-tools
       mesa
+      pkgs.git
     ];
     buildInputs = [
       nobodywho
