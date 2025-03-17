@@ -14,6 +14,7 @@ let
       shaderc
       vulkan-tools
       mesa.drivers
+      pkgs.git
     ];
     buildInputs = [
       vulkan-loader
