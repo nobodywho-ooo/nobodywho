@@ -15,5 +15,28 @@ namespace NobodyWho
             [MarshalAs(UnmanagedType.LPUTF8Str)] string model_path,
             bool use_gpu,
             [MarshalAs(UnmanagedType.LPStr)] StringBuilder error_buf);
+
+        [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr create_chat_worker(
+            IntPtr model,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string system_prompt);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        public delegate void ResponseCallback([MarshalAs(UnmanagedType.LPUTF8Str)] string text);
+
+        [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void poll_responses(
+            IntPtr context,
+            ResponseCallback on_token,
+            ResponseCallback on_complete,
+            ResponseCallback on_error);
+
+        [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void send_prompt(
+            IntPtr context,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string prompt);
+
+        [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void destroy_chat_worker(IntPtr context);
     }
 } 
