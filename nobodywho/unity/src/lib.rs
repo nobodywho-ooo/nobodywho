@@ -7,11 +7,6 @@ use nobodywho::core::llm;
 use nobodywho::core::sampler_config::SamplerConfig;
 use nobodywho::llm::LLMOutput;
 
-struct ChatContext {
-    prompt_tx: mpsc::Sender<String>,
-    completion_rx: mpsc::Receiver<LLMOutput>,
-}
-
 fn copy_to_error_buf(error_buf: *mut c_char, message: &str) {
     unsafe {
         std::ptr::copy_nonoverlapping(
@@ -49,6 +44,12 @@ pub extern "C" fn get_model(path: *const c_char, use_gpu: bool, error_buf: *mut 
     }
 }
 
+
+struct ChatContext {
+    prompt_tx: mpsc::Sender<String>,
+    completion_rx: mpsc::Receiver<LLMOutput>,
+}
+
 #[no_mangle]
 pub extern "C" fn create_chat_worker(
     model_ptr: *mut c_void,
@@ -58,7 +59,6 @@ pub extern "C" fn create_chat_worker(
         *Box::from_raw(model_ptr as *mut llm::Model)
     };
 
-    // Convert system_prompt from C string
     let system_prompt = unsafe {
         CStr::from_ptr(system_prompt)
             .to_string_lossy()
@@ -86,6 +86,9 @@ pub extern "C" fn create_chat_worker(
     })) as *mut c_void
 }
 
+/// Polls for upadtes to the queue of responses from the LLM
+/// if any updates are available, it will call the appropriate callback
+/// with the updated response or error message
 #[no_mangle]
 pub extern "C" fn poll_responses(
     context: *mut c_void,
@@ -112,6 +115,38 @@ pub extern "C" fn poll_responses(
                     on_error(c_str.as_ptr())
                 }
             },
+        }
+    }
+}
+
+
+#[no_mangle]
+pub extern "C" fn send_prompt(
+    context: *mut c_void,
+    prompt: *const c_char,
+    error_buf: *mut c_char
+) -> bool {
+    if context.is_null() || prompt.is_null() || error_buf.is_null() {
+        if !error_buf.is_null() {
+            copy_to_error_buf(error_buf, "Null pointer provided");
+        }s dereferencin
+        return false;
+    }
+
+    let context = unsafe { &*(context as *const ChatContext) };
+    let prompt_str = match unsafe { CStr::from_ptr(prompt).to_str() } {
+        Ok(s) => s.to_owned(),
+        Err(_) => {
+            copy_to_error_buf(error_buf, "Invalid UTF-8 in prompt");
+            return false;
+        }
+    };
+
+    match context.prompt_tx.send(prompt_str) {
+        Ok(_) => true,
+        Err(e) => {
+            copy_to_error_buf(error_buf, &format!("Failed to send prompt: {}", e));
+            false
         }
     }
 }

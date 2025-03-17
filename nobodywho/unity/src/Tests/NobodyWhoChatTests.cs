@@ -2,6 +2,7 @@ using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
 using System.Collections;
+using System.Collections.Generic;
 using NobodyWho;
 
 
@@ -18,7 +19,9 @@ namespace Tests
             testObject = new GameObject("TestModel");
             model = testObject.AddComponent<NobodyWho.Model>();
             model.modelPath = "qwen2.5-1.5b-instruct-q4_0.gguf";
+            
             chat = testObject.AddComponent<NobodyWho.Chat>();
+            chat.systemPrompt = "You are a test assistant.";
             chat.model = model;
         }
 
@@ -29,21 +32,40 @@ namespace Tests
             }
         }
 
-        [Test]
-        public void WhenInvokingSay_ShouldReturnResponse() {
+        [UnityTest]
+        public IEnumerator WhenInvokingSay_ShouldReturnResponse() {
             string response = null;
-            chat.systemPrompt = "You are a test assistant.";
-            chat.onComplete.AddListener((result) => response = result);
-            
+            chat.onComplete.AddListener((result) => response = result);            
             chat.say("Hi there");
             
-            // Wait for response with timeout
-            var timeout = Time.time + 5f; // 5 second timeout
+            float timeout = Time.time + 5f; // 5 second timeout
+
+            // let unity process stuff until we get a response
             while (response == null && Time.time < timeout) {
-                // Let Unity process events
+                yield return null;
             }
+            Debug.Log("Response: " + response);
+            Assert.IsNotNull(response, "No response received within timeout period");
+            Assert.AreEqual("Hello! How can I help you today?", response);
+        }
+
+        [UnityTest]
+        public IEnumerator WhenInvokingSay_ShouldReceiveTokens() {
+            // Setup token collection
+            List<string> receivedTokens = new List<string>();
+            chat.onToken.AddListener((token) => {
+                receivedTokens.Add(token);
+                Debug.Log($"Token received: {token}");
+            });
             
-            Assert.AreEqual("Hello, how can I help you?", response);
+            chat.say("Tell me a short joke");
+            
+            float timeout = Time.time + 5f;
+            while (receivedTokens.Count < 5 && Time.time < timeout) {
+                yield return null;
+            }
+
+            Assert.IsTrue(receivedTokens.Count > 0, "No tokens received within timeout period");            
         }
     }
 }
