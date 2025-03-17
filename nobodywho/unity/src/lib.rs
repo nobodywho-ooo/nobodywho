@@ -129,7 +129,7 @@ pub extern "C" fn send_prompt(
     if context.is_null() || prompt.is_null() || error_buf.is_null() {
         if !error_buf.is_null() {
             copy_to_error_buf(error_buf, "Null pointer provided");
-        }s dereferencin
+        }
         return false;
     }
 
