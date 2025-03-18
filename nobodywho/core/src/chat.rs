@@ -36,17 +36,22 @@ pub trait ChatOutput {
     fn emit_error(&self, err: String);
 }
 
+pub enum ChatMsg {
+    Say(String),
+    ResetContext,
+}
+
 pub async fn simple_chat_loop(
     params: llm::LLMActorParams,
     system_prompt: String,
-    mut say_rx: mpsc::Receiver<String>,
+    mut msg_rx: mpsc::Receiver<ChatMsg>,
     output: Box<dyn ChatOutput>,
 ) -> Result<(), ChatLoopError> {
     info!("Entering simple chat loop");
 
     // init chat state
     let mut chat_state = chat_state::ChatState::from_model(&params.model)?;
-    chat_state.add_message("system".to_string(), system_prompt);
+    chat_state.add_message("system".to_string(), system_prompt.clone());
     info!("Initialized chat state.");
 
     // init actor
@@ -54,37 +59,48 @@ pub async fn simple_chat_loop(
     info!("Initialized actor.");
 
     // wait for message from user
-    while let Some(message) = say_rx.recv().await {
-        chat_state.add_message("user".to_string(), message);
-        let diff = chat_state.render_diff().expect("TODO: handle err");
+    while let Some(msg) = msg_rx.recv().await {
+        match msg {
+            ChatMsg::Say(message) => {
+                chat_state.add_message("user".to_string(), message);
+                let diff = chat_state.render_diff().expect("TODO: handle err");
 
-        // stream out the response
-        let full_response = actor
-            .generate_response(diff)
-            .await
-            .fold(None, |_, out| {
-                debug!("Streamed out: {out:?}");
-                match out {
-                    Ok(llm::WriteOutput::Token(token)) => {
-                        trace!("Got new token: {token:?}");
-                        output.emit_token(token);
-                        None
-                    }
-                    Err(err) => {
-                        error!("Got error from worker: {err:?}");
-                        output.emit_error(format!("{err:?}"));
-                        Some(Err(err))
-                    }
-                    Ok(llm::WriteOutput::Done(resp)) => Some(Ok(resp)),
-                }
-            })
-            .await
-            .ok_or(ChatLoopError::NoResponseError)??;
+                // stream out the response
+                let full_response = actor
+                    .generate_response(diff)
+                    .await
+                    .fold(None, |_, out| {
+                        debug!("Streamed out: {out:?}");
+                        match out {
+                            Ok(llm::WriteOutput::Token(token)) => {
+                                trace!("Got new token: {token:?}");
+                                output.emit_token(token);
+                                None
+                            }
+                            Err(err) => {
+                                error!("Got error from worker: {err:?}");
+                                output.emit_error(format!("{err:?}"));
+                                Some(Err(err))
+                            }
+                            Ok(llm::WriteOutput::Done(resp)) => Some(Ok(resp)),
+                        }
+                    })
+                    .await
+                    .ok_or(ChatLoopError::NoResponseError)??;
 
-        // we have a full response. send it out.
-        output.emit_response(full_response.clone());
-        chat_state.add_message("assistant".to_string(), full_response);
-        let _ = chat_state.render_diff();
+                // we have a full response. send it out.
+                output.emit_response(full_response.clone());
+                chat_state.add_message("assistant".to_string(), full_response);
+
+                // render diff just to update the internal length state
+                let _ = chat_state.render_diff();
+            }
+            ChatMsg::ResetContext => {
+                chat_state.reset();
+                chat_state.add_message("system".to_string(), system_prompt.clone());
+                actor.reset_context().await.expect("TODO: handle err");
+            }
+        }
     }
 
     // XXX: we only arrive here when the sender-part of the say channel is dropped
@@ -149,7 +165,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "current_thread")]
-    async fn test_actor_chat() {
+    async fn test_chat_loop() {
         test_utils::init_test_tracing();
 
         // Setup
@@ -178,7 +194,7 @@ mod tests {
 
         let check_results = async move {
             let _ = say_tx
-                .send("What is the capital of Denmark?".to_string())
+                .send(ChatMsg::Say("What is the capital of Denmark?".to_string()))
                 .await;
             let response = response_rx.recv().await.unwrap();
             assert!(
@@ -187,7 +203,9 @@ mod tests {
             );
 
             let _ = say_tx
-                .send("What language do they speak there?".to_string())
+                .send(ChatMsg::Say(
+                    "What language do they speak there?".to_string(),
+                ))
                 .await;
             let response = response_rx.recv().await.unwrap();
 

@@ -97,6 +97,11 @@ impl ChatState {
         Ok(Self::new(template, bos, eos))
     }
 
+    pub fn reset(&mut self) {
+        self.length = 0;
+        self.messages = Vec::new();
+    }
+
     pub fn add_message(&mut self, role: String, content: String) {
         self.messages.push(Message { role, content });
     }

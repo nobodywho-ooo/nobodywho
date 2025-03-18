@@ -138,7 +138,7 @@ struct NobodyWhoChat {
     /// Higher values use more VRAM, but allow for longer "short term memory" for the LLM.
     context_length: u32,
 
-    say_tx: Option<tokio::sync::mpsc::Sender<String>>,
+    msg_tx: Option<tokio::sync::mpsc::Sender<chat::ChatMsg>>,
 
     base: Base<Node>,
 }
@@ -169,7 +169,7 @@ impl INode for NobodyWhoChat {
             system_prompt: "".into(),
             stop_tokens: PackedStringArray::new(),
             context_length: 4096,
-            say_tx: None,
+            msg_tx: None,
 
             base,
         }
@@ -218,14 +218,14 @@ impl NobodyWhoChat {
             };
 
             // start the llm worker
-            let (say_tx, say_rx) = tokio::sync::mpsc::channel(4096); // TODO: 4096 is super random
-            self.say_tx = Some(say_tx);
+            let (msg_tx, msg_rx) = tokio::sync::mpsc::channel(4096); // TODO: 4096 is super random
+            self.msg_tx = Some(msg_tx);
             let adapter = ChatAdapter {
                 emit_node: self.to_gd(),
             };
             let system_prompt = self.system_prompt.to_string();
             godot::task::spawn(async {
-                chat::simple_chat_loop(params, system_prompt, say_rx, Box::new(adapter))
+                chat::simple_chat_loop(params, system_prompt, msg_rx, Box::new(adapter))
                     .await
                     .unwrap_or_else(|e| {
                         godot_error!("{e:?}");
@@ -242,27 +242,36 @@ impl NobodyWhoChat {
         }
     }
 
-    fn send_message(&mut self, content: String) {
-        if let Some(say_tx) = self.say_tx.as_mut() {
-            let resp = say_tx.blocking_send(content);
-
-            if let Err(msg) = resp {
-                // check error
-                godot_error!("Couldn't say to worker: {:?}", msg);
-                self.say_tx = None;
-            }
-        } else {
-            godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
-            self.start_worker();
-            self.send_message(content);
-        }
-    }
-
     #[func]
     /// Sends a message to the LLM.
     /// This will start the inference process. meaning you can also listen on the `response_updated` and `response_finished` signals to get the response.
     fn say(&mut self, message: String) {
-        self.send_message(message);
+        if let Some(msg_tx) = self.msg_tx.as_mut() {
+            let resp = msg_tx.blocking_send(chat::ChatMsg::Say(message));
+
+            if let Err(msg) = resp {
+                // check error
+                godot_error!("Couldn't say to worker: {:?}", msg);
+                self.msg_tx = None;
+            }
+        } else {
+            godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
+            self.start_worker();
+        }
+    }
+
+    #[func]
+    fn reset_context(&mut self) {
+        if let Some(msg_tx) = self.msg_tx.as_mut() {
+            let resp = msg_tx.blocking_send(chat::ChatMsg::ResetContext);
+            if let Err(msg) = resp {
+                // check error
+                godot_error!("Couldn't reset context: {:?}", msg);
+                self.msg_tx = None;
+            }
+        } else {
+            godot_error!("Attempted to reset context, but no worker is running. Doing nothing.");
+        }
     }
 
     #[signal]

@@ -191,8 +191,10 @@ impl LLMActorHandle {
         resp
     }
 
-    pub fn reset_context(&self) -> Result<(), std::sync::mpsc::SendError<WorkerMsg>> {
-        self.message_tx.send(WorkerMsg::ResetContext)
+    pub async fn reset_context(&self) -> Result<(), oneshot::error::RecvError> {
+        let (respond_to, response) = oneshot::channel();
+        self.message_tx.send(WorkerMsg::ResetContext(respond_to));
+        response.await
     }
 
     pub async fn read(
@@ -351,7 +353,7 @@ pub enum WorkerMsg {
     ReadString(String, oneshot::Sender<Result<(), ReadError>>),
     WriteUntilDone(mpsc::Sender<Result<WriteOutput, WriteError>>),
     GetEmbedding(oneshot::Sender<Result<Vec<f32>, llama_cpp_2::EmbeddingsError>>),
-    ResetContext,
+    ResetContext(oneshot::Sender<()>),
     GenerateResponse(
         String,
         mpsc::Sender<Result<WriteOutput, GenerateResponseError>>,
@@ -393,7 +395,11 @@ fn handle_msg(state: WorkerState, msg: WorkerMsg) -> Result<WorkerState, ()> {
                 Err(())
             }
         },
-        WorkerMsg::ResetContext => Ok(state.reset_context()),
+        WorkerMsg::ResetContext(respond_to) => {
+            let new_state = state.reset_context();
+            respond_to.send(());
+            Ok(new_state)
+        }
         // read then write text until done
         WorkerMsg::GenerateResponse(text, respond_to) => state
             .read_string(text)
