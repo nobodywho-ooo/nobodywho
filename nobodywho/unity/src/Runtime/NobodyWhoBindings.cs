@@ -39,5 +39,8 @@ namespace NobodyWho
 
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
         public static extern void destroy_chat_worker(IntPtr context);
+
+        [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void destroy_model(IntPtr model);
     }
 } 

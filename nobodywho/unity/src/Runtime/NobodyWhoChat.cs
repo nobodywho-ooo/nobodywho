@@ -51,7 +51,10 @@ namespace NobodyWho {
             } catch (Exception e) {
                 throw new NobodyWhoException(e.Message);
             }
-            
+        }
+
+        void OnDestroy() {
+            NativeBindings.destroy_chat_worker(_workerContext);
         }
     }
 }
