@@ -93,6 +93,7 @@ pub async fn emit_until_done(
         Result<llm::WriteOutput, llm::GenerateResponseError>,
     >,
     output: &Box<dyn ChatOutput>,
+    blacklist: &Vec<String>,
 ) -> Result<String, ChatLoopError> {
     let resp = stream
         .fold(None, |_, out| {
@@ -100,7 +101,9 @@ pub async fn emit_until_done(
             match out {
                 Ok(llm::WriteOutput::Token(token)) => {
                     trace!("Got new token: {token:?}");
-                    output.emit_token(token);
+                    if !blacklist.iter().any(|bt| token.contains(bt)) {
+                        output.emit_token(token);
+                    }
                     None
                 }
                 Err(err) => {
@@ -150,7 +153,12 @@ pub async fn simple_chat_loop(
                         [stop_words.clone(), tool_control_tokens.clone()].concat(),
                     )
                     .await;
-                let full_response = emit_until_done(stream, &output).await?;
+
+                // TODO: don't emit <tool_call>
+                let full_response = emit_until_done(stream, &output, &tool_control_tokens).await?;
+                if full_response.contains("<tool_call>") {
+                    todo!()
+                }
 
                 // TODO: stop on <tool_call> control token,
                 //       and swap sampler for a json-schema compliant one
