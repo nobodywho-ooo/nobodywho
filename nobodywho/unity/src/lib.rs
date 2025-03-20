@@ -9,13 +9,20 @@ use nobodywho::core::sampler_config::SamplerConfig;
 use nobodywho::llm::LLMOutput;
 
 fn copy_to_error_buf(error_buf: *mut c_char, message: &str) {
+    
+    // If you change this value, you must also change the size of the error_buf in the following files:
+    // NobodyWhoChat.cs, NobodyWhoModel.cs
+    // always remove 1 from this value to leave room for the null terminator
+    const MAX_ERROR_LENGTH: usize = 2047; 
+    let length = std::cmp::min(message.len(), MAX_ERROR_LENGTH);
+    let safe_message = &message[..length];
     unsafe {
         std::ptr::copy_nonoverlapping(
-            message.as_ptr() as *const c_char,
+            safe_message.as_ptr() as *const c_char,
             error_buf,
-            message.len()
+            length
         );
-        *error_buf.add(message.len()) = 0;
+        *error_buf.add(length) = 0;
     }
 }
 
@@ -87,7 +94,7 @@ pub extern "C" fn create_chat_worker(
     })) as *mut c_void
 }
 
-/// Polls for upadtes to the queue of responses from the LLM
+/// Polls for updates to the queue of responses from the LLM
 /// if any updates are available, it will call the appropriate callback
 /// with the updated response or error message
 #[no_mangle]
@@ -133,10 +140,11 @@ pub extern "C" fn send_prompt(
         }
         return false;
     }
-
+    // cast a void pointer to a ChatContext pointer and dereference it, and return a reference to it.
     let context = unsafe { &*(context as *const ChatContext) };
+    
     let prompt_str = match unsafe { CStr::from_ptr(prompt).to_str() } {
-        Ok(s) => s.to_owned(),
+        Ok(prompt_string) => prompt_string.to_owned(),
         Err(_) => {
             copy_to_error_buf(error_buf, "Invalid UTF-8 in prompt");
             return false;
