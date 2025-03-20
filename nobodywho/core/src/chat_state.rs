@@ -1,7 +1,7 @@
 use std::sync::LazyLock;
 
 use minijinja::{context, Environment};
-use serde::{self, Serialize};
+use serde::{self, Deserialize, Serialize};
 
 static MINIJINJA_ENV: LazyLock<Environment> = LazyLock::new(|| {
     let mut env = Environment::new();
@@ -26,10 +26,50 @@ fn strftime_now(format_str: &str) -> String {
     chrono::Local::now().format(format_str).to_string()
 }
 
-#[derive(Serialize, Clone, Debug)]
-pub struct Message {
-    pub role: String,
-    pub content: String,
+// TODO: change role field to be an `enum Role`
+
+#[derive(Serialize, Clone)]
+#[serde(untagged)]
+pub enum Message {
+    Message {
+        role: String,
+        content: String,
+    },
+    ToolCalls {
+        role: String,
+        tool_calls: Vec<ToolCall>,
+    },
+    ToolResp {
+        role: String,
+        name: String,
+        content: String,
+    },
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ToolType {
+    Function,
+}
+
+#[derive(Serialize)]
+pub struct Function {
+    pub name: String,
+    pub description: String,
+    // TODO: this must be a valid json schema. can we encode that in the type?
+    pub parameters: serde_json::Value,
+}
+
+#[derive(Serialize)]
+pub struct Tool {
+    pub r#type: ToolType,
+    pub function: Function,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+pub struct ToolCall {
+    pub name: String,
+    pub arguments: serde_json::Value, // Flexible structure for arbitrary arguments
 }
 
 pub struct ChatState {
@@ -38,6 +78,7 @@ pub struct ChatState {
     length: usize,
     eos_token: String,
     bos_token: String,
+    tools: Vec<Tool>,
 }
 
 /// given a chat history where the first two messages are from system and user
@@ -46,24 +87,36 @@ pub struct ChatState {
 fn concat_system_and_first_user_messages(
     messages: &[Message],
 ) -> Result<Vec<Message>, minijinja::Error> {
-    if messages.len() < 2 || messages[0].role != "system" || messages[1].role != "user" {
-        // HACK: this should probably be a custom ChatStateError, and nont a minijinja error
-        //       but this was quick and easy rn, and we "abuse" the minijinja errors for
-        //       `raise_exception` anyway...
-        return Err(minijinja::Error::new(
-            minijinja::ErrorKind::InvalidOperation,
-            "Cannot replace system prompt unless the first two messages are from system and user roles."
-        ));
+    match messages {
+        [Message::Message {
+            role: first_role,
+            content: first_content,
+        }, Message::Message {
+            role: second_role,
+            content: second_content,
+        }, rest @ ..]
+            if first_role == "system" && second_role == "user" =>
+        {
+            let new_first_message = Message::Message {
+                role: "user".to_string(),
+                content: format!("{}\n\n{}", first_content, second_content),
+            };
+            let new_messages = vec![new_first_message]
+                .into_iter()
+                .chain(rest.iter().cloned())
+                .collect();
+            Ok(new_messages)
+        }
+        _ => {
+            // HACK: this should probably be a custom ChatStateError, and nont a minijinja error
+            //       but this was quick and easy rn, and we "abuse" the minijinja errors for
+            //       `raise_exception` anyway...
+            Err(minijinja::Error::new(
+                minijinja::ErrorKind::InvalidOperation,
+                "Cannot replace system prompt unless the first two messages are from system and user roles."
+            ))
+        }
     }
-    let new_first_message = Message {
-        role: "user".to_string(),
-        content: format!("{}\n\n{}", messages[0].content, messages[1].content),
-    };
-    let new_messages = vec![new_first_message]
-        .into_iter()
-        .chain(messages[2..].iter().cloned())
-        .collect();
-    Ok(new_messages)
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -79,22 +132,31 @@ pub enum FromModelError {
 }
 
 impl ChatState {
-    pub fn new(chat_template: String, bos_token: String, eos_token: String) -> Self {
+    pub fn new(
+        chat_template: String,
+        bos_token: String,
+        eos_token: String,
+        tools: Vec<Tool>,
+    ) -> Self {
         Self {
             messages: Vec::new(),
             chat_template,
             length: 0,
             eos_token,
             bos_token,
+            tools,
         }
     }
 
-    pub fn from_model(model: &llama_cpp_2::model::LlamaModel) -> Result<Self, FromModelError> {
+    pub fn from_model(
+        model: &llama_cpp_2::model::LlamaModel,
+        tools: Vec<Tool>,
+    ) -> Result<Self, FromModelError> {
         let template = model.get_chat_template()?.to_string()?;
         let tokenize = llama_cpp_2::model::Special::Tokenize;
         let bos = model.token_to_str(model.token_bos(), tokenize)?;
         let eos = model.token_to_str(model.token_eos(), tokenize)?;
-        Ok(Self::new(template, bos, eos))
+        Ok(Self::new(template, bos, eos, tools))
     }
 
     pub fn reset(&mut self) {
@@ -103,7 +165,22 @@ impl ChatState {
     }
 
     pub fn add_message(&mut self, role: String, content: String) {
-        self.messages.push(Message { role, content });
+        self.messages.push(Message::Message { role, content });
+    }
+
+    pub fn add_tool_calls(&mut self, tool_calls: Vec<ToolCall>) {
+        self.messages.push(Message::ToolCalls {
+            role: "system".to_string(),
+            tool_calls,
+        })
+    }
+
+    pub fn add_tool_result(&mut self, name: String, content: String) {
+        self.messages.push(Message::ToolResp {
+            role: "tool".to_string(),
+            name,
+            content,
+        })
     }
 
     fn render(&mut self) -> Result<String, minijinja::Error> {
@@ -111,9 +188,15 @@ impl ChatState {
 
         let ctx = context! {
             messages => &self.messages,
-            add_generation_prompt => self.messages.last().map_or(false, |msg| msg.role == "user"),
+            // TODO: this might be a bug. consider exactly when we need a generation prompt
+            add_generation_prompt => self.messages.last().map_or(false, |msg| match msg {
+                Message::Message { role, .. } => role != "assistant",
+                Message::ToolCalls { role, .. } => role != "assistant",
+                Message::ToolResp { role, .. } => role != "assistant",
+            }),
             eos_token => self.eos_token,
             bos_token => self.bos_token,
+            tools => self.tools,
         };
 
         match tmpl.render(ctx) {
@@ -164,7 +247,8 @@ mod tests {
     fn test_llama31_template() {
         // test that llama 3.1 template renders
         let template = "{% set loop_messages = messages %}{% for message in loop_messages %}{% set content = '<|start_header_id|>' + message['role'] + '<|end_header_id|>\n\n'+ message['content'] | trim + '<|eot_id|>' %}{% if loop.index0 == 0 %}{% set content = bos_token + content %}{% endif %}{{ content }}{% endfor %}{{ '<|start_header_id|>assistant<|end_header_id|>\n\n' }}";
-        let mut chatstate = ChatState::new(template.into(), "<|bos|>".into(), "<|eos|>".into());
+        let mut chatstate =
+            ChatState::new(template.into(), "<|bos|>".into(), "<|eos|>".into(), vec![]);
         chatstate.add_message("user".into(), "Hello, world!".into());
         let rendered = chatstate.render_diff().unwrap();
         let expected = "<|bos|><|start_header_id|>user<|end_header_id|>
@@ -193,7 +277,8 @@ Hello, world!<|eot_id|><|start_header_id|>assistant<|end_header_id|>
     #[test]
     fn test_deepseek_template() {
         let template = "{% if not add_generation_prompt is defined %}{% set add_generation_prompt = false %}{% endif %}{% set ns = namespace(is_first=false, is_tool=false, is_output_first=true, system_prompt='') %}{%- for message in messages %}{%- if message['role'] == 'system' %}{% set ns.system_prompt = message['content'] %}{%- endif %}{%- endfor %}{{bos_token}}{{ns.system_prompt}}{%- for message in messages %}{%- if message['role'] == 'user' %}{%- set ns.is_tool = false -%}{{'<｜User｜>' + message['content']}}{%- endif %}{%- if message['role'] == 'assistant' and message['content'] is none %}{%- set ns.is_tool = false -%}{%- for tool in message['tool_calls']%}{%- if not ns.is_first %}{{'<｜Assistant｜><｜tool▁calls▁begin｜><｜tool▁call▁begin｜>' + tool['type'] + '<｜tool▁sep｜>' + tool['function']['name'] + '\\n' + '```json' + '\\n' + tool['function']['arguments'] + '\\n' + '```' + '<｜tool▁call▁end｜>'}}{%- set ns.is_first = true -%}{%- else %}{{'\\n' + '<｜tool▁call▁begin｜>' + tool['type'] + '<｜tool▁sep｜>' + tool['function']['name'] + '\\n' + '```json' + '\\n' + tool['function']['arguments'] + '\\n' + '```' + '<｜tool▁call▁end｜>'}}{{'<｜tool▁calls▁end｜><｜end▁of▁sentence｜>'}}{%- endif %}{%- endfor %}{%- endif %}{%- if message['role'] == 'assistant' and message['content'] is not none %}{%- if ns.is_tool %}{{'<｜tool▁outputs▁end｜>' + message['content'] + '<｜end▁of▁sentence｜>'}}{%- set ns.is_tool = false -%}{%- else %}{% set content = message['content'] %}{% if '</think>' in content %}{% set content = content.split('</think>')[-1] %}{% endif %}{{'<｜Assistant｜>' + content + '<｜end▁of▁sentence｜>'}}{%- endif %}{%- endif %}{%- if message['role'] == 'tool' %}{%- set ns.is_tool = true -%}{%- if ns.is_output_first %}{{'<｜tool▁outputs▁begin｜><｜tool▁output▁begin｜>' + message['content'] + '<｜tool▁output▁end｜>'}}{%- set ns.is_output_first = false %}{%- else %}{{'\\n<｜tool▁output▁begin｜>' + message['content'] + '<｜tool▁output▁end｜>'}}{%- endif %}{%- endif %}{%- endfor -%}{% if ns.is_tool %}{{'<｜tool▁outputs▁end｜>'}}{% endif %}{% if add_generation_prompt and not ns.is_tool %}{{'<｜Assistant｜>'}}{% endif %}";
-        let mut chatstate = ChatState::new(template.into(), "<|bos|>".into(), "<|eos|>".into());
+        let mut chatstate =
+            ChatState::new(template.into(), "<|bos|>".into(), "<|eos|>".into(), vec![]);
         chatstate.add_message("user".into(), "Hello, world!".into());
         chatstate.add_message(
             "assistant".into(),

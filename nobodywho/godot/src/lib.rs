@@ -131,7 +131,7 @@ struct NobodyWhoChat {
 
     #[export]
     /// Stop tokens to stop generation at these specified tokens.
-    stop_tokens: PackedStringArray,
+    stop_words: PackedStringArray,
 
     #[export]
     /// This is the maximum number of tokens that can be stored in the chat history. It will delete information from the chat history if it exceeds this limit.
@@ -157,6 +157,9 @@ impl chat::ChatOutput for ChatAdapter {
     fn emit_error(&self, err: String) {
         godot_error!("LLM Worker failed: {err}");
     }
+    fn call_tool(&self, name: String, args: String) -> String {
+        NobodyWhoChat::call_tool(self.emit_node.clone(), name, args)
+    }
 }
 
 #[godot_api]
@@ -167,7 +170,7 @@ impl INode for NobodyWhoChat {
             model_node: None,
             sampler: None,
             system_prompt: "".into(),
-            stop_tokens: PackedStringArray::new(),
+            stop_words: PackedStringArray::new(),
             context_length: 4096,
             msg_tx: None,
 
@@ -202,8 +205,8 @@ impl NobodyWhoChat {
         let mut result = || -> Result<(), String> {
             let model = self.get_model()?;
             let sampler_config = self.get_sampler_config();
-            let stop_tokens: Vec<String> = self
-                .stop_tokens
+            let stop_words: Vec<String> = self
+                .stop_words
                 .to_vec()
                 .into_iter()
                 .map(|g| g.to_string())
@@ -212,7 +215,6 @@ impl NobodyWhoChat {
             let params = llm::LLMActorParams {
                 model,
                 sampler_config,
-                stop_tokens,
                 n_ctx: self.context_length,
                 use_embeddings: false,
             };
@@ -225,7 +227,7 @@ impl NobodyWhoChat {
             };
             let system_prompt = self.system_prompt.to_string();
             godot::task::spawn(async {
-                chat::simple_chat_loop(params, system_prompt, msg_rx, Box::new(adapter))
+                chat::simple_chat_loop(params, system_prompt, stop_words, msg_rx, Box::new(adapter))
                     .await
                     .unwrap_or_else(|e| {
                         godot_error!("{e:?}");
@@ -245,7 +247,8 @@ impl NobodyWhoChat {
     #[func]
     /// Sends a message to the LLM.
     /// This will start the inference process. meaning you can also listen on the `response_updated` and `response_finished` signals to get the response.
-    fn say(&mut self, message: String) {
+    /// @return: true if the message was sent successfully, false otherwise
+    fn say(&mut self, message: String) -> bool {
         if let Some(msg_tx) = self.msg_tx.as_mut() {
             let resp = msg_tx.blocking_send(chat::ChatMsg::Say(message));
 
@@ -253,14 +256,28 @@ impl NobodyWhoChat {
                 // check error
                 godot_error!("Couldn't say to worker: {:?}", msg);
                 self.msg_tx = None;
+
+                // Try to recover by restarting the worker
+                godot_warn!("Attempting to restart worker after failure...");
+                self.start_worker();
+
+                // Message was not successfully sent
+                return false;
             }
+
+            // Message was successfully sent
+            return true;
         } else {
             godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
             self.start_worker();
+
+            // Try to send the message after starting the worker
+            return self.say(message);
         }
     }
 
     #[func]
+    //
     fn reset_context(&mut self) {
         if let Some(msg_tx) = self.msg_tx.as_mut() {
             let resp = msg_tx.blocking_send(chat::ChatMsg::ResetContext);
@@ -272,6 +289,13 @@ impl NobodyWhoChat {
         } else {
             godot_error!("Attempted to reset context, but no worker is running. Doing nothing.");
         }
+    }
+
+    #[func(gd_self)]
+    fn call_tool(this: Gd<Self>, function_name: String, argument: String) -> String {
+        let f = Callable::from_object_method(&this, &function_name);
+        let result = f.callv(&VariantArray::from(&[argument.to_variant()]));
+        result.to_string()
     }
 
     #[signal]
@@ -386,7 +410,6 @@ impl NobodyWhoEmbedding {
             let params = llm::LLMActorParams {
                 model,
                 sampler_config,
-                stop_tokens: vec![],
                 n_ctx: 4096,
                 use_embeddings: true,
             };

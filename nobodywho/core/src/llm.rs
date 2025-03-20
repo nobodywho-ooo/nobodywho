@@ -155,13 +155,12 @@ fn apply_context_shifting(
 /// * `model` - The LLaMA model to use for inference, wrapped in an Arc for thread-safe sharing
 /// * `sampler_config` - Configuration for the token sampling strategy
 /// * `n_ctx` - Maximum context length in tokens
-/// * `stop_tokens` - List of strings that will cause token generation to stop when encountered
+/// * `use_embeddings` - Whether to generate embeddings or not.
 #[derive(Clone)]
 pub struct LLMActorParams {
     pub model: Arc<LlamaModel>,
     pub sampler_config: SamplerConfig,
     pub n_ctx: u32,
-    pub stop_tokens: Vec<String>,
     pub use_embeddings: bool,
 }
 
@@ -175,11 +174,8 @@ impl LLMActorHandle {
         debug!("Initializing LLMActorHandle..");
         let (message_tx, message_rx) = std::sync::mpsc::channel();
         let (init_tx, init_rx) = oneshot::channel();
-        trace!("Made channels");
 
-        trace!("Spawning thread...");
         std::thread::spawn(|| completion_worker_actor(message_rx, init_tx, params));
-        trace!("Spawned thread.");
 
         trace!("Waiting for init result");
         let resp = match init_rx.await {
@@ -193,7 +189,7 @@ impl LLMActorHandle {
 
     pub async fn reset_context(&self) -> Result<(), oneshot::error::RecvError> {
         let (respond_to, response) = oneshot::channel();
-        self.message_tx.send(WorkerMsg::ResetContext(respond_to));
+        let _ = self.message_tx.send(WorkerMsg::ResetContext(respond_to));
         response.await
     }
 
@@ -210,9 +206,12 @@ impl LLMActorHandle {
 
     pub async fn write_until_done(
         &self,
+        stop_words: Vec<String>,
     ) -> tokio_stream::wrappers::ReceiverStream<Result<WriteOutput, WriteError>> {
         let (respond_to, response_channel) = mpsc::channel(CHANNEL_SIZE);
-        let _ = self.message_tx.send(WorkerMsg::WriteUntilDone(respond_to));
+        let _ = self
+            .message_tx
+            .send(WorkerMsg::WriteUntilDone(stop_words, respond_to));
         response_channel.into()
     }
 
@@ -227,11 +226,12 @@ impl LLMActorHandle {
     pub async fn generate_response(
         &self,
         text: String,
+        stop_words: Vec<String>,
     ) -> tokio_stream::wrappers::ReceiverStream<Result<WriteOutput, GenerateResponseError>> {
         let (respond_to, response_channel) = mpsc::channel(CHANNEL_SIZE);
         let _ = self
             .message_tx
-            .send(WorkerMsg::GenerateResponse(text, respond_to));
+            .send(WorkerMsg::GenerateResponse(text, stop_words, respond_to));
         response_channel.into()
     }
 
@@ -295,7 +295,6 @@ struct WorkerState<'a> {
     sampler: LlamaSampler,
     big_batch: LlamaBatch,
     small_batch: LlamaBatch,
-    stop_tokens: Vec<String>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -351,11 +350,12 @@ pub enum GenerateEmbeddingError {
 #[derive(Debug)]
 pub enum WorkerMsg {
     ReadString(String, oneshot::Sender<Result<(), ReadError>>),
-    WriteUntilDone(mpsc::Sender<Result<WriteOutput, WriteError>>),
+    WriteUntilDone(Vec<String>, mpsc::Sender<Result<WriteOutput, WriteError>>),
     GetEmbedding(oneshot::Sender<Result<Vec<f32>, llama_cpp_2::EmbeddingsError>>),
     ResetContext(oneshot::Sender<()>),
     GenerateResponse(
         String,
+        Vec<String>,
         mpsc::Sender<Result<WriteOutput, GenerateResponseError>>,
     ),
     GenerateEmbedding(
@@ -377,8 +377,8 @@ fn handle_msg(state: WorkerState, msg: WorkerMsg) -> Result<WorkerState, ()> {
             let _ = respond_to.send(Err(e));
             ()
         }),
-        WorkerMsg::WriteUntilDone(respond_to) => state
-            .write_until_done(|out| {
+        WorkerMsg::WriteUntilDone(stop_words, respond_to) => state
+            .write_until_done(stop_words, |out| {
                 let _ = respond_to.blocking_send(Ok(out));
             })
             .map_err(|e| {
@@ -401,13 +401,13 @@ fn handle_msg(state: WorkerState, msg: WorkerMsg) -> Result<WorkerState, ()> {
             Ok(new_state)
         }
         // read then write text until done
-        WorkerMsg::GenerateResponse(text, respond_to) => state
+        WorkerMsg::GenerateResponse(text, stop_words, respond_to) => state
             .read_string(text)
             .map_err(|e| {
                 let _ = respond_to.blocking_send(Err(e.into()));
                 ()
             })?
-            .write_until_done(|out| {
+            .write_until_done(stop_words, |out| {
                 let _ = respond_to.blocking_send(Ok(out));
             })
             .map_err(|e| {
@@ -498,7 +498,6 @@ impl<'a> WorkerState<'a> {
 
         let state = WorkerState {
             n_past: 0,
-            stop_tokens: params.stop_tokens.clone(),
             sampler: make_sampler(&params.model, params.sampler_config.clone()),
             ctx,
             big_batch,
@@ -550,6 +549,7 @@ impl<'a> WorkerState<'a> {
     #[tracing::instrument(level = "info", skip(self, respond))]
     fn write_until_done<F>(
         mut self,
+        stop_words: Vec<String>,
         respond: F, // respond_to: Sender<Result<WriteOutput, WriteError>>,
     ) -> Result<Self, WriteError>
     where
@@ -607,11 +607,10 @@ impl<'a> WorkerState<'a> {
                 respond(WriteOutput::Token(token_string));
             }
 
-            let has_stop_tokens = self
-                .stop_tokens
+            let has_stop_word = stop_words
                 .iter()
-                .any(|stop_token| full_response.contains(stop_token));
-            if has_eog || has_stop_tokens {
+                .any(|stop_word| full_response.contains(stop_word));
+            if has_eog || has_stop_word {
                 break;
             }
         }
@@ -664,16 +663,16 @@ mod tests {
             model,
             sampler_config: SamplerConfig::default(),
             n_ctx: 4096,
-            stop_tokens: vec!["10".to_string()],
             use_embeddings: false,
         };
+        let stop_words = vec!["10".to_string()];
 
         let actor = LLMActorHandle::new(params)
             .await
             .expect("Failed creating actor");
 
         let stream = actor
-            .generate_response("I'm gonna count to 10: 1, 2, 3, ".to_string())
+            .generate_response("I'm gonna count to 10: 1, 2, 3, ".to_string(), stop_words)
             .await;
 
         let response: String = response_from_stream(stream).await.unwrap();
@@ -689,7 +688,6 @@ mod tests {
             model,
             sampler_config: SamplerConfig::default(),
             n_ctx: 4096,
-            stop_tokens: vec![],
             use_embeddings: true,
         };
 
@@ -749,7 +747,6 @@ mod tests {
             model,
             sampler_config: SamplerConfig::default(),
             n_ctx: 4096,
-            stop_tokens: vec!["Copenhagen".to_string(), "Berlin".to_string()],
             use_embeddings: false,
         };
         let dk_actor = LLMActorHandle::new(params.clone()).await.unwrap();
@@ -757,13 +754,19 @@ mod tests {
 
         let dk_fut = response_from_stream(
             dk_actor
-                .generate_response("The name of the capital city of Denmark is \"".to_string())
+                .generate_response(
+                    "The name of the capital city of Denmark is \"".to_string(),
+                    vec!["Copenhagen".to_string()],
+                )
                 .await,
         );
 
         let de_fut = response_from_stream(
             de_actor
-                .generate_response("The capital of Germany is called ".to_string())
+                .generate_response(
+                    "The capital of Germany is called ".to_string(),
+                    vec!["Berlin".to_string()],
+                )
                 .await,
         );
 
@@ -791,13 +794,16 @@ mod tests {
             model,
             sampler_config: SamplerConfig::default(),
             n_ctx: 64,
-            stop_tokens: vec!["20".to_string()],
             use_embeddings: false,
         };
         let actor = LLMActorHandle::new(params.clone()).await.unwrap();
+        let stop_words = vec!["20".to_string()];
 
         let stream = actor
-            .generate_response("I'm going to count to 20: 1, 2, 3, 4, 5, 6, 7".to_string())
+            .generate_response(
+                "I'm going to count to 20: 1, 2, 3, 4, 5, 6, 7".to_string(),
+                stop_words,
+            )
             .await;
 
         let response = response_from_stream(stream).await.unwrap();
@@ -808,25 +814,30 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_stop_tokens() {
+    async fn test_stop_words() {
         crate::test_utils::init_test_tracing();
 
+        // setup
         let model = test_utils::load_test_model();
-
         let params = LLMActorParams {
             model,
             sampler_config: SamplerConfig::default(),
             n_ctx: 1024,
-            stop_tokens: vec!["7".to_string()],
             use_embeddings: false,
         };
-        let actor = LLMActorHandle::new(params.clone()).await.unwrap();
-        let stream = actor
-            .generate_response("I'm going to count to 10: 1, 2, 3, 4,".to_string())
-            .await;
+        let actor = LLMActorHandle::new(params).await.unwrap();
+        let stop_words = vec!["7".to_string()];
 
+        // make response
+        let stream = actor
+            .generate_response(
+                "I'm going to count to 10: 1, 2, 3, 4,".to_string(),
+                stop_words,
+            )
+            .await;
         let response = response_from_stream(stream).await.unwrap();
 
+        // check resp
         assert!(
             response.to_lowercase().contains("5, 6, "),
             "Expected output to contain text before stop token. Got: {response}"
