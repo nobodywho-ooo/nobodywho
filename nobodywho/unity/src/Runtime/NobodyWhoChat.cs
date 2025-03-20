@@ -18,7 +18,7 @@ namespace NobodyWho {
 
         void Start() {
             try {
-                var errorBuffer = new StringBuilder(256);
+                var errorBuffer = new StringBuilder(2048); // update lib.rs if you change this value
                 _workerContext = NativeBindings.create_chat_worker(model.GetModel(), systemPrompt);
                 if (errorBuffer.Length > 0) {
                     throw new NobodyWhoException(errorBuffer.ToString());
@@ -43,7 +43,7 @@ namespace NobodyWho {
 
         public void say(string prompt) {
             try {
-                var errorBuffer = new StringBuilder(256);
+                var errorBuffer = new StringBuilder(2048); // update lib.rs if you change this value
                 NativeBindings.send_prompt(_workerContext, prompt, errorBuffer);
                 if (errorBuffer.Length > 0) {
                     throw new NobodyWhoException(errorBuffer.ToString());
