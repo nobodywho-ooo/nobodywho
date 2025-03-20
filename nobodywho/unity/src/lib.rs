@@ -133,12 +133,12 @@ pub extern "C" fn send_prompt(
     context: *mut c_void,
     prompt: *const c_char,
     error_buf: *mut c_char
-) -> bool {
+) -> *mut c_void {
     if context.is_null() || prompt.is_null() || error_buf.is_null() {
         if !error_buf.is_null() {
             copy_to_error_buf(error_buf, "Null pointer provided");
         }
-        return false;
+        return std::ptr::null_mut();
     }
     // cast a void pointer to a ChatContext pointer and dereference it, and return a reference to it.
     let context = unsafe { &*(context as *const ChatContext) };
@@ -147,15 +147,15 @@ pub extern "C" fn send_prompt(
         Ok(prompt_string) => prompt_string.to_owned(),
         Err(_) => {
             copy_to_error_buf(error_buf, "Invalid UTF-8 in prompt");
-            return false;
+            return std::ptr::null_mut();
         }
     };
 
     match context.prompt_tx.send(prompt_str) {
-        Ok(_) => true,
+        Ok(_) => std::ptr::null_mut(),
         Err(e) => {
             copy_to_error_buf(error_buf, &format!("Failed to send prompt: {}", e));
-            false
+            std::ptr::null_mut()
         }
     }
 }
