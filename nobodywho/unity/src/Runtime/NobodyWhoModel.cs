@@ -17,7 +17,7 @@ namespace NobodyWho {
             }
             try {
                 string fullPath = Path.Combine(Application.streamingAssetsPath, modelPath);
-                var errorBuffer = new StringBuilder(256);
+                var errorBuffer = new StringBuilder(2048); // update lib.rs if you change this value
                 var result = NativeBindings.get_model(fullPath, useGpuIfAvailable, errorBuffer);
                 
                 if (result == IntPtr.Zero) {
