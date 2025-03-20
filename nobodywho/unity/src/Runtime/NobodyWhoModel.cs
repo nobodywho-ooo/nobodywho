@@ -31,5 +31,9 @@ namespace NobodyWho {
                 throw new NobodyWhoException(e.Message);
             }
         }
+
+        void OnDestroy() {
+            NativeBindings.destroy_model(modelHandle);
+        }
     }
 } 

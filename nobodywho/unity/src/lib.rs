@@ -1,5 +1,6 @@
 use std::ffi::{CStr, c_void, c_char};
 use std::sync::mpsc;
+use std::sync::Arc;
 use std::thread;
 use std::ffi::CString;
 
@@ -35,7 +36,7 @@ pub extern "C" fn get_model(path: *const c_char, use_gpu: bool, error_buf: *mut 
     
     match llm::get_model(path_str, use_gpu) {
         Ok(model) => {
-            Box::into_raw(Box::new(model)) as *mut c_void
+            Arc::into_raw(model) as *mut c_void
         }
         Err(err) => {
             copy_to_error_buf(error_buf, &err.to_string());
@@ -148,5 +149,24 @@ pub extern "C" fn send_prompt(
             copy_to_error_buf(error_buf, &format!("Failed to send prompt: {}", e));
             false
         }
+    }
+}
+
+/// Dropping the context will kill the worker thread. This will force the retriever rx to error out -
+/// much like we do in godot - and panic (but we dont care too much as we have purposefully killed the thread).
+#[no_mangle]
+pub extern "C" fn destroy_chat_worker(context: *mut c_void) {
+    unsafe {
+        drop(Box::from_raw(context as *mut ChatContext));
+    }
+}
+
+// Converts the raw pointer back to an Arc, decreasing the reference count
+// when it goes out of scope. This must be called exactly once for each
+// pointer created with Arc::into_raw to prevent memory leaks.
+#[no_mangle]
+pub extern "C" fn destroy_model(model: *mut c_void) {
+    unsafe {
+        let _: Arc<llm::Model> = Arc::from_raw(model as *const llm::Model); 
     }
 }
