@@ -160,6 +160,13 @@ impl chat::ChatOutput for ChatAdapter {
     fn call_tool(&self, name: String, args: String) -> String {
         NobodyWhoChat::call_tool(self.emit_node.clone(), name, args)
     }
+    fn get_sampler(&self) -> sampler_config::SamplerConfig {
+        let node = self.emit_node.bind();
+        match &node.sampler {
+            Some(sampler) => sampler.bind().sampler_config.clone(),
+            None => sampler_config::SamplerConfig::default(),
+        }
+    }
 }
 
 #[godot_api]
@@ -189,22 +196,12 @@ impl NobodyWhoChat {
         Ok(model)
     }
 
-    fn get_sampler_config(&mut self) -> sampler_config::SamplerConfig {
-        if let Some(gd_sampler) = self.sampler.as_mut() {
-            let nobody_sampler: GdRef<NobodyWhoSampler> = gd_sampler.bind();
-            nobody_sampler.sampler_config.clone()
-        } else {
-            sampler_config::SamplerConfig::default()
-        }
-    }
-
     #[func]
     /// Starts the LLM worker thread. This is required before you can send messages to the LLM.
     /// This fuction is blocking and can be a bit slow, so you may want to be strategic about when you call it.
     fn start_worker(&mut self) {
         let mut result = || -> Result<(), String> {
             let model = self.get_model()?;
-            let sampler_config = self.get_sampler_config();
             let stop_words: Vec<String> = self
                 .stop_words
                 .to_vec()
@@ -214,7 +211,6 @@ impl NobodyWhoChat {
 
             let params = llm::LLMActorParams {
                 model,
-                sampler_config,
                 n_ctx: self.context_length,
                 use_embeddings: false,
             };
@@ -403,13 +399,9 @@ impl NobodyWhoEmbedding {
         let mut result = || -> Result<(), String> {
             let model = self.get_model()?;
 
-            let sampler_config = nobodywho::sampler_config::SamplerConfig::default();
-
-            // TODO: sampler_config and stop_tokens actually aren't needed here
             // TODO: n_ctx should be configurable
             let params = llm::LLMActorParams {
                 model,
-                sampler_config,
                 n_ctx: 4096,
                 use_embeddings: true,
             };

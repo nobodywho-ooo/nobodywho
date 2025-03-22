@@ -7,7 +7,6 @@ use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::model::{AddBos, Special};
-use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 use std::pin::pin;
 use std::sync::{Arc, LazyLock, Mutex};
@@ -153,13 +152,11 @@ fn apply_context_shifting(
 ///
 /// # Fields
 /// * `model` - The LLaMA model to use for inference, wrapped in an Arc for thread-safe sharing
-/// * `sampler_config` - Configuration for the token sampling strategy
 /// * `n_ctx` - Maximum context length in tokens
 /// * `use_embeddings` - Whether to generate embeddings or not.
 #[derive(Clone)]
 pub struct LLMActorParams {
     pub model: Arc<LlamaModel>,
-    pub sampler_config: SamplerConfig,
     pub n_ctx: u32,
     pub use_embeddings: bool,
 }
@@ -206,12 +203,15 @@ impl LLMActorHandle {
 
     pub async fn write_until_done(
         &self,
+        sampler_config: SamplerConfig,
         stop_words: Vec<String>,
     ) -> tokio_stream::wrappers::ReceiverStream<Result<WriteOutput, WriteError>> {
         let (respond_to, response_channel) = mpsc::channel(CHANNEL_SIZE);
-        let _ = self
-            .message_tx
-            .send(WorkerMsg::WriteUntilDone(stop_words, respond_to));
+        let _ = self.message_tx.send(WorkerMsg::WriteUntilDone(
+            sampler_config,
+            stop_words,
+            respond_to,
+        ));
         response_channel.into()
     }
 
@@ -226,12 +226,16 @@ impl LLMActorHandle {
     pub async fn generate_response(
         &self,
         text: String,
+        sampler_config: SamplerConfig,
         stop_words: Vec<String>,
     ) -> tokio_stream::wrappers::ReceiverStream<Result<WriteOutput, GenerateResponseError>> {
         let (respond_to, response_channel) = mpsc::channel(CHANNEL_SIZE);
-        let _ = self
-            .message_tx
-            .send(WorkerMsg::GenerateResponse(text, stop_words, respond_to));
+        let _ = self.message_tx.send(WorkerMsg::GenerateResponse(
+            text,
+            sampler_config,
+            stop_words,
+            respond_to,
+        ));
         response_channel.into()
     }
 
@@ -292,7 +296,6 @@ pub enum InitWorkerError {
 struct WorkerState<'a> {
     n_past: i32,
     ctx: LlamaContext<'a>,
-    sampler: LlamaSampler,
     big_batch: LlamaBatch,
     small_batch: LlamaBatch,
 }
@@ -350,11 +353,16 @@ pub enum GenerateEmbeddingError {
 #[derive(Debug)]
 pub enum WorkerMsg {
     ReadString(String, oneshot::Sender<Result<(), ReadError>>),
-    WriteUntilDone(Vec<String>, mpsc::Sender<Result<WriteOutput, WriteError>>),
+    WriteUntilDone(
+        SamplerConfig,
+        Vec<String>,
+        mpsc::Sender<Result<WriteOutput, WriteError>>,
+    ),
     GetEmbedding(oneshot::Sender<Result<Vec<f32>, llama_cpp_2::EmbeddingsError>>),
     ResetContext(oneshot::Sender<()>),
     GenerateResponse(
         String,
+        SamplerConfig,
         Vec<String>,
         mpsc::Sender<Result<WriteOutput, GenerateResponseError>>,
     ),
@@ -377,8 +385,8 @@ fn handle_msg(state: WorkerState, msg: WorkerMsg) -> Result<WorkerState, ()> {
             let _ = respond_to.send(Err(e));
             ()
         }),
-        WorkerMsg::WriteUntilDone(stop_words, respond_to) => state
-            .write_until_done(stop_words, |out| {
+        WorkerMsg::WriteUntilDone(sampler_config, stop_words, respond_to) => state
+            .write_until_done(sampler_config, stop_words, |out| {
                 let _ = respond_to.blocking_send(Ok(out));
             })
             .map_err(|e| {
@@ -401,13 +409,13 @@ fn handle_msg(state: WorkerState, msg: WorkerMsg) -> Result<WorkerState, ()> {
             Ok(new_state)
         }
         // read then write text until done
-        WorkerMsg::GenerateResponse(text, stop_words, respond_to) => state
+        WorkerMsg::GenerateResponse(text, sampler_config, stop_words, respond_to) => state
             .read_string(text)
             .map_err(|e| {
                 let _ = respond_to.blocking_send(Err(e.into()));
                 ()
             })?
-            .write_until_done(stop_words, |out| {
+            .write_until_done(sampler_config, stop_words, |out| {
                 let _ = respond_to.blocking_send(Ok(out));
             })
             .map_err(|e| {
@@ -498,7 +506,6 @@ impl<'a> WorkerState<'a> {
 
         let state = WorkerState {
             n_past: 0,
-            sampler: make_sampler(&params.model, params.sampler_config.clone()),
             ctx,
             big_batch,
             small_batch,
@@ -506,14 +513,14 @@ impl<'a> WorkerState<'a> {
         Ok(state)
     }
 
-    #[tracing::instrument(level = "info", skip(self))]
+    #[tracing::instrument(level = "debug", skip(self))]
     fn reset_context(mut self) -> Self {
         self.ctx.clear_kv_cache();
         self.n_past = 0;
         self
     }
 
-    #[tracing::instrument(level = "info", skip(self))]
+    #[tracing::instrument(level = "debug", skip(self))]
     fn read_string(mut self, text: String) -> Result<Self, ReadError> {
         let tokens = self.ctx.model.str_to_token(&text, AddBos::Never)?;
         let n_tokens = tokens.len();
@@ -546,17 +553,20 @@ impl<'a> WorkerState<'a> {
         })
     }
 
-    #[tracing::instrument(level = "info", skip(self, respond))]
+    #[tracing::instrument(level = "debug", skip(self, sampler_config, stop_words, respond))]
     fn write_until_done<F>(
         mut self,
+        sampler_config: SamplerConfig,
         stop_words: Vec<String>,
-        respond: F, // respond_to: Sender<Result<WriteOutput, WriteError>>,
+        respond: F,
     ) -> Result<Self, WriteError>
     where
         F: Fn(WriteOutput),
     {
         // Token generation loop
-        info!("Worker writing until done");
+        debug!("Worker writing until done");
+
+        let mut sampler = make_sampler(self.ctx.model, sampler_config);
 
         // pre-allocating 4096 bytes for the response string
         // 4096 is a very randomly chosen number. how does this affect performance?
@@ -575,7 +585,7 @@ impl<'a> WorkerState<'a> {
             // using sampler.accept() will cause the sampler to crash when using grammar sampling.
             // https://github.com/utilityai/llama-cpp-rs/issues/604
             trace!("Applying sampler...");
-            let new_token: LlamaToken = self.sampler.sample(&self.ctx, -1);
+            let new_token: LlamaToken = sampler.sample(&self.ctx, -1);
 
             // batch of one
             self.small_batch.clear();
@@ -661,10 +671,10 @@ mod tests {
 
         let params = LLMActorParams {
             model,
-            sampler_config: SamplerConfig::default(),
             n_ctx: 4096,
             use_embeddings: false,
         };
+        let sampler = SamplerConfig::default();
         let stop_words = vec!["10".to_string()];
 
         let actor = LLMActorHandle::new(params)
@@ -672,7 +682,11 @@ mod tests {
             .expect("Failed creating actor");
 
         let stream = actor
-            .generate_response("I'm gonna count to 10: 1, 2, 3, ".to_string(), stop_words)
+            .generate_response(
+                "I'm gonna count to 10: 1, 2, 3, ".to_string(),
+                sampler,
+                stop_words,
+            )
             .await;
 
         let response: String = response_from_stream(stream).await.unwrap();
@@ -686,7 +700,6 @@ mod tests {
 
         let params = LLMActorParams {
             model,
-            sampler_config: SamplerConfig::default(),
             n_ctx: 4096,
             use_embeddings: true,
         };
@@ -745,17 +758,18 @@ mod tests {
 
         let params = LLMActorParams {
             model,
-            sampler_config: SamplerConfig::default(),
             n_ctx: 4096,
             use_embeddings: false,
         };
         let dk_actor = LLMActorHandle::new(params.clone()).await.unwrap();
         let de_actor = LLMActorHandle::new(params).await.unwrap();
+        let sampler = SamplerConfig::default();
 
         let dk_fut = response_from_stream(
             dk_actor
                 .generate_response(
                     "The name of the capital city of Denmark is \"".to_string(),
+                    sampler.clone(),
                     vec!["Copenhagen".to_string()],
                 )
                 .await,
@@ -765,6 +779,7 @@ mod tests {
             de_actor
                 .generate_response(
                     "The capital of Germany is called ".to_string(),
+                    sampler,
                     vec!["Berlin".to_string()],
                 )
                 .await,
@@ -792,16 +807,17 @@ mod tests {
 
         let params = LLMActorParams {
             model,
-            sampler_config: SamplerConfig::default(),
             n_ctx: 64,
             use_embeddings: false,
         };
         let actor = LLMActorHandle::new(params.clone()).await.unwrap();
         let stop_words = vec!["20".to_string()];
+        let sampler = SamplerConfig::default();
 
         let stream = actor
             .generate_response(
                 "I'm going to count to 20: 1, 2, 3, 4, 5, 6, 7".to_string(),
+                sampler,
                 stop_words,
             )
             .await;
@@ -821,17 +837,18 @@ mod tests {
         let model = test_utils::load_test_model();
         let params = LLMActorParams {
             model,
-            sampler_config: SamplerConfig::default(),
             n_ctx: 1024,
             use_embeddings: false,
         };
         let actor = LLMActorHandle::new(params).await.unwrap();
         let stop_words = vec!["7".to_string()];
+        let sampler = SamplerConfig::default();
 
         // make response
         let stream = actor
             .generate_response(
                 "I'm going to count to 10: 1, 2, 3, 4,".to_string(),
+                sampler,
                 stop_words,
             )
             .await;

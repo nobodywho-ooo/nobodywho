@@ -1,7 +1,7 @@
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::sampling::LlamaSampler;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SamplerConfig {
     pub method: SamplerMethod,
     pub penalty_last_n: i32,
@@ -12,7 +12,7 @@ pub struct SamplerConfig {
     pub gbnf_grammar: String,
 }
 
-const JSON_GRAMMAR: &str = r#"# this default gbnf grammar forces valid json output
+pub const JSON_GRAMMAR: &str = r#"# this default gbnf grammar forces valid json output
 root   ::= object
 value  ::= object | array | string | number | ("true" | "false" | "null") ws
 

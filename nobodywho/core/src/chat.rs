@@ -1,10 +1,11 @@
 use crate::chat_state;
 use crate::llm;
+use crate::sampler_config;
 use serde_json;
 use std::error::Error;
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
-use tracing::{debug, error, info, trace};
+use tracing::{debug, debug_span, error, info, trace};
 
 // XXX: random tool calling types
 
@@ -50,6 +51,9 @@ pub enum ChatLoopError {
     #[error("Worker died while generating response: {0}")]
     GenerateResponseError(#[from] llm::GenerateResponseError),
 
+    #[error("Worker died while writing: {0}")]
+    WriteError(#[from] llm::WriteError),
+
     #[error("Worker finished stream without a complete response")]
     NoResponseError,
 }
@@ -59,6 +63,7 @@ pub trait ChatOutput {
     fn emit_response(&self, resp: String);
     fn emit_error(&self, err: String);
     fn call_tool(&self, name: String, args: String) -> String;
+    fn get_sampler(&self) -> sampler_config::SamplerConfig;
 }
 
 pub enum ChatMsg {
@@ -97,10 +102,11 @@ pub async fn emit_until_done(
 ) -> Result<String, ChatLoopError> {
     let resp = stream
         .fold(None, |_, out| {
-            debug!("Streamed out: {out:?}");
+            trace!("Streamed out: {out:?}");
             match out {
                 Ok(llm::WriteOutput::Token(token)) => {
                     trace!("Got new token: {token:?}");
+                    // XXX: I don't really like this blacklist thingy
                     if !blacklist.iter().any(|bt| token.contains(bt)) {
                         output.emit_token(token);
                     }
@@ -119,6 +125,21 @@ pub async fn emit_until_done(
     Ok(resp?)
 }
 
+/// consumes the stream, returning only the result
+async fn response_from_stream(
+    stream: tokio_stream::wrappers::ReceiverStream<Result<llm::WriteOutput, llm::WriteError>>,
+) -> Result<String, ChatLoopError> {
+    stream
+        .filter_map(|out| match out {
+            Ok(llm::WriteOutput::Done(resp)) => Some(Ok(resp)),
+            Err(e) => Some(Err(ChatLoopError::from(e))),
+            _ => None,
+        })
+        .next()
+        .await
+        .ok_or(ChatLoopError::NoResponseError)?
+}
+
 pub async fn simple_chat_loop(
     params: llm::LLMActorParams,
     system_prompt: String,
@@ -128,8 +149,12 @@ pub async fn simple_chat_loop(
 ) -> Result<(), ChatLoopError> {
     info!("Entering simple chat loop");
 
+    // TODO: do proper configurable tools
+    let tools = vec![test_tool()];
+    // let tools = vec![];
+
     // init chat state
-    let mut chat_state = chat_state::ChatState::from_model(&params.model, vec![test_tool()])?;
+    let mut chat_state = chat_state::ChatState::from_model(&params.model, tools)?;
     chat_state.add_message("system".to_string(), system_prompt.clone());
     info!("Initialized chat state.");
 
@@ -137,7 +162,7 @@ pub async fn simple_chat_loop(
     let actor = llm::LLMActorHandle::new(params).await?;
     info!("Initialized actor.");
 
-    let tool_control_tokens = vec!["<tool_call>".to_string()];
+    let tool_control_tokens = vec!["<tool_call>\n".to_string()];
 
     // wait for message from user
     while let Some(msg) = msg_rx.recv().await {
@@ -146,48 +171,112 @@ pub async fn simple_chat_loop(
                 chat_state.add_message("user".to_string(), message);
                 let diff = chat_state.render_diff().expect("TODO: handle err");
 
+                // get the current sampler
+                let sampler = output.get_sampler();
+
                 // stream out the response
                 let stream = actor
                     .generate_response(
                         diff,
-                        [stop_words.clone(), tool_control_tokens.clone()].concat(),
+                        sampler.clone(),
+                        [
+                            stop_words.clone(),
+                            // also stop on tool call tokens
+                            tool_control_tokens.clone(),
+                        ]
+                        .concat(),
                     )
                     .await;
 
-                // TODO: don't emit <tool_call>
+                // put tool control tokens in blacklist, so they're not emitted
                 let full_response = emit_until_done(stream, &output, &tool_control_tokens).await?;
                 if full_response.contains("<tool_call>") {
-                    todo!()
+                    let span = debug_span!("tool_call");
+                    let _guard = span.enter();
+                    debug!("Found a tool call!: {full_response:?}");
+
+                    // this sampler is just the regular grammar with a json sampler
+                    // TODO: generate a gbnf grammar from the json schemae
+                    // TODO: this grammar could be a lot better
+                    let json_sampler = sampler_config::SamplerConfig {
+                        use_grammar: true,
+                        gbnf_grammar: sampler_config::JSON_GRAMMAR.into(),
+                        ..sampler.clone()
+                    };
+
+                    // generate rest of tool call with json grammar
+                    // TODO: do we want stop_tokens here? 0_o
+                    debug!("Completing rest of tool call.");
+                    let stream = actor
+                        .write_until_done(json_sampler, stop_words.clone())
+                        .await;
+                    let tool_call_response = response_from_stream(stream).await?;
+                    debug!("completed tool call: {:?}", tool_call_response); // TODO: structured logging
+
+                    // HACK read the </tool_call> end tag into the context manually
+                    //      our json-specific sampler doesn't support it, so we will never generate it naturally
+                    //      it might be better to construct a sampler that works
+                    // TODO: newlines? whitespace? where?
+                    actor
+                        .read("\n</tool_call>".to_string())
+                        .await
+                        .expect("todo")
+                        .expect("todo");
+                    // TODO: ^ handle read error here
+
+                    match extract_and_parse_tool_call(&tool_call_response) {
+                        Ok(tool_call) => {
+                            // do the tool call
+                            let resp = output
+                                .call_tool(tool_call.name.clone(), tool_call.arguments.to_string());
+
+                            // put tool call and results in chat_state
+                            let _ = chat_state.render_diff();
+                            chat_state.add_tool_calls(vec![tool_call.clone()]);
+                            chat_state.add_tool_result(tool_call.name, resp);
+                            let diff = chat_state.render_diff().expect("TODO: handle err");
+
+                            // now keep generating a response
+                            let stream = actor
+                                .generate_response(diff, sampler.clone(), stop_words.clone())
+                                .await;
+                            let tool_response = emit_until_done(stream, &output, &vec![]).await?;
+                            output.emit_response(tool_response.clone());
+                            chat_state.add_message("assistant".to_string(), tool_response);
+                        }
+                        Err(_) => {
+                            todo!("deal with error parsing tool call")
+                        }
+                    }
+                } else {
+                    // no tool call - proceed as normal
+                    // we have a full response. send it out.
+                    debug!("Emitting a normal response");
+                    output.emit_response(full_response.clone());
+                    chat_state.add_message("assistant".to_string(), full_response);
                 }
 
-                // TODO: stop on <tool_call> control token,
-                //       and swap sampler for a json-schema compliant one
+                //  match extract_and_parse_tool_call(&full_response) {
+                //      Ok(tool_call) => {
+                //          debug!("Performing tool call: {:?}", tool_call);
+                //          // TODO: support multiple tool calls in one message
 
-                match extract_and_parse_tool_call(&full_response) {
-                    Ok(tool_call) => {
-                        debug!("Performing tool call: {:?}", tool_call);
-                        // TODO: support multiple tool calls in one message
+                //          // do the tool call
+                //          let resp = output
+                //              .call_tool(tool_call.name.clone(), tool_call.arguments.to_string());
 
-                        // do the tool call
-                        let resp = output
-                            .call_tool(tool_call.name.clone(), tool_call.arguments.to_string());
+                //          // put tool call and results in chat_state
+                //          let _ = chat_state.render_diff();
+                //          chat_state.add_tool_calls(vec![tool_call.clone()]);
+                //          chat_state.add_tool_result(tool_call.name, resp);
+                //          let diff = chat_state.render_diff().expect("TODO: handle err");
 
-                        // put tool call and results in chat_state
-                        let _ = chat_state.render_diff();
-                        chat_state.add_tool_calls(vec![tool_call.clone()]);
-                        chat_state.add_tool_result(tool_call.name, resp);
-                        let diff = chat_state.render_diff().expect("TODO: handle err");
-
-                        // generate text
-                        let stream = actor.generate_response(diff, stop_words.clone()).await;
-                        let full_response = emit_until_done(stream, &output).await?;
-                    }
-                    Err(_) => {
-                        // we have a full response. send it out.
-                        output.emit_response(full_response.clone());
-                        chat_state.add_message("assistant".to_string(), full_response);
-                    }
-                }
+                //          // generate text
+                //          let stream = actor
+                //              .generate_response(diff, json_sampler, stop_words.clone())
+                //              .await;
+                //          // let full_response = emit_until_done(stream, &output).await?;
+                //      }
 
                 // render diff just to update the internal length state
                 let _ = chat_state.render_diff();
@@ -266,6 +355,9 @@ mod tests {
                 panic!("unknown tool! {name:?}")
             }
         }
+        fn get_sampler(&self) -> SamplerConfig {
+            SamplerConfig::default()
+        }
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -279,9 +371,7 @@ mod tests {
                 .to_string();
         let params = llm::LLMActorParams {
             model,
-            sampler_config: SamplerConfig::default(),
             n_ctx: 4096,
-            stop_tokens: vec![],
             use_embeddings: false,
         };
 
@@ -292,6 +382,7 @@ mod tests {
         local.spawn_local(simple_chat_loop(
             params,
             system_prompt,
+            vec![],
             say_rx,
             Box::new(mock_output),
         ));
@@ -345,9 +436,7 @@ mod tests {
                 .to_string();
         let params = llm::LLMActorParams {
             model,
-            sampler_config: SamplerConfig::default(),
             n_ctx: 4096,
-            stop_tokens: vec![],
             use_embeddings: false,
         };
 
@@ -358,6 +447,7 @@ mod tests {
         local.spawn_local(simple_chat_loop(
             params,
             system_prompt,
+            vec![],
             say_rx,
             Box::new(mock_output),
         ));
@@ -371,7 +461,7 @@ mod tests {
             let response = response_rx.recv().await.unwrap();
             assert!(
                 response.contains("42"),
-                "Expected completion to contain 'Copenhagen', got: {response}"
+                "Expected completion to contain '42', got: {response}"
             );
         };
 
