@@ -170,7 +170,7 @@ impl ChatState {
 
     pub fn add_tool_calls(&mut self, tool_calls: Vec<ToolCall>) {
         self.messages.push(Message::ToolCalls {
-            role: "system".to_string(),
+            role: "assistant".to_string(),
             tool_calls,
         })
     }

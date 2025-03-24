@@ -1,5 +1,6 @@
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::sampling::LlamaSampler;
+use tracing::debug;
 
 #[derive(Clone, Debug)]
 pub struct SamplerConfig {
@@ -10,7 +11,35 @@ pub struct SamplerConfig {
     pub penalty_present: f32,
     pub use_grammar: bool,
     pub gbnf_grammar: String,
+    pub lazy_grammar_trigger: String,
 }
+
+pub const TOOL_CALL_GRAMMAR: &str = r#"# this grammar forces qwen-style tool calling
+root   ::= "<tool_call>" ws object ws "</tool_call>"
+value  ::= object | array | string | number | ("true" | "false" | "null") ws
+
+object ::=
+"{" ws (
+            string ":" ws value
+    ("," ws string ":" ws value)*
+)? "}" ws
+
+array  ::=
+"[" ws (
+            value
+    ("," ws value)*
+)? "]" ws
+
+string ::=
+"\"" (
+    [^"\\\x7F\x00-\x1F] |
+    "\\" (["\\bfnrt] | "u" [0-9a-fA-F]{4}) # escapes
+)* "\"" ws
+
+number ::= ("-"? ([0-9] | [1-9] [0-9]{0,15})) ("." [0-9]+)? ([eE] [-+]? [0-9] [1-9]{0,15})? ws
+
+# Optional space: by convention, applied in this grammar after literal chars when allowed
+ws ::= | " " | "\n" [ \t]{0,20}"#;
 
 pub const JSON_GRAMMAR: &str = r#"# this default gbnf grammar forces valid json output
 root   ::= object
@@ -48,6 +77,7 @@ impl Default for SamplerConfig {
             penalty_present: 0.0,
             use_grammar: false,
             gbnf_grammar: JSON_GRAMMAR.into(),
+            lazy_grammar_trigger: "".into(),
             method: SamplerMethod::MirostatV2(MirostatV2 {
                 seed: 1234,
                 temperature: 0.8,
@@ -245,8 +275,23 @@ impl Default for MirostatV2 {
 pub fn make_sampler(model: &LlamaModel, sampler_config: SamplerConfig) -> LlamaSampler {
     let mut chainvec = Vec::new();
 
+    let t: llama_cpp_2::token::LlamaToken;
+
     // Add grammar sampler first if configured
-    if sampler_config.use_grammar {
+    if sampler_config.use_grammar && sampler_config.lazy_grammar_trigger.trim().len() > 0 {
+        // with trigger word
+        chainvec.push(LlamaSampler::grammar_lazy(
+            model,
+            &sampler_config.gbnf_grammar,
+            "root",
+            &[sampler_config.lazy_grammar_trigger.clone()],
+            &[llama_cpp_2::token::LlamaToken(151657)], // TODO: hardcoded for debugging
+        ));
+        debug!(
+            "Added lazy grammar, {:?}",
+            &sampler_config.lazy_grammar_trigger
+        );
+    } else if sampler_config.use_grammar {
         chainvec.push(LlamaSampler::grammar(
             model,
             &sampler_config.gbnf_grammar,

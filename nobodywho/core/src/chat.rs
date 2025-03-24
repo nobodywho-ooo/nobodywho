@@ -22,9 +22,11 @@ fn extract_and_parse_tool_call(input: &str) -> Result<chat_state::ToolCall, Box<
     }
 
     let json_str = &input[start_idx..end_idx].trim();
+    debug!(json_str = ?json_str);
 
     // Parse the JSON
     let tool_call: chat_state::ToolCall = serde_json::from_str(json_str)?;
+    debug!(tool_call = ?tool_call);
 
     Ok(tool_call)
 }
@@ -151,7 +153,6 @@ pub async fn simple_chat_loop(
 
     // TODO: do proper configurable tools
     let tools = vec![test_tool()];
-    // let tools = vec![];
 
     // init chat state
     let mut chat_state = chat_state::ChatState::from_model(&params.model, tools)?;
@@ -161,8 +162,6 @@ pub async fn simple_chat_loop(
     // init actor
     let actor = llm::LLMActorHandle::new(params).await?;
     info!("Initialized actor.");
-
-    let tool_control_tokens = vec!["<tool_call>\n".to_string()];
 
     // wait for message from user
     while let Some(msg) = msg_rx.recv().await {
@@ -174,59 +173,35 @@ pub async fn simple_chat_loop(
                 // get the current sampler
                 let sampler = output.get_sampler();
 
-                // stream out the response
+                // patch sampler with tool-aware grammar
+                // TODO: this overrides any existing GBNF grammar. that's bad.
+                // TODO: generate a gbnf grammar from the json schemae
+                // TODO: this grammar could be a lot better
+                let sampler = sampler_config::SamplerConfig {
+                    use_grammar: true,
+                    lazy_grammar_trigger: "<tool_call>".into(),
+                    gbnf_grammar: sampler_config::TOOL_CALL_GRAMMAR.into(),
+                    ..sampler.clone()
+                };
+                // TODO: handle tool call control token, id: 151657
+
+                // generate a the response
                 let stream = actor
-                    .generate_response(
-                        diff,
-                        sampler.clone(),
-                        [
-                            stop_words.clone(),
-                            // also stop on tool call tokens
-                            tool_control_tokens.clone(),
-                        ]
-                        .concat(),
-                    )
+                    .generate_response(diff, sampler.clone(), stop_words.clone())
                     .await;
 
                 // put tool control tokens in blacklist, so they're not emitted
-                let full_response = emit_until_done(stream, &output, &tool_control_tokens).await?;
+                let full_response = emit_until_done(stream, &output, &vec![]).await?;
+                info!("Got response: {full_response:?}");
                 if full_response.contains("<tool_call>") {
                     let span = debug_span!("tool_call");
                     let _guard = span.enter();
                     debug!("Found a tool call!: {full_response:?}");
 
-                    // this sampler is just the regular grammar with a json sampler
-                    // TODO: generate a gbnf grammar from the json schemae
-                    // TODO: this grammar could be a lot better
-                    let json_sampler = sampler_config::SamplerConfig {
-                        use_grammar: true,
-                        gbnf_grammar: sampler_config::JSON_GRAMMAR.into(),
-                        ..sampler.clone()
-                    };
-
-                    // generate rest of tool call with json grammar
-                    // TODO: do we want stop_tokens here? 0_o
-                    debug!("Completing rest of tool call.");
-                    let stream = actor
-                        .write_until_done(json_sampler, stop_words.clone())
-                        .await;
-                    let tool_call_response = response_from_stream(stream).await?;
-                    debug!("completed tool call: {:?}", tool_call_response); // TODO: structured logging
-
-                    // HACK read the </tool_call> end tag into the context manually
-                    //      our json-specific sampler doesn't support it, so we will never generate it naturally
-                    //      it might be better to construct a sampler that works
-                    // TODO: newlines? whitespace? where?
-                    actor
-                        .read("\n</tool_call>".to_string())
-                        .await
-                        .expect("todo")
-                        .expect("todo");
-                    // TODO: ^ handle read error here
-
-                    match extract_and_parse_tool_call(&tool_call_response) {
+                    match extract_and_parse_tool_call(&full_response) {
                         Ok(tool_call) => {
                             // do the tool call
+                            debug!("Doing tool call: {tool_call:?}");
                             let resp = output
                                 .call_tool(tool_call.name.clone(), tool_call.arguments.to_string());
 
@@ -236,10 +211,11 @@ pub async fn simple_chat_loop(
                             chat_state.add_tool_result(tool_call.name, resp);
                             let diff = chat_state.render_diff().expect("TODO: handle err");
 
-                            // now keep generating a response
+                            // now generate another response
                             let stream = actor
                                 .generate_response(diff, sampler.clone(), stop_words.clone())
                                 .await;
+
                             let tool_response = emit_until_done(stream, &output, &vec![]).await?;
                             output.emit_response(tool_response.clone());
                             chat_state.add_message("assistant".to_string(), tool_response);
@@ -416,7 +392,11 @@ mod tests {
 
     #[test]
     fn test_extract_tool_call() {
-        let toolcall_str = r#"<tool_call>{"name": "get_current_temperature", "arguments": {"location": "Copenhagen, Denmark"}}</tool_call>"#;
+        test_utils::init_test_tracing();
+
+        let toolcall_str = r#"<tool_call>
+{"name": "get_current_temperature", "arguments": {"location": "Copenhagen, Denmark"}}
+</tool_call>"#;
         let toolcall = extract_and_parse_tool_call(toolcall_str).expect("failed parsing tool call");
         assert_eq!(toolcall.name, "get_current_temperature");
         assert_eq!(
