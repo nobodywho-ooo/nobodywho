@@ -8,6 +8,8 @@ use nobodywho::core::llm;
 use nobodywho::core::sampler_config::SamplerConfig;
 use nobodywho::llm::LLMOutput;
 
+use llama_cpp_2::model::LlamaModel;
+
 fn copy_to_error_buf(error_buf: *mut c_char, message: &str) {
     
     // If you change this value, you must also change the size of the error_buf in the following files:
@@ -64,10 +66,8 @@ pub extern "C" fn create_chat_worker(
     system_prompt: *const c_char,
     error_buf: *mut c_char
 ) -> *mut c_void {
-    println!("DEBUG [create_chat_worker]: model_ptr = {:?}", model_ptr);
     let model: llm::Model = unsafe { Arc::from_raw(model_ptr as *const LlamaModel) };    
-    println!("DEBUG: Arc strong count before thread spawn: {}", Arc::strong_count(&model));
-
+    
     let system_prompt = unsafe {
         match CStr::from_ptr(system_prompt).to_str() {
             Ok(s) => s.to_owned(),
@@ -111,16 +111,19 @@ pub extern "C" fn poll_responses(
     on_complete: extern fn(*const c_char),
     on_error: extern fn(*const c_char)
 ) {
+    println!("DEBUG [poll_responses]: entry");
     let context_ref: Arc<ChatContext> = unsafe { Arc::from_raw(context as *const ChatContext) };
-    let context: ChatContext = match Arc::into_inner(context_ref) {
+    let count = Arc::strong_count(&context_ref);
+    println!("DEBUG [poll_responses]: Arc has {:?} strong references", count); 
+
+    let chat_context: ChatContext = match Arc::into_inner(context_ref) {
         Some(c) => c,
         None => {
-            println!("DEBUG [poll_responses]: Arc is null, this is likely due to more than one strong reference to the ChatContext");
-            return;
+            panic!("ERROR: Arc is null - this is likely due to the memory being freed. reference count: {:?}", count);
         }
     };
 
-    while let Ok(output) = &context.completion_rx.try_recv() {
+    while let Ok(output) = &chat_context.completion_rx.try_recv() {
         println!("DEBUG [poll_responses]: output is Ok");
         match output {
             LLMOutput::Token(token) => {
@@ -142,40 +145,50 @@ pub extern "C" fn poll_responses(
             },
         }
     }
-    let _ = Arc::into_raw(Arc::new(context)) as *mut c_void; // return ownership back to the caller 
+    let _ = Arc::into_raw(Arc::new(chat_context)) as *mut c_void; // return ownership back to the caller 
 }
 
-/// TODO: make it return void
+
 #[no_mangle]
 pub extern "C" fn send_prompt(
     context: *mut c_void,
     prompt: *const c_char,
     error_buf: *mut c_char
-) -> *mut c_void {
-    if context.is_null() || prompt.is_null() || error_buf.is_null() {
-        if !error_buf.is_null() {
-            copy_to_error_buf(error_buf, "Null pointer provided");
-        }
-        return std::ptr::null_mut();
+) {
+    println!("DEBUG [send_prompt]: entry");
+    let context_ref: Arc<ChatContext> = unsafe { Arc::from_raw(context as *const ChatContext) }; // +1
+    let count = Arc::strong_count(&context_ref);
+    if count != 1 {
+        copy_to_error_buf(error_buf, &format!("[send_prompt]: Arc has {:?} strong references, it should have 1", count));
+        return;
     }
-    // cast a void pointer to a ChatContext pointer and dereference it, and return a reference to it.
-    let context = unsafe { &*(context as *const ChatContext) };
+
+
+    let chat_context: ChatContext = match Arc::try_unwrap(context_ref) {
+        Ok(c) => c,
+        Err(e) => {
+            copy_to_error_buf(error_buf, &format!("Arc has {:?} strong references, it should have 1", count));   
+            return;
+        }
+    };
     
     let prompt_str = match unsafe { CStr::from_ptr(prompt).to_str() } {
         Ok(prompt_string) => prompt_string.to_owned(),
-        Err(_) => {
-            copy_to_error_buf(error_buf, "Invalid UTF-8 in prompt");
-            return std::ptr::null_mut();
+        Err(e) => {
+            copy_to_error_buf(error_buf, &format!("Invalid UTF-8 in prompt: {}", e));
+            // currently this implicitly kills the last reference to the ChatContext
+            return;
         }
     };
-
-    match context.prompt_tx.send(prompt_str) {
-        Ok(_) => std::ptr::null_mut(),
+    match chat_context.prompt_tx.send(prompt_str) {
+        Ok(_) => {},
         Err(e) => {
             copy_to_error_buf(error_buf, &format!("Failed to send prompt: {}", e));
-            std::ptr::null_mut()
+            // currently this implicitly kills the last reference to the ChatContext
+            return;
         }
     }
+    let _ = Arc::into_raw(Arc::new(chat_context)) as *mut c_void; // return ownership back to the caller 
 }
 
 #[no_mangle]
