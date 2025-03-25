@@ -19,7 +19,8 @@ namespace NobodyWho
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
         public static extern IntPtr create_chat_worker(
             IntPtr model,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string system_prompt);
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string system_prompt,
+            [MarshalAs(UnmanagedType.LPStr)] StringBuilder error_buf);  
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         public delegate void ResponseCallback([MarshalAs(UnmanagedType.LPUTF8Str)] string text);
