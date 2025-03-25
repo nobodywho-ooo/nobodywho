@@ -9,4 +9,4 @@ path = "src/lib.rs"
 
 [dependencies]
 nobodywho = { path = "../core" }
-
+llama-cpp-2 = { git = "https://github.com/utilityai/llama-cpp-rs.git", rev = "b0d355c" }

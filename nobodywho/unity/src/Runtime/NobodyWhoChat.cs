@@ -29,6 +29,10 @@ namespace NobodyWho {
         }
 
         void Update() {
+            // we should do nothin unless we have a worker context
+            if (_workerContext == null) {
+                return;
+            }
             try {
                 NativeBindings.poll_responses(
                     _workerContext,
