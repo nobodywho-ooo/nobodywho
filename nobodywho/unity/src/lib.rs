@@ -61,17 +61,24 @@ struct ChatContext {
 #[no_mangle]
 pub extern "C" fn create_chat_worker(
     model_ptr: *mut c_void,
-    system_prompt: *const c_char
+    system_prompt: *const c_char,
+    error_buf: *mut c_char
 ) -> *mut c_void {
-    let model = unsafe { 
-        *Box::from_raw(model_ptr as *mut llm::Model)
-    };
+    println!("DEBUG [create_chat_worker]: model_ptr = {:?}", model_ptr);
+    let model: llm::Model = unsafe { Arc::from_raw(model_ptr as *const LlamaModel) };    
+    println!("DEBUG: Arc strong count before thread spawn: {}", Arc::strong_count(&model));
 
     let system_prompt = unsafe {
-        CStr::from_ptr(system_prompt)
-            .to_string_lossy()
-            .into_owned()
+        match CStr::from_ptr(system_prompt).to_str() {
+            Ok(s) => s.to_owned(),
+            Err(_) => {
+                copy_to_error_buf(error_buf, "Invalid UTF-8 in system prompt");
+                return std::ptr::null_mut();
+            }
+        }
     };
+
+    println!("DEBUG: system prompt: {}", system_prompt);
 
     let (prompt_tx, prompt_rx) = mpsc::channel();
     let (completion_tx, completion_rx) = mpsc::channel();
@@ -88,7 +95,7 @@ pub extern "C" fn create_chat_worker(
         );
     });
 
-    Box::into_raw(Box::new(ChatContext {
+    Arc::into_raw(Arc::new(ChatContext {
         prompt_tx,
         completion_rx,
     })) as *mut c_void
@@ -104,17 +111,27 @@ pub extern "C" fn poll_responses(
     on_complete: extern fn(*const c_char),
     on_error: extern fn(*const c_char)
 ) {
-    let context = unsafe { &*(context as *const ChatContext) };
-    
-    while let Ok(output) = context.completion_rx.try_recv() {
+    let context_ref: Arc<ChatContext> = unsafe { Arc::from_raw(context as *const ChatContext) };
+    let context: ChatContext = match Arc::into_inner(context_ref) {
+        Some(c) => c,
+        None => {
+            println!("DEBUG [poll_responses]: Arc is null, this is likely due to more than one strong reference to the ChatContext");
+            return;
+        }
+    };
+
+    while let Ok(output) = &context.completion_rx.try_recv() {
+        println!("DEBUG [poll_responses]: output is Ok");
         match output {
             LLMOutput::Token(token) => {
-                if let Ok(c_str) = CString::new(token) {
+                println!("DEBUG [poll_responses]: output is Token");
+                if let Ok(c_str) = CString::new(token.as_str()) {
+                    println!("DEBUG [poll_responses]: output is Token and c_str is Ok");
                     on_token(c_str.as_ptr())
                 }
             },
             LLMOutput::Done(response) => {
-                if let Ok(c_str) = CString::new(response) {
+                if let Ok(c_str) = CString::new(response.as_str()) {
                     on_complete(c_str.as_ptr())
                 }
             },
@@ -125,9 +142,10 @@ pub extern "C" fn poll_responses(
             },
         }
     }
+    let _ = Arc::into_raw(Arc::new(context)) as *mut c_void; // return ownership back to the caller 
 }
 
-
+/// TODO: make it return void
 #[no_mangle]
 pub extern "C" fn send_prompt(
     context: *mut c_void,
@@ -160,12 +178,10 @@ pub extern "C" fn send_prompt(
     }
 }
 
-/// Dropping the context will kill the worker thread. This will force the retriever rx to error out -
-/// much like we do in godot - and panic (but we dont care too much as we have purposefully killed the thread).
 #[no_mangle]
 pub extern "C" fn destroy_chat_worker(context: *mut c_void) {
     unsafe {
-        drop(Box::from_raw(context as *mut ChatContext));
+        let _: Arc<ChatContext> = Arc::from_raw(context as *mut ChatContext);
     }
 }
 
@@ -188,14 +204,19 @@ mod tests {
 
     static mut RECEIVED_COMPLETE: bool = false;
     
-    extern "C" fn test_on_error(_error: *const c_char) { panic!("Received error during polling"); }
-    extern "C" fn test_on_complete(_response: *const c_char) { unsafe { RECEIVED_COMPLETE = true; } }
+    extern "C" fn test_on_error(_error: *const c_char) { 
+        println!("DEBUG: Received error callback!");
+        panic!("Received error during polling"); 
+    }
+    extern "C" fn test_on_complete(_response: *const c_char) { 
+        println!("DEBUG: Received completion callback!");
+        unsafe { RECEIVED_COMPLETE = true; } 
+    }
     extern "C" fn test_on_token(token: *const c_char) {
         if let Ok(token_str) = unsafe { CStr::from_ptr(token) }.to_str() {
-            println!("DEBUG: token: {}", token_str);
+            println!("DEBUG: Received token: {}", token_str);
         }
     }
-    
 
     #[test]
     fn test_create_chat_worker() {
@@ -203,11 +224,11 @@ mod tests {
         let error_ptr = error_buf.as_ptr() as *mut c_char;
         
         let model_path = CString::new("qwen2.5-1.5b-instruct-q4_0.gguf").unwrap();
-        let model = get_model(model_path.as_ptr(), true, error_ptr);
+        let model: *mut c_void = get_model(model_path.as_ptr(), true, error_ptr);
         assert_eq!(unsafe { CStr::from_ptr(error_ptr).to_bytes() }, &[0u8; 0], "Model should be loaded successfully");
 
         let system_prompt = CString::new("You are a test assistant").unwrap();
-        let chat_context = create_chat_worker(
+        let chat_context: *mut c_void = create_chat_worker(
             model,
             system_prompt.as_ptr(),
             error_ptr,
@@ -216,15 +237,18 @@ mod tests {
         
         let prompt = CString::new("Hello, how are you?").unwrap();
         send_prompt(chat_context, prompt.as_ptr(), error_ptr);
-
+        
         unsafe { RECEIVED_COMPLETE = false; }
         
-        // Poll until we get completion
+        println!("DEBUG: Starting polling loop...");
+        
         let timeout = std::time::Instant::now() + std::time::Duration::from_secs(5);
         while unsafe { !RECEIVED_COMPLETE } {
             if std::time::Instant::now() > timeout {
+                println!("DEBUG: Polling timed out!");
                 panic!("Timed out waiting for response");
             }
+            println!("DEBUG: Polling responses...");
             poll_responses(
                 chat_context as *mut c_void,
                 test_on_token,
@@ -238,19 +262,5 @@ mod tests {
         destroy_chat_worker(chat_context as *mut c_void);
         destroy_model(model as *mut c_void);
     }
-
-    // //#[test]
-    // fn test_create_chat_worker_with_null_model() {
-    //     let error_buf = [0u8; 1024];
-    //     let error_ptr = error_buf.as_ptr() as *mut c_char;
-    //     let system_prompt = CString::new("You are a test assistant").unwrap();
-
-    //     let result = create_chat_worker(
-    //         std::ptr::null_mut(),
-    //         system_prompt.as_ptr(),
-    //         error_ptr,
-    //     );
-    //     assert!(result.is_null(), "Should fail with null model pointer");
-    // }
 }
 
