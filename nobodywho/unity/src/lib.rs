@@ -178,3 +178,79 @@ pub extern "C" fn destroy_model(model: *mut c_void) {
         let _: Arc<llm::Model> = Arc::from_raw(model as *const llm::Model); 
     }
 }
+
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::CString;
+
+    static mut RECEIVED_COMPLETE: bool = false;
+    
+    extern "C" fn test_on_error(_error: *const c_char) { panic!("Received error during polling"); }
+    extern "C" fn test_on_complete(_response: *const c_char) { unsafe { RECEIVED_COMPLETE = true; } }
+    extern "C" fn test_on_token(token: *const c_char) {
+        if let Ok(token_str) = unsafe { CStr::from_ptr(token) }.to_str() {
+            println!("DEBUG: token: {}", token_str);
+        }
+    }
+    
+
+    #[test]
+    fn test_create_chat_worker() {
+        let error_buf = [0u8; 1024];
+        let error_ptr = error_buf.as_ptr() as *mut c_char;
+        
+        let model_path = CString::new("qwen2.5-1.5b-instruct-q4_0.gguf").unwrap();
+        let model = get_model(model_path.as_ptr(), true, error_ptr);
+        assert_eq!(unsafe { CStr::from_ptr(error_ptr).to_bytes() }, &[0u8; 0], "Model should be loaded successfully");
+
+        let system_prompt = CString::new("You are a test assistant").unwrap();
+        let chat_context = create_chat_worker(
+            model,
+            system_prompt.as_ptr(),
+            error_ptr,
+        );
+        assert_eq!(unsafe { CStr::from_ptr(error_ptr).to_bytes() }, &[0u8; 0], "Chat worker should be created successfully");
+        
+        let prompt = CString::new("Hello, how are you?").unwrap();
+        send_prompt(chat_context, prompt.as_ptr(), error_ptr);
+
+        unsafe { RECEIVED_COMPLETE = false; }
+        
+        // Poll until we get completion
+        let timeout = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while unsafe { !RECEIVED_COMPLETE } {
+            if std::time::Instant::now() > timeout {
+                panic!("Timed out waiting for response");
+            }
+            poll_responses(
+                chat_context as *mut c_void,
+                test_on_token,
+                test_on_complete,
+                test_on_error
+            );
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(unsafe { RECEIVED_COMPLETE }, "Should have received completion signal");
+
+        destroy_chat_worker(chat_context as *mut c_void);
+        destroy_model(model as *mut c_void);
+    }
+
+    // //#[test]
+    // fn test_create_chat_worker_with_null_model() {
+    //     let error_buf = [0u8; 1024];
+    //     let error_ptr = error_buf.as_ptr() as *mut c_char;
+    //     let system_prompt = CString::new("You are a test assistant").unwrap();
+
+    //     let result = create_chat_worker(
+    //         std::ptr::null_mut(),
+    //         system_prompt.as_ptr(),
+    //         error_ptr,
+    //     );
+    //     assert!(result.is_null(), "Should fail with null model pointer");
+    // }
+}
+
