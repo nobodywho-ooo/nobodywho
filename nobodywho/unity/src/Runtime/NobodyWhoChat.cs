@@ -18,8 +18,10 @@ namespace NobodyWho {
 
         void Start() {
             try {
-                var errorBuffer = new StringBuilder(2048); // update lib.rs if you change this value
+               var errorBuffer = new StringBuilder(2048); // update lib.rs if you change this value
+                Debug.Log("DEBUG [Chat::Start]: creating worker context");
                 _workerContext = NativeBindings.create_chat_worker(model.GetModel(), systemPrompt, errorBuffer);
+                Debug.Log("DEBUG [Chat::Start]: worker context created");
                 if (errorBuffer.Length > 0) {
                     throw new NobodyWhoException(errorBuffer.ToString());
                 }
@@ -46,6 +48,7 @@ namespace NobodyWho {
         }
 
         public void say(string prompt) {
+            Debug.Log("DEBUG [Chat::say]: sending prompt");
             try {
                 var errorBuffer = new StringBuilder(2048); // update lib.rs if you change this value
                 NativeBindings.send_prompt(_workerContext, prompt, errorBuffer);
