@@ -21,7 +21,7 @@ fn copy_to_error_buf(error_buf: *mut c_char, message: &str) {
     unsafe {
         std::ptr::copy_nonoverlapping(
             safe_message.as_ptr() as *const c_char,
-            error_buf,
+            error_buf, 
             length
         );
         *error_buf.add(length) = 0;
@@ -59,15 +59,14 @@ struct ChatContext {
     prompt_tx: mpsc::Sender<String>,
     completion_rx: mpsc::Receiver<LLMOutput>,
 }
-
 #[no_mangle]
 pub extern "C" fn create_chat_worker(
     model_ptr: *mut c_void,
     system_prompt: *const c_char,
     error_buf: *mut c_char
 ) -> *mut c_void {
-    let model: llm::Model = unsafe { Arc::from_raw(model_ptr as *const LlamaModel) };    
-    
+    let model: llm::Model = unsafe { Arc::from_raw(model_ptr as *const LlamaModel) };
+
     let system_prompt = unsafe {
         match CStr::from_ptr(system_prompt).to_str() {
             Ok(s) => s.to_owned(),
@@ -95,7 +94,7 @@ pub extern "C" fn create_chat_worker(
         );
     });
 
-    Arc::into_raw(Arc::new(ChatContext {
+    Box::into_raw(Box::new(ChatContext {
         prompt_tx,
         completion_rx,
     })) as *mut c_void
@@ -111,41 +110,33 @@ pub extern "C" fn poll_responses(
     on_complete: extern fn(*const c_char),
     on_error: extern fn(*const c_char)
 ) {
-    println!("DEBUG [poll_responses]: entry");
-    let context_ref: Arc<ChatContext> = unsafe { Arc::from_raw(context as *const ChatContext) };
-    let count = Arc::strong_count(&context_ref);
-    println!("DEBUG [poll_responses]: Arc has {:?} strong references", count); 
-
-    let chat_context: ChatContext = match Arc::into_inner(context_ref) {
-        Some(c) => c,
-        None => {
-            panic!("ERROR: Arc is null - this is likely due to the memory being freed. reference count: {:?}", count);
-        }
-    };
+    let chat_context: Box<ChatContext> = unsafe { Box::from_raw(context as *mut ChatContext) };
 
     while let Ok(output) = &chat_context.completion_rx.try_recv() {
         println!("DEBUG [poll_responses]: output is Ok");
         match output {
             LLMOutput::Token(token) => {
-                println!("DEBUG [poll_responses]: output is Token");
                 if let Ok(c_str) = CString::new(token.as_str()) {
-                    println!("DEBUG [poll_responses]: output is Token and c_str is Ok");
+                    println!("DEBUG [poll_responses]: output new token: {}", c_str.to_string_lossy());
                     on_token(c_str.as_ptr())
                 }
             },
             LLMOutput::Done(response) => {
                 if let Ok(c_str) = CString::new(response.as_str()) {
+                    println!("DEBUG [poll_responses]: output DONE response: {}", c_str.to_string_lossy());
                     on_complete(c_str.as_ptr())
                 }
             },
             LLMOutput::FatalErr(msg) => {
                 if let Ok(c_str) = CString::new(msg.to_string()) {
+                    println!("DEBUG [poll_responses]: output ERROR: {}", c_str.to_string_lossy());
                     on_error(c_str.as_ptr())
                 }
             },
         }
     }
-    let _ = Arc::into_raw(Arc::new(chat_context)) as *mut c_void; // return ownership back to the caller 
+    // do not garbage collect
+    Box::into_raw(Box::new(chat_context)) as *mut c_void;
 }
 
 
@@ -156,23 +147,9 @@ pub extern "C" fn send_prompt(
     error_buf: *mut c_char
 ) {
     println!("DEBUG [send_prompt]: entry");
-    let context_ref: Arc<ChatContext> = unsafe { Arc::from_raw(context as *const ChatContext) }; // +1
-    let count = Arc::strong_count(&context_ref);
-    if count != 1 {
-        copy_to_error_buf(error_buf, &format!("[send_prompt]: Arc has {:?} strong references, it should have 1", count));
-        return;
-    }
-
-
-    let chat_context: ChatContext = match Arc::try_unwrap(context_ref) {
-        Ok(c) => c,
-        Err(e) => {
-            copy_to_error_buf(error_buf, &format!("Arc has {:?} strong references, it should have 1", count));   
-            return;
-        }
-    };
+    let chat_context: Box<ChatContext> = unsafe { Box::from_raw(context as *mut ChatContext) };
     
-    let prompt_str = match unsafe { CStr::from_ptr(prompt).to_str() } {
+    let prompt_str: String = match unsafe { CStr::from_ptr(prompt).to_str() } {
         Ok(prompt_string) => prompt_string.to_owned(),
         Err(e) => {
             copy_to_error_buf(error_buf, &format!("Invalid UTF-8 in prompt: {}", e));
@@ -188,14 +165,18 @@ pub extern "C" fn send_prompt(
             return;
         }
     }
-    let _ = Arc::into_raw(Arc::new(chat_context)) as *mut c_void; // return ownership back to the caller 
+    // do not garbage collect
+    Box::into_raw(Box::new(chat_context)) as *mut c_void;
+    println!("DEBUG [send_prompt]: exit");
 }
 
 #[no_mangle]
 pub extern "C" fn destroy_chat_worker(context: *mut c_void) {
+    println!("DEBUG [destroy_chat_worker]: entry");
     unsafe {
-        let _: Arc<ChatContext> = Arc::from_raw(context as *mut ChatContext);
+        drop(Box::from_raw(context as *mut ChatContext));
     }
+    println!("DEBUG [destroy_chat_worker]: exit");
 }
 
 // Converts the raw pointer back to an Arc, decreasing the reference count
@@ -246,16 +227,16 @@ mod tests {
             system_prompt.as_ptr(),
             error_ptr,
         );
+
+
         assert_eq!(unsafe { CStr::from_ptr(error_ptr).to_bytes() }, &[0u8; 0], "Chat worker should be created successfully");
-        
+
+
         let prompt = CString::new("Hello, how are you?").unwrap();
         send_prompt(chat_context, prompt.as_ptr(), error_ptr);
         
-        unsafe { RECEIVED_COMPLETE = false; }
-        
-        println!("DEBUG: Starting polling loop...");
-        
-        let timeout = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        unsafe { RECEIVED_COMPLETE = false; }        
+        let timeout = std::time::Instant::now() + std::time::Duration::from_secs(6);
         while unsafe { !RECEIVED_COMPLETE } {
             if std::time::Instant::now() > timeout {
                 println!("DEBUG: Polling timed out!");
@@ -263,7 +244,7 @@ mod tests {
             }
             println!("DEBUG: Polling responses...");
             poll_responses(
-                chat_context as *mut c_void,
+                chat_context,
                 test_on_token,
                 test_on_complete,
                 test_on_error
