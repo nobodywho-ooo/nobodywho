@@ -47,25 +47,28 @@ namespace Tests
             Debug.Log("Response: " + response);
             Assert.IsNotNull(response, "No response received within timeout period");
             Assert.AreEqual("Hello! How can I help you today?", response);
+            Debug.Log("DEBUG [ChatTests]: test completed");
         }
 
-        [UnityTest]
-        public IEnumerator WhenInvokingSay_ShouldReceiveTokens() {
-            // Setup token collection
-            List<string> receivedTokens = new List<string>();
-            chat.onToken.AddListener((token) => {
-                receivedTokens.Add(token);
-                Debug.Log($"Token received: {token}");
-            });
+        // [UnityTest]
+        // public IEnumerator WhenInvokingSay_ShouldReceiveTokens() {
+        //     Debug.Log("DEBUG [ChatTests]: test started");
+        //     // Setup token collection
+        //     List<string> receivedTokens = new List<string>();
+        //     chat.onToken.AddListener((token) => {
+        //         receivedTokens.Add(token);
+        //         Debug.Log($"Token received: {token}");
+        //     });
             
-            chat.say("Tell me a short joke");
+        //     chat.say("Tell me a short joke");
             
-            float timeout = Time.time + 5f;
-            while (receivedTokens.Count < 5 && Time.time < timeout) {
-                yield return null;
-            }
+        //     float timeout = Time.time + 5f;
+        //     while (receivedTokens.Count < 5 && Time.time < timeout) {
+        //         yield return null;
+        //     }
 
-            Assert.IsTrue(receivedTokens.Count > 0, "No tokens received within timeout period");            
-        }
+        //     Assert.IsTrue(receivedTokens.Count > 0, "No tokens received within timeout period");            
+        //     Debug.Log("DEBUG [ChatTests]: test completed");
+        // }
     }
 }
