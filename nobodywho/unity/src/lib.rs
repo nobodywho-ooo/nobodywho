@@ -77,8 +77,6 @@ pub extern "C" fn create_chat_worker(
         }
     };
 
-    println!("DEBUG: system prompt: {}", system_prompt);
-
     let (prompt_tx, prompt_rx) = mpsc::channel();
     let (completion_tx, completion_rx) = mpsc::channel();
     
@@ -113,23 +111,19 @@ pub extern "C" fn poll_responses(
     let chat_context: Box<ChatContext> = unsafe { Box::from_raw(context as *mut ChatContext) };
 
     while let Ok(output) = &chat_context.completion_rx.try_recv() {
-        println!("DEBUG [poll_responses]: output is Ok");
         match output {
             LLMOutput::Token(token) => {
                 if let Ok(c_str) = CString::new(token.as_str()) {
-                    println!("DEBUG [poll_responses]: output new token: {}", c_str.to_string_lossy());
                     on_token(c_str.as_ptr())
                 }
             },
             LLMOutput::Done(response) => {
                 if let Ok(c_str) = CString::new(response.as_str()) {
-                    println!("DEBUG [poll_responses]: output DONE response: {}", c_str.to_string_lossy());
                     on_complete(c_str.as_ptr())
                 }
             },
             LLMOutput::FatalErr(msg) => {
                 if let Ok(c_str) = CString::new(msg.to_string()) {
-                    println!("DEBUG [poll_responses]: output ERROR: {}", c_str.to_string_lossy());
                     on_error(c_str.as_ptr())
                 }
             },
@@ -146,7 +140,6 @@ pub extern "C" fn send_prompt(
     prompt: *const c_char,
     error_buf: *mut c_char
 ) {
-    println!("DEBUG [send_prompt]: entry");
     let chat_context: Box<ChatContext> = unsafe { Box::from_raw(context as *mut ChatContext) };
     
     let prompt_str: String = match unsafe { CStr::from_ptr(prompt).to_str() } {
@@ -167,16 +160,13 @@ pub extern "C" fn send_prompt(
     }
     // do not garbage collect
     Box::into_raw(Box::new(chat_context)) as *mut c_void;
-    println!("DEBUG [send_prompt]: exit");
 }
 
 #[no_mangle]
 pub extern "C" fn destroy_chat_worker(context: *mut c_void) {
-    println!("DEBUG [destroy_chat_worker]: entry");
     unsafe {
         drop(Box::from_raw(context as *mut ChatContext));
     }
-    println!("DEBUG [destroy_chat_worker]: exit");
 }
 
 // Converts the raw pointer back to an Arc, decreasing the reference count
@@ -199,16 +189,14 @@ mod tests {
     static mut RECEIVED_COMPLETE: bool = false;
     
     extern "C" fn test_on_error(_error: *const c_char) { 
-        println!("DEBUG: Received error callback!");
         panic!("Received error during polling"); 
     }
     extern "C" fn test_on_complete(_response: *const c_char) { 
-        println!("DEBUG: Received completion callback!");
         unsafe { RECEIVED_COMPLETE = true; } 
     }
     extern "C" fn test_on_token(token: *const c_char) {
         if let Ok(token_str) = unsafe { CStr::from_ptr(token) }.to_str() {
-            println!("DEBUG: Received token: {}", token_str);
+            println!("Received token: {}", token_str);
         }
     }
 
@@ -239,10 +227,8 @@ mod tests {
         let timeout = std::time::Instant::now() + std::time::Duration::from_secs(6);
         while unsafe { !RECEIVED_COMPLETE } {
             if std::time::Instant::now() > timeout {
-                println!("DEBUG: Polling timed out!");
                 panic!("Timed out waiting for response");
             }
-            println!("DEBUG: Polling responses...");
             poll_responses(
                 chat_context,
                 test_on_token,
