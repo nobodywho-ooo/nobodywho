@@ -6,49 +6,49 @@ using System;
 using System.IO;
 using NobodyWho;
 
-// namespace Tests
-// {
-//     public class NobodyWhoModelTests
-//     {
-//         private GameObject testObject;
-//         private NobodyWho.Model model;
+namespace Tests
+{
+    public class NobodyWhoModelTests
+    {
+        private GameObject testObject;
+        private NobodyWho.Model model;
 
-//         [SetUp]
-//         public void Setup()
-//         {
-//             testObject = new GameObject("TestModel");
-//             model = testObject.AddComponent<NobodyWho.Model>();
+        [SetUp]
+        public void Setup()
+        {
+            testObject = new GameObject("TestModel");
+            model = testObject.AddComponent<NobodyWho.Model>();
             
-//         }
+        }
 
-//         [TearDown]
-//         public void Teardown()
-//         {
-//             if (testObject != null)
-//             {
-//                 UnityEngine.Object.DestroyImmediate(testObject);
-//             }
-//         }
+        [TearDown]
+        public void Teardown()
+        {
+            if (testObject != null)
+            {
+                UnityEngine.Object.DestroyImmediate(testObject);
+            }
+        }
 
-//         [Test]
-//         public void WhenModelIsWrong_ShouldThrowNobodyWhoException()
-//         {
-//             // Create a fake GGUF file with invalid content
-//             string tempPath = Path.Combine(Application.streamingAssetsPath, "invalid.gguf");
-//             File.WriteAllText(tempPath, "This is not a valid GGUF file");
+        [Test]
+        public void WhenModelIsWrong_ShouldThrowNobodyWhoException()
+        {
+            // Create a fake GGUF file with invalid content
+            string tempPath = Path.Combine(Application.streamingAssetsPath, "invalid.ggusf");
+            File.WriteAllText(tempPath, "This is not a valid GGUF file");
             
-//             model.modelPath = "invalid.gguf";
-//             var exception = Assert.Throws<NobodyWhoException>(() => model.GetModel());
-//             File.Delete(tempPath);
-//         }
+            model.modelPath = "invalid.gguf";
+            var exception = Assert.Throws<NobodyWhoException>(() => model.GetModel());
+            File.Delete(tempPath);
+        }
         
-//         // TODO: add a build step for the model in create temp project. otherwise this will fail.
-//         [Test] 
-//         public void WhenModelPathIsGGUF_ShouldLoadModel()
-//         {
-//             model.modelPath = "qwen2.5-1.5b-instruct-q4_0.gguf";
-//             var model_handle = model.GetModel();
-//             Assert.That(model_handle, Is.Not.EqualTo(IntPtr.Zero));
-//         }
-//     }
-// } 
+        [Test] 
+        public void WhenModelPathIsGGUF_ShouldLoadModel()
+        {
+            // TODO: add a build step in nix for the model in `create temp project`. otherwise this will fail when other people run it.
+            model.modelPath = "qwen2.5-1.5b-instruct-q4_0.gguf";
+            var model_handle = model.GetModel();
+            Assert.That(model_handle, Is.Not.EqualTo(IntPtr.Zero));
+        }
+    }
+} 
