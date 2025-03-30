@@ -33,7 +33,10 @@ namespace NobodyWho {
         }
 
         void OnDestroy() {
-            NativeBindings.destroy_model(modelHandle);
+            // we cant destroy something that does not exist
+            if (modelHandle != IntPtr.Zero) {
+                NativeBindings.destroy_model(modelHandle);
+            }
         }
     }
 } 
