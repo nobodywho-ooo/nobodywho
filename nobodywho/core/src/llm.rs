@@ -193,7 +193,7 @@ impl LLMActorHandle {
 
     pub async fn reset_context(&self) -> Result<(), oneshot::error::RecvError> {
         let (respond_to, response) = oneshot::channel();
-        self.message_tx.send(WorkerMsg::ResetContext(respond_to));
+        let _ = self.message_tx.send(WorkerMsg::ResetContext(respond_to));
         response.await
     }
 
@@ -373,10 +373,16 @@ fn handle_msg(state: WorkerState, msg: WorkerMsg) -> Result<WorkerState, ()> {
     let _inference_lock = GLOBAL_INFERENCE_LOCK.lock().expect("GIL mutex poisoned.");
 
     match msg {
-        WorkerMsg::ReadString(text, respond_to) => state.read_string(text).map_err(|e| {
-            let _ = respond_to.send(Err(e));
-            ()
-        }),
+        WorkerMsg::ReadString(text, respond_to) => match state.read_string(text) {
+            Ok(newstate) => {
+                let _ = respond_to.send(Ok(()));
+                Ok(newstate)
+            }
+            Err(e) => {
+                let _ = respond_to.send(Err(e));
+                Err(())
+            }
+        },
         WorkerMsg::WriteUntilDone(respond_to) => state
             .write_until_done(|out| {
                 let _ = respond_to.blocking_send(Ok(out));
@@ -397,7 +403,7 @@ fn handle_msg(state: WorkerState, msg: WorkerMsg) -> Result<WorkerState, ()> {
         },
         WorkerMsg::ResetContext(respond_to) => {
             let new_state = state.reset_context();
-            respond_to.send(());
+            let _ = respond_to.send(());
             Ok(new_state)
         }
         // read then write text until done
@@ -453,6 +459,9 @@ pub enum ReadError {
 
     #[error("Llama.cpp failed decoding: {0}")]
     DecodeError(#[from] llama_cpp_2::DecodeError),
+
+    #[error("Could not apply context shifting: {0}")]
+    ContextShiftError(#[from] llama_cpp_2::context::kv_cache::KvCacheConversionError),
 }
 
 #[derive(Debug)]
@@ -518,12 +527,22 @@ impl<'a> WorkerState<'a> {
     fn read_string(mut self, text: String) -> Result<Self, ReadError> {
         let tokens = self.ctx.model.str_to_token(&text, AddBos::Never)?;
         let n_tokens = tokens.len();
-        info!("Reading {n_tokens} tokens.");
+        debug!("Reading {n_tokens} tokens.");
 
+        // can't read nothing
         debug_assert!(tokens.len() > 0);
+        // can't read more than the context size
         debug_assert!(tokens.len() < self.ctx.n_ctx() as usize);
 
+        // apply context shifting
+        if self.n_past as usize + tokens.len() > self.ctx.n_ctx() as usize {
+            debug!("Applying context shifting");
+            self.n_past -= apply_context_shifting(&mut self.ctx, self.n_past)?;
+        }
+
         {
+            debug!("Populating batch");
+            // make batch
             self.big_batch.clear();
             let seq_ids = &[0];
             for (i, token) in (0..).zip(tokens.iter()) {
@@ -541,6 +560,7 @@ impl<'a> WorkerState<'a> {
         drop(decode_guard);
         // brrr
 
+        debug!("completed read operation");
         Ok(WorkerState {
             n_past: self.n_past + tokens.len() as i32,
             ..self
@@ -839,5 +859,31 @@ mod tests {
             !response.to_lowercase().contains("8"),
             "Expected output to stop at stop token, but continued. Got: {response}"
         );
+    }
+
+    #[tokio::test]
+    async fn test_read_string_overrun() {
+        // this test looks a bit silly, but we had a bug
+        // where we didn't apply context shifting while reading text
+        // so now we test for it
+        crate::test_utils::init_test_tracing();
+
+        let model = test_utils::load_test_model();
+
+        let params = LLMActorParams {
+            model,
+            sampler_config: SamplerConfig::default(),
+            n_ctx: 20,
+            stop_tokens: vec![],
+            use_embeddings: false,
+        };
+        let actor = LLMActorHandle::new(params.clone()).await.unwrap();
+
+        let () = actor.read("1, 2, 3,".to_string()).await.unwrap().unwrap();
+        let () = actor.read("1, 2, 3,".to_string()).await.unwrap().unwrap();
+        let () = actor.read("1, 2, 3,".to_string()).await.unwrap().unwrap();
+        let () = actor.read("1, 2, 3,".to_string()).await.unwrap().unwrap();
+        let () = actor.read("1, 2, 3,".to_string()).await.unwrap().unwrap();
+        let () = actor.read("1, 2, 3,".to_string()).await.unwrap().unwrap();
     }
 }
