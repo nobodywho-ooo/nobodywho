@@ -275,8 +275,6 @@ impl Default for MirostatV2 {
 pub fn make_sampler(model: &LlamaModel, sampler_config: SamplerConfig) -> LlamaSampler {
     let mut chainvec = Vec::new();
 
-    let t: llama_cpp_2::token::LlamaToken;
-
     // Add grammar sampler first if configured
     if sampler_config.use_grammar && sampler_config.lazy_grammar_trigger.trim().len() > 0 {
         // with trigger word
@@ -285,13 +283,14 @@ pub fn make_sampler(model: &LlamaModel, sampler_config: SamplerConfig) -> LlamaS
             &sampler_config.gbnf_grammar,
             "root",
             &[sampler_config.lazy_grammar_trigger.clone()],
-            &[llama_cpp_2::token::LlamaToken(151657)], // TODO: hardcoded for debugging
+            &[],
         ));
         debug!(
             "Added lazy grammar, {:?}",
             &sampler_config.lazy_grammar_trigger
         );
-    } else if sampler_config.use_grammar {
+    } else if sampler_config.use_grammar && sampler_config.lazy_grammar_trigger.trim().len() == 0 {
+        // w/o trigger word
         chainvec.push(LlamaSampler::grammar(
             model,
             &sampler_config.gbnf_grammar,

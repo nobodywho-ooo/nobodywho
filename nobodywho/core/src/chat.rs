@@ -172,7 +172,6 @@ pub async fn simple_chat_loop(
 
                 // get the current sampler
                 let sampler = output.get_sampler();
-
                 // patch sampler with tool-aware grammar
                 // TODO: this overrides any existing GBNF grammar. that's bad.
                 // TODO: generate a gbnf grammar from the json schemae
