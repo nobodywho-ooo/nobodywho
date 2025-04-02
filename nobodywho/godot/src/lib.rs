@@ -257,6 +257,7 @@ impl NobodyWhoChat {
         } else {
             godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
             self.start_worker();
+            self.say(message);
         }
     }
 
