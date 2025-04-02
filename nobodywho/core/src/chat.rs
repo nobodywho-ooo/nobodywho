@@ -18,7 +18,10 @@ pub enum ChatLoopError {
         you can use the gguf-dump script from llama.cpp. \
         Here is a more technical detailed error: {0}"
     )]
-    ChatTemplateError(#[from] chat_state::FromModelError),
+    InitChatTemplateError(#[from] chat_state::FromModelError),
+
+    #[error("Failed rendering chat template: {0}")]
+    RenderChatTemplateError(#[from] minijinja::Error),
 
     #[error("Failed initializing the LLM worker: {0}")]
     InitWorkerError(#[from] llm::InitWorkerError),
@@ -28,6 +31,9 @@ pub enum ChatLoopError {
 
     #[error("Worker finished stream without a complete response")]
     NoResponseError,
+
+    #[error("Couldn't get response from LLM worker. It probably died: {0}")]
+    WorkerDiedError(#[from] tokio::sync::oneshot::error::RecvError),
 }
 
 pub trait ChatOutput {
@@ -63,7 +69,7 @@ pub async fn simple_chat_loop(
         match msg {
             ChatMsg::Say(message) => {
                 chat_state.add_message("user".to_string(), message);
-                let diff = chat_state.render_diff().expect("TODO: handle err");
+                let diff = chat_state.render_diff()?;
 
                 // stream out the response
                 let full_response = actor
@@ -98,7 +104,7 @@ pub async fn simple_chat_loop(
             ChatMsg::ResetContext => {
                 chat_state.reset();
                 chat_state.add_message("system".to_string(), system_prompt.clone());
-                actor.reset_context().await.expect("TODO: handle err");
+                actor.reset_context().await?;
             }
         }
     }
