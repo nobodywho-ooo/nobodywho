@@ -9,7 +9,7 @@ path = "src/lib.rs"
 
 [dependencies]
 nobodywho = { path = "../core" }
-godot = { git = "https://github.com/godot-rust/gdext", branch = "master", features = [
-    "experimental-threads",
-    "register-docs",
-] }
+godot = { git = "https://github.com/godot-rust/gdext.git", branch = "master", features = [ "register-docs", "experimental-threads" ] }
+tokio = "1.44.0"
+tracing = "0.1.41"
+tracing-subscriber = "0.3.19"

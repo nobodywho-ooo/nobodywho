@@ -2,8 +2,8 @@ mod sampler_resource;
 
 use godot::classes::{INode, ProjectSettings};
 use godot::prelude::*;
-use nobodywho::core::{llm, sampler_config};
-use std::sync::mpsc::{Receiver, Sender};
+use nobodywho::{chat, llm, sampler_config};
+use tokio;
 
 use crate::sampler_resource::NobodyWhoSampler;
 
@@ -118,51 +118,40 @@ struct NobodyWhoChat {
     /// Higher values use more VRAM, but allow for longer "short term memory" for the LLM.
     context_length: u32,
 
-    prompt_tx: Option<Sender<String>>,
-    completion_rx: Option<Receiver<llm::LLMOutput>>,
+    msg_tx: Option<tokio::sync::mpsc::Sender<chat::ChatMsg>>,
 
     base: Base<Node>,
+}
+
+struct ChatAdapter {
+    emit_node: Gd<NobodyWhoChat>,
+}
+
+impl chat::ChatOutput for ChatAdapter {
+    fn emit_token(&self, tok: String) {
+        self.emit_node.signals().response_updated().emit(tok)
+    }
+    fn emit_response(&self, resp: String) {
+        self.emit_node.signals().response_finished().emit(resp)
+    }
+    fn emit_error(&self, err: String) {
+        godot_error!("LLM Worker failed: {err}");
+    }
 }
 
 #[godot_api]
 impl INode for NobodyWhoChat {
     fn init(base: Base<Node>) -> Self {
         Self {
+            // config
             model_node: None,
             sampler: None,
             system_prompt: "".into(),
             stop_tokens: PackedStringArray::new(),
             context_length: 4096,
-            prompt_tx: None,
-            completion_rx: None,
-            base,
-        }
-    }
+            msg_tx: None,
 
-    fn physics_process(&mut self, _delta: f64) {
-        while let Some(rx) = self.completion_rx.as_ref() {
-            match rx.try_recv() {
-                Ok(llm::LLMOutput::Token(token)) => {
-                    self.base_mut()
-                        .emit_signal("response_updated", &[Variant::from(token)]);
-                }
-                Ok(llm::LLMOutput::Done(response)) => {
-                    self.base_mut()
-                        .emit_signal("response_finished", &[Variant::from(response)]);
-                }
-                Ok(llm::LLMOutput::FatalErr(msg)) => {
-                    godot_error!("Model worker crashed: {msg}");
-                }
-                Err(std::sync::mpsc::TryRecvError::Empty) => {
-                    break;
-                }
-                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                    godot_error!("Model output channel died. Did the LLM worker crash?");
-                    // set hanging channel to None
-                    // this prevents repeating the dead channel error message foreve
-                    self.completion_rx = None;
-                }
-            }
+            base,
         }
     }
 }
@@ -193,32 +182,35 @@ impl NobodyWhoChat {
         let mut result = || -> Result<(), String> {
             let model = self.get_model()?;
             let sampler_config = self.get_sampler_config();
-
-            // make and store channels for communicating with the llm worker thread
-            let (prompt_tx, prompt_rx) = std::sync::mpsc::channel();
-            let (completion_tx, completion_rx) = std::sync::mpsc::channel();
-            self.prompt_tx = Some(prompt_tx);
-            self.completion_rx = Some(completion_rx);
-
-            // start the llm worker
-            let n_ctx = self.context_length;
-            let system_prompt = self.system_prompt.to_string();
             let stop_tokens: Vec<String> = self
                 .stop_tokens
                 .to_vec()
                 .into_iter()
                 .map(|g| g.to_string())
                 .collect();
-            std::thread::spawn(move || {
-                llm::run_completion_worker(
-                    model,
-                    prompt_rx,
-                    completion_tx,
-                    sampler_config,
-                    n_ctx,
-                    system_prompt,
-                    stop_tokens,
-                );
+
+            let params = llm::LLMActorParams {
+                model,
+                sampler_config,
+                stop_tokens,
+                n_ctx: self.context_length,
+                use_embeddings: false,
+            };
+
+            // start the llm worker
+            let (msg_tx, msg_rx) = tokio::sync::mpsc::channel(4096); // TODO: 4096 is super random
+            self.msg_tx = Some(msg_tx);
+            let adapter = ChatAdapter {
+                emit_node: self.to_gd(),
+            };
+            let system_prompt = self.system_prompt.to_string();
+            godot::task::spawn(async {
+                chat::simple_chat_loop(params, system_prompt, msg_rx, Box::new(adapter))
+                    .await
+                    .unwrap_or_else(|e| {
+                        godot_error!("{e:?}");
+                        ()
+                    })
             });
 
             Ok(())
@@ -230,21 +222,37 @@ impl NobodyWhoChat {
         }
     }
 
-    fn send_message(&mut self, content: String) {
-        if let Some(tx) = self.prompt_tx.as_ref() {
-            tx.send(content).unwrap();
-        } else {
-            godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
-            self.start_worker();
-            self.send_message(content);
-        }
-    }
-
     #[func]
     /// Sends a message to the LLM.
     /// This will start the inference process. meaning you can also listen on the `response_updated` and `response_finished` signals to get the response.
     fn say(&mut self, message: String) {
-        self.send_message(message);
+        if let Some(msg_tx) = self.msg_tx.as_mut() {
+            let resp = msg_tx.blocking_send(chat::ChatMsg::Say(message));
+
+            if let Err(msg) = resp {
+                // check error
+                godot_error!("Couldn't say to worker: {:?}", msg);
+                self.msg_tx = None;
+            }
+        } else {
+            godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
+            self.start_worker();
+            self.say(message);
+        }
+    }
+
+    #[func]
+    fn reset_context(&mut self) {
+        if let Some(msg_tx) = self.msg_tx.as_mut() {
+            let resp = msg_tx.blocking_send(chat::ChatMsg::ResetContext);
+            if let Err(msg) = resp {
+                // check error
+                godot_error!("Couldn't reset context: {:?}", msg);
+                self.msg_tx = None;
+            }
+        } else {
+            godot_error!("Attempted to reset context, but no worker is running. Doing nothing.");
+        }
     }
 
     #[signal]
@@ -304,9 +312,7 @@ struct NobodyWhoEmbedding {
     #[export]
     /// The model node for the embedding.
     model_node: Option<Gd<NobodyWhoModel>>,
-
-    text_tx: Option<Sender<String>>,
-    embedding_rx: Option<Receiver<llm::EmbeddingsOutput>>,
+    embed_tx: Option<tokio::sync::mpsc::Sender<String>>,
     base: Base<Node>,
 }
 
@@ -315,35 +321,22 @@ impl INode for NobodyWhoEmbedding {
     fn init(base: Base<Node>) -> Self {
         Self {
             model_node: None,
-            text_tx: None,
-            embedding_rx: None,
+            embed_tx: None,
             base,
         }
     }
+}
 
-    fn physics_process(&mut self, _delta: f64) {
-        while let Some(rx) = self.embedding_rx.as_ref() {
-            match rx.try_recv() {
-                Ok(llm::EmbeddingsOutput::FatalError(errmsg)) => {
-                    godot_error!("Embeddings worker crashed: {errmsg}");
-                    self.embedding_rx = None; // un-set here to avoid spamming error message
-                }
-                Ok(llm::EmbeddingsOutput::Embedding(embd)) => {
-                    self.base_mut().emit_signal(
-                        "embedding_finished",
-                        &[PackedFloat32Array::from(embd).to_variant()],
-                    );
-                }
-                Err(std::sync::mpsc::TryRecvError::Empty) => {
-                    // got nothing yet - no worries
-                    break;
-                }
-                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                    godot_error!("Unexpected: Embeddings worker channel disconnected");
-                    self.embedding_rx = None; // un-set here to avoid spamming error message
-                }
-            }
-        }
+struct EmbeddingAdapter {
+    emit_node: Gd<NobodyWhoEmbedding>,
+}
+
+impl chat::EmbeddingOutput for EmbeddingAdapter {
+    fn emit_embedding(&self, embd: Vec<f32>) {
+        self.emit_node
+            .signals()
+            .embedding_finished()
+            .emit(embd.into());
     }
 }
 
@@ -367,15 +360,31 @@ impl NobodyWhoEmbedding {
         let mut result = || -> Result<(), String> {
             let model = self.get_model()?;
 
-            // make and store channels for communicating with the llm worker thread
-            let (embedding_tx, embedding_rx) = std::sync::mpsc::channel();
-            let (text_tx, text_rx) = std::sync::mpsc::channel();
-            self.embedding_rx = Some(embedding_rx);
-            self.text_tx = Some(text_tx);
+            let sampler_config = nobodywho::sampler_config::SamplerConfig::default();
 
-            // start the llm worker
-            std::thread::spawn(move || {
-                llm::run_embedding_worker(model, text_rx, embedding_tx);
+            // TODO: sampler_config and stop_tokens actually aren't needed here
+            // TODO: n_ctx should be configurable
+            let params = llm::LLMActorParams {
+                model,
+                sampler_config,
+                stop_tokens: vec![],
+                n_ctx: 4096,
+                use_embeddings: true,
+            };
+
+            let (embed_tx, embed_rx) = tokio::sync::mpsc::channel(4096); // TODO: this number is super random
+            self.embed_tx = Some(embed_tx.clone());
+
+            let adapter = EmbeddingAdapter {
+                emit_node: self.to_gd(),
+            };
+            godot::task::spawn(async {
+                chat::simple_embedding_loop(params, embed_rx, Box::new(adapter))
+                    .await
+                    .unwrap_or_else(|e| {
+                        godot_error!("{e:?}");
+                        ()
+                    });
             });
 
             Ok(())
@@ -391,9 +400,14 @@ impl NobodyWhoEmbedding {
     /// Generates the embedding of a text string. This will return a signal that you can use to wait for the embedding.
     /// The signal will return a PackedFloat32Array.
     fn embed(&mut self, text: String) -> Signal {
-        // returns signal, so that you can `var vec = await embed("Hello, world!")`
-        if let Some(tx) = &self.text_tx {
-            if tx.send(text).is_err() {
+        // returns signal, so that you can `var vec = await embed("Hello, world!")
+        //
+        //
+        //
+        // `
+        if let Some(embed_tx) = &self.embed_tx {
+            let result = embed_tx.blocking_send(text);
+            if result.is_err() {
                 godot_error!("Embedding worker died.");
             }
         } else {

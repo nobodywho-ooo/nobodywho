@@ -1,7 +1,7 @@
-use nobodywho::core::sampler_config;
 use godot::global::PropertyHint;
 use godot::meta::PropertyHintInfo;
 use godot::prelude::*;
+use nobodywho::sampler_config;
 
 #[derive(GodotConvert, Var, Export, Debug, Clone, Copy)]
 #[godot(via=GString)]
