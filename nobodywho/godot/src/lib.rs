@@ -7,30 +7,10 @@ use tokio;
 
 use crate::sampler_resource::NobodyWhoSampler;
 
-// Static guard to ensure initialization happens only once
-static TRACING_INIT: std::sync::Once = std::sync::Once::new();
-
-// Initialize tracing early when the library is loaded
-fn init_tracing() {
-    TRACING_INIT.call_once(|| {
-        // Try to initialize, but handle the case if it's already initialized
-        let _ = tracing_subscriber::fmt::Subscriber::builder()
-            .with_max_level(tracing::Level::TRACE)
-            .try_init();
-
-        // This will log even if the subscriber initialization failed
-        eprintln!("Tracing setup complete");
-    });
-}
-
 struct NobodyWhoExtension;
 
 #[gdextension]
-unsafe impl ExtensionLibrary for NobodyWhoExtension {
-    fn on_level_init(_: InitLevel) {
-        init_tracing()
-    }
-}
+unsafe impl ExtensionLibrary for NobodyWhoExtension {}
 
 #[derive(GodotClass)]
 #[class(base=Node)]
