@@ -9,6 +9,9 @@ namespace NobodyWho {
         private IntPtr _workerContext;
         public Model model;
         public string systemPrompt;
+        public string[] stopTokens;
+        public int contextLength;
+
         public UnityEvent<string> onToken = new UnityEvent<string>();
         public UnityEvent<string> onComplete = new UnityEvent<string>();
 
@@ -19,7 +22,12 @@ namespace NobodyWho {
         void Start() {
             try {
                var errorBuffer = new StringBuilder(2048); // update lib.rs if you change this value
-                _workerContext = NativeBindings.create_chat_worker(model.GetModel(), systemPrompt, errorBuffer);
+               // Todo - check if there is a builtin setter and getter that atoconverts to and from a string/string-array
+               var stopTokensString = "";
+               if (stopTokens.Length > 0) {
+                stopTokensString = string.Join(",", stopTokens);
+               }
+                _workerContext = NativeBindings.create_chat_worker(model.GetModel(), systemPrompt, stopTokensString, contextLength, errorBuffer);
                 if (errorBuffer.Length > 0) {
                     throw new NobodyWhoException(errorBuffer.ToString());
                 }

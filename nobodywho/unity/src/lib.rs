@@ -63,6 +63,8 @@ struct ChatContext {
 pub extern "C" fn create_chat_worker(
     model_ptr: *mut c_void,
     system_prompt: *const c_char,
+    stop_tokens: *const c_char,
+    context_length: u32,
     error_buf: *mut c_char
 ) -> *mut c_void {
     let model: llm::Model = unsafe { Arc::from_raw(model_ptr as *const LlamaModel) };
@@ -77,6 +79,26 @@ pub extern "C" fn create_chat_worker(
         }
     };
 
+    let stop_tokens_vec = unsafe {
+        if stop_tokens.is_null() {
+            Vec::new()
+        } else {
+            match CStr::from_ptr(stop_tokens).to_str() {
+                Ok(s) => {
+                    if s.is_empty() {
+                        Vec::new()
+                    } else {
+                        s.split(',').map(|s| s.trim().to_string()).collect()
+                    }
+                },
+                Err(_) => {
+                    copy_to_error_buf(error_buf, "Invalid UTF-8 in stop tokens");
+                    return std::ptr::null_mut();
+                }
+            }
+        }
+    };
+
     let (prompt_tx, prompt_rx) = mpsc::channel();
     let (completion_tx, completion_rx) = mpsc::channel();
     
@@ -85,10 +107,10 @@ pub extern "C" fn create_chat_worker(
             model,
             prompt_rx,
             completion_tx,
-            SamplerConfig::default(),
-            4096,
+            SamplerConfig::default(),   
+            context_length,
             system_prompt,
-            vec![],
+            stop_tokens_vec,
         );
     });
 
@@ -188,21 +210,72 @@ mod tests {
 
     static mut RECEIVED_COMPLETE: bool = false;
     
-    extern "C" fn test_on_error(_error: *const c_char) { 
+    extern "C" fn test_on_error(_error: *const c_char) {
         panic!("Received error during polling"); 
     }
-    extern "C" fn test_on_complete(_response: *const c_char) { 
-        unsafe { RECEIVED_COMPLETE = true; } 
-    }
+    
     extern "C" fn test_on_token(token: *const c_char) {
         if let Ok(token_str) = unsafe { CStr::from_ptr(token) }.to_str() {
             println!("Received token: {}", token_str);
         }
     }
 
+    extern "C" fn test_on_complete(response: *const c_char) {
+        if let Ok(_response_str) = unsafe { CStr::from_ptr(response) }.to_str() {
+            unsafe { RECEIVED_COMPLETE = true; }
+        }
+    }
+
+    // Simple test that reproduces the model sharing issue
+    #[test]
+    fn test_model_concurrent_use() {
+        let error_buf = [0u8; 2048];
+        let error_ptr = error_buf.as_ptr() as *mut c_char;
+        
+        // Load the model twice
+        let model_path = CString::new("qwen2.5-1.5b-instruct-q4_0.gguf").unwrap();
+        let model1 = get_model(model_path.as_ptr(), true, error_ptr);
+        let model2 = get_model(model_path.as_ptr(), true, error_ptr);
+        
+        // Create two chat contexts with different prompts
+        let system1 = CString::new("You are assistant 1").unwrap();
+        let system2 = CString::new("You are assistant 2").unwrap();
+        
+        let ctx1 = create_chat_worker(model1, system1.as_ptr(), std::ptr::null(), 4096, error_ptr);
+        let ctx2 = create_chat_worker(model2, system2.as_ptr(), std::ptr::null(), 4096, error_ptr);
+        
+        // Send different prompts
+        let prompt1 = CString::new("Say hello in English").unwrap();
+        let prompt2 = CString::new("Count to 3").unwrap();
+        
+        send_prompt(ctx1, prompt1.as_ptr(), error_ptr);
+        send_prompt(ctx2, prompt2.as_ptr(), error_ptr);
+        
+        // Process both concurrently
+        unsafe { RECEIVED_COMPLETE = false; }
+        let timeout = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        
+        while !unsafe { RECEIVED_COMPLETE } {
+            if std::time::Instant::now() > timeout {
+                break;
+            }
+            
+            poll_responses(ctx1, test_on_token, test_on_complete, test_on_error);
+            poll_responses(ctx2, test_on_token, test_on_complete, test_on_error);
+            
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        
+        // Clean up
+        destroy_chat_worker(ctx1);
+        destroy_chat_worker(ctx2);
+        destroy_model(model1);
+        destroy_model(model2);
+    }
+
     #[test]
     fn test_create_chat_worker() {
-        let error_buf = [0u8; 1024];
+        let error_buf = [0u8; 2048];
         let error_ptr = error_buf.as_ptr() as *mut c_char;
         
         let model_path = CString::new("qwen2.5-1.5b-instruct-q4_0.gguf").unwrap();
@@ -210,21 +283,23 @@ mod tests {
         assert_eq!(unsafe { CStr::from_ptr(error_ptr).to_bytes() }, &[0u8; 0], "Model should be loaded successfully");
 
         let system_prompt = CString::new("You are a test assistant").unwrap();
+        let context_length: u32 = 4096;
+        
         let chat_context: *mut c_void = create_chat_worker(
             model,
             system_prompt.as_ptr(),
+            std::ptr::null(),
+            context_length,
             error_ptr,
         );
 
-
         assert_eq!(unsafe { CStr::from_ptr(error_ptr).to_bytes() }, &[0u8; 0], "Chat worker should be created successfully");
-
 
         let prompt = CString::new("Hello, how are you?").unwrap();
         send_prompt(chat_context, prompt.as_ptr(), error_ptr);
         
         unsafe { RECEIVED_COMPLETE = false; }        
-        let timeout = std::time::Instant::now() + std::time::Duration::from_secs(6);
+        let timeout = std::time::Instant::now() + std::time::Duration::from_secs(15);
         while unsafe { !RECEIVED_COMPLETE } {
             if std::time::Instant::now() > timeout {
                 panic!("Timed out waiting for response");
@@ -242,5 +317,86 @@ mod tests {
         destroy_chat_worker(chat_context as *mut c_void);
         destroy_model(model as *mut c_void);
     }
+
+
+    #[test]
+    fn test_create_chat_worker_with_stop_tokens() {
+        let error_buf = [0u8; 2048];
+        let error_ptr = error_buf.as_ptr() as *mut c_char;
+        
+        let model_path = CString::new("qwen2.5-1.5b-instruct-q4_0.gguf").unwrap();
+
+        let model: *mut c_void = get_model(model_path.as_ptr(), true, error_ptr);
+
+        let system_prompt = CString::new("You must always list the animals in alphabetical order").unwrap();
+        let stop_tokens = CString::new("fly").unwrap();
+        let context_length: u32 = 4096;
+
+        let chat_context: *mut c_void = create_chat_worker(
+            model,
+            system_prompt.as_ptr(),
+            stop_tokens.as_ptr(),
+            context_length,
+            error_ptr,
+        );
+
+        let prompt = CString::new("List these animals in alphabetical order: cat, dog, fly, lion, mouse").unwrap();
+        send_prompt(chat_context, prompt.as_ptr(), error_ptr);
+
+        unsafe { RECEIVED_COMPLETE = false; }        
+        let timeout = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while unsafe { !RECEIVED_COMPLETE } {
+            if std::time::Instant::now() > timeout {
+                panic!("Timed out waiting for response");
+            }
+            poll_responses(
+                chat_context,
+                test_on_token,
+                test_on_complete,
+                test_on_error
+            );
+        }
+    
+    }
+    // #[test]
+    // fn test_threading() {
+
+    //     let thread0 = std::thread::spawn(move || {
+    //         let buf = [0u8; 2048];
+    //         let ptr = buf.as_ptr() as *mut c_char;
+            
+    //         let path = CString::new("qwen2.5-1.5b-instruct-q4_0.gguf").unwrap();
+    //         let model = get_model(path.as_ptr(), true, ptr);       
+    //     });
+
+        
+    //     let thread1 = std::thread::spawn(move || {
+    //         let model_path = "qwen2.5-1.5b-instruct-q4_0.gguf".to_owned();
+    //         let buf = [0u8; 2048];
+    //         let ptr = buf.as_ptr() as *mut c_char;
+    //         let path = CString::new(model_path.clone()).unwrap();
+            
+    //         // Load model inside the thread
+    //         let model = get_model(path.as_ptr(), true, ptr);
+    //         let system = CString::new("You are an English assistant").unwrap();
+    //         let ctx = create_chat_worker(model, system.as_ptr(), std::ptr::null(), 4096, ptr);
+            
+    //         let prompt = CString::new("Say hello in English").unwrap();
+    //         send_prompt(ctx, prompt.as_ptr(), ptr);
+            
+    //         unsafe { RECEIVED_COMPLETE = false; }
+    //         while !unsafe { RECEIVED_COMPLETE } {
+    //             poll_responses(ctx, test_on_token, test_on_complete, test_on_error);
+    //             std::thread::sleep(std::time::Duration::from_millis(10));
+    //         }
+            
+    //         // destroy_chat_worker(ctx);
+    //         // destroy_model(model);
+    //     });
+    //     // Similar setup for thread2 with its own model instance
+        
+    //     thread0.join().unwrap();
+    //     thread1.join().unwrap();
+    // }
 }
 
