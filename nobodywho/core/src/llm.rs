@@ -13,7 +13,7 @@ use std::pin::pin;
 use std::sync::{Arc, LazyLock, Mutex};
 use tokio;
 use tokio::sync::{mpsc, oneshot};
-use tracing::{debug, debug_span, error, info, trace, trace_span, warn};
+use tracing::{debug, debug_span, error, info, info_span, trace, trace_span, warn};
 
 const MAX_TOKEN_STR_LEN: usize = 128;
 
@@ -61,33 +61,37 @@ pub enum LoadModelError {
     InvalidModel(String),
 }
 
+#[tracing::instrument(level = "info")]
 pub fn get_model(
     model_path: &str,
     use_gpu_if_available: bool,
 ) -> Result<Arc<LlamaModel>, LoadModelError> {
     if !std::path::Path::new(model_path).exists() {
         let e = LoadModelError::ModelNotFound(model_path.into());
-        error!("{e:?}");
+        error!(error = %e, "Model file not found");
         return Err(e);
     }
 
     // TODO: `LlamaModelParams` uses all devices by default. Set it to an empty list once an upstream device API is available.
-    let model_params = LlamaModelParams::default().with_n_gpu_layers(
-        if use_gpu_if_available && has_discrete_gpu() {
-            u32::MAX
-        } else {
-            0
-        },
-    );
+    let use_gpu = use_gpu_if_available && has_discrete_gpu();
+    let gpu_layers = if use_gpu { u32::MAX } else { 0 };
+
+    info!(use_gpu = use_gpu, gpu_layers = gpu_layers, "Loading model");
+
+    let model_params = LlamaModelParams::default().with_n_gpu_layers(gpu_layers);
 
     let model_params = pin!(model_params);
+    let load_span = info_span!("model_load", path = model_path);
+    let _guard = load_span.enter();
+
     let model =
         LlamaModel::load_from_file(&LLAMA_BACKEND, model_path, &model_params).map_err(|e| {
-            LoadModelError::InvalidModel(format!(
-                "Bad model path: {} - Llama.cpp error: {}",
-                model_path, e
-            ))
+            let error_msg = format!("Bad model path: {} - Llama.cpp error: {}", model_path, e);
+            error!(error = %error_msg, "Failed to load model");
+            LoadModelError::InvalidModel(error_msg)
         })?;
+
+    info!("Model loaded successfully");
     Ok(Arc::new(model))
 }
 
@@ -171,41 +175,66 @@ pub struct LLMActorHandle {
 }
 
 impl LLMActorHandle {
+    #[tracing::instrument(level = "debug", skip(params))]
     pub async fn new(params: LLMActorParams) -> Result<Self, InitWorkerError> {
-        debug!("Initializing LLMActorHandle..");
+        debug!("Creating LLM actor");
+
         let (message_tx, message_rx) = std::sync::mpsc::channel();
         let (init_tx, init_rx) = oneshot::channel();
-        trace!("Made channels");
 
-        trace!("Spawning thread...");
-        std::thread::spawn(|| completion_worker_actor(message_rx, init_tx, params));
-        trace!("Spawned thread.");
+        std::thread::spawn(move || completion_worker_actor(message_rx, init_tx, params));
 
-        trace!("Waiting for init result");
-        let resp = match init_rx.await {
-            Ok(Ok(())) => Ok(Self { message_tx }),
-            Ok(Err(e)) => Err(e),
-            Err(_recverr) => Err(InitWorkerError::NoResponse),
+        debug!("Waiting for worker initialization");
+        let result = match init_rx.await {
+            Ok(Ok(())) => {
+                info!("LLM actor initialized successfully");
+                Ok(Self { message_tx })
+            }
+            Ok(Err(e)) => {
+                error!(error = ?e, "LLM actor initialization failed");
+                Err(e)
+            }
+            Err(_) => {
+                error!("No response from worker thread during initialization");
+                Err(InitWorkerError::NoResponse)
+            }
         };
-        trace!("Got init result: {resp:?}");
-        resp
+
+        result
     }
 
+    #[tracing::instrument(level = "debug", skip(self))]
     pub async fn reset_context(&self) -> Result<(), oneshot::error::RecvError> {
+        debug!("Resetting context");
         let (respond_to, response) = oneshot::channel();
         let _ = self.message_tx.send(WorkerMsg::ResetContext(respond_to));
-        response.await
+        let result = response.await;
+        if result.is_ok() {
+            debug!("Context reset successful");
+        } else {
+            error!("Context reset failed");
+        }
+        result
     }
 
+    #[tracing::instrument(level = "debug", skip(self), fields(text_length = text.len()))]
     pub async fn read(
         &self,
         text: String,
     ) -> Result<Result<(), ReadError>, oneshot::error::RecvError> {
+        debug!("Reading text into context");
         let (respond_to, response_channel) = oneshot::channel();
         let _ = self
             .message_tx
             .send(WorkerMsg::ReadString(text, respond_to));
-        response_channel.await
+
+        let result = response_channel.await;
+        match &result {
+            Ok(Ok(_)) => debug!("Successfully read text into context"),
+            Ok(Err(e)) => error!(error = ?e, "Failed to read text into context"),
+            Err(_) => error!("Worker died while reading text"),
+        }
+        result
     }
 
     pub async fn write_until_done(
@@ -262,14 +291,15 @@ fn completion_worker_actor(
                     Ok(newstate) => {
                         state = newstate;
                     }
-                    Err(_err) => {
+                    Err(()) => {
+                        error!("Failed handling message");
                         return; // we died.
                     }
                 }
             } // message queue dropped. we died.
         }
         Err(initerr) => {
-            trace!("Init WorkerState failure.");
+            error!("Init WorkerState failure.");
             let _ = init_tx.send(Err(initerr));
             // we died. not much to do.
         }
@@ -516,14 +546,14 @@ impl<'a> WorkerState<'a> {
         Ok(state)
     }
 
-    #[tracing::instrument(level = "info", skip(self))]
+    #[tracing::instrument(level = "trace", skip(self))]
     fn reset_context(mut self) -> Self {
         self.ctx.clear_kv_cache();
         self.n_past = 0;
         self
     }
 
-    #[tracing::instrument(level = "info", skip(self))]
+    #[tracing::instrument(level = "trace", skip(self))]
     fn read_string(mut self, text: String) -> Result<Self, ReadError> {
         let tokens = self.ctx.model.str_to_token(&text, AddBos::Never)?;
         let n_tokens = tokens.len();

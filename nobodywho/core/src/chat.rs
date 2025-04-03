@@ -47,14 +47,13 @@ pub enum ChatMsg {
     ResetContext,
 }
 
+#[tracing::instrument(level = "trace", skip(output, params))]
 pub async fn simple_chat_loop(
     params: llm::LLMActorParams,
     system_prompt: String,
     mut msg_rx: mpsc::Receiver<ChatMsg>,
     output: Box<dyn ChatOutput>,
 ) -> Result<(), ChatLoopError> {
-    info!("Entering simple chat loop");
-
     // init chat state
     let mut chat_state = chat_state::ChatState::from_model(&params.model)?;
     chat_state.add_message("system".to_string(), system_prompt.clone());
@@ -75,21 +74,17 @@ pub async fn simple_chat_loop(
                 let full_response = actor
                     .generate_response(diff)
                     .await
-                    .fold(None, |_, out| {
-                        debug!("Streamed out: {out:?}");
-                        match out {
-                            Ok(llm::WriteOutput::Token(token)) => {
-                                trace!("Got new token: {token:?}");
-                                output.emit_token(token);
-                                None
-                            }
-                            Err(err) => {
-                                error!("Got error from worker: {err:?}");
-                                output.emit_error(format!("{err:?}"));
-                                Some(Err(err))
-                            }
-                            Ok(llm::WriteOutput::Done(resp)) => Some(Ok(resp)),
+                    .fold(None, |_, out| match out {
+                        Ok(llm::WriteOutput::Token(token)) => {
+                            output.emit_token(token);
+                            None
                         }
+                        Err(err) => {
+                            error!("Got error from worker: {err:?}");
+                            output.emit_error(format!("{err:?}"));
+                            Some(Err(err))
+                        }
+                        Ok(llm::WriteOutput::Done(resp)) => Some(Ok(resp)),
                     })
                     .await
                     .ok_or(ChatLoopError::NoResponseError)??;
@@ -111,6 +106,7 @@ pub async fn simple_chat_loop(
 
     // XXX: we only arrive here when the sender-part of the say channel is dropped
     // and in that case, we don't have anything to send our error to anyway
+    info!("simple_chat_loop exiting");
     Ok(()) // accept our fate
 }
 
