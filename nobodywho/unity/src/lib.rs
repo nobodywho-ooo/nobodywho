@@ -358,45 +358,5 @@ mod tests {
         }
     
     }
-    // #[test]
-    // fn test_threading() {
-
-    //     let thread0 = std::thread::spawn(move || {
-    //         let buf = [0u8; 2048];
-    //         let ptr = buf.as_ptr() as *mut c_char;
-            
-    //         let path = CString::new("qwen2.5-1.5b-instruct-q4_0.gguf").unwrap();
-    //         let model = get_model(path.as_ptr(), true, ptr);       
-    //     });
-
-        
-    //     let thread1 = std::thread::spawn(move || {
-    //         let model_path = "qwen2.5-1.5b-instruct-q4_0.gguf".to_owned();
-    //         let buf = [0u8; 2048];
-    //         let ptr = buf.as_ptr() as *mut c_char;
-    //         let path = CString::new(model_path.clone()).unwrap();
-            
-    //         // Load model inside the thread
-    //         let model = get_model(path.as_ptr(), true, ptr);
-    //         let system = CString::new("You are an English assistant").unwrap();
-    //         let ctx = create_chat_worker(model, system.as_ptr(), std::ptr::null(), 4096, ptr);
-            
-    //         let prompt = CString::new("Say hello in English").unwrap();
-    //         send_prompt(ctx, prompt.as_ptr(), ptr);
-            
-    //         unsafe { RECEIVED_COMPLETE = false; }
-    //         while !unsafe { RECEIVED_COMPLETE } {
-    //             poll_responses(ctx, test_on_token, test_on_complete, test_on_error);
-    //             std::thread::sleep(std::time::Duration::from_millis(10));
-    //         }
-            
-    //         // destroy_chat_worker(ctx);
-    //         // destroy_model(model);
-    //     });
-    //     // Similar setup for thread2 with its own model instance
-        
-    //     thread0.join().unwrap();
-    //     thread1.join().unwrap();
-    // }
 }
 
