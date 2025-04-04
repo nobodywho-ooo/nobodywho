@@ -92,12 +92,12 @@ pub extern "C" fn create_chat_worker(
 
     let system_prompt = unsafe {
         if system_prompt.is_null() {
-            println!("[DEBUG] create_chat_worker - No system prompt");
+            
             String::new()
         } else {
             match CStr::from_ptr(system_prompt).to_str() {
                 Ok(s) => {
-                    println!("[DEBUG] create_chat_worker - System prompt parsed: {}", s);
+                    
                     s.to_owned()
                 },
                 Err(_) => {
@@ -110,12 +110,12 @@ pub extern "C" fn create_chat_worker(
 
     let stop_tokens_vec = unsafe {
         if stop_tokens.is_null() {
-            println!("[DEBUG] create_chat_worker - No stop tokens");
+            
             Vec::new()
         } else {
             match CStr::from_ptr(stop_tokens).to_str() {
                 Ok(s) => {
-                    println!("[DEBUG] create_chat_worker - Stop tokens parsed: {}", s);
+                    
                     if s.is_empty() {
                         Vec::new()
                     } else {
@@ -130,13 +130,13 @@ pub extern "C" fn create_chat_worker(
         }
     };
 
-    println!("[DEBUG] create_chat_worker - Creating channels");
+    
     let (prompt_tx, prompt_rx) = mpsc::channel();
     let (completion_tx, completion_rx) = mpsc::channel();
     
-    println!("[DEBUG] create_chat_worker - Spawning worker thread");
+    
     thread::spawn(move || {
-        println!("[DEBUG] Worker thread - Starting");
+        
         llm::run_completion_worker(
             model.model.clone(),
             prompt_rx,
@@ -146,17 +146,17 @@ pub extern "C" fn create_chat_worker(
             system_prompt,
             stop_tokens_vec,
         );
-        println!("[DEBUG] Worker thread - Exiting");
+        
     });
 
-    println!("[DEBUG] create_chat_worker - Creating context");
+    
     let context = Box::new(ChatContext {
         prompt_tx,
         completion_rx,
     });
-    println!("[DEBUG] create_chat_worker - Converting context to raw pointer");
+    
     let raw_ptr = Box::into_raw(context) as *mut c_void;
-    println!("[DEBUG] create_chat_worker - Returning raw pointer: {:?}", raw_ptr);
+    
     raw_ptr
 }
 
@@ -170,33 +170,42 @@ pub extern "C" fn poll_responses(
     on_complete: extern fn(*const c_char),
     on_error: extern fn(*const c_char)
 ) {
-    println!("[DEBUG] poll_responses - Start with context: {:?}", context);
-    let chat_context = unsafe { &mut *(context as *mut ChatContext) };
-    println!("[DEBUG] poll_responses - Context dereferenced");
+    
+    
+    if context.is_null() {
+        println!("[ERROR] poll_responses - Null context pointer received");
+        return;
+    }
 
-    while let Ok(output) = &chat_context.completion_rx.try_recv() {        println!("[DEBUG] poll_responses - Received output");
+    let chat_context = unsafe { &mut *(context as *mut ChatContext) };
+    
+    
+    
+
+    while let Ok(output) = &chat_context.completion_rx.try_recv() {
+        
         match output {
             LLMOutput::Token(token) => {
-                println!("[DEBUG] poll_responses - Token received: {}", token);
+                
                 if let Ok(c_str) = CString::new(token.as_str()) {
                     on_token(c_str.as_ptr())
                 }
             },
             LLMOutput::Done(response) => {
-                println!("[DEBUG] poll_responses - Response complete: {}", response);
+                
                 if let Ok(c_str) = CString::new(response.as_str()) {
                     on_complete(c_str.as_ptr())
                 }
             },
             LLMOutput::FatalErr(msg) => {
-                println!("[DEBUG] poll_responses - Error: {}", msg);
+                
                 if let Ok(c_str) = CString::new(msg.to_string()) {
                     on_error(c_str.as_ptr())
                 }
             },
         }
     }
-    println!("[DEBUG] poll_responses - End");
+    
 }
 
 
@@ -206,13 +215,13 @@ pub extern "C" fn send_prompt(
     prompt: *const c_char,
     error_buf: *mut c_char
 ) {
-    println!("[DEBUG] send_prompt - Start with context: {:?}", context);
+    
     let chat_context = unsafe { &mut *(context as *mut ChatContext) };
-    println!("[DEBUG] send_prompt - Context dereferenced");
+    
 
     let prompt_str: String = match unsafe { CStr::from_ptr(prompt).to_str() } {
         Ok(prompt_string) => {
-            println!("[DEBUG] send_prompt - Prompt parsed: {}", prompt_string);
+            
             prompt_string.to_owned()
         },
         Err(e) => {
@@ -220,9 +229,11 @@ pub extern "C" fn send_prompt(
             return;
         }
     };
-    println!("[DEBUG] send_prompt - Sending prompt to channel");
+    
     match chat_context.prompt_tx.send(prompt_str) {
-        Ok(_) => println!("[DEBUG] send_prompt - Prompt sent successfully"),
+        Ok(_) => {
+            println!("[DEBUG] send_prompt - Prompt sent successfully");
+        }
         Err(e) => {
             copy_to_error_buf(error_buf, &format!("Failed to send prompt: {}", e));
             return;
@@ -243,10 +254,9 @@ pub extern "C" fn destroy_chat_worker(context: *mut c_void) {
 #[no_mangle]
 pub extern "C" fn destroy_model(model: *mut c_void) {
     unsafe {
-        drop(Box::from_raw(model as *mut llm::Model)); 
+        drop(Box::from_raw(model as *mut ModelObject)); 
     }
 }
-
 
 
 #[cfg(test)]
@@ -257,43 +267,40 @@ mod tests {
     static mut RECEIVED_COMPLETE: bool = false;
     
     extern "C" fn test_on_error(error: *const c_char) {
-        println!("[DEBUG] test_on_error called");
         if let Ok(error_str) = unsafe { CStr::from_ptr(error) }.to_str() {
-            println!("[DEBUG] Error: {}", error_str);
+            println!("[ERROR] test_on_error - Error: {}", error_str);
         }
     }
     
     extern "C" fn test_on_token(token: *const c_char) {
-        println!("[DEBUG] test_on_token called");
         if let Ok(token_str) = unsafe { CStr::from_ptr(token) }.to_str() {
-            println!("[DEBUG] Received token: {}", token_str);
+            println!("[DEBUG] test_on_token - Token: {}", token_str);
         }
     }
 
     extern "C" fn test_on_complete(response: *const c_char) {
-        println!("[DEBUG] test_on_complete called");
         if let Ok(response_str) = unsafe { CStr::from_ptr(response) }.to_str() {
-            println!("[DEBUG] Complete response: {}", response_str);
+            println!("[DEBUG] test_on_complete - Response: {}", response_str);
             unsafe { RECEIVED_COMPLETE = true; }
         }
     }
 
     #[test]
     fn test_create_chat_worker_with_stop_tokens() {
-        println!("[DEBUG] Starting test_create_chat_worker_with_stop_tokens");
+        
         let error_buf = [0u8; 2048];
         let error_ptr = error_buf.as_ptr() as *mut c_char;
         
-        println!("[DEBUG] Loading model");
+        
         let model_path = CString::new("qwen2.5-1.5b-instruct-q4_0.gguf").unwrap();
         let model: *mut c_void = get_model(std::ptr::null_mut(), model_path.as_ptr(), true, error_ptr);
-        println!("[DEBUG] Model loaded: {:?}", model);
+        
 
         let system_prompt = CString::new("You must always list the animals in alphabetical order").unwrap();
         let stop_tokens = CString::new("fly").unwrap();
         let context_length: u32 = 4096;
 
-        println!("[DEBUG] Creating chat worker");
+        
         let chat_context: *mut c_void = create_chat_worker(
             model,
             system_prompt.as_ptr(),
@@ -301,34 +308,32 @@ mod tests {
             context_length,
             error_ptr,
         );
-        println!("[DEBUG] Chat worker created: {:?}", chat_context);
+        
 
         let prompt = CString::new("List these animals in alphabetical order: cat, dog, fly, lion, mouse").unwrap();
-        println!("[DEBUG] Sending prompt");
+        
         send_prompt(chat_context, prompt.as_ptr(), error_ptr);
-        println!("[DEBUG] Prompt sent");
+        
 
         unsafe { RECEIVED_COMPLETE = false; }        
         let timeout = std::time::Instant::now() + std::time::Duration::from_secs(15);
-        println!("[DEBUG] Starting response polling");
+        
         while unsafe { !RECEIVED_COMPLETE } {
             if std::time::Instant::now() > timeout {
                 panic!("Timed out waiting for response");
             }
-            println!("[DEBUG] Polling responses");
+            
             poll_responses(
                 chat_context as *mut c_void,
                 test_on_token,
                 test_on_complete,
                 test_on_error
             );
-            println!("[DEBUG] Poll complete");
+            
         }
-        println!("[DEBUG] Test complete");
         
-        println!("[DEBUG] Destroying chat worker");
+        
         destroy_chat_worker(chat_context as *mut c_void);
-        println!("[DEBUG] Destroying model");
         destroy_model(model as *mut c_void);
         
     }
