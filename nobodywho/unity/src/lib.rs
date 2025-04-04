@@ -80,7 +80,7 @@ struct ChatContext {
 pub extern "C" fn create_chat_worker(
     model_ptr: *mut c_void,
     system_prompt: *const c_char,
-    stop_tokens: *const c_char,
+    stop_words: *const c_char,
     context_length: u32,
     error_buf: *mut c_char,
 ) -> *mut c_void {
@@ -100,20 +100,21 @@ pub extern "C" fn create_chat_worker(
         }
     };
 
-    let stop_tokens_vec = unsafe {
-        if stop_tokens.is_null() {
+    let stop_words_vec = unsafe {
+        if stop_words.is_null() {
             Vec::new()
         } else {
-            match CStr::from_ptr(stop_tokens).to_str() {
-                Ok(s) => {
-                    if s.is_empty() {
+            match CStr::from_ptr(stop_words).to_str() {
+                Ok(stop_words) => {
+                    if stop_words.is_empty() {
                         Vec::new()
                     } else {
-                        s.split(',').map(|s| s.trim().to_string()).collect()
+                        let stop_words_vec = stop_words.split(',').map(|s| s.trim().to_string()).collect();
+                        stop_words_vec
                     }
                 }
                 Err(_) => {
-                    copy_to_error_buf(error_buf, "Invalid UTF-8 in stop tokens");
+                    copy_to_error_buf(error_buf, "Invalid UTF-8 in stop words");
                     return std::ptr::null_mut();
                 }
             }
@@ -131,7 +132,7 @@ pub extern "C" fn create_chat_worker(
             SamplerConfig::default(),
             context_length,
             system_prompt,
-            stop_tokens_vec,
+            stop_words_vec,
         );
     });
 
@@ -229,6 +230,7 @@ mod tests {
     use std::ffi::CString;
 
     static mut RECEIVED_COMPLETE: bool = false;
+    static mut RESPONSE: Option<String> = None;
 
     extern "C" fn test_on_error(error: *const c_char) {
         if let Ok(error_str) = unsafe { CStr::from_ptr(error) }.to_str() {
@@ -238,7 +240,12 @@ mod tests {
 
     extern "C" fn test_on_token(token: *const c_char) {
         if let Ok(token_str) = unsafe { CStr::from_ptr(token) }.to_str() {
-            println!("[DEBUG] test_on_token - Token: {}", token_str);
+            unsafe {
+                RESPONSE = Some(match &RESPONSE {
+                    Some(existing) => existing.clone() + token_str,
+                    None => token_str.to_owned(),
+                });
+            }
         }
     }
 
@@ -295,8 +302,17 @@ mod tests {
             );
         }
 
+        let response = unsafe { RESPONSE.clone().unwrap() };
+        assert!(response.contains("dog"));
+        assert!(response.contains("fly"));
+        assert!(!response.contains("lion"));
+        assert!(!response.contains("mouse"));
+
         destroy_chat_worker(chat_context as *mut c_void);
         destroy_model(model as *mut c_void);
+        unsafe {
+            RESPONSE = None;
+        }
     }
 
     #[test]
@@ -351,5 +367,10 @@ mod tests {
 
         destroy_chat_worker(chat_context as *mut c_void);
         destroy_model(model as *mut c_void);
+        unsafe {
+            RESPONSE = None;
+        }
     }
+
 }
+

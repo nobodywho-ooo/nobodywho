@@ -21,7 +21,7 @@ namespace NobodyWho
         public static extern IntPtr create_chat_worker(
             IntPtr model,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string system_prompt,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string stop_tokens,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string stop_words,
             int context_length,
             [MarshalAs(UnmanagedType.LPStr)] StringBuilder error_buf);  
 

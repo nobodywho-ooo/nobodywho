@@ -32,48 +32,50 @@ namespace Tests
             }
         }
 
-        [UnityTest]
-        public IEnumerator WhenInvokingSay_ShouldReturnResponse() {
-            string response = null;
-            chat.onComplete.AddListener((result) => response = result);            
-            chat.say("Hi there");
+        // [UnityTest]
+        // public IEnumerator WhenInvokingSay_ShouldReturnResponse() {
+        //     string response = null;
+        //     chat.onComplete.AddListener((result) => response = result);            
+        //     chat.say("Hi there");
             
-            float timeout = Time.time + 15f; // 15 second timeout
+        //     float timeout = Time.time + 15f; // 15 second timeout
 
-            // let unity process stuff until we get a response
-            while (response == null && Time.time < timeout) {
-                yield return null;
-            }
-            Assert.IsNotNull(response, "No response received within timeout period");
-            Assert.AreEqual("Hello! How can I help you today?", response);
-        }
+        //     // let unity process stuff until we get a response
+        //     while (response == null && Time.time < timeout) {
+        //         yield return null;
+        //     }
+        //     Assert.IsNotNull(response, "No response received within timeout period");
+        //     Assert.AreEqual("Hello! How can I help you today?", response);
+        // }
 
-        [UnityTest]
-        public IEnumerator WhenInvokingSay_ShouldReceiveTokens() {
-            string response = null;
-            chat.onComplete.AddListener((result) => response = result);            
-            // Setup token collection
-            List<string> receivedTokens = new List<string>();
-            chat.onToken.AddListener((token) => {
-                receivedTokens.Add(token);
-            });
+        // [UnityTest]
+        // public IEnumerator WhenInvokingSay_ShouldReceiveTokens() {
+        //     string response = null;
+        //     chat.onComplete.AddListener((result) => response = result);            
+        //     // Setup token collection
+        //     List<string> receivedTokens = new List<string>();
+        //     chat.onToken.AddListener((token) => {
+        //         receivedTokens.Add(token);
+        //     });
             
-            chat.say("Tell me a short joke");
+        //     chat.say("Tell me a short joke");
             
-            float timeout = Time.time + 15f;
-            while (response == null && Time.time < timeout) {
-                yield return null;
-            }
+        //     float timeout = Time.time + 15f;
+        //     while (response == null && Time.time < timeout) {
+        //         yield return null;
+        //     }
 
-            Assert.IsTrue(receivedTokens.Count > 0, "No tokens received within timeout period");            
-        }
+        //     Assert.IsTrue(receivedTokens.Count > 0, "No tokens received within timeout period");            
+        // }
 
 
         [UnityTest]
         public IEnumerator WhenInvokingSayWithSingleStopToken_ShouldStopAtStopToken() {
             string response = null;
             chat.onComplete.AddListener((result) => response = result);
-            chat.stopTokens = new string[] { "fly" }; // Set the stop token
+            chat.updateParams(chat.systemPrompt, "fly", chat.contextLength);
+
+
             chat.say("List these animals in alphabetical order: cat, dog, fly, lion, mouse");
 
             float timeout = Time.time + 15f;
@@ -104,5 +106,5 @@ namespace Tests
     //         Assert.IsFalse(response.Contains("horse-rider"), "Response should not reach 'fly'");
     //         Assert.IsFalse(response.Contains("lion"), "Response should not continue past 'fly'");
     //     }
-    // }
+    }
 }

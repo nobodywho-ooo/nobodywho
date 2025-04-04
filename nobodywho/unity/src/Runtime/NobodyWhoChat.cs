@@ -9,7 +9,7 @@ namespace NobodyWho {
         private IntPtr _workerContext;
         public Model model;
         public string systemPrompt = "";
-        public string[] stopTokens = new string[] {};
+        public string stopWords = "";
         public int contextLength = 4096;
 
         public UnityEvent<string> onToken = new UnityEvent<string>();
@@ -23,11 +23,11 @@ namespace NobodyWho {
             try {
                var errorBuffer = new StringBuilder(2048); // update lib.rs if you change this value
                // Todo - check if there is a builtin setter and getter that atoconverts to and from a string/string-array
-               var stopTokensString = "";
-               if (stopTokens.Length > 0) {
-                stopTokensString = string.Join(",", stopTokens);
+               var stopWordsString = "";
+               if (stopWords.Length > 0) {
+                stopWordsString = string.Join(",", stopWords);
                }
-                _workerContext = NativeBindings.create_chat_worker(model.GetModel(), systemPrompt, stopTokensString, contextLength, errorBuffer);
+                _workerContext = NativeBindings.create_chat_worker(model.GetModel(), systemPrompt, stopWordsString, contextLength, errorBuffer);
                 if (errorBuffer.Length > 0) {
                     throw new NobodyWhoException(errorBuffer.ToString());
                 }
@@ -52,6 +52,20 @@ namespace NobodyWho {
                 throw new NobodyWhoException(e.Message);
             }
         }
+
+        // This deletes the old worker context and creates a new one with the new params, it also means that we lose the chat history
+        public void updateParams(string systemPrompt, string stopWords, int contextLength) {
+            this.systemPrompt = systemPrompt;
+            this.stopWords = stopWords;
+            this.contextLength = contextLength;
+            NativeBindings.destroy_chat_worker(_workerContext);
+            var errorBuffer = new StringBuilder(2048); // update lib.rs if you change this value
+            _workerContext = NativeBindings.create_chat_worker(model.GetModel(), systemPrompt, stopWords, contextLength, errorBuffer);
+            if (errorBuffer.Length > 0) {
+                throw new NobodyWhoException(errorBuffer.ToString());
+            }
+        }
+        
 
         public void say(string prompt) {
             try {
