@@ -1,7 +1,6 @@
 use std::ffi::CString;
 use std::ffi::{c_char, c_void, CStr};
 use std::sync::mpsc;
-use std::sync::Arc;
 use std::thread;
 
 use nobodywho::core::llm;
@@ -142,8 +141,10 @@ pub extern "C" fn create_chat_worker(
 
     let mut sampler_config = SamplerConfig::default();
     sampler_config.use_grammar = use_grammar;
-    // sampler_config.gbnf_grammar = grammar_str;
-
+    if !grammar_str.is_empty() {
+        sampler_config.gbnf_grammar = grammar_str;
+    }    
+    
     let (prompt_tx, prompt_rx) = mpsc::channel();
     let (completion_tx, completion_rx) = mpsc::channel();
 
@@ -300,6 +301,8 @@ mod tests {
             system_prompt.as_ptr(),
             stop_tokens.as_ptr(),
             context_length,
+            false,
+            std::ptr::null(),
             error_ptr,
         );
 
@@ -360,6 +363,8 @@ mod tests {
             system_prompt.as_ptr(),
             std::ptr::null(),
             context_length,
+            false,
+            std::ptr::null(),
             error_ptr,
         );
 
