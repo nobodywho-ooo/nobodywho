@@ -23,6 +23,8 @@ namespace NobodyWho
             [MarshalAs(UnmanagedType.LPUTF8Str)] string system_prompt,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string stop_words,
             int context_length,
+            bool use_grammar,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string grammar,
             [MarshalAs(UnmanagedType.LPStr)] StringBuilder error_buf);  
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
