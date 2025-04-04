@@ -82,9 +82,27 @@ pub extern "C" fn create_chat_worker(
     system_prompt: *const c_char,
     stop_words: *const c_char,
     context_length: u32,
+    use_grammar: bool,
+    grammar: *const c_char,
     error_buf: *mut c_char,
 ) -> *mut c_void {
     let model = unsafe { &mut *(model_ptr as *mut ModelObject) };
+
+    let grammar_str = unsafe {
+        if grammar.is_null() {
+            String::new()
+        } else {
+            match CStr::from_ptr(grammar).to_str() {
+                Ok(s) => s.to_owned(),
+                Err(_) => {
+                    copy_to_error_buf(error_buf, "Invalid UTF-8 in grammar");
+                    return std::ptr::null_mut();
+                }
+            }
+        }
+    };
+    
+
 
     let system_prompt = unsafe {
         if system_prompt.is_null() {
@@ -121,6 +139,11 @@ pub extern "C" fn create_chat_worker(
         }
     };
 
+
+    let mut sampler_config = SamplerConfig::default();
+    sampler_config.use_grammar = use_grammar;
+    // sampler_config.gbnf_grammar = grammar_str;
+
     let (prompt_tx, prompt_rx) = mpsc::channel();
     let (completion_tx, completion_rx) = mpsc::channel();
 
@@ -129,7 +152,7 @@ pub extern "C" fn create_chat_worker(
             model.model.clone(),
             prompt_rx,
             completion_tx,
-            SamplerConfig::default(),
+            sampler_config,
             context_length,
             system_prompt,
             stop_words_vec,

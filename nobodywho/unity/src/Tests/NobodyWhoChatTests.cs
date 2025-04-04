@@ -7,6 +7,14 @@ using NobodyWho;
 
 namespace Tests
 {    
+
+    [System.Serializable]
+    public class CharacterData {
+        public string name;
+        public string weapon;
+        public string armor;
+    }
+
     public class NobodyWhoChatTests
     {
         private GameObject testObject;
@@ -73,8 +81,8 @@ namespace Tests
         public IEnumerator WhenInvokingSayWithSingleStopWord_ShouldStopAtStopWord() {
             string response = null;
             chat.onComplete.AddListener((result) => response = result);
-            chat.updateParams(chat.systemPrompt, "fly", chat.contextLength);
-
+            chat.stopWords = "fly";
+            chat.ResetContext();
 
             chat.say("List these animals in alphabetical order: cat, dog, fly, lion, mouse");
 
@@ -93,7 +101,8 @@ namespace Tests
         public IEnumerator WhenInvokingSayWithMultipleStopWords_ShouldStopAtFirstStopWord() {
             string response = null;
             chat.onComplete.AddListener((result) => response = result);
-            chat.updateParams(chat.systemPrompt, "horse-rider, fly", chat.contextLength);
+            chat.stopWords = "horse-rider, fly";
+            chat.ResetContext();
             chat.say("List all the words in alphabetical order: cat, dog, fly, horse-rider, lion, mouse");
 
             float timeout = Time.time + 15f;
@@ -106,6 +115,37 @@ namespace Tests
             Assert.IsTrue(response.Contains("fly"), "Response should contain 'fly'");
             Assert.IsFalse(response.Contains("horse-rider"), "Response should not reach 'fly'");
             Assert.IsFalse(response.Contains("lion"), "Response should not continue past 'fly'");
+        }
+
+
+        [UnityTest]
+        public IEnumerator WhenInvokingSayWithGrammar_ShouldReturnResponseInCorrectFormat() {
+            string response = null;
+            chat.onComplete.AddListener((result) => response = result);
+            
+            chat.systemPrompt = "You are a character creator for a fantasy game. You will be given a list of properties and you will need to fill out those properties.";
+            chat.use_grammar = true;
+            chat.ResetContext();
+
+            chat.say(@"Generate exactly these properties:
+                - name
+                - weapon
+                - armor
+            ");
+
+            float timeout = Time.time + 15f;
+            while (response == null && Time.time < timeout) {
+                yield return null;
+            }        
+            Assert.IsNotNull(response, "No response received within timeout period");
+            Debug.Log("GRAMMAR TEST RESPONSE: " + response);
+            
+            CharacterData character = JsonUtility.FromJson<CharacterData>(response);
+            Assert.IsNotNull(character.name, "Response should contain 'name' field");
+            Assert.IsNotNull(character.weapon, "Response should contain 'weapon' field");
+            Assert.IsNotNull(character.armor, "Response should contain 'armor' field");
+            
+            
         }
     }
 }
