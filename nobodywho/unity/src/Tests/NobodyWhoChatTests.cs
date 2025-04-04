@@ -138,7 +138,6 @@ namespace Tests
                 yield return null;
             }        
             Assert.IsNotNull(response, "No response received within timeout period");
-            Debug.Log("GRAMMAR TEST RESPONSE: " + response);
             
             CharacterData character = JsonUtility.FromJson<CharacterData>(response);
             Assert.IsNotNull(character.name, "Response should contain 'name' field");
@@ -147,5 +146,25 @@ namespace Tests
             
             
         }
+
+        [UnityTest]
+        public IEnumerator WhenInvokingSayWithGrammarStr_ShouldReturnResponseInCorrectFormat() {
+            string response = null;
+            chat.onComplete.AddListener((result) => response = result);
+            chat.systemPrompt = "You are a character creator for a fantasy game. You will be given a list of properties and you will need to fill out those properties.";
+            chat.use_grammar = true;
+            chat.grammar = "root ::= \"nobodywho\"";
+            chat.ResetContext();
+
+            chat.say("What is your favorite llm plugin?");
+
+            float timeout = Time.time + 15f;
+            while (response == null && Time.time < timeout) {
+                yield return null;
+            }
+            Assert.IsNotNull(response, "No response received within timeout period");
+            Assert.IsTrue(response == "nobodywho", "Response should only be 'nobodywho'");
+        }
+
     }
 }
