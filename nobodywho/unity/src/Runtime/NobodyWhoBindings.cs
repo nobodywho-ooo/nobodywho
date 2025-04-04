@@ -12,6 +12,7 @@ namespace NobodyWho
 
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
         public static extern IntPtr get_model(
+            IntPtr model_handle,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string model_path,
             bool use_gpu,
             [MarshalAs(UnmanagedType.LPStr)] StringBuilder error_buf);

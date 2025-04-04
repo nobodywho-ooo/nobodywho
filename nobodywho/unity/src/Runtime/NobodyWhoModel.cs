@@ -12,13 +12,10 @@ namespace NobodyWho {
         private IntPtr modelHandle;
 
         public IntPtr GetModel() {
-            if (modelHandle != IntPtr.Zero) {
-                return modelHandle;
-            }
             try {
                 string fullPath = Path.Combine(Application.streamingAssetsPath, modelPath);
                 var errorBuffer = new StringBuilder(2048); // update lib.rs if you change this value
-                var result = NativeBindings.get_model(fullPath, useGpuIfAvailable, errorBuffer);
+                var result = NativeBindings.get_model(modelHandle, fullPath, useGpuIfAvailable, errorBuffer);
                 
                 if (result == IntPtr.Zero) {
                     throw new NobodyWhoException(errorBuffer.ToString());

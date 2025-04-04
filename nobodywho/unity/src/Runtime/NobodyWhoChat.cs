@@ -3,14 +3,14 @@ using System.Collections;
 using UnityEngine.Events;
 using System;
 using System.Text;
-namespace NobodyWho {
 
+namespace NobodyWho {
     public class Chat : MonoBehaviour {
         private IntPtr _workerContext;
         public Model model;
-        public string systemPrompt;
-        public string[] stopTokens;
-        public int contextLength;
+        public string systemPrompt = "";
+        public string[] stopTokens = new string[] {};
+        public int contextLength = 4096;
 
         public UnityEvent<string> onToken = new UnityEvent<string>();
         public UnityEvent<string> onComplete = new UnityEvent<string>();
