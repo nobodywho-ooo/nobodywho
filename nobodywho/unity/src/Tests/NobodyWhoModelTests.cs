@@ -34,13 +34,24 @@ namespace Tests
         public void WhenModelIsWrong_ShouldThrowNobodyWhoException()
         {
             // Create a fake GGUF file with invalid content
-            string tempPath = Path.Combine(Application.streamingAssetsPath, "invalid.ggusf");
+            string tempPath = Path.Combine(Application.streamingAssetsPath, "invalid.gguf");
             File.WriteAllText(tempPath, "This is not a valid GGUF file");
             
-            model.modelPath = "invalid.gguf";
-            var exception = Assert.Throws<NobodyWhoException>(() => model.GetModel());
-            File.Delete(tempPath);
+            try 
+            {
+                model.modelPath = tempPath;
+                var exception = Assert.Throws<NobodyWhoException>(() => model.GetModel());
+            }
+            finally 
+            {
+                // Ensure we clean up the temp file even if the test fails
+                if (File.Exists(tempPath))
+                {
+                    File.Delete(tempPath);
+                }
+            }
         }
+    
         
         [Test] 
         public void WhenModelPathIsGGUF_ShouldLoadModel()

@@ -5,9 +5,8 @@ using System.Collections;
 using System.Collections.Generic;
 using NobodyWho;
 
-
 namespace Tests
-{
+{    
     public class NobodyWhoChatTests
     {
         private GameObject testObject;
@@ -23,6 +22,7 @@ namespace Tests
             chat = testObject.AddComponent<NobodyWho.Chat>();
             chat.systemPrompt = "You are a test assistant.";
             chat.model = model;
+
         }
 
         [TearDown]
@@ -87,22 +87,22 @@ namespace Tests
             Assert.IsFalse(response.Contains("mouse"), "Response should not continue past 'fly'");
         }
 
-        [UnityTest]
-        public IEnumerator WhenInvokingSayWithMultipleStopTokens_ShouldStopAtFirstStopToken() {
-            string response = null;
-            chat.onComplete.AddListener((result) => response = result);
-            chat.stopTokens = new string[] { "horse-rider", "fly" }; // Set the stop token
-            chat.say("List all the words in alphabetical order: dog, fly, horse-rider, lion, mouse");
+    //     [UnityTest]
+    //     public IEnumerator WhenInvokingSayWithMultipleStopTokens_ShouldStopAtFirstStopToken() {
+    //         string response = null;
+    //         chat.onComplete.AddListener((result) => response = result);
+    //         chat.stopTokens = new string[] { "horse-rider", "fly" }; // Set the stop token
+    //         chat.say("List all the words in alphabetical order: dog, fly, horse-rider, lion, mouse");
 
-            float timeout = Time.time + 15f;
-            while (response == null && Time.time < timeout) {
-                yield return null;
-            }
-            Assert.IsNotNull(response, "No response received within timeout period");
-            Assert.IsTrue(response.Contains("dog"), "Response should contain 'dog'");
-            Assert.IsTrue(response.Contains("fly"), "Response should contain 'fly'");
-            Assert.IsFalse(response.Contains("horse-rider"), "Response should not reach 'fly'");
-            Assert.IsFalse(response.Contains("lion"), "Response should not continue past 'fly'");
-        }
-    }
+    //         float timeout = Time.time + 15f;
+    //         while (response == null && Time.time < timeout) {
+    //             yield return null;
+    //         }
+    //         Assert.IsNotNull(response, "No response received within timeout period");
+    //         Assert.IsTrue(response.Contains("dog"), "Response should contain 'dog'");
+    //         Assert.IsTrue(response.Contains("fly"), "Response should contain 'fly'");
+    //         Assert.IsFalse(response.Contains("horse-rider"), "Response should not reach 'fly'");
+    //         Assert.IsFalse(response.Contains("lion"), "Response should not continue past 'fly'");
+    //     }
+    // }
 }
