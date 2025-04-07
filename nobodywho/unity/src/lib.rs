@@ -381,6 +381,10 @@ mod tests {
         }
     }
 
+    extern "C" fn test_on_embedding(embedding: *const f32, length: i32) {
+        println!("[DEBUG] test_on_embedding - Embedding: {:?}", embedding);
+    }
+
     extern "C" fn test_on_complete(response: *const c_char) {
         if let Ok(response_str) = unsafe { CStr::from_ptr(response) }.to_str() {
             println!("[DEBUG] test_on_complete - Response: {}", response_str);
@@ -521,7 +525,7 @@ mod tests {
         println!("Embedding context: {:?}", embedding_context);
         
         assert!(!embedding_context.is_null(), "Embedding context should not be null");
-        
+
         // OBS: Thread spawning is asynchronous and may not happen immediately,
         // this is why we need to sleep for a short period of time to ensure the thread is spawned. otherwise we will destroy the modelobjewct
         // and the thread will try to spawn with a null model leading to a segfault. 
@@ -531,5 +535,35 @@ mod tests {
         destroy_embedding_worker(embedding_context);
         destroy_model(model as *mut c_void);
     }
+
+    #[test]
+    fn test_embed_text() {
+        let error_buf = [0u8; 2048];
+        let error_ptr = error_buf.as_ptr() as *mut c_char;
+
+        let model_path = CString::new("bge-small-en-v1.5-q8_0.gguf").unwrap();
+        let model: *mut c_void = get_model(std::ptr::null_mut(), model_path.as_ptr(), true, error_ptr);
+
+        let embedding_context = create_embedding_worker(model, error_ptr);
+        println!("Embedding context: {:?}", embedding_context);
+        
+        let text = CString::new("Hello, world!").unwrap();
+        embed_text(embedding_context, text.as_ptr(), error_ptr);
+
+        
+        let timeout = std::time::Instant::now() + std::time::Duration::from_secs(15);
+        while unsafe { !RECEIVED_COMPLETE } {
+            if std::time::Instant::now() > timeout {
+                panic!("Timed out waiting for response");
+            }
+            poll_embeddings(embedding_context, test_on_embedding, test_on_error);
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+
+        destroy_embedding_worker(embedding_context);
+        destroy_model(model as *mut c_void);
+    }
+        
+    
 }
 
