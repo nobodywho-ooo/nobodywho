@@ -101,11 +101,9 @@ pub extern "C" fn create_embedding_worker(
     let (text_tx, text_rx) = mpsc::channel();
     let (embedding_tx, embedding_rx) = mpsc::channel();
 
-    println!("Calling run_embedding_worker");
     thread::spawn(move || {
         llm::run_embedding_worker(model.model.clone(), text_rx, embedding_tx);
     });
-    println!("Spawned run_embedding_worker");
 
     let context = Box::new(EmbeddingContext {
         text_tx,
@@ -141,7 +139,7 @@ pub extern "C" fn embed_text(context: *mut c_void, text: *const c_char, error_bu
 #[no_mangle]
 pub extern "C" fn poll_embeddings(
     context: *mut c_void,
-    on_embedding: extern "C" fn(*const f32, i32),
+    on_embedding: extern "C" fn(*mut f32, i32),
     on_error: extern "C" fn(*const c_char),
 ) {
     if context.is_null() {
@@ -156,7 +154,7 @@ pub extern "C" fn poll_embeddings(
             llm::EmbeddingsOutput::Embedding(embedding) => {
                 let ptr = embedding.as_ptr();
                 let len = embedding.len() as i32;
-                on_embedding(ptr, len);
+                on_embedding(ptr as *mut f32, len);
             }
             llm::EmbeddingsOutput::FatalError(msg) => {
                 if let Ok(c_str) = CString::new(msg.to_string()) {
@@ -351,14 +349,14 @@ mod tests {
 
     static mut RECEIVED_COMPLETE: bool = false;
     static mut RESPONSE: Option<String> = None;
-
-    extern "C" fn test_on_error(error: *const c_char) {
+    static mut EMBEDDING: Option<Vec<f32>> = None;
+    extern "C" fn _on_error(error: *const c_char) {
         if let Ok(error_str) = unsafe { CStr::from_ptr(error) }.to_str() {
-            println!("[ERROR] test_on_error - Error: {}", error_str);
+            println!("[ERROR] on_error - Error: {}", error_str);
         }
     }
 
-    extern "C" fn test_on_token(token: *const c_char) {
+    extern "C" fn _on_token(token: *const c_char) {
         if let Ok(token_str) = unsafe { CStr::from_ptr(token) }.to_str() {
             unsafe {
                 RESPONSE = Some(match &RESPONSE {
@@ -369,11 +367,15 @@ mod tests {
         }
     }
 
-    extern "C" fn test_on_embedding(embedding: *const f32, length: i32) {
+    extern "C" fn _on_embedding(embedding: *mut f32, length: i32) {
         println!("[DEBUG] test_on_embedding - Embedding: {:?}", embedding);
+        unsafe {
+            let embedding_vec = Vec::<f32>::from_raw_parts(embedding, length as usize, length as usize);
+            EMBEDDING = Some(embedding_vec);
+        }
     }
 
-    extern "C" fn test_on_complete(response: *const c_char) {
+    extern "C" fn _on_complete(response: *const c_char) {
         if let Ok(response_str) = unsafe { CStr::from_ptr(response) }.to_str() {
             println!("[DEBUG] test_on_complete - Response: {}", response_str);
             unsafe {
@@ -422,9 +424,9 @@ mod tests {
             }
             poll_responses(
                 chat_context as *mut c_void,
-                test_on_token,
-                test_on_complete,
-                test_on_error,
+                _on_token,
+                _on_complete,
+                _on_error,
             );
         }
 
@@ -485,7 +487,7 @@ mod tests {
             if std::time::Instant::now() > timeout {
                 panic!("Timed out waiting for response");
             }
-            poll_responses(chat_context, test_on_token, test_on_complete, test_on_error);
+            poll_responses(chat_context, _on_token, _on_complete, _on_error);
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
         assert!(
@@ -510,7 +512,6 @@ mod tests {
             get_model(std::ptr::null_mut(), model_path.as_ptr(), true, error_ptr);
 
         let embedding_context = create_embedding_worker(model, error_ptr);
-        println!("Embedding context: {:?}", embedding_context);
 
         assert!(
             !embedding_context.is_null(),
@@ -537,19 +538,21 @@ mod tests {
             get_model(std::ptr::null_mut(), model_path.as_ptr(), true, error_ptr);
 
         let embedding_context = create_embedding_worker(model, error_ptr);
-        println!("Embedding context: {:?}", embedding_context);
-
+        
         let text = CString::new("Hello, world!").unwrap();
         embed_text(embedding_context, text.as_ptr(), error_ptr);
 
         let timeout = std::time::Instant::now() + std::time::Duration::from_secs(15);
-        while unsafe { !RECEIVED_COMPLETE } {
+        while unsafe { EMBEDDING.is_none() } {
             if std::time::Instant::now() > timeout {
                 panic!("Timed out waiting for response");
             }
-            poll_embeddings(embedding_context, test_on_embedding, test_on_error);
+            poll_embeddings(embedding_context, _on_embedding, _on_error);
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
+
+        let embedding = unsafe { EMBEDDING.as_ref().unwrap() };
+        assert!(embedding.len() > 0);
 
         destroy_embedding_worker(embedding_context);
         destroy_model(model as *mut c_void);
