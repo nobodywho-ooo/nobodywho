@@ -360,6 +360,22 @@ pub extern "C" fn destroy_chat_worker(context: *mut c_void) {
 
 #[cfg(test)]
 mod tests {
+    macro_rules! test_model_path {
+        () => {
+            std::env::var("TEST_MODEL")
+                .unwrap_or("model.gguf".to_string())
+                .as_str()
+        };
+    }
+    
+    macro_rules! test_embeddings_model_path {
+        () => {
+            std::env::var("TEST_EMBEDDINGS_MODEL")
+                .unwrap_or("embeddings.gguf".to_string())
+                .as_str()
+        };
+    }
+
     use super::*;
     use std::ffi::CString;
 
@@ -404,7 +420,7 @@ mod tests {
         let error_buf = [0u8; 2048];
         let error_ptr = error_buf.as_ptr() as *mut c_char;
 
-        let model_path = CString::new("qwen2.5-1.5b-instruct-q4_0.gguf").unwrap();
+        let model_path = CString::new(test_model_path!()).unwrap();
         let model: *mut c_void =
             get_model(std::ptr::null_mut(), model_path.as_ptr(), true, error_ptr);
 
@@ -463,7 +479,7 @@ mod tests {
         let error_buf = [0u8; 2048];
         let error_ptr = error_buf.as_ptr() as *mut c_char;
 
-        let model_path = CString::new("qwen2.5-1.5b-instruct-q4_0.gguf").unwrap();
+        let model_path = CString::new(test_model_path!()).unwrap();
         let model: *mut c_void =
             get_model(std::ptr::null_mut(), model_path.as_ptr(), true, error_ptr);
         assert_eq!(
@@ -522,7 +538,7 @@ mod tests {
         let error_buf = [0u8; 2048];
         let error_ptr = error_buf.as_ptr() as *mut c_char;
 
-        let model_path = CString::new("bge-small-en-v1.5-q8_0.gguf").unwrap();
+        let model_path = CString::new(test_embeddings_model_path!()).unwrap();
         let model: *mut c_void =
             get_model(std::ptr::null_mut(), model_path.as_ptr(), true, error_ptr);
 
@@ -548,7 +564,7 @@ mod tests {
         let error_buf = [0u8; 2048];
         let error_ptr = error_buf.as_ptr() as *mut c_char;
 
-        let model_path = CString::new("bge-small-en-v1.5-q8_0.gguf").unwrap();
+        let model_path = CString::new(test_embeddings_model_path!()).unwrap();
         let model: *mut c_void =
             get_model(std::ptr::null_mut(), model_path.as_ptr(), true, error_ptr);
 
@@ -578,7 +594,7 @@ mod tests {
         let error_buf = [0u8; 2048];
         let error_ptr = error_buf.as_ptr() as *mut c_char;
 
-        let model_path = CString::new("bge-small-en-v1.5-q8_0.gguf").unwrap();
+        let model_path = CString::new(test_embeddings_model_path!()).unwrap();
         let model: *mut c_void =
             get_model(std::ptr::null_mut(), model_path.as_ptr(), true, error_ptr);
         let embedding_context = create_embedding_worker(model, error_ptr);
