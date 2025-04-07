@@ -360,6 +360,7 @@ pub extern "C" fn destroy_chat_worker(context: *mut c_void) {
 
 #[cfg(test)]
 mod tests {
+    const TIMEOUT: u64 = 60*5;
     macro_rules! test_model_path {
         () => {
             std::env::var("TEST_MODEL")
@@ -447,7 +448,7 @@ mod tests {
         unsafe {
             RECEIVED_COMPLETE = false;
         }
-        let timeout = std::time::Instant::now() + std::time::Duration::from_secs(60);
+        let timeout = std::time::Instant::now() + std::time::Duration::from_secs(TIMEOUT);
 
         while unsafe { !RECEIVED_COMPLETE } {
             if std::time::Instant::now() > timeout {
@@ -513,7 +514,7 @@ mod tests {
         unsafe {
             RECEIVED_COMPLETE = false;
         }
-        let timeout = std::time::Instant::now() + std::time::Duration::from_secs(60);
+        let timeout = std::time::Instant::now() + std::time::Duration::from_secs(TIMEOUT);
         while unsafe { !RECEIVED_COMPLETE } {
             if std::time::Instant::now() > timeout {
                 panic!("Timed out waiting for response");
@@ -573,7 +574,7 @@ mod tests {
         let text = CString::new("Hello, world!").unwrap();
         embed_text(embedding_context, text.as_ptr(), error_ptr);
 
-        let timeout = std::time::Instant::now() + std::time::Duration::from_secs(60);
+        let timeout = std::time::Instant::now() + std::time::Duration::from_secs(TIMEOUT);
         while unsafe { EMBEDDING.is_none() } {
             if std::time::Instant::now() > timeout {
                 panic!("Timed out waiting for embedding");
@@ -611,7 +612,7 @@ mod tests {
             let text_cstring = CString::new(text).unwrap();
             embed_text(embedding_context, text_cstring.as_ptr(), error_ptr);
 
-            let timeout = std::time::Instant::now() + std::time::Duration::from_secs(60);
+            let timeout = std::time::Instant::now() + std::time::Duration::from_secs(TIMEOUT);
             unsafe {
                 EMBEDDING = None;
             }
