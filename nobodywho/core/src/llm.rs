@@ -115,6 +115,9 @@ pub enum WorkerError {
 
     #[error("Could not parse chat template as UTF8: {0}")]
     TemplateUtf8Error(#[from] std::str::Utf8Error),
+    
+    #[error("Could not get embedding. this might be due to using a non-embedding model.")]
+    EmbeddingError,
 
     #[error("Could not send newly generated token out to the game engine.")]
     SendError, // this is actually a SendError<LLMOutput>, but that becomes recursive and weird.
@@ -455,7 +458,14 @@ pub fn run_embedding_worker_result(
 
         ctx.decode(&mut batch)?;
 
-        let embedding = ctx.embeddings_seq_ith(0).unwrap().to_vec();
+        // TODO: do not unwrap, handle the error
+        let embedding = match ctx.embeddings_seq_ith(0) {
+            Ok(embedding) => embedding.to_vec(),
+            Err(_) => {
+                return Err(WorkerError::EmbeddingError);
+            }
+        };
+        
         embedding_tx
             .send(EmbeddingsOutput::Embedding(embedding))
             .map_err(|_| WorkerError::SendError)?;
