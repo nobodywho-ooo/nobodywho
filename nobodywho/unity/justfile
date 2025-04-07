@@ -10,6 +10,9 @@ PACKAGE_CACHE := CACHE_DIR + "/packages"
 TEMP_PROJECT := "temp-project"
 MODEL_FILENAME := "qwen2.5-1.5b-instruct-q4_0.gguf"
 MODEL_URL := "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_0.gguf"
+EMBEDDING_MODEL_FILENAME := "bge-small-en-v1.5-q8_0.gguf"
+EMBEDDING_MODEL_URL := "https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf"
+
 
 default:
     just test
@@ -76,6 +79,11 @@ _ensure-temp-project: _ensure-license
     if [ ! -f "$STREAMING_ASSETS/{{MODEL_FILENAME}}" ]; then
         echo "📥 Downloading model..."
         curl -L --fail --progress-bar "{{MODEL_URL}}" -o "$STREAMING_ASSETS/{{MODEL_FILENAME}}"
+    fi
+
+    if [ ! -f "$STREAMING_ASSETS/{{EMBEDDING_MODEL_FILENAME}}" ]; then
+        echo "📥 Downloading embedding model..."
+        curl -L --fail --progress-bar "{{EMBEDDING_MODEL_URL}}" -o "$STREAMING_ASSETS/{{EMBEDDING_MODEL_FILENAME}}"
     fi
     
     echo "✅ Temporary project ready at: {{TEMP_PROJECT}}"

@@ -20,6 +20,9 @@ fn copy_to_error_buf(error_buf: *mut c_char, message: &str) {
     }
 }
 
+
+/////////////////////  MODEL  /////////////////////
+
 #[derive(Clone)]
 struct ModelObject {
     model: llm::Model,
@@ -71,10 +74,125 @@ pub extern "C" fn get_model(
     Box::into_raw(Box::new(model_object)) as *mut c_void
 }
 
+#[no_mangle]
+pub extern "C" fn destroy_model(model: *mut c_void) {
+    unsafe {
+        drop(Box::from_raw(model as *mut ModelObject));
+    }
+}
+
+/////////////////////  EMBEDDING  /////////////////////
+
+struct EmbeddingContext {
+    text_tx: mpsc::Sender<String>,
+    embedding_rx: mpsc::Receiver<llm::EmbeddingsOutput>,
+}
+
+#[no_mangle]
+pub extern "C" fn create_embedding_worker(
+    model_ptr: *mut c_void,
+    error_buf: *mut c_char,
+) -> *mut c_void {
+
+    if model_ptr.is_null() {
+        copy_to_error_buf(error_buf, "Model pointer is null");
+        return std::ptr::null_mut();
+    }
+
+    let model = unsafe { &mut *(model_ptr as *mut ModelObject) };
+    let (text_tx, text_rx) = mpsc::channel();
+    let (embedding_tx, embedding_rx) = mpsc::channel();
+
+    println!("Calling run_embedding_worker");
+    thread::spawn(move || {
+        llm::run_embedding_worker(
+            model.model.clone(),
+            text_rx,
+            embedding_tx,
+        );
+    });
+    println!("Spawned run_embedding_worker");
+
+    let context = Box::new(EmbeddingContext {
+        text_tx,
+        embedding_rx,
+    });
+
+    Box::into_raw(context) as *mut c_void
+}
+
+#[no_mangle]
+pub extern "C" fn embed_text(
+    context: *mut c_void,
+    text: *const c_char,
+    error_buf: *mut c_char,
+) {
+    let embedding_context = unsafe { &mut *(context as *mut EmbeddingContext) };
+
+    let text_str: String = match unsafe { CStr::from_ptr(text).to_str() } {
+        Ok(text_string) => text_string.to_owned(),
+        Err(e) => {
+            copy_to_error_buf(error_buf, &format!("Invalid UTF-8 in text: {}", e));
+            return;
+        }
+    };
+
+    match embedding_context.text_tx.send(text_str) {
+        Ok(_) => {
+            println!("[DEBUG] embed_text - Text sent successfully");
+        }
+        Err(e) => {
+            copy_to_error_buf(error_buf, &format!("Failed to send text: {}", e));
+            return;
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn poll_embeddings(
+    context: *mut c_void,
+    on_embedding: extern "C" fn(*const f32, i32),
+    on_error: extern "C" fn(*const c_char),
+) {
+    if context.is_null() {
+        println!("[ERROR] poll_embeddings - Null context pointer received");
+        return;
+    }
+
+    let embedding_context = unsafe { &mut *(context as *mut EmbeddingContext) };
+
+    while let Ok(output) = &embedding_context.embedding_rx.try_recv() {
+        match output {
+            llm::EmbeddingsOutput::Embedding(embedding) => {
+                let ptr = embedding.as_ptr();
+                let len = embedding.len() as i32;
+                on_embedding(ptr, len);
+            }
+            llm::EmbeddingsOutput::FatalError(msg) => {
+                if let Ok(c_str) = CString::new(msg.to_string()) {
+                    on_error(c_str.as_ptr())
+                }
+            }
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn destroy_embedding_worker(context: *mut c_void) {
+    unsafe {
+        drop(Box::from_raw(context as *mut EmbeddingContext));
+    }
+}
+
+
+
+/////////////////////  CHAT  /////////////////////
+
 struct ChatContext {
     prompt_tx: mpsc::Sender<String>,
     completion_rx: mpsc::Receiver<LLMOutput>,
 }
+
 #[no_mangle]
 pub extern "C" fn create_chat_worker(
     model_ptr: *mut c_void,
@@ -238,16 +356,6 @@ pub extern "C" fn destroy_chat_worker(context: *mut c_void) {
     }
 }
 
-// Converts the raw pointer back to an Arc, decreasing the reference count
-// when it goes out of scope. This must be called exactly once for each
-// pointer created with Arc::into_raw to prevent memory leaks.
-#[no_mangle]
-pub extern "C" fn destroy_model(model: *mut c_void) {
-    unsafe {
-        drop(Box::from_raw(model as *mut ModelObject));
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -400,5 +508,28 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_create_embedding_worker() {
+        let error_buf = [0u8; 2048];
+        let error_ptr = error_buf.as_ptr() as *mut c_char;
+        
+        let model_path = CString::new("bge-small-en-v1.5-q8_0.gguf").unwrap();
+        let model: *mut c_void = get_model(std::ptr::null_mut(), model_path.as_ptr(), true, error_ptr);
+        
+        
+        let embedding_context = create_embedding_worker(model, error_ptr);
+        println!("Embedding context: {:?}", embedding_context);
+        
+        assert!(!embedding_context.is_null(), "Embedding context should not be null");
+        
+        // OBS: Thread spawning is asynchronous and may not happen immediately,
+        // this is why we need to sleep for a short period of time to ensure the thread is spawned. otherwise we will destroy the modelobjewct
+        // and the thread will try to spawn with a null model leading to a segfault. 
+        // This should be a testtime issue only as the scope will be exited when crossing the language boundary allowing for the thread to be spawned... i think.
+        std::thread::sleep(std::time::Duration::from_millis(1));
+        
+        destroy_embedding_worker(embedding_context);
+        destroy_model(model as *mut c_void);
+    }
 }
 
