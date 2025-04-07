@@ -4,21 +4,27 @@ using UnityEngine.Events;
 using System;
 using System.Text;
 
+
 namespace NobodyWho {
     public class Chat : MonoBehaviour {
-        private IntPtr _workerContext;
         public Model model;
+
+        [TextArea(15,20)]
         public string systemPrompt = "";
+        
+        [Header("Configuration")]
         public string stopWords = "";
         public int contextLength = 4096;
         public bool use_grammar = false;
+        [TextArea(15,20)]
         public string grammar;
 
+        [Header("Events")]
         public UnityEvent<string> onToken = new UnityEvent<string>();
         public UnityEvent<string> onComplete = new UnityEvent<string>();
 
         private AwaitableCompletionSource<string> _completionSignal;
-
+        private IntPtr _workerContext;
         private void OnToken(string token) => onToken.Invoke(token);
         private void OnComplete(string response) {
             _completionSignal?.SetResult(response);
