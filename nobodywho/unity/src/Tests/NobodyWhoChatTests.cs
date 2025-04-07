@@ -4,7 +4,7 @@ using UnityEngine.TestTools;
 using System.Collections;
 using System.Collections.Generic;
 using NobodyWho;
-
+using System.Threading.Tasks;
 namespace Tests
 {    
 
@@ -20,7 +20,6 @@ namespace Tests
         private GameObject testObject;
         private NobodyWho.Model model;
         private NobodyWho.Chat chat;
-
         [SetUp]
         public void Setup() {
             testObject = new GameObject("TestModel");
@@ -40,18 +39,11 @@ namespace Tests
             }
         }
 
-        [UnityTest]
-        public IEnumerator WhenInvokingSay_ShouldReturnResponse() {
+        [Test]
+        public async Task WhenInvokingSay_ShouldReturnResponse() {
             string response = null;
-            chat.onComplete.AddListener((result) => response = result);            
-            chat.say("Hi there");
+            response = await chat.Say("Hi there");
             
-            float timeout = Time.time + 15f; // 15 second timeout
-
-            // let unity process stuff until we get a response
-            while (response == null && Time.time < timeout) {
-                yield return null;
-            }
             Assert.IsNotNull(response, "No response received within timeout period");
             Assert.AreEqual("Hello! How can I help you today?", response);
         }
@@ -59,14 +51,13 @@ namespace Tests
         [UnityTest]
         public IEnumerator WhenInvokingSay_ShouldReceiveTokens() {
             string response = null;
-            chat.onComplete.AddListener((result) => response = result);            
-            // Setup token collection
+            
             List<string> receivedTokens = new List<string>();
             chat.onToken.AddListener((token) => {
                 receivedTokens.Add(token);
             });
             
-            chat.say("Tell me a short joke");
+            chat.Say("Tell me a short joke");
             
             float timeout = Time.time + 15f;
             while (response == null && Time.time < timeout) {
@@ -80,11 +71,12 @@ namespace Tests
         [UnityTest]
         public IEnumerator WhenInvokingSayWithSingleStopWord_ShouldStopAtStopWord() {
             string response = null;
+            // not using await here because we want to test the signal like interface as well
             chat.onComplete.AddListener((result) => response = result);
             chat.stopWords = "fly";
             chat.ResetContext();
 
-            chat.say("List these animals in alphabetical order: cat, dog, fly, lion, mouse");
+            chat.Say("List these animals in alphabetical order: cat, dog, fly, lion, mouse");
 
             float timeout = Time.time + 15f;
             while (response == null && Time.time < timeout) {
@@ -97,18 +89,13 @@ namespace Tests
             Assert.IsFalse(response.Contains("mouse"), "Response should not continue past 'fly'");
         }
 
-        [UnityTest]
-        public IEnumerator WhenInvokingSayWithMultipleStopWords_ShouldStopAtFirstStopWord() {
+        [Test]
+        public async Task WhenInvokingSayWithMultipleStopWords_ShouldStopAtFirstStopWord() {
             string response = null;
-            chat.onComplete.AddListener((result) => response = result);
             chat.stopWords = "horse-rider, fly";
             chat.ResetContext();
-            chat.say("List all the words in alphabetical order: cat, dog, fly, horse-rider, lion, mouse");
+            response = await chat.Say("List all the words in alphabetical order: cat, dog, fly, horse-rider, lion, mouse");
 
-            float timeout = Time.time + 15f;
-            while (response == null && Time.time < timeout) {
-                yield return null;
-            }
 
             Assert.IsNotNull(response, "No response received within timeout period");
             Assert.IsTrue(response.Contains("dog"), "Response should contain 'dog'");
@@ -118,25 +105,20 @@ namespace Tests
         }
 
 
-        [UnityTest]
-        public IEnumerator WhenInvokingSayWithGrammar_ShouldReturnResponseInCorrectFormat() {
+        [Test]
+        public async Task WhenInvokingSayWithGrammar_ShouldReturnResponseInCorrectFormat() {
             string response = null;
-            chat.onComplete.AddListener((result) => response = result);
             
             chat.systemPrompt = "You are a character creator for a fantasy game. You will be given a list of properties and you will need to fill out those properties.";
             chat.use_grammar = true;
             chat.ResetContext();
 
-            chat.say(@"Generate exactly these properties:
+            response = await chat.Say(@"Generate exactly these properties:
                 - name
                 - weapon
                 - armor
             ");
-
-            float timeout = Time.time + 15f;
-            while (response == null && Time.time < timeout) {
-                yield return null;
-            }        
+        
             Assert.IsNotNull(response, "No response received within timeout period");
             
             CharacterData character = JsonUtility.FromJson<CharacterData>(response);
@@ -147,8 +129,8 @@ namespace Tests
             
         }
 
-        [UnityTest]
-        public IEnumerator WhenInvokingSayWithGrammarStr_ShouldReturnResponseInCorrectFormat() {
+        [Test]
+        public async Task WhenInvokingSayWithGrammarStr_ShouldReturnResponseInCorrectFormat() {
             string response = null;
             chat.onComplete.AddListener((result) => response = result);
             chat.systemPrompt = "You are a character creator for a fantasy game. You will be given a list of properties and you will need to fill out those properties.";
@@ -156,12 +138,8 @@ namespace Tests
             chat.grammar = "root ::= \"nobodywho\"";
             chat.ResetContext();
 
-            chat.say("What is your favorite llm plugin?");
+            response = await chat.Say("What is your favorite llm plugin?");
 
-            float timeout = Time.time + 15f;
-            while (response == null && Time.time < timeout) {
-                yield return null;
-            }
             Assert.IsNotNull(response, "No response received within timeout period");
             Assert.IsTrue(response == "nobodywho", "Response should only be 'nobodywho'");
         }

@@ -17,9 +17,17 @@ namespace NobodyWho {
         public UnityEvent<string> onToken = new UnityEvent<string>();
         public UnityEvent<string> onComplete = new UnityEvent<string>();
 
+        private AwaitableCompletionSource<string> _completionSignal;
+
         private void OnToken(string token) => onToken.Invoke(token);
-        private void OnComplete(string response) => onComplete.Invoke(response);
-        private void OnError(string error) => Debug.LogError($"LLM Error: {error}");
+        private void OnComplete(string response) {
+            _completionSignal?.SetResult(response);
+            onComplete.Invoke(response);
+        }
+        private void OnError(string error) {
+            _completionSignal?.SetException(new NobodyWhoException(error));
+            Debug.LogError($"LLM Error: {error}");
+        }
 
         void Start() {
             try {
@@ -74,14 +82,17 @@ namespace NobodyWho {
             }
         }
         
-
-        public void say(string prompt) {
+        public Awaitable<string> Say(string prompt) {
             try {
                 var errorBuffer = new StringBuilder(2048); // update lib.rs if you change this value
+                _completionSignal = new AwaitableCompletionSource<string>();
+                
                 NativeBindings.send_prompt(_workerContext, prompt, errorBuffer);
                 if (errorBuffer.Length > 0) {
                     throw new NobodyWhoException(errorBuffer.ToString());
                 }
+
+                return _completionSignal.Awaitable;
             } catch (Exception e) {
                 throw new NobodyWhoException(e.Message);
             }
