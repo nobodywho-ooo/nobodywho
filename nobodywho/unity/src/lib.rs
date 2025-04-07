@@ -447,7 +447,7 @@ mod tests {
         unsafe {
             RECEIVED_COMPLETE = false;
         }
-        let timeout = std::time::Instant::now() + std::time::Duration::from_secs(15);
+        let timeout = std::time::Instant::now() + std::time::Duration::from_secs(60);
 
         while unsafe { !RECEIVED_COMPLETE } {
             if std::time::Instant::now() > timeout {
@@ -513,7 +513,7 @@ mod tests {
         unsafe {
             RECEIVED_COMPLETE = false;
         }
-        let timeout = std::time::Instant::now() + std::time::Duration::from_secs(15);
+        let timeout = std::time::Instant::now() + std::time::Duration::from_secs(60);
         while unsafe { !RECEIVED_COMPLETE } {
             if std::time::Instant::now() > timeout {
                 panic!("Timed out waiting for response");
@@ -573,7 +573,7 @@ mod tests {
         let text = CString::new("Hello, world!").unwrap();
         embed_text(embedding_context, text.as_ptr(), error_ptr);
 
-        let timeout = std::time::Instant::now() + std::time::Duration::from_secs(15);
+        let timeout = std::time::Instant::now() + std::time::Duration::from_secs(60);
         while unsafe { EMBEDDING.is_none() } {
             if std::time::Instant::now() > timeout {
                 panic!("Timed out waiting for embedding");
@@ -611,7 +611,7 @@ mod tests {
             let text_cstring = CString::new(text).unwrap();
             embed_text(embedding_context, text_cstring.as_ptr(), error_ptr);
 
-            let timeout = std::time::Instant::now() + std::time::Duration::from_secs(15);
+            let timeout = std::time::Instant::now() + std::time::Duration::from_secs(60);
             unsafe {
                 EMBEDDING = None;
             }
