@@ -172,6 +172,9 @@ pub extern "C" fn destroy_embedding_worker(context: *mut c_void) {
     }
 }
 
+
+// TODO: just have a pointer to a struct that has the actual vec inside it. that means that the end use does
+// not have to deal with length of the vec. What are the use cases where the end user wants to analyze what is inside the embeddings?
 #[no_mangle]
 pub extern "C" fn cosine_similarity(
     a: *const f32,
@@ -384,7 +387,7 @@ mod tests {
         unsafe {
             let embedding_slice = std::slice::from_raw_parts(embedding, length as usize);
             EMBEDDING = Some(embedding_slice.to_vec());
-        }
+        } 
     }
 
     extern "C" fn _on_complete(response: *const c_char) {
