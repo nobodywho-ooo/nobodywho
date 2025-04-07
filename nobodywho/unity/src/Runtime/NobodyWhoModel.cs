@@ -3,11 +3,14 @@ using System;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using UnityEditor;
 
 namespace NobodyWho {
 
     public class Model : MonoBehaviour {
+        
         public string modelPath = "model.gguf";
+
         public bool useGpuIfAvailable = true;
         private IntPtr modelHandle;
 
