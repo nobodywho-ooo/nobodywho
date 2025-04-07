@@ -20,7 +20,6 @@ fn copy_to_error_buf(error_buf: *mut c_char, message: &str) {
     }
 }
 
-
 /////////////////////  MODEL  /////////////////////
 
 #[derive(Clone)]
@@ -93,7 +92,6 @@ pub extern "C" fn create_embedding_worker(
     model_ptr: *mut c_void,
     error_buf: *mut c_char,
 ) -> *mut c_void {
-
     if model_ptr.is_null() {
         copy_to_error_buf(error_buf, "Model pointer is null");
         return std::ptr::null_mut();
@@ -105,11 +103,7 @@ pub extern "C" fn create_embedding_worker(
 
     println!("Calling run_embedding_worker");
     thread::spawn(move || {
-        llm::run_embedding_worker(
-            model.model.clone(),
-            text_rx,
-            embedding_tx,
-        );
+        llm::run_embedding_worker(model.model.clone(), text_rx, embedding_tx);
     });
     println!("Spawned run_embedding_worker");
 
@@ -122,11 +116,7 @@ pub extern "C" fn create_embedding_worker(
 }
 
 #[no_mangle]
-pub extern "C" fn embed_text(
-    context: *mut c_void,
-    text: *const c_char,
-    error_buf: *mut c_char,
-) {
+pub extern "C" fn embed_text(context: *mut c_void, text: *const c_char, error_buf: *mut c_char) {
     let embedding_context = unsafe { &mut *(context as *mut EmbeddingContext) };
 
     let text_str: String = match unsafe { CStr::from_ptr(text).to_str() } {
@@ -184,8 +174,6 @@ pub extern "C" fn destroy_embedding_worker(context: *mut c_void) {
     }
 }
 
-
-
 /////////////////////  CHAT  /////////////////////
 
 struct ChatContext {
@@ -218,8 +206,6 @@ pub extern "C" fn create_chat_worker(
             }
         }
     };
-    
-
 
     let system_prompt = unsafe {
         if system_prompt.is_null() {
@@ -244,7 +230,10 @@ pub extern "C" fn create_chat_worker(
                     if stop_words.is_empty() {
                         Vec::new()
                     } else {
-                        let stop_words_vec = stop_words.split(',').map(|s| s.trim().to_string()).collect();
+                        let stop_words_vec = stop_words
+                            .split(',')
+                            .map(|s| s.trim().to_string())
+                            .collect();
                         stop_words_vec
                     }
                 }
@@ -256,13 +245,12 @@ pub extern "C" fn create_chat_worker(
         }
     };
 
-
     let mut sampler_config = SamplerConfig::default();
     sampler_config.use_grammar = use_grammar;
     if !grammar_str.is_empty() {
         sampler_config.gbnf_grammar = grammar_str;
-    }    
-    
+    }
+
     let (prompt_tx, prompt_rx) = mpsc::channel();
     let (completion_tx, completion_rx) = mpsc::channel();
 
@@ -516,22 +504,25 @@ mod tests {
     fn test_create_embedding_worker() {
         let error_buf = [0u8; 2048];
         let error_ptr = error_buf.as_ptr() as *mut c_char;
-        
+
         let model_path = CString::new("bge-small-en-v1.5-q8_0.gguf").unwrap();
-        let model: *mut c_void = get_model(std::ptr::null_mut(), model_path.as_ptr(), true, error_ptr);
-        
-        
+        let model: *mut c_void =
+            get_model(std::ptr::null_mut(), model_path.as_ptr(), true, error_ptr);
+
         let embedding_context = create_embedding_worker(model, error_ptr);
         println!("Embedding context: {:?}", embedding_context);
-        
-        assert!(!embedding_context.is_null(), "Embedding context should not be null");
+
+        assert!(
+            !embedding_context.is_null(),
+            "Embedding context should not be null"
+        );
 
         // OBS: Thread spawning is asynchronous and may not happen immediately,
         // this is why we need to sleep for a short period of time to ensure the thread is spawned. otherwise we will destroy the modelobjewct
-        // and the thread will try to spawn with a null model leading to a segfault. 
+        // and the thread will try to spawn with a null model leading to a segfault.
         // This should be a testtime issue only as the scope will be exited when crossing the language boundary allowing for the thread to be spawned... i think.
         std::thread::sleep(std::time::Duration::from_millis(1));
-        
+
         destroy_embedding_worker(embedding_context);
         destroy_model(model as *mut c_void);
     }
@@ -542,15 +533,15 @@ mod tests {
         let error_ptr = error_buf.as_ptr() as *mut c_char;
 
         let model_path = CString::new("bge-small-en-v1.5-q8_0.gguf").unwrap();
-        let model: *mut c_void = get_model(std::ptr::null_mut(), model_path.as_ptr(), true, error_ptr);
+        let model: *mut c_void =
+            get_model(std::ptr::null_mut(), model_path.as_ptr(), true, error_ptr);
 
         let embedding_context = create_embedding_worker(model, error_ptr);
         println!("Embedding context: {:?}", embedding_context);
-        
+
         let text = CString::new("Hello, world!").unwrap();
         embed_text(embedding_context, text.as_ptr(), error_ptr);
 
-        
         let timeout = std::time::Instant::now() + std::time::Duration::from_secs(15);
         while unsafe { !RECEIVED_COMPLETE } {
             if std::time::Instant::now() > timeout {
@@ -563,7 +554,4 @@ mod tests {
         destroy_embedding_worker(embedding_context);
         destroy_model(model as *mut c_void);
     }
-        
-    
 }
-
