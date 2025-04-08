@@ -16,22 +16,12 @@ use tracing::{debug, debug_span, error, info, info_span, trace, trace_span, warn
 
 const MAX_TOKEN_STR_LEN: usize = 128;
 
-const CHANNEL_SIZE: usize = 4096; // this number is very arbitrary
-
 lazy_static! {
     static ref GLOBAL_INFERENCE_LOCK: Mutex<()> = Mutex::new(());
 }
 
 static LLAMA_BACKEND: LazyLock<LlamaBackend> =
     LazyLock::new(|| LlamaBackend::init().expect("Failed to initialize llama backend"));
-
-#[derive(Debug)]
-pub enum LLMOutput {
-    Token(String),
-    Done(String),
-    Embedding(Vec<f32>),
-    FatalErr(WorkerError),
-}
 
 pub type Model = Arc<LlamaModel>;
 
@@ -149,162 +139,6 @@ fn apply_context_shifting(
     Ok(n_discard)
 }
 
-/// Parameters for configuring an LLM actor instance.
-///
-/// This struct contains the configuration needed to create a new LLM actor,
-/// including the model, sampling parameters, context size, and stop tokens.
-///
-/// # Fields
-/// * `model` - The LLaMA model to use for inference, wrapped in an Arc for thread-safe sharing
-/// * `sampler_config` - Configuration for the token sampling strategy
-/// * `n_ctx` - Maximum context length in tokens
-/// * `stop_tokens` - List of strings that will cause token generation to stop when encountered
-#[derive(Clone)]
-pub struct LLMActorParams {
-    pub model: Arc<LlamaModel>,
-    pub sampler_config: SamplerConfig,
-    pub n_ctx: u32,
-    pub stop_tokens: Vec<String>,
-    pub use_embeddings: bool,
-}
-
-#[derive(Debug)]
-pub struct LLMActorHandle {
-    message_tx: std::sync::mpsc::Sender<WorkerMsg>,
-}
-
-impl LLMActorHandle {
-    #[tracing::instrument(level = "debug", skip(params))]
-    pub async fn new(params: LLMActorParams) -> Result<Self, InitWorkerError> {
-        debug!("Creating LLM actor");
-
-        let (message_tx, message_rx) = std::sync::mpsc::channel();
-        let (init_tx, init_rx) = oneshot::channel();
-
-        std::thread::spawn(move || completion_worker_actor(message_rx, init_tx, params));
-
-        debug!("Waiting for worker initialization");
-        let result = match init_rx.await {
-            Ok(Ok(())) => {
-                info!("LLM actor initialized successfully");
-                Ok(Self { message_tx })
-            }
-            Ok(Err(e)) => {
-                error!(error = ?e, "LLM actor initialization failed");
-                Err(e)
-            }
-            Err(_) => {
-                error!("No response from worker thread during initialization");
-                Err(InitWorkerError::NoResponse)
-            }
-        };
-
-        result
-    }
-
-    #[tracing::instrument(level = "debug", skip(self))]
-    pub async fn reset_context(&self) -> Result<(), oneshot::error::RecvError> {
-        debug!("Resetting context");
-        let (respond_to, response) = oneshot::channel();
-        let _ = self.message_tx.send(WorkerMsg::ResetContext(respond_to));
-        let result = response.await;
-        if result.is_ok() {
-            debug!("Context reset successful");
-        } else {
-            error!("Context reset failed");
-        }
-        result
-    }
-
-    #[tracing::instrument(level = "debug", skip(self), fields(text_length = text.len()))]
-    pub async fn read(
-        &self,
-        text: String,
-    ) -> Result<Result<(), ReadError>, oneshot::error::RecvError> {
-        debug!("Reading text into context");
-        let (respond_to, response_channel) = oneshot::channel();
-        let _ = self
-            .message_tx
-            .send(WorkerMsg::ReadString(text, respond_to));
-
-        let result = response_channel.await;
-        match &result {
-            Ok(Ok(_)) => debug!("Successfully read text into context"),
-            Ok(Err(e)) => error!(error = ?e, "Failed to read text into context"),
-            Err(_) => error!("Worker died while reading text"),
-        }
-        result
-    }
-
-    pub async fn write_until_done(
-        &self,
-    ) -> tokio_stream::wrappers::ReceiverStream<Result<WriteOutput, WriteError>> {
-        let (respond_to, response_channel) = mpsc::channel(CHANNEL_SIZE);
-        let _ = self.message_tx.send(WorkerMsg::WriteUntilDone(respond_to));
-        response_channel.into()
-    }
-
-    pub async fn get_embedding(
-        &self,
-    ) -> Result<Result<Vec<f32>, llama_cpp_2::EmbeddingsError>, oneshot::error::RecvError> {
-        let (respond_to, response_channel) = oneshot::channel();
-        let _ = self.message_tx.send(WorkerMsg::GetEmbedding(respond_to));
-        response_channel.await
-    }
-
-    pub async fn generate_response(
-        &self,
-        text: String,
-    ) -> tokio_stream::wrappers::ReceiverStream<Result<WriteOutput, GenerateResponseError>> {
-        let (respond_to, response_channel) = mpsc::channel(CHANNEL_SIZE);
-        let _ = self
-            .message_tx
-            .send(WorkerMsg::GenerateResponse(text, respond_to));
-        response_channel.into()
-    }
-
-    pub async fn generate_embedding(
-        &self,
-        text: String,
-    ) -> Result<Vec<f32>, GenerateEmbeddingError> {
-        let (respond_to, response_channel) = oneshot::channel();
-        let _ = self
-            .message_tx
-            .send(WorkerMsg::GenerateEmbedding(text, respond_to));
-        response_channel.await?
-    }
-}
-
-fn completion_worker_actor(
-    message_rx: std::sync::mpsc::Receiver<WorkerMsg>,
-    init_tx: oneshot::Sender<Result<(), InitWorkerError>>,
-    params: LLMActorParams,
-) {
-    match WorkerState::new(&params) {
-        Ok(mut state) => {
-            let _ = init_tx.send(Ok(())); // no way to recover from this send error
-
-            // listen for messages forever
-            while let Ok(msg) = message_rx.recv() {
-                match handle_msg(state, msg) {
-                    Ok(newstate) => {
-                        state = newstate;
-                    }
-                    Err(()) => {
-                        error!("Failed handling message");
-                        return; // we died.
-                    }
-                }
-            } // message queue dropped. we died.
-        }
-        Err(initerr) => {
-            error!("Init WorkerState failure.");
-            let _ = init_tx.send(Err(initerr));
-            // we died. not much to do.
-        }
-    }
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum InitWorkerError {
     #[error("Could not determine number of threads available: {0}")]
@@ -318,13 +152,13 @@ pub enum InitWorkerError {
 }
 
 #[derive(Debug)]
-struct WorkerState<'a> {
+struct WorkerState<'a, S> {
     n_past: i32,
     ctx: LlamaContext<'a>,
-    sampler_config: SamplerConfig,
     big_batch: LlamaBatch,
     small_batch: LlamaBatch,
-    stop_tokens: Vec<String>,
+
+    marker: std::marker::PhantomData<S>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -377,107 +211,6 @@ pub enum GenerateEmbeddingError {
     RecvError(#[from] oneshot::error::RecvError),
 }
 
-#[derive(Debug)]
-pub enum WorkerMsg {
-    ReadString(String, oneshot::Sender<Result<(), ReadError>>),
-    WriteUntilDone(mpsc::Sender<Result<WriteOutput, WriteError>>),
-    GetEmbedding(oneshot::Sender<Result<Vec<f32>, llama_cpp_2::EmbeddingsError>>),
-    ResetContext(oneshot::Sender<()>),
-    GenerateResponse(
-        String,
-        mpsc::Sender<Result<WriteOutput, GenerateResponseError>>,
-    ),
-    GenerateEmbedding(
-        String,
-        oneshot::Sender<Result<Vec<f32>, GenerateEmbeddingError>>,
-    ),
-}
-
-fn handle_msg(state: WorkerState, msg: WorkerMsg) -> Result<WorkerState, ()> {
-    // HACK
-    // this is needed because contexts referencing the same model are not thread safe
-    // if two contexts referencing the same model try to decode at the same time,
-    // then llama.cpp segfaults and everybody dies and i become sad
-    debug!("Worker handling message: {msg:?}");
-    let _inference_lock = GLOBAL_INFERENCE_LOCK.lock().expect("GIL mutex poisoned.");
-
-    match msg {
-        WorkerMsg::ReadString(text, respond_to) => match state.read_string(text) {
-            Ok(newstate) => {
-                let _ = respond_to.send(Ok(()));
-                Ok(newstate)
-            }
-            Err(e) => {
-                let _ = respond_to.send(Err(e));
-                Err(())
-            }
-        },
-        WorkerMsg::WriteUntilDone(respond_to) => state
-            .write_until_done(|out| {
-                let _ = respond_to.blocking_send(Ok(out));
-            })
-            .map_err(|e| {
-                let _ = respond_to.blocking_send(Err(e.into()));
-                ()
-            }),
-        WorkerMsg::GetEmbedding(respond_to) => match state.ctx.embeddings_seq_ith(0) {
-            Ok(embd) => {
-                let _ = respond_to.send(Ok(embd.to_vec()));
-                Ok(state)
-            }
-            Err(e) => {
-                let _ = respond_to.send(Err(e.into()));
-                Err(())
-            }
-        },
-        WorkerMsg::ResetContext(respond_to) => {
-            let new_state = state.reset_context();
-            let _ = respond_to.send(());
-            Ok(new_state)
-        }
-        // read then write text until done
-        WorkerMsg::GenerateResponse(text, respond_to) => state
-            .read_string(text)
-            .map_err(|e| {
-                let _ = respond_to.blocking_send(Err(e.into()));
-                ()
-            })?
-            .write_until_done(|out| {
-                let _ = respond_to.blocking_send(Ok(out));
-            })
-            .map_err(|e| {
-                let _ = respond_to.blocking_send(Err(e.into()));
-                ()
-            }),
-        // read string then retrieve embedding
-        WorkerMsg::GenerateEmbedding(text, respond_to) => {
-            // try reading the string
-            let state = match state.read_string(text) {
-                Ok(new_state) => new_state,
-                Err(e) => {
-                    // error and return early, moving respond_to only once
-                    let _ = respond_to.send(Err(e.into()));
-                    return Err(());
-                }
-            };
-
-            // try getting embeddings
-            match state.ctx.embeddings_seq_ith(0) {
-                Ok(embd) => {
-                    // success!
-                    let _ = respond_to.send(Ok(embd.to_vec()));
-                    Ok(state.reset_context())
-                }
-                Err(e) => {
-                    // :(
-                    let _ = respond_to.send(Err(e.into()));
-                    Err(())
-                }
-            }
-        }
-    }
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum ReadError {
     #[error("Could not tokenize string: {0}")]
@@ -514,21 +247,134 @@ pub enum WriteError {
     SendError,
 }
 
-impl<'a> WorkerState<'a> {
-    fn new(params: &LLMActorParams) -> Result<WorkerState, InitWorkerError> {
+// Type state markers
+pub struct EmbeddingsWorker {}
+pub struct GenerationWorker {}
+
+impl<'a> WorkerState<'a, EmbeddingsWorker> {
+    fn new_embeddings_worker(
+        model: &Arc<LlamaModel>,
+        n_ctx: u32,
+    ) -> Result<WorkerState<'_, EmbeddingsWorker>, InitWorkerError> {
+        WorkerState::new_with_type(model, n_ctx, true)
+    }
+
+    fn get_embedding(&self) -> Result<Vec<f32>, llama_cpp_2::EmbeddingsError> {
+        Ok(self.ctx.embeddings_seq_ith(0)?.to_vec())
+    }
+}
+
+impl<'a> WorkerState<'a, GenerationWorker> {
+    fn new_generation_worker(
+        model: &Arc<LlamaModel>,
+        n_ctx: u32,
+    ) -> Result<WorkerState<'_, GenerationWorker>, InitWorkerError> {
+        WorkerState::new_with_type(model, n_ctx, false)
+    }
+
+    #[tracing::instrument(level = "info", skip(self, respond))]
+    fn write_until_done<F>(
+        &mut self,
+        sampler_config: SamplerConfig,
+        stop_words: Vec<String>,
+        respond: F, // respond_to: Sender<Result<WriteOutput, WriteError>>,
+    ) -> Result<&mut Self, WriteError>
+    where
+        F: Fn(WriteOutput),
+    {
+        let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
+        // Token generation loop
+        info!("Worker writing until done");
+
+        // pre-allocating 4096 bytes for the response string
+        // 4096 is a very randomly chosen number. how does this affect performance?
+        let mut full_response: String = String::with_capacity(4096);
+
+        // initialize sampler
+        // stateful samplers only live for one response
+        let mut sampler = make_sampler(&self.ctx.model, sampler_config);
+
+        loop {
+            // Check for context window overflow (it was in the end before)
+            if self.n_past >= self.ctx.n_ctx() as i32 - 1 {
+                self.n_past -= apply_context_shifting(&mut self.ctx, self.n_past)?;
+                // check count
+                // XXX: this check is slow
+                debug_assert!(self.n_past == self.ctx.get_kv_cache_token_count());
+            }
+
+            // Sample next token, no need to use sampler.accept as sample already accepts the token.
+            // using sampler.accept() will cause the sampler to crash when using grammar sampling.
+            // https://github.com/utilityai/llama-cpp-rs/issues/604
+            trace!("Applying sampler...");
+            let new_token: LlamaToken = sampler.sample(&self.ctx, -1);
+
+            // batch of one
+            self.small_batch.clear();
+            self.small_batch.add(new_token, self.n_past, &[0], true)?;
+
+            // llm go brr
+            let decode_span = trace_span!("write decode", n_past = self.n_past);
+            let decode_guard = decode_span.enter();
+            self.ctx.decode(&mut self.small_batch)?;
+            drop(decode_guard);
+            self.n_past += 1; // keep count
+
+            // Convert token to text
+            let token_string = self
+                .ctx
+                .model
+                .token_to_str_with_size(new_token, MAX_TOKEN_STR_LEN, Special::Tokenize)
+                .unwrap_or("�".to_string());
+            // fall back to "U+FFFD REPLACEMENT CHARACTER"
+            // when encountering bytes that aren't valid UTF-8
+            // wikipedia: "used to replace an unknown, unrecognised, or unrepresentable character"
+
+            trace!(?new_token, ?token_string);
+            let has_eog = self.ctx.model.is_eog_token(new_token);
+
+            if !has_eog {
+                full_response.push_str(&token_string);
+                trace!("Sending out token: {token_string}");
+                respond(WriteOutput::Token(token_string));
+            }
+
+            let has_stop_words = stop_words
+                .iter()
+                .any(|stop_word| full_response.contains(stop_word));
+            if has_eog || has_stop_words {
+                break;
+            }
+        }
+
+        // we're done!
+        trace!("Sending out response: {full_response}");
+        respond(WriteOutput::Done(full_response));
+        Ok(self)
+    }
+}
+
+// Common methods for any workstate type
+impl<'a, T> WorkerState<'a, T> {
+    fn new_with_type(
+        model: &Arc<LlamaModel>,
+        n_ctx: u32,
+        use_embeddings: bool,
+    ) -> Result<WorkerState<'_, T>, InitWorkerError> {
         info!("Initializing WorkerState");
+
         // Set up context parameters using available parallelism
         let ctx = {
             let n_threads = std::thread::available_parallelism()?.get() as i32;
-            let n_ctx = std::cmp::min(params.n_ctx, params.model.n_ctx_train());
+            let n_ctx = std::cmp::min(n_ctx, model.n_ctx_train());
             let ctx_params = LlamaContextParams::default()
                 .with_n_ctx(std::num::NonZero::new(n_ctx))
                 .with_n_threads(n_threads)
                 .with_n_threads_batch(n_threads)
-                .with_embeddings(params.use_embeddings);
+                .with_embeddings(use_embeddings);
 
             // Create inference context and sampler
-            params.model.new_context(&LLAMA_BACKEND, ctx_params)?
+            model.new_context(&LLAMA_BACKEND, ctx_params)?
         };
 
         let big_batch = LlamaBatch::new(ctx.n_ctx() as usize, 1);
@@ -536,11 +382,10 @@ impl<'a> WorkerState<'a> {
 
         let state = WorkerState {
             n_past: 0,
-            stop_tokens: params.stop_tokens.clone(),
-            sampler_config: params.sampler_config.clone(),
             ctx,
             big_batch,
             small_batch,
+            marker: std::marker::PhantomData,
         };
         Ok(state)
     }
@@ -553,7 +398,9 @@ impl<'a> WorkerState<'a> {
     }
 
     #[tracing::instrument(level = "trace", skip(self))]
-    fn read_string(mut self, text: String) -> Result<Self, ReadError> {
+    fn read_string(&mut self, text: String) -> Result<&mut Self, ReadError> {
+        let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
+
         let tokens = self.ctx.model.str_to_token(&text, AddBos::Never)?;
         let n_tokens = tokens.len();
         debug!("Reading {n_tokens} tokens.");
@@ -589,11 +436,11 @@ impl<'a> WorkerState<'a> {
         drop(decode_guard);
         // brrr
 
+        self.n_past += tokens.len() as i32;
+
         debug!("completed read operation");
-        Ok(WorkerState {
-            n_past: self.n_past + tokens.len() as i32,
-            ..self
-        })
+
+        Ok(self)
     }
 
     #[tracing::instrument(level = "info", skip(self, respond))]
@@ -705,64 +552,53 @@ mod tests {
             .await
     }
 
-    #[tokio::test]
-    async fn test_simple_gen() {
+    #[test]
+    fn test_simple_gen() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
 
-        let params = LLMActorParams {
-            model,
-            sampler_config: SamplerConfig::default(),
-            n_ctx: 4096,
-            stop_tokens: vec!["10".to_string()],
-            use_embeddings: false,
+        let sampler = SamplerConfig::default();
+        let mut worker = WorkerState::new_generation_worker(&model, 4096)?;
+        let (sender, receiver) = std::sync::mpsc::channel();
+
+        let f = move |x| match x {
+            WriteOutput::Done(resp) => {
+                sender.send(resp).unwrap();
+            }
+            _ => (),
         };
 
-        let actor = LLMActorHandle::new(params)
-            .await
-            .expect("Failed creating actor");
+        worker
+            .read_string("I'm gonna count to 10: 1, 2, 3, ".to_string())?
+            .write_until_done(sampler, vec!["10".to_string()], f)?;
 
-        let stream = actor
-            .generate_response("I'm gonna count to 10: 1, 2, 3, ".to_string())
-            .await;
+        let response = receiver.recv()?;
 
-        let response: String = response_from_stream(stream).await.unwrap();
         assert!(response.contains("4, 5, 6, 7, 8, 9, 10"));
+
+        Ok(())
     }
 
-    #[tokio::test]
-    async fn test_embeddings() {
+    #[test]
+    fn test_embeddings() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_embeddings_model();
 
-        let params = LLMActorParams {
-            model,
-            sampler_config: SamplerConfig::default(),
-            n_ctx: 4096,
-            stop_tokens: vec![],
-            use_embeddings: true,
-        };
+        let mut worker = WorkerState::new_embeddings_worker(&model, 1024)?;
 
-        let actor = LLMActorHandle::new(params)
-            .await
-            .expect("Failed creating actor");
+        let copenhagen_embedding = worker
+            .read_string("Copenhagen is the capital of Denmark.".to_string())?
+            .get_embedding()?;
 
-        let copenhagen_embedding = actor
-            .generate_embedding("Copenhagen is the capital of Denmark.".to_string())
-            .await
-            .unwrap();
+        let berlin_embedding = worker
+            .read_string("Berlin is the capital of Germany.".to_string())?
+            .get_embedding()?;
 
-        let berlin_embedding = actor
-            .generate_embedding("Berlin is the capital of Germany.".to_string())
-            .await
-            .unwrap();
-
-        let insult_embedding = actor
-            .generate_embedding(
+        let insult_embedding = worker
+            .read_string(
                 "Your mother was a hamster and your father smelt of elderberries!".to_string(),
-            )
-            .await
-            .unwrap();
+            )?
+            .get_embedding()?;
 
         assert!(
             insult_embedding.len() == berlin_embedding.len()
@@ -788,39 +624,78 @@ mod tests {
             cosine_similarity(&copenhagen_embedding, &insult_embedding)
                 < cosine_similarity(&copenhagen_embedding, &berlin_embedding)
         );
+
+        Ok(())
     }
 
-    #[tokio::test]
-    async fn test_multiple_contexts_single_model() {
+    #[test]
+    fn test_multiple_contexts_single_model() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
+        let sampler = SamplerConfig::default();
+        let n_ctx = 1024;
 
-        let params = LLMActorParams {
-            model,
-            sampler_config: SamplerConfig::default(),
-            n_ctx: 4096,
-            stop_tokens: vec!["Copenhagen".to_string(), "Berlin".to_string()],
-            use_embeddings: false,
-        };
-        let dk_actor = LLMActorHandle::new(params.clone()).await.unwrap();
-        let de_actor = LLMActorHandle::new(params).await.unwrap();
+        // Use two separate response containers for thread safety
+        let dk_response = Arc::new(Mutex::new(None));
+        let de_response = Arc::new(Mutex::new(None));
 
-        let dk_fut = response_from_stream(
-            dk_actor
-                .generate_response("The name of the capital city of Denmark is \"".to_string())
-                .await,
-        );
+        // Clone references for thread use
+        let model_clone = Arc::clone(&model);
+        let dk_response_clone = Arc::clone(&dk_response);
+        let de_response_clone = Arc::clone(&de_response);
+        let dk_sampler = sampler.clone();
 
-        let de_fut = response_from_stream(
-            de_actor
-                .generate_response("The capital of Germany is called ".to_string())
-                .await,
-        );
+        // Start Denmark worker thread
+        let dk_handle = std::thread::spawn(move || {
+            let mut worker = WorkerState::new_generation_worker(&model_clone, n_ctx).unwrap();
 
-        let (dk_resp, de_resp) = tokio::join!(dk_fut, de_fut);
+            let f = move |x| {
+                if let WriteOutput::Done(resp) = x {
+                    let mut response = dk_response_clone.lock().unwrap();
+                    *response = Some(resp);
+                }
+            };
 
-        let dk_resp = dk_resp.unwrap();
-        let de_resp = de_resp.unwrap();
+            worker
+                .read_string("The name of the capital city of Denmark is \"".to_string())
+                .unwrap()
+                .write_until_done(dk_sampler, vec!["Copenhagen".to_string()], f)
+                .unwrap();
+        });
+
+        // Start Germany worker thread
+        let de_handle = std::thread::spawn(move || {
+            let mut worker = WorkerState::new_generation_worker(&model, n_ctx).unwrap();
+
+            let f = move |x| {
+                if let WriteOutput::Done(resp) = x {
+                    let mut response = de_response_clone.lock().unwrap();
+                    *response = Some(resp);
+                }
+            };
+
+            worker
+                .read_string("The capital of germany is called ".to_string())
+                .unwrap()
+                .write_until_done(sampler, vec!["Berlin".to_string()], f)
+                .unwrap();
+        });
+
+        // Wait for threads to complete
+        dk_handle.join().unwrap();
+        de_handle.join().unwrap();
+
+        // Retrieve and verify responses
+        let dk_resp = dk_response
+            .lock()
+            .unwrap()
+            .clone()
+            .expect("No response from dk_worker");
+        let de_resp = de_response
+            .lock()
+            .unwrap()
+            .clone()
+            .expect("No response from de_worker");
 
         assert!(
             dk_resp.to_lowercase().contains("copenhagen"),
@@ -830,54 +705,60 @@ mod tests {
             de_resp.to_lowercase().contains("berlin"),
             "Expected completion to contain 'Berlin', got: {de_resp}"
         );
+
+        Ok(())
     }
 
-    #[tokio::test]
-    async fn test_context_shifting() {
+    #[test]
+    fn test_context_shifting() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
+        let sampler = SamplerConfig::default();
 
-        let n_ctx = 10;
-        let params = LLMActorParams {
-            n_ctx,
-            model: model.clone(),
-            sampler_config: SamplerConfig::default(),
-            stop_tokens: vec!["\n".to_string()],
-            use_embeddings: false,
+        let mut worker = WorkerState::new_generation_worker(&model, 64)?;
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let f = move |x| match x {
+            WriteOutput::Done(resp) => {
+                sender.send(resp).unwrap();
+            }
+            _ => (),
         };
-        let actor = LLMActorHandle::new(params.clone()).await.unwrap();
 
-        let stream = actor
-            .generate_response("Once upon a time".to_string())
-            .await;
+        worker
+            .read_string("I'm going to count to 20: 1, 2, 3, 4, 5, 6, 7".to_string())?
+            .write_until_done(sampler, vec!["20".to_string()], f)?;
 
-        let response = response_from_stream(stream).await.unwrap();
-
+        let response = receiver.recv()?;
         assert!(
             model.str_to_token(&response, AddBos::Never).unwrap().len() > n_ctx as usize,
             "Expected response longer than n_ctx"
         );
+
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_stop_tokens() {
+    async fn test_stop_tokens() -> Result<(), Box<dyn std::error::Error>> {
         crate::test_utils::init_test_tracing();
 
         let model = test_utils::load_test_model();
+        let sampler = SamplerConfig::default();
 
-        let params = LLMActorParams {
-            model,
-            sampler_config: SamplerConfig::default(),
-            n_ctx: 1024,
-            stop_tokens: vec!["7".to_string()],
-            use_embeddings: false,
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let f = move |x| match x {
+            WriteOutput::Done(resp) => {
+                sender.send(resp).unwrap();
+            }
+            _ => (),
         };
-        let actor = LLMActorHandle::new(params.clone()).await.unwrap();
-        let stream = actor
-            .generate_response("I'm going to count to 10: 1, 2, 3, 4,".to_string())
-            .await;
 
-        let response = response_from_stream(stream).await.unwrap();
+        let mut worker = WorkerState::new_generation_worker(&model, 1024)?;
+        worker
+            .read_string("I'm going to count to 10: 1, 2, 3, 4,".to_string())?
+            .write_until_done(sampler, vec!["7".to_string()], f)?;
+
+        let response = receiver.recv()?;
 
         assert!(
             response.to_lowercase().contains("5, 6, "),
@@ -891,10 +772,11 @@ mod tests {
             !response.to_lowercase().contains("8"),
             "Expected output to stop at stop token, but continued. Got: {response}"
         );
+        Ok(())
     }
 
-    #[tokio::test]
-    async fn test_read_string_overrun() {
+    #[test]
+    fn test_read_string_overrun() -> Result<(), Box<dyn std::error::Error>> {
         // this test looks a bit silly, but we had a bug
         // where we didn't apply context shifting while reading text
         // so now we test for it
@@ -902,20 +784,14 @@ mod tests {
 
         let model = test_utils::load_test_model();
 
-        let params = LLMActorParams {
-            model,
-            sampler_config: SamplerConfig::default(),
-            n_ctx: 20,
-            stop_tokens: vec![],
-            use_embeddings: false,
-        };
-        let actor = LLMActorHandle::new(params.clone()).await.unwrap();
+        let mut worker = WorkerState::new_generation_worker(&model, 20)?;
 
-        let () = actor.read("1, 2, 3,".to_string()).await.unwrap().unwrap();
-        let () = actor.read("1, 2, 3,".to_string()).await.unwrap().unwrap();
-        let () = actor.read("1, 2, 3,".to_string()).await.unwrap().unwrap();
-        let () = actor.read("1, 2, 3,".to_string()).await.unwrap().unwrap();
-        let () = actor.read("1, 2, 3,".to_string()).await.unwrap().unwrap();
-        let () = actor.read("1, 2, 3,".to_string()).await.unwrap().unwrap();
+        worker.read_string("1, 2, 3,".to_string())?;
+        worker.read_string("1, 2, 3,".to_string())?;
+        worker.read_string("1, 2, 3,".to_string())?;
+        worker.read_string("1, 2, 3,".to_string())?;
+        worker.read_string("1, 2, 3,".to_string())?;
+        worker.read_string("1, 2, 3,".to_string())?;
+        Ok(())
     }
 }
