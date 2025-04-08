@@ -1,4 +1,4 @@
-{ pkgs, nobodywho, fetchurl, rustPlatform, libclang, llvmPackages_12, godot_4, godot_4-export-templates, stdenv, lib, cmake, vulkan-headers, vulkan-loader, vulkan-tools, shaderc, mesa }:
+{ pkgs, nobodywho, fetchurl, rustPlatform, llvmPackages_12, cmake, vulkan-headers, vulkan-loader, vulkan-tools, shaderc, mesa }:
 
 let
   godot = rustPlatform.buildRustPackage {
@@ -55,7 +55,7 @@ let
   };
 
   run-integration-test = pkgs.runCommand "checkgame" {
-    nativeBuildInputs = [ mesa.drivers ];
+    nativeBuildInputs = [ mesa ];
   } ''
     cd ${integration-test}
     export HOME=$TMPDIR
