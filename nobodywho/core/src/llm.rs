@@ -148,18 +148,21 @@ pub enum InitWorkerError {
     #[error("Could not create context: {0}")]
     CreateContextError(#[from] llama_cpp_2::LlamaContextLoadError),
 
+    #[error("Failed getting chat template from model: {0}")]
+    ChatTemplateError(#[from] crate::chat_state::FromModelError),
+
     #[error("Got no response after initializing worker.")]
     NoResponse,
 }
 
 #[derive(Debug)]
-struct WorkerState<'a, S> {
+pub(crate) struct WorkerState<'a, S> {
     n_past: i32,
     ctx: LlamaContext<'a>,
     big_batch: LlamaBatch,
     small_batch: LlamaBatch,
 
-    marker: std::marker::PhantomData<S>,
+    pub(crate) extra: S,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -251,13 +254,15 @@ pub enum WriteError {
 // Type state markers
 pub struct EmbeddingsWorker {}
 pub struct GenerationWorker {}
+pub trait GenerationCapability {}
+impl GenerationCapability for GenerationWorker {}
 
 impl<'a> WorkerState<'a, EmbeddingsWorker> {
     fn new_embeddings_worker(
         model: &Arc<LlamaModel>,
         n_ctx: u32,
     ) -> Result<WorkerState<'_, EmbeddingsWorker>, InitWorkerError> {
-        WorkerState::new_with_type(model, n_ctx, true)
+        WorkerState::new_with_type(model, n_ctx, true, EmbeddingsWorker {})
     }
 
     fn get_embedding(&self) -> Result<Vec<f32>, llama_cpp_2::EmbeddingsError> {
@@ -265,16 +270,21 @@ impl<'a> WorkerState<'a, EmbeddingsWorker> {
     }
 }
 
-impl<'a> WorkerState<'a, GenerationWorker> {
+impl<'a> WorkerState<'_, GenerationWorker> {
     fn new_generation_worker(
         model: &Arc<LlamaModel>,
         n_ctx: u32,
     ) -> Result<WorkerState<'_, GenerationWorker>, InitWorkerError> {
-        WorkerState::new_with_type(model, n_ctx, false)
+        WorkerState::new_with_type(model, n_ctx, false, GenerationWorker {})
     }
+}
 
+impl<'a, T> WorkerState<'a, T>
+where
+    T: GenerationCapability,
+{
     #[tracing::instrument(level = "info", skip(self, respond))]
-    fn write_until_done<F>(
+    pub fn write_until_done<F>(
         &mut self,
         sampler_config: SamplerConfig,
         stop_words: Vec<String>,
@@ -293,7 +303,7 @@ impl<'a> WorkerState<'a, GenerationWorker> {
 
         // initialize sampler
         // stateful samplers only live for one response
-        let mut sampler = make_sampler(&self.ctx.model, sampler_config);
+        let mut sampler: LlamaSampler = make_sampler(&self.ctx.model, sampler_config);
 
         loop {
             // Check for context window overflow (it was in the end before)
@@ -357,10 +367,11 @@ impl<'a> WorkerState<'a, GenerationWorker> {
 
 // Common methods for any workstate type
 impl<'a, T> WorkerState<'a, T> {
-    fn new_with_type(
+    pub(crate) fn new_with_type(
         model: &Arc<LlamaModel>,
         n_ctx: u32,
         use_embeddings: bool,
+        extra: T,
     ) -> Result<WorkerState<'_, T>, InitWorkerError> {
         info!("Initializing WorkerState");
 
@@ -386,20 +397,20 @@ impl<'a, T> WorkerState<'a, T> {
             ctx,
             big_batch,
             small_batch,
-            marker: std::marker::PhantomData,
+            extra,
         };
         Ok(state)
     }
 
     #[tracing::instrument(level = "trace", skip(self))]
-    fn reset_context(mut self) -> Self {
+    pub fn reset_context(mut self) -> Self {
         self.ctx.clear_kv_cache();
         self.n_past = 0;
         self
     }
 
     #[tracing::instrument(level = "trace", skip(self))]
-    fn read_string(&mut self, text: String) -> Result<&mut Self, ReadError> {
+    pub fn read_string(&mut self, text: String) -> Result<&mut Self, ReadError> {
         let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
 
         let tokens = self.ctx.model.str_to_token(&text, AddBos::Never)?;

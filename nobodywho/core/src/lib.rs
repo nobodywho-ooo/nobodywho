@@ -2,6 +2,7 @@
 pub mod chat_state;
 pub mod llm;
 // pub mod llmactor;
+pub mod chatworker;
 pub mod sampler_config;
 
 #[cfg(test)]
