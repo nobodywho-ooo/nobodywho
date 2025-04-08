@@ -31,7 +31,7 @@ let
       outputHashes = {
         "gdextension-api-0.2.2" = "sha256-gaxM73OzriSDm6tLRuMTOZxCLky9oS1nq6zTsm0g4tA=";
         "godot-0.2.4" = "sha256-XzJlnbx4OxWtT6AesmeEmg2SDqGC1UDgZFffSbEJNZI=";
-        "llama-cpp-2-0.1.103" = "sha256-rYaU4LzxzCfKtlzXZorwGEo9gPSNDYB4UwJybWv0Aco=";
+        "llama-cpp-2-0.1.103" = "sha256-T8qxxAC0ygF655EzODIpDjIKS0vRMe68e5rJcP1+PDo=";
       };
     };
     env.TEST_MODEL = fetchurl {
