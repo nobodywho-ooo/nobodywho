@@ -1,8 +1,9 @@
 use nobodywho::chat;
+use nobodywho::chat::ChatMsg;
 use nobodywho::llm;
 use nobodywho::sampler_config::SamplerConfig;
-use std::ffi::{c_char, c_void, CStr};
-use tokio;
+use std::{ffi::{c_char, c_void, CStr}, sync::{Arc, Mutex}};
+
 
 fn copy_to_error_buf(error_buf: *mut c_char, message: &str) {
     // If you change this value, you must also change the size of the error_buf in the following files:
@@ -84,17 +85,28 @@ struct EmbeddingContext {
     runtime: tokio::runtime::Runtime,
 }
 
+// Why this is Send (not technically): 
+// - Neither Caller or callback can be dropped on the other side of the ABI, 
+//   so by using this you must promise that you code on the other side is memory safe.
+//   In Unity, this is done by allocing memory specifically using GChandle to avoid garbage collection. 
+// - As we cannot declare the data inside the pointer as const we can really guarentee - through the compiler that 
+//   the data will not be changed, leading to data races, howveer we have no need and should not change the data in the object from here. So please dont change stuff on this side.
+// - there are no thread local variables we use for these so we are gucci in this aspect.
 struct EmbeddingAdapter {
-    callback_caller: *const c_void,
+    caller: Arc<Mutex<*const c_void>>, 
     callback: extern "C" fn(*const c_void, *const f32, i32),
 }
 
-// As there is no mutable attributes on the struct, this is basically readonly and thus we can safely implement send for this struct.
 unsafe impl Send for EmbeddingAdapter {}
+
 
 impl chat::EmbeddingOutput for EmbeddingAdapter {
     fn emit_embedding(&self, embd: Vec<f32>) {
-        (self.callback)(self.callback_caller, embd.as_ptr(), embd.len() as i32);
+        while let Err(e) = self.caller.try_lock() {
+            println!("[ERROR] emit_embedding - Failed to lock caller: {}", e);
+        }
+        let caller_ptr = self.caller.lock().unwrap();
+        (self.callback)(*caller_ptr, embd.as_ptr(), embd.len() as i32);
     }
 }
 
@@ -113,17 +125,20 @@ impl chat::EmbeddingOutput for EmbeddingAdapter {
 ///     }
 /// }
 /// ```
-/// 
-/// 
 #[no_mangle]
 pub extern "C" fn create_embedding_worker(
     model_ptr: *mut c_void,
-    callback_caller: *const c_void,
+    caller_ptr: *const c_void,
     callback: extern "C" fn(*const c_void, *const f32, i32),
     error_buf: *mut c_char,
 ) -> *mut c_void {
     if model_ptr.is_null() {
         copy_to_error_buf(error_buf, "Model pointer is null");
+        return std::ptr::null_mut();
+    }
+
+    if caller_ptr.is_null() {
+        copy_to_error_buf(error_buf, "Caller pointer is null");
         return std::ptr::null_mut();
     }
 
@@ -136,8 +151,11 @@ pub extern "C" fn create_embedding_worker(
         stop_tokens: vec![],
         use_embeddings: true,
     };
+
+    let caller = Arc::new(Mutex::new(caller_ptr));
+
     let adapter = EmbeddingAdapter {
-        callback_caller,
+        caller,
         callback,
     };
 
@@ -208,10 +226,59 @@ pub extern "C" fn cosine_similarity(
 
 /////////////////////  CHAT  /////////////////////
 
+
 struct ChatContext {
-    prompt_tx: mpsc::Sender<String>,
-    completion_rx: mpsc::Receiver<LLMOutput>,
+    msg_tx: tokio::sync::mpsc::Sender<ChatMsg>,
+    runtime: tokio::runtime::Runtime,
 }
+// Why this is Send (not technically): 
+// - Neither Caller or callback can be dropped on the other side of the ABI, 
+//   so by using this you must promise that you code on the other side is memory safe.
+//   In Unity, this is done by allocing memory specifically using GChandle to avoid garbage collection. 
+// - As we cannot declare the data inside the pointer as const we can really guarentee - through the compiler that 
+//   the data will not be changed, leading to data races, howveer we have no need and should not change the data in the object from here. So please dont change stuff on this side.
+// - there are no thread local variables we use for these so we are gucci in this aspect.
+//
+// Why this is Sync:
+// - The `extern "C" fn` pointers are inherently Sync (it's safe for multiple threads to read the same function pointer).
+// - The primary concern is the `caller: Arc<Mutex<*const c_void>>`.
+// - `*const c_void` is inherently not sync or send, but is only accesed through the Mutex thus making it sync - unless we change either of the methods
+//    on the other side of the ABI.
+struct ChatAdapter {
+    caller: Arc<Mutex<*const c_void>>,
+    token_callback: extern "C" fn(*const c_void, *const c_char),
+    response_callback: extern "C" fn(*const c_void, *const c_char),
+    error_callback: extern "C" fn(*const c_void, *const c_char),
+}
+
+unsafe impl Send for ChatAdapter {}
+unsafe impl Sync for ChatAdapter {}
+
+impl chat::ChatOutput for ChatAdapter {
+    // Blockingly waits for the caller
+    fn emit_token(&self, token: String) {
+        while let Err(e) = self.caller.try_lock() {
+            println!("[ERROR] emit_token - Failed to lock caller: {}", e);
+        }
+        let caller_ptr = self.caller.lock().unwrap();
+        (self.token_callback)(*caller_ptr, token.as_ptr() as *const c_char);
+    }
+    fn emit_response(&self, resp: String) {
+        while let Err(e) = self.caller.try_lock() {
+            println!("[ERROR] emit_response - Failed to lock caller: {}", e);
+        }
+        let caller_ptr = self.caller.lock().unwrap();
+        (self.response_callback)(*caller_ptr, resp.as_ptr() as *const c_char);
+    }
+    fn emit_error(&self, err: String) {
+        while let Err(e) = self.caller.try_lock() {
+            println!("[ERROR] emit_error - Failed to lock caller: {}", e);
+        }
+        let caller_ptr = self.caller.lock().unwrap();
+        (self.error_callback)(*caller_ptr, err.as_ptr() as *const c_char);
+    }
+}
+
 
 #[no_mangle]
 pub extern "C" fn create_chat_worker(
@@ -222,6 +289,10 @@ pub extern "C" fn create_chat_worker(
     use_grammar: bool,
     grammar: *const c_char,
     error_buf: *mut c_char,
+    caller_ptr: *const c_void,
+    on_token: extern "C" fn(*const c_void, *const c_char),
+    on_complete: extern "C" fn(*const c_void, *const c_char),
+    on_error: extern "C" fn(*const c_void, *const c_char),
 ) -> *mut c_void {
     let model = unsafe { &mut *(model_ptr as *mut ModelObject) };
 

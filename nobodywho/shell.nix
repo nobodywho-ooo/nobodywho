@@ -16,6 +16,9 @@ in pkgs.mkShell {
     pkgs.unityhub
     pkgs.libxml2
     pkgs.just
+    # lsp dependencies
+    pkgs.dotnet-sdk_9
+    pkgs.csharpier
 
     # these are the dependencies required by llama.cpp to build for vulkan
     # (these packages were discovered by looking at the nix source code in ggerganov/llama.cpp)
