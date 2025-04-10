@@ -57,12 +57,15 @@ namespace NobodyWho
 
 
         /// Embedding ///
+
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        public delegate void EmbeddingCallback(IntPtr data, int length);
+        public delegate void EmbeddingCallback(IntPtr caller, IntPtr data, int length);
 
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
         public static extern IntPtr create_embedding_worker(
             IntPtr model,
+            IntPtr caller,
+            EmbeddingCallback on_embedding,
             [MarshalAs(UnmanagedType.LPStr)] StringBuilder error_buf);
 
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
