@@ -96,6 +96,7 @@ clean-all:
 build-plugin:
     #!/usr/bin/env bash
     rm -f ./src/Runtime/Plugins/x86_64/libnobodywho.so
+    rm -f ./temp-project/Assets/Plugins/x86_64/libnobodywho.so
     rm -f ../target/debug/libnobodywho_unity.so # ensure that the old plugin is removed.
     cargo build
     if [ $? -ne 0 ]; then
