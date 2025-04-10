@@ -1,11 +1,12 @@
+use nobodywho::chat;
+use nobodywho::llm;
+use nobodywho::llm::LLMOutput;
+use nobodywho::sampler_config::SamplerConfig;
 use std::ffi::CString;
 use std::ffi::{c_char, c_void, CStr};
 use std::sync::mpsc;
 use std::thread;
-
-use nobodywho::core::llm;
-use nobodywho::core::sampler_config::SamplerConfig;
-use nobodywho::llm::LLMOutput;
+use tokio;
 
 fn copy_to_error_buf(error_buf: *mut c_char, message: &str) {
     // If you change this value, you must also change the size of the error_buf in the following files:
@@ -83,13 +84,46 @@ pub extern "C" fn destroy_model(model: *mut c_void) {
 /////////////////////  EMBEDDING  /////////////////////
 
 struct EmbeddingContext {
-    text_tx: mpsc::Sender<String>,
-    embedding_rx: mpsc::Receiver<llm::EmbeddingsOutput>,
+    embed_tx: tokio::sync::mpsc::Sender<String>,
+    join_handle: tokio::task::JoinHandle<()>,
 }
 
+struct EmbeddingAdapter {
+    callback_caller: *const c_void,
+    callback: extern "C" fn(*const c_void, *const f32, i32),
+}
+
+// As there is no mutable attributes on the struct, this is basically readonly and thus we can safely implement send for this struct.
+unsafe impl Send for EmbeddingAdapter {}
+
+impl chat::EmbeddingOutput for EmbeddingAdapter {
+    fn emit_embedding(&self, embd: Vec<f32>) {
+        (self.callback)(self.callback_caller, embd.as_ptr(), embd.len() as i32);
+    }
+}
+
+/// Apart from the model pointer it also takes two very imnportant pointer:
+/// - A pointer to a static callback function that will be called when an embedding is finished.
+/// it is improtant that this callback takes a reference to the object implements the callback. 
+/// - A Userpointer, ie pointer to an instantaitated object, which class implements the static function.
+/// the simple example without marshalling to be ffi complaint looks like this: 
+/// 
+/// ```
+/// public class EmbeddingObject {
+///     private static void OnEmbeddingCallback(IntPtr caller, IntPtr data, int length) {
+///         let this = GCHandle.FromIntPtr(caller).Target as EmbeddingObject;
+///         let embedding = float_from_ptr(data, length);
+///         // do stuff with the embedding
+///     }
+/// }
+/// ```
+/// 
+/// 
 #[no_mangle]
 pub extern "C" fn create_embedding_worker(
     model_ptr: *mut c_void,
+    callback_caller: *const c_void,
+    callback: extern "C" fn(*const c_void, *const f32, i32),
     error_buf: *mut c_char,
 ) -> *mut c_void {
     if model_ptr.is_null() {
@@ -98,23 +132,39 @@ pub extern "C" fn create_embedding_worker(
     }
 
     let model = unsafe { &mut *(model_ptr as *mut ModelObject) };
-    let (text_tx, text_rx) = mpsc::channel();
-    let (embedding_tx, embedding_rx) = mpsc::channel();
 
-    thread::spawn(move || {
-        llm::run_embedding_worker(model.model.clone(), text_rx, embedding_tx);
+    let params = llm::LLMActorParams {
+        model: model.model.clone(),
+        sampler_config: SamplerConfig::default(),
+        n_ctx: 4096,
+        stop_tokens: vec![],
+        use_embeddings: true,
+    };
+    let adapter = EmbeddingAdapter {
+        callback_caller,
+        callback,
+    };
+
+    let (embed_tx, embed_rx) = tokio::sync::mpsc::channel(4096);
+    // take ownership of the join handle to ensure its not dropped after the the end of scope here.
+    let join_handle = tokio::task::spawn(async move {
+        println!("[DEBUG] create_embedding_worker - spawning embedding loop");
+        chat::simple_embedding_loop(params, embed_rx, Box::new(adapter))
+            .await
+            .unwrap_or_else(|e| {
+                println!("[ERROR] create_embedding_worker - Error: {}", e);
+                ()
+            });
+        println!("[DEBUG] create_embedding_worker - embedding loop finished");
     });
-
-    let context = Box::new(EmbeddingContext {
-        text_tx,
-        embedding_rx,
-    });
-
-    Box::into_raw(context) as *mut c_void
+    Box::into_raw(Box::new(EmbeddingContext {
+        embed_tx,
+        join_handle,
+    })) as *mut c_void
 }
 
 #[no_mangle]
-pub extern "C" fn embed_text(context: *mut c_void, text: *const c_char, error_buf: *mut c_char) {
+pub async extern "C" fn embed_text(context: *mut c_void, text: *const c_char, error_buf: *mut c_char) {
     let embedding_context = unsafe { &mut *(context as *mut EmbeddingContext) };
 
     let text_str: String = match unsafe { CStr::from_ptr(text).to_str() } {
@@ -125,44 +175,11 @@ pub extern "C" fn embed_text(context: *mut c_void, text: *const c_char, error_bu
         }
     };
 
-    match embedding_context.text_tx.send(text_str) {
-        Ok(_) => {
-            println!("[DEBUG] embed_text - Text sent successfully");
-        }
-        Err(e) => {
-            copy_to_error_buf(error_buf, &format!("Failed to send text: {}", e));
-            return;
-        }
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn poll_embeddings(
-    context: *mut c_void,
-    on_embedding: extern "C" fn(*mut f32, i32),
-    on_error: extern "C" fn(*const c_char),
-) {
-    if context.is_null() {
-        println!("[ERROR] poll_embeddings - Null context pointer received");
+    // this calls emit on the EmbeddingAdapter, which then invopkes the callback.
+    embedding_context.embed_tx.send(text_str).await.unwrap_or_else(|e| {
+        copy_to_error_buf(error_buf, &format!("Failed to send text: {}", e));
         return;
-    }
-
-    let embedding_context = unsafe { &mut *(context as *mut EmbeddingContext) };
-
-    while let Ok(output) = &embedding_context.embedding_rx.try_recv() {
-        match output {
-            llm::EmbeddingsOutput::Embedding(embedding) => {
-                let ptr = embedding.as_ptr();
-                let len = embedding.len() as i32;
-                on_embedding(ptr as *mut f32, len);
-            }
-            llm::EmbeddingsOutput::FatalError(msg) => {
-                if let Ok(c_str) = CString::new(msg.to_string()) {
-                    on_error(c_str.as_ptr())
-                }
-            }
-        }
-    }
+    });
 }
 
 #[no_mangle]
