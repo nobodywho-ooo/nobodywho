@@ -9,3 +9,4 @@ path = "src/lib.rs"
 
 [dependencies]
 nobodywho = { path = "../core" }
+tokio = "1.44.0"
