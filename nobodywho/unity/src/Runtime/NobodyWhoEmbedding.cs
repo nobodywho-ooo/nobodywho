@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 
 namespace NobodyWho {
     public class Embedding : MonoBehaviour {
-        private IntPtr _workerContext;
+        private IntPtr _actorContext;
         public Model model;
         
         public UnityEvent<float[]> onEmbeddingComplete = new UnityEvent<float[]>();
