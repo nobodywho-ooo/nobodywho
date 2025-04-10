@@ -36,9 +36,15 @@ namespace Tests
         [Test]
         public async Task WhenComparingEmbeddings_SimilarTextsShouldHaveHigherSimilarity()
         {
+            Debug.Log("[DEBUG] Starting embedding test, embedding model: " + embedding.model.modelPath);
             float[] dragonHillEmbedding = await embedding.Embed("The dragon is on the hill.");
+            Assert.IsNotNull(dragonHillEmbedding, "First embedding not received");
+            Debug.Log("[DEBUG] First embedding received: " + dragonHillEmbedding);
             float[] dragonHungryEmbedding = await embedding.Embed("The dragon is hungry for humans.");
+            Assert.IsNotNull(dragonHungryEmbedding, "Second embedding not received");
+            Debug.Log("[DEBUG] Second embedding received: " + dragonHungryEmbedding);
             float[] unrelatedEmbedding = await embedding.Embed("This does not matter.");
+            Assert.IsNotNull(unrelatedEmbedding, "Third embedding not received");
 
             Debug.Log("Embedding complete: " + dragonHillEmbedding + " " + dragonHungryEmbedding + " " + unrelatedEmbedding);
 
