@@ -1,11 +1,7 @@
 use nobodywho::chat;
 use nobodywho::llm;
-use nobodywho::llm::LLMOutput;
 use nobodywho::sampler_config::SamplerConfig;
-use std::ffi::CString;
 use std::ffi::{c_char, c_void, CStr};
-use std::sync::mpsc;
-use std::thread;
 use tokio;
 
 fn copy_to_error_buf(error_buf: *mut c_char, message: &str) {
@@ -85,7 +81,7 @@ pub extern "C" fn destroy_model(model: *mut c_void) {
 
 struct EmbeddingContext {
     embed_tx: tokio::sync::mpsc::Sender<String>,
-    join_handle: tokio::task::JoinHandle<()>,
+    runtime: tokio::runtime::Runtime,
 }
 
 struct EmbeddingAdapter {
@@ -146,25 +142,28 @@ pub extern "C" fn create_embedding_worker(
     };
 
     let (embed_tx, embed_rx) = tokio::sync::mpsc::channel(4096);
-    // take ownership of the join handle to ensure its not dropped after the the end of scope here.
-    let join_handle = tokio::task::spawn(async move {
-        println!("[DEBUG] create_embedding_worker - spawning embedding loop");
+
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .build()
+        .expect("Failed to create Tokio runtime");
+
+    runtime.spawn(async move {
         chat::simple_embedding_loop(params, embed_rx, Box::new(adapter))
             .await
             .unwrap_or_else(|e| {
+                // TODO: find a way to propegate the error to c#
                 println!("[ERROR] create_embedding_worker - Error: {}", e);
                 ()
             });
-        println!("[DEBUG] create_embedding_worker - embedding loop finished");
     });
     Box::into_raw(Box::new(EmbeddingContext {
         embed_tx,
-        join_handle,
+        runtime,
     })) as *mut c_void
 }
 
 #[no_mangle]
-pub async extern "C" fn embed_text(context: *mut c_void, text: *const c_char, error_buf: *mut c_char) {
+pub extern "C" fn embed_text(context: *mut c_void, text: *const c_char, error_buf: *mut c_char) {
     let embedding_context = unsafe { &mut *(context as *mut EmbeddingContext) };
 
     let text_str: String = match unsafe { CStr::from_ptr(text).to_str() } {
@@ -175,10 +174,15 @@ pub async extern "C" fn embed_text(context: *mut c_void, text: *const c_char, er
         }
     };
 
-    // this calls emit on the EmbeddingAdapter, which then invopkes the callback.
-    embedding_context.embed_tx.send(text_str).await.unwrap_or_else(|e| {
-        copy_to_error_buf(error_buf, &format!("Failed to send text: {}", e));
-        return;
+
+    let embed_tx = embedding_context.embed_tx.clone();
+    let runtime = &embedding_context.runtime;
+    // Spawn a task to send the text. Don't capture error_buf.
+    runtime.spawn(async move {
+        if let Err(e) = embed_tx.send(text_str).await {
+            // TODO: find a way to propegate the error to c#
+            println!("[ERROR] embed_text - Failed to send text to embedding worker: {}", e);
+        }
     });
 }
 

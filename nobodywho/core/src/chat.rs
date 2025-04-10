@@ -119,7 +119,7 @@ pub enum EmbeddingLoopError {
     GenerateEmbeddingError(#[from] llm::GenerateEmbeddingError),
 }
 
-pub trait EmbeddingOutput {
+pub trait EmbeddingOutput: Send {
     fn emit_embedding(&self, embd: Vec<f32>);
 }
 
