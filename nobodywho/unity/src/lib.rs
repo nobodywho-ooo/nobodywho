@@ -354,67 +354,39 @@ pub extern "C" fn create_chat_worker(
         sampler_config.gbnf_grammar = grammar_str;
     }
 
-    let (prompt_tx, prompt_rx) = mpsc::channel();
-    let (completion_tx, completion_rx) = mpsc::channel();
+    let params = llm::LLMActorParams {
+        model: model.model.clone(),
+        sampler_config,
+        n_ctx: context_length,
+        stop_tokens: stop_words_vec,
+        use_embeddings: false,
+    };
+    
+    let adapter = ChatAdapter {
+        caller: Arc::new(Mutex::new(caller_ptr)),
+        token_callback: on_token,
+        response_callback: on_complete,
+        error_callback: on_error,
+    };
 
-    thread::spawn(move || {
-        llm::run_completion_worker(
-            model.model.clone(),
-            prompt_rx,
-            completion_tx,
-            sampler_config,
-            context_length,
-            system_prompt,
-            stop_words_vec,
-        );
+    let (msg_tx, msg_rx) = tokio::sync::mpsc::channel(4096);
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .build()
+        .expect("Failed to create Tokio runtime");
+
+    runtime.spawn(async move {
+        chat::simple_chat_loop(params, system_prompt, msg_rx, Box::new(adapter))
+            .await
+            .unwrap_or_else(|e| {
+                // TODO: find a way to propegate the error to c#
+                println!("[ERROR] create_embedding_worker - Error: {}", e);
+                ()
+            });
     });
-
-    let context = Box::new(ChatContext {
-        prompt_tx,
-        completion_rx,
-    });
-
-    let raw_ptr = Box::into_raw(context) as *mut c_void;
-
-    raw_ptr
-}
-
-/// Polls for updates to the queue of responses from the LLM
-/// if any updates are available, it will call the appropriate callback
-/// with the updated response or error message
-#[no_mangle]
-pub extern "C" fn poll_responses(
-    context: *mut c_void,
-    on_token: extern "C" fn(*const c_char),
-    on_complete: extern "C" fn(*const c_char),
-    on_error: extern "C" fn(*const c_char),
-) {
-    if context.is_null() {
-        println!("[ERROR] poll_responses - Null context pointer received");
-        return;
-    }
-
-    let chat_context = unsafe { &mut *(context as *mut ChatContext) };
-
-    while let Ok(output) = &chat_context.completion_rx.try_recv() {
-        match output {
-            LLMOutput::Token(token) => {
-                if let Ok(c_str) = CString::new(token.as_str()) {
-                    on_token(c_str.as_ptr())
-                }
-            }
-            LLMOutput::Done(response) => {
-                if let Ok(c_str) = CString::new(response.as_str()) {
-                    on_complete(c_str.as_ptr())
-                }
-            }
-            LLMOutput::FatalErr(msg) => {
-                if let Ok(c_str) = CString::new(msg.to_string()) {
-                    on_error(c_str.as_ptr())
-                }
-            }
-        }
-    }
+    Box::into_raw(Box::new(ChatContext {
+        msg_tx,
+        runtime,
+    })) as *mut c_void
 }
 
 #[no_mangle]
@@ -429,15 +401,11 @@ pub extern "C" fn send_prompt(context: *mut c_void, prompt: *const c_char, error
         }
     };
 
-    match chat_context.prompt_tx.send(prompt_str) {
-        Ok(_) => {
-            println!("[DEBUG] send_prompt - Prompt sent successfully");
-        }
-        Err(e) => {
-            copy_to_error_buf(error_buf, &format!("Failed to send prompt: {}", e));
-            return;
-        }
-    }
+    let msg_tx = chat_context.msg_tx.clone();
+    let runtime = &chat_context.runtime;
+    runtime.spawn(async move {
+        msg_tx.send(ChatMsg::Say(prompt_str)).await
+    });
 }
 
 #[no_mangle]
