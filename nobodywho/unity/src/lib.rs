@@ -2,8 +2,11 @@ use nobodywho::chat;
 use nobodywho::chat::ChatMsg;
 use nobodywho::llm;
 use nobodywho::sampler_config::SamplerConfig;
-use std::{ffi::{c_char, c_void, CStr}, sync::{Arc, Mutex}};
-
+use std::ffi::CString;
+use std::{
+    ffi::{c_char, c_void, CStr},
+    sync::{Arc, Mutex},
+};
 
 fn copy_to_error_buf(error_buf: *mut c_char, message: &str) {
     // If you change this value, you must also change the size of the error_buf in the following files:
@@ -85,20 +88,19 @@ struct EmbeddingContext {
     runtime: tokio::runtime::Runtime,
 }
 
-// Why this is Send (not technically): 
-// - Neither Caller or callback can be dropped on the other side of the ABI, 
+// Why this is Send (not technically):
+// - Neither Caller or callback can be dropped on the other side of the ABI,
 //   so by using this you must promise that you code on the other side is memory safe.
-//   In Unity, this is done by allocing memory specifically using GChandle to avoid garbage collection. 
-// - As we cannot declare the data inside the pointer as const we can really guarentee - through the compiler that 
+//   In Unity, this is done by allocing memory specifically using GChandle to avoid garbage collection.
+// - As we cannot declare the data inside the pointer as const we can really guarentee - through the compiler that
 //   the data will not be changed, leading to data races, howveer we have no need and should not change the data in the object from here. So please dont change stuff on this side.
 // - there are no thread local variables we use for these so we are gucci in this aspect.
 struct EmbeddingAdapter {
-    caller: Arc<Mutex<*const c_void>>, 
+    caller: Arc<Mutex<*const c_void>>,
     callback: extern "C" fn(*const c_void, *const f32, i32),
 }
 
 unsafe impl Send for EmbeddingAdapter {}
-
 
 impl chat::EmbeddingOutput for EmbeddingAdapter {
     fn emit_embedding(&self, embd: Vec<f32>) {
@@ -106,16 +108,17 @@ impl chat::EmbeddingOutput for EmbeddingAdapter {
             println!("[ERROR] emit_embedding - Failed to lock caller: {}", e);
         }
         let caller_ptr = self.caller.lock().unwrap();
+        println!("[DEBUG] emit_embedding - Locked caller_ptr: {:?}, embedding length: {}", *caller_ptr, embd.len());
         (self.callback)(*caller_ptr, embd.as_ptr(), embd.len() as i32);
     }
 }
 
 /// Apart from the model pointer it also takes two very imnportant pointer:
 /// - A pointer to a static callback function that will be called when an embedding is finished.
-/// it is improtant that this callback takes a reference to the object implements the callback. 
+/// it is improtant that this callback takes a reference to the object implements the callback.
 /// - A Userpointer, ie pointer to an instantaitated object, which class implements the static function.
-/// the simple example without marshalling to be ffi complaint looks like this: 
-/// 
+/// the simple example without marshalling to be ffi complaint looks like this:
+///
 /// ```
 /// public class EmbeddingObject {
 ///     private static void OnEmbeddingCallback(IntPtr caller, IntPtr data, int length) {
@@ -152,12 +155,12 @@ pub extern "C" fn create_embedding_worker(
         use_embeddings: true,
     };
 
+    // Add debug print for original caller_ptr
+    println!("[DEBUG] create_embedding_worker - Original caller_ptr: {:?}", caller_ptr);
+
     let caller = Arc::new(Mutex::new(caller_ptr));
 
-    let adapter = EmbeddingAdapter {
-        caller,
-        callback,
-    };
+    let adapter = EmbeddingAdapter { caller, callback };
 
     let (embed_tx, embed_rx) = tokio::sync::mpsc::channel(4096);
 
@@ -174,10 +177,7 @@ pub extern "C" fn create_embedding_worker(
                 ()
             });
     });
-    Box::into_raw(Box::new(EmbeddingContext {
-        embed_tx,
-        runtime,
-    })) as *mut c_void
+    Box::into_raw(Box::new(EmbeddingContext { embed_tx, runtime })) as *mut c_void
 }
 
 #[no_mangle]
@@ -226,24 +226,25 @@ pub extern "C" fn cosine_similarity(
 
 /////////////////////  CHAT  /////////////////////
 
-
 struct ChatContext {
     msg_tx: tokio::sync::mpsc::Sender<ChatMsg>,
     runtime: tokio::runtime::Runtime,
 }
-// Why this is Send (not technically): 
-// - Neither Caller or callback can be dropped on the other side of the ABI, 
+// Why this is Send (not technically):
+// - Neither Caller or callback can be dropped on the other side of the ABI,
 //   so by using this you must promise that you code on the other side is memory safe.
-//   In Unity, this is done by allocing memory specifically using GChandle to avoid garbage collection. 
-// - As we cannot declare the data inside the pointer as const we can really guarentee - through the compiler that 
+//   In Unity, this is done by allocing memory specifically using GChandle to avoid garbage collection.
+// - As we cannot declare the data inside the pointer as const we can really guarentee - through the compiler that
 //   the data will not be changed, leading to data races, howveer we have no need and should not change the data in the object from here. So please dont change stuff on this side.
 // - there are no thread local variables we use for these so we are gucci in this aspect.
 //
-// Why this is Sync:
+// Why this is Sync (with caveats):
 // - The `extern "C" fn` pointers are inherently Sync (it's safe for multiple threads to read the same function pointer).
 // - The primary concern is the `caller: Arc<Mutex<*const c_void>>`.
 // - `*const c_void` is inherently not sync or send, but is only accesed through the Mutex thus making it sync - unless we change either of the methods
-//    on the other side of the ABI.
+//    on the other side of the ABI
+// - The Caveat is that the callback and caller needs to be acessible from another thread.
+//   in C# this means that using a standard GHandle is not suffiucient as we are crossing AppDomains
 struct ChatAdapter {
     caller: Arc<Mutex<*const c_void>>,
     token_callback: extern "C" fn(*const c_void, *const c_char),
@@ -252,7 +253,6 @@ struct ChatAdapter {
 }
 
 unsafe impl Send for ChatAdapter {}
-unsafe impl Sync for ChatAdapter {}
 
 impl chat::ChatOutput for ChatAdapter {
     // Blockingly waits for the caller
@@ -261,24 +261,58 @@ impl chat::ChatOutput for ChatAdapter {
             println!("[ERROR] emit_token - Failed to lock caller: {}", e);
         }
         let caller_ptr = self.caller.lock().unwrap();
-        (self.token_callback)(*caller_ptr, token.as_ptr() as *const c_char);
+        println!("[DEBUG] emit_token - Locked caller_ptr: {:?}, token: {}", *caller_ptr, token);
+        
+        // Create a CString to ensure the string stays valid
+        let token_cstr = match CString::new(token) {
+            Ok(cstr) => cstr,
+            Err(e) => {
+                println!("[ERROR] emit_token - Failed to create CString: {}", e);
+                return;
+            }
+        };
+
+        (self.token_callback)(*caller_ptr, token_cstr.as_ptr() as *const i8);
     }
+    
     fn emit_response(&self, resp: String) {
         while let Err(e) = self.caller.try_lock() {
             println!("[ERROR] emit_response - Failed to lock caller: {}", e);
         }
         let caller_ptr = self.caller.lock().unwrap();
-        (self.response_callback)(*caller_ptr, resp.as_ptr() as *const c_char);
+        println!("[DEBUG] emit_response - Locked caller_ptr: {:?}, length: {}", *caller_ptr, resp.len());
+        
+        // Create a CString to ensure the string stays valid
+        let resp_cstr = match CString::new(resp) {
+            Ok(cstr) => cstr,
+            Err(e) => {
+                println!("[ERROR] emit_response - Failed to create CString: {}", e);
+                return;
+            }
+        };
+        
+        (self.response_callback)(*caller_ptr, resp_cstr.as_ptr());
     }
+    
     fn emit_error(&self, err: String) {
         while let Err(e) = self.caller.try_lock() {
             println!("[ERROR] emit_error - Failed to lock caller: {}", e);
         }
         let caller_ptr = self.caller.lock().unwrap();
-        (self.error_callback)(*caller_ptr, err.as_ptr() as *const c_char);
+        println!("[DEBUG] emit_error - Locked caller_ptr: {:?}, error: {}", *caller_ptr, err);
+        
+        // Create a CString to ensure the string stays valid
+        let err_cstr = match CString::new(err) {
+            Ok(cstr) => cstr,
+            Err(e) => {
+                println!("[ERROR] emit_error - Failed to create CString: {}", e);
+                return;
+            }
+        };
+
+        (self.error_callback)(*caller_ptr, err_cstr.as_ptr());
     }
 }
-
 
 #[no_mangle]
 pub extern "C" fn create_chat_worker(
@@ -361,7 +395,10 @@ pub extern "C" fn create_chat_worker(
         stop_tokens: stop_words_vec,
         use_embeddings: false,
     };
-    
+
+    // Add debug print for original caller_ptr
+    println!("[DEBUG] create_chat_worker - Original caller_ptr: {:?}", caller_ptr);
+
     let adapter = ChatAdapter {
         caller: Arc::new(Mutex::new(caller_ptr)),
         token_callback: on_token,
@@ -403,9 +440,7 @@ pub extern "C" fn send_prompt(context: *mut c_void, prompt: *const c_char, error
 
     let msg_tx = chat_context.msg_tx.clone();
     let runtime = &chat_context.runtime;
-    runtime.spawn(async move {
-        msg_tx.send(ChatMsg::Say(prompt_str)).await
-    });
+    runtime.spawn(async move { msg_tx.send(ChatMsg::Say(prompt_str)).await });
 }
 
 #[no_mangle]
