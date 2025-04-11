@@ -1,10 +1,10 @@
+using System;
+using System.Collections;
+using System.IO;
+using NobodyWho;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
-using System.Collections;
-using System;
-using System.IO;
-using NobodyWho;
 
 namespace Tests
 {
@@ -18,7 +18,6 @@ namespace Tests
         {
             testObject = new GameObject("TestModel");
             model = testObject.AddComponent<NobodyWho.Model>();
-            
         }
 
         [TearDown]
@@ -36,13 +35,13 @@ namespace Tests
             // Create a fake GGUF file with invalid content
             string tempPath = Path.Combine(Application.streamingAssetsPath, "invalid.gguf");
             File.WriteAllText(tempPath, "This is not a valid GGUF file");
-            
-            try 
+
+            try
             {
                 model.modelPath = tempPath;
                 var exception = Assert.Throws<NobodyWhoException>(() => model.GetModel());
             }
-            finally 
+            finally
             {
                 // Ensure we clean up the temp file even if the test fails
                 if (File.Exists(tempPath))
@@ -51,9 +50,8 @@ namespace Tests
                 }
             }
         }
-    
-        
-        [Test] 
+
+        [Test]
         public void WhenModelPathIsGGUF_ShouldLoadModel()
         {
             // TODO: add a build step in nix for the model in `create temp project`. otherwise this will fail when other people run it.
@@ -62,4 +60,4 @@ namespace Tests
             Assert.That(model_handle, Is.Not.EqualTo(IntPtr.Zero));
         }
     }
-} 
+}
