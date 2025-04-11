@@ -1,8 +1,11 @@
+use std::sync::Mutex;
+
 use crate::chat_state;
 use crate::llm;
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, trace};
+use std::sync::Arc;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ChatLoopError {
@@ -40,7 +43,7 @@ pub enum ChatLoopError {
 // The Send bound is needed because the Box<dyn ChatOutput> is moved into an async task spawned on the runtime.
 // The Sync bound is additionally required because a reference (&dyn ChatOutput) is captured and held across .await
 // within the asynchronous stream processing (specifically, the .fold() operation in simple_chat_loop).
-pub trait ChatOutput: Send + Sync {
+pub trait ChatOutput: Send {
     fn emit_token(&self, token: String);
     fn emit_response(&self, resp: String);
     fn emit_error(&self, err: String);
@@ -67,6 +70,7 @@ pub async fn simple_chat_loop(
     let actor = llm::LLMActorHandle::new(params).await?;
     info!("Initialized actor.");
 
+    let adapter = Arc::new(Mutex::new(output));
     // wait for message from user
     while let Some(msg) = msg_rx.recv().await {
         match msg {
@@ -80,12 +84,12 @@ pub async fn simple_chat_loop(
                     .await
                     .fold(None, |_, out| match out {
                         Ok(llm::WriteOutput::Token(token)) => {
-                            output.emit_token(token);
+                            adapter.lock().unwrap().emit_token(token);
                             None
                         }
                         Err(err) => {
                             error!("Got error from worker: {err:?}");
-                            output.emit_error(format!("{err:?}"));
+                            adapter.lock().unwrap().emit_error(format!("{err:?}"));
                             Some(Err(err))
                         }
                         Ok(llm::WriteOutput::Done(resp)) => Some(Ok(resp)),
@@ -94,7 +98,7 @@ pub async fn simple_chat_loop(
                     .ok_or(ChatLoopError::NoResponseError)??;
 
                 // we have a full response. send it out.
-                output.emit_response(full_response.clone());
+                adapter.lock().unwrap().emit_response(full_response.clone());
                 chat_state.add_message("assistant".to_string(), full_response);
 
                 // render diff just to update the internal length state
