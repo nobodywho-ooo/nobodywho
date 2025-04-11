@@ -1,22 +1,24 @@
-using UnityEngine;
-using System.Collections;
-using UnityEngine.Events;
 using System;
+using System.Collections;
 using System.Text;
+using UnityEngine;
+using UnityEngine.Events;
 
-
-namespace NobodyWho {
-    public class Chat : MonoBehaviour {
+namespace NobodyWho
+{
+    public class Chat : MonoBehaviour
+    {
         public Model model;
 
-        [TextArea(15,20)]
+        [TextArea(15, 20)]
         public string systemPrompt = "";
-        
+
         [Header("Configuration")]
         public string stopWords = "";
         public int contextLength = 4096;
         public bool use_grammar = false;
-        [TextArea(15,20)]
+
+        [TextArea(15, 20)]
         public string grammar;
 
         [Header("Events")]
@@ -25,24 +27,32 @@ namespace NobodyWho {
 
         private AwaitableCompletionSource<string> _completionSignal;
         private IntPtr _workerContext;
+
         private void OnToken(string token) => onToken.Invoke(token);
-        private void OnComplete(string response) {
+
+        private void OnComplete(string response)
+        {
             _completionSignal?.SetResult(response);
             onComplete.Invoke(response);
         }
-        private void OnError(string error) {
+
+        private void OnError(string error)
+        {
             _completionSignal?.SetException(new NobodyWhoException(error));
             Debug.LogError($"LLM Error: {error}");
         }
 
-        void Start() {
-            try {
-               var errorBuffer = new StringBuilder(2048); // update lib.rs if you change this value
-               // Todo - check if there is a builtin setter and getter that atoconverts to and from a string/string-array
-               var stopWordsString = "";
-               if (stopWords.Length > 0) {
-                stopWordsString = string.Join(",", stopWords);
-               }
+        void Start()
+        {
+            try
+            {
+                var errorBuffer = new StringBuilder(2048); // update lib.rs if you change this value
+                // Todo - check if there is a builtin setter and getter that atoconverts to and from a string/string-array
+                var stopWordsString = "";
+                if (stopWords.Length > 0)
+                {
+                    stopWordsString = string.Join(",", stopWords);
+                }
                 _workerContext = NativeBindings.create_chat_worker(
                     model.GetModel(),
                     systemPrompt,
@@ -52,59 +62,78 @@ namespace NobodyWho {
                     grammar,
                     errorBuffer
                 );
-                
-                if (errorBuffer.Length > 0) {
+
+                if (errorBuffer.Length > 0)
+                {
                     throw new NobodyWhoException(errorBuffer.ToString());
                 }
-            } catch (Exception e) {
+            }
+            catch (Exception e)
+            {
                 throw new NobodyWhoException(e.Message);
             }
         }
 
-        void Update() {
+        void Update()
+        {
             // we should do nothin unless we have a worker context
-            if (_workerContext == null) {
+            if (_workerContext == null)
+            {
                 return;
             }
-            try {
-                NativeBindings.poll_responses(
-                    _workerContext,
-                    OnToken,
-                    OnComplete,
-                    OnError
-                );
-            } catch (Exception e) {
+            try
+            {
+                NativeBindings.poll_responses(_workerContext, OnToken, OnComplete, OnError);
+            }
+            catch (Exception e)
+            {
                 throw new NobodyWhoException(e.Message);
             }
         }
 
         // This deletes the old worker context and creates a new one with the new params, it also means that we lose the chat history
-        public void ResetContext() {
+        public void ResetContext()
+        {
             NativeBindings.destroy_chat_worker(_workerContext);
             var errorBuffer = new StringBuilder(2048); // update lib.rs if you change this value
-            _workerContext = NativeBindings.create_chat_worker(model.GetModel(), systemPrompt, stopWords, contextLength, use_grammar, grammar, errorBuffer);
-            if (errorBuffer.Length > 0) {
+            _workerContext = NativeBindings.create_chat_worker(
+                model.GetModel(),
+                systemPrompt,
+                stopWords,
+                contextLength,
+                use_grammar,
+                grammar,
+                errorBuffer
+            );
+            if (errorBuffer.Length > 0)
+            {
                 throw new NobodyWhoException(errorBuffer.ToString());
             }
         }
-        
-        public Awaitable<string> Say(string prompt) {
-            try {
+
+        public Awaitable<string> Say(string prompt)
+        {
+            try
+            {
                 var errorBuffer = new StringBuilder(2048); // update lib.rs if you change this value
                 _completionSignal = new AwaitableCompletionSource<string>();
-                
+
                 NativeBindings.send_prompt(_workerContext, prompt, errorBuffer);
-                if (errorBuffer.Length > 0) {
+                if (errorBuffer.Length > 0)
+                {
                     throw new NobodyWhoException(errorBuffer.ToString());
                 }
 
                 return _completionSignal.Awaitable;
-            } catch (Exception e) {
+            }
+            catch (Exception e)
+            {
                 throw new NobodyWhoException(e.Message);
             }
         }
 
-        void OnDestroy() {
+        void OnDestroy()
+        {
             NativeBindings.destroy_chat_worker(_workerContext);
         }
     }
