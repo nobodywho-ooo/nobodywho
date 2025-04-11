@@ -3,6 +3,7 @@ use nobodywho::chat::ChatMsg;
 use nobodywho::llm;
 use nobodywho::sampler_config::SamplerConfig;
 use std::{ffi::{c_char, c_void, CStr}, sync::{Arc, Mutex}};
+use std::ffi::CString;
 
 
 fn copy_to_error_buf(error_buf: *mut c_char, message: &str) {
@@ -106,6 +107,7 @@ impl chat::EmbeddingOutput for EmbeddingAdapter {
             println!("[ERROR] emit_embedding - Failed to lock caller: {}", e);
         }
         let caller_ptr = self.caller.lock().unwrap();
+        println!("[DEBUG] emit_embedding - Locked caller_ptr: {:?}, embedding length: {}", *caller_ptr, embd.len());
         (self.callback)(*caller_ptr, embd.as_ptr(), embd.len() as i32);
     }
 }
@@ -152,6 +154,9 @@ pub extern "C" fn create_embedding_worker(
         use_embeddings: true,
     };
 
+    // Add debug print for original caller_ptr
+    println!("[DEBUG] create_embedding_worker - Original caller_ptr: {:?}", caller_ptr);
+    
     let caller = Arc::new(Mutex::new(caller_ptr));
 
     let adapter = EmbeddingAdapter {
@@ -261,21 +266,56 @@ impl chat::ChatOutput for ChatAdapter {
             println!("[ERROR] emit_token - Failed to lock caller: {}", e);
         }
         let caller_ptr = self.caller.lock().unwrap();
-        (self.token_callback)(*caller_ptr, token.as_ptr() as *const c_char);
+        println!("[DEBUG] emit_token - Locked caller_ptr: {:?}, token: {}", *caller_ptr, token);
+        
+        // Create a CString to ensure the string stays valid
+        let token_cstr = match CString::new(token) {
+            Ok(cstr) => cstr,
+            Err(e) => {
+                println!("[ERROR] emit_token - Failed to create CString: {}", e);
+                return;
+            }
+        };
+        
+        (self.token_callback)(*caller_ptr, token_cstr.as_ptr());
     }
+    
     fn emit_response(&self, resp: String) {
         while let Err(e) = self.caller.try_lock() {
             println!("[ERROR] emit_response - Failed to lock caller: {}", e);
         }
         let caller_ptr = self.caller.lock().unwrap();
-        (self.response_callback)(*caller_ptr, resp.as_ptr() as *const c_char);
+        println!("[DEBUG] emit_response - Locked caller_ptr: {:?}, length: {}", *caller_ptr, resp.len());
+        
+        // Create a CString to ensure the string stays valid
+        let resp_cstr = match CString::new(resp) {
+            Ok(cstr) => cstr,
+            Err(e) => {
+                println!("[ERROR] emit_response - Failed to create CString: {}", e);
+                return;
+            }
+        };
+        
+        (self.response_callback)(*caller_ptr, resp_cstr.as_ptr());
     }
+    
     fn emit_error(&self, err: String) {
         while let Err(e) = self.caller.try_lock() {
             println!("[ERROR] emit_error - Failed to lock caller: {}", e);
         }
         let caller_ptr = self.caller.lock().unwrap();
-        (self.error_callback)(*caller_ptr, err.as_ptr() as *const c_char);
+        println!("[DEBUG] emit_error - Locked caller_ptr: {:?}, error: {}", *caller_ptr, err);
+        
+        // Create a CString to ensure the string stays valid
+        let err_cstr = match CString::new(err) {
+            Ok(cstr) => cstr,
+            Err(e) => {
+                println!("[ERROR] emit_error - Failed to create CString: {}", e);
+                return;
+            }
+        };
+        
+        (self.error_callback)(*caller_ptr, err_cstr.as_ptr());
     }
 }
 
@@ -361,6 +401,9 @@ pub extern "C" fn create_chat_worker(
         stop_tokens: stop_words_vec,
         use_embeddings: false,
     };
+    
+    // Add debug print for original caller_ptr
+    println!("[DEBUG] create_chat_worker - Original caller_ptr: {:?}", caller_ptr);
     
     let adapter = ChatAdapter {
         caller: Arc::new(Mutex::new(caller_ptr)),
