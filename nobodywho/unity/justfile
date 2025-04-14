@@ -93,20 +93,31 @@ clean-all:
     rm -rf "{{TEMP_PROJECT}}"
     rm -rf "{{CACHE_DIR}}"
 
-build-plugin:
+build-plugin: _ensure-temp-project
     #!/usr/bin/env bash
-    rm -f ./src/Runtime/Plugins/x86_64/libnobodywho.so
-    rm -f ./temp-project/Assets/Plugins/x86_64/libnobodywho.so
+    rm -rf "{{TEMP_PROJECT}}/Packages/com.nobodywho.core/Runtime/com.nobodywho.core"
+    rm -f "{{TEMP_PROJECT}}/Assets/Plugins/x86_64/libnobodywho.so"
     rm -f ../target/debug/libnobodywho_unity.so # ensure that the old plugin is removed.
+    
     cargo build
     if [ $? -ne 0 ]; then
         echo "❌ Cargo build failed!"
         exit 1
     fi
+    
     mkdir -p ./src/Runtime/Plugins/x86_64
-    cp "../target/debug/libnobodywho_unity.so" "./src/Runtime/Plugins/x86_64/libnobodywho.so"
+    mkdir -p "{{TEMP_PROJECT}}/Assets/Plugins/x86_64"
+    
+    cp "../target/debug/libnobodywho_unity.so" "{{TEMP_PROJECT}}/Assets/Plugins/x86_64/libnobodywho.so"
     if [ $? -ne 0 ]; then
-        echo "❌ Build failed!"
+        echo "❌ Failed to copy plugin to temp project!"
+        exit 1
+    fi
+    
+    mkdir -p "{{TEMP_PROJECT}}/Packages/com.nobodywho.core"
+    cp -r src/* "{{TEMP_PROJECT}}/Packages/com.nobodywho.core/"
+    if [ $? -ne 0 ]; then
+        echo "❌ Failed to copy source files to temp project!"
         exit 1
     fi
     
