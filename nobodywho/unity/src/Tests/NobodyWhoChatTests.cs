@@ -43,105 +43,105 @@ namespace Tests
             }
         }
 
-        // [Test]
-        // public async Task WhenInvokingSay_ShouldReturnResponse()
-        // {
-        //     string response = null;
-        //     response = await chat.Say("Hi there");
+        [Test]
+        public async Task WhenInvokingSay_ShouldReturnResponse()
+        {
+            string response = null;
+            response = await chat.Say("Hi there");
 
-        //     Assert.IsNotNull(response, "No response received within timeout period");
-        //     Assert.AreEqual("Hello! How can I help you today?", response);
-        // }
+            Assert.IsNotNull(response, "No response received within timeout period");
+            Assert.AreEqual("Hello! How can I help you today?", response);
+        }
 
-        // [UnityTest]
-        // public IEnumerator WhenInvokingSay_ShouldReceiveTokens()
-        // {
-        //     string response = null;
+        [UnityTest]
+        public IEnumerator WhenInvokingSay_ShouldReceiveTokens()
+        {
+            string response = null;
 
-        //     List<string> receivedTokens = new List<string>();
-        //     chat.onToken.AddListener(
-        //         (token) =>
-        //         {
-        //             receivedTokens.Add(token);
-        //         }
-        //     );
+            List<string> receivedTokens = new List<string>();
+            chat.onToken.AddListener(
+                (token) =>
+                {
+                    receivedTokens.Add(token);
+                }
+            );
 
-        //     chat.Say("Tell me a short joke");
+            chat.Say("Tell me a short joke");
 
-        //     float timeout = Time.time + 15f;
-        //     while (response == null && Time.time < timeout)
-        //     {
-        //         yield return null;
-        //     }
+            float timeout = Time.time + 15f;
+            while (response == null && Time.time < timeout)
+            {
+                yield return null;
+            }
 
-        //     Assert.IsTrue(receivedTokens.Count > 0, "No tokens received within timeout period");
-        // }
+            Assert.IsTrue(receivedTokens.Count > 0, "No tokens received within timeout period");
+        }
 
-        // [UnityTest]
-        // public IEnumerator WhenInvokingSayWithSingleStopWord_ShouldStopAtStopWord()
-        // {
-        //     string response = null;
-        //     // not using await here because we want to test the signal like interface as well
-        //     chat.onComplete.AddListener((result) => response = result);
-        //     chat.stopWords = "fly";
-        //     chat.ResetContext();
+        [UnityTest]
+        public IEnumerator WhenInvokingSayWithSingleStopWord_ShouldStopAtStopWord()
+        {
+            string response = null;
+            // not using await here because we want to test the signal like interface as well
+            chat.onComplete.AddListener((result) => response = result);
+            chat.stopWords = "fly";
+            chat.ResetContext();
 
-        //     chat.Say("List these animals in alphabetical order: cat, dog, fly, lion, mouse");
+            chat.Say("List these animals in alphabetical order: cat, dog, fly, lion, mouse");
 
-        //     float timeout = Time.time + 15f;
-        //     while (response == null && Time.time < timeout)
-        //     {
-        //         yield return null;
-        //     }
-        //     Assert.IsNotNull(response, "No response received within timeout period");
-        //     Assert.IsTrue(response.Contains("dog"), "Response should contain 'dog'");
-        //     Assert.IsTrue(response.Contains("fly"), "Response should contain 'fly'");
-        //     Assert.IsFalse(response.Contains("lion"), "Response should stop at 'fly'");
-        //     Assert.IsFalse(response.Contains("mouse"), "Response should not continue past 'fly'");
-        // }
+            float timeout = Time.time + 15f;
+            while (response == null && Time.time < timeout)
+            {
+                yield return null;
+            }
+            Assert.IsNotNull(response, "No response received within timeout period");
+            Assert.IsTrue(response.Contains("dog"), "Response should contain 'dog'");
+            Assert.IsTrue(response.Contains("fly"), "Response should contain 'fly'");
+            Assert.IsFalse(response.Contains("lion"), "Response should stop at 'fly'");
+            Assert.IsFalse(response.Contains("mouse"), "Response should not continue past 'fly'");
+        }
 
-        // [Test]
-        // public async Task WhenInvokingSayWithMultipleStopWords_ShouldStopAtFirstStopWord()
-        // {
-        //     string response = null;
-        //     chat.stopWords = "horse-rider, fly";
-        //     chat.ResetContext();
-        //     response = await chat.Say(
-        //         "List all the words in alphabetical order: cat, dog, fly, horse-rider, lion, mouse"
-        //     );
+        [Test]
+        public async Task WhenInvokingSayWithMultipleStopWords_ShouldStopAtFirstStopWord()
+        {
+            string response = null;
+            chat.stopWords = "horse-rider, fly";
+            chat.ResetContext();
+            response = await chat.Say(
+                "List all the words in alphabetical order: cat, dog, fly, horse-rider, lion, mouse"
+            );
 
-        //     Assert.IsNotNull(response, "No response received within timeout period");
-        //     Assert.IsTrue(response.Contains("dog"), "Response should contain 'dog'");
-        //     Assert.IsTrue(response.Contains("fly"), "Response should contain 'fly'");
-        //     Assert.IsFalse(response.Contains("horse-rider"), "Response should not reach 'fly'");
-        //     Assert.IsFalse(response.Contains("lion"), "Response should not continue past 'fly'");
-        // }
+            Assert.IsNotNull(response, "No response received within timeout period");
+            Assert.IsTrue(response.Contains("dog"), "Response should contain 'dog'");
+            Assert.IsTrue(response.Contains("fly"), "Response should contain 'fly'");
+            Assert.IsFalse(response.Contains("horse-rider"), "Response should not reach 'fly'");
+            Assert.IsFalse(response.Contains("lion"), "Response should not continue past 'fly'");
+        }
 
-        // [Test]
-        // public async Task WhenInvokingSayWithGrammar_ShouldReturnResponseInCorrectFormat()
-        // {
-        //     string response = null;
+        [Test]
+        public async Task WhenInvokingSayWithGrammar_ShouldReturnResponseInCorrectFormat()
+        {
+            string response = null;
 
-        //     chat.systemPrompt =
-        //         "You are a character creator for a fantasy game. You will be given a list of properties and you will need to fill out those properties.";
-        //     chat.use_grammar = true;
-        //     chat.ResetContext();
+            chat.systemPrompt =
+                "You are a character creator for a fantasy game. You will be given a list of properties and you will need to fill out those properties.";
+            chat.use_grammar = true;
+            chat.ResetContext();
 
-        //     response = await chat.Say(
-        //         @"Generate exactly these properties:
-        //         - name
-        //         - weapon
-        //         - armor
-        //     "
-        //     );
+            response = await chat.Say(
+                @"Generate exactly these properties:
+                - name
+                - weapon
+                - armor
+            "
+            );
 
-        //     Assert.IsNotNull(response, "No response received within timeout period");
+            Assert.IsNotNull(response, "No response received within timeout period");
 
-        //     CharacterData character = JsonUtility.FromJson<CharacterData>(response);
-        //     Assert.IsNotNull(character.name, "Response should contain 'name' field");
-        //     Assert.IsNotNull(character.weapon, "Response should contain 'weapon' field");
-        //     Assert.IsNotNull(character.armor, "Response should contain 'armor' field");
-        // }
+            CharacterData character = JsonUtility.FromJson<CharacterData>(response);
+            Assert.IsNotNull(character.name, "Response should contain 'name' field");
+            Assert.IsNotNull(character.weapon, "Response should contain 'weapon' field");
+            Assert.IsNotNull(character.armor, "Response should contain 'armor' field");
+        }
 
         [Test]
         public async Task WhenInvokingSayWithGrammarStr_ShouldReturnResponseInCorrectFormat()
