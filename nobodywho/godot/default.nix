@@ -30,7 +30,7 @@ let
       lockFile = ../Cargo.lock;
       outputHashes = {
         "gdextension-api-0.2.2" = "sha256-gaxM73OzriSDm6tLRuMTOZxCLky9oS1nq6zTsm0g4tA=";
-        "godot-0.2.4" = "sha256-XzJlnbx4OxWtT6AesmeEmg2SDqGC1UDgZFffSbEJNZI=";
+        "godot-0.2.4" = "sha256-gKwJGLKfOkRZS1P2erfixAHg0l/X7U0Mhf4SZxxGrZg=";
         "llama-cpp-2-0.1.103" = "sha256-T8qxxAC0ygF655EzODIpDjIKS0vRMe68e5rJcP1+PDo=";
       };
     };

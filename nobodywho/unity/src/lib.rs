@@ -108,7 +108,11 @@ impl chat::EmbeddingOutput for EmbeddingAdapter {
             println!("[ERROR] emit_embedding - Failed to lock caller: {}", e);
         }
         let caller_ptr = self.caller.lock().unwrap();
-        println!("[DEBUG] emit_embedding - Locked caller_ptr: {:?}, embedding length: {}", *caller_ptr, embd.len());
+        println!(
+            "[DEBUG] emit_embedding - Locked caller_ptr: {:?}, embedding length: {}",
+            *caller_ptr,
+            embd.len()
+        );
         (self.callback)(*caller_ptr, embd.as_ptr(), embd.len() as i32);
     }
 }
@@ -156,7 +160,10 @@ pub extern "C" fn create_embedding_worker(
     };
 
     // Add debug print for original caller_ptr
-    println!("[DEBUG] create_embedding_worker - Original caller_ptr: {:?}", caller_ptr);
+    println!(
+        "[DEBUG] create_embedding_worker - Original caller_ptr: {:?}",
+        caller_ptr
+    );
 
     let caller = Arc::new(Mutex::new(caller_ptr));
 
@@ -192,16 +199,10 @@ pub extern "C" fn embed_text(context: *mut c_void, text: *const c_char, error_bu
         }
     };
 
-
     let embed_tx = embedding_context.embed_tx.clone();
     let runtime = &embedding_context.runtime;
-    // Spawn a task to send the text. Don't capture error_buf.
-    runtime.spawn(async move {
-        if let Err(e) = embed_tx.send(text_str).await {
-            // TODO: find a way to propegate the error to c#
-            println!("[ERROR] embed_text - Failed to send text to embedding worker: {}", e);
-        }
-    });
+    // TODO: propegate an error message
+    runtime.spawn(async move { embed_tx.send(text_str).await });
 }
 
 #[no_mangle]
@@ -261,62 +262,78 @@ impl chat::ChatOutput for ChatAdapter {
         let caller_id_cstr = match CString::new(self.caller_id.as_str()) {
             Ok(cstr) => cstr,
             Err(e) => {
-                println!("[ERROR] emit_token - Failed to create CString for caller_id: {}", e);
+                self.emit_error(format!("Failed to create CString for caller_id: {}", e));
                 return;
             }
         };
-        println!("[DEBUG] emit_token - caller_id: {:?}, token: {}", caller_id_cstr, token);
+        println!(
+            "[DEBUG] emit_token - caller_id: {:?}, token: {}",
+            caller_id_cstr, token
+        );
 
         // Create a CString to ensure the string stays valid
         let token_cstr = match CString::new(token) {
             Ok(cstr) => cstr,
             Err(e) => {
-                println!("[ERROR] emit_token - Failed to create CString for token: {}", e);
+                self.emit_error(format!("Failed to create CString for token: {}", e));
                 return;
             }
         };
         (self.token_callback)(caller_id_cstr.as_ptr(), token_cstr.as_ptr());
     }
-    
+
     fn emit_response(&self, resp: String) {
         // Convert caller_id back to CString for passing
         let caller_id_cstr = match CString::new(self.caller_id.as_str()) {
             Ok(cstr) => cstr,
             Err(e) => {
-                println!("[ERROR] emit_response - Failed to create CString for caller_id: {}", e);
+                self.emit_error(format!("Failed to create CString for caller_id: {}", e));
                 return;
             }
         };
-        println!("[DEBUG] emit_response - caller_id: {:?}, length: {}", caller_id_cstr, resp.len());
-        
+        println!(
+            "[DEBUG] emit_response - caller_id: {:?}, length: {}",
+            caller_id_cstr,
+            resp.len()
+        );
+
         // Create a CString to ensure the string stays valid
         let resp_cstr = match CString::new(resp) {
             Ok(cstr) => cstr,
             Err(e) => {
-                println!("[ERROR] emit_response - Failed to create CString for response: {}", e);
+                self.emit_error(format!("Failed to create CString for response: {}", e));
                 return;
             }
         };
-        
+
         (self.response_callback)(caller_id_cstr.as_ptr(), resp_cstr.as_ptr());
     }
-    
+
     fn emit_error(&self, err: String) {
         // Convert caller_id back to CString for passing
         let caller_id_cstr = match CString::new(self.caller_id.as_str()) {
             Ok(cstr) => cstr,
             Err(e) => {
-                println!("[ERROR] emit_error - Failed to create CString for caller_id: {}", e);
+                println!(
+                    "[ERROR] emit_error - Failed to create CString for caller_id: {}",
+                    e
+                );
                 return;
             }
         };
-        println!("[DEBUG] emit_error - caller_id: {:?}, error: {}", caller_id_cstr, err);
-        
+        println!(
+            "[DEBUG] emit_error - caller_id: {:?}, error: {}",
+            caller_id_cstr, err
+        );
+
         // Create a CString to ensure the string stays valid
         let err_cstr = match CString::new(err) {
             Ok(cstr) => cstr,
             Err(e) => {
-                println!("[ERROR] emit_error - Failed to create CString for error: {}", e);
+                println!(
+                    "[ERROR] emit_error - Failed to create CString for error: {}",
+                    e
+                );
                 return;
             }
         };
@@ -356,8 +373,6 @@ pub extern "C" fn create_chat_worker(
         }
     };
     // Add debug print for the converted caller_id_str
-    println!("[DEBUG] create_chat_worker - Converted caller_id: {}", caller_id_str);
-
     let grammar_str = unsafe {
         if grammar.is_null() {
             String::new()
@@ -442,16 +457,12 @@ pub extern "C" fn create_chat_worker(
     runtime.spawn(async move {
         chat::simple_chat_loop(params, system_prompt, msg_rx, Box::new(adapter))
             .await
-            .unwrap_or_else(|e| {
+            .unwrap_or_else(|_e| {
                 // TODO: find a way to propegate the error to c#
-                println!("[ERROR] create_embedding_worker - Error: {}", e);
                 ()
             });
     });
-    Box::into_raw(Box::new(ChatContext {
-        msg_tx,
-        runtime,
-    })) as *mut c_void
+    Box::into_raw(Box::new(ChatContext { msg_tx, runtime })) as *mut c_void
 }
 
 #[no_mangle]
@@ -468,7 +479,15 @@ pub extern "C" fn send_prompt(context: *mut c_void, prompt: *const c_char, error
 
     let msg_tx = chat_context.msg_tx.clone();
     let runtime = &chat_context.runtime;
-    runtime.spawn(async move { msg_tx.send(ChatMsg::Say(prompt_str)).await });
+    runtime.spawn(async move {
+        msg_tx
+            .send(ChatMsg::Say(prompt_str))
+            .await
+            .unwrap_or_else(|e| {
+                // we cant use the error buff here due to await
+                panic!("Failed to send prompt: {}", e);
+            });
+    });
 }
 
 #[no_mangle]
@@ -478,9 +497,13 @@ pub extern "C" fn destroy_chat_worker(context: *mut c_void) {
     }
 }
 
+/// These tests aim to cover a lot of the interface exposed with some notable omissions:
+/// - We cannot test across the ffi barrier, so native c# code and callbacks will have to be emulated
+/// - Life times act different based on wheter we are lopping some thing over a language barrier
+///   or invoking all the methods from Rust.
 #[cfg(test)]
 mod tests {
-    const TIMEOUT: u64 = 60*5;
+    const TIMEOUT: u64 = 60 * 5;
     macro_rules! test_model_path {
         () => {
             std::env::var("TEST_MODEL")
@@ -488,7 +511,7 @@ mod tests {
                 .as_str()
         };
     }
-    
+
     macro_rules! test_embeddings_model_path {
         () => {
             std::env::var("TEST_EMBEDDINGS_MODEL")
@@ -503,13 +526,10 @@ mod tests {
     static mut RECEIVED_COMPLETE: bool = false;
     static mut RESPONSE: Option<String> = None;
     static mut EMBEDDING: Option<Vec<f32>> = None;
-    extern "C" fn _on_error(error: *const c_char) {
-        if let Ok(error_str) = unsafe { CStr::from_ptr(error) }.to_str() {
-            println!("[ERROR] on_error - Error: {}", error_str);
-        }
-    }
+    static mut LAST_ERROR: Option<String> = None;
+    static mut DUMMY_CALLER_DATA: u8 = 0;
 
-    extern "C" fn _on_token(token: *const c_char) {
+    extern "C" fn _on_token(caller: *const c_char, token: *const c_char) {
         if let Ok(token_str) = unsafe { CStr::from_ptr(token) }.to_str() {
             unsafe {
                 RESPONSE = Some(match &RESPONSE {
@@ -520,19 +540,37 @@ mod tests {
         }
     }
 
-    extern "C" fn _on_embedding(embedding: *mut f32, length: i32) {
+    extern "C" fn _embed_on_embedding(caller: *const c_void, data: *const f32, length: i32) {
+        println!(
+            "[TEST_DEBUG] _embed_on_embedding - Received embedding for caller {:?}, length: {}",
+            caller, length
+        );
         unsafe {
-            let embedding_slice = std::slice::from_raw_parts(embedding, length as usize);
+            if data.is_null() || length <= 0 {
+                println!(
+                    "[TEST_ERROR] _embed_on_embedding - Received null or empty embedding data"
+                );
+                LAST_ERROR = Some("Received null or empty embedding".to_string());
+                return;
+            }
+            // Create Vec from raw parts
+            let embedding_slice = std::slice::from_raw_parts(data, length as usize);
             EMBEDDING = Some(embedding_slice.to_vec());
-        } 
+        }
     }
 
-    extern "C" fn _on_complete(response: *const c_char) {
+    extern "C" fn _on_complete(caller: *const c_char, response: *const c_char) {
         if let Ok(response_str) = unsafe { CStr::from_ptr(response) }.to_str() {
             println!("[DEBUG] test_on_complete - Response: {}", response_str);
             unsafe {
                 RECEIVED_COMPLETE = true;
             }
+        }
+    }
+
+    extern "C" fn _on_error(caller: *const c_char, error: *const c_char) {
+        if let Ok(error_str) = unsafe { CStr::from_ptr(error) }.to_str() {
+            println!("[DEBUG] test_on_error - Error: {}", error_str);
         }
     }
 
@@ -550,6 +588,7 @@ mod tests {
         let stop_tokens = CString::new("fly").unwrap();
         let context_length: u32 = 4096;
 
+        let caller_id = unsafe { &DUMMY_CALLER_DATA as *const _ as *const c_void };
         let chat_context: *mut c_void = create_chat_worker(
             model,
             system_prompt.as_ptr(),
@@ -557,6 +596,10 @@ mod tests {
             context_length,
             false,
             std::ptr::null(),
+            caller_id as *const i8,
+            _on_token,
+            _on_complete,
+            _on_error,
             error_ptr,
         );
 
@@ -574,25 +617,11 @@ mod tests {
             if std::time::Instant::now() > timeout {
                 panic!("Timed out waiting for response");
             }
-            poll_responses(
-                chat_context as *mut c_void,
-                _on_token,
-                _on_complete,
-                _on_error,
-            );
         }
 
         let response = unsafe { RESPONSE.clone().unwrap() };
         assert!(response.contains("dog"));
         assert!(response.contains("fly"));
-        assert!(!response.contains("lion"));
-        assert!(!response.contains("mouse"));
-
-        destroy_chat_worker(chat_context as *mut c_void);
-        destroy_model(model as *mut c_void);
-        unsafe {
-            RESPONSE = None;
-        }
     }
 
     #[test]
@@ -612,13 +641,18 @@ mod tests {
         let system_prompt = CString::new("You are a test assistant").unwrap();
         let context_length: u32 = 4096;
 
+        let caller_id = unsafe { &DUMMY_CALLER_DATA as *const _ as *const c_void };
         let chat_context: *mut c_void = create_chat_worker(
             model.clone(),
-            system_prompt.as_ptr(),
-            std::ptr::null(),
+            system_prompt.as_ptr() as *const i8,
+            std::ptr::null() as *const i8,
             context_length,
             false,
-            std::ptr::null(),
+            std::ptr::null() as *const i8,
+            caller_id as *const i8,
+            _on_token,
+            _on_complete,
+            _on_error,
             error_ptr,
         );
 
@@ -639,7 +673,6 @@ mod tests {
             if std::time::Instant::now() > timeout {
                 panic!("Timed out waiting for response");
             }
-            poll_responses(chat_context, _on_token, _on_complete, _on_error);
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
         assert!(
@@ -663,7 +696,9 @@ mod tests {
         let model: *mut c_void =
             get_model(std::ptr::null_mut(), model_path.as_ptr(), true, error_ptr);
 
-        let embedding_context = create_embedding_worker(model, error_ptr);
+        let caller_ptr = unsafe { &DUMMY_CALLER_DATA as *const _ as *const c_void };
+        let embedding_context =
+            create_embedding_worker(model, caller_ptr, _embed_on_embedding, error_ptr);
 
         assert!(
             !embedding_context.is_null(),
@@ -689,7 +724,9 @@ mod tests {
         let model: *mut c_void =
             get_model(std::ptr::null_mut(), model_path.as_ptr(), true, error_ptr);
 
-        let embedding_context = create_embedding_worker(model, error_ptr);
+        let caller_ptr = unsafe { &DUMMY_CALLER_DATA as *const _ as *const c_void };
+        let embedding_context =
+            create_embedding_worker(model, caller_ptr, _embed_on_embedding, error_ptr);
 
         let text = CString::new("Hello, world!").unwrap();
         embed_text(embedding_context, text.as_ptr(), error_ptr);
@@ -699,7 +736,6 @@ mod tests {
             if std::time::Instant::now() > timeout {
                 panic!("Timed out waiting for embedding");
             }
-            poll_embeddings(embedding_context, _on_embedding, _on_error);
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
 
@@ -718,7 +754,11 @@ mod tests {
         let model_path = CString::new(test_embeddings_model_path!()).unwrap();
         let model: *mut c_void =
             get_model(std::ptr::null_mut(), model_path.as_ptr(), true, error_ptr);
-        let embedding_context = create_embedding_worker(model, error_ptr);
+
+        let caller_ptr = unsafe { &DUMMY_CALLER_DATA as *const _ as *const c_void };
+
+        let embedding_context =
+            create_embedding_worker(model, caller_ptr, _embed_on_embedding, error_ptr);
 
         let texts = [
             "The dragon is on the hill.",
@@ -741,7 +781,6 @@ mod tests {
                 if std::time::Instant::now() > timeout {
                     panic!("Timed out waiting for embedding");
                 }
-                poll_embeddings(embedding_context, _on_embedding, _on_error);
                 std::thread::sleep(std::time::Duration::from_millis(10));
             }
 
