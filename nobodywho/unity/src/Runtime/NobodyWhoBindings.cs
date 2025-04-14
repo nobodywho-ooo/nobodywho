@@ -95,7 +95,7 @@ namespace NobodyWho
             int context_length,
             bool use_grammar,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string grammar,
-            IntPtr caller,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string chat_id,
             ChatTokenCallback on_token,
             ChatCompletionCallback on_complete,
             ChatErrorCallback on_error,

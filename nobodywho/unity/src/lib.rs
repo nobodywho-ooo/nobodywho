@@ -246,10 +246,10 @@ struct ChatContext {
 // - The Caveat is that the callback and caller needs to be acessible from another thread.
 //   in C# this means that using a standard GHandle is not suffiucient as we are crossing AppDomains
 struct ChatAdapter {
-    caller: Arc<Mutex<*const c_void>>,
-    token_callback: extern "C" fn(*const c_void, *const c_char),
-    response_callback: extern "C" fn(*const c_void, *const c_char),
-    error_callback: extern "C" fn(*const c_void, *const c_char),
+    caller_id: String,
+    token_callback: extern "C" fn(*const c_char, *const c_char),
+    response_callback: extern "C" fn(*const c_char, *const c_char),
+    error_callback: extern "C" fn(*const c_char, *const c_char),
 }
 
 unsafe impl Send for ChatAdapter {}
@@ -257,60 +257,71 @@ unsafe impl Send for ChatAdapter {}
 impl chat::ChatOutput for ChatAdapter {
     // Blockingly waits for the caller
     fn emit_token(&self, token: String) {
-        while let Err(e) = self.caller.try_lock() {
-            println!("[ERROR] emit_token - Failed to lock caller: {}", e);
-        }
-        let caller_ptr = self.caller.lock().unwrap();
-        println!("[DEBUG] emit_token - Locked caller_ptr: {:?}, token: {}", *caller_ptr, token);
-        
+        // Convert caller_id back to CString for passing
+        let caller_id_cstr = match CString::new(self.caller_id.as_str()) {
+            Ok(cstr) => cstr,
+            Err(e) => {
+                println!("[ERROR] emit_token - Failed to create CString for caller_id: {}", e);
+                return;
+            }
+        };
+        println!("[DEBUG] emit_token - caller_id: {:?}, token: {}", caller_id_cstr, token);
+
         // Create a CString to ensure the string stays valid
         let token_cstr = match CString::new(token) {
             Ok(cstr) => cstr,
             Err(e) => {
-                println!("[ERROR] emit_token - Failed to create CString: {}", e);
+                println!("[ERROR] emit_token - Failed to create CString for token: {}", e);
                 return;
             }
         };
-
-        (self.token_callback)(*caller_ptr, token_cstr.as_ptr() as *const i8);
+        (self.token_callback)(caller_id_cstr.as_ptr(), token_cstr.as_ptr());
     }
     
     fn emit_response(&self, resp: String) {
-        while let Err(e) = self.caller.try_lock() {
-            println!("[ERROR] emit_response - Failed to lock caller: {}", e);
-        }
-        let caller_ptr = self.caller.lock().unwrap();
-        println!("[DEBUG] emit_response - Locked caller_ptr: {:?}, length: {}", *caller_ptr, resp.len());
+        // Convert caller_id back to CString for passing
+        let caller_id_cstr = match CString::new(self.caller_id.as_str()) {
+            Ok(cstr) => cstr,
+            Err(e) => {
+                println!("[ERROR] emit_response - Failed to create CString for caller_id: {}", e);
+                return;
+            }
+        };
+        println!("[DEBUG] emit_response - caller_id: {:?}, length: {}", caller_id_cstr, resp.len());
         
         // Create a CString to ensure the string stays valid
         let resp_cstr = match CString::new(resp) {
             Ok(cstr) => cstr,
             Err(e) => {
-                println!("[ERROR] emit_response - Failed to create CString: {}", e);
+                println!("[ERROR] emit_response - Failed to create CString for response: {}", e);
                 return;
             }
         };
         
-        (self.response_callback)(*caller_ptr, resp_cstr.as_ptr());
+        (self.response_callback)(caller_id_cstr.as_ptr(), resp_cstr.as_ptr());
     }
     
     fn emit_error(&self, err: String) {
-        while let Err(e) = self.caller.try_lock() {
-            println!("[ERROR] emit_error - Failed to lock caller: {}", e);
-        }
-        let caller_ptr = self.caller.lock().unwrap();
-        println!("[DEBUG] emit_error - Locked caller_ptr: {:?}, error: {}", *caller_ptr, err);
+        // Convert caller_id back to CString for passing
+        let caller_id_cstr = match CString::new(self.caller_id.as_str()) {
+            Ok(cstr) => cstr,
+            Err(e) => {
+                println!("[ERROR] emit_error - Failed to create CString for caller_id: {}", e);
+                return;
+            }
+        };
+        println!("[DEBUG] emit_error - caller_id: {:?}, error: {}", caller_id_cstr, err);
         
         // Create a CString to ensure the string stays valid
         let err_cstr = match CString::new(err) {
             Ok(cstr) => cstr,
             Err(e) => {
-                println!("[ERROR] emit_error - Failed to create CString: {}", e);
+                println!("[ERROR] emit_error - Failed to create CString for error: {}", e);
                 return;
             }
         };
 
-        (self.error_callback)(*caller_ptr, err_cstr.as_ptr());
+        (self.error_callback)(caller_id_cstr.as_ptr(), err_cstr.as_ptr());
     }
 }
 
@@ -322,13 +333,30 @@ pub extern "C" fn create_chat_worker(
     context_length: u32,
     use_grammar: bool,
     grammar: *const c_char,
+    caller_id: *const c_char,
+    on_token: extern "C" fn(*const c_char, *const c_char),
+    on_complete: extern "C" fn(*const c_char, *const c_char),
+    on_error: extern "C" fn(*const c_char, *const c_char),
     error_buf: *mut c_char,
-    caller_ptr: *const c_void,
-    on_token: extern "C" fn(*const c_void, *const c_char),
-    on_complete: extern "C" fn(*const c_void, *const c_char),
-    on_error: extern "C" fn(*const c_void, *const c_char),
 ) -> *mut c_void {
     let model = unsafe { &mut *(model_ptr as *mut ModelObject) };
+
+    // Safely convert caller_id to owned String
+    let caller_id_str = unsafe {
+        if caller_id.is_null() {
+            copy_to_error_buf(error_buf, "caller_id pointer is null");
+            return std::ptr::null_mut();
+        }
+        match CStr::from_ptr(caller_id).to_str() {
+            Ok(s) => s.to_owned(),
+            Err(_) => {
+                copy_to_error_buf(error_buf, "Invalid UTF-8 in caller_id");
+                return std::ptr::null_mut();
+            }
+        }
+    };
+    // Add debug print for the converted caller_id_str
+    println!("[DEBUG] create_chat_worker - Converted caller_id: {}", caller_id_str);
 
     let grammar_str = unsafe {
         if grammar.is_null() {
@@ -397,10 +425,10 @@ pub extern "C" fn create_chat_worker(
     };
 
     // Add debug print for original caller_ptr
-    println!("[DEBUG] create_chat_worker - Original caller_ptr: {:?}", caller_ptr);
+    // println!("[DEBUG] create_chat_worker - Original caller_id: {:?}", caller_id); // Removed old debug print
 
     let adapter = ChatAdapter {
-        caller: Arc::new(Mutex::new(caller_ptr)),
+        caller_id: caller_id_str,
         token_callback: on_token,
         response_callback: on_complete,
         error_callback: on_error,
