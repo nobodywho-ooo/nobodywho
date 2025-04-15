@@ -3,6 +3,7 @@ mod sampler_resource;
 use godot::classes::{INode, ProjectSettings};
 use godot::prelude::*;
 use nobodywho::{chat, llm, sampler_config};
+use std::sync::{Arc, Mutex};
 use tokio;
 
 use crate::sampler_resource::NobodyWhoSampler;
@@ -124,15 +125,21 @@ struct NobodyWhoChat {
 }
 
 struct ChatAdapter {
-    emit_node: Gd<NobodyWhoChat>,
+    emit_node: Arc<Mutex<Gd<NobodyWhoChat>>>,
 }
+
+// Gd<T> is a smartpointer to a godot owned object. This renders it not sync or send inherently.
+// by wrapping all access to the pointer in Arc and mutex we are making it sync and send.
+// The atomic reference count makes access to its members sync (atomic) and avoid issue with dropping it in another thread
+// Mutex ensures that access to it does not create undefined beahvior due to race conditions. All of this should ensure thread safety.
+unsafe impl Send for ChatAdapter {}
 
 impl chat::ChatOutput for ChatAdapter {
     fn emit_token(&self, tok: String) {
-        self.emit_node.signals().response_updated().emit(tok)
+        self.emit_node.lock().unwrap().signals().response_updated().emit(tok);
     }
     fn emit_response(&self, resp: String) {
-        self.emit_node.signals().response_finished().emit(resp)
+        self.emit_node.lock().unwrap().signals().response_finished().emit(resp)
     }
     fn emit_error(&self, err: String) {
         godot_error!("LLM Worker failed: {err}");
@@ -201,7 +208,7 @@ impl NobodyWhoChat {
             let (msg_tx, msg_rx) = tokio::sync::mpsc::channel(4096); // TODO: 4096 is super random
             self.msg_tx = Some(msg_tx);
             let adapter = ChatAdapter {
-                emit_node: self.to_gd(),
+                emit_node: Arc::new(Mutex::new(self.to_gd())),
             };
             let system_prompt = self.system_prompt.to_string();
             godot::task::spawn(async {
