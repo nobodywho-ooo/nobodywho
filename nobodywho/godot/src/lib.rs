@@ -342,12 +342,20 @@ impl INode for NobodyWhoEmbedding {
 }
 
 struct EmbeddingAdapter {
-    emit_node: Gd<NobodyWhoEmbedding>,
+    emit_node: Arc<Mutex<Gd<NobodyWhoEmbedding>>>,
 }
+
+// Gd<T> is a smartpointer to a godot owned object. This renders it not sync or send inherently.
+// by wrapping all access to the pointer in Arc and mutex we are making it sync and send.
+// The atomic reference count makes access to its members sync (atomic) and avoids issues with dropping it in another thread
+// Mutex ensures that access to it does not create undefined beahvior due to race conditions. All of this should ensure thread safety.        
+unsafe impl Send for EmbeddingAdapter {}
 
 impl chat::EmbeddingOutput for EmbeddingAdapter {
     fn emit_embedding(&mut self, embd: Vec<f32>) {
         self.emit_node
+            .lock()
+            .unwrap()
             .signals()
             .embedding_finished()
             .emit(&PackedFloat32Array::from(embd));
@@ -390,7 +398,7 @@ impl NobodyWhoEmbedding {
             self.embed_tx = Some(embed_tx.clone());
 
             let adapter = EmbeddingAdapter {
-                emit_node: self.to_gd(),
+                emit_node: Arc::new(Mutex::new(self.to_gd())),
             };
             godot::task::spawn(async {
                 chat::simple_embedding_loop(params, embed_rx, Box::new(adapter))
