@@ -44,7 +44,7 @@ pub trait ChatOutput {
 
 pub enum ChatMsg {
     Say(String),
-    ResetContext,
+    ResetContext(String),
 }
 
 #[tracing::instrument(level = "trace", skip(output, params))]
@@ -96,7 +96,7 @@ pub async fn simple_chat_loop(
                 // render diff just to update the internal length state
                 let _ = chat_state.render_diff();
             }
-            ChatMsg::ResetContext => {
+            ChatMsg::ResetContext(system_prompt) => {
                 chat_state.reset();
                 chat_state.add_message("system".to_string(), system_prompt.clone());
                 actor.reset_context().await?;

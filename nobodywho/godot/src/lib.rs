@@ -244,7 +244,8 @@ impl NobodyWhoChat {
     #[func]
     fn reset_context(&mut self) {
         if let Some(msg_tx) = self.msg_tx.as_mut() {
-            let resp = msg_tx.blocking_send(chat::ChatMsg::ResetContext);
+            let sysem_prompt = self.system_prompt.to_string();
+            let resp = msg_tx.blocking_send(chat::ChatMsg::ResetContext(sysem_prompt));
             if let Err(msg) = resp {
                 // check error
                 godot_error!("Couldn't reset context: {:?}", msg);
