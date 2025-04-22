@@ -19,6 +19,9 @@ in pkgs.mkShell {
     # lsp dependencies
     pkgs.dotnet-sdk_9
     pkgs.csharpier
+    # used to make good stack traces
+    pkgs.gdb
+    pkgs.lldb
 
     # these are the dependencies required by llama.cpp to build for vulkan
     # (these packages were discovered by looking at the nix source code in ggerganov/llama.cpp)
