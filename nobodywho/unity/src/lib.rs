@@ -98,6 +98,7 @@ struct EmbeddingContext {
 struct EmbeddingAdapter {
     caller: Arc<Mutex<*const c_void>>,
     callback: extern "C" fn(*const c_void, *const f32, i32),
+    // TODO: we should implenment an error callback
 }
 
 unsafe impl Send for EmbeddingAdapter {}
@@ -107,7 +108,11 @@ impl chat::EmbeddingOutput for EmbeddingAdapter {
         while let Err(e) = self.caller.try_lock() {
             println!("[ERROR] emit_embedding - Failed to lock caller: {}", e);
         }
-        let caller_ptr = self.caller.lock().unwrap();
+        let caller_ptr = self.caller.lock().unwrap_or_else(|e| {
+            println!("[ERROR] emit_embedding - Failed to lock caller: {}", e);
+            // TODO: Either we panic or we retunr an empty lock.
+            panic!("Failed to lock caller: {}", e)
+        });
         println!(
             "[DEBUG] emit_embedding - Locked caller_ptr: {:?}, embedding length: {}",
             *caller_ptr,
