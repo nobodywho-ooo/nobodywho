@@ -2,10 +2,10 @@ use std::sync::Mutex;
 
 use crate::chat_state;
 use crate::llm;
+use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
 use tracing::{debug, error, info, trace};
-use std::sync::Arc;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ChatLoopError {
@@ -39,11 +39,7 @@ pub enum ChatLoopError {
     WorkerDiedError(#[from] tokio::sync::oneshot::error::RecvError),
 }
 
-// This trait requires the consumers to be both send and sync.
-// The Send bound is needed because the Box<dyn ChatOutput> is moved into an async task spawned on the runtime.
-// The Sync bound is additionally required because a reference (&dyn ChatOutput) is captured and held across .await
-// within the asynchronous stream processing (specifically, the .fold() operation in simple_chat_loop).
-pub trait ChatOutput: Send {
+pub trait ChatOutput {
     fn emit_token(&self, token: String);
     fn emit_response(&self, resp: String);
     fn emit_error(&self, err: String);
@@ -127,13 +123,9 @@ pub enum EmbeddingLoopError {
     GenerateEmbeddingError(#[from] llm::GenerateEmbeddingError),
 }
 
-// Send must be used for this to run with tokio or in a multithreaded environment. 
-// This adds a constraint that all usage of this - like the futures only (no extra toplevel tasks) implementation in godot - must be send
-pub trait EmbeddingOutput: Send {
+pub trait EmbeddingOutput {
     fn emit_embedding(&self, embd: Vec<f32>);
 }
-
-
 
 pub async fn simple_embedding_loop(
     params: llm::LLMActorParams,

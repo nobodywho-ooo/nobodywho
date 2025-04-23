@@ -8,6 +8,23 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+/// TRACING SETUP
+
+static INIT: std::sync::Once = std::sync::Once::new();
+
+/// Initialize tracing for tests
+#[no_mangle]
+pub extern "C" fn init_test_tracing() {
+    INIT.call_once(|| {
+        tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::TRACE)
+            .with_timer(tracing_subscriber::fmt::time::uptime())
+            .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
+            .try_init()
+            .ok();
+    });
+}
+
 fn copy_to_error_buf(error_buf: *mut c_char, message: &str) {
     // If you change this value, you must also change the size of the error_buf in the following files:
     // NobodyWhoChat.cs, NobodyWhoModel.cs
@@ -36,7 +53,7 @@ impl ModelObject {
                 return Err(e.to_string());
             }
         };
-        Ok(Self { model: model })
+        Ok(Self { model })
     }
 }
 
@@ -75,17 +92,16 @@ pub extern "C" fn get_model(
 }
 
 #[no_mangle]
+#[tracing::instrument(level = "warn")]
 pub extern "C" fn destroy_model(model: *mut c_void) {
-    unsafe {
-        drop(Box::from_raw(model as *mut ModelObject));
-    }
+    let modelobj = unsafe { Box::from_raw(model as *mut ModelObject) };
+    drop(modelobj);
 }
 
 /////////////////////  EMBEDDING  /////////////////////
 
 struct EmbeddingContext {
     embed_tx: tokio::sync::mpsc::Sender<String>,
-    runtime: tokio::runtime::Runtime,
 }
 
 // Why this is Send (not technically):
@@ -176,20 +192,32 @@ pub extern "C" fn create_embedding_worker(
 
     let (embed_tx, embed_rx) = tokio::sync::mpsc::channel(4096);
 
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .build()
-        .expect("Failed to create Tokio runtime");
+    std::thread::spawn(move || {
+        let local = tokio::task::LocalSet::new();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
 
-    runtime.spawn(async move {
-        chat::simple_embedding_loop(params, embed_rx, Box::new(adapter))
-            .await
-            .unwrap_or_else(|e| {
-                // TODO: find a way to propegate the error to c#
-                println!("[ERROR] create_embedding_worker - Error: {}", e);
-                ()
-            });
+        local
+            .block_on(
+                &runtime,
+                // TODO: handle error here
+                chat::simple_embedding_loop(params, embed_rx, Box::new(adapter)),
+            )
+            .expect("TODO: handle error");
     });
-    Box::into_raw(Box::new(EmbeddingContext { embed_tx, runtime })) as *mut c_void
+
+    // runtime.spawn(async move {
+    //     chat::simple_embedding_loop(params, embed_rx, Box::new(adapter))
+    //         .await
+    //         .unwrap_or_else(|e| {
+    //             // TODO: find a way to propegate the error to c#
+    //             println!("[ERROR] create_embedding_worker - Error: {}", e);
+    //             ()
+    //         });
+    // });
+    Box::into_raw(Box::new(EmbeddingContext { embed_tx })) as *mut c_void
 }
 
 #[no_mangle]
@@ -205,12 +233,14 @@ pub extern "C" fn embed_text(context: *mut c_void, text: *const c_char, error_bu
     };
 
     let embed_tx = embedding_context.embed_tx.clone();
-    let runtime = &embedding_context.runtime;
     // TODO: propegate an error message
-    runtime.spawn(async move { embed_tx.send(text_str).await });
+    embed_tx
+        .blocking_send(text_str)
+        .expect("TODO: handle error");
 }
 
 #[no_mangle]
+#[tracing::instrument(level = "warn")]
 pub extern "C" fn destroy_embedding_worker(context: *mut c_void) {
     unsafe {
         drop(Box::from_raw(context as *mut EmbeddingContext));
@@ -234,7 +264,6 @@ pub extern "C" fn cosine_similarity(
 
 struct ChatContext {
     msg_tx: tokio::sync::mpsc::Sender<ChatMsg>,
-    runtime: tokio::runtime::Runtime,
 }
 // Why this is Send (not technically):
 // - Neither Caller or callback can be dropped on the other side of the ABI,
@@ -455,19 +484,24 @@ pub extern "C" fn create_chat_worker(
     };
 
     let (msg_tx, msg_rx) = tokio::sync::mpsc::channel(4096);
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .build()
-        .expect("Failed to create Tokio runtime");
 
-    runtime.spawn(async move {
-        chat::simple_chat_loop(params, system_prompt, msg_rx, Box::new(adapter))
-            .await
-            .unwrap_or_else(|_e| {
-                // TODO: find a way to propegate the error to c#
-                ()
-            });
+    std::thread::spawn(move || {
+        let local = tokio::task::LocalSet::new();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+
+        local
+            .block_on(
+                &runtime,
+                // TODO: handle error here
+                chat::simple_chat_loop(params, system_prompt, msg_rx, Box::new(adapter)),
+            )
+            .expect("TODO: handle error");
     });
-    Box::into_raw(Box::new(ChatContext { msg_tx, runtime })) as *mut c_void
+
+    Box::into_raw(Box::new(ChatContext { msg_tx })) as *mut c_void
 }
 
 #[no_mangle]
@@ -483,19 +517,16 @@ pub extern "C" fn send_prompt(context: *mut c_void, prompt: *const c_char, error
     };
 
     let msg_tx = chat_context.msg_tx.clone();
-    let runtime = &chat_context.runtime;
-    runtime.spawn(async move {
-        msg_tx
-            .send(ChatMsg::Say(prompt_str))
-            .await
-            .unwrap_or_else(|e| {
-                // we cant use the error buff here due to await
-                panic!("Failed to send prompt: {}", e);
-            });
-    });
+    msg_tx
+        .blocking_send(ChatMsg::Say(prompt_str))
+        .unwrap_or_else(|e| {
+            // we cant use the error buff here due to await
+            panic!("Failed to send prompt: {}", e);
+        });
 }
 
 #[no_mangle]
+#[tracing::instrument(level = "warn")]
 pub extern "C" fn destroy_chat_worker(context: *mut c_void) {
     unsafe {
         drop(Box::from_raw(context as *mut ChatContext));
@@ -637,6 +668,9 @@ mod tests {
         let model_path = CString::new(test_model_path!()).unwrap();
         let model: *mut c_void =
             get_model(std::ptr::null_mut(), model_path.as_ptr(), true, error_ptr);
+        unsafe {
+            println!("{:?}", CStr::from_ptr(error_ptr));
+        };
         assert_eq!(
             unsafe { CStr::from_ptr(error_ptr).to_bytes() },
             &[0u8; 0],

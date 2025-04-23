@@ -136,10 +136,20 @@ unsafe impl Send for ChatAdapter {}
 
 impl chat::ChatOutput for ChatAdapter {
     fn emit_token(&self, tok: String) {
-        self.emit_node.lock().unwrap().signals().response_updated().emit(tok);
+        self.emit_node
+            .lock()
+            .unwrap()
+            .signals()
+            .response_updated()
+            .emit(tok);
     }
     fn emit_response(&self, resp: String) {
-        self.emit_node.lock().unwrap().signals().response_finished().emit(resp)
+        self.emit_node
+            .lock()
+            .unwrap()
+            .signals()
+            .response_finished()
+            .emit(resp)
     }
     fn emit_error(&self, err: String) {
         godot_error!("LLM Worker failed: {err}");
@@ -335,20 +345,12 @@ impl INode for NobodyWhoEmbedding {
 }
 
 struct EmbeddingAdapter {
-    emit_node: Arc<Mutex<Gd<NobodyWhoEmbedding>>>,
+    emit_node: Gd<NobodyWhoEmbedding>,
 }
-
-// Gd<T> is a smartpointer to a godot owned object. This renders it not sync or send inherently.
-// by wrapping all access to the pointer in Arc and mutex we are making it sync and send.
-// The atomic reference count makes access to its members sync (atomic) and avoids issues with dropping it in another thread
-// Mutex ensures that access to it does not create undefined beahvior due to race conditions. All of this should ensure thread safety.        
-unsafe impl Send for EmbeddingAdapter {}
 
 impl chat::EmbeddingOutput for EmbeddingAdapter {
     fn emit_embedding(&self, embd: Vec<f32>) {
         self.emit_node
-            .lock()
-            .unwrap()
             .signals()
             .embedding_finished()
             .emit(embd.into());
