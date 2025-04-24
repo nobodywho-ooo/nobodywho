@@ -25,6 +25,7 @@ namespace Tests
         [SetUp]
         public void Setup()
         {
+            NobodyWho.NativeBindings.init_test_tracing();
             testObject = new GameObject("TestModel");
             model = testObject.AddComponent<NobodyWho.Model>();
             model.modelPath = "qwen2.5-1.5b-instruct-q4_0.gguf";

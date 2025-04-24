@@ -10,9 +10,13 @@ namespace NobodyWho
             : base(message) { }
     }
 
-    internal static class NativeBindings
+    public static class NativeBindings
     {
         private const string LIB_NAME = "libnobodywho"; // Will be libnobodywho.so on Linux, libnobodywho.dylib on Mac, nobodywho.dll on Windows
+
+        /// tracing setup - only useful in tests
+        [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr init_test_tracing();
 
         /// Model ///
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
