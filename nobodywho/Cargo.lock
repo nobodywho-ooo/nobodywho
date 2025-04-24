@@ -587,6 +587,8 @@ version = "0.1.0"
 dependencies = [
  "nobodywho",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
