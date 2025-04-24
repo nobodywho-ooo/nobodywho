@@ -103,7 +103,6 @@ pub extern "C" fn destroy_model(model: *mut c_void) {
 struct EmbeddingContext {
     embed_text_tx: tokio::sync::mpsc::Sender<String>,
     embedding_result_rx: std::sync::mpsc::Receiver<Vec<f32>>,
-    runtime: tokio::runtime::Runtime,
 }
 
 struct EmbeddingAdapter {
@@ -176,7 +175,6 @@ pub extern "C" fn create_embedding_worker(
     Box::into_raw(Box::new(EmbeddingContext {
         embed_text_tx,
         embedding_result_rx,
-        runtime,
     })) as *mut c_void
 }
 
@@ -234,8 +232,9 @@ pub extern "C" fn destroy_float_array(array: FloatArray) {
 
 pub extern "C" fn poll_embed_result(context: *mut c_void) -> FloatArray {
     let embedding_context = unsafe { &mut *(context as *mut EmbeddingContext) };
-    match embedding_context.embedding_result_rx.recv() {
+    match embedding_context.embedding_result_rx.try_recv() {
         Ok(embd) => FloatArray::some(&embd),
+        // TODO: handle actual errors versus empty channel errors
         Err(_) => FloatArray::none(),
     }
 }
@@ -264,6 +263,9 @@ pub extern "C" fn cosine_similarity(
 
 struct ChatContext {
     msg_tx: tokio::sync::mpsc::Sender<ChatMsg>,
+    token_rx: std::sync::mpsc::Receiver<String>,
+    response_rx: std::sync::mpsc::Receiver<String>,
+    error_rx: std::sync::mpsc::Receiver<String>,
     runtime: tokio::runtime::Runtime,
 }
 // Why this is Send (not technically):
@@ -282,10 +284,9 @@ struct ChatContext {
 // - The Caveat is that the callback and caller needs to be acessible from another thread.
 //   in C# this means that using a standard GHandle is not suffiucient as we are crossing AppDomains
 struct ChatAdapter {
-    caller_id: String,
-    token_callback: extern "C" fn(*const c_char, *const c_char),
-    response_callback: extern "C" fn(*const c_char, *const c_char),
-    error_callback: extern "C" fn(*const c_char, *const c_char),
+    token_tx: std::sync::mpsc::Sender<String>,
+    response_tx: std::sync::mpsc::Sender<String>,
+    error_tx: std::sync::mpsc::Sender<String>,
 }
 
 unsafe impl Send for ChatAdapter {}
@@ -293,87 +294,15 @@ unsafe impl Send for ChatAdapter {}
 impl chat::ChatOutput for ChatAdapter {
     // Blockingly waits for the caller
     fn emit_token(&self, token: String) {
-        // Convert caller_id back to CString for passing
-        let caller_id_cstr = match CString::new(self.caller_id.as_str()) {
-            Ok(cstr) => cstr,
-            Err(e) => {
-                self.emit_error(format!("Failed to create CString for caller_id: {}", e));
-                return;
-            }
-        };
-        println!(
-            "[DEBUG] emit_token - caller_id: {:?}, token: {}",
-            caller_id_cstr, token
-        );
-
-        // Create a CString to ensure the string stays valid
-        let token_cstr = match CString::new(token) {
-            Ok(cstr) => cstr,
-            Err(e) => {
-                self.emit_error(format!("Failed to create CString for token: {}", e));
-                return;
-            }
-        };
-        (self.token_callback)(caller_id_cstr.as_ptr(), token_cstr.as_ptr());
+        self.token_tx.send(token);
     }
 
     fn emit_response(&self, resp: String) {
-        // Convert caller_id back to CString for passing
-        let caller_id_cstr = match CString::new(self.caller_id.as_str()) {
-            Ok(cstr) => cstr,
-            Err(e) => {
-                self.emit_error(format!("Failed to create CString for caller_id: {}", e));
-                return;
-            }
-        };
-        println!(
-            "[DEBUG] emit_response - caller_id: {:?}, length: {}",
-            caller_id_cstr,
-            resp.len()
-        );
-
-        // Create a CString to ensure the string stays valid
-        let resp_cstr = match CString::new(resp) {
-            Ok(cstr) => cstr,
-            Err(e) => {
-                self.emit_error(format!("Failed to create CString for response: {}", e));
-                return;
-            }
-        };
-
-        (self.response_callback)(caller_id_cstr.as_ptr(), resp_cstr.as_ptr());
+        self.response_tx.send(resp);
     }
 
     fn emit_error(&self, err: String) {
-        // Convert caller_id back to CString for passing
-        let caller_id_cstr = match CString::new(self.caller_id.as_str()) {
-            Ok(cstr) => cstr,
-            Err(e) => {
-                println!(
-                    "[ERROR] emit_error - Failed to create CString for caller_id: {}",
-                    e
-                );
-                return;
-            }
-        };
-        println!(
-            "[DEBUG] emit_error - caller_id: {:?}, error: {}",
-            caller_id_cstr, err
-        );
-
-        // Create a CString to ensure the string stays valid
-        let err_cstr = match CString::new(err) {
-            Ok(cstr) => cstr,
-            Err(e) => {
-                println!(
-                    "[ERROR] emit_error - Failed to create CString for error: {}",
-                    e
-                );
-                return;
-            }
-        };
-
-        (self.error_callback)(caller_id_cstr.as_ptr(), err_cstr.as_ptr());
+        self.error_tx.send(err);
     }
 }
 
@@ -385,29 +314,10 @@ pub extern "C" fn create_chat_worker(
     context_length: u32,
     use_grammar: bool,
     grammar: *const c_char,
-    caller_id: *const c_char,
-    on_token: extern "C" fn(*const c_char, *const c_char),
-    on_complete: extern "C" fn(*const c_char, *const c_char),
-    on_error: extern "C" fn(*const c_char, *const c_char),
     error_buf: *mut c_char,
 ) -> *mut c_void {
     let model = unsafe { &mut *(model_ptr as *mut ModelObject) };
 
-    // Safely convert caller_id to owned String
-    let caller_id_str = unsafe {
-        if caller_id.is_null() {
-            copy_to_error_buf(error_buf, "caller_id pointer is null");
-            return std::ptr::null_mut();
-        }
-        match CStr::from_ptr(caller_id).to_str() {
-            Ok(s) => s.to_owned(),
-            Err(_) => {
-                copy_to_error_buf(error_buf, "Invalid UTF-8 in caller_id");
-                return std::ptr::null_mut();
-            }
-        }
-    };
-    // Add debug print for the converted caller_id_str
     let grammar_str = unsafe {
         if grammar.is_null() {
             String::new()
@@ -477,11 +387,13 @@ pub extern "C" fn create_chat_worker(
     // Add debug print for original caller_ptr
     // println!("[DEBUG] create_chat_worker - Original caller_id: {:?}", caller_id); // Removed old debug print
 
+    let (token_tx, token_rx) = std::sync::mpsc::channel();
+    let (response_tx, response_rx) = std::sync::mpsc::channel();
+    let (error_tx, error_rx) = std::sync::mpsc::channel();
     let adapter = ChatAdapter {
-        caller_id: caller_id_str,
-        token_callback: on_token,
-        response_callback: on_complete,
-        error_callback: on_error,
+        token_tx,
+        response_tx,
+        error_tx,
     };
 
     let (msg_tx, msg_rx) = tokio::sync::mpsc::channel(4096);
@@ -497,7 +409,54 @@ pub extern "C" fn create_chat_worker(
                 ()
             });
     });
-    Box::into_raw(Box::new(ChatContext { msg_tx, runtime })) as *mut c_void
+    Box::into_raw(Box::new(ChatContext {
+        msg_tx,
+        runtime,
+        token_rx,
+        response_rx,
+        error_rx,
+    })) as *mut c_void
+}
+
+fn poll_str_channel(chan: &std::sync::mpsc::Receiver<String>) -> *mut c_char {
+    match chan.try_recv() {
+        Ok(token) => CString::new(token)
+            // TODO: handle panic
+            .expect("found null bytes in token")
+            .into_raw(),
+        // TODO: handle other error vs empty channel error
+        Err(_) => std::ptr::null_mut(),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn poll_token(context: *mut c_void) -> *mut c_char {
+    let chat_context = unsafe { &mut *(context as *mut ChatContext) };
+    poll_str_channel(&chat_context.token_rx)
+}
+
+#[no_mangle]
+pub extern "C" fn poll_response(context: *mut c_void) -> *mut c_char {
+    let chat_context = unsafe { &mut *(context as *mut ChatContext) };
+    poll_str_channel(&chat_context.response_rx)
+}
+
+#[no_mangle]
+pub extern "C" fn poll_error(context: *mut c_void) -> *mut c_char {
+    let chat_context = unsafe { &mut *(context as *mut ChatContext) };
+    poll_str_channel(&chat_context.error_rx)
+}
+
+#[no_mangle]
+pub extern "C" fn destroy_string(s: *mut c_char) {
+    if s.is_null() {
+        return;
+    }
+    unsafe {
+        // Retake ownership of the CString pointer to allow Rust to deallocate it
+        // when `_cstring` goes out of scope at the end of this block.
+        let _cstring = CString::from_raw(s);
+    }
 }
 
 #[no_mangle]

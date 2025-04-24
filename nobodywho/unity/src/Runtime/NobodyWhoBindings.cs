@@ -116,12 +116,6 @@ namespace NobodyWho
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         public delegate void ChatTokenCallback(IntPtr caller, IntPtr token);
 
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        public delegate void ChatCompletionCallback(IntPtr caller, IntPtr response);
-
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        public delegate void ChatErrorCallback(IntPtr caller, IntPtr error);
-
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
         public static extern IntPtr create_chat_worker(
             IntPtr model,
@@ -130,15 +124,8 @@ namespace NobodyWho
             int context_length,
             bool use_grammar,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string grammar,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string chat_id,
-            ChatTokenCallback on_token,
-            ChatCompletionCallback on_complete,
-            ChatErrorCallback on_error,
             [MarshalAs(UnmanagedType.LPStr)] StringBuilder error_buf
         );
-
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        public delegate void ResponseCallback([MarshalAs(UnmanagedType.LPUTF8Str)] string text);
 
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
         public static extern void send_prompt(
@@ -146,6 +133,52 @@ namespace NobodyWho
             [MarshalAs(UnmanagedType.LPUTF8Str)] string prompt,
             [MarshalAs(UnmanagedType.LPStr)] StringBuilder error_buf
         );
+
+        [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr poll_token(IntPtr context);
+
+        // try to marshal to string
+        // consumes and always frees the pointer
+        private static string ptr_to_str(IntPtr ptr) {
+            // check for null ptr
+            if (ptr == IntPtr.Zero) {
+                return null;
+            }
+
+            string result = null;
+            try {
+                return Marshal.PtrToStringUTF8(ptr);
+            } catch(Exception ex) {
+                // TODO: handle error
+                return null;
+            } finally {
+                destroy_string(ptr);
+            }
+        }
+
+        public static string PollToken(IntPtr context) {
+            IntPtr ptr = poll_token(context);
+            return ptr_to_str(ptr);
+        }
+
+        public static string PollResponse(IntPtr context) {
+            IntPtr ptr = poll_response(context);
+            return ptr_to_str(ptr);
+        }
+
+        public static string PollError(IntPtr context) {
+            IntPtr ptr = poll_error(context);
+            return ptr_to_str(ptr);
+        }
+
+        [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr poll_response(IntPtr context);
+
+        [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr poll_error(IntPtr context);
+
+        [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void destroy_string(IntPtr s);
 
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
         public static extern void destroy_chat_worker(IntPtr context);
