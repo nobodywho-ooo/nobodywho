@@ -17,26 +17,6 @@ namespace NobodyWho
         private AwaitableCompletionSource<float[]> _embeddingSignal;
         private GCHandle _gcHandle;
 
-        // We need a reference to the `OnEmbeddingCallback` to keep its pointer alive and not GC'ed.
-        // making a static variable solves this.
-        private static NativeBindings.EmbeddingCallback _embeddingCallback = OnEmbeddingCallback;
-
-        // This is a callback that is invoked when the embedding is complete generating.
-        // the AOT (ahead of time compile) is required for ios as their security model does not allow JIT. https://stackoverflow.com/questions/5054732/is-it-prohibited-using-of-jitjust-in-time-compiled-code-in-ios-app-for-appstor
-        // the P/invoke marks this as a callback that can be called from native code to avoid it being optimized away.
-        [AOT.MonoPInvokeCallback(typeof(NativeBindings.EmbeddingCallback))]
-        private static void OnEmbeddingCallback(IntPtr caller, IntPtr data, int length)
-        {
-            GCHandle handle = GCHandle.FromIntPtr(caller);
-            Embedding instance = handle.Target as Embedding;
-
-            float[] embedding = new float[length];
-            Marshal.Copy(data, embedding, 0, length);
-
-            instance._embeddingSignal?.SetResult(embedding);
-            instance.onEmbeddingComplete.Invoke(embedding);
-        }
-
         void Start()
         {
             _gcHandle = GCHandle.Alloc(this);
@@ -44,8 +24,6 @@ namespace NobodyWho
 
             _actorContext = NativeBindings.create_embedding_worker(
                 model.GetModel(),
-                GCHandle.ToIntPtr(_gcHandle),
-                OnEmbeddingCallback,
                 errorBuffer
             );
 
@@ -66,8 +44,19 @@ namespace NobodyWho
             if (errorBuffer.Length > 0)
             {
                 Debug.LogError(errorBuffer.ToString());
+                // TODO: throw exception here
             }
             return _embeddingSignal.Awaitable;
+        }
+
+        void Update() {
+            float[] embd = NativeBindings.PollEmbeddings(_actorContext);
+            if (embd != null) {
+                onEmbeddingComplete.Invoke(embd);
+                _embeddingSignal?.SetResult(embd);
+            }
+            // TODO: why do we have both an AwaitableCompletionSource and a UnityEvent?
+            //       could we get away with having only one?
         }
 
         // This has several responsibilites:
