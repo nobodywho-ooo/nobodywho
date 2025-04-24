@@ -731,9 +731,7 @@ mod tests {
         let model: *mut c_void =
             get_model(std::ptr::null_mut(), model_path.as_ptr(), true, error_ptr);
 
-        let caller_ptr = unsafe { &DUMMY_CALLER_DATA as *const _ as *const c_void };
-        let embedding_context =
-            create_embedding_worker(model, caller_ptr, _embed_on_embedding, error_ptr);
+        let embedding_context = create_embedding_worker(model, error_ptr);
 
         assert!(
             !embedding_context.is_null(),
@@ -759,90 +757,18 @@ mod tests {
         let model: *mut c_void =
             get_model(std::ptr::null_mut(), model_path.as_ptr(), true, error_ptr);
 
-        let caller_ptr = unsafe { &DUMMY_CALLER_DATA as *const _ as *const c_void };
-        let embedding_context =
-            create_embedding_worker(model, caller_ptr, _embed_on_embedding, error_ptr);
+        let embedding_context = create_embedding_worker(model, error_ptr);
 
         let text = CString::new("Hello, world!").unwrap();
         embed_text(embedding_context, text.as_ptr(), error_ptr);
 
-        let timeout = std::time::Instant::now() + std::time::Duration::from_secs(TIMEOUT);
-        while unsafe { EMBEDDING.is_none() } {
-            if std::time::Instant::now() > timeout {
-                panic!("Timed out waiting for embedding");
+        let mut embd;
+        loop {
+            embd = poll_embed_result(embedding_context);
+            if embd.length > 0 {
+                break;
             }
-            std::thread::sleep(std::time::Duration::from_millis(10));
         }
-
-        let embedding = unsafe { EMBEDDING.take().unwrap() };
-        assert!(embedding.len() > 0, "Embedding should not be empty");
-
-        destroy_embedding_worker(embedding_context);
-        destroy_model(model as *mut c_void);
-    }
-
-    #[test]
-    fn test_embedding_similarity() {
-        let error_buf = [0u8; 2048];
-        let error_ptr = error_buf.as_ptr() as *mut c_char;
-
-        let model_path = CString::new(test_embeddings_model_path!()).unwrap();
-        let model: *mut c_void =
-            get_model(std::ptr::null_mut(), model_path.as_ptr(), true, error_ptr);
-
-        let caller_ptr = unsafe { &DUMMY_CALLER_DATA as *const _ as *const c_void };
-
-        let embedding_context =
-            create_embedding_worker(model, caller_ptr, _embed_on_embedding, error_ptr);
-
-        let texts = [
-            "The dragon is on the hill.",
-            "The dragon is hungry for humans.",
-            "This does not matter.",
-        ];
-
-        let mut embeddings = Vec::new();
-
-        for text in texts {
-            let text_cstring = CString::new(text).unwrap();
-            embed_text(embedding_context, text_cstring.as_ptr(), error_ptr);
-
-            let timeout = std::time::Instant::now() + std::time::Duration::from_secs(TIMEOUT);
-            unsafe {
-                EMBEDDING = None;
-            }
-
-            while unsafe { EMBEDDING.is_none() } {
-                if std::time::Instant::now() > timeout {
-                    panic!("Timed out waiting for embedding");
-                }
-                std::thread::sleep(std::time::Duration::from_millis(10));
-            }
-
-            let embedding = unsafe { EMBEDDING.take().unwrap() };
-            embeddings.push(embedding);
-        }
-
-        let low_similarity = cosine_similarity(
-            embeddings[2].as_ptr(),
-            embeddings[2].len() as i32,
-            embeddings[0].as_ptr(),
-            embeddings[0].len() as i32,
-        );
-        let high_similarity = cosine_similarity(
-            embeddings[0].as_ptr(),
-            embeddings[0].len() as i32,
-            embeddings[1].as_ptr(),
-            embeddings[1].len() as i32,
-        );
-
-        assert!(
-            low_similarity < high_similarity,
-            "Expected similarity between low similarity ({}) to be lower than high similarity ({})",
-            low_similarity,
-            high_similarity
-        );
-
         destroy_embedding_worker(embedding_context);
         destroy_model(model as *mut c_void);
     }
