@@ -16,6 +16,7 @@ namespace Tests
         [SetUp]
         public void Setup()
         {
+            NobodyWho.NativeBindings.init_test_tracing();
             testObject = new GameObject("TestModel");
             model = testObject.AddComponent<NobodyWho.Model>();
         }

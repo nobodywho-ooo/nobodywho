@@ -38,20 +38,51 @@ namespace NobodyWho
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
         public static extern IntPtr create_embedding_worker(
             IntPtr model,
-            IntPtr caller,
-            EmbeddingCallback on_embedding,
             [MarshalAs(UnmanagedType.LPStr)] StringBuilder error_buf
         );
 
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
         public static extern void destroy_embedding_worker(IntPtr context);
 
+        // a struct for the return type of embeddings operations
+        [StructLayout(LayoutKind.Sequential)]
+        public struct FloatArray
+        {
+            public IntPtr Data;
+            public UIntPtr Length;
+            
+            public float[] ToManagedArray()
+            {
+                if (Data == IntPtr.Zero || Length.ToUInt64() == 0)
+                    return Array.Empty<float>();
+                    
+                int length = (int)Length.ToUInt64();
+                float[] result = new float[length];
+                Marshal.Copy(Data, result, 0, length);
+                return result;
+            }
+        }
+
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
-        public static extern void poll_embeddings(
-            IntPtr context,
-            EmbeddingCallback on_embedding,
-            ResponseCallback on_error
-        );
+        public static extern void destroy_float_array(FloatArray array);
+
+        public static float[] PollEmbeddings(IntPtr context) {
+            FloatArray array = poll_embed_result(context);
+            try {
+                if (array.Data == IntPtr.Zero || array.Length.ToUInt64() == 0) {
+                    return null;
+                }
+
+                float[] managedArray = array.ToManagedArray();
+                return managedArray;
+            } finally {
+                // always free data on the rust side, we're done with it.
+                destroy_float_array(array);
+            }
+        }
+
+        [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
+        public static extern FloatArray poll_embed_result(IntPtr context);
 
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
         public static extern void embed_text(

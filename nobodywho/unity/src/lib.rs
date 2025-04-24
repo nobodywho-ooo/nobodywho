@@ -53,7 +53,7 @@ impl ModelObject {
                 return Err(e.to_string());
             }
         };
-        Ok(Self { model: model })
+        Ok(Self { model })
     }
 }
 
@@ -101,41 +101,20 @@ pub extern "C" fn destroy_model(model: *mut c_void) {
 /////////////////////  EMBEDDING  /////////////////////
 
 struct EmbeddingContext {
-    embed_tx: tokio::sync::mpsc::Sender<String>,
+    embed_text_tx: tokio::sync::mpsc::Sender<String>,
+    embedding_result_rx: std::sync::mpsc::Receiver<Vec<f32>>,
     runtime: tokio::runtime::Runtime,
 }
 
-// Why this is Send (not technically):
-// - Neither Caller or callback can be dropped on the other side of the ABI,
-//   so by using this you must promise that you code on the other side is memory safe.
-//   In Unity, this is done by allocing memory specifically using GChandle to avoid garbage collection.
-// - As we cannot declare the data inside the pointer as const we can really guarentee - through the compiler that
-//   the data will not be changed, leading to data races, howveer we have no need and should not change the data in the object from here. So please dont change stuff on this side.
-// - there are no thread local variables we use for these so we are gucci in this aspect.
 struct EmbeddingAdapter {
-    caller: Arc<Mutex<*const c_void>>,
-    callback: extern "C" fn(*const c_void, *const f32, i32),
-    // TODO: we should implenment an error callback
+    embedding_result_tx: std::sync::mpsc::Sender<Vec<f32>>, // TODO: we should implenment an error callback
 }
 
 unsafe impl Send for EmbeddingAdapter {}
 
 impl chat::EmbeddingOutput for EmbeddingAdapter {
     fn emit_embedding(&self, embd: Vec<f32>) {
-        while let Err(e) = self.caller.try_lock() {
-            println!("[ERROR] emit_embedding - Failed to lock caller: {}", e);
-        }
-        let caller_ptr = self.caller.lock().unwrap_or_else(|e| {
-            println!("[ERROR] emit_embedding - Failed to lock caller: {}", e);
-            // TODO: Either we panic or we retunr an empty lock.
-            panic!("Failed to lock caller: {}", e)
-        });
-        println!(
-            "[DEBUG] emit_embedding - Locked caller_ptr: {:?}, embedding length: {}",
-            *caller_ptr,
-            embd.len()
-        );
-        (self.callback)(*caller_ptr, embd.as_ptr(), embd.len() as i32);
+        self.embedding_result_tx.send(embd);
     }
 }
 
@@ -157,17 +136,10 @@ impl chat::EmbeddingOutput for EmbeddingAdapter {
 #[no_mangle]
 pub extern "C" fn create_embedding_worker(
     model_ptr: *mut c_void,
-    caller_ptr: *const c_void,
-    callback: extern "C" fn(*const c_void, *const f32, i32),
     error_buf: *mut c_char,
 ) -> *mut c_void {
     if model_ptr.is_null() {
         copy_to_error_buf(error_buf, "Model pointer is null");
-        return std::ptr::null_mut();
-    }
-
-    if caller_ptr.is_null() {
-        copy_to_error_buf(error_buf, "Caller pointer is null");
         return std::ptr::null_mut();
     }
 
@@ -181,24 +153,19 @@ pub extern "C" fn create_embedding_worker(
         use_embeddings: true,
     };
 
-    // Add debug print for original caller_ptr
-    println!(
-        "[DEBUG] create_embedding_worker - Original caller_ptr: {:?}",
-        caller_ptr
-    );
+    let (embedding_result_tx, embedding_result_rx) = std::sync::mpsc::channel();
+    let adapter = EmbeddingAdapter {
+        embedding_result_tx,
+    };
 
-    let caller = Arc::new(Mutex::new(caller_ptr));
-
-    let adapter = EmbeddingAdapter { caller, callback };
-
-    let (embed_tx, embed_rx) = tokio::sync::mpsc::channel(4096);
+    let (embed_text_tx, embed_text_rx) = tokio::sync::mpsc::channel(4096);
 
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .build()
         .expect("Failed to create Tokio runtime");
 
     runtime.spawn(async move {
-        chat::simple_embedding_loop(params, embed_rx, Box::new(adapter))
+        chat::simple_embedding_loop(params, embed_text_rx, Box::new(adapter))
             .await
             .unwrap_or_else(|e| {
                 // TODO: find a way to propegate the error to c#
@@ -206,7 +173,11 @@ pub extern "C" fn create_embedding_worker(
                 ()
             });
     });
-    Box::into_raw(Box::new(EmbeddingContext { embed_tx, runtime })) as *mut c_void
+    Box::into_raw(Box::new(EmbeddingContext {
+        embed_text_tx,
+        embedding_result_rx,
+        runtime,
+    })) as *mut c_void
 }
 
 #[no_mangle]
@@ -221,10 +192,52 @@ pub extern "C" fn embed_text(context: *mut c_void, text: *const c_char, error_bu
         }
     };
 
-    let embed_tx = embedding_context.embed_tx.clone();
-    let runtime = &embedding_context.runtime;
     // TODO: propegate an error message
-    runtime.spawn(async move { embed_tx.send(text_str).await });
+    embedding_context.embed_text_tx.blocking_send(text_str);
+}
+
+#[repr(C)]
+pub struct FloatArray {
+    data: *mut f32,
+    length: usize,
+}
+
+impl FloatArray {
+    // Helper to create a "None" representation
+    fn none() -> Self {
+        FloatArray {
+            data: std::ptr::null_mut(),
+            length: 0,
+        }
+    }
+
+    // Helper to create a "Some" representation
+    fn some(values: &[f32]) -> Self {
+        let mut vec = values.to_vec();
+        let result = FloatArray {
+            data: vec.as_mut_ptr(),
+            length: vec.len(),
+        };
+        std::mem::forget(vec);
+        result
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn destroy_float_array(array: FloatArray) {
+    if !array.data.is_null() && array.length > 0 {
+        unsafe {
+            let _ = Vec::from_raw_parts(array.data, array.length, array.length);
+        }
+    }
+}
+
+pub extern "C" fn poll_embed_result(context: *mut c_void) -> FloatArray {
+    let embedding_context = unsafe { &mut *(context as *mut EmbeddingContext) };
+    match embedding_context.embedding_result_rx.recv() {
+        Ok(embd) => FloatArray::some(&embd),
+        Err(_) => FloatArray::none(),
+    }
 }
 
 #[no_mangle]
