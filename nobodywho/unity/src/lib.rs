@@ -21,6 +21,23 @@ fn copy_to_error_buf(error_buf: *mut c_char, message: &str) {
     }
 }
 
+/// TRACING SETUP
+
+static INIT: std::sync::Once = std::sync::Once::new();
+
+/// Initialize tracing for tests
+#[no_mangle]
+pub extern "C" fn init_test_tracing() {
+    INIT.call_once(|| {
+        tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::TRACE)
+            .with_timer(tracing_subscriber::fmt::time::uptime())
+            .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
+            .try_init()
+            .ok();
+    });
+}
+
 /////////////////////  MODEL  /////////////////////
 
 #[derive(Clone)]
