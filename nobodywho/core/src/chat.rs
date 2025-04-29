@@ -44,7 +44,7 @@ pub trait ChatOutput {
 
 pub enum ChatMsg {
     Say(String),
-    ResetContext,
+    ResetContext(String),
 }
 
 #[tracing::instrument(level = "trace", skip(output, params))]
@@ -96,7 +96,7 @@ pub async fn simple_chat_loop(
                 // render diff just to update the internal length state
                 let _ = chat_state.render_diff();
             }
-            ChatMsg::ResetContext => {
+            ChatMsg::ResetContext(system_prompt) => {
                 chat_state.reset();
                 chat_state.add_message("system".to_string(), system_prompt.clone());
                 actor.reset_context().await?;
@@ -214,6 +214,54 @@ mod tests {
             assert!(
                 response.contains("Danish"),
                 "Expected completion to contain 'Danish', got: {response}"
+            );
+        };
+
+        // run stuff
+        local.run_until(check_results).await;
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_reset_context() {
+        test_utils::init_test_tracing();
+
+        // Setup
+        let model = test_utils::load_test_model();
+        let system_prompt =
+            "You are a helpful assistant. The user asks you a question, and you provide an answer."
+                .to_string();
+        let params = llm::LLMActorParams {
+            model,
+            sampler_config: SamplerConfig::default(),
+            n_ctx: 4096,
+            stop_tokens: vec![],
+            use_embeddings: false,
+        };
+
+        let (mock_output, mut response_rx) = MockOutput::new();
+        let (say_tx, say_rx) = mpsc::channel(2);
+
+        let local = tokio::task::LocalSet::new();
+        local.spawn_local(simple_chat_loop(
+            params,
+            system_prompt,
+            say_rx,
+            Box::new(mock_output),
+        ));
+
+        let check_results = async move {
+            let _ = say_tx.send(ChatMsg::Say("Hello, world.".to_string())).await;
+            let response_1 = response_rx.recv().await.unwrap();
+
+            let new_system_prompt = "You're a wizard, Harry.".to_string();
+            let _ = say_tx.send(ChatMsg::ResetContext(new_system_prompt)).await;
+
+            let _ = say_tx.send(ChatMsg::Say("Hello, world.".to_string())).await;
+            let response_2 = response_rx.recv().await.unwrap();
+
+            assert!(
+                response_1 != response_2,
+                "Expected responses to differ after resetting context, got {response_1} and {response_2}"
             );
         };
 
