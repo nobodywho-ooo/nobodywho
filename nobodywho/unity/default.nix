@@ -1,7 +1,7 @@
 { pkgs, fetchurl, stdenv, lib, ... }:
 
 let
-  version = "6000.0.34f1";
+  version = "6000.0.47f1";
   unity-src = fetchTarball {
       url = "https://download.unity3d.com/download_unity/faad68ae9e63/LinuxEditorInstaller/Unity-${version}.tar.xz";
       sha256 = "sha256:1df66d1sc6dfzxhl0ij7b7lr6ahnjv06i4lrdp13z9yccrrirxq5";
