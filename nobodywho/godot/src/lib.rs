@@ -128,13 +128,13 @@ struct ChatAdapter {
 }
 
 impl chat::ChatOutput for ChatAdapter {
-    fn emit_token(&self, tok: String) {
+    fn emit_token(&mut self, tok: String) {
         self.emit_node.signals().response_updated().emit(tok)
     }
-    fn emit_response(&self, resp: String) {
+    fn emit_response(&mut self, resp: String) {
         self.emit_node.signals().response_finished().emit(resp)
     }
-    fn emit_error(&self, err: String) {
+    fn emit_error(&mut self, err: String) {
         godot_error!("LLM Worker failed: {err}");
     }
 }
@@ -332,7 +332,7 @@ struct EmbeddingAdapter {
 }
 
 impl chat::EmbeddingOutput for EmbeddingAdapter {
-    fn emit_embedding(&self, embd: Vec<f32>) {
+    fn emit_embedding(&mut self, embd: Vec<f32>) {
         self.emit_node
             .signals()
             .embedding_finished()

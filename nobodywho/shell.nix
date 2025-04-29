@@ -5,6 +5,7 @@ pkgs.mkShell {
     pkgs.cmake
     pkgs.clang
     pkgs.rustup
+    pkgs.curl.dev
 
     # these are the dependencies required by llama.cpp to build for vulkan
     # (these packages were discovered by looking at the nix source code in ggerganov/llama.cpp)
