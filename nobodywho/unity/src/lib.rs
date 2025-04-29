@@ -1,0 +1,734 @@
+use nobodywho::chat;
+use nobodywho::chat::ChatMsg;
+use nobodywho::llm;
+use nobodywho::sampler_config::SamplerConfig;
+use std::ffi::CString;
+use std::{
+    ffi::{c_char, c_void, CStr},
+    sync::{Arc, Mutex},
+};
+
+fn copy_to_error_buf(error_buf: *mut c_char, message: &str) {
+    // If you change this value, you must also change the size of the error_buf in the following files:
+    // NobodyWhoChat.cs, NobodyWhoModel.cs
+    // always remove 1 from this value to leave room for the null terminator
+    const MAX_ERROR_LENGTH: usize = 2047;
+    let length = std::cmp::min(message.len(), MAX_ERROR_LENGTH);
+    let safe_message = &message[..length];
+    unsafe {
+        std::ptr::copy_nonoverlapping(safe_message.as_ptr() as *const c_char, error_buf, length);
+        *error_buf.add(length) = 0;
+    }
+}
+
+/// TRACING SETUP
+
+static INIT: std::sync::Once = std::sync::Once::new();
+
+/// Initialize tracing for tests
+#[no_mangle]
+pub extern "C" fn init_test_tracing() {
+    INIT.call_once(|| {
+        tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::TRACE)
+            .with_timer(tracing_subscriber::fmt::time::uptime())
+            .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
+            .try_init()
+            .ok();
+    });
+}
+
+/////////////////////  MODEL  /////////////////////
+
+#[derive(Clone)]
+struct ModelObject {
+    model: llm::Model,
+}
+
+impl ModelObject {
+    pub fn new(path: &str, use_gpu: bool) -> Result<Self, String> {
+        let model = match llm::get_model(path, use_gpu) {
+            Ok(model) => model,
+            Err(e) => {
+                return Err(e.to_string());
+            }
+        };
+        Ok(Self { model })
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn get_model(
+    ptr: *mut c_void,
+    path: *const c_char,
+    use_gpu: bool,
+    error_buf: *mut c_char,
+) -> *mut c_void {
+    let model_object = match unsafe { (ptr as *mut ModelObject).as_ref() } {
+        Some(this) => this.clone(),
+        None => {
+            let path_str = unsafe {
+                match CStr::from_ptr(path).to_str() {
+                    Ok(string) => string,
+                    Err(_) => {
+                        copy_to_error_buf(error_buf, "Invalid UTF-8 in path");
+                        return std::ptr::null_mut();
+                    }
+                }
+            };
+
+            let model_object = match ModelObject::new(path_str, use_gpu) {
+                Ok(model_object) => model_object,
+                Err(e) => {
+                    copy_to_error_buf(error_buf, &e);
+                    return std::ptr::null_mut();
+                }
+            };
+            model_object
+        }
+    };
+
+    Box::into_raw(Box::new(model_object)) as *mut c_void
+}
+
+#[no_mangle]
+pub extern "C" fn destroy_model(model: *mut c_void) {
+    unsafe {
+        drop(Box::from_raw(model as *mut ModelObject));
+    }
+}
+
+/////////////////////  EMBEDDING  /////////////////////
+
+struct EmbeddingContext {
+    embed_text_tx: tokio::sync::mpsc::Sender<String>,
+    embedding_result_rx: std::sync::mpsc::Receiver<Vec<f32>>,
+}
+
+struct EmbeddingAdapter {
+    embedding_result_tx: std::sync::mpsc::Sender<Vec<f32>>, // TODO: we should implenment an error callback
+}
+
+unsafe impl Send for EmbeddingAdapter {}
+
+impl chat::EmbeddingOutput for EmbeddingAdapter {
+    fn emit_embedding(&self, embd: Vec<f32>) {
+        self.embedding_result_tx.send(embd);
+    }
+}
+
+/// Apart from the model pointer it also takes two very imnportant pointer:
+/// - A pointer to a static callback function that will be called when an embedding is finished.
+/// it is improtant that this callback takes a reference to the object implements the callback.
+/// - A Userpointer, ie pointer to an instantaitated object, which class implements the static function.
+/// the simple example without marshalling to be ffi complaint looks like this:
+///
+/// ```
+/// public class EmbeddingObject {
+///     private static void OnEmbeddingCallback(IntPtr caller, IntPtr data, int length) {
+///         let this = GCHandle.FromIntPtr(caller).Target as EmbeddingObject;
+///         let embedding = float_from_ptr(data, length);
+///         // do stuff with the embedding
+///     }
+/// }
+/// ```
+#[no_mangle]
+pub extern "C" fn create_embedding_worker(
+    model_ptr: *mut c_void,
+    error_buf: *mut c_char,
+) -> *mut c_void {
+    if model_ptr.is_null() {
+        copy_to_error_buf(error_buf, "Model pointer is null");
+        return std::ptr::null_mut();
+    }
+
+    let model = unsafe { &mut *(model_ptr as *mut ModelObject) };
+
+    let params = llm::LLMActorParams {
+        model: model.model.clone(),
+        sampler_config: SamplerConfig::default(),
+        n_ctx: 4096,
+        stop_tokens: vec![],
+        use_embeddings: true,
+    };
+
+    let (embedding_result_tx, embedding_result_rx) = std::sync::mpsc::channel();
+    let adapter = EmbeddingAdapter {
+        embedding_result_tx,
+    };
+
+    let (embed_text_tx, embed_text_rx) = tokio::sync::mpsc::channel(4096);
+
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .build()
+        .expect("Failed to create Tokio runtime");
+
+    runtime.spawn(async move {
+        chat::simple_embedding_loop(params, embed_text_rx, Box::new(adapter))
+            .await
+            .unwrap_or_else(|e| {
+                // TODO: find a way to propegate the error to c#
+                println!("[ERROR] create_embedding_worker - Error: {}", e);
+                ()
+            });
+    });
+    Box::into_raw(Box::new(EmbeddingContext {
+        embed_text_tx,
+        embedding_result_rx,
+    })) as *mut c_void
+}
+
+#[no_mangle]
+pub extern "C" fn embed_text(context: *mut c_void, text: *const c_char, error_buf: *mut c_char) {
+    let embedding_context = unsafe { &mut *(context as *mut EmbeddingContext) };
+
+    let text_str: String = match unsafe { CStr::from_ptr(text).to_str() } {
+        Ok(text_string) => text_string.to_owned(),
+        Err(e) => {
+            copy_to_error_buf(error_buf, &format!("Invalid UTF-8 in text: {}", e));
+            return;
+        }
+    };
+
+    // TODO: propegate an error message
+    embedding_context.embed_text_tx.blocking_send(text_str);
+}
+
+#[repr(C)]
+pub struct FloatArray {
+    data: *mut f32,
+    length: usize,
+}
+
+impl FloatArray {
+    // Helper to create a "None" representation
+    fn none() -> Self {
+        FloatArray {
+            data: std::ptr::null_mut(),
+            length: 0,
+        }
+    }
+
+    // Helper to create a "Some" representation
+    fn some(values: &[f32]) -> Self {
+        let mut vec = values.to_vec();
+        let result = FloatArray {
+            data: vec.as_mut_ptr(),
+            length: vec.len(),
+        };
+        std::mem::forget(vec);
+        result
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn destroy_float_array(array: FloatArray) {
+    if !array.data.is_null() && array.length > 0 {
+        unsafe {
+            let _ = Vec::from_raw_parts(array.data, array.length, array.length);
+        }
+    }
+}
+
+pub extern "C" fn poll_embed_result(context: *mut c_void) -> FloatArray {
+    let embedding_context = unsafe { &mut *(context as *mut EmbeddingContext) };
+    match embedding_context.embedding_result_rx.try_recv() {
+        Ok(embd) => FloatArray::some(&embd),
+        // TODO: handle actual errors versus empty channel errors
+        Err(_) => FloatArray::none(),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn destroy_embedding_worker(context: *mut c_void) {
+    unsafe {
+        drop(Box::from_raw(context as *mut EmbeddingContext));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn cosine_similarity(
+    a: *const f32,
+    length_a: i32,
+    b: *const f32,
+    length_b: i32,
+) -> f32 {
+    // slice it to not take ownership.
+    let a_slice = unsafe { std::slice::from_raw_parts(a, length_a as usize) };
+    let b_slice = unsafe { std::slice::from_raw_parts(b, length_b as usize) };
+    llm::cosine_similarity(a_slice, b_slice)
+}
+
+/////////////////////  CHAT  /////////////////////
+
+struct ChatContext {
+    msg_tx: tokio::sync::mpsc::Sender<ChatMsg>,
+    token_rx: std::sync::mpsc::Receiver<String>,
+    response_rx: std::sync::mpsc::Receiver<String>,
+    error_rx: std::sync::mpsc::Receiver<String>,
+    runtime: tokio::runtime::Runtime,
+}
+// Why this is Send (not technically):
+// - Neither Caller or callback can be dropped on the other side of the ABI,
+//   so by using this you must promise that you code on the other side is memory safe.
+//   In Unity, this is done by allocing memory specifically using GChandle to avoid garbage collection.
+// - As we cannot declare the data inside the pointer as const we can really guarentee - through the compiler that
+//   the data will not be changed, leading to data races, howveer we have no need and should not change the data in the object from here. So please dont change stuff on this side.
+// - there are no thread local variables we use for these so we are gucci in this aspect.
+//
+// Why this is Sync (with caveats):
+// - The `extern "C" fn` pointers are inherently Sync (it's safe for multiple threads to read the same function pointer).
+// - The primary concern is the `caller: Arc<Mutex<*const c_void>>`.
+// - `*const c_void` is inherently not sync or send, but is only accesed through the Mutex thus making it sync - unless we change either of the methods
+//    on the other side of the ABI
+// - The Caveat is that the callback and caller needs to be acessible from another thread.
+//   in C# this means that using a standard GHandle is not suffiucient as we are crossing AppDomains
+struct ChatAdapter {
+    token_tx: std::sync::mpsc::Sender<String>,
+    response_tx: std::sync::mpsc::Sender<String>,
+    error_tx: std::sync::mpsc::Sender<String>,
+}
+
+unsafe impl Send for ChatAdapter {}
+
+impl chat::ChatOutput for ChatAdapter {
+    // Blockingly waits for the caller
+    fn emit_token(&self, token: String) {
+        self.token_tx.send(token);
+    }
+
+    fn emit_response(&self, resp: String) {
+        self.response_tx.send(resp);
+    }
+
+    fn emit_error(&self, err: String) {
+        self.error_tx.send(err);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn create_chat_worker(
+    model_ptr: *mut c_void,
+    system_prompt: *const c_char,
+    stop_words: *const c_char,
+    context_length: u32,
+    use_grammar: bool,
+    grammar: *const c_char,
+    error_buf: *mut c_char,
+) -> *mut c_void {
+    let model = unsafe { &mut *(model_ptr as *mut ModelObject) };
+
+    let grammar_str = unsafe {
+        if grammar.is_null() {
+            String::new()
+        } else {
+            match CStr::from_ptr(grammar).to_str() {
+                Ok(s) => s.to_owned(),
+                Err(_) => {
+                    copy_to_error_buf(error_buf, "Invalid UTF-8 in grammar");
+                    return std::ptr::null_mut();
+                }
+            }
+        }
+    };
+
+    let system_prompt = unsafe {
+        if system_prompt.is_null() {
+            String::new()
+        } else {
+            match CStr::from_ptr(system_prompt).to_str() {
+                Ok(s) => s.to_owned(),
+                Err(_) => {
+                    copy_to_error_buf(error_buf, "Invalid UTF-8 in system prompt");
+                    return std::ptr::null_mut();
+                }
+            }
+        }
+    };
+
+    let stop_words_vec = unsafe {
+        if stop_words.is_null() {
+            Vec::new()
+        } else {
+            match CStr::from_ptr(stop_words).to_str() {
+                Ok(stop_words) => {
+                    if stop_words.is_empty() {
+                        Vec::new()
+                    } else {
+                        let stop_words_vec = stop_words
+                            .split(',')
+                            .map(|s| s.trim().to_string())
+                            .collect();
+                        stop_words_vec
+                    }
+                }
+                Err(_) => {
+                    copy_to_error_buf(error_buf, "Invalid UTF-8 in stop words");
+                    return std::ptr::null_mut();
+                }
+            }
+        }
+    };
+
+    let mut sampler_config = SamplerConfig::default();
+    sampler_config.use_grammar = use_grammar;
+    if !grammar_str.is_empty() {
+        sampler_config.gbnf_grammar = grammar_str;
+    }
+
+    let params = llm::LLMActorParams {
+        model: model.model.clone(),
+        sampler_config,
+        n_ctx: context_length,
+        stop_tokens: stop_words_vec,
+        use_embeddings: false,
+    };
+
+    // Add debug print for original caller_ptr
+    // println!("[DEBUG] create_chat_worker - Original caller_id: {:?}", caller_id); // Removed old debug print
+
+    let (token_tx, token_rx) = std::sync::mpsc::channel();
+    let (response_tx, response_rx) = std::sync::mpsc::channel();
+    let (error_tx, error_rx) = std::sync::mpsc::channel();
+    let adapter = ChatAdapter {
+        token_tx,
+        response_tx,
+        error_tx,
+    };
+
+    let (msg_tx, msg_rx) = tokio::sync::mpsc::channel(4096);
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .build()
+        .expect("Failed to create Tokio runtime");
+
+    runtime.spawn(async move {
+        chat::simple_chat_loop(params, system_prompt, msg_rx, Box::new(adapter))
+            .await
+            .unwrap_or_else(|_e| {
+                // TODO: find a way to propegate the error to c#
+                ()
+            });
+    });
+    Box::into_raw(Box::new(ChatContext {
+        msg_tx,
+        runtime,
+        token_rx,
+        response_rx,
+        error_rx,
+    })) as *mut c_void
+}
+
+fn poll_str_channel(chan: &std::sync::mpsc::Receiver<String>) -> *mut c_char {
+    match chan.try_recv() {
+        Ok(token) => CString::new(token)
+            // TODO: handle panic
+            .expect("found null bytes in token")
+            .into_raw(),
+        // TODO: handle other error vs empty channel error
+        Err(_) => std::ptr::null_mut(),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn poll_token(context: *mut c_void) -> *mut c_char {
+    let chat_context = unsafe { &mut *(context as *mut ChatContext) };
+    poll_str_channel(&chat_context.token_rx)
+}
+
+#[no_mangle]
+pub extern "C" fn poll_response(context: *mut c_void) -> *mut c_char {
+    let chat_context = unsafe { &mut *(context as *mut ChatContext) };
+    poll_str_channel(&chat_context.response_rx)
+}
+
+#[no_mangle]
+pub extern "C" fn poll_error(context: *mut c_void) -> *mut c_char {
+    let chat_context = unsafe { &mut *(context as *mut ChatContext) };
+    poll_str_channel(&chat_context.error_rx)
+}
+
+#[no_mangle]
+pub extern "C" fn destroy_string(s: *mut c_char) {
+    if s.is_null() {
+        return;
+    }
+    unsafe {
+        // Retake ownership of the CString pointer to allow Rust to deallocate it
+        // when `_cstring` goes out of scope at the end of this block.
+        let _cstring = CString::from_raw(s);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn send_prompt(context: *mut c_void, prompt: *const c_char, error_buf: *mut c_char) {
+    let chat_context = unsafe { &mut *(context as *mut ChatContext) };
+
+    let prompt_str: String = match unsafe { CStr::from_ptr(prompt).to_str() } {
+        Ok(prompt_string) => prompt_string.to_owned(),
+        Err(e) => {
+            copy_to_error_buf(error_buf, &format!("Invalid UTF-8 in prompt: {}", e));
+            return;
+        }
+    };
+
+    let msg_tx = chat_context.msg_tx.clone();
+    let runtime = &chat_context.runtime;
+    runtime.spawn(async move {
+        msg_tx
+            .send(ChatMsg::Say(prompt_str))
+            .await
+            .unwrap_or_else(|e| {
+                // we cant use the error buff here due to await
+                panic!("Failed to send prompt: {}", e);
+            });
+    });
+}
+
+#[no_mangle]
+pub extern "C" fn destroy_chat_worker(context: *mut c_void) {
+    unsafe {
+        drop(Box::from_raw(context as *mut ChatContext));
+    }
+}
+
+/// These tests aim to cover a lot of the interface exposed with some notable omissions:
+/// - We cannot test across the ffi barrier, so native c# code and callbacks will have to be emulated
+/// - Life times act different based on wheter we are lopping some thing over a language barrier
+///   or invoking all the methods from Rust.
+#[cfg(test)]
+mod tests {
+    const TIMEOUT: u64 = 60 * 5;
+    macro_rules! test_model_path {
+        () => {
+            std::env::var("TEST_MODEL")
+                .unwrap_or("model.gguf".to_string())
+                .as_str()
+        };
+    }
+
+    macro_rules! test_embeddings_model_path {
+        () => {
+            std::env::var("TEST_EMBEDDINGS_MODEL")
+                .unwrap_or("embeddings.gguf".to_string())
+                .as_str()
+        };
+    }
+
+    use super::*;
+    use std::ffi::CString;
+
+    static mut RECEIVED_COMPLETE: bool = false;
+    static mut RESPONSE: Option<String> = None;
+    static mut EMBEDDING: Option<Vec<f32>> = None;
+    static mut LAST_ERROR: Option<String> = None;
+    static mut DUMMY_CALLER_DATA: u8 = 0;
+
+    extern "C" fn _on_token(caller: *const c_char, token: *const c_char) {
+        if let Ok(token_str) = unsafe { CStr::from_ptr(token) }.to_str() {
+            unsafe {
+                RESPONSE = Some(match &RESPONSE {
+                    Some(existing) => existing.clone() + token_str,
+                    None => token_str.to_owned(),
+                });
+            }
+        }
+    }
+
+    extern "C" fn _embed_on_embedding(caller: *const c_void, data: *const f32, length: i32) {
+        println!(
+            "[TEST_DEBUG] _embed_on_embedding - Received embedding for caller {:?}, length: {}",
+            caller, length
+        );
+        unsafe {
+            if data.is_null() || length <= 0 {
+                println!(
+                    "[TEST_ERROR] _embed_on_embedding - Received null or empty embedding data"
+                );
+                LAST_ERROR = Some("Received null or empty embedding".to_string());
+                return;
+            }
+            // Create Vec from raw parts
+            let embedding_slice = std::slice::from_raw_parts(data, length as usize);
+            EMBEDDING = Some(embedding_slice.to_vec());
+        }
+    }
+
+    extern "C" fn _on_complete(caller: *const c_char, response: *const c_char) {
+        if let Ok(response_str) = unsafe { CStr::from_ptr(response) }.to_str() {
+            println!("[DEBUG] test_on_complete - Response: {}", response_str);
+            unsafe {
+                RECEIVED_COMPLETE = true;
+            }
+        }
+    }
+
+    extern "C" fn _on_error(caller: *const c_char, error: *const c_char) {
+        if let Ok(error_str) = unsafe { CStr::from_ptr(error) }.to_str() {
+            println!("[DEBUG] test_on_error - Error: {}", error_str);
+        }
+    }
+
+    #[test]
+    fn test_create_chat_worker_with_stop_tokens() {
+        let error_buf = [0u8; 2048];
+        let error_ptr = error_buf.as_ptr() as *mut c_char;
+
+        let model_path = CString::new(test_model_path!()).unwrap();
+        let model: *mut c_void =
+            get_model(std::ptr::null_mut(), model_path.as_ptr(), true, error_ptr);
+
+        let system_prompt =
+            CString::new("You must always list the animals in alphabetical order").unwrap();
+        let stop_tokens = CString::new("fly").unwrap();
+        let context_length: u32 = 4096;
+
+        let caller_id = unsafe { &DUMMY_CALLER_DATA as *const _ as *const c_void };
+        let chat_context: *mut c_void = create_chat_worker(
+            model,
+            system_prompt.as_ptr(),
+            stop_tokens.as_ptr(),
+            context_length,
+            false,
+            std::ptr::null(),
+            caller_id as *const i8,
+            _on_token,
+            _on_complete,
+            _on_error,
+            error_ptr,
+        );
+
+        let prompt =
+            CString::new("List these animals in alphabetical order: cat, dog, fly, lion, mouse")
+                .unwrap();
+        send_prompt(chat_context, prompt.as_ptr(), error_ptr);
+
+        unsafe {
+            RECEIVED_COMPLETE = false;
+        }
+        let timeout = std::time::Instant::now() + std::time::Duration::from_secs(TIMEOUT);
+
+        while unsafe { !RECEIVED_COMPLETE } {
+            if std::time::Instant::now() > timeout {
+                panic!("Timed out waiting for response");
+            }
+        }
+
+        let response = unsafe { RESPONSE.clone().unwrap() };
+        assert!(response.contains("dog"));
+        assert!(response.contains("fly"));
+    }
+
+    #[test]
+    fn test_create_chat_worker() {
+        let error_buf = [0u8; 2048];
+        let error_ptr = error_buf.as_ptr() as *mut c_char;
+
+        let model_path = CString::new(test_model_path!()).unwrap();
+        let model: *mut c_void =
+            get_model(std::ptr::null_mut(), model_path.as_ptr(), true, error_ptr);
+        assert_eq!(
+            unsafe { CStr::from_ptr(error_ptr).to_bytes() },
+            &[0u8; 0],
+            "Model should be loaded successfully"
+        );
+
+        let system_prompt = CString::new("You are a test assistant").unwrap();
+        let context_length: u32 = 4096;
+
+        let caller_id = unsafe { &DUMMY_CALLER_DATA as *const _ as *const c_void };
+        let chat_context: *mut c_void = create_chat_worker(
+            model.clone(),
+            system_prompt.as_ptr() as *const i8,
+            std::ptr::null() as *const i8,
+            context_length,
+            false,
+            std::ptr::null() as *const i8,
+            caller_id as *const i8,
+            _on_token,
+            _on_complete,
+            _on_error,
+            error_ptr,
+        );
+
+        assert_eq!(
+            unsafe { CStr::from_ptr(error_ptr).to_bytes() },
+            &[0u8; 0],
+            "Chat worker should be created successfully"
+        );
+
+        let prompt = CString::new("Hello, how are you?").unwrap();
+        send_prompt(chat_context, prompt.as_ptr(), error_ptr);
+
+        unsafe {
+            RECEIVED_COMPLETE = false;
+        }
+        let timeout = std::time::Instant::now() + std::time::Duration::from_secs(TIMEOUT);
+        while unsafe { !RECEIVED_COMPLETE } {
+            if std::time::Instant::now() > timeout {
+                panic!("Timed out waiting for response");
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(
+            unsafe { RECEIVED_COMPLETE },
+            "Should have received completion signal"
+        );
+
+        destroy_chat_worker(chat_context as *mut c_void);
+        destroy_model(model as *mut c_void);
+        unsafe {
+            RESPONSE = None;
+        }
+    }
+
+    #[test]
+    fn test_create_embedding_worker() {
+        let error_buf = [0u8; 2048];
+        let error_ptr = error_buf.as_ptr() as *mut c_char;
+
+        let model_path = CString::new(test_embeddings_model_path!()).unwrap();
+        let model: *mut c_void =
+            get_model(std::ptr::null_mut(), model_path.as_ptr(), true, error_ptr);
+
+        let embedding_context = create_embedding_worker(model, error_ptr);
+
+        assert!(
+            !embedding_context.is_null(),
+            "Embedding context should not be null"
+        );
+
+        // OBS: Thread spawning is asynchronous and may not happen immediately,
+        // this is why we need to sleep for a short period of time to ensure the thread is spawned. otherwise we will destroy the modelobjewct
+        // and the thread will try to spawn with a null model leading to a segfault.
+        // This should be a testtime issue only as the scope will be exited when crossing the language boundary allowing for the thread to be spawned... i think.
+        std::thread::sleep(std::time::Duration::from_millis(1));
+
+        destroy_embedding_worker(embedding_context);
+        destroy_model(model as *mut c_void);
+    }
+
+    #[test]
+    fn test_embed_text() {
+        let error_buf = [0u8; 2048];
+        let error_ptr = error_buf.as_ptr() as *mut c_char;
+
+        let model_path = CString::new(test_embeddings_model_path!()).unwrap();
+        let model: *mut c_void =
+            get_model(std::ptr::null_mut(), model_path.as_ptr(), true, error_ptr);
+
+        let embedding_context = create_embedding_worker(model, error_ptr);
+
+        let text = CString::new("Hello, world!").unwrap();
+        embed_text(embedding_context, text.as_ptr(), error_ptr);
+
+        let mut embd;
+        loop {
+            embd = poll_embed_result(embedding_context);
+            if embd.length > 0 {
+                break;
+            }
+        }
+        destroy_embedding_worker(embedding_context);
+        destroy_model(model as *mut c_void);
+    }
+}
