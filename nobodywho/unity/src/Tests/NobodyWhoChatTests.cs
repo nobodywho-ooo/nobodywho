@@ -38,7 +38,8 @@ namespace Tests
         [TearDown]
         public void Teardown()
         {
-            if (testObject != null)
+            Debug.Log("NobodyWhoChatTests::Teardown test count: " + " testObject: " + testObject);
+            if (testObject)
             {
                 UnityEngine.Object.DestroyImmediate(testObject);
             }

@@ -50,12 +50,12 @@ namespace NobodyWho
         {
             public IntPtr Data;
             public UIntPtr Length;
-            
+
             public float[] ToManagedArray()
             {
                 if (Data == IntPtr.Zero || Length.ToUInt64() == 0)
                     return Array.Empty<float>();
-                    
+
                 int length = (int)Length.ToUInt64();
                 float[] result = new float[length];
                 Marshal.Copy(Data, result, 0, length);
@@ -66,16 +66,21 @@ namespace NobodyWho
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
         public static extern void destroy_float_array(FloatArray array);
 
-        public static float[] PollEmbeddings(IntPtr context) {
+        public static float[] PollEmbeddings(IntPtr context)
+        {
             FloatArray array = poll_embed_result(context);
-            try {
-                if (array.Data == IntPtr.Zero || array.Length.ToUInt64() == 0) {
+            try
+            {
+                if (array.Data == IntPtr.Zero || array.Length.ToUInt64() == 0)
+                {
                     return null;
                 }
 
                 float[] managedArray = array.ToManagedArray();
                 return managedArray;
-            } finally {
+            }
+            finally
+            {
                 // always free data on the rust side, we're done with it.
                 destroy_float_array(array);
             }
@@ -139,34 +144,44 @@ namespace NobodyWho
 
         // try to marshal to string
         // consumes and always frees the pointer
-        private static string ptr_to_str(IntPtr ptr) {
+        private static string ptr_to_str(IntPtr ptr)
+        {
             // check for null ptr
-            if (ptr == IntPtr.Zero) {
+            if (ptr == IntPtr.Zero)
+            {
                 return null;
             }
 
             string result = null;
-            try {
+            try
+            {
                 return Marshal.PtrToStringUTF8(ptr);
-            } catch(Exception ex) {
+            }
+            catch (Exception ex)
+            {
                 // TODO: handle error
                 return null;
-            } finally {
+            }
+            finally
+            {
                 destroy_string(ptr);
             }
         }
 
-        public static string PollToken(IntPtr context) {
+        public static string PollToken(IntPtr context)
+        {
             IntPtr ptr = poll_token(context);
             return ptr_to_str(ptr);
         }
 
-        public static string PollResponse(IntPtr context) {
+        public static string PollResponse(IntPtr context)
+        {
             IntPtr ptr = poll_response(context);
             return ptr_to_str(ptr);
         }
 
-        public static string PollError(IntPtr context) {
+        public static string PollError(IntPtr context)
+        {
             IntPtr ptr = poll_error(context);
             return ptr_to_str(ptr);
         }
