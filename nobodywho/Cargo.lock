@@ -562,6 +562,7 @@ dependencies = [
  "llama-cpp-sys-2",
  "minijinja",
  "minijinja-contrib",
+ "regex",
  "serde",
  "thiserror 2.0.12",
  "tokio",

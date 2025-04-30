@@ -1,4 +1,4 @@
-{ fetchurl, rustPlatform, libclang, llvmPackages_12, stdenv, lib, cmake, vulkan-headers, vulkan-loader, vulkan-tools, shaderc, mesa, git }:
+{ fetchurl, rustPlatform, libclang, llvmPackages_12, stdenv, lib, cmake, vulkan-headers, vulkan-loader, vulkan-tools, shaderc, mesa, git, curl, rustfmt }:
 
 
 rustPlatform.buildRustPackage {
@@ -17,8 +17,10 @@ rustPlatform.buildRustPackage {
     shaderc
     vulkan-tools
     mesa
+    rustfmt
   ];
   buildInputs = [
+    curl.dev
     vulkan-loader
     vulkan-headers
     shaderc
@@ -29,15 +31,16 @@ rustPlatform.buildRustPackage {
     lockFile = ../Cargo.lock;
     outputHashes = {
       "gdextension-api-0.2.2" = "sha256-gaxM73OzriSDm6tLRuMTOZxCLky9oS1nq6zTsm0g4tA=";
-      "godot-0.2.4" = "sha256-bTLqnwYZJBBAIoEPVAOVIo2SM3oIC537fjRHAG5w5fE=";
-      "llama-cpp-2-0.1.103" = "sha256-T8qxxAC0ygF655EzODIpDjIKS0vRMe68e5rJcP1+PDo=";
+      "godot-0.2.4" = "sha256-Df5jvVQxROdjnTWAOSEXcTP8/YmQKT/14oRWhiqiigM=";
+      "llama-cpp-2-0.1.103" = "sha256-MPy9Z3tS8G/YtSgci8dSZOg7bEGaMCX7iucOGn7kXNU=";
     };
   };
   env.TEST_MODEL = fetchurl {
-    name = "qwen2.5-1.5b-instruct-q4_0.gguf";
-    url = "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_0.gguf";
-    hash = "sha256-3NgZ/wlIUsOPq6aHPY/wydUerbKERTnlIEKuXWR7v9s=";
+    name = "Qwen_Qwen3-0.6B-Q4_0.gguf";
+    url = "https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_0.gguf";
+    hash = "sha256-S3jY48YZds67eO9a/+GdDsp1sbR+xm9hOloyRUhHWNU=";
   };
+
   env.TEST_EMBEDDINGS_MODEL = fetchurl {
     name = "bge-small-en-v1.5-q8_0.gguf";
     url = "https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf";
@@ -45,7 +48,7 @@ rustPlatform.buildRustPackage {
   };
 
   checkPhase = ''
-    cargo test -- --test-threads=1 --nocapture
+    RUST_BACKTACE=1 cargo test -- --test-threads=1 --nocapture
   '';
   doCheck = true;
 }

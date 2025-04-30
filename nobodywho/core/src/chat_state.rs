@@ -80,6 +80,11 @@ pub enum FromModelError {
 
 impl ChatState {
     pub fn new(chat_template: String, bos_token: String, eos_token: String) -> Self {
+        // HACK: since minijinja doesn't currently support negative slicing, we do a dirty find/replace
+        //       this hopefully shouldn't be necessary in a few weeks time. check back with minijinja
+        //       for now, this makes the Qwen3 chat template work with minijinja
+        let chat_template = chat_template.replace("[::-1]", "|reverse");
+
         Self {
             messages: Vec::new(),
             chat_template,
@@ -116,7 +121,7 @@ impl ChatState {
             bos_token => self.bos_token,
         };
 
-        match tmpl.render(ctx) {
+        let result = match tmpl.render(ctx) {
             Ok(rendered) => Ok(rendered),
             Err(err) => match err.kind() {
                 minijinja::ErrorKind::InvalidOperation => {
@@ -139,7 +144,23 @@ impl ChatState {
                 }
                 _ => Err(err),
             },
-        }
+        };
+
+        let text = result?;
+
+        // HACK: get rid of the think blocks when adding stuff to the chat history
+        //       this makes our diffing logic work with the qwen3 chat template
+        //       since that chat template *sometimes* removes think blocks, and sometimes not
+        //       which breaks our length assumptions. This just makes it always remove think
+        //       blocks, for length consistency.
+        //       We still don't strip think blocks from the LlamaContext, so the old think blocks
+        //       are around forever- despite what the chat template wants.
+        //       There is probably a much cleaner way to do it overall, but this'll do for now.
+        let re = regex::Regex::new(r"\n<think>(?s:.+)</think>\n")
+            .expect("Invalid regex. This should be impossible.");
+        let text = re.replace_all(&text, "").to_string();
+
+        Ok(text)
     }
 
     pub fn render_diff(&mut self) -> Result<String, minijinja::Error> {
@@ -202,5 +223,50 @@ Hello, world!<|eot_id|><|start_header_id|>assistant<|end_header_id|>
         let rendered = chatstate.render_diff();
         println!("{:?}", rendered);
         assert!(rendered.is_ok());
+    }
+
+    #[test]
+    fn test_qwen3_template() {
+        let template = "{%- if tools %}\n    {{- '<|im_start|>system\\n' }}\n    {%- if messages[0].role == 'system' %}\n        {{- messages[0].content + '\\n\\n' }}\n    {%- endif %}\n    {{- \"# Tools\\n\\nYou may call one or more functions to assist with the user query.\\n\\nYou are provided with function signatures within <tools></tools> XML tags:\\n<tools>\" }}\n    {%- for tool in tools %}\n        {{- \"\\n\" }}\n        {{- tool | tojson }}\n    {%- endfor %}\n    {{- \"\\n</tools>\\n\\nFor each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:\\n<tool_call>\\n{\\\"name\\\": <function-name>, \\\"arguments\\\": <args-json-object>}\\n</tool_call><|im_end|>\\n\" }}\n{%- else %}\n    {%- if messages[0].role == 'system' %}\n        {{- '<|im_start|>system\\n' + messages[0].content + '<|im_end|>\\n' }}\n    {%- endif %}\n{%- endif %}\n{%- set ns = namespace(multi_step_tool=true, last_query_index=messages|length - 1) %}\n{%- for message in messages[::-1] %}\n    {%- set index = (messages|length - 1) - loop.index0 %}\n    {%- if ns.multi_step_tool and message.role == \"user\" and not(message.content.startswith('<tool_response>') and message.content.endswith('</tool_response>')) %}\n        {%- set ns.multi_step_tool = false %}\n        {%- set ns.last_query_index = index %}\n    {%- endif %}\n{%- endfor %}\n{%- for message in messages %}\n    {%- if (message.role == \"user\") or (message.role == \"system\" and not loop.first) %}\n        {{- '<|im_start|>' + message.role + '\\n' + message.content + '<|im_end|>' + '\\n' }}\n    {%- elif message.role == \"assistant\" %}\n        {%- set content = message.content %}\n        {%- set reasoning_content = '' %}\n        {%- if message.reasoning_content is defined and message.reasoning_content is not none %}\n            {%- set reasoning_content = message.reasoning_content %}\n        {%- else %}\n            {%- if '</think>' in message.content %}\n                {%- set content = message.content.split('</think>')[-1].lstrip('\\n') %}\n                {%- set reasoning_content = message.content.split('</think>')[0].rstrip('\\n').split('<think>')[-1].lstrip('\\n') %}\n            {%- endif %}\n        {%- endif %}\n        {%- if loop.index0 > ns.last_query_index %}\n            {%- if loop.last or (not loop.last and reasoning_content) %}\n                {{- '<|im_start|>' + message.role + '\\n<think>\\n' + reasoning_content.strip('\\n') + '\\n</think>\\n\\n' + content.lstrip('\\n') }}\n            {%- else %}\n                {{- '<|im_start|>' + message.role + '\\n' + content }}\n            {%- endif %}\n        {%- else %}\n            {{- '<|im_start|>' + message.role + '\\n' + content }}\n        {%- endif %}\n        {%- if message.tool_calls %}\n            {%- for tool_call in message.tool_calls %}\n                {%- if (loop.first and content) or (not loop.first) %}\n                    {{- '\\n' }}\n                {%- endif %}\n                {%- if tool_call.function %}\n                    {%- set tool_call = tool_call.function %}\n                {%- endif %}\n                {{- '<tool_call>\\n{\"name\": \"' }}\n                {{- tool_call.name }}\n                {{- '\", \"arguments\": ' }}\n                {%- if tool_call.arguments is string %}\n                    {{- tool_call.arguments }}\n                {%- else %}\n                    {{- tool_call.arguments | tojson }}\n                {%- endif %}\n                {{- '}\\n</tool_call>' }}\n            {%- endfor %}\n        {%- endif %}\n        {{- '<|im_end|>\\n' }}\n    {%- elif message.role == \"tool\" %}\n        {%- if loop.first or (messages[loop.index0 - 1].role != \"tool\") %}\n            {{- '<|im_start|>user' }}\n        {%- endif %}\n        {{- '\\n<tool_response>\\n' }}\n        {{- message.content }}\n        {{- '\\n</tool_response>' }}\n        {%- if loop.last or (messages[loop.index0 + 1].role != \"tool\") %}\n            {{- '<|im_end|>\\n' }}\n        {%- endif %}\n    {%- endif %}\n{%- endfor %}\n{%- if add_generation_prompt %}\n    {{- '<|im_start|>assistant\\n' }}\n    {%- if enable_thinking is defined and enable_thinking is false %}\n        {{- '<think>\\n\\n</think>\\n\\n' }}\n    {%- endif %}\n{%- endif %}";
+        let mut chatstate = ChatState::new(template.into(), "".into(), "".into());
+        chatstate.add_message("user".into(), "Hi, robot!".into());
+        let rendered = chatstate.render_diff();
+        println!("{:?}", rendered);
+        println!("---");
+        assert_eq!(
+            rendered.unwrap(),
+            "<|im_start|>user\nHi, robot!<|im_end|>\n<|im_start|>assistant\n".to_string()
+        );
+
+        chatstate.add_message("assistant".into(), "<think>\nHm... That's a tough cookie. I think the answer is probably 42.\nCould it be something else?\nNah... It's 42!\n</think>\nThe answer is 42!".into());
+        let rendered = chatstate.render_diff();
+        println!("{:?}", rendered);
+        println!("---");
+        assert_eq!(
+            rendered.unwrap(), 
+            "The answer is 42!<|im_end|>\n".to_string()
+        );
+
+        chatstate.add_message(
+            "user".into(),
+            "What are you on about? I need the real answer.".into(),
+        );
+        let rendered = chatstate.render_diff();
+        println!("{:?}", rendered);
+        println!("---");
+        assert_eq!(
+            rendered.unwrap(), 
+            "<|im_start|>user\nWhat are you on about? I need the real answer.<|im_end|>\n<|im_start|>assistant\n".to_string()
+        );
+
+
+        chatstate.add_message("assistant".into(), "<think>\nI already told the user that the real answer is 42.\nI guess I'll just tell them again. What an idiot...\n</think>\nThe answer is 42!".into());
+        let rendered = chatstate.render_diff();
+        println!("{:?}", rendered);
+        println!("---");
+        assert_eq!(
+            rendered.unwrap(), 
+            "The answer is 42!<|im_end|>\n".to_string()
+        );
     }
 }

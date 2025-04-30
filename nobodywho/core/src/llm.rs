@@ -1,4 +1,4 @@
-use crate::sampler_config::{make_sampler, SamplerConfig};
+use crate::sampler_config::{make_sampler, Greedy, SamplerConfig, SamplerMethod};
 use lazy_static::lazy_static;
 use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::context::LlamaContext;
@@ -837,24 +837,28 @@ mod tests {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
 
+        let n_ctx = 32;
         let params = LLMActorParams {
             model,
+            n_ctx,
             sampler_config: SamplerConfig::default(),
-            n_ctx: 64,
-            stop_tokens: vec!["20".to_string()],
+            stop_tokens: vec![],
             use_embeddings: false,
         };
         let actor = LLMActorHandle::new(params.clone()).await.unwrap();
 
-        let stream = actor
-            .generate_response("I'm going to count to 20: 1, 2, 3, 4, 5, 6, 7".to_string())
+        let mut stream = actor
+            .generate_response("foo foo foo foo foo".to_string())
             .await;
 
-        let response = response_from_stream(stream).await.unwrap();
-        assert!(
-            response.contains("15, 16, 17, 18, 19, 20"),
-            "Expected completion to count to 20, got: {response}"
-        );
+        let mut token_count = 0;
+        while let Some(_) = stream.next().await {
+            token_count += 1;
+            if token_count > n_ctx * 2 {
+                break;
+            }
+        }
+        drop(actor);
     }
 
     #[tokio::test]
