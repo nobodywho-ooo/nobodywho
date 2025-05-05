@@ -1,7 +1,7 @@
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::sampling::LlamaSampler;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SamplerConfig {
     pub method: SamplerMethod,
     pub penalty_last_n: i32,
