@@ -32,7 +32,7 @@ rustPlatform.buildRustPackage {
     outputHashes = {
       "gdextension-api-0.2.2" = "sha256-gaxM73OzriSDm6tLRuMTOZxCLky9oS1nq6zTsm0g4tA=";
       "godot-0.2.4" = "sha256-Df5jvVQxROdjnTWAOSEXcTP8/YmQKT/14oRWhiqiigM=";
-      "llama-cpp-2-0.1.103" = "sha256-MPy9Z3tS8G/YtSgci8dSZOg7bEGaMCX7iucOGn7kXNU=";
+      "llama-cpp-2-0.1.103" = "sha256-dCCyCyhjvoWm6rhegJCCCya4Atn3CvAexT7xJ5iAekE=";
     };
   };
   env.TEST_MODEL = fetchurl {
