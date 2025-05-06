@@ -31,11 +31,15 @@ namespace NobodyWho
         private AwaitableCompletionSource<string> _tokenSignal;
         private IntPtr _workerContext;
 
-        void Start()
+        public void StartWorker()
         {
+            // 0 is a null memory adress
+            if (_workerContext != null && _workerContext != IntPtr.Zero)
+            {
+                NativeBindings.destroy_chat_worker(_workerContext);
+            }
             try
             {
-
                 var errorBuffer = new StringBuilder(2048); // update lib.rs if you change this value
                 // Todo - check if there is a builtin setter and getter that atoconverts to and from a string/string-array
                 var stopWordsString = "";
@@ -52,7 +56,10 @@ namespace NobodyWho
                     grammar,
                     errorBuffer
                 );
-
+                if (_workerContext == IntPtr.Zero)
+                {
+                    throw new NobodyWhoException("Failed to create worker context");
+                }
                 if (errorBuffer.Length > 0)
                 {
                     throw new NobodyWhoException(errorBuffer.ToString());
@@ -67,29 +74,13 @@ namespace NobodyWho
         void OnDestroy()
         {
             NativeBindings.destroy_chat_worker(_workerContext);
+            GC.Collect(); // added to e4nsure that is imeidieatley collected, as we are already sending stuff out on the other side of the ffi boundarry.
         }
 
         // This deletes the old worker context and creates a new one with the new params, it also means that we lose the chat history
         public void ResetContext()
         {
-            // TODO: use the reset_context message instead of creating a new context
-            NativeBindings.destroy_chat_worker(_workerContext);
-
-            var errorBuffer = new StringBuilder(2048); // update lib.rs if you change this value
-            _workerContext = NativeBindings.create_chat_worker(
-                model.GetModel(),
-                systemPrompt,
-                stopWords,
-                contextLength,
-                use_grammar,
-                grammar,
-                errorBuffer
-            );
-
-            if (errorBuffer.Length > 0)
-            {
-                throw new NobodyWhoException(errorBuffer.ToString());
-            }
+            StartWorker();
         }
 
         public Awaitable<string> Say(string prompt)

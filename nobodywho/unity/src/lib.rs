@@ -2,11 +2,13 @@ use nobodywho::chat;
 use nobodywho::chat::ChatMsg;
 use nobodywho::llm;
 use nobodywho::sampler_config::SamplerConfig;
+use tracing::{debug, warn};
 use std::ffi::CString;
 use std::{
     ffi::{c_char, c_void, CStr},
     sync::{Arc, Mutex},
 };
+use tokio::sync::oneshot;
 
 fn copy_to_error_buf(error_buf: *mut c_char, message: &str) {
     // If you change this value, you must also change the size of the error_buf in the following files:
@@ -401,20 +403,24 @@ pub extern "C" fn create_chat_worker(
         .build()
         .expect("Failed to create Tokio runtime");
 
+    let (tx, rx) = oneshot::channel::<()>();
     runtime.spawn(async move {
-        chat::simple_chat_loop(params, system_prompt, msg_rx, Box::new(adapter))
+        chat::simple_chat_loop(params, system_prompt, msg_rx, Box::new(adapter), tx)
             .await
             .unwrap_or_else(|_e| {
                 // TODO: find a way to propegate the error to c#
                 ()
             });
     });
+    // wait for the worker to be initialized
+    let _ = rx.blocking_recv();
+
     Box::into_raw(Box::new(ChatContext {
         msg_tx,
-        runtime,
         token_rx,
         response_rx,
         error_rx,
+        runtime,
     })) as *mut c_void
 }
 
