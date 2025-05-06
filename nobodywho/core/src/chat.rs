@@ -6,6 +6,7 @@ use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
 use tracing::{debug, error, info, trace};
 use std::sync::Arc;
+use tokio::sync::oneshot;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ChatLoopError {
@@ -60,6 +61,7 @@ pub async fn simple_chat_loop(
     system_prompt: String,
     mut msg_rx: mpsc::Receiver<ChatMsg>,
     mut output: Box<dyn ChatOutput>,
+    tx: oneshot::Sender<()>,
 ) -> Result<(), ChatLoopError> {
     // init chat state
     let mut chat_state = chat_state::ChatState::from_model(&params.model)?;
@@ -68,8 +70,7 @@ pub async fn simple_chat_loop(
 
     // init actor
     let actor = llm::LLMActorHandle::new(params).await?;
-    info!("Initialized actor.");
-
+    tx.send(()).unwrap();
     let adapter = Arc::new(Mutex::new(output));
     // wait for message from user
     while let Some(msg) = msg_rx.recv().await {
