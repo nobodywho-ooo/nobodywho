@@ -6,6 +6,6 @@
 script = ExtResource("1_xxxxx")
 
 [node name="Model" type="NobodyWhoModel" parent="."]
-model_path = "res://qwen2.5-1.5b-instruct-q4_0.gguf"
+model_path = "res://Qwen_Qwen3-0.6B-Q4_0.gguf"
 
 [node name="Chat" type="NobodyWhoChat" parent="."]
