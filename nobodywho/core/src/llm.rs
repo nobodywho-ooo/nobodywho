@@ -837,23 +837,24 @@ mod tests {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
 
+        let n_ctx = 10;
         let params = LLMActorParams {
+            n_ctx,
             model: model.clone(),
             sampler_config: SamplerConfig::default(),
-            n_ctx: 32,
             stop_tokens: vec!["\n".to_string()],
             use_embeddings: false,
         };
         let actor = LLMActorHandle::new(params.clone()).await.unwrap();
 
         let stream = actor
-            .generate_response("99, 98, 97, 96, 95".to_string())
+            .generate_response("Once upon a time".to_string())
             .await;
 
         let response = response_from_stream(stream).await.unwrap();
 
         assert!(
-            model.str_to_token(&response, AddBos::Never).unwrap().len() >= 32,
+            model.str_to_token(&response, AddBos::Never).unwrap().len() > n_ctx as usize,
             "Expected response longer than n_ctx"
         );
     }
