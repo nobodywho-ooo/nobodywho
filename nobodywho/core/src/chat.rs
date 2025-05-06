@@ -2,7 +2,7 @@ use crate::chat_state;
 use crate::llm;
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
-use tracing::{debug, error, info, trace};
+use tracing::{debug, error, info};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ChatLoopError {
@@ -37,9 +37,9 @@ pub enum ChatLoopError {
 }
 
 pub trait ChatOutput {
-    fn emit_token(&self, token: String);
-    fn emit_response(&self, resp: String);
-    fn emit_error(&self, err: String);
+    fn emit_token(&mut self, token: String);
+    fn emit_response(&mut self, resp: String);
+    fn emit_error(&mut self, err: String);
 }
 
 pub enum ChatMsg {
@@ -52,7 +52,7 @@ pub async fn simple_chat_loop(
     params: llm::LLMActorParams,
     system_prompt: String,
     mut msg_rx: mpsc::Receiver<ChatMsg>,
-    output: Box<dyn ChatOutput>,
+    mut output: Box<dyn ChatOutput>,
 ) -> Result<(), ChatLoopError> {
     // init chat state
     let mut chat_state = chat_state::ChatState::from_model(&params.model)?;
@@ -120,13 +120,13 @@ pub enum EmbeddingLoopError {
 }
 
 pub trait EmbeddingOutput {
-    fn emit_embedding(&self, embd: Vec<f32>);
+    fn emit_embedding(&mut self, embd: Vec<f32>);
 }
 
 pub async fn simple_embedding_loop(
     params: llm::LLMActorParams,
     mut text_rx: mpsc::Receiver<String>,
-    output: Box<dyn EmbeddingOutput>,
+    mut output: Box<dyn EmbeddingOutput>,
 ) -> Result<(), EmbeddingLoopError> {
     let actor = llm::LLMActorHandle::new(params).await?;
     while let Some(text) = text_rx.recv().await {
@@ -154,13 +154,13 @@ mod tests {
     }
 
     impl ChatOutput for MockOutput {
-        fn emit_response(&self, resp: String) {
+        fn emit_response(&mut self, resp: String) {
             self.response_tx.try_send(resp).expect("send failed!");
         }
-        fn emit_token(&self, token: String) {
+        fn emit_token(&mut self, token: String) {
             debug!("MockEngine: {token}");
         }
-        fn emit_error(&self, err: String) {
+        fn emit_error(&mut self, err: String) {
             error!("MockEngine: {err}");
             panic!()
         }

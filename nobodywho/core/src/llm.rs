@@ -837,23 +837,25 @@ mod tests {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
 
+        let n_ctx = 10;
         let params = LLMActorParams {
-            model,
+            n_ctx,
+            model: model.clone(),
             sampler_config: SamplerConfig::default(),
-            n_ctx: 64,
-            stop_tokens: vec!["20".to_string()],
+            stop_tokens: vec!["\n".to_string()],
             use_embeddings: false,
         };
         let actor = LLMActorHandle::new(params.clone()).await.unwrap();
 
         let stream = actor
-            .generate_response("I'm going to count to 20: 1, 2, 3, 4, 5, 6, 7".to_string())
+            .generate_response("Once upon a time".to_string())
             .await;
 
         let response = response_from_stream(stream).await.unwrap();
+
         assert!(
-            response.contains("15, 16, 17, 18, 19, 20"),
-            "Expected completion to count to 20, got: {response}"
+            model.str_to_token(&response, AddBos::Never).unwrap().len() > n_ctx as usize,
+            "Expected response longer than n_ctx"
         );
     }
 

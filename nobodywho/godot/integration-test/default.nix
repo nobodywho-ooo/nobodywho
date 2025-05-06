@@ -1,10 +1,12 @@
 { nobodywho, stdenv, fetchurl, godot_4, godot_4-export-templates, fontconfig }:
 let
   model = fetchurl {
-    name = "qwen2.5-1.5b-instruct-q4_0.gguf";
-    url = "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_0.gguf";
-    hash = "sha256-3NgZ/wlIUsOPq6aHPY/wydUerbKERTnlIEKuXWR7v9s=";
+    name = "Qwen_Qwen3-0.6B-Q4_0.gguf";
+    url = "https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_0.gguf";
+    hash = "sha256-S3jY48YZds67eO9a/+GdDsp1sbR+xm9hOloyRUhHWNU=";
   };
+
+
   embedding_model = fetchurl {
     name = "bge-small-en-v1.5-q8_0.gguf";
     url = "https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf";
@@ -41,7 +43,7 @@ stdenv.mkDerivation {
     ${godot_4}/bin/godot4 --verbose --headless --import
     ${godot_4}/bin/godot4 --verbose --headless --export-debug "Linux" $out/game
 
-    cp ${model} $out/qwen2.5-1.5b-instruct-q4_0.gguf
+    cp ${model} $out/Qwen_Qwen3-0.6B-Q4_0.gguf
     cp ${embedding_model} $out/bge-small-en-v1.5-q8_0.gguf
 
     # Patch binaries.

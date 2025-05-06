@@ -42,7 +42,13 @@ pub mod test_utils {
     /// Load the embeddings model with GPU acceleration if available
     pub fn load_embeddings_model() -> Model {
         let path = test_embeddings_model_path();
-        get_model(&path, true)
+        // XXX: loading the embeddings model for unit tests without GPU offloading
+        //      because it otherwise caused a segfault specifically with the llvmpipe vulkan driver.
+        //      (which is used in the nix sandbox, since we don't have access to the host GPU)
+        //      llvmpipe is very rare in the wild, so it shouldn't cause any problems in general
+        //      this segfault doesn't happen on nobodywho commit 94d51c5.
+        //      it's most likely related to an upstream change in llama.cpp
+        get_model(&path, false)
             .unwrap_or_else(|e| panic!("Failed to load embeddings model from {}: {:?}", path, e))
     }
 }

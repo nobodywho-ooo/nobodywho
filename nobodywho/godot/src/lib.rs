@@ -128,13 +128,19 @@ struct ChatAdapter {
 }
 
 impl chat::ChatOutput for ChatAdapter {
-    fn emit_token(&self, tok: String) {
-        self.emit_node.signals().response_updated().emit(tok)
+    fn emit_token(&mut self, tok: String) {
+        self.emit_node
+            .signals()
+            .response_updated()
+            .emit(&GString::from(tok))
     }
-    fn emit_response(&self, resp: String) {
-        self.emit_node.signals().response_finished().emit(resp)
+    fn emit_response(&mut self, resp: String) {
+        self.emit_node
+            .signals()
+            .response_finished()
+            .emit(&GString::from(&resp))
     }
-    fn emit_error(&self, err: String) {
+    fn emit_error(&mut self, err: String) {
         godot_error!("LLM Worker failed: {err}");
     }
 }
@@ -158,7 +164,7 @@ impl INode for NobodyWhoChat {
 
 #[godot_api]
 impl NobodyWhoChat {
-    fn get_model(&mut self) -> Result<llm::Model, String> {
+    fn get_model(&mut self) -> Result<llm::Model, GString> {
         let gd_model_node = self.model_node.as_mut().ok_or("Model node was not set")?;
         let mut nobody_model = gd_model_node.bind_mut();
         let model: llm::Model = nobody_model.get_model().map_err(|e| e.to_string())?;
@@ -225,9 +231,9 @@ impl NobodyWhoChat {
     #[func]
     /// Sends a message to the LLM.
     /// This will start the inference process. meaning you can also listen on the `response_updated` and `response_finished` signals to get the response.
-    fn say(&mut self, message: String) {
+    fn say(&mut self, message: GString) {
         if let Some(msg_tx) = self.msg_tx.as_mut() {
-            let resp = msg_tx.blocking_send(chat::ChatMsg::Say(message));
+            let resp = msg_tx.blocking_send(chat::ChatMsg::Say(message.into()));
 
             if let Err(msg) = resp {
                 // check error
@@ -260,11 +266,11 @@ impl NobodyWhoChat {
     /// Triggered when a new token is received from the LLM. Returns the new token as a string.
     /// It is strongly recommended to connect to this signal, and display the text output as it is
     /// being generated. This makes for a much nicer user experience.
-    fn response_updated(new_token: String);
+    fn response_updated(new_token: GString);
 
     #[signal]
     /// Triggered when the LLM has finished generating the response. Returns the full response as a string.
-    fn response_finished(response: String);
+    fn response_finished(response: GString);
 }
 
 #[derive(GodotClass)]
@@ -333,11 +339,11 @@ struct EmbeddingAdapter {
 }
 
 impl chat::EmbeddingOutput for EmbeddingAdapter {
-    fn emit_embedding(&self, embd: Vec<f32>) {
+    fn emit_embedding(&mut self, embd: Vec<f32>) {
         self.emit_node
             .signals()
             .embedding_finished()
-            .emit(embd.into());
+            .emit(&PackedFloat32Array::from(embd));
     }
 }
 
