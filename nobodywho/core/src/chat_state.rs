@@ -80,11 +80,6 @@ pub enum FromModelError {
 
 impl ChatState {
     pub fn new(chat_template: String, bos_token: String, eos_token: String) -> Self {
-        // HACK: since minijinja doesn't currently support negative slicing, we do a dirty find/replace
-        //       this hopefully shouldn't be necessary in a few weeks time. check back with minijinja
-        //       for now, this makes the Qwen3 chat template work with minijinja
-        let chat_template = chat_template.replace("[::-1]", "|reverse");
-
         Self {
             messages: Vec::new(),
             chat_template,
