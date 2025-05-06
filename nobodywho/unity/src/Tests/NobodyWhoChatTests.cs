@@ -22,23 +22,33 @@ namespace Tests
         private NobodyWho.Model model;
         private NobodyWho.Chat chat;
 
+        private int _testCount = 0;
+
+        [OneTimeSetUp]
+        public void OneTimeSetUp()
+        {
+            NobodyWho.NativeBindings.init_test_tracing();
+        }
+
         [SetUp]
         public void Setup()
         {
-            NobodyWho.NativeBindings.init_test_tracing();
-            testObject = new GameObject("TestModel");
-            model = testObject.AddComponent<NobodyWho.Model>();
-            model.modelPath = "qwen2.5-1.5b-instruct-q4_0.gguf";
+            _testCount++;
+            Debug.Log("NobodyWhoChatTests::Setup test count: " + _testCount);
+            testObject = Object.Instantiate(new GameObject("TestModel"));
 
+            string modelPath = "qwen2.5-1.5b-instruct-q4_0.gguf";
+            model = testObject.AddComponent<NobodyWho.Model>();
+            model.modelPath = modelPath;
             chat = testObject.AddComponent<NobodyWho.Chat>();
-            chat.systemPrompt = "You are a test assistant.";
             chat.model = model;
+            chat.systemPrompt = "You are a test assistant.";
+            chat.StartWorker();
         }
 
         [TearDown]
         public void Teardown()
         {
-            Debug.Log("NobodyWhoChatTests::Teardown test count: " + " testObject: " + testObject);
             if (testObject)
             {
                 UnityEngine.Object.DestroyImmediate(testObject);
