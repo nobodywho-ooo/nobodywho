@@ -2,7 +2,7 @@ use crate::chat_state;
 use crate::llm;
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
-use tracing::{debug, error, info, trace};
+use tracing::{debug, error, info};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ChatLoopError {

@@ -99,9 +99,9 @@ checksum = "1628fb46dfa0b37568d12e5edd512553eccf6a22a78e8bde00bb4aed84d5bdbf"
 
 [[package]]
 name = "cc"
-version = "1.2.20"
+version = "1.2.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04da6a0d40b948dfc4fa8f5bbf402b0fc1a64a28dbf7d12ffd683550f2c1b63a"
+checksum = "8691782945451c1c383942c4874dbe63814f61cb57ef773cda2972682b7bb3c0"
 dependencies = [
  "jobserver",
  "libc",
@@ -248,9 +248,9 @@ checksum = "07e28edb80900c19c28f1072f2e8aeca7fa06b23cd4169cefe1af5aa3260783f"
 
 [[package]]
 name = "glam"
-version = "0.30.2"
+version = "0.30.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0e9b6647e9b41d3a5ef02964c6be01311a7f2472fea40595c635c6d046c259e"
+checksum = "6b46b9ca4690308844c644e7c634d68792467260e051c8543e0c7871662b3ba7"
 
 [[package]]
 name = "glob"
@@ -261,7 +261,7 @@ checksum = "a8d1add55171497b4705a648c6b583acafb01d58050a51727785f0b2c8e0a2b2"
 [[package]]
 name = "godot"
 version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext.git?branch=master#dc9ba895580cfc1d834c67d4c1216ff24d0f4d8c"
+source = "git+https://github.com/godot-rust/gdext.git?branch=master#4a6f8033c0f117eff288183adb4c35b8874f718e"
 dependencies = [
  "godot-core",
  "godot-macros",
@@ -270,7 +270,7 @@ dependencies = [
 [[package]]
 name = "godot-bindings"
 version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext.git?branch=master#dc9ba895580cfc1d834c67d4c1216ff24d0f4d8c"
+source = "git+https://github.com/godot-rust/gdext.git?branch=master#4a6f8033c0f117eff288183adb4c35b8874f718e"
 dependencies = [
  "gdextension-api",
 ]
@@ -278,12 +278,12 @@ dependencies = [
 [[package]]
 name = "godot-cell"
 version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext.git?branch=master#dc9ba895580cfc1d834c67d4c1216ff24d0f4d8c"
+source = "git+https://github.com/godot-rust/gdext.git?branch=master#4a6f8033c0f117eff288183adb4c35b8874f718e"
 
 [[package]]
 name = "godot-codegen"
 version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext.git?branch=master#dc9ba895580cfc1d834c67d4c1216ff24d0f4d8c"
+source = "git+https://github.com/godot-rust/gdext.git?branch=master#4a6f8033c0f117eff288183adb4c35b8874f718e"
 dependencies = [
  "godot-bindings",
  "heck",
@@ -296,7 +296,7 @@ dependencies = [
 [[package]]
 name = "godot-core"
 version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext.git?branch=master#dc9ba895580cfc1d834c67d4c1216ff24d0f4d8c"
+source = "git+https://github.com/godot-rust/gdext.git?branch=master#4a6f8033c0f117eff288183adb4c35b8874f718e"
 dependencies = [
  "glam",
  "godot-bindings",
@@ -308,7 +308,7 @@ dependencies = [
 [[package]]
 name = "godot-ffi"
 version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext.git?branch=master#dc9ba895580cfc1d834c67d4c1216ff24d0f4d8c"
+source = "git+https://github.com/godot-rust/gdext.git?branch=master#4a6f8033c0f117eff288183adb4c35b8874f718e"
 dependencies = [
  "godot-bindings",
  "godot-codegen",
@@ -319,7 +319,7 @@ dependencies = [
 [[package]]
 name = "godot-macros"
 version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext.git?branch=master#dc9ba895580cfc1d834c67d4c1216ff24d0f4d8c"
+source = "git+https://github.com/godot-rust/gdext.git?branch=master#4a6f8033c0f117eff288183adb4c35b8874f718e"
 dependencies = [
  "godot-bindings",
  "libc",
@@ -449,8 +449,8 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-2"
-version = "0.1.103"
-source = "git+https://github.com/AsbjornOlling/llama-cpp-rs.git?rev=e5082c1#e5082c1fa8fdf45a2ca42cabeb1104de9284b408"
+version = "0.1.107"
+source = "git+https://github.com/utilityai/llama-cpp-rs.git?branch=main#ec8f6c8a77dbd10d9146ab1848d698c1115a8fd3"
 dependencies = [
  "enumflags2",
  "llama-cpp-sys-2",
@@ -461,8 +461,8 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-sys-2"
-version = "0.1.103"
-source = "git+https://github.com/AsbjornOlling/llama-cpp-rs.git?rev=e5082c1#e5082c1fa8fdf45a2ca42cabeb1104de9284b408"
+version = "0.1.107"
+source = "git+https://github.com/utilityai/llama-cpp-rs.git?branch=main#ec8f6c8a77dbd10d9146ab1848d698c1115a8fd3"
 dependencies = [
  "bindgen",
  "cc",
@@ -501,9 +501,9 @@ checksum = "38d1115007560874e373613744c6fba374c17688327a71c1476d1a5954cc857b"
 
 [[package]]
 name = "minijinja"
-version = "2.9.0"
+version = "2.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "98642a6dfca91122779a307b77cd07a4aa951fbe32232aaf5bad9febc66be754"
+checksum = "3e24e7acb573aa81736030f9456018e4a2f3dc2d555599bc3a9b03d0782b4fd3"
 dependencies = [
  "memo-map",
  "self_cell",
@@ -513,9 +513,9 @@ dependencies = [
 
 [[package]]
 name = "minijinja-contrib"
-version = "2.9.0"
+version = "2.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd4a0f6e171c7bb92ed2caf446fa3de4e26561cea1d97085103e9cb42359dd59"
+checksum = "05821e0ccfa783db9d9c5b2f12cca6d8046521531656e20928e5f59d4451c6e0"
 dependencies = [
  "minijinja",
  "serde",

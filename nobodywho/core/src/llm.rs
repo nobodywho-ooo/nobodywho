@@ -1,4 +1,4 @@
-use crate::sampler_config::{make_sampler, Greedy, SamplerConfig, SamplerMethod};
+use crate::sampler_config::{make_sampler, SamplerConfig};
 use lazy_static::lazy_static;
 use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::context::LlamaContext;
@@ -837,28 +837,25 @@ mod tests {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
 
-        let n_ctx = 32;
         let params = LLMActorParams {
-            model,
-            n_ctx,
+            model: model.clone(),
             sampler_config: SamplerConfig::default(),
-            stop_tokens: vec![],
+            n_ctx: 32,
+            stop_tokens: vec!["\n".to_string()],
             use_embeddings: false,
         };
         let actor = LLMActorHandle::new(params.clone()).await.unwrap();
 
-        let mut stream = actor
-            .generate_response("foo foo foo foo foo".to_string())
+        let stream = actor
+            .generate_response("99, 98, 97, 96, 95".to_string())
             .await;
 
-        let mut token_count = 0;
-        while let Some(_) = stream.next().await {
-            token_count += 1;
-            if token_count > n_ctx * 2 {
-                break;
-            }
-        }
-        drop(actor);
+        let response = response_from_stream(stream).await.unwrap();
+
+        assert!(
+            model.str_to_token(&response, AddBos::Never).unwrap().len() >= 32,
+            "Expected response longer than n_ctx"
+        );
     }
 
     #[tokio::test]
