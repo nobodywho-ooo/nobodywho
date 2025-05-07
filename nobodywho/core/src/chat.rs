@@ -268,4 +268,56 @@ mod tests {
         // run stuff
         local.run_until(check_results).await;
     }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_multiple_grammar_turns() {
+        test_utils::init_test_tracing();
+
+        // Setup
+        let model = test_utils::load_test_model();
+        let system_prompt = "".to_string();
+
+        let sampler_config = SamplerConfig {
+            use_grammar: true,
+            gbnf_grammar: r#"
+                root ::= "foobar"
+            "#
+            .to_string(),
+            ..SamplerConfig::default()
+        };
+
+        let params = llm::LLMActorParams {
+            model,
+            sampler_config,
+            n_ctx: 1024,
+            stop_tokens: vec![],
+            use_embeddings: false,
+        };
+
+        let (mock_output, mut response_rx) = MockOutput::new();
+        let (say_tx, say_rx) = mpsc::channel(2);
+
+        let local = tokio::task::LocalSet::new();
+        local.spawn_local(simple_chat_loop(
+            params,
+            system_prompt,
+            say_rx,
+            Box::new(mock_output),
+        ));
+
+        let check_results = async move {
+            let _ = say_tx.send(ChatMsg::Say("Say something".to_string())).await;
+            let response_1 = response_rx.recv().await.unwrap();
+            assert!(&response_1 == "foobar");
+
+            let _ = say_tx
+                .send(ChatMsg::Say("Say something else".to_string()))
+                .await;
+            let response_2 = response_rx.recv().await.unwrap();
+            assert!(&response_2 == "foobar");
+        };
+
+        // run stuff
+        local.run_until(check_results).await;
+    }
 }
