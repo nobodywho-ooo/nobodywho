@@ -30,7 +30,7 @@ The code for this showcase is in the [demo-game](./demo-game) folder of this rep
 
 ## How to Install
 
-You can install it from inside the Godot editor: In Godot 4.3+, go to AssetLib and search for "NobodyWho".
+You can install it from inside the Godot editor: In Godot 4.4+, go to AssetLib and search for "NobodyWho".
 
 ...or you can grab a specific version from our [github releases page.](https://github.com/nobodywho-ooo/nobodywho/releases) You can install these zip files by going to the "AssetLib" tab in Godot and selecting "Import".
 
@@ -136,6 +136,15 @@ The huggingface user [bartowski](https://huggingface.co/bartowski) regularly upl
 
 Selecting the best model for your usecase is mostly about finding the right tradeoff between speed, memory usage and quality of the responses.
 Using bigger models general will yield better responses, but raise minimum system requirements and slow down generation speed.
+
+### NobodyWho makes Godot crash on Arch Linux / Manjaro
+
+The Godot build currently in the Arch linux repositories does not work with gdextensions at all.
+
+The solution for Arch users is to install godot from elsewhere. The binary being distributed from the godotengine.org website works great.
+Other distribution methods like nix, flatpak, or building from source also seems to work great.
+
+If anyone knows how to report this issue and to whom, feel free to do so. At this point I have met many Arch linux users who have this issue.
 
 ### Can I export to HTML5, Android or iOS?
 
