@@ -7,7 +7,6 @@ use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::model::{AddBos, Special};
-use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 use std::pin::pin;
 use std::sync::{Arc, LazyLock, Mutex};
@@ -322,7 +321,7 @@ pub enum InitWorkerError {
 struct WorkerState<'a> {
     n_past: i32,
     ctx: LlamaContext<'a>,
-    sampler: LlamaSampler,
+    sampler_config: SamplerConfig,
     big_batch: LlamaBatch,
     small_batch: LlamaBatch,
     stop_tokens: Vec<String>,
@@ -538,7 +537,7 @@ impl<'a> WorkerState<'a> {
         let state = WorkerState {
             n_past: 0,
             stop_tokens: params.stop_tokens.clone(),
-            sampler: make_sampler(&params.model, params.sampler_config.clone()),
+            sampler_config: params.sampler_config.clone(),
             ctx,
             big_batch,
             small_batch,
@@ -611,6 +610,7 @@ impl<'a> WorkerState<'a> {
         // pre-allocating 4096 bytes for the response string
         // 4096 is a very randomly chosen number. how does this affect performance?
         let mut full_response: String = String::with_capacity(4096);
+        let mut sampler = make_sampler(&self.ctx.model, self.sampler_config.clone());
 
         loop {
             // Check for context window overflow (it was in the end before)
@@ -625,7 +625,7 @@ impl<'a> WorkerState<'a> {
             // using sampler.accept() will cause the sampler to crash when using grammar sampling.
             // https://github.com/utilityai/llama-cpp-rs/issues/604
             trace!("Applying sampler...");
-            let new_token: LlamaToken = self.sampler.sample(&self.ctx, -1);
+            let new_token: LlamaToken = sampler.sample(&self.ctx, -1);
 
             // batch of one
             self.small_batch.clear();
