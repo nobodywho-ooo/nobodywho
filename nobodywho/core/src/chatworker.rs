@@ -31,8 +31,8 @@ impl ChatHandle {
         text: String,
         sampler: SamplerConfig,
         stop_words: Vec<String>,
-    ) -> std::sync::mpsc::Receiver<llm::WriteOutput> {
-        let (output_tx, output_rx) = std::sync::mpsc::channel();
+    ) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
+        let (output_tx, output_rx) = tokio::sync::mpsc::channel(4096);
         let _ = self.msg_tx.send(ChatMsg::Say {
             text,
             sampler,
@@ -41,6 +41,10 @@ impl ChatHandle {
         });
         output_rx
     }
+
+    pub fn reset_chat(&self) {
+        let _ = self.msg_tx.send(ChatMsg::ResetChat);
+    }
 }
 
 enum ChatMsg {
@@ -48,8 +52,9 @@ enum ChatMsg {
         text: String,
         sampler: SamplerConfig,
         stop_words: Vec<String>,
-        respond: std::sync::mpsc::Sender<llm::WriteOutput>,
+        respond: tokio::sync::mpsc::Sender<llm::WriteOutput>,
     },
+    ResetChat,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -79,6 +84,9 @@ fn run_worker(
                     let _ = respond.send(out);
                 };
                 worker_state.say(text, sampler, stop_words, callback)?;
+            }
+            ChatMsg::ResetChat => {
+                worker_state.reset_chat();
             }
         }
     }
@@ -160,6 +168,11 @@ impl<'a> WorkerState<'_, ChatWorker> {
         let _ = self.extra.chat_state.render_diff()?;
 
         Ok(self)
+    }
+
+    pub fn reset_chat(&mut self) {
+        self.reset_context();
+        self.extra.chat_state.reset();
     }
 }
 

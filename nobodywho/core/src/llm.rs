@@ -374,7 +374,7 @@ impl<'a, T> WorkerState<'a, T> {
     }
 
     #[tracing::instrument(level = "trace", skip(self))]
-    pub fn reset_context(mut self) -> Self {
+    pub fn reset_context(&mut self) -> &mut Self {
         self.ctx.clear_kv_cache();
         self.n_past = 0;
         self
