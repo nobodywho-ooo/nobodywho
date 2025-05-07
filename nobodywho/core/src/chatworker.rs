@@ -3,14 +3,93 @@ use crate::llm;
 use crate::llm::WorkerState;
 use crate::sampler_config::SamplerConfig;
 use std::sync::Arc;
+use tracing::error;
 
 use llama_cpp_2::model::LlamaModel;
+
+// ChatHandle - for parallelism
+
+pub struct ChatHandle {
+    msg_tx: std::sync::mpsc::Sender<ChatMsg>,
+}
+
+impl ChatHandle {
+    pub fn new(model: Arc<LlamaModel>, n_ctx: u32) -> Self {
+        let (msg_tx, msg_rx) = std::sync::mpsc::channel();
+
+        std::thread::spawn(move || {
+            if let Err(e) = run_worker(model, n_ctx, msg_rx) {
+                error!("Worker crashed: {}", e)
+            }
+        });
+
+        Self { msg_tx }
+    }
+
+    pub fn say(
+        &self,
+        text: String,
+        sampler: SamplerConfig,
+        stop_words: Vec<String>,
+    ) -> std::sync::mpsc::Receiver<llm::WriteOutput> {
+        let (output_tx, output_rx) = std::sync::mpsc::channel();
+        let _ = self.msg_tx.send(ChatMsg::Say {
+            text,
+            sampler,
+            stop_words,
+            respond: output_tx,
+        });
+        output_rx
+    }
+}
+
+enum ChatMsg {
+    Say {
+        text: String,
+        sampler: SamplerConfig,
+        stop_words: Vec<String>,
+        respond: std::sync::mpsc::Sender<llm::WriteOutput>,
+    },
+}
+
+#[derive(Debug, thiserror::Error)]
+enum ChatWorkerError {
+    #[error("Error initializing worker: {0}")]
+    InitWorkerError(#[from] llm::InitWorkerError),
+
+    #[error("Error reading string: {0}")]
+    SayError(#[from] SayError),
+}
+
+fn run_worker(
+    model: Arc<LlamaModel>,
+    n_ctx: u32,
+    msg_rx: std::sync::mpsc::Receiver<ChatMsg>,
+) -> Result<(), ChatWorkerError> {
+    let mut worker_state = WorkerState::new_chat_worker(&model, n_ctx)?;
+    while let Ok(msg) = msg_rx.recv() {
+        match msg {
+            ChatMsg::Say {
+                text,
+                sampler,
+                stop_words,
+                respond,
+            } => {
+                let callback = move |out| {
+                    let _ = respond.send(out);
+                };
+                worker_state.say(text, sampler, stop_words, callback)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+// ChatWorker - for synchronous, blocking work
 
 struct ChatWorker {
     chat_state: ChatState,
 }
-
-impl llm::GenerationCapability for ChatWorker {}
 
 #[derive(Debug, thiserror::Error)]
 pub enum SayError {
@@ -26,6 +105,8 @@ pub enum SayError {
     #[error("Error rendering chat template: {0}")]
     ChatTemplateRenderError(#[from] minijinja::Error),
 }
+
+impl llm::GenerationCapability for ChatWorker {}
 
 impl<'a> WorkerState<'_, ChatWorker> {
     fn new_chat_worker(

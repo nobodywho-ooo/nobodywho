@@ -10,8 +10,6 @@ use llama_cpp_2::model::{AddBos, Special};
 use llama_cpp_2::token::LlamaToken;
 use std::pin::pin;
 use std::sync::{Arc, LazyLock, Mutex};
-use tokio;
-use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, debug_span, error, info, info_span, trace, trace_span, warn};
 
 const MAX_TOKEN_STR_LEN: usize = 128;
@@ -157,7 +155,7 @@ pub enum InitWorkerError {
 #[derive(Debug)]
 pub(crate) struct WorkerState<'a, S> {
     n_past: i32,
-    ctx: LlamaContext<'a>,
+    pub(crate) ctx: LlamaContext<'a>,
     big_batch: LlamaBatch,
     small_batch: LlamaBatch,
 
@@ -203,18 +201,6 @@ pub enum GenerateResponseError {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum GenerateEmbeddingError {
-    #[error("Error reading string: {0}")]
-    ReadError(#[from] ReadError),
-
-    #[error("Error generating text: {0}")]
-    EmbeddingsError(#[from] llama_cpp_2::EmbeddingsError),
-
-    #[error("Error receiving response: {0}")]
-    RecvError(#[from] oneshot::error::RecvError),
-}
-
-#[derive(Debug, thiserror::Error)]
 pub enum ReadError {
     #[error("Could not tokenize string: {0}")]
     TokenizerError(#[from] llama_cpp_2::StringToTokenError),
@@ -251,23 +237,9 @@ pub enum WriteError {
 }
 
 // Type state markers
-pub struct EmbeddingsWorker {}
 pub struct GenerationWorker {}
 pub trait GenerationCapability {}
 impl GenerationCapability for GenerationWorker {}
-
-impl<'a> WorkerState<'a, EmbeddingsWorker> {
-    fn new_embeddings_worker(
-        model: &Arc<LlamaModel>,
-        n_ctx: u32,
-    ) -> Result<WorkerState<'_, EmbeddingsWorker>, InitWorkerError> {
-        WorkerState::new_with_type(model, n_ctx, true, EmbeddingsWorker {})
-    }
-
-    fn get_embedding(&self) -> Result<Vec<f32>, llama_cpp_2::EmbeddingsError> {
-        Ok(self.ctx.embeddings_seq_ith(0)?.to_vec())
-    }
-}
 
 impl<'a> WorkerState<'_, GenerationWorker> {
     fn new_generation_worker(
@@ -531,20 +503,6 @@ impl<'a, T> WorkerState<'a, T> {
     }
 }
 
-fn dotproduct(a: &[f32], b: &[f32]) -> f32 {
-    assert!(a.len() == b.len());
-    a.iter().zip(b.iter()).map(|(x, y)| x * y).sum()
-}
-
-pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
-    let norm_a = dotproduct(a, a).sqrt();
-    let norm_b = dotproduct(b, b).sqrt();
-    if norm_a == 0. || norm_b == 0. {
-        return f32::NAN;
-    }
-    dotproduct(a, b) / (norm_a * norm_b)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -586,55 +544,6 @@ mod tests {
         let response = receiver.recv()?;
 
         assert!(response.contains("4, 5, 6, 7, 8, 9, 10"));
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_embeddings() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
-        let model = test_utils::load_embeddings_model();
-
-        let mut worker = WorkerState::new_embeddings_worker(&model, 1024)?;
-
-        let copenhagen_embedding = worker
-            .read_string("Copenhagen is the capital of Denmark.".to_string())?
-            .get_embedding()?;
-
-        let berlin_embedding = worker
-            .read_string("Berlin is the capital of Germany.".to_string())?
-            .get_embedding()?;
-
-        let insult_embedding = worker
-            .read_string(
-                "Your mother was a hamster and your father smelt of elderberries!".to_string(),
-            )?
-            .get_embedding()?;
-
-        assert!(
-            insult_embedding.len() == berlin_embedding.len()
-                && berlin_embedding.len() == copenhagen_embedding.len()
-                && copenhagen_embedding.len() == insult_embedding.len(),
-            "not all embedding lengths were equal"
-        );
-
-        // cosine similarity should not care about order
-        assert_eq!(
-            cosine_similarity(&copenhagen_embedding, &berlin_embedding),
-            cosine_similarity(&berlin_embedding, &copenhagen_embedding)
-        );
-
-        // any vector should have cosine similarity 1 to itself
-        // (tolerate small float error)
-        assert!(
-            (cosine_similarity(&copenhagen_embedding, &copenhagen_embedding) - 1.0).abs() < 0.001,
-        );
-
-        // the insult should have a lower similarity than the two geography sentences
-        assert!(
-            cosine_similarity(&copenhagen_embedding, &insult_embedding)
-                < cosine_similarity(&copenhagen_embedding, &berlin_embedding)
-        );
 
         Ok(())
     }
@@ -749,8 +658,8 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
-    async fn test_stop_tokens() -> Result<(), Box<dyn std::error::Error>> {
+    #[test]
+    fn test_stop_tokens() -> Result<(), Box<dyn std::error::Error>> {
         crate::test_utils::init_test_tracing();
 
         let model = test_utils::load_test_model();
