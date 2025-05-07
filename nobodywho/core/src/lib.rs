@@ -1,5 +1,6 @@
 // pub mod chat;
 pub mod chat_state;
+pub mod embed;
 pub mod llm;
 // pub mod llmactor;
 pub mod chatworker;
