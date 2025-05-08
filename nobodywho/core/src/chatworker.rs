@@ -81,7 +81,7 @@ fn run_worker(
                 respond,
             } => {
                 let callback = move |out| {
-                    let _ = respond.send(out);
+                    let _ = respond.blocking_send(out);
                 };
                 worker_state.say(text, sampler, stop_words, callback)?;
             }
