@@ -21,7 +21,7 @@ func test_say():
 	return true
 
 func test_antiprompts():
-	stop_tokens = PackedStringArray(["fly"])
+	stop_words = PackedStringArray(["fly"])
 	start_worker() # restart the worker to include the antiprompts
 	
 	say("List these animals in alphabetical order: cat, dog, fly, lion, mouse")
@@ -38,7 +38,7 @@ func test_antiprompts():
 
 
 func test_antiprompts_multitokens():
-	stop_tokens = PackedStringArray(["horse-rider"])
+	stop_words = PackedStringArray(["horse-rider"])
 	system_prompt = "You only list the words in alphabetical order. nothing else."
 
 	start_worker() # restart the worker to include the antiprompts
