@@ -192,16 +192,18 @@ impl NobodyWhoChat {
                 .collect();
             let mut generation_channel = chat_handle.say(message, sampler, stop_words);
 
-            let emit_node = self.to_gd();
+            let mut emit_node = self.to_gd();
             godot::task::spawn(async move {
                 while let Some(out) = generation_channel.recv().await {
                     match out {
-                        nobodywho::llm::WriteOutput::Token(tok) => {
-                            emit_node.signals().response_updated().emit(tok)
-                        }
-                        nobodywho::llm::WriteOutput::Done(resp) => {
-                            emit_node.signals().response_finished().emit(resp)
-                        }
+                        nobodywho::llm::WriteOutput::Token(tok) => emit_node
+                            .signals()
+                            .response_updated()
+                            .emit(&GString::from(tok)),
+                        nobodywho::llm::WriteOutput::Done(resp) => emit_node
+                            .signals()
+                            .response_finished()
+                            .emit(&GString::from(resp)),
                     }
                 }
             });
@@ -329,13 +331,13 @@ impl NobodyWhoEmbedding {
     fn embed(&mut self, text: String) -> Signal {
         if let Some(embed_handle) = &self.embed_handle {
             let mut embedding_channel = embed_handle.embed_text(text);
-            let emit_node = self.to_gd();
+            let mut emit_node = self.to_gd();
             godot::task::spawn(async move {
                 match embedding_channel.recv().await {
                     Some(embd) => emit_node
                         .signals()
                         .embedding_finished()
-                        .emit(PackedFloat32Array::from(embd)),
+                        .emit(&PackedFloat32Array::from(embd)),
                     None => {
                         godot_error!("Failed generating embedding.");
                     }
