@@ -274,7 +274,7 @@ where
 
         // initialize sampler
         // stateful samplers only live for one response
-        let mut sampler: LlamaSampler = make_sampler(&self.ctx.model, sampler_config);
+        let mut sampler = make_sampler(&self.ctx.model, sampler_config);
 
         loop {
             // Check for context window overflow (it was in the end before)
@@ -425,82 +425,6 @@ impl<'a, T> WorkerState<'a, T> {
 
         Ok(self)
     }
-
-    #[tracing::instrument(level = "info", skip(self, respond))]
-    fn write_until_done<F>(
-        mut self,
-        respond: F, // respond_to: Sender<Result<WriteOutput, WriteError>>,
-    ) -> Result<Self, WriteError>
-    where
-        F: Fn(WriteOutput),
-    {
-        // Token generation loop
-        info!("Worker writing until done");
-
-        // pre-allocating 4096 bytes for the response string
-        // 4096 is a very randomly chosen number. how does this affect performance?
-        let mut full_response: String = String::with_capacity(4096);
-        let mut sampler = make_sampler(&self.ctx.model, self.sampler_config.clone());
-
-        loop {
-            // Check for context window overflow (it was in the end before)
-            if self.n_past >= self.ctx.n_ctx() as i32 - 1 {
-                self.n_past -= apply_context_shifting(&mut self.ctx, self.n_past)?;
-                // check count
-                // XXX: this check is slow
-                debug_assert!(self.n_past == self.ctx.get_kv_cache_token_count());
-            }
-
-            // Sample next token, no need to use sampler.accept as sample already accepts the token.
-            // using sampler.accept() will cause the sampler to crash when using grammar sampling.
-            // https://github.com/utilityai/llama-cpp-rs/issues/604
-            trace!("Applying sampler...");
-            let new_token: LlamaToken = sampler.sample(&self.ctx, -1);
-
-            // batch of one
-            self.small_batch.clear();
-            self.small_batch.add(new_token, self.n_past, &[0], true)?;
-
-            // llm go brr
-            let decode_span = trace_span!("write decode", n_past = self.n_past);
-            let decode_guard = decode_span.enter();
-            self.ctx.decode(&mut self.small_batch)?;
-            drop(decode_guard);
-            self.n_past += 1; // keep count
-
-            // Convert token to text
-            let token_string = self
-                .ctx
-                .model
-                .token_to_str_with_size(new_token, MAX_TOKEN_STR_LEN, Special::Tokenize)
-                .unwrap_or("�".to_string());
-            // fall back to "U+FFFD REPLACEMENT CHARACTER"
-            // when encountering bytes that aren't valid UTF-8
-            // wikipedia: "used to replace an unknown, unrecognised, or unrepresentable character"
-
-            trace!(?new_token, ?token_string);
-            let has_eog = self.ctx.model.is_eog_token(new_token);
-
-            if !has_eog {
-                full_response.push_str(&token_string);
-                trace!("Sending out token: {token_string}");
-                respond(WriteOutput::Token(token_string));
-            }
-
-            let has_stop_tokens = self
-                .stop_tokens
-                .iter()
-                .any(|stop_token| full_response.contains(stop_token));
-            if has_eog || has_stop_tokens {
-                break;
-            }
-        }
-
-        // we're done!
-        trace!("Sending out response: {full_response}");
-        respond(WriteOutput::Done(full_response));
-        Ok(self)
-    }
 }
 
 #[cfg(test)]
@@ -635,7 +559,8 @@ mod tests {
         let model = test_utils::load_test_model();
         let sampler = SamplerConfig::default();
 
-        let mut worker = WorkerState::new_generation_worker(&model, 64)?;
+        let n_ctx = 64;
+        let mut worker = WorkerState::new_generation_worker(&model, n_ctx)?;
 
         let (sender, receiver) = std::sync::mpsc::channel();
         let f = move |x| match x {
