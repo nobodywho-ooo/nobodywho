@@ -254,7 +254,7 @@ impl<'a, T> WorkerState<'a, T>
 where
     T: GenerationCapability,
 {
-    #[tracing::instrument(level = "info", skip(self, respond))]
+    #[tracing::instrument(level = "info", skip(self, sampler_config, stop_words, respond))]
     pub fn write_until_done<F>(
         &mut self,
         sampler_config: SamplerConfig,
@@ -477,7 +477,7 @@ mod tests {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let sampler = SamplerConfig::default();
-        let n_ctx = 1024;
+        let n_ctx = 4096;
 
         // Use two separate response containers for thread safety
         let dk_response = Arc::new(Mutex::new(None));
@@ -501,7 +501,7 @@ mod tests {
             };
 
             worker
-                .read_string("The name of the capital city of Denmark is \"".to_string())
+                .read_string("<think>\nCopenhagen is the capital of Denmark\n</think>\nThe name of the capital city of Denmark is \"".to_string())
                 .unwrap()
                 .write_until_done(dk_sampler, vec!["Copenhagen".to_string()], f)
                 .unwrap();
@@ -519,7 +519,7 @@ mod tests {
             };
 
             worker
-                .read_string("The capital of germany is called ".to_string())
+                .read_string("<think>\nBerlin is the capital of Germany\n</think>\nThe capital of germany is called ".to_string())
                 .unwrap()
                 .write_until_done(sampler, vec!["Berlin".to_string()], f)
                 .unwrap();
@@ -559,7 +559,7 @@ mod tests {
         let model = test_utils::load_test_model();
         let sampler = SamplerConfig::default();
 
-        let n_ctx = 64;
+        let n_ctx = 10;
         let mut worker = WorkerState::new_generation_worker(&model, n_ctx)?;
 
         let (sender, receiver) = std::sync::mpsc::channel();
@@ -571,8 +571,8 @@ mod tests {
         };
 
         worker
-            .read_string("I'm going to count to 20: 1, 2, 3, 4, 5, 6, 7".to_string())?
-            .write_until_done(sampler, vec!["20".to_string()], f)?;
+            .read_string("Once upon a time".to_string())?
+            .write_until_done(sampler, vec!["\n".to_string()], f)?;
 
         let response = receiver.recv()?;
         assert!(
