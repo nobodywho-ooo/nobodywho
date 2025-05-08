@@ -25,7 +25,7 @@ impl EmbeddingsHandle {
     }
 
     pub fn embed_text(&self, text: String) -> tokio::sync::mpsc::Receiver<Vec<f32>> {
-        let (embedding_tx, embedding_rx) = tokio::sync::mpsc::channel(4096);
+        let (embedding_tx, embedding_rx) = tokio::sync::mpsc::channel(1);
         let _ = self.msg_tx.send(EmbeddingsMsg::Embed(text, embedding_tx));
         embedding_rx
     }
@@ -57,7 +57,7 @@ fn run_worker(
         match msg {
             EmbeddingsMsg::Embed(text, respond) => {
                 let embedding = worker_state.read_string(text)?.get_embedding()?;
-                let _ = respond.send(embedding);
+                let _ = respond.blocking_send(embedding);
             }
         }
     }
