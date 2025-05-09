@@ -130,6 +130,8 @@ run-unity: _ensure-temp-project
 
 test VERBOSE="false": _ensure-temp-project build-plugin
     #!/usr/bin/env bash
+
+    rm -rf "$(pwd)/unity-test.log"
     echo "🚀 Running Unity tests..."
 
     # Start Unity in background and stream its log
@@ -157,7 +159,6 @@ test VERBOSE="false": _ensure-temp-project build-plugin
     TEST_RESULT=0
     just _parse-result || TEST_RESULT=$?
     
-    rm -rf "$(pwd)/unity-test.log"
     rm -rf "$(pwd)/test-results.xml"
     exit $TEST_RESULT
 

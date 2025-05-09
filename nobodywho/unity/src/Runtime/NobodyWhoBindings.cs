@@ -12,11 +12,11 @@ namespace NobodyWho
 
     public static class NativeBindings
     {
-        private const string LIB_NAME = "libnobodywho"; // Will be libnobodywho.so on Linux, libnobodywho.dylib on Mac, nobodywho.dll on Windows
+        private const string LIB_NAME = "libnobodywho"; // Will be libnobodywho.so on Linux, libnobodywho.dylib on Mac, nobodywho.dll on Windows - this catches all the cases.
 
         /// tracing setup - only useful in tests
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
-        public static extern IntPtr init_test_tracing();
+        public static extern IntPtr init_tracing();
 
         /// Model ///
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
@@ -197,5 +197,22 @@ namespace NobodyWho
 
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
         public static extern void destroy_chat_worker(IntPtr context);
+
+        [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
+        private static extern void get_memory_stats(long[] out_stats);
+
+        public static long GetPhysicalMemory()
+        {
+            long[] statsArray = new long[2];
+            get_memory_stats(statsArray);
+            return statsArray[0];
+        }
+
+        public static long GetVirtualMemory()
+        {
+            long[] statsArray = new long[2];
+            get_memory_stats(statsArray);
+            return statsArray[1];
+        }
     }
 }

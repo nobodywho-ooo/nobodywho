@@ -24,10 +24,28 @@ namespace Tests
 
         private int _testCount = 0;
 
+        private long _diskStart;
+        private long _ramStart;
+
         [OneTimeSetUp]
         public void OneTimeSetUp()
         {
-            NobodyWho.NativeBindings.init_test_tracing();
+            NobodyWho.NativeBindings.init_tracing();
+            _diskStart = NobodyWho.NativeBindings.GetVirtualMemory();
+            _ramStart = NobodyWho.NativeBindings.GetPhysicalMemory();
+        }
+
+        [OneTimeTearDown]
+        public void OneTimeTearDown()
+        {
+            var deltaDisk = NobodyWho.NativeBindings.GetVirtualMemory() - _diskStart;
+            var deltaRam  = NobodyWho.NativeBindings.GetPhysicalMemory() - _ramStart;
+            Debug.Log("Disk: " + deltaDisk + " RAM: " + deltaRam);
+
+            //tolerance in MB
+            long tolerance = 5 * 1024;
+            Assert.IsTrue(deltaDisk < tolerance, "Disk usage is too high");
+            Assert.IsTrue(deltaRam < tolerance, "RAM usage is too high");
         }
 
         [SetUp]
