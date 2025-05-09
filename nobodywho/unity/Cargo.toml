@@ -8,6 +8,7 @@ crate-type = ["cdylib"]
 path = "src/lib.rs"
 
 [dependencies]
+memory-stats = "1.2.0"
 nobodywho = { path = "../core" }
 tokio = "1.44.0"
 tracing = "0.1.41"

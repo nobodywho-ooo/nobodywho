@@ -9,6 +9,22 @@ use std::{
     sync::{Arc, Mutex},
 };
 use tokio::sync::oneshot;
+use memory_stats::memory_stats;
+
+//////////////// DEBUGGING  ///////////////////
+
+
+#[no_mangle]
+pub extern "C" fn get_memory_stats(out_stats: *mut u64) {
+    if out_stats.is_null() {
+        return;
+    }
+    let stats = memory_stats().unwrap();
+    unsafe {
+        *out_stats.add(0) = stats.physical_mem as u64;
+        *out_stats.add(1) = stats.virtual_mem as u64;
+    }
+}
 
 fn copy_to_error_buf(error_buf: *mut c_char, message: &str) {
     // If you change this value, you must also change the size of the error_buf in the following files:
@@ -23,13 +39,11 @@ fn copy_to_error_buf(error_buf: *mut c_char, message: &str) {
     }
 }
 
-/// TRACING SETUP
-
 static INIT: std::sync::Once = std::sync::Once::new();
 
 /// Initialize tracing for tests
 #[no_mangle]
-pub extern "C" fn init_test_tracing() {
+pub extern "C" fn init_tracing() {
     INIT.call_once(|| {
         tracing_subscriber::fmt()
             .with_max_level(tracing::Level::TRACE)
@@ -66,8 +80,8 @@ pub extern "C" fn get_model(
     use_gpu: bool,
     error_buf: *mut c_char,
 ) -> *mut c_void {
-    let model_object = match unsafe { (ptr as *mut ModelObject).as_ref() } {
-        Some(this) => this.clone(),
+    match unsafe { (ptr as *mut ModelObject).as_ref() } {
+        Some(_) => return ptr as *mut c_void,
         None => {
             let path_str = unsafe {
                 match CStr::from_ptr(path).to_str() {
@@ -86,11 +100,10 @@ pub extern "C" fn get_model(
                     return std::ptr::null_mut();
                 }
             };
-            model_object
+            return Box::into_raw(Box::new(model_object)) as *mut c_void
         }
     };
 
-    Box::into_raw(Box::new(model_object)) as *mut c_void
 }
 
 #[no_mangle]
@@ -232,6 +245,7 @@ pub extern "C" fn destroy_float_array(array: FloatArray) {
     }
 }
 
+#[no_mangle]
 pub extern "C" fn poll_embed_result(context: *mut c_void) -> FloatArray {
     let embedding_context = unsafe { &mut *(context as *mut EmbeddingContext) };
     match embedding_context.embedding_result_rx.try_recv() {
