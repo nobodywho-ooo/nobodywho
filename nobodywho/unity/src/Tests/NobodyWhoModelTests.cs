@@ -11,14 +11,13 @@ namespace Tests
     public class NobodyWhoModelTests
     {
         private GameObject testObject;
-        private NobodyWho.Model model;
 
         [SetUp]
         public void Setup()
         {
-            NobodyWho.NativeBindings.init_test_tracing();
+            NobodyWho.NativeBindings.init_tracing();
             testObject = new GameObject("TestModel");
-            model = testObject.AddComponent<NobodyWho.Model>();
+            testObject.AddComponent<NobodyWho.Model>();
         }
 
         [TearDown]
@@ -37,6 +36,7 @@ namespace Tests
             string tempPath = Path.Combine(Application.streamingAssetsPath, "invalid.gguf");
             File.WriteAllText(tempPath, "This is not a valid GGUF file");
 
+            var model = testObject.GetComponent<NobodyWho.Model>();
             try
             {
                 model.modelPath = tempPath;
@@ -55,6 +55,7 @@ namespace Tests
         [Test]
         public void WhenModelPathIsGGUF_ShouldLoadModel()
         {
+            var model = testObject.GetComponent<NobodyWho.Model>();
             // TODO: add a build step in nix for the model in `create temp project`. otherwise this will fail when other people run it.
             model.modelPath = "qwen2.5-1.5b-instruct-q4_0.gguf";
             var model_handle = model.GetModel();

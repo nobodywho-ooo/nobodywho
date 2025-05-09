@@ -118,6 +118,7 @@ pub extern "C" fn destroy_model(model: *mut c_void) {
 struct EmbeddingContext {
     embed_text_tx: tokio::sync::mpsc::Sender<String>,
     embedding_result_rx: std::sync::mpsc::Receiver<Vec<f32>>,
+    runtime: tokio::runtime::Runtime, // Keep this to avoid dropping the worker thread.
 }
 
 struct EmbeddingAdapter {
@@ -128,7 +129,12 @@ unsafe impl Send for EmbeddingAdapter {}
 
 impl chat::EmbeddingOutput for EmbeddingAdapter {
     fn emit_embedding(&self, embd: Vec<f32>) {
-        self.embedding_result_tx.send(embd);
+        match self.embedding_result_tx.send(embd) {
+            Ok(_) => (),
+            Err(e) => {
+                println!("[ERROR] EmbeddingAdapter::emit_embedding - Error: {}", e);
+            }
+        }
     }
 }
 
@@ -190,6 +196,7 @@ pub extern "C" fn create_embedding_worker(
     Box::into_raw(Box::new(EmbeddingContext {
         embed_text_tx,
         embedding_result_rx,
+        runtime,
     })) as *mut c_void
 }
 
@@ -206,7 +213,12 @@ pub extern "C" fn embed_text(context: *mut c_void, text: *const c_char, error_bu
     };
 
     // TODO: propegate an error message
-    embedding_context.embed_text_tx.blocking_send(text_str);
+    match embedding_context.embed_text_tx.blocking_send(text_str) {
+        Ok(_) => (),
+        Err(e) => {
+            copy_to_error_buf(error_buf, &format!("Failed to send text to embedding worker: {}", e));
+        }
+    }
 }
 
 #[repr(C)]
