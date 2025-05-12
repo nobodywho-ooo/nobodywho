@@ -200,12 +200,15 @@ mod tests {
         let (say_tx, say_rx) = mpsc::channel(2);
 
         let local = tokio::task::LocalSet::new();
+        let (tx, rx) = oneshot::channel();
         local.spawn_local(simple_chat_loop(
             params,
             system_prompt,
             say_rx,
             Box::new(mock_output),
+            tx,
         ));
+        let _ = rx.blocking_recv();
 
         let check_results = async move {
             let _ = say_tx
