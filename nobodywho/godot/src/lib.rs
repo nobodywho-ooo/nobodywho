@@ -41,6 +41,7 @@ impl INode for NobodyWhoModel {
     }
 }
 
+#[godot_api]
 impl NobodyWhoModel {
     // memoized model loader
     fn get_model(&mut self) -> Result<llm::Model, llm::LoadModelError> {
@@ -63,6 +64,13 @@ impl NobodyWhoModel {
                 Err(err)
             }
         }
+    }
+
+    #[func]
+    /// Sets the (global) log level of NobodyWho.
+    /// Valid arguments are "TRACE", "DEBUG", "INFO", "WARN", and "ERROR".
+    fn set_log_level(level: String) {
+        set_log_level(&level);
     }
 }
 
@@ -233,6 +241,13 @@ impl NobodyWhoChat {
     #[signal]
     /// Triggered when the LLM has finished generating the response. Returns the full response as a string.
     fn response_finished(response: GString);
+
+    #[func]
+    /// Sets the (global) log level of NobodyWho.
+    /// Valid arguments are "TRACE", "DEBUG", "INFO", "WARN", and "ERROR".
+    fn set_log_level(level: String) {
+        set_log_level(&level);
+    }
 }
 
 #[derive(GodotClass)]
@@ -362,6 +377,8 @@ impl NobodyWhoEmbedding {
     }
 
     #[func]
+    /// Sets the (global) log level of NobodyWho.
+    /// Valid arguments are "TRACE", "DEBUG", "INFO", "WARN", and "ERROR".
     fn set_log_level(level: String) {
         set_log_level(&level);
     }
@@ -425,6 +442,8 @@ pub fn set_log_level(level_str: &str) {
 
     // First-time initialization
     INIT.call_once(|| {
+        nobodywho::send_llamacpp_logs_to_tracing();
+
         // Create a reloadable filter
         let (filter, filter_handle) = tracing_subscriber::reload::Layer::new(
             tracing_subscriber::filter::LevelFilter::from_level(level),
@@ -435,7 +454,9 @@ pub fn set_log_level(level_str: &str) {
         // Let fmt layer handle the formatting, but use our custom writer
         let fmt_layer = tracing_subscriber::fmt::layer()
             .with_writer(GodotWriter)
-            .with_ansi(false);
+            .with_ansi(false)
+            .with_level(true)
+            .pretty();
 
         tracing_subscriber::registry()
             .with(filter)
