@@ -549,22 +549,9 @@ mod tests {
     use super::*;
     use std::ffi::CString;
 
-    static mut RECEIVED_COMPLETE: bool = false;
-    static mut RESPONSE: Option<String> = None;
     static mut EMBEDDING: Option<Vec<f32>> = None;
     static mut LAST_ERROR: Option<String> = None;
     static mut DUMMY_CALLER_DATA: u8 = 0;
-
-    extern "C" fn _on_token(caller: *const c_char, token: *const c_char) {
-        if let Ok(token_str) = unsafe { CStr::from_ptr(token) }.to_str() {
-            unsafe {
-                RESPONSE = Some(match &RESPONSE {
-                    Some(existing) => existing.clone() + token_str,
-                    None => token_str.to_owned(),
-                });
-            }
-        }
-    }
 
     extern "C" fn _embed_on_embedding(caller: *const c_void, data: *const f32, length: i32) {
         println!(
@@ -585,23 +572,9 @@ mod tests {
         }
     }
 
-    extern "C" fn _on_complete(caller: *const c_char, response: *const c_char) {
-        if let Ok(response_str) = unsafe { CStr::from_ptr(response) }.to_str() {
-            println!("[DEBUG] test_on_complete - Response: {}", response_str);
-            unsafe {
-                RECEIVED_COMPLETE = true;
-            }
-        }
-    }
-
-    extern "C" fn _on_error(caller: *const c_char, error: *const c_char) {
-        if let Ok(error_str) = unsafe { CStr::from_ptr(error) }.to_str() {
-            println!("[DEBUG] test_on_error - Error: {}", error_str);
-        }
-    }
-
     #[test]
     fn test_create_chat_worker_with_stop_tokens() {
+        init_tracing();
         let error_buf = [0u8; 2048];
         let error_ptr = error_buf.as_ptr() as *mut c_char;
 
@@ -614,7 +587,6 @@ mod tests {
         let stop_tokens = CString::new("fly").unwrap();
         let context_length: u32 = 4096;
 
-        let caller_id = unsafe { &DUMMY_CALLER_DATA as *const _ as *const c_void };
         let chat_context: *mut c_void = create_chat_worker(
             model,
             system_prompt.as_ptr(),
@@ -622,10 +594,6 @@ mod tests {
             context_length,
             false,
             std::ptr::null(),
-            caller_id as *const i8,
-            _on_token,
-            _on_complete,
-            _on_error,
             error_ptr,
         );
 
@@ -633,84 +601,147 @@ mod tests {
             CString::new("List these animals in alphabetical order: cat, dog, fly, lion, mouse")
                 .unwrap();
         send_prompt(chat_context, prompt.as_ptr(), error_ptr);
+        assert_eq!(
+            unsafe { CStr::from_ptr(error_ptr).to_bytes() },
+            &[0u8; 0],
+            "Send prompt should succeed. Error: {}",
+            unsafe { CStr::from_ptr(error_ptr).to_str().unwrap_or("Invalid error string") }
+        );
 
-        unsafe {
-            RECEIVED_COMPLETE = false;
-        }
+
+        let mut accumulated_response = String::new();
         let timeout = std::time::Instant::now() + std::time::Duration::from_secs(TIMEOUT);
+        let mut final_response_received = false;
 
-        while unsafe { !RECEIVED_COMPLETE } {
-            if std::time::Instant::now() > timeout {
-                panic!("Timed out waiting for response");
+        while std::time::Instant::now() < timeout {
+            let error_c_str = poll_error(chat_context);
+            if !error_c_str.is_null() {
+                let error_str = unsafe { CStr::from_ptr(error_c_str).to_str().unwrap_or_default().to_owned() };
+                destroy_string(error_c_str);
+                panic!("Chat worker errored: {}", error_str);
             }
+
+            let token_c_str = poll_token(chat_context);
+            if !token_c_str.is_null() {
+                let token_str = unsafe { CStr::from_ptr(token_c_str).to_str().unwrap_or_default() };
+                accumulated_response.push_str(token_str);
+                destroy_string(token_c_str);
+            }
+
+            let response_c_str = poll_response(chat_context);
+            if !response_c_str.is_null() {
+                // The final response might be the full string or just a confirmation.
+                // We're primarily interested that it signals completion.
+                // If needed, you could compare/append this to accumulated_response.
+                let final_str = unsafe { CStr::from_ptr(response_c_str).to_str().unwrap_or_default().to_owned() };
+                if accumulated_response.is_empty() && !final_str.is_empty() {
+                    accumulated_response = final_str;
+                }
+                destroy_string(response_c_str);
+                final_response_received = true;
+                break;
+            }
+            thread::sleep(Duration::from_millis(1)); // Polling interval
         }
 
-        let response = unsafe { RESPONSE.clone().unwrap() };
-        assert!(response.contains("dog"));
-        assert!(response.contains("fly"));
+        if !final_response_received {
+            panic!("Timed out waiting for response");
+        }
+        
+        debug!("Full response for stop token test: {}", accumulated_response);
+        assert!(accumulated_response.to_lowercase().contains("cat"), "Response should contain cat. Got: {}", accumulated_response);
+        assert!(accumulated_response.to_lowercase().contains("dog"), "Response should contain dog. Got: {}", accumulated_response);
+        // Depending on exact model behavior with stop tokens, "fly" might or might not be included.
+        // If "fly" is a hard stop, it shouldn't be in the output. If it's processed then stopped, it might be.
+        // For this test, let's assume it might appear before stopping.
+        assert!(accumulated_response.to_lowercase().contains("fly"), "Response should contain fly. Got: {}", accumulated_response);
+        assert!(!accumulated_response.to_lowercase().contains("lion"), "Response should stop before lion. Got: {}", accumulated_response);
+
+
+        destroy_chat_worker(chat_context);
+        destroy_model(model);
     }
 
     #[test]
     fn test_create_chat_worker() {
+        init_tracing();
         let error_buf = [0u8; 2048];
         let error_ptr = error_buf.as_ptr() as *mut c_char;
 
         let model_path = CString::new(test_model_path!()).unwrap();
         let model: *mut c_void =
             get_model(std::ptr::null_mut(), model_path.as_ptr(), true, error_ptr);
-        assert_eq!(
-            unsafe { CStr::from_ptr(error_ptr).to_bytes() },
-            &[0u8; 0],
-            "Model should be loaded successfully"
+        assert!(
+            model != std::ptr::null_mut(),
+            "Model should be loaded successfully. Error: {}",
+            unsafe { CStr::from_ptr(error_ptr).to_str().unwrap_or("Invalid error string") }
         );
 
         let system_prompt = CString::new("You are a test assistant").unwrap();
         let context_length: u32 = 4096;
 
-        let caller_id = unsafe { &DUMMY_CALLER_DATA as *const _ as *const c_void };
         let chat_context: *mut c_void = create_chat_worker(
-            model.clone(),
-            system_prompt.as_ptr() as *const i8,
-            std::ptr::null() as *const i8,
+            model,
+            system_prompt.as_ptr(),
+            std::ptr::null(), // No stop words
             context_length,
-            false,
-            std::ptr::null() as *const i8,
-            caller_id as *const i8,
-            _on_token,
-            _on_complete,
-            _on_error,
+            false,            // No grammar
+            std::ptr::null(), // No grammar
             error_ptr,
         );
-
-        assert_eq!(
-            unsafe { CStr::from_ptr(error_ptr).to_bytes() },
-            &[0u8; 0],
-            "Chat worker should be created successfully"
+        assert!(
+            chat_context != std::ptr::null_mut(),
+            "Chat worker should be created successfully. Error: {}",
+            unsafe { CStr::from_ptr(error_ptr).to_str().unwrap_or("Invalid error string") }
         );
 
         let prompt = CString::new("Hello, how are you?").unwrap();
         send_prompt(chat_context, prompt.as_ptr(), error_ptr);
-
-        unsafe {
-            RECEIVED_COMPLETE = false;
-        }
-        let timeout = std::time::Instant::now() + std::time::Duration::from_secs(TIMEOUT);
-        while unsafe { !RECEIVED_COMPLETE } {
-            if std::time::Instant::now() > timeout {
-                panic!("Timed out waiting for response");
-            }
-            std::thread::sleep(std::time::Duration::from_millis(10));
-        }
-        assert!(
-            unsafe { RECEIVED_COMPLETE },
-            "Should have received completion signal"
+        assert_eq!(
+            unsafe { CStr::from_ptr(error_ptr).to_bytes() },
+            &[0u8; 0],
+            "Send prompt should succeed. Error: {}",
+            unsafe { CStr::from_ptr(error_ptr).to_str().unwrap_or("Invalid error string") }
         );
+        
+        let mut accumulated_response = String::new();
+        let timeout = std::time::Instant::now() + std::time::Duration::from_secs(TIMEOUT);
+        let mut final_response_received = false;
+
+        while std::time::Instant::now() < timeout {
+            let error_c_str = poll_error(chat_context);
+            if !error_c_str.is_null() {
+                let error_str = unsafe { CStr::from_ptr(error_c_str).to_str().unwrap_or_default().to_owned() };
+                destroy_string(error_c_str);
+                panic!("Chat worker errored: {}", error_str);
+            }
+
+            let token_c_str = poll_token(chat_context);
+            if !token_c_str.is_null() {
+                let token_str = unsafe { CStr::from_ptr(token_c_str).to_str().unwrap_or_default() };
+                accumulated_response.push_str(token_str);
+                destroy_string(token_c_str);
+            }
+
+            let response_c_str = poll_response(chat_context);
+            if !response_c_str.is_null() {
+                let final_str = unsafe { CStr::from_ptr(response_c_str).to_str().unwrap_or_default().to_owned() };
+                 if accumulated_response.is_empty() && !final_str.is_empty() {
+                    accumulated_response = final_str;
+                }
+                destroy_string(response_c_str);
+                final_response_received = true;
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+
+        assert!(final_response_received, "Should have received a final response (completion signal)");
+        assert!(!accumulated_response.is_empty(), "Accumulated response should not be empty");
+        debug!("Full response for basic chat test: {}", accumulated_response);
 
         destroy_chat_worker(chat_context as *mut c_void);
         destroy_model(model as *mut c_void);
-        unsafe {
-            RESPONSE = None;
-        }
     }
 
     #[test]
