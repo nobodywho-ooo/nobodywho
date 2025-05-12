@@ -1,6 +1,6 @@
 use crate::chat_state::ChatState;
 use crate::llm;
-use crate::llm::WorkerState;
+use crate::llm::Worker;
 use crate::sampler_config::SamplerConfig;
 use std::sync::Arc;
 use tracing::error;
@@ -71,7 +71,7 @@ fn run_worker(
     n_ctx: u32,
     msg_rx: std::sync::mpsc::Receiver<ChatMsg>,
 ) -> Result<(), ChatWorkerError> {
-    let mut worker_state = WorkerState::new_chat_worker(&model, n_ctx)?;
+    let mut worker_state = Worker::new_chat_worker(&model, n_ctx)?;
     while let Ok(msg) = msg_rx.recv() {
         match msg {
             ChatMsg::Say {
@@ -116,13 +116,13 @@ pub enum SayError {
 
 impl llm::GenerationCapability for ChatWorker {}
 
-impl<'a> WorkerState<'_, ChatWorker> {
+impl<'a> Worker<'_, ChatWorker> {
     fn new_chat_worker(
         model: &Arc<LlamaModel>,
         n_ctx: u32,
-    ) -> Result<WorkerState<'_, ChatWorker>, llm::InitWorkerError> {
+    ) -> Result<Worker<'_, ChatWorker>, llm::InitWorkerError> {
         let chat_state = ChatState::from_model(model)?;
-        Ok(WorkerState::new_with_type(
+        Ok(Worker::new_with_type(
             model,
             n_ctx,
             false,
@@ -187,7 +187,7 @@ mod tests {
         let model = test_utils::load_test_model();
         let sampler = SamplerConfig::default();
 
-        let mut worker = WorkerState::new_chat_worker(&model, 1024)?;
+        let mut worker = Worker::new_chat_worker(&model, 1024)?;
 
         let (sender, receiver) = std::sync::mpsc::channel();
         let f = move |x| match x {

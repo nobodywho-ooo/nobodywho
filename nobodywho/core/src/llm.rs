@@ -153,7 +153,7 @@ pub enum InitWorkerError {
 }
 
 #[derive(Debug)]
-pub(crate) struct WorkerState<'a, S> {
+pub(crate) struct Worker<'a, S> {
     n_past: i32,
     pub(crate) ctx: LlamaContext<'a>,
     big_batch: LlamaBatch,
@@ -241,16 +241,16 @@ pub struct GenerationWorker {}
 pub trait GenerationCapability {}
 impl GenerationCapability for GenerationWorker {}
 
-impl<'a> WorkerState<'_, GenerationWorker> {
+impl<'a> Worker<'_, GenerationWorker> {
     fn new_generation_worker(
         model: &Arc<LlamaModel>,
         n_ctx: u32,
-    ) -> Result<WorkerState<'_, GenerationWorker>, InitWorkerError> {
-        WorkerState::new_with_type(model, n_ctx, false, GenerationWorker {})
+    ) -> Result<Worker<'_, GenerationWorker>, InitWorkerError> {
+        Worker::new_with_type(model, n_ctx, false, GenerationWorker {})
     }
 }
 
-impl<'a, T> WorkerState<'a, T>
+impl<'a, T> Worker<'a, T>
 where
     T: GenerationCapability,
 {
@@ -337,14 +337,14 @@ where
 }
 
 // Common methods for any workstate type
-impl<'a, T> WorkerState<'a, T> {
+impl<'a, T> Worker<'a, T> {
     pub(crate) fn new_with_type(
         model: &Arc<LlamaModel>,
         n_ctx: u32,
         use_embeddings: bool,
         extra: T,
-    ) -> Result<WorkerState<'_, T>, InitWorkerError> {
-        info!("Initializing WorkerState");
+    ) -> Result<Worker<'_, T>, InitWorkerError> {
+        info!("Initializing Worker");
 
         // Set up context parameters using available parallelism
         let ctx = {
@@ -363,7 +363,7 @@ impl<'a, T> WorkerState<'a, T> {
         let big_batch = LlamaBatch::new(ctx.n_ctx() as usize, 1);
         let small_batch = LlamaBatch::new(1, 1);
 
-        let state = WorkerState {
+        let state = Worker {
             n_past: 0,
             ctx,
             big_batch,
@@ -451,7 +451,7 @@ mod tests {
         let model = test_utils::load_test_model();
 
         let sampler = SamplerConfig::default();
-        let mut worker = WorkerState::new_generation_worker(&model, 4096)?;
+        let mut worker = Worker::new_generation_worker(&model, 4096)?;
         let (sender, receiver) = std::sync::mpsc::channel();
 
         let f = move |x| match x {
@@ -491,7 +491,7 @@ mod tests {
 
         // Start Denmark worker thread
         let dk_handle = std::thread::spawn(move || {
-            let mut worker = WorkerState::new_generation_worker(&model_clone, n_ctx).unwrap();
+            let mut worker = Worker::new_generation_worker(&model_clone, n_ctx).unwrap();
 
             let f = move |x| {
                 if let WriteOutput::Done(resp) = x {
@@ -509,7 +509,7 @@ mod tests {
 
         // Start Germany worker thread
         let de_handle = std::thread::spawn(move || {
-            let mut worker = WorkerState::new_generation_worker(&model, n_ctx).unwrap();
+            let mut worker = Worker::new_generation_worker(&model, n_ctx).unwrap();
 
             let f = move |x| {
                 if let WriteOutput::Done(resp) = x {
@@ -560,7 +560,7 @@ mod tests {
         let sampler = SamplerConfig::default();
 
         let n_ctx = 10;
-        let mut worker = WorkerState::new_generation_worker(&model, n_ctx)?;
+        let mut worker = Worker::new_generation_worker(&model, n_ctx)?;
 
         let (sender, receiver) = std::sync::mpsc::channel();
         let f = move |x| match x {
@@ -598,7 +598,7 @@ mod tests {
             _ => (),
         };
 
-        let mut worker = WorkerState::new_generation_worker(&model, 1024)?;
+        let mut worker = Worker::new_generation_worker(&model, 1024)?;
         worker
             .read_string("I'm going to count to 10: 1, 2, 3, 4,".to_string())?
             .write_until_done(sampler, vec!["7".to_string()], f)?;
@@ -629,7 +629,7 @@ mod tests {
 
         let model = test_utils::load_test_model();
 
-        let mut worker = WorkerState::new_generation_worker(&model, 20)?;
+        let mut worker = Worker::new_generation_worker(&model, 20)?;
 
         worker.read_string("1, 2, 3,".to_string())?;
         worker.read_string("1, 2, 3,".to_string())?;

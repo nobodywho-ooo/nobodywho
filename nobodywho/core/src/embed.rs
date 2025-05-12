@@ -1,5 +1,5 @@
 use crate::llm;
-use crate::llm::WorkerState;
+use crate::llm::Worker;
 use llama_cpp_2::model::LlamaModel;
 use tracing::error;
 
@@ -52,7 +52,7 @@ fn run_worker(
     n_ctx: u32,
     msg_rx: std::sync::mpsc::Receiver<EmbeddingsMsg>,
 ) -> Result<(), EmbeddingsWorkerError> {
-    let mut worker_state = WorkerState::new_embeddings_worker(&model, n_ctx)?;
+    let mut worker_state = Worker::new_embeddings_worker(&model, n_ctx)?;
     while let Ok(msg) = msg_rx.recv() {
         match msg {
             EmbeddingsMsg::Embed(text, respond) => {
@@ -68,12 +68,12 @@ fn run_worker(
 
 struct EmbeddingsWorker {}
 
-impl<'a> WorkerState<'a, EmbeddingsWorker> {
+impl<'a> Worker<'a, EmbeddingsWorker> {
     pub fn new_embeddings_worker(
         model: &Arc<LlamaModel>,
         n_ctx: u32,
-    ) -> Result<WorkerState<'_, EmbeddingsWorker>, llm::InitWorkerError> {
-        WorkerState::new_with_type(model, n_ctx, true, EmbeddingsWorker {})
+    ) -> Result<Worker<'_, EmbeddingsWorker>, llm::InitWorkerError> {
+        Worker::new_with_type(model, n_ctx, true, EmbeddingsWorker {})
     }
 
     pub fn get_embedding(&self) -> Result<Vec<f32>, llama_cpp_2::EmbeddingsError> {
@@ -104,7 +104,7 @@ mod tests {
         test_utils::init_test_tracing();
         let model = test_utils::load_embeddings_model();
 
-        let mut worker = WorkerState::new_embeddings_worker(&model, 1024)?;
+        let mut worker = Worker::new_embeddings_worker(&model, 1024)?;
 
         let copenhagen_embedding = worker
             .read_string("Copenhagen is the capital of Denmark.".to_string())?
