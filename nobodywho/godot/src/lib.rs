@@ -117,7 +117,7 @@ struct NobodyWhoChat {
     /// Higher values use more VRAM, but allow for longer "short term memory" for the LLM.
     context_length: u32,
 
-    chat_handle: Option<nobodywho::chatworker::ChatHandle>,
+    chat_handle: Option<nobodywho::chat::ChatHandle>,
 
     base: Base<Node>,
 }
@@ -165,10 +165,7 @@ impl NobodyWhoChat {
         let mut result = || -> Result<(), String> {
             let model = self.get_model()?;
 
-            self.chat_handle = Some(nobodywho::chatworker::ChatHandle::new(
-                model,
-                self.context_length,
-            ));
+            self.chat_handle = Some(nobodywho::chat::ChatHandle::new(model, self.context_length));
             Ok(())
         };
 
