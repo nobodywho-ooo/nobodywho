@@ -11,7 +11,7 @@ use crate::sampler_resource::NobodyWhoSampler;
 struct NobodyWhoExtension;
 
 #[gdextension]
-unsafe impl ExtensionLibrary for NobodyWhoExtension {}
+impl ExtensionLibrary for NobodyWhoExtension {}
 
 #[derive(GodotClass)]
 #[class(base=Node)]

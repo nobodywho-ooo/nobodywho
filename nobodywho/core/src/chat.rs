@@ -256,6 +256,7 @@ mod tests {
 
         let (mock_output, mut response_rx) = MockOutput::new();
         let (say_tx, say_rx) = mpsc::channel(2);
+        let (tx, rx) = oneshot::channel();
 
         let local = tokio::task::LocalSet::new();
         local.spawn_local(simple_chat_loop(
@@ -263,7 +264,9 @@ mod tests {
             system_prompt,
             say_rx,
             Box::new(mock_output),
+            tx,
         ));
+        let _ = rx.blocking_recv();
 
         let check_results = async move {
             let _ = say_tx.send(ChatMsg::Say("Hello, world.".to_string())).await;
@@ -312,6 +315,7 @@ mod tests {
 
         let (mock_output, mut response_rx) = MockOutput::new();
         let (say_tx, say_rx) = mpsc::channel(2);
+        let (tx, rx) = oneshot::channel();
 
         let local = tokio::task::LocalSet::new();
         local.spawn_local(simple_chat_loop(
@@ -319,7 +323,9 @@ mod tests {
             system_prompt,
             say_rx,
             Box::new(mock_output),
+            tx,
         ));
+        let _ = rx.blocking_recv();
 
         let check_results = async move {
             let _ = say_tx.send(ChatMsg::Say("Say something".to_string())).await;
