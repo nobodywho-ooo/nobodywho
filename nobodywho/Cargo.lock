@@ -49,9 +49,9 @@ checksum = "ace50bade8e6234aa140d9a2f552bbee1db4d353f69b8217bc503490fc1a9f26"
 
 [[package]]
 name = "backtrace"
-version = "0.3.74"
+version = "0.3.75"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d82cb332cdfaed17ae235a638438ac4d4839913cc2af585c3c6746e8f8bee1a"
+checksum = "6806a6321ec58106fea15becdad98371e28d92ccbc7c8f1b3b6dd724fe8f1002"
 dependencies = [
  "addr2line",
  "cfg-if",
@@ -99,9 +99,9 @@ checksum = "1628fb46dfa0b37568d12e5edd512553eccf6a22a78e8bde00bb4aed84d5bdbf"
 
 [[package]]
 name = "cc"
-version = "1.2.18"
+version = "1.2.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "525046617d8376e3db1deffb079e91cef90a89fc3ca5c185bbf8c9ecdd15cd5c"
+checksum = "32db95edf998450acc7881c932f94cd9b05c87b4b2599e8bab064753da4acfd1"
 dependencies = [
  "jobserver",
  "libc",
@@ -126,7 +126,9 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 [[package]]
 name = "chrono"
 version = "0.4.41"
+version = "0.4.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c469d952047f47f91b68d1cba3f10d63c11d73e4636f24f08daf0278abf01c4d"
 checksum = "c469d952047f47f91b68d1cba3f10d63c11d73e4636f24f08daf0278abf01c4d"
 dependencies = [
  "android-tzdata",
@@ -207,7 +209,7 @@ checksum = "976dd42dc7e85965fe702eb8164f21f450704bdde31faefd6471dba214cb594e"
 checksum = "976dd42dc7e85965fe702eb8164f21f450704bdde31faefd6471dba214cb594e"
 dependencies = [
  "libc",
- "windows-sys",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -232,11 +234,9 @@ source = "git+https://github.com/godot-rust/godot4-prebuilt?branch=releases#0943
 
 [[package]]
 name = "getrandom"
-version = "0.3.2"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73fea8450eea4bac3940448fb7ae50d91f034f941199fcd9d909a5a07aa455f0"
-checksum = "73fea8450eea4bac3940448fb7ae50d91f034f941199fcd9d909a5a07aa455f0"
+checksum = "26145e563e54f2cadc477553f1ec5ee650b00862f0a58bcd12cbdc5f0ea2d2f4"
 dependencies = [
  "cfg-if",
  "libc",
@@ -254,7 +254,9 @@ checksum = "07e28edb80900c19c28f1072f2e8aeca7fa06b23cd4169cefe1af5aa3260783f"
 [[package]]
 name = "glam"
 version = "0.30.3"
+version = "0.30.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b46b9ca4690308844c644e7c634d68792467260e051c8543e0c7871662b3ba7"
 checksum = "6b46b9ca4690308844c644e7c634d68792467260e051c8543e0c7871662b3ba7"
 
 [[package]]
@@ -266,7 +268,7 @@ checksum = "a8d1add55171497b4705a648c6b583acafb01d58050a51727785f0b2c8e0a2b2"
 [[package]]
 name = "godot"
 version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext.git?branch=master#b9ae6b317a26ec035bfeedce71d42f111b30aaf6"
+source = "git+https://github.com/godot-rust/gdext.git?branch=master#4a6f8033c0f117eff288183adb4c35b8874f718e"
 dependencies = [
  "godot-core",
  "godot-macros",
@@ -275,7 +277,7 @@ dependencies = [
 [[package]]
 name = "godot-bindings"
 version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext.git?branch=master#b9ae6b317a26ec035bfeedce71d42f111b30aaf6"
+source = "git+https://github.com/godot-rust/gdext.git?branch=master#4a6f8033c0f117eff288183adb4c35b8874f718e"
 dependencies = [
  "gdextension-api",
 ]
@@ -283,12 +285,12 @@ dependencies = [
 [[package]]
 name = "godot-cell"
 version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext.git?branch=master#b9ae6b317a26ec035bfeedce71d42f111b30aaf6"
+source = "git+https://github.com/godot-rust/gdext.git?branch=master#4a6f8033c0f117eff288183adb4c35b8874f718e"
 
 [[package]]
 name = "godot-codegen"
 version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext.git?branch=master#b9ae6b317a26ec035bfeedce71d42f111b30aaf6"
+source = "git+https://github.com/godot-rust/gdext.git?branch=master#4a6f8033c0f117eff288183adb4c35b8874f718e"
 dependencies = [
  "godot-bindings",
  "heck",
@@ -301,7 +303,7 @@ dependencies = [
 [[package]]
 name = "godot-core"
 version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext.git?branch=master#b9ae6b317a26ec035bfeedce71d42f111b30aaf6"
+source = "git+https://github.com/godot-rust/gdext.git?branch=master#4a6f8033c0f117eff288183adb4c35b8874f718e"
 dependencies = [
  "glam",
  "godot-bindings",
@@ -313,7 +315,7 @@ dependencies = [
 [[package]]
 name = "godot-ffi"
 version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext.git?branch=master#b9ae6b317a26ec035bfeedce71d42f111b30aaf6"
+source = "git+https://github.com/godot-rust/gdext.git?branch=master#4a6f8033c0f117eff288183adb4c35b8874f718e"
 dependencies = [
  "godot-bindings",
  "godot-codegen",
@@ -325,7 +327,7 @@ dependencies = [
 [[package]]
 name = "godot-macros"
 version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext.git?branch=master#b9ae6b317a26ec035bfeedce71d42f111b30aaf6"
+source = "git+https://github.com/godot-rust/gdext.git?branch=master#4a6f8033c0f117eff288183adb4c35b8874f718e"
 dependencies = [
  "godot-bindings",
  "libc",
@@ -349,7 +351,7 @@ version = "0.5.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "589533453244b0995c858700322199b2becb13b627df2851f64a2775d024abcf"
 dependencies = [
- "windows-sys",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -432,7 +434,9 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 [[package]]
 name = "libc"
 version = "0.2.172"
+version = "0.2.172"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d750af042f7ef4f724306de029d18836c26c1765a54a6a3f094cbd23a7267ffa"
 checksum = "d750af042f7ef4f724306de029d18836c26c1765a54a6a3f094cbd23a7267ffa"
 
 [[package]]
@@ -463,7 +467,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-2"
 version = "0.1.107"
-source = "git+https://github.com/utilityai/llama-cpp-rs.git?branch=main#ec8f6c8a77dbd10d9146ab1848d698c1115a8fd3"
+source = "git+https://github.com/utilityai/llama-cpp-rs.git?branch=update-llama-cpp-2025-05-08#ee81fa753a1c2e2f5263cd6cb479f36d5c87e34f"
 dependencies = [
  "enumflags2",
  "llama-cpp-sys-2",
@@ -475,7 +479,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-sys-2"
 version = "0.1.107"
-source = "git+https://github.com/utilityai/llama-cpp-rs.git?branch=main#ec8f6c8a77dbd10d9146ab1848d698c1115a8fd3"
+source = "git+https://github.com/utilityai/llama-cpp-rs.git?branch=update-llama-cpp-2025-05-08#ee81fa753a1c2e2f5263cd6cb479f36d5c87e34f"
 dependencies = [
  "bindgen",
  "cc",
@@ -496,7 +500,9 @@ checksum = "13dc2df351e3202783a1fe0d44375f7295ffb4049267b0f3018346dc122a1d94"
 [[package]]
 name = "markdown"
 version = "1.0.0-alpha.23"
+version = "1.0.0-alpha.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9047e0a37a596d4e15411a1ffbdabe71c328908cb90a721cb9bf8dcf3434e6d2"
 checksum = "9047e0a37a596d4e15411a1ffbdabe71c328908cb90a721cb9bf8dcf3434e6d2"
 dependencies = [
  "unicode-id",
@@ -515,10 +521,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "38d1115007560874e373613744c6fba374c17688327a71c1476d1a5954cc857b"
 
 [[package]]
-name = "minijinja"
-version = "2.9.0"
+name = "memory-stats"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "98642a6dfca91122779a307b77cd07a4aa951fbe32232aaf5bad9febc66be754"
+checksum = "c73f5c649995a115e1a0220b35e4df0a1294500477f97a91d0660fb5abeb574a"
+dependencies = [
+ "libc",
+ "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "minijinja"
+version = "2.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dd72e8b4e42274540edabec853f607c015c73436159b06c39c7af85a20433155"
 dependencies = [
  "memo-map",
  "self_cell",
@@ -528,9 +544,9 @@ dependencies = [
 
 [[package]]
 name = "minijinja-contrib"
-version = "2.9.0"
+version = "2.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd4a0f6e171c7bb92ed2caf446fa3de4e26561cea1d97085103e9cb42359dd59"
+checksum = "457f85f9c4c5b17d11fcf9bbe7c0dbba64843c5ee040005956f1a510b6679fe2"
 dependencies = [
  "minijinja",
  "serde",
@@ -544,9 +560,9 @@ checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
 
 [[package]]
 name = "miniz_oxide"
-version = "0.8.7"
+version = "0.8.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ff70ce3e48ae43fa075863cef62e8b43b71a4f2382229920e0df362592919430"
+checksum = "3be647b768db090acb35d5ec5db2b0e1f1de11133ca123b9eacf5137868f892a"
 dependencies = [
  "adler2",
 ]
@@ -554,7 +570,9 @@ dependencies = [
 [[package]]
 name = "nanoserde"
 version = "0.2.1"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a36fb3a748a4c9736ed7aeb5f2dfc99665247f1ce306abbddb2bf0ba2ac530a4"
 checksum = "a36fb3a748a4c9736ed7aeb5f2dfc99665247f1ce306abbddb2bf0ba2ac530a4"
 dependencies = [
  "nanoserde-derive",
@@ -563,7 +581,9 @@ dependencies = [
 [[package]]
 name = "nanoserde-derive"
 version = "0.2.1"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a846cbc04412cf509efcd8f3694b114fc700a035fb5a37f21517f9fb019f1ebc"
 checksum = "a846cbc04412cf509efcd8f3694b114fc700a035fb5a37f21517f9fb019f1ebc"
 
 [[package]]
@@ -601,6 +621,7 @@ dependencies = [
 name = "nobodywho-unity"
 version = "0.1.0"
 dependencies = [
+ "memory-stats",
  "nobodywho",
  "tokio",
  "tracing",
@@ -678,7 +699,9 @@ dependencies = [
 [[package]]
 name = "proc-macro2"
 version = "1.0.95"
+version = "1.0.95"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "02b3e5e68a3a1a02aad3ec490a98007cbc13c37cbe84a3cd7b8e406d76e7f778"
 checksum = "02b3e5e68a3a1a02aad3ec490a98007cbc13c37cbe84a3cd7b8e406d76e7f778"
 dependencies = [
  "unicode-ident",
@@ -756,7 +779,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -783,7 +806,9 @@ dependencies = [
 [[package]]
 name = "self_cell"
 version = "1.2.0"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0f7d95a54511e0c7be3f51e8867aa8cf35148d7b9445d44de2f943e2b206e749"
 checksum = "0f7d95a54511e0c7be3f51e8867aa8cf35148d7b9445d44de2f943e2b206e749"
 
 [[package]]
@@ -844,7 +869,9 @@ checksum = "8917285742e9f3e1683f0a9c4e6b57960b7314d0b08d30d1ecd426713ee2eee9"
 [[package]]
 name = "syn"
 version = "2.0.101"
+version = "2.0.101"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8ce2b7fc941b3a24138a0a7cf8e858bfc6a992e7978a068a5c760deb0ed43caf"
 checksum = "8ce2b7fc941b3a24138a0a7cf8e858bfc6a992e7978a068a5c760deb0ed43caf"
 dependencies = [
  "proc-macro2",
@@ -904,11 +931,9 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "1.44.2"
-version = "1.44.2"
+version = "1.45.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6b88822cbe49de4185e3a4cbf8321dd487cf5fe0c5c65695fef6346371e9c48"
-checksum = "e6b88822cbe49de4185e3a4cbf8321dd487cf5fe0c5c65695fef6346371e9c48"
+checksum = "2513ca694ef9ede0fb23fe71a4ee4107cb102b9dc1930f6d0fd77aae068ae165"
 dependencies = [
  "backtrace",
  "pin-project-lite",
@@ -1135,7 +1160,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1232,24 +1257,14 @@ checksum = "7a2ba9642430ee452d5a7aa78d72907ebe8cfda358e8cb7918a2050581322f97"
 dependencies = [
  "windows-link",
 ]
-checksum = "76840935b766e1b0a05c0066835fb9ec80071d4c09a16f6bd5f7e655e3c14c38"
 
 [[package]]
-name = "windows-result"
-version = "0.3.2"
+name = "windows-sys"
+version = "0.52.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c64fd11a4fd95df68efcfee5f44a294fe71b8bc6a91993e2791938abcc712252"
+checksum = "282be5f36a8ce781fad8c8ae18fa3f9beff57ec1b52cb3de0789201425d9a33d"
 dependencies = [
- "windows-link",
-]
-
-[[package]]
-name = "windows-strings"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a2ba9642430ee452d5a7aa78d72907ebe8cfda358e8cb7918a2050581322f97"
-dependencies = [
- "windows-link",
+ "windows-targets",
 ]
 
 [[package]]
