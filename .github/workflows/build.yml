@@ -141,7 +141,7 @@ jobs:
           rustup default stable
           rustup target add ${{ matrix.target }}
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-      - run: cargo build --verbose ${{ matrix.profile == 'release' && '--release' || '' }}
+      - run: cargo build --verbose --target=${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }}
         working-directory: ./nobodywho
 
       - name: "Rename built file"
