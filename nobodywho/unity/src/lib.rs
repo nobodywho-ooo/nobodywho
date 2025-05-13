@@ -122,7 +122,7 @@ struct EmbeddingAdapter {
 unsafe impl Send for EmbeddingAdapter {}
 
 impl chat::EmbeddingOutput for EmbeddingAdapter {
-    fn emit_embedding(&self, embd: Vec<f32>) {
+    fn emit_embedding(&mut self, embd: Vec<f32>) {
         match self.embedding_result_tx.send(embd) {
             Ok(_) => (),
             Err(e) => {
@@ -318,7 +318,7 @@ unsafe impl Send for ChatAdapter {}
 
 impl chat::ChatOutput for ChatAdapter {
     // Blockingly waits for the caller
-    fn emit_token(&self, token: String) {
+    fn emit_token(&mut self, token: String) {
         let _ = match self.token_tx.send(token) {
             Ok(_) => (),
             Err(e) => {
@@ -327,7 +327,7 @@ impl chat::ChatOutput for ChatAdapter {
         };
     }
 
-    fn emit_response(&self, resp: String) {
+    fn emit_response(&mut self, resp: String) {
         let _ = match self.response_tx.send(resp) {
             Ok(_) => (),
             Err(e) => {
@@ -336,7 +336,7 @@ impl chat::ChatOutput for ChatAdapter {
         };
     }
 
-    fn emit_error(&self, err: String) {
+    fn emit_error(&mut self, err: String) {
         let _ = match self.error_tx.send(err) {
             Ok(_) => (),
             Err(e) => {

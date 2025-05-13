@@ -11,7 +11,7 @@ use crate::sampler_resource::NobodyWhoSampler;
 struct NobodyWhoExtension;
 
 #[gdextension]
-impl ExtensionLibrary for NobodyWhoExtension {}
+unsafe impl ExtensionLibrary for NobodyWhoExtension {}
 
 #[derive(GodotClass)]
 #[class(base=Node)]
@@ -137,12 +137,16 @@ unsafe impl Send for ChatAdapter {}
 impl chat::ChatOutput for ChatAdapter {
     fn emit_token(&mut self, tok: String) {
         self.emit_node
+            .lock()
+            .unwrap()
             .signals()
             .response_updated()
             .emit(&GString::from(tok))
     }
     fn emit_response(&mut self, resp: String) {
         self.emit_node
+            .lock()
+            .unwrap()
             .signals()
             .response_finished()
             .emit(&GString::from(&resp))
@@ -217,15 +221,16 @@ impl NobodyWhoChat {
                 emit_node: Arc::new(Mutex::new(self.to_gd())),
             };
             let system_prompt = self.system_prompt.to_string();
+            let (tx, rx) = tokio::sync::oneshot::channel();
             godot::task::spawn(async {
-                chat::simple_chat_loop(params, system_prompt, msg_rx, Box::new(adapter))
+                chat::simple_chat_loop(params, system_prompt, msg_rx, Box::new(adapter), tx)
                     .await
                     .unwrap_or_else(|e| {
                         godot_error!("{e:?}");
                         ()
                     })
             });
-
+            let _ = rx.blocking_recv();
             Ok(())
         };
 

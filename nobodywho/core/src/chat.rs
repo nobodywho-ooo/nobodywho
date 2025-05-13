@@ -45,9 +45,9 @@ pub enum ChatLoopError {
 // The Sync bound is additionally required because a reference (&dyn ChatOutput) is captured and held across .await
 // within the asynchronous stream processing (specifically, the .fold() operation in simple_chat_loop).
 pub trait ChatOutput: Send {
-    fn emit_token(&self, token: String);
-    fn emit_response(&self, resp: String);
-    fn emit_error(&self, err: String);
+    fn emit_token(&mut self, token: String);
+    fn emit_response(&mut self, resp: String);
+    fn emit_error(&mut self, err: String);
 }
 
 pub enum ChatMsg {
@@ -131,7 +131,7 @@ pub enum EmbeddingLoopError {
 // Send must be used for this to run with tokio or in a multithreaded environment. 
 // This adds a constraint that all usage of this - like the futures only (no extra toplevel tasks) implementation in godot - must be send
 pub trait EmbeddingOutput: Send {
-    fn emit_embedding(&self, embd: Vec<f32>);
+    fn emit_embedding(&mut self, embd: Vec<f32>);
 }
 
 
@@ -151,6 +151,8 @@ pub async fn simple_embedding_loop(
 
 #[cfg(test)]
 mod tests {
+    use tracing_subscriber::field::debug;
+
     use super::*;
     use crate::sampler_config::SamplerConfig;
     use crate::test_utils;
@@ -200,15 +202,15 @@ mod tests {
         let (say_tx, say_rx) = mpsc::channel(2);
 
         let local = tokio::task::LocalSet::new();
-        let (tx, rx) = oneshot::channel();
-        local.spawn_local(simple_chat_loop(
+        let (tx, mut rx) = oneshot::channel();
+        local.spawn_local(
+            simple_chat_loop(
             params,
             system_prompt,
             say_rx,
             Box::new(mock_output),
             tx,
         ));
-        let _ = rx.blocking_recv();
 
         let check_results = async move {
             let _ = say_tx
