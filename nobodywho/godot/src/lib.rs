@@ -2,16 +2,14 @@ mod sampler_resource;
 
 use godot::classes::{INode, ProjectSettings};
 use godot::prelude::*;
-use nobodywho::{chat, llm, sampler_config};
-use std::sync::{Arc, Mutex};
-use tokio;
+use nobodywho::{llm, sampler_config};
 
 use crate::sampler_resource::NobodyWhoSampler;
 
 struct NobodyWhoExtension;
 
 #[gdextension]
-impl ExtensionLibrary for NobodyWhoExtension {}
+unsafe impl ExtensionLibrary for NobodyWhoExtension {}
 
 #[derive(GodotClass)]
 #[class(base=Node)]
@@ -112,44 +110,16 @@ struct NobodyWhoChat {
 
     #[export]
     /// Stop tokens to stop generation at these specified tokens.
-    stop_tokens: PackedStringArray,
+    stop_words: PackedStringArray,
 
     #[export]
     /// This is the maximum number of tokens that can be stored in the chat history. It will delete information from the chat history if it exceeds this limit.
     /// Higher values use more VRAM, but allow for longer "short term memory" for the LLM.
     context_length: u32,
 
-    msg_tx: Option<tokio::sync::mpsc::Sender<chat::ChatMsg>>,
+    chat_handle: Option<nobodywho::chat::ChatHandle>,
 
     base: Base<Node>,
-}
-
-struct ChatAdapter {
-    emit_node: Arc<Mutex<Gd<NobodyWhoChat>>>,
-}
-
-// Gd<T> is a smartpointer to a godot owned object. This renders it not sync or send inherently.
-// by wrapping all access to the pointer in Arc and mutex we are making it sync and send.
-// The atomic reference count makes access to its members sync (atomic) and avoid issue with dropping it in another thread
-// Mutex ensures that access to it does not create undefined beahvior due to race conditions. All of this should ensure thread safety.
-unsafe impl Send for ChatAdapter {}
-
-impl chat::ChatOutput for ChatAdapter {
-    fn emit_token(&mut self, tok: String) {
-        self.emit_node
-            .signals()
-            .response_updated()
-            .emit(&GString::from(tok))
-    }
-    fn emit_response(&mut self, resp: String) {
-        self.emit_node
-            .signals()
-            .response_finished()
-            .emit(&GString::from(&resp))
-    }
-    fn emit_error(&mut self, err: String) {
-        godot_error!("LLM Worker failed: {err}");
-    }
 }
 
 #[godot_api]
@@ -160,9 +130,9 @@ impl INode for NobodyWhoChat {
             model_node: None,
             sampler: None,
             system_prompt: "".into(),
-            stop_tokens: PackedStringArray::new(),
+            stop_words: PackedStringArray::new(),
             context_length: 4096,
-            msg_tx: None,
+            chat_handle: None,
 
             base,
         }
@@ -194,38 +164,11 @@ impl NobodyWhoChat {
     fn start_worker(&mut self) {
         let mut result = || -> Result<(), String> {
             let model = self.get_model()?;
-            let sampler_config = self.get_sampler_config();
-            let stop_tokens: Vec<String> = self
-                .stop_tokens
-                .to_vec()
-                .into_iter()
-                .map(|g| g.to_string())
-                .collect();
-
-            let params = llm::LLMActorParams {
+            self.chat_handle = Some(nobodywho::chat::ChatHandle::new(
                 model,
-                sampler_config,
-                stop_tokens,
-                n_ctx: self.context_length,
-                use_embeddings: false,
-            };
-
-            // start the llm worker
-            let (msg_tx, msg_rx) = tokio::sync::mpsc::channel(4096); // TODO: 4096 is super random
-            self.msg_tx = Some(msg_tx);
-            let adapter = ChatAdapter {
-                emit_node: Arc::new(Mutex::new(self.to_gd())),
-            };
-            let system_prompt = self.system_prompt.to_string();
-            godot::task::spawn(async {
-                chat::simple_chat_loop(params, system_prompt, msg_rx, Box::new(adapter))
-                    .await
-                    .unwrap_or_else(|e| {
-                        godot_error!("{e:?}");
-                        ()
-                    })
-            });
-
+                self.context_length,
+                self.system_prompt.to_string(),
+            ));
             Ok(())
         };
 
@@ -238,15 +181,32 @@ impl NobodyWhoChat {
     #[func]
     /// Sends a message to the LLM.
     /// This will start the inference process. meaning you can also listen on the `response_updated` and `response_finished` signals to get the response.
-    fn say(&mut self, message: GString) {
-        if let Some(msg_tx) = self.msg_tx.as_mut() {
-            let resp = msg_tx.blocking_send(chat::ChatMsg::Say(message.into()));
+    fn say(&mut self, message: String) {
+        let sampler = self.get_sampler_config();
+        if let Some(chat_handle) = self.chat_handle.as_mut() {
+            let stop_words = self
+                .stop_words
+                .to_vec()
+                .into_iter()
+                .map(|g| g.to_string())
+                .collect();
+            let mut generation_channel = chat_handle.say(message, sampler, stop_words);
 
-            if let Err(msg) = resp {
-                // check error
-                godot_error!("Couldn't say to worker: {:?}", msg);
-                self.msg_tx = None;
-            }
+            let mut emit_node = self.to_gd();
+            godot::task::spawn(async move {
+                while let Some(out) = generation_channel.recv().await {
+                    match out {
+                        nobodywho::llm::WriteOutput::Token(tok) => emit_node
+                            .signals()
+                            .response_updated()
+                            .emit(&GString::from(tok)),
+                        nobodywho::llm::WriteOutput::Done(resp) => emit_node
+                            .signals()
+                            .response_finished()
+                            .emit(&GString::from(resp)),
+                    }
+                }
+            });
         } else {
             godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
             self.start_worker();
@@ -256,14 +216,8 @@ impl NobodyWhoChat {
 
     #[func]
     fn reset_context(&mut self) {
-        if let Some(msg_tx) = self.msg_tx.as_mut() {
-            let sysem_prompt = self.system_prompt.to_string();
-            let resp = msg_tx.blocking_send(chat::ChatMsg::ResetContext(sysem_prompt));
-            if let Err(msg) = resp {
-                // check error
-                godot_error!("Couldn't reset context: {:?}", msg);
-                self.msg_tx = None;
-            }
+        if let Some(chat_handle) = &self.chat_handle {
+            chat_handle.reset_chat(self.system_prompt.to_string());
         } else {
             godot_error!("Attempted to reset context, but no worker is running. Doing nothing.");
         }
@@ -326,7 +280,7 @@ struct NobodyWhoEmbedding {
     #[export]
     /// The model node for the embedding.
     model_node: Option<Gd<NobodyWhoModel>>,
-    embed_tx: Option<tokio::sync::mpsc::Sender<String>>,
+    embed_handle: Option<nobodywho::embed::EmbeddingsHandle>,
     base: Base<Node>,
 }
 
@@ -335,30 +289,9 @@ impl INode for NobodyWhoEmbedding {
     fn init(base: Base<Node>) -> Self {
         Self {
             model_node: None,
-            embed_tx: None,
+            embed_handle: None,
             base,
         }
-    }
-}
-
-struct EmbeddingAdapter {
-    emit_node: Arc<Mutex<Gd<NobodyWhoEmbedding>>>,
-}
-
-// Gd<T> is a smartpointer to a godot owned object. This renders it not sync or send inherently.
-// by wrapping all access to the pointer in Arc and mutex we are making it sync and send.
-// The atomic reference count makes access to its members sync (atomic) and avoids issues with dropping it in another thread
-// Mutex ensures that access to it does not create undefined beahvior due to race conditions. All of this should ensure thread safety.        
-unsafe impl Send for EmbeddingAdapter {}
-
-impl chat::EmbeddingOutput for EmbeddingAdapter {
-    fn emit_embedding(&mut self, embd: Vec<f32>) {
-        self.emit_node
-            .lock()
-            .unwrap()
-            .signals()
-            .embedding_finished()
-            .emit(&PackedFloat32Array::from(embd));
     }
 }
 
@@ -382,36 +315,10 @@ impl NobodyWhoEmbedding {
         let mut result = || -> Result<(), String> {
             let model = self.get_model()?;
 
-            let sampler_config = nobodywho::sampler_config::SamplerConfig::default();
-
-            // TODO: sampler_config and stop_tokens actually aren't needed here
-            // TODO: n_ctx should be configurable
-            let params = llm::LLMActorParams {
-                model,
-                sampler_config,
-                stop_tokens: vec![],
-                n_ctx: 4096,
-                use_embeddings: true,
-            };
-
-            let (embed_tx, embed_rx) = tokio::sync::mpsc::channel(4096); // TODO: this number is super random
-            self.embed_tx = Some(embed_tx.clone());
-
-            let adapter = EmbeddingAdapter {
-                emit_node: Arc::new(Mutex::new(self.to_gd())),
-            };
-            godot::task::spawn(async {
-                chat::simple_embedding_loop(params, embed_rx, Box::new(adapter))
-                    .await
-                    .unwrap_or_else(|e| {
-                        godot_error!("{e:?}");
-                        ()
-                    });
-            });
-
+            // TODO: configurable n_ctx
+            self.embed_handle = Some(nobodywho::embed::EmbeddingsHandle::new(model, 4096));
             Ok(())
         };
-
         // run it and show error in godot if it fails
         if let Err(msg) = result() {
             godot_error!("Error running model: {}", msg);
@@ -422,22 +329,27 @@ impl NobodyWhoEmbedding {
     /// Generates the embedding of a text string. This will return a signal that you can use to wait for the embedding.
     /// The signal will return a PackedFloat32Array.
     fn embed(&mut self, text: String) -> Signal {
-        // returns signal, so that you can `var vec = await embed("Hello, world!")
-        //
-        //
-        //
-        // `
-        if let Some(embed_tx) = &self.embed_tx {
-            let result = embed_tx.blocking_send(text);
-            if result.is_err() {
-                godot_error!("Embedding worker died.");
-            }
+        if let Some(embed_handle) = &self.embed_handle {
+            let mut embedding_channel = embed_handle.embed_text(text);
+            let mut emit_node = self.to_gd();
+            godot::task::spawn(async move {
+                match embedding_channel.recv().await {
+                    Some(embd) => emit_node
+                        .signals()
+                        .embedding_finished()
+                        .emit(&PackedFloat32Array::from(embd)),
+                    None => {
+                        godot_error!("Failed generating embedding.");
+                    }
+                }
+            });
         } else {
             godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
             self.start_worker();
             return self.embed(text);
         };
 
+        // returns signal, so that you can `var vec = await embed("Hello, world!")`
         return godot::builtin::Signal::from_object_signal(&self.base_mut(), "embedding_finished");
     }
 
@@ -445,6 +357,6 @@ impl NobodyWhoEmbedding {
     /// Calculates the similarity between two embedding vectors.
     /// Returns a value between 0 and 1, where 1 is the highest similarity.
     fn cosine_similarity(a: PackedFloat32Array, b: PackedFloat32Array) -> f32 {
-        llm::cosine_similarity(a.as_slice(), b.as_slice())
+        nobodywho::embed::cosine_similarity(a.as_slice(), b.as_slice())
     }
 }
