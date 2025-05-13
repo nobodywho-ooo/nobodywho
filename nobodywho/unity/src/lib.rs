@@ -323,21 +323,18 @@ pub extern "C" fn destroy_completion_update(ptr: *mut c_void) {
 }
 
 #[no_mangle]
-pub extern "C" fn poll_completion(context: *mut c_void) -> *mut c_void {
+pub extern "C" fn poll_completion(context: *mut c_void, done: &mut bool) -> *mut c_char {
     let chat_context = unsafe { &mut *(context as *mut ChatContext) };
     if let Some(ref mut completion_channel) = chat_context.completion_channel {
         let comp = match completion_channel.try_recv() {
-            Ok(nobodywho::llm::WriteOutput::Token(token)) => CompletionUpdate {
-                string: string_ptr(token),
-                is_done: false,
-            },
-            Ok(nobodywho::llm::WriteOutput::Done(resp)) => CompletionUpdate {
-                string: string_ptr(resp),
-                is_done: true,
-            },
+            Ok(nobodywho::llm::WriteOutput::Token(token)) => token,
+            Ok(nobodywho::llm::WriteOutput::Done(resp)) => {
+                *done = true;
+                resp
+            }
             Err(_) => return std::ptr::null_mut(),
         };
-        Box::into_raw(Box::new(comp)) as *mut c_void
+        string_ptr(comp)
     } else {
         std::ptr::null_mut()
     }
@@ -637,18 +634,17 @@ mod tests {
         let mut final_response_received = false;
 
         while std::time::Instant::now() < timeout {
-            let completion_ptr = poll_completion(chat_context);
-            if !completion_ptr.is_null() {
-                let completion = unsafe { &mut *(completion_ptr as *mut CompletionUpdate) };
-                if !completion.is_done {
-                    accumulated_response.push_str(&ptr_to_string(completion.string));
-                } else {
+            let mut done = false;
+            let str_ptr = poll_completion(chat_context, &mut done);
+            if !str_ptr.is_null() {
+                if done {
                     final_response_received = true;
-                    destroy_completion_update(completion_ptr);
+                    destroy_string(str_ptr);
                     break;
                 }
+                accumulated_response.push_str(&ptr_to_string(str_ptr));
+                destroy_string(str_ptr);
             }
-            destroy_completion_update(completion_ptr);
             std::thread::sleep(std::time::Duration::from_millis(50));
         }
 
