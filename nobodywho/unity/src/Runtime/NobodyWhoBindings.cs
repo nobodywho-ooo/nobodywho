@@ -125,10 +125,7 @@ namespace NobodyWho
         public static extern IntPtr create_chat_worker(
             IntPtr model,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string system_prompt,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string stop_words,
             int context_length,
-            bool use_grammar,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string grammar,
             [MarshalAs(UnmanagedType.LPStr)] StringBuilder error_buf
         );
 
@@ -136,11 +133,11 @@ namespace NobodyWho
         public static extern void send_prompt(
             IntPtr context,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string prompt,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string stop_words,
+            bool use_grammar,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string grammar,
             [MarshalAs(UnmanagedType.LPStr)] StringBuilder error_buf
         );
-
-        [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
-        public static extern IntPtr poll_token(IntPtr context);
 
         // try to marshal to string
         // consumes and always frees the pointer
@@ -168,29 +165,18 @@ namespace NobodyWho
             }
         }
 
-        public static string PollToken(IntPtr context)
+        public static (bool is_done, string str) PollCompletion(IntPtr context)
         {
-            IntPtr ptr = poll_token(context);
-            return ptr_to_str(ptr);
-        }
-
-        public static string PollResponse(IntPtr context)
-        {
-            IntPtr ptr = poll_response(context);
-            return ptr_to_str(ptr);
-        }
-
-        public static string PollError(IntPtr context)
-        {
-            IntPtr ptr = poll_error(context);
-            return ptr_to_str(ptr);
+            bool is_done = false;
+            IntPtr ptr = poll_completion(context, ref is_done);
+            if (ptr == IntPtr.Zero) {
+                return null;
+            }
+            return (is_done, ptr_to_str(ptr));
         }
 
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
-        public static extern IntPtr poll_response(IntPtr context);
-
-        [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
-        public static extern IntPtr poll_error(IntPtr context);
+        public static extern IntPtr poll_completion(IntPtr context, bool done);
 
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
         public static extern void destroy_string(IntPtr s);
