@@ -201,6 +201,8 @@ impl<'a> Worker<'_, ChatWorker> {
 
 #[cfg(test)]
 mod tests {
+    use tracing_subscriber::field::debug;
+
     use super::*;
     use crate::test_utils;
 
