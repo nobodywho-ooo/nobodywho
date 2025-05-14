@@ -2,7 +2,7 @@ use memory_stats::memory_stats;
 use nobodywho::llm;
 use std::ffi::CString;
 use std::ffi::{c_char, c_void, CStr};
-use tracing::warn;
+use tracing::{debug, warn};
 //////////////// DEBUGGING  ///////////////////
 
 #[no_mangle]
@@ -98,6 +98,10 @@ pub extern "C" fn get_model(
 
 #[no_mangle]
 pub extern "C" fn destroy_model(model: *mut c_void) {
+    debug!("Freeing model: {model:?}");
+    if model.is_null() {
+        warn!("Tried to free null model");
+    }
     unsafe {
         drop(Box::from_raw(model as *mut ModelObject));
     }
@@ -226,6 +230,11 @@ pub extern "C" fn poll_embed_result(context: *mut c_void) -> FloatArray {
 
 #[no_mangle]
 pub extern "C" fn destroy_embedding_worker(context: *mut c_void) {
+    debug!("Freeing embeddings worker: {:?}", context);
+    if context.is_null() {
+        warn!("Tried to free null embeddings worker");
+        return;
+    }
     unsafe {
         drop(Box::from_raw(context as *mut EmbeddingContext));
     }
@@ -277,10 +286,13 @@ pub extern "C" fn create_chat_worker(
     let chat_handle =
         nobodywho::chat::ChatHandle::new(model.model.clone(), context_length, system_prompt);
 
-    Box::into_raw(Box::new(ChatContext {
+    let ptr = Box::into_raw(Box::new(ChatContext {
         chat_handle,
         completion_channel: None,
-    })) as *mut c_void
+    })) as *mut c_void;
+    debug!("Created chat worker: {ptr:?}");
+
+    ptr
 }
 
 fn string_ptr(string: String) -> *mut c_char {
@@ -288,28 +300,6 @@ fn string_ptr(string: String) -> *mut c_char {
         // TODO: handle panic
         .expect("found null bytes in token")
         .into_raw()
-}
-
-// converts a pointer to a rust string
-// doesn't free the string
-fn ptr_to_string(ptr: *mut c_char) -> String {
-    let cstr = unsafe { CStr::from_ptr(ptr).to_owned() };
-    cstr.into_string().expect("TODO: FUcK")
-}
-
-#[repr(C)]
-pub struct CompletionUpdate {
-    string: *mut c_char,
-    is_done: bool,
-}
-
-impl Drop for CompletionUpdate {
-    fn drop(&mut self) {
-        if self.string.is_null() {
-            return;
-        }
-        destroy_string(self.string)
-    }
 }
 
 #[no_mangle]
@@ -333,6 +323,7 @@ pub extern "C" fn poll_completion(context: *mut c_void, done: &mut bool) -> *mut
 #[no_mangle]
 pub extern "C" fn destroy_string(s: *mut c_char) {
     if s.is_null() {
+        warn!("Tried to free null string");
         return;
     }
     unsafe {
@@ -352,6 +343,15 @@ pub extern "C" fn send_prompt(
     error_buf: *mut c_char,
 ) {
     let chat_context = unsafe { &mut *(context as *mut ChatContext) };
+
+    while !chat_context
+        .chat_handle
+        .ready
+        .load(std::sync::atomic::Ordering::Relaxed)
+    {
+        warn!("Chat worker not ready yet. Sleeping 10ms...");
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
 
     let prompt_str: String = match unsafe { CStr::from_ptr(prompt).to_str() } {
         Ok(prompt_string) => prompt_string.to_owned(),
@@ -416,6 +416,7 @@ pub extern "C" fn send_prompt(
 
 #[no_mangle]
 pub extern "C" fn destroy_chat_worker(context: *mut c_void) {
+    debug!("Destroying chat worker: {context:?}");
     if context.is_null() {
         warn!("Tried to destroy null ptr chat worker.");
         return;
@@ -586,7 +587,14 @@ mod tests {
     //         destroy_chat_worker(chat_context);
     //         destroy_model(model);
     //     }
-    //
+
+    // converts a pointer to a rust string
+    // doesn't free the string
+    fn ptr_to_string(ptr: *mut c_char) -> String {
+        let cstr = unsafe { CStr::from_ptr(ptr).to_owned() };
+        cstr.into_string().expect("TODO: FUcK")
+    }
+
     #[test]
     fn test_create_chat_worker() {
         init_tracing();

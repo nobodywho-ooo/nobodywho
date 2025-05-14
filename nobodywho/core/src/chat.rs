@@ -2,6 +2,7 @@ use crate::chat_state::ChatState;
 use crate::llm;
 use crate::llm::Worker;
 use crate::sampler_config::SamplerConfig;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tracing::error;
 
@@ -11,19 +12,22 @@ use llama_cpp_2::model::LlamaModel;
 
 pub struct ChatHandle {
     msg_tx: std::sync::mpsc::Sender<ChatMsg>,
+    pub ready: Arc<AtomicBool>,
 }
 
 impl ChatHandle {
     pub fn new(model: Arc<LlamaModel>, n_ctx: u32, system_prompt: String) -> Self {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
+        let ready = Arc::new(AtomicBool::new(false));
 
+        let readyclone = ready.clone();
         std::thread::spawn(move || {
-            if let Err(e) = run_worker(model, n_ctx, system_prompt, msg_rx) {
+            if let Err(e) = run_worker(model, n_ctx, system_prompt, msg_rx, readyclone) {
                 error!("Worker crashed: {}", e)
             }
         });
 
-        Self { msg_tx }
+        Self { msg_tx, ready }
     }
 
     pub fn say(
@@ -73,8 +77,17 @@ fn run_worker(
     n_ctx: u32,
     system_prompt: String,
     msg_rx: std::sync::mpsc::Receiver<ChatMsg>,
+    ready: Arc<AtomicBool>,
 ) -> Result<(), ChatWorkerError> {
     let mut worker_state = Worker::new_chat_worker(&model, n_ctx, system_prompt)?;
+
+    // set ready flag
+    // XXX: weird solution to an unexplained problem
+    //      if we don't do this, we get memory errors in the unity integration
+    //      inside the ctx.decode call in `write_until_done`
+    //      very whack. feel free to fix. hours wasted on this: many
+    ready.store(true, Ordering::SeqCst);
+
     while let Ok(msg) = msg_rx.recv() {
         match msg {
             ChatMsg::Say {
