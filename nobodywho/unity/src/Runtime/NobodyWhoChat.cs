@@ -50,10 +50,7 @@ namespace NobodyWho
                 _workerContext = NativeBindings.create_chat_worker(
                     model.GetModel(),
                     systemPrompt,
-                    stopWordsString,
                     contextLength,
-                    use_grammar,
-                    grammar,
                     errorBuffer
                 );
                 if (_workerContext == IntPtr.Zero)
@@ -90,7 +87,7 @@ namespace NobodyWho
                 var errorBuffer = new StringBuilder(2048); // update lib.rs if you change this value
                 _completionSignal = new AwaitableCompletionSource<string>();
 
-                NativeBindings.send_prompt(_workerContext, prompt, errorBuffer);
+                NativeBindings.send_prompt(_workerContext, prompt, stopWords, use_grammar, grammar, errorBuffer);
                 if (errorBuffer.Length > 0)
                 {
                     throw new NobodyWhoException(errorBuffer.ToString());
@@ -105,17 +102,27 @@ namespace NobodyWho
         }
 
         public void Update() {
-            string token = NativeBindings.PollToken(_workerContext);
-            if (token != null) {
+            var result = NativeBindings.PollCompletion(_workerContext);
+            if (result.str == null) {
+                return;
+            } else if (result.is_done) {
+                _completionSignal.SetResult(result.str);
+                onComplete.Invoke(result.str);
+            } else {
                 // _tokenSignal.SetResult(token);
-                onToken.Invoke(token);
+                onToken.Invoke(result.str);
             }
+            // string token = NativeBindings.PollToken(_workerContext);
+            // if (token != null) {
+            //     // _tokenSignal.SetResult(token);
+            //     onToken.Invoke(token);
+            // }
 
-            string response = NativeBindings.PollResponse(_workerContext);
-            if (response != null) {
-                _completionSignal.SetResult(response);
-                onComplete.Invoke(response);
-            }
+            // string response = NativeBindings.PollResponse(_workerContext);
+            // if (response != null) {
+            //     _completionSignal.SetResult(response);
+            //     onComplete.Invoke(response);
+            // }
 
             // TODO: handle error better
             // string error = NativeBindings.PollError(_workerContext);

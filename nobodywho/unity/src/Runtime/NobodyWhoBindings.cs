@@ -148,12 +148,11 @@ namespace NobodyWho
             {
                 return null;
             }
-
-            string result = null;
             try
             {
                 return Marshal.PtrToStringUTF8(ptr);
             }
+            // WARN: ex is never used
             catch (Exception ex)
             {
                 // TODO: handle error
@@ -168,15 +167,15 @@ namespace NobodyWho
         public static (bool is_done, string str) PollCompletion(IntPtr context)
         {
             bool is_done = false;
-            IntPtr ptr = poll_completion(context, ref is_done);
+            IntPtr ptr = poll_completion(context, out is_done);
             if (ptr == IntPtr.Zero) {
-                return null;
+                return (false, null);
             }
             return (is_done, ptr_to_str(ptr));
         }
 
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
-        public static extern IntPtr poll_completion(IntPtr context, bool done);
+        public static extern IntPtr poll_completion(IntPtr context, out bool done);
 
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
         public static extern void destroy_string(IntPtr s);
