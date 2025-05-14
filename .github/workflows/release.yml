@@ -27,8 +27,34 @@ jobs:
             name: nobodywho-godot-all-platforms
             path: ./nobodywho-release
 
+  unity-distributable:
+    runs-on: ubuntu-24.04
+    steps:
+        - uses: actions/checkout@v4
+  
+        - name: "Download all build artifacts"
+          uses: actions/download-artifact@v4
+          with:
+            path: ./artifacts
+  
+        - name: "Make directory structure for release zip"
+          run: |
+            mkdir -p nobodywho-release/Packages/com.nobodywho.core
+
+            # copy in project structure
+            cp -r ./nobodywho/unity/src ./nobodywho-release/Packages/com.nobodywho.core/
+
+            # copy in nobodywho libs from any platform
+            cp ./artifacts/*/*nobodywho* ./nobodywho-release/Packages/com.nobodywho.core/Runtime/Plugins
+            cp ./assets/icon.svg ./nobodywho-release/Packages/com.nobodywho.core/
+        - name: "Upload zipped build artifacts"
+          uses: actions/upload-artifact@v4
+          with:
+            name: nobodywho-godot-all-platforms
+            path: ./nobodywho-release
+
   create-github-release:
-    needs: [zip-distributable]
+    needs: [godot-distributable, unity-distributable]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     steps:
