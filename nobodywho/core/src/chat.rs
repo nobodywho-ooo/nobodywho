@@ -37,7 +37,7 @@ impl ChatHandle {
             text,
             sampler,
             stop_words,
-            respond: output_tx,
+            output_tx,
         });
         output_rx
     }
@@ -52,7 +52,7 @@ enum ChatMsg {
         text: String,
         sampler: SamplerConfig,
         stop_words: Vec<String>,
-        respond: tokio::sync::mpsc::Sender<llm::WriteOutput>,
+        output_tx: tokio::sync::mpsc::Sender<llm::WriteOutput>,
     },
     ResetChat {
         system_prompt: String,
@@ -81,10 +81,10 @@ fn run_worker(
                 text,
                 sampler,
                 stop_words,
-                respond,
+                output_tx,
             } => {
                 let callback = move |out| {
-                    let _ = respond.blocking_send(out);
+                    let _ = output_tx.blocking_send(out);
                 };
                 worker_state.say(text, sampler, stop_words, callback)?;
             }
