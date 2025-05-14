@@ -241,6 +241,7 @@ pub struct GenerationWorker {}
 pub trait GenerationCapability {}
 impl GenerationCapability for GenerationWorker {}
 
+#[cfg(test)]
 impl<'a> Worker<'_, GenerationWorker> {
     fn new_generation_worker(
         model: &Arc<LlamaModel>,
@@ -432,18 +433,6 @@ mod tests {
     use super::*;
     use crate::test_utils;
     use tokio_stream::StreamExt;
-
-    async fn response_from_stream(
-        stream: tokio_stream::wrappers::ReceiverStream<Result<WriteOutput, GenerateResponseError>>,
-    ) -> Option<String> {
-        stream
-            .filter_map(|out| match out {
-                Ok(WriteOutput::Done(resp)) => Some(resp),
-                _ => None,
-            })
-            .next()
-            .await
-    }
 
     #[test]
     fn test_simple_gen() -> Result<(), Box<dyn std::error::Error>> {
