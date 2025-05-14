@@ -2,6 +2,7 @@ use memory_stats::memory_stats;
 use nobodywho::llm;
 use std::ffi::CString;
 use std::ffi::{c_char, c_void, CStr};
+use tracing::warn;
 //////////////// DEBUGGING  ///////////////////
 
 #[no_mangle]
@@ -312,17 +313,6 @@ impl Drop for CompletionUpdate {
 }
 
 #[no_mangle]
-pub extern "C" fn destroy_completion_update(ptr: *mut c_void) {
-    if ptr.is_null() {
-        return;
-    }
-    unsafe {
-        let _completion_box = Box::from_raw(ptr);
-        // The Box will automatically drop when it goes out of scope
-    }
-}
-
-#[no_mangle]
 pub extern "C" fn poll_completion(context: *mut c_void, done: &mut bool) -> *mut c_char {
     let chat_context = unsafe { &mut *(context as *mut ChatContext) };
     if let Some(ref mut completion_channel) = chat_context.completion_channel {
@@ -426,6 +416,10 @@ pub extern "C" fn send_prompt(
 
 #[no_mangle]
 pub extern "C" fn destroy_chat_worker(context: *mut c_void) {
+    if context.is_null() {
+        warn!("Tried to destroy null ptr chat worker.");
+        return;
+    }
     unsafe {
         drop(Box::from_raw(context as *mut ChatContext));
     }
