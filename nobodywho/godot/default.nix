@@ -30,8 +30,8 @@ let
       lockFile = ../Cargo.lock;
       outputHashes = {
         "gdextension-api-0.2.2" = "sha256-gaxM73OzriSDm6tLRuMTOZxCLky9oS1nq6zTsm0g4tA=";
-        "godot-0.2.4" = "sha256-gKwJGLKfOkRZS1P2erfixAHg0l/X7U0Mhf4SZxxGrZg=";
-        "llama-cpp-2-0.1.103" = "sha256-T8qxxAC0ygF655EzODIpDjIKS0vRMe68e5rJcP1+PDo=";
+        "godot-0.2.4" = "sha256-5Kh1j3OpUetuE9qNK85tpZTj8m0Y30CX4okll4TZ9Xc=";
+        "llama-cpp-2-0.1.107" = "sha256-vVofBVBlxmKDcypTJGQxOuB5EJ8azwTU/wWiFiSQw1w=";
       };
     };
     env.TEST_MODEL = fetchurl {
