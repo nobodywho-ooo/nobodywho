@@ -185,8 +185,6 @@ pub enum WorkerError {
     #[error("Could not send newly generated token out to the game engine.")]
     SendError, // this is actually a SendError<LLMOutput>, but that becomes recursive and weird
 
-    // #[error("Could not receive from channel: {0}")]
-    // RecvError(#[from] mpsc::error::RecvError),
     #[error("Global Inference Lock was poisoned.")]
     GILPoisonError, // this is actually a std::sync::PoisonError<std::sync::MutexGuard<'static, ()>>, but that doesn't implement Send, so we do this
 }
