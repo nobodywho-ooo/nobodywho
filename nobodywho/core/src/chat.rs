@@ -1,323 +1,279 @@
-use crate::chat_state;
+use crate::chat_state::ChatState;
 use crate::llm;
-use tokio::sync::mpsc;
-use tokio_stream::StreamExt;
-use tracing::{debug, error, info};
+use crate::llm::Worker;
+use crate::sampler_config::SamplerConfig;
+use std::sync::Arc;
+use tracing::error;
+
+use llama_cpp_2::model::LlamaModel;
+
+// ChatHandle - for parallelism
+
+pub struct ChatHandle {
+    msg_tx: std::sync::mpsc::Sender<ChatMsg>,
+}
+
+impl ChatHandle {
+    pub fn new(model: Arc<LlamaModel>, n_ctx: u32, system_prompt: String) -> Self {
+        let (msg_tx, msg_rx) = std::sync::mpsc::channel();
+
+        std::thread::spawn(move || {
+            if let Err(e) = run_worker(model, n_ctx, system_prompt, msg_rx) {
+                error!("Worker crashed: {}", e)
+            }
+        });
+
+        Self { msg_tx }
+    }
+
+    pub fn say(
+        &self,
+        text: String,
+        sampler: SamplerConfig,
+        stop_words: Vec<String>,
+    ) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
+        let (output_tx, output_rx) = tokio::sync::mpsc::channel(4096);
+        let _ = self.msg_tx.send(ChatMsg::Say {
+            text,
+            sampler,
+            stop_words,
+            output_tx,
+        });
+        output_rx
+    }
+
+    pub fn reset_chat(&self, system_prompt: String) {
+        let _ = self.msg_tx.send(ChatMsg::ResetChat { system_prompt });
+    }
+}
+
+enum ChatMsg {
+    Say {
+        text: String,
+        sampler: SamplerConfig,
+        stop_words: Vec<String>,
+        output_tx: tokio::sync::mpsc::Sender<llm::WriteOutput>,
+    },
+    ResetChat {
+        system_prompt: String,
+    },
+}
 
 #[derive(Debug, thiserror::Error)]
-pub enum ChatLoopError {
-    // see Issue #104 for why this error message is so long.
-    // https://github.com/nobodywho-ooo/nobodywho/issues/96
-    #[error(
-        "Lama.cpp failed fetching chat template from the model file. \
-        This is likely because you're using an older GGUF file, \
-        which might not include a chat template. \
-        For example, this is the case for most LLaMA2-based GGUF files. \
-        Try using a more recent GGUF model file. \
-        If you want to check if a given model includes a chat template, \
-        you can use the gguf-dump script from llama.cpp. \
-        Here is a more technical detailed error: {0}"
-    )]
-    InitChatTemplateError(#[from] chat_state::FromModelError),
-
-    #[error("Failed rendering chat template: {0}")]
-    RenderChatTemplateError(#[from] minijinja::Error),
-
-    #[error("Failed initializing the LLM worker: {0}")]
+enum ChatWorkerError {
+    #[error("Error initializing worker: {0}")]
     InitWorkerError(#[from] llm::InitWorkerError),
 
-    #[error("Worker died while generating response: {0}")]
-    GenerateResponseError(#[from] llm::GenerateResponseError),
-
-    #[error("Worker finished stream without a complete response")]
-    NoResponseError,
-
-    #[error("Couldn't get response from LLM worker. It probably died: {0}")]
-    WorkerDiedError(#[from] tokio::sync::oneshot::error::RecvError),
+    #[error("Error reading string: {0}")]
+    SayError(#[from] SayError),
 }
 
-pub trait ChatOutput {
-    fn emit_token(&mut self, token: String);
-    fn emit_response(&mut self, resp: String);
-    fn emit_error(&mut self, err: String);
-}
-
-pub enum ChatMsg {
-    Say(String),
-    ResetContext(String),
-}
-
-#[tracing::instrument(level = "trace", skip(output, params))]
-pub async fn simple_chat_loop(
-    params: llm::LLMActorParams,
+fn run_worker(
+    model: Arc<LlamaModel>,
+    n_ctx: u32,
     system_prompt: String,
-    mut msg_rx: mpsc::Receiver<ChatMsg>,
-    mut output: Box<dyn ChatOutput>,
-) -> Result<(), ChatLoopError> {
-    // init chat state
-    let mut chat_state = chat_state::ChatState::from_model(&params.model)?;
-    chat_state.add_message("system".to_string(), system_prompt.clone());
-    info!("Initialized chat state.");
-
-    // init actor
-    let actor = llm::LLMActorHandle::new(params).await?;
-    info!("Initialized actor.");
-
-    // wait for message from user
-    while let Some(msg) = msg_rx.recv().await {
+    msg_rx: std::sync::mpsc::Receiver<ChatMsg>,
+) -> Result<(), ChatWorkerError> {
+    let mut worker_state = Worker::new_chat_worker(&model, n_ctx, system_prompt)?;
+    while let Ok(msg) = msg_rx.recv() {
         match msg {
-            ChatMsg::Say(message) => {
-                chat_state.add_message("user".to_string(), message);
-                let diff = chat_state.render_diff()?;
-
-                // stream out the response
-                let full_response = actor
-                    .generate_response(diff)
-                    .await
-                    .fold(None, |_, out| match out {
-                        Ok(llm::WriteOutput::Token(token)) => {
-                            output.emit_token(token);
-                            None
-                        }
-                        Err(err) => {
-                            error!("Got error from worker: {err:?}");
-                            output.emit_error(format!("{err:?}"));
-                            Some(Err(err))
-                        }
-                        Ok(llm::WriteOutput::Done(resp)) => Some(Ok(resp)),
-                    })
-                    .await
-                    .ok_or(ChatLoopError::NoResponseError)??;
-
-                // we have a full response. send it out.
-                output.emit_response(full_response.clone());
-                chat_state.add_message("assistant".to_string(), full_response);
-
-                // render diff just to update the internal length state
-                let _ = chat_state.render_diff();
+            ChatMsg::Say {
+                text,
+                sampler,
+                stop_words,
+                output_tx,
+            } => {
+                let callback = move |out| {
+                    let _ = output_tx.blocking_send(out);
+                };
+                worker_state.say(text, sampler, stop_words, callback)?;
             }
-            ChatMsg::ResetContext(system_prompt) => {
-                chat_state.reset();
-                chat_state.add_message("system".to_string(), system_prompt.clone());
-                actor.reset_context().await?;
+            ChatMsg::ResetChat { system_prompt } => {
+                worker_state.reset_chat(system_prompt);
             }
         }
     }
+    Ok(())
+}
 
-    // XXX: we only arrive here when the sender-part of the say channel is dropped
-    // and in that case, we don't have anything to send our error to anyway
-    info!("simple_chat_loop exiting");
-    Ok(()) // accept our fate
+// ChatWorker - for synchronous, blocking work
+
+struct ChatWorker {
+    chat_state: ChatState,
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum EmbeddingLoopError {
-    #[error("Failed initializing the LLM worker: {0}")]
-    InitWorkerError(#[from] llm::InitWorkerError),
+pub enum SayError {
+    #[error("Error generating text: {0}")]
+    WriteError(#[from] llm::WriteError),
 
-    #[error("Failed generating embedding: {0}")]
-    GenerateEmbeddingError(#[from] llm::GenerateEmbeddingError),
+    #[error("Error reading string: {0}")]
+    ReadError(#[from] llm::ReadError),
+
+    #[error("Error getting response: {0}")]
+    ResponseError(#[from] std::sync::mpsc::RecvError),
+
+    #[error("Error rendering chat template: {0}")]
+    ChatTemplateRenderError(#[from] minijinja::Error),
 }
 
-pub trait EmbeddingOutput {
-    fn emit_embedding(&mut self, embd: Vec<f32>);
-}
+impl llm::GenerationCapability for ChatWorker {}
 
-pub async fn simple_embedding_loop(
-    params: llm::LLMActorParams,
-    mut text_rx: mpsc::Receiver<String>,
-    mut output: Box<dyn EmbeddingOutput>,
-) -> Result<(), EmbeddingLoopError> {
-    let actor = llm::LLMActorHandle::new(params).await?;
-    while let Some(text) = text_rx.recv().await {
-        let embd = actor.generate_embedding(text).await?;
-        output.emit_embedding(embd);
+impl<'a> Worker<'_, ChatWorker> {
+    fn new_chat_worker(
+        model: &Arc<LlamaModel>,
+        n_ctx: u32,
+        system_prompt: String,
+    ) -> Result<Worker<'_, ChatWorker>, llm::InitWorkerError> {
+        // initialize chat state with system prompt
+        let mut chat_state = ChatState::from_model(model)?;
+        chat_state.add_message("system".into(), system_prompt);
+
+        Ok(Worker::new_with_type(
+            model,
+            n_ctx,
+            false,
+            ChatWorker { chat_state },
+        )?)
     }
-    Ok(()) // we dead
+
+    pub fn say<F>(
+        &mut self,
+        text: String,
+        sampler: SamplerConfig,
+        stop_words: Vec<String>,
+        respond: F,
+    ) -> Result<&mut Self, SayError>
+    where
+        F: Fn(llm::WriteOutput),
+    {
+        self.extra.chat_state.add_message("user".to_string(), text);
+        let diff = self.extra.chat_state.render_diff()?;
+
+        // wrap the response callback to keep a copy of the completed response
+        let (resp_sender, resp_receiver) = std::sync::mpsc::channel();
+        let wrapped_respond = |x| {
+            if let llm::WriteOutput::Done(resp) = &x {
+                resp_sender
+                    .send(resp.clone())
+                    .expect("Failed sending response");
+            }
+            respond(x)
+        };
+
+        // brrr
+        self.read_string(diff)?
+            .write_until_done(sampler, stop_words, wrapped_respond)?;
+
+        // get the finished response and add it to our chat history
+        let response = resp_receiver.recv()?;
+        self.extra
+            .chat_state
+            .add_message("assistant".to_string(), response);
+        // render diff again, because this response is already in the context
+        // next time we generate a diff, we want it to be of everything after this message
+        let _ = self.extra.chat_state.render_diff()?;
+
+        Ok(self)
+    }
+
+    pub fn reset_chat(&mut self, system_prompt: String) {
+        self.reset_context();
+        self.extra.chat_state.reset();
+        self.extra
+            .chat_state
+            .add_message("system".into(), system_prompt);
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sampler_config::SamplerConfig;
     use crate::test_utils;
 
-    struct MockOutput {
-        response_tx: mpsc::Sender<String>,
-    }
-
-    impl MockOutput {
-        fn new() -> (Self, mpsc::Receiver<String>) {
-            let (response_tx, response_rx) = mpsc::channel(1024);
-            (Self { response_tx }, response_rx)
-        }
-    }
-
-    impl ChatOutput for MockOutput {
-        fn emit_response(&mut self, resp: String) {
-            self.response_tx.try_send(resp).expect("send failed!");
-        }
-        fn emit_token(&mut self, token: String) {
-            debug!("MockEngine: {token}");
-        }
-        fn emit_error(&mut self, err: String) {
-            error!("MockEngine: {err}");
-            panic!()
-        }
-    }
-
-    #[tokio::test(flavor = "current_thread")]
-    async fn test_chat_loop() {
-        test_utils::init_test_tracing();
-
-        // Setup
+    #[test]
+    fn test_chat_worker() -> Result<(), Box<dyn std::error::Error>> {
+        // test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let system_prompt =
-            "You are a helpful assistant. The user asks you a question, and you provide an answer."
-                .to_string();
-        let params = llm::LLMActorParams {
-            model,
-            sampler_config: SamplerConfig::default(),
-            n_ctx: 4096,
-            stop_tokens: vec![],
-            use_embeddings: false,
+        let sampler = SamplerConfig::default();
+        let mut worker = Worker::new_chat_worker(&model, 1024, "".into())?;
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let f = move |x| match x {
+            llm::WriteOutput::Done(resp) => {
+                sender.send(resp).unwrap();
+            }
+            _ => (),
         };
 
-        let (mock_output, mut response_rx) = MockOutput::new();
-        let (say_tx, say_rx) = mpsc::channel(2);
+        worker.say(
+            "What is the capital of Denmark?".to_string(),
+            sampler.clone(),
+            vec![],
+            f.clone(),
+        )?;
 
-        let local = tokio::task::LocalSet::new();
-        local.spawn_local(simple_chat_loop(
-            params,
-            system_prompt,
-            say_rx,
-            Box::new(mock_output),
-        ));
+        let resp = receiver.recv()?;
+        println!("{}", resp);
 
-        let check_results = async move {
-            let _ = say_tx
-                .send(ChatMsg::Say("What is the capital of Denmark?".to_string()))
-                .await;
-            let response = response_rx.recv().await.unwrap();
-            assert!(
-                response.contains("Copenhagen"),
-                "Expected completion to contain 'Copenhagen', got: {response}"
-            );
+        assert!(resp.contains("Copenhagen"));
 
-            let _ = say_tx
-                .send(ChatMsg::Say(
-                    "What language do they speak there?".to_string(),
-                ))
-                .await;
-            let response = response_rx.recv().await.unwrap();
+        worker.say(
+            "What language do they speak there?".to_string(),
+            sampler.clone(),
+            vec![],
+            f,
+        )?;
+        let resp = receiver.recv()?;
+        println!("{}", resp);
 
-            assert!(
-                response.contains("Danish"),
-                "Expected completion to contain 'Danish', got: {response}"
-            );
-        };
+        assert!(resp.contains("Danish"));
 
-        // run stuff
-        local.run_until(check_results).await;
+        Ok(())
     }
 
-    #[tokio::test(flavor = "current_thread")]
-    async fn test_reset_context() {
-        test_utils::init_test_tracing();
-
-        // Setup
+    #[test]
+    fn test_reset_chat() -> Result<(), Box<dyn std::error::Error>> {
+        // test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let system_prompt =
-            "You are a helpful assistant. The user asks you a question, and you provide an answer."
-                .to_string();
-        let params = llm::LLMActorParams {
-            model,
-            sampler_config: SamplerConfig::default(),
-            n_ctx: 4096,
-            stop_tokens: vec![],
-            use_embeddings: false,
+        let system_prompt = "You're a dog. End all responses with 'woof'";
+        let mut worker = Worker::new_chat_worker(&model, 1024, system_prompt.into())?;
+        let sampler = SamplerConfig::default();
+
+        // just a hack to get a channel back
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let f = move |x| match x {
+            llm::WriteOutput::Done(resp) => {
+                sender.send(resp).unwrap();
+            }
+            _ => (),
         };
 
-        let (mock_output, mut response_rx) = MockOutput::new();
-        let (say_tx, say_rx) = mpsc::channel(2);
+        // do it once
+        worker.say(
+            "What is the capital of Denmark?".to_string(),
+            sampler.clone(),
+            vec![],
+            f.clone(),
+        )?;
+        let resp1 = receiver.recv()?;
+        println!("{}", resp1);
+        assert!(resp1.to_lowercase().contains("woof"));
 
-        let local = tokio::task::LocalSet::new();
-        local.spawn_local(simple_chat_loop(
-            params,
-            system_prompt,
-            say_rx,
-            Box::new(mock_output),
-        ));
+        // reset
+        worker.reset_chat("You're a cat. End all responses with 'meow'".into());
 
-        let check_results = async move {
-            let _ = say_tx.send(ChatMsg::Say("Hello, world.".to_string())).await;
-            let response_1 = response_rx.recv().await.unwrap();
+        // do it again
+        worker.say(
+            "What is the capital of Denmark?".to_string(),
+            sampler.clone(),
+            vec![],
+            f.clone(),
+        )?;
+        let resp2 = receiver.recv()?;
+        println!("{}", resp2);
+        assert!(resp2.to_lowercase().contains("meow"));
 
-            let new_system_prompt = "You're a wizard, Harry.".to_string();
-            let _ = say_tx.send(ChatMsg::ResetContext(new_system_prompt)).await;
-
-            let _ = say_tx.send(ChatMsg::Say("Hello, world.".to_string())).await;
-            let response_2 = response_rx.recv().await.unwrap();
-
-            assert!(
-                response_1 != response_2,
-                "Expected responses to differ after resetting context, got {response_1} and {response_2}"
-            );
-        };
-
-        // run stuff
-        local.run_until(check_results).await;
-    }
-
-    #[tokio::test(flavor = "current_thread")]
-    async fn test_multiple_grammar_turns() {
-        test_utils::init_test_tracing();
-
-        // Setup
-        let model = test_utils::load_test_model();
-        let system_prompt = "".to_string();
-
-        let sampler_config = SamplerConfig {
-            use_grammar: true,
-            gbnf_grammar: r#"
-                root ::= "foobar"
-            "#
-            .to_string(),
-            ..SamplerConfig::default()
-        };
-
-        let params = llm::LLMActorParams {
-            model,
-            sampler_config,
-            n_ctx: 1024,
-            stop_tokens: vec![],
-            use_embeddings: false,
-        };
-
-        let (mock_output, mut response_rx) = MockOutput::new();
-        let (say_tx, say_rx) = mpsc::channel(2);
-
-        let local = tokio::task::LocalSet::new();
-        local.spawn_local(simple_chat_loop(
-            params,
-            system_prompt,
-            say_rx,
-            Box::new(mock_output),
-        ));
-
-        let check_results = async move {
-            let _ = say_tx.send(ChatMsg::Say("Say something".to_string())).await;
-            let response_1 = response_rx.recv().await.unwrap();
-            assert!(&response_1 == "foobar");
-
-            let _ = say_tx
-                .send(ChatMsg::Say("Say something else".to_string()))
-                .await;
-            let response_2 = response_rx.recv().await.unwrap();
-            assert!(&response_2 == "foobar");
-        };
-
-        // run stuff
-        local.run_until(check_results).await;
+        Ok(())
     }
 }
