@@ -164,7 +164,7 @@ impl<'a> Worker<'_, ChatWorker> {
     ) -> Result<Worker<'_, ChatWorker>, llm::InitWorkerError> {
         // initialize chat state with system prompt
         let mut chat_state = ChatState::from_model(model)?;
-        chat_state.add_message("system".into(), system_prompt);
+        chat_state.add_system_message(system_prompt);
 
         Ok(Worker::new_with_type(
             model,
@@ -184,7 +184,7 @@ impl<'a> Worker<'_, ChatWorker> {
     where
         F: Fn(llm::WriteOutput),
     {
-        self.extra.chat_state.add_message("user".to_string(), text);
+        self.extra.chat_state.add_user_message(text);
         let diff = self.extra.chat_state.render_diff()?;
 
         // wrap the response callback to keep a copy of the completed response
@@ -204,9 +204,7 @@ impl<'a> Worker<'_, ChatWorker> {
 
         // get the finished response and add it to our chat history
         let response = resp_receiver.recv()?;
-        self.extra
-            .chat_state
-            .add_message("assistant".to_string(), response);
+        self.extra.chat_state.add_assistant_message(response);
         // render diff again, because this response is already in the context
         // next time we generate a diff, we want it to be of everything after this message
         let _ = self.extra.chat_state.render_diff()?;
@@ -217,9 +215,7 @@ impl<'a> Worker<'_, ChatWorker> {
     pub fn reset_chat(&mut self, system_prompt: String) {
         self.reset_context();
         self.extra.chat_state.reset();
-        self.extra
-            .chat_state
-            .add_message("system".into(), system_prompt);
+        self.extra.chat_state.add_system_message(system_prompt);
     }
 
     pub fn set_chat_history(&mut self, messages: Vec<crate::chat_state::Message>) {
