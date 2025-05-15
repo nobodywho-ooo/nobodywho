@@ -6,6 +6,10 @@ pub mod llm;
 // pub mod llmactor;
 pub mod sampler_config;
 
+pub fn send_llamacpp_logs_to_tracing() {
+    llama_cpp_2::send_logs_to_tracing(llama_cpp_2::LogOptions::default().with_logs_enabled(true));
+}
+
 #[cfg(test)]
 pub mod test_utils {
     use crate::llm::{get_model, Model};

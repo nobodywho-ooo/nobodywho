@@ -3,6 +3,7 @@ mod sampler_resource;
 use godot::classes::{INode, ProjectSettings};
 use godot::prelude::*;
 use nobodywho::{llm, sampler_config};
+use tracing_subscriber::prelude::*;
 
 use crate::sampler_resource::NobodyWhoSampler;
 
@@ -40,6 +41,7 @@ impl INode for NobodyWhoModel {
     }
 }
 
+#[godot_api]
 impl NobodyWhoModel {
     // memoized model loader
     fn get_model(&mut self) -> Result<llm::Model, llm::LoadModelError> {
@@ -62,6 +64,13 @@ impl NobodyWhoModel {
                 Err(err)
             }
         }
+    }
+
+    #[func]
+    /// Sets the (global) log level of NobodyWho.
+    /// Valid arguments are "TRACE", "DEBUG", "INFO", "WARN", and "ERROR".
+    fn set_log_level(level: String) {
+        set_log_level(&level);
     }
 }
 
@@ -232,6 +241,13 @@ impl NobodyWhoChat {
     #[signal]
     /// Triggered when the LLM has finished generating the response. Returns the full response as a string.
     fn response_finished(response: GString);
+
+    #[func]
+    /// Sets the (global) log level of NobodyWho.
+    /// Valid arguments are "TRACE", "DEBUG", "INFO", "WARN", and "ERROR".
+    fn set_log_level(level: String) {
+        set_log_level(&level);
+    }
 }
 
 #[derive(GodotClass)]
@@ -358,5 +374,101 @@ impl NobodyWhoEmbedding {
     /// Returns a value between 0 and 1, where 1 is the highest similarity.
     fn cosine_similarity(a: PackedFloat32Array, b: PackedFloat32Array) -> f32 {
         nobodywho::embed::cosine_similarity(a.as_slice(), b.as_slice())
+    }
+
+    #[func]
+    /// Sets the (global) log level of NobodyWho.
+    /// Valid arguments are "TRACE", "DEBUG", "INFO", "WARN", and "ERROR".
+    fn set_log_level(level: String) {
+        set_log_level(&level);
+    }
+}
+
+// LOGGING
+
+// Writer that forwards to Godot logging
+struct GodotWriter;
+
+impl std::io::Write for GodotWriter {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        if let Ok(s) = std::str::from_utf8(buf) {
+            let trimmed = s.trim();
+            if !trimmed.is_empty() {
+                // Check if it's an error message (simplistic approach)
+                // You might want more sophisticated detection based on your format
+                if trimmed.contains("ERROR") {
+                    godot_error!("{}", trimmed);
+                } else if trimmed.contains("WARN") {
+                    godot_warn!("{}", trimmed);
+                } else {
+                    godot_print!("{}", trimmed);
+                }
+            }
+        }
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for GodotWriter {
+    type Writer = Self;
+    fn make_writer(&'a self) -> Self::Writer {
+        GodotWriter
+    }
+}
+
+static INIT: std::sync::Once = std::sync::Once::new();
+// Static handle to the filter
+static LEVEL_HANDLE: std::sync::Mutex<
+    Option<
+        tracing_subscriber::reload::Handle<
+            tracing_subscriber::filter::LevelFilter,
+            tracing_subscriber::Registry,
+        >,
+    >,
+> = std::sync::Mutex::new(None);
+
+pub fn set_log_level(level_str: &str) {
+    let level: tracing::Level = match level_str.to_uppercase().parse() {
+        Ok(level) => level,
+        Err(e) => {
+            godot_error!("Invalid log level '{level_str}': {e}");
+            return;
+        }
+    };
+
+    // First-time initialization
+    INIT.call_once(|| {
+        nobodywho::send_llamacpp_logs_to_tracing();
+
+        // Create a reloadable filter
+        let (filter, filter_handle) = tracing_subscriber::reload::Layer::new(
+            tracing_subscriber::filter::LevelFilter::from_level(level),
+        );
+        // Store the handle for future updates
+        *LEVEL_HANDLE.lock().unwrap() = Some(filter_handle);
+
+        // Let fmt layer handle the formatting, but use our custom writer
+        let fmt_layer = tracing_subscriber::fmt::layer()
+            .with_writer(GodotWriter)
+            .with_ansi(false)
+            .with_level(true)
+            .pretty();
+
+        tracing_subscriber::registry()
+            .with(filter)
+            .with(fmt_layer)
+            .init();
+    });
+
+    if let Some(handle) = &*LEVEL_HANDLE.lock().unwrap() {
+        if let Err(e) = handle.modify(|filter| {
+            *filter = tracing_subscriber::filter::LevelFilter::from_level(level);
+        }) {
+            godot_error!("Failed to update log level: {}", e);
+        }
     }
 }
