@@ -7,20 +7,31 @@
   outputs = { nixpkgs, flake-utils, ... }:
     flake-utils.lib.eachDefaultSystem (system:
     let
-      pkgs = (import nixpkgs { system = system; });
-      nobodywho = pkgs.callPackage ./nobodywho/godot {};
-      godot-integration-test = pkgs.callPackage ./nobodywho/godot/integration-test { inherit nobodywho; };
-      run-godot-integration-test = pkgs.runCommand "checkgame" { nativeBuildInputs = with pkgs; [ mesa.drivers ]; } ''
-        cd ${godot-integration-test}
-        export HOME=$TMPDIR
-        ./game --headless
-        touch $out
-      '';
+      pkgs = (import nixpkgs { 
+        system = system;
+        config = {
+          allowUnfree = true;  # Required for Unity
+          permittedInsecurePackages = [
+            "freeimage-unstable-2021-11-01"
+            "openssl-1.1.1w"
+          ];
+        };
+      });
+      nobodywho = pkgs.callPackage ./nobodywho {};
     in
-  {
-      packages.default = nobodywho;
-      packages.godot-integration-test = godot-integration-test;
-      checks.default = run-godot-integration-test;
-      devShells.default = import ./nobodywho/shell.nix { inherit pkgs; };
-  });
+    { 
+      packages = {
+        default = nobodywho.core;
+        nobodywho = nobodywho.core;
+        unity = nobodywho.unity-editor;
+        godot = nobodywho.godot;
+        
+      };
+      checks = {
+        default = nobodywho.checks.godot-integration-test;
+      };
+      devShells = {
+        default = import ./nobodywho/shell.nix { inherit pkgs; };
+      };
+    });
 }
