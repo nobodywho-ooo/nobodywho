@@ -1,2 +1,5 @@
 *.gguf
 *.vscode
+.cursor*
+.envrc
+.direnv/

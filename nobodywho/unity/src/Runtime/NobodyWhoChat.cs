@@ -1,0 +1,77 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Text;
+using UnityEngine;
+using UnityEngine.Events;
+
+namespace NobodyWho
+{
+    public class Chat : MonoBehaviour
+    {
+        public Model model;
+
+        ChatWrapper wrapper = ChatWrapper.New();
+
+        [TextArea(15, 20)]
+        public string systemPrompt = "";
+
+        [Header("Configuration")]
+        public string stopWords = "";
+        public uint contextLength = 4096;
+        public bool use_grammar = false;
+        // ^ TODO: can we be consistent about casing here?
+
+        [TextArea(15, 20)]
+        public string grammar;
+
+        [Header("Events")]
+        public UnityEvent<string> onToken = new UnityEvent<string>();
+        public UnityEvent<string> onComplete = new UnityEvent<string>();
+
+        public void StartWorker() {
+            wrapper.StartWorker(model.ModelWrapperContext, contextLength, systemPrompt);
+        }
+
+        public void Say(string text)
+        {
+            wrapper.Say(text, use_grammar, grammar, stopWords);
+        }
+
+        public void ResetContext() {
+            wrapper.ResetContext(systemPrompt);
+        }
+
+        public void Update() {
+            var res = wrapper.PollResponse();
+            switch (res.kind) {
+                case PollResponseKind.Nothing:
+                    break;
+
+                case PollResponseKind.Token:
+                    string token = Marshal.PtrToStringAnsi(res.ptr, (int)res.len);
+                    onToken.Invoke(token);
+                    break;
+
+                case PollResponseKind.Done:
+                    string resp = Marshal.PtrToStringAnsi(res.ptr, (int)res.len);
+                    onComplete.Invoke(resp);
+                    break;
+            }
+        }
+
+        public string GetResponseBlocking() {
+            // this is only really used in tests.
+            // it blocks forever, or until a finished response is emitted
+            while (true) {
+                var res = wrapper.PollResponse();
+                switch (res.kind) {
+                    case PollResponseKind.Done:
+                        return Marshal.PtrToStringAnsi(res.ptr, (int)res.len);
+                }
+                System.Threading.Thread.Sleep(10);
+            }
+        }
+    }
+}

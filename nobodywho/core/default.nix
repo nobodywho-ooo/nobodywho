@@ -1,16 +1,14 @@
-{ pkgs, nobodywho, fetchurl, rustPlatform, llvmPackages_12, cmake, vulkan-headers, vulkan-loader, vulkan-tools, shaderc, mesa }:
+{ pkgs, fetchurl, rustPlatform, llvmPackages_12, cmake, vulkan-headers, vulkan-loader, vulkan-tools, shaderc, mesa }:
 
 let
-  godot = rustPlatform.buildRustPackage {
-    pname = "godot";
-    version = "0.0.0";
+  nobodywho = rustPlatform.buildRustPackage {
+    pname = "nobodywho";
+    version = "1.0.0";
     src = ./..;
-    buildAndTestSubdir = "godot";
     nativeBuildInputs = [
       llvmPackages_12.bintools
       cmake
       rustPlatform.bindgenHook
-      rustPlatform.cargoBuildHook
       vulkan-headers
       vulkan-loader
       shaderc
@@ -19,7 +17,6 @@ let
       pkgs.git
     ];
     buildInputs = [
-      nobodywho
       vulkan-loader
       vulkan-headers
       shaderc
@@ -50,22 +47,9 @@ let
     doCheck = true;
   };
 
-  integration-test = pkgs.callPackage ./integration-test {
-    inherit godot;
-  };
-
-  run-integration-test = pkgs.runCommand "checkgame" {
-    nativeBuildInputs = [ mesa ];
-  } ''
-    cd ${integration-test}
-    export HOME=$TMPDIR
-    ./game --headless
-    touch $out
-  '';
-
 in {
-  godot = godot;
-  checks = {
-    godot-integration-test = run-integration-test;
+  nobodywho = nobodywho;
+  packages = {
+    inherit nobodywho;
   };
 }
