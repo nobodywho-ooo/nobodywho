@@ -3,7 +3,7 @@ on:
   workflow_call:
 
 jobs:
-  zip-distributable:
+  godot-distributable:
     runs-on: ubuntu-24.04
     steps:
         - uses: actions/checkout@v4
