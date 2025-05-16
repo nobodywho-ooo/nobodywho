@@ -46,15 +46,15 @@ namespace NobodyWho
         public void Update() {
             var res = wrapper.PollResponse();
             switch (res.kind) {
-                case PollKind.Nothing:
+                case PollResponseKind.Nothing:
                     break;
 
-                case PollKind.Token:
+                case PollResponseKind.Token:
                     string token = Marshal.PtrToStringAnsi(res.ptr, (int)res.len);
                     onToken.Invoke(token);
                     break;
 
-                case PollKind.Done:
+                case PollResponseKind.Done:
                     string resp = Marshal.PtrToStringAnsi(res.ptr, (int)res.len);
                     onComplete.Invoke(resp);
                     break;
@@ -67,7 +67,7 @@ namespace NobodyWho
             while (true) {
                 var res = wrapper.PollResponse();
                 switch (res.kind) {
-                    case PollKind.Done:
+                    case PollResponseKind.Done:
                         return Marshal.PtrToStringAnsi(res.ptr, (int)res.len);
                 }
                 System.Threading.Thread.Sleep(10);

@@ -8,84 +8,62 @@ namespace NobodyWho
 {
     public class Embedding : MonoBehaviour
     {
-        private IntPtr _actorContext;
         public Model model;
+        public EmbedWrapper wrapper = EmbedWrapper.New();
 
         public UnityEvent<float[]> onEmbeddingComplete = new UnityEvent<float[]>();
-        public UnityEvent<string> onError = new UnityEvent<string>();
 
-        private AwaitableCompletionSource<float[]> _embeddingSignal;
-        private GCHandle _gcHandle;
-
-        void Start()
-        {
-            _gcHandle = GCHandle.Alloc(this);
-            var errorBuffer = new StringBuilder(2048);
-
-            _actorContext = NativeBindings.create_embedding_worker(
-                model.GetModel(),
-                errorBuffer
-            );
-
-            if (errorBuffer.Length > 0)
-            {
-                Debug.LogError(errorBuffer.ToString());
-                enabled = false;
-            }
-        }
-
-        public Awaitable<float[]> Embed(string text)
-        {
-            _embeddingSignal = new AwaitableCompletionSource<float[]>();
-
-            var errorBuffer = new StringBuilder(2048);
-            NativeBindings.embed_text(_actorContext, text, errorBuffer);
-
-            if (errorBuffer.Length > 0)
-            {
-                Debug.LogError(errorBuffer.ToString());
-                // TODO: throw exception here
-            }
-            return _embeddingSignal.Awaitable;
+        public void Embed(string text) {
+            wrapper.Embed(text);
         }
 
         void Update() {
-            float[] embd = NativeBindings.PollEmbeddings(_actorContext);
-            if (embd != null) {
+            var resultslice = wrapper.PollEmbedding();
+            if (resultslice.Count > 0) {
+                var embd = resultslice.Copied;
                 onEmbeddingComplete.Invoke(embd);
-                _embeddingSignal?.SetResult(embd);
             }
-            // TODO: why do we have both an AwaitableCompletionSource and a UnityEvent?
-            //       could we get away with having only one?
         }
 
-        // This has several responsibilites:
-        // 1. kill the embedding worker.
-        // 2. kill the gc handle.
-        // 3. deref the model strong count by 1.
-        void OnDestroy()
-        {
-            if (_actorContext != IntPtr.Zero)
+        public void StartWorker() {
+            // TODO: configurable n_ctx
+            wrapper.StartWorker(model.ModelWrapperContext, 4096);
+        }
+
+        public float CosineSimilarity(float[] a, float[] b) {
+            // Ugh.. clearly there's something I'm misunderstanding here
+            // This is the only place in the entire project where I have to do manual alloc now
+            // TODO: understand interoptopus slice passing better.
+            // ..or TODO: reimplement cosine_similarity in C#
+            GCHandle pina = GCHandle.Alloc(a, GCHandleType.Pinned);
+            GCHandle pinb = GCHandle.Alloc(b, GCHandleType.Pinned);
+            try
             {
-                NativeBindings.destroy_embedding_worker(_actorContext);
-            }
+                var slicea = new Slicef32(pina, (ulong)a.Length);
+                var sliceb = new Slicef32(pinb, (ulong)b.Length);
 
-            if (_gcHandle.IsAllocated)
+                // call the exported Rust function
+                return NobodyWhoBindings.cosine_similarity(slicea, sliceb);
+            }
+            finally
             {
-                _gcHandle.Free();
+                pina.Free();           // always un-pin!
+                pinb.Free();           // always un-pin!
             }
         }
 
-        private void OnError(string error)
-        {
-            _embeddingSignal?.SetException(new NobodyWhoException(error));
-
-            onError.Invoke(error);
-        }
-
-        public float CosineSimilarity(float[] a, float[] b)
-        {
-            return NativeBindings.CosineSimilarity(a, b);
+        public float[] GetEmbeddingBlocking() {
+            // this is only really used in tests.
+            // it blocks forever, or until a finished response is emitted
+            // TODO: figure out a nicer async API
+            while (true) {
+                var resultslice = wrapper.PollEmbedding();
+                if (resultslice.Count > 0) {
+                    var embd = resultslice.Copied;
+                    return embd;
+                }
+                System.Threading.Thread.Sleep(10);
+            }
         }
     }
 }

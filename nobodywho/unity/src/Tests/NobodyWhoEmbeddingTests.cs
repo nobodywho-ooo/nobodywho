@@ -16,34 +16,29 @@ namespace Tests
         [SetUp]
         public void Setup()
         {
-            NobodyWho.NativeBindings.init_tracing();
+            NobodyWhoBindings.init_tracing();
             testObject = new GameObject("TestModel");
             model = testObject.AddComponent<NobodyWho.Model>();
-            model.modelPath = "bge-small-en-v1.5-q8_0.gguf";
+            model.ModelPath = System.IO.Path.Combine(Application.streamingAssetsPath, "bge-small-en-v1.5-q8_0.gguf");
 
             embedding = testObject.AddComponent<NobodyWho.Embedding>();
             embedding.model = model;
-        }
-
-        [TearDown]
-        public void Teardown()
-        {
-            if (testObject != null)
-            {
-                UnityEngine.Object.DestroyImmediate(testObject);
-            }
+            embedding.StartWorker();
         }
 
         [Test]
-        public async Task WhenComparingEmbeddings_SimilarTextsShouldHaveHigherSimilarity()
+        public void WhenComparingEmbeddings_SimilarTextsShouldHaveHigherSimilarity()
         {
-            float[] dragonHillEmbedding = await embedding.Embed("The dragon is on the hill.");
+            embedding.Embed("The dragon is on the hill.");
+            float[] dragonHillEmbedding = embedding.GetEmbeddingBlocking();
             Assert.IsNotNull(dragonHillEmbedding, "First embedding not received");
-            float[] dragonHungryEmbedding = await embedding.Embed(
-                "The dragon is hungry for humans."
-            );
+
+            embedding.Embed("The dragon is hungry for humans.");
+            float[] dragonHungryEmbedding = embedding.GetEmbeddingBlocking();
             Assert.IsNotNull(dragonHungryEmbedding, "Second embedding not received");
-            float[] unrelatedEmbedding = await embedding.Embed("This does not matter.");
+
+            embedding.Embed("This does not matter.");
+            float[] unrelatedEmbedding = embedding.GetEmbeddingBlocking();
             Assert.IsNotNull(unrelatedEmbedding, "Third embedding not received");
 
             Assert.IsNotNull(dragonHillEmbedding, "First embedding not received");
