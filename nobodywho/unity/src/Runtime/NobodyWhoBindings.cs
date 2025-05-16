@@ -69,11 +69,35 @@ namespace NobodyWho
         public static extern ChatError chatwrapper_say(IntPtr context, string text, bool use_grammar, string grammar, string stop_words);
 
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "chatwrapper_poll_response")]
-        public static extern PollResult chatwrapper_poll_response(IntPtr context);
+        public static extern PollResponseResult chatwrapper_poll_response(IntPtr context);
+
+        /// Destroys the given instance.
+        ///
+        /// # Safety
+        ///
+        /// The passed parameter MUST have been created with the corresponding init function;
+        /// passing any other value results in undefined behavior.
+        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "embedwrapper_destroy")]
+        public static extern EmbedError embedwrapper_destroy(ref IntPtr context);
+
+        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "embedwrapper_new")]
+        public static extern EmbedError embedwrapper_new(ref IntPtr context);
+
+        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "embedwrapper_start_worker")]
+        public static extern EmbedError embedwrapper_start_worker(IntPtr context, IntPtr modelwrapper, uint n_ctx);
+
+        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "embedwrapper_embed")]
+        public static extern EmbedError embedwrapper_embed(IntPtr context, string text);
+
+        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "embedwrapper_poll_embedding")]
+        public static extern Slicef32 embedwrapper_poll_embedding(IntPtr context);
+
+        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "cosine_similarity")]
+        public static extern float cosine_similarity(Slicef32 a, Slicef32 b);
 
     }
 
-    public enum PollKind
+    public enum PollResponseKind
     {
         Nothing = 0,
         Token = 1,
@@ -82,9 +106,9 @@ namespace NobodyWho
 
     [Serializable]
     [StructLayout(LayoutKind.Sequential)]
-    public partial struct PollResult
+    public partial struct PollResponseResult
     {
-        public PollKind kind;
+        public PollResponseKind kind;
         public IntPtr ptr;
         public uint len;
     }
@@ -102,6 +126,18 @@ namespace NobodyWho
         WorkerNotStarted = 7,
     }
 
+    /// EMBEDDINGS
+    public enum EmbedError
+    {
+        Ok = 0,
+        Null = 1,
+        Panic = 2,
+        GenerationInProgress = 3,
+        BadEmbedText = 4,
+        LoadModelFailed = 5,
+        WorkerNotStarted = 6,
+    }
+
     /// ERRORS
     public enum ModelError
     {
@@ -111,6 +147,65 @@ namespace NobodyWho
         BadModelPath = 3,
         LoadFailed = 5,
     }
+
+    ///A pointer to an array of data someone else owns which may not be modified.
+    [Serializable]
+    [StructLayout(LayoutKind.Sequential)]
+    public partial struct Slicef32
+    {
+        ///Pointer to start of immutable data.
+        IntPtr data;
+        ///Number of elements.
+        ulong len;
+    }
+
+    public partial struct Slicef32 : IEnumerable<float>
+    {
+        public Slicef32(GCHandle handle, ulong count)
+        {
+            this.data = handle.AddrOfPinnedObject();
+            this.len = count;
+        }
+        public Slicef32(IntPtr handle, ulong count)
+        {
+            this.data = handle;
+            this.len = count;
+        }
+        public float this[int i]
+        {
+            get
+            {
+                if (i >= Count) throw new IndexOutOfRangeException();
+                var size = Marshal.SizeOf(typeof(float));
+                var ptr = new IntPtr(data.ToInt64() + i * size);
+                return Marshal.PtrToStructure<float>(ptr);
+            }
+        }
+        public float[] Copied
+        {
+            get
+            {
+                var rval = new float[len];
+                for (var i = 0; i < (int) len; i++) {
+                    rval[i] = this[i];
+                }
+                return rval;
+            }
+        }
+        public int Count => (int) len;
+        public IEnumerator<float> GetEnumerator()
+        {
+            for (var i = 0; i < (int)len; ++i)
+            {
+                yield return this[i];
+            }
+        }
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return this.GetEnumerator();
+        }
+    }
+
 
 
     /// MODEL
@@ -225,9 +320,62 @@ namespace NobodyWho
             }
         }
 
-        public PollResult PollResponse()
+        public PollResponseResult PollResponse()
         {
             return NobodyWhoBindings.chatwrapper_poll_response(_context);
+        }
+
+        public IntPtr Context => _context;
+    }
+
+
+    public partial class EmbedWrapper : IDisposable
+    {
+        private IntPtr _context;
+
+        private EmbedWrapper() {}
+
+        public static EmbedWrapper New()
+        {
+            var self = new EmbedWrapper();
+            var rval = NobodyWhoBindings.embedwrapper_new(ref self._context);
+            if (rval != EmbedError.Ok)
+            {
+                throw new InteropException<EmbedError>(rval);
+            }
+            return self;
+        }
+
+        public void Dispose()
+        {
+            var rval = NobodyWhoBindings.embedwrapper_destroy(ref _context);
+            if (rval != EmbedError.Ok)
+            {
+                throw new InteropException<EmbedError>(rval);
+            }
+        }
+
+        public void StartWorker(IntPtr modelwrapper, uint n_ctx)
+        {
+            var rval = NobodyWhoBindings.embedwrapper_start_worker(_context, modelwrapper, n_ctx);
+            if (rval != EmbedError.Ok)
+            {
+                throw new InteropException<EmbedError>(rval);
+            }
+        }
+
+        public void Embed(string text)
+        {
+            var rval = NobodyWhoBindings.embedwrapper_embed(_context, text);
+            if (rval != EmbedError.Ok)
+            {
+                throw new InteropException<EmbedError>(rval);
+            }
+        }
+
+        public Slicef32 PollEmbedding()
+        {
+            return NobodyWhoBindings.embedwrapper_poll_embedding(_context);
         }
 
         public IntPtr Context => _context;
