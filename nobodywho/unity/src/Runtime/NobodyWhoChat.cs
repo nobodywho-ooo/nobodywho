@@ -56,5 +56,19 @@ namespace NobodyWho
                     break;
             }
         }
+
+        public string GetResponseBlocking() {
+            // this is only really used in tests.
+            // it blocks forever, or until a finished response is emitted
+            var res = wrapper.PollResponse();
+            while (true) {
+                switch (res.kind) {
+                    case PollKind.Done:
+                        string resp = Marshal.PtrToStringAnsi(res.ptr, (int)res.len);
+                        return resp;
+                }
+                System.Threading.Thread.Sleep(10);
+            }
+        }
     }
 }
