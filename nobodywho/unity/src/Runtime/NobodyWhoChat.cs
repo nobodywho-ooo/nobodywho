@@ -12,7 +12,7 @@ namespace NobodyWho
     {
         public Model model;
 
-        private ChatWrapper wrapper = ChatWrapper.New();
+        ChatWrapper wrapper = ChatWrapper.New();
 
         [TextArea(15, 20)]
         public string systemPrompt = "";
@@ -39,6 +39,10 @@ namespace NobodyWho
             wrapper.Say(text, use_grammar, grammar, stopWords);
         }
 
+        public void ResetContext() {
+            wrapper.ResetContext(systemPrompt);
+        }
+
         public void Update() {
             var res = wrapper.PollResponse();
             switch (res.kind) {
@@ -60,12 +64,11 @@ namespace NobodyWho
         public string GetResponseBlocking() {
             // this is only really used in tests.
             // it blocks forever, or until a finished response is emitted
-            var res = wrapper.PollResponse();
             while (true) {
+                var res = wrapper.PollResponse();
                 switch (res.kind) {
                     case PollKind.Done:
-                        string resp = Marshal.PtrToStringAnsi(res.ptr, (int)res.len);
-                        return resp;
+                        return Marshal.PtrToStringAnsi(res.ptr, (int)res.len);
                 }
                 System.Threading.Thread.Sleep(10);
             }
