@@ -44,7 +44,9 @@ jobs:
             # copy in project structure
             cp -r ./nobodywho/unity/src ./nobodywho-release/Packages/com.nobodywho.core/
 
+
             # copy in nobodywho libs from any platform
+            mkdir -p ./nobodywho-release/Packages/com.nobodywho.core/Runtime/Plugins
             cp ./artifacts/*/*nobodywho* ./nobodywho-release/Packages/com.nobodywho.core/Runtime/Plugins
             cp ./assets/icon.svg ./nobodywho-release/Packages/com.nobodywho.core/
         - name: "Upload zipped build artifacts"
