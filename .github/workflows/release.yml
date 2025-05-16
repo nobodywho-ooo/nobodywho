@@ -42,7 +42,7 @@ jobs:
             mkdir -p nobodywho-release/Packages/com.nobodywho.core
 
             # copy in project structure
-            cp -r ./nobodywho/unity/src ./nobodywho-release/Packages/com.nobodywho.core/
+            cp -r ./nobodywho/unity/src/* ./nobodywho-release/Packages/com.nobodywho.core/
 
 
             # copy in nobodywho libs from any platform
