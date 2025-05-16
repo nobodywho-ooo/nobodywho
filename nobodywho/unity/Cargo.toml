@@ -8,6 +8,8 @@ crate-type = ["cdylib"]
 path = "src/lib.rs"
 
 [dependencies]
+interoptopus = "0.14.27"
+interoptopus_backend_csharp = "0.14.25"
 memory-stats = "1.2.0"
 nobodywho = { path = "../core" }
 tokio = "1.44.0"
