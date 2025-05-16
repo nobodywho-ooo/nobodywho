@@ -3,7 +3,7 @@ on:
   workflow_call:
 
 jobs:
-  zip-distributable:
+  godot-distributable:
     runs-on: ubuntu-24.04
     steps:
         - uses: actions/checkout@v4
@@ -21,7 +21,7 @@ jobs:
             # copy in gdextension metadata
             cp ./nobodywho/godot/nobodywho.gdextension ./nobodywho-release/bin/addons/nobodywho/
             cp ./assets/icon.svg ./nobodywho-release/bin/addons/nobodywho/
-        - name: "Upload zipped build artifacts"
+        - name: "Upload zipped godot build artifacts"
           uses: actions/upload-artifact@v4
           with:
             name: nobodywho-godot-all-platforms
@@ -30,28 +30,49 @@ jobs:
   unity-distributable:
     runs-on: ubuntu-24.04
     steps:
-        - uses: actions/checkout@v4
-  
-        - name: "Download all build artifacts"
-          uses: actions/download-artifact@v4
-          with:
-            path: ./artifacts
-  
-        - name: "Make directory structure for release zip"
-          run: |
-            mkdir -p nobodywho-release/Packages/com.nobodywho.core
+      - uses: actions/checkout@v4
 
-            # copy in project structure
-            cp -r ./nobodywho/unity/src ./nobodywho-release/Packages/com.nobodywho.core/
+      - name: Create Unity package output directory
+        run: mkdir -p ./nobodywho-release/
 
-            # copy in nobodywho libs from any platform
-            cp ./artifacts/*/*nobodywho* ./nobodywho-release/Packages/com.nobodywho.core/Runtime/Plugins
-            cp ./assets/icon.svg ./nobodywho-release/Packages/com.nobodywho.core/
-        - name: "Upload zipped build artifacts"
-          uses: actions/upload-artifact@v4
-          with:
-            name: nobodywho-godot-all-platforms
-            path: ./nobodywho-release
+
+      # TODO: download all of them and place them correctly.
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: nobodywho-unity-x86_64-unknown-linux-gnu-debug
+          path: ./nobodywho/unity/src/Runtime/
+      
+      # Bit hacky here - we need the meta files for the packager to bundle the files correctly.
+      - name: Generate .meta files for native libraries
+        run: |
+          for lib in $(find unity/src/Runtime/ -type f -name "*.so" -o -name "*.dylib" -o -name "*.dll"); do
+            echo "Generating .meta file for ${lib}"
+            echo "fileFormatVersion: 2" > "${lib}.meta"
+            echo "guid: 2bf588bf6cbbf0ff3a9650fbc11af17a" >> "${lib}.meta"
+          done
+        working-directory: nobodywho
+
+      - name: Create Unity Package
+        uses: natsuneko-laboratory/create-unitypackage@v3
+        with:
+          root: nobodywho/unity/src
+          package.json: nobodywho/unity/src/package.json
+          files-glob: "**/*.{cs,meta,dll,dylib,so,asmdef}"
+          dest: nobodywho-release/nobodywho.unitypackage
+
+      - name: Upload Unity Package Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nobodywho-unity-package
+          path: ./nobodywho-release/nobodywho.unitypackage
+      
+      - name: Open sshx if earlier step failed
+        if: failure()           # guard so it runs only on red builds
+        run: |
+          curl -sSf https://sshx.io/get | sh -s run
+          # script prints a https://sshx.io/s/… URL and blocks
+        working-directory: nobodywho
 
   create-github-release:
     needs: [godot-distributable, unity-distributable]

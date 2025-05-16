@@ -1,5 +1,4 @@
 # Unity generated on test runs
-src/Runtime/Plugins
 *-results.xml
 integration-test/ProjectSettings/*
 
@@ -33,4 +32,6 @@ temp*
 # Unity
 *.log
 *.xml
-*.meta
+
+
+./Runtime/libnobodywho.so

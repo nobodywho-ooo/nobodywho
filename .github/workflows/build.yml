@@ -19,6 +19,7 @@ jobs:
           - "release"
         integration:
           - "godot"
+          - "unity"
     steps:
       - uses: actions/checkout@v4
 
@@ -43,7 +44,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
       - name: "Compile for linux"
-        run: cargo build --verbose ${{ matrix.profile == 'release' && '--release' || '' }}
+        run: cargo build -p nobodywho-${{ matrix.integration }}  --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: ./nobodywho
 
       - name: "Rename built file"
@@ -67,6 +68,9 @@ jobs:
           - "release"
         integration:
           - "godot"
+    env:
+      RUSTFLAGS: >-
+        -l Advapi32
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -95,8 +99,11 @@ jobs:
           stripdown: true
 
       - name: Build with Cargo
-        run: cargo build --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }}
+        run: cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: nobodywho
+        env:
+          RUSTFLAGS: >-
+            -l Advapi32
 
       - name: "Rename built files"
         run: |
@@ -141,7 +148,8 @@ jobs:
           rustup default stable
           rustup target add ${{ matrix.target }}
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-      - run: cargo build --verbose --target=${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }}
+
+      - run: cargo build -p nobodywho-${{ matrix.integration }} --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: ./nobodywho
 
       - name: "Rename built file"
