@@ -46,14 +46,6 @@ jobs:
         - name: Checkout Repo
           uses: actions/checkout@v4
 
-        # - name: Setup Environment
-        #   run: |
-        #     mkdir Package~
-        #     cp -r ./nobodywho/unity/src/* ./Package
-        #     mv Editor Package~/
-        #     mv Runtime Package~/
-        #     mv Tests Package~/
-        #     mv package.json Package~/package.json         
 
         - name: Run Tests
           uses: game-ci/unity-test-runner@v4
@@ -65,4 +57,4 @@ jobs:
             packageMode: true
             projectPath: ./nobodywho/unity/src
             testMode: playmode
-            unityVersion: 6000.0.47f1
+            unityVersion: 2022.3.16f1
