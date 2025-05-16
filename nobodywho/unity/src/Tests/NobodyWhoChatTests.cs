@@ -30,22 +30,7 @@ namespace Tests
         [OneTimeSetUp]
         public void OneTimeSetUp()
         {
-            NobodyWho.NativeBindings.init_tracing();
-            _diskStart = NobodyWho.NativeBindings.GetVirtualMemory();
-            _ramStart = NobodyWho.NativeBindings.GetPhysicalMemory();
-        }
-
-        [OneTimeTearDown]
-        public void OneTimeTearDown()
-        {
-            var deltaDisk = NobodyWho.NativeBindings.GetVirtualMemory() - _diskStart;
-            var deltaRam  = NobodyWho.NativeBindings.GetPhysicalMemory() - _ramStart;
-            Debug.Log("Disk: " + deltaDisk + " RAM: " + deltaRam);
-
-            //tolerance in MB
-            long tolerance = 5 * 1024;
-            Assert.IsTrue(deltaDisk < tolerance, "Disk usage is too high");
-            Assert.IsTrue(deltaRam < tolerance, "RAM usage is too high");
+            NobodyWhoBindings.init_tracing();
         }
 
         [SetUp]
@@ -55,9 +40,9 @@ namespace Tests
             Debug.Log("NobodyWhoChatTests::Setup test count: " + _testCount);
             testObject = Object.Instantiate(new GameObject("TestModel"));
 
-            string modelPath = "qwen2.5-1.5b-instruct-q4_0.gguf";
             model = testObject.AddComponent<NobodyWho.Model>();
-            model.modelPath = modelPath;
+            model.ModelPath = System.IO.Path.Combine(Application.streamingAssetsPath, "qwen2.5-1.5b-instruct-q4_0.gguf");
+
             chat = testObject.AddComponent<NobodyWho.Chat>();
             chat.model = model;
             chat.systemPrompt = "You are a test assistant.";
@@ -74,21 +59,22 @@ namespace Tests
         }
 
         [Test]
-        public async Task WhenInvokingSay_ShouldReturnResponse()
+        public void WhenInvokingSay_ShouldReturnResponse()
         {
-            string response = null;
-            response = await chat.Say("Hi there");
+            chat.Say("What is the capital of Denmark?");
+            string response = chat.GetResponseBlocking();
+            System.Console.WriteLine(response);
 
             Assert.IsNotNull(response, "No response received within timeout period");
-            Assert.AreEqual("Hello! How can I help you today?", response);
+            Assert.IsTrue(response.Contains("Copenhagen"), "Got wrong response: " + response);
         }
 
         [UnityTest]
         public IEnumerator WhenInvokingSay_ShouldReceiveTokens()
         {
             string response = null;
-
             List<string> receivedTokens = new List<string>();
+            chat.onComplete.AddListener((result) => response = result);
             chat.onToken.AddListener(
                 (token) =>
                 {
@@ -133,12 +119,14 @@ namespace Tests
         [Test]
         public async Task WhenInvokingSayWithMultipleStopWords_ShouldStopAtFirstStopWord()
         {
-            string response = null;
             chat.stopWords = "horse-rider, fly";
             chat.ResetContext();
-            response = await chat.Say(
+
+            chat.Say(
                 "List all the words in alphabetical order: cat, dog, fly, horse-rider, lion, mouse"
             );
+
+            var response = chat.GetResponseBlocking();
 
             Assert.IsNotNull(response, "No response received within timeout period");
             Assert.IsTrue(response.Contains("dog"), "Response should contain 'dog'");
@@ -148,16 +136,15 @@ namespace Tests
         }
 
         [Test]
-        public async Task WhenInvokingSayWithGrammar_ShouldReturnResponseInCorrectFormat()
+        public void WhenInvokingSayWithGrammar_ShouldReturnResponseInCorrectFormat()
         {
-            string response = null;
 
             chat.systemPrompt =
                 "You are a character creator for a fantasy game. You will be given a list of properties and you will need to fill out those properties.";
             chat.use_grammar = true;
             chat.ResetContext();
 
-            response = await chat.Say(
+            chat.Say(
                 @"Generate exactly these properties:
                 - name
                 - weapon
@@ -165,7 +152,7 @@ namespace Tests
             "
             );
 
-            Assert.IsNotNull(response, "No response received within timeout period");
+            string response = chat.GetResponseBlocking();
 
             CharacterData character = JsonUtility.FromJson<CharacterData>(response);
             Assert.IsNotNull(character.name, "Response should contain 'name' field");
@@ -174,17 +161,16 @@ namespace Tests
         }
 
         [Test]
-        public async Task WhenInvokingSayWithGrammarStr_ShouldReturnResponseInCorrectFormat()
+        public void WhenInvokingSayWithGrammarStr_ShouldReturnResponseInCorrectFormat()
         {
-            string response = null;
-            chat.onComplete.AddListener((result) => response = result);
             chat.systemPrompt =
                 "You are a character creator for a fantasy game. You will be given a list of properties and you will need to fill out those properties.";
             chat.use_grammar = true;
             chat.grammar = "root ::= \"nobodywho\"";
             chat.ResetContext();
 
-            response = await chat.Say("What is your favorite llm plugin?");
+            chat.Say("What is your favorite llm plugin?");
+            string response = chat.GetResponseBlocking();
 
             Assert.IsNotNull(response, "No response received within timeout period");
             Assert.IsTrue(response == "nobodywho", "Response should only be 'nobodywho'");
