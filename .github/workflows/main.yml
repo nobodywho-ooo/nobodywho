@@ -14,6 +14,10 @@ jobs:
   test:
     uses: ./.github/workflows/test.yml
     needs: []
+    secrets:
+      UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+      UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+      UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
 
   release:
     needs: [build, test]

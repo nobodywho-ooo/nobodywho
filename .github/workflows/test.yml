@@ -1,6 +1,13 @@
 name: "Test"
 on:
   workflow_call:
+    secrets:
+      UNITY_EMAIL:  
+        required: true
+      UNITY_PASSWORD:
+        required: true
+      UNITY_LICENSE:
+        required: true
 
 jobs:
   nix-flake-check:
@@ -46,7 +53,6 @@ jobs:
         - name: Checkout Repo
           uses: actions/checkout@v4
 
-
         - name: Run Tests
           uses: game-ci/unity-test-runner@v4
           env:
@@ -57,4 +63,4 @@ jobs:
             packageMode: true
             projectPath: ./nobodywho/unity/src
             testMode: playmode
-            unityVersion: 2022.3.16f1
+            unityVersion: 6000.0.47f1
