@@ -40,8 +40,8 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: nobodywho-unity-x86_64-unknown-linux-gnu-debug
-          path: ./nobodywho/unity/src/Assets/Plugins/Linux/x86_64/
+          name: libnobodywho_unity.so #nobodywho-unity-x86_64-unknown-linux-gnu-debug
+          path: ./nobodywho/unity/src/Runtime/
 
       - name: Create Unity Package
         uses: natsuneko-laboratory/create-unitypackage@v3
