@@ -114,5 +114,6 @@ jobs:
             unityVersion: 6000.0.47f1
           
         - name: "Check StreamingAssets"
+          if: always()
           run: |
             tree /BlankProject
