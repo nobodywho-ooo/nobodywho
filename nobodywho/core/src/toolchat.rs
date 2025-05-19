@@ -79,7 +79,7 @@ impl<'a> Worker<'_, ToolChatWorker> {
         respond: F,
     ) -> Result<&mut Self, SayError>
     where
-        F: Fn(llm::WriteOutput),
+        F: Fn(llm::WriteOutput) + Clone,
     {
         // TODO: this is the token used by qwen3
         //       but e.g. deepseek uses "<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>" instead.
@@ -93,17 +93,10 @@ impl<'a> Worker<'_, ToolChatWorker> {
         // todo!();
 
         // wrap the response callback to keep a copy of the completed response
-        let (resp_sender, resp_receiver) = std::sync::mpsc::channel();
-        let wrapped_respond = |x| {
-            if let llm::WriteOutput::Done(resp) = &x {
-                resp_sender
-                    .send(resp.clone())
-                    .expect("Failed sending response");
-            }
-            respond(x)
-        };
+        let (wrapped_respond, resp_receiver) =
+            wrap_respond(respond.clone(), tool_call_begin.into());
 
-        // brrr
+        // llm go brrr
         self.read_string(diff)?.write_until_done(
             sampler.clone(),
             stop_words.clone(),
@@ -113,55 +106,91 @@ impl<'a> Worker<'_, ToolChatWorker> {
         // get the finished response
         let response: String = resp_receiver.recv()?;
 
-        let Ok(tool_call) = extract_and_parse_tool_call(&response) else {
+        let Some(tool_calls) = extract_tool_calls(&response) else {
             // no tool call. all good. return here
+            debug_assert!(!response.contains(tool_call_begin));
             return Ok(self);
         };
 
-        debug!("Got tool call! {tool_call:?}");
-        self.extra.chat_state.add_tool_call(tool_call.clone());
+        debug!("Got tool calls! {tool_calls:?}");
+        self.extra.chat_state.add_tool_calls(tool_calls.clone());
         let _ = self.extra.chat_state.render_diff();
-        // render diff just to keep up with context. discard result
+        // render diff just to keep up with context.
+        // discard result, because the llm context has already seen these tokens
 
-        // XXX: do the tool call
-        // find the tool
-        let tool = self
-            .extra
-            .tools
-            .iter()
-            .find(|t| t.name == tool_call.name)
-            .expect("TODO: handle bad tool name");
-        // TODO: how to handle the llm selecting an invalid tool?
-        //       should we put an error message in the chat history?
-        //       or crash hard?
-        //       or prevent it from ever happening with GBNF?
+        for tool_call in tool_calls {
+            // XXX: do the tool call
+            // find the tool
+            let tool = self
+                .extra
+                .tools
+                .iter()
+                .find(|t| t.name == tool_call.name)
+                .expect("TODO: handle bad tool name");
+            // TODO: how to handle the llm selecting an invalid tool?
+            //       should we put an error message in the chat history?
+            //       or crash hard?
+            //       or prevent it from ever happening with GBNF?
 
-        // call the tool
-        let response = (tool.function)(tool_call.arguments);
+            // call the tool
+            let response = (tool.function)(tool_call.arguments);
 
-        // render the templ
-        self.extra
-            .chat_state
-            .add_tool_resp(tool_call.name, response);
+            // add to chat history
+            self.extra
+                .chat_state
+                .add_tool_resp(tool_call.name, response);
+        }
+
         let diff = self.extra.chat_state.render_diff()?;
 
+        let (wrapped_respond, resp_receiver) = wrap_respond(respond, tool_call_begin.into());
         self.read_string(diff)?
             .write_until_done(sampler, stop_words, wrapped_respond)?;
 
         // get the finished response
-        let response: String = dbg!(resp_receiver.recv()?);
+        // TODO? should we allow multiple tool calls in sequence?
+        let response: String = resp_receiver.recv()?;
 
         Ok(self)
     }
 }
 
-fn extract_and_parse_tool_call(
-    input: &str,
-) -> Result<
-    chat_state::ToolCall,
-    // TODO: use proper error here
-    Box<dyn std::error::Error>,
-> {
+/// wraps a response function in a closure to do two things:
+/// 1. save a copy of the response (using a channel) before sending it out
+/// 2. skip emitting once a tool call begin token has been seen
+fn wrap_respond<F>(
+    respond: F,
+    tool_call_begin_token: String,
+) -> (
+    impl FnMut(llm::WriteOutput),
+    std::sync::mpsc::Receiver<String>,
+)
+where
+    F: Fn(llm::WriteOutput),
+{
+    let (resp_sender, resp_receiver) = std::sync::mpsc::channel();
+    let mut emitting = true;
+
+    let wrapped_respond = move |x| {
+        match &x {
+            llm::WriteOutput::Token(tok) if tok == &tool_call_begin_token => {
+                emitting = false;
+            }
+            llm::WriteOutput::Done(resp) => {
+                resp_sender
+                    .send(resp.clone())
+                    .expect("Failed sending response");
+            }
+            llm::WriteOutput::Token(_) => (),
+        }
+        if emitting {
+            respond(x)
+        }
+    };
+    (wrapped_respond, resp_receiver)
+}
+
+fn extract_tool_calls(input: &str) -> Option<Vec<chat_state::ToolCall>> {
     // Find the start and end tags
     // TODO: these are the tokens used by qwen3
     //       but e.g. deepseek uses "<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>" instead.
@@ -169,44 +198,22 @@ fn extract_and_parse_tool_call(
     let start_tag = "<tool_call>";
     let end_tag = "</tool_call>";
 
-    let start_idx = input.find(start_tag).ok_or("Start tag not found")? + start_tag.len();
-    let end_idx = input.rfind(end_tag).ok_or("End tag not found")?;
+    let re = regex::Regex::new(r"<tool_call>([\s\S]*?)</tool_call>").expect("Invalid regex");
 
-    if start_idx >= end_idx {
-        return Err("Invalid tag positions".into());
+    let tool_calls: Vec<chat_state::ToolCall> = re
+        .captures_iter(input)
+        .filter_map(|cap| {
+            let tool_call: Option<chat_state::ToolCall> = serde_json::from_str(cap[1].trim()).ok();
+            tool_call
+        })
+        .collect();
+
+    if tool_calls.len() > 0 {
+        Some(tool_calls)
+    } else {
+        None
     }
-
-    let json_str = &input[start_idx..end_idx].trim();
-    debug!(json_str = ?json_str);
-
-    // Parse the JSON
-    let tool_call: chat_state::ToolCall = serde_json::from_str(json_str)?;
-    debug!(tool_call = ?tool_call);
-
-    Ok(tool_call)
 }
-
-// fn test_tool() -> chat_state::Tool {
-//     chat_state::Tool {
-//         r#type: chat_state::ToolType::Function,
-//         function: chat_state::Function {
-//             name: "get_current_temperature".to_string(),
-//             description: "Gets the temperature at a given location".to_string(),
-//             parameters: serde_json::json!({
-//                 "type": "object",
-//                 "properties": {
-//                     "location": {
-//                         "type": "string",
-//                         "description": "The location to get the temperature for"
-//                     }
-//                 },
-//                 "required": [
-//                     "location"
-//                 ]
-//             }),
-//         },
-//     }
-// }
 
 #[cfg(test)]
 mod tests {
@@ -222,14 +229,28 @@ mod tests {
                 "properties": {
                     "location": {
                         "type": "string",
-                        "description": "The location to get the temperature for"
+                        "description": "The location to get the temperature for."
                     }
                 },
                 "required": [
                     "location"
                 ]
             }),
-            function: Box::new(|_| "13.37".into()),
+            function: Box::new(|args| {
+                let Some(location) = args.get("location") else {
+                    return "Bad arguments format. Location key was missing.".into();
+                };
+
+                if location.as_str() == Some("Copenhagen") {
+                    return "13.37°C".into();
+                }
+
+                if location.as_str() == Some("Beijing") {
+                    return "42.69°C".into();
+                }
+
+                "Unknown location.".into()
+            }),
         }
     }
 
@@ -240,7 +261,7 @@ mod tests {
         let mut worker = Worker::new_tool_chat_worker(
             &model,
             4096,
-            "beep boop you're a snoot".into(),
+            "You're a helpful assistant.".into(),
             vec![test_tool()],
         )
         .expect("Failed making worker");
@@ -255,14 +276,16 @@ mod tests {
 
         worker
             .say(
-                "What is the temperature in Copenhagen, Denmark?".into(),
+                "I would like to know the temperature in two cities: Copenhagen and Beijing."
+                    .into(),
                 crate::sampler_config::SamplerConfig::default(),
                 vec![],
                 f,
             )
             .expect("fuck");
 
-        let result = receiver.recv();
-        println!("{result:?}");
+        let result = receiver.recv().unwrap();
+        assert!(result.contains("13.37"));
+        assert!(result.contains("42.69"));
     }
 }

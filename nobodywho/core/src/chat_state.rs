@@ -50,8 +50,14 @@ enum Message {
         role: Role,
         content: String,
     },
+    // it's kind of weird to have the content field in here
+    // but according to the qwen3 docs, it should be an empty field on tool call messages
+    // https://github.com/QwenLM/Qwen3/blob/e5a1d326/docs/source/framework/function_call.md
+    // this also causes a crash when rendering qwen3 chat template, because it tries to get the
+    // length of the content field, which is otherwise undefiend
     ToolCalls {
         role: Role,
+        content: String, 
         tool_calls: Vec<ToolCall>,
     },
     ToolResp {
@@ -225,8 +231,8 @@ impl ChatState {
         self.messages.push(Message::Message { role, content });
     }
 
-    pub fn add_tool_call(&mut self, toolcall: ToolCall) {
-        self.messages.push(Message::ToolCalls {role: Role::Assistant, tool_calls: vec![toolcall]});
+    pub fn add_tool_calls(&mut self, tool_calls: Vec<ToolCall>) {
+        self.messages.push(Message::ToolCalls {role: Role::Assistant, content: "".into(), tool_calls});
     }
     
     pub fn add_tool_resp(&mut self, name: String, content: String) {
