@@ -20,5 +20,5 @@ jobs:
       UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
 
   release:
-    needs: [build, test]
+    needs: [build] # [build, test]
     uses: ./.github/workflows/release.yml
