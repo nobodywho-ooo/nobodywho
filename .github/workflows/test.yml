@@ -44,7 +44,6 @@ jobs:
           . ~/.nix-profile/etc/profile.d/nix.sh
           nix --extra-experimental-features nix-command --extra-experimental-features flakes flake check -L
 
-
   run-unity-test:
     name: Run Tests
     runs-on: ubuntu-latest
@@ -80,16 +79,24 @@ jobs:
             curl -L --fail --progress-bar "https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf" \
               -o "./nobodywho/unity/src/Assets/StreamingAssets/bge-small-en-v1.5-q8_0.gguf"
 
-        - name: Download build artifacts
-          uses: actions/download-artifact@v4
-          with:
-            name: nobodywho-unity-x86_64-unknown-linux-gnu-debug
-            path: ./nobodywho/unity/src/Assets/Plugins/Linux/x86_64/
-          
+        - name: "Setup rust toolchain"
+          run: |
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+            . "$HOME/.cargo/env"
+            rustup update stable
+            rustup default stable
+            echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+            sudo apt-get update
+            sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
+
+        - name: "Compile for linux"
+          run: cargo build -p nobodywho-unity  --verbose
+          working-directory: ./nobodywho
+
         - name: rename libnobodywho.so
           run: |
-            ls -la ./nobodywho/unity/src/Assets/Plugins/Linux/x86_64/
-            mv ./nobodywho/unity/src/Assets/Plugins/Linux/x86_64/nobodywho-unity-x86_64-unknown-linux-gnu-debug.so ./nobodywho/unity/src/Assets/Plugins/Linux/x86_64/libnobodywho.so
+            ls -la ./nobodywho/target/debug/
+            mv ./nobodywho/target/debug/libnobodywho_unity.so ./nobodywho/unity/src/Runtime/libnobodywho.so
 
         - name: Run Tests
           uses: game-ci/unity-test-runner@v4
