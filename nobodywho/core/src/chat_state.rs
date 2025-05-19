@@ -3,7 +3,7 @@ use std::sync::LazyLock;
 use minijinja::{context, Environment};
 use serde::{self, Deserialize, Serialize};
 use serde_json;
-use tracing::warn;
+use tracing::{warn, trace};
 
 static MINIJINJA_ENV: LazyLock<Environment> = LazyLock::new(|| {
     let mut env = Environment::new();
@@ -178,6 +178,7 @@ impl ChatState {
             default_template
         } else if let Ok(tool_template) = tool_template {
             // tools provided, and we have a tool template, use that.
+            debug_assert!(tool_template.to_string()?.contains("tools"));
             tool_template.to_string()?
         } else if default_template.contains("tools") {
             // tools provided, but no tool template, but the default template seems to mention tools
@@ -186,6 +187,7 @@ impl ChatState {
             // tools provided, but we have no tool-capable template
             return Err(FromModelError::NoToolTemplateError);
         };
+        trace!(template);
 
         let tokenize = llama_cpp_2::model::Special::Tokenize;
         let bos = model.token_to_str(model.token_bos(), tokenize)?;
@@ -223,6 +225,14 @@ impl ChatState {
         self.messages.push(Message::Message { role, content });
     }
 
+    pub fn add_tool_call(&mut self, toolcall: ToolCall) {
+        self.messages.push(Message::ToolCalls {role: Role::Assistant, tool_calls: vec![toolcall]});
+    }
+    
+    pub fn add_tool_resp(&mut self, name: String, content: String) {
+        self.messages.push(Message::ToolResp {role: Role::Tool, name, content});
+    }
+
     fn render(&mut self) -> Result<String, minijinja::Error> {
         let tmpl = MINIJINJA_ENV.template_from_str(&self.chat_template)?;
 
@@ -235,6 +245,7 @@ impl ChatState {
             }),
             eos_token => self.eos_token,
             bos_token => self.bos_token,
+            tools => self.tools,
         };
 
         let result = match tmpl.render(ctx) {
@@ -263,6 +274,7 @@ impl ChatState {
         };
 
         let text = result?;
+        trace!(text);
 
         // HACK: get rid of the think blocks when adding stuff to the chat history
         //       this makes our diffing logic work with the qwen3 chat template
