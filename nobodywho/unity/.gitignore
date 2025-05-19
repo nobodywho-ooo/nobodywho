@@ -34,3 +34,5 @@ temp*
 *.log
 *.xml
 *.meta
+
+./Runtime/libnobodywho.so
