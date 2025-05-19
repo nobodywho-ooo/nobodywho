@@ -90,7 +90,7 @@ impl<'a> Worker<'_, ToolChatWorker> {
         let diff = self.extra.chat_state.render_diff()?;
 
         // TODO: don't emit stuff after tool_call_begin
-        todo!();
+        // todo!();
 
         // wrap the response callback to keep a copy of the completed response
         let (resp_sender, resp_receiver) = std::sync::mpsc::channel();
@@ -104,13 +104,54 @@ impl<'a> Worker<'_, ToolChatWorker> {
         };
 
         // brrr
+        self.read_string(diff)?.write_until_done(
+            sampler.clone(),
+            stop_words.clone(),
+            wrapped_respond,
+        )?;
+
+        // get the finished response
+        let response: String = resp_receiver.recv()?;
+
+        let Ok(tool_call) = extract_and_parse_tool_call(&response) else {
+            // no tool call. all good. return here
+            return Ok(self);
+        };
+
+        debug!("Got tool call! {tool_call:?}");
+        self.extra.chat_state.add_tool_call(tool_call.clone());
+        let _ = self.extra.chat_state.render_diff();
+        // render diff just to keep up with context. discard result
+
+        // XXX: do the tool call
+        // find the tool
+        let tool = self
+            .extra
+            .tools
+            .iter()
+            .find(|t| t.name == tool_call.name)
+            .expect("TODO: handle bad tool name");
+        // TODO: how to handle the llm selecting an invalid tool?
+        //       should we put an error message in the chat history?
+        //       or crash hard?
+        //       or prevent it from ever happening with GBNF?
+
+        // call the tool
+        let response = (tool.function)(tool_call.arguments);
+
+        // render the templ
+        self.extra
+            .chat_state
+            .add_tool_resp(tool_call.name, response);
+        let diff = self.extra.chat_state.render_diff()?;
+
         self.read_string(diff)?
             .write_until_done(sampler, stop_words, wrapped_respond)?;
 
         // get the finished response
-        let response = resp_receiver.recv()?;
+        let response: String = dbg!(resp_receiver.recv()?);
 
-        todo!()
+        Ok(self)
     }
 }
 
@@ -145,13 +186,38 @@ fn extract_and_parse_tool_call(
     Ok(tool_call)
 }
 
-fn test_tool() -> chat_state::Tool {
-    chat_state::Tool {
-        r#type: chat_state::ToolType::Function,
-        function: chat_state::Function {
-            name: "get_current_temperature".to_string(),
-            description: "Gets the temperature at a given location".to_string(),
-            parameters: serde_json::json!({
+// fn test_tool() -> chat_state::Tool {
+//     chat_state::Tool {
+//         r#type: chat_state::ToolType::Function,
+//         function: chat_state::Function {
+//             name: "get_current_temperature".to_string(),
+//             description: "Gets the temperature at a given location".to_string(),
+//             parameters: serde_json::json!({
+//                 "type": "object",
+//                 "properties": {
+//                     "location": {
+//                         "type": "string",
+//                         "description": "The location to get the temperature for"
+//                     }
+//                 },
+//                 "required": [
+//                     "location"
+//                 ]
+//             }),
+//         },
+//     }
+// }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils;
+
+    fn test_tool() -> Tool {
+        Tool {
+            name: "get_current_temperature".into(),
+            description: "Gets the temperature at a given location".into(),
+            json_schema: serde_json::json!({
                 "type": "object",
                 "properties": {
                     "location": {
@@ -163,6 +229,40 @@ fn test_tool() -> chat_state::Tool {
                     "location"
                 ]
             }),
-        },
+            function: Box::new(|_| "13.37".into()),
+        }
+    }
+
+    #[test]
+    fn test_tool_chat() {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let mut worker = Worker::new_tool_chat_worker(
+            &model,
+            4096,
+            "beep boop you're a snoot".into(),
+            vec![test_tool()],
+        )
+        .expect("Failed making worker");
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let f = move |x| match x {
+            llm::WriteOutput::Done(resp) => {
+                sender.send(resp).unwrap();
+            }
+            _ => (),
+        };
+
+        worker
+            .say(
+                "What is the temperature in Copenhagen, Denmark?".into(),
+                crate::sampler_config::SamplerConfig::default(),
+                vec![],
+                f,
+            )
+            .expect("fuck");
+
+        let result = receiver.recv();
+        println!("{result:?}");
     }
 }
