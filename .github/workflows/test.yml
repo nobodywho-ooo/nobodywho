@@ -83,7 +83,7 @@ jobs:
           uses: actions/download-artifact@v4
           with:
             name: nobodywho-unity-x86_64-unknown-linux-gnu-debug
-            path: ./nobodywho/unity/src/Assets/Plugins/Linux/x86_64/
+            path: ./nobodywho/unity/src/Assets/Plugins/Linux/x86_64/libnobodywho.so
 
         - name: Run Tests
           uses: game-ci/unity-test-runner@v4
