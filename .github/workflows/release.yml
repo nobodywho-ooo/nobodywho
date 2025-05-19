@@ -31,39 +31,26 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-        with:
-          lfs: true
 
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: ./artifacts
+      - name: Create Unity package output directory
+        run: mkdir -p ./nobodywho-release/packages
+        working-directory: ${{ github.workspace }}
 
       - name: Create Unity Package
-        uses: game-ci/unity-builder@v4
-        env:
-          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        uses: natsuneko-laboratory/create-unitypackage@v3
         with:
-          projectPath: ./nobodywho/unity/src
-          targetPlatform: StandaloneLinux64 # This is just for package creation
-          customParameters: -executeMethod PackageBuilder.CreatePackage
-          buildMethod: PackageBuilder.CreatePackage
-          versioning: Semantic
-          buildName: nobodywho-unity-package
+          root-folder: nobodywho/unity/src
+          files-glob: |
+            Editor/**/*
+            Runtime/**/*
+            package.json
+          dest: ${{ github.workspace }}/nobodywho-release/packages/com.nobodywho.core.unitypackage
 
-      - name: Copy platform-specific plugins
-        run: |
-          mkdir -p ./nobodywho-release/Packages/com.nobodywho.core/Runtime/Plugins
-          cp ./artifacts/*/*nobodywho* ./nobodywho-release/Packages/com.nobodywho.core/Runtime/Plugins/
-          cp ./assets/icon.svg ./nobodywho-release/Packages/com.nobodywho.core/
-
-      - name: Upload Unity Package
+      - name: Upload Unity Package Artifact
         uses: actions/upload-artifact@v4
         with:
           name: nobodywho-unity-package
-          path: ./nobodywho-release 
+          path: ${{ github.workspace }}/nobodywho-release/packages/com.nobodywho.core.unitypackage
 
   create-github-release:
     needs: [godot-distributable, unity-distributable]
