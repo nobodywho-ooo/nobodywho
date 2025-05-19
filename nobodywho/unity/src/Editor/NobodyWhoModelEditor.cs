@@ -4,7 +4,7 @@ using UnityEngine;
 namespace NobodyWho
 {
     [CustomEditor(typeof(Model))]
-    public class ModelEditor : Editor
+    public class ModelEditor : UnityEditor.Editor
     {
         [MenuItem("GameObject/NobodyWho/Model", false, 10)]
         static void CreateModel(MenuCommand menuCommand)
@@ -51,7 +51,7 @@ namespace NobodyWho
     }
 
     [CustomEditor(typeof(Chat))]
-    public class ChatEditor : Editor
+    public class ChatEditor : UnityEditor.Editor
     {
         [MenuItem("GameObject/NobodyWho/Chat", false, 12)]
         static void CreateChat(MenuCommand menuCommand)
@@ -132,7 +132,7 @@ namespace NobodyWho
     }
 
     [CustomEditor(typeof(Embedding))]
-    public class EmbeddingEditor : Editor
+    public class EmbeddingEditor : UnityEditor.Editor
     {
         [MenuItem("GameObject/NobodyWho/Embedding", false, 11)]
         static void CreateEmbedding(MenuCommand menuCommand)
