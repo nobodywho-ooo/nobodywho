@@ -49,6 +49,12 @@ pub enum SayError {
     ChatTemplateRenderError(#[from] minijinja::Error),
 }
 
+const TOOL_CALL_TOKENS: [(&'static str, &'static str); 3] = [
+    ("<tool_call>", "</tool_call>"),
+    ("<function_call>", "</function_call>"),
+    ("key3", "value3"),
+];
+
 impl<'a> Worker<'_, ToolChatWorker> {
     fn new_tool_chat_worker(
         model: &Arc<LlamaModel>,
@@ -157,7 +163,7 @@ impl<'a> Worker<'_, ToolChatWorker> {
 
 /// wraps a response function in a closure to do two things:
 /// 1. save a copy of the response (using a channel) before sending it out
-/// 2. skip emitting once a tool call begin token has been seen
+/// 2. skip emitting once a tool_call_begin_token has been seen
 fn wrap_respond<F>(
     respond: F,
     tool_call_begin_token: String,
