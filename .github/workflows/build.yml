@@ -67,6 +67,9 @@ jobs:
           - "release"
         integration:
           - "godot"
+    env:
+      RUSTFLAGS: >-
+        -l Advapi32
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
