@@ -33,8 +33,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Create Unity package output directory
-        run: mkdir -p ./nobodywho-release/packages
-        working-directory: ${{ github.workspace }}
+        run: mkdir -p ./nobodywho-release/
 
 
       # TODO: download all of them and place them correctly.
@@ -48,13 +47,13 @@ jobs:
         uses: natsuneko-laboratory/create-unitypackage@v3
         with:
           root: nobodywho/unity/src
-          dest: ${{ github.workspace }}/nobodywho-release/packages/com.nobodywho.core.unitypackage
+          dest: nobodywho-release/nobodywho.unitypackage
 
       - name: Upload Unity Package Artifact
         uses: actions/upload-artifact@v4
         with:
           name: nobodywho-unity-package
-          path: ${{ github.workspace }}/nobodywho-release/packages/com.nobodywho.core.unitypackage
+          path: ./nobodywho-release/nobodywho.unitypackage
 
   create-github-release:
     needs: [godot-distributable, unity-distributable]
