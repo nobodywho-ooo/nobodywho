@@ -48,10 +48,6 @@ jobs:
         uses: natsuneko-laboratory/create-unitypackage@v3
         with:
           root: nobodywho/unity/src
-          files: |
-            Editor/**/*
-            Runtime/**/*
-            package.json
           dest: ${{ github.workspace }}/nobodywho-release/packages/com.nobodywho.core.unitypackage
 
       - name: Upload Unity Package Artifact
