@@ -3,6 +3,7 @@ mod sampler_resource;
 use godot::classes::{INode, ProjectSettings};
 use godot::prelude::*;
 use nobodywho::{llm, sampler_config};
+use tracing::warn;
 use tracing_subscriber::prelude::*;
 
 use crate::sampler_resource::NobodyWhoSampler;
@@ -126,7 +127,8 @@ struct NobodyWhoChat {
     /// Higher values use more VRAM, but allow for longer "short term memory" for the LLM.
     context_length: u32,
 
-    chat_handle: Option<nobodywho::chat::ChatHandle>,
+    chat_handle: Option<nobodywho::toolchat::ToolChatHandle>,
+    tools: Vec<nobodywho::toolchat::Tool>,
 
     base: Base<Node>,
 }
@@ -142,6 +144,7 @@ impl INode for NobodyWhoChat {
             stop_words: PackedStringArray::new(),
             context_length: 4096,
             chat_handle: None,
+            tools: vec![],
 
             base,
         }
@@ -173,10 +176,11 @@ impl NobodyWhoChat {
     fn start_worker(&mut self) {
         let mut result = || -> Result<(), String> {
             let model = self.get_model()?;
-            self.chat_handle = Some(nobodywho::chat::ChatHandle::new(
+            self.chat_handle = Some(nobodywho::toolchat::ToolChatHandle::new(
                 model,
                 self.context_length,
                 self.system_prompt.to_string(),
+                self.tools.clone(),
             ));
             Ok(())
         };
@@ -226,10 +230,38 @@ impl NobodyWhoChat {
     #[func]
     fn reset_context(&mut self) {
         if let Some(chat_handle) = &self.chat_handle {
-            chat_handle.reset_chat(self.system_prompt.to_string());
+            todo!("reimplement");
+            // chat_handle.reset_chat(self.system_prompt.to_string());
         } else {
             godot_error!("Attempted to reset context, but no worker is running. Doing nothing.");
         }
+    }
+
+    #[func]
+    fn add_tool(
+        &mut self,
+        name: String,
+        description: String,
+        json_schema: String,
+        callable: Callable,
+    ) {
+        if self.chat_handle.is_some() {
+            godot_warn!(
+                "Chat is already running. Tools might not be available before worker restart"
+            );
+        }
+        let func = move |j: serde_json::Value| {
+            let gstr = Variant::from(j.to_string());
+            let res = callable.call(&[gstr]);
+            res.to_string()
+        };
+        let new_tool = nobodywho::toolchat::Tool::new(
+            name,
+            description,
+            serde_json::from_str(&json_schema).expect("TODO: handle invalid json"),
+            std::sync::Arc::new(func),
+        );
+        self.tools.push(new_tool);
     }
 
     #[signal]
