@@ -40,9 +40,9 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: libnobodywho_unity.so #nobodywho-unity-x86_64-unknown-linux-gnu-debug
+          name: nobodywho-unity-x86_64-unknown-linux-gnu-debug
           path: ./nobodywho/unity/src/Runtime/
-
+      
       - name: Create Unity Package
         uses: natsuneko-laboratory/create-unitypackage@v3
         with:
@@ -54,6 +54,12 @@ jobs:
         with:
           name: nobodywho-unity-package
           path: ./nobodywho-release/nobodywho.unitypackage
+      
+      - name: Open sshx if earlier step failed
+        if: failure()           # guard so it runs only on red builds
+        run: |
+          curl -sSf https://sshx.io/get | sh -s run
+          # script prints a https://sshx.io/s/… URL and blocks
 
   create-github-release:
     needs: [godot-distributable, unity-distributable]

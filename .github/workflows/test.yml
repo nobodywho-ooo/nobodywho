@@ -62,8 +62,8 @@ jobs:
           id: model-cache
           with:
             path: |
-              ./BlankProject/Assets/StreamingAssets/qwen2.5-1.5b-instruct-q4_0.gguf
-              ./BlankProject/Assets/StreamingAssets/bge-small-en-v1.5-q8_0.gguf
+              ./TempProject/Assets/StreamingAssets/qwen2.5-1.5b-instruct-q4_0.gguf
+              ./TempProject/Assets/StreamingAssets/bge-small-en-v1.5-q8_0.gguf
             key: unity-testing-models-${{ hashFiles('**/justfile') }}
             restore-keys: |
               unity-testing-models-
@@ -79,9 +79,9 @@ jobs:
         
         - name: move models to BlankProject
           run: |
-            mkdir -p ./BlankProject/Assets/StreamingAssets
-            mv ./nobodywho/unity/src/Assets/StreamingAssets/qwen2.5-1.5b-instruct-q4_0.gguf ./BlankProject/Assets/StreamingAssets/qwen2.5-1.5b-instruct-q4_0.gguf
-            mv ./nobodywho/unity/src/Assets/StreamingAssets/bge-small-en-v1.5-q8_0.gguf ./BlankProject/Assets/StreamingAssets/bge-small-en-v1.5-q8_0.gguf
+            mkdir -p ./TempProject/Assets/StreamingAssets
+            mv ./nobodywho/unity/src/Assets/StreamingAssets/qwen2.5-1.5b-instruct-q4_0.gguf ./TempProject/Assets/StreamingAssets/qwen2.5-1.5b-instruct-q4_0.gguf
+            mv ./nobodywho/unity/src/Assets/StreamingAssets/bge-small-en-v1.5-q8_0.gguf ./TempProject/Assets/StreamingAssets/bge-small-en-v1.5-q8_0.gguf
 
         - name: "Setup rust toolchain"
           run: |
@@ -99,7 +99,6 @@ jobs:
 
         - name: rename libnobodywho.so
           run: |
-            ls -la ./nobodywho/target/debug/
             mv ./nobodywho/target/debug/libnobodywho_unity.so ./nobodywho/unity/src/Runtime/libnobodywho.so
         - name: Run Tests
           uses: game-ci/unity-test-runner@v4
@@ -112,8 +111,9 @@ jobs:
             projectPath: ./nobodywho/unity/src
             testMode: playmode
             unityVersion: 6000.0.47f1
-          
-        - name: "Check StreamingAssets"
-          if: always()
+        
+        - name: Open sshx if earlier step failed
+          if: failure()           # guard so it runs only on red builds
           run: |
-            tree /BlankProject
+            curl -sSf https://sshx.io/get | sh -s run
+            # script prints a https://sshx.io/s/… URL and blocks
