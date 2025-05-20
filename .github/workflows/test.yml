@@ -99,7 +99,9 @@ jobs:
 
         - name: rename libnobodywho.so
           run: |
-            mv ./nobodywho/target/debug/libnobodywho_unity.so ./nobodywho/unity/src/Runtime/libnobodywho.so
+            mkdir -p ./nobodywho/unity/src/Runtime/Plugins/x86_64
+            mv ./nobodywho/target/debug/libnobodywho_unity.so ./nobodywho/unity/src/Runtime/Plugins/x86_64/libnobodywho.so
+
         - name: Run Tests
           uses: game-ci/unity-test-runner@v4
           env:
