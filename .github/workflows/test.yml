@@ -96,6 +96,7 @@ jobs:
       run: |
         mkdir -p unity/src/Runtime/Plugins/x86_64
         cp target/release/libnobodywho_unity.so unity/src/Runtime/Plugins/x86_64/libnobodywho.so
+        mkdir -p ./TempProject/Assets/Plugins/x86_64
         cp target/release/libnobodywho_unity.so ./TempProject/Assets/Plugins/x86_64/libnobodywho.so
       working-directory: nobodywho
 
