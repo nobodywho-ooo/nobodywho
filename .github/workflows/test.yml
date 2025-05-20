@@ -107,11 +107,11 @@ jobs:
         UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
         UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+        ACTIONS_STEP_DEBUG: true
       with:
         packageMode: true
         projectPath: nobodywho/unity/src
         testMode: playmode
-        unityVersion: 6000.0.47f1
 
     - name: Open sshx on failure
       if: failure()
