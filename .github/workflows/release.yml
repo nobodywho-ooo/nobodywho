@@ -46,10 +46,12 @@ jobs:
       # Bit hacky here - we need the meta files for the packager to bundle the files correctly.
       - name: Generate .meta files for native libraries
         run: |
-          for lib in $(find ./nobodywho/unity/src/Runtime/Plugins -type f -name "*.so" -o -name "*.dylib" -o -name "*.dll"); do
+          for lib in $(find unity/src/Runtime/ -type f -name "*.so" -o -name "*.dylib" -o -name "*.dll"); do
+            echo "Generating .meta file for ${lib}"
             echo "fileFormatVersion: 2" > "${lib}.meta"
             echo "guid: 2bf588bf6cbbf0ff3a9650fbc11af17a" >> "${lib}.meta"
           done
+        working-directory: nobodywho
 
       - name: Create Unity Package
         uses: natsuneko-laboratory/create-unitypackage@v3
@@ -70,6 +72,7 @@ jobs:
         run: |
           curl -sSf https://sshx.io/get | sh -s run
           # script prints a https://sshx.io/s/… URL and blocks
+        working-directory: nobodywho
 
   create-github-release:
     needs: [godot-distributable, unity-distributable]
