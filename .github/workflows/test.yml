@@ -88,14 +88,15 @@ jobs:
           nobodywho/target
         key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
 
-    - name: Build cdylib (release)
+    - name: Build testable
       run: cargo build -p nobodywho-unity --release --locked
       working-directory: nobodywho
 
-    - name: Publish lib to Unity package
+    - name: Copy lib to Unity
       run: |
-        mkdir -p nobodywho/unity/src/Runtime/Plugins/x86_64
-        cp  nobodywho/target/release/libnobodywho_unity.so nobodywho/unity/src/Runtime/Plugins/x86_64/libnobodywho.so
+        mkdir -p unity/src/Runtime/Plugins/x86_64
+        cp  target/release/libnobodywho_unity.so unity/src/Runtime/Plugins/x86_64/libnobodywho.so
+      working-directory: nobodywho
 
     # ---------- UNITY ----------
     - name: Run PlayMode tests
