@@ -43,6 +43,14 @@ jobs:
           name: nobodywho-unity-x86_64-unknown-linux-gnu-debug
           path: ./nobodywho/unity/src/Runtime/
       
+      # Bit hacky here - we need the meta files for the packager to bundle the files correctly.
+      - name: Generate .meta files for native libraries
+        run: |
+          for lib in $(find ./nobodywho/unity/src/Runtime/Plugins -type f -name "*.so" -o -name "*.dylib" -o -name "*.dll"); do
+            echo "fileFormatVersion: 2" > "${lib}.meta"
+            echo "guid: 2bf588bf6cbbf0ff3a9650fbc11af17a" >> "${lib}.meta"
+          done
+
       - name: Create Unity Package
         uses: natsuneko-laboratory/create-unitypackage@v3
         with:
