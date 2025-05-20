@@ -5,16 +5,127 @@ use crate::llm::Worker;
 use crate::sampler_config::SamplerConfig;
 use llama_cpp_2::model::LlamaModel;
 use std::sync::Arc;
-use tracing::debug;
+use tracing::{debug, error};
 
+// PARALLELISM
+
+pub struct ToolChatHandle {
+    msg_tx: std::sync::mpsc::Sender<ToolChatMsg>,
+}
+
+impl ToolChatHandle {
+    pub fn new(
+        model: Arc<LlamaModel>,
+        n_ctx: u32,
+        system_prompt: String,
+        tools: Vec<Tool>,
+    ) -> Self {
+        let (msg_tx, msg_rx) = std::sync::mpsc::channel();
+
+        std::thread::spawn(move || {
+            if let Err(e) = run_worker(model, n_ctx, system_prompt, tools, msg_rx) {
+                error!("Worker crashed: {}", e)
+            }
+        });
+
+        Self { msg_tx }
+    }
+
+    pub fn say(
+        &self,
+        text: String,
+        sampler: SamplerConfig,
+        stop_words: Vec<String>,
+    ) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
+        let (output_tx, output_rx) = tokio::sync::mpsc::channel(4096);
+        let _ = self.msg_tx.send(ToolChatMsg::Say {
+            text,
+            sampler,
+            stop_words,
+            output_tx,
+        });
+        output_rx
+    }
+
+    // pub fn reset_chat(&self, system_prompt: String) {
+    //     let _ = self.msg_tx.send(ToolChatMsg::ResetChat { system_prompt });
+    // }
+}
+
+enum ToolChatMsg {
+    Say {
+        text: String,
+        sampler: SamplerConfig,
+        stop_words: Vec<String>,
+        output_tx: tokio::sync::mpsc::Sender<llm::WriteOutput>,
+    },
+    // ResetChat {
+    //     system_prompt: String,
+    // },
+}
+
+#[derive(Debug, thiserror::Error)]
+enum ChatWorkerError {
+    #[error("Error initializing worker: {0}")]
+    InitWorkerError(#[from] llm::InitWorkerError),
+
+    #[error("Error reading string: {0}")]
+    SayError(#[from] SayError),
+}
+
+fn run_worker(
+    model: Arc<LlamaModel>,
+    n_ctx: u32,
+    system_prompt: String,
+    tools: Vec<Tool>,
+    msg_rx: std::sync::mpsc::Receiver<ToolChatMsg>,
+) -> Result<(), ChatWorkerError> {
+    let mut worker_state = Worker::new_tool_chat_worker(&model, n_ctx, system_prompt, tools)?;
+    while let Ok(msg) = msg_rx.recv() {
+        match msg {
+            ToolChatMsg::Say {
+                text,
+                sampler,
+                stop_words,
+                output_tx,
+            } => {
+                let callback = move |out| {
+                    let _ = output_tx.blocking_send(out);
+                };
+                worker_state.say(text, sampler, stop_words, callback)?;
+            } // ToolChatMsg::ResetChat { system_prompt } => {
+              //     worker_state.reset_chat(system_prompt);
+              // }
+        }
+    }
+    Ok(())
+}
+
+// TOOLS TYPE STUFF
+
+#[derive(Clone)]
 pub struct Tool {
     name: String,
     description: String,
     json_schema: serde_json::Value,
-    function: Box<dyn Fn(serde_json::Value) -> String>,
+    function: Arc<dyn Fn(serde_json::Value) -> String>,
 }
 
 impl Tool {
+    pub fn new(
+        name: String,
+        description: String,
+        json_schema: serde_json::Value,
+        function: Arc<dyn Fn(serde_json::Value) -> String>,
+    ) -> Self {
+        Self {
+            name,
+            description,
+            json_schema,
+            function,
+        }
+    }
+
     fn to_chat_state_tool(&self) -> chat_state::Tool {
         chat_state::Tool {
             r#type: chat_state::ToolType::Function,
@@ -26,6 +137,13 @@ impl Tool {
         }
     }
 }
+
+// XXX: this is very unsafe. I'm just experimenting for now
+
+unsafe impl Send for Tool {}
+unsafe impl Sync for Tool {}
+
+// TOOL CHAT WORKER
 
 struct ToolChatWorker {
     chat_state: ChatState,
@@ -242,7 +360,7 @@ mod tests {
                     "location"
                 ]
             }),
-            function: Box::new(|args| {
+            function: Arc::new(|args| {
                 let Some(location) = args.get("location") else {
                     return "Bad arguments format. Location key was missing.".into();
                 };
