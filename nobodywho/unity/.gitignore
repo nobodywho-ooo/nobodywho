@@ -33,6 +33,6 @@ temp*
 # Unity
 *.log
 *.xml
-*.meta
+
 
 ./Runtime/libnobodywho.so
