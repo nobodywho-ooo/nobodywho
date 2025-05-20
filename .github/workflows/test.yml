@@ -94,11 +94,12 @@ jobs:
 
     - name: Copy lib to Unity
       run: |
-        mkdir -p unity/src/Runtime/Plugins/x86_64
-        cp target/release/libnobodywho_unity.so unity/src/Runtime/Plugins/x86_64/libnobodywho.so
+        mkdir -p nobodywho/unity/src/Runtime/Plugins/x86_64
+        cp nobodywho/target/release/libnobodywho_unity.so nobodywho/unity/src/Runtime/Plugins/x86_64/libnobodywho.so
         mkdir -p ./TempProject/Assets/Plugins/x86_64
-        cp target/release/libnobodywho_unity.so ./TempProject/Assets/Plugins/x86_64/libnobodywho.so
-      working-directory: nobodywho
+        cp nobodywho/target/release/libnobodywho_unity.so ./TempProject/Assets/Plugins/x86_64/libnobodywho.so
+        mkdir -p ./TempProject/Packages/com.nobodywho.core
+        cp nobodywho/target/release/libnobodywho_unity.so ./TempProject/Packages/com.nobodywho.core/libnobodywho.so
 
     # ---------- UNITY ----------
     - name: Run PlayMode tests
@@ -112,6 +113,7 @@ jobs:
         packageMode: true
         projectPath: nobodywho/unity/src
         testMode: playmode
+        unityVersion: 6000.0.47f1
 
     - name: Open sshx on failure
       if: failure()
