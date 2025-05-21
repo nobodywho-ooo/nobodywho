@@ -94,12 +94,12 @@ jobs:
 
     - name: Copy lib to Unity
       run: |
-        mkdir -p nobodywho/unity/src/Runtime/Plugins/x86_64
-        cp nobodywho/target/release/libnobodywho_unity.so nobodywho/unity/src/Runtime/Plugins/x86_64/libnobodywho.so
-        mkdir -p ./TempProject/Assets/Plugins/x86_64
-        cp nobodywho/target/release/libnobodywho_unity.so ./TempProject/Assets/Plugins/x86_64/libnobodywho.so
-        mkdir -p ./TempProject/Packages/com.nobodywho.core
-        cp nobodywho/target/release/libnobodywho_unity.so ./TempProject/Packages/com.nobodywho.core/libnobodywho.so
+        mkdir -p nobodywho/unity/src/Plugins/x86_64
+
+        echo "fileFormatVersion: 2" > "libnobodywho.so.meta"
+        echo "guid: 2bf588bf6cbbf0ff3a9650fbc11af17a" >> "libnobodywho.so.meta"
+        mv libnobodywho.so.meta nobodywho/unity/src/Plugins/x86_64/libnobodywho.so.meta
+        mv nobodywho/target/release/libnobodywho_unity.so nobodywho/unity/src/Plugins/x86_64/libnobodywho.so
 
     # ---------- UNITY ----------
     - name: Run PlayMode tests
@@ -117,4 +117,7 @@ jobs:
 
     - name: Open sshx on failure
       if: failure()
-      run: curl -sSf https://sshx.io/get | sh -s run
+      run: | 
+        ls -R TempProject/Library/PackageCache | grep libnobodywho || true
+        ldd TempProject/Library/PackageCache/*/Plugins/x86_64/libnobodywho.so || true
+        curl -sSf https://sshx.io/get | sh -s run
