@@ -89,17 +89,10 @@ jobs:
         key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
 
     - name: Build testable
-      run: cargo build -p nobodywho-unity --release --locked
-      working-directory: nobodywho
-
-    - name: Copy lib to Unity
       run: |
-        mkdir -p nobodywho/unity/src/Plugins/x86_64
-
-        echo "fileFormatVersion: 2" > "libnobodywho.so.meta"
-        echo "guid: 2bf588bf6cbbf0ff3a9650fbc11af17a" >> "libnobodywho.so.meta"
-        mv libnobodywho.so.meta nobodywho/unity/src/Plugins/x86_64/libnobodywho.so.meta
-        mv nobodywho/target/release/libnobodywho_unity.so nobodywho/unity/src/Plugins/x86_64/libnobodywho.so
+        cargo build -p nobodywho-unity --release --locked
+        mv target/release/libnobodywho_unity.so unity/src/Runtime/Plugins/x86_64/libnobodywho.so
+      working-directory: nobodywho
 
     # ---------- UNITY ----------
     - name: Run PlayMode tests
