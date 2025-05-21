@@ -308,9 +308,51 @@ impl NobodyWhoChat {
     ) {
         if self.chat_handle.is_some() {
             godot_warn!(
-                "Chat is already running. Tools might not be available before worker restart"
+                "Chat is already running. Tools might not be available before worker restart or reset"
             );
         }
+
+        // Get types of function
+        let Some(method_name) = callable.method_name() else {
+            godot_error!("Error adding up tool: Could not get method name for callable. Did you pass in an anonymous function?");
+            return;
+        }
+
+        // TODO: can we use callable.object() here instead, to allow methods on other objects than self?
+        let method = self
+            .base()
+            .get_method_list()
+            .iter_shared()
+            .find(|dict| dict.at("name").to::<StringName>() == method_name);
+
+        let Some(method) = method else {
+            godot_error!("Could not find method on this object. Is the method you passed defined on the NobodyWhoChat script?");
+            return;
+        }
+
+        let method_args: Array<Dictionary> = method.at("args").to();
+
+        for arg in method_args.iter_shared() {
+            let arg_name: String = arg.at("name").to();
+            let arg_type: VariantType = arg.at("type").to();
+            let arg_type_json_schema_name: &str = match arg_type {
+                // VariantType::NIL => "null", easy to map, makes no sense.
+                VariantType::BOOL => "boolean",
+                VariantType::INT => "integer",
+                VariantType::FLOAT => "number",
+                VariantType::STRING => "string",
+                VariantType::ARRAY => "array",
+                // TODO: more types. E.g. Object, Vector types, Array types, Dictionary
+                _ => { 
+                    godot_error!("Error adding tool {method_name} - Unsupported type for argument '{arg_name}': {arg_type:?}");
+                    return;
+                }
+            }
+            serde_json::json!({
+                arg_name.as_str(): { "type": arg_type_json_schema_name }
+            });
+        }
+
         let func = move |j: serde_json::Value| {
             let gstr = Variant::from(j.to_string());
             let res = callable.call(&[gstr]);
