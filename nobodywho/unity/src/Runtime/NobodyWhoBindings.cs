@@ -12,7 +12,7 @@ namespace NobodyWho
 
     public static class NativeBindings
     {
-        private const string LIB_NAME = "libnobodywho"; // Will be libnobodywho.so on Linux, libnobodywho.dylib on Mac, nobodywho.dll on Windows - this catches all the cases.
+        private const string LIB_NAME = "nobodywho"; // Will be libnobodywho.so on Linux, libnobodywho.dylib on Mac, nobodywho.dll on Windows - this catches all the cases.
 
         /// tracing setup - only useful in tests
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl)]
