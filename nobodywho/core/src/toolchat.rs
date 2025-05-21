@@ -140,8 +140,9 @@ impl Tool {
 
 // XXX: this is very unsafe. I'm just experimenting for now
 
+// TODO: figure out why send is needed, try to remove the unsafe impl
 unsafe impl Send for Tool {}
-unsafe impl Sync for Tool {}
+// unsafe impl Sync for Tool {}
 
 // TOOL CHAT WORKER
 
