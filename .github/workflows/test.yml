@@ -92,6 +92,7 @@ jobs:
       run: |
         cargo build -p nobodywho-unity --release --locked
         mv target/release/libnobodywho_unity.so unity/src/Runtime/Plugins/x86_64/libnobodywho.so
+
       working-directory: nobodywho
 
     # ---------- UNITY ----------
