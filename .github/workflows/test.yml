@@ -91,7 +91,7 @@ jobs:
     - name: Build testable
       run: |
         cargo build -p nobodywho-unity --release --locked
-        mv target/release/libnobodywho_unity.so unity/src/Runtime/Plugins/x86_64/libnobodywho.so
+        mv target/release/libnobodywho_unity.so unity/src/Runtime/Plugins/linux-x86_64/libnobodywho.so
 
       working-directory: nobodywho
 
@@ -111,6 +111,11 @@ jobs:
 
     - name: Open sshx on failure
       if: failure()
+      env:
+        UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+        UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+        ACTIONS_STEP_DEBUG: true
       run: | 
         ls -R TempProject/Library/PackageCache | grep libnobodywho || true
         ldd TempProject/Library/PackageCache/*/Plugins/x86_64/libnobodywho.so || true
