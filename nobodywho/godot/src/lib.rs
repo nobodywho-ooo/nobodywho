@@ -286,7 +286,10 @@ impl NobodyWhoChat {
             match dictionaries_to_messages(messages) {
                 Ok(msg_vec) => {
                     // Check if last message is from user and warn
-                    if msg_vec.last().map_or(false, |msg| msg.role == "user") {
+                    if msg_vec
+                        .last()
+                        .map_or(false, |msg| msg.role() == &chat_state::Role::User)
+                    {
                         godot_warn!("Chat history ends with a user message. This may cause unexpected behavior during generation.");
                     }
 
@@ -298,60 +301,27 @@ impl NobodyWhoChat {
         } else {
             godot_error!("Attempted to set chat history, but no worker is running. Doing nothing.");
         }
+    }
 
-    fn add_tool(
-        &mut self,
-        name: String,
-        description: String,
-        json_schema: String,
-        callable: Callable,
-    ) {
+    fn add_tool(&mut self, description: String, callable: Callable) {
         if self.chat_handle.is_some() {
             godot_warn!(
                 "Chat is already running. Tools might not be available before worker restart or reset"
             );
         }
 
-        // Get types of function
         let Some(method_name) = callable.method_name() else {
-            godot_error!("Error adding up tool: Could not get method name for callable. Did you pass in an anonymous function?");
+            godot_error!("Could not get method name. Did you pass an anonymous function?");
             return;
-        }
+        };
 
-        // TODO: can we use callable.object() here instead, to allow methods on other objects than self?
-        let method = self
-            .base()
-            .get_method_list()
-            .iter_shared()
-            .find(|dict| dict.at("name").to::<StringName>() == method_name);
-
-        let Some(method) = method else {
-            godot_error!("Could not find method on this object. Is the method you passed defined on the NobodyWhoChat script?");
-            return;
-        }
-
-        let method_args: Array<Dictionary> = method.at("args").to();
-
-        for arg in method_args.iter_shared() {
-            let arg_name: String = arg.at("name").to();
-            let arg_type: VariantType = arg.at("type").to();
-            let arg_type_json_schema_name: &str = match arg_type {
-                // VariantType::NIL => "null", easy to map, makes no sense.
-                VariantType::BOOL => "boolean",
-                VariantType::INT => "integer",
-                VariantType::FLOAT => "number",
-                VariantType::STRING => "string",
-                VariantType::ARRAY => "array",
-                // TODO: more types. E.g. Object, Vector types, Array types, Dictionary
-                _ => { 
-                    godot_error!("Error adding tool {method_name} - Unsupported type for argument '{arg_name}': {arg_type:?}");
-                    return;
-                }
+        let json_schema = match json_schema_from_callable(&callable) {
+            Ok(js) => js,
+            Err(e) => {
+                godot_error!("Failed generating json schema for function: {e}");
+                return;
             }
-            serde_json::json!({
-                arg_name.as_str(): { "type": arg_type_json_schema_name }
-            });
-        }
+        };
 
         let func = move |j: serde_json::Value| {
             let gstr = Variant::from(j.to_string());
@@ -359,9 +329,9 @@ impl NobodyWhoChat {
             res.to_string()
         };
         let new_tool = nobodywho::toolchat::Tool::new(
-            name,
+            method_name.into(),
             description,
-            serde_json::from_str(&json_schema).expect("TODO: handle invalid json"),
+            dbg!(json_schema),
             std::sync::Arc::new(func),
         );
         self.tools.push(new_tool);
@@ -383,6 +353,52 @@ impl NobodyWhoChat {
     fn set_log_level(level: String) {
         set_log_level(&level);
     }
+}
+
+fn json_schema_from_callable(callable: &Callable) -> Result<serde_json::Value, String> {
+    // find method metadata
+    let method_name = callable.method_name().ok_or("Error adding tool: Could not get method name for callable. Did you pass in an anonymous function?".to_string())?;
+    let method_obj = callable.object().ok_or("Could not find object for callable. Anonymous functions and static methods are not supported.".to_string())?;
+    let method_info = method_obj
+        .get_method_list()
+        .iter_shared()
+        .find(|dict| dict.at("name").to::<String>() == method_name.to_string());
+    let method_info = method_info.ok_or("Could not find method on this object. Is the method you passed defined on the NobodyWhoChat script?".to_string())?;
+    let method_args: Array<Dictionary> = method_info.at("args").to();
+
+    // start building json schema
+    let mut properties = serde_json::Map::new();
+    let mut required = vec![];
+
+    for arg in method_args.iter_shared() {
+        let arg_name: String = arg.at("name").to();
+        let arg_type: VariantType = arg.at("type").to();
+        let arg_type_json_schema_name: &str = match arg_type {
+            // VariantType::NIL => "null", easy to map, makes no sense.
+            VariantType::BOOL => "boolean",
+            VariantType::INT => "integer",
+            VariantType::FLOAT => "number",
+            VariantType::STRING => "string",
+            VariantType::ARRAY => "array",
+            // TODO: more types. E.g. Object, Vector types, Array types, Dictionary
+            _ => {
+                return Err("Error adding tool {method_name} - Unsupported type for argument '{arg_name}': {arg_type:?}".into());
+            }
+        };
+
+        properties.insert(
+            arg_name.clone(),
+            serde_json::json!({ "type": arg_type_json_schema_name }),
+        );
+        // TODO: can we make arguments with default values not required?
+        required.push(serde_json::Value::String(arg_name));
+    }
+
+    Ok(serde_json::json!({
+        "type": "object",
+        "properties": properties,
+        "required": required
+    }))
 }
 
 #[derive(GodotClass)]

@@ -34,18 +34,18 @@ fn strftime_now(format_str: &str) -> String {
 // https://github.com/huggingface/transformers/blob/b11b28cc4e859558318690a5b41ac3a22644acd5/docs/source/en/chat_templating_writing.md
 
 
-#[derive(Serialize, Clone)]
+#[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
-enum Role {
+pub enum Role {
     User,
     Assistant,
     System,
     Tool,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 #[serde(untagged)]
-enum Message {
+pub enum Message {
     Message {
         role: Role,
         content: String,
@@ -65,6 +65,14 @@ enum Message {
         name: String,
         content: String,
     },
+}
+
+impl Message {
+    pub fn role(&self) -> &Role {
+        match self {
+            Message::Message { role, .. } | Message::ToolCalls { role, .. } | Message :: ToolResp { role, .. } => role,
+        }
+    }
 }
 
 #[derive(Serialize)]
