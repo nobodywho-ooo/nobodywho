@@ -329,7 +329,7 @@ where
         }
 
         // we're done!
-        trace!("Sending out response: {full_response}");
+        debug!("Sending out response: {full_response}");
         respond(WriteOutput::Done(full_response));
         Ok(self)
     }
