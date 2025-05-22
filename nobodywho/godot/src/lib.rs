@@ -340,7 +340,7 @@ impl NobodyWhoChat {
             for prop in &properties {
                 let Some(val) = obj.get(prop.as_str()) else {
                     warn!("LLM passed bad arguments to tool. Missing argument {prop}");
-                    return "Error: Missing argument {prop}".into();
+                    return format!("Error: Missing argument {prop}");
                 };
                 args.push(json_to_godot(val));
             }
