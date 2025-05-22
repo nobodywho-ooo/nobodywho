@@ -89,11 +89,9 @@ jobs:
         key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
 
     - name: Build testable
-      env:
-        RUSTFLAGS: "-C link-arg=-Wl,-rpath=$ORIGIN" 
       run: |
         cargo build -p nobodywho-unity --release --locked
-        mv target/release/libnobodywho_unity.so unity/src/Runtime/Plugins/linux-x86_64/libnobodywho.so
+        mv target/release/libnobodywho_unity.so unity/src/Runtime/Plugins/x86_64/libnobodywho.so
 
       working-directory: nobodywho
 
