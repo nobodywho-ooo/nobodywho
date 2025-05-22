@@ -3,7 +3,7 @@ mod sampler_resource;
 use godot::classes::{INode, ProjectSettings};
 use godot::prelude::*;
 use nobodywho::{llm, sampler_config};
-use tracing::info;
+use tracing::{debug, info, warn};
 use tracing_subscriber::prelude::*;
 
 use crate::sampler_resource::NobodyWhoSampler;
@@ -240,8 +240,7 @@ impl NobodyWhoChat {
     #[func]
     fn reset_context(&mut self) {
         if let Some(chat_handle) = &self.chat_handle {
-            todo!("reimplement");
-            // chat_handle.reset_chat(self.system_prompt.to_string());
+            chat_handle.reset_chat(self.system_prompt.to_string(), self.tools.clone());
         } else {
             godot_error!("Attempted to reset context, but no worker is running. Doing nothing.");
         }
@@ -265,6 +264,7 @@ impl NobodyWhoChat {
                 return;
             }
         };
+        debug!(?json_schema);
 
         // list of property names, preserving order of arguments from Callable
         let Some(properties) = json_schema
@@ -275,6 +275,7 @@ impl NobodyWhoChat {
             unreachable!("Returned json schema was malformed")
         };
 
+        // the callback that the actual tool call uses
         let func = move |j: serde_json::Value| {
             let Some(obj) = j.as_object() else {
                 warn!("LLM passed bad arguments to tool: {j:?}");
@@ -290,6 +291,7 @@ impl NobodyWhoChat {
                 args.push(json_to_godot(val));
             }
 
+            // TODO: if arguments are incorrect here, the callable returns null
             let res = callable.call(&args);
             res.to_string()
         };
@@ -374,7 +376,7 @@ fn json_schema_from_callable(
         let arg_name: String = arg.at("name").to();
         let arg_type: VariantType = arg.at("type").to();
         let arg_type_json_schema_name: &str = match arg_type {
-            // VariantType::NIL => "null", easy to map, makes no sense.
+            VariantType::NIL => return Err(format!("Error adding tool {method_name}: arguments must all have type hints. Argument '{arg_name}' does not have a type hint.")),
             VariantType::BOOL => "boolean",
             VariantType::INT => "integer",
             VariantType::FLOAT => "number",
@@ -382,7 +384,7 @@ fn json_schema_from_callable(
             VariantType::ARRAY => "array",
             // TODO: more types. E.g. Object, Vector types, Array types, Dictionary
             _ => {
-                return Err("Error adding tool {method_name} - Unsupported type for argument '{arg_name}': {arg_type:?}".into());
+                return Err(format!("Error adding tool {method_name} - Unsupported type for argument '{arg_name}': {arg_type:?}"));
             }
         };
 
