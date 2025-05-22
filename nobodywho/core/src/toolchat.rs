@@ -5,7 +5,7 @@ use crate::llm::Worker;
 use crate::sampler_config::SamplerConfig;
 use llama_cpp_2::model::LlamaModel;
 use std::sync::Arc;
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 
 // PARALLELISM
 
@@ -47,9 +47,12 @@ impl ToolChatHandle {
         output_rx
     }
 
-    // pub fn reset_chat(&self, system_prompt: String) {
-    //     let _ = self.msg_tx.send(ToolChatMsg::ResetChat { system_prompt });
-    // }
+    pub fn reset_chat(&self, system_prompt: String, tools: Vec<Tool>) {
+        let _ = self.msg_tx.send(ToolChatMsg::ResetChat {
+            system_prompt,
+            tools,
+        });
+    }
 }
 
 enum ToolChatMsg {
@@ -59,9 +62,10 @@ enum ToolChatMsg {
         stop_words: Vec<String>,
         output_tx: tokio::sync::mpsc::Sender<llm::WriteOutput>,
     },
-    // ResetChat {
-    //     system_prompt: String,
-    // },
+    ResetChat {
+        system_prompt: String,
+        tools: Vec<Tool>,
+    },
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -71,6 +75,9 @@ enum ChatWorkerError {
 
     #[error("Error reading string: {0}")]
     SayError(#[from] SayError),
+
+    #[error("Init template error: {0}")]
+    TemplateError(#[from] chat_state::FromModelError),
 }
 
 fn run_worker(
@@ -93,9 +100,13 @@ fn run_worker(
                     let _ = output_tx.blocking_send(out);
                 };
                 worker_state.say(text, sampler, stop_words, callback)?;
-            } // ToolChatMsg::ResetChat { system_prompt } => {
-              //     worker_state.reset_chat(system_prompt);
-              // }
+            }
+            ToolChatMsg::ResetChat {
+                system_prompt,
+                tools,
+            } => {
+                worker_state.reset_chat(system_prompt, tools)?;
+            }
         }
     }
     Ok(())
@@ -253,6 +264,7 @@ impl<'a> Worker<'_, ToolChatWorker> {
 
                 // call the tool
                 let response = (tool.function)(tool_call.arguments);
+                debug!(?tool_call.name, ?response);
 
                 // add to chat history
                 self.extra
@@ -278,6 +290,20 @@ impl<'a> Worker<'_, ToolChatWorker> {
         let _ = self.extra.chat_state.render_diff()?;
 
         Ok(self)
+    }
+
+    pub fn reset_chat(
+        &mut self,
+        system_prompt: String,
+        tools: Vec<Tool>,
+    ) -> Result<(), chat_state::FromModelError> {
+        self.reset_context();
+        self.extra.chat_state = ChatState::from_model_and_tools(
+            self.ctx.model,
+            tools.iter().map(|t| t.to_chat_state_tool()).collect(),
+        )?;
+        self.extra.chat_state.add_system_message(system_prompt);
+        Ok(())
     }
 }
 
