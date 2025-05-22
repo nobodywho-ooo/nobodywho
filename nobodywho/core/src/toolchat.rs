@@ -214,10 +214,8 @@ impl<'a> Worker<'_, ToolChatWorker> {
         self.extra.chat_state.add_user_message(text);
         let diff = self.extra.chat_state.render_diff()?;
 
-        // TODO: don't emit stuff after tool_call_begin
-        // todo!();
-
         // wrap the response callback to keep a copy of the completed response
+        // and to avoid emitting tool calls
         let (wrapped_respond, resp_receiver) =
             wrap_respond(respond.clone(), tool_call_begin.into());
 
@@ -229,52 +227,55 @@ impl<'a> Worker<'_, ToolChatWorker> {
         )?;
 
         // get the finished response
-        let response: String = resp_receiver.recv()?;
+        let mut response: String = resp_receiver.recv()?;
 
-        let Some(tool_calls) = extract_tool_calls(&response) else {
-            // no tool call. all good. return here
-            debug_assert!(!response.contains(tool_call_begin));
-            return Ok(self);
-        };
+        while let Some(tool_calls) = extract_tool_calls(&response) {
+            debug!("Got tool calls! {tool_calls:?}");
 
-        debug!("Got tool calls! {tool_calls:?}");
-        self.extra.chat_state.add_tool_calls(tool_calls.clone());
-        let _ = self.extra.chat_state.render_diff();
-        // render diff just to keep up with context.
-        // discard result, because the llm context has already seen these tokens
+            self.extra.chat_state.add_tool_calls(tool_calls.clone());
+            let _ = self.extra.chat_state.render_diff()?;
+            // render diff just to keep up with context.
+            // discard result, because the llm context has already seen these tokens
 
-        for tool_call in tool_calls {
-            // XXX: do the tool call
-            // find the tool
-            let tool = self
-                .extra
-                .tools
-                .iter()
-                .find(|t| t.name == tool_call.name)
-                .expect("TODO: handle bad tool name");
-            // TODO: how to handle the llm selecting an invalid tool?
-            //       should we put an error message in the chat history?
-            //       or crash hard?
-            //       or prevent it from ever happening with GBNF?
+            for tool_call in tool_calls {
+                // XXX: do the tool call
+                // find the tool
+                let tool = self
+                    .extra
+                    .tools
+                    .iter()
+                    .find(|t| t.name == tool_call.name)
+                    .expect("TODO: handle bad tool name");
+                // TODO: how to handle the llm selecting an invalid tool?
+                //       should we put an error message in the chat history?
+                //       or crash hard?
+                //       or prevent it from ever happening with GBNF?
 
-            // call the tool
-            let response = (tool.function)(tool_call.arguments);
+                // call the tool
+                let response = (tool.function)(tool_call.arguments);
 
-            // add to chat history
-            self.extra
-                .chat_state
-                .add_tool_resp(tool_call.name, response);
+                // add to chat history
+                self.extra
+                    .chat_state
+                    .add_tool_resp(tool_call.name, response);
+            }
+
+            let diff = self.extra.chat_state.render_diff()?;
+
+            let (wrapped_respond, resp_receiver) =
+                wrap_respond(respond.clone(), tool_call_begin.into());
+            self.read_string(diff)?.write_until_done(
+                sampler.clone(),
+                stop_words.clone(),
+                wrapped_respond,
+            )?;
+
+            // get the finished response
+            response = resp_receiver.recv()?;
         }
-
-        let diff = self.extra.chat_state.render_diff()?;
-
-        let (wrapped_respond, resp_receiver) = wrap_respond(respond, tool_call_begin.into());
-        self.read_string(diff)?
-            .write_until_done(sampler, stop_words, wrapped_respond)?;
-
-        // get the finished response
-        // TODO? should we allow multiple tool calls in sequence?
-        let response: String = resp_receiver.recv()?;
+        debug_assert!(!response.contains(tool_call_begin));
+        self.extra.chat_state.add_assistant_message(response);
+        let _ = self.extra.chat_state.render_diff()?;
 
         Ok(self)
     }

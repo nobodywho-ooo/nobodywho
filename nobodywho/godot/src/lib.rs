@@ -305,9 +305,7 @@ impl NobodyWhoChat {
 
     fn add_tool(&mut self, description: String, callable: Callable) {
         if self.chat_handle.is_some() {
-            godot_warn!(
-                "Chat is already running. Tools might not be available before worker restart or reset"
-            );
+            godot_warn!("Worker already running. Tools won't be available until restart or reset");
         }
 
         let Some(method_name) = callable.method_name() else {
@@ -323,15 +321,37 @@ impl NobodyWhoChat {
             }
         };
 
+        // list of property names, preserving order of arguments from Callable
+        let Some(properties) = json_schema
+            .get("properties")
+            .and_then(|v| v.as_object())
+            .map(|obj| obj.keys().cloned().collect::<Vec<String>>())
+        else {
+            unreachable!("Returned json schema was malformed")
+        };
+
         let func = move |j: serde_json::Value| {
-            let gstr = Variant::from(j.to_string());
-            let res = callable.call(&[gstr]);
+            let Some(obj) = j.as_object() else {
+                warn!("LLM passed bad arguments to tool: {j:?}");
+                return "Error: Bad arguments. You must supply a json object.".into();
+            };
+
+            let mut args: Vec<Variant> = vec![];
+            for prop in &properties {
+                let Some(val) = obj.get(prop.as_str()) else {
+                    warn!("LLM passed bad arguments to tool. Missing argument {prop}");
+                    return "Error: Missing argument {prop}".into();
+                };
+                args.push(json_to_godot(val));
+            }
+
+            let res = callable.call(&args);
             res.to_string()
         };
         let new_tool = nobodywho::toolchat::Tool::new(
             method_name.into(),
             description,
-            dbg!(json_schema),
+            json_schema.into(),
             std::sync::Arc::new(func),
         );
         self.tools.push(new_tool);
@@ -355,13 +375,48 @@ impl NobodyWhoChat {
     }
 }
 
-fn json_schema_from_callable(callable: &Callable) -> Result<serde_json::Value, String> {
+fn json_to_godot(value: &serde_json::Value) -> Variant {
+    match value {
+        serde_json::Value::Null => Variant::nil(),
+        serde_json::Value::Bool(b) => Variant::from(*b),
+        serde_json::Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                Variant::from(i)
+            } else if let Some(u) = n.as_u64() {
+                Variant::from(u)
+            } else if let Some(f) = n.as_f64() {
+                Variant::from(f)
+            } else {
+                warn!("Didn't expect this code branch to be possible. Trying fallible conversion to f64.");
+                Variant::from(n.as_f64().unwrap())
+            }
+        }
+        serde_json::Value::String(s) => Variant::from(s.as_str()),
+        serde_json::Value::Array(arr) => {
+            let vec: Vec<Variant> = arr.into_iter().map(json_to_godot).collect();
+            Variant::from(vec)
+        }
+        serde_json::Value::Object(obj) => {
+            // XXX: this is prerty lazy
+            let mut dict = Dictionary::new();
+            for (key, val) in obj {
+                dict.set(key.as_str(), json_to_godot(val));
+            }
+            Variant::from(dict)
+        }
+    }
+}
+
+fn json_schema_from_callable(
+    callable: &Callable,
+) -> Result<serde_json::Map<String, serde_json::Value>, String> {
     // find method metadata
     let method_name = callable.method_name().ok_or("Error adding tool: Could not get method name for callable. Did you pass in an anonymous function?".to_string())?;
     let method_obj = callable.object().ok_or("Could not find object for callable. Anonymous functions and static methods are not supported.".to_string())?;
     let method_info = method_obj
         .get_method_list()
         .iter_shared()
+        // XXX: I expect that this bit is pretty slow. But it works for now...
         .find(|dict| dict.at("name").to::<String>() == method_name.to_string());
     let method_info = method_info.ok_or("Could not find method on this object. Is the method you passed defined on the NobodyWhoChat script?".to_string())?;
     let method_args: Array<Dictionary> = method_info.at("args").to();
@@ -394,11 +449,11 @@ fn json_schema_from_callable(callable: &Callable) -> Result<serde_json::Value, S
         required.push(serde_json::Value::String(arg_name));
     }
 
-    Ok(serde_json::json!({
-        "type": "object",
-        "properties": properties,
-        "required": required
-    }))
+    let mut result = serde_json::Map::new();
+    result.insert("type".into(), "object".into());
+    result.insert("properties".into(), properties.into());
+    result.insert("required".into(), required.into());
+    Ok(result)
 }
 
 #[derive(GodotClass)]
