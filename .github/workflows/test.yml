@@ -109,14 +109,16 @@ jobs:
         testMode: playmode
         unityVersion: 6000.0.47f1
 
+    - name: Upload Test Results
+      uses: actions/upload-artifact@v4
+      with:
+        name: Unity Test Results
+        path: ${{ steps.testRunner.outputs.artifactsPath }}
+
     - name: Open sshx on failure
       if: failure()
       env:
         UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
         UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-        ACTIONS_STEP_DEBUG: true
-      run: | 
-        ls -R TempProject/Library/PackageCache | grep libnobodywho || true
-        ldd TempProject/Library/PackageCache/*/Plugins/x86_64/libnobodywho.so || true
-        curl -sSf https://sshx.io/get | sh -s run
+      run: curl -sSf https://sshx.io/get | sh -s run
