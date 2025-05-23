@@ -1,4 +1,4 @@
-FROM ./ubuntu/editor
+FROM local-gameci-editor:latest
 
 # FROM unityci/editor:ubuntu-6000.0.47f1-linux-il2cpp-
 
