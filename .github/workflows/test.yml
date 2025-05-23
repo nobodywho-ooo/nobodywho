@@ -114,8 +114,10 @@ jobs:
         testMode: playmode
         unityVersion: 6000.0.47f1
         customImage: emilnorsker/nobodywho-unity-ci:latest
+        checkName: Unity Test Results
 
     - name: Upload Test Results
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: Unity Test Results
