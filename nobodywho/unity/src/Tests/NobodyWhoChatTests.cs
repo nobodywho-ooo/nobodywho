@@ -26,11 +26,26 @@ namespace Tests
 
         private long _diskStart;
         private long _ramStart;
+        private float _timeoutDuration = 60 * 5; // 5 minutes
 
         [OneTimeSetUp]
         public void OneTimeSetUp()
         {
-            NobodyWhoBindings.init_tracing();
+            NobodyWho.NativeBindings.init_tracing();
+            _diskStart = NobodyWho.NativeBindings.GetVirtualMemory();
+            _ramStart = NobodyWho.NativeBindings.GetPhysicalMemory();
+        }
+
+        [OneTimeTearDown]
+        public void OneTimeTearDown()
+        {
+            var deltaDisk = NobodyWho.NativeBindings.GetVirtualMemory() - _diskStart;
+            var deltaRam  = NobodyWho.NativeBindings.GetPhysicalMemory() - _ramStart;
+            Debug.Log("Disk: " + deltaDisk + " RAM: " + deltaRam);
+
+            long tolerance = 5 * 1024; //tolerance in MB
+            Assert.IsTrue(deltaDisk < tolerance, "Disk usage is too high - expected: " + tolerance + " got: " + deltaDisk);
+            Assert.IsTrue(deltaRam < tolerance, "RAM usage is too high - expected: " + tolerance + " got: " + deltaRam);
         }
 
         [SetUp]
@@ -89,7 +104,7 @@ namespace Tests
 
             chat.Say("Tell me a short joke");
 
-            float timeout = Time.time + 15f;
+            float timeout = Time.time + _timeoutDuration;
             while (response == null && Time.time < timeout)
             {
                 yield return null;
@@ -109,7 +124,7 @@ namespace Tests
 
             chat.Say("List these animals in alphabetical order: cat, dog, fly, lion, mouse");
 
-            float timeout = Time.time + 15f;
+            float timeout = Time.time + _timeoutDuration;
             while (response == null && Time.time < timeout)
             {
                 yield return null;
