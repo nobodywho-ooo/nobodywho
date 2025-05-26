@@ -156,15 +156,18 @@ impl Tool {
     // {"name": "get_current_temperature", "arguments": {"location": "Beijing"}}
     // </tool_call>
     fn tool_call_gbnf_grammar(&self) -> String {
-        let call_schema = serde_json::json!({
+        let call_schema = serde_json::json!(
+        {
             "type": "object",
             "properties": {
-                // "name": { "const": &self.name },
-                "name": { "type": "string", },
+                "name": { "const": &self.name, },
                 "arguments": &self.json_schema
             },
             "required": ["name", "arguments"]
-        });
+        }
+        );
+
+        // "name": { "const": &self.name },
 
         println! {"{:?}", call_schema.to_string()};
         // gbnf grammar from the json schema, for a tool call
@@ -172,10 +175,16 @@ impl Tool {
         println! {"{:?}", grammar};
         let mut grammar = grammar.expect("FUCK");
 
+        // optional whitespace
+        let ws = gbnf::ProductionItem::NonTerminal(
+            gbnf::NonTerminalSymbol { name: "ws".into() },
+            gbnf::RepetitionType::One,
+        );
+
         // wrap the existing root in tool calling tokens, e.g. <tool_call>, </tool_call>
-        let new_grammar_rule = gbnf::GrammarItem::Rule(gbnf::Rule {
+        let tool_call_rule = gbnf::GrammarItem::Rule(gbnf::Rule {
             lhs: gbnf::NonTerminalSymbol {
-                name: "superroot".into(),
+                name: "toolcall".into(),
             },
             rhs: gbnf::Production {
                 items: vec![
@@ -186,6 +195,8 @@ impl Tool {
                         },
                         gbnf::RepetitionType::One,
                     ),
+                    // optional whitespace
+                    ws.clone(),
                     // tool call json, just refer to the grammar we made from json schema
                     gbnf::ProductionItem::NonTerminal(
                         gbnf::NonTerminalSymbol {
@@ -193,6 +204,8 @@ impl Tool {
                         },
                         gbnf::RepetitionType::One,
                     ),
+                    // optional whitespace
+                    ws.clone(),
                     // </tool_call>
                     gbnf::ProductionItem::Terminal(
                         gbnf::TerminalSymbol {
@@ -200,19 +213,128 @@ impl Tool {
                         },
                         gbnf::RepetitionType::One,
                     ),
+                    // optional whitespace
+                    ws.clone(),
                 ],
             },
         });
 
+        // allow one or more tool calls
+        let new_root_rule = gbnf::GrammarItem::Rule(gbnf::Rule {
+            lhs: gbnf::NonTerminalSymbol {
+                name: "superroot".into(),
+            },
+            rhs: gbnf::Production {
+                items: vec![gbnf::ProductionItem::NonTerminal(
+                    gbnf::NonTerminalSymbol {
+                        name: "toolcall".into(),
+                    },
+                    gbnf::RepetitionType::OneOrMore,
+                )],
+            },
+        });
+
         // TODO: this grammar generation needs a lot of generalizing:
-        // - make grammar for multiple tools
+        // x make grammar for multiple tools
         // - support different json schapes. e.g. accept "parameters" as well as "arguments"
         // - support different special tool calling tokens. e.g. deepseek has multiple, and llama3 doesn't have any
 
-        grammar.items.push(new_grammar_rule);
+        grammar.items.push(tool_call_rule);
+        grammar.items.push(new_root_rule);
 
         return grammar.to_string();
     }
+}
+
+fn grammar_from_tools(tools: Vec<Tool>) -> gbnf::Grammar {
+    // get a json schema that describes the tool call for each tool
+    let tool_call_schemas: serde_json::Value = tools
+        .iter()
+        .map(|tool| {
+            serde_json::json!(
+            {
+                "type": "object",
+                "properties": {
+                    "name": { "const": tool.name, },
+                    "arguments": tool.json_schema
+                },
+                "required": ["name", "arguments"]
+            }
+            )
+        })
+        .collect();
+
+    // a json schema that describes any of the tool calls
+    let tool_call_schema = serde_json::json!(
+        { "oneOf": tool_call_schemas }
+    );
+
+    // a GBNF grammar for the above
+    let mut json_grammar = gbnf::Grammar::from_json_schema(&tool_call_schema.to_string())
+        .expect("TODO: fuck")
+        .to_string();
+
+    // optional whitespace
+    let ws = gbnf::ProductionItem::NonTerminal(
+        gbnf::NonTerminalSymbol { name: "ws".into() },
+        gbnf::RepetitionType::One,
+    );
+
+    // wrap the newly generated grammar's root in tool calling tokens
+    // e.g. <tool_call>, </tool_call>
+    let tool_call_rule = gbnf::GrammarItem::Rule(gbnf::Rule {
+        lhs: gbnf::NonTerminalSymbol {
+            name: "toolcall".into(),
+        },
+        rhs: gbnf::Production {
+            items: vec![
+                // tool call begin
+                gbnf::ProductionItem::Terminal(
+                    gbnf::TerminalSymbol {
+                        value: "<tool_call>".into(),
+                    },
+                    gbnf::RepetitionType::One,
+                ),
+                // optional whitespace
+                ws.clone(),
+                // tool call json, just refer to the grammar we made from json schema
+                gbnf::ProductionItem::NonTerminal(
+                    gbnf::NonTerminalSymbol {
+                        name: "root".into(),
+                    },
+                    gbnf::RepetitionType::One,
+                ),
+                // optional whitespace
+                ws.clone(),
+                // </tool_call>
+                gbnf::ProductionItem::Terminal(
+                    gbnf::TerminalSymbol {
+                        value: "</tool_call>".into(),
+                    },
+                    gbnf::RepetitionType::One,
+                ),
+                // optional whitespace
+                ws.clone(),
+            ],
+        },
+    });
+
+    // the new root rule, which
+    let new_root_rule = gbnf::GrammarItem::Rule(gbnf::Rule {
+        lhs: gbnf::NonTerminalSymbol {
+            name: "superroot".into(),
+        },
+        rhs: gbnf::Production {
+            items: vec![gbnf::ProductionItem::NonTerminal(
+                gbnf::NonTerminalSymbol {
+                    name: "toolcall".into(),
+                },
+                gbnf::RepetitionType::OneOrMore,
+            )],
+        },
+    });
+
+    todo!()
 }
 
 // XXX: this is very unsafe. I'm just experimenting for now
