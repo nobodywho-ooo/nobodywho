@@ -24,8 +24,6 @@ pub extern "C" fn init_tracing() {
     });
 }
 
-/// ERRORS
-
 // TODO: narrow these errors
 #[ffi_type(patterns(ffi_error))]
 #[repr(C)]
