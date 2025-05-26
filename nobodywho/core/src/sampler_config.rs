@@ -10,6 +10,8 @@ pub struct SamplerConfig {
     pub penalty_present: f32,
     pub use_grammar: bool,
     pub gbnf_grammar: String,
+    pub lazy_grammar_trigger: String,
+    pub grammar_root: String,
 }
 
 const JSON_GRAMMAR: &str = r#"# this default gbnf grammar forces valid json output
@@ -48,6 +50,8 @@ impl Default for SamplerConfig {
             penalty_present: 0.0,
             use_grammar: false,
             gbnf_grammar: JSON_GRAMMAR.into(),
+            lazy_grammar_trigger: "".into(),
+            grammar_root: "root".into(),
             method: SamplerMethod::MirostatV2(MirostatV2 {
                 seed: 1234,
                 temperature: 0.8,
@@ -246,11 +250,29 @@ pub fn make_sampler(model: &LlamaModel, sampler_config: SamplerConfig) -> LlamaS
     let mut chainvec = Vec::new();
 
     // Add grammar sampler first if configured
-    if sampler_config.use_grammar {
+    let trigger_len = sampler_config.lazy_grammar_trigger.trim().len();
+    if sampler_config.use_grammar && trigger_len == 0 {
         chainvec.push(LlamaSampler::grammar(
             model,
             &sampler_config.gbnf_grammar,
-            "root",
+            &sampler_config.grammar_root,
+        ));
+    } else if sampler_config.use_grammar && trigger_len > 0 {
+        let trigger_token = model
+            .str_to_token(
+                sampler_config.lazy_grammar_trigger.as_str(),
+                llama_cpp_2::model::AddBos::Never,
+            )
+            .expect("TODO: handle this assumption");
+        debug_assert!(trigger_token.len() == 1);
+        let trigger_token = trigger_token[0];
+
+        chainvec.push(LlamaSampler::grammar_lazy(
+            model,
+            sampler_config.gbnf_grammar.as_str(),
+            &sampler_config.grammar_root,
+            vec![sampler_config.lazy_grammar_trigger], // TODO: remove this argument
+            &[trigger_token],
         ));
     }
 

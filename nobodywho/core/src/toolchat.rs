@@ -147,6 +147,72 @@ impl Tool {
             },
         }
     }
+
+    // A Qwen3 tool call looks like this:
+    // <tool_call>
+    // {"name": "get_current_temperature", "arguments": {"location": "Copenhagen"}}
+    // </tool_call>
+    // <tool_call>
+    // {"name": "get_current_temperature", "arguments": {"location": "Beijing"}}
+    // </tool_call>
+    fn tool_call_gbnf_grammar(&self) -> String {
+        let call_schema = serde_json::json!({
+            "type": "object",
+            "properties": {
+                // "name": { "const": &self.name },
+                "name": { "type": "string", },
+                "arguments": &self.json_schema
+            },
+            "required": ["name", "arguments"]
+        });
+
+        println! {"{:?}", call_schema.to_string()};
+        // gbnf grammar from the json schema, for a tool call
+        let mut grammar = gbnf::Grammar::from_json_schema(&call_schema.to_string());
+        println! {"{:?}", grammar};
+        let mut grammar = grammar.expect("FUCK");
+
+        // wrap the existing root in tool calling tokens, e.g. <tool_call>, </tool_call>
+        let new_grammar_rule = gbnf::GrammarItem::Rule(gbnf::Rule {
+            lhs: gbnf::NonTerminalSymbol {
+                name: "superroot".into(),
+            },
+            rhs: gbnf::Production {
+                items: vec![
+                    // tool call begin
+                    gbnf::ProductionItem::Terminal(
+                        gbnf::TerminalSymbol {
+                            value: "<tool_call>".into(),
+                        },
+                        gbnf::RepetitionType::One,
+                    ),
+                    // tool call json, just refer to the grammar we made from json schema
+                    gbnf::ProductionItem::NonTerminal(
+                        gbnf::NonTerminalSymbol {
+                            name: "root".into(),
+                        },
+                        gbnf::RepetitionType::One,
+                    ),
+                    // </tool_call>
+                    gbnf::ProductionItem::Terminal(
+                        gbnf::TerminalSymbol {
+                            value: "</tool_call>".into(),
+                        },
+                        gbnf::RepetitionType::One,
+                    ),
+                ],
+            },
+        });
+
+        // TODO: this grammar generation needs a lot of generalizing:
+        // - make grammar for multiple tools
+        // - support different json schapes. e.g. accept "parameters" as well as "arguments"
+        // - support different special tool calling tokens. e.g. deepseek has multiple, and llama3 doesn't have any
+
+        grammar.items.push(new_grammar_rule);
+
+        return grammar.to_string();
+    }
 }
 
 // XXX: this is very unsafe. I'm just experimenting for now
@@ -234,11 +300,14 @@ impl<'a> Worker<'_, ToolChatWorker> {
         // TODO: add tool calling lazy grammar
         let mut sampler = sampler;
         for tool in &self.extra.tools {
-            // TODO: convert schema to GBNF at tool initialization time.
-            let grammar = gbnf::Grammar::from_json_schema(&tool.json_schema.to_string())
-                .expect("TODO: Error")
-                .to_string();
+            let grammar = tool.tool_call_gbnf_grammar();
             debug!(?grammar);
+            debug!(grammar = ?grammar.to_string());
+
+            sampler.use_grammar = true;
+            sampler.grammar_root = "superroot".into();
+            sampler.lazy_grammar_trigger = "<tool_call>".into(); // TODO: multiple tool call tokens
+            sampler.gbnf_grammar = grammar;
         }
 
         // llm go brrr
