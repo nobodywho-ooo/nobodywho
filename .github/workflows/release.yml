@@ -40,7 +40,7 @@ jobs:
         with:
           path: ./artifacts
 
-      - name: Copy library files to package directory
+      - name: Prepare Unity package
         run: | 
           # copy the all (integration:platform:profile) where integration is unity and platform is any and profile is releasiles to the package directory
           # so we end with a structure like this:
@@ -69,12 +69,18 @@ jobs:
           mv ./artifacts/nobodywho-unity-x86_64-pc-windows-msvc-release/nobodywho-unity-x86_64-pc-windows-msvc-release.pdb ./nobodywho/unity/src/Runtime/Plugins/x86_64-pc-windows-msvc/nobodywho_unity.pdb 
 
           rm -rf ./artifacts/ # for some reason the packager is complaining that the remaining .so file have no .meta files.
+
+
+          # This is required for the package to be added to the package manager (Packages is just an accepted unity-project path )
+          mkdir -p /tmp/Packages/com.nobodywho.core
+          mv ./nobodywho/unity/src/package.json /tmp/Packages/package.json
+          mv ./nobodywho/unity/src/* /tmp/Packages/com.nobodywho.core
       
 
       - name: Create Unity Package
         uses: natsuneko-laboratory/create-unitypackage@v3
         with:
-          root: ./nobodywho/unity/src
+          root: /tmp/Packages/
           files-glob: "**/*.{cs,meta,dll,dylib,so,asmdef}"
           dest: ./nobodywho-release/nobodywho.unitypackage
 
