@@ -9,20 +9,32 @@ namespace NobodyWho
 {
     public class Model : MonoBehaviour
     {
-        private ModelWrapper wrapper = ModelWrapper.New("model.gguf", true);
+        public ModelWrapper wrapper = ModelWrapper.New("model.gguf", true);
 
-        public string ModelPath {
+        public string ModelPath
+        {
             get { return Marshal.PtrToStringAnsi(wrapper.GetModelPath()); }
             set { wrapper.SetModelPath(value); }
         }
 
-        public bool UseGpuIfAvailable {
+        public bool UseGpuIfAvailable
+        {
             get { return wrapper.GetUseGpuIfAvailable(); }
             set { wrapper.SetUseGpuIfAvailable(value); }
         }
 
-        public IntPtr ModelWrapperContext {
+        public IntPtr ModelWrapperContext
+        {
             get { return wrapper.Context; }
+        }
+
+        private void OnDestroy()
+        {
+            if (wrapper != null)
+            {
+                wrapper.Dispose();
+                wrapper = null;
+            }
         }
     }
 }

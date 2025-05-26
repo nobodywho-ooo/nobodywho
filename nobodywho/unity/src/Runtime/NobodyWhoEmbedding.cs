@@ -13,24 +13,29 @@ namespace NobodyWho
 
         public UnityEvent<float[]> onEmbeddingComplete = new UnityEvent<float[]>();
 
-        public void Embed(string text) {
+        public void Embed(string text)
+        {
             wrapper.Embed(text);
         }
 
-        void Update() {
+        void Update()
+        {
             var resultslice = wrapper.PollEmbedding();
-            if (resultslice.Count > 0) {
+            if (resultslice.Count > 0)
+            {
                 var embd = resultslice.Copied;
                 onEmbeddingComplete.Invoke(embd);
             }
         }
 
-        public void StartWorker() {
+        public void StartWorker()
+        {
             // TODO: configurable n_ctx
             wrapper.StartWorker(model.ModelWrapperContext, 4096);
         }
 
-        public float CosineSimilarity(float[] a, float[] b) {
+        public float CosineSimilarity(float[] a, float[] b)
+        {
             // Ugh.. clearly there's something I'm misunderstanding here
             // This is the only place in the entire project where I have to do manual alloc now
             // TODO: understand interoptopus slice passing better.
@@ -52,17 +57,29 @@ namespace NobodyWho
             }
         }
 
-        public float[] GetEmbeddingBlocking() {
+        public float[] GetEmbeddingBlocking()
+        {
             // this is only really used in tests.
             // it blocks forever, or until a finished response is emitted
             // TODO: figure out a nicer async API
-            while (true) {
+            while (true)
+            {
                 var resultslice = wrapper.PollEmbedding();
-                if (resultslice.Count > 0) {
+                if (resultslice.Count > 0)
+                {
                     var embd = resultslice.Copied;
                     return embd;
                 }
                 System.Threading.Thread.Sleep(10);
+            }
+        }
+
+        private void OnDestroy()
+        {
+            if (wrapper != null)
+            {
+                wrapper.Dispose();
+                wrapper = null;
             }
         }
     }

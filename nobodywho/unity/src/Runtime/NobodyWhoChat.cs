@@ -30,7 +30,8 @@ namespace NobodyWho
         public UnityEvent<string> onToken = new UnityEvent<string>();
         public UnityEvent<string> onComplete = new UnityEvent<string>();
 
-        public void StartWorker() {
+        public void StartWorker()
+        {
             wrapper.StartWorker(model.ModelWrapperContext, contextLength, systemPrompt);
         }
 
@@ -39,13 +40,16 @@ namespace NobodyWho
             wrapper.Say(text, use_grammar, grammar, stopWords);
         }
 
-        public void ResetContext() {
+        public void ResetContext()
+        {
             wrapper.ResetContext(systemPrompt);
         }
 
-        public void Update() {
+        public void Update()
+        {
             var res = wrapper.PollResponse();
-            switch (res.kind) {
+            switch (res.kind)
+            {
                 case PollResponseKind.Nothing:
                     break;
 
@@ -61,12 +65,24 @@ namespace NobodyWho
             }
         }
 
-        public string GetResponseBlocking() {
+        private void OnDestroy()
+        {
+            if (wrapper != null)
+            {
+                wrapper.Dispose();
+                wrapper = null;
+            }
+        }
+
+        public string GetResponseBlocking()
+        {
             // this is only really used in tests.
             // it blocks forever, or until a finished response is emitted
-            while (true) {
+            while (true)
+            {
                 var res = wrapper.PollResponse();
-                switch (res.kind) {
+                switch (res.kind)
+                {
                     case PollResponseKind.Done:
                         return Marshal.PtrToStringAnsi(res.ptr, (int)res.len);
                 }

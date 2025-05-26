@@ -52,6 +52,11 @@ namespace Tests
         [TearDown]
         public void Teardown()
         {
+            // Remove any event listeners added during tests
+            chat.onComplete.RemoveAllListeners();
+            chat.onToken.RemoveAllListeners();
+
+            // Destroy the test object and its components
             if (testObject)
             {
                 UnityEngine.Object.DestroyImmediate(testObject);
