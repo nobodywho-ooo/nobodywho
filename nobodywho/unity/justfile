@@ -119,9 +119,8 @@ build-plugin: _ensure-temp-project
         echo "❌ Cargo build failed!"
         exit 1
     fi
-    
-    mkdir -p "src/Runtime/Plugins/x86_64"
-    cp "../target/debug/libnobodywho_unity.so" "src/Runtime/Plugins/x86_64/libnobodywho.so"
+
+    cp "../target/debug/libnobodywho_unity.so" "src/Runtime/Plugins/x86_64-unknown-linux-gnu/libnobodywho_unity.so"
     
     if [ $? -ne 0 ]; then
         echo "❌ Failed to copy plugin to temp project!"

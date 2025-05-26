@@ -35,31 +35,48 @@ jobs:
       - name: Create Unity package output directory
         run: mkdir -p ./nobodywho-release/
 
-
-      # TODO: download all of them and place them correctly.
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: nobodywho-unity-x86_64-unknown-linux-gnu-debug
-          path: ./nobodywho/unity/src/Runtime/
+          path: ./artifacts
+
+      - name: Copy library files to package directory
+        run: | 
+          # copy the all (integration:platform:profile) where integration is unity and platform is any and profile is releasiles to the package directory
+          # so we end with a structure like this:
+          # Runtime/
+          #   Plugins/
+          #     "x86_64-unknown-linux-gnu"/
+          #       libnobodywho_unity.so
+          #       libnobodywho_unity.so.meta
+          #     "x86_64-apple-darwin"/
+          #       libnobodywho_unity.dylib
+          #       libnobodywho_unity.dylib.meta
+          #     "aarch64-apple-darwin"/
+          #       libnobodywho_unity.dylib
+          #       libnobodywho_unity.dylib.meta
+          #     "x86_64-pc-windows-msvc"/
+          #       nobodywho_unity.dll
+          #       nobodywho_unity.pdb
+          
+          mv ./artifacts/nobodywho-unity-x86_64-unknown-linux-gnu-release/nobodywho-unity-x86_64-unknown-linux-gnu-release.so ./nobodywho/unity/src/Runtime/Plugins/x86_64-unknown-linux-gnu/libnobodywho_unity.so
+          
+          mv ./artifacts/nobodywho-unity-x86_64-apple-darwin-release/nobodywho-unity-x86_64-apple-darwin-release.dylib ./nobodywho/unity/src/Runtime/Plugins/x86_64-apple-darwin/libnobodywho_unity.dylib
+          mv ./artifacts/nobodywho-unity-aarch64-apple-darwin-release/nobodywho-unity-aarch64-apple-darwin-release.dylib ./nobodywho/unity/src/Runtime/Plugins/aarch64-apple-darwin/libnobodywho_unity.dylib
+
+          # copy .pdb for windows as well
+          mv ./artifacts/nobodywho-unity-x86_64-pc-windows-msvc-release/nobodywho-unity-x86_64-pc-windows-msvc-release.dll ./nobodywho/unity/src/Runtime/Plugins/x86_64-pc-windows-msvc/nobodywho_unity.dll
+          mv ./artifacts/nobodywho-unity-x86_64-pc-windows-msvc-release/nobodywho-unity-x86_64-pc-windows-msvc-release.pdb ./nobodywho/unity/src/Runtime/Plugins/x86_64-pc-windows-msvc/nobodywho_unity.pdb 
+
+          rm -rf ./artifacts/ # for some reason the packager is complaining that the remaining .so file have no .meta files.
       
-      # Bit hacky here - we need the meta files for the packager to bundle the files correctly.
-      - name: Generate .meta files for native libraries
-        run: |
-          for lib in $(find unity/src/Runtime/ -type f -name "*.so" -o -name "*.dylib" -o -name "*.dll"); do
-            echo "Generating .meta file for ${lib}"
-            echo "fileFormatVersion: 2" > "${lib}.meta"
-            echo "guid: 2bf588bf6cbbf0ff3a9650fbc11af17a" >> "${lib}.meta"
-          done
-        working-directory: nobodywho
 
       - name: Create Unity Package
         uses: natsuneko-laboratory/create-unitypackage@v3
         with:
-          root: nobodywho/unity/src
-          package.json: nobodywho/unity/src/package.json
+          root: ./nobodywho/unity/src
           files-glob: "**/*.{cs,meta,dll,dylib,so,asmdef}"
-          dest: nobodywho-release/nobodywho.unitypackage
+          dest: ./nobodywho-release/nobodywho.unitypackage
 
       - name: Upload Unity Package Artifact
         uses: actions/upload-artifact@v4

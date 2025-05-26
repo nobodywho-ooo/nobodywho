@@ -68,6 +68,7 @@ jobs:
           - "release"
         integration:
           - "godot"
+          - "unity"
     env:
       RUSTFLAGS: >-
         -l Advapi32
@@ -131,6 +132,7 @@ jobs:
           - "release"
         integration:
           - "godot"
+          - "unity"
     steps:
       - uses: actions/checkout@v4
 
