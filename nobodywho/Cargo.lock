@@ -199,6 +199,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "diff"
+version = "0.1.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56254986775e3233ffa9c4d7d3faaf6d36a2c09d30b20687e9f88bc8bafc16c8"
+
+[[package]]
 name = "either"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -269,6 +275,19 @@ name = "futures-core"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05f29059c0c2090612e8d742178b0580d2dc940c837851ad723096f87af6663e"
+
+[[package]]
+name = "gbnf"
+version = "0.1.88888888"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2d7afda92b4d3e87fedac26146d15a1002dbdd7bac0665a88a29d04204aa2fa"
+dependencies = [
+ "nom",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+]
 
 [[package]]
 name = "gdextension-api"
@@ -556,8 +575,8 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-2"
-version = "0.1.108"
-source = "git+https://github.com/utilityai/llama-cpp-rs.git?branch=main#451fea366a45d946cacb12d5308ab1b655c8ee99"
+version = "0.1.107"
+source = "git+https://github.com/utilityai/llama-cpp-rs.git?branch=update-llama-cpp-2025-05-14#f11109577b0730b0587e27d138b358faa31dde08"
 dependencies = [
  "enumflags2",
  "llama-cpp-sys-2",
@@ -568,8 +587,8 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-sys-2"
-version = "0.1.108"
-source = "git+https://github.com/utilityai/llama-cpp-rs.git?branch=main#451fea366a45d946cacb12d5308ab1b655c8ee99"
+version = "0.1.107"
+source = "git+https://github.com/utilityai/llama-cpp-rs.git?branch=update-llama-cpp-2025-05-14#f11109577b0730b0587e27d138b358faa31dde08"
 dependencies = [
  "bindgen",
  "cc",
@@ -674,6 +693,7 @@ version = "2.0.0"
 dependencies = [
  "chrono",
  "encoding_rs",
+ "gbnf",
  "lazy_static",
  "llama-cpp-2",
  "llama-cpp-sys-2",
@@ -769,6 +789,16 @@ name = "pin-project-lite"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3b3cff922bd51709b605d9ead9aa71031d81447142d828eb4a6eba76fe619f9b"
+
+[[package]]
+name = "pretty_assertions"
+version = "1.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3ae130e2f271fbc2ac3a40fb1d07180839cdbbe443c7a27e1e3c13c5cac0116d"
+dependencies = [
+ "diff",
+ "yansi",
+]
 
 [[package]]
 name = "prettyplease"
@@ -1468,3 +1498,9 @@ checksum = "6f42320e61fe2cfd34354ecb597f86f413484a798ba44a8ca1165c58d42da6c1"
 dependencies = [
  "bitflags",
 ]
+
+[[package]]
+name = "yansi"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cfe53a6657fd280eaa890a3bc59152892ffa3e30101319d168b781ed6529b049"

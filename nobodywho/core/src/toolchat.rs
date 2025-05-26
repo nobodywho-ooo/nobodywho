@@ -179,6 +179,7 @@ pub enum SayError {
     ChatTemplateRenderError(#[from] minijinja::Error),
 }
 
+// TODO: list all known tool call tokens
 const TOOL_CALL_TOKENS: [(&'static str, &'static str); 3] = [
     ("<tool_call>", "</tool_call>"),
     ("<function_call>", "</function_call>"),
@@ -229,6 +230,16 @@ impl<'a> Worker<'_, ToolChatWorker> {
         // and to avoid emitting tool calls
         let (wrapped_respond, resp_receiver) =
             wrap_respond(respond.clone(), tool_call_begin.into());
+
+        // TODO: add tool calling lazy grammar
+        let mut sampler = sampler;
+        for tool in &self.extra.tools {
+            // TODO: convert schema to GBNF at tool initialization time.
+            let grammar = gbnf::Grammar::from_json_schema(&tool.json_schema.to_string())
+                .expect("TODO: Error")
+                .to_string();
+            debug!(?grammar);
+        }
 
         // llm go brrr
         self.read_string(diff)?.write_until_done(
