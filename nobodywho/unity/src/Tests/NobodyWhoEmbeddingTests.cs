@@ -60,5 +60,18 @@ namespace Tests
                 $"Similar texts should have higher similarity. Low: {lowSimilarity}, High: {highSimilarity}"
             );
         }
+
+        [TearDown]
+        public void Teardown()
+        {
+            // Remove any event listeners added during tests
+            embedding.onEmbeddingComplete.RemoveAllListeners();
+
+            // Destroy the test object and its components
+            if (testObject)
+            {
+                UnityEngine.Object.DestroyImmediate(testObject);
+            }
+        }
     }
 }
