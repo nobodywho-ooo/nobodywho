@@ -1,6 +1,6 @@
 {
     "name": "com.nobodywho.core",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "displayName": "NobodyWho Core",
     "description": "Core package for NobodyWho",
     "unity": "2021.3",
