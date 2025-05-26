@@ -278,9 +278,8 @@ checksum = "05f29059c0c2090612e8d742178b0580d2dc940c837851ad723096f87af6663e"
 
 [[package]]
 name = "gbnf"
-version = "0.1.88888888"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2d7afda92b4d3e87fedac26146d15a1002dbdd7bac0665a88a29d04204aa2fa"
+version = "0.2.1"
+source = "git+https://github.com/richardanaya/gbnf?branch=main#2c155fec22737811493c4384cb9670fc020e2066"
 dependencies = [
  "nom",
  "pretty_assertions",
