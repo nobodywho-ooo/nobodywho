@@ -114,6 +114,9 @@ fn run_worker(
 
 // TOOLS TYPE STUFF
 
+// TODO: figure out why send is needed, try to remove the unsafe impl
+unsafe impl Send for Tool {}
+
 #[derive(Clone)]
 pub struct Tool {
     name: String,
@@ -147,119 +150,22 @@ impl Tool {
             },
         }
     }
-
-    // A Qwen3 tool call looks like this:
-    // <tool_call>
-    // {"name": "get_current_temperature", "arguments": {"location": "Copenhagen"}}
-    // </tool_call>
-    // <tool_call>
-    // {"name": "get_current_temperature", "arguments": {"location": "Beijing"}}
-    // </tool_call>
-    fn tool_call_gbnf_grammar(&self) -> String {
-        let call_schema = serde_json::json!(
-        {
-            "type": "object",
-            "properties": {
-                "name": { "const": &self.name, },
-                "arguments": &self.json_schema
-            },
-            "required": ["name", "arguments"]
-        }
-        );
-
-        // "name": { "const": &self.name },
-
-        println! {"{:?}", call_schema.to_string()};
-        // gbnf grammar from the json schema, for a tool call
-        let mut grammar = gbnf::Grammar::from_json_schema(&call_schema.to_string());
-        println! {"{:?}", grammar};
-        let mut grammar = grammar.expect("FUCK");
-
-        // optional whitespace
-        let ws = gbnf::ProductionItem::NonTerminal(
-            gbnf::NonTerminalSymbol { name: "ws".into() },
-            gbnf::RepetitionType::One,
-        );
-
-        // wrap the existing root in tool calling tokens, e.g. <tool_call>, </tool_call>
-        let tool_call_rule = gbnf::GrammarItem::Rule(gbnf::Rule {
-            lhs: gbnf::NonTerminalSymbol {
-                name: "toolcall".into(),
-            },
-            rhs: gbnf::Production {
-                items: vec![
-                    // tool call begin
-                    gbnf::ProductionItem::Terminal(
-                        gbnf::TerminalSymbol {
-                            value: "<tool_call>".into(),
-                        },
-                        gbnf::RepetitionType::One,
-                    ),
-                    // optional whitespace
-                    ws.clone(),
-                    // tool call json, just refer to the grammar we made from json schema
-                    gbnf::ProductionItem::NonTerminal(
-                        gbnf::NonTerminalSymbol {
-                            name: "root".into(),
-                        },
-                        gbnf::RepetitionType::One,
-                    ),
-                    // optional whitespace
-                    ws.clone(),
-                    // </tool_call>
-                    gbnf::ProductionItem::Terminal(
-                        gbnf::TerminalSymbol {
-                            value: "</tool_call>".into(),
-                        },
-                        gbnf::RepetitionType::One,
-                    ),
-                    // optional whitespace
-                    ws.clone(),
-                ],
-            },
-        });
-
-        // allow one or more tool calls
-        let new_root_rule = gbnf::GrammarItem::Rule(gbnf::Rule {
-            lhs: gbnf::NonTerminalSymbol {
-                name: "superroot".into(),
-            },
-            rhs: gbnf::Production {
-                items: vec![gbnf::ProductionItem::NonTerminal(
-                    gbnf::NonTerminalSymbol {
-                        name: "toolcall".into(),
-                    },
-                    gbnf::RepetitionType::OneOrMore,
-                )],
-            },
-        });
-
-        // TODO: this grammar generation needs a lot of generalizing:
-        // x make grammar for multiple tools
-        // - support different json schapes. e.g. accept "parameters" as well as "arguments"
-        // - support different special tool calling tokens. e.g. deepseek has multiple, and llama3 doesn't have any
-
-        grammar.items.push(tool_call_rule);
-        grammar.items.push(new_root_rule);
-
-        return grammar.to_string();
-    }
 }
 
-fn grammar_from_tools(tools: Vec<Tool>) -> gbnf::Grammar {
+fn grammar_from_tools(tools: &[Tool]) -> Result<gbnf::Grammar, gbnf::JsonSchemaParseError> {
     // get a json schema that describes the tool call for each tool
     let tool_call_schemas: serde_json::Value = tools
         .iter()
         .map(|tool| {
             serde_json::json!(
-            {
-                "type": "object",
-                "properties": {
-                    "name": { "const": tool.name, },
-                    "arguments": tool.json_schema
-                },
-                "required": ["name", "arguments"]
-            }
+                {
+                    "type": "object",
+                    "properties": {
+                        "name": { "const": tool.name, },
+                        "arguments": tool.json_schema
+                    },
+                    "required": ["name", "arguments"]
+                }
             )
         })
         .collect();
@@ -270,9 +176,13 @@ fn grammar_from_tools(tools: Vec<Tool>) -> gbnf::Grammar {
     );
 
     // a GBNF grammar for the above
-    let mut json_grammar = gbnf::Grammar::from_json_schema(&tool_call_schema.to_string())
-        .expect("TODO: fuck")
-        .to_string();
+    let mut json_grammar = match gbnf::Grammar::from_json_schema(&tool_call_schema.to_string()) {
+        Ok(jg) => jg,
+        Err(e) => {
+            warn!("Failed generating grammar for tools. Probably because of a bad json schema: {e:?}.");
+            return Err(e);
+        }
+    };
 
     // optional whitespace
     let ws = gbnf::ProductionItem::NonTerminal(
@@ -281,7 +191,7 @@ fn grammar_from_tools(tools: Vec<Tool>) -> gbnf::Grammar {
     );
 
     // wrap the newly generated grammar's root in tool calling tokens
-    // e.g. <tool_call>, </tool_call>
+    // e.g. <tool_call> json_grammar </tool_call>
     let tool_call_rule = gbnf::GrammarItem::Rule(gbnf::Rule {
         lhs: gbnf::NonTerminalSymbol {
             name: "toolcall".into(),
@@ -319,7 +229,7 @@ fn grammar_from_tools(tools: Vec<Tool>) -> gbnf::Grammar {
         },
     });
 
-    // the new root rule, which
+    // one or more tool calls
     let new_root_rule = gbnf::GrammarItem::Rule(gbnf::Rule {
         lhs: gbnf::NonTerminalSymbol {
             name: "superroot".into(),
@@ -334,20 +244,18 @@ fn grammar_from_tools(tools: Vec<Tool>) -> gbnf::Grammar {
         },
     });
 
-    todo!()
+    json_grammar.items.push(tool_call_rule);
+    json_grammar.items.push(new_root_rule);
+
+    Ok(json_grammar)
 }
-
-// XXX: this is very unsafe. I'm just experimenting for now
-
-// TODO: figure out why send is needed, try to remove the unsafe impl
-unsafe impl Send for Tool {}
-// unsafe impl Sync for Tool {}
 
 // TOOL CHAT WORKER
 
 struct ToolChatWorker {
     chat_state: ChatState,
     tools: Vec<Tool>,
+    tool_grammar: Option<gbnf::Grammar>,
 }
 
 impl llm::GenerationCapability for ToolChatWorker {}
@@ -388,11 +296,17 @@ impl<'a> Worker<'_, ToolChatWorker> {
         )?;
         chat_state.add_system_message(system_prompt);
 
+        let grammar = grammar_from_tools(&tools);
+
         Ok(Worker::new_with_type(
             model,
             n_ctx,
             false,
-            ToolChatWorker { chat_state, tools },
+            ToolChatWorker {
+                chat_state,
+                tools,
+                tool_grammar: grammar.ok(),
+            },
         )?)
     }
 
@@ -421,15 +335,11 @@ impl<'a> Worker<'_, ToolChatWorker> {
 
         // TODO: add tool calling lazy grammar
         let mut sampler = sampler;
-        for tool in &self.extra.tools {
-            let grammar = tool.tool_call_gbnf_grammar();
-            debug!(?grammar);
-            debug!(grammar = ?grammar.to_string());
-
+        if let Some(ref tool_grammar) = self.extra.tool_grammar {
             sampler.use_grammar = true;
             sampler.grammar_root = "superroot".into();
             sampler.lazy_grammar_trigger = "<tool_call>".into(); // TODO: multiple tool call tokens
-            sampler.gbnf_grammar = grammar;
+            sampler.gbnf_grammar = tool_grammar.to_string();
         }
 
         // llm go brrr
