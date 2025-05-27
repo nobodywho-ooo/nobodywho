@@ -121,4 +121,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: Unity Test Results
-        path: ${{ steps.testRunner.outputs.artifactsPath }}
+        path: artifacts/playmode-results.xml
