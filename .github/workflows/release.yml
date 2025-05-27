@@ -69,15 +69,15 @@ jobs:
           mv ./artifacts/nobodywho-unity-x86_64-pc-windows-msvc-release/nobodywho-unity-x86_64-pc-windows-msvc-release.pdb ./nobodywho/unity/src/Runtime/Plugins/x86_64-pc-windows-msvc/nobodywho_unity.pdb 
 
           # This is required for the package to be added to the package manager (Packages is just an accepted unity-project path )
-          mkdir -p dist/Packages/com.nobodywho.core
-          mv ./nobodywho/unity/src/package.json dist/Packages/package.json
-          mv ./nobodywho/unity/src/* dist/Packagescom.nobodywho.core/
+          mkdir -p dist/Assets/NobodyWho
+          mv ./nobodywho/unity/src/package.json dist/Assets/package.json
+          mv ./nobodywho/unity/src/* dist/Assets/NobodyWho/
 
       - name: Create Unity Package
         uses: natsuneko-laboratory/create-unitypackage@v3
         with:
           root: dist/
-          files-glob: "dist/Packages/**/*.{cs,meta,dll,dylib,so,asmdef}"
+          files-glob: "dist/Assets/**/*.{cs,meta,dll,dylib,so,asmdef}"
           dest: ./nobodywho-release/nobodywho.unitypackage
 
       - name: Upload Unity Package Artifact
