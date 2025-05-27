@@ -71,6 +71,8 @@ jobs:
           # This is required for the package to be added to the package manager (Packages is just an accepted unity-project path )
           mkdir -p dist/Assets/NobodyWho
           mv ./nobodywho/unity/src/* dist/Assets/NobodyWho/
+          # remove tests from package
+          rm -rf dist/Assets/NobodyWho/Tests
 
       - name: Create Unity Package
         uses: natsuneko-laboratory/create-unitypackage@v3

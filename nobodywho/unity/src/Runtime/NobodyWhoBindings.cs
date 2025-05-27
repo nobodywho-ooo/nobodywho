@@ -12,7 +12,7 @@ namespace NobodyWho
 {
     public static partial class NobodyWhoBindings
     {
-        public const string NativeLib = "libnobodywho_unity";
+        public const string NativeLib = "nobodywho_unity";
 
         static NobodyWhoBindings()
         {
