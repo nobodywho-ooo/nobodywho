@@ -37,4 +37,7 @@ temp*
 *.dylib$
 *.dll$
 
+# when running test, the meta files might be overwritten which is unintended.
+*.meta 
+
 ./Runtime/libnobodywho.so

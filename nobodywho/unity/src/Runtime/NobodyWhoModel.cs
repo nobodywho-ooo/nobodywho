@@ -11,19 +11,33 @@ namespace NobodyWho
     {
         public ModelWrapper wrapper = ModelWrapper.New("model.gguf", true);
 
-        public string ModelPath
+        // only used for GUI
+        public string _modelPath = "model.gguf";
+        // only used for GUI
+        public bool _useGpuIfAvailable = true;
+
+        // to allow the property pattern (properties can't be serialized and unity uses serieliaed field for the inspector GUI) dwe hook into the validate and sets the values there. 
+        private void OnValidate()
+        {
+            if (wrapper != null)
+            {
+                wrapper.SetModelPath(_modelPath);
+                wrapper.SetUseGpuIfAvailable(_useGpuIfAvailable);
+            }
+        }
+        public string modelPath
         {
             get { return Marshal.PtrToStringAnsi(wrapper.GetModelPath()); }
             set { wrapper.SetModelPath(value); }
         }
 
-        public bool UseGpuIfAvailable
+        public bool useGpuIfAvailable
         {
             get { return wrapper.GetUseGpuIfAvailable(); }
             set { wrapper.SetUseGpuIfAvailable(value); }
         }
 
-        public IntPtr ModelWrapperContext
+        public IntPtr modelWrapperContext
         {
             get { return wrapper.Context; }
         }
