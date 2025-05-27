@@ -68,9 +68,6 @@ jobs:
           mv ./artifacts/nobodywho-unity-x86_64-pc-windows-msvc-release/nobodywho-unity-x86_64-pc-windows-msvc-release.dll ./nobodywho/unity/src/Runtime/Plugins/x86_64-pc-windows-msvc/nobodywho_unity.dll
           mv ./artifacts/nobodywho-unity-x86_64-pc-windows-msvc-release/nobodywho-unity-x86_64-pc-windows-msvc-release.pdb ./nobodywho/unity/src/Runtime/Plugins/x86_64-pc-windows-msvc/nobodywho_unity.pdb 
 
-          rm -rf ./artifacts/ # for some reason the packager is complaining that the remaining .so file have no .meta files.
-
-
           # This is required for the package to be added to the package manager (Packages is just an accepted unity-project path )
           mkdir -p /tmp/Packages/com.nobodywho.core
           mv ./nobodywho/unity/src/package.json /tmp/Packages/package.json

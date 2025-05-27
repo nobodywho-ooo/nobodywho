@@ -138,7 +138,6 @@ namespace NobodyWho
         WorkerNotStarted = 6,
     }
 
-    /// ERRORS
     public enum ModelError
     {
         Ok = 0,
