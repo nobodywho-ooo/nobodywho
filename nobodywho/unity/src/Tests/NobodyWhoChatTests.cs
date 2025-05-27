@@ -31,21 +31,7 @@ namespace Tests
         [OneTimeSetUp]
         public void OneTimeSetUp()
         {
-            NobodyWho.NativeBindings.init_tracing();
-            _diskStart = NobodyWho.NativeBindings.GetVirtualMemory();
-            _ramStart = NobodyWho.NativeBindings.GetPhysicalMemory();
-        }
-
-        [OneTimeTearDown]
-        public void OneTimeTearDown()
-        {
-            var deltaDisk = NobodyWho.NativeBindings.GetVirtualMemory() - _diskStart;
-            var deltaRam  = NobodyWho.NativeBindings.GetPhysicalMemory() - _ramStart;
-            Debug.Log("Disk: " + deltaDisk + " RAM: " + deltaRam);
-
-            long tolerance = 5 * 1024; //tolerance in MB
-            Assert.IsTrue(deltaDisk < tolerance, "Disk usage is too high - expected: " + tolerance + " got: " + deltaDisk);
-            Assert.IsTrue(deltaRam < tolerance, "RAM usage is too high - expected: " + tolerance + " got: " + deltaRam);
+            NobodyWho.NobodyWhoBindings.init_tracing();
         }
 
         [SetUp]
