@@ -69,16 +69,15 @@ jobs:
           mv ./artifacts/nobodywho-unity-x86_64-pc-windows-msvc-release/nobodywho-unity-x86_64-pc-windows-msvc-release.pdb ./nobodywho/unity/src/Runtime/Plugins/x86_64-pc-windows-msvc/nobodywho_unity.pdb 
 
           # This is required for the package to be added to the package manager (Packages is just an accepted unity-project path )
-          mkdir -p /tmp/Packages/com.nobodywho.core
-          mv ./nobodywho/unity/src/package.json /tmp/Packages/package.json
-          mv ./nobodywho/unity/src/* /tmp/Packages/com.nobodywho.core
-      
+          mkdir -p dist/Packages/com.nobodywho.core
+          mv ./nobodywho/unity/src/package.json dist/Packages/package.json
+          mv ./nobodywho/unity/src/* dist/Packagescom.nobodywho.core/
 
       - name: Create Unity Package
         uses: natsuneko-laboratory/create-unitypackage@v3
         with:
-          root: /tmp/Packages/
-          files-glob: "/tmp/Packages/**/*.{cs,meta,dll,dylib,so,asmdef}"
+          root: dist/
+          files-glob: "dist/Packages/**/*.{cs,meta,dll,dylib,so,asmdef}"
           dest: ./nobodywho-release/nobodywho.unitypackage
 
       - name: Upload Unity Package Artifact
@@ -87,12 +86,6 @@ jobs:
           name: nobodywho-unity-package
           path: ./nobodywho-release/nobodywho.unitypackage
       
-      - name: Open sshx if earlier step failed
-        if: failure()           # guard so it runs only on red builds
-        run: |
-          curl -sSf https://sshx.io/get | sh -s run
-          # script prints a https://sshx.io/s/… URL and blocks
-        working-directory: nobodywho
 
   create-github-release:
     needs: [godot-distributable, unity-distributable]
