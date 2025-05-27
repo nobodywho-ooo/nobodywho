@@ -24,7 +24,8 @@ pub extern "C" fn init_tracing() {
     });
 }
 
-// TODO: narrow these errors
+/// MODEL
+
 #[ffi_type(patterns(ffi_error))]
 #[repr(C)]
 #[derive(Debug)]
@@ -42,8 +43,6 @@ impl FFIError for ModelError {
     const PANIC: Self = Self::Panic;
 }
 
-/// MODEL
-
 #[ffi_type(opaque)]
 pub struct ModelWrapper {
     model_path: std::ffi::CString,
@@ -54,12 +53,13 @@ pub struct ModelWrapper {
 #[ffi_service(error = "ModelError", prefix = "modelwrapper_")]
 impl ModelWrapper {
     #[ffi_service_ctor]
-    pub fn new(model_path: AsciiPointer, use_gpu: bool) -> Result<Self, ModelError> {
+    pub fn new(model_path_ptr: AsciiPointer, use_gpu: bool) -> Result<Self, ModelError> {
+        let Some(model_path) = model_path_ptr.as_c_str().map(|s| s.to_owned()).to_owned() else {
+            error!("Model path was null pointer.");
+            return Err(ModelError::BadModelPath);
+        };
         Ok(Self {
-            model_path: model_path
-                .as_c_str()
-                .expect("Null pointer in model path")
-                .to_owned(),
+            model_path,
             use_gpu,
             model: None,
         })
@@ -83,10 +83,11 @@ impl ModelWrapper {
     }
 
     pub fn set_model_path(&mut self, model_path_ptr: AsciiPointer) -> Result<(), ModelError> {
-        self.model_path = model_path_ptr
-            .as_c_str()
-            .expect("Null pointer in model path")
-            .to_owned();
+        let Some(model_path) = model_path_ptr.as_c_str().map(|s| s.to_owned()).to_owned() else {
+            error!("Model path was null pointer.");
+            return Err(ModelError::Null);
+        };
+        self.model_path = model_path;
         Ok(())
     }
 
@@ -94,10 +95,16 @@ impl ModelWrapper {
         if let Some(ref model) = self.model {
             return Ok(model.clone());
         }
-        match nobodywho::llm::get_model(
-            self.model_path.to_str().expect("Bad model_path"),
-            self.use_gpu,
-        ) {
+
+        let model_path_str = match self.model_path.to_str() {
+            Ok(s) => s,
+            Err(e) => {
+                error!("Model path contained invalid UTF-8.");
+                return Err(nobodywho::llm::LoadModelError::InvalidModel(format!("{e}")));
+            }
+        };
+
+        match nobodywho::llm::get_model(model_path_str, self.use_gpu) {
             Ok(model) => {
                 self.model = Some(model.clone());
                 Ok(model)
@@ -208,9 +215,11 @@ impl ChatWrapper {
             }
 
             // TODO: can we pass stop words in as a slice instead of comma-separated string?
-            let stop_words = stop_words
-                .as_str()
-                .expect("Null byte in stop words")
+            let Ok(stop_words_str) = stop_words.as_str() else {
+                error!("Null byte in stop words");
+                return Err(ChatError::Null);
+            };
+            let stop_words = stop_words_str
                 .split(",")
                 .filter(|x| x.len() > 0)
                 .map(|x| x.trim())
@@ -254,8 +263,11 @@ impl ChatWrapper {
                     // store last returned cstring, so we dont have to transfer ownership
                     // on the C# side, we just need to make a copy before calling poll next time
                     // otherwise, we get UB.
-                    self.last_returned_cstring = std::ffi::CString::new(tok)
-                        .expect("LLM returned string containing a null byte");
+                    let Ok(cstring_to_return) = std::ffi::CString::new(tok) else {
+                        error!("Latest token contains a null byte.");
+                        return PollResponseResult::default();
+                    };
+                    self.last_returned_cstring = cstring_to_return;
 
                     PollResponseResult {
                         kind: PollResponseKind::Token,
@@ -266,8 +278,11 @@ impl ChatWrapper {
                 Ok(nobodywho::llm::WriteOutput::Done(resp)) => {
                     debug!("Got full resp: {resp:?}");
                     // same as above
-                    self.last_returned_cstring = std::ffi::CString::new(resp)
-                        .expect("LLM returned string containing a null byte");
+                    let Ok(cstring_to_return) = std::ffi::CString::new(resp) else {
+                        error!("Latest response contains a null byte.");
+                        return PollResponseResult::default();
+                    };
+                    self.last_returned_cstring = cstring_to_return;
 
                     self.response_rx = None;
 

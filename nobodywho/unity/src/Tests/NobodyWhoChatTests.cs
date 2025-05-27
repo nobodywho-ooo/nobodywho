@@ -147,7 +147,7 @@ namespace Tests
 
             chat.systemPrompt =
                 "You are a character creator for a fantasy game. You will be given a list of properties and you will need to fill out those properties.";
-            chat.use_grammar = true;
+            chat.useGrammar = true;
             chat.ResetContext();
 
             chat.Say(
@@ -171,7 +171,7 @@ namespace Tests
         {
             chat.systemPrompt =
                 "You are a character creator for a fantasy game. You will be given a list of properties and you will need to fill out those properties.";
-            chat.use_grammar = true;
+            chat.useGrammar = true;
             chat.grammar = "root ::= \"nobodywho\"";
             chat.ResetContext();
 

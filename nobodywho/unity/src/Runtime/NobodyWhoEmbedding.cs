@@ -8,9 +8,13 @@ namespace NobodyWho
 {
     public class Embedding : MonoBehaviour
     {
-        public Model model;
         public EmbedWrapper wrapper = EmbedWrapper.New();
 
+        [Header("Configuration")]
+        public Model model;
+        public uint contextLength = 4096;
+
+        [Header("Events")]
         public UnityEvent<float[]> onEmbeddingComplete = new UnityEvent<float[]>();
 
         public void Embed(string text)
@@ -30,8 +34,7 @@ namespace NobodyWho
 
         public void StartWorker()
         {
-            // TODO: configurable n_ctx
-            wrapper.StartWorker(model.modelWrapperContext, 4096);
+            wrapper.StartWorker(model.modelWrapperContext, contextLength);
         }
 
         public float CosineSimilarity(float[] a, float[] b)
@@ -39,7 +42,6 @@ namespace NobodyWho
             // Ugh.. clearly there's something I'm misunderstanding here
             // This is the only place in the entire project where I have to do manual alloc now
             // TODO: understand interoptopus slice passing better.
-            // ..or TODO: reimplement cosine_similarity in C#
             GCHandle pina = GCHandle.Alloc(a, GCHandleType.Pinned);
             GCHandle pinb = GCHandle.Alloc(b, GCHandleType.Pinned);
             try

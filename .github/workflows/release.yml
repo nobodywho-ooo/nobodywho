@@ -79,13 +79,13 @@ jobs:
         with:
           root: dist/
           files-glob: "dist/Assets/**/*.{cs,meta,dll,dylib,so,asmdef}"
-          dest: ./nobodywho-release/nobodywho.unitypackage
+          dest: ./nobodywho.unitypackage
 
       - name: Upload Unity Package Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: nobodywho-unity-package
-          path: ./nobodywho-release/nobodywho.unitypackage
+          name: nobodywho-unity-package-${{ github.ref_name }}
+          path: ./nobodywho.unitypackage
       
 
   create-github-release:
@@ -106,6 +106,8 @@ jobs:
       - name: "Create GitHub Release"
         uses: softprops/action-gh-release@v1
         with:
-          files: "./nobodywho-godot-${{ github.ref_name }}.zip"
+          files: | 
+            "./nobodywho-godot-${{ github.ref_name }}.zip"
+            "./nobodywho-unity-package-${{ github.ref_name }}.unitypackage"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
