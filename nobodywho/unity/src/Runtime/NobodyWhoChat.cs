@@ -32,7 +32,7 @@ namespace NobodyWho
 
         public void StartWorker()
         {
-            wrapper.StartWorker(model.ModelWrapperContext, contextLength, systemPrompt);
+            wrapper.StartWorker(model.modelWrapperContext, contextLength, systemPrompt);
         }
 
         public void Say(string text)

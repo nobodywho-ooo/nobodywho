@@ -31,7 +31,7 @@ namespace NobodyWho
         public void StartWorker()
         {
             // TODO: configurable n_ctx
-            wrapper.StartWorker(model.ModelWrapperContext, 4096);
+            wrapper.StartWorker(model.modelWrapperContext, 4096);
         }
 
         public float CosineSimilarity(float[] a, float[] b)

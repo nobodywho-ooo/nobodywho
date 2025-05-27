@@ -22,7 +22,7 @@ namespace NobodyWho
 
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.PropertyField(
-                serializedObject.FindProperty("modelPath"),
+                serializedObject.FindProperty("_modelPath"),
                 new GUIContent("Model Path", "Path to the GGUF model file")
             );
 
@@ -32,14 +32,14 @@ namespace NobodyWho
                 string path = EditorUtility.OpenFilePanel("Select GGUF Model", startPath, "gguf");
                 if (!string.IsNullOrEmpty(path))
                 {
-                    serializedObject.FindProperty("modelPath").stringValue = path;
+                    serializedObject.FindProperty("_modelPath").stringValue = path;
                     serializedObject.ApplyModifiedProperties();
                 }
             }
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.PropertyField(
-                serializedObject.FindProperty("useGpuIfAvailable"),
+                serializedObject.FindProperty("_useGpuIfAvailable"),
                 new GUIContent(
                     "Use GPU If Available",
                     "Whether to use GPU acceleration if available"

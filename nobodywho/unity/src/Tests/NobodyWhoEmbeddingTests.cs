@@ -19,7 +19,7 @@ namespace Tests
             NobodyWhoBindings.init_tracing();
             testObject = new GameObject("TestModel");
             model = testObject.AddComponent<NobodyWho.Model>();
-            model.ModelPath = System.IO.Path.Combine(Application.streamingAssetsPath, "bge-small-en-v1.5-q8_0.gguf");
+            model.modelPath = System.IO.Path.Combine(Application.streamingAssetsPath, "bge-small-en-v1.5-q8_0.gguf");
 
             embedding = testObject.AddComponent<NobodyWho.Embedding>();
             embedding.model = model;

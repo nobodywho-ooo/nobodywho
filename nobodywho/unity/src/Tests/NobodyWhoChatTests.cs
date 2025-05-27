@@ -42,7 +42,7 @@ namespace Tests
             testObject = Object.Instantiate(new GameObject("TestModel"));
 
             model = testObject.AddComponent<NobodyWho.Model>();
-            model.ModelPath = System.IO.Path.Combine(Application.streamingAssetsPath, "qwen2.5-1.5b-instruct-q4_0.gguf");
+            model.modelPath = System.IO.Path.Combine(Application.streamingAssetsPath, "qwen2.5-1.5b-instruct-q4_0.gguf");
 
             chat = testObject.AddComponent<NobodyWho.Chat>();
             chat.model = model;
