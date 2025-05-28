@@ -10,6 +10,7 @@ func run_test():
 	assert(await test_antiprompts())
 	assert(await test_antiprompts_multitokens())
 	assert(await test_chat_history())
+	assert(await test_stop_generation())
 	return true
 
 func test_say():
@@ -81,5 +82,23 @@ func test_chat_history():
 	say("What did I just ask you about?")
 	var resp = await response_finished
 	assert("2 + 2" in resp)
+	
+	return true
+
+
+func test_stop_generation():
+	start_worker()
+
+	self.response_updated.connect(func(token: String):
+		if token == "5":
+			stop_generation()
+	)
+	say("count from 0 to 9")
+	
+	var response = await response_finished
+
+	print("✨ Got response: " + response)
+	assert("5" in response, "Should stop at 5")
+	assert(not "6" in response, "Should not continue past 5")
 	
 	return true

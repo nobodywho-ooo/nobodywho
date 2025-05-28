@@ -46,6 +46,10 @@ impl ChatHandle {
         let _ = self.msg_tx.send(ChatMsg::ResetChat { system_prompt });
     }
 
+    pub fn stop_generation(&self) {
+        let _ = self.msg_tx.send(ChatMsg::StopGeneration);
+    }
+
     pub fn get_chat_history(&self) -> tokio::sync::mpsc::Receiver<Vec<crate::chat_state::Message>> {
         let (output_tx, output_rx) = tokio::sync::mpsc::channel(1);
         let _ = self.msg_tx.send(ChatMsg::GetChatHistory { output_tx });
@@ -75,6 +79,7 @@ enum ChatMsg {
     ResetChat {
         system_prompt: String,
     },
+    StopGeneration,
     GetChatHistory {
         output_tx: tokio::sync::mpsc::Sender<Vec<crate::chat_state::Message>>,
     },
@@ -116,6 +121,9 @@ fn run_worker(
             }
             ChatMsg::ResetChat { system_prompt } => {
                 worker_state.reset_chat(system_prompt);
+            }
+            ChatMsg::StopGeneration => {
+                worker_state.stop_generation();
             }
             ChatMsg::GetChatHistory { output_tx } => {
                 let _ =
@@ -223,6 +231,10 @@ impl<'a> Worker<'_, ChatWorker> {
         self.extra
             .chat_state
             .add_message("system".into(), system_prompt);
+    }
+
+    fn stop_generation(&self) {
+        self.extra.should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
     }
 
 
