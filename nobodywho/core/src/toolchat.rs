@@ -277,10 +277,13 @@ pub enum SayError {
 
 // TODO: list all known tool call tokens
 const TOOL_CALL_TOKENS: [(&'static str, &'static str); 3] = [
-    ("<tool_call>", "</tool_call>"),
-    ("<function_call>", "</function_call>"),
-    ("key3", "value3"),
+    ("<tool_call>", "</tool_call>"),                  // qwen3
+    ("<function_call>", "</function_call>"),          // llama3
+    ("<｜tool▁call▁begin｜>", "<｜tool▁call▁end｜>"), // deepseek
 ];
+
+const TOOL_CALLS_TOKENS: [(&'static str, &'static str); 1] =
+    [("<｜tool▁calls▁begin｜>", "<｜tool▁calls▁end｜>")];
 
 impl<'a> Worker<'_, ToolChatWorker> {
     fn new_tool_chat_worker(
