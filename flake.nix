@@ -8,12 +8,8 @@
     flake-utils.lib.eachDefaultSystem (system:
     let
       pkgs = (import nixpkgs { 
-        system = system;
-        config = {
-          allowUnfreePredicate = pkg: builtins.elem (pkgs.lib.getName pkg) [
-            "unityhub" # allow unfree unity
-          ];
-        };
+        inherit system;
+        config.allowUnfreePredicate = pkg: builtins.elem (pkgs.lib.getName pkg) [ "unityhub" ]; # allow unfree unityhub
       });
 
       nobodywho-godot = pkgs.callPackage ./nobodywho/godot {};
