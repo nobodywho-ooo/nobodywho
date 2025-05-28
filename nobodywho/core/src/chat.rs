@@ -137,6 +137,7 @@ fn run_worker(
 
 struct ChatWorker {
     chat_state: ChatState,
+    should_stop: Arc<AtomicBool>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -170,7 +171,7 @@ impl<'a> Worker<'_, ChatWorker> {
             model,
             n_ctx,
             false,
-            ChatWorker { chat_state },
+            ChatWorker { chat_state, should_stop: Arc::new(AtomicBool::new(false)) },
         )?)
     }
 
@@ -184,6 +185,7 @@ impl<'a> Worker<'_, ChatWorker> {
     where
         F: Fn(llm::WriteOutput),
     {
+        self.extra.should_stop.store(false, std::sync::atomic::Ordering::Relaxed);
         self.extra.chat_state.add_message("user".to_string(), text);
         let diff = self.extra.chat_state.render_diff()?;
 
@@ -198,9 +200,10 @@ impl<'a> Worker<'_, ChatWorker> {
             respond(x)
         };
 
+        let should_stop = self.extra.should_stop.clone();
         // brrr
         self.read_string(diff)?
-            .write_until_done(sampler, stop_words, wrapped_respond)?;
+            .write_until_done(sampler, stop_words, wrapped_respond, should_stop)?;
 
         // get the finished response and add it to our chat history
         let response = resp_receiver.recv()?;
@@ -222,9 +225,6 @@ impl<'a> Worker<'_, ChatWorker> {
             .add_message("system".into(), system_prompt);
     }
 
-    fn stop_generation(&mut self) {
-        unimplemented!()
-    }
 
     pub fn set_chat_history(&mut self, messages: Vec<crate::chat_state::Message>) {
         self.reset_context();
@@ -331,17 +331,20 @@ mod tests {
         let model = test_utils::load_test_model();
         let system_prompt = "You are a counter, only outputting numbers";
         let mut worker = Worker::new_chat_worker(&model, 1024, system_prompt.into())?;
+        let should_stop = worker.extra.should_stop.clone();
+        should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
+
         let sampler = SamplerConfig::default();
 
         let (sender, receiver) = std::sync::mpsc::channel();
-        let should_break = false;
-        let mut response = String::new();
         let f = move |x| match x {
             llm::WriteOutput::Token(resp) => {
-                sender.send(resp).unwrap();
+                if resp.contains("5") {
+                    should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
+                }
             }
             llm::WriteOutput::Done(resp) => {
-                sender.send("<eos>".to_string()).unwrap();
+                sender.send(resp).unwrap();
             }
             _ => (),
         };
@@ -353,22 +356,12 @@ mod tests {
             f.clone(),
         )?;
 
-        while let Ok(token) = receiver.recv() {
-            response += &token;
-            if token.contains("5") {
-                worker.stop_generation();
-            }
-            if token == "<eos>" {
-                break;
-            }
-        }
-
+        let response = receiver.recv()?;
         println!("{}", response);
 
         assert!(response.contains("5"));
         assert!(!response.contains("6"));
         Ok(())
-    }        Ok(())
     }
 
     #[test]
