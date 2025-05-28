@@ -54,8 +54,8 @@ namespace Tests
         public void Teardown()
         {
             // Remove any event listeners added during tests
-            chat.onComplete.RemoveAllListeners();
-            chat.onToken.RemoveAllListeners();
+            chat.responseFinished.RemoveAllListeners();
+            chat.responseUpdated.RemoveAllListeners();
 
             // Destroy the test object and its components
             if (testObject)
@@ -80,8 +80,8 @@ namespace Tests
         {
             string response = null;
             List<string> receivedTokens = new List<string>();
-            chat.onComplete.AddListener((result) => response = result);
-            chat.onToken.AddListener(
+            chat.responseFinished.AddListener((result) => response = result);
+            chat.responseUpdated.AddListener(
                 (token) =>
                 {
                     receivedTokens.Add(token);
@@ -104,7 +104,7 @@ namespace Tests
         {
             string response = null;
             // not using await here because we want to test the signal like interface as well
-            chat.onComplete.AddListener((result) => response = result);
+            chat.responseFinished.AddListener((result) => response = result);
             chat.stopWords = "fly";
             chat.ResetContext();
 

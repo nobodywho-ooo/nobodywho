@@ -26,8 +26,8 @@ namespace NobodyWho
         public string grammar;
 
         [Header("Events")]
-        public UnityEvent<string> onToken = new UnityEvent<string>();
-        public UnityEvent<string> onComplete = new UnityEvent<string>();
+        public UnityEvent<string> responseUpdated = new UnityEvent<string>();
+        public UnityEvent<string> responseFinished = new UnityEvent<string>();
 
         public void StartWorker()
         {
@@ -54,12 +54,12 @@ namespace NobodyWho
 
                 case PollResponseKind.Token:
                     string token = Marshal.PtrToStringAnsi(res.ptr, (int)res.len);
-                    onToken.Invoke(token);
+                    responseUpdated.Invoke(token);
                     break;
 
                 case PollResponseKind.Done:
                     string resp = Marshal.PtrToStringAnsi(res.ptr, (int)res.len);
-                    onComplete.Invoke(resp);
+                    responseFinished.Invoke(resp);
                     break;
             }
         }
