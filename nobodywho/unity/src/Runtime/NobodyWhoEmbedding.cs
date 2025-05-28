@@ -34,7 +34,7 @@ namespace NobodyWho
 
         public void StartWorker()
         {
-            wrapper.StartWorker(model.modelWrapperContext, self.contextLength);
+            wrapper.StartWorker(model.modelWrapperContext, contextLength);
         }
 
         public float CosineSimilarity(float[] a, float[] b)
