@@ -24,7 +24,8 @@ pub extern "C" fn init_tracing() {
     });
 }
 
-// TODO: narrow these errors
+/// MODEL
+
 #[ffi_type(patterns(ffi_error))]
 #[repr(C)]
 #[derive(Debug)]
@@ -42,8 +43,6 @@ impl FFIError for ModelError {
     const PANIC: Self = Self::Panic;
 }
 
-/// MODEL
-
 #[ffi_type(opaque)]
 pub struct ModelWrapper {
     model_path: std::ffi::CString,
@@ -57,7 +56,7 @@ impl ModelWrapper {
     pub fn new(model_path_ptr: AsciiPointer, use_gpu: bool) -> Result<Self, ModelError> {
         let Some(model_path) = model_path_ptr.as_c_str().map(|s| s.to_owned()).to_owned() else {
             error!("Model path was null pointer.");
-            return Err(ModelError::Null);
+            return Err(ModelError::BadModelPath);
         };
         Ok(Self {
             model_path,
