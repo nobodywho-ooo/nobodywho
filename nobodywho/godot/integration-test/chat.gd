@@ -9,6 +9,7 @@ func run_test():
 	assert(await test_say())
 	assert(await test_antiprompts())
 	assert(await test_antiprompts_multitokens())
+	assert(await test_stop_generation())
 	return true
 
 func test_say():
@@ -57,6 +58,7 @@ func test_antiprompts_multitokens():
 
 
 func test_stop_generation():
+	print("✨ Testing stop generation")
 	start_worker()
 
 	self.response_updated.connect(func(token: String):
