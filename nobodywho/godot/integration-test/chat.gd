@@ -9,8 +9,8 @@ func run_test():
 	assert(await test_say())
 	assert(await test_antiprompts())
 	assert(await test_antiprompts_multitokens())
-	assert(await test_chat_history())
 	assert(await test_stop_generation())
+	assert(await test_chat_history())
 	return true
 
 func test_say():
@@ -87,6 +87,7 @@ func test_chat_history():
 
 
 func test_stop_generation():
+	print("✨ Testing stop generation")
 	start_worker()
 
 	self.response_updated.connect(func(token: String):
