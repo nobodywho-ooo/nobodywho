@@ -38,6 +38,6 @@ temp*
 *.dll$
 
 # when running test, the meta files might be overwritten which is unintended.
-*.meta 
+*.meta
 
 ./Runtime/libnobodywho.so
