@@ -3,7 +3,7 @@ on:
   workflow_call:
 
 jobs:
-  zip-distributable:
+  godot-distributable:
     runs-on: ubuntu-24.04
     steps:
         - uses: actions/checkout@v4
@@ -21,14 +21,75 @@ jobs:
             # copy in gdextension metadata
             cp ./nobodywho/godot/nobodywho.gdextension ./nobodywho-release/bin/addons/nobodywho/
             cp ./assets/icon.svg ./nobodywho-release/bin/addons/nobodywho/
-        - name: "Upload zipped build artifacts"
+        - name: "Upload zipped godot build artifacts"
           uses: actions/upload-artifact@v4
           with:
             name: nobodywho-godot-all-platforms
             path: ./nobodywho-release
 
+  unity-distributable:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create Unity package output directory
+        run: mkdir -p ./nobodywho-release/
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Prepare Unity package
+        run: | 
+          # copy the all (integration:platform:profile) where integration is unity and platform is any and profile is releasiles to the package directory
+          # so we end with a structure like this:
+          # Runtime/
+          #   Plugins/
+          #     "x86_64-unknown-linux-gnu"/
+          #       libnobodywho_unity.so
+          #       libnobodywho_unity.so.meta
+          #     "x86_64-apple-darwin"/
+          #       libnobodywho_unity.dylib
+          #       libnobodywho_unity.dylib.meta
+          #     "aarch64-apple-darwin"/
+          #       libnobodywho_unity.dylib
+          #       libnobodywho_unity.dylib.meta
+          #     "x86_64-pc-windows-msvc"/
+          #       nobodywho_unity.dll
+          #       nobodywho_unity.pdb
+          
+          mv ./artifacts/nobodywho-unity-x86_64-unknown-linux-gnu-release/nobodywho-unity-x86_64-unknown-linux-gnu-release.so ./nobodywho/unity/src/Runtime/Plugins/x86_64-unknown-linux-gnu/libnobodywho_unity.so
+          
+          mv ./artifacts/nobodywho-unity-x86_64-apple-darwin-release/nobodywho-unity-x86_64-apple-darwin-release.dylib ./nobodywho/unity/src/Runtime/Plugins/x86_64-apple-darwin/libnobodywho_unity.dylib
+          mv ./artifacts/nobodywho-unity-aarch64-apple-darwin-release/nobodywho-unity-aarch64-apple-darwin-release.dylib ./nobodywho/unity/src/Runtime/Plugins/aarch64-apple-darwin/libnobodywho_unity.dylib
+
+          # copy .pdb for windows as well
+          mv ./artifacts/nobodywho-unity-x86_64-pc-windows-msvc-release/nobodywho-unity-x86_64-pc-windows-msvc-release.dll ./nobodywho/unity/src/Runtime/Plugins/x86_64-pc-windows-msvc/nobodywho_unity.dll
+          mv ./artifacts/nobodywho-unity-x86_64-pc-windows-msvc-release/nobodywho-unity-x86_64-pc-windows-msvc-release.pdb ./nobodywho/unity/src/Runtime/Plugins/x86_64-pc-windows-msvc/nobodywho_unity.pdb 
+
+          # This is required for the package to be added to the package manager (Packages is just an accepted unity-project path )
+          mkdir -p dist/Assets/NobodyWho
+          mv ./nobodywho/unity/src/* dist/Assets/NobodyWho/
+          # remove tests from package
+          rm -rf dist/Assets/NobodyWho/Tests
+
+      - name: Create Unity Package
+        uses: natsuneko-laboratory/create-unitypackage@v3
+        with:
+          root: dist/
+          files-glob: "dist/Assets/**/*.{cs,meta,dll,dylib,so,asmdef}"
+          dest: ./nobodywho.unitypackage
+
+      - name: Upload Unity Package Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nobodywho-unity-package-${{ github.ref_name }}
+          path: ./nobodywho.unitypackage
+      
+
   create-github-release:
-    needs: [zip-distributable]
+    needs: [godot-distributable, unity-distributable]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     steps:
@@ -45,6 +106,8 @@ jobs:
       - name: "Create GitHub Release"
         uses: softprops/action-gh-release@v1
         with:
-          files: "./nobodywho-godot-${{ github.ref_name }}.zip"
+          files: | 
+            "./nobodywho-godot-${{ github.ref_name }}.zip"
+            "./nobodywho-unity-package-${{ github.ref_name }}.unitypackage"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

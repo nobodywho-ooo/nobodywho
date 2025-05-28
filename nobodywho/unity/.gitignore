@@ -1,0 +1,43 @@
+# Unity generated on test runs
+*-results.xml
+integration-test/ProjectSettings/*
+
+# Unity3D generated meta files
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+
+# Unity3D generated file on crash reports
+sysinfo.txt
+
+# Builds
+*.apk
+*.aab
+*.unitypackage
+*.app
+
+# Crashlytics generated file
+crashlytics-build.properties
+
+# Environment files
+.env
+*.ulf
+
+# Nix
+.direnv
+result
+resul*
+temp*
+.temp*
+# Unity
+*.log
+*.xml
+
+*.so$
+*.dylib$
+*.dll$
+
+# when running test, the meta files might be overwritten which is unintended.
+*.meta
+
+./Runtime/libnobodywho.so
