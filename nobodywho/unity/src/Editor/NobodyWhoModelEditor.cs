@@ -115,12 +115,12 @@ namespace NobodyWho
             );
 
             EditorGUILayout.PropertyField(
-                serializedObject.FindProperty("onToken"),
+                serializedObject.FindProperty("responseUpdated"),
                 new GUIContent("On Token", "Triggered when a new token is received from the LLM")
             );
 
             EditorGUILayout.PropertyField(
-                serializedObject.FindProperty("onComplete"),
+                serializedObject.FindProperty("responseFinished"),
                 new GUIContent(
                     "On Complete",
                     "Triggered when the LLM has finished generating the response"
