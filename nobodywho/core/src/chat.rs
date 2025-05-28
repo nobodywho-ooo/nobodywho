@@ -222,6 +222,10 @@ impl<'a> Worker<'_, ChatWorker> {
             .add_message("system".into(), system_prompt);
     }
 
+    fn stop_generation(&mut self) {
+        unimplemented!()
+    }
+
     pub fn set_chat_history(&mut self, messages: Vec<crate::chat_state::Message>) {
         self.reset_context();
         self.extra.chat_state.set_messages(messages);
@@ -317,8 +321,54 @@ mod tests {
         let resp2 = receiver.recv()?;
         println!("{}", resp2);
         assert!(resp2.to_lowercase().contains("meow"));
-
+        
         Ok(())
+    }
+
+    #[test]
+    fn test_stop_mid_write() -> Result<(), Box<dyn std::error::Error>> {
+        // test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let system_prompt = "You are a counter, only outputting numbers";
+        let mut worker = Worker::new_chat_worker(&model, 1024, system_prompt.into())?;
+        let sampler = SamplerConfig::default();
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let should_break = false;
+        let mut response = String::new();
+        let f = move |x| match x {
+            llm::WriteOutput::Token(resp) => {
+                sender.send(resp).unwrap();
+            }
+            llm::WriteOutput::Done(resp) => {
+                sender.send("<eos>".to_string()).unwrap();
+            }
+            _ => (),
+        };
+
+        worker.say(
+            "Count from 0 to 9".to_string(),
+            sampler.clone(),
+            vec![],
+            f.clone(),
+        )?;
+
+        while let Ok(token) = receiver.recv() {
+            response += &token;
+            if token.contains("5") {
+                worker.stop_generation();
+            }
+            if token == "<eos>" {
+                break;
+            }
+        }
+
+        println!("{}", response);
+
+        assert!(response.contains("5"));
+        assert!(!response.contains("6"));
+        Ok(())
+    }        Ok(())
     }
 
     #[test]
