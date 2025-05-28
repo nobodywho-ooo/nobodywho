@@ -54,3 +54,21 @@ func test_antiprompts_multitokens():
 	assert(not "mouse" in response, "Should not continue past antiprompt")
 	
 	return true
+
+
+func test_stop_generation():
+	start_worker()
+
+	self.response_updated.connect(func(token: String):
+		if token == "5":
+			stop_generation()
+	)
+	say("count from 0 to 9")
+	
+	var response = await response_finished
+
+	print("✨ Got response: " + response)
+	assert("5" in response, "Should stop at 5")
+	assert(not "6" in response, "Should not continue past 5")
+	
+	return true

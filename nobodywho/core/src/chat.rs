@@ -46,6 +46,10 @@ impl ChatHandle {
     pub fn reset_chat(&self, system_prompt: String) {
         let _ = self.msg_tx.send(ChatMsg::ResetChat { system_prompt });
     }
+
+    pub fn stop_generation(&self) {
+        let _ = self.msg_tx.send(ChatMsg::StopGeneration);
+    }
 }
 
 enum ChatMsg {
@@ -58,6 +62,7 @@ enum ChatMsg {
     ResetChat {
         system_prompt: String,
     },
+    StopGeneration,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -91,6 +96,9 @@ fn run_worker(
             }
             ChatMsg::ResetChat { system_prompt } => {
                 worker_state.reset_chat(system_prompt);
+            }
+            ChatMsg::StopGeneration => {
+                worker_state.stop_generation();
             }
         }
     }
@@ -187,6 +195,10 @@ impl<'a> Worker<'_, ChatWorker> {
         self.extra
             .chat_state
             .add_message("system".into(), system_prompt);
+    }
+
+    fn stop_generation(&self) {
+        self.extra.should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
     }
 
 }
