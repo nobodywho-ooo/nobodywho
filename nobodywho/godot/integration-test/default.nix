@@ -1,4 +1,4 @@
-{ godot, stdenv, fetchurl, godot_4, godot_4-export-templates-bin, fontconfig }:
+{ nobodywho-godot, stdenv, fetchurl, godot_4, godot_4-export-templates-bin, fontconfig }:
 let
   model = fetchurl {
     name = "Qwen_Qwen3-0.6B-Q4_0.gguf";
@@ -26,7 +26,7 @@ stdenv.mkDerivation {
     # copy in gdextension stuff
     rm ./nobodywho.gdextension
     mkdir -p ./bin/
-    cp ${godot}/lib/libnobodywho_godot.so ./bin/libnobodywho_godot.so
+    cp ${nobodywho-godot}/lib/libnobodywho_godot.so ./bin/libnobodywho_godot.so
     cat << EOF > bin/nobodywho.gdextension
     [configuration]
     entry_symbol = "gdext_rust_init"
