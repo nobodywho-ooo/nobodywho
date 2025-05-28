@@ -15,21 +15,12 @@
           ];
         };
       });
-      nobodywho = pkgs.callPackage ./nobodywho {};
+
+      nobodywho-godot = pkgs.callPackage ./nobodywho/godot {};
     in
     { 
-      packages = {
-        default = nobodywho.core;
-        nobodywho = nobodywho.core;
-        unity = nobodywho.unity-editor;
-        godot = nobodywho.godot;
-        
-      };
-      checks = {
-        default = nobodywho.checks.godot-integration-test;
-      };
-      devShells = {
-        default = import ./nobodywho/shell.nix { inherit pkgs; };
-      };
+      packages.default = nobodywho-godot.nobodywho-godot;
+      checks.default = nobodywho-godot.run-integration-test;
+      devShells.default = pkgs.callPackage ./nobodywho/shell.nix { };
     });
 }

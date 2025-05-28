@@ -1,8 +1,10 @@
 { pkgs ? import <nixpkgs> {}, ... }: 
 
 let 
-  nobodywho = pkgs.callPackage ./default.nix {};
-  unity-editor = nobodywho.unity-editor;
+  version = "6000.0.47f1";
+  unity-editor = pkgs.writeShellScriptBin "unity-editor" ''
+    ${pkgs.lib.getExe pkgs.unityhub.fhsEnv} ~/Unity/Hub/Editor/${version}/Editor/Unity "$@"
+  '';
 
 in pkgs.mkShell {
   env.LIBCLANG_PATH = "${pkgs.libclang.lib}/lib/libclang.so";
