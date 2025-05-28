@@ -105,7 +105,7 @@ namespace NobodyWho
             );
 
             EditorGUILayout.PropertyField(
-                serializedObject.FindProperty("use_grammar"),
+                serializedObject.FindProperty("useGrammar"),
                 new GUIContent("Use Grammar", "Enable grammar-based output formatting")
             );
 

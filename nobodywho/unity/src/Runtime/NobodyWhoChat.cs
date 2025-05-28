@@ -20,8 +20,7 @@ namespace NobodyWho
         [Header("Configuration")]
         public string stopWords = "";
         public uint contextLength = 4096;
-        public bool use_grammar = false;
-        // ^ TODO: can we be consistent about casing here?
+        public bool useGrammar = false;
 
         [TextArea(15, 20)]
         public string grammar;
@@ -37,7 +36,7 @@ namespace NobodyWho
 
         public void Say(string text)
         {
-            wrapper.Say(text, use_grammar, grammar, stopWords);
+            wrapper.Say(text, useGrammar, grammar, stopWords);
         }
 
         public void ResetContext()
