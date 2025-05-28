@@ -12,7 +12,6 @@ use llama_cpp_2::model::LlamaModel;
 
 pub struct ChatHandle {
     msg_tx: std::sync::mpsc::Sender<ChatMsg>,
-    pub ready: Arc<AtomicBool>,
 }
 
 impl ChatHandle {
@@ -22,12 +21,12 @@ impl ChatHandle {
 
         let readyclone = ready.clone();
         std::thread::spawn(move || {
-            if let Err(e) = run_worker(model, n_ctx, system_prompt, msg_rx, readyclone) {
+            if let Err(e) = run_worker(model, n_ctx, system_prompt, msg_rx) {
                 error!("Worker crashed: {}", e)
             }
         });
 
-        Self { msg_tx, ready }
+        Self { msg_tx }
     }
 
     pub fn say(
@@ -77,16 +76,8 @@ fn run_worker(
     n_ctx: u32,
     system_prompt: String,
     msg_rx: std::sync::mpsc::Receiver<ChatMsg>,
-    ready: Arc<AtomicBool>,
 ) -> Result<(), ChatWorkerError> {
     let mut worker_state = Worker::new_chat_worker(&model, n_ctx, system_prompt)?;
-
-    // set ready flag
-    // XXX: weird solution to an unexplained problem
-    //      if we don't do this, we get memory errors in the unity integration
-    //      inside the ctx.decode call in `write_until_done`
-    //      very whack. feel free to fix. hours wasted on this: many
-    ready.store(true, Ordering::SeqCst);
 
     while let Ok(msg) = msg_rx.recv() {
         match msg {
