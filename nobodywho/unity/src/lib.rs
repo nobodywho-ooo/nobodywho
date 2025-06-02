@@ -1,3 +1,4 @@
+use ctor::ctor;
 use interoptopus::patterns::result::FFIError;
 use interoptopus::patterns::slice::FFISlice;
 use interoptopus::patterns::string::AsciiPointer;
@@ -6,11 +7,10 @@ use interoptopus::{
     Inventory, InventoryBuilder,
 };
 use tracing::{debug, error, warn};
-use ctor::ctor;
 
 #[ctor]
 pub fn print_version() {
-    println!("unity version: {}", env!("CARGO_PKG_VERSION"));
+    println!("NobodyWho Unity version: {}", env!("CARGO_PKG_VERSION"));
 }
 
 /// TRACING
