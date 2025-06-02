@@ -13,4 +13,3 @@ godot = { git = "https://github.com/godot-rust/gdext.git", branch = "master", fe
 tokio = "1.44.0"
 tracing = "0.1.41"
 tracing-subscriber = "0.3.19"
-ctor = "0.4.2"
