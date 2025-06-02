@@ -7,20 +7,16 @@
   outputs = { nixpkgs, flake-utils, ... }:
     flake-utils.lib.eachDefaultSystem (system:
     let
-      pkgs = (import nixpkgs { system = system; });
-      nobodywho = pkgs.callPackage ./nobodywho/godot {};
-      godot-integration-test = pkgs.callPackage ./nobodywho/godot/integration-test { inherit nobodywho; };
-      run-godot-integration-test = pkgs.runCommand "checkgame" { nativeBuildInputs = with pkgs; [ mesa.drivers ]; } ''
-        cd ${godot-integration-test}
-        export HOME=$TMPDIR
-        ./game --headless
-        touch $out
-      '';
+      pkgs = (import nixpkgs { 
+        inherit system;
+        config.allowUnfreePredicate = pkg: builtins.elem (pkgs.lib.getName pkg) [ "unityhub" ]; # allow unfree unityhub
+      });
+
+      nobodywho-godot = pkgs.callPackage ./nobodywho/godot {};
     in
-  {
-      packages.default = nobodywho;
-      packages.godot-integration-test = godot-integration-test;
-      checks.default = run-godot-integration-test;
-      devShells.default = import ./nobodywho/shell.nix { inherit pkgs; };
-  });
+    { 
+      packages.default = nobodywho-godot.nobodywho-godot;
+      checks.default = nobodywho-godot.run-integration-test;
+      devShells.default = pkgs.callPackage ./nobodywho/shell.nix { };
+    });
 }

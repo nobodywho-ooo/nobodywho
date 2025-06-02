@@ -1,11 +1,18 @@
 name: "Test"
 on:
   workflow_call:
+    secrets:
+      UNITY_EMAIL:  
+        required: true
+      UNITY_PASSWORD:
+        required: true
+      UNITY_LICENSE:
+        required: true
 
 jobs:
   nix-flake-check:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
       - name: "Install distro dependencies"
@@ -36,3 +43,82 @@ jobs:
         run: |
           . ~/.nix-profile/etc/profile.d/nix.sh
           nix --extra-experimental-features nix-command --extra-experimental-features flakes flake check -L
+
+  run-unity-test:
+    name: Unity Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    # ---------- MODELS ----------
+    - name: Cache GGUF models
+      uses: actions/cache@v3
+      with:
+        path: nobodywho/unity/src/Runtime/StreamingAssets
+        key: gguf-${{ hashFiles('models.lock') }}
+        restore-keys: gguf-
+
+    - name: Download models (if cache miss)
+      if: steps.cache.outputs.cache-hit != 'true'
+      run: |
+        mkdir -p nobodywho/unity/src/Runtime/StreamingAssets
+        curl -L --fail --progress-bar https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_0.gguf \
+          -o nobodywho/unity/src/Runtime/StreamingAssets/qwen2.5-1.5b-instruct-q4_0.gguf
+        curl -L --fail --progress-bar https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf \
+          -o nobodywho/unity/src/Runtime/StreamingAssets/bge-small-en-v1.5-q8_0.gguf
+    - name: Copy models to TempProject
+      run: |
+        mkdir -p TempProject/Assets/StreamingAssets
+        cp nobodywho/unity/src/Runtime/StreamingAssets/qwen2.5-1.5b-instruct-q4_0.gguf TempProject/Assets/StreamingAssets/qwen2.5-1.5b-instruct-q4_0.gguf
+        cp nobodywho/unity/src/Runtime/StreamingAssets/bge-small-en-v1.5-q8_0.gguf TempProject/Assets/StreamingAssets/bge-small-en-v1.5-q8_0.gguf
+
+    # ---------- RUST ----------
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: "Install distro dependencies"
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
+
+    - name: Cache Cargo
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          nobodywho/target
+        key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Build testable
+      run: |
+        cargo build -p nobodywho-unity --release --locked
+        mv target/release/libnobodywho_unity.so unity/src/Runtime/Plugins/x86_64-unknown-linux-gnu/libnobodywho_unity.so
+
+      working-directory: nobodywho
+
+    # ---------- UNITY ----------
+    - name: Run PlayMode tests
+      uses: game-ci/unity-test-runner@v4
+      env:
+        UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+        UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+        ACTIONS_STEP_DEBUG: true
+      with:
+        packageMode: true
+        projectPath: nobodywho/unity/src
+        testMode: playmode
+        unityVersion: 6000.0.47f1
+        customImage: emilnorsker/nobodywho-unity-ci:latest
+        checkName: Unity Test Results
+
+    - name: Upload Test Results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: Unity Test Results
+        path: artifacts/playmode-results.xml

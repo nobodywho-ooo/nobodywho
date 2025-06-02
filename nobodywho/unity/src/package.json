@@ -1,0 +1,19 @@
+{
+    "name": "com.nobodywho.core",
+    "version": "1.0.0",
+    "displayName": "NobodyWho Core",
+    "description": "Core package for NobodyWho",
+    "unity": "2021.3",
+    "author": {
+        "name": "NobodyWho Team"
+    },
+    "testables": ["com.nobodywho.core"],
+    "dependencies": {
+        "com.unity.test-framework": "1.4.5"
+    },
+    "keywords": [
+        "nobodywho",
+        "llm",
+        "ai"
+    ]
+} 

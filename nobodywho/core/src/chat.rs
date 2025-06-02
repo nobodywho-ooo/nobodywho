@@ -2,6 +2,7 @@ use crate::chat_state::ChatState;
 use crate::llm;
 use crate::llm::Worker;
 use crate::sampler_config::SamplerConfig;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tracing::error;
 
@@ -16,7 +17,9 @@ pub struct ChatHandle {
 impl ChatHandle {
     pub fn new(model: Arc<LlamaModel>, n_ctx: u32, system_prompt: String) -> Self {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
+        let ready = Arc::new(AtomicBool::new(false));
 
+        let readyclone = ready.clone();
         std::thread::spawn(move || {
             if let Err(e) = run_worker(model, n_ctx, system_prompt, msg_rx) {
                 error!("Worker crashed: {}", e)
@@ -75,6 +78,7 @@ fn run_worker(
     msg_rx: std::sync::mpsc::Receiver<ChatMsg>,
 ) -> Result<(), ChatWorkerError> {
     let mut worker_state = Worker::new_chat_worker(&model, n_ctx, system_prompt)?;
+
     while let Ok(msg) = msg_rx.recv() {
         match msg {
             ChatMsg::Say {
@@ -188,6 +192,8 @@ impl<'a> Worker<'_, ChatWorker> {
 
 #[cfg(test)]
 mod tests {
+    use tracing_subscriber::field::debug;
+
     use super::*;
     use crate::test_utils;
 

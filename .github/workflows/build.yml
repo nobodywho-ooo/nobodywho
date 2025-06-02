@@ -19,6 +19,7 @@ jobs:
           - "release"
         integration:
           - "godot"
+          - "unity"
     steps:
       - uses: actions/checkout@v4
 
@@ -43,11 +44,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
       - name: "Compile for linux"
-        run: cargo build --verbose ${{ matrix.profile == 'release' && '--release' || '' }}
+        run: cargo build -p nobodywho-${{ matrix.integration }}  --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: ./nobodywho
 
       - name: "Rename built file"
-        run: cp ./nobodywho/target/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.so ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
+        run: |
+          cp ./nobodywho/target/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.so ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v4
@@ -67,6 +69,10 @@ jobs:
           - "release"
         integration:
           - "godot"
+          - "unity"
+    env:
+      RUSTFLAGS: >-
+        -l Advapi32
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -95,8 +101,11 @@ jobs:
           stripdown: true
 
       - name: Build with Cargo
-        run: cargo build --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }}
+        run: cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: nobodywho
+        env:
+          RUSTFLAGS: >-
+            -l Advapi32
 
       - name: "Rename built files"
         run: |
@@ -124,6 +133,7 @@ jobs:
           - "release"
         integration:
           - "godot"
+          - "unity"
     steps:
       - uses: actions/checkout@v4
 
@@ -141,14 +151,16 @@ jobs:
           rustup default stable
           rustup target add ${{ matrix.target }}
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-      - run: cargo build --verbose --target=${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }}
+
+      - run: cargo build -p nobodywho-${{ matrix.integration }} --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: ./nobodywho
 
       - name: "Rename built file"
-        run: cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
+        run: cp ./nobodywho/target/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v4
         with:
           name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
           path: ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
+
