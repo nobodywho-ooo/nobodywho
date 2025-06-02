@@ -682,7 +682,6 @@ name = "nobodywho"
 version = "2.0.0"
 dependencies = [
  "chrono",
- "ctor",
  "encoding_rs",
  "lazy_static",
  "llama-cpp-2",
