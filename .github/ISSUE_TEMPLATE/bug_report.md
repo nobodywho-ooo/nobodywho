@@ -23,7 +23,8 @@ A clear and concise description of what you expected to happen.
 **Environment:**
  - OS: [e.g. Windows, Linux, macOS]
  - Godot Version: [e.g. 4.2]
- - NobodyWho Version: [e.g. 4.4.0]
+ - NobodyWho Version: [e.g. 4.4.0] (should be logged as `core version: x.x.x` )
+ - Extension Version: [e.g. 4.4.0] (should be logged as `godot/unity version: x.x.x` )
  - LLM Model: [e.g. Gemma 2B]
 
 **Additional context**
