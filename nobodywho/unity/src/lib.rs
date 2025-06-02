@@ -6,6 +6,12 @@ use interoptopus::{
     Inventory, InventoryBuilder,
 };
 use tracing::{debug, error, warn};
+use ctor::ctor;
+
+#[ctor]
+pub fn print_version() {
+    println!("unity version: {}", env!("CARGO_PKG_VERSION"));
+}
 
 /// TRACING
 static INIT: std::sync::Once = std::sync::Once::new();

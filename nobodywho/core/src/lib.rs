@@ -1,3 +1,5 @@
+
+use ctor::ctor;
 // pub mod chat;
 pub mod chat;
 pub mod chat_state;
@@ -8,6 +10,11 @@ pub mod sampler_config;
 
 pub fn send_llamacpp_logs_to_tracing() {
     llama_cpp_2::send_logs_to_tracing(llama_cpp_2::LogOptions::default().with_logs_enabled(true));
+}
+
+#[ctor]
+pub fn print_version() {
+    println!("core version: {}", env!("CARGO_PKG_VERSION"));
 }
 
 #[cfg(test)]

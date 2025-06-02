@@ -6,6 +6,12 @@ use nobodywho::{llm, sampler_config};
 use tracing_subscriber::prelude::*;
 
 use crate::sampler_resource::NobodyWhoSampler;
+use ctor::ctor;
+
+#[ctor]
+pub fn print_version() {
+    println!("godot version: {}", env!("CARGO_PKG_VERSION"));
+}
 
 struct NobodyWhoExtension;
 
