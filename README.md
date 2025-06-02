@@ -146,6 +146,17 @@ Other distribution methods like nix, flatpak, or building from source also seems
 
 If anyone knows how to report this issue and to whom, feel free to do so. At this point I have met many Arch linux users who have this issue.
 
+### NobodyWho fails to load on NixOS
+
+If using a Godot engine from nixpkgs, with NobodyWho binaries from the Godot Asset Library. It will most likely fail to look up dynamic dependencies (libgomp, vulkan-loader, etc).
+
+The reason is that the dynamic library .so files from the Godot Asset Library are compiled for generic linux, and expect to find them in FHS directories like /lib, which on NixOS will not contain any dynamic libraries.
+
+There are two good solutions for this:
+
+1. The easy way: run the godot editor using steam-run: `steam-run godot4 --editor`
+2. The Nix way: compile NobodyWho using Nix. This repo contains a flake, so it's faily simple to do (if you have nix with nix-command and flakes enabled): `nix build github:nobodywho-ooo/nobodywho`. Remember to move the dynamic libraries into the right directory afterwards.
+
 ### Can I export to HTML5, Android or iOS?
 
 Currently only Linux, MacOS, and Windows are supported platforms.
