@@ -452,6 +452,11 @@ impl<'a> Worker<'_, ChatWorker> {
         self.extra.chat_state.add_system_message(system_prompt);
         Ok(())
     }
+
+    pub fn set_chat_history(&mut self, messages: Vec<crate::chat_state::Message>) {
+        self.reset_context();
+        self.extra.chat_state.set_messages(messages);
+    }
 }
 
 /// wraps a response function in a closure to do two things:
@@ -508,11 +513,6 @@ fn extract_tool_calls(input: &str) -> Option<Vec<chat_state::ToolCall>> {
         Some(tool_calls)
     } else {
         None
-    }
-
-    pub fn set_chat_history(&mut self, messages: Vec<crate::chat_state::Message>) {
-        self.reset_context();
-        self.extra.chat_state.set_messages(messages);
     }
 }
 
@@ -607,17 +607,6 @@ mod tests {
         Ok(())
     }
 
-<<<<<<< HEAD
-    #[test]
-    fn test_set_chat_history() -> Result<(), Box<dyn std::error::Error>> {
-        // test_utils::init_test_tracing();
-        let model = test_utils::load_test_model();
-        let system_prompt = "You're a helpful question-answering assistant.";
-        let mut worker = Worker::new_chat_worker(&model, 1024, system_prompt.into())?;
-        let sampler = SamplerConfig::default();
-
-        // just a hack to get a channel back
-=======
     fn test_tool() -> Tool {
         Tool {
             name: "get_current_temperature".into(),
@@ -664,7 +653,6 @@ mod tests {
         )
         .expect("Failed making worker");
 
->>>>>>> 5a3b0d4 (toolchat -> chat)
         let (sender, receiver) = std::sync::mpsc::channel();
         let f = move |x| match x {
             llm::WriteOutput::Done(resp) => {
@@ -673,38 +661,6 @@ mod tests {
             _ => (),
         };
 
-<<<<<<< HEAD
-        worker.say(
-            "What is the capital of Denmark?".to_string(),
-            sampler.clone(),
-            vec![],
-            f.clone(),
-        )?;
-        let resp1 = receiver.recv()?;
-        println!("{}", resp1);
-        assert!(resp1.to_lowercase().contains("copenhagen"));
-
-        let mut chat_history = worker.extra.chat_state.get_messages().to_vec();
-        assert!(chat_history.len() == 3);
-        assert!(chat_history[1].content == "What is the capital of Denmark?");
-        chat_history[1] = crate::chat_state::Message {
-            role: "user".into(),
-            content: "What is the best city?".into(),
-        };
-        worker.set_chat_history(chat_history);
-
-        worker.say(
-            "What did I just ask you about?".into(),
-            sampler.clone(),
-            vec![],
-            f.clone(),
-        )?;
-        let resp2 = receiver.recv()?;
-        println!("{}", resp2);
-        assert!(resp2.to_lowercase().contains("best"));
-
-        Ok(())
-=======
         worker
             .say(
                 "I would like to know the temperature in two cities: Copenhagen and Beijing."
@@ -716,8 +672,8 @@ mod tests {
             .expect("fuck");
 
         let result = receiver.recv().unwrap();
+        println!("{}", result);
         assert!(result.contains("13.37"));
         assert!(result.contains("42.69"));
->>>>>>> 5a3b0d4 (toolchat -> chat)
     }
 }

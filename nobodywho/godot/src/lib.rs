@@ -3,7 +3,6 @@ mod sampler_resource;
 use godot::classes::{INode, ProjectSettings};
 use godot::prelude::*;
 use nobodywho::{chat_state, llm, sampler_config};
-use nobodywho::{llm, sampler_config};
 use tracing::{debug, error, info, warn};
 use tracing_subscriber::prelude::*;
 
@@ -303,15 +302,37 @@ impl NobodyWhoChat {
         }
     }
 
-    fn add_tool(&mut self, description: String, callable: Callable) {
+    /// Add a tool for the LLM to use.
+    /// Tool calling is only supported for a select few models. We recommend Qwen3.
+    ///
+    /// The tool is a fully typed callable function on a godot object.
+    /// The function should return a string.
+    /// All parameters should have type hints, and only primitive types are supported.
+    /// NobodyWho will use the type hints to constrain the generation, such that the function will
+    /// only ever be called with the correct types.
+    /// Fancier types like lists, dictionaries, and classes are not (yet) supported.
+    ///
+    /// If you need to specify more parameter constraints, see `add_tool_with_schema`.
+    ///
+    /// Example:
+    ///
+    /// ```
+    /// extends NobodyWhoChat
+    ///
+    /// func add_numbers(a: int, b: int):
+    ///     return str(a + b)
+    ///
+    /// func _ready():
+    ///     # register the tool
+    ///     add_tool(add_numbers, "Adds two integers")
+    ///
+    ///     # see that the llm invokes the tool
+    ///     say("What is two plus two?")
+    /// ```
+    fn add_tool(&mut self, callable: Callable, description: String) {
         if self.chat_handle.is_some() {
             godot_warn!("Worker already running. Tools won't be available until restart or reset");
         }
-
-        let Some(method_name) = callable.method_name() else {
-            godot_error!("Could not get method name. Did you pass an anonymous function?");
-            return;
-        };
 
         let json_schema = match json_schema_from_callable(&callable) {
             Ok(js) => js,
@@ -322,13 +343,73 @@ impl NobodyWhoChat {
         };
         debug!(?json_schema);
 
+        return self._add_tool_with_schema(callable, description, json_schema);
+    }
+
+    #[func]
+    /// Add a tool for the LLM to use, along with a json schema to constrain the parameters.
+    /// The order of parameters in the json schema must be preserved.
+    /// The json schema keyword "description" may be used here, to help guide the LLM.
+    /// Tool calling is only supported for a select few models. We recommend Qwen3.
+    ///
+    /// Example:
+    ///
+    /// ```
+    /// extends NobodyWhoChat
+    ///
+    /// func add_numbers(a, b):
+    ///     return str(a + b)
+    ///
+    /// func _ready():
+    ///     # register the tool
+    ///     var json_schema = """
+    ///         {
+    ///           "type": "object",
+    ///           "properties": {
+    ///             "a": { "type": "integer" },
+    ///             "b": { "type": "integer" }
+    ///           },
+    ///           "required": ["a", "b"],
+    ///         }
+    ///     """
+    ///     add_tool_with_schema(add_numbers, "Adds two integers", json_schema)
+    ///
+    ///     # see that the llm invokes the tool
+    ///     say("What is two plus two?")
+    /// ```
+    fn add_tool_with_schema(
+        &mut self,
+        callable: Callable,
+        description: String,
+        json_schema: String,
+    ) {
+        let Ok(serde_json::Value::Object(json_schema)) = serde_json::from_str(json_schema.as_str())
+        else {
+            godot_error!("Passed json schema was not a valid json object.");
+            return;
+        };
+        return self._add_tool_with_schema(callable, description, json_schema);
+    }
+
+    fn _add_tool_with_schema(
+        &mut self,
+        callable: Callable,
+        description: String,
+        json_schema: serde_json::Map<String, serde_json::Value>,
+    ) {
         // list of property names, preserving order of arguments from Callable
         let Some(properties) = json_schema
             .get("properties")
             .and_then(|v| v.as_object())
             .map(|obj| obj.keys().cloned().collect::<Vec<String>>())
         else {
-            unreachable!("Returned json schema was malformed")
+            godot_error!("JSON Schema was malformed");
+            return;
+        };
+
+        let Some(method_name) = callable.method_name() else {
+            godot_error!("Could not get method name. Did you pass an anonymous function?");
+            return;
         };
 
         // the callback that the actual tool call uses
