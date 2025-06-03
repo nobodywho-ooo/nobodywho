@@ -9,7 +9,11 @@ func run_test():
 	assert(await test_say())
 	assert(await test_antiprompts())
 	assert(await test_antiprompts_multitokens())
+<<<<<<< HEAD
 	assert(await test_chat_history())
+=======
+	assert(await test_tool_call())
+>>>>>>> 43c46f1 (update integration tests)
 	return true
 
 func test_say():
@@ -56,6 +60,7 @@ func test_antiprompts_multitokens():
 	
 	return true
 
+<<<<<<< HEAD
 func test_chat_history():
 	# Reset to clean state
 	stop_words = PackedStringArray()
@@ -82,4 +87,19 @@ func test_chat_history():
 	var resp = await response_finished
 	assert("2 + 2" in resp)
 	
+=======
+
+func current_temperature(city_name: String) -> String:
+	if city_name.to_lower() == "copenhagen":
+		return "12.34"
+	return "Unknown city name"
+
+
+func test_tool_call():
+	self.add_tool(current_temperature, "Gets the current temperature for a given city in celsius.")
+	self.reset_context()
+	say("What is the weather like in Copenhagen?")
+	var response = await response_finished
+	assert("12.34" in response)
+>>>>>>> 43c46f1 (update integration tests)
 	return true
