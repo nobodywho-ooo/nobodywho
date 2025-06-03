@@ -1,4 +1,3 @@
-// pub mod chat;
 pub mod chat;
 pub mod chat_state;
 pub mod embed;

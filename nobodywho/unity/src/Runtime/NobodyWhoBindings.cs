@@ -16,6 +16,7 @@ namespace NobodyWho
 
         static NobodyWhoBindings()
         {
+            UnityEngine.Debug.Log("NobodyWho Library Version: 0.1.0");
         }
 
 
@@ -33,7 +34,7 @@ namespace NobodyWho
         public static extern ModelError modelwrapper_destroy(ref IntPtr context);
 
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "modelwrapper_new")]
-        public static extern ModelError modelwrapper_new(ref IntPtr context, string model_path, bool use_gpu);
+        public static extern ModelError modelwrapper_new(ref IntPtr context, string model_path_ptr, bool use_gpu);
 
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "modelwrapper_get_use_gpu_if_available")]
         public static extern bool modelwrapper_get_use_gpu_if_available(IntPtr context);
@@ -138,6 +139,7 @@ namespace NobodyWho
         WorkerNotStarted = 6,
     }
 
+    /// MODEL
     public enum ModelError
     {
         Ok = 0,
@@ -207,17 +209,16 @@ namespace NobodyWho
 
 
 
-    /// MODEL
     public partial class ModelWrapper : IDisposable
     {
         private IntPtr _context;
 
         private ModelWrapper() {}
 
-        public static ModelWrapper New(string model_path, bool use_gpu)
+        public static ModelWrapper New(string model_path_ptr, bool use_gpu)
         {
             var self = new ModelWrapper();
-            var rval = NobodyWhoBindings.modelwrapper_new(ref self._context, model_path, use_gpu);
+            var rval = NobodyWhoBindings.modelwrapper_new(ref self._context, model_path_ptr, use_gpu);
             if (rval != ModelError.Ok)
             {
                 throw new InteropException<ModelError>(rval);

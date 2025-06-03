@@ -3,6 +3,7 @@ mod sampler_resource;
 use godot::classes::{INode, ProjectSettings};
 use godot::prelude::*;
 use nobodywho::{llm, sampler_config};
+use tracing::info;
 use tracing_subscriber::prelude::*;
 
 use crate::sampler_resource::NobodyWhoSampler;
@@ -10,7 +11,17 @@ use crate::sampler_resource::NobodyWhoSampler;
 struct NobodyWhoExtension;
 
 #[gdextension]
-unsafe impl ExtensionLibrary for NobodyWhoExtension {}
+unsafe impl ExtensionLibrary for NobodyWhoExtension {
+    fn on_level_init(level: InitLevel) {
+        // this version logging needs to happen after godot has loaded
+        // otherwise the tracing_subscriber stuff will crash, because it can't access godot stuff
+        if level == InitLevel::Editor {
+            // Initialize tracing_subscriber - sends all tracing events to godot console.
+            set_log_level("INFO");
+            info!("NobodyWho Godot version: {}", env!("CARGO_PKG_VERSION"));
+        }
+    }
+}
 
 #[derive(GodotClass)]
 #[class(base=Node)]
@@ -456,7 +467,7 @@ pub fn set_log_level(level_str: &str) {
             .with_writer(GodotWriter)
             .with_ansi(false)
             .with_level(true)
-            .pretty();
+            .compact();
 
         tracing_subscriber::registry()
             .with(filter)

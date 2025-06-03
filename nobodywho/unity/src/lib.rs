@@ -446,13 +446,28 @@ fn bindings_csharp() -> Result<(), interoptopus::Error> {
     use interoptopus_backend_csharp::{Config, Generator, ParamSliceType};
 
     let config = Config {
-        dll_name: "libnobodywho_unity".to_string(),
+        dll_name: "nobodywho_unity".to_string(),
         class: "NobodyWhoBindings".into(),
         namespace_mappings: NamespaceMappings::new("NobodyWho"),
         param_slice_type: ParamSliceType::Array,
         ..Config::default()
     };
-    Generator::new(config, my_inventory()).write_file("./src/Runtime/NobodyWhoBindings.cs")?;
-
+    
+    // Generate the bindings
+    Generator::new(config, my_inventory())
+        .write_file("./src/Runtime/NobodyWhoBindings.cs")?;
+    
+    // This is kind of ugly but i dont see a better way (unless we overwrite the config).
+    // Post-process the generated file to add version logging
+    let mut content = std::fs::read_to_string("./src/Runtime/NobodyWhoBindings.cs")?;
+    content = content.replace(
+        "static NobodyWhoBindings()\n        {\n        }",
+        &format!(
+        "static NobodyWhoBindings()\n        {{\n            UnityEngine.Debug.Log(\"NobodyWho Library Version: {}\");\n        }}",
+            env!("CARGO_PKG_VERSION")
+        )
+    );
+    std::fs::write("./src/Runtime/NobodyWhoBindings.cs", content)?;
+    
     Ok(())
 }
