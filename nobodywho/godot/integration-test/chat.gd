@@ -23,7 +23,7 @@ func test_say():
 
 func test_antiprompts():
 	stop_words = PackedStringArray(["fly"])
-	start_worker() # restart the worker to include the antiprompts
+	reset_context() # restart the worker to include the antiprompts
 	
 	say("List these animals in alphabetical order: cat, dog, fly, lion, mouse")
 	var response = await response_finished
@@ -42,7 +42,7 @@ func test_antiprompts_multitokens():
 	stop_words = PackedStringArray(["horse-rider"])
 	system_prompt = "You only list the words in alphabetical order. nothing else."
 
-	start_worker() # restart the worker to include the antiprompts
+	reset_context() # restart the worker to include the antiprompts
 	
 	say("List all the words in alphabetical order: dog, horse-rider, lion, mouse")
 	var response = await response_finished
@@ -57,16 +57,18 @@ func test_antiprompts_multitokens():
 	return true
 
 
-func current_temperature(city_name: String) -> String:
-	if city_name.to_lower() == "copenhagen":
+func current_temperature(location: String) -> String:
+	if location.to_lower() == "copenhagen":
 		return "12.34"
 	return "Unknown city name"
 
 
 func test_tool_call():
-	self.add_tool(current_temperature, "Gets the current temperature for a given city in celsius.")
+	self.add_tool(current_temperature, "Gets the current temperature in a given city.")
+	self.system_prompt = "You're a helpful tool-calling assistant. Remember to keep proper tool calling syntax."
 	self.reset_context()
-	say("What is the weather like in Copenhagen?")
+	say("I'd like to know the current temperature in Copenhagen.")
 	var response = await response_finished
+	print(response)
 	assert("12.34" in response)
 	return true
