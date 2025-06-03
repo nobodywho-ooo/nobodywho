@@ -8,7 +8,6 @@ crate-type = ["cdylib"]
 path = "src/lib.rs"
 
 [dependencies]
-ctor = "0.4.2"
 interoptopus = "0.14.27"
 interoptopus_backend_csharp = "0.14.25"
 memory-stats = "1.2.0"
