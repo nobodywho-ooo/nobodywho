@@ -35,9 +35,9 @@ rec {
       };
     };
     env.TEST_MODEL = fetchurl {
-      name = "qwen2.5-1.5b-instruct-q4_0.gguf";
-      url = "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_0.gguf";
-      hash = "sha256-3NgZ/wlIUsOPq6aHPY/wydUerbKERTnlIEKuXWR7v9s=";
+      name = "Qwen_Qwen3-0.6B-Q4_K_M.gguf";
+      url = "https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf";
+      sha256 = "sha256-ms/B4AExHzS0JSABtiby5GbVkqQgZfZlcb/zeQ1OGxQ=";
     };
     env.TEST_EMBEDDINGS_MODEL = fetchurl {
       name = "bge-small-en-v1.5-q8_0.gguf";

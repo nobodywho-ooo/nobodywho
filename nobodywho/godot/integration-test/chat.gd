@@ -9,6 +9,7 @@ func run_test():
 	assert(await test_say())
 	assert(await test_antiprompts())
 	assert(await test_antiprompts_multitokens())
+	assert(await test_tool_call())
 	return true
 
 func test_say():
@@ -53,4 +54,19 @@ func test_antiprompts_multitokens():
 	assert(not "lion" in response, "Should stop at antiprompt")
 	assert(not "mouse" in response, "Should not continue past antiprompt")
 	
+	return true
+
+
+func current_temperature(city_name: String) -> String:
+	if city_name.to_lower() == "copenhagen":
+		return "12.34"
+	return "Unknown city name"
+
+
+func test_tool_call():
+	self.add_tool(current_temperature, "Gets the current temperature for a given city in celsius.")
+	self.reset_context()
+	say("What is the weather like in Copenhagen?")
+	var response = await response_finished
+	assert("12.34" in response)
 	return true
