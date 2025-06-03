@@ -151,7 +151,9 @@ fn run_worker(
 
 // TOOLS TYPE STUFF
 
-// TODO: figure out why send is needed, try to remove the unsafe impl
+// the callback closure isn't normally Send
+// but we just cheat a little here
+// so far it has been fine...
 unsafe impl Send for Tool {}
 
 #[derive(Clone)]
@@ -312,16 +314,6 @@ pub enum SayError {
     ChatTemplateRenderError(#[from] minijinja::Error),
 }
 
-// TODO: list all known tool call tokens
-const TOOL_CALL_TOKENS: [(&'static str, &'static str); 3] = [
-    ("<tool_call>", "</tool_call>"),                  // qwen3
-    ("<function_call>", "</function_call>"),          // llama3
-    ("<｜tool▁call▁begin｜>", "<｜tool▁call▁end｜>"), // deepseek
-];
-
-const TOOL_CALLS_TOKENS: [(&'static str, &'static str); 1] =
-    [("<｜tool▁calls▁begin｜>", "<｜tool▁calls▁end｜>")];
-
 impl<'a> Worker<'_, ChatWorker> {
     fn new_chat_worker(
         model: &Arc<LlamaModel>,
@@ -373,7 +365,6 @@ impl<'a> Worker<'_, ChatWorker> {
         let (wrapped_respond, resp_receiver) =
             wrap_respond(respond.clone(), tool_call_begin.into());
 
-        // TODO: add tool calling lazy grammar
         let mut sampler = sampler;
         if let Some(ref tool_grammar) = self.extra.tool_grammar {
             sampler.use_grammar = true;
@@ -401,18 +392,22 @@ impl<'a> Worker<'_, ChatWorker> {
             // discard result, because the llm context has already seen these tokens
 
             for tool_call in tool_calls {
-                // XXX: do the tool call
                 // find the tool
-                let tool = self
-                    .extra
-                    .tools
-                    .iter()
-                    .find(|t| t.name == tool_call.name)
-                    .expect("TODO: handle bad tool name");
-                // TODO: how to handle the llm selecting an invalid tool?
-                //       should we put an error message in the chat history?
-                //       or crash hard?
-                //       or prevent it from ever happening with GBNF?
+                // this is just a stupid linear search
+                // but I think it's probably faster than something fancy as long as we have few tools
+                // /shrug I'm happy to be wrong
+                let Some(tool) = self.extra.tools.iter().find(|t| t.name == tool_call.name) else {
+                    // in case the tool isn't found.
+                    // I *think* this should be impossible, as long as the tool calling grammar
+                    // works.
+                    error!(
+                        "Model triggered tool call for invalid tool name: {}",
+                        tool_call.name
+                    );
+                    let errmsg = format!("ERROR - Invalid tool name: {}", tool_call.name);
+                    self.extra.chat_state.add_tool_resp(tool_call.name, errmsg);
+                    continue;
+                };
 
                 // call the tool
                 let response = (tool.function)(tool_call.arguments);
@@ -499,9 +494,6 @@ fn extract_tool_calls(input: &str) -> Option<Vec<chat_state::ToolCall>> {
     // TODO: these are the tokens used by qwen3
     //       but e.g. deepseek uses "<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>" instead.
     //       we need to support multiple different tool call begin tokens
-    let start_tag = "<tool_call>";
-    let end_tag = "</tool_call>";
-
     let re = regex::Regex::new(r"<tool_call>([\s\S]*?)</tool_call>").expect("Invalid regex");
 
     let tool_calls: Vec<chat_state::ToolCall> = re
