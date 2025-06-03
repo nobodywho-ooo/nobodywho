@@ -215,7 +215,7 @@ impl NobodyWhoChat {
                 .collect();
             let mut generation_channel = chat_handle.say(message, sampler, stop_words);
 
-            let emit_node = self.to_gd();
+            let mut emit_node = self.to_gd();
             godot::task::spawn(async move {
                 while let Some(out) = generation_channel.recv().await {
                     match out {
@@ -637,7 +637,7 @@ impl NobodyWhoEmbedding {
     fn embed(&mut self, text: String) -> Signal {
         if let Some(embed_handle) = &self.embed_handle {
             let mut embedding_channel = embed_handle.embed_text(text);
-            let emit_node = self.to_gd();
+            let mut emit_node = self.to_gd();
             godot::task::spawn(async move {
                 match embedding_channel.recv().await {
                     Some(embd) => emit_node
