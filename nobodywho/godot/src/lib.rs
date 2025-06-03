@@ -137,8 +137,8 @@ struct NobodyWhoChat {
     /// Higher values use more VRAM, but allow for longer "short term memory" for the LLM.
     context_length: u32,
 
-    chat_handle: Option<nobodywho::toolchat::ToolChatHandle>,
-    tools: Vec<nobodywho::toolchat::Tool>,
+    chat_handle: Option<nobodywho::chat::ChatHandle>,
+    tools: Vec<nobodywho::chat::Tool>,
 
     base: Base<Node>,
 }
@@ -186,7 +186,7 @@ impl NobodyWhoChat {
     fn start_worker(&mut self) {
         let mut result = || -> Result<(), String> {
             let model = self.get_model()?;
-            self.chat_handle = Some(nobodywho::toolchat::ToolChatHandle::new(
+            self.chat_handle = Some(nobodywho::chat::ChatHandle::new(
                 model,
                 self.context_length,
                 self.system_prompt.to_string(),
@@ -295,7 +295,7 @@ impl NobodyWhoChat {
             let res = callable.call(&args);
             res.to_string()
         };
-        let new_tool = nobodywho::toolchat::Tool::new(
+        let new_tool = nobodywho::chat::Tool::new(
             method_name.into(),
             description,
             json_schema.into(),
