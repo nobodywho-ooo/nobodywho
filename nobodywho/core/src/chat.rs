@@ -449,6 +449,7 @@ impl<'a> Worker<'_, ChatWorker> {
             self.ctx.model,
             tools.iter().map(|t| t.to_chat_state_tool()).collect(),
         )?;
+        self.extra.tools = tools;
         self.extra.chat_state.add_system_message(system_prompt);
         Ok(())
     }
