@@ -1,4 +1,3 @@
-use ctor::ctor;
 use interoptopus::patterns::result::FFIError;
 use interoptopus::patterns::slice::FFISlice;
 use interoptopus::patterns::string::AsciiPointer;
