@@ -2,8 +2,8 @@ mod sampler_resource;
 
 use godot::classes::{INode, ProjectSettings};
 use godot::prelude::*;
-use nobodywho::{llm, sampler_config};
-use tracing::info;
+use nobodywho::{chat_state, llm, sampler_config};
+use tracing::{error, info};
 use tracing_subscriber::prelude::*;
 
 use crate::sampler_resource::NobodyWhoSampler;
@@ -243,6 +243,39 @@ impl NobodyWhoChat {
         }
     }
 
+    #[func]
+    fn get_chat_history(&mut self) -> Variant {
+        if let Some(chat_handle) = &self.chat_handle {
+            // kick off operation
+            let mut rx = chat_handle.get_chat_history();
+
+            // decide on a unique name for the response signal
+            let signal_name = format!("get_chat_history_{:?}", std::time::Instant::now());
+            self.base_mut().add_user_signal(&signal_name);
+
+            let mut emit_node = self.to_gd();
+            let signal_name_copy = signal_name.clone();
+            godot::task::spawn(async move {
+                let Some(chat_history) = rx.recv().await else {
+                    error!("Chat worker died while waiting for get_chat_history.");
+                    emit_node.emit_signal(&signal_name_copy, &vec![]);
+                    return;
+                };
+                let godot_dict_msgs = messages_to_dictionaries(&chat_history);
+                emit_node.emit_signal(&signal_name_copy, &vec![Variant::from(godot_dict_msgs)]);
+            });
+
+            // returns signal, so that you can `var msgs = await get_chat_history()`
+            Variant::from(godot::builtin::Signal::from_object_signal(
+                &self.base_mut(),
+                &signal_name,
+            ))
+        } else {
+            godot_error!("Attempted to reset context, but no worker is running. Doing nothing and returning nil.");
+            Variant::nil()
+        }
+    }
+
     #[signal]
     /// Triggered when a new token is received from the LLM. Returns the new token as a string.
     /// It is strongly recommended to connect to this signal, and display the text output as it is
@@ -393,6 +426,28 @@ impl NobodyWhoEmbedding {
     fn set_log_level(level: String) {
         set_log_level(&level);
     }
+}
+
+/// Small utility to convert our internal Messsage type to godot dictionaries.
+fn messages_to_dictionaries(messages: &[chat_state::Message]) -> Array<Dictionary> {
+    messages
+        .iter()
+        .map(|msg| {
+            let json_value = serde_json::to_value(msg).unwrap_or_default();
+            if let serde_json::Value::Object(obj) = json_value {
+                obj.into_iter()
+                    .map(|(k, v)| {
+                        (
+                            GString::from(k),
+                            Variant::from(v.as_str().unwrap_or_default()),
+                        )
+                    })
+                    .collect()
+            } else {
+                Dictionary::new()
+            }
+        })
+        .collect()
 }
 
 // LOGGING
