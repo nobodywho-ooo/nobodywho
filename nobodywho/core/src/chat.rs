@@ -48,6 +48,24 @@ impl ChatHandle {
     pub fn reset_chat(&self, system_prompt: String) {
         let _ = self.msg_tx.send(ChatMsg::ResetChat { system_prompt });
     }
+
+    pub fn get_chat_history(&self) -> tokio::sync::mpsc::Receiver<Vec<crate::chat_state::Message>> {
+        let (output_tx, output_rx) = tokio::sync::mpsc::channel(1);
+        let _ = self.msg_tx.send(ChatMsg::GetChatHistory { output_tx });
+        output_rx
+    }
+
+    pub fn set_chat_history(
+        &self,
+        messages: Vec<crate::chat_state::Message>,
+    ) -> tokio::sync::mpsc::Receiver<()> {
+        let (output_tx, output_rx) = tokio::sync::mpsc::channel(1);
+        let _ = self.msg_tx.send(ChatMsg::SetChatHistory {
+            output_tx,
+            messages,
+        });
+        output_rx
+    }
 }
 
 enum ChatMsg {
@@ -60,9 +78,16 @@ enum ChatMsg {
     ResetChat {
         system_prompt: String,
     },
+    GetChatHistory {
+        output_tx: tokio::sync::mpsc::Sender<Vec<crate::chat_state::Message>>,
+    },
+    SetChatHistory {
+        messages: Vec<crate::chat_state::Message>,
+        output_tx: tokio::sync::mpsc::Sender<()>,
+    },
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(thiserror::Error, Debug)]
 enum ChatWorkerError {
     #[error("Error initializing worker: {0}")]
     InitWorkerError(#[from] llm::InitWorkerError),
@@ -94,6 +119,17 @@ fn run_worker(
             }
             ChatMsg::ResetChat { system_prompt } => {
                 worker_state.reset_chat(system_prompt);
+            }
+            ChatMsg::GetChatHistory { output_tx } => {
+                let _ =
+                    output_tx.blocking_send(worker_state.extra.chat_state.get_messages().to_vec());
+            }
+            ChatMsg::SetChatHistory {
+                messages,
+                output_tx,
+            } => {
+                worker_state.set_chat_history(messages);
+                let _ = output_tx.blocking_send(());
             }
         }
     }
@@ -188,6 +224,11 @@ impl<'a> Worker<'_, ChatWorker> {
             .chat_state
             .add_message("system".into(), system_prompt);
     }
+
+    pub fn set_chat_history(&mut self, messages: Vec<crate::chat_state::Message>) {
+        self.reset_context();
+        self.extra.chat_state.set_messages(messages);
+    }
 }
 
 #[cfg(test)]
@@ -279,6 +320,55 @@ mod tests {
         let resp2 = receiver.recv()?;
         println!("{}", resp2);
         assert!(resp2.to_lowercase().contains("meow"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_set_chat_history() -> Result<(), Box<dyn std::error::Error>> {
+        // test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let system_prompt = "You're a helpful question-answering assistant.";
+        let mut worker = Worker::new_chat_worker(&model, 1024, system_prompt.into())?;
+        let sampler = SamplerConfig::default();
+
+        // just a hack to get a channel back
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let f = move |x| match x {
+            llm::WriteOutput::Done(resp) => {
+                sender.send(resp).unwrap();
+            }
+            _ => (),
+        };
+
+        worker.say(
+            "What is the capital of Denmark?".to_string(),
+            sampler.clone(),
+            vec![],
+            f.clone(),
+        )?;
+        let resp1 = receiver.recv()?;
+        println!("{}", resp1);
+        assert!(resp1.to_lowercase().contains("copenhagen"));
+
+        let mut chat_history = worker.extra.chat_state.get_messages().to_vec();
+        assert!(chat_history.len() == 3);
+        assert!(chat_history[1].content == "What is the capital of Denmark?");
+        chat_history[1] = crate::chat_state::Message {
+            role: "user".into(),
+            content: "What is the best city?".into(),
+        };
+        worker.set_chat_history(chat_history);
+
+        worker.say(
+            "What did I just ask you about?".into(),
+            sampler.clone(),
+            vec![],
+            f.clone(),
+        )?;
+        let resp2 = receiver.recv()?;
+        println!("{}", resp2);
+        assert!(resp2.to_lowercase().contains("best"));
 
         Ok(())
     }

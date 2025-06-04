@@ -102,6 +102,15 @@ impl ChatState {
         self.messages = Vec::new();
     }
 
+    pub fn get_messages(&self) -> &[Message] {
+        &self.messages
+    }
+
+    pub fn set_messages(&mut self, messages: Vec<Message>) {
+        self.reset();
+        self.messages = messages;
+    }
+
     pub fn add_message(&mut self, role: String, content: String) {
         self.messages.push(Message { role, content });
     }
