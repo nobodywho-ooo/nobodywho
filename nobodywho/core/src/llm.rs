@@ -9,6 +9,7 @@ use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::model::{AddBos, Special};
 use llama_cpp_2::token::LlamaToken;
 use std::pin::pin;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, LazyLock, Mutex};
 use tracing::{debug, debug_span, error, info, info_span, trace, trace_span, warn};
 
@@ -235,7 +236,9 @@ pub enum WriteError {
 }
 
 // Type state markers
-pub struct GenerationWorker {}
+pub struct GenerationWorker {
+    should_stop: Arc<AtomicBool>,
+}
 pub trait GenerationCapability {}
 impl GenerationCapability for GenerationWorker {}
 
@@ -245,7 +248,7 @@ impl<'a> Worker<'_, GenerationWorker> {
         model: &Arc<LlamaModel>,
         n_ctx: u32,
     ) -> Result<Worker<'_, GenerationWorker>, InitWorkerError> {
-        Worker::new_with_type(model, n_ctx, false, GenerationWorker {})
+        Worker::new_with_type(model, n_ctx, false, GenerationWorker { should_stop: Arc::new(AtomicBool::new(false)) })
     }
 }
 
@@ -259,6 +262,7 @@ where
         sampler_config: SamplerConfig,
         stop_words: Vec<String>,
         respond: F, // respond_to: Sender<Result<WriteOutput, WriteError>>,
+        should_stop: Arc<AtomicBool>,
     ) -> Result<&mut Self, WriteError>
     where
         F: Fn(WriteOutput),
@@ -275,7 +279,9 @@ where
         // stateful samplers only live for one response
         let mut sampler = make_sampler(&self.ctx.model, sampler_config);
 
-        loop {
+        loop { 
+            if should_stop.load(std::sync::atomic::Ordering::Relaxed) { break; }
+
             // Check for context window overflow (it was in the end before)
             if self.n_past >= self.ctx.n_ctx() as i32 - 1 {
                 self.n_past -= apply_context_shifting(&mut self.ctx, self.n_past)?;
@@ -439,6 +445,8 @@ mod tests {
 
         let sampler = SamplerConfig::default();
         let mut worker = Worker::new_generation_worker(&model, 4096)?;
+
+        let should_stop = worker.extra.should_stop.clone();
         let (sender, receiver) = std::sync::mpsc::channel();
 
         let f = move |x| match x {
@@ -450,7 +458,7 @@ mod tests {
 
         worker
             .read_string("I'm gonna count to 10: 1, 2, 3, ".to_string())?
-            .write_until_done(sampler, vec!["10".to_string()], f)?;
+            .write_until_done(sampler, vec!["10".to_string()], f, should_stop)?;
 
         let response = receiver.recv()?;
 
@@ -475,11 +483,10 @@ mod tests {
         let dk_response_clone = Arc::clone(&dk_response);
         let de_response_clone = Arc::clone(&de_response);
         let dk_sampler = sampler.clone();
-
         // Start Denmark worker thread
         let dk_handle = std::thread::spawn(move || {
             let mut worker = Worker::new_generation_worker(&model_clone, n_ctx).unwrap();
-
+            let should_stop = worker.extra.should_stop.clone();
             let f = move |x| {
                 if let WriteOutput::Done(resp) = x {
                     let mut response = dk_response_clone.lock().unwrap();
@@ -490,14 +497,14 @@ mod tests {
             worker
                 .read_string("<think>\nCopenhagen is the capital of Denmark\n</think>\nThe name of the capital city of Denmark is \"".to_string())
                 .unwrap()
-                .write_until_done(dk_sampler, vec!["Copenhagen".to_string()], f)
+                .write_until_done(dk_sampler, vec!["Copenhagen".to_string()], f, should_stop)
                 .unwrap();
         });
 
         // Start Germany worker thread
         let de_handle = std::thread::spawn(move || {
             let mut worker = Worker::new_generation_worker(&model, n_ctx).unwrap();
-
+            let should_stop = worker.extra.should_stop.clone();
             let f = move |x| {
                 if let WriteOutput::Done(resp) = x {
                     let mut response = de_response_clone.lock().unwrap();
@@ -508,7 +515,7 @@ mod tests {
             worker
                 .read_string("<think>\nBerlin is the capital of Germany\n</think>\nThe capital of germany is called ".to_string())
                 .unwrap()
-                .write_until_done(sampler, vec!["Berlin".to_string()], f)
+                .write_until_done(sampler, vec!["Berlin".to_string()], f, should_stop)
                 .unwrap();
         });
 
@@ -548,7 +555,7 @@ mod tests {
 
         let n_ctx = 10;
         let mut worker = Worker::new_generation_worker(&model, n_ctx)?;
-
+        let should_stop = worker.extra.should_stop.clone();
         let (sender, receiver) = std::sync::mpsc::channel();
         let f = move |x| match x {
             WriteOutput::Done(resp) => {
@@ -559,7 +566,7 @@ mod tests {
 
         worker
             .read_string("Once upon a time".to_string())?
-            .write_until_done(sampler, vec!["\n".to_string()], f)?;
+            .write_until_done(sampler, vec!["\n".to_string()], f, should_stop)?;
 
         let response = receiver.recv()?;
         assert!(
@@ -586,9 +593,10 @@ mod tests {
         };
 
         let mut worker = Worker::new_generation_worker(&model, 1024)?;
+        let should_stop = worker.extra.should_stop.clone();
         worker
             .read_string("I'm going to count to 10: 1, 2, 3, 4,".to_string())?
-            .write_until_done(sampler, vec!["7".to_string()], f)?;
+            .write_until_done(sampler, vec!["7".to_string()], f, should_stop)?;
 
         let response = receiver.recv()?;
 

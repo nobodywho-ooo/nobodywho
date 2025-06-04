@@ -235,6 +235,13 @@ impl NobodyWhoChat {
     }
 
     #[func]
+    fn stop_generation(&mut self) {
+        if let Some(chat_handle) = &self.chat_handle {
+            chat_handle.stop_generation();
+        }
+    }
+
+    #[func]
     fn reset_context(&mut self) {
         if let Some(chat_handle) = &self.chat_handle {
             chat_handle.reset_chat(self.system_prompt.to_string());
