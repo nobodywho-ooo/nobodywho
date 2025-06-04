@@ -1,5 +1,6 @@
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::sampling::LlamaSampler;
+use tracing::error;
 
 #[derive(Clone, Debug)]
 pub struct SamplerConfig {
@@ -258,22 +259,23 @@ pub fn make_sampler(model: &LlamaModel, sampler_config: SamplerConfig) -> LlamaS
             &sampler_config.grammar_root,
         ));
     } else if sampler_config.use_grammar && trigger_len > 0 {
-        let trigger_token = model
+        if let Ok(Some(trigger_token)) = model
             .str_to_token(
                 sampler_config.lazy_grammar_trigger.as_str(),
                 llama_cpp_2::model::AddBos::Never,
             )
-            .expect("TODO: handle this assumption");
-        debug_assert!(trigger_token.len() == 1);
-        let trigger_token = trigger_token[0];
-
-        chainvec.push(LlamaSampler::grammar_lazy(
-            model,
-            sampler_config.gbnf_grammar.as_str(),
-            &sampler_config.grammar_root,
-            vec![sampler_config.lazy_grammar_trigger], // TODO: remove this argument
-            &[trigger_token],
-        ));
+            .map(|v| v.get(0).copied())
+        {
+            chainvec.push(LlamaSampler::grammar_lazy(
+                model,
+                sampler_config.gbnf_grammar.as_str(),
+                &sampler_config.grammar_root,
+                vec![sampler_config.lazy_grammar_trigger], // TODO: remove this argument
+                &[trigger_token],
+            ));
+        } else {
+            error!("Lazy GBNF grammar was specified, but the trigger token does not cleanly tokenize with the given model. You most likely tried to do tool calling with a model that doesn't natively support tool calling.");
+        }
     }
 
     // Add penalties
