@@ -174,14 +174,6 @@ namespace NobodyWho
                 )
             );
 
-            EditorGUILayout.PropertyField(
-                serializedObject.FindProperty("onError"),
-                new GUIContent(
-                    "On Error",
-                    "Triggered when an error occurs during embedding generation."
-                )
-            );
-
             serializedObject.ApplyModifiedProperties();
         }
     }
