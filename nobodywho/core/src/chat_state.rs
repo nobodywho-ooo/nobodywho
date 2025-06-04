@@ -1,7 +1,7 @@
 use std::sync::LazyLock;
 
 use minijinja::{context, Environment};
-use serde::{self, Serialize};
+use serde::{self, Deserialize, Serialize};
 
 static MINIJINJA_ENV: LazyLock<Environment> = LazyLock::new(|| {
     let mut env = Environment::new();
@@ -26,7 +26,7 @@ fn strftime_now(format_str: &str) -> String {
     chrono::Local::now().format(format_str).to_string()
 }
 
-#[derive(Serialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Message {
     pub role: String,
     pub content: String,

@@ -276,6 +276,26 @@ impl NobodyWhoChat {
         }
     }
 
+    #[func]
+    fn set_chat_history(&mut self, messages: Array<Dictionary>) {
+        if let Some(chat_handle) = &self.chat_handle {
+            match dictionaries_to_messages(messages) {
+                Ok(msg_vec) => {
+                    // Check if last message is from user and warn
+                    if msg_vec.last().map_or(false, |msg| msg.role == "user") {
+                        godot_warn!("Chat history ends with a user message. This may cause unexpected behavior during generation.");
+                    }
+
+                    let _rx = chat_handle.set_chat_history(msg_vec);
+                    // we ignore the receiver for now, fire-and-forget
+                }
+                Err(e) => godot_error!("Failed to set chat history: {}", e),
+            }
+        } else {
+            godot_error!("Attempted to set chat history, but no worker is running. Doing nothing.");
+        }
+    }
+
     #[signal]
     /// Triggered when a new token is received from the LLM. Returns the new token as a string.
     /// It is strongly recommended to connect to this signal, and display the text output as it is
@@ -446,6 +466,32 @@ fn messages_to_dictionaries(messages: &[chat_state::Message]) -> Array<Dictionar
             } else {
                 Dictionary::new()
             }
+        })
+        .collect()
+}
+
+/// Small utility to convert godot dictionaries back to our internal Message type.
+fn dictionaries_to_messages(dicts: Array<Dictionary>) -> Result<Vec<chat_state::Message>, String> {
+    dicts
+        .iter_shared()
+        .map(|dict| {
+            // Convert Dictionary to serde_json::Value
+            let mut json_obj = serde_json::Map::new();
+            for (key, value) in dict.iter_shared() {
+                let key_str = key
+                    .try_to::<GString>()
+                    .map_err(|_| "Dictionary key is not a string")?
+                    .to_string();
+                let value_str = value
+                    .try_to::<GString>()
+                    .map_err(|_| "Dictionary value is not a string")?
+                    .to_string();
+                json_obj.insert(key_str, serde_json::Value::String(value_str));
+            }
+
+            // Deserialize using serde
+            serde_json::from_value(serde_json::Value::Object(json_obj))
+                .map_err(|e| format!("Failed to deserialize message: {}", e))
         })
         .collect()
 }
