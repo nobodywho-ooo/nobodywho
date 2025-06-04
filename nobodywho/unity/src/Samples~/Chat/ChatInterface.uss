@@ -80,21 +80,15 @@
     min-width: 70px;
 }
 
-/* Send button hover state */
 #send-button:hover {
     background-color: #106ebe;
 }
 
-/* Send button active state */
 #send-button:active {
     background-color: #005a9e;
 }
 
-/* Make all TextField text black */
-TextField {
+.TextField {
     color: black;
+    border-color: #ffffff;
 }
-
-TextField .unity-base-text-field__input {
-    color: black;
-} 
