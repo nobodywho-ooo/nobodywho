@@ -59,36 +59,18 @@ public class SimpleEmbeddingsController : MonoBehaviour
         Debug.Log("Pre-embedding phrases: " + predefinedPhrases.Length);
         for (int i = 0; i < predefinedPhrases.Length; i++)
         {
-            // Debug.Log("Pre-embedding nr:" + i + " phrase: " + predefinedPhrases[i]);
-
             embedding.Embed(predefinedPhrases[i]);
             float[] embeddingResult = embedding.GetEmbeddingBlocking();
 
             string embeddingResultString = string.Join(", ", embeddingResult);
-            // Debug.Log("embeddingResult: " + embeddingResultString + " for phrase: " + predefinedPhrases[i]);
             embeddedPhrases.Add(embeddingResult);
 
             UpdateStatus($"Pre-embedded {i + 1}/{predefinedPhrases.Length}");
         }
 
         isPreEmbedding = false;
-        // embedding.onEmbeddingComplete.AddListener(OnEmbeddingComplete);
         UpdateStatus("Ready!");
     }
-
-    // void OnEmbeddingComplete(float[] result)
-    // {
-    //     Debug.Log("input result: " + string.Join(", ", result) + " for phrase: " + inputText.value);
-    //     ClearSimilarityBars();
-    //     for (int i = 0; i < embeddedPhrases.Count; i++)
-    //     {
-    //         float similarity = embedding.CosineSimilarity(result, embeddedPhrases[i]);
-    //         Debug.Log($"Phrase {i}: '{predefinedPhrases[i]}' similarity={similarity}");
-    //         UpdateSimilarityDisplay(i, similarity);
-    //     }
-    //     UpdateStatus("Done!");
-    // }
-
     void AnalyzeSimilarity()
     {
         if (isPreEmbedding)
@@ -103,7 +85,6 @@ public class SimpleEmbeddingsController : MonoBehaviour
         for (int i = 0; i < embeddedPhrases.Count; i++)
         {
             float similarity = embedding.CosineSimilarity(result, embeddedPhrases[i]);
-            // Debug.Log($"Phrase {i}: '{predefinedPhrases[i]}' similarity={similarity}");
             UpdateSimilarityDisplay(i, similarity);
         }
         UpdateStatus("Done!");
