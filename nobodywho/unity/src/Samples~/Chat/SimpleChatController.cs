@@ -16,6 +16,11 @@ public class SimpleChatController : MonoBehaviour
     
     void OnEnable()
     {
+        Invoke(nameof(SetupUI), 0.1f);
+    }
+    
+    void SetupUI()
+    {
         var root = uiDocument.rootVisualElement;
         
         // Get UI elements with error checking

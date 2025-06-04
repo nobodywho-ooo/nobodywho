@@ -15,5 +15,17 @@
         "nobodywho",
         "llm",
         "ai"
-    ]
+    ],
+    "samples": [
+    {
+      "displayName": "Embedding",
+      "description": "An example script for embedding text.",
+      "path": "Samples~/Embeddings"
+    },
+    {
+      "displayName": "Chat",
+      "description": "An example script for chatting with a LLM.",
+      "path": "Samples~/Chat"
+    }
+  ]
 } 
