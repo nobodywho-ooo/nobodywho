@@ -56,6 +56,9 @@ fn run_worker(
     while let Ok(msg) = msg_rx.recv() {
         match msg {
             EmbeddingsMsg::Embed(text, respond) => {
+                // we need to clear the kv_cache to ensure deterministic output.
+                worker_state.reset_context();
+
                 let embedding = worker_state.read_string(text)?.get_embedding()?;
                 let _ = respond.blocking_send(embedding);
             }
@@ -145,6 +148,34 @@ mod tests {
                 < cosine_similarity(&copenhagen_embedding, &berlin_embedding)
         );
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_deterministic_embeddings() -> Result<(), Box<dyn std::error::Error>> {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_embeddings_model();
+        let mut worker = Worker::new_embeddings_worker(&model, 1024)?;
+        
+        let input = "I don't want to be different";
+        
+        let first_embedding = worker
+            .read_string(input.to_string())?
+            .get_embedding()?;
+
+        worker.reset_context();
+
+        let second_embedding = worker
+            .read_string(input.to_string())?
+            .get_embedding()?;
+        
+        assert_eq!(
+            first_embedding,
+            second_embedding,
+            "Same input '{}' should produce identical embeddings.",
+            input
+        );
+        
         Ok(())
     }
 }

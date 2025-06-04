@@ -61,6 +61,28 @@ namespace Tests
             );
         }
 
+        [Test]
+        public void WhenEmbeddingSameText_ShouldProduceDeterministicResults()
+        {
+            string input = "I don't want to be different";
+            
+            embedding.Embed(input);
+            float[] firstEmbedding = embedding.GetEmbeddingBlocking();
+            
+            embedding.Embed(input);
+            float[] secondEmbedding = embedding.GetEmbeddingBlocking();
+            
+            for (int dim = 0; dim < firstEmbedding.Length; dim++)
+            {
+                Assert.AreEqual(
+                    firstEmbedding[dim], 
+                    secondEmbedding[dim], 
+                    $"Dimension {dim}: Expected {firstEmbedding[dim]}, got {secondEmbedding[dim]}. " +
+                    $"Same input '{input}' should produce identical embeddings."
+                );
+            }
+        } 
+
         [TearDown]
         public void Teardown()
         {
