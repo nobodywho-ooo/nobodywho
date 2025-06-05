@@ -277,7 +277,7 @@ impl NobodyWhoChat {
     }
 
     #[func]
-    fn set_chat_history(&mut self, messages: Array<Dictionary>) {
+    fn set_chat_history(&mut self, messages: Array<Variant>) {
         if let Some(chat_handle) = &self.chat_handle {
             match dictionaries_to_messages(messages) {
                 Ok(msg_vec) => {
@@ -471,10 +471,15 @@ fn messages_to_dictionaries(messages: &[chat_state::Message]) -> Array<Dictionar
 }
 
 /// Small utility to convert godot dictionaries back to our internal Message type.
-fn dictionaries_to_messages(dicts: Array<Dictionary>) -> Result<Vec<chat_state::Message>, String> {
+fn dictionaries_to_messages(dicts: Array<Variant>) -> Result<Vec<chat_state::Message>, String> {
     dicts
         .iter_shared()
-        .map(|dict| {
+        .map(|variant| {
+            // First convert the Variant to Dictionary
+            let dict = variant
+                .try_to::<Dictionary>()
+                .map_err(|_| "Array element is not a Dictionary")?;
+
             // Convert Dictionary to serde_json::Value
             let mut json_obj = serde_json::Map::new();
             for (key, value) in dict.iter_shared() {
