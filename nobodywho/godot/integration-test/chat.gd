@@ -59,7 +59,6 @@ func test_antiprompts_multitokens():
 func test_chat_history():
 	# Reset to clean state
 	stop_words = PackedStringArray()
-	system_prompt = "You are a helpful assistant."
 	start_worker()
 	
 	# Set up a simple chat history
@@ -69,18 +68,18 @@ func test_chat_history():
 	]
 	
 	set_chat_history(messages)
-	
-	# Get the chat history back
-	var history_signal = get_chat_history()
-	var retrieved_messages = await history_signal
-	
+	var retrieved_messages = await get_chat_history()
 	print("✨ Retrieved chat history: " + str(retrieved_messages))
 	
 	# Basic validation
-	assert(retrieved_messages.size() >= 2, "Should have at least 2 messages")
+	assert(retrieved_messages.size() == 2, "Should have 2 messages")
 	assert(retrieved_messages[0]["role"] == "user", "First message should be from user")
 	assert("2 + 2" in retrieved_messages[0]["content"], "First message should contain the question")
 	assert(retrieved_messages[1]["role"] == "assistant", "Second message should be from assistant")
 	assert("4" in retrieved_messages[1]["content"], "Second message should contain the answer")
+
+	say("What did I just ask you about?")
+	var resp = await response_finished
+	assert("2 + 2" in resp)
 	
 	return true
