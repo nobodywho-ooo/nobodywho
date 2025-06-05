@@ -106,8 +106,7 @@ jobs:
       - name: "Create GitHub Release"
         uses: softprops/action-gh-release@v1
         with:
-          files: | 
-            "./nobodywho-godot-${{ github.ref_name }}.zip"
+          files: "./nobodywho-godot-${{ github.ref_name }}.zip"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -126,8 +125,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           draft: true
-          files: | 
-            "./nobodywho-unity-release/nobodywho.unitypackage"
+          files: "./nobodywho-unity-release/nobodywho.unitypackage"
 
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
