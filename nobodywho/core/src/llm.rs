@@ -258,10 +258,10 @@ where
         &mut self,
         sampler_config: SamplerConfig,
         stop_words: Vec<String>,
-        respond: F, // respond_to: Sender<Result<WriteOutput, WriteError>>,
+        mut respond: F,
     ) -> Result<&mut Self, WriteError>
     where
-        F: Fn(WriteOutput),
+        F: FnMut(WriteOutput),
     {
         let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
         // Token generation loop
@@ -329,7 +329,7 @@ where
         }
 
         // we're done!
-        trace!("Sending out response: {full_response}");
+        debug!("Sending out response: {full_response}");
         respond(WriteOutput::Done(full_response));
         Ok(self)
     }

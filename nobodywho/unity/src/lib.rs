@@ -174,6 +174,7 @@ impl ChatWrapper {
                 .as_str()
                 .map_err(|_| ChatError::BadSystemPrompt)?
                 .into(),
+            vec![], // TODO: tools
         );
         self.handle = Some(handle);
         Ok(())
@@ -185,7 +186,7 @@ impl ChatWrapper {
             .map_err(|_| ChatError::BadSystemPrompt)?
             .into();
         if let Some(ref handle) = self.handle {
-            handle.reset_chat(system_prompt);
+            handle.reset_chat(system_prompt, vec![]); // TODO: tools
             Ok(())
         } else {
             Err(ChatError::WorkerNotStarted)

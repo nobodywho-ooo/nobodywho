@@ -30,13 +30,14 @@ rec {
       outputHashes = {
         "gdextension-api-0.2.2" = "sha256-gaxM73OzriSDm6tLRuMTOZxCLky9oS1nq6zTsm0g4tA=";
         "godot-0.2.4" = "sha256-5Kh1j3OpUetuE9qNK85tpZTj8m0Y30CX4okll4TZ9Xc=";
-        "llama-cpp-2-0.1.107" = "sha256-vVofBVBlxmKDcypTJGQxOuB5EJ8azwTU/wWiFiSQw1w=";
+        "llama-cpp-2-0.1.107" = "sha256-/3XN15Mievzcoy4JwSXriDQBsy6cD2OnjP+BkpOJb60=";
+        "gbnf-0.2.1" = "sha256-oEP9/OJJWYLMGOPGxgoo5Y4Oh/WyusGZLhS2WF/Y/fU=";
       };
     };
     env.TEST_MODEL = fetchurl {
-      name = "qwen2.5-1.5b-instruct-q4_0.gguf";
-      url = "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_0.gguf";
-      hash = "sha256-3NgZ/wlIUsOPq6aHPY/wydUerbKERTnlIEKuXWR7v9s=";
+      name = "Qwen_Qwen3-0.6B-Q4_K_M.gguf";
+      url = "https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf";
+      sha256 = "sha256-ms/B4AExHzS0JSABtiby5GbVkqQgZfZlcb/zeQ1OGxQ=";
     };
     env.TEST_EMBEDDINGS_MODEL = fetchurl {
       name = "bge-small-en-v1.5-q8_0.gguf";

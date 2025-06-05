@@ -1,8 +1,8 @@
 [gd_scene load_steps=6 format=3 uid="uid://qir8gkg0qx5w"]
 
-[ext_resource type="Script" path="res://chat.gd" id="1_178kq"]
-[ext_resource type="Script" path="res://run_tests.gd" id="1_mssk2"]
-[ext_resource type="Script" path="res://embedding.gd" id="2_rcagm"]
+[ext_resource type="Script" uid="uid://pgiowhexu47c" path="res://chat.gd" id="1_178kq"]
+[ext_resource type="Script" uid="uid://cd8m1scbnavoe" path="res://run_tests.gd" id="1_mssk2"]
+[ext_resource type="Script" uid="uid://csbfqd73rcy54" path="res://embedding.gd" id="2_rcagm"]
 [ext_resource type="PackedScene" uid="uid://riqfmggkqpfd" path="res://grammar_test.tscn" id="4_vpjjx"]
 
 [sub_resource type="NobodyWhoSampler" id="NobodyWhoSampler_ciq23"]
