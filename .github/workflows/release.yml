@@ -78,7 +78,7 @@ jobs:
         uses: natsuneko-laboratory/create-unitypackage@v3
         with:
           root: dist/
-          files-glob: "dist/Assets/**/*.{cs,meta,unity,md,dll,dylib,pdb,so,asmdef}"
+          files-glob: "dist/Assets/**/*.{cs,meta,unity,md, md.meta,dll,dylib,pdb,so,asmdef}"
           dest: ./nobodywho.unitypackage
 
       - name: Upload Unity Package Artifact
