@@ -88,26 +88,43 @@ jobs:
           path: ./nobodywho.unitypackage
       
 
-  create-github-release:
-    needs: [godot-distributable, unity-distributable]
-    if: startsWith(github.ref, 'refs/tags/v')
+  create-github-release-godot:
+    needs: [godot-distributable]
+    if: startsWith(github.ref, 'refs/tags/godot_release')
     runs-on: ubuntu-24.04
     steps:
       - name: "Download build artifacts"
         uses: actions/download-artifact@v4
         with:
           name: nobodywho-godot-all-platforms
-          path: ./nobodywho-release
+          path: ./nobodywho-release-godot
 
       - name: "Make zip file"
-        working-directory: ./nobodywho-release
+        working-directory: ./nobodywho-release-godot
         run: zip -r "../nobodywho-godot-${{ github.ref_name }}.zip" ./**
 
       - name: "Create GitHub Release"
         uses: softprops/action-gh-release@v1
         with:
-          files: | 
-            "./nobodywho-godot-${{ github.ref_name }}.zip"
-            "./nobodywho-unity-package-${{ github.ref_name }}.unitypackage"
+          files: "./nobodywho-godot-${{ github.ref_name }}.zip"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  create-github-release-unity:
+    needs: [unity-distributable]
+    if: startsWith(github.ref, 'refs/tags/unity_release')
+    runs-on: ubuntu-24.04
+    steps:
+      - name: "Download build artifacts"
+        uses: actions/download-artifact@v4
+        with:
+          name: nobodywho-unity-package-${{ github.ref_name }}
+          path: ./nobodywho-unity-release
+
+      - name: "Create GitHub Release"
+        uses: softprops/action-gh-release@v1
+        with:
+          files: "./nobodywho-unity-release/nobodywho.unitypackage"
+
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
