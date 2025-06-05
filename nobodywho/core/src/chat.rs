@@ -642,6 +642,37 @@ mod tests {
         }
     }
 
+    fn dkk_exchange_rate() -> Tool {
+        Tool {
+            name: "dkk_exchange_rate".into(),
+            description: "Gets the exchange rate for DKK to a given currency.".into(),
+            json_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "to-currency": { 
+                        "type": "string",
+                        "description": "The currency to convert to in a three letter code. (eg. \"USD\")"
+                    }
+                },
+                "required": [
+                    "to-currency"
+                ]
+            }),
+            function: Arc::new(|args| {
+                let Some(to_currency) = args.get("to-currency") else {
+                    return "Bad arguments format. To currency key was missing.".into();
+                };
+
+                if to_currency.as_str() == Some("USD") {
+                    debug!("returning 1 DKK = 0.15 USD");
+                    return "1 DKK = 0.15 USD".into();
+                }
+
+                "Exchange rate not available".into()
+            }),
+        }
+    }
+
     #[test]
     fn test_tool_chat() {
         test_utils::init_test_tracing();
@@ -676,5 +707,40 @@ mod tests {
         println!("{}", result);
         assert!(result.contains("13.37"));
         assert!(result.contains("42.69"));
+    }
+
+    #[test]
+    fn test_multi_tool_call() {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let mut worker = Worker::new_chat_worker(
+            &model,
+            1024,
+            "".into(),
+            vec![test_tool(), dkk_exchange_rate()],
+        )
+        .expect("Failed making worker");
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let f = move |x| match x {
+            llm::WriteOutput::Done(resp) => {
+                sender.send(resp).unwrap();
+            }
+            _ => (),
+        };
+
+        worker.say(
+            "I would like to know the temperature in Copenhagen and the DKK to USD exchange rate."
+                .into(),
+            crate::sampler_config::SamplerConfig::default(),
+            vec![],
+            f,
+        )
+        .expect("dammit");
+
+        let result = receiver.recv().unwrap();
+        println!("{}", result);
+        assert!(result.contains("13.37"));
+        assert!(result.contains("0.15"));
     }
 }
