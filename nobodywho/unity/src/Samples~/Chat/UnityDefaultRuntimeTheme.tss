@@ -1,0 +1,6 @@
+@import url("unity-theme://default");
+
+VisualElement {
+    color: black;
+}
+
