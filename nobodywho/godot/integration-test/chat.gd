@@ -9,6 +9,7 @@ func run_test():
 	assert(await test_say())
 	assert(await test_antiprompts())
 	assert(await test_antiprompts_multitokens())
+	assert(await test_chat_history())
 	return true
 
 func test_say():
@@ -52,5 +53,33 @@ func test_antiprompts_multitokens():
 	assert("horse-rider" in response, "Should reach the antiprompt")
 	assert(not "lion" in response, "Should stop at antiprompt")
 	assert(not "mouse" in response, "Should not continue past antiprompt")
+	
+	return true
+
+func test_chat_history():
+	# Reset to clean state
+	stop_words = PackedStringArray()
+	start_worker()
+	
+	# Set up a simple chat history
+	var messages = [
+		{"role": "user", "content": "What is 2 + 2?"},
+		{"role": "assistant", "content": "2 + 2 equals 4."}
+	]
+	
+	set_chat_history(messages)
+	var retrieved_messages = await get_chat_history()
+	print("✨ Retrieved chat history: " + str(retrieved_messages))
+	
+	# Basic validation
+	assert(retrieved_messages.size() == 2, "Should have 2 messages")
+	assert(retrieved_messages[0]["role"] == "user", "First message should be from user")
+	assert("2 + 2" in retrieved_messages[0]["content"], "First message should contain the question")
+	assert(retrieved_messages[1]["role"] == "assistant", "Second message should be from assistant")
+	assert("4" in retrieved_messages[1]["content"], "Second message should contain the answer")
+
+	say("What did I just ask you about?")
+	var resp = await response_finished
+	assert("2 + 2" in resp)
 	
 	return true

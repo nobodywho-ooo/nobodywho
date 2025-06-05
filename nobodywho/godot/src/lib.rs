@@ -2,8 +2,8 @@ mod sampler_resource;
 
 use godot::classes::{INode, ProjectSettings};
 use godot::prelude::*;
-use nobodywho::{llm, sampler_config};
-use tracing::info;
+use nobodywho::{chat_state, llm, sampler_config};
+use tracing::{error, info};
 use tracing_subscriber::prelude::*;
 
 use crate::sampler_resource::NobodyWhoSampler;
@@ -243,6 +243,59 @@ impl NobodyWhoChat {
         }
     }
 
+    #[func]
+    fn get_chat_history(&mut self) -> Variant {
+        if let Some(chat_handle) = &self.chat_handle {
+            // kick off operation
+            let mut rx = chat_handle.get_chat_history();
+
+            // decide on a unique name for the response signal
+            let signal_name = format!("get_chat_history_{:?}", std::time::Instant::now());
+            self.base_mut().add_user_signal(&signal_name);
+
+            let mut emit_node = self.to_gd();
+            let signal_name_copy = signal_name.clone();
+            godot::task::spawn(async move {
+                let Some(chat_history) = rx.recv().await else {
+                    error!("Chat worker died while waiting for get_chat_history.");
+                    emit_node.emit_signal(&signal_name_copy, &vec![]);
+                    return;
+                };
+                let godot_dict_msgs = messages_to_dictionaries(&chat_history);
+                emit_node.emit_signal(&signal_name_copy, &vec![Variant::from(godot_dict_msgs)]);
+            });
+
+            // returns signal, so that you can `var msgs = await get_chat_history()`
+            Variant::from(godot::builtin::Signal::from_object_signal(
+                &self.base_mut(),
+                &signal_name,
+            ))
+        } else {
+            godot_error!("Attempted to reset context, but no worker is running. Doing nothing and returning nil.");
+            Variant::nil()
+        }
+    }
+
+    #[func]
+    fn set_chat_history(&mut self, messages: Array<Variant>) {
+        if let Some(chat_handle) = &self.chat_handle {
+            match dictionaries_to_messages(messages) {
+                Ok(msg_vec) => {
+                    // Check if last message is from user and warn
+                    if msg_vec.last().map_or(false, |msg| msg.role == "user") {
+                        godot_warn!("Chat history ends with a user message. This may cause unexpected behavior during generation.");
+                    }
+
+                    let _rx = chat_handle.set_chat_history(msg_vec);
+                    // we ignore the receiver for now, fire-and-forget
+                }
+                Err(e) => godot_error!("Failed to set chat history: {}", e),
+            }
+        } else {
+            godot_error!("Attempted to set chat history, but no worker is running. Doing nothing.");
+        }
+    }
+
     #[signal]
     /// Triggered when a new token is received from the LLM. Returns the new token as a string.
     /// It is strongly recommended to connect to this signal, and display the text output as it is
@@ -393,6 +446,59 @@ impl NobodyWhoEmbedding {
     fn set_log_level(level: String) {
         set_log_level(&level);
     }
+}
+
+/// Small utility to convert our internal Messsage type to godot dictionaries.
+fn messages_to_dictionaries(messages: &[chat_state::Message]) -> Array<Dictionary> {
+    messages
+        .iter()
+        .map(|msg| {
+            let json_value = serde_json::to_value(msg).unwrap_or_default();
+            if let serde_json::Value::Object(obj) = json_value {
+                obj.into_iter()
+                    .map(|(k, v)| {
+                        (
+                            GString::from(k),
+                            Variant::from(v.as_str().unwrap_or_default()),
+                        )
+                    })
+                    .collect()
+            } else {
+                Dictionary::new()
+            }
+        })
+        .collect()
+}
+
+/// Small utility to convert godot dictionaries back to our internal Message type.
+fn dictionaries_to_messages(dicts: Array<Variant>) -> Result<Vec<chat_state::Message>, String> {
+    dicts
+        .iter_shared()
+        .map(|variant| {
+            // First convert the Variant to Dictionary
+            let dict = variant
+                .try_to::<Dictionary>()
+                .map_err(|_| "Array element is not a Dictionary")?;
+
+            // Convert Dictionary to serde_json::Value
+            let mut json_obj = serde_json::Map::new();
+            for (key, value) in dict.iter_shared() {
+                let key_str = key
+                    .try_to::<GString>()
+                    .map_err(|_| "Dictionary key is not a string")?
+                    .to_string();
+                let value_str = value
+                    .try_to::<GString>()
+                    .map_err(|_| "Dictionary value is not a string")?
+                    .to_string();
+                json_obj.insert(key_str, serde_json::Value::String(value_str));
+            }
+
+            // Deserialize using serde
+            serde_json::from_value(serde_json::Value::Object(json_obj))
+                .map_err(|e| format!("Failed to deserialize message: {}", e))
+        })
+        .collect()
 }
 
 // LOGGING
