@@ -112,7 +112,7 @@ jobs:
 
   create-github-release-unity:
     needs: [unity-distributable]
-    # if: startsWith(github.ref, 'refs/tags/unity_release')
+    if: startsWith(github.ref, 'refs/tags/unity_release')
     runs-on: ubuntu-24.04
     steps:
       - name: "Download build artifacts"
@@ -124,11 +124,7 @@ jobs:
       - name: "Create GitHub Release"
         uses: softprops/action-gh-release@v1
         with:
-          draft: true
           files: "./nobodywho-unity-release/nobodywho.unitypackage"
 
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: "sshx"
-        run: curl -sSf https://sshx.io/get | sh -s run
