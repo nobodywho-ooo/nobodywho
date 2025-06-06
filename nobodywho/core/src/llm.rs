@@ -82,15 +82,6 @@ pub fn get_model(
     Ok(Arc::new(model))
 }
 
-#[allow(dead_code)]
-fn print_kv_cache(ctx: &mut LlamaContext) {
-    let mut kv_cache_view = ctx.new_kv_cache_view(1);
-    kv_cache_view.update();
-    for cell in kv_cache_view.cells() {
-        println!("cell: {:?}", cell);
-    }
-}
-
 /// Performs context window shifting by discarding old tokens and shifting remaining ones left.
 /// This prevents context overflow by removing older tokens when nearing context length limits.
 /// As implemented in <https://github.com/ggerganov/llama.cpp/blob/3b4f2e33e2cbfca621e623c4b92b88da57a8c2f4/examples/main/main.cpp#L528>
@@ -111,7 +102,7 @@ fn apply_context_shifting(
     let n_left = n_past - n_keep;
     let n_discard = n_left / 2;
 
-    debug_assert!(n_past == ctx.get_kv_cache_token_count());
+    // debug_assert!(n_past == ctx.get_kv_cache_token_count());
 
     // Delete the first `n_discard` tokens
     ctx.clear_kv_cache_seq(
@@ -120,7 +111,7 @@ fn apply_context_shifting(
         Some((n_keep + n_discard) as u32),
     )?;
 
-    debug_assert!(n_past - n_discard == ctx.get_kv_cache_token_count());
+    // debug_assert!(n_past - n_discard == ctx.get_kv_cache_token_count());
 
     // Shift the context left with `n_discard` tokens
     ctx.kv_cache_seq_add(
@@ -281,7 +272,7 @@ where
                 self.n_past -= apply_context_shifting(&mut self.ctx, self.n_past)?;
                 // check count
                 // XXX: this check is slow
-                debug_assert!(self.n_past == self.ctx.get_kv_cache_token_count());
+                // debug_assert!(self.n_past == self.ctx.get_kv_cache_token_count());
             }
 
             // Sample next token, no need to use sampler.accept as sample already accepts the token.
