@@ -30,7 +30,7 @@ rec {
       outputHashes = {
         "gdextension-api-0.2.2" = "sha256-gaxM73OzriSDm6tLRuMTOZxCLky9oS1nq6zTsm0g4tA=";
         "godot-0.2.4" = "sha256-5Kh1j3OpUetuE9qNK85tpZTj8m0Y30CX4okll4TZ9Xc=";
-        "llama-cpp-2-0.1.107" = "sha256-vVofBVBlxmKDcypTJGQxOuB5EJ8azwTU/wWiFiSQw1w=";
+        "llama-cpp-2-0.1.109" = "sha256-Fa7YMKd/C0nVU1AvGGImAXOBA1PMEqelv+FBeRAlaRo=";
       };
     };
     env.TEST_MODEL = fetchurl {
