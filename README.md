@@ -8,7 +8,7 @@
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg?style=flat-square)](CODE_OF_CONDUCT.md) 
 
 
-NobodyWho is a plugin that lets you interact with local LLMs in the Godot game engine, with more plugins in development.
+NobodyWho is a plugin that lets you interact with local LLMs, we currently support Godot and Unity, with even more plugins on their way.
 
 
 ## At a Glance
@@ -30,11 +30,23 @@ The code for this showcase is in the [demo-game](./demo-game) folder of this rep
 
 ## How to Install
 
+
+### Godot 
+
 You can install it from inside the Godot editor: In Godot 4.4+, go to AssetLib and search for "NobodyWho".
 
 ...or you can grab a specific version from our [github releases page.](https://github.com/nobodywho-ooo/nobodywho/releases) You can install these zip files by going to the "AssetLib" tab in Godot and selecting "Import".
 
 Make sure that the ignore asset root option is set in the import dialogue.
+
+### Unity
+
+You can install it from [github releases page.](https://github.com/nobodywho-ooo/nobodywho/releases) while we are still pending acceptance on the unity assets store.
+When you download the unity package file, make sure to follow https://docs.unity3d.com/Manual/AssetPackagesImport.html to import the asset. 
+Basically `Assets > Import Package > Custom Package`
+
+To see and play around with the samples you might need to right click the plugin and then: `> View in Package Manager > Click on NobodyWho > Samples > Install`. This should set up all the dependencies correctly.
+From there you can also check the documentaiton.
 
 ## How to Help 
 
