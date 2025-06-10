@@ -82,6 +82,7 @@ func test_chat_history():
 	say("What did I just ask you about?")
 	var resp = await response_finished
 	assert("2 + 2" in resp)
+	return true
 	
 
 func current_temperature(location: String) -> String:
