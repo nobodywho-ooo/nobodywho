@@ -55,6 +55,24 @@ impl ChatHandle {
     pub fn stop_generation(&self) {
         self.should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
     }
+
+    pub fn get_chat_history(&self) -> tokio::sync::mpsc::Receiver<Vec<crate::chat_state::Message>> {
+        let (output_tx, output_rx) = tokio::sync::mpsc::channel(1);
+        let _ = self.msg_tx.send(ChatMsg::GetChatHistory { output_tx });
+        output_rx
+    }
+
+    pub fn set_chat_history(
+        &self,
+        messages: Vec<crate::chat_state::Message>,
+    ) -> tokio::sync::mpsc::Receiver<()> {
+        let (output_tx, output_rx) = tokio::sync::mpsc::channel(1);
+        let _ = self.msg_tx.send(ChatMsg::SetChatHistory {
+            output_tx,
+            messages,
+        });
+        output_rx
+    }
 }
 
 enum ChatMsg {
