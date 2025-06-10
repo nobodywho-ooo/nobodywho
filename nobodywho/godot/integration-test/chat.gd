@@ -9,11 +9,8 @@ func run_test():
 	assert(await test_say())
 	assert(await test_antiprompts())
 	assert(await test_antiprompts_multitokens())
-<<<<<<< HEAD
 	assert(await test_chat_history())
-=======
 	assert(await test_tool_call())
->>>>>>> 43c46f1 (update integration tests)
 	return true
 
 func test_say():
@@ -60,7 +57,6 @@ func test_antiprompts_multitokens():
 	
 	return true
 
-<<<<<<< HEAD
 func test_chat_history():
 	# Reset to clean state
 	stop_words = PackedStringArray()
@@ -87,7 +83,6 @@ func test_chat_history():
 	var resp = await response_finished
 	assert("2 + 2" in resp)
 	
-=======
 
 func current_temperature(location: String) -> String:
 	if location.to_lower() == "copenhagen":
@@ -103,5 +98,4 @@ func test_tool_call():
 	var response = await response_finished
 	print(response)
 	assert("12.34" in response)
->>>>>>> 43c46f1 (update integration tests)
 	return true
