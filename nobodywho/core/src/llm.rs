@@ -444,7 +444,6 @@ impl<'a, T> Worker<'a, T> {
 mod tests {
     use super::*;
     use crate::test_utils;
-    use tokio_stream::StreamExt;
 
     #[test]
     fn test_simple_gen() -> Result<(), Box<dyn std::error::Error>> {
@@ -453,7 +452,6 @@ mod tests {
 
         let sampler = SamplerConfig::default();
         let mut worker = Worker::new_generation_worker(&model, 4096)?;
-
         let (sender, receiver) = std::sync::mpsc::channel();
 
         let f = move |x| match x {

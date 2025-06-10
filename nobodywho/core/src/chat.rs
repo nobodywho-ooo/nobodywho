@@ -17,10 +17,7 @@ pub struct ChatHandle {
 impl ChatHandle {
     pub fn new(model: Arc<LlamaModel>, n_ctx: u32, system_prompt: String) -> Self {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
-        let ready = Arc::new(AtomicBool::new(false));
 
-        let readyclone = ready.clone();
-        
         let should_stop = Arc::new(AtomicBool::new(false));
         let should_stop_clone = Arc::clone(&should_stop);
         std::thread::spawn(move || {
@@ -201,19 +198,20 @@ impl<'a> Worker<'_, ChatWorker> {
     where
         F: Fn(llm::WriteOutput),
     {
+        // reset the stop flag
         self.extra.should_stop.store(false, std::sync::atomic::Ordering::Relaxed);
         self.extra.chat_state.add_message("user".to_string(), text);
         let diff = self.extra.chat_state.render_diff()?;
 
         // wrap the response callback to keep a copy of the completed response
         let (resp_sender, resp_receiver) = std::sync::mpsc::channel();
-        let wrapped_respond = |x| {
-            if let llm::WriteOutput::Done(resp) = &x {
+        let wrapped_respond = |out| {
+            if let llm::WriteOutput::Done(resp) = &out {
                 resp_sender
                     .send(resp.clone())
                     .expect("Failed sending response");
             }
-            respond(x)
+            respond(out)
         };
 
         // brrr
