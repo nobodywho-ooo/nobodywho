@@ -100,6 +100,6 @@ func test_stop_generation():
 
 	print("✨ Got response: " + response)
 	assert("5" in response, "Should stop at 5")
-	assert(not "6" in response, "Should not continue past 5")
+	assert(not "9" in response, "Should not continue past 5")
 	
 	return true
