@@ -238,6 +238,8 @@ impl NobodyWhoChat {
     fn stop_generation(&mut self) {
         if let Some(chat_handle) = &self.chat_handle {
             chat_handle.stop_generation();
+        } else {
+            godot_warn!("Attempted to stop generation, but no worker is running. Doing nothing.");
         }
     }
 
