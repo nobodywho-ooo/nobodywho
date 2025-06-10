@@ -302,6 +302,7 @@ impl NobodyWhoChat {
         }
     }
 
+    #[func]
     /// Add a tool for the LLM to use.
     /// Tool calling is only supported for a select few models. We recommend Qwen3.
     ///
