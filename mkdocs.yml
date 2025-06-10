@@ -1,0 +1,26 @@
+site_name: NobodyWho
+
+# github link in the top right
+repo_url: https://github.com/nobodywho-ooo/nobodywho
+repo_name: nobodywho-ooo/nobodywho
+
+theme:
+  # enable mkdocs-material theme
+  name: material
+  # disable loading from google fonts, fallback to system fonts
+  font: false 
+  # set color scheme 
+  palette:
+    primary: black
+    scheme: slate
+  # icon (just a symlink to :/assets/icon.svg)
+  logo: icon.svg
+  # link tab selection across all content tab blocks
+  features: 
+    - content.tabs.link
+
+# enable content tabs
+markdown_extensions:
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
