@@ -3,7 +3,7 @@ mod sampler_resource;
 use godot::classes::{INode, ProjectSettings};
 use godot::prelude::*;
 use nobodywho::{chat_state, llm, sampler_config};
-use tracing::{error, info};
+use tracing::{debug, error, info, warn};
 use tracing_subscriber::prelude::*;
 
 use crate::sampler_resource::NobodyWhoSampler;
@@ -138,6 +138,7 @@ struct NobodyWhoChat {
     context_length: u32,
 
     chat_handle: Option<nobodywho::chat::ChatHandle>,
+    tools: Vec<nobodywho::chat::Tool>,
 
     base: Base<Node>,
 }
@@ -153,6 +154,7 @@ impl INode for NobodyWhoChat {
             stop_words: PackedStringArray::new(),
             context_length: 4096,
             chat_handle: None,
+            tools: vec![],
 
             base,
         }
@@ -188,6 +190,7 @@ impl NobodyWhoChat {
                 model,
                 self.context_length,
                 self.system_prompt.to_string(),
+                self.tools.clone(),
             ));
             Ok(())
         };
@@ -237,7 +240,7 @@ impl NobodyWhoChat {
     #[func]
     fn reset_context(&mut self) {
         if let Some(chat_handle) = &self.chat_handle {
-            chat_handle.reset_chat(self.system_prompt.to_string());
+            chat_handle.reset_chat(self.system_prompt.to_string(), self.tools.clone());
         } else {
             godot_error!("Attempted to reset context, but no worker is running. Doing nothing.");
         }
@@ -282,7 +285,10 @@ impl NobodyWhoChat {
             match dictionaries_to_messages(messages) {
                 Ok(msg_vec) => {
                     // Check if last message is from user and warn
-                    if msg_vec.last().map_or(false, |msg| msg.role == "user") {
+                    if msg_vec
+                        .last()
+                        .map_or(false, |msg| msg.role() == &chat_state::Role::User)
+                    {
                         godot_warn!("Chat history ends with a user message. This may cause unexpected behavior during generation.");
                     }
 
@@ -294,6 +300,146 @@ impl NobodyWhoChat {
         } else {
             godot_error!("Attempted to set chat history, but no worker is running. Doing nothing.");
         }
+    }
+
+    #[func]
+    /// Add a tool for the LLM to use.
+    /// Tool calling is only supported for a select few models. We recommend Qwen3.
+    ///
+    /// The tool is a fully typed callable function on a godot object.
+    /// The function should return a string.
+    /// All parameters should have type hints, and only primitive types are supported.
+    /// NobodyWho will use the type hints to constrain the generation, such that the function will
+    /// only ever be called with the correct types.
+    /// Fancier types like lists, dictionaries, and classes are not (yet) supported.
+    ///
+    /// If you need to specify more parameter constraints, see `add_tool_with_schema`.
+    ///
+    /// Example:
+    ///
+    /// ```
+    /// extends NobodyWhoChat
+    ///
+    /// func add_numbers(a: int, b: int):
+    ///     return str(a + b)
+    ///
+    /// func _ready():
+    ///     # register the tool
+    ///     add_tool(add_numbers, "Adds two integers")
+    ///
+    ///     # see that the llm invokes the tool
+    ///     say("What is two plus two?")
+    /// ```
+    fn add_tool(&mut self, callable: Callable, description: String) {
+        if self.chat_handle.is_some() {
+            godot_warn!("Worker already running. Tools won't be available until restart or reset");
+        }
+
+        let json_schema = match json_schema_from_callable(&callable) {
+            Ok(js) => js,
+            Err(e) => {
+                godot_error!("Failed generating json schema for function: {e}");
+                return;
+            }
+        };
+        debug!(?json_schema);
+
+        return self._add_tool_with_schema(callable, description, json_schema);
+    }
+
+    #[func]
+    /// Add a tool for the LLM to use, along with a json schema to constrain the parameters.
+    /// The order of parameters in the json schema must be preserved.
+    /// The json schema keyword "description" may be used here, to help guide the LLM.
+    /// Tool calling is only supported for a select few models. We recommend Qwen3.
+    ///
+    /// Example:
+    ///
+    /// ```
+    /// extends NobodyWhoChat
+    ///
+    /// func add_numbers(a, b):
+    ///     return str(a + b)
+    ///
+    /// func _ready():
+    ///     # register the tool
+    ///     var json_schema = """
+    ///         {
+    ///           "type": "object",
+    ///           "properties": {
+    ///             "a": { "type": "integer" },
+    ///             "b": { "type": "integer" }
+    ///           },
+    ///           "required": ["a", "b"],
+    ///         }
+    ///     """
+    ///     add_tool_with_schema(add_numbers, "Adds two integers", json_schema)
+    ///
+    ///     # see that the llm invokes the tool
+    ///     say("What is two plus two?")
+    /// ```
+    fn add_tool_with_schema(
+        &mut self,
+        callable: Callable,
+        description: String,
+        json_schema: String,
+    ) {
+        let Ok(serde_json::Value::Object(json_schema)) = serde_json::from_str(json_schema.as_str())
+        else {
+            godot_error!("Passed json schema was not a valid json object.");
+            return;
+        };
+        return self._add_tool_with_schema(callable, description, json_schema);
+    }
+
+    fn _add_tool_with_schema(
+        &mut self,
+        callable: Callable,
+        description: String,
+        json_schema: serde_json::Map<String, serde_json::Value>,
+    ) {
+        // list of property names, preserving order of arguments from Callable
+        let Some(properties) = json_schema
+            .get("properties")
+            .and_then(|v| v.as_object())
+            .map(|obj| obj.keys().cloned().collect::<Vec<String>>())
+        else {
+            godot_error!("JSON Schema was malformed");
+            return;
+        };
+
+        let Some(method_name) = callable.method_name() else {
+            godot_error!("Could not get method name. Did you pass an anonymous function?");
+            return;
+        };
+
+        // the callback that the actual tool call uses
+        let func = move |j: serde_json::Value| {
+            let Some(obj) = j.as_object() else {
+                warn!("LLM passed bad arguments to tool: {j:?}");
+                return "Error: Bad arguments. You must supply a json object.".into();
+            };
+
+            let mut args: Vec<Variant> = vec![];
+            for prop in &properties {
+                let Some(val) = obj.get(prop.as_str()) else {
+                    warn!("LLM passed bad arguments to tool. Missing argument {prop}");
+                    return format!("Error: Missing argument {prop}");
+                };
+                args.push(json_to_godot(val));
+            }
+
+            // TODO: if arguments are incorrect here, the callable returns null
+            let res = callable.call(&args);
+            res.to_string()
+        };
+        let new_tool = nobodywho::chat::Tool::new(
+            method_name.into(),
+            description,
+            json_schema.into(),
+            std::sync::Arc::new(func),
+        );
+        self.tools.push(new_tool);
     }
 
     #[signal]
@@ -312,6 +458,87 @@ impl NobodyWhoChat {
     fn set_log_level(level: String) {
         set_log_level(&level);
     }
+}
+
+fn json_to_godot(value: &serde_json::Value) -> Variant {
+    match value {
+        serde_json::Value::Null => Variant::nil(),
+        serde_json::Value::Bool(b) => Variant::from(*b),
+        serde_json::Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                Variant::from(i)
+            } else if let Some(u) = n.as_u64() {
+                Variant::from(u)
+            } else if let Some(f) = n.as_f64() {
+                Variant::from(f)
+            } else {
+                warn!("Didn't expect this code branch to be possible. Trying fallible conversion to f64.");
+                Variant::from(n.as_f64().unwrap())
+            }
+        }
+        serde_json::Value::String(s) => Variant::from(s.as_str()),
+        serde_json::Value::Array(arr) => {
+            let vec: Vec<Variant> = arr.into_iter().map(json_to_godot).collect();
+            Variant::from(vec)
+        }
+        serde_json::Value::Object(obj) => {
+            // XXX: this is prerty lazy
+            let mut dict = Dictionary::new();
+            for (key, val) in obj {
+                dict.set(key.as_str(), json_to_godot(val));
+            }
+            Variant::from(dict)
+        }
+    }
+}
+
+fn json_schema_from_callable(
+    callable: &Callable,
+) -> Result<serde_json::Map<String, serde_json::Value>, String> {
+    // find method metadata
+    let method_name = callable.method_name().ok_or("Error adding tool: Could not get method name for callable. Did you pass in an anonymous function?".to_string())?;
+    let method_obj = callable.object().ok_or("Could not find object for callable. Anonymous functions and static methods are not supported.".to_string())?;
+    let method_info = method_obj
+        .get_method_list()
+        .iter_shared()
+        // XXX: I expect that this bit is pretty slow. But it works for now...
+        .find(|dict| dict.at("name").to::<String>() == method_name.to_string());
+    let method_info = method_info.ok_or("Could not find method on this object. Is the method you passed defined on the NobodyWhoChat script?".to_string())?;
+    let method_args: Array<Dictionary> = method_info.at("args").to();
+
+    // start building json schema
+    let mut properties = serde_json::Map::new();
+    let mut required = vec![];
+
+    for arg in method_args.iter_shared() {
+        let arg_name: String = arg.at("name").to();
+        let arg_type: VariantType = arg.at("type").to();
+        let arg_type_json_schema_name: &str = match arg_type {
+            VariantType::NIL => return Err(format!("Error adding tool {method_name}: arguments must all have type hints. Argument '{arg_name}' does not have a type hint.")),
+            VariantType::BOOL => "boolean",
+            VariantType::INT => "integer",
+            VariantType::FLOAT => "number",
+            VariantType::STRING => "string",
+            VariantType::ARRAY => "array",
+            // TODO: more types. E.g. Object, Vector types, Array types, Dictionary
+            _ => {
+                return Err(format!("Error adding tool {method_name} - Unsupported type for argument '{arg_name}': {arg_type:?}"));
+            }
+        };
+
+        properties.insert(
+            arg_name.clone(),
+            serde_json::json!({ "type": arg_type_json_schema_name }),
+        );
+        // TODO: can we make arguments with default values not required?
+        required.push(serde_json::Value::String(arg_name));
+    }
+
+    let mut result = serde_json::Map::new();
+    result.insert("type".into(), "object".into());
+    result.insert("properties".into(), properties.into());
+    result.insert("required".into(), required.into());
+    Ok(result)
 }
 
 #[derive(GodotClass)]

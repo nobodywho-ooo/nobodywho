@@ -60,7 +60,11 @@ From there you can also check the documentaiton.
 
 ## Getting started
 
-The plugin does not include a large language model (LLM). You need to provide an LLM in the GGUF file format. A good place to start is something like [Gemma 2 2B](https://huggingface.co/bartowski/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_M.gguf)
+The plugin does not include a large language model (LLM). You need to provide an LLM in the GGUF file format.
+
+A good place to start is something like [Qwen3 4B](https://huggingface.co/Qwen/Qwen3-4B-GGUF/blob/main/Qwen3-4B-Q4_K_M.gguf).
+If you need something faster, try with a smaller model (e.g. Qwen3 0.6B). If you need soemthing smarter, try with a larger model (e.g. Qwen3 14B).
+If you need something smarter *and* faster, wait a few months.
 
 Once you have a GGUF model file, you can add a `NobodyWhoModel` node to your Godot scene. On this node, set the model file to the GGUF model you just downloaded.
 
@@ -147,7 +151,7 @@ Once you select a model, remember that you need a quantization of it in the GGUF
 The huggingface user [bartowski](https://huggingface.co/bartowski) regularly uploads GGUF quantizations for *a lot* of new models.
 
 Selecting the best model for your usecase is mostly about finding the right tradeoff between speed, memory usage and quality of the responses.
-Using bigger models general will yield better responses, but raise minimum system requirements and slow down generation speed.
+Using bigger models will yield better responses, but raise minimum system requirements and slow down generation speed.
 
 ### NobodyWho makes Godot crash on Arch Linux / Manjaro
 
