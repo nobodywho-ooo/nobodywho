@@ -9,6 +9,7 @@ use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::model::{AddBos, Special};
 use llama_cpp_2::token::LlamaToken;
 use std::pin::pin;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, LazyLock, Mutex};
 use tracing::{debug, debug_span, error, info, info_span, trace, trace_span, warn};
 
@@ -234,10 +235,22 @@ pub enum WriteError {
     SendError,
 }
 
-// Type state markers
-pub struct GenerationWorker {}
 pub trait GenerationCapability {}
+pub trait Stoppable {
+    fn stop(&self) -> bool;
+}
+// Type state markers
+pub struct GenerationWorker {
+    should_stop: Arc<AtomicBool>,
+}
+
 impl GenerationCapability for GenerationWorker {}
+impl Stoppable for GenerationWorker {
+    fn stop(&self) -> bool {
+        self.should_stop.load(std::sync::atomic::Ordering::Relaxed)
+    }
+}
+
 
 #[cfg(test)]
 impl<'a> Worker<'_, GenerationWorker> {
@@ -245,13 +258,13 @@ impl<'a> Worker<'_, GenerationWorker> {
         model: &Arc<LlamaModel>,
         n_ctx: u32,
     ) -> Result<Worker<'_, GenerationWorker>, InitWorkerError> {
-        Worker::new_with_type(model, n_ctx, false, GenerationWorker {})
+        Worker::new_with_type(model, n_ctx, false, GenerationWorker { should_stop: Arc::new(AtomicBool::new(false)) })
     }
 }
 
 impl<'a, T> Worker<'a, T>
 where
-    T: GenerationCapability,
+    T: GenerationCapability + Stoppable,
 {
     #[tracing::instrument(level = "info", skip(self, sampler_config, stop_words, respond))]
     pub fn write_until_done<F>(
@@ -275,7 +288,8 @@ where
         // stateful samplers only live for one response
         let mut sampler = make_sampler(&self.ctx.model, sampler_config);
 
-        loop {
+        while !self.extra.stop() { 
+
             // Check for context window overflow (it was in the end before)
             if self.n_past >= self.ctx.n_ctx() as i32 - 1 {
                 self.n_past -= apply_context_shifting(&mut self.ctx, self.n_past)?;
@@ -430,7 +444,6 @@ impl<'a, T> Worker<'a, T> {
 mod tests {
     use super::*;
     use crate::test_utils;
-    use tokio_stream::StreamExt;
 
     #[test]
     fn test_simple_gen() -> Result<(), Box<dyn std::error::Error>> {
@@ -475,11 +488,9 @@ mod tests {
         let dk_response_clone = Arc::clone(&dk_response);
         let de_response_clone = Arc::clone(&de_response);
         let dk_sampler = sampler.clone();
-
         // Start Denmark worker thread
         let dk_handle = std::thread::spawn(move || {
             let mut worker = Worker::new_generation_worker(&model_clone, n_ctx).unwrap();
-
             let f = move |x| {
                 if let WriteOutput::Done(resp) = x {
                     let mut response = dk_response_clone.lock().unwrap();
@@ -497,7 +508,6 @@ mod tests {
         // Start Germany worker thread
         let de_handle = std::thread::spawn(move || {
             let mut worker = Worker::new_generation_worker(&model, n_ctx).unwrap();
-
             let f = move |x| {
                 if let WriteOutput::Done(resp) = x {
                     let mut response = de_response_clone.lock().unwrap();
@@ -548,7 +558,6 @@ mod tests {
 
         let n_ctx = 10;
         let mut worker = Worker::new_generation_worker(&model, n_ctx)?;
-
         let (sender, receiver) = std::sync::mpsc::channel();
         let f = move |x| match x {
             WriteOutput::Done(resp) => {

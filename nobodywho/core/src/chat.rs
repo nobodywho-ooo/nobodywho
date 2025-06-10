@@ -4,26 +4,29 @@ use crate::llm::Worker;
 use crate::sampler_config::SamplerConfig;
 use std::sync::Arc;
 use tracing::error;
-
+use std::sync::atomic::AtomicBool;
 use llama_cpp_2::model::LlamaModel;
 
 // ChatHandle - for parallelism
 
 pub struct ChatHandle {
     msg_tx: std::sync::mpsc::Sender<ChatMsg>,
+    should_stop: Arc<AtomicBool>,
 }
 
 impl ChatHandle {
     pub fn new(model: Arc<LlamaModel>, n_ctx: u32, system_prompt: String) -> Self {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
 
+        let should_stop = Arc::new(AtomicBool::new(false));
+        let should_stop_clone = Arc::clone(&should_stop);
         std::thread::spawn(move || {
-            if let Err(e) = run_worker(model, n_ctx, system_prompt, msg_rx) {
+            if let Err(e) = run_worker(model, n_ctx, system_prompt, msg_rx, should_stop_clone) {
                 error!("Worker crashed: {}", e)
             }
         });
 
-        Self { msg_tx }
+        Self { msg_tx, should_stop }
     }
 
     pub fn say(
@@ -44,6 +47,10 @@ impl ChatHandle {
 
     pub fn reset_chat(&self, system_prompt: String) {
         let _ = self.msg_tx.send(ChatMsg::ResetChat { system_prompt });
+    }
+
+    pub fn stop_generation(&self) {
+        self.should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
     }
 
     pub fn get_chat_history(&self) -> tokio::sync::mpsc::Receiver<Vec<crate::chat_state::Message>> {
@@ -98,9 +105,9 @@ fn run_worker(
     n_ctx: u32,
     system_prompt: String,
     msg_rx: std::sync::mpsc::Receiver<ChatMsg>,
+    should_stop: Arc<AtomicBool>,
 ) -> Result<(), ChatWorkerError> {
-    let mut worker_state = Worker::new_chat_worker(&model, n_ctx, system_prompt)?;
-
+    let mut worker_state = Worker::new_chat_worker(&model, n_ctx, system_prompt, should_stop)?;
     while let Ok(msg) = msg_rx.recv() {
         match msg {
             ChatMsg::Say {
@@ -137,6 +144,7 @@ fn run_worker(
 
 struct ChatWorker {
     chat_state: ChatState,
+    should_stop: Arc<AtomicBool>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -155,12 +163,18 @@ pub enum SayError {
 }
 
 impl llm::GenerationCapability for ChatWorker {}
+impl llm::Stoppable for ChatWorker {
+    fn stop(&self) -> bool {
+        self.should_stop.load(std::sync::atomic::Ordering::Relaxed)
+    }
+}
 
 impl<'a> Worker<'_, ChatWorker> {
     fn new_chat_worker(
         model: &Arc<LlamaModel>,
         n_ctx: u32,
         system_prompt: String,
+        should_stop: Arc<AtomicBool>,
     ) -> Result<Worker<'_, ChatWorker>, llm::InitWorkerError> {
         // initialize chat state with system prompt
         let mut chat_state = ChatState::from_model(model)?;
@@ -170,7 +184,7 @@ impl<'a> Worker<'_, ChatWorker> {
             model,
             n_ctx,
             false,
-            ChatWorker { chat_state },
+            ChatWorker { chat_state, should_stop },
         )?)
     }
 
@@ -184,18 +198,20 @@ impl<'a> Worker<'_, ChatWorker> {
     where
         F: Fn(llm::WriteOutput),
     {
+        // reset the stop flag
+        self.extra.should_stop.store(false, std::sync::atomic::Ordering::Relaxed);
         self.extra.chat_state.add_message("user".to_string(), text);
         let diff = self.extra.chat_state.render_diff()?;
 
         // wrap the response callback to keep a copy of the completed response
         let (resp_sender, resp_receiver) = std::sync::mpsc::channel();
-        let wrapped_respond = |x| {
-            if let llm::WriteOutput::Done(resp) = &x {
+        let wrapped_respond = |out| {
+            if let llm::WriteOutput::Done(resp) = &out {
                 resp_sender
                     .send(resp.clone())
                     .expect("Failed sending response");
             }
-            respond(x)
+            respond(out)
         };
 
         // brrr
@@ -222,6 +238,7 @@ impl<'a> Worker<'_, ChatWorker> {
             .add_message("system".into(), system_prompt);
     }
 
+
     pub fn set_chat_history(&mut self, messages: Vec<crate::chat_state::Message>) {
         self.reset_context();
         self.extra.chat_state.set_messages(messages);
@@ -230,7 +247,6 @@ impl<'a> Worker<'_, ChatWorker> {
 
 #[cfg(test)]
 mod tests {
-    use tracing_subscriber::field::debug;
 
     use super::*;
     use crate::test_utils;
@@ -240,7 +256,7 @@ mod tests {
         // test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let sampler = SamplerConfig::default();
-        let mut worker = Worker::new_chat_worker(&model, 1024, "".into())?;
+        let mut worker = Worker::new_chat_worker(&model, 1024, "".into(), Arc::new(AtomicBool::new(false)))?;
 
         let (sender, receiver) = std::sync::mpsc::channel();
         let f = move |x| match x {
@@ -281,7 +297,7 @@ mod tests {
         // test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let system_prompt = "You're a dog. End all responses with 'woof'";
-        let mut worker = Worker::new_chat_worker(&model, 1024, system_prompt.into())?;
+        let mut worker = Worker::new_chat_worker(&model, 1024, system_prompt.into(), Arc::new(AtomicBool::new(false)))?;
         let sampler = SamplerConfig::default();
 
         // just a hack to get a channel back
@@ -317,7 +333,47 @@ mod tests {
         let resp2 = receiver.recv()?;
         println!("{}", resp2);
         assert!(resp2.to_lowercase().contains("meow"));
+        
+        Ok(())
+    }
 
+    #[test]
+    fn test_stop_mid_write() -> Result<(), Box<dyn std::error::Error>> {
+        // test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let system_prompt = "You are a counter, only outputting numbers";
+        let mut worker = Worker::new_chat_worker(&model, 1024, system_prompt.into(), Arc::new(AtomicBool::new(false)))?;
+        let should_stop = worker.extra.should_stop.clone();
+        
+        // ensure that the generationworker resets the flag when creating a new response. 
+        should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
+
+        let sampler = SamplerConfig::default();
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let f = move |x| match x {
+            llm::WriteOutput::Token(resp) => {
+                if resp.contains("5") {
+                    should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
+                }
+            }
+            llm::WriteOutput::Done(resp) => {
+                sender.send(resp).unwrap();
+            }
+        };
+
+        worker.say(
+            "Count from 0 to 9".to_string(),
+            sampler.clone(),
+            vec![],
+            f.clone(),
+        )?;
+
+        let response = receiver.recv()?;
+        println!("{}", response);
+
+        assert!(response.contains("5"));
+        assert!(!response.contains("9"));
         Ok(())
     }
 
@@ -326,7 +382,7 @@ mod tests {
         // test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let system_prompt = "You're a helpful question-answering assistant.";
-        let mut worker = Worker::new_chat_worker(&model, 1024, system_prompt.into())?;
+        let mut worker = Worker::new_chat_worker(&model, 1024, system_prompt.into(), Arc::new(AtomicBool::new(false)))?;
         let sampler = SamplerConfig::default();
 
         // just a hack to get a channel back
