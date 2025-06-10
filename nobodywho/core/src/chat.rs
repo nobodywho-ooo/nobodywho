@@ -4,7 +4,7 @@ use crate::llm::Worker;
 use crate::sampler_config::SamplerConfig;
 use std::sync::Arc;
 use tracing::error;
-
+use std::sync::atomic::AtomicBool;
 use llama_cpp_2::model::LlamaModel;
 
 // ChatHandle - for parallelism
@@ -148,6 +148,11 @@ pub enum SayError {
 }
 
 impl llm::GenerationCapability for ChatWorker {}
+impl llm::Stoppable for ChatWorker {
+    fn stop(&self) -> bool {
+        self.should_stop.load(std::sync::atomic::Ordering::Relaxed)
+    }
+}
 
 impl<'a> Worker<'_, ChatWorker> {
     fn new_chat_worker(
@@ -193,10 +198,9 @@ impl<'a> Worker<'_, ChatWorker> {
             respond(x)
         };
 
-        let should_stop = self.extra.should_stop.clone();
         // brrr
         self.read_string(diff)?
-            .write_until_done(sampler, stop_words, wrapped_respond, should_stop)?;
+            .write_until_done(sampler, stop_words, wrapped_respond)?;
 
         // get the finished response and add it to our chat history
         let response = resp_receiver.recv()?;
@@ -227,7 +231,6 @@ impl<'a> Worker<'_, ChatWorker> {
 
 #[cfg(test)]
 mod tests {
-    use tracing_subscriber::field::debug;
 
     use super::*;
     use crate::test_utils;
@@ -325,6 +328,8 @@ mod tests {
         let system_prompt = "You are a counter, only outputting numbers";
         let mut worker = Worker::new_chat_worker(&model, 1024, system_prompt.into(), Arc::new(AtomicBool::new(false)))?;
         let should_stop = worker.extra.should_stop.clone();
+        
+        // ensure that the generationworker resets the flag when creating a new response. 
         should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
 
         let sampler = SamplerConfig::default();
@@ -339,7 +344,6 @@ mod tests {
             llm::WriteOutput::Done(resp) => {
                 sender.send(resp).unwrap();
             }
-            _ => (),
         };
 
         worker.say(
@@ -362,7 +366,7 @@ mod tests {
         // test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let system_prompt = "You're a helpful question-answering assistant.";
-        let mut worker = Worker::new_chat_worker(&model, 1024, system_prompt.into())?;
+        let mut worker = Worker::new_chat_worker(&model, 1024, system_prompt.into(), Arc::new(AtomicBool::new(false)))?;
         let sampler = SamplerConfig::default();
 
         // just a hack to get a channel back
