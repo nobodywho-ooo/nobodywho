@@ -44,6 +44,11 @@ namespace NobodyWho
             wrapper.ResetContext(systemPrompt);
         }
 
+        public void Stop()
+        {
+            wrapper.Stop();
+        }
+
         public void Update()
         {
             var res = wrapper.PollResponse();

@@ -181,5 +181,36 @@ namespace Tests
             Assert.IsNotNull(response, "No response received within timeout period");
             Assert.IsTrue(response == "nobodywho", "Response should only be 'nobodywho'");
         }
+
+        [UnityTest]
+        public IEnumerator WhenInvokingSayAndStopping_ShouldReturnIncompleteResponse()
+        {
+            chat.systemPrompt = "You are a counter, only outputting numbers";
+            chat.ResetContext();
+
+            string response = null;
+            chat.responseFinished.AddListener((result) => response = result);
+            List<string> receivedTokens = new List<string>();
+            chat.responseUpdated.AddListener(
+                (token) =>
+                {
+                    if (token.Contains("5"))
+                    {
+                        chat.Stop();
+                    }
+                }
+            );
+
+            chat.Say("Count from 0 to 9");
+
+            float timeout = Time.time + _timeoutDuration;
+            while (response == null && Time.time < timeout)
+            {
+                yield return null;
+            }
+
+            Assert.IsTrue(response.Contains("5"), "Response should contain '5'");
+            Assert.IsFalse(response.Contains("9"), "Response should not contain '9'");
+        }
     }
 }
