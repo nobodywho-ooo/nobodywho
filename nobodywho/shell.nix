@@ -6,6 +6,19 @@ let
     ${pkgs.lib.getExe pkgs.unityhub.fhsEnv} ~/Unity/Hub/Editor/${version}/Editor/Unity "$@"
   '';
 
+  mdbook-langtabs = pkgs.rustPlatform.buildRustPackage {
+    name = "mdbook-langtabs";
+    src = pkgs.fetchFromGitHub {
+      owner = "nx10";
+      repo = "mdbook-langtabs";
+      rev = "v0.1.1";
+      sha256 = "sha256-3Xr4np0OKq1l3oBnK1ChOWPMEUl+qtFVYx7niZ8PntE=";
+    };
+    cargoHash = "sha256-i8OsFuH6PDnifQXfHPX8qlpPPHi7ULPVkhDxfSQ6sZo=";
+    # we do not want to test this.
+    doCheck = false;
+  };
+
 in pkgs.mkShell {
   env.LIBCLANG_PATH = "${pkgs.libclang.lib}/lib/libclang.so";
   packages = [
@@ -30,6 +43,9 @@ in pkgs.mkShell {
     pkgs.vulkan-headers
     pkgs.vulkan-loader
     pkgs.shaderc
+
+    pkgs.mdbook
+    mdbook-langtabs
   ];
   shellHook = ''
     ulimit -n 2048
