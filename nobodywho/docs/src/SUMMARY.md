@@ -1,10 +1,10 @@
 # Summary
 
 - [Install](install.md)
-- [Baby's First Steps](babys_first.md)
-- [Embeddings](Embeddings.md)
-- [Chat](Chat/README.md)
-  - [Simple Chat](Chat/Simple_chat.md)
-  - [Advanced Chat](Chat/Advanced_chat.md)
-- [Contributing](Contributing/README.md)
-  - [Development Environment](Contributing/dev_environment.md) 
+- [Baby's First Steps](getting_started.md)
+- [Embeddings](embeddings.md)
+- [Chat](chat/README.md)
+  - [Simple Chat](chat/Simple_chat.md)
+  - [Advanced Chat](chat/Advanced_chat.md)
+- [Contributing](contributing/README.md)
+  - [Development Environment](contributing/dev_environment.md) 
