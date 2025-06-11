@@ -21,3 +21,6 @@ jobs:
   release:
     needs: [build] # [build, test]
     uses: ./.github/workflows/release.yml
+
+  docs:
+    uses: ./.github/workflows/docs.yml
