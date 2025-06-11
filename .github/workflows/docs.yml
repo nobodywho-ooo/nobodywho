@@ -1,0 +1,39 @@
+name: "Build & Deploy Docs"
+
+on:
+  push:
+    # branches: [main] outcommented for testing
+  workflow_dispatch:
+
+# required for GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - name: Install mdBook and plugins
+        run: |
+          cargo install --locked mdbook
+          cargo install --locked mdbook-langtabs
+
+      - name: Build docs
+        run: |
+          mdbook build nobodywho/docs
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./book
+
+      - uses: actions/deploy-pages@v4
