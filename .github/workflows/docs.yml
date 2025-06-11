@@ -1,9 +1,6 @@
 name: "Docs"
 on:
-  push:
-    branches:
-      - main
-      - mkdocs
+  workflow_call:
 permissions:
   contents: write
 jobs:
