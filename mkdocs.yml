@@ -1,4 +1,16 @@
 site_name: NobodyWho
+site_url: https://nobodywho-ooo.github.io/nobodywho
+nav:
+  - Home: index.md
+  - Install: install.md
+  - Baby's First Steps: getting_started.md
+  - Embeddings: embeddings.md
+  - Chat:
+      - Simple Chat: chat/simple_chat.md
+      - Advanced Chat: chat/advanced_chat.md
+  - Contributing:
+      - Development Environment: contributing/dev_environment.md
+
 
 # github link in the top right
 repo_url: https://github.com/nobodywho-ooo/nobodywho
@@ -18,9 +30,29 @@ theme:
   # link tab selection across all content tab blocks
   features: 
     - content.tabs.link
+    - navigation.instant
+    - navigation.footer
+extra:
+  generator: false
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/nobodywho-ooo/nobodywho
+    - icon: fontawesome/brands/discord
+      link: https://discord.gg/qhaMc2qCYB
 
-# enable content tabs
 markdown_extensions:
+  # enable content tabs
   - pymdownx.superfences
   - pymdownx.tabbed:
       alternate_style: true
+
+  # for images and grids
+  - md_in_html
+  - pymdownx.blocks.caption
+  - attr_list
+
+  # for icons and emoji
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
