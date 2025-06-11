@@ -37,3 +37,20 @@ function main() {
 def main():
     print("Hello from Python!")
 ```
+
+
+
+
+
+
+{{#tabs }}
+{{#tab name="Tab 1" }}
+**Tab content 1**
+{{#endtab }}
+{{#tab name="Tab 2" }}
+_Tab content 2_
+{{#endtab }}
+{{#tab name="Tab 3" }}
+~~Tab content 3~~
+{{#endtab }}
+{{#endtabs }}
