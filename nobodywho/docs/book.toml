@@ -1,0 +1,15 @@
+[book]
+ title = "NobodyWho Documentation"
+ authors = ["NobodyWho Team"]
+ language = "en"
+ 
+[build]
+ build-dir = "../book"
+
+
+[preprocessor.langtabs]
+command = "mdbook-langtabs"
+
+[output.html]
+additional-css = ["langtabs.css"]
+additional-js = ["langtabs.js"]
