@@ -34,6 +34,9 @@ jobs:
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: ./book
+          name: docs
+          path: ./nobodywho/book
 
       - uses: actions/deploy-pages@v4
+        with:
+          artifact_name: docs
