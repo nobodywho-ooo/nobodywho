@@ -17,6 +17,9 @@ repo_url: https://github.com/nobodywho-ooo/nobodywho
 repo_name: nobodywho-ooo/nobodywho
 
 theme:
+  # use eyes icon to trigger people clicking on images and gifs.
+  icon:
+    annotation: material/eye-circle
   # enable mkdocs-material theme
   name: material
   # disable loading from google fonts, fallback to system fonts
