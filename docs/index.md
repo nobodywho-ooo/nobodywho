@@ -9,8 +9,8 @@ It has a simple but powerful interface that makes it possible to run and deploy 
 Because every token is generated on the end user’s machine, you do not need a ML-OPS team, while still getting lightning fast GPU-accelerated throughput via Vulkan or Metal back-ends.
 
 Check the installation guide: [**> here <**](install.md)
-
-... or get a feel for the interface:  [**> here <**](getting_started.m)
+ Check the installation guide: [**> here <**](install.md)
+ ... or get a feel for the interface:  [**> here <**](getting_started.md)
 
 
 
