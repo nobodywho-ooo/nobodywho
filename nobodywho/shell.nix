@@ -30,6 +30,11 @@ in pkgs.mkShell {
     pkgs.vulkan-headers
     pkgs.vulkan-loader
     pkgs.shaderc
+
+    # for mkdocs
+    pkgs.mkdocs
+    pkgs.python312Packages.regex
+    pkgs.python312Packages.mkdocs-material
   ];
   shellHook = ''
     ulimit -n 2048

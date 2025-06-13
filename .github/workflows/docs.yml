@@ -1,0 +1,31 @@
+name: "Docs"
+on:
+  workflow_call:
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+jobs:
+  deploy-pages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "cache_id=$(date --utc '+%V')" >> $GITHUB_ENV 
+      - uses: actions/cache@v4
+        with:
+          key: mkdocs-material-${{ env.cache_id }}
+          path: .cache 
+          restore-keys: |
+            mkdocs-material-
+      - run: pip install mkdocs-material 
+
+      - run: mkdocs build
+      
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          name: docs
+          path: site
+
+      - uses: actions/deploy-pages@v4
+        with:
+          artifact_name: docs
