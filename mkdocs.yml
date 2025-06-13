@@ -4,10 +4,11 @@ nav:
   - Home: index.md
   - Install: install.md
   - Baby's First Steps: getting_started.md
-  - Embeddings: embeddings.md
   - Chat:
       - Simple Chat: chat/simple_chat.md
       - Advanced Chat: chat/advanced_chat.md
+  - Embeddings: embeddings.md
+  - Model Selection: model_selection.md
   - Contributing:
       - Development Environment: contributing/dev_environment.md
 
