@@ -8,6 +8,7 @@ nav:
   - Chat:
       - Simple Chat: chat/simple_chat.md
       - Advanced Chat: chat/advanced_chat.md
+  - Model Selection: model_selection.md
   - Contributing:
       - Development Environment: contributing/dev_environment.md
 
