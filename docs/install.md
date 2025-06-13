@@ -1,63 +1,58 @@
 # Installation
-_How to install NobodyWho and get started with the plugin._ 
+_How to install NobodyWho and start building._
 
 ---
 
+So you decided to try out NobodyWho and install it; Welcome! 
+
+The plugin is currently available in **Godot** or **Unity**.  
+Each section contains a small ':material-eye-circle-outline:' marker you can click to reveal a GIF or image to guide you.
 
 
-Install NobodyWho for the platform of your choice.
-
-### Via Asset Library:
-
-=== ":simple-godotengine: Godot"
-
-    - Open Godot 4.4
-    - Go to the "Asset Library" tab in the top of the editor
-    - Search for "NobodyWho"
-    - Click on it
-    - Click "Download"
-    - Make sure "Ignore asset root" is checked
-    - Click "Install"
-
-    This should install NobodyWho in `res://addons/nobodywho`, and you should now be able to see the NobodyWho nodes (e.g. `NobodyWhoChat`) in Godot.
-
-    You may need to restart Godot.
-
-
-=== ":simple-unity: Unity"
-
-    Nobodywho  unity has not yet come to the asset store 🫠
-
-    Please see the section below for how to install it untill then.
-
-
-### Via Github
+### Via Asset Library
 
 === ":simple-godotengine: Godot"
 
-    Grab a specific version from our github releases pages [github releases page.](https://github.com/nobodywho-ooo/nobodywho/releases) (we recomend the latest). 
-    You can install these zip files by going to the "AssetLib" tab in Godot and selecting "Import".
-    OBS: Make sure that the ignore asset root option is set in the import dialogue.
+    - **Open Godot 4.4** (or any newer 4.x release).
+    - Switch to the **Asset Library** tab.
+    - Search for **“NobodyWho”** and select the entry.
+    - Click **Download**, tick **Ignore asset root**, then choose **Install**.
+    - Godot puts the plugin in `res://addons/nobodywho`. Open *Create Node* and you should see **`NobodyWhoChat`**. If it’s missing, restart Godot and try again. 
+ 
+    (1)
+    { .annotate }
 
+    1. ![Installing NobodyWho from the Asset Library](assets/godot_asset_library.gif)
 
 === ":simple-unity: Unity"
 
-    Grab the latest- or a specific version from the [github releases page.](https://github.com/nobodywho-ooo/nobodywho/releases)
-    When you download the unity package file, make sure to follow https://docs.unity3d.com/Manual/AssetPackagesImport.html to import the asset. 
+    The package isn’t on the Asset Store yet — use the GitHub method below until it arrives.
 
-    Basically ensure that you import it like this: `Assets > Import Package > Custom Package`
+### Via GitHub
 
-    To see and play around with the samples you might need to right click the plugin and then: `> View in Package Manager > Click on NobodyWho > Samples > Install`. This should set up all the dependencies correctly.
-    From there you can also check the documentaiton.
+=== ":simple-godotengine: Godot"
 
+    - Download the latest ZIP from the [GitHub releases](https://github.com/nobodywho-ooo/nobodywho/releases).
+    - In Godot, open **AssetLib ▸ Import** and pick the ZIP.
+    - Tick **Ignore asset root** and finish the import. 
+    
+    (1)
+    { .annotate }
 
+    1. ![Importing the ZIP in Godot](assets/godot_github.gif)
 
-NobodyWho should now be avialable in your editor of choice. 
+=== ":simple-unity: Unity"
 
-Before moving on please ensure that you have access to the correct nodes
+    - Download the `.unitypackage` from the [GitHub releases](https://github.com/nobodywho-ooo/nobodywho/releases).
+    - In Unity, choose **Assets ▸ Import Package ▸ Custom Package** and select the file.
+    - Step through the import dialog to bring everything in.
+    - To explore the samples, open **Package Manager**, select **NobodyWho**, then **Samples ▸ Install**. 
 
-### TODO: add images to ensure people understand where to look for the correct nodes. ###
+    (1)
+    { .annotate }
 
+    1. ![Importing the package in Unity](assets/unity_github_install.gif)
 
-...
-Perfect you are now setup and ready to go!
+---
+
+After installation, NobodyWho’s nodes (Godot) or components (Unity) should appear in your editor. If not, trace your steps above or reach out on Discord or GitHub - we are there to help.
