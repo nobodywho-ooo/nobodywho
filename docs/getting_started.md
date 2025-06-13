@@ -8,7 +8,7 @@ Cool, the plugin is now enabled! Now let's understand how everything works toget
 One of the most important components of NobodyWho is the Chat node. It handles all the conversation logic between the user and the LLM.
 When you use the chat, you first pick a model and tell it what kind of answers you want.
 When you send a message, the chat remembers what you said and sends it off to get an answer. 
-The model will then starts reading and generating a response.
+The model will then start reading and generating a response.
 You can choose to wait for the full answer to generate or get the response in a stream.
 
 Here are the key terms you'll see throughout this guide:
@@ -34,7 +34,7 @@ Otherwise, check out our [recommended models](model-selection.md) or if you have
 
 ## Load the GGUF model
 
-At this point you shoiuld have downloaded the model and put it into your project folder.
+At this point you should have downloaded the model and put it into your project folder.
 
 === ":simple-godotengine: Godot"
 
@@ -124,13 +124,13 @@ The next step is adding a Chat to our scene.
             // add a listener to the responseFinished event, this will be called when the model has completed its answer.
             chat.responseFinished.AddListener(OnResponseFinished);
             // this will update everytime that a new token (a word or half a word normally) is generated
-            chat.responseUpdated.AddListener(OnReponseUpdated)
+            chat.responseUpdated.AddListener(OnResponseUpdated);
 
             // send a message to the model
             chat.Say("Hey there kitten, nice to meet you!");
         }
 
-        void OnResponseFinished(string update)
+        void OnResponseUpdated(string update)
         {
             Debug.Log(update);
         }

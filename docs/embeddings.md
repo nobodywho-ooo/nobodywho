@@ -48,11 +48,70 @@ Set up your embedding model and component to start understanding text meaning.
         # Link to the embedding model
         self.model_node = embedding_model
 
+    func _input(event):
+        # Handle enter key press to send hardcoded test message
+        if event is InputEventKey and event.pressed:
+            if event.keycode == KEY_ENTER:
+                var test_message = "I know the location of the dragon"
+                print("Sending test message: ", test_message)
+                analyze_player_statement(test_message)
+
+    func precompute_all_embeddings():
+        # Generate embeddings for helpful statements
+        for statement in helpful_statements:
+            embed(statement)
+            var embedding = await self.embedding_finished
+            helpful_embeddings.append(embedding)
+        
+        # Generate embeddings for hostile statements
+        for statement in hostile_statements:
+            embed(statement)
+            var embedding = await self.embedding_finished
+            hostile_embeddings.append(embedding)
+
+    func analyze_player_statement(player_text: String):
+        # Generate embedding for player input
+        embed(player_text)
+        var player_embedding = await self.embedding_finished
+        
+        # Compare against both categories
+        var best_helpful_similarity = get_best_similarity(player_embedding, helpful_embeddings)
+        var best_hostile_similarity = get_best_similarity(player_embedding, hostile_embeddings)
+        
+        print("Helpful similarity: ", best_helpful_similarity)
+        print("Hostile similarity: ", best_hostile_similarity)
+        
+        # Use similarity threshold of 0.8 and compare categories
+        if best_helpful_similarity > 0.8 and best_helpful_similarity > best_hostile_similarity:
+            handle_helpful_information(player_text)
+        elif best_hostile_similarity > 0.8 and best_hostile_similarity > best_helpful_similarity:
+            handle_hostile_intent(player_text)
+        else:
+            print("Unclear intent - no strong match found")
+
+    func get_best_similarity(player_embedding, statement_embeddings):
+        # Find highest cosine similarity in the category
+        var best_similarity = 0.0
+        for embedding in statement_embeddings:
+            var similarity = cosine_similarity(player_embedding, embedding)
+            if similarity > best_similarity:
+                best_similarity = similarity
+        return best_similarity
+
+    func handle_helpful_information(text: String):
+        # Trigger game systems based on detected intent
+        print("🐉 Triggering quest: 'Audience with the Ancient Dragon'!")
+
+    func handle_hostile_intent(text: String):
+        player_reputation -= 15
+        print("Player expressed hostile intent! Reputation -15 (now: ", player_reputation, ")")
+
+    func _on_embedding_finished(embedding):
+        # Signal callback for completed embeddings
+        pass
     ```
 
 === ":simple-unity: Unity"
-
-    Add a new scene with a gameobject. Attach a simple script to it:
 
     ```csharp
     using UnityEngine;
@@ -118,15 +177,12 @@ Here's a more sophisticated example showing how to use embeddings to understand 
         precompute_all_embeddings()
 
     func _input(event):
-        # Handle enter key press to send message
+        # Handle enter key press to send hardcoded test message
         if event is InputEventKey and event.pressed:
             if event.keycode == KEY_ENTER:
-                var line_edit = get_node("../UI/LineEdit")  # Adjust path to your input field
-                var user_message = line_edit.text
-                if user_message.length() > 0:
-                    print("User message: ", user_message)
-                    analyze_player_statement(user_message)
-                    line_edit.text = ""  # Clear input field
+                var test_message = "I know the location of the dragon"
+                print("Sending test message: ", test_message)
+                analyze_player_statement(test_message)
 
     func precompute_all_embeddings():
         # Generate embeddings for helpful statements
@@ -156,7 +212,7 @@ Here's a more sophisticated example showing how to use embeddings to understand 
         # Use similarity threshold of 0.8 and compare categories
         if best_helpful_similarity > 0.8 and best_helpful_similarity > best_hostile_similarity:
             handle_helpful_information(player_text)
-        elif best_hostile_similarity > 0.8 and best_hostile_similarity > best_hostile_similarity:
+        elif best_hostile_similarity > 0.8 and best_hostile_similarity > best_helpful_similarity:
             handle_hostile_intent(player_text)
         else:
             print("Unclear intent - no strong match found")
@@ -188,12 +244,10 @@ Here's a more sophisticated example showing how to use embeddings to understand 
     ```csharp
     using System.Collections.Generic;
     using UnityEngine;
-    using UnityEngine.UI;
 
     public class InformationReputationSystem : MonoBehaviour
     {
         public Embedding embedding;
-        public InputField inputField;  // Assign in inspector
         
         private string[] helpfulStatements = {
             "I know where the dragon rests",
@@ -224,28 +278,18 @@ Here's a more sophisticated example showing how to use embeddings to understand 
             embedding.StartWorker();
             embedding.onEmbeddingComplete.AddListener(OnEmbeddingComplete);
             
-            // Set up input field to handle enter key
-            if (inputField != null)
-            {
-                inputField.onEndEdit.AddListener(OnInputSubmit);
-            }
-            
             // Start precomputing all statement embeddings
             PrecomputeAllEmbeddings();
         }
 
-        void OnInputSubmit(string userMessage)
+        void Update()
         {
-            # Handle enter key press to send message
+            // Handle enter key press to send hardcoded test message
             if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
-                if (!string.IsNullOrEmpty(userMessage))
-                {
-                    Debug.Log($"User message: {userMessage}");
-                    ProcessPlayerStatement(userMessage);
-                    inputField.text = "";  // Clear input field
-                    inputField.ActivateInputField();  // Keep focus on input
-                }
+                string testMessage = "I learned the location of the dragon";
+                Debug.Log($"Sending test message: {testMessage}");
+                ProcessPlayerStatement(testMessage);
             }
         }
 
@@ -367,6 +411,7 @@ Here's a more sophisticated example showing how to use embeddings to understand 
 ## Testing Your Embeddings
 
 When you run your scene, you should see the embedding system working. The test will show that phrases about dragons have higher similarity to each other than to unrelated text.
+Change the text in the update methods to see different results.
 
 **What to expect:**
 
@@ -378,8 +423,6 @@ When you run your scene, you should see the embedding system working. The test w
 **If nothing happens:**
 
 - Make sure you're using an embedding model, not a chat model
-- Check that your model file path is correct
-- Verify your Embedding component is connected to the right Model component
 - Look for error messages in the console
 - Start your editor through the command line and check the logs
 
