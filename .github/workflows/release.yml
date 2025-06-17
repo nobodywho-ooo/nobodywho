@@ -90,7 +90,7 @@ jobs:
 
   create-github-release-godot:
     needs: [godot-distributable]
-    if: startsWith(github.ref, 'refs/tags/godot_release')
+    if: startsWith(github.ref, 'refs/tags/nobodywho-godot-')
     runs-on: ubuntu-24.04
     steps:
       - name: "Download build artifacts"
@@ -112,7 +112,7 @@ jobs:
 
   create-github-release-unity:
     needs: [unity-distributable]
-    if: startsWith(github.ref, 'refs/tags/unity_release')
+    if: startsWith(github.ref, 'refs/tags/nobodywho-unity-')
     runs-on: ubuntu-24.04
     steps:
       - name: "Download build artifacts"
