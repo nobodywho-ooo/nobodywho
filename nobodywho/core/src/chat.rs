@@ -192,6 +192,8 @@ impl Tool {
 }
 
 fn grammar_from_tools(tools: &[Tool]) -> Result<gbnf::Grammar, gbnf::JsonSchemaParseError> {
+    error!("{:?}", tools.len());
+
     // get a json schema that describes the tool call for each tool
     let tool_call_schemas: serde_json::Value = tools
         .iter()
@@ -213,6 +215,8 @@ fn grammar_from_tools(tools: &[Tool]) -> Result<gbnf::Grammar, gbnf::JsonSchemaP
     let tool_call_schema = serde_json::json!(
         { "oneOf": tool_call_schemas }
     );
+
+    error!(?tool_call_schema);
 
     // a GBNF grammar for the above
     let mut json_grammar = match gbnf::Grammar::from_json_schema(&tool_call_schema.to_string()) {
@@ -328,7 +332,11 @@ impl<'a> Worker<'_, ChatWorker> {
         )?;
         chat_state.add_system_message(system_prompt);
 
-        let grammar = grammar_from_tools(&tools);
+        let grammar = if tools.len() > 0 {
+            grammar_from_tools(&tools).ok()
+        } else {
+            None
+        };
 
         Ok(Worker::new_with_type(
             model,
@@ -337,7 +345,7 @@ impl<'a> Worker<'_, ChatWorker> {
             ChatWorker {
                 chat_state,
                 tools,
-                tool_grammar: grammar.ok(),
+                tool_grammar: grammar,
             },
         )?)
     }
@@ -449,7 +457,14 @@ impl<'a> Worker<'_, ChatWorker> {
             self.ctx.model,
             tools.iter().map(|t| t.to_chat_state_tool()).collect(),
         )?;
+
+        self.extra.tool_grammar = if tools.len() > 0 {
+            grammar_from_tools(&tools).ok()
+        } else {
+            None
+        };
         self.extra.tools = tools;
+
         self.extra.chat_state.add_system_message(system_prompt);
         Ok(())
     }
@@ -649,7 +664,7 @@ mod tests {
             json_schema: serde_json::json!({
                 "type": "object",
                 "properties": {
-                    "to-currency": { 
+                    "to-currency": {
                         "type": "string",
                         "description": "The currency to convert to in a three letter code. (eg. \"USD\")"
                     }

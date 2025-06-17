@@ -92,11 +92,22 @@ func current_temperature(location: String) -> String:
 
 
 func test_tool_call():
-	self.add_tool(current_temperature, "Gets the current temperature in a given city.")
+	# set up tool
 	self.system_prompt = "You're a helpful tool-calling assistant. Remember to keep proper tool calling syntax."
+	self.add_tool(current_temperature, "Gets the current temperature in a given city.")
 	self.reset_context()
+
 	say("I'd like to know the current temperature in Copenhagen.")
 	var response = await response_finished
 	print(response)
 	assert("12.34" in response)
+
+	# test get/set consistency
+	print("getting chat history...")
+	var chat_history = await get_chat_history()
+	print("got chat history: " + str(chat_history))
+	set_chat_history(chat_history)
+	assert(chat_history == await get_chat_history())
+
 	return true
+
