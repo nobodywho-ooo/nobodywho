@@ -3,6 +3,7 @@ mod sampler_resource;
 use godot::classes::{INode, ProjectSettings};
 use godot::prelude::*;
 use nobodywho::{chat_state, llm, sampler_config};
+use std::sync::atomic::{AtomicU64, Ordering};
 use tracing::{debug, error, info, warn};
 use tracing_subscriber::prelude::*;
 
@@ -139,6 +140,7 @@ struct NobodyWhoChat {
 
     chat_handle: Option<nobodywho::chat::ChatHandle>,
     tools: Vec<nobodywho::chat::Tool>,
+    signal_counter: AtomicU64,
 
     base: Base<Node>,
 }
@@ -153,9 +155,11 @@ impl INode for NobodyWhoChat {
             system_prompt: "".into(),
             stop_words: PackedStringArray::new(),
             context_length: 4096,
-            chat_handle: None,
             tools: vec![],
 
+            // state
+            signal_counter: AtomicU64::new(0),
+            chat_handle: None,
             base,
         }
     }
@@ -253,19 +257,27 @@ impl NobodyWhoChat {
             let mut rx = chat_handle.get_chat_history();
 
             // decide on a unique name for the response signal
-            let signal_name = format!("get_chat_history_{:?}", std::time::Instant::now());
+            let signal_name = format!(
+                "get_chat_history_{}",
+                self.signal_counter.fetch_add(1, Ordering::Relaxed)
+            );
             self.base_mut().add_user_signal(&signal_name);
+            error!("set up signal: {signal_name:?}");
 
             let mut emit_node = self.to_gd();
             let signal_name_copy = signal_name.clone();
             godot::task::spawn(async move {
+                error!("waiting for history");
                 let Some(chat_history) = rx.recv().await else {
                     error!("Chat worker died while waiting for get_chat_history.");
                     emit_node.emit_signal(&signal_name_copy, &vec![]);
                     return;
                 };
+                error!("got history");
                 let godot_dict_msgs = messages_to_dictionaries(&chat_history);
+                error!("Git dicts: {godot_dict_msgs:?}");
                 emit_node.emit_signal(&signal_name_copy, &vec![Variant::from(godot_dict_msgs)]);
+                error!("Emitted something to: {:?}", signal_name_copy);
             });
 
             // returns signal, so that you can `var msgs = await get_chat_history()`
@@ -684,10 +696,28 @@ fn messages_to_dictionaries(messages: &[chat_state::Message]) -> Array<Dictionar
             if let serde_json::Value::Object(obj) = json_value {
                 obj.into_iter()
                     .map(|(k, v)| {
-                        (
-                            GString::from(k),
-                            Variant::from(v.as_str().unwrap_or_default()),
-                        )
+                        let variant = match v {
+                            serde_json::Value::String(s) => Variant::from(s),
+                            serde_json::Value::Array(arr) => {
+                                // Convert arrays (like tool_calls) to proper Godot format
+                                let godot_array: Array<Variant> = arr
+                                    .into_iter()
+                                    .map(|item| match item {
+                                        serde_json::Value::Object(obj) => {
+                                            let mut dict = Dictionary::new();
+                                            for (key, val) in obj {
+                                                dict.set(key, json_to_godot(&val));
+                                            }
+                                            Variant::from(dict)
+                                        }
+                                        _ => json_to_godot(&item),
+                                    })
+                                    .collect();
+                                Variant::from(godot_array)
+                            }
+                            _ => json_to_godot(&v),
+                        };
+                        (GString::from(k), variant)
                     })
                     .collect()
             } else {
