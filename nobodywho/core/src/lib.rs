@@ -2,7 +2,6 @@ pub mod chat;
 pub mod chat_state;
 pub mod embed;
 pub mod llm;
-// pub mod llmactor;
 pub mod sampler_config;
 
 pub fn send_llamacpp_logs_to_tracing() {

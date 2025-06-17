@@ -9,8 +9,8 @@ path = "src/lib.rs"
 
 [dependencies]
 nobodywho = { path = "../core" }
-godot = { git = "https://github.com/godot-rust/gdext.git", branch = "master", features = [ "register-docs", "experimental-threads" ] }
+godot = { git = "https://github.com/godot-rust/gdext.git", rev = "9f60c2e815477319e8f5b2d3f0fe2ee9e81391b0", features = [ "register-docs", "experimental-threads" ] }
 tokio = "1.44.0"
 tracing = "0.1.41"
 tracing-subscriber = "0.3.19"
-serde_json = "1.0.140"
+serde_json = { version = "1.0.140", features = [ "preserve_order" ] }
