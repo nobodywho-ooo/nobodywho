@@ -76,8 +76,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          path: 'c:\s' # much shorter path to deal with msbuild filetracker path length bs
 
       - name: "Cache Cargo Home"
         uses: actions/cache@v4
@@ -104,7 +102,7 @@ jobs:
 
       - name: Build with Cargo
         run: cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
-        working-directory: 'c:\s\nobodywho'
+        working-directory: nobodywho
         env:
           RUSTFLAGS: >-
             -l Advapi32
