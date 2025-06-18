@@ -43,9 +43,9 @@ dependencies = [
 
 [[package]]
 name = "autocfg"
-version = "1.4.0"
+version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ace50bade8e6234aa140d9a2f552bbee1db4d353f69b8217bc503490fc1a9f26"
+checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
 name = "backtrace"
@@ -543,9 +543,9 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "libc"
-version = "0.2.173"
+version = "0.2.174"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8cfeafaffdbc32176b64fb251369d52ea9f0a8fbc6f8759edffef7b525d64bb"
+checksum = "1171693293099992e19cddea4e8b849964e9846f4acee11b3948bcc337be8776"
 
 [[package]]
 name = "libloading"
@@ -575,7 +575,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-2"
 version = "0.1.109"
-source = "git+https://github.com/AsbjornOlling/llama-cpp-rs.git?branch=bump-llamacpp-b5686#fbf6887c9aeee5da2acadeb42e9ff0808538a324"
+source = "git+https://github.com/AsbjornOlling/llama-cpp-rs.git?branch=bump-llamacpp-b5686#a92e90b2875238036a547b1854aefaefa2f8f59f"
 dependencies = [
  "enumflags2",
  "llama-cpp-sys-2",
@@ -587,7 +587,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-sys-2"
 version = "0.1.109"
-source = "git+https://github.com/AsbjornOlling/llama-cpp-rs.git?branch=bump-llamacpp-b5686#fbf6887c9aeee5da2acadeb42e9ff0808538a324"
+source = "git+https://github.com/AsbjornOlling/llama-cpp-rs.git?branch=bump-llamacpp-b5686#a92e90b2875238036a547b1854aefaefa2f8f59f"
 dependencies = [
  "bindgen",
  "cc",
@@ -1091,9 +1091,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-attributes"
-version = "0.1.29"
+version = "0.1.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b1ffbcf9c6f6b99d386e7444eb608ba646ae452a36b39737deb9663b610f662"
+checksum = "81383ab64e72a7a8b8e13130c49e3dab29def6d0c7d76a03087b3cf71c5c6903"
 dependencies = [
  "proc-macro2",
  "quote",
