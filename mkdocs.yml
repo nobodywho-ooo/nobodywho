@@ -11,7 +11,7 @@ nav:
   - Model Selection: model_selection.md
   - Contributing:
       - Development Environment: contributing/dev_environment.md
-
+  - About: about.md
 
 # github link in the top right
 repo_url: https://github.com/nobodywho-ooo/nobodywho
