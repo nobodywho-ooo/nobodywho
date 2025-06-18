@@ -10,8 +10,8 @@ func run_test():
 	assert(await test_antiprompts())
 	assert(await test_antiprompts_multitokens())
 	assert(await test_chat_history())
-	assert(await test_stop_generation())
 	assert(await test_tool_call())
+	assert(await test_stop_generation())
 	return true
 
 func test_say():
