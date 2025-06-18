@@ -31,7 +31,7 @@ rec {
         "gdextension-api-0.2.2" = "sha256-gaxM73OzriSDm6tLRuMTOZxCLky9oS1nq6zTsm0g4tA=";
         "godot-0.2.4" = "sha256-5Kh1j3OpUetuE9qNK85tpZTj8m0Y30CX4okll4TZ9Xc=";
         "gbnf-0.2.1" = "sha256-oEP9/OJJWYLMGOPGxgoo5Y4Oh/WyusGZLhS2WF/Y/fU=";
-        "llama-cpp-2-0.1.109" = "sha256-gP4FlPAmptZFd/ARDZMezix1ivzXWCu5LnwEjbHpcAk=";
+        "llama-cpp-2-0.1.109" = "sha256-HdKxBa36mEBQskDhm485Hbii09F4L6TQ4QNFciy3JqE=";
       };
     };
     env.TEST_MODEL = fetchurl {
