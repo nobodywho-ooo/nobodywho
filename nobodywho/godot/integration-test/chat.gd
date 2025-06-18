@@ -10,6 +10,7 @@ func run_test():
 	assert(await test_antiprompts())
 	assert(await test_antiprompts_multitokens())
 	assert(await test_chat_history())
+	assert(await test_stop_generation())
 	assert(await test_tool_call())
 	return true
 
@@ -60,7 +61,7 @@ func test_antiprompts_multitokens():
 func test_chat_history():
 	# Reset to clean state
 	stop_words = PackedStringArray()
-	start_worker()
+	reset_context()
 	
 	# Set up a simple chat history
 	var messages = [
@@ -81,6 +82,7 @@ func test_chat_history():
 
 	say("What did I just ask you about?")
 	var resp = await response_finished
+	print("Got resp: " + resp)
 	assert("2 + 2" in resp)
 	return true
 	
@@ -99,4 +101,29 @@ func test_tool_call():
 	var response = await response_finished
 	print(response)
 	assert("12.34" in response)
+	return true
+
+
+func test_stop_generation():
+	print("✨ Testing stop generation")
+	system_prompt = "You're countbot. A robot that's very good at counting"
+	reset_context()
+
+	# XXX: this signal is never disconnected
+	self.response_updated.connect(func(token: String):
+		if "2" in token:
+			stop_generation()
+	)
+	say("count from 0 to 9")
+	
+	var response = await response_finished
+
+	print("✨ Got response: " + response)
+	assert("2" in response, "Should stop at 2")
+	assert(not "8" in response, "Should not continue past 2")
+
+	# clean up: disconnect signal handler
+	for dict in response_updated.get_connections():
+		response_updated.disconnect(dict.callable)
+
 	return true

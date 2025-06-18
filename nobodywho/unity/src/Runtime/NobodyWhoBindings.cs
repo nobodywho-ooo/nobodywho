@@ -16,7 +16,7 @@ namespace NobodyWho
 
         static NobodyWhoBindings()
         {
-            UnityEngine.Debug.Log("NobodyWho Library Version: 0.1.0");
+            UnityEngine.Debug.Log("NobodyWho Library Version: 1.1.0");
         }
 
 
@@ -68,6 +68,9 @@ namespace NobodyWho
 
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "chatwrapper_say")]
         public static extern ChatError chatwrapper_say(IntPtr context, string text, bool use_grammar, string grammar, string stop_words);
+
+        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "chatwrapper_stop")]
+        public static extern ChatError chatwrapper_stop(IntPtr context);
 
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "chatwrapper_poll_response")]
         public static extern PollResponseResult chatwrapper_poll_response(IntPtr context);
@@ -314,6 +317,15 @@ namespace NobodyWho
         public void Say(string text, bool use_grammar, string grammar, string stop_words)
         {
             var rval = NobodyWhoBindings.chatwrapper_say(_context, text, use_grammar, grammar, stop_words);
+            if (rval != ChatError.Ok)
+            {
+                throw new InteropException<ChatError>(rval);
+            }
+        }
+
+        public void Stop()
+        {
+            var rval = NobodyWhoBindings.chatwrapper_stop(_context);
             if (rval != ChatError.Ok)
             {
                 throw new InteropException<ChatError>(rval);

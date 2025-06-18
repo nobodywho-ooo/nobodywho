@@ -3,8 +3,8 @@ use crate::chat_state::ChatState;
 use crate::llm;
 use crate::llm::Worker;
 use crate::sampler_config::SamplerConfig;
-
 use llama_cpp_2::model::LlamaModel;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tracing::{debug, error, warn};
 
@@ -12,6 +12,7 @@ use tracing::{debug, error, warn};
 
 pub struct ChatHandle {
     msg_tx: std::sync::mpsc::Sender<ChatMsg>,
+    should_stop: Arc<AtomicBool>,
 }
 
 impl ChatHandle {
@@ -23,13 +24,25 @@ impl ChatHandle {
     ) -> Self {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
 
+        let should_stop = Arc::new(AtomicBool::new(false));
+        let should_stop_clone = Arc::clone(&should_stop);
         std::thread::spawn(move || {
-            if let Err(e) = run_worker(model, n_ctx, system_prompt, tools, msg_rx) {
+            if let Err(e) = run_worker(
+                model,
+                n_ctx,
+                system_prompt,
+                tools,
+                msg_rx,
+                should_stop_clone,
+            ) {
                 error!("Worker crashed: {}", e)
             }
         });
 
-        Self { msg_tx }
+        Self {
+            msg_tx,
+            should_stop,
+        }
     }
 
     pub fn say(
@@ -53,6 +66,11 @@ impl ChatHandle {
             system_prompt,
             tools,
         });
+    }
+
+    pub fn stop_generation(&self) {
+        self.should_stop
+            .store(true, std::sync::atomic::Ordering::Relaxed);
     }
 
     pub fn get_chat_history(&self) -> tokio::sync::mpsc::Receiver<Vec<crate::chat_state::Message>> {
@@ -112,8 +130,10 @@ fn run_worker(
     system_prompt: String,
     tools: Vec<Tool>,
     msg_rx: std::sync::mpsc::Receiver<ChatMsg>,
+    should_stop: Arc<AtomicBool>,
 ) -> Result<(), ChatWorkerError> {
-    let mut worker_state = Worker::new_chat_worker(&model, n_ctx, system_prompt, tools)?;
+    let mut worker_state =
+        Worker::new_chat_worker(&model, n_ctx, system_prompt, should_stop, tools)?;
     while let Ok(msg) = msg_rx.recv() {
         match msg {
             ChatMsg::Say {
@@ -293,11 +313,10 @@ fn grammar_from_tools(tools: &[Tool]) -> Result<gbnf::Grammar, gbnf::JsonSchemaP
 
 struct ChatWorker {
     chat_state: ChatState,
+    should_stop: Arc<AtomicBool>,
     tools: Vec<Tool>,
     tool_grammar: Option<gbnf::Grammar>,
 }
-
-impl llm::GenerationCapability for ChatWorker {}
 
 #[derive(Debug, thiserror::Error)]
 pub enum SayError {
@@ -314,11 +333,19 @@ pub enum SayError {
     ChatTemplateRenderError(#[from] minijinja::Error),
 }
 
+impl llm::GenerationCapability for ChatWorker {}
+impl llm::Stoppable for ChatWorker {
+    fn stop(&self) -> bool {
+        self.should_stop.load(std::sync::atomic::Ordering::Relaxed)
+    }
+}
+
 impl<'a> Worker<'_, ChatWorker> {
     fn new_chat_worker(
         model: &Arc<LlamaModel>,
         n_ctx: u32,
         system_prompt: String,
+        should_stop: Arc<AtomicBool>,
         tools: Vec<Tool>,
     ) -> Result<Worker<'_, ChatWorker>, llm::InitWorkerError> {
         // initialize chat state with system prompt
@@ -338,6 +365,7 @@ impl<'a> Worker<'_, ChatWorker> {
                 chat_state,
                 tools,
                 tool_grammar: grammar.ok(),
+                should_stop,
             },
         )?)
     }
@@ -352,6 +380,11 @@ impl<'a> Worker<'_, ChatWorker> {
     where
         F: Fn(llm::WriteOutput) + Clone,
     {
+        // reset the stop flag
+        self.extra
+            .should_stop
+            .store(false, std::sync::atomic::Ordering::Relaxed);
+
         // TODO: this is the token used by qwen3
         //       but e.g. deepseek uses "<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>" instead.
         //       we need to support multiple different tool call begin tokens
@@ -527,7 +560,13 @@ mod tests {
         // test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let sampler = SamplerConfig::default();
-        let mut worker = Worker::new_chat_worker(&model, 1024, "".into(), vec![])?;
+        let mut worker = Worker::new_chat_worker(
+            &model,
+            1024,
+            "".into(),
+            Arc::new(AtomicBool::new(false)),
+            vec![],
+        )?;
 
         let (sender, receiver) = std::sync::mpsc::channel();
         let f = move |x| match x {
@@ -568,7 +607,13 @@ mod tests {
         // test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let system_prompt = "You're a dog. End all responses with 'woof'";
-        let mut worker = Worker::new_chat_worker(&model, 1024, system_prompt.into(), vec![])?;
+        let mut worker = Worker::new_chat_worker(
+            &model,
+            1024,
+            system_prompt.into(),
+            Arc::new(AtomicBool::new(false)),
+            vec![],
+        )?;
         let sampler = SamplerConfig::default();
 
         // just a hack to get a channel back
@@ -605,6 +650,52 @@ mod tests {
         println!("{}", resp2);
         assert!(resp2.to_lowercase().contains("meow"));
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_stop_mid_write() -> Result<(), Box<dyn std::error::Error>> {
+        // test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let system_prompt = "You are a counter, only outputting numbers";
+        let mut worker = Worker::new_chat_worker(
+            &model,
+            1024,
+            system_prompt.into(),
+            Arc::new(AtomicBool::new(false)),
+            vec![],
+        )?;
+        let should_stop = worker.extra.should_stop.clone();
+
+        // ensure that the generationworker resets the flag when creating a new response.
+        should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
+
+        let sampler = SamplerConfig::default();
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let f = move |x| match x {
+            llm::WriteOutput::Token(resp) => {
+                if resp.contains("5") {
+                    should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
+                }
+            }
+            llm::WriteOutput::Done(resp) => {
+                sender.send(resp).unwrap();
+            }
+        };
+
+        worker.say(
+            "Count from 0 to 9".to_string(),
+            sampler.clone(),
+            vec![],
+            f.clone(),
+        )?;
+
+        let response = receiver.recv()?;
+        println!("{}", response);
+
+        assert!(response.contains("5"));
+        assert!(!response.contains("8"));
         Ok(())
     }
 
@@ -649,7 +740,7 @@ mod tests {
             json_schema: serde_json::json!({
                 "type": "object",
                 "properties": {
-                    "to-currency": { 
+                    "to-currency": {
                         "type": "string",
                         "description": "The currency to convert to in a three letter code. (eg. \"USD\")"
                     }
@@ -681,6 +772,7 @@ mod tests {
             &model,
             4096,
             "You're a helpful assistant.".into(),
+            Arc::new(AtomicBool::new(false)),
             vec![test_tool()],
         )
         .expect("Failed making worker");
@@ -717,6 +809,7 @@ mod tests {
             &model,
             1024,
             "".into(),
+            Arc::new(AtomicBool::new(false)),
             vec![test_tool(), dkk_exchange_rate()],
         )
         .expect("Failed making worker");
