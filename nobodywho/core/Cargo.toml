@@ -6,8 +6,8 @@ edition = "2021"
 [dependencies]
 encoding_rs = "0.8.34"
 thiserror = "2.0.3"
-minijinja = { version = "2.10.1", features = ["builtins", "json", "loader"] }
-minijinja-contrib = { version = "2.10.1", features = ["pycompat"] }
+minijinja = { git = "https://github.com/mitsuhiko/minijinja", ref = "fd8423b", features = ["builtins", "json", "loader"] }
+minijinja-contrib = { git = "https://github.com/mitsuhiko/minijinja", ref = "fd8423b", features = ["pycompat"] }
 serde = { version = "1.0.215", features = ["derive"] }
 chrono = "0.4.39"
 llama-cpp-sys-2 = { git = "https://github.com/utilityai/llama-cpp-rs.git", branch = "update-llama-cpp-2025-05-14" }
