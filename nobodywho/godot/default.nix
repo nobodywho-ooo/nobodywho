@@ -32,6 +32,7 @@ rec {
         "godot-0.2.4" = "sha256-5Kh1j3OpUetuE9qNK85tpZTj8m0Y30CX4okll4TZ9Xc=";
         "llama-cpp-2-0.1.107" = "sha256-/3XN15Mievzcoy4JwSXriDQBsy6cD2OnjP+BkpOJb60=";
         "gbnf-0.2.1" = "sha256-oEP9/OJJWYLMGOPGxgoo5Y4Oh/WyusGZLhS2WF/Y/fU=";
+        "minijinja-2.10.2" = "sha256-hh8fL10gDNeEfucWmtn0gxlioZ7ZP6cv7rLvjmmPS6A=";
       };
     };
     env.TEST_MODEL = fetchurl {
