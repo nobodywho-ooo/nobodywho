@@ -643,11 +643,11 @@ or with thinking models:
 - `Stormcall|Staff|Legendary|Lightning Bolt|Light|Non-throwable|Blunt|Unbreakable|Legendary|Pulsing|Crystal|The user wants me to generate a short story for the weapon. I will think...`
 
 --
-Ideally you generate the grammar on the fly from a 
-Ideally you generate the grammar on the fly from a -
+
+Ideally you generate the grammar on the fly from within you code. This allows for more options that are still valid within whatever game systems you decide on.
 
 This is quite a powerfull system for procedural generation of anything being weapons, levels, questlines or whatever you can think of, and even better 
-You get to influence the generation meaningfully with the prompt that you send while keeping the variaty offered by the system.
+You get to influence the generation meaningfully with the prompt that you send while keeping the variety offered by the system.
 
 This complete system generates weapons with all the attributes your game systems might need, from combat mechanics (damage type, weight) to visual effects (enchantment, material) and lore (story).
 
