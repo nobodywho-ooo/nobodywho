@@ -25,5 +25,5 @@ jobs:
     uses: ./.github/workflows/release.yml
 
   docs:
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/mkdocs'
+    if: github.ref == 'refs/heads/main'
     uses: ./.github/workflows/docs.yml
