@@ -21,8 +21,8 @@ Here are the key terms you should know:
 Yeah, most models will fail to generate valid json at some point if you just ask it to. 
 But fret not dear friend, the solution you are looking for is called :star: **STRUCTURED OUTPUT** :star:. 
 
-It is pretty much what it claims to be; A system that constrains the models vocabulary to one that you determine.
-This can be usefull for a miraid of things, from forcing the llm to never use modern words to using the llm
+It is pretty much what it claims to be; A system that constrains the model's vocabulary to one that you determine.
+This can be useful for a myraid of things, from forcing the LLM to never use modern words, to using the llm
 as the engine for your own procedural generation dungeon room.
 
 This section will take you through creating your own grammar that the model will have to use.
@@ -65,11 +65,8 @@ Valid :clap: every :clap: time :clap:.
 A GBNF grammar is made up of **rules**. Each rule says "this thing can be made from these parts":
 
 ```
-rule-name ::= what_it_can_be
+rule-name ::= what-it-can-be
 ```
-
-**NOTE** You can not use non-terminals in your grammar definition: 
-Terminals are actual characters ([code points](https://en.wikipedia.org/wiki/Code_point)). They can be specified as a sequence like "1" or "O-O" or as ranges like [1-9] or [NBKQR].
 
 ### Your First Grammar: Hello World
 
@@ -321,7 +318,7 @@ This generates: `Gandalf:high,low,low:Staff,Robes|Aragorn:low,high,medium:Sword,
 
 ### Semantic Soundness
 
-One advantage of using JSON is the hints it gives the llm. 
+One advantage of using JSON is the hints it gives the LLM. 
 If it sees `"name": "Gandalf"`, instead of just `Gandalf` it might be more inclined to generate a wizard class or give the character a staff.
 The same goes for numbers, the llm does not inherently understand what a good number for a high level or mana pool is - but it understadns high vs low.
 
@@ -339,9 +336,9 @@ When designing compact formats:
 The LLM generates text based on semantic understanding. Use full words that align perfectly with how language models think about concepts.  
 You should additionalyy provide the right context and single or few shots prompting to make it more robust.
 
-### OBS:
+### Underscores footgun
 
-The GBNF format does not support `_` and
+The GBNF format does not support `_`. According the [the GBNF format documentation](https://github.com/ggml-org/llama.cpp/tree/master/grammars#json-schemas--gbnf), only lowercase characters and dashes are allowed for naming nonterminals.
 
 ## Practical Example: Legendary Weapon Generator
 
@@ -352,7 +349,7 @@ Let's build a weapon generation system that creates legendary weapons for your R
 Traditional random generators often create nonsensical combinations like "Flaming Sword of Ice", with 8 fire damage and a random generic backstory as well an ice ability. 
 (obviusly there are more advanced system but they rely on lookup tables which can become tedious very quickly)   
 LLMs with GBNF understand semantic coherence - they'll generate "Flamebrand, Ancient Sword of Solar Wrath" instead. 
-Which has 8 fire damage, a meaning full backstory based on how you got it 
+Which has 8 fire damage, and a meaningful backstory based on how you got it 
 or the lore from your game as well as an ability that is chosen based on the backstory, damage and name.
 
 ### Step 1: Dynamic Weapon Name Generator
@@ -631,25 +628,20 @@ material ::= "Steel" | "Mithril" | "Obsidian" | "Crystal"
 backstory ::= [a-zA-Z0-9 ]{50,200} "."
 ```
 
-**Note** When given the oppertunity, thinking model will think (i know - what a suprise) so allowing free text as in this examples will mkae the model try to use that space to add its thinking sometimes. Thus nonthinking models might be better for your generation needs.  
+**Note:** So-called "thinking" or "reasoning" models will strongly prefer to start every generation with a block of text inside `<think>` tags. If your grammar doesn't naturally allow the output to be prefixed with a "thinking" section like this, it will try to squeeze it into free-text sections (e.g. like the backstory section in the example above). If relying a lot on structured generation, you may prefer to use a "non-thinking" model. If you prefer to keep the "thinking" ability, you could begin your grammar with a section like `"<think>" [a-zA-Z0-9 ]{10,1000} "." "</think>` to allow it to get it's reasoning section out of the way.
 Furthermore the current implementation of GBNF has some performance issues with using specifc ranges (eg: word{10,20}) - so it might be smarter to have a non grammarized model generate the short story.
 
 **Output examples:**
 - `Flamebrand|Sword|High|Flame Strike|Heavy|Non-throwable|Sharp|Sturdy|Epic|Glowing|Steel|Forged by fire elementals in ancient volcano`
 
-or with thinking models:
+or with thinking models (demonstrating that it will squeeze in the "thinking" section wherever possible:
 
 - `Shadowfang|Axe|Legendary|Shadow Step|Light|Throwable|Sharp|Sturdy|Epic|Silent|Steel|The Shadowfang is a legendary axe that is said to have been forged in the depths of the Shadowspire Mountains by the elusive Night Hunter.`
 - `Stormcall|Staff|Legendary|Lightning Bolt|Light|Non-throwable|Blunt|Unbreakable|Legendary|Pulsing|Crystal|The user wants me to generate a short story for the weapon. I will think...`
 
 --
 
-Ideally you generate the grammar on the fly from within you code. This allows for more options that are still valid within whatever game systems you decide on.
-
-This is quite a powerfull system for procedural generation of anything being weapons, levels, questlines or whatever you can think of, and even better 
-You get to influence the generation meaningfully with the prompt that you send while keeping the variety offered by the system.
+This is quite a powerful system for procedural generation of anything being weapons, levels, questlines or whatever you can think of, and even better 
+You get to influence the generation meaningfully with the prompt that you send, while keeping the variety offered by the system.
 
 This complete system generates weapons with all the attributes your game systems might need, from combat mechanics (damage type, weight) to visual effects (enchantment, material) and lore (story).
-
-
-

@@ -16,7 +16,7 @@ Here are the key terms you'll see throughout this guide:
 | Term | Meaning |
 | ---- | ------- |
 | **Model (GGUF)** | A `*.gguf` file that holds the weights of a large‑language model. |
-| **System prompt** | Text that sets the ground rules the model follows before any user messages. |
+| **System prompt** | Text that sets the ground rules for the model. |
 | **Token** | The smallest chunk of text the model emits (roughly a word). |
 | **Chat** | The node/component that owns the context, sends user input to the worker, and keeps conversation state in sync with the LLM. |
 | **Context** | The message history and metadata passed to the model each turn; it lives inside the Chat. |
@@ -67,15 +67,17 @@ The next step is adding a Chat to our scene.
 
     func _ready():
         # configure the node (feel free to do this in the UI)
-        self.system_prompt = "You are an evil wizard. Always try to curse anyone who talks to you."
+        self.system_prompt = "You are an evil wizard."
         self.model_node = get_node("../ChatModel")
 
         # connect signals to signal handlers
         self.response_updated.connect(_on_response_updated)
         self.response_finished.connect(_on_response_finished)
 
-        # Start the worker, this is not required, but recommended to do in the beggining of the program to make sure it is ready
-        # when the user prompts the chat the first time. this will be called under the hood when you use `say()` as well.
+        # Start the worker, this is not required, but recommended to do in
+        # the beginning of the program to make sure it is ready
+        # when the user prompts the chat the first time. This will be called
+        # under the hood when you use `say()` as well.
         self.start_worker()
 
         self.say("How are you?")
@@ -117,13 +119,16 @@ The next step is adding a Chat to our scene.
         {
             chat = GetComponent<Chat>();
 
-            // start the worker, this is not required, but recommended to do in the beggining of the program to make sure it is ready
-            // when the user prompts the chat the first time. this will be called under the hood when you use `say()` as well.
+            // start the worker, this is not required, but recommended to do in
+            // the beggining of the program to make sure it is ready when the user
+            // prompts the chat the first time. this will be called under the hood
+            // when you use `say()` as well.
             chat.StartWorker();
 
-            // add a listener to the responseFinished event, this will be called when the model has completed its answer.
+            // add a listener to the responseFinished event, this will be called when
+            // the model has completed its answer.
             chat.responseFinished.AddListener(OnResponseFinished);
-            // this will update everytime that a new token (a word or half a word normally) is generated
+            // this will update everytime that a new token is generated
             chat.responseUpdated.AddListener(OnResponseUpdated);
 
             // send a message to the model

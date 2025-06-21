@@ -30,7 +30,7 @@ We normally use [bge-small-en-v1.5-q8_0.gguf](https://huggingface.co/CompendiumL
 
 ## Practical Example: Quest & Reputation System
 
-A good way to visualize the practicality of embeddings is though an example. 
+A good way to visualize the practicality of embeddings is through an example. 
 In this example we will guide you through how to make a quest trigger or lowering the users reputation based on what they say.
 
 We'll build it step by step, but for the impatient; The complete script is copyable in the bottom of the page.
@@ -40,7 +40,7 @@ We'll build it step by step, but for the impatient; The complete script is copya
 The first step is to setup our components. We will add some statements for quests and some for hostile behavior - these are not exhaustive lists. 
 
 **Do note** that it will take a longer time to embed a lot of sentences (depending on model and hardware of course), so depending on how complex your statements need to be, 
-you might be better of having a handfull and tuning the sensitivity of the trigger instead.
+you might be better off having a handful and tuning the sensitivity of the trigger instead.
 
 === ":simple-godotengine: Godot"
 
