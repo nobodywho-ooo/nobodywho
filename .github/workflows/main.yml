@@ -3,6 +3,8 @@ on:
   push:
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 jobs:
   build:
@@ -21,3 +23,7 @@ jobs:
   release:
     needs: [build] # [build, test]
     uses: ./.github/workflows/release.yml
+
+  docs:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/docs.yml
