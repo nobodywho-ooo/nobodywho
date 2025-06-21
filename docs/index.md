@@ -2,14 +2,14 @@
 
 # Run Large Language Models locally
 
-**Nobodywho** is an open-source framework that lets you deploy and run your models without having the headaches of server infrastructure, compliance hell, cloud fees
-and scaling - Allowing you to focus on the problem you are actually trying to solve. 
+**NobodyWho** is an open-source framework that lets you deploy and run your models without having the headaches of server infrastructure, compliance hell, cloud fees
+and scaling - allowing you to focus on the problem you are actually trying to solve. 
 
 It has a simple but powerful interface that makes it possible to run and deploy LLMs, all powered by llama.cpp. 
-Because every token is generated on the end user’s machine, you do not need a ML-OPS team, while still getting lightning fast GPU-accelerated throughput via Vulkan or Metal back-ends.
+Because every token is generated on the end user’s machine, you do not need a ML-Ops team, while still getting lightning fast GPU-accelerated throughput via Vulkan or Metal back-ends.
 
 Check the installation guide: [**> here <**](install.md)
- Check the installation guide: [**> here <**](install.md)
+
  ... or get a feel for the interface:  [**> here <**](getting_started.md)
 
 

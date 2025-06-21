@@ -23,8 +23,8 @@ Before we get started, you'll hear these words being used:
 | Term | Meaning |
 | ---- | ------- |
 | **Sampler** | The thing that controls how the LLM selects the next token during generation (temperature, top-p, etc.). |
-| **Grammar or Strucutred Output** | A formal structure that constrains the LLM's output to a set `"vocabulary"`. |
-| **GBNF** | GGML Backus-Naur Form - a way to define structured output formats like JSON schemas. |
+| **Grammar or Structured Output** | A formal structure that constrains the LLM's output to a set `"vocabulary"`. |
+| **GBNF** | GGML Backus-Naur Form - a way to define structured output formats. |
 
 ## Handling LLM Responses
 
@@ -51,7 +51,7 @@ Respond only with the translated text."""
 **Why this matters:** The system prompt controls everything about how the LLM processes and responds to input. It's your primary tool for getting the behavior you want.
 
 
-Prompt engineering is becoming a field in and of itself and it offers the highest return-on-investment ratio for getting the model to do what you want. So get familiar with several techniques like chain of thought, few-shot vs multishot prompting, three geniouses etc..
+Prompt engineering is becoming a field in and of itself and it offers the highest return-on-investment ratio for getting the model to do what you want.
 
 
 ### GPU Usage: Speed Things Up
@@ -72,11 +72,8 @@ By default, NobodyWho tries to use your GPU if you have one. This makes everythi
 
 **When to turn this off:** there are some scernarios where it might actually be better to use system ram: 
 
-- If you use as model that is not required to provide an immediate asnwer it might be advantageous.  
-- If you need a really large model that most of you end users will not have the hardware to support running on the GPU.   
-- If you have a small model and dont want to give more strain it might be fast enough to run on the CPU 
-instead of the GPU - allowing you to have more vram available for graphics.
-
+- If you don't need an immediate answer, and would prefer to use GPU resources for graphics.
+- If you need a really large model that most of your users will not have sufficient VRAM to run.
 
 ### Context Length: How Much the LLM Remembers
 
@@ -103,7 +100,7 @@ The LLM maintains context (memory of the conversation/interaction), but only up 
 
 **Trade-off:** Longer context = more memory usage. The general rule of thumb is to start with the default or less and only increase if you need the LLM to remember more.
 
-**Context-switching:** NobodyWho takes care of doing the context switching for you, however the current implementation also deletes your system prompt, leading to the model 'forgetting' their instructions after enough time. We are planning to make a more aware context switching, but until then - keep this in mind when choosing your context length.
+**Context-switching:** NobodyWho will automatically remove older messages from the context for you, if your chat's context window is filled. Your chat will never crash because of a full context, but it will start forgetting older messages - including the system message.
 
 ### Streaming Responses vs Waiting for Complete Output
 
@@ -111,7 +108,12 @@ You have two main approaches for handling LLM responses, and choosing the right 
 
 **Streaming** gives you each token as it's generated - good for user interfaces where you want immediate feedback.
 
-**Waiting for complete responses** blocks until the full output is ready - better for when you need the entire response before making decisions.
+**Waiting for complete responses** blocks until the full output is ready - good for when you need the entire response before doing something.
+
+If you're implemeting an interactive chat, you likely want to do both:
+
+- Show each token to the user as they arrive. This will make the chat feel a lot faster.
+- Wait for the completion of the entire response, before re-enabling text areas, and allowing the user to send a new message.
 
 === ":simple-godotengine: Godot"
     ```gdscript
@@ -208,7 +210,7 @@ Some LLMs can be very verbose and you might want the LLM to limit its verbosity 
 
 === ":simple-godotengine: Godot"
     ```gdscript
-    chat.system_prompt = "You are always answering in new questions"
+    chat.system_prompt = "Always answer with a question, no matter what."
     chat.stop_words = PackedStringArray(["?"])
     chat.say("I think we should plan something special for Sarah's birthday. any ideas?")
     
@@ -218,7 +220,7 @@ Some LLMs can be very verbose and you might want the LLM to limit its verbosity 
 
 === ":simple-unity: Unity"
     ```csharp
-    chat.systemPrompt = "You are always answering in new questions";
+    chat.systemPrompt = "Always answer with a question, no matter what.";
     chat.stopWords = "?";
     chat.Say("I think we should plan something special for Sarah's birthday. any ideas?");
     
@@ -226,7 +228,7 @@ Some LLMs can be very verbose and you might want the LLM to limit its verbosity 
     // llm: "What do you think about a surprise party?" (stops here)
     ```
 
-This is useful when you want to prevent the LLM from continuing beyond its intended response length.
+This is useful when you want to prevent the LLM from running on. You can end generation prematurely, conditioned on specific words.
 
 ### Enforce Structured Output (JSON)
 
@@ -369,7 +371,9 @@ An application might need to use an LLM for several different tasks. Instead of 
 
 **Memory savings:** Instead of loading multiple models, you load one and share it. Much more efficient!  
 However you still pay for the context and it means that you can not have two chats generating an answer at the same time.
-it What's Next?
+
+
+### What's Next?
 
 Now you've got solid control over LLM behavior! From here you might want to explore:
 - **[Embeddings](../embeddings.md)** for understanding meaning beyond just text generation
