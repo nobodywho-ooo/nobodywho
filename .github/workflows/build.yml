@@ -107,6 +107,8 @@ jobs:
           RUSTFLAGS: >-
             -l Advapi32
 
+      ###
+
       - name: "Rename built files"
         run: |
           cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.dll ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dll
