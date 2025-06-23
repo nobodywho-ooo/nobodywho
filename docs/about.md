@@ -2,7 +2,7 @@
 
 ## Who We Are
 
-**ARTificial Mind** is a Copenhagen-based art-tech studio founded by Cecilie Waagner Falkenstrøm. Over eight years, we've built and deployed LLM-powered systems ranging from real-time interactive installations with embedded system to long-running production grade applications.
+**ARTificial Mind** is a Copenhagen-based art-tech studio founded by Cecilie Waagner Falkenstrøm. Over eight years, we've built and deployed LLM-powered systems ranging from real-time interactive installations with embedded systems to long-running production grade applications.
 
 Through dozens of projects involving natural language processing, computer vision, and generative AI, we consistently hit the same roadblock: working with large language models meant choosing between complex, fragmented local tools or cloud services that harvest your data and lock you into proprietary ecosystems.
 
@@ -21,4 +21,4 @@ We want every developer to have access to powerful AI without the usual trade-of
 
 We're building tools that put developers first and grow stronger through community contribution, so if you want to help; Hop by our Discord or drop a PR on our Github - we would love to have you involved.
 
-We are always open to talented people - so if you have experience in rust and the LLM-space feel free to contact us on services@artificalmind.ai.
+We are always open to talented people - so if you have experience in rust and the LLM-space feel free to contact us on services@artificialmind.ai.
