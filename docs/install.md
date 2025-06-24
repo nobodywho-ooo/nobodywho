@@ -43,10 +43,10 @@ Each section contains a small ':material-eye-circle-outline:' marker you can cli
 
 === ":simple-unity: Unity"
 
-    - Download the `.unitypackage` from the [GitHub releases](https://github.com/nobodywho-ooo/nobodywho/releases).
-    - In Unity, choose **Assets ▸ Import Package ▸ Custom Package** and select the file.
+    - Download the tarball (`nobodywho-unity-upm.tar.gz`) for unity from the [GitHub releases](https://github.com/nobodywho-ooo/nobodywho/releases).
+    - In Unity, open the **Package Manager** and select the downloaded tarball.
     - Step through the import dialog to bring everything in.
-    - To explore the samples, open **Package Manager**, select **NobodyWho**, then **Samples ▸ Install**. 
+    - To explore the samples, open y, select **NobodyWho**, then **Samples ▸ Install**. 
 
     (1)
     { .annotate }

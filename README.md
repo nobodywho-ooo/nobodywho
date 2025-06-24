@@ -42,8 +42,7 @@ Make sure that the ignore asset root option is set in the import dialogue.
 ### Unity
 
 You can install it from [github releases page.](https://github.com/nobodywho-ooo/nobodywho/releases) while we are still pending acceptance on the unity assets store.
-When you download the unity package file, make sure to follow https://docs.unity3d.com/Manual/AssetPackagesImport.html to import the asset. 
-Basically `Assets > Import Package > Custom Package`
+When you have downloaded the tarball use the Package manager (Windov -> Package Manager) and add a new package from a tarball.
 
 To see and play around with the samples you might need to right click the plugin and then: `> View in Package Manager > Click on NobodyWho > Samples > Install`. This should set up all the dependencies correctly.
 From there you can also check the documentaiton.
