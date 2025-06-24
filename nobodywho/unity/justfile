@@ -73,10 +73,10 @@ _ensure-temp-project: _ensure-license
         echo "📝 Configuring $MANIFEST_JSON_PATH for package mode..."
         jq \
           '
-            .dependencies["com.nobodywho.core"] = "file:../../src" |
+            .dependencies["com.nobodywho.unity"] = "file:../../src" |
             .dependencies["com.unity.test-framework"] = "1.4.5" |
             .dependencies["com.unity.testtools.codecoverage"] = "1.1.1" |
-            .testables = ["com.nobodywho.core"]
+            .testables = ["com.nobodywho.unity"]
           ' \
           "$MANIFEST_JSON_PATH" > "$MANIFEST_JSON_PATH.tmp"
         
@@ -86,7 +86,7 @@ _ensure-temp-project: _ensure-license
             exit 1
         fi
         mv "$MANIFEST_JSON_PATH.tmp" "$MANIFEST_JSON_PATH"
-        echo "✅ manifest.json configured for package 'com.nobodywho.core'."
+        echo "✅ manifest.json configured for package 'com.nobodywho.unity'."
     else
         echo "☑️ Temporary project '{{TEMP_PROJECT}}' already exists. manifest.json assumed to be configured."
     fi

@@ -69,28 +69,28 @@ jobs:
           mv ./artifacts/nobodywho-unity-x86_64-pc-windows-msvc-release/nobodywho-unity-x86_64-pc-windows-msvc-release.pdb ./nobodywho/unity/src/Runtime/Plugins/x86_64-pc-windows-msvc/nobodywho_unity.pdb 
 
           # This is required for the package to be added to the package manager (Packages is just an accepted unity-project path )
-          mkdir -p dist/com.nobodywho.unity
-          mv ./nobodywho/unity/src/* dist/com.nobodywho.unity
+          mkdir -p dist/package
+          mv ./nobodywho/unity/src/* dist/package
           # remove tests from package
-          rm -rf dist/com.nobodywho.unity/Tests
+          rm -rf dist/package/Tests
 
 
       - name: Test .meta-files # this just ensures that there are actually .meta files for all of our relevant files. 
         uses: natsuneko-laboratory/create-unitypackage@v3
         with:
           root: dist/
-          files-glob: "dist/com.nobodywho.unity/**/*.{cs,meta,unity,md,md.meta,dll,dylib,pdb,so,asmdef}"
+          files-glob: "dist/package/**/*.{cs,meta,unity,md,md.meta,dll,dylib,pdb,so,asmdef}"
           dest: ./nobodywho.unitypackage
 
       - name: Create Unity Package
         working-directory: ./dist
-        run: tar -czf "../nobodywho-unity-upm.tar.gz" "com.nobodywho.unity"
+        run: tar -czf "../nobodywho-unity-upm.tgz"  "package" .
 
       - name: Upload Unity UPM Tarball Artifact
         uses: actions/upload-artifact@v4
         with:
           name: nobodywho-unity-upm-tarball
-          path: ./nobodywho-unity-upm.tar.gz
+          path: ./nobodywho-unity-upm.tgz
 
   create-github-release-godot:
     needs: [godot-distributable]
@@ -128,7 +128,7 @@ jobs:
       - name: "Create GitHub Release"
         uses: softprops/action-gh-release@v1
         with:
-          files: ./nobodywho-unity-release/nobodywho-unity-upm.tar.gz
+          files: ./nobodywho-unity-release/nobodywho-unity-upm.tgz
           draft: true
 
         env:
