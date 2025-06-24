@@ -16,6 +16,20 @@ namespace NobodyWho
         // only used for GUI
         public bool _useGpuIfAvailable = true;
 
+        private void Awake()
+        {
+            #if !UNITY_EDITOR
+            // In builds, dispose the editor-initialized wrapper and load model from StreamingAssets
+            if (wrapper != null)
+            {
+                wrapper.Dispose();
+            }
+            string fileName = Path.GetFileName(_modelPath);
+            string runtimePath = Path.Combine(Application.streamingAssetsPath, fileName);
+            wrapper = ModelWrapper.New(runtimePath, _useGpuIfAvailable);
+            #endif
+        }
+
         // to allow the property pattern (properties can't be serialized and unity uses serieliaed field for the inspector GUI) dwe hook into the validate and sets the values there. 
         private void OnValidate()
         {
