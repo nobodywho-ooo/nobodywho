@@ -79,7 +79,7 @@ jobs:
         uses: natsuneko-laboratory/create-unitypackage@v3
         with:
           root: dist/
-          files-glob: "dist/package/**/*.{cs,meta,unity,md,md.meta,dll,dylib,pdb,so,asmdef}"
+          files-glob: "dist/package/**/*.{cs,meta,unity,rtf,rtf.meta,dll,dylib,pdb,so,asmdef}"
           dest: ./nobodywho.unitypackage
 
       - name: Create Unity Package
