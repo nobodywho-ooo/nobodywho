@@ -20,6 +20,12 @@ jobs:
         integration:
           - "godot"
           - "unity"
+        cpu_compatibility:
+          - "default"
+          - "no-avx2"
+    env:
+      RUSTFLAGS: >-
+        ${{ matrix.cpu_compatibility == 'no-avx2' && '-C target-cpu=x86-64' || '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -29,9 +35,9 @@ jobs:
           path: |
             ~/.cargo
             nobodywho/target
-          key: ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}-${{ matrix.cpu_compatibility }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}-
+            ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}-${{ matrix.cpu_compatibility }}-
       - name: "Setup rust toolchain"
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
@@ -49,13 +55,13 @@ jobs:
 
       - name: "Rename built file"
         run: |
-          cp ./nobodywho/target/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.so ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
+          cp ./nobodywho/target/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.so ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}${{ matrix.cpu_compatibility == 'no-avx2' && '-no-avx2' || '' }}.so
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v4
         with:
-          name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
-          path: ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
+          name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}${{ matrix.cpu_compatibility == 'no-avx2' && '-no-avx2' || '' }}
+          path: ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}${{ matrix.cpu_compatibility == 'no-avx2' && '-no-avx2' || '' }}.so
 
   cargo-build-windows:
     runs-on: windows-latest
@@ -70,9 +76,13 @@ jobs:
         integration:
           - "godot"
           - "unity"
+        cpu_compatibility:
+          - "default"
+          - "no-avx2"
     env:
       RUSTFLAGS: >-
         -l Advapi32
+        ${{ matrix.cpu_compatibility == 'no-avx2' && '-C target-cpu=x86-64' || '' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -109,16 +119,16 @@ jobs:
 
       - name: "Rename built files"
         run: |
-          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.dll ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dll
-          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.pdb ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
+          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.dll ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}${{ matrix.cpu_compatibility == 'no-avx2' && '-no-avx2' || '' }}.dll
+          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.pdb ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}${{ matrix.cpu_compatibility == 'no-avx2' && '-no-avx2' || '' }}.pdb
 
       - name: "Upload build artifacts"
         uses: actions/upload-artifact@v4
         with:
           name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
           path: |
-            ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dll
-            ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
+            ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}${{ matrix.cpu_compatibility == 'no-avx2' && '-no-avx2' || '' }}.dll
+            ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}${{ matrix.cpu_compatibility == 'no-avx2' && '-no-avx2' || '' }}.pdb
 
   cargo-build-macos:
     runs-on: macos-15
@@ -134,6 +144,15 @@ jobs:
         integration:
           - "godot"
           - "unity"
+        cpu_compatibility:
+          - "default"
+          - "no-avx2"
+        exclude:
+          - target: "aarch64-apple-darwin"
+            cpu_compatibility: "no-avx2"
+    env:
+      RUSTFLAGS: >-
+        ${{ matrix.cpu_compatibility == 'no-avx2' && '-C target-cpu=x86-64' || '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -156,11 +175,11 @@ jobs:
         working-directory: ./nobodywho
 
       - name: "Rename built file"
-        run: cp ./nobodywho/target/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
+        run: cp ./nobodywho/target/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}${{ matrix.cpu_compatibility == 'no-avx2' && '-no-avx2' || '' }}.dylib
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v4
         with:
-          name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
-          path: ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
+          name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}${{ matrix.cpu_compatibility == 'no-avx2' && '-no-avx2' || '' }}
+          path: ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}${{ matrix.cpu_compatibility == 'no-avx2' && '-no-avx2' || '' }}.dylib
 
