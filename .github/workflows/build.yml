@@ -113,9 +113,6 @@ jobs:
       - name: Build with Cargo
         run: cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: nobodywho
-        env:
-          RUSTFLAGS: >-
-            -l Advapi32
 
       - name: "Rename built files"
         run: |
@@ -125,7 +122,7 @@ jobs:
       - name: "Upload build artifacts"
         uses: actions/upload-artifact@v4
         with:
-          name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
+          name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}${{ matrix.cpu_compatibility == 'no-avx2' && '-no-avx2' || '' }}
           path: |
             ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}${{ matrix.cpu_compatibility == 'no-avx2' && '-no-avx2' || '' }}.dll
             ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}${{ matrix.cpu_compatibility == 'no-avx2' && '-no-avx2' || '' }}.pdb
