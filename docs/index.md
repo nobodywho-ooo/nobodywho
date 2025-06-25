@@ -91,6 +91,17 @@ Mobile exports seem very feasible. See issues [#114](https://github.com/nobodywh
 Web exports will be a bit trickier to get right. See issue [#111](https://github.com/nobodywho-ooo/nobodywho/issues/111).
 </details>
 
+
+<details markdown>
+<summary>I am using non-AVX2 instruciton set, is there support for this? </summary>
+Somewhat - we are workign on a more stable solution but we do expose binaries for older SIMD instruciton sets. you will manaully have to patch them though. 
+
+The DLL should of course be named nobodywho.dll (as it is in the `Plugin > runtime > plugins > x86_64-pc-windows-msvc > nobodywho.dll` for unity and in the addons folder for godot)
+
+</details>
+
+
+
 <details markdown>
 <summary>Licensing</summary>
 
