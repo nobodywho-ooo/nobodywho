@@ -92,6 +92,27 @@ jobs:
           name: nobodywho-unity-upm-tarball
           path: ./nobodywho-unity-upm.tgz
 
+  collect-legacy-cpu-binaries:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: "Download no-avx2 build artifacts"
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: "Collect legacy Unity binaries"
+        run: |
+          mkdir -p legacy-unity-binaries
+          
+          # Copy no-avx2 Unity binaries only
+          find ./artifacts -name "*unity*no-avx2*" -type f -exec cp {} legacy-unity-binaries/ \;
+
+      - name: "Upload legacy Unity binaries"
+        uses: actions/upload-artifact@v4
+        with:
+          name: nobodywho-unity-legacy-binaries
+          path: ./legacy-unity-binaries
+
   create-github-release-godot:
     needs: [godot-distributable]
     if: startsWith(github.ref, 'refs/tags/nobodywho-godot-')
@@ -115,7 +136,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   create-github-release-unity:
-    needs: [unity-distributable]
+    needs: [unity-distributable, collect-legacy-cpu-binaries]
     if: startsWith(github.ref, 'refs/tags/nobodywho-unity-')
     runs-on: ubuntu-24.04
     steps:
@@ -125,10 +146,15 @@ jobs:
           name: nobodywho-unity-upm-tarball
           path: ./nobodywho-unity-release
 
+      - name: "Download Legacy Unity Binaries"
+        uses: actions/download-artifact@v4
+        with:
+          name: nobodywho-unity-legacy-binaries
+          path: ./nobodywho-unity-release
+
       - name: "Create GitHub Release"
         uses: softprops/action-gh-release@v1
         with:
-          files: ./nobodywho-unity-release/nobodywho-unity-upm.tgz
-
+          files: ./nobodywho-unity-release/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
