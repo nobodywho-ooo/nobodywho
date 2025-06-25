@@ -69,24 +69,28 @@ jobs:
           mv ./artifacts/nobodywho-unity-x86_64-pc-windows-msvc-release/nobodywho-unity-x86_64-pc-windows-msvc-release.pdb ./nobodywho/unity/src/Runtime/Plugins/x86_64-pc-windows-msvc/nobodywho_unity.pdb 
 
           # This is required for the package to be added to the package manager (Packages is just an accepted unity-project path )
-          mkdir -p dist/Assets/NobodyWho
-          mv ./nobodywho/unity/src/* dist/Assets/NobodyWho/
+          mkdir -p dist/package
+          mv ./nobodywho/unity/src/* dist/package
           # remove tests from package
-          rm -rf dist/Assets/NobodyWho/Tests
+          rm -rf dist/package/Tests
 
-      - name: Create Unity Package
+
+      - name: Test .meta-files # this just ensures that there are actually .meta files for all of our relevant files. 
         uses: natsuneko-laboratory/create-unitypackage@v3
         with:
           root: dist/
-          files-glob: "dist/Assets/**/*.{cs,meta,unity,md, md.meta,dll,dylib,pdb,so,asmdef}"
+          files-glob: "dist/package/**/*.{cs,meta,unity,rtf,rtf.meta,dll,dylib,pdb,so,asmdef}"
           dest: ./nobodywho.unitypackage
 
-      - name: Upload Unity Package Artifact
+      - name: Create Unity Package
+        working-directory: ./dist
+        run: tar -czf "../nobodywho-unity-upm.tgz"  "package"
+
+      - name: Upload Unity UPM Tarball Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: nobodywho-unity-package-${{ github.ref_name }}
-          path: ./nobodywho.unitypackage
-      
+          name: nobodywho-unity-upm-tarball
+          path: ./nobodywho-unity-upm.tgz
 
   create-github-release-godot:
     needs: [godot-distributable]
@@ -104,7 +108,7 @@ jobs:
         run: zip -r "../nobodywho-godot-${{ github.ref_name }}.zip" ./**
 
       - name: "Create GitHub Release"
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v4
         with:
           files: "./nobodywho-godot-${{ github.ref_name }}.zip"
         env:
@@ -115,16 +119,16 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/nobodywho-unity-')
     runs-on: ubuntu-24.04
     steps:
-      - name: "Download build artifacts"
+      - name: "Download Unity Package"
         uses: actions/download-artifact@v4
         with:
-          name: nobodywho-unity-package-${{ github.ref_name }}
+          name: nobodywho-unity-upm-tarball
           path: ./nobodywho-unity-release
 
       - name: "Create GitHub Release"
         uses: softprops/action-gh-release@v1
         with:
-          files: "./nobodywho-unity-release/nobodywho.unitypackage"
+          files: ./nobodywho-unity-release/nobodywho-unity-upm.tgz
 
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
