@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using UnityEngine;
 using UnityEngine.Events;
+using System.Linq;
 
 namespace NobodyWho
 {
@@ -29,6 +30,9 @@ namespace NobodyWho
         public UnityEvent<string> responseUpdated = new UnityEvent<string>();
         public UnityEvent<string> responseFinished = new UnityEvent<string>();
 
+
+        // Prevent garbage collection of tools
+        private List<Delegate> _activeDelegates = new List<Delegate>();
         public void StartWorker()
         {
             wrapper.StartWorker(model.modelWrapperContext, contextLength, systemPrompt);
@@ -37,6 +41,22 @@ namespace NobodyWho
         public void Say(string text)
         {
             wrapper.Say(text, useGrammar, grammar, stopWords);
+        }
+
+        public void AddTool(Delegate method, string description)
+        {
+            var info = method.Method;
+            var parameters = info.GetParameters();
+
+            string[] paramNames = parameters.Select(p => p.Name).ToArray();
+            string[] paramTypes = parameters.Select(p => p.ParameterType.Name).ToArray();
+
+            IntPtr toolcall = Marshal.GetFunctionPointerForDelegate(method);
+
+            _activeDelegates.Add(method);
+
+            Debug.Log($"Adding tool: {description}, {string.Join(", ", paramNames)}, {string.Join(", ", paramTypes)}");
+            // wrapper.AddTool(toolcall, description, paramNames, paramTypes);
         }
 
         public void ResetContext()
