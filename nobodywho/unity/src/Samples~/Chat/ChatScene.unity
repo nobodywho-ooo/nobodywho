@@ -199,7 +199,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a2985ec9b161fdb8db8d85514a16d5db, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _modelPath: /home/norsker/Documents/nobodywho/nobodywho/unity/temp-project/Assets/StreamingAssets/qwen2.5-1.5b-instruct-q4_0.gguf
+  _modelPath: /home/norsker/Documents/nobodywho/nobodywho/unity/temp-project/Assets/StreamingAssets/Qwen3-0.6B-UD-Q6_K_XL.gguf
   _useGpuIfAvailable: 1
 --- !u!4 &706281344
 Transform:
