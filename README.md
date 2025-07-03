@@ -10,6 +10,8 @@
 
 NobodyWho is a plugin that lets you interact with local LLMs, we currently support Godot and Unity, with even more plugins on their way.
 
+[![Read the Docs](https://img.shields.io/badge/Read%20the%20Docs-8CA1AF?logo=readthedocs&logoColor=fff)](https://nobodywho-ooo.github.io/nobodywho/)
+
 
 ## At a Glance
 
