@@ -103,6 +103,7 @@ namespace Tests
         }
 
         [UnityTest]
+        [Timeout(900000)] // 15 min
         public IEnumerator WhenInvokingSayWithSingleStopWord_ShouldStopAtStopWord()
         {
             string response = null;
@@ -126,6 +127,7 @@ namespace Tests
         }
 
         [Test]
+        [Timeout(900000)] // 15 min
         public async Task WhenInvokingSayWithMultipleStopWords_ShouldStopAtFirstStopWord()
         {
             chat.stopWords = "horse-rider, fly";
@@ -145,6 +147,7 @@ namespace Tests
         }
 
         [Test]
+        [Timeout(900000)] // 15 min
         public void WhenInvokingSayWithGrammar_ShouldReturnResponseInCorrectFormat()
         {
 
@@ -168,6 +171,7 @@ namespace Tests
         }
 
         [Test]
+        [Timeout(900000)] // 15 min
         public void WhenInvokingSayWithGrammarStr_ShouldReturnResponseInCorrectFormat()
         {
             chat.systemPrompt =
@@ -184,6 +188,7 @@ namespace Tests
         }
 
         [UnityTest]
+        [Timeout(900000)] // 15 min
         public IEnumerator WhenInvokingSayAndStopping_ShouldReturnIncompleteResponse()
         {
             chat.systemPrompt = "You are a counter, only outputting numbers";
@@ -226,6 +231,7 @@ namespace Tests
         }
 
         [Test]
+        [Timeout(900000)] // 15 min
         public void WhenInvokingSayWithTool_ShouldCallToolAndReturnResult()
         {
             chat.AddTool((System.Func<int, int, int>)AddNumbers, "Adds two integers together");
