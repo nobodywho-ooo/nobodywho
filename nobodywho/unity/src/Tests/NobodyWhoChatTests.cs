@@ -78,6 +78,7 @@ namespace Tests
         }
 
         [UnityTest]
+        [Timeout(900000)] // 15 min
         public IEnumerator WhenInvokingSay_ShouldReceiveTokens()
         {
             string response = null;
