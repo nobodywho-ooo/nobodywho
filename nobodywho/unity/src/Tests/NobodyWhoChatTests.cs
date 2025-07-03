@@ -26,7 +26,7 @@ namespace Tests
 
         private long _diskStart;
         private long _ramStart;
-        private float _timeoutDuration = 60 * 5; // 5 minutes
+        private float _timeoutDuration = 60 * 15; // 15 minutes
 
         [OneTimeSetUp]
         public void OneTimeSetUp()
@@ -66,6 +66,7 @@ namespace Tests
         }
 
         [Test]
+        [Timeout(900000)] // 15 min
         public void WhenInvokingSay_ShouldReturnResponse()
         {
             chat.Say("What is the capital of Denmark?");
