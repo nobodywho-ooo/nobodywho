@@ -1,6 +1,8 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using UnityEngine;
@@ -29,6 +31,7 @@ namespace NobodyWho
         public UnityEvent<string> responseUpdated = new UnityEvent<string>();
         public UnityEvent<string> responseFinished = new UnityEvent<string>();
 
+        public List<ToolCall> tools = new List<ToolCall>();
         public void StartWorker()
         {
             wrapper.StartWorker(model.modelWrapperContext, contextLength, systemPrompt);
@@ -93,5 +96,15 @@ namespace NobodyWho
                 System.Threading.Thread.Sleep(10);
             }
         }
+        public void AddTool(Delegate userDelegate, string description)
+        {
+            ToolCall toolCall = new ToolCall(userDelegate, description);
+            wrapper.AddTool(toolCall.callback, toolCall.name, toolCall.description, toolCall.jsonSchema);
+        }
+
+        public void ClearTools() {
+            wrapper.ClearTools();
+        }
+
     }
 }

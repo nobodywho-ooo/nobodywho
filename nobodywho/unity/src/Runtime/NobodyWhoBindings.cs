@@ -69,6 +69,12 @@ namespace NobodyWho
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "chatwrapper_say")]
         public static extern ChatError chatwrapper_say(IntPtr context, string text, bool use_grammar, string grammar, string stop_words);
 
+        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "chatwrapper_add_tool")]
+        public static extern ChatError chatwrapper_add_tool(IntPtr context, ToolCallback callback, string name, string description, string json_schema);
+
+        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "chatwrapper_clear_tools")]
+        public static extern ChatError chatwrapper_clear_tools(IntPtr context);
+
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "chatwrapper_stop")]
         public static extern ChatError chatwrapper_stop(IntPtr context);
 
@@ -128,6 +134,10 @@ namespace NobodyWho
         BadSayText = 5,
         LoadModelFailed = 6,
         WorkerNotStarted = 7,
+        BadName = 8,
+        BadDescription = 9,
+        BadJsonSchema = 10,
+        BadReturnValue = 11,
     }
 
     /// EMBEDDINGS
@@ -210,6 +220,9 @@ namespace NobodyWho
         }
     }
 
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate IntPtr ToolCallback(IntPtr input);
 
 
     public partial class ModelWrapper : IDisposable
@@ -317,6 +330,24 @@ namespace NobodyWho
         public void Say(string text, bool use_grammar, string grammar, string stop_words)
         {
             var rval = NobodyWhoBindings.chatwrapper_say(_context, text, use_grammar, grammar, stop_words);
+            if (rval != ChatError.Ok)
+            {
+                throw new InteropException<ChatError>(rval);
+            }
+        }
+
+        public void AddTool(ToolCallback callback, string name, string description, string json_schema)
+        {
+            var rval = NobodyWhoBindings.chatwrapper_add_tool(_context, callback, name, description, json_schema);
+            if (rval != ChatError.Ok)
+            {
+                throw new InteropException<ChatError>(rval);
+            }
+        }
+
+        public void ClearTools()
+        {
+            var rval = NobodyWhoBindings.chatwrapper_clear_tools(_context);
             if (rval != ChatError.Ok)
             {
                 throw new InteropException<ChatError>(rval);

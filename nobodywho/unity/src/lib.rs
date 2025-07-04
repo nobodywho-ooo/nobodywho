@@ -2,10 +2,12 @@ use interoptopus::patterns::result::FFIError;
 use interoptopus::patterns::slice::FFISlice;
 use interoptopus::patterns::string::AsciiPointer;
 use interoptopus::{
-    ffi_function, ffi_service, ffi_service_ctor, ffi_service_method, ffi_type, function, pattern,
-    Inventory, InventoryBuilder,
+    callback, ffi_function, ffi_service, ffi_service_ctor, ffi_service_method, ffi_type, function, pattern, Inventory, InventoryBuilder
 };
 use tracing::{debug, error, warn};
+use std::sync::Arc;
+use std::ffi::c_char;
+
 
 /// TRACING
 static INIT: std::sync::Once = std::sync::Once::new();
@@ -117,8 +119,10 @@ impl ModelWrapper {
     }
 }
 
-/// CHAT WORKER
 
+callback!(ToolCallback(input: *const std::ffi::c_void) -> *const std::ffi::c_void);
+
+/// CHAT WORKER
 #[ffi_type(patterns(ffi_error))]
 #[repr(C)]
 #[derive(Debug)]
@@ -131,6 +135,10 @@ pub enum ChatError {
     BadSayText = 5,
     LoadModelFailed = 6,
     WorkerNotStarted = 7,
+    BadName = 8,
+    BadDescription = 9,
+    BadJsonSchema = 10,
+    BadReturnValue = 11,
 }
 
 impl FFIError for ChatError {
@@ -144,6 +152,7 @@ pub struct ChatWrapper {
     handle: Option<nobodywho::chat::ChatHandle>,
     response_rx: Option<tokio::sync::mpsc::Receiver<nobodywho::llm::WriteOutput>>,
     last_returned_cstring: std::ffi::CString,
+    tools: Vec<nobodywho::chat::Tool>,
 }
 
 #[ffi_service(error = "ChatError", prefix = "chatwrapper_")]
@@ -154,6 +163,7 @@ impl ChatWrapper {
             handle: None,
             response_rx: None,
             last_returned_cstring: std::ffi::CString::default(),
+            tools: vec![],
         })
     }
 
@@ -174,7 +184,7 @@ impl ChatWrapper {
                 .as_str()
                 .map_err(|_| ChatError::BadSystemPrompt)?
                 .into(),
-            vec![], // TODO: tools
+            self.tools.clone(),
         );
         self.handle = Some(handle);
         Ok(())
@@ -186,7 +196,7 @@ impl ChatWrapper {
             .map_err(|_| ChatError::BadSystemPrompt)?
             .into();
         if let Some(ref handle) = self.handle {
-            handle.reset_chat(system_prompt, vec![]); // TODO: tools
+            handle.reset_chat(system_prompt, self.tools.clone());
             Ok(())
         } else {
             Err(ChatError::WorkerNotStarted)
@@ -246,6 +256,40 @@ impl ChatWrapper {
             warn!("Worker not started yet. Please call StartWorker first.");
             Err(ChatError::WorkerNotStarted)
         }
+    }
+
+    pub fn add_tool(
+        &mut self,
+        callback: ToolCallback,
+        name: AsciiPointer,
+        description: AsciiPointer,
+        json_schema: AsciiPointer,
+    ) -> Result<(), ChatError> {
+        if let Some(ref mut _handle) = self.handle {
+            let name = name.as_str().map_err(|_| ChatError::BadName)?;
+            let description = description.as_str().map_err(|_| ChatError::BadDescription)?;
+            let json_schema: serde_json::Value = serde_json::from_str(
+                json_schema.as_str().map_err(|_| ChatError::BadJsonSchema)?
+            ).map_err(|_| ChatError::BadJsonSchema)?;
+        
+            let callback_wrapper = Arc::new(move |json: serde_json::Value| -> String {
+                let json_str = std::ffi::CString::new(json.to_string()).unwrap();
+                let res: *const std::ffi::c_void = callback.call(json_str.as_ptr() as *const std::ffi::c_void);
+                // Cast back to str 
+                let res_str = unsafe { std::ffi::CStr::from_ptr(res as *const c_char) };
+                res_str.to_str().unwrap().to_string()
+            });
+            let tool = nobodywho::chat::Tool::new( name.to_string(), description.to_string(), json_schema, callback_wrapper);
+            self.tools.push(tool);
+            Ok(())
+        } else {
+            Err(ChatError::WorkerNotStarted)
+        }
+    }
+
+    pub fn clear_tools(&mut self) -> Result<(), ChatError> {
+        self.tools.clear();
+        Ok(())
     }
 
     pub fn stop(&mut self) -> Result<(), ChatError> {

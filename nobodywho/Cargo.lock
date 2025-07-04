@@ -726,6 +726,7 @@ dependencies = [
  "interoptopus_backend_csharp",
  "memory-stats",
  "nobodywho",
+ "serde_json",
  "tokio",
  "tracing",
  "tracing-subscriber",

@@ -1,12 +1,12 @@
 fileFormatVersion: 2
-guid: 5c994fd5fa8f340b29b6b9631a3173f3
+guid: ce54b0c4c790b4b48b3a6ec82d9e7e6a
 PluginImporter:
   externalObjects: {}
   serializedVersion: 3
   iconMap: {}
   executionOrder: {}
   defineConstraints: []
-  isPreloaded: 1
+  isPreloaded: 0
   isOverridable: 1
   isExplicitlyReferenced: 0
   validateReferences: 1
@@ -31,9 +31,9 @@ PluginImporter:
     Editor:
       enabled: 1
       settings:
-        CPU: AnyCPU
+        CPU: x86_64
         DefaultValueInitialized: true
-        OS: AnyOS
+        OS: OSX
     Linux64:
       enabled: 0
       settings:
@@ -41,7 +41,7 @@ PluginImporter:
     OSXUniversal:
       enabled: 1
       settings:
-        CPU: ARM64
+        CPU: x86_64
     Win:
       enabled: 0
       settings:

@@ -59,6 +59,8 @@ jobs:
           #       nobodywho_unity.dll
           #       nobodywho_unity.pdb
           
+          mkdir -p ./nobodywho/unity/src/Runtime/Plugins/{x86_64-unknown-linux-gnu,x86_64-apple-darwin,aarch64-apple-darwin,x86_64-pc-windows-msvc}
+
           mv ./artifacts/nobodywho-unity-x86_64-unknown-linux-gnu-release/nobodywho-unity-x86_64-unknown-linux-gnu-release.so ./nobodywho/unity/src/Runtime/Plugins/x86_64-unknown-linux-gnu/libnobodywho_unity.so
           
           mv ./artifacts/nobodywho-unity-x86_64-apple-darwin-release/nobodywho-unity-x86_64-apple-darwin-release.dylib ./nobodywho/unity/src/Runtime/Plugins/x86_64-apple-darwin/libnobodywho_unity.dylib
@@ -73,7 +75,6 @@ jobs:
           mv ./nobodywho/unity/src/* dist/package
           # remove tests from package
           rm -rf dist/package/Tests
-
 
       - name: Test .meta-files # this just ensures that there are actually .meta files for all of our relevant files. 
         uses: natsuneko-laboratory/create-unitypackage@v3

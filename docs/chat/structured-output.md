@@ -22,7 +22,7 @@ Yeah, most models will fail to generate valid json at some point if you just ask
 But fret not dear friend, the solution you are looking for is called :star: **STRUCTURED OUTPUT** :star:. 
 
 It is pretty much what it claims to be; A system that constrains the model's vocabulary to one that you determine.
-This can be useful for a myraid of things, from forcing the LLM to never use modern words, to using the llm
+This can be useful for a myraid of things, from forcing the LLM to never use modern words, to using the LLM
 as the engine for your own procedural generation dungeon room.
 
 This section will take you through creating your own grammar that the model will have to use.
@@ -36,7 +36,7 @@ You've probably tried this before:
 Only use those fields.
 Only use valid json.
 All json attributes should have " around them.
-Please do not deviate from the instrcutions.
+Please do not deviate from the instructions.
 You will lose 10 points if you use other fields than level, class and name.
 Do not write a message just json.
 If you do not respond in valid json I will lose my job and my kids will starve.
@@ -334,7 +334,7 @@ When designing compact formats:
 ❌ **Bad:** `"1" | "2" | "3"` - numeric values  
 
 The LLM generates text based on semantic understanding. Use full words that align perfectly with how language models think about concepts.  
-You should additionalyy provide the right context and single or few shots prompting to make it more robust.
+You should additionaly provide the right context and single or few shots prompting to make it more robust.
 
 ### Underscores footgun
 
@@ -521,7 +521,7 @@ Beware not to add to many symbols in you backstory. If the model can not write a
 
     void OnWeaponGenerated(string weaponName)
     {
-        Debug.log(weaponName)
+        Debug.Log(weaponName);
     }
     ```
 

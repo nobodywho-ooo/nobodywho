@@ -3,14 +3,15 @@ site_url: https://nobodywho-ooo.github.io/nobodywho
 nav:
   - Home: index.md
   - Install: install.md
-  - Baby's First Steps: getting_started.md
+  - Baby's First Steps: getting-started.md
   - Chat:
-      - Simple Chat: chat/simple_chat.md
-      - Advanced Chat: chat/advanced_chat.md
+      - Simple Chat: chat/simple-chat.md
+      - Structured Output: chat/structured-output.md
+      - Tool Calling: chat/tool-calling.md
   - Embeddings: embeddings.md
-  - Model Selection: model_selection.md
+  - Model Selection: model-selection.md
   - Contributing:
-      - Development Environment: contributing/dev_environment.md
+      - Development Environment: contributing/dev-environment.md
   - About: about.md
 
 # github link in the top right

@@ -12,6 +12,7 @@ interoptopus = "0.14.27"
 interoptopus_backend_csharp = "0.14.25"
 memory-stats = "1.2.0"
 nobodywho = { path = "../core" }
+serde_json = "1.0.140"
 tokio = "1.44.0"
 tracing = "0.1.41"
 tracing-subscriber = "0.3.19"

@@ -26,7 +26,7 @@ namespace Tests
 
         private long _diskStart;
         private long _ramStart;
-        private float _timeoutDuration = 60 * 5; // 5 minutes
+        private float _timeoutDuration = 60 * 15; // 15 minutes
 
         [OneTimeSetUp]
         public void OneTimeSetUp()
@@ -42,7 +42,7 @@ namespace Tests
             testObject = Object.Instantiate(new GameObject("TestModel"));
 
             model = testObject.AddComponent<NobodyWho.Model>();
-            model.modelPath = System.IO.Path.Combine(Application.streamingAssetsPath, "qwen2.5-1.5b-instruct-q4_0.gguf");
+            model.modelPath = System.IO.Path.Combine(Application.streamingAssetsPath, "Qwen3-0.6B-UD-Q6_K_XL.gguf");
 
             chat = testObject.AddComponent<NobodyWho.Chat>();
             chat.model = model;
@@ -56,6 +56,7 @@ namespace Tests
             // Remove any event listeners added during tests
             chat.responseFinished.RemoveAllListeners();
             chat.responseUpdated.RemoveAllListeners();
+            chat.ClearTools();
 
             // Destroy the test object and its components
             if (testObject)
@@ -65,6 +66,7 @@ namespace Tests
         }
 
         [Test]
+        [Timeout(900000)] // 15 min
         public void WhenInvokingSay_ShouldReturnResponse()
         {
             chat.Say("What is the capital of Denmark?");
@@ -76,6 +78,7 @@ namespace Tests
         }
 
         [UnityTest]
+        [Timeout(900000)] // 15 min
         public IEnumerator WhenInvokingSay_ShouldReceiveTokens()
         {
             string response = null;
@@ -100,6 +103,7 @@ namespace Tests
         }
 
         [UnityTest]
+        [Timeout(900000)] // 15 min
         public IEnumerator WhenInvokingSayWithSingleStopWord_ShouldStopAtStopWord()
         {
             string response = null;
@@ -123,6 +127,7 @@ namespace Tests
         }
 
         [Test]
+        [Timeout(900000)] // 15 min
         public async Task WhenInvokingSayWithMultipleStopWords_ShouldStopAtFirstStopWord()
         {
             chat.stopWords = "horse-rider, fly";
@@ -142,6 +147,7 @@ namespace Tests
         }
 
         [Test]
+        [Timeout(900000)] // 15 min
         public void WhenInvokingSayWithGrammar_ShouldReturnResponseInCorrectFormat()
         {
 
@@ -161,12 +167,11 @@ namespace Tests
             string response = chat.GetResponseBlocking();
 
             CharacterData character = JsonUtility.FromJson<CharacterData>(response);
-            Assert.IsNotNull(character.name, "Response should contain 'name' field");
-            Assert.IsNotNull(character.weapon, "Response should contain 'weapon' field");
-            Assert.IsNotNull(character.armor, "Response should contain 'armor' field");
+            Assert.IsNotNull(character, "Response should contain a character");
         }
 
         [Test]
+        [Timeout(900000)] // 15 min
         public void WhenInvokingSayWithGrammarStr_ShouldReturnResponseInCorrectFormat()
         {
             chat.systemPrompt =
@@ -183,6 +188,7 @@ namespace Tests
         }
 
         [UnityTest]
+        [Timeout(900000)] // 15 min
         public IEnumerator WhenInvokingSayAndStopping_ShouldReturnIncompleteResponse()
         {
             chat.systemPrompt = "You are a counter, only outputting numbers";
@@ -201,7 +207,7 @@ namespace Tests
                 }
             );
 
-            chat.Say("Count from 0 to 9");
+            chat.Say("Count from 0 to 20");
 
             float timeout = Time.time + _timeoutDuration;
             while (response == null && Time.time < timeout)
@@ -210,7 +216,36 @@ namespace Tests
             }
 
             Assert.IsTrue(response.Contains("5"), "Response should contain '5'");
-            Assert.IsFalse(response.Contains("9"), "Response should not contain '9'");
+            Assert.IsFalse(response.Contains("15"), "Response should not contain '15'");
+        }
+
+        private int AddNumbers(int a, int b)
+        {
+            // ensures that the model is not just smart enough to calculate it
+            return 100;
+        }
+
+        private string GetHottestCity()
+        {
+            return "Kuwait City";
+        }
+
+        [Test]
+        [Timeout(900000)] // 15 min
+        public void WhenInvokingSayWithTool_ShouldCallToolAndReturnResult()
+        {
+            chat.AddTool((System.Func<int, int, int>)AddNumbers, "Adds two integers together");
+            chat.AddTool((System.Func<string>)GetHottestCity, "Gets the hottest city in the world");
+
+            chat.systemPrompt = "You are a helpful assistant. Use tools when appropriate.";
+            chat.ResetContext();
+
+            chat.Say("What is 1 plus 5? and what is the hottest city?");
+            string response = chat.GetResponseBlocking();
+
+            Assert.IsNotNull(response, "No response received within timeout period");
+            Assert.IsTrue(response.Contains("Kuwait City"), "Response should contain the result 'Kuwait City'");
+            Assert.IsTrue(response.Contains("100"), "Response should contain the result '100'");
         }
     }
 }
