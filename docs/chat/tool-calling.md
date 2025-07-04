@@ -73,11 +73,7 @@ Ask "How hurt am I?" - the model calls your tool and answers with real numbers.
 ## But I need arguments, you say:
 
 Sure - that is possible, but only primitives are currently implemented in NobodyWho:
-Allowed primitive types: `int`, `float`, `bool`, `String`/`string`, `Array`/`string[]`.(1)
-{ .annotate }
-
-    1. We are searching for volunteers to add additional types to both Unity and NobodyWho - don't worry we will help you if you ask on Discord!
-
+Allowed primitive types: `int`, `float`, `bool`, `String`/`string`, `Array`/`string[]`
 
 Models operate with JSON as an abstract layer instead of using a specific language (like Godot) when calling tools. 
 When NobodyWho receives a function or a delegate it will deconstruct the name and parameters and use them 
@@ -111,8 +107,8 @@ Therefore it might be advantageous to write your own schema for maximum precisio
 
     add_tool(heal_player, "Heals the local player by a number of hit-points")
     ```
-    *Godot auto-builds the JSON schema from the type hints.*
-    Therefore you must ensure that all parameters are and return type is defined from the method.
+    *Godot auto-builds the JSON schema from the type hints.*  
+    Therefore you must ensure that all parameters are listed and return type is defined from the method.
 
 === ":simple-unity: Unity"
 
@@ -133,7 +129,7 @@ Therefore it might be advantageous to write your own schema for maximum precisio
 ---
 
 
-## You model is now ready to interact with the world
+## Your model is now ready to interact with the world
 
 Have the model open a door.
 
@@ -163,7 +159,7 @@ Have the model open a door.
     chat.Say("can you open the door");
     ```
 
-The model will pause any generation until the tool is completed, and you can use this to your advantage.
+The model will pause any generation until the tool is completed.
 
 
 ---
@@ -210,7 +206,7 @@ As I mentioned before, we are using the OpenSchema specification, which goes lik
 }
 ```
 
-The type must always be an `object`, the properties are a dictionary of where the key is the parameter name, and the value describes the data for the parameter. Ie. type determines wheter it is a string, a list or something else. Description here describes how the parameter is used. 
+The type must always be an `object`, the properties are a dictionary of where the key is the parameter name, and the value describes the data for the parameter. Ie. type determines wheter it is a string, a list or something else. Description describes how the parameter is used. 
 
 if the properties are not a part of the `required` list, the model will see them as optional parameter.
 

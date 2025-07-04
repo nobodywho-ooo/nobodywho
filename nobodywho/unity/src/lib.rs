@@ -8,10 +8,10 @@ use tracing::{debug, error, warn};
 use std::sync::Arc;
 use std::ffi::c_char;
 
-callback!(ToolCallback(input: *const std::ffi::c_void) -> *const std::ffi::c_void);
+
 /// TRACING
 static INIT: std::sync::Once = std::sync::Once::new();
-callback!(MyCallback(slice: FFISlice<u8>) -> u8);
+
 /// Initialize tracing for tests
 #[ffi_function]
 #[no_mangle]
@@ -119,8 +119,10 @@ impl ModelWrapper {
     }
 }
 
-/// CHAT WORKER
 
+callback!(ToolCallback(input: *const std::ffi::c_void) -> *const std::ffi::c_void);
+
+/// CHAT WORKER
 #[ffi_type(patterns(ffi_error))]
 #[repr(C)]
 #[derive(Debug)]
@@ -150,7 +152,6 @@ pub struct ChatWrapper {
     handle: Option<nobodywho::chat::ChatHandle>,
     response_rx: Option<tokio::sync::mpsc::Receiver<nobodywho::llm::WriteOutput>>,
     last_returned_cstring: std::ffi::CString,
-    system_prompt: std::ffi::CString,
     tools: Vec<nobodywho::chat::Tool>,
 }
 
@@ -162,7 +163,6 @@ impl ChatWrapper {
             handle: None,
             response_rx: None,
             last_returned_cstring: std::ffi::CString::default(),
-            system_prompt: std::ffi::CString::default(),
             tools: vec![],
         })
     }
@@ -265,7 +265,7 @@ impl ChatWrapper {
         description: AsciiPointer,
         json_schema: AsciiPointer,
     ) -> Result<(), ChatError> {
-        if let Some(ref mut handle) = self.handle {
+        if let Some(ref mut _handle) = self.handle {
             let name = name.as_str().map_err(|_| ChatError::BadName)?;
             let description = description.as_str().map_err(|_| ChatError::BadDescription)?;
             let json_schema: serde_json::Value = serde_json::from_str(
