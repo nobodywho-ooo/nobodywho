@@ -7,6 +7,7 @@ using UnityEngine;
 
 namespace NobodyWho
 {
+    // Example of a json schema:
     // {
     //     "function": {
     //       "type": "object",
@@ -69,12 +70,6 @@ namespace NobodyWho
             public string description;
         }
 
-        [System.Serializable]
-        private class JsonArguments
-        {
-            // Unity will populate fields that match the JSON property names
-        }
-
         private static string JsonTypeFor(Type clrType)
         {
             if (clrType.IsArray)
@@ -104,36 +99,6 @@ namespace NobodyWho
             }
         }
 
-        private static object ConvertJsonValueToType(object value, Type targetType)
-        {
-            if (value == null)
-                return null;
-
-            string stringValue = value.ToString();
-
-            if (targetType == typeof(string))
-                return stringValue;
-            if (targetType == typeof(bool))
-                return bool.Parse(stringValue);
-            if (targetType == typeof(int))
-                return int.Parse(stringValue);
-            if (targetType == typeof(float))
-                return float.Parse(stringValue);
-            if (targetType == typeof(double))
-                return double.Parse(stringValue);
-            if (targetType == typeof(long))
-                return long.Parse(stringValue);
-
-            try
-            {
-                return JsonUtility.FromJson(stringValue, targetType);
-            }
-            catch
-            {
-                return targetType.IsValueType ? Activator.CreateInstance(targetType) : null;
-            }
-        }
-
         private static ToolCallback CreateTrampoline(
             Delegate userDelegate,
             ParameterInfo[] parameterMeta
@@ -143,28 +108,34 @@ namespace NobodyWho
             {
                 string inboundJson = Marshal.PtrToStringAnsi(jsonPtr);
 
-                // Use reflection to get parameter values from JSON
-                var jsonObj = JsonUtility.FromJson<JsonArguments>(inboundJson);
+                var rustArgs = JsonUtility.FromJson<Dictionary<string, object>>(inboundJson);
 
-                object[] args = parameterMeta.Select(paramInfo =>
+                object[] args = parameterMeta
+                    .Select(paramInfo =>
                     {
-                        if (jsonObj != null)
+                        if (rustArgs.TryGetValue(paramInfo.Name, out object value))
                         {
-                            var field = jsonObj.GetType().GetField(paramInfo.Name);
-                            if (field != null)
-                            {
-                                return field.GetValue(jsonObj);
-                            }
+                            return value;
                         }
+
                         return paramInfo.ParameterType.IsValueType
                             ? Activator.CreateInstance(paramInfo.ParameterType)
                             : null;
                     })
                     .ToArray();
 
-                object result = userDelegate.DynamicInvoke(args);
-
-                return Marshal.StringToHGlobalAnsi(result.ToString());
+                try
+                {
+                    object result = userDelegate.DynamicInvoke(args);
+                    string resultString = result?.ToString() ?? string.Empty;
+                    return Marshal.StringToHGlobalAnsi(resultString);
+                }
+                catch (Exception ex)
+                {
+                    // Log the error and return an error message
+                    Debug.LogError($"Tool invocation failed: {ex.Message}");
+                    return Marshal.StringToHGlobalAnsi($"Error: {ex.Message}");
+                }
             };
         }
 
@@ -175,14 +146,18 @@ namespace NobodyWho
 
             foreach (ParameterInfo parameter in delegateInstance.Method.GetParameters())
             {
+                var jsonType = JsonTypeFor(parameter.ParameterType);
+                if (jsonType == "object")
+                {
+                    throw new Exception(
+                        $"Parameter {parameter.Name} is of type {parameter.ParameterType.Name}, which is not supported. Please use a supported type."
+                    );
+                }
                 properties.Add(
                     new JsonParameter
                     {
                         name = parameter.Name,
-                        value = new JsonParameterValue
-                        {
-                            type = JsonTypeFor(parameter.ParameterType),
-                        },
+                        value = new JsonParameterValue { type = jsonType },
                     }
                 );
                 required.Add(parameter.Name);
