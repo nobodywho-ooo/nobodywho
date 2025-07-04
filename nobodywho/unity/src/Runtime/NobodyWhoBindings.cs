@@ -16,7 +16,7 @@ namespace NobodyWho
 
         static NobodyWhoBindings()
         {
-            UnityEngine.Debug.Log("NobodyWho Library Version: 1.1.0");
+            UnityEngine.Debug.Log("NobodyWho Library Version: 1.2.0");
         }
 
 
