@@ -16,7 +16,7 @@ The model can:
 * Change the world - "Open the north gate."
 * Run helper logic - damage rolls, crafting math, random loot.
 
-This can even be used in combination with GOAP to define the ideal outcome, and have to goap system report back when the world state changes. Creating a npc, whose action is determined completely by the llm.
+This can even be used in combination with GOAP to define the ideal outcome, and have to GOAP system report back when the world state changes. Creating a npc, whose action is determined completely by the llm.
 
 We'll start with a small and simple tool, add arguments, then increase accuracy using schema and adding constraints.
 
