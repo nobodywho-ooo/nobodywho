@@ -1,6 +1,6 @@
 {
     "name": "com.nobodywho.unity",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "displayName": "NobodyWho",
     "description": "Open Source Local LLMs",
     "unity": "2021.3",
