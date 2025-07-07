@@ -10,8 +10,8 @@ minijinja = { git = "https://github.com/mitsuhiko/minijinja", ref = "fd8423b", f
 minijinja-contrib = { git = "https://github.com/mitsuhiko/minijinja", ref = "fd8423b", features = ["pycompat"] }
 serde = { version = "1.0.215", features = ["derive"] }
 chrono = "0.4.39"
-llama-cpp-sys-2 = { git = "https://github.com/utilityai/llama-cpp-rs.git", branch = "update-llama-cpp-2025-05-14" }
-llama-cpp-2 = { git = "https://github.com/utilityai/llama-cpp-rs.git", branch = "update-llama-cpp-2025-05-14" }
+llama-cpp-sys-2 = { git = "https://github.com/utilityai/llama-cpp-rs.git", branch = "update-llama-cpp-2025-06-06" }
+llama-cpp-2 = { git = "https://github.com/utilityai/llama-cpp-rs.git", branch = "update-llama-cpp-2025-06-06" }
 lazy_static = "1.5.0"
 tokio = { version = "1.43.0", features = ["sync", "rt", "rt-multi-thread", "macros"] }
 tokio-stream = "0.1.17"
@@ -22,4 +22,4 @@ serde_json = "1.0.140"
 gbnf = { git = "https://github.com/richardanaya/gbnf", branch = "main" }
 
 [target.'cfg(not(target_os = "macos"))'.dependencies]
-llama-cpp-2 = { git = "https://github.com/utilityai/llama-cpp-rs.git", features = ["vulkan"], branch = "update-llama-cpp-2025-05-14" }
+llama-cpp-2 = { git = "https://github.com/utilityai/llama-cpp-rs.git", features = ["vulkan"], branch = "update-llama-cpp-2025-06-06" }
