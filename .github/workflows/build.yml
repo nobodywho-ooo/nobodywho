@@ -98,6 +98,11 @@ jobs:
           stripdown: true
 
       - name: Build with Cargo
+        env:
+          RUSTFLAGS: "-l Advapi32"
+          _CL_: "/FS"
+          CFLAGS: "/FS"
+          CXXFLAGS: "/FS"
         run: cargo build -j 1 -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: nobodywho
 
