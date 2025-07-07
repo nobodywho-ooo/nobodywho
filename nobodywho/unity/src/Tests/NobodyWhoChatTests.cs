@@ -247,5 +247,33 @@ namespace Tests
             Assert.IsTrue(response.Contains("Kuwait City"), "Response should contain the result 'Kuwait City'");
             Assert.IsTrue(response.Contains("100"), "Response should contain the result '100'");
         }
+
+        [Test]
+        [Timeout(900000)] // 15 min
+        public void WhenGettingChatHistory_ShouldReturnHistory()
+        {
+            chat.systemPrompt = "You need to always remember the word: 'Cucumber;' ";
+            chat.ResetContext();
+            chat.Say("What is the word?");
+
+            var history = chat.GetHistory();
+            Assert.IsTrue(history.Count == 3, "History should contain 3 items");
+            Assert.IsTrue(history[0].Contains("system: You need to always remember the word: 'Cucumber;' "), "History should contain the correct system prompt");
+        }
+
+        [Test]
+        [Timeout(900000)] // 15 min
+        public void WhenSettingChatHistory_ShouldUseHistory()
+        {
+            chat.SetHistory(new List<string> { "system: You need to always remember the word: 'Cucumber;' ", "user: what is the word?", "assistant: Cucumber" });
+            chat.ResetContext();
+
+            chat.Say("What is the word?");
+            string response = chat.GetResponseBlocking();
+
+            Assert.IsNotNull(response, "No response received within timeout period");
+            Assert.IsTrue(response.Contains("Cucumber"), "Response should contain the result 'Cucumber'");
+        }
     }
 }
+
