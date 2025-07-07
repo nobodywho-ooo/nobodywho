@@ -103,8 +103,8 @@ jobs:
       - name: Build with Cargo
         # move things into a shortly-named dir in the root, because windows is made by fuckwits who think limiting paths to 260 chars is ok
         run: |
-          mv ./nobodywho C:/nw
-          cd C:/nw
+          mv ./nobodywho/* C:/
+          cd C:/
           cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         env:
           RUSTFLAGS: >-
