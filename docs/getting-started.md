@@ -68,7 +68,7 @@ The next step is adding a Chat to our scene.
     func _ready():
         # configure the node (feel free to do this in the UI)
         self.system_prompt = "You are an evil wizard."
-        self.model_node = get_node("../ChatModel")
+        self.model_node = get_node("../ChatModel") # <--------- make sure this is set to your model node, either in the editor (through the property box) or like this in code
 
         # connect signals to signal handlers
         self.response_updated.connect(_on_response_updated)
