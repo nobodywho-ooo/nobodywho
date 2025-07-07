@@ -247,8 +247,8 @@ impl Default for MirostatV2 {
     }
 }
 
-pub fn make_sampler(model: &LlamaModel, sampler_config: SamplerConfig) -> LlamaSampler {
-    let mut chainvec = Vec::new();
+pub fn make_sampler(model: &LlamaModel, sampler_config: SamplerConfig) -> Option<LlamaSampler> {
+    let mut chainvec: Vec<LlamaSampler> = Vec::new();
 
     // Add grammar sampler first if configured
     let trigger_len = sampler_config.lazy_grammar_trigger.trim().len();
@@ -257,7 +257,7 @@ pub fn make_sampler(model: &LlamaModel, sampler_config: SamplerConfig) -> LlamaS
             model,
             &sampler_config.gbnf_grammar,
             &sampler_config.grammar_root,
-        ));
+        )?);
     } else if sampler_config.use_grammar && trigger_len > 0 {
         if let Ok(Some(trigger_token)) = model
             .str_to_token(
@@ -272,7 +272,7 @@ pub fn make_sampler(model: &LlamaModel, sampler_config: SamplerConfig) -> LlamaS
                 &sampler_config.grammar_root,
                 vec![sampler_config.lazy_grammar_trigger], // TODO: remove this argument
                 &[trigger_token],
-            ));
+            )?);
         } else {
             error!("Lazy GBNF grammar was specified, but the trigger token does not cleanly tokenize with the given model. You most likely tried to do tool calling with a model that doesn't natively support tool calling.");
         }
@@ -347,5 +347,5 @@ pub fn make_sampler(model: &LlamaModel, sampler_config: SamplerConfig) -> LlamaS
         }
     }
 
-    LlamaSampler::chain(chainvec, true)
+    Some(LlamaSampler::chain(chainvec, true))
 }
