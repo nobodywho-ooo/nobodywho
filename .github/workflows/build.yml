@@ -98,6 +98,13 @@ jobs:
           cache: true
           stripdown: true
 
+      - name: "DEBUG WANKERY: Test llama-cpp-rs build"
+        run: |
+          cd C:\
+          git clone --recurse-submodules https://github.com/utilityai/llama-cpp-rs.git
+          cd llama-cpp-rs
+          cargo build --verbose --features "sampler vulkan"
+
       - name: Build with Cargo
         env:
           RUSTFLAGS: "-l Advapi32"
