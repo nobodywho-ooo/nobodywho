@@ -1,4 +1,15 @@
-{ pkgs, fetchurl, rustPlatform, llvmPackages_12, cmake, vulkan-headers, vulkan-loader, vulkan-tools, shaderc, mesa }:
+{
+  pkgs,
+  fetchurl,
+  rustPlatform,
+  llvmPackages_12,
+  cmake,
+  vulkan-headers,
+  vulkan-loader,
+  vulkan-tools,
+  shaderc,
+  mesa,
+}:
 
 rec {
   nobodywho-godot = rustPlatform.buildRustPackage {
@@ -31,7 +42,7 @@ rec {
         "gdextension-api-0.2.2" = "sha256-gaxM73OzriSDm6tLRuMTOZxCLky9oS1nq6zTsm0g4tA=";
         "godot-0.2.4" = "sha256-5Kh1j3OpUetuE9qNK85tpZTj8m0Y30CX4okll4TZ9Xc=";
         "gbnf-0.2.1" = "sha256-oEP9/OJJWYLMGOPGxgoo5Y4Oh/WyusGZLhS2WF/Y/fU=";
-        "llama-cpp-2-0.1.109" = "sha256-HdKxBa36mEBQskDhm485Hbii09F4L6TQ4QNFciy3JqE=";
+        "llama-cpp-2-0.1.109" = "sha256-rvxrLf/yliR/Y4TIhGgjPW9cx7dBAoNEB3wn8mbkVCs=";
       };
     };
     env.TEST_MODEL = fetchurl {
@@ -52,12 +63,15 @@ rec {
 
   integration-test = pkgs.callPackage ./integration-test { inherit nobodywho-godot; };
 
-  run-integration-test = pkgs.runCommand "checkgame" {
-    nativeBuildInputs = [ mesa ];
-  } ''
-    cd ${integration-test}
-    export HOME=$TMPDIR
-    ./game --headless
-    touch $out
-  '';
+  run-integration-test =
+    pkgs.runCommand "checkgame"
+      {
+        nativeBuildInputs = [ mesa ];
+      }
+      ''
+        cd ${integration-test}
+        export HOME=$TMPDIR
+        ./game --headless
+        touch $out
+      '';
 }

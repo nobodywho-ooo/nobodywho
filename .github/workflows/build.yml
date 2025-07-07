@@ -64,7 +64,6 @@ jobs:
       matrix:
         target:
           - "x86_64-pc-windows-msvc"
-          - "x86_64-pc-windows-gnu"
         profile:
           - "debug"
           - "release"
@@ -98,26 +97,16 @@ jobs:
           cache: true
           stripdown: true
 
-      - name: "DEBUG WANKERY: Test llama-cpp-rs build"
-        run: |
-          cd C:\
-          git clone --recurse-submodules https://github.com/utilityai/llama-cpp-rs.git
-          cd llama-cpp-rs
-          cargo build --verbose --features "sampler vulkan"
-
       - name: Build with Cargo
-        env:
-          RUSTFLAGS: "-l Advapi32"
-          _CL_: "/FS"
-          CFLAGS: "/FS"
-          CXXFLAGS: "/FS"
-        run: cargo build -j 1 -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
-        working-directory: nobodywho
+        run: |
+          mv nobodywho C:\nw
+          cd C:\nw
+          cargo build -j 1 -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
 
       - name: "Rename built files"
         run: |
-          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.dll ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dll
-          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.pdb ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
+          cp C:/nw/target/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.dll ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dll
+          cp C:/nw/target/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.pdb ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
 
       - name: "Upload build artifacts"
         uses: actions/upload-artifact@v4
