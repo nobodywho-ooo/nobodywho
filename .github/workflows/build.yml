@@ -98,7 +98,7 @@ jobs:
           stripdown: true
 
       - name: Build with Cargo
-        run: cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
+        run: cargo build -j 1 -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: nobodywho
 
       - name: "Rename built files"
