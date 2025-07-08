@@ -264,7 +264,7 @@ where
 
         loop {
             // Check for context window overflow (it was in the end before)
-            if self.n_past >= self.ctx.n_ctx() as i32 - 1 {
+            if self.n_past >= self.ctx.n_ctx() as i32 {
                 self.n_past -= apply_context_shifting(&mut self.ctx, self.n_past)?;
             }
 
