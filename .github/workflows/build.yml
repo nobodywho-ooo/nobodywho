@@ -112,8 +112,8 @@ jobs:
 
       - name: "Rename built files"
         run: |
-          cp C:/nw/target/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.dll ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dll
-          cp C:/nw/target/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.pdb ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
+          cp C:/target/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.dll ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dll
+          cp C:/target/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.pdb ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
 
       - name: "Upload build artifacts"
         uses: actions/upload-artifact@v4
