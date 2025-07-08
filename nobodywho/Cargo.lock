@@ -586,7 +586,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-2"
 version = "0.1.109"
-source = "git+https://github.com/AsbjornOlling/llama-cpp-rs.git?branch=windows-vulkan-filetracker-error-workaround#4bfc9eb897cbb998fcf86781b42ba0bbcdeed944"
+source = "git+https://github.com/AsbjornOlling/llama-cpp-rs.git?branch=windows-vulkan-filetracker-error-workaround#cb3fc933f68acd9b3fe6b31a670f06952ab42174"
 dependencies = [
  "enumflags2",
  "llama-cpp-sys-2",
@@ -598,7 +598,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-sys-2"
 version = "0.1.109"
-source = "git+https://github.com/AsbjornOlling/llama-cpp-rs.git?branch=windows-vulkan-filetracker-error-workaround#4bfc9eb897cbb998fcf86781b42ba0bbcdeed944"
+source = "git+https://github.com/AsbjornOlling/llama-cpp-rs.git?branch=windows-vulkan-filetracker-error-workaround#cb3fc933f68acd9b3fe6b31a670f06952ab42174"
 dependencies = [
  "bindgen",
  "cc",
