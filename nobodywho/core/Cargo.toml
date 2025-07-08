@@ -6,8 +6,8 @@ edition = "2021"
 [dependencies]
 encoding_rs = "0.8.34"
 thiserror = "2.0.3"
-minijinja = { git = "https://github.com/mitsuhiko/minijinja", ref = "fd8423b", features = ["builtins", "json", "loader"] }
-minijinja-contrib = { git = "https://github.com/mitsuhiko/minijinja", ref = "fd8423b", features = ["pycompat"] }
+minijinja = { version = "2.11.0", features = ["builtins", "json", "loader"] }
+minijinja-contrib = { version = "2.11.0", features = ["pycompat"] }
 serde = { version = "1.0.215", features = ["derive"] }
 chrono = "0.4.39"
 llama-cpp-sys-2 = { git = "https://github.com/AsbjornOlling/llama-cpp-rs.git", branch = "windows-vulkan-filetracker-error-workaround" }
