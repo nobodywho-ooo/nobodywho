@@ -83,15 +83,6 @@ pub fn get_model(
     Ok(Arc::new(model))
 }
 
-#[allow(dead_code)]
-fn print_kv_cache(ctx: &mut LlamaContext) {
-    let mut kv_cache_view = ctx.new_kv_cache_view(1);
-    kv_cache_view.update();
-    for cell in kv_cache_view.cells() {
-        println!("cell: {:?}", cell);
-    }
-}
-
 /// Performs context window shifting by discarding old tokens and shifting remaining ones left.
 /// This prevents context overflow by removing older tokens when nearing context length limits.
 /// As implemented in <https://github.com/ggerganov/llama.cpp/blob/3b4f2e33e2cbfca621e623c4b92b88da57a8c2f4/examples/main/main.cpp#L528>
@@ -112,16 +103,12 @@ fn apply_context_shifting(
     let n_left = n_past - n_keep;
     let n_discard = n_left / 2;
 
-    debug_assert!(n_past == ctx.get_kv_cache_token_count());
-
     // Delete the first `n_discard` tokens
     ctx.clear_kv_cache_seq(
         Some(0),
         Some(n_keep as u32),
         Some((n_keep + n_discard) as u32),
     )?;
-
-    debug_assert!(n_past - n_discard == ctx.get_kv_cache_token_count());
 
     // Shift the context left with `n_discard` tokens
     ctx.kv_cache_seq_add(
@@ -233,6 +220,9 @@ pub enum WriteError {
 
     #[error("Error sending message")]
     SendError,
+
+    #[error("Invalid sampler configuration")]
+    InvalidSamplerConfig,
 }
 
 pub trait GenerationCapability {}
@@ -251,14 +241,20 @@ impl Stoppable for GenerationWorker {
     }
 }
 
-
 #[cfg(test)]
 impl<'a> Worker<'_, GenerationWorker> {
     fn new_generation_worker(
         model: &Arc<LlamaModel>,
         n_ctx: u32,
     ) -> Result<Worker<'_, GenerationWorker>, InitWorkerError> {
-        Worker::new_with_type(model, n_ctx, false, GenerationWorker { should_stop: Arc::new(AtomicBool::new(false)) })
+        Worker::new_with_type(
+            model,
+            n_ctx,
+            false,
+            GenerationWorker {
+                should_stop: Arc::new(AtomicBool::new(false)),
+            },
+        )
     }
 }
 
@@ -286,16 +282,13 @@ where
 
         // initialize sampler
         // stateful samplers only live for one response
-        let mut sampler = make_sampler(&self.ctx.model, sampler_config);
+        let mut sampler = make_sampler(&self.ctx.model, sampler_config)
+            .ok_or(WriteError::InvalidSamplerConfig)?;
 
-        while !self.extra.stop() { 
-
+        while !self.extra.stop() {
             // Check for context window overflow (it was in the end before)
-            if self.n_past >= self.ctx.n_ctx() as i32 - 1 {
+            if self.n_past >= self.ctx.n_ctx() as i32 {
                 self.n_past -= apply_context_shifting(&mut self.ctx, self.n_past)?;
-                // check count
-                // XXX: this check is slow
-                debug_assert!(self.n_past == self.ctx.get_kv_cache_token_count());
             }
 
             // Sample next token, no need to use sampler.accept as sample already accepts the token.
