@@ -106,5 +106,42 @@ namespace NobodyWho
             wrapper.ClearTools();
         }
 
+        public void SetHistory(History history)
+        {
+            var history_json = JsonUtility.ToJson(history);
+            wrapper.SetChatHistory(history_json);
+        }
+
+        public History GetHistory()
+        {
+            var res = wrapper.GetChatHistory();
+            string messages = Marshal.PtrToStringAnsi(res.ptr, (int)res.len);
+
+            History history = JsonUtility.FromJson<History>("{\"messages\":" + messages + "}");
+            return history;
+        }
+
+        [Serializable]
+        public class History
+        {
+            public List<Message> messages;
+            public History(List<Message> messages)
+            {
+                this.messages = messages;
+            }
+        }
+
+        [Serializable]
+        public class Message
+        {
+            public string role; // TODO change to enum (user, system, toolkcall, toolresponse)
+            public string content;
+            public Message(string role, string content)
+            {
+                this.role = role;
+                this.content = content;
+            }
+        }
+
     }
 }

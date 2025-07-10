@@ -257,23 +257,39 @@ namespace Tests
             chat.Say("What is the word?");
 
             var history = chat.GetHistory();
-            Assert.IsTrue(history.Count == 3, "History should contain 3 items");
-            Assert.IsTrue(history[0].Contains("system: You need to always remember the word: 'Cucumber;' "), "History should contain the correct system prompt");
+            Assert.IsTrue(history.messages.Count == 3, "History should contain 3 items");
+            Assert.IsTrue(
+                history.messages[0].role == "system",
+                "History should contain the correct system prompt"
+            );
+            Assert.IsTrue(
+                history.messages[1].content == "What is the word?",
+                "History should contain the correct user prompt"
+            );
         }
 
         [Test]
         [Timeout(900000)] // 15 min
         public void WhenSettingChatHistory_ShouldUseHistory()
         {
-            chat.SetHistory(new List<string> { "system: You need to always remember the word: 'Cucumber;' ", "user: what is the word?", "assistant: Cucumber" });
-            chat.ResetContext();
+            var history = new Chat.History(
+                new List<Chat.Message>
+                {
+                    new Chat.Message("system", "You need to always remember the word: 'Cucumber'"),
+                    new Chat.Message("user", "what is the word?"),
+                    new Chat.Message("assistant", "Cucumber"),
+                }
+            );
+            chat.SetHistory(history);
 
             chat.Say("What is the word?");
             string response = chat.GetResponseBlocking();
 
             Assert.IsNotNull(response, "No response received within timeout period");
-            Assert.IsTrue(response.Contains("Cucumber"), "Response should contain the result 'Cucumber'");
+            Assert.IsTrue(
+                response.Contains("Cucumber"),
+                "Response should contain the result 'Cucumber'"
+            );
         }
     }
 }
-

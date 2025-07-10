@@ -75,6 +75,12 @@ namespace NobodyWho
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "chatwrapper_clear_tools")]
         public static extern ChatError chatwrapper_clear_tools(IntPtr context);
 
+        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "chatwrapper_get_chat_history")]
+        public static extern JsonPointer chatwrapper_get_chat_history(IntPtr context);
+
+        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "chatwrapper_set_chat_history")]
+        public static extern ChatError chatwrapper_set_chat_history(IntPtr context, string chat_history);
+
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "chatwrapper_stop")]
         public static extern ChatError chatwrapper_stop(IntPtr context);
 
@@ -112,6 +118,14 @@ namespace NobodyWho
         Nothing = 0,
         Token = 1,
         Done = 2,
+    }
+
+    [Serializable]
+    [StructLayout(LayoutKind.Sequential)]
+    public partial struct JsonPointer
+    {
+        public IntPtr ptr;
+        public uint len;
     }
 
     [Serializable]
@@ -348,6 +362,20 @@ namespace NobodyWho
         public void ClearTools()
         {
             var rval = NobodyWhoBindings.chatwrapper_clear_tools(_context);
+            if (rval != ChatError.Ok)
+            {
+                throw new InteropException<ChatError>(rval);
+            }
+        }
+
+        public JsonPointer GetChatHistory()
+        {
+            return NobodyWhoBindings.chatwrapper_get_chat_history(_context);
+        }
+
+        public void SetChatHistory(string chat_history)
+        {
+            var rval = NobodyWhoBindings.chatwrapper_set_chat_history(_context, chat_history);
             if (rval != ChatError.Ok)
             {
                 throw new InteropException<ChatError>(rval);
