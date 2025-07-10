@@ -250,13 +250,13 @@ namespace Tests
 
         [Test]
         [Timeout(900000)] // 15 min
-        public void WhenGettingChatHistory_ShouldReturnHistory()
+        public async Task WhenGettingChatHistory_ShouldReturnHistory()
         {
             chat.systemPrompt = "You need to always remember the word: 'Cucumber;' ";
             chat.ResetContext();
             chat.Say("What is the word?");
 
-            var history = chat.GetHistory();
+            var history = await chat.GetHistory();
             Assert.IsTrue(history.messages.Count == 3, "History should contain 3 items");
             Assert.IsTrue(
                 history.messages[0].role == "system",

@@ -1,10 +1,7 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
 using System.Runtime.InteropServices;
-using System.Text;
+using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -112,13 +109,18 @@ namespace NobodyWho
             wrapper.SetChatHistory(history_json);
         }
 
-        public History GetHistory()
+        public async Task<History> GetHistory()
         {
-            var res = wrapper.GetChatHistory();
-            string messages = Marshal.PtrToStringAnsi(res.ptr, (int)res.len);
+            // This needs to be async as it might be blocked for quite if the llm is already generating a response
+            return await Task.Run(() =>
+            {
+                var res = wrapper.GetChatHistory();
+                if (res.len == 0)
+                    return new History(new List<Message>());
 
-            History history = JsonUtility.FromJson<History>("{\"messages\":" + messages + "}");
-            return history;
+                string msgs = Marshal.PtrToStringAnsi(res.ptr, (int)res.len);
+                return JsonUtility.FromJson<History>("{\"messages\":" + msgs + "}");
+            });
         }
 
         [Serializable]
