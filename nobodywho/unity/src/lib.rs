@@ -5,9 +5,7 @@ use interoptopus::{
     callback, ffi_function, ffi_service, ffi_service_ctor, ffi_service_method, ffi_type, function, pattern, Inventory, InventoryBuilder
 };
 use tracing::{debug, error, warn};
-use core::slice;
-use std::any::Any;
-use std::sync::{Arc, WaitTimeoutResult};
+use std::sync::Arc;
 use std::ffi::c_char;
 
 
@@ -418,7 +416,7 @@ impl Default for PollResponseResult {
 #[repr(C)]
 pub struct JsonPointer {
     pub ptr: *const std::ffi::c_char,
-    pub len: u32, // TODO: add optional ChatError? or 
+    pub len: u32,
 }
 
 impl Default for JsonPointer {

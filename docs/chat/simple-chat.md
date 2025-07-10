@@ -185,24 +185,50 @@ This is useful when:
 - Starting a new task that's unrelated to previous ones, where the previous history is irrelevant
 - The LLM gets confused as it has context shifted too much
 
-### Advanced Context Management (Godot Only)
+### Advanced Context Management
 
 If you need more control over what the LLM remembers:
 
-```gdscript
-# See what's in the context
-var messages = await get_chat_history()
-for message in messages:
-    print(message.role, ": ", message.content)
 
-# Set a custom context (useful for templates or saved states)
-var task_context = [
-    {"role": "user", "content": "Analyze the following data:"},
-    {"role": "assistant", "content": "I'm ready to analyze data. Please provide it."},
-    {"role": "user", "content": "Here's the data: " + data_to_analyze}
-]
-set_chat_history(task_context)
-```
+=== ":simple-godotengine: Godot"
+
+    ```gdscript
+    # See what's in the context
+    var messages = await get_chat_history()
+    for message in messages:
+        print(message.role, ": ", message.content)
+    
+    # Set a custom context (useful for templates or saved states)
+    var task_context = [
+        {"role": "user", "content": "Analyze the following data:"},
+        {"role": "assistant", "content": "I'm ready to analyze data. Please provide it."},
+        {"role": "user", "content": "Here's the data: " + data_to_analyze}
+    ]
+    set_chat_history(task_context)
+    ```
+
+=== ":simple-unity: Unity"
+
+    ```csharp
+    var history = new Chat.History(
+        new List<Chat.Message>
+        {
+            new NobodyWho.Chat.Message("system", "You need to always remember the word: 'Cucumber'"),
+            new NobodyWho.Chat.Message("user", "what is the word?"),
+            new NobodyWho.Chat.Message("assistant", "Cucumber"),
+        }
+    );
+    chat.SetHistory(history);
+    ```
+    or 
+
+    ```csharp
+    var history = await chat.GetHistory();
+    history.messages[2].content = "I am the captain now"
+    chat.SetHistory(history);
+    ```
+
+
 
 ### Stop Words: Controlling LLM Output
 
