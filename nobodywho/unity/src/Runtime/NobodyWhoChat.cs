@@ -1,10 +1,7 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
 using System.Runtime.InteropServices;
-using System.Text;
+using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -104,6 +101,48 @@ namespace NobodyWho
 
         public void ClearTools() {
             wrapper.ClearTools();
+        }
+
+        public void SetHistory(History history)
+        {
+            var history_json = JsonUtility.ToJson(history);
+            wrapper.SetChatHistory(history_json);
+        }
+
+        public async Task<History> GetHistory()
+        {
+            // This needs to be async as it might be blocked for quite if the llm is already generating a response
+            return await Task.Run(() =>
+            {
+                var res = wrapper.GetChatHistory();
+                if (res.len == 0)
+                    return new History(new List<Message>());
+
+                string msgs = Marshal.PtrToStringAnsi(res.ptr, (int)res.len);
+                return JsonUtility.FromJson<History>("{\"messages\":" + msgs + "}");
+            });
+        }
+
+        [Serializable]
+        public class History
+        {
+            public List<Message> messages;
+            public History(List<Message> messages)
+            {
+                this.messages = messages;
+            }
+        }
+
+        [Serializable]
+        public class Message
+        {
+            public string role; // TODO change to enum (user, system, toolkcall, toolresponse)
+            public string content;
+            public Message(string role, string content)
+            {
+                this.role = role;
+                this.content = content;
+            }
         }
 
     }
