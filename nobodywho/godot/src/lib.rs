@@ -275,9 +275,33 @@ impl NobodyWhoChat {
                 };
                 error!("got history");
                 let godot_dict_msgs = messages_to_dictionaries(&chat_history);
-                error!("Git dicts: {godot_dict_msgs:?}");
-                emit_node.emit_signal(&signal_name_copy, &vec![Variant::from(godot_dict_msgs)]);
-                error!("Emitted something to: {:?}", signal_name_copy);
+                error!("Got dicts: {godot_dict_msgs:?}");
+                let variant_array: Array<Variant> = godot_dict_msgs
+                    .iter_shared()
+                    .map(|dict| Variant::from(dict))
+                    .collect();
+
+                // wait for godot code to connect to signal
+                let signal = Signal::from_object_signal(&emit_node, &signal_name_copy);
+                let mut tree: Gd<SceneTree> = godot::classes::Engine::singleton()
+                    .get_main_loop()
+                    .unwrap()
+                    .cast();
+                for _ in 0..10 {
+                    if signal.connections().len() > 0 {
+                        // happy path: signal has a connection.
+                        emit_node
+                            .emit_signal(&signal_name_copy, &vec![Variant::from(variant_array)]);
+                        error!("Emitted something to: {:?}", signal_name_copy);
+                        // we're done.
+                        return;
+                    };
+                    // wait one frame before checking number of connections again
+                    trace!("Nothing connected to signal yet, waiting one frame...");
+                    tree.signals().process_frame().to_future().await;
+                }
+                // unhappy path: nothing ever connected:
+                warn!("Nothing connected to get_chat_history signal for 10 frames. Giving up...");
             });
 
             // returns signal, so that you can `var msgs = await get_chat_history()`
