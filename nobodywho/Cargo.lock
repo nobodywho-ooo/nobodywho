@@ -99,9 +99,9 @@ checksum = "46c5e41b57b8bba42a04676d81cb89e9ee8e859a1a66f80a5a72e1cb76b34d43"
 
 [[package]]
 name = "cc"
-version = "1.2.29"
+version = "1.2.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c1599538de2394445747c8cf7935946e3cc27e9625f889d979bfb2aaf569362"
+checksum = "deec109607ca693028562ed836a5f1c4b8bd77755c4e132fc5ce11b0b6211ae7"
 dependencies = [
  "jobserver",
  "libc",
@@ -585,8 +585,9 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-2"
-version = "0.1.109"
-source = "git+https://github.com/AsbjornOlling/llama-cpp-rs.git?branch=windows-vulkan-filetracker-error-workaround#f6862ac840239b4b1a954348ac7b15102eba7292"
+version = "0.1.112"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b82db04c1a710842b56ea3a51e60f8abc0efc82424247a44e72075eaefb5f38"
 dependencies = [
  "enumflags2",
  "llama-cpp-sys-2",
@@ -597,8 +598,9 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-sys-2"
-version = "0.1.109"
-source = "git+https://github.com/AsbjornOlling/llama-cpp-rs.git?branch=windows-vulkan-filetracker-error-workaround#f6862ac840239b4b1a954348ac7b15102eba7292"
+version = "0.1.112"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "64d960c3662adf16f50085a6c0e704a78069d730dfeff197b941272fa0da6cb9"
 dependencies = [
  "bindgen",
  "cc",

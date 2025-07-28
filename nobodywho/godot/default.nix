@@ -41,7 +41,6 @@ rec {
       outputHashes = {
         "gdextension-api-0.2.2" = "sha256-gaxM73OzriSDm6tLRuMTOZxCLky9oS1nq6zTsm0g4tA=";
         "godot-0.2.4" = "sha256-5Kh1j3OpUetuE9qNK85tpZTj8m0Y30CX4okll4TZ9Xc=";
-        "llama-cpp-2-0.1.109" = "sha256-U8uk9jo5Isk/OBqj/wvMvP5Hgq7zU4SYvNaSmwEX3j4=";
         "gbnf-0.2.1" = "sha256-oEP9/OJJWYLMGOPGxgoo5Y4Oh/WyusGZLhS2WF/Y/fU=";
       };
     };
