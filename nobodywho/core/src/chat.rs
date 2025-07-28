@@ -355,7 +355,11 @@ impl<'a> Worker<'_, ChatWorker> {
         )?;
         chat_state.add_system_message(system_prompt);
 
-        let grammar = grammar_from_tools(&tools);
+        let grammar = if tools.len() > 0 {
+            grammar_from_tools(&tools).ok()
+        } else {
+            None
+        };
 
         Ok(Worker::new_with_type(
             model,
@@ -364,7 +368,7 @@ impl<'a> Worker<'_, ChatWorker> {
             ChatWorker {
                 chat_state,
                 tools,
-                tool_grammar: grammar.ok(),
+                tool_grammar: grammar,
                 should_stop,
             },
         )?)
@@ -482,6 +486,11 @@ impl<'a> Worker<'_, ChatWorker> {
             self.ctx.model,
             tools.iter().map(|t| t.to_chat_state_tool()).collect(),
         )?;
+        self.extra.tool_grammar = if tools.len() > 0 {
+            grammar_from_tools(&tools).ok()
+        } else {
+            None
+        };
         self.extra.tools = tools;
         self.extra.chat_state.add_system_message(system_prompt);
         Ok(())

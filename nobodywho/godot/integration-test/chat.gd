@@ -122,6 +122,12 @@ func test_stop_generation():
 	assert("2" in response, "Should stop at 2")
 	assert(not "8" in response, "Should not continue past 2")
 
+	# test get/set history w/ tool call messages in there
+	var messages = await get_chat_history()
+	set_chat_history(messages)
+	var messages_again = await get_chat_history()
+	assert(messages == messages_again)
+
 	# clean up: disconnect signal handler
 	for dict in response_updated.get_connections():
 		response_updated.disconnect(dict.callable)
