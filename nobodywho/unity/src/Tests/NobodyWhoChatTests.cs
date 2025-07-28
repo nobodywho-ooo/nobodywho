@@ -247,5 +247,49 @@ namespace Tests
             Assert.IsTrue(response.Contains("Kuwait City"), "Response should contain the result 'Kuwait City'");
             Assert.IsTrue(response.Contains("100"), "Response should contain the result '100'");
         }
+
+        [Test]
+        [Timeout(900000)] // 15 min
+        public async Task WhenGettingChatHistory_ShouldReturnHistory()
+        {
+            chat.systemPrompt = "You need to always remember the word: 'Cucumber;' ";
+            chat.ResetContext();
+            chat.Say("What is the word?");
+
+            var history = await chat.GetHistory();
+            Assert.IsTrue(history.messages.Count == 3, "History should contain 3 items");
+            Assert.IsTrue(
+                history.messages[0].role == "system",
+                "History should contain the correct system prompt"
+            );
+            Assert.IsTrue(
+                history.messages[1].content == "What is the word?",
+                "History should contain the correct user prompt"
+            );
+        }
+
+        [Test]
+        [Timeout(900000)] // 15 min
+        public void WhenSettingChatHistory_ShouldUseHistory()
+        {
+            var history = new Chat.History(
+                new List<Chat.Message>
+                {
+                    new Chat.Message("system", "You need to always remember the word: 'Cucumber'"),
+                    new Chat.Message("user", "what is the word?"),
+                    new Chat.Message("assistant", "Cucumber"),
+                }
+            );
+            chat.SetHistory(history);
+
+            chat.Say("What is the word?");
+            string response = chat.GetResponseBlocking();
+
+            Assert.IsNotNull(response, "No response received within timeout period");
+            Assert.IsTrue(
+                response.Contains("Cucumber"),
+                "Response should contain the result 'Cucumber'"
+            );
+        }
     }
 }

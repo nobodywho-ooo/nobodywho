@@ -152,6 +152,7 @@ pub struct ChatWrapper {
     handle: Option<nobodywho::chat::ChatHandle>,
     response_rx: Option<tokio::sync::mpsc::Receiver<nobodywho::llm::WriteOutput>>,
     last_returned_cstring: std::ffi::CString,
+    _cstring_allocation: std::ffi::CString,
     tools: Vec<nobodywho::chat::Tool>,
 }
 
@@ -163,6 +164,7 @@ impl ChatWrapper {
             handle: None,
             response_rx: None,
             last_returned_cstring: std::ffi::CString::default(),
+            _cstring_allocation: std::ffi::CString::default(),
             tools: vec![],
         })
     }
@@ -292,6 +294,37 @@ impl ChatWrapper {
         Ok(())
     }
 
+    #[ffi_service_method(on_panic = "return_default")]
+    pub fn get_chat_history(&mut self) -> JsonPointer {
+        let Some(ref handle) = self.handle else {
+            return JsonPointer::default();
+        };
+        let mut rx = handle.get_chat_history();
+        let chat_history = rx.blocking_recv();
+        let json: String = serde_json::to_string(&chat_history).unwrap_or_default();
+        debug!("chat_history: {json}");
+        let cstring = std::ffi::CString::new(json).unwrap_or_default();
+        self._cstring_allocation = cstring;
+        JsonPointer {
+            ptr: self._cstring_allocation.as_ptr(),
+            len: self._cstring_allocation.as_bytes().len() as u32,
+        }
+    }
+
+    pub fn set_chat_history(&mut self, chat_history: AsciiPointer) -> Result<(), ChatError> {
+        if let Some(ref handle) = self.handle {
+            let string = chat_history.as_str().map_err(|_| ChatError::BadJsonSchema)?;
+            let json: serde_json::Value = serde_json::from_str(string).map_err(|_| ChatError::BadJsonSchema)?;
+            let messages: Vec<nobodywho::chat_state::Message> = serde_json::from_value(json["messages"].clone()).map_err(|_| ChatError::BadJsonSchema)?;
+
+            handle.set_chat_history(messages);
+            Ok(())
+        } else {
+            Err(ChatError::WorkerNotStarted)
+        }
+    }
+
+
     pub fn stop(&mut self) -> Result<(), ChatError> {
         if let Some(ref mut handle) = self.handle {
             handle.stop_generation();
@@ -379,6 +412,21 @@ impl Default for PollResponseResult {
     }
 }
 
+#[ffi_type]
+#[repr(C)]
+pub struct JsonPointer {
+    pub ptr: *const std::ffi::c_char,
+    pub len: u32,
+}
+
+impl Default for JsonPointer {
+    fn default() -> Self {
+        Self {
+            ptr: std::ptr::null(),
+            len: 0,
+        }
+    }
+}
 /// EMBEDDINGS
 
 #[ffi_type(patterns(ffi_error))]
