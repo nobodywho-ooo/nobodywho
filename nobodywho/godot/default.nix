@@ -54,6 +54,11 @@ rec {
       url = "https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf";
       sha256 = "sha256-7Djo2hQllrqpExJK5QVQ3ihLaRa/WVd+8vDLlmDC9RQ=";
     };
+    env.TEST_RERANKER_MODEL = fetchurl {
+      name = "Qwen3-Reranker-0.6B-q4_0.gguf";
+      url = "https://huggingface.co/Mungert/Qwen3-Reranker-0.6B-GGUF/resolve/main/Qwen3-Reranker-0.6B-q4_0.gguf";
+      sha256 = "sha256-7Djo2hQllrqpExJK5QVQ3ihLaRa/WVd+8vDLlmDC9RQ=";
+    };
     checkPhase = ''
       cargo test -- --test-threads=1 --nocapture
     '';
