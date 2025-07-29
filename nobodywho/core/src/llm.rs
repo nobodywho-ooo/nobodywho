@@ -1,6 +1,6 @@
 use crate::sampler_config::{make_sampler, SamplerConfig};
 use lazy_static::lazy_static;
-use llama_cpp_2::context::params::LlamaContextParams;
+use llama_cpp_2::context::params::{LlamaContextParams, LlamaPoolingType};
 use llama_cpp_2::context::LlamaContext;
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
@@ -360,7 +360,8 @@ impl<'a, T> Worker<'a, T> {
                 .with_n_ctx(std::num::NonZero::new(n_ctx))
                 .with_n_threads(n_threads)
                 .with_n_threads_batch(n_threads)
-                .with_embeddings(use_embeddings);
+                .with_embeddings(use_embeddings)
+                .with_pooling_type(LlamaPoolingType::Rank);
 
             // Create inference context and sampler
             model.new_context(&LLAMA_BACKEND, ctx_params)?

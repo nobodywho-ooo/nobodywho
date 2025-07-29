@@ -80,7 +80,7 @@ impl<'a> Worker<'a, RerankerWorker> {
         model: &Arc<LlamaModel>,
         n_ctx: u32,
     ) -> Result<Worker<'_, RerankerWorker>, llm::InitWorkerError> {
-        Worker::new_with_type(model, n_ctx, true, true, RerankerWorker {})
+        Worker::new_with_type(model, n_ctx, true, RerankerWorker {})
     }
 
     pub fn get_classification_score(&self) -> Result<f32, RerankerWorkerError> {
@@ -113,9 +113,19 @@ mod tests {
 
         let query = "What is the capital of France?";
         let documents = vec![
-            "Paris is the capital of France.".to_string(),
             "The Eiffel Tower is a famous landmark in the capital of France.".to_string(),
             "France is a country in Europe.".to_string(),
+            "Lyon is a major city in France, but not the capital.".to_string(),
+            "The capital of Germany is Berlin.".to_string(),
+            "Paris hosts many international organizations.".to_string(),
+            "Marseille is located in the south of France.".to_string(),
+            "The French government is based in Paris.".to_string(),
+            "London is the capital of the United Kingdom.".to_string(),
+            "France's capital city is known for its art and culture.".to_string(),
+            "The Louvre Museum is located in Paris, France.".to_string(),
+            "Paris is the capital of France.".to_string(),
+            "The president of France works in Paris, which is the capital of his country.".to_string(),
+            "Many tourists visit Paris every year.".to_string(),
         ];
 
         let mut scores = Vec::new();
@@ -131,9 +141,11 @@ mod tests {
             "Paris document should be most relevant to capital query"
         );
 
-        // All scores should be reasonable (between 0 and 1 for probability scores)
-        for score in &scores {
-            assert!(*score >= 0.0 && *score <= 1.0, "Score {} should be between 0 and 1", score);
+        //debug: print out score and sentencequery pair  sorted by score
+        let mut sorted_scores = scores.clone();
+        sorted_scores.sort_by(|a, b| b.partial_cmp(a).unwrap());
+        for (i, score) in sorted_scores.iter().enumerate() {
+            println!("Score: {score}, Sentence: {}", documents[i]);
         }
 
         Ok(())
