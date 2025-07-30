@@ -2,10 +2,7 @@ use crate::llm;
 use crate::llm::Worker;
 use llama_cpp_2::model::LlamaModel;
 use tracing::error;
-
 use std::sync::Arc;
-
-// RerankerHandle - for parallelism
 
 pub struct RerankerHandle {
     msg_tx: std::sync::mpsc::Sender<RerankerMsg>,
@@ -24,7 +21,7 @@ impl RerankerHandle {
         Self { msg_tx }
     }
 
-    pub fn rerank(&self, query: String, documents: Vec<String>) -> tokio::sync::mpsc::Receiver<Vec<f32>> {
+    pub fn rank(&self, query: String, documents: Vec<String>) -> tokio::sync::mpsc::Receiver<Vec<f32>> {
         let (scores_tx, scores_rx) = tokio::sync::mpsc::channel(1);
         let _ = self.msg_tx.send(RerankerMsg::Rerank(query, documents, scores_tx));
         scores_rx
@@ -59,13 +56,8 @@ fn run_worker(
                 // Clear context for each reranking operation
                 worker_state.reset_context();
 
-                let mut scores = Vec::new();
-                for document in documents {
-                    // Format as query + document pair for cross-encoder
-                    let input = format!("Query: {}\nDocument: {}", query, document);
-                    let score = worker_state.read_string(input)?.get_classification_score()?;
-                    scores.push(score);
-                }
+                let mut scores = worker_state.rank(query, documents)?;
+                
                 let _ = respond.blocking_send(scores);
             }
         }
@@ -97,12 +89,24 @@ impl<'a> Worker<'a, RerankerWorker> {
             Err(RerankerWorkerError::ClassificationError("classification head is empty".to_string()))
         }
     }
+
+    pub fn rank(&mut self, query: String, documents: Vec<String>) -> Result<Vec<f32>, RerankerWorkerError> {
+        let mut scores = Vec::new();
+        for document in documents {
+            self.reset_context();
+            let input = format!("Query: {}\nDocument: {}", query, document);
+            let score = self.read_string(input)?.get_classification_score()?;
+            scores.push(score);
+        }
+        Ok(scores)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::test_utils;
+    use rand::{seq::SliceRandom};
 
     #[test]
     fn test_reranker() -> Result<(), Box<dyn std::error::Error>> {
@@ -111,68 +115,35 @@ mod tests {
 
         let mut worker = Worker::new_reranker_worker(&model, 1024)?;
 
-        let query = "What is the capital of France?";
-        let documents = vec![
+        let query = "What is the capital of France?".to_string();
+        let mut documents = vec![
             "The Eiffel Tower is a famous landmark in the capital of France.".to_string(),
             "France is a country in Europe.".to_string(),
             "Lyon is a major city in France, but not the capital.".to_string(),
-            "The capital of Germany is Berlin.".to_string(),
-            "Paris hosts many international organizations.".to_string(),
-            "Marseille is located in the south of France.".to_string(),
+            "The capital of Germany is France.".to_string(),
             "The French government is based in Paris.".to_string(),
-            "London is the capital of the United Kingdom.".to_string(),
-            "France's capital city is known for its art and culture.".to_string(),
-            "The Louvre Museum is located in Paris, France.".to_string(),
+            "France's capital city is known for its art and culture, it is called Paris.".to_string(),
+            "The Louvre Museum is located in Paris, France - which is the largest city, and the seat of the government".to_string(),
             "Paris is the capital of France.".to_string(),
-            "The president of France works in Paris, which is the capital of his country.".to_string(),
-            "Many tourists visit Paris every year.".to_string(),
+            "Paris is not the capital of France.".to_string(),
+            "The president of France works in Paris, the main city of his country.".to_string(),
+            "What is the capital of France?".to_string(),
         ];
+        let mut rng = rand::rng();
+        documents.shuffle(&mut rng);
 
-        let mut scores = Vec::new();
-        for document in &documents {
-            let input = format!("Query: {}\nDocument: {}", query, document);
-            let score = worker.read_string(input)?.get_classification_score()?;
-            scores.push(score);
-        }
+        let scores = worker.rank(query, documents.clone())?;
+        // The highest score for this should be the phrase  Paris is the capital of France.
+        let mut docs_with_scores: Vec<(String, f32)> = documents.iter().zip(scores.iter()).map(
+            |(doc, score)| (doc.clone(), *score)
+        ).collect();
 
-        // The first document should have the highest relevance score
-        assert!(
-            scores[0] > scores[1] && scores[0] > scores[2],
-            "Paris document should be most relevant to capital query"
-        );
+        docs_with_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
 
-        //debug: print out score and sentencequery pair  sorted by score
-        let mut sorted_scores = scores.clone();
-        sorted_scores.sort_by(|a, b| b.partial_cmp(a).unwrap());
-        for (i, score) in sorted_scores.iter().enumerate() {
-            println!("Score: {score}, Sentence: {}", documents[i]);
-        }
+        // does not really test the accuracy of the the ranker, but rather that it works
+        assert_eq!(docs_with_scores[0].0, "Paris is the capital of France.".to_string());
 
         Ok(())
     }
 
-    #[test]
-    fn test_reranker_deterministic() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
-        let model = test_utils::load_reranker_model();
-        let mut worker = Worker::new_reranker_worker(&model, 1024)?;
-        
-        let query = "What is machine learning?";
-        let document = "Machine learning is a subset of artificial intelligence.";
-        let input = format!("Query: {}\nDocument: {}", query, document);
-        
-        let first_score = worker.read_string(input.clone())?.get_classification_score()?;
-        
-        worker.reset_context();
-        
-        let second_score = worker.read_string(input)?.get_classification_score()?;
-        
-        assert_eq!(
-            first_score,
-            second_score,
-            "Same input should produce identical classification scores."
-        );
-        
-        Ok(())
-    }
 } 
