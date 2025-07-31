@@ -1,5 +1,6 @@
 use crate::llm;
 use crate::llm::Worker;
+use llama_cpp_2::context::params::LlamaPoolingType;
 use llama_cpp_2::model::LlamaModel;
 use tracing::error;
 use std::sync::Arc;
@@ -56,7 +57,7 @@ fn run_worker(
                 // Clear context for each reranking operation
                 worker_state.reset_context();
 
-                let mut scores = worker_state.rank(query, documents)?;
+                let scores = worker_state.rank(query, documents)?;
                 
                 let _ = respond.blocking_send(scores);
             }
@@ -66,6 +67,12 @@ fn run_worker(
 }
 
 struct RerankerWorker {}
+
+impl llm::PoolingType for RerankerWorker {
+    fn pooling_type(&self) -> LlamaPoolingType {
+        LlamaPoolingType::Rank
+    }
+}
 
 impl<'a> Worker<'a, RerankerWorker> {
     pub fn new_reranker_worker(
