@@ -713,6 +713,157 @@ impl NobodyWhoEmbedding {
     }
 }
 
+#[derive(GodotClass)]
+#[class(base=Node)]
+/// The Rerank node is used to rank documents based on their relevance to a query.
+/// This is useful for document retrieval and information retrieval tasks.
+///
+/// It requires a "NobodyWhoModel" node to be set with a GGUF model capable of reranking.
+/// Example:
+///
+/// ```
+/// extends NobodyWhoRerank
+///
+/// func _ready():
+///     # configure node
+///     self.model_node = get_node("../RerankModel")
+///
+///     # rank documents
+///     var query = "What is the capital of France?"
+///     var documents = PackedStringArray([
+///         "Paris is the capital of France.",
+///         "France is a country in Europe.",
+///         "The Eiffel Tower is in Paris."
+///     ])
+///     var ranked_docs = await rank(query, documents, 2)
+///     print("Top 2 documents: " + str(ranked_docs))
+/// ```
+///
+struct NobodyWhoRerank {
+    #[export]
+    /// The model node for the reranker.
+    model_node: Option<Gd<NobodyWhoModel>>,
+    rerank_handle: Option<nobodywho::rerank::RerankerHandle>,
+    base: Base<Node>,
+}
+
+#[godot_api]
+impl INode for NobodyWhoRerank {
+    fn init(base: Base<Node>) -> Self {
+        Self {
+            model_node: None,
+            rerank_handle: None,
+            base,
+        }
+    }
+}
+
+#[godot_api]
+impl NobodyWhoRerank {
+    #[signal]
+    /// Triggered when the ranking has finished. Returns the ranked documents as a PackedStringArray.
+    fn ranking_finished(ranked_documents: PackedStringArray);
+
+    fn get_model(&mut self) -> Result<llm::Model, String> {
+        let gd_model_node = self.model_node.as_mut().ok_or("Model node was not set")?;
+        let mut nobody_model = gd_model_node.bind_mut();
+        let model: llm::Model = nobody_model.get_model().map_err(|e| e.to_string())?;
+
+        Ok(model)
+    }
+
+    #[func]
+    /// Starts the reranker worker thread. This is called automatically when you call `rank`, if it wasn't already called.
+    fn start_worker(&mut self) {
+        let mut result = || -> Result<(), String> {
+            let model = self.get_model()?;
+
+            // TODO: configurable n_ctx liek with the embeddings node
+            self.rerank_handle = Some(nobodywho::rerank::RerankerHandle::new(model, 4096));
+            Ok(())
+        };
+        
+        if let Err(msg) = result() {
+            godot_error!("Error running model: {}", msg);
+        }
+    }
+
+    #[func]
+    /// Ranks documents based on their relevance to the query.
+    /// Returns a signal that you can use to wait for the ranking.
+    /// The signal will return a PackedStringArray of ranked documents.
+    /// 
+    /// Parameters:
+    /// - query: The question or query to rank documents against
+    /// - documents: Array of document strings to rank
+    /// - limit: Maximum number of documents to return (-1 for all documents)
+    fn rank(&mut self, query: String, documents: PackedStringArray, limit: i32) -> Signal {
+        if let Some(rerank_handle) = &self.rerank_handle {
+            let documents: Vec<String> = documents
+                .to_vec()
+                .into_iter()
+                .map(|s| s.to_string())
+                .collect();
+            
+            let mut ranking_channel = rerank_handle.rank(query, documents.clone());
+            let mut emit_node = self.to_gd();
+            godot::task::spawn(async move {
+                match ranking_channel.recv().await {
+                    Some(scores) => {
+                        // Create pairs of (document, score) and sort by score
+                        let mut docs_with_scores: Vec<(String, f32)> = documents
+                            .into_iter()
+                            .zip(scores.into_iter())
+                            .collect();
+
+                        // Sort by score (highest score first)
+                        docs_with_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+                        
+                        // Extract just the documents, optionally limiting
+                        let ranked_docs: Vec<String> = if limit > 0 {
+                            docs_with_scores
+                                .into_iter()
+                                .take(limit as usize)
+                                .map(|(doc, _)| doc)
+                                .collect()
+                        } else {
+                            docs_with_scores
+                                .into_iter()
+                                .map(|(doc, _)| doc)
+                                .collect()
+                        };
+                        
+                        let gstring_array: Vec<GString> = ranked_docs.into_iter().map(|s| GString::from(s)).collect();
+
+                        let result = PackedStringArray::from(gstring_array);
+                        emit_node
+                            .signals()
+                            .ranking_finished()
+                            .emit(&result);
+                    }
+                    None => {
+                        godot_error!("Failed generating ranking.");
+                    }
+                }
+            });
+        } else {
+            godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
+            self.start_worker();
+            return self.rank(query, documents, limit);
+        };
+
+        // returns signal, so that you can `var ranked = await rank("query", docs, 5)`
+        return godot::builtin::Signal::from_object_signal(&self.base_mut(), "ranking_finished");
+    }
+
+    #[func]
+    /// Sets the (global) log level of NobodyWho.
+    /// Valid arguments are "TRACE", "DEBUG", "INFO", "WARN", and "ERROR".
+    fn set_log_level(level: String) {
+        set_log_level(&level);
+    }
+}
+
 /// Small utility to convert our internal Messsage type to godot dictionaries.
 fn messages_to_dictionaries(messages: &[chat_state::Message]) -> Array<Dictionary> {
     messages
