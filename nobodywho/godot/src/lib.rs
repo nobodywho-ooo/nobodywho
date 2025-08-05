@@ -468,7 +468,19 @@ impl NobodyWhoChat {
             }
 
             // TODO: if arguments are incorrect here, the callable returns null
-            let res = callable.call(&args);
+            let res: Variant = callable.call(&args);
+
+            // Handling of async methods, 
+            // as soon as you use await in godot, the will return GDScriptState, which contains a signal. 
+            // signal cannot be emitted from non mainthreads, so we throw an 
+            if res.get_type() == VariantType::OBJECT {
+                if let Ok(obj) = res.try_to::<Gd<RefCounted>>() {
+                    let class_name = obj.get_class();
+                    if class_name.to_string() == "GDScriptFunctionState" {
+                        godot_error!("Tool function is async. This is not supported yet.");
+                    }
+                }
+            }
             res.to_string()
         };
         let new_tool = nobodywho::chat::Tool::new(
@@ -857,6 +869,57 @@ impl NobodyWhoRerank {
     }
 
     #[func]
+    fn rank_sync(&mut self, query: String, documents: PackedStringArray, limit: i32) -> PackedStringArray {
+        if let Some(rerank_handle) = &self.rerank_handle {
+            let documents: Vec<String> = documents
+                .to_vec()
+                .into_iter()
+                .map(|s| s.to_string())
+                .collect();
+            
+            let mut ranking_channel: tokio::sync::mpsc::Receiver<Vec<f32>> = rerank_handle.rank(query, documents.clone());
+            match ranking_channel.blocking_recv() {
+                    Some(scores) => {
+                        // Create pairs of (document, score) and sort by score
+                        let mut docs_with_scores: Vec<(String, f32)> = documents
+                            .into_iter()
+                            .zip(scores.into_iter())
+                            .collect();
+
+                        // Sort by score in descending order (highest score first)
+                        docs_with_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+                        
+                        // Extract just the documents, optionally limiting
+                        let ranked_docs: Vec<String> = if limit > 0 {
+                            docs_with_scores
+                                .into_iter()
+                                .take(limit as usize)
+                                .map(|(doc, _)| doc)
+                                .collect()
+                        } else {
+                            docs_with_scores
+                                .into_iter()
+                                .map(|(doc, _)| doc)
+                                .collect()
+                        };
+                        
+                        let gstring_array: Vec<GString> = ranked_docs.into_iter().map(|s| GString::from(s)).collect();
+
+                        return PackedStringArray::from(gstring_array);
+                    }
+                    None => {
+                        godot_error!("Failed generating ranking.");
+                        return PackedStringArray::new();
+                }
+            };
+        } else {
+            godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
+            self.start_worker();
+            return self.rank_sync(query, documents, limit);
+        };
+    }
+
+
     /// Sets the (global) log level of NobodyWho.
     /// Valid arguments are "TRACE", "DEBUG", "INFO", "WARN", and "ERROR".
     fn set_log_level(level: String) {
