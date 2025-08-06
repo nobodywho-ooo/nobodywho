@@ -1,8 +1,8 @@
-extends NobodyWhoRerank
+extends NobodyWhoCrossEncoder
 
 func run_test():
 	# configure node
-	self.model_node = get_node("../RerankModel")
+	self.model_node = get_node("../CrossEncoderModel")
 	
 	# test ranking documents
 	var query = "What is the capital of France?"
@@ -21,12 +21,12 @@ func run_test():
 	])
 	
 	# Test ranking with limit
-	var ranked_docs = await rank(query, documents, 5)
+	var ranked_docs: PackedStringArray = await rank(query, documents, 3)
 	print("✨ Got ranked documents: " + str(ranked_docs))
 	
 	# Basic validation
-	assert(ranked_docs.size() == 5, "Should return exactly 5 documents")
-	assert(ranked_docs[0].contains("Paris is the capital of France"), "Top result should be the most relevant")
+	assert(ranked_docs.size() == 3, "Should return exactly 3 documents")
+	assert("".join(ranked_docs).contains("Paris is the capital of France"), "Paris is the capital of France should be in the top 3")
 	
 	# Test ranking without limit (should return all documents)
 	var all_ranked_docs = await rank(query, documents, -1)

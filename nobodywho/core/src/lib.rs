@@ -2,7 +2,7 @@ pub mod chat;
 pub mod chat_state;
 pub mod embed;
 pub mod llm;
-pub mod rerank;
+pub mod crossencoder;
 pub mod sampler_config;
 
 pub fn send_llamacpp_logs_to_tracing() {
@@ -38,9 +38,9 @@ pub mod test_utils {
         std::env::var("TEST_EMBEDDINGS_MODEL").unwrap_or_else(|_| "embeddings.gguf".to_string())
     }
 
-    /// Get path to test reranker model from TEST_RERANKER_MODEL env var
-    pub fn test_reranker_model_path() -> String {
-        std::env::var("TEST_RERANKER_MODEL").unwrap_or_else(|_| "reranker.gguf".to_string())
+    /// Get path to test crossencoder model from TEST_CROSSENCODER_MODEL env var
+    pub fn test_crossencoder_model_path() -> String {
+        std::env::var("TEST_CROSSENCODER_MODEL").unwrap_or_else(|_| "crossencoder.gguf".to_string())
     }
 
     /// Load the test model with GPU acceleration if available
@@ -63,11 +63,11 @@ pub mod test_utils {
             .unwrap_or_else(|e| panic!("Failed to load embeddings model from {}: {:?}", path, e))
     }
 
-    /// Load the reranker model with GPU acceleration if available
-    pub fn load_reranker_model() -> Model {
-        let path = test_reranker_model_path();
+    /// Load the crossencoder model with GPU acceleration if available
+    pub fn load_crossencoder_model() -> Model {
+        let path = test_crossencoder_model_path();
         // Same GPU offloading note as embeddings model
         get_model(&path, false)
-            .unwrap_or_else(|e| panic!("Failed to load reranker model from {}: {:?}", path, e))
+            .unwrap_or_else(|e| panic!("Failed to load crossencoder model from {}: {:?}", path, e))
     }
 }

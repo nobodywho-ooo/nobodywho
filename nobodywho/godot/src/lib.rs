@@ -728,18 +728,18 @@ impl NobodyWhoEmbedding {
 
 #[derive(GodotClass)]
 #[class(base=Node)]
-/// The Rerank node is used to rank documents based on their relevance to a query.
+/// The CrossEncoder node is used to rank documents based on their relevance to a query.
 /// This is useful for document retrieval and information retrieval tasks.
 ///
 /// It requires a "NobodyWhoModel" node to be set with a GGUF model capable of reranking.
 /// Example:
 ///
 /// ```
-/// extends NobodyWhoRerank
+/// extends NobodyWhoCrossEncoder
 ///
 /// func _ready():
 ///     # configure node
-///     self.model_node = get_node("../RerankModel")
+///     self.model_node = get_node("../CrossEncoderModel")
 ///
 ///     # rank documents
 ///     var query = "What is the capital of France?"
@@ -752,27 +752,27 @@ impl NobodyWhoEmbedding {
 ///     print("Top 2 documents: " + str(ranked_docs))
 /// ```
 ///
-struct NobodyWhoRerank {
+struct NobodyWhoCrossEncoder {
     #[export]
-    /// The model node for the reranker.
+    /// The model node for the crossencoder.
     model_node: Option<Gd<NobodyWhoModel>>,
-    rerank_handle: Option<nobodywho::rerank::RerankerHandle>,
+    crossencoder_handle: Option<nobodywho::crossencoder::CrossEncoderHandle>,
     base: Base<Node>,
 }
 
 #[godot_api]
-impl INode for NobodyWhoRerank {
+impl INode for NobodyWhoCrossEncoder {
     fn init(base: Base<Node>) -> Self {
         Self {
             model_node: None,
-            rerank_handle: None,
+            crossencoder_handle: None,
             base,
         }
     }
 }
 
 #[godot_api]
-impl NobodyWhoRerank {
+impl NobodyWhoCrossEncoder {
     #[signal]
     /// Triggered when the ranking has finished. Returns the ranked documents as a PackedStringArray.
     fn ranking_finished(ranked_documents: PackedStringArray);
@@ -786,13 +786,13 @@ impl NobodyWhoRerank {
     }
 
     #[func]
-    /// Starts the reranker worker thread. This is called automatically when you call `rank`, if it wasn't already called.
+    /// Starts the crossencoder worker thread. This is called automatically when you call `rank`, if it wasn't already called.
     fn start_worker(&mut self) {
         let mut result = || -> Result<(), String> {
             let model = self.get_model()?;
 
             // TODO: configurable n_ctx liek with the embeddings node
-            self.rerank_handle = Some(nobodywho::rerank::RerankerHandle::new(model, 4096));
+            self.crossencoder_handle = Some(nobodywho::crossencoder::CrossEncoderHandle::new(model, 4096));
             Ok(())
         };
         
@@ -811,14 +811,14 @@ impl NobodyWhoRerank {
     /// - documents: Array of document strings to rank
     /// - limit: Maximum number of documents to return (-1 for all documents)
     fn rank(&mut self, query: String, documents: PackedStringArray, limit: i32) -> Signal {
-        let Some(rerank_handle) = &self.rerank_handle else {
+        let Some(crossencoder_handle) = &self.crossencoder_handle else {
             godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
             self.start_worker();
             return self.rank(query, documents, limit);
         };
 
         let docs_vec: Vec<String> = documents.to_vec().into_iter().map(|s| s.to_string()).collect();
-        let mut ranking_channel = rerank_handle.rank(query, docs_vec.clone());
+        let mut ranking_channel = crossencoder_handle.rank(query, docs_vec.clone());
         let mut emit_node = self.to_gd();
         
         godot::task::spawn(async move {
@@ -836,14 +836,14 @@ impl NobodyWhoRerank {
 
     #[func]
     fn rank_sync(&mut self, query: String, documents: PackedStringArray, limit: i32) -> PackedStringArray {
-        let Some(rerank_handle) = &self.rerank_handle else {
+        let Some(crossencoder_handle) = &self.crossencoder_handle else {
             godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
             self.start_worker();
             return self.rank_sync(query, documents, limit);
         };
 
         let docs_vec: Vec<String> = documents.to_vec().into_iter().map(|s| s.to_string()).collect();
-        let mut ranking_channel = rerank_handle.rank(query, docs_vec.clone());
+        let mut ranking_channel = crossencoder_handle.rank(query, docs_vec.clone());
         
         match ranking_channel.blocking_recv() {
             Some(scores) => Self::_to_sorted_string_array(docs_vec, scores, limit),
