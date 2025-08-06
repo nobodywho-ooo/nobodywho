@@ -57,7 +57,7 @@ rec {
     env.TEST_RERANKER_MODEL = fetchurl {
       name = "bge-reranker-v2-m3-Q8_0.gguf";
       url = "https://huggingface.co/gpustack/bge-reranker-v2-m3-GGUF/resolve/main/bge-reranker-v2-m3-Q8_0.gguf";
-      sha256 = "sha256-0OdXMicV+utzNaRezjkufM67NOMudXQ4bqdbniOCAKo=";
+      sha256 = "sha256-pDx8mxGkwVF+W/lRUZYOFiHRty96STNksB44bPGqodM=";
     };
     checkPhase = ''
       cargo test -- --test-threads=1 --nocapture

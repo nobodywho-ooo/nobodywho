@@ -15,7 +15,7 @@ let
   reranker_model = fetchurl {
     name = "bge-reranker-v2-m3-Q8_0.gguf";
     url = "https://huggingface.co/gpustack/bge-reranker-v2-m3-GGUF/resolve/main/bge-reranker-v2-m3-Q8_0.gguf";
-    hash = "sha256-0OdXMicV+utzNaRezjkufM67NOMudXQ4bqdbniOCAKo=";
+    hash = "sha256-pDx8mxGkwVF+W/lRUZYOFiHRty96STNksB44bPGqodM=";
   };
 in
 stdenv.mkDerivation {
