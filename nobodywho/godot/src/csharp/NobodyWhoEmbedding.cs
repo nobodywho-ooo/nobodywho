@@ -44,7 +44,7 @@ public sealed class NobodyWhoEmbedding
         
         if(!GodotObject.IsInstanceValid(node) || node.IsQueuedForDeletion())
         {
-            throw new ArgumentException("NobodyWhoEmbedding node cannot be invalid or queued for deletion.", nameof(node));
+            throw new ArgumentException($"{nameof(NobodyWhoEmbedding)} node cannot be invalid or queued for deletion.", nameof(node));
         }
 
         EmbeddingNode = node;

@@ -29,7 +29,7 @@ public sealed class NobodyWhoModel
 
         if(!GodotObject.IsInstanceValid(node) || node.IsQueuedForDeletion())
         {
-            throw new ArgumentException("NobodyWhoModel node cannot be invalid or queued for deletion.", nameof(node));
+            throw new ArgumentException($"{nameof(NobodyWhoModel)} node cannot be invalid or queued for deletion.", nameof(node));
         }
 
         ModelNode = node;

@@ -11,17 +11,6 @@ using NobodyWho.Models;
 
 namespace NobodyWho;
 
-/*
-Notes about why I need to do this:
-
-https://github.com/godotengine/godot-proposals/issues/8191
-https://github.com/Delsin-Yu/CSharp-Wrapper-Generator-for-GDExtension
-https://terrain3d.readthedocs.io/en/stable/docs/programming_languages.html#programming-languages
-https://godotengine.org/article/whats-new-in-csharp-for-godot-4-0/#gdextension-support:~:text=Consuming%20APIs%20provided%20by%20a%20GDExtension%20is%20also%20currently%20unsupported.%20We%E2%80%99ll%20keep%20working%20on%20bridging%20the%20gap%20between%20GDExtension%20and%20C%23%20in%20future%204.x%20releases
-https://github.com/gilzoide/godot-csharp-gdextension-bindgen
-
-*/
-
 /// <summary>
 /// <para>The wrapper class for the GDExtension <c>NobodyWhoChat</c> <see cref="Node"/>, which shares the same name.</para>
 /// <para><strong><c>NobodyWhoChat</c> is the main node for interacting with the LLM. It functions as a chat, and can be used to send and receive messages.</strong></para>
@@ -50,7 +39,7 @@ public sealed class NobodyWhoChat
 
         if(!GodotObject.IsInstanceValid(node) || node.IsQueuedForDeletion())
         {
-            throw new ArgumentException("NobodyWhoChat node cannot be invalid or queued for deletion.", nameof(node));
+            throw new ArgumentException($"{nameof(NobodyWhoChat)} node cannot be invalid or queued for deletion.", nameof(node));
         }
 
         ChatNode = node;

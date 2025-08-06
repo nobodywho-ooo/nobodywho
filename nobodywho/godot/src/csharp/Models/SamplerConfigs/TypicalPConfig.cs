@@ -30,6 +30,11 @@ public sealed class TypicalPConfig : IMethodConfig
             throw new ArgumentException($"Resource must be of class {nameof(NobodyWhoSampler)}", nameof(resource));
         }
 
+        if(!GodotObject.IsInstanceValid(resource) || resource.IsQueuedForDeletion())
+        {
+            throw new ArgumentException($"{nameof(NobodyWhoSampler)} resource node cannot be invalid or queued for deletion.", nameof(resource));
+        }
+
         _samplerResource = resource;
     }
 
