@@ -17,3 +17,4 @@ macos.release.arm64 =    "res://addons/nobodywho/nobodywho-godot-aarch64-apple-d
 NobodyWhoModel =            "res://addons/nobodywho/icon.svg"
 NobodyWhoChat =             "res://addons/nobodywho/icon.svg"
 NobodyWhoEmbedding =             "res://addons/nobodywho/icon.svg"
+NobodyWhoCrossEncoder =             "res://addons/nobodywho/icon.svg"

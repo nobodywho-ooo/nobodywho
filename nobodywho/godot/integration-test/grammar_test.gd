@@ -12,7 +12,7 @@ func run_test() -> bool:
 	chat.sampler = NobodyWhoSampler.new()
 	chat.sampler.use_grammar = true
 	# I used this webapp to make a gbnf from a json schema
-    # https://adrienbrault.github.io/json-schema-to-gbnf/
+	# https://adrienbrault.github.io/json-schema-to-gbnf/
 	# XXX: needed to :%s/\\/\\\\/g afterwards to escape the backslashes
 	chat.sampler.gbnf_grammar = """
 root ::= "{" ws01 root-name "," ws01 root-class "," ws01 root-level "}" ws01
@@ -25,14 +25,14 @@ value  ::= (object | array | string | number | boolean | null) ws
 
 object ::=
   "{" ws (
-    string ":" ws value
-    ("," ws string ":" ws value)*
+	string ":" ws value
+	("," ws string ":" ws value)*
   )? "}"
 
 array  ::=
   "[" ws01 (
-            value
-    ("," ws01 value)*
+			value
+	("," ws01 value)*
   )? "]"
 
 string ::=

@@ -1,5 +1,6 @@
 use crate::llm;
 use crate::llm::Worker;
+use llama_cpp_2::context::params::LlamaPoolingType;
 use llama_cpp_2::model::LlamaModel;
 use tracing::error;
 
@@ -70,6 +71,12 @@ fn run_worker(
 // Embeddings Worker - synchronous, blocking work
 
 struct EmbeddingsWorker {}
+
+impl llm::PoolingType for EmbeddingsWorker {
+    fn pooling_type(&self) -> LlamaPoolingType {
+        LlamaPoolingType::Cls
+    }
+}
 
 impl<'a> Worker<'a, EmbeddingsWorker> {
     pub fn new_embeddings_worker(

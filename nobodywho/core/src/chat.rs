@@ -3,7 +3,7 @@ use crate::chat_state::ChatState;
 use crate::llm;
 use crate::llm::Worker;
 use crate::sampler_config::SamplerConfig;
-use llama_cpp_2::model::LlamaModel;
+use llama_cpp_2::{context::params::LlamaPoolingType, model::LlamaModel};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tracing::{debug, error, warn};
@@ -337,6 +337,12 @@ impl llm::GenerationCapability for ChatWorker {}
 impl llm::Stoppable for ChatWorker {
     fn stop(&self) -> bool {
         self.should_stop.load(std::sync::atomic::Ordering::Relaxed)
+    }
+}
+
+impl llm::PoolingType for ChatWorker {
+    fn pooling_type(&self) -> LlamaPoolingType {
+        LlamaPoolingType::None
     }
 }
 

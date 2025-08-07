@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://riqfmggkqpfd"]
 
-[ext_resource type="Script" uid="uid://cq3h4gdvj2u0v" path="res://grammar_test.gd" id="1_xxxxx"]
+[ext_resource type="Script" uid="uid://kjcmsgblfenb" path="res://grammar_test.gd" id="1_xxxxx"]
 
 [node name="GrammarTest" type="Node"]
 script = ExtResource("1_xxxxx")

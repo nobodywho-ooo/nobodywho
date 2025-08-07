@@ -9,6 +9,7 @@ nav:
       - Structured Output: chat/structured-output.md
       - Tool Calling: chat/tool-calling.md
   - Embeddings: embeddings.md
+  - RAG: rag.md
   - Model Selection: model-selection.md
   - Contributing:
       - Development Environment: contributing/dev-environment.md
