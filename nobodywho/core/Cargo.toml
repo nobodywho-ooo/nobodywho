@@ -19,7 +19,7 @@ tracing = "0.1.41"
 tracing-subscriber = "0.3.19"
 regex = "1.11.1"
 serde_json = "1.0.140"
-gbnf = { git = "https://github.com/richardanaya/gbnf", branch = "main" }
+gbnf = { git = "https://github.com/emilnorsker/gbnf", branch = "add_integers" }
 
 [target.'cfg(not(target_os = "macos"))'.dependencies]
 llama-cpp-2 = { version = "0.1.112", features = ["vulkan"] }

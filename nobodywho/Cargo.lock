@@ -279,7 +279,7 @@ checksum = "05f29059c0c2090612e8d742178b0580d2dc940c837851ad723096f87af6663e"
 [[package]]
 name = "gbnf"
 version = "0.2.1"
-source = "git+https://github.com/richardanaya/gbnf?branch=main#2c155fec22737811493c4384cb9670fc020e2066"
+source = "git+https://github.com/emilnorsker/gbnf?branch=add_integers#07d0dcd78e44893fab75b51c9487eded4a2c117c"
 dependencies = [
  "nom",
  "pretty_assertions",
