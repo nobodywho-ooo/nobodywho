@@ -95,7 +95,6 @@ func current_temperature(location: String, zipCode: int, inDenmark: bool) -> Str
 
 
 func test_tool_call():
-	self.set_log_level("debug")
 	self.add_tool(current_temperature, "Gets the current temperature in city. supply with zipcode 123 and in denmark is true")
 	self.system_prompt = "You're a helpful tool-calling assistant. Remember to keep proper tool calling syntax."
 	self.reset_context()
