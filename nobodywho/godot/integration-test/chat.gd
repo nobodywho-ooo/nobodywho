@@ -104,6 +104,32 @@ func test_tool_call():
 	assert("12.34" in response)
 	return true
 
+
+func call_tool() -> String:
+	tool_called = true
+	return "flag set"
+
+var tool_called = false
+
+func test_tool_remove():
+	# Add tool and verify it is called
+	self.set_log_level("debug")
+	tool_called = false
+	self.add_tool(call_tool, "A simple test tool that toggles a flag")
+	self.system_prompt = "You're a helpful tool-calling assistant. You may call functions when asked."
+	self.reset_context()
+	say("Call the function named 'call_tool' now.")
+	var response = await response_finished
+	assert(tool_called, "Tool should be called when registered")
+
+	# Remove tool and verify it is NOT called
+	tool_called = false
+	var removal_done = await remove_tool(call_tool)
+	say("Call the function named 'call_tool' now.")
+	response = await response_finished
+	assert(not tool_called, "Tool should not be called after removal")
+	return true
+
 func test_stop_generation():
 	print("✨ Testing stop generation")
 	system_prompt = "You're countbot. A robot that's very good at counting"
