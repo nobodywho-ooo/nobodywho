@@ -278,8 +278,8 @@ checksum = "05f29059c0c2090612e8d742178b0580d2dc940c837851ad723096f87af6663e"
 
 [[package]]
 name = "gbnf"
-version = "0.2.1"
-source = "git+https://github.com/richardanaya/gbnf?branch=main#2c155fec22737811493c4384cb9670fc020e2066"
+version = "0.2.2"
+source = "git+https://github.com/richardanaya/gbnf?branch=main#83bdc539a60653362d2cd81a379ed30910624780"
 dependencies = [
  "nom",
  "pretty_assertions",
