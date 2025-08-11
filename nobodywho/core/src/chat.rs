@@ -68,6 +68,10 @@ impl ChatHandle {
         });
     }
 
+    pub fn update_tools(&self, tools: Vec<Tool>) {
+        let _ = self.msg_tx.send(ChatMsg::UpdateTools { tools });
+    }
+
     pub fn stop_generation(&self) {
         self.should_stop
             .store(true, std::sync::atomic::Ordering::Relaxed);
@@ -103,6 +107,9 @@ enum ChatMsg {
         system_prompt: String,
         tools: Vec<Tool>,
     },
+    UpdateTools {
+        tools: Vec<Tool>,
+    },
     GetChatHistory {
         output_tx: tokio::sync::mpsc::Sender<Vec<crate::chat_state::Message>>,
     },
@@ -122,6 +129,12 @@ enum ChatWorkerError {
 
     #[error("Init template error: {0}")]
     TemplateError(#[from] chat_state::FromModelError),
+
+    #[error("Error rendering template: {0}")]
+    TemplateRenderError(#[from] minijinja::Error),
+
+    #[error("Read error: {0}")]
+    ReadError(#[from] llm::ReadError),
 }
 
 fn run_worker(
@@ -153,6 +166,9 @@ fn run_worker(
             } => {
                 worker_state.reset_chat(system_prompt, tools)?;
             }
+            ChatMsg::UpdateTools { tools } => {
+                worker_state.update_tools(tools)?;
+            }
             ChatMsg::GetChatHistory { output_tx } => {
                 let _ =
                     output_tx.blocking_send(worker_state.extra.chat_state.get_messages().to_vec());
@@ -178,7 +194,7 @@ unsafe impl Send for Tool {}
 
 #[derive(Clone)]
 pub struct Tool {
-    name: String,
+    pub name: String,
     description: String,
     json_schema: serde_json::Value,
     function: Arc<dyn Fn(serde_json::Value) -> String>,
@@ -499,6 +515,26 @@ impl<'a> Worker<'_, ChatWorker> {
         };
         self.extra.tools = tools;
         self.extra.chat_state.add_system_message(system_prompt);
+        Ok(())
+    }
+
+    pub fn update_tools(&mut self, tools: Vec<Tool>) -> Result<(), ChatWorkerError> {
+        let current_messages = self.extra.chat_state.get_messages().to_vec();
+        self.reset_context();
+        self.extra.chat_state = ChatState::from_model_and_tools(
+            self.ctx.model,
+            tools.iter().map(|t| t.to_chat_state_tool()).collect(),
+        )?;
+        self.extra.tool_grammar = if tools.len() > 0 {
+            grammar_from_tools(&tools).ok()
+        } else {
+            None
+        };
+        self.extra.tools = tools;
+        self.extra.chat_state.set_messages(current_messages);
+        let diff = self.extra.chat_state.render_diff()?;
+        self.read_string(diff)?;
+
         Ok(())
     }
 

@@ -1,22 +1,20 @@
 extends NobodyWhoChat
 
 func run_test():
-	# configure node
 	model_node = get_node("../ChatModel")
 	system_prompt = "You are a helpful assistant, capable of answering questions about the world."
 
-	
 	assert(await test_say())
 	assert(await test_antiprompts())
 	assert(await test_antiprompts_multitokens())
 	assert(await test_chat_history())
 	assert(await test_stop_generation())
 	assert(await test_tool_call())
+	assert(await test_tool_remove())
 	return true
 
 func test_say():
 	say("Please tell me what the capital city of Denmark is.")
-
 	var response = await response_finished
 
 	print("✨ Got response: " + response)
@@ -88,7 +86,6 @@ func test_chat_history():
 	
 
 func current_temperature(location: String, zipCode: int, inDenmark: bool) -> String:
-	push_warning("current_temperature: %s, %d, %s" % [location, zipCode, inDenmark])
 	if location.to_lower() == "copenhagen":
 		return "12.34"
 	return "Unknown city name"
@@ -98,6 +95,7 @@ func test_tool_call():
 	self.add_tool(current_temperature, "Gets the current temperature in city.")
 	self.system_prompt = "You're a helpful tool-calling assistant. Remember to keep proper tool calling syntax."
 	self.reset_context()
+	# 12.3 is on pupose to test correct type inputs for the tool call
 	say("I'd like to know the current temperature in Copenhagen. with zipcode 12.3 and in denmark is true")
 	var response = await response_finished
 	print(response)
@@ -112,7 +110,6 @@ func call_tool() -> String:
 var tool_called = false
 
 func test_tool_remove():
-	# Add tool and verify it is called
 	self.set_log_level("debug")
 	tool_called = false
 	self.add_tool(call_tool, "A simple test tool that toggles a flag")
@@ -122,10 +119,9 @@ func test_tool_remove():
 	var response = await response_finished
 	assert(tool_called, "Tool should be called when registered")
 
-	# Remove tool and verify it is NOT called
 	tool_called = false
-	var removal_done = await remove_tool(call_tool)
-	say("Call the function named 'call_tool' now.")
+	remove_tool(call_tool)
+	say("I disabled the flag, can you set it again by calling the function named 'call_tool' now.")
 	response = await response_finished
 	assert(not tool_called, "Tool should not be called after removal")
 	return true
