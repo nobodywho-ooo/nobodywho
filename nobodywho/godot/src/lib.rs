@@ -6,6 +6,7 @@ use nobodywho::{chat_state, llm, sampler_config};
 use std::sync::atomic::{AtomicU64, Ordering};
 use tracing::{debug, error, info, trace, warn};
 use tracing_subscriber::prelude::*;
+use tracing_subscriber::filter::{LevelFilter, Targets};
 
 use crate::sampler_resource::NobodyWhoSampler;
 
@@ -18,8 +19,8 @@ unsafe impl ExtensionLibrary for NobodyWhoExtension {
         // otherwise the tracing_subscriber stuff will crash, because it can't access godot stuff
         if level == InitLevel::Editor {
             // Initialize tracing_subscriber - sends all tracing events to godot console.
-            set_log_level("INFO");
             info!("NobodyWho Godot version: {}", env!("CARGO_PKG_VERSION"));
+            set_log_level("INFO"); // default behavior
         }
     }
 }
@@ -821,15 +822,31 @@ impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for GodotWriter {
 }
 
 static INIT: std::sync::Once = std::sync::Once::new();
-// Static handle to the filter
-static LEVEL_HANDLE: std::sync::Mutex<
-    Option<
-        tracing_subscriber::reload::Handle<
-            tracing_subscriber::filter::LevelFilter,
-            tracing_subscriber::Registry,
-        >,
-    >,
+
+static LEVEL_HANDLE: std::sync::Mutex<Option<tracing_subscriber::reload::Handle<Targets, tracing_subscriber::Registry>>,
 > = std::sync::Mutex::new(None);
+
+fn base_directive(level: tracing::Level) -> LevelFilter {
+    match level {
+        tracing::Level::TRACE => LevelFilter::TRACE,
+        tracing::Level::DEBUG => LevelFilter::DEBUG,
+        tracing::Level::INFO => LevelFilter::INFO,
+        tracing::Level::WARN => LevelFilter::WARN,
+        tracing::Level::ERROR => LevelFilter::ERROR,
+    }
+}
+
+// Llama logs are noisy and verbose, this works by setting a higher required log level before showing 
+// At app DEBUG, a llama DEBUG message is not shown because only traces with INFO or higher is allowed through
+fn llama_log_threshold(level: tracing::Level) -> LevelFilter {
+    match level {
+        tracing::Level::TRACE => LevelFilter::TRACE,
+        tracing::Level::DEBUG => LevelFilter::INFO,
+        tracing::Level::INFO => LevelFilter::WARN,
+        tracing::Level::WARN => LevelFilter::WARN,
+        tracing::Level::ERROR => LevelFilter::ERROR,
+    }
+}
 
 pub fn set_log_level(level_str: &str) {
     let level: tracing::Level = match level_str.to_uppercase().parse() {
@@ -840,35 +857,27 @@ pub fn set_log_level(level_str: &str) {
         }
     };
 
-    // First-time initialization
     INIT.call_once(|| {
         nobodywho::send_llamacpp_logs_to_tracing();
 
-        // Create a reloadable filter
-        let (filter, filter_handle) = tracing_subscriber::reload::Layer::new(
-            tracing_subscriber::filter::LevelFilter::from_level(level),
-        );
-        // Store the handle for future updates
-        *LEVEL_HANDLE.lock().unwrap() = Some(filter_handle);
+        let mut targets = Targets::new().with_default(base_directive(level));
+        targets = targets.with_target("llama-cpp-2", llama_log_threshold(level));
 
-        // Let fmt layer handle the formatting, but use our custom writer
+        let (filter, handle) = tracing_subscriber::reload::Layer::new(targets);
+        *LEVEL_HANDLE.lock().unwrap() = Some(handle);
+
         let fmt_layer = tracing_subscriber::fmt::layer()
             .with_writer(GodotWriter)
             .with_ansi(false)
             .with_level(true)
             .compact();
 
-        tracing_subscriber::registry()
-            .with(filter)
-            .with(fmt_layer)
-            .init();
+        tracing_subscriber::registry().with(filter).with(fmt_layer).init();
     });
 
     if let Some(handle) = &*LEVEL_HANDLE.lock().unwrap() {
-        if let Err(e) = handle.modify(|filter| {
-            *filter = tracing_subscriber::filter::LevelFilter::from_level(level);
-        }) {
-            godot_error!("Failed to update log level: {}", e);
-        }
+        let mut targets = Targets::new().with_default(base_directive(level));
+        targets = targets.with_target("llama-cpp-2", llama_log_threshold(level));
+        let _ = handle.modify(|new_targets| *new_targets = targets);
     }
 }
