@@ -500,7 +500,7 @@ impl NobodyWhoChat {
             Some(name) => name.to_string(),
             None => {
                 godot_error!("remove_tool: missing method_name on Callable");
-                return
+                return;
             }
         };
         let tools_before = self.tools.len();
@@ -509,7 +509,7 @@ impl NobodyWhoChat {
             godot_warn!("remove_tool: unknown tool '{}'", method_name);
         }
         if let Some(chat_handle) = &self.chat_handle {
-            chat_handle.update_tools(self.tools.clone());
+            chat_handle.set_tools(self.tools.clone());
         }
     }
 

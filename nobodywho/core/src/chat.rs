@@ -68,8 +68,8 @@ impl ChatHandle {
         });
     }
 
-    pub fn update_tools(&self, tools: Vec<Tool>) {
-        let _ = self.msg_tx.send(ChatMsg::UpdateTools { tools });
+    pub fn set_tools(&self, tools: Vec<Tool>) {
+        let _ = self.msg_tx.send(ChatMsg::SetTools { tools });
     }
 
     pub fn stop_generation(&self) {
@@ -107,7 +107,7 @@ enum ChatMsg {
         system_prompt: String,
         tools: Vec<Tool>,
     },
-    UpdateTools {
+    SetTools {
         tools: Vec<Tool>,
     },
     GetChatHistory {
@@ -166,8 +166,8 @@ fn run_worker(
             } => {
                 worker_state.reset_chat(system_prompt, tools)?;
             }
-            ChatMsg::UpdateTools { tools } => {
-                worker_state.update_tools(tools)?;
+            ChatMsg::SetTools { tools } => {
+                worker_state.set_tools(tools)?;
             }
             ChatMsg::GetChatHistory { output_tx } => {
                 let _ =
@@ -518,7 +518,7 @@ impl<'a> Worker<'_, ChatWorker> {
         Ok(())
     }
 
-    pub fn update_tools(&mut self, tools: Vec<Tool>) -> Result<(), ChatWorkerError> {
+    pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), ChatWorkerError> {
         let current_messages = self.extra.chat_state.get_messages().to_vec();
         self.reset_context();
         self.extra.chat_state = ChatState::from_model_and_tools(
