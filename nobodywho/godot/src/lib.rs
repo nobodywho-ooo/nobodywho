@@ -469,7 +469,20 @@ impl NobodyWhoChat {
             }
 
             // TODO: if arguments are incorrect here, the callable returns null
-            let res = callable.call(&args);
+            let res: Variant = callable.call(&args);
+
+            // Handling of async methods, 
+            // as soon as you use await in godot, the will return GDScriptState, which contains a signal. 
+            // signal cannot be emitted from non mainthreads, so we throw an 
+            if res.get_type() == VariantType::OBJECT {
+                if let Ok(obj) = res.try_to::<Gd<RefCounted>>() {
+                    let class_name = obj.get_class();
+                    if class_name.to_string() == "GDScriptFunctionState" {
+                        godot_error!("Tool function is async. This is not supported yet.");
+                        return "Error: Async tool functions are not supported. Please use synchronous functions only.".into();
+                    }
+                }
+            }
             res.to_string()
         };
         let new_tool = nobodywho::chat::Tool::new(
@@ -704,6 +717,157 @@ impl NobodyWhoEmbedding {
     /// Returns a value between 0 and 1, where 1 is the highest similarity.
     fn cosine_similarity(a: PackedFloat32Array, b: PackedFloat32Array) -> f32 {
         nobodywho::embed::cosine_similarity(a.as_slice(), b.as_slice())
+    }
+
+    #[func]
+    /// Sets the (global) log level of NobodyWho.
+    /// Valid arguments are "TRACE", "DEBUG", "INFO", "WARN", and "ERROR".
+    fn set_log_level(level: String) {
+        set_log_level(&level);
+    }
+}
+
+#[derive(GodotClass)]
+#[class(base=Node)]
+/// The CrossEncoder node is used to rank documents based on their relevance to a query.
+/// This is useful for document retrieval and information retrieval tasks.
+///
+/// It requires a "NobodyWhoModel" node to be set with a GGUF model capable of reranking.
+/// Example:
+///
+/// ```
+/// extends NobodyWhoCrossEncoder
+///
+/// func _ready():
+///     # configure node
+///     self.model_node = get_node("../CrossEncoderModel")
+///
+///     # rank documents
+///     var query = "What is the capital of France?"
+///     var documents = PackedStringArray([
+///         "Paris is the capital of France.",
+///         "France is a country in Europe.",
+///         "The Eiffel Tower is in Paris."
+///     ])
+///     var ranked_docs = await rank(query, documents, 2)
+///     print("Top 2 documents: " + str(ranked_docs))
+/// ```
+///
+struct NobodyWhoCrossEncoder {
+    #[export]
+    /// The model node for the crossencoder.
+    model_node: Option<Gd<NobodyWhoModel>>,
+    crossencoder_handle: Option<nobodywho::crossencoder::CrossEncoderHandle>,
+    base: Base<Node>,
+}
+
+#[godot_api]
+impl INode for NobodyWhoCrossEncoder {
+    fn init(base: Base<Node>) -> Self {
+        Self {
+            model_node: None,
+            crossencoder_handle: None,
+            base,
+        }
+    }
+}
+
+#[godot_api]
+impl NobodyWhoCrossEncoder {
+    #[signal]
+    /// Triggered when the ranking has finished. Returns the ranked documents as a PackedStringArray.
+    fn ranking_finished(ranked_documents: PackedStringArray);
+
+    fn get_model(&mut self) -> Result<llm::Model, String> {
+        let gd_model_node = self.model_node.as_mut().ok_or("Model node was not set")?;
+        let mut nobody_model = gd_model_node.bind_mut();
+        let model: llm::Model = nobody_model.get_model().map_err(|e| e.to_string())?;
+
+        Ok(model)
+    }
+
+    #[func]
+    /// Starts the crossencoder worker thread. This is called automatically when you call `rank`, if it wasn't already called.
+    fn start_worker(&mut self) {
+        let mut result = || -> Result<(), String> {
+            let model = self.get_model()?;
+
+            // TODO: configurable n_ctx liek with the embeddings node
+            self.crossencoder_handle = Some(nobodywho::crossencoder::CrossEncoderHandle::new(model, 4096));
+            Ok(())
+        };
+        
+        if let Err(msg) = result() {
+            godot_error!("Error running model: {}", msg);
+        }
+    }
+
+    #[func]
+    /// Ranks documents based on their relevance to the query.
+    /// Returns a signal that you can use to wait for the ranking.
+    /// The signal will return a PackedStringArray of ranked documents.
+    /// 
+    /// Parameters:
+    /// - query: The question or query to rank documents against
+    /// - documents: Array of document strings to rank
+    /// - limit: Maximum number of documents to return (-1 for all documents)
+    fn rank(&mut self, query: String, documents: PackedStringArray, limit: i32) -> Signal {
+        let Some(crossencoder_handle) = &self.crossencoder_handle else {
+            godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
+            self.start_worker();
+            return self.rank(query, documents, limit);
+        };
+
+        let docs_vec: Vec<String> = documents.to_vec().into_iter().map(|s| s.to_string()).collect();
+        let mut ranking_channel = crossencoder_handle.rank(query, docs_vec.clone());
+        let mut emit_node = self.to_gd();
+        
+        godot::task::spawn(async move {
+            match ranking_channel.recv().await {
+                Some(scores) => {
+                    let result = Self::_to_sorted_string_array(docs_vec, scores, limit);
+                    emit_node.signals().ranking_finished().emit(&result);
+                }
+                None => godot_error!("Failed generating ranking."),
+            }
+        });
+
+        godot::builtin::Signal::from_object_signal(&self.base_mut(), "ranking_finished")
+    }
+
+    #[func]
+    fn rank_sync(&mut self, query: String, documents: PackedStringArray, limit: i32) -> PackedStringArray {
+        let Some(crossencoder_handle) = &self.crossencoder_handle else {
+            godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
+            self.start_worker();
+            return self.rank_sync(query, documents, limit);
+        };
+
+        let docs_vec: Vec<String> = documents.to_vec().into_iter().map(|s| s.to_string()).collect();
+        let mut ranking_channel = crossencoder_handle.rank(query, docs_vec.clone());
+        
+        match ranking_channel.blocking_recv() {
+            Some(scores) => Self::_to_sorted_string_array(docs_vec, scores, limit),
+            None => {
+                godot_error!("Failed generating ranking.");
+                PackedStringArray::new()
+            }
+        }
+    }
+
+    /// takes a list of scores and documents and returns a sorted packedstring array
+    fn _to_sorted_string_array(documents: Vec<String>, scores: Vec<f32>, limit: i32) -> PackedStringArray {
+        let mut docs_with_scores: Vec<(String, f32)> = documents.into_iter().zip(scores).collect();
+        docs_with_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        
+        let ranked_docs: Vec<String> = docs_with_scores
+            .into_iter()
+            .map(|(doc, _)| doc)
+            .take(if limit > 0 { limit as usize } else { usize::MAX })
+            .collect();
+            
+        let gstring_array: Vec<GString> = ranked_docs.into_iter().map(GString::from).collect();
+        PackedStringArray::from(gstring_array)
     }
 
     #[func]

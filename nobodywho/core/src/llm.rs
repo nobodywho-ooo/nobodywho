@@ -1,6 +1,6 @@
 use crate::sampler_config::{make_sampler, SamplerConfig};
 use lazy_static::lazy_static;
-use llama_cpp_2::context::params::LlamaContextParams;
+use llama_cpp_2::context::params::{LlamaContextParams, LlamaPoolingType};
 use llama_cpp_2::context::LlamaContext;
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
@@ -150,6 +150,16 @@ pub(crate) struct Worker<'a, S> {
     pub(crate) extra: S,
 }
 
+pub trait PoolingType {
+    fn pooling_type(&self) -> LlamaPoolingType;
+}
+
+impl<'a, T> PoolingType for Worker<'a, T> {
+    fn pooling_type(&self) -> LlamaPoolingType {
+        LlamaPoolingType::Unspecified
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum WorkerError {
     #[error("Could not determine number of threads available: {0}")]
@@ -234,6 +244,7 @@ pub struct GenerationWorker {
     should_stop: Arc<AtomicBool>,
 }
 
+
 impl GenerationCapability for GenerationWorker {}
 impl Stoppable for GenerationWorker {
     fn stop(&self) -> bool {
@@ -255,6 +266,12 @@ impl<'a> Worker<'_, GenerationWorker> {
                 should_stop: Arc::new(AtomicBool::new(false)),
             },
         )
+    }
+}
+
+impl PoolingType for GenerationWorker {
+    fn pooling_type(&self) -> LlamaPoolingType {
+        LlamaPoolingType::None
     }
 }
 
@@ -343,7 +360,10 @@ where
 }
 
 // Common methods for any workstate type
-impl<'a, T> Worker<'a, T> {
+impl<'a, T> Worker<'a, T>
+where
+    T: PoolingType,
+{
     pub(crate) fn new_with_type(
         model: &Arc<LlamaModel>,
         n_ctx: u32,
@@ -360,7 +380,8 @@ impl<'a, T> Worker<'a, T> {
                 .with_n_ctx(std::num::NonZero::new(n_ctx))
                 .with_n_threads(n_threads)
                 .with_n_threads_batch(n_threads)
-                .with_embeddings(use_embeddings);
+                .with_embeddings(use_embeddings)
+                .with_pooling_type(extra.pooling_type());
 
             // Create inference context and sampler
             model.new_context(&LLAMA_BACKEND, ctx_params)?
