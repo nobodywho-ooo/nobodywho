@@ -39,8 +39,9 @@ rec {
     cargoLock = {
       lockFile = ../Cargo.lock;
       outputHashes = {
-        "gbnf-0.2.2" = "sha256-4CHiHQ0p1AtDVCfmYCgsKbJv75sKsZ99xudByBiX2sQ=";
-        "llama-cpp-2-0.1.113" = "sha256-U/SwfIt5WgR9isyj0FHBRfc6/TwyX2XzcGI3QkAH/rY=";
+        "gdextension-api-0.2.2" = "sha256-gaxM73OzriSDm6tLRuMTOZxCLky9oS1nq6zTsm0g4tA=";
+        "godot-0.2.4" = "sha256-5Kh1j3OpUetuE9qNK85tpZTj8m0Y30CX4okll4TZ9Xc=";
+        "gbnf-0.2.2" = "sha256-yxJhq0HdDdPnIwpIBi1Oj8LBEUDqbecIF2ATE3T+wXk=";
       };
     };
     env.TEST_MODEL = fetchurl {
