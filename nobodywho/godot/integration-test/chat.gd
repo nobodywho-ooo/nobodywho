@@ -87,22 +87,22 @@ func test_chat_history():
 	return true
 	
 
-func current_temperature(location: String) -> String:
+func current_temperature(location: String, zipCode: int, inDenmark: bool) -> String:
+	push_warning("current_temperature: %s, %d, %s" % [location, zipCode, inDenmark])
 	if location.to_lower() == "copenhagen":
 		return "12.34"
 	return "Unknown city name"
 
 
 func test_tool_call():
-	self.add_tool(current_temperature, "Gets the current temperature in a given city.")
+	self.add_tool(current_temperature, "Gets the current temperature in city.")
 	self.system_prompt = "You're a helpful tool-calling assistant. Remember to keep proper tool calling syntax."
 	self.reset_context()
-	say("I'd like to know the current temperature in Copenhagen.")
+	say("I'd like to know the current temperature in Copenhagen. with zipcode 12.3 and in denmark is true")
 	var response = await response_finished
 	print(response)
 	assert("12.34" in response)
 	return true
-
 
 func test_stop_generation():
 	print("✨ Testing stop generation")
