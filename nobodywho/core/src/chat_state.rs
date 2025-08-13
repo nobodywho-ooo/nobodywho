@@ -309,13 +309,6 @@ impl ChatState {
         // render the full template
         let text = self.render()?;
 
-        // If the newly rendered text is shorter than what we last recorded (as is the case when removing a tool)
-        // we don't want to emit the full text and slice OOB.
-        // so we just keep the length of the last rendered text.
-        if self.length > text.len() {
-            self.length = text.len();
-        }
-
         // get the chars that are new since the last template render
         let diff = text[self.length..].to_string();
 
