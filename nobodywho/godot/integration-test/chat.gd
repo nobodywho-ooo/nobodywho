@@ -10,6 +10,7 @@ func run_test():
 	assert(await test_chat_history())
 	assert(await test_stop_generation())
 	assert(await test_tool_call())
+	assert(await test_tool_call_underscores())
 	assert(await test_tool_remove())
 	return true
 
@@ -126,6 +127,22 @@ func test_tool_remove():
 	response = await response_finished
 	assert(not tool_called, "Tool should not be called after removal")
 	return true
+
+func guess_password(text_1: String, text__1: String, __text__: String) -> String:
+	return "The password is P@sSW0rd"
+
+
+func test_tool_call_underscores():
+	self.add_tool(guess_password, "A tool that guesses a password based on what underscores are supplied")
+	self.system_prompt = "You're a helpful tool-calling assistant, always use your tools"
+	self.reset_context()
+	say("please guess this is a password: ____-____-____")
+	var response = await response_finished
+	print(response)
+	assert("P@sSW0rd" in response)
+	return true
+
+
 
 func test_stop_generation():
 	print("✨ Testing stop generation")
