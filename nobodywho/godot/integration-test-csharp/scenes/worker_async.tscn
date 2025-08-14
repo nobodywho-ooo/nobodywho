@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://bpaaujywl0c14"]
 
-[ext_resource type="Script" uid="uid://c4bq6pnepgsoi" path="res://scripts/WorkerAsync.cs" id="1_0drxe"]
+[ext_resource type="Script" uid="uid://b8my7rs4m06qn" path="res://scripts/WorkerAsync.cs" id="1_0drxe"]
 
 [node name="WorkerAsync" type="Node"]
 script = ExtResource("1_0drxe")

@@ -203,16 +203,16 @@ public sealed class NobodyWhoChat
     /// }
     /// </code>
     /// </summary>
-    /// <param name="object">The object that will call the method matching the provided <paramref name="methodName"/>.</param>
+    /// <param name="target">The object that will call the method matching the provided <paramref name="methodName"/>.</param>
     /// <param name="methodName">The name of the method to invoke on the tool call.</param>
     /// <param name="description">The description text used to match against to trigger the tool call.</param>
     /// <exception cref="ArgumentNullException"></exception>
-    public void AddTool(GodotObject @object, string methodName, string description)
+    public void AddTool(GodotObject target, string methodName, string description)
     {
-        ArgumentNullException.ThrowIfNull(@object);
-        ArgumentNullException.ThrowIfNullOrWhiteSpace(methodName);
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentException.ThrowIfNullOrWhiteSpace(methodName);
 
-        AddTool(new Callable(@object, methodName), description);
+        AddTool(new Callable(target, methodName), description);
     }
 
     /// <summary>
@@ -247,7 +247,7 @@ public sealed class NobodyWhoChat
     public void AddTool(Callable callable, string description)
     {
         ArgumentNullException.ThrowIfNull(callable);
-        ArgumentNullException.ThrowIfNullOrWhiteSpace(description);
+        ArgumentException.ThrowIfNullOrWhiteSpace(description);
 
         ChatNode.Call(MethodName.AddTool, callable, description);
     }
@@ -284,19 +284,19 @@ public sealed class NobodyWhoChat
     /// }
     /// </code>
     /// </summary>
-    /// <param name="object">The object that will call the method matching the provided <paramref name="methodName"/>.</param>
+    /// <param name="target">The object that will call the method matching the provided <paramref name="methodName"/>.</param>
     /// <param name="methodName">The name of the method to invoke on the tool call.</param>
     /// <param name="description">The description text used to match against to trigger the tool call.</param>
     /// <param name="jsonSchema">The schema used to constrain the parameters.</param>
     /// <exception cref="ArgumentException"></exception>
     /// <exception cref="ArgumentNullException"></exception>
     /// <exception cref="JsonException"></exception>
-    public void AddToolWithSchema(GodotObject @object, string methodName, string description, string jsonSchema)
+    public void AddToolWithSchema(GodotObject target, string methodName, string description, string jsonSchema)
     {
-        ArgumentNullException.ThrowIfNull(@object);
-        ArgumentNullException.ThrowIfNullOrWhiteSpace(methodName);
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentException.ThrowIfNullOrWhiteSpace(methodName);
 
-        AddToolWithSchema(new Callable(@object, methodName), description, jsonSchema);
+        AddToolWithSchema(new Callable(target, methodName), description, jsonSchema);
     }
 
     /// <summary>
@@ -340,13 +340,39 @@ public sealed class NobodyWhoChat
     public void AddToolWithSchema(Callable callable, string description, string jsonSchema)
     {
         ArgumentNullException.ThrowIfNull(callable);
-        ArgumentNullException.ThrowIfNullOrWhiteSpace(description);
-        ArgumentNullException.ThrowIfNullOrWhiteSpace(jsonSchema);
+        ArgumentException.ThrowIfNullOrWhiteSpace(description);
+        ArgumentException.ThrowIfNullOrWhiteSpace(jsonSchema);
 
         // Will throw a JsonException if the provided json schema is NOT valid.
         using JsonDocument _ = JsonDocument.Parse(jsonSchema);
 
         ChatNode.Call(MethodName.AddToolWithSchema, callable, description, jsonSchema);
+    }
+
+    /// <summary>
+    /// Removes a tool from the LLM. Tool calling is only supported for a select few models. We recommend Qwen3.
+    /// </summary>
+    /// <param name="target">The object that was going to call the method matching the provided <paramref name="methodName"/>.</param>
+    /// <param name="methodName">The name of the method to remove that was being invoked on the tool call.</param>
+    /// <exception cref="ArgumentNullException"></exception>
+    public void RemoveTool(GodotObject target, string methodName)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentException.ThrowIfNullOrWhiteSpace(methodName);
+
+        RemoveTool(new Callable(target, methodName));
+    }
+
+    /// <summary>
+    /// Removes a tool from the LLM. Tool calling is only supported for a select few models. We recommend Qwen3.
+    /// </summary>
+    /// <param name="callable">The callable to remove as a tool call.</param>
+    /// <exception cref="ArgumentNullException"></exception>
+    public void RemoveTool(Callable callable)
+    {
+        ArgumentNullException.ThrowIfNull(callable);
+
+        ChatNode.Call(MethodName.RemoveTool, callable);
     }
 
     /// <summary>
@@ -576,6 +602,11 @@ public sealed class NobodyWhoChat
         /// <strong>get_chat_history</strong>
         /// </summary>
         public static readonly StringName GetChatHistory = "get_chat_history";
+
+        /// <summary>
+        /// <strong>remove_tool</strong>
+        /// </summary>
+        public static readonly StringName RemoveTool = "remove_tool";
 
         /// <summary>
         /// <strong>reset_context</strong>

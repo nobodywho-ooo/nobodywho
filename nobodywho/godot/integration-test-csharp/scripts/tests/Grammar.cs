@@ -27,9 +27,11 @@ public class Grammar
             _chat = new(nobodyWhoChatNode)
             {
                 Model = new(nobodyWhoModelNode),
-                SystemPrompt = "You are a character creator for a fantasy game. You will be given a list of properties and you will need to fill out thoe properties."
+                SystemPrompt = "You are a character creator for a fantasy game. You will be given a list of properties and you will need to fill out those properties."
             };
             _chat.SetLogLevel(LogLevel.Trace);
+            // ^ For some reason any other log level causes an error "Illegal log level to be called here"
+            // \.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\llama-cpp-2-0.1.112\src\log.rs:95
 
             _chat.Sampler = NobodyWhoSampler.Create();
             _chat.Sampler.UseGrammar = true;

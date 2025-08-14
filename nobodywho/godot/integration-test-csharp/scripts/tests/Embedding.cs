@@ -24,9 +24,14 @@ public class Embedding
             Node nobodyWhoEmbeddingNode = AutoFree(scene.GetNode("NobodyWhoEmbedding"));
             Node nobodyWhoModelNode = AutoFree(scene.GetNode("EmbeddingModel"));
 
-            _embedding = new(nobodyWhoEmbeddingNode);
-            _embedding.Model = new(nobodyWhoModelNode);
+            _embedding = new(nobodyWhoEmbeddingNode)
+            {
+                Model = new(nobodyWhoModelNode)
+            };
+
             _embedding.SetLogLevel(LogLevel.Trace);
+            // ^ For some reason any other log level causes an error "Illegal log level to be called here"
+            // \.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\llama-cpp-2-0.1.112\src\log.rs:95
         }
     }
 
