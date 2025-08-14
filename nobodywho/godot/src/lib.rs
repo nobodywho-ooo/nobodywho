@@ -383,7 +383,7 @@ impl NobodyWhoChat {
         };
         debug!(?json_schema);
 
-        return self._add_tool_with_schema(callable, description, json_schema);
+        self._add_tool_with_schema(callable, description, json_schema);
     }
 
     #[func]
@@ -492,6 +492,25 @@ impl NobodyWhoChat {
             std::sync::Arc::new(func),
         );
         self.tools.push(new_tool);
+    }
+
+    #[func]
+    fn remove_tool(&mut self, callable: Callable) {
+        let method_name = match callable.method_name() {
+            Some(name) => name.to_string(),
+            None => {
+                godot_error!("remove_tool: missing method_name on Callable");
+                return;
+            }
+        };
+        let tools_before = self.tools.len();
+        self.tools.retain(|tool| tool.name != method_name);
+        if self.tools.len() == tools_before {
+            godot_warn!("remove_tool: unknown tool '{}'", method_name);
+        }
+        if let Some(chat_handle) = &self.chat_handle {
+            chat_handle.set_tools(self.tools.clone());
+        }
     }
 
     #[signal]
