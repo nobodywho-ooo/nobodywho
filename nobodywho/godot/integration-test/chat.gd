@@ -133,10 +133,10 @@ func guess_password(text_1: String, text__1: String, __text__: String) -> String
 
 
 func test_tool_call_underscores():
-	self.add_tool(guess_password, "A tool that guesses a password based on what underscores are supplied")
+	self.add_tool(guess_password, "A tool that supplies the password")
 	self.system_prompt = "You're a helpful tool-calling assistant, always use your tools"
 	self.reset_context()
-	say("please guess this is a password: ____-____-____")
+	say("please supply the password using inpout: '___', '____', '_____'")
 	var response = await response_finished
 	print(response)
 	assert("P@sSW0rd" in response)
