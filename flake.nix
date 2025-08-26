@@ -18,7 +18,7 @@
         pkgs = (
           import nixpkgs {
             inherit system;
-            config.allowUnfreePredicate = pkg: builtins.elem (pkgs.lib.getName pkg) [ "unityhub" ]; # allow unfree unityhub
+            config.allowUnfreePredicate = pkg: builtins.elem (pkgs.lib.getName pkg) [ "unityhub" "corefonts" ]; # allow unfree unityhub
           }
         );
 
