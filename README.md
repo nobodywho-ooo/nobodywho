@@ -19,7 +19,7 @@ NobodyWho is a plugin that lets you interact with local LLMs, we currently suppo
 * ⚡ Super fast inference on GPU powered by Vulkan or Metal
 * 🔧 Easy setup - just two nodes to get started
 * 🎯 Perfect for games, interactive stories, and NPCs
-* 💻 Cross-platform: Windows, Linux, macOS
+* 💻 Cross-platform: Windows, Linux, macOS, Android
 * 🦙 Powered by the wonderful [llama.cpp](https://github.com/ggml-org/llama.cpp)
 
 ## Demo video
@@ -141,6 +141,9 @@ Exports are a bit weird for now: Llama.cpp expects a path to a GGUF file on your
 
 The solution (for now) is to manually copy your chosen GGUF file into the export directory (the folder with your exported game executable).
 
+If you're exporting for Android, you can't reliably pass a `res://` path to the model node. The best workaround is to use `user://` instead.
+If your model is sufficiently small, you might get away with copying it from `res://` into `user://`. If using double the storage isn't acceptable, consider downloading it at runtime, or find some other way of distributing your model as a file.
+
 We're looking into solutions for including this file automatically.
 
 ### Where do I find good models to use?
@@ -174,11 +177,11 @@ There are two good solutions for this:
 1. The easy way: run the godot editor using steam-run: `steam-run godot4 --editor`
 2. The Nix way: compile NobodyWho using Nix. This repo contains a flake, so it's faily simple to do (if you have nix with nix-command and flakes enabled): `nix build github:nobodywho-ooo/nobodywho`. Remember to move the dynamic libraries into the right directory afterwards.
 
-### Can I export to HTML5, Android or iOS?
+### Can I export to HTML5 or iOS?
 
-Currently only Linux, MacOS, and Windows are supported platforms.
+Currently only Linux, MacOS, Android and Windows are supported platforms.
 
-Mobile exports seem very feasible. See issues [#114](https://github.com/nobodywho-ooo/nobodywho/issues/114), [#66](https://github.com/nobodywho-ooo/nobodywho/issues/66), and [#67](https://github.com/nobodywho-ooo/nobodywho/pull/67) for progress.
+iOS exports seem very feasible. See issue [#114](https://github.com/nobodywho-ooo/nobodywho/issues/114)
 
 Web exports will be a bit trickier to get right. See issue [#111](https://github.com/nobodywho-ooo/nobodywho/issues/111).
 

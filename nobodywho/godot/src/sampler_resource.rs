@@ -102,8 +102,7 @@ macro_rules! set_property {
                         }
                     )*
                 };
-                $self.base
-                    .to_gd()
+                $self.to_gd()
                     .upcast::<Object>()
                     .notify_property_list_changed();
             },
