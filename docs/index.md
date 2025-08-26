@@ -83,10 +83,10 @@ There are two good solutions for this:
 </details>
 
 <details markdown>
-<summary>Can I export to HTML5, Android or iOS?</summary>
-Currently only Linux, MacOS, and Windows are supported platforms.
+<summary>Can I export to HTML5 or iOS?</summary>
+Currently only Linux, MacOS, Android and Windows are supported platforms.
 
-Mobile exports seem very feasible. See issues [#114](https://github.com/nobodywho-ooo/nobodywho/issues/114), [#66](https://github.com/nobodywho-ooo/nobodywho/issues/66), and [#67](https://github.com/nobodywho-ooo/nobodywho/pull/67) for progress.
+iOS exports seem very feasible. See issue [#114](https://github.com/nobodywho-ooo/nobodywho/issues/114)
 
 Web exports will be a bit trickier to get right. See issue [#111](https://github.com/nobodywho-ooo/nobodywho/issues/111).
 </details>
