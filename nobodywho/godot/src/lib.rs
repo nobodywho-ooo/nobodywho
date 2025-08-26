@@ -219,7 +219,7 @@ impl NobodyWhoChat {
                 .collect();
             let mut generation_channel = chat_handle.say(message, sampler, stop_words);
 
-            let mut emit_node = self.to_gd();
+            let emit_node = self.to_gd();
             godot::task::spawn(async move {
                 while let Some(out) = generation_channel.recv().await {
                     match out {
@@ -288,7 +288,7 @@ impl NobodyWhoChat {
 
                 // wait for godot code to connect to signal
                 let signal = Signal::from_object_signal(&emit_node, &signal_name_copy);
-                let mut tree: Gd<SceneTree> = godot::classes::Engine::singleton()
+                let tree: Gd<SceneTree> = godot::classes::Engine::singleton()
                     .get_main_loop()
                     .unwrap()
                     .cast();
@@ -709,7 +709,7 @@ impl NobodyWhoEmbedding {
     fn embed(&mut self, text: String) -> Signal {
         if let Some(embed_handle) = &self.embed_handle {
             let mut embedding_channel = embed_handle.embed_text(text);
-            let mut emit_node = self.to_gd();
+            let emit_node = self.to_gd();
             godot::task::spawn(async move {
                 match embedding_channel.recv().await {
                     Some(embd) => emit_node
@@ -839,7 +839,7 @@ impl NobodyWhoCrossEncoder {
 
         let docs_vec: Vec<String> = documents.to_vec().into_iter().map(|s| s.to_string()).collect();
         let mut ranking_channel = crossencoder_handle.rank(query, docs_vec.clone());
-        let mut emit_node = self.to_gd();
+        let emit_node = self.to_gd();
         
         godot::task::spawn(async move {
             match ranking_channel.recv().await {

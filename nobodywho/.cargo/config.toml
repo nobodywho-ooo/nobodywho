@@ -1,0 +1,9 @@
+[target.'cfg(target_os = "android")']
+rustflags = [
+  "-C", "link-arg=-Wl,--whole-archive",
+  "-C", "link-arg=-lc++_static",
+  "-C", "link-arg=-lc++abi",
+  "-C", "link-arg=-Wl,--no-whole-archive",
+  "-C", "link-arg=-llog",
+  "-C", "link-arg=-landroid",
+]

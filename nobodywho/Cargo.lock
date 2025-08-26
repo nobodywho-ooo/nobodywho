@@ -291,7 +291,8 @@ dependencies = [
 [[package]]
 name = "gdextension-api"
 version = "0.2.2"
-source = "git+https://github.com/godot-rust/godot4-prebuilt?branch=releases#09432b4c2c16f044f0296f96512661ea106003ff"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ec0a03c8f9c91e3d8eb7ca56dea81c7248c03826dd3f545f33cd22ef275d4d1"
 
 [[package]]
 name = "getrandom"
@@ -325,8 +326,9 @@ checksum = "a8d1add55171497b4705a648c6b583acafb01d58050a51727785f0b2c8e0a2b2"
 
 [[package]]
 name = "godot"
-version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext.git?rev=9f60c2e815477319e8f5b2d3f0fe2ee9e81391b0#9f60c2e815477319e8f5b2d3f0fe2ee9e81391b0"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab462a365a4b8bcfcdaf93afe767a189a183edfb1d1e697bde9fb26c3f9bfbe9"
 dependencies = [
  "godot-core",
  "godot-macros",
@@ -334,21 +336,24 @@ dependencies = [
 
 [[package]]
 name = "godot-bindings"
-version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext.git?rev=9f60c2e815477319e8f5b2d3f0fe2ee9e81391b0#9f60c2e815477319e8f5b2d3f0fe2ee9e81391b0"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "597469df0a890b2c7f102b094942e6b184e7ee573adf6ed35fad0421ee86b8fa"
 dependencies = [
  "gdextension-api",
 ]
 
 [[package]]
 name = "godot-cell"
-version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext.git?rev=9f60c2e815477319e8f5b2d3f0fe2ee9e81391b0#9f60c2e815477319e8f5b2d3f0fe2ee9e81391b0"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7e48bf49cf5d6ef0b64b2a58be980e4854f57e75b822889d639f96c3c098a5ec"
 
 [[package]]
 name = "godot-codegen"
-version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext.git?rev=9f60c2e815477319e8f5b2d3f0fe2ee9e81391b0#9f60c2e815477319e8f5b2d3f0fe2ee9e81391b0"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "282e80108e93950e66ed3a40f7dcb6f61978ecb0dd2d19ad7028799d6a5537cb"
 dependencies = [
  "godot-bindings",
  "heck 0.5.0",
@@ -360,8 +365,9 @@ dependencies = [
 
 [[package]]
 name = "godot-core"
-version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext.git?rev=9f60c2e815477319e8f5b2d3f0fe2ee9e81391b0#9f60c2e815477319e8f5b2d3f0fe2ee9e81391b0"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2593ce360312bdec4c45994402dc624c43c3dd8741c8e6391958626dcf635b40"
 dependencies = [
  "glam",
  "godot-bindings",
@@ -372,8 +378,9 @@ dependencies = [
 
 [[package]]
 name = "godot-ffi"
-version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext.git?rev=9f60c2e815477319e8f5b2d3f0fe2ee9e81391b0#9f60c2e815477319e8f5b2d3f0fe2ee9e81391b0"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8ce5ae6a7ae29a753f2f0af3d2a2f3194fa482d9900fc167f35a0738fe7d54d2"
 dependencies = [
  "godot-bindings",
  "godot-codegen",
@@ -383,11 +390,11 @@ dependencies = [
 
 [[package]]
 name = "godot-macros"
-version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext.git?rev=9f60c2e815477319e8f5b2d3f0fe2ee9e81391b0#9f60c2e815477319e8f5b2d3f0fe2ee9e81391b0"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2a0f3ebf0fe09733267c4631ae0af2d6b1008b322d032832ddcfb4dfc54607ad"
 dependencies = [
  "godot-bindings",
- "libc",
  "litrs",
  "markdown",
  "proc-macro2",
@@ -585,9 +592,8 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-2"
-version = "0.1.112"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3b82db04c1a710842b56ea3a51e60f8abc0efc82424247a44e72075eaefb5f38"
+version = "0.1.113"
+source = "git+https://github.com/utilityai/llama-cpp-rs.git?branch=main#a84f398dc5e6543c6a5687707fde4c0daa652461"
 dependencies = [
  "enumflags2",
  "llama-cpp-sys-2",
@@ -598,9 +604,8 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-sys-2"
-version = "0.1.112"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64d960c3662adf16f50085a6c0e704a78069d730dfeff197b941272fa0da6cb9"
+version = "0.1.113"
+source = "git+https://github.com/utilityai/llama-cpp-rs.git?branch=main#a84f398dc5e6543c6a5687707fde4c0daa652461"
 dependencies = [
  "bindgen",
  "cc",
