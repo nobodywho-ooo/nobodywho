@@ -1,3 +1,28 @@
+//! High-level chat API for conversational AI with tool calling support.
+//!
+//! This module provides an ergonomic interface for chat-based interactions with language models,
+//! including support for streaming responses, tool calling, and conversation management.
+//!
+//! # Quick Start
+//!
+//! ```no_run
+//! use nobodywho::chat::ChatBuilder;
+//! use nobodywho::llm;
+//!
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! let model = llm::get_model("model.gguf", true)?;
+//!
+//! let chat = ChatBuilder::new(model)
+//!     .with_system_prompt("You are a helpful assistant")
+//!     .build();
+//!
+//! let response = chat.say_complete("Hello!").await?;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! See the [`examples`](crate::examples) module for more detailed usage patterns.
+
 use crate::chat_state;
 use crate::chat_state::ChatState;
 use crate::llm;
@@ -10,12 +35,74 @@ use tracing::{debug, error, warn};
 
 // PARALLELISM
 
+/// A handle to interact with a chat session running in a background thread.
+///
+/// Use [`ChatBuilder`] to create a new instance with a fluent API.
 pub struct ChatHandle {
     msg_tx: std::sync::mpsc::Sender<ChatMsg>,
     should_stop: Arc<AtomicBool>,
 }
 
+/// Builder for creating a [`ChatHandle`] with a fluent API.
+///
+/// # Example
+/// ```
+/// let chat = ChatBuilder::new(model)
+///     .with_context_size(4096)
+///     .with_system_prompt("You're a helpful assistant")
+///     .with_tool(my_tool)
+///     .build();
+/// ```
+pub struct ChatBuilder {
+    model: Arc<LlamaModel>,
+    n_ctx: u32,
+    system_prompt: String,
+    tools: Vec<Tool>,
+}
+
+impl ChatBuilder {
+    /// Create a new chat builder with a model.
+    pub fn new(model: Arc<LlamaModel>) -> Self {
+        Self {
+            model,
+            n_ctx: 2048,
+            system_prompt: String::new(),
+            tools: Vec::new(),
+        }
+    }
+
+    /// Set the context size for the chat session.
+    pub fn with_context_size(mut self, n_ctx: u32) -> Self {
+        self.n_ctx = n_ctx;
+        self
+    }
+
+    /// Set the system prompt for the chat session.
+    pub fn with_system_prompt<S: Into<String>>(mut self, prompt: S) -> Self {
+        self.system_prompt = prompt.into();
+        self
+    }
+
+    /// Add a tool that the model can use.
+    pub fn with_tool(mut self, tool: Tool) -> Self {
+        self.tools.push(tool);
+        self
+    }
+
+    /// Add multiple tools that the model can use.
+    pub fn with_tools(mut self, tools: Vec<Tool>) -> Self {
+        self.tools.extend(tools);
+        self
+    }
+
+    /// Build the chat handle and start the background worker.
+    pub fn build(self) -> ChatHandle {
+        ChatHandle::new(self.model, self.n_ctx, self.system_prompt, self.tools)
+    }
+}
+
 impl ChatHandle {
+    /// Create a new chat handle directly. Consider using [`ChatBuilder`] for a more ergonomic API.
     pub fn new(
         model: Arc<LlamaModel>,
         n_ctx: u32,
@@ -45,6 +132,7 @@ impl ChatHandle {
         }
     }
 
+    /// Send a message to the model and get a stream of tokens back.
     pub fn say(
         &self,
         text: String,
@@ -61,6 +149,63 @@ impl ChatHandle {
         output_rx
     }
 
+    /// Send a message and wait for the complete response.
+    ///
+    /// # Example
+    /// ```
+    /// let response = chat.say_complete("What is the capital of France?").await?;
+    /// println!("{}", response);
+    /// ```
+    pub async fn say_complete(&self, text: impl Into<String>) -> Result<String, SayError> {
+        self.say_complete_with_config(text, SamplerConfig::default(), vec![])
+            .await
+    }
+
+    /// Send a message with custom configuration and wait for the complete response.
+    pub async fn say_complete_with_config(
+        &self,
+        text: impl Into<String>,
+        sampler: SamplerConfig,
+        stop_words: Vec<String>,
+    ) -> Result<String, SayError> {
+        let mut rx = self.say(text.into(), sampler, stop_words);
+
+        let mut tokens = Vec::new();
+        while let Some(output) = rx.recv().await {
+            match output {
+                llm::WriteOutput::Token(token) => tokens.push(token),
+                llm::WriteOutput::Done(response) => return Ok(response),
+            }
+        }
+
+        // If we got here, the channel closed without sending Done
+        Ok(tokens.join(""))
+    }
+
+    /// Send a message and collect tokens as they arrive.
+    ///
+    /// # Example
+    /// ```
+    /// let mut stream = chat.say_stream("Tell me a story");
+    /// while let Some(token) = stream.next_token().await {
+    ///     print!("{}", token);
+    /// }
+    /// ```
+    pub fn say_stream(&self, text: impl Into<String>) -> TokenStream {
+        TokenStream::new(self.say(text.into(), SamplerConfig::default(), vec![]))
+    }
+
+    /// Send a message with custom configuration and collect tokens as they arrive.
+    pub fn say_stream_with_config(
+        &self,
+        text: impl Into<String>,
+        sampler: SamplerConfig,
+        stop_words: Vec<String>,
+    ) -> TokenStream {
+        TokenStream::new(self.say(text.into(), sampler, stop_words))
+    }
+
+    /// Reset the chat conversation with a new system prompt and tools.
     pub fn reset_chat(&self, system_prompt: String, tools: Vec<Tool>) {
         let _ = self.msg_tx.send(ChatMsg::ResetChat {
             system_prompt,
@@ -68,21 +213,37 @@ impl ChatHandle {
         });
     }
 
+    /// Update the available tools for the model to use.
     pub fn set_tools(&self, tools: Vec<Tool>) {
         let _ = self.msg_tx.send(ChatMsg::SetTools { tools });
     }
 
+    /// Stop the current generation if one is in progress.
     pub fn stop_generation(&self) {
         self.should_stop
             .store(true, std::sync::atomic::Ordering::Relaxed);
     }
 
+    /// Get the current chat history.
+    pub async fn get_chat_history_async(&self) -> Vec<crate::chat_state::Message> {
+        let mut rx = self.get_chat_history();
+        rx.recv().await.unwrap_or_default()
+    }
+
+    /// Get a receiver for the chat history (lower-level API).
     pub fn get_chat_history(&self) -> tokio::sync::mpsc::Receiver<Vec<crate::chat_state::Message>> {
         let (output_tx, output_rx) = tokio::sync::mpsc::channel(1);
         let _ = self.msg_tx.send(ChatMsg::GetChatHistory { output_tx });
         output_rx
     }
 
+    /// Set the chat history.
+    pub async fn set_chat_history_async(&self, messages: Vec<crate::chat_state::Message>) {
+        let mut rx = self.set_chat_history(messages);
+        let _ = rx.recv().await;
+    }
+
+    /// Set the chat history (lower-level API).
     pub fn set_chat_history(
         &self,
         messages: Vec<crate::chat_state::Message>,
@@ -93,6 +254,45 @@ impl ChatHandle {
             messages,
         });
         output_rx
+    }
+}
+
+/// A stream of tokens from the model.
+pub struct TokenStream {
+    rx: tokio::sync::mpsc::Receiver<llm::WriteOutput>,
+    done: bool,
+}
+
+impl TokenStream {
+    fn new(rx: tokio::sync::mpsc::Receiver<llm::WriteOutput>) -> Self {
+        Self { rx, done: false }
+    }
+
+    /// Get the next token from the stream.
+    pub async fn next_token(&mut self) -> Option<String> {
+        if self.done {
+            return None;
+        }
+
+        while let Some(output) = self.rx.recv().await {
+            match output {
+                llm::WriteOutput::Token(token) => return Some(token),
+                llm::WriteOutput::Done(_) => {
+                    self.done = true;
+                    return None;
+                }
+            }
+        }
+        None
+    }
+
+    /// Collect all remaining tokens into a single string.
+    pub async fn collect(mut self) -> String {
+        let mut result = Vec::new();
+        while let Some(token) = self.next_token().await {
+            result.push(token);
+        }
+        result.join("")
     }
 }
 
@@ -192,6 +392,7 @@ fn run_worker(
 // so far it has been fine...
 unsafe impl Send for Tool {}
 
+/// A tool that the model can call during conversation.
 #[derive(Clone)]
 pub struct Tool {
     pub name: String,
@@ -201,6 +402,7 @@ pub struct Tool {
 }
 
 impl Tool {
+    /// Create a new tool directly. Consider using [`ToolBuilder`] for a more ergonomic API.
     pub fn new(
         name: String,
         description: String,
@@ -215,6 +417,11 @@ impl Tool {
         }
     }
 
+    /// Create a new tool builder.
+    pub fn builder<S: Into<String>>(name: S) -> ToolBuilder {
+        ToolBuilder::new(name)
+    }
+
     fn to_chat_state_tool(&self) -> chat_state::Tool {
         chat_state::Tool {
             r#type: chat_state::ToolType::Function,
@@ -223,6 +430,103 @@ impl Tool {
                 description: self.description.clone(),
                 parameters: self.json_schema.clone(),
             },
+        }
+    }
+}
+
+/// Builder for creating tools with a fluent API.
+///
+/// # Example
+/// ```
+/// let tool = Tool::builder("get_weather")
+///     .description("Get the current weather for a location")
+///     .param("location", "string", "The city to get weather for")
+///     .required("location")
+///     .handler(|args| {
+///         let location = args["location"].as_str()?;
+///         format!("Weather in {}: Sunny, 22°C", location)
+///     })
+///     .build();
+/// ```
+pub struct ToolBuilder {
+    name: String,
+    description: String,
+    properties: serde_json::Map<String, serde_json::Value>,
+    required: Vec<String>,
+    handler: Option<Arc<dyn Fn(serde_json::Value) -> String>>,
+}
+
+impl ToolBuilder {
+    /// Create a new tool builder with a name.
+    pub fn new<S: Into<String>>(name: S) -> Self {
+        Self {
+            name: name.into(),
+            description: String::new(),
+            properties: serde_json::Map::new(),
+            required: Vec::new(),
+            handler: None,
+        }
+    }
+
+    /// Set the description of the tool.
+    pub fn description<S: Into<String>>(mut self, desc: S) -> Self {
+        self.description = desc.into();
+        self
+    }
+
+    /// Add a parameter to the tool.
+    pub fn param<S: Into<String>>(mut self, name: S, param_type: &str, description: S) -> Self {
+        let name = name.into();
+        self.properties.insert(
+            name,
+            serde_json::json!({
+                "type": param_type,
+                "description": description.into(),
+            }),
+        );
+        self
+    }
+
+    /// Add a parameter with a custom JSON schema.
+    pub fn param_with_schema<S: Into<String>>(
+        mut self,
+        name: S,
+        schema: serde_json::Value,
+    ) -> Self {
+        self.properties.insert(name.into(), schema);
+        self
+    }
+
+    /// Mark a parameter as required.
+    pub fn required<S: Into<String>>(mut self, name: S) -> Self {
+        self.required.push(name.into());
+        self
+    }
+
+    /// Set the handler function for the tool.
+    pub fn handler<F>(mut self, f: F) -> Self
+    where
+        F: Fn(serde_json::Value) -> String + 'static,
+    {
+        self.handler = Some(Arc::new(f));
+        self
+    }
+
+    /// Build the tool.
+    pub fn build(self) -> Tool {
+        let json_schema = serde_json::json!({
+            "type": "object",
+            "properties": self.properties,
+            "required": self.required,
+        });
+
+        Tool {
+            name: self.name,
+            description: self.description,
+            json_schema,
+            function: self
+                .handler
+                .unwrap_or_else(|| Arc::new(|_| "Tool handler not implemented".to_string())),
         }
     }
 }

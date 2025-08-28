@@ -5,6 +5,9 @@ pub mod llm;
 pub mod crossencoder;
 pub mod sampler_config;
 
+#[cfg(doc)]
+pub mod examples;
+
 pub fn send_llamacpp_logs_to_tracing() {
     llama_cpp_2::send_logs_to_tracing(llama_cpp_2::LogOptions::default().with_logs_enabled(true));
 }
