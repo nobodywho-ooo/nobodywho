@@ -109,7 +109,7 @@ jobs:
         run: zip -r "../nobodywho-godot-${{ github.ref_name }}.zip" ./**
 
       - name: "Create GitHub Release"
-        uses: softprops/action-gh-release@v4
+        uses: softprops/action-gh-release@v1
         with:
           files: "./nobodywho-godot-${{ github.ref_name }}.zip"
         env:
