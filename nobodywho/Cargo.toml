@@ -1,5 +1,5 @@
 [workspace]
-members = [
+members = [ "benchmark",
     "core",
     "godot",
     "unity",

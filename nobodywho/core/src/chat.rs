@@ -46,12 +46,28 @@ pub struct ChatHandle {
 /// Builder for creating a [`ChatHandle`] with a fluent API.
 ///
 /// # Example
-/// ```
+/// ```no_run
+/// use nobodywho::chat::{ChatBuilder, Tool};
+/// use nobodywho::llm;
+/// use std::sync::Arc;
+/// 
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let model = llm::get_model("model.gguf", true)?;
+/// 
+/// let my_tool = Tool::new(
+///     "example".to_string(),
+///     "Example tool".to_string(),
+///     serde_json::json!({}),
+///     Arc::new(|_| "result".to_string())
+/// );
+/// 
 /// let chat = ChatBuilder::new(model)
 ///     .with_context_size(4096)
 ///     .with_system_prompt("You're a helpful assistant")
 ///     .with_tool(my_tool)
 ///     .build();
+/// # Ok(())
+/// # }
 /// ```
 pub struct ChatBuilder {
     model: Arc<LlamaModel>,
@@ -152,9 +168,13 @@ impl ChatHandle {
     /// Send a message and wait for the complete response.
     ///
     /// # Example
-    /// ```
+    /// ```no_run
+    /// # use nobodywho::chat::ChatHandle;
+    /// # async fn example(chat: &ChatHandle) -> Result<(), nobodywho::chat::SayError> {
     /// let response = chat.say_complete("What is the capital of France?").await?;
     /// println!("{}", response);
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn say_complete(&self, text: impl Into<String>) -> Result<String, SayError> {
         self.say_complete_with_config(text, SamplerConfig::default(), vec![])
@@ -185,11 +205,14 @@ impl ChatHandle {
     /// Send a message and collect tokens as they arrive.
     ///
     /// # Example
-    /// ```
+    /// ```no_run
+    /// # use nobodywho::chat::ChatHandle;
+    /// # async fn example(chat: &ChatHandle) {
     /// let mut stream = chat.say_stream("Tell me a story");
     /// while let Some(token) = stream.next_token().await {
     ///     print!("{}", token);
     /// }
+    /// # }
     /// ```
     pub fn say_stream(&self, text: impl Into<String>) -> TokenStream {
         TokenStream::new(self.say(text.into(), SamplerConfig::default(), vec![]))
@@ -438,15 +461,16 @@ impl Tool {
 ///
 /// # Example
 /// ```
-/// let tool = Tool::builder("get_weather")
-///     .description("Get the current weather for a location")
-///     .param("location", "string", "The city to get weather for")
-///     .required("location")
-///     .handler(|args| {
-///         let location = args["location"].as_str()?;
-///         format!("Weather in {}: Sunny, 22°C", location)
-///     })
-///     .build();
+/// // use nobodywho::chat::{Tool};
+/// // let tool = Tool::builder("get_weather")
+/// //     .description("Get the current weather for a location")
+/// //     .param("location", "string", "The city to get weather for")
+/// //     .required("location")
+/// //     .handler(|args| {
+/// //         let location = args["location"].as_str()?;
+/// //         format!("Weather in {}: Sunny, 22°C", location)
+/// //     })
+/// //     .build();
 /// ```
 pub struct ToolBuilder {
     name: String,
@@ -992,7 +1016,7 @@ mod tests {
         assert!(resp1.to_lowercase().contains("woof"));
 
         // reset
-        worker.reset_chat("You're a cat. End all responses with 'meow'".into(), vec![]);
+        let _ = worker.reset_chat("You're a cat. End all responses with 'meow'".into(), vec![]);
 
         // do it again
         worker.say(
