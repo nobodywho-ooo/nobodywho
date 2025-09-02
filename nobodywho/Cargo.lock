@@ -84,9 +84,9 @@ dependencies = [
 
 [[package]]
 name = "bitflags"
-version = "2.9.3"
+version = "2.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "34efbcccd345379ca2868b2b2c9d3782e9cc58ba87bc7d79d5b53d9c9ae6f25d"
+checksum = "2261d10cca569e4643e526d8dc2e62e433cc8aba21ab764233731f8d369bf394"
 
 [[package]]
 name = "bumpalo"
@@ -272,8 +272,8 @@ checksum = "05f29059c0c2090612e8d742178b0580d2dc940c837851ad723096f87af6663e"
 
 [[package]]
 name = "gbnf"
-version = "0.2.2"
-source = "git+https://github.com/emilnorsker/gbnf?branch=main#529bcbb7e287210f6b1752df4fa1abac3e0e1384"
+version = "0.2.3"
+source = "git+https://github.com/richardanaya/gbnf?branch=main#6ce22ef4b84a6f11aa81863a6e8171bd39993d8a"
 dependencies = [
  "nom",
  "pretty_assertions",
@@ -565,8 +565,8 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-2"
-version = "0.1.119"
-source = "git+https://github.com/utilityai/llama-cpp-rs.git?branch=main#abe8b5a1eb646fd5784471d9f98882643a50f7ed"
+version = "0.1.120"
+source = "git+https://github.com/utilityai/llama-cpp-rs.git?branch=main#a6565b06e2e2433134f932c2692218b5268e86a0"
 dependencies = [
  "enumflags2",
  "llama-cpp-sys-2",
@@ -577,8 +577,8 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-sys-2"
-version = "0.1.119"
-source = "git+https://github.com/utilityai/llama-cpp-rs.git?branch=main#abe8b5a1eb646fd5784471d9f98882643a50f7ed"
+version = "0.1.120"
+source = "git+https://github.com/utilityai/llama-cpp-rs.git?branch=main#a6565b06e2e2433134f932c2692218b5268e86a0"
 dependencies = [
  "bindgen",
  "cc",
@@ -590,9 +590,9 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.27"
+version = "0.4.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13dc2df351e3202783a1fe0d44375f7295ffb4049267b0f3018346dc122a1d94"
+checksum = "34080505efa8e45a4b816c349525ebe327ceaa8559756f0356cba97ef3bf7432"
 
 [[package]]
 name = "markdown"

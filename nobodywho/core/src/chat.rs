@@ -227,7 +227,7 @@ impl Tool {
     }
 }
 
-fn grammar_from_tools(tools: &[Tool]) -> Result<gbnf::Grammar, gbnf::JsonSchemaParseError> {
+fn grammar_from_tools(tools: &[Tool]) -> Result<gbnf::Grammar, gbnf::json::JsonSchemaParseError> {
     // get a json schema that describes the tool call for each tool
     let tool_call_schemas: serde_json::Value = tools
         .iter()
