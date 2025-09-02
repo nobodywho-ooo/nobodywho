@@ -124,7 +124,7 @@ jobs:
             ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
 
   cargo-build-macos:
-    runs-on: macos-15
+    runs-on: macos-14
     strategy:
       fail-fast: false
       matrix:
