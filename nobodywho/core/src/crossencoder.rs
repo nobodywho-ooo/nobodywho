@@ -2,7 +2,7 @@ use crate::llm;
 use crate::llm::Worker;
 use llama_cpp_2::context::params::LlamaPoolingType;
 use llama_cpp_2::model::LlamaModel;
-use tracing::{error};
+use tracing::error;
 use std::sync::Arc;
 
 pub struct CrossEncoderHandle {
