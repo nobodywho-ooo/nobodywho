@@ -1041,7 +1041,8 @@ pub fn set_log_level(level_str: &str) {
     };
 
     INIT.call_once(|| {
-        nobodywho::send_llamacpp_logs_to_tracing();
+        // XXX: uncommented for now because this seems to cause a suspicious crash
+        // nobodywho::send_llamacpp_logs_to_tracing();
 
         let mut targets = Targets::new().with_default(base_directive(level));
         targets = targets.with_target("llama-cpp-2", llama_log_threshold(level));
