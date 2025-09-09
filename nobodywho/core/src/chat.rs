@@ -51,7 +51,7 @@ pub struct ChatHandle {
 /// use nobodywho::llm;
 /// use std::sync::Arc;
 ///
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// # fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let model = llm::get_model("model.gguf", true)?;
 ///
 /// let my_tool = Tool::new(
