@@ -5,7 +5,7 @@
 //!
 //! # Quick Start
 //!
-//! ```no_run
+//! ```
 //! use nobodywho::chat::ChatBuilder;
 //! use nobodywho::llm;
 //!
@@ -46,21 +46,21 @@ pub struct ChatHandle {
 /// Builder for creating a [`ChatHandle`] with a fluent API.
 ///
 /// # Example
-/// ```no_run
+/// ```
 /// use nobodywho::chat::{ChatBuilder, Tool};
 /// use nobodywho::llm;
 /// use std::sync::Arc;
-/// 
+///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let model = llm::get_model("model.gguf", true)?;
-/// 
+///
 /// let my_tool = Tool::new(
 ///     "example".to_string(),
 ///     "Example tool".to_string(),
 ///     serde_json::json!({}),
 ///     Arc::new(|_| "result".to_string())
 /// );
-/// 
+///
 /// let chat = ChatBuilder::new(model)
 ///     .with_context_size(4096)
 ///     .with_system_prompt("You're a helpful assistant")
@@ -168,7 +168,7 @@ impl ChatHandle {
     /// Send a message and wait for the complete response.
     ///
     /// # Example
-    /// ```no_run
+    /// ```
     /// # use nobodywho::chat::ChatHandle;
     /// # async fn example(chat: &ChatHandle) -> Result<(), nobodywho::chat::SayError> {
     /// let response = chat.say_complete("What is the capital of France?").await?;
@@ -205,7 +205,7 @@ impl ChatHandle {
     /// Send a message and collect tokens as they arrive.
     ///
     /// # Example
-    /// ```no_run
+    /// ```
     /// # use nobodywho::chat::ChatHandle;
     /// # async fn example(chat: &ChatHandle) {
     /// let mut stream = chat.say_stream("Tell me a story");
