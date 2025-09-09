@@ -22,13 +22,6 @@ NobodyWho is a plugin that lets you interact with local LLMs, we currently suppo
 * 💻 Cross-platform: Windows, Linux, macOS, Android
 * 🦙 Powered by the wonderful [llama.cpp](https://github.com/ggml-org/llama.cpp)
 
-## Demo video
-
-Small demo of a use-case. This video was recorded in real time on a laptop, to give you an idea of performance.
-
-The code for this showcase is in the [demo-game](./demo-game) folder of this repo. It amounts to about 100 lines of code in a single file, most of it being UI stuff.
-
-![](./assets/foobars-potionshop.gif)
 
 ## How to Install
 
