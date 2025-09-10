@@ -1,8 +1,8 @@
 pub mod chat;
 pub mod chat_state;
+pub mod crossencoder;
 pub mod embed;
 pub mod llm;
-pub mod crossencoder;
 pub mod sampler_config;
 
 pub fn send_llamacpp_logs_to_tracing() {
