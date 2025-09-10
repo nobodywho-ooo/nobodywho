@@ -1,8 +1,0 @@
-[package]
-name = "benchmark"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-nobodywho = { path = "../core" }
-tokio = "1.44.0"
