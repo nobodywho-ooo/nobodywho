@@ -20,8 +20,6 @@
 //! # Ok(())
 //! # }
 //! ```
-//!
-//! See the [`examples`](crate::examples) module for more detailed usage patterns.
 
 use crate::chat_state;
 use crate::chat_state::ChatState;
