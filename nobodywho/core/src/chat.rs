@@ -459,16 +459,16 @@ impl Tool {
 ///
 /// # Example
 /// ```
-/// // use nobodywho::chat::{Tool};
-/// // let tool = Tool::builder("get_weather")
-/// //     .description("Get the current weather for a location")
-/// //     .param("location", "string", "The city to get weather for")
-/// //     .required("location")
-/// //     .handler(|args| {
-/// //         let location = args["location"].as_str()?;
-/// //         format!("Weather in {}: Sunny, 22°C", location)
-/// //     })
-/// //     .build();
+/// use nobodywho::chat::{Tool};
+/// let tool = Tool::builder("get_weather")
+///     .description("Get the current weather for a location")
+///     .param("location", "string", "The city to get weather for")
+///     .required("location")
+///     .handler(|args| {
+///         let location = args["location"].as_str().unwrap();
+///         format!("Weather in {}: Sunny, 22°C", location)
+///     })
+///     .build();
 /// ```
 pub struct ToolBuilder {
     name: String,
