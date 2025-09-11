@@ -1,0 +1,14 @@
+[package]
+name = "nobodywho_flutter"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+nobodywho = { path = "../core" }
+flutter_rust_bridge = "=2.11.1"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
