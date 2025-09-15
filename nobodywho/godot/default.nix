@@ -39,7 +39,6 @@ rec {
     cargoLock = {
       lockFile = ../Cargo.lock;
       outputHashes = {
-        "gbnf-0.2.3" = "sha256-CsS5wYqjH2HHFr67BsO+Cnh546wWjVqAjOZKxLxfdfk=";
         "llama-cpp-2-0.1.120" = "sha256-S3KcVzmvRLXWcY/nqUoBg+G7npTUDO5BnypUbtRlCjI=";
       };
     };
