@@ -328,22 +328,20 @@ where
             drop(decode_guard);
             self.n_past += 1; // keep count
 
-            // Convert token to text
+            // Attempt to convert token(s) to text
             let token_to_str_result = self
                 .ctx
                 .model
                 .tokens_to_str(&token_vec, Special::Tokenize);
-            // fall back to "U+FFFD REPLACEMENT CHARACTER"
-            // when encountering bytes that aren't valid UTF-8
-            // wikipedia: "used to replace an unknown, unrecognised, or unrepresentable character"
             
             
             // If current tokens cannot be turned into to valid 
-            // utf8 code then read another token
+            // utf8 code then read another token and try again.
             let token_string = match token_to_str_result {
                 Err(_) => continue,
                 Ok(str) => {token_vec.clear();str}
             };
+            
 
 
 
