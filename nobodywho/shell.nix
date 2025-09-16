@@ -18,7 +18,7 @@ let
   # https://docs.godotengine.org/en/stable/contributing/development/compiling/compiling_for_android.html
   ndk_version = "23.2.8568313";
 
-  ndk_version_dashed = builtins.replaceStrings ["."] ["-"] ndk_version;
+  ndk_version_dashed = builtins.replaceStrings [ "." ] [ "-" ] ndk_version;
   ndk_version_for_android-nixpkgs = "ndk-${ndk_version_dashed}";
   android-sdk = android-nixpkgs.sdk.x86_64-linux (
     sdkPkgs: with sdkPkgs; [
@@ -84,6 +84,10 @@ pkgs.mkShell {
     pkgs.mkdocs
     pkgs.python312Packages.regex
     pkgs.python312Packages.mkdocs-material
+
+    # flutter
+    pkgs.flutter
+    pkgs.flutter_rust_bridge_codegen
   ];
   shellHook = ''
     ulimit -n 2048
