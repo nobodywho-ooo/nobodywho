@@ -302,6 +302,8 @@ where
         let mut sampler = make_sampler(&self.ctx.model, sampler_config)
             .ok_or(WriteError::InvalidSamplerConfig)?;
 
+        let mut token_vec = Vec::new();
+
         while !self.extra.stop() {
             // Check for context window overflow (it was in the end before)
             if self.n_past >= self.ctx.n_ctx() as i32 {
@@ -313,10 +315,11 @@ where
             // https://github.com/utilityai/llama-cpp-rs/issues/604
             trace!("Applying sampler...");
             let new_token: LlamaToken = sampler.sample(&self.ctx, -1);
+            token_vec.push(new_token);
 
             // batch of one
             self.small_batch.clear();
-            self.small_batch.add(new_token, self.n_past, &[0], true)?;
+            self.small_batch.add(token_vec[token_vec.len()-1], self.n_past, &[0], true)?;
 
             // llm go brr
             let decode_span = trace_span!("write decode", n_past = self.n_past);
@@ -326,14 +329,23 @@ where
             self.n_past += 1; // keep count
 
             // Convert token to text
-            let token_string = self
+            let token_to_str_result = self
                 .ctx
                 .model
-                .token_to_str_with_size(new_token, MAX_TOKEN_STR_LEN, Special::Tokenize)
-                .unwrap_or("�".to_string());
+                .tokens_to_str(&token_vec, Special::Tokenize);
             // fall back to "U+FFFD REPLACEMENT CHARACTER"
             // when encountering bytes that aren't valid UTF-8
             // wikipedia: "used to replace an unknown, unrecognised, or unrepresentable character"
+            
+            
+            // If current tokens cannot be turned into to valid 
+            // utf8 code then read another token
+            let token_string = match token_to_str_result {
+                Err(_) => continue,
+                Ok(str) => {token_vec.clear();str}
+            };
+
+
 
             trace!(?new_token, ?token_string);
             let has_eog = self.ctx.model.is_eog_token(new_token);
