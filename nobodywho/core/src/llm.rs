@@ -13,8 +13,6 @@ use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, LazyLock, Mutex};
 use tracing::{debug, debug_span, error, info, info_span, trace, trace_span, warn};
 
-const MAX_TOKEN_STR_LEN: usize = 128;
-
 lazy_static! {
     static ref GLOBAL_INFERENCE_LOCK: Mutex<()> = Mutex::new(());
 }
@@ -231,6 +229,9 @@ pub enum WriteError {
     #[error("Error sending message")]
     SendError,
 
+    #[error("Error converting token to bytes:  {0}")]
+    TokenToStringError(#[from] llama_cpp_2::TokenToStringError),
+
     #[error("Invalid sampler configuration")]
     InvalidSamplerConfig,
 }
@@ -243,7 +244,6 @@ pub trait Stoppable {
 pub struct GenerationWorker {
     should_stop: Arc<AtomicBool>,
 }
-
 
 impl GenerationCapability for GenerationWorker {}
 impl Stoppable for GenerationWorker {
@@ -302,6 +302,8 @@ where
         let mut sampler = make_sampler(&self.ctx.model, sampler_config)
             .ok_or(WriteError::InvalidSamplerConfig)?;
 
+        let mut token_bytes_vec = Vec::new();
+
         while !self.extra.stop() {
             // Check for context window overflow (it was in the end before)
             if self.n_past >= self.ctx.n_ctx() as i32 {
@@ -325,24 +327,45 @@ where
             drop(decode_guard);
             self.n_past += 1; // keep count
 
-            // Convert token to text
-            let token_string = self
+            // Attempt to convert token(s) to bytes
+            let token_bytes = self
                 .ctx
                 .model
-                .token_to_str_with_size(new_token, MAX_TOKEN_STR_LEN, Special::Tokenize)
-                .unwrap_or("�".to_string());
-            // fall back to "U+FFFD REPLACEMENT CHARACTER"
-            // when encountering bytes that aren't valid UTF-8
-            // wikipedia: "used to replace an unknown, unrecognised, or unrepresentable character"
+                .token_to_bytes(new_token, Special::Tokenize)?;
 
-            trace!(?new_token, ?token_string);
+            token_bytes_vec.extend(token_bytes);
+
+            // Attempt to convert bytes to utf8 string.
+
+            let token_str = match std::str::from_utf8(&token_bytes_vec) {
+                Ok(str) => str,
+                Err(_) => {
+                    if token_bytes_vec.len() > 4 {
+                        "�"
+                    } else {
+                        continue;
+                    }
+                }
+            };
+
+            // Basic solution to split up graphemes. If the current token bytes cannot
+            // be converted into a string then we try to read more tokens till we have
+            // at least four bytes. If these still cannot be converted into a string,
+            // we assume that the model/sampler has produced a useless token somewhere.
+            // This we currently handle by discarding all of the current bytes, but more
+            // intelligent solutions could be a good idea.
+
+            trace!(?new_token, ?token_str);
             let has_eog = self.ctx.model.is_eog_token(new_token);
 
             if !has_eog {
-                full_response.push_str(&token_string);
-                trace!("Sending out token: {token_string}");
-                respond(WriteOutput::Token(token_string));
+                full_response.push_str(token_str);
+                trace!("Sending out token: {token_str}");
+                respond(WriteOutput::Token(token_str.to_string()));
             }
+
+            // done using token_str, so now we can clear token_bytes_vec
+            token_bytes_vec.clear();
 
             let has_stop_words = stop_words
                 .iter()
