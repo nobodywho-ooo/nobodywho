@@ -231,6 +231,9 @@ pub enum WriteError {
     #[error("Error sending message")]
     SendError,
 
+    #[error("Error converting token to bytes:  {0}")]
+    TokenToStringError(#[from] llama_cpp_2::TokenToStringError),
+
     #[error("Invalid sampler configuration")]
     InvalidSamplerConfig,
 }
@@ -302,7 +305,7 @@ where
         let mut sampler = make_sampler(&self.ctx.model, sampler_config)
             .ok_or(WriteError::InvalidSamplerConfig)?;
 
-        let mut token_vec = Vec::new();
+        let mut token_bytes_vec = Vec::new();
 
         while !self.extra.stop() {
             // Check for context window overflow (it was in the end before)
@@ -315,11 +318,11 @@ where
             // https://github.com/utilityai/llama-cpp-rs/issues/604
             trace!("Applying sampler...");
             let new_token: LlamaToken = sampler.sample(&self.ctx, -1);
-            token_vec.push(new_token);
+            
 
             // batch of one
             self.small_batch.clear();
-            self.small_batch.add(token_vec[token_vec.len()-1], self.n_past, &[0], true)?;
+            self.small_batch.add(new_token, self.n_past, &[0], true)?;
 
             // llm go brr
             let decode_span = trace_span!("write decode", n_past = self.n_past);
@@ -328,19 +331,30 @@ where
             drop(decode_guard);
             self.n_past += 1; // keep count
 
-            // Attempt to convert token(s) to text
-            let token_to_str_result = self
+            // Attempt to convert token(s) to bytes
+            let token_bytes = self
                 .ctx
                 .model
-                .tokens_to_str(&token_vec, Special::Tokenize);
+                .token_to_bytes(new_token, Special::Tokenize)?;
+
+            token_bytes_vec.extend(token_bytes);
+  
             
+            // Attempt to convert bytes to utf8 string.
             
-            // If current tokens cannot be turned into to valid 
-            // utf8 code then read another token and try again.
-            let token_string = match token_to_str_result {
-                Err(_) => continue,
-                Ok(str) => {token_vec.clear();str}
+            let token_string = match String::from_utf8(token_bytes_vec.clone()){
+                Ok(str) => {token_bytes_vec.clear(); str},
+                Err(_) => if token_bytes_vec.len() > 4 { token_bytes_vec.clear(); ("�").to_string()} 
+                else {continue}
             };
+
+            // Basic solution to split up graphemes. If the current token bytes cannot 
+            // be converted into a string then we try to read more tokens till we have 
+            // at least four bytes. If these still cannot be converted into a string,
+            // we assume that the model/sampler has produced a useless token somewhere.
+            // This we currently handle by discarding all of the current bytes, but more
+            // intelligent solutions could be a good idea.
+
             
 
 
