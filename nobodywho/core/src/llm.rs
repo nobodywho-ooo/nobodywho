@@ -13,8 +13,6 @@ use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, LazyLock, Mutex};
 use tracing::{debug, debug_span, error, info, info_span, trace, trace_span, warn};
 
-const MAX_TOKEN_STR_LEN: usize = 128;
-
 lazy_static! {
     static ref GLOBAL_INFERENCE_LOCK: Mutex<()> = Mutex::new(());
 }
@@ -247,7 +245,6 @@ pub struct GenerationWorker {
     should_stop: Arc<AtomicBool>,
 }
 
-
 impl GenerationCapability for GenerationWorker {}
 impl Stoppable for GenerationWorker {
     fn stop(&self) -> bool {
@@ -318,7 +315,6 @@ where
             // https://github.com/utilityai/llama-cpp-rs/issues/604
             trace!("Applying sampler...");
             let new_token: LlamaToken = sampler.sample(&self.ctx, -1);
-            
 
             // batch of one
             self.small_batch.clear();
@@ -338,35 +334,38 @@ where
                 .token_to_bytes(new_token, Special::Tokenize)?;
 
             token_bytes_vec.extend(token_bytes);
-  
-            
+
             // Attempt to convert bytes to utf8 string.
-            
-            let token_string = match String::from_utf8(token_bytes_vec.clone()){
-                Ok(str) => {token_bytes_vec.clear(); str},
-                Err(_) => if token_bytes_vec.len() > 4 { token_bytes_vec.clear(); ("�").to_string()} 
-                else {continue}
+
+            let token_str = match std::str::from_utf8(&token_bytes_vec) {
+                Ok(str) => str,
+                Err(_) => {
+                    if token_bytes_vec.len() > 4 {
+                        "�"
+                    } else {
+                        continue;
+                    }
+                }
             };
 
-            // Basic solution to split up graphemes. If the current token bytes cannot 
-            // be converted into a string then we try to read more tokens till we have 
+            // Basic solution to split up graphemes. If the current token bytes cannot
+            // be converted into a string then we try to read more tokens till we have
             // at least four bytes. If these still cannot be converted into a string,
             // we assume that the model/sampler has produced a useless token somewhere.
             // This we currently handle by discarding all of the current bytes, but more
             // intelligent solutions could be a good idea.
 
-            
-
-
-
-            trace!(?new_token, ?token_string);
+            trace!(?new_token, ?token_str);
             let has_eog = self.ctx.model.is_eog_token(new_token);
 
             if !has_eog {
-                full_response.push_str(&token_string);
-                trace!("Sending out token: {token_string}");
-                respond(WriteOutput::Token(token_string));
+                full_response.push_str(token_str);
+                trace!("Sending out token: {token_str}");
+                respond(WriteOutput::Token(token_str.to_string()));
             }
+
+            // done using token_str, so now we can clear token_bytes_vec
+            token_bytes_vec.clear();
 
             let has_stop_words = stop_words
                 .iter()
