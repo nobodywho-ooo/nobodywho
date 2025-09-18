@@ -10,6 +10,10 @@ use tracing_subscriber::prelude::*;
 
 use crate::sampler_resource::NobodyWhoSampler;
 
+// Wrapper to make Callable Send (we ensure it's only accessed safely via Mutex)
+struct SendCallable(Callable);
+unsafe impl Send for SendCallable {}
+
 struct NobodyWhoExtension;
 
 #[gdextension]
@@ -455,6 +459,11 @@ impl NobodyWhoChat {
             return;
         };
 
+        // Wrap the callable to make it Send (we ensure thread-safe access via Mutex)
+        use std::sync::{Arc, Mutex};
+        let callable = Arc::new(Mutex::new(SendCallable(callable)));
+        let properties = Arc::new(properties);
+
         // the callback that the actual tool call uses
         let func = move |j: serde_json::Value| {
             let Some(obj) = j.as_object() else {
@@ -463,7 +472,7 @@ impl NobodyWhoChat {
             };
 
             let mut args: Vec<Variant> = vec![];
-            for prop in &properties {
+            for prop in properties.iter() {
                 let Some(val) = obj.get(prop.as_str()) else {
                     warn!("LLM passed bad arguments to tool. Missing argument {prop}");
                     return format!("Error: Missing argument {prop}");
@@ -471,8 +480,11 @@ impl NobodyWhoChat {
                 args.push(json_to_godot(val));
             }
 
+            // Lock the callable for the duration of the call
+            let callable_guard = callable.lock().unwrap();
+
             // TODO: if arguments are incorrect here, the callable returns null
-            let res: Variant = callable.call(&args);
+            let res: Variant = callable_guard.0.call(&args);
 
             // Handling of async methods,
             // as soon as you use await in godot, the will return GDScriptState, which contains a signal.
@@ -492,7 +504,7 @@ impl NobodyWhoChat {
             method_name.into(),
             description,
             json_schema.into(),
-            std::sync::Arc::new(func),
+            std::sync::Arc::new(std::sync::Mutex::new(func)),
         );
         self.tools.push(new_tool);
     }

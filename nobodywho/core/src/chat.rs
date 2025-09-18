@@ -37,7 +37,7 @@ use llama_cpp_2::token::LlamaToken;
 use llama_cpp_2::{context::params::LlamaPoolingType, model::LlamaModel};
 use std::cmp::min;
 use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard};
 use tracing::{debug, error, info, trace, trace_span, warn};
 
 // PARALLELISM
@@ -403,7 +403,7 @@ fn run_worker(
 // the callback closure isn't normally Send
 // but we just cheat a little here
 // so far it has been fine...
-unsafe impl Send for Tool {}
+// unsafe impl Send for Tool {}
 
 /// A tool that the model can call during conversation.
 #[derive(Clone)]
@@ -411,7 +411,7 @@ pub struct Tool {
     pub name: String,
     description: String,
     json_schema: serde_json::Value,
-    function: Arc<dyn Fn(serde_json::Value) -> String>,
+    function: Arc<Mutex<dyn Fn(serde_json::Value) -> String + Send>>,
 }
 
 impl Tool {
@@ -420,7 +420,7 @@ impl Tool {
         name: String,
         description: String,
         json_schema: serde_json::Value,
-        function: Arc<dyn Fn(serde_json::Value) -> String>,
+        function: Arc<Mutex<dyn Fn(serde_json::Value) -> String + Send>>,
     ) -> Self {
         Self {
             name,
@@ -428,11 +428,6 @@ impl Tool {
             json_schema,
             function,
         }
-    }
-
-    /// Create a new tool builder.
-    pub fn builder<S: Into<String>>(name: S) -> ToolBuilder {
-        ToolBuilder::new(name)
     }
 
     fn to_chat_state_tool(&self) -> chat_state::Tool {
@@ -443,104 +438,6 @@ impl Tool {
                 description: self.description.clone(),
                 parameters: self.json_schema.clone(),
             },
-        }
-    }
-}
-
-/// Builder for creating tools with a fluent API.
-///
-/// # Example
-/// ```
-/// use nobodywho::chat::{Tool};
-/// let tool = Tool::builder("get_weather")
-///     .description("Get the current weather for a location")
-///     .param("location", "string", "The city to get weather for")
-///     .required("location")
-///     .handler(|args| {
-///         let location = args["location"].as_str().unwrap();
-///         format!("Weather in {}: Sunny, 22°C", location)
-///     })
-///     .build();
-/// ```
-pub struct ToolBuilder {
-    name: String,
-    description: String,
-    properties: serde_json::Map<String, serde_json::Value>,
-    required: Vec<String>,
-    handler: Option<Arc<dyn Fn(serde_json::Value) -> String>>,
-}
-
-impl ToolBuilder {
-    /// Create a new tool builder with a name.
-    pub fn new<S: Into<String>>(name: S) -> Self {
-        Self {
-            name: name.into(),
-            description: String::new(),
-            properties: serde_json::Map::new(),
-            required: Vec::new(),
-            handler: None,
-        }
-    }
-
-    /// Set the description of the tool.
-    pub fn description<S: Into<String>>(mut self, desc: S) -> Self {
-        self.description = desc.into();
-        self
-    }
-
-    /// Add a parameter to the tool.
-    pub fn param<S: Into<String>>(mut self, name: S, param_type: &str, description: S) -> Self {
-        let name = name.into();
-        self.properties.insert(
-            name,
-            serde_json::json!({
-                "type": param_type,
-                "description": description.into(),
-            }),
-        );
-        self
-    }
-
-    /// Add a parameter with a custom JSON schema.
-    pub fn param_with_schema<S: Into<String>>(
-        mut self,
-        name: S,
-        schema: serde_json::Value,
-    ) -> Self {
-        self.properties.insert(name.into(), schema);
-        self
-    }
-
-    /// Mark a parameter as required.
-    pub fn required<S: Into<String>>(mut self, name: S) -> Self {
-        self.required.push(name.into());
-        self
-    }
-
-    /// Set the handler function for the tool.
-    pub fn handler<F>(mut self, f: F) -> Self
-    where
-        F: Fn(serde_json::Value) -> String + 'static,
-    {
-        self.handler = Some(Arc::new(f));
-        self
-    }
-
-    /// Build the tool.
-    pub fn build(self) -> Tool {
-        let json_schema = serde_json::json!({
-            "type": "object",
-            "properties": self.properties,
-            "required": self.required,
-        });
-
-        Tool {
-            name: self.name,
-            description: self.description,
-            json_schema,
-            function: self
-                .handler
-                .unwrap_or_else(|| Arc::new(|_| "Tool handler not implemented".to_string())),
         }
     }
 }
@@ -989,7 +886,8 @@ impl Worker<'_, ChatWorker> {
                 };
 
                 // call the tool
-                let response = (tool.function)(tool_call.arguments);
+                let response =
+                    (tool.function.lock().expect("TODO: handle error better"))(tool_call.arguments);
                 debug!(?tool_call.name, ?response);
 
                 // add to chat history

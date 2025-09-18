@@ -44,7 +44,7 @@ pub struct NobodyWhoTool {
 // #[flutter_rust_bridge::frb(sync)]
 pub async fn new_tool(
     runtime_type: String,
-    dart_function: impl Fn(String) -> DartFnFuture<String> + 'static,
+    dart_function: impl Fn(String) -> DartFnFuture<String> + Send + Sync + 'static,
 ) -> NobodyWhoTool {
     let json_schema =
         dart_function_type_to_json_schema(&runtime_type).expect("TODO: Deal with errors");
@@ -52,7 +52,7 @@ pub async fn new_tool(
     // TODO: this seems to silently block forever if we get a type error on the dart side.
     //       it'd be *much* better to fail hard and throw a dart exception if that happens
     //       we might have to fix it on the dart side...
-    let sync_callback = |json: serde_json::Value| {
+    let sync_callback = move |json: serde_json::Value| {
         futures::executor::block_on(async { dart_function(json.to_string()).await })
     };
 
@@ -64,7 +64,7 @@ pub async fn new_tool(
         name,
         description,
         json_schema,
-        std::sync::Arc::new(sync_callback),
+        std::sync::Arc::new(std::sync::Mutex::new(sync_callback)),
     );
 
     return NobodyWhoTool { tool };
