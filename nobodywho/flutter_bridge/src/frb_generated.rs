@@ -70,12 +70,14 @@ fn wire__crate__api__nobodywho__NobodyWhoChat_new_impl(
             let api_model = <NobodyWhoModel>::sse_decode(&mut deserializer);
             let api_system_prompt = <String>::sse_decode(&mut deserializer);
             let api_context_size = <u32>::sse_decode(&mut deserializer);
+            let api_tools = <Vec<NobodyWhoTool>>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
                 let output_ok = Result::<_, ()>::Ok(crate::api::nobodywho::NobodyWhoChat::new(
                     api_model,
                     api_system_prompt,
                     api_context_size,
+                    api_tools,
                 ))?;
                 Ok(output_ok)
             })())
@@ -440,6 +442,18 @@ impl SseDecode for isize {
     }
 }
 
+impl SseDecode for Vec<NobodyWhoTool> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = vec![];
+        for idx_ in 0..len_ {
+            ans_.push(<NobodyWhoTool>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<u8> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -659,6 +673,16 @@ impl SseEncode for isize {
             .cursor
             .write_i64::<NativeEndian>(self as _)
             .unwrap();
+    }
+}
+
+impl SseEncode for Vec<NobodyWhoTool> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <NobodyWhoTool>::sse_encode(item, serializer);
+        }
     }
 }
 
