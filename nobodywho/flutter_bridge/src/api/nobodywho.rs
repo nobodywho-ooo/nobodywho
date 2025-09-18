@@ -18,10 +18,16 @@ pub struct NobodyWhoChat {
 
 impl NobodyWhoChat {
     #[flutter_rust_bridge::frb(sync)]
-    pub fn new(model: NobodyWhoModel, system_prompt: String, context_size: u32) -> Self {
+    pub fn new(
+        model: NobodyWhoModel,
+        system_prompt: String,
+        context_size: u32,
+        tools: Vec<NobodyWhoTool>,
+    ) -> Self {
         let chat = nobodywho::chat::ChatBuilder::new(model.model)
             .with_system_prompt(system_prompt)
             .with_context_size(context_size)
+            .with_tools(tools.into_iter().map(|t| t.tool).collect())
             .build();
         Self { chat }
     }
