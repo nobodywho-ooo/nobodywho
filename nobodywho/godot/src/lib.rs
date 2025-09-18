@@ -5,10 +5,14 @@ use godot::prelude::*;
 use nobodywho::{chat_state, llm, sampler_config};
 use std::sync::atomic::{AtomicU64, Ordering};
 use tracing::{debug, error, info, trace, warn};
-use tracing_subscriber::prelude::*;
 use tracing_subscriber::filter::{LevelFilter, Targets};
+use tracing_subscriber::prelude::*;
 
 use crate::sampler_resource::NobodyWhoSampler;
+
+// Wrapper to make Callable Send (we ensure it's only accessed safely via Mutex)
+struct SendCallable(Callable);
+unsafe impl Send for SendCallable {}
 
 struct NobodyWhoExtension;
 
@@ -452,6 +456,11 @@ impl NobodyWhoChat {
             return;
         };
 
+        // Wrap the callable to make it Send (we ensure thread-safe access via Mutex)
+        use std::sync::{Arc, Mutex};
+        let callable = Arc::new(Mutex::new(SendCallable(callable)));
+        let properties = Arc::new(properties);
+
         // the callback that the actual tool call uses
         let func = move |j: serde_json::Value| {
             let Some(obj) = j.as_object() else {
@@ -460,7 +469,7 @@ impl NobodyWhoChat {
             };
 
             let mut args: Vec<Variant> = vec![];
-            for prop in &properties {
+            for prop in properties.iter() {
                 let Some(val) = obj.get(prop.as_str()) else {
                     warn!("LLM passed bad arguments to tool. Missing argument {prop}");
                     return format!("Error: Missing argument {prop}");
@@ -468,12 +477,15 @@ impl NobodyWhoChat {
                 args.push(json_to_godot(val));
             }
 
-            // TODO: if arguments are incorrect here, the callable returns null
-            let res: Variant = callable.call(&args);
+            // Lock the callable for the duration of the call
+            let callable_guard = callable.lock().unwrap();
 
-            // Handling of async methods, 
-            // as soon as you use await in godot, the will return GDScriptState, which contains a signal. 
-            // signal cannot be emitted from non mainthreads, so we throw an 
+            // TODO: if arguments are incorrect here, the callable returns null
+            let res: Variant = callable_guard.0.call(&args);
+
+            // Handling of async methods,
+            // as soon as you use await in godot, the will return GDScriptState, which contains a signal.
+            // signal cannot be emitted from non mainthreads, so we throw an
             if res.get_type() == VariantType::OBJECT {
                 if let Ok(obj) = res.try_to::<Gd<RefCounted>>() {
                     let class_name = obj.get_class();
@@ -489,7 +501,7 @@ impl NobodyWhoChat {
             method_name.into(),
             description,
             json_schema.into(),
-            std::sync::Arc::new(func),
+            std::sync::Arc::new(std::sync::Mutex::new(func)),
         );
         self.tools.push(new_tool);
     }
@@ -812,10 +824,12 @@ impl NobodyWhoCrossEncoder {
             let model = self.get_model()?;
 
             // TODO: configurable n_ctx liek with the embeddings node
-            self.crossencoder_handle = Some(nobodywho::crossencoder::CrossEncoderHandle::new(model, 4096));
+            self.crossencoder_handle = Some(nobodywho::crossencoder::CrossEncoderHandle::new(
+                model, 4096,
+            ));
             Ok(())
         };
-        
+
         if let Err(msg) = result() {
             godot_error!("Error running model: {}", msg);
         }
@@ -825,7 +839,7 @@ impl NobodyWhoCrossEncoder {
     /// Ranks documents based on their relevance to the query.
     /// Returns a signal that you can use to wait for the ranking.
     /// The signal will return a PackedStringArray of ranked documents.
-    /// 
+    ///
     /// Parameters:
     /// - query: The question or query to rank documents against
     /// - documents: Array of document strings to rank
@@ -837,10 +851,14 @@ impl NobodyWhoCrossEncoder {
             return self.rank(query, documents, limit);
         };
 
-        let docs_vec: Vec<String> = documents.to_vec().into_iter().map(|s| s.to_string()).collect();
+        let docs_vec: Vec<String> = documents
+            .to_vec()
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect();
         let mut ranking_channel = crossencoder_handle.rank(query, docs_vec.clone());
         let emit_node = self.to_gd();
-        
+
         godot::task::spawn(async move {
             match ranking_channel.recv().await {
                 Some(scores) => {
@@ -855,16 +873,25 @@ impl NobodyWhoCrossEncoder {
     }
 
     #[func]
-    fn rank_sync(&mut self, query: String, documents: PackedStringArray, limit: i32) -> PackedStringArray {
+    fn rank_sync(
+        &mut self,
+        query: String,
+        documents: PackedStringArray,
+        limit: i32,
+    ) -> PackedStringArray {
         let Some(crossencoder_handle) = &self.crossencoder_handle else {
             godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
             self.start_worker();
             return self.rank_sync(query, documents, limit);
         };
 
-        let docs_vec: Vec<String> = documents.to_vec().into_iter().map(|s| s.to_string()).collect();
+        let docs_vec: Vec<String> = documents
+            .to_vec()
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect();
         let mut ranking_channel = crossencoder_handle.rank(query, docs_vec.clone());
-        
+
         match ranking_channel.blocking_recv() {
             Some(scores) => Self::_to_sorted_string_array(docs_vec, scores, limit),
             None => {
@@ -875,16 +902,24 @@ impl NobodyWhoCrossEncoder {
     }
 
     /// takes a list of scores and documents and returns a sorted packedstring array
-    fn _to_sorted_string_array(documents: Vec<String>, scores: Vec<f32>, limit: i32) -> PackedStringArray {
+    fn _to_sorted_string_array(
+        documents: Vec<String>,
+        scores: Vec<f32>,
+        limit: i32,
+    ) -> PackedStringArray {
         let mut docs_with_scores: Vec<(String, f32)> = documents.into_iter().zip(scores).collect();
         docs_with_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-        
+
         let ranked_docs: Vec<String> = docs_with_scores
             .into_iter()
             .map(|(doc, _)| doc)
-            .take(if limit > 0 { limit as usize } else { usize::MAX })
+            .take(if limit > 0 {
+                limit as usize
+            } else {
+                usize::MAX
+            })
             .collect();
-            
+
         let gstring_array: Vec<GString> = ranked_docs.into_iter().map(GString::from).collect();
         PackedStringArray::from(gstring_array)
     }
@@ -1006,7 +1041,8 @@ impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for GodotWriter {
 
 static INIT: std::sync::Once = std::sync::Once::new();
 
-static LEVEL_HANDLE: std::sync::Mutex<Option<tracing_subscriber::reload::Handle<Targets, tracing_subscriber::Registry>>,
+static LEVEL_HANDLE: std::sync::Mutex<
+    Option<tracing_subscriber::reload::Handle<Targets, tracing_subscriber::Registry>>,
 > = std::sync::Mutex::new(None);
 
 fn base_directive(level: tracing::Level) -> LevelFilter {
@@ -1019,7 +1055,7 @@ fn base_directive(level: tracing::Level) -> LevelFilter {
     }
 }
 
-// Llama logs are noisy and verbose, this works by setting a higher required log level before showing 
+// Llama logs are noisy and verbose, this works by setting a higher required log level before showing
 // At app DEBUG, a llama DEBUG message is not shown because only traces with INFO or higher is allowed through
 fn llama_log_threshold(level: tracing::Level) -> LevelFilter {
     match level {
@@ -1056,7 +1092,10 @@ pub fn set_log_level(level_str: &str) {
             .with_level(true)
             .compact();
 
-        tracing_subscriber::registry().with(filter).with(fmt_layer).init();
+        tracing_subscriber::registry()
+            .with(filter)
+            .with(fmt_layer)
+            .init();
     });
 
     if let Some(handle) = &*LEVEL_HANDLE.lock().unwrap() {
