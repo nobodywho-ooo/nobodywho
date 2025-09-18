@@ -41,10 +41,12 @@ pub struct NobodyWhoTool {
     tool: nobodywho::chat::Tool,
 }
 
-// #[flutter_rust_bridge::frb(sync)]
-pub async fn new_tool(
+#[flutter_rust_bridge::frb(sync)]
+pub fn new_tool_impl(
+    function: impl Fn(String) -> DartFnFuture<String> + Send + Sync + 'static,
+    name: String,
+    description: String,
     runtime_type: String,
-    dart_function: impl Fn(String) -> DartFnFuture<String> + Send + Sync + 'static,
 ) -> NobodyWhoTool {
     let json_schema =
         dart_function_type_to_json_schema(&runtime_type).expect("TODO: Deal with errors");
@@ -53,12 +55,8 @@ pub async fn new_tool(
     //       it'd be *much* better to fail hard and throw a dart exception if that happens
     //       we might have to fix it on the dart side...
     let sync_callback = move |json: serde_json::Value| {
-        futures::executor::block_on(async { dart_function(json.to_string()).await })
+        futures::executor::block_on(async { function(json.to_string()).await })
     };
-
-    // XXX: TODO
-    let name = "funciton_name".to_string();
-    let description = "descrt lol".to_string();
 
     let tool = nobodywho::chat::Tool::new(
         name,
