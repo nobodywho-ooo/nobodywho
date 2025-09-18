@@ -6,7 +6,7 @@ use interoptopus::{
     pattern, Inventory, InventoryBuilder,
 };
 use std::ffi::c_char;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tracing::{debug, error, warn};
 
 /// TRACING
@@ -277,19 +277,19 @@ impl ChatWrapper {
                 serde_json::from_str(json_schema.as_str().map_err(|_| ChatError::BadJsonSchema)?)
                     .map_err(|_| ChatError::BadJsonSchema)?;
 
-            let callback_wrapper = Arc::new(move |json: serde_json::Value| -> String {
+            let callback = move |json: serde_json::Value| -> String {
                 let json_str = std::ffi::CString::new(json.to_string()).unwrap();
                 let res: *const std::ffi::c_void =
                     callback.call(json_str.as_ptr() as *const std::ffi::c_void);
                 // Cast back to str
                 let res_str = unsafe { std::ffi::CStr::from_ptr(res as *const c_char) };
                 res_str.to_str().unwrap().to_string()
-            });
+            };
             let tool = nobodywho::chat::Tool::new(
                 name.to_string(),
                 description.to_string(),
                 json_schema,
-                callback_wrapper,
+                Arc::new(Mutex::new(callback)),
             );
             self.tools.push(tool);
             Ok(())
