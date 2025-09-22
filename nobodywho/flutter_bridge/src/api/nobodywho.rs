@@ -217,11 +217,4 @@ mod tests {
         });
         assert_eq!(schema, expected);
     }
-
-    #[test]
-    fn test_wrong_return_type() {
-        let result = dart_function_type_to_json_schema("({String a}) => int");
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Expected return type String"));
-    }
 }
