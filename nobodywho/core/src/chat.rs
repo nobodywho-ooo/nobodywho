@@ -47,7 +47,7 @@ pub struct ChatHandle {
 /// ```
 /// use nobodywho::chat::{ChatBuilder, Tool};
 /// use nobodywho::llm;
-/// use std::sync::Arc;
+/// use std::sync::{Arc, Mutex};
 ///
 /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let model = llm::get_model("model.gguf", true)?;
@@ -56,7 +56,7 @@ pub struct ChatHandle {
 ///     "example".to_string(),
 ///     "Example tool".to_string(),
 ///     serde_json::json!({}),
-///     Arc::new(|_| "result".to_string())
+///     Arc::new(Mutex::new(|_| "result".to_string()))
 /// );
 ///
 /// let chat = ChatBuilder::new(model)
@@ -990,7 +990,7 @@ mod tests {
                     "location"
                 ]
             }),
-            function: Arc::new(|args| {
+            function: Arc::new(Mutex::new(|args: serde_json::Value| {
                 let Some(location) = args.get("location") else {
                     return "Bad arguments format. Location key was missing.".into();
                 };
@@ -1004,7 +1004,7 @@ mod tests {
                 }
 
                 "Unknown location.".into()
-            }),
+            })),
         }
     }
 
@@ -1024,7 +1024,7 @@ mod tests {
                     "to-currency"
                 ]
             }),
-            function: Arc::new(|args| {
+            function: Arc::new(Mutex::new(|args: serde_json::Value| {
                 let Some(to_currency) = args.get("to-currency") else {
                     return "Bad arguments format. To currency key was missing.".into();
                 };
@@ -1035,7 +1035,7 @@ mod tests {
                 }
 
                 "Exchange rate not available".into()
-            }),
+            })),
         }
     }
 
