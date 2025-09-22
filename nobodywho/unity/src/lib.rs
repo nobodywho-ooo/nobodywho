@@ -6,7 +6,7 @@ use interoptopus::{
     pattern, Inventory, InventoryBuilder,
 };
 use std::ffi::c_char;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tracing::{debug, error, warn};
 
 /// TRACING
@@ -287,7 +287,7 @@ impl ChatWrapper {
                 name.to_string(),
                 description.to_string(),
                 json_schema,
-                Arc::new(Mutex::new(callback)),
+                Arc::new(callback),
             );
             self.tools.push(tool);
             Ok(())

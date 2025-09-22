@@ -28,7 +28,7 @@ use crate::llm::Worker;
 use crate::sampler_config::SamplerConfig;
 use llama_cpp_2::{context::params::LlamaPoolingType, model::LlamaModel};
 use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tracing::{debug, error, warn};
 
 // PARALLELISM
@@ -47,7 +47,7 @@ pub struct ChatHandle {
 /// ```
 /// use nobodywho::chat::{ChatBuilder, Tool};
 /// use nobodywho::llm;
-/// use std::sync::{Arc, Mutex};
+/// use std::sync::Arc;
 ///
 /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let model = llm::get_model("model.gguf", true)?;
@@ -56,7 +56,7 @@ pub struct ChatHandle {
 ///     "example".to_string(),
 ///     "Example tool".to_string(),
 ///     serde_json::json!({}),
-///     Arc::new(Mutex::new(|_| "result".to_string()))
+///     Arc::new(|_| "result".to_string())
 /// );
 ///
 /// let chat = ChatBuilder::new(model)
@@ -419,7 +419,7 @@ pub struct Tool {
     pub name: String,
     description: String,
     json_schema: serde_json::Value,
-    function: Arc<Mutex<dyn Fn(serde_json::Value) -> String + Send>>,
+    function: Arc<dyn Fn(serde_json::Value) -> String + Send + Sync>,
 }
 
 impl Tool {
@@ -428,7 +428,7 @@ impl Tool {
         name: String,
         description: String,
         json_schema: serde_json::Value,
-        function: Arc<Mutex<dyn Fn(serde_json::Value) -> String + Send>>,
+        function: Arc<dyn Fn(serde_json::Value) -> String + Send + Sync>,
     ) -> Self {
         Self {
             name,
@@ -692,8 +692,7 @@ impl<'a> Worker<'_, ChatWorker> {
                 };
 
                 // call the tool
-                let response =
-                    (tool.function.lock().expect("TODO: handle error better"))(tool_call.arguments);
+                let response = (tool.function)(tool_call.arguments);
                 debug!(?tool_call.name, ?response);
 
                 // add to chat history
@@ -990,7 +989,7 @@ mod tests {
                     "location"
                 ]
             }),
-            function: Arc::new(Mutex::new(|args: serde_json::Value| {
+            function: Arc::new(|args: serde_json::Value| {
                 let Some(location) = args.get("location") else {
                     return "Bad arguments format. Location key was missing.".into();
                 };
@@ -1004,7 +1003,7 @@ mod tests {
                 }
 
                 "Unknown location.".into()
-            })),
+            }),
         }
     }
 
@@ -1024,7 +1023,7 @@ mod tests {
                     "to-currency"
                 ]
             }),
-            function: Arc::new(Mutex::new(|args: serde_json::Value| {
+            function: Arc::new(|args: serde_json::Value| {
                 let Some(to_currency) = args.get("to-currency") else {
                     return "Bad arguments format. To currency key was missing.".into();
                 };
@@ -1035,7 +1034,7 @@ mod tests {
                 }
 
                 "Exchange rate not available".into()
-            })),
+            }),
         }
     }
 
