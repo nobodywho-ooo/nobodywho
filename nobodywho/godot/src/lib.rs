@@ -504,7 +504,7 @@ impl NobodyWhoChat {
             method_name.into(),
             description,
             json_schema.into(),
-            std::sync::Arc::new(std::sync::Mutex::new(func)),
+            std::sync::Arc::new(func),
         );
         self.tools.push(new_tool);
     }

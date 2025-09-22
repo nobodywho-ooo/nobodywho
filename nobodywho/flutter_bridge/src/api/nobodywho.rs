@@ -68,7 +68,7 @@ pub fn new_tool_impl(
         name,
         description,
         json_schema,
-        std::sync::Arc::new(std::sync::Mutex::new(sync_callback)),
+        std::sync::Arc::new(sync_callback),
     );
 
     return NobodyWhoTool { tool };
