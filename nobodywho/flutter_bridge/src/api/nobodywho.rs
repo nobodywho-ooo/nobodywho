@@ -1,3 +1,8 @@
+use flutter_rust_bridge::{DartFnFuture, Rust2DartSendError};
+use nobodywho::llm::LoadModelError;
+// ^ in general I've only done fully-qualified imports, but these things need to be imported to
+// satisfy some frb macros
+
 #[flutter_rust_bridge::frb(opaque)]
 pub struct NobodyWhoModel {
     model: nobodywho::llm::Model,
@@ -5,9 +10,9 @@ pub struct NobodyWhoModel {
 
 impl NobodyWhoModel {
     #[flutter_rust_bridge::frb(sync)]
-    pub fn new(model_path: &str, #[frb(default = true)] use_gpu: bool) -> Self {
-        let model = nobodywho::llm::get_model(model_path, use_gpu).expect("TODO: error handling");
-        Self { model }
+    pub fn new(model_path: &str, #[frb(default = true)] use_gpu: bool) -> Result<Self, String> {
+        let model = nobodywho::llm::get_model(model_path, use_gpu).map_err(|e| e.to_string())?;
+        Ok(Self { model })
     }
 }
 
@@ -32,15 +37,18 @@ impl NobodyWhoChat {
         Self { chat }
     }
 
-    pub async fn say(&self, sink: crate::frb_generated::StreamSink<String>, message: String) -> () {
+    pub async fn say(
+        &self,
+        sink: crate::frb_generated::StreamSink<String>,
+        message: String,
+    ) -> Result<(), Rust2DartSendError> {
         let mut stream = self.chat.say_stream(message);
         while let Some(token) = stream.next_token().await {
-            sink.add(token).expect("TODO: error handling");
+            sink.add(token)?;
         }
+        Ok(())
     }
 }
-
-use flutter_rust_bridge::DartFnFuture;
 
 #[flutter_rust_bridge::frb(opaque)]
 pub struct NobodyWhoTool {
@@ -53,9 +61,8 @@ pub fn new_tool_impl(
     name: String,
     description: String,
     runtime_type: String,
-) -> NobodyWhoTool {
-    let json_schema =
-        dart_function_type_to_json_schema(&runtime_type).expect("TODO: Deal with errors");
+) -> Result<NobodyWhoTool, String> {
+    let json_schema = dart_function_type_to_json_schema(&runtime_type)?;
 
     // TODO: this seems to silently block forever if we get a type error on the dart side.
     //       it'd be *much* better to fail hard and throw a dart exception if that happens
@@ -71,15 +78,13 @@ pub fn new_tool_impl(
         std::sync::Arc::new(sync_callback),
     );
 
-    return NobodyWhoTool { tool };
+    Ok(NobodyWhoTool { tool })
 }
 
 /// Converts a Dart function runtimeType string directly to a JSON schema
 /// Example input: "({String a, int b}) => String"
 /// Returns a JSON schema for the function parameters
 fn dart_function_type_to_json_schema(runtime_type: &str) -> Result<serde_json::Value, String> {
-    println!("Got runtime_type: {runtime_type}");
-
     // Match the pattern: ({params}) => returnType
     let re = regex::Regex::new(r"^\(\{([^}]*)\}\)\s*=>\s*(.+)$")
         .map_err(|e| format!("Regex error: {}", e))?;
@@ -96,7 +101,7 @@ fn dart_function_type_to_json_schema(runtime_type: &str) -> Result<serde_json::V
     })?;
 
     let params_str = &captures[1];
-    let return_type = captures[2].trim();
+    let _return_type = captures[2].trim();
 
     let mut properties = serde_json::Map::new();
     let mut required = Vec::new();
@@ -174,8 +179,6 @@ fn dart_function_type_to_json_schema(runtime_type: &str) -> Result<serde_json::V
 }
 
 // TODO:
-// - tools
-// - error handling
 // - blocking say
 // - embeddings
 // - cross encoder

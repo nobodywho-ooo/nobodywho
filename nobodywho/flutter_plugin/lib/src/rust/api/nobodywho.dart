@@ -48,3 +48,6 @@ abstract class NobodyWhoModel implements RustOpaqueInterface {
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<NobodyWhoTool>>
 abstract class NobodyWhoTool implements RustOpaqueInterface {}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Rust2DartSendError>>
+abstract class Rust2DartSendError implements RustOpaqueInterface {}

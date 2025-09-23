@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nobodywho_flutter/nobodywho_flutter.dart';
+import 'package:file_picker/file_picker.dart';
 
 Future<String> sparklify({required String thestring}) async {
   return "✨$thestring✨";
@@ -21,13 +22,133 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         useMaterial3: true,
       ),
-      home: const ChatScreen(),
+      home: const ModelSelectionScreen(),
+    );
+  }
+}
+
+class ModelSelectionScreen extends StatefulWidget {
+  const ModelSelectionScreen({super.key});
+
+  @override
+  State<ModelSelectionScreen> createState() => _ModelSelectionScreenState();
+}
+
+class _ModelSelectionScreenState extends State<ModelSelectionScreen> {
+  String? _selectedModelPath;
+
+  Future<void> _pickModelFile() async {
+    print('_pickModelFile called');
+    try {
+      final FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['gguf'],
+        dialogTitle: 'Select GGUF Model File',
+      );
+
+      print('File picker result: $result');
+
+      if (result != null && result.files.single.path != null) {
+        print('Selected file: ${result.files.single.path}');
+        setState(() {
+          _selectedModelPath = result.files.single.path;
+        });
+      } else {
+        print('No file selected or path is null');
+      }
+    } catch (e) {
+      print('Error picking file: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Select Model'),
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.smart_toy,
+                size: 80,
+                color: Colors.blue,
+              ),
+              const SizedBox(height: 32),
+              const Text(
+                'Select a GGUF model file to start chatting',
+                style: TextStyle(fontSize: 18),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 32),
+              if (_selectedModelPath != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey[300]!),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.file_present, color: Colors.green),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _selectedModelPath!.split('/').last,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+              ElevatedButton.icon(
+                onPressed: _pickModelFile,
+                icon: const Icon(Icons.folder_open),
+                label: Text(_selectedModelPath == null ? 'Select Model File' : 'Change Model File'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                ),
+              ),
+              if (_selectedModelPath != null) ...[
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ChatScreen(modelPath: _selectedModelPath!),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.chat),
+                  label: const Text('Start Chatting'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key});
+  final String modelPath;
+
+  const ChatScreen({super.key, required this.modelPath});
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -51,7 +172,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _initializeChat() async {
     _model = NobodyWhoModel(
-      modelPath: "/home/asbjorn/Development/am/nobodywho-rs/models/Qwen_Qwen3-4B-Q4_K_M.gguf",
+      modelPath: widget.modelPath,
       useGpu: true,
     );
 
