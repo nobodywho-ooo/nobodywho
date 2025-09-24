@@ -77,8 +77,8 @@ pkgs.mkShell {
     pkgs.shaderc
 
     # for android
-    android-sdk
-    pkgs.openjdk11-bootstrap
+    # android-sdk
+    # pkgs.openjdk11-bootstrap
 
     # for mkdocs
     pkgs.mkdocs
@@ -88,13 +88,21 @@ pkgs.mkShell {
     # flutter
     pkgs.flutter
     pkgs.flutter_rust_bridge_codegen
+
+    # GTK and portal dependencies for file_picker
+    pkgs.gtk3
+    pkgs.glib
+    pkgs.gsettings-desktop-schemas
+    pkgs.shared-mime-info
+    pkgs.xdg-desktop-portal
+    pkgs.xdg-desktop-portal-gtk
   ];
   shellHook = ''
     ulimit -n 2048
 
     # https://godot-rust.github.io/book/toolchain/export-android.html
-    export ANDROID_NDK="$ANDROID_SDK_ROOT/ndk/${ndk_version}"
-    export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$ANDROID_SDK_ROOT/ndk/${ndk_version}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang"
+    # export ANDROID_NDK="$ANDROID_SDK_ROOT/ndk/${ndk_version}"
+    # export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$ANDROID_SDK_ROOT/ndk/${ndk_version}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang"
 
     echo "Environment is set up for android compilation with NDK version ${ndk_version}"
     echo "These paths should be set in Godot Editor settings, for android export:"
