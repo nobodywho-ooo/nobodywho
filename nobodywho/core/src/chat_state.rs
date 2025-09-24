@@ -1,9 +1,13 @@
 use std::sync::LazyLock;
 
+use llama_cpp_2::{
+    model::{AddBos, LlamaModel},
+    token::LlamaToken,
+};
 use minijinja::{context, Environment};
 use serde::{self, Deserialize, Serialize};
 use serde_json;
-use tracing::{warn, trace};
+use tracing::{trace, warn};
 
 static MINIJINJA_ENV: LazyLock<Environment> = LazyLock::new(|| {
     let mut env = Environment::new();
@@ -28,11 +32,9 @@ fn strftime_now(format_str: &str) -> String {
     chrono::Local::now().format(format_str).to_string()
 }
 
-
 // Chat template typing
 // these types generally follow the shape described in the `transformers` docs here:
 // https://github.com/huggingface/transformers/blob/b11b28cc4e859558318690a5b41ac3a22644acd5/docs/source/en/chat_templating_writing.md
-
 
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -57,7 +59,7 @@ pub enum Message {
     // length of the content field, which is otherwise undefiend
     ToolCalls {
         role: Role,
-        content: String, 
+        content: String,
         tool_calls: Vec<ToolCall>,
     },
     ToolResp {
@@ -70,7 +72,9 @@ pub enum Message {
 impl Message {
     pub fn role(&self) -> &Role {
         match self {
-            Message::Message { role, .. } | Message::ToolCalls { role, .. } | Message :: ToolResp { role, .. } => role,
+            Message::Message { role, .. }
+            | Message::ToolCalls { role, .. }
+            | Message::ToolResp { role, .. } => role,
         }
     }
 }
@@ -104,10 +108,11 @@ pub struct ToolCall {
 pub struct ChatState {
     messages: Vec<Message>,
     chat_template: String,
+    prefix_cache: Vec<LlamaToken>,
     length: usize,
     eos_token: String,
     bos_token: String,
-    tools: Vec<Tool>
+    tools: Vec<Tool>,
 }
 
 /// given a chat history where the first two messages are from system and user
@@ -124,8 +129,7 @@ fn concat_system_and_first_user_messages(
         }, Message::Message {
             role: Role::User,
             content: second_content,
-        }, rest @ ..] =>
-        {
+        }, rest @ ..] => {
             let new_first_message = Message::Message {
                 role: Role::User,
                 content: format!("{}\n\n{}", first_content, second_content),
@@ -160,18 +164,33 @@ pub enum FromModelError {
     Detokenize(#[from] llama_cpp_2::TokenToStringError),
 
     #[error("Tools were provided, but it looks like this model doesn't support tool calling.")]
-    NoToolTemplateError
+    NoToolTemplateError,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum RenderError {
+    #[error("Template failed to render: {0}")]
+    MiniJinjaError(#[from] minijinja::Error),
+
+    #[error("Could not tokenize string: {0}")]
+    CreateContextError(#[from] llama_cpp_2::StringToTokenError),
 }
 
 impl ChatState {
-    pub fn new(chat_template: String, bos_token: String, eos_token: String, tools: Vec<Tool>) -> Self {
+    pub fn new(
+        chat_template: String,
+        bos_token: String,
+        eos_token: String,
+        tools: Vec<Tool>,
+    ) -> Self {
         Self {
             messages: Vec::new(),
             chat_template,
+            prefix_cache: Vec::new(),
             length: 0,
             eos_token,
             bos_token,
-            tools
+            tools,
         }
     }
 
@@ -183,7 +202,10 @@ impl ChatState {
         Ok(Self::new(template, bos, eos, vec![]))
     }
 
-    pub fn from_model_and_tools(model: &llama_cpp_2::model::LlamaModel, tools: Vec<Tool>) -> Result<Self, FromModelError> {
+    pub fn from_model_and_tools(
+        model: &llama_cpp_2::model::LlamaModel,
+        tools: Vec<Tool>,
+    ) -> Result<Self, FromModelError> {
         let default_template = model.chat_template(None)?.to_string()?;
         let tool_template = model.chat_template(Some("tool_use"));
 
@@ -240,14 +262,22 @@ impl ChatState {
     }
 
     pub fn add_tool_calls(&mut self, tool_calls: Vec<ToolCall>) {
-        self.messages.push(Message::ToolCalls {role: Role::Assistant, content: "".into(), tool_calls});
-    }
-    
-    pub fn add_tool_resp(&mut self, name: String, content: String) {
-        self.messages.push(Message::ToolResp {role: Role::Tool, name, content});
+        self.messages.push(Message::ToolCalls {
+            role: Role::Assistant,
+            content: "".into(),
+            tool_calls,
+        });
     }
 
-    fn render(&mut self) -> Result<String, minijinja::Error> {
+    pub fn add_tool_resp(&mut self, name: String, content: String) {
+        self.messages.push(Message::ToolResp {
+            role: Role::Tool,
+            name,
+            content,
+        });
+    }
+
+    fn render_string(&mut self) -> Result<String, minijinja::Error> {
         let tmpl = MINIJINJA_ENV.template_from_str(&self.chat_template)?;
 
         let ctx = context! {
@@ -270,7 +300,7 @@ impl ChatState {
                         // this is the error message we get when rendering the gemma2 template
                         // concat the first two messages and try again
                         self.messages = concat_system_and_first_user_messages(&self.messages)?;
-                        self.render()
+                        self.render_string()
                     } else if err.to_string().contains(
                         "Conversation roles must alternate user/assistant/user/assistant/...",
                     ) {
@@ -278,7 +308,7 @@ impl ChatState {
                         // which, like gemma2, does not support the system role
                         // concat the first two messages and try again
                         self.messages = concat_system_and_first_user_messages(&self.messages)?;
-                        self.render()
+                        self.render_string()
                     } else {
                         Err(err)
                     }
@@ -290,24 +320,20 @@ impl ChatState {
         let text = result?;
         trace!(text);
 
-        // HACK: get rid of the think blocks when adding stuff to the chat history
-        //       this makes our diffing logic work with the qwen3 chat template
-        //       since that chat template *sometimes* removes think blocks, and sometimes not
-        //       which breaks our length assumptions. This just makes it always remove think
-        //       blocks, for length consistency.
-        //       We still don't strip think blocks from the LlamaContext, so the old think blocks
-        //       are around forever- despite what the chat template wants.
-        //       There is probably a much cleaner way to do it overall, but this'll do for now.
-        let re = regex::Regex::new(r"\n<think>(?s:.+)</think>\n")
-            .expect("Invalid regex. This should be impossible.");
-        let text = re.replace_all(&text, "").to_string();
-
         Ok(text)
+    }
+
+    fn render_tokens(&mut self, ctx_model: &LlamaModel) -> Result<Vec<LlamaToken>, RenderError> {
+        let text = self.render_string()?;
+        let tokens = ctx_model.str_to_token(&text, AddBos::Never)?;
+        trace!(text);
+
+        Ok(tokens)
     }
 
     pub fn render_diff(&mut self) -> Result<String, minijinja::Error> {
         // render the full template
-        let text = self.render()?;
+        let text = self.render_string()?;
 
         // get the chars that are new since the last template render
         let diff = text[self.length..].to_string();
@@ -316,6 +342,40 @@ impl ChatState {
         self.length = text.len();
 
         Ok(diff)
+    }
+
+    pub fn find_token_diff_and_prefix_index(
+        &mut self,
+        ctx_model: &LlamaModel,
+    ) -> Result<(u32, Vec<LlamaToken>), RenderError> {
+        let tokens = self.render_tokens(ctx_model)?;
+
+        if self.prefix_cache.len() > 0 {
+            let longest_common_prefix_index = self
+                .prefix_cache
+                .iter()
+                .zip(tokens.iter())
+                .position(|(a, b)| a != b);
+
+            let (index, diff): (u32, Vec<LlamaToken>) = match longest_common_prefix_index {
+                Some(i) => (i as u32, tokens[i..].iter().cloned().collect()),
+                None => (
+                    self.prefix_cache.len() as u32,
+                    tokens[(self.prefix_cache.len())..]
+                        .iter()
+                        .cloned()
+                        .collect(),
+                ),
+            };
+
+            self.prefix_cache
+                .extend_from_slice(&tokens[(index as usize)..]);
+
+            return Ok((index, diff));
+        }
+
+        self.prefix_cache = tokens.clone();
+        return Ok((0, tokens));
     }
 }
 
@@ -327,7 +387,8 @@ mod tests {
     fn test_llama31_template() {
         // test that llama 3.1 template renders
         let template = "{% set loop_messages = messages %}{% for message in loop_messages %}{% set content = '<|start_header_id|>' + message['role'] + '<|end_header_id|>\n\n'+ message['content'] | trim + '<|eot_id|>' %}{% if loop.index0 == 0 %}{% set content = bos_token + content %}{% endif %}{{ content }}{% endfor %}{{ '<|start_header_id|>assistant<|end_header_id|>\n\n' }}";
-        let mut chatstate = ChatState::new(template.into(), "<|bos|>".into(), "<|eos|>".into(), vec![]);
+        let mut chatstate =
+            ChatState::new(template.into(), "<|bos|>".into(), "<|eos|>".into(), vec![]);
         chatstate.add_user_message("Hello, world!".into());
         let rendered = chatstate.render_diff().unwrap();
         let expected = "<|bos|><|start_header_id|>user<|end_header_id|>
@@ -356,11 +417,10 @@ Hello, world!<|eot_id|><|start_header_id|>assistant<|end_header_id|>
     #[test]
     fn test_deepseek_template() {
         let template = "{% if not add_generation_prompt is defined %}{% set add_generation_prompt = false %}{% endif %}{% set ns = namespace(is_first=false, is_tool=false, is_output_first=true, system_prompt='') %}{%- for message in messages %}{%- if message['role'] == 'system' %}{% set ns.system_prompt = message['content'] %}{%- endif %}{%- endfor %}{{bos_token}}{{ns.system_prompt}}{%- for message in messages %}{%- if message['role'] == 'user' %}{%- set ns.is_tool = false -%}{{'<｜User｜>' + message['content']}}{%- endif %}{%- if message['role'] == 'assistant' and message['content'] is none %}{%- set ns.is_tool = false -%}{%- for tool in message['tool_calls']%}{%- if not ns.is_first %}{{'<｜Assistant｜><｜tool▁calls▁begin｜><｜tool▁call▁begin｜>' + tool['type'] + '<｜tool▁sep｜>' + tool['function']['name'] + '\\n' + '```json' + '\\n' + tool['function']['arguments'] + '\\n' + '```' + '<｜tool▁call▁end｜>'}}{%- set ns.is_first = true -%}{%- else %}{{'\\n' + '<｜tool▁call▁begin｜>' + tool['type'] + '<｜tool▁sep｜>' + tool['function']['name'] + '\\n' + '```json' + '\\n' + tool['function']['arguments'] + '\\n' + '```' + '<｜tool▁call▁end｜>'}}{{'<｜tool▁calls▁end｜><｜end▁of▁sentence｜>'}}{%- endif %}{%- endfor %}{%- endif %}{%- if message['role'] == 'assistant' and message['content'] is not none %}{%- if ns.is_tool %}{{'<｜tool▁outputs▁end｜>' + message['content'] + '<｜end▁of▁sentence｜>'}}{%- set ns.is_tool = false -%}{%- else %}{% set content = message['content'] %}{% if '</think>' in content %}{% set content = content.split('</think>')[-1] %}{% endif %}{{'<｜Assistant｜>' + content + '<｜end▁of▁sentence｜>'}}{%- endif %}{%- endif %}{%- if message['role'] == 'tool' %}{%- set ns.is_tool = true -%}{%- if ns.is_output_first %}{{'<｜tool▁outputs▁begin｜><｜tool▁output▁begin｜>' + message['content'] + '<｜tool▁output▁end｜>'}}{%- set ns.is_output_first = false %}{%- else %}{{'\\n<｜tool▁output▁begin｜>' + message['content'] + '<｜tool▁output▁end｜>'}}{%- endif %}{%- endif %}{%- endfor -%}{% if ns.is_tool %}{{'<｜tool▁outputs▁end｜>'}}{% endif %}{% if add_generation_prompt and not ns.is_tool %}{{'<｜Assistant｜>'}}{% endif %}";
-        let mut chatstate = ChatState::new(template.into(), "<|bos|>".into(), "<|eos|>".into(), vec![]);
+        let mut chatstate =
+            ChatState::new(template.into(), "<|bos|>".into(), "<|eos|>".into(), vec![]);
         chatstate.add_user_message("Hello, world!".into());
-        chatstate.add_assistant_message(
-            "<think>beep boop robot thinky</think>".into(),
-        );
+        chatstate.add_assistant_message("<think>beep boop robot thinky</think>".into());
         let rendered = chatstate.render_diff();
         println!("{:?}", rendered);
         assert!(rendered.is_ok());
@@ -384,13 +444,11 @@ Hello, world!<|eot_id|><|start_header_id|>assistant<|end_header_id|>
         println!("{:?}", rendered);
         println!("---");
         assert_eq!(
-            rendered.unwrap(), 
+            rendered.unwrap(),
             "The answer is 42!<|im_end|>\n".to_string()
         );
 
-        chatstate.add_user_message(
-            "What are you on about? I need the real answer.".into(),
-        );
+        chatstate.add_user_message("What are you on about? I need the real answer.".into());
         let rendered = chatstate.render_diff();
         println!("{:?}", rendered);
         println!("---");
@@ -399,13 +457,12 @@ Hello, world!<|eot_id|><|start_header_id|>assistant<|end_header_id|>
             "<|im_start|>user\nWhat are you on about? I need the real answer.<|im_end|>\n<|im_start|>assistant\n".to_string()
         );
 
-
         chatstate.add_assistant_message("<think>\nI already told the user that the real answer is 42.\nI guess I'll just tell them again. What an idiot...\n</think>\nThe answer is 42!".into());
         let rendered = chatstate.render_diff();
         println!("{:?}", rendered);
         println!("---");
         assert_eq!(
-            rendered.unwrap(), 
+            rendered.unwrap(),
             "The answer is 42!<|im_end|>\n".to_string()
         );
     }

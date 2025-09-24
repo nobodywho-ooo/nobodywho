@@ -475,6 +475,63 @@ where
 
         Ok(self)
     }
+
+    #[tracing::instrument(level = "trace", skip(self))]
+    pub fn read_tokens(&mut self, tokens: Vec<LlamaToken>) -> Result<&mut Self, ReadError> {
+        let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
+
+        let n_tokens = tokens.len();
+        debug!("Reading {n_tokens} tokens.");
+
+        // can't read nothing
+        debug_assert!(tokens.len() > 0);
+        // can't read more than the context size
+        debug_assert!(tokens.len() < self.ctx.n_ctx() as usize);
+
+        // apply context shifting
+        if self.n_past as usize + tokens.len() > self.ctx.n_ctx() as usize {
+            debug!("Applying context shifting");
+            self.n_past -= apply_context_shifting(&mut self.ctx, self.n_past)?;
+        }
+
+        {
+            debug!("Populating batch");
+            // make batch
+            self.big_batch.clear();
+            let seq_ids = &[0];
+            for (i, token) in (0..).zip(tokens.iter()) {
+                // Only compute logits for the last token to save computation
+                let output_logits = i == n_tokens - 1;
+                self.big_batch
+                    .add(*token, self.n_past + i as i32, seq_ids, output_logits)?;
+            }
+        }
+
+        // llm go brr
+        let decode_span = debug_span!("read decode", n_tokens = n_tokens);
+        let decode_guard = decode_span.enter();
+        self.ctx.decode(&mut self.big_batch)?;
+        drop(decode_guard);
+        // brrr
+
+        self.n_past += tokens.len() as i32;
+
+        debug!("completed read operation");
+
+        Ok(self)
+    }
+
+    #[tracing::instrument(level = "trace", skip(self))]
+    pub fn remove_all_tokens_after_index_from_ctx(&mut self, index: u32) -> Result<(), ReadError> {
+        if self.n_past < index as i32 {
+            return Ok(());
+        }
+
+        self.ctx.clear_kv_cache_seq(Some(0), Some(index), None)?;
+        self.ctx.kv_cache_update();
+        self.n_past = index as i32;
+        return Ok(());
+    }
 }
 
 #[cfg(test)]

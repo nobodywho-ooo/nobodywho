@@ -21,8 +21,8 @@
 //! # }
 //! ```
 
-use crate::chat_state;
 use crate::chat_state::ChatState;
+use crate::chat_state::{self, RenderError};
 use crate::llm;
 use crate::llm::Worker;
 use crate::sampler_config::SamplerConfig;
@@ -673,6 +673,9 @@ pub enum SayError {
 
     #[error("Error rendering chat template: {0}")]
     ChatTemplateRenderError(#[from] minijinja::Error),
+
+    #[error("Error finding token difference: {0}")]
+    RenderError(#[from] RenderError),
 }
 
 impl llm::GenerationCapability for ChatWorker {}
@@ -743,7 +746,12 @@ impl<'a> Worker<'_, ChatWorker> {
         let tool_call_begin = "<tool_call>";
 
         self.extra.chat_state.add_user_message(text);
-        let diff = self.extra.chat_state.render_diff()?;
+        let (prefix_index, token_difference) = self
+            .extra
+            .chat_state
+            .find_token_diff_and_prefix_index(self.ctx.model)?;
+
+        self.remove_all_tokens_after_index_from_ctx(prefix_index)?;
 
         // wrap the response callback to keep a copy of the completed response
         // and to avoid emitting tool calls
@@ -759,7 +767,7 @@ impl<'a> Worker<'_, ChatWorker> {
         }
 
         // llm go brrr
-        self.read_string(diff)?.write_until_done(
+        self.read_tokens(token_difference)?.write_until_done(
             sampler.clone(),
             stop_words.clone(),
             wrapped_respond,
@@ -772,7 +780,10 @@ impl<'a> Worker<'_, ChatWorker> {
             debug!("Got tool calls! {tool_calls:?}");
 
             self.extra.chat_state.add_tool_calls(tool_calls.clone());
-            let _ = self.extra.chat_state.render_diff()?;
+            let _ = self
+                .extra
+                .chat_state
+                .find_token_diff_and_prefix_index(self.ctx.model)?;
             // render diff just to keep up with context.
             // discard result, because the llm context has already seen these tokens
 
@@ -804,11 +815,16 @@ impl<'a> Worker<'_, ChatWorker> {
                     .add_tool_resp(tool_call.name, response);
             }
 
-            let diff = self.extra.chat_state.render_diff()?;
+            let (prefix_index, token_difference) = self
+                .extra
+                .chat_state
+                .find_token_diff_and_prefix_index(self.ctx.model)?;
+
+            self.remove_all_tokens_after_index_from_ctx(prefix_index)?;
 
             let (wrapped_respond, resp_receiver) =
                 wrap_respond(respond.clone(), tool_call_begin.into());
-            self.read_string(diff)?.write_until_done(
+            self.read_tokens(token_difference)?.write_until_done(
                 sampler.clone(),
                 stop_words.clone(),
                 wrapped_respond,
@@ -819,7 +835,10 @@ impl<'a> Worker<'_, ChatWorker> {
         }
         debug_assert!(!response.contains(tool_call_begin));
         self.extra.chat_state.add_assistant_message(response);
-        let _ = self.extra.chat_state.render_diff()?;
+        let _ = self
+            .extra
+            .chat_state
+            .find_token_diff_and_prefix_index(self.ctx.model)?;
 
         Ok(self)
     }
