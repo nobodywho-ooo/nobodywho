@@ -3,7 +3,7 @@ members = [
     "core",
     "godot",
     "unity",
-    "flutter_bridge"
+    "dart/flutter_bridge"
 ]
 
 # edition = "2021" implies resolver = "2".
