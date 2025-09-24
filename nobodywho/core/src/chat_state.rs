@@ -337,31 +337,30 @@ impl ChatState {
     ) -> Result<(u32, Vec<LlamaToken>), RenderError> {
         let tokens = self.render_tokens(ctx_model)?;
 
-        if self.prefix_cache.len() > 0 {
-            let longest_common_prefix_index = self
-                .prefix_cache
-                .iter()
-                .zip(tokens.iter())
-                .position(|(a, b)| a != b);
-
-            let (index, diff): (u32, Vec<LlamaToken>) = match longest_common_prefix_index {
-                Some(i) => (i as u32, tokens[i..].iter().cloned().collect()),
-                None => (
-                    self.prefix_cache.len() as u32,
-                    tokens[(self.prefix_cache.len())..]
-                        .iter()
-                        .cloned()
-                        .collect(),
-                ),
-            };
-
-            self.prefix_cache = tokens;
-
-            return Ok((index, diff));
+        if self.prefix_cache.len() == 0 {
+            self.prefix_cache = tokens.clone();
+            return Ok((0, tokens));
         }
 
-        self.prefix_cache = tokens.clone();
-        return Ok((0, tokens));
+        let longest_common_prefix_index = self
+            .prefix_cache
+            .iter()
+            .zip(tokens.iter())
+            .position(|(a, b)| a != b);
+
+        let (index, diff): (u32, Vec<LlamaToken>) = match longest_common_prefix_index {
+            Some(i) => (i as u32, tokens[i..].iter().cloned().collect()),
+            None => (
+                self.prefix_cache.len() as u32,
+                tokens[(self.prefix_cache.len())..]
+                    .iter()
+                    .cloned()
+                    .collect(),
+            ),
+        };
+
+        self.prefix_cache = tokens;
+        return Ok((index, diff));
     }
 }
 
