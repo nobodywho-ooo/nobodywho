@@ -356,6 +356,9 @@ enum ChatWorkerError {
 
     #[error("Read error: {0}")]
     ReadError(#[from] llm::ReadError),
+
+    #[error("Error getting token difference: {0}")]
+    RenderError(#[from] RenderError),
 }
 
 fn run_worker(
@@ -877,8 +880,12 @@ impl<'a> Worker<'_, ChatWorker> {
         };
         self.extra.tools = tools;
         self.extra.chat_state.set_messages(current_messages);
-        let diff = self.extra.chat_state.render_diff()?;
-        self.read_string(diff)?;
+        // prefix index is unimportant as we know there is no cached prefix.
+        let (_, token_difference) = self
+            .extra
+            .chat_state
+            .find_token_diff_and_prefix_index(self.ctx.model)?;
+        self.read_tokens(token_difference)?;
 
         Ok(())
     }
