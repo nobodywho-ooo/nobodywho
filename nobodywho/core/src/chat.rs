@@ -26,6 +26,8 @@ use crate::chat_state::{self, RenderError};
 use crate::llm;
 use crate::llm::Worker;
 use crate::sampler_config::SamplerConfig;
+use llama_cpp_2::model::AddBos;
+use llama_cpp_2::token::LlamaToken;
 use llama_cpp_2::{context::params::LlamaPoolingType, model::LlamaModel};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -749,10 +751,13 @@ impl<'a> Worker<'_, ChatWorker> {
         let tool_call_begin = "<tool_call>";
 
         self.extra.chat_state.add_user_message(text);
+
+        // Check how much of the current KVCache we can keep
+        let render_as_tokens = self.get_render_as_tokens()?;
         let (prefix_index, token_difference) = self
             .extra
             .chat_state
-            .find_token_diff_and_prefix_index(self.ctx.model)?;
+            .find_prefix_index_and_difference_with_tokens_in_context(&render_as_tokens);
 
         self.remove_all_tokens_after_index_from_ctx(prefix_index)?;
 
@@ -776,6 +781,11 @@ impl<'a> Worker<'_, ChatWorker> {
             wrapped_respond,
         )?;
 
+        // update the chat_state to match the tokens in the context.
+        self.extra
+            .chat_state
+            .set_tokens_in_context(render_as_tokens);
+
         // get the finished response
         let mut response: String = resp_receiver.recv()?;
 
@@ -783,12 +793,6 @@ impl<'a> Worker<'_, ChatWorker> {
             debug!("Got tool calls! {tool_calls:?}");
 
             self.extra.chat_state.add_tool_calls(tool_calls.clone());
-            let _ = self
-                .extra
-                .chat_state
-                .find_token_diff_and_prefix_index(self.ctx.model)?;
-            // render diff just to keep up with context.
-            // discard result, because the llm context has already seen these tokens
 
             for tool_call in tool_calls {
                 // find the tool
@@ -818,10 +822,12 @@ impl<'a> Worker<'_, ChatWorker> {
                     .add_tool_resp(tool_call.name, response);
             }
 
+            // Check how much of the current KVCache we can keep
+            let render_as_tokens = self.get_render_as_tokens()?;
             let (prefix_index, token_difference) = self
                 .extra
                 .chat_state
-                .find_token_diff_and_prefix_index(self.ctx.model)?;
+                .find_prefix_index_and_difference_with_tokens_in_context(&render_as_tokens);
 
             self.remove_all_tokens_after_index_from_ctx(prefix_index)?;
 
@@ -835,15 +841,30 @@ impl<'a> Worker<'_, ChatWorker> {
 
             // get the finished response
             response = resp_receiver.recv()?;
+
+            self.extra
+                .chat_state
+                .set_tokens_in_context(render_as_tokens);
         }
         debug_assert!(!response.contains(tool_call_begin));
         self.extra.chat_state.add_assistant_message(response);
-        let _ = self
-            .extra
+
+        let render_as_tokens = self.get_render_as_tokens()?;
+
+        self.extra
             .chat_state
-            .find_token_diff_and_prefix_index(self.ctx.model)?;
+            .set_tokens_in_context(render_as_tokens);
 
         Ok(self)
+    }
+
+    fn get_render_as_tokens(&mut self) -> Result<Vec<LlamaToken>, chat_state::RenderError> {
+        let render_as_string = self.extra.chat_state.render_string()?;
+        let render_as_tokens = self
+            .ctx
+            .model
+            .str_to_token(&render_as_string, AddBos::Never)?;
+        Ok(render_as_tokens)
     }
 
     pub fn reset_chat(
@@ -881,11 +902,11 @@ impl<'a> Worker<'_, ChatWorker> {
         self.extra.tools = tools;
         self.extra.chat_state.set_messages(current_messages);
         // prefix index is unimportant as we know there is no cached prefix.
-        let (_, token_difference) = self
-            .extra
+        let render_as_tokens = self.get_render_as_tokens()?;
+        self.read_tokens(render_as_tokens.clone())?;
+        self.extra
             .chat_state
-            .find_token_diff_and_prefix_index(self.ctx.model)?;
-        self.read_tokens(token_difference)?;
+            .set_tokens_in_context(render_as_tokens);
 
         Ok(())
     }
