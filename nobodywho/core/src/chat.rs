@@ -21,11 +21,13 @@
 //! # }
 //! ```
 
-use crate::chat_state;
 use crate::chat_state::ChatState;
-use crate::llm;
-use crate::llm::Worker;
+use crate::chat_state::{self, RenderError};
+use crate::llm::{self};
+use crate::llm::{Worker, WriteOutput};
 use crate::sampler_config::SamplerConfig;
+use llama_cpp_2::model::AddBos;
+use llama_cpp_2::token::LlamaToken;
 use llama_cpp_2::{context::params::LlamaPoolingType, model::LlamaModel};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -356,6 +358,9 @@ enum ChatWorkerError {
 
     #[error("Read error: {0}")]
     ReadError(#[from] llm::ReadError),
+
+    #[error("Error getting token difference: {0}")]
+    RenderError(#[from] RenderError),
 }
 
 fn run_worker(
@@ -673,6 +678,9 @@ pub enum SayError {
 
     #[error("Error rendering chat template: {0}")]
     ChatTemplateRenderError(#[from] minijinja::Error),
+
+    #[error("Error finding token difference: {0}")]
+    RenderError(#[from] RenderError),
 }
 
 impl llm::GenerationCapability for ChatWorker {}
@@ -743,12 +751,6 @@ impl<'a> Worker<'_, ChatWorker> {
         let tool_call_begin = "<tool_call>";
 
         self.extra.chat_state.add_user_message(text);
-        let diff = self.extra.chat_state.render_diff()?;
-
-        // wrap the response callback to keep a copy of the completed response
-        // and to avoid emitting tool calls
-        let (wrapped_respond, resp_receiver) =
-            wrap_respond(respond.clone(), tool_call_begin.into());
 
         let mut sampler = sampler;
         if let Some(ref tool_grammar) = self.extra.tool_grammar {
@@ -758,23 +760,18 @@ impl<'a> Worker<'_, ChatWorker> {
             sampler.gbnf_grammar = tool_grammar.to_string();
         }
 
-        // llm go brrr
-        self.read_string(diff)?.write_until_done(
+        // get the finished response
+        let mut response: String = self.wrapped_update_context_and_write_response(
             sampler.clone(),
             stop_words.clone(),
-            wrapped_respond,
+            respond.clone(),
+            tool_call_begin.into(),
         )?;
-
-        // get the finished response
-        let mut response: String = resp_receiver.recv()?;
 
         while let Some(tool_calls) = extract_tool_calls(&response) {
             debug!("Got tool calls! {tool_calls:?}");
 
             self.extra.chat_state.add_tool_calls(tool_calls.clone());
-            let _ = self.extra.chat_state.render_diff()?;
-            // render diff just to keep up with context.
-            // discard result, because the llm context has already seen these tokens
 
             for tool_call in tool_calls {
                 // find the tool
@@ -804,24 +801,87 @@ impl<'a> Worker<'_, ChatWorker> {
                     .add_tool_resp(tool_call.name, response);
             }
 
-            let diff = self.extra.chat_state.render_diff()?;
-
-            let (wrapped_respond, resp_receiver) =
-                wrap_respond(respond.clone(), tool_call_begin.into());
-            self.read_string(diff)?.write_until_done(
+            // get the finished response
+            response = self.wrapped_update_context_and_write_response(
                 sampler.clone(),
                 stop_words.clone(),
-                wrapped_respond,
+                respond.clone(),
+                tool_call_begin.into(),
             )?;
-
-            // get the finished response
-            response = resp_receiver.recv()?;
         }
         debug_assert!(!response.contains(tool_call_begin));
         self.extra.chat_state.add_assistant_message(response);
-        let _ = self.extra.chat_state.render_diff()?;
+
+        // Update tokens_in_context as the model already has seen this respone
+        let render_as_tokens = self.get_render_as_tokens()?;
+
+        self.extra
+            .chat_state
+            .set_tokens_in_context(render_as_tokens);
 
         Ok(self)
+    }
+
+    fn get_render_as_tokens(&mut self) -> Result<Vec<LlamaToken>, chat_state::RenderError> {
+        let render_as_string = self.extra.chat_state.render_string()?;
+        let render_as_tokens = self
+            .ctx
+            .model
+            .str_to_token(&render_as_string, AddBos::Never)?;
+        Ok(render_as_tokens)
+    }
+
+    fn read_tokens_and_write_response(
+        &mut self,
+        tokens: Vec<LlamaToken>,
+        sampler: SamplerConfig,
+        stop_words: Vec<String>,
+        wrapped_respond: impl FnMut(WriteOutput),
+    ) -> Result<&mut Self, SayError> {
+        Ok(self.read_tokens(tokens)?.write_until_done(
+            sampler.clone(),
+            stop_words.clone(),
+            wrapped_respond,
+        )?)
+    }
+
+    fn wrapped_update_context_and_write_response<F>(
+        &mut self,
+        sampler: SamplerConfig,
+        stop_words: Vec<String>,
+        respond: F,
+        tool_call_begin_token: String,
+    ) -> Result<String, SayError>
+    where
+        F: Fn(llm::WriteOutput) + Clone,
+    {
+        // Check how much of the current KVCache we can keep
+        let render_as_tokens = self.get_render_as_tokens()?;
+        let (prefix_index, token_difference) = self
+            .extra
+            .chat_state
+            .find_prefix_index_and_difference_with_tokens_in_context(&render_as_tokens);
+
+        self.remove_all_tokens_after_index_from_ctx(prefix_index)?;
+
+        // wrap the response callback to keep a copy of the completed response
+        // and to avoid emitting tool calls
+        let (wrapped_respond, resp_receiver) = wrap_respond(respond.clone(), tool_call_begin_token);
+
+        // llm go brrr
+        self.read_tokens_and_write_response(
+            token_difference,
+            sampler.clone(),
+            stop_words.clone(),
+            wrapped_respond,
+        )?;
+
+        // update the chat_state to match the tokens in the context.
+        self.extra
+            .chat_state
+            .set_tokens_in_context(render_as_tokens);
+
+        Ok(resp_receiver.recv()?)
     }
 
     pub fn reset_chat(
@@ -858,8 +918,12 @@ impl<'a> Worker<'_, ChatWorker> {
         };
         self.extra.tools = tools;
         self.extra.chat_state.set_messages(current_messages);
-        let diff = self.extra.chat_state.render_diff()?;
-        self.read_string(diff)?;
+        // prefix index is unimportant as we know there is no cached prefix.
+        let render_as_tokens = self.get_render_as_tokens()?;
+        self.read_tokens(render_as_tokens.clone())?;
+        self.extra
+            .chat_state
+            .set_tokens_in_context(render_as_tokens);
 
         Ok(())
     }

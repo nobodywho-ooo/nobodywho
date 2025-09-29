@@ -116,8 +116,6 @@ fn apply_context_shifting(
         -n_discard,
     )?;
 
-    ctx.kv_cache_update();
-
     debug!(target: "Context shifted", ?n_discard);
 
     Ok(n_discard)
@@ -432,9 +430,14 @@ where
 
     #[tracing::instrument(level = "trace", skip(self))]
     pub fn read_string(&mut self, text: String) -> Result<&mut Self, ReadError> {
+        let tokens = self.ctx.model.str_to_token(&text, AddBos::Never)?;
+        self.read_tokens(tokens)
+    }
+
+    #[tracing::instrument(level = "trace", skip(self))]
+    pub fn read_tokens(&mut self, tokens: Vec<LlamaToken>) -> Result<&mut Self, ReadError> {
         let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
 
-        let tokens = self.ctx.model.str_to_token(&text, AddBos::Never)?;
         let n_tokens = tokens.len();
         debug!("Reading {n_tokens} tokens.");
 
@@ -474,6 +477,17 @@ where
         debug!("completed read operation");
 
         Ok(self)
+    }
+
+    #[tracing::instrument(level = "trace", skip(self))]
+    pub fn remove_all_tokens_after_index_from_ctx(&mut self, index: u32) -> Result<(), ReadError> {
+        if self.n_past <= index as i32 {
+            return Ok(());
+        }
+
+        self.ctx.clear_kv_cache_seq(Some(0), Some(index), None)?;
+        self.n_past = index as i32;
+        return Ok(());
     }
 }
 
