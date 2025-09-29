@@ -116,8 +116,6 @@ fn apply_context_shifting(
         -n_discard,
     )?;
 
-    ctx.kv_cache_update();
-
     debug!(target: "Context shifted", ?n_discard);
 
     Ok(n_discard)
@@ -488,7 +486,6 @@ where
         }
 
         self.ctx.clear_kv_cache_seq(Some(0), Some(index), None)?;
-        self.ctx.kv_cache_update();
         self.n_past = index as i32;
         return Ok(());
     }
