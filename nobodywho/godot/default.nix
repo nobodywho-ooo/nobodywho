@@ -2,7 +2,7 @@
   pkgs,
   fetchurl,
   rustPlatform,
-  llvmPackages_12,
+  llvmPackages,
   cmake,
   vulkan-headers,
   vulkan-loader,
@@ -18,7 +18,7 @@ rec {
     src = ./..;
     buildAndTestSubdir = "godot";
     nativeBuildInputs = [
-      llvmPackages_12.bintools
+      llvmPackages.bintools
       cmake
       rustPlatform.bindgenHook
       rustPlatform.cargoBuildHook
