@@ -189,14 +189,6 @@ impl ChatState {
         }
     }
 
-    pub fn from_model(model: &llama_cpp_2::model::LlamaModel) -> Result<Self, FromModelError> {
-        let template = model.chat_template(None)?.to_string()?;
-        let tokenize = llama_cpp_2::model::Special::Tokenize;
-        let bos = model.token_to_str(model.token_bos(), tokenize)?;
-        let eos = model.token_to_str(model.token_eos(), tokenize)?;
-        Ok(Self::new(template, bos, eos, vec![]))
-    }
-
     pub fn from_model_and_tools(
         model: &llama_cpp_2::model::LlamaModel,
         tools: Vec<Tool>,
@@ -224,6 +216,10 @@ impl ChatState {
         let bos = model.token_to_str(model.token_bos(), tokenize)?;
         let eos = model.token_to_str(model.token_eos(), tokenize)?;
         Ok(Self::new(template, bos, eos, tools))
+    }
+
+    pub fn from_model(model: &llama_cpp_2::model::LlamaModel) -> Result<Self, FromModelError> {
+        ChatState::from_model_and_tools(model, vec![])
     }
 
     pub fn reset(&mut self) {
