@@ -686,7 +686,7 @@ checksum = "a846cbc04412cf509efcd8f3694b114fc700a035fb5a37f21517f9fb019f1ebc"
 
 [[package]]
 name = "nobodywho"
-version = "2.1.0"
+version = "2.1.1"
 dependencies = [
  "chrono",
  "encoding_rs",
@@ -709,7 +709,7 @@ dependencies = [
 
 [[package]]
 name = "nobodywho-godot"
-version = "6.1.2"
+version = "6.1.3"
 dependencies = [
  "godot",
  "nobodywho",
