@@ -14,7 +14,7 @@ use std::sync::{Arc, LazyLock, Mutex};
 use tracing::{debug, debug_span, error, info, info_span, trace, trace_span, warn};
 
 lazy_static! {
-    static ref GLOBAL_INFERENCE_LOCK: Mutex<()> = Mutex::new(());
+    pub(crate) static ref GLOBAL_INFERENCE_LOCK: Mutex<()> = Mutex::new(());
 }
 
 static LLAMA_BACKEND: LazyLock<LlamaBackend> =
@@ -138,10 +138,10 @@ pub enum InitWorkerError {
 
 #[derive(Debug)]
 pub(crate) struct Worker<'a, S> {
-    n_past: i32,
+    pub(crate) n_past: i32,
     pub(crate) ctx: LlamaContext<'a>,
-    big_batch: LlamaBatch,
-    small_batch: LlamaBatch,
+    pub(crate) big_batch: LlamaBatch,
+    pub(crate) small_batch: LlamaBatch,
 
     pub(crate) extra: S,
 }
@@ -170,9 +170,6 @@ pub enum WorkerError {
     #[error("Error reading string: {0}")]
     ReadError(#[from] ReadError),
 
-    #[error("Error generating text: {0}")]
-    WriteError(#[from] WriteError),
-
     #[error("Error getting embeddings: {0}")]
     EmbeddingsError(#[from] llama_cpp_2::EmbeddingsError),
 
@@ -181,15 +178,6 @@ pub enum WorkerError {
 
     #[error("Global Inference Lock was poisoned.")]
     GILPoisonError, // this is actually a std::sync::PoisonError<std::sync::MutexGuard<'static, ()>>, but that doesn't implement Send, so we do this
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum GenerateResponseError {
-    #[error("Error reading string: {0}")]
-    ReadError(#[from] ReadError),
-
-    #[error("Error generating text: {0}")]
-    WriteError(#[from] WriteError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -213,43 +201,7 @@ pub enum WriteOutput {
     Done(String),
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum WriteError {
-    #[error("Could not apply context shifting: {0}")]
-    ContextShiftError(#[from] llama_cpp_2::context::kv_cache::KvCacheConversionError),
-
-    #[error("Could not add token to batch: {0}")]
-    BatchAddError(#[from] llama_cpp_2::llama_batch::BatchAddError),
-
-    #[error("Llama.cpp failed decoding: {0}")]
-    DecodeError(#[from] llama_cpp_2::DecodeError),
-
-    #[error("Error sending message")]
-    SendError,
-
-    #[error("Error converting token to bytes:  {0}")]
-    TokenToStringError(#[from] llama_cpp_2::TokenToStringError),
-
-    #[error("Invalid sampler configuration")]
-    InvalidSamplerConfig,
-}
-
-pub trait GenerationCapability {}
-pub trait Stoppable {
-    fn stop(&self) -> bool;
-}
-// Type state markers
-pub struct GenerationWorker {
-    should_stop: Arc<AtomicBool>,
-}
-
-impl GenerationCapability for GenerationWorker {}
-impl Stoppable for GenerationWorker {
-    fn stop(&self) -> bool {
-        self.should_stop.load(std::sync::atomic::Ordering::Relaxed)
-    }
-}
-
+/*
 #[cfg(test)]
 impl<'a> Worker<'_, GenerationWorker> {
     fn new_generation_worker(
@@ -266,119 +218,7 @@ impl<'a> Worker<'_, GenerationWorker> {
         )
     }
 }
-
-impl PoolingType for GenerationWorker {
-    fn pooling_type(&self) -> LlamaPoolingType {
-        LlamaPoolingType::None
-    }
-}
-
-impl<'a, T> Worker<'a, T>
-where
-    T: GenerationCapability + Stoppable,
-{
-    #[tracing::instrument(level = "info", skip(self, sampler_config, stop_words, respond))]
-    pub fn write_until_done<F>(
-        &mut self,
-        sampler_config: SamplerConfig,
-        stop_words: Vec<String>,
-        mut respond: F,
-    ) -> Result<&mut Self, WriteError>
-    where
-        F: FnMut(WriteOutput),
-    {
-        let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
-        // Token generation loop
-        info!("Worker writing until done");
-
-        // pre-allocating 4096 bytes for the response string
-        // 4096 is a very randomly chosen number. how does this affect performance?
-        let mut full_response: String = String::with_capacity(4096);
-
-        // initialize sampler
-        // stateful samplers only live for one response
-        let mut sampler = make_sampler(&self.ctx.model, sampler_config)
-            .ok_or(WriteError::InvalidSamplerConfig)?;
-
-        let mut token_bytes_vec = Vec::new();
-
-        while !self.extra.stop() {
-            // Check for context window overflow (it was in the end before)
-            if self.n_past >= self.ctx.n_ctx() as i32 {
-                self.n_past -= apply_context_shifting(&mut self.ctx, self.n_past)?;
-            }
-
-            // Sample next token, no need to use sampler.accept as sample already accepts the token.
-            // using sampler.accept() will cause the sampler to crash when using grammar sampling.
-            // https://github.com/utilityai/llama-cpp-rs/issues/604
-            trace!("Applying sampler...");
-            let new_token: LlamaToken = sampler.sample(&self.ctx, -1);
-
-            // batch of one
-            self.small_batch.clear();
-            self.small_batch.add(new_token, self.n_past, &[0], true)?;
-
-            // llm go brr
-            let decode_span = trace_span!("write decode", n_past = self.n_past);
-            let decode_guard = decode_span.enter();
-            self.ctx.decode(&mut self.small_batch)?;
-            drop(decode_guard);
-            self.n_past += 1; // keep count
-
-            // Attempt to convert token(s) to bytes
-            let token_bytes = self
-                .ctx
-                .model
-                .token_to_bytes(new_token, Special::Tokenize)?;
-
-            token_bytes_vec.extend(token_bytes);
-
-            // Attempt to convert bytes to utf8 string.
-
-            let token_str = match std::str::from_utf8(&token_bytes_vec) {
-                Ok(str) => str,
-                Err(_) => {
-                    if token_bytes_vec.len() > 4 {
-                        "�"
-                    } else {
-                        continue;
-                    }
-                }
-            };
-
-            // Basic solution to split up graphemes. If the current token bytes cannot
-            // be converted into a string then we try to read more tokens till we have
-            // at least four bytes. If these still cannot be converted into a string,
-            // we assume that the model/sampler has produced a useless token somewhere.
-            // This we currently handle by discarding all of the current bytes, but more
-            // intelligent solutions could be a good idea.
-
-            trace!(?new_token, ?token_str);
-            let has_eog = self.ctx.model.is_eog_token(new_token);
-
-            if !has_eog {
-                full_response.push_str(token_str);
-                trace!("Sending out token: {token_str}");
-                respond(WriteOutput::Token(token_str.to_string()));
-            }
-
-            // done using token_str, so now we can clear token_bytes_vec
-            token_bytes_vec.clear();
-
-            let has_stop_words = stop_words
-                .iter()
-                .any(|stop_word| full_response.contains(stop_word));
-            if has_eog || has_stop_words {
-                break;
-            }
-        }
-
-        // we're done!
-        debug!("Sending out response: {full_response}");
-        respond(WriteOutput::Done(full_response));
-        Ok(self)
-    }
-}
+*/
 
 // Common methods for any workstate type
 impl<'a, T> Worker<'a, T>
@@ -493,6 +333,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    /*
     use super::*;
     use crate::test_utils;
 
@@ -686,4 +527,5 @@ mod tests {
         worker.read_string("1, 2, 3,".to_string())?;
         Ok(())
     }
+     */
 }
