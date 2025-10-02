@@ -44,6 +44,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
+
+      - name: Setup Flutter SDK
+        if: matrix.integration == 'flutter'
+        uses: flutter-actions/setup-flutter@v4
+        with:
+          channel: stable
+          version: 3.35.5
+
       - name: "Compile for linux"
         run: cargo build -p nobodywho-${{ matrix.integration }}  --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: ./nobodywho
