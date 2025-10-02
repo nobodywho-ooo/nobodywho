@@ -1488,6 +1488,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "nobodywho-flutter"
+version = "0.1.0"
+dependencies = [
+ "flutter_rust_bridge",
+ "flutter_rust_bridge_codegen",
+ "futures",
+ "nobodywho",
+ "regex",
+ "serde_json",
+]
+
+[[package]]
 name = "nobodywho-godot"
 version = "6.1.5"
 dependencies = [
@@ -1511,18 +1523,6 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
-]
-
-[[package]]
-name = "nobodywho_flutter"
-version = "0.1.0"
-dependencies = [
- "flutter_rust_bridge",
- "flutter_rust_bridge_codegen",
- "futures",
- "nobodywho",
- "regex",
- "serde_json",
 ]
 
 [[package]]
