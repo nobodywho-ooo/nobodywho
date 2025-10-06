@@ -27,6 +27,7 @@ use crate::llm::{self};
 use crate::llm::{ReadError, GLOBAL_INFERENCE_LOCK};
 use crate::llm::{Worker, WriteOutput};
 use crate::sampler_config::{make_sampler, SamplerConfig};
+use chrono::format;
 use llama_cpp_2::model::{AddBos, Special};
 use llama_cpp_2::token::LlamaToken;
 use llama_cpp_2::StringToTokenError;
@@ -682,11 +683,23 @@ pub enum WriteError {
     #[error("Error sending message")]
     SendError,
 
-    #[error("Error converting token to bytes:  {0}")]
+    #[error("Error converting token to bytes: {0}")]
     TokenToStringError(#[from] llama_cpp_2::TokenToStringError),
 
     #[error("Invalid sampler configuration")]
     InvalidSamplerConfig,
+
+    #[error("Error during context shift: {0}")]
+    ShiftError(#[from] ShiftError),
+
+    #[error("Error reading in context after context shift: {0}")]
+    ReadError(#[from] ReadError),
+
+    #[error("Error rendering template after context shift: {0}")]
+    RenderError(#[from] RenderError),
+
+    #[error("Function was called without an inference lock")]
+    NoInferenceLockError,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -773,6 +786,7 @@ impl<'a> Worker<'_, ChatWorker> {
 
     // TODO //.
     fn context_shift(&mut self) -> Result<(), ShiftError> {
+        info!("Context shift happens!");
         let target_token_size = (self.ctx.n_ctx() / 2) as usize;
         let mut messages = self.extra.chat_state.get_messages().to_vec();
 
@@ -867,6 +881,11 @@ impl<'a> Worker<'_, ChatWorker> {
         }
     }
 
+    // ---------- IMPORTANT ----------
+    // Should only be used under a global inference lock
+    // This is a safety meassure to prevent bugs from multiple
+    // contexts with the same model. It might not be necessary
+    // but assume it is.
     pub fn write_until_done<F>(
         &mut self,
         sampler_config: SamplerConfig,
@@ -876,13 +895,17 @@ impl<'a> Worker<'_, ChatWorker> {
     where
         F: FnMut(WriteOutput),
     {
-        let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
+        // Should only be called with an inference lock
+        if let Ok(_) = GLOBAL_INFERENCE_LOCK.try_lock() {
+            return Err(WriteError::NoInferenceLockError);
+        }
         // Token generation loop
         info!("Worker writing until done");
 
         // pre-allocating 4096 bytes for the response string
         // 4096 is a very randomly chosen number. how does this affect performance?
         let mut full_response: String = String::with_capacity(4096);
+        let mut tokens_written_until_now = vec![];
 
         // initialize sampler
         // stateful samplers only live for one response
@@ -897,11 +920,27 @@ impl<'a> Worker<'_, ChatWorker> {
             // !!!!!!!!!!!!!!!!!!!!!!!!!! TODO !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             // Implement smarter context shifting by deleting messages!
 
+            if self.n_past as u32 == self.ctx.n_ctx() {
+                self.context_shift()?;
+                let render_as_tokens = self.get_render_as_tokens()?;
+
+                let (prefix_index, mut token_difference) = self
+                    .extra
+                    .chat_state
+                    .find_prefix_index_and_difference_with_tokens_in_context(&render_as_tokens);
+
+                self.remove_all_tokens_after_index_from_ctx(prefix_index)?;
+                //token_difference.extend_from_slice(&tokens_written_until_now);
+                self.read_tokens(token_difference)?;
+                // do not update tokens_in_context as this is done later by say
+            }
+
             // Sample next token, no need to use sampler.accept as sample already accepts the token.
             // using sampler.accept() will cause the sampler to crash when using grammar sampling.
             // https://github.com/utilityai/llama-cpp-rs/issues/604
             trace!("Applying sampler...");
             let new_token: LlamaToken = sampler.sample(&self.ctx, -1);
+            tokens_written_until_now.push(new_token);
 
             // batch of one
             self.small_batch.clear();
@@ -978,6 +1017,8 @@ impl<'a> Worker<'_, ChatWorker> {
     where
         F: Fn(llm::WriteOutput) + Clone,
     {
+        let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
+
         // reset the stop flag
         self.extra
             .should_stop
@@ -1921,7 +1962,7 @@ mod tests {
 
         // Use a small context size to force shifting
         let n_ctx = 512;
-        let n_messages = 3;
+        let n_messages = 13;
         // n_messages is chosen by trial and error. This exactly fills up the
         // the context so much that the next assistant message cannot be fully written.
         let mut worker = Worker::new_chat_worker(

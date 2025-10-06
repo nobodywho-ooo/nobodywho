@@ -193,6 +193,9 @@ pub enum ReadError {
 
     #[error("Could not apply context shifting: {0}")]
     ContextShiftError(#[from] llama_cpp_2::context::kv_cache::KvCacheConversionError),
+
+    #[error("Function was called without an inference lock")]
+    NoInferenceLockError,
 }
 
 #[derive(Debug)]
@@ -200,25 +203,6 @@ pub enum WriteOutput {
     Token(String),
     Done(String),
 }
-
-/*
-#[cfg(test)]
-impl<'a> Worker<'_, GenerationWorker> {
-    fn new_generation_worker(
-        model: &Arc<LlamaModel>,
-        n_ctx: u32,
-    ) -> Result<Worker<'_, GenerationWorker>, InitWorkerError> {
-        Worker::new_with_type(
-            model,
-            n_ctx,
-            false,
-            GenerationWorker {
-                should_stop: Arc::new(AtomicBool::new(false)),
-            },
-        )
-    }
-}
-*/
 
 // Common methods for any workstate type
 impl<'a, T> Worker<'a, T>
@@ -274,9 +258,17 @@ where
         self.read_tokens(tokens)
     }
 
+    // ---------- IMPORTANT ----------
+    // Should only be used under a global inference lock
+    // This is a safety meassure to prevent bugs from multiple
+    // contexts with the same model. It might not be necessary
+    // but assume it is.
     #[tracing::instrument(level = "trace", skip(self))]
     pub fn read_tokens(&mut self, tokens: Vec<LlamaToken>) -> Result<&mut Self, ReadError> {
-        let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
+        // Should only be called with an inference lock
+        if let Ok(_) = GLOBAL_INFERENCE_LOCK.try_lock() {
+            return Err(ReadError::NoInferenceLockError);
+        }
 
         let n_tokens = tokens.len();
         debug!("Reading {n_tokens} tokens.");
@@ -333,199 +325,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    /*
+
     use super::*;
     use crate::test_utils;
-
-    #[test]
-    fn test_simple_gen() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
-        let model = test_utils::load_test_model();
-
-        let sampler = SamplerConfig::default();
-        let mut worker = Worker::new_generation_worker(&model, 4096)?;
-        let (sender, receiver) = std::sync::mpsc::channel();
-
-        let f = move |x| match x {
-            WriteOutput::Done(resp) => {
-                sender.send(resp).unwrap();
-            }
-            _ => (),
-        };
-
-        worker
-            .read_string("I'm gonna count to 10: 1, 2, 3, ".to_string())?
-            .write_until_done(sampler, vec!["10".to_string()], f)?;
-
-        let response = receiver.recv()?;
-
-        assert!(response.contains("4, 5, 6, 7, 8, 9, 10"));
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_multiple_contexts_single_model() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
-        let model = test_utils::load_test_model();
-        let sampler = SamplerConfig::default();
-        let n_ctx = 4096;
-
-        // Use two separate response containers for thread safety
-        let dk_response = Arc::new(Mutex::new(None));
-        let de_response = Arc::new(Mutex::new(None));
-
-        // Clone references for thread use
-        let model_clone = Arc::clone(&model);
-        let dk_response_clone = Arc::clone(&dk_response);
-        let de_response_clone = Arc::clone(&de_response);
-        let dk_sampler = sampler.clone();
-        // Start Denmark worker thread
-        let dk_handle = std::thread::spawn(move || {
-            let mut worker = Worker::new_generation_worker(&model_clone, n_ctx).unwrap();
-            let f = move |x| {
-                if let WriteOutput::Done(resp) = x {
-                    let mut response = dk_response_clone.lock().unwrap();
-                    *response = Some(resp);
-                }
-            };
-
-            worker
-                .read_string("<think>\nCopenhagen is the capital of Denmark\n</think>\nThe name of the capital city of Denmark is \"".to_string())
-                .unwrap()
-                .write_until_done(dk_sampler, vec!["Copenhagen".to_string()], f)
-                .unwrap();
-        });
-
-        // Start Germany worker thread
-        let de_handle = std::thread::spawn(move || {
-            let mut worker = Worker::new_generation_worker(&model, n_ctx).unwrap();
-            let f = move |x| {
-                if let WriteOutput::Done(resp) = x {
-                    let mut response = de_response_clone.lock().unwrap();
-                    *response = Some(resp);
-                }
-            };
-
-            worker
-                .read_string("<think>\nBerlin is the capital of Germany\n</think>\nThe capital of germany is called ".to_string())
-                .unwrap()
-                .write_until_done(sampler, vec!["Berlin".to_string()], f)
-                .unwrap();
-        });
-
-        // Wait for threads to complete
-        dk_handle.join().unwrap();
-        de_handle.join().unwrap();
-
-        // Retrieve and verify responses
-        let dk_resp = dk_response
-            .lock()
-            .unwrap()
-            .clone()
-            .expect("No response from dk_worker");
-        let de_resp = de_response
-            .lock()
-            .unwrap()
-            .clone()
-            .expect("No response from de_worker");
-
-        assert!(
-            dk_resp.to_lowercase().contains("copenhagen"),
-            "Expected completion to contain 'Copenhagen', got: {dk_resp}"
-        );
-        assert!(
-            de_resp.to_lowercase().contains("berlin"),
-            "Expected completion to contain 'Berlin', got: {de_resp}"
-        );
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_context_shifting() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
-        let model = test_utils::load_test_model();
-        let sampler = SamplerConfig::default();
-
-        let n_ctx = 10;
-        let mut worker = Worker::new_generation_worker(&model, n_ctx)?;
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| match x {
-            WriteOutput::Done(resp) => {
-                sender.send(resp).unwrap();
-            }
-            _ => (),
-        };
-
-        worker
-            .read_string("Once upon a time".to_string())?
-            .write_until_done(sampler, vec!["\n".to_string()], f)?;
-
-        let response = receiver.recv()?;
-        assert!(
-            model.str_to_token(&response, AddBos::Never).unwrap().len() > n_ctx as usize,
-            "Expected response longer than n_ctx"
-        );
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_stop_tokens() -> Result<(), Box<dyn std::error::Error>> {
-        crate::test_utils::init_test_tracing();
-
-        let model = test_utils::load_test_model();
-        let sampler = SamplerConfig::default();
-
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| match x {
-            WriteOutput::Done(resp) => {
-                sender.send(resp).unwrap();
-            }
-            _ => (),
-        };
-
-        let mut worker = Worker::new_generation_worker(&model, 1024)?;
-        worker
-            .read_string("I'm going to count to 10: 1, 2, 3, 4,".to_string())?
-            .write_until_done(sampler, vec!["7".to_string()], f)?;
-
-        let response = receiver.recv()?;
-
-        assert!(
-            response.to_lowercase().contains("5, 6, "),
-            "Expected output to contain text before stop token. Got: {response}"
-        );
-        assert!(
-            response.to_lowercase().ends_with("7"),
-            "Expected output to stop at stop token, but continued. Got: {response}"
-        );
-        assert!(
-            !response.to_lowercase().contains("8"),
-            "Expected output to stop at stop token, but continued. Got: {response}"
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn test_read_string_overrun() -> Result<(), Box<dyn std::error::Error>> {
-        // this test looks a bit silly, but we had a bug
-        // where we didn't apply context shifting while reading text
-        // so now we test for it
-        crate::test_utils::init_test_tracing();
-
-        let model = test_utils::load_test_model();
-
-        let mut worker = Worker::new_generation_worker(&model, 20)?;
-
-        worker.read_string("1, 2, 3,".to_string())?;
-        worker.read_string("1, 2, 3,".to_string())?;
-        worker.read_string("1, 2, 3,".to_string())?;
-        worker.read_string("1, 2, 3,".to_string())?;
-        worker.read_string("1, 2, 3,".to_string())?;
-        worker.read_string("1, 2, 3,".to_string())?;
-        Ok(())
-    }
-     */
 }
