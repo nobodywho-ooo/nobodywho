@@ -5,6 +5,7 @@ use minijinja::{context, Environment};
 use serde::{self, Deserialize, Serialize};
 use serde_json;
 use tracing::{trace, warn};
+use tracing_subscriber::field::display::Messages;
 
 static MINIJINJA_ENV: LazyLock<Environment> = LazyLock::new(|| {
     let mut env = Environment::new();
@@ -33,7 +34,7 @@ fn strftime_now(format_str: &str) -> String {
 // these types generally follow the shape described in the `transformers` docs here:
 // https://github.com/huggingface/transformers/blob/b11b28cc4e859558318690a5b41ac3a22644acd5/docs/source/en/chat_templating_writing.md
 
-#[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Serialize, Clone, PartialEq, Eq, Debug)]
 #[serde(rename_all = "lowercase")]
 pub enum Role {
     User,
@@ -42,7 +43,7 @@ pub enum Role {
     Tool,
 }
 
-#[derive(Deserialize, Serialize, Clone)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 #[serde(untagged)]
 pub enum Message {
     Message {
@@ -274,6 +275,27 @@ impl ChatState {
             name,
             content,
         });
+    }
+
+    pub fn naive_render_message_vec(
+        &self,
+        messages: &[Message],
+    ) -> Result<String, minijinja::Error> {
+        let tmpl = MINIJINJA_ENV.template_from_str(&self.chat_template)?;
+
+        let ctx = context! {
+            messages => messages,
+            add_generation_prompt => self.messages.last().map_or(false, |msg| match msg {
+                Message::Message { role: Role::User, .. } => true,
+                Message::ToolResp { .. } => true,
+                _ => false,
+            }),
+            eos_token => self.eos_token,
+            bos_token => self.bos_token,
+            tools => self.tools,
+        };
+
+        Ok(tmpl.render(ctx)?)
     }
 
     pub fn render_string(&mut self) -> Result<String, minijinja::Error> {

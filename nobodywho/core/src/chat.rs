@@ -21,15 +21,17 @@
 //! # }
 //! ```
 
-use crate::chat_state::ChatState;
-use crate::chat_state::{self, RenderError};
-use crate::llm::GLOBAL_INFERENCE_LOCK;
+use crate::chat_state::{self, RenderError, Role};
+use crate::chat_state::{ChatState, Message};
 use crate::llm::{self};
+use crate::llm::{ReadError, GLOBAL_INFERENCE_LOCK};
 use crate::llm::{Worker, WriteOutput};
 use crate::sampler_config::{make_sampler, SamplerConfig};
 use llama_cpp_2::model::{AddBos, Special};
 use llama_cpp_2::token::LlamaToken;
+use llama_cpp_2::StringToTokenError;
 use llama_cpp_2::{context::params::LlamaPoolingType, model::LlamaModel};
+use std::cmp::min;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tracing::{debug, debug_span, error, info, info_span, trace, trace_span, warn};
@@ -703,6 +705,24 @@ pub enum SayError {
 
     #[error("Error finding token difference: {0}")]
     RenderError(#[from] RenderError),
+
+    #[error("Error during context shift {0}")]
+    ShiftError(#[from] ShiftError),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ShiftError {
+    #[error("Missing expected message {0}")]
+    MessageError(String),
+
+    #[error("Could not tokenize template render {0}")]
+    StringToTokenError(#[from] StringToTokenError),
+
+    #[error("Could not render messages with template {0}")]
+    TemplateRenderError(#[from] minijinja::Error),
+
+    #[error("Error reading token render into model {0}")]
+    KVCacheUpdateError(#[from] ReadError),
 }
 
 impl llm::PoolingType for ChatWorker {
@@ -712,10 +732,141 @@ impl llm::PoolingType for ChatWorker {
 }
 
 impl<'a> Worker<'_, ChatWorker> {
+    fn new_chat_worker(
+        model: &Arc<LlamaModel>,
+        n_ctx: u32,
+        system_prompt: String,
+        should_stop: Arc<AtomicBool>,
+        tools: Vec<Tool>,
+    ) -> Result<Worker<'_, ChatWorker>, llm::InitWorkerError> {
+        // initialize chat state with system prompt
+        let mut chat_state = ChatState::from_model_and_tools(
+            model,
+            tools.iter().map(|t| t.to_chat_state_tool()).collect(),
+        )?;
+        chat_state.add_system_message(system_prompt);
+
+        let grammar = if tools.len() > 0 {
+            grammar_from_tools(&tools).ok()
+        } else {
+            None
+        };
+
+        Ok(Worker::new_with_type(
+            model,
+            n_ctx,
+            false,
+            ChatWorker {
+                chat_state,
+                tools,
+                tool_grammar: grammar,
+                should_stop,
+            },
+        )?)
+    }
+
     fn stop(&self) -> bool {
         self.extra
             .should_stop
             .load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    // TODO //.
+    fn context_shift(&mut self) -> Result<(), ShiftError> {
+        let target_token_size = (self.ctx.n_ctx() / 2) as usize;
+        let mut messages = self.extra.chat_state.get_messages().to_vec();
+
+        // Find indices to preserve
+        let system_end = if matches!(messages[0].role(), Role::System) {
+            1
+        } else {
+            0
+        };
+        let first_user_message_index =
+            self.find_next_user_message(&messages, system_end)
+                .ok_or(ShiftError::MessageError(
+                    "No first user message in chat history".into(),
+                ))?;
+        let first_deletable_index = self
+            .find_next_user_message(&messages, first_user_message_index + 1)
+            .ok_or(ShiftError::MessageError("No deletable messages".into()))?; // Assuming assistant after user
+        let mut last_deletable_index = self
+            .find_start_of_last_n_user_messages(&messages, 2)
+            .ok_or(ShiftError::MessageError(
+                "Less than two user messages in chat history.".into(),
+            ))?
+            - 1;
+        let mut messages_to_delete = 1; // There might be a better start guess here.
+
+        // Delete messages until context is small enough or only essential messages are left.
+        // Double the number of messages to delete each iteration. This is a simple and kind of stupid solution, as it might overshoot by a lot.
+        // Plenty of optimization options here.
+
+        loop {
+            // No non-essential messages left to delete or the new context has reached desired size.
+            if first_deletable_index > last_deletable_index
+                || self
+                    .ctx
+                    .model
+                    .str_to_token(
+                        &self.extra.chat_state.naive_render_message_vec(&messages)?,
+                        AddBos::Never,
+                    )?
+                    .len()
+                    <= target_token_size
+            {
+                break;
+            }
+            let target_delete_index = min(
+                first_deletable_index + messages_to_delete - 1,
+                last_deletable_index,
+            );
+
+            // Find the first user message after target delete index and choose the message before.
+            // This is to ensure that resulting chat history still follows the user then assistant format
+            let delete_index = min(
+                self.find_next_user_message(&messages, target_delete_index + 1)
+                    .ok_or(ShiftError::MessageError(
+                        "Could find user message supposed to be there".into(),
+                    ))?
+                    - 1,
+                last_deletable_index,
+            ); // should never fail
+            messages.drain(first_deletable_index..=delete_index);
+            messages_to_delete *= 2;
+
+            let messages_deleted = delete_index - first_deletable_index + 1;
+
+            last_deletable_index -= messages_deleted;
+        }
+
+        // update the messages in chat_state
+        self.extra.chat_state.set_messages(messages);
+        self.remove_all_tokens_after_index_from_ctx(0)?;
+        self.extra.chat_state.set_tokens_in_context(vec![]);
+        Ok(())
+    }
+
+    fn find_next_user_message(&self, messages: &[Message], start_index: usize) -> Option<usize> {
+        messages[start_index..]
+            .iter()
+            .position(|msg| msg.role() == &Role::User)
+            .map(|pos| pos + start_index)
+    }
+
+    fn find_start_of_last_n_user_messages(&self, messages: &[Message], n: usize) -> Option<usize> {
+        let user_indices: Vec<usize> = messages
+            .iter()
+            .enumerate()
+            .filter(|(_, msg)| msg.role() == &Role::User)
+            .map(|(idx, _)| idx)
+            .collect();
+
+        if user_indices.len() >= n {
+            Some(user_indices[user_indices.len() - n])
+        } else {
+            None
+        }
     }
 
     pub fn write_until_done<F>(
@@ -818,39 +969,6 @@ impl<'a> Worker<'_, ChatWorker> {
         Ok(self)
     }
 
-    fn new_chat_worker(
-        model: &Arc<LlamaModel>,
-        n_ctx: u32,
-        system_prompt: String,
-        should_stop: Arc<AtomicBool>,
-        tools: Vec<Tool>,
-    ) -> Result<Worker<'_, ChatWorker>, llm::InitWorkerError> {
-        // initialize chat state with system prompt
-        let mut chat_state = ChatState::from_model_and_tools(
-            model,
-            tools.iter().map(|t| t.to_chat_state_tool()).collect(),
-        )?;
-        chat_state.add_system_message(system_prompt);
-
-        let grammar = if tools.len() > 0 {
-            grammar_from_tools(&tools).ok()
-        } else {
-            None
-        };
-
-        Ok(Worker::new_with_type(
-            model,
-            n_ctx,
-            false,
-            ChatWorker {
-                chat_state,
-                tools,
-                tool_grammar: grammar,
-                should_stop,
-            },
-        )?)
-    }
-
     pub fn say<F>(
         &mut self,
         text: String,
@@ -939,6 +1057,7 @@ impl<'a> Worker<'_, ChatWorker> {
         self.extra
             .chat_state
             .set_tokens_in_context(render_as_tokens);
+        println!("{}", self.extra.chat_state.render_string()?);
 
         Ok(self)
     }
@@ -959,7 +1078,14 @@ impl<'a> Worker<'_, ChatWorker> {
         stop_words: Vec<String>,
         wrapped_respond: impl FnMut(WriteOutput),
     ) -> Result<&mut Self, SayError> {
-        Ok(self.read_tokens(tokens)?.write_until_done(
+        // not enough in context so we must perform a context shift!
+        //
+        if tokens.len() > (self.ctx.n_ctx() - self.n_past as u32) as usize {
+            self.context_shift()?;
+        }
+        let tokens_have_been_read = self.read_tokens(tokens)?;
+
+        Ok(tokens_have_been_read.write_until_done(
             sampler.clone(),
             stop_words.clone(),
             wrapped_respond,
@@ -1397,5 +1523,519 @@ mod tests {
         println!("{}", result);
         assert!(result.contains("13.37"));
         assert!(result.contains("0.15"));
+    }
+
+    #[test]
+    fn test_context_shift() -> Result<(), Box<dyn std::error::Error>> {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+
+        // Use a very small context size to force shifting
+        let n_ctx = 512;
+        let n_messages = 8;
+        let mut worker = Worker::new_chat_worker(
+            &model,
+            n_ctx,
+            "You are a helpful assistant that provides informative and detailed responses. End every response with \"Do you have any further questions?\"".into(),
+            Arc::new(AtomicBool::new(false)),
+            vec![],
+        )?;
+
+        // Add many exchanges with longer messages to fill up the context
+        for i in 1..=n_messages {
+            worker.extra.chat_state.add_user_message(format!(
+                "This is user message number {}. What is {} * {}?",
+                i, i, i
+            ));
+            worker.extra.chat_state.add_assistant_message(format!(
+                "<think> </think> The answer is {}. Do you have any further questions?",
+                i * i
+            ));
+        }
+
+        worker.extra.chat_state.add_user_message("Hello!".into());
+
+        // Check that we have many messages before shift
+        let messages_before = worker.extra.chat_state.get_messages().len();
+        assert!(
+            messages_before > 6,
+            "Should have more than 6 messages before shift"
+        );
+
+        // Trigger context shift
+        worker.context_shift()?;
+
+        println!("{:?}", worker.extra.chat_state.get_messages());
+
+        let messages_after = worker.extra.chat_state.get_messages().to_vec();
+
+        // Verify essential messages are preserved:
+        // 1. System prompt should be first
+        assert_eq!(messages_after[0].role(), &Role::System);
+
+        if let Message::Message { content, .. } = &messages_after[0] {
+            assert!(
+                content.contains("helpful assistant"),
+                "System prompt should be preserved"
+            );
+        }
+
+        // 2. Should have first user message
+        let first_user_idx = messages_after.iter().position(|m| m.role() == &Role::User);
+        assert!(
+            first_user_idx.is_some(),
+            "First user message should be preserved"
+        );
+
+        // 3. Count remaining user messages - should have at least 3 (first + last 2)
+        let user_count = messages_after
+            .iter()
+            .filter(|m| m.role() == &Role::User)
+            .count();
+        assert!(
+            user_count >= 3,
+            "Should preserve first user message and last 2 user messages"
+        );
+
+        // 4. Verify the last user message is there
+        let last_user = messages_after
+            .iter()
+            .rev()
+            .find(|m| m.role() == &Role::User);
+
+        if let Some(Message::Message { content, .. }) = last_user {
+            assert!(
+                content.contains("Hello!"),
+                "Last user message should be preserved"
+            );
+        }
+
+        // 5. Verify token count is within target
+        let token_count = model
+            .str_to_token(&worker.extra.chat_state.render_string()?, AddBos::Never)?
+            .len();
+
+        let target_size = (n_ctx / 2) as usize;
+        assert!(
+            token_count <= target_size,
+            "Token count {} should be <= target size {}",
+            token_count,
+            target_size
+        );
+
+        // 6. Fewer messages after shift
+        assert!(
+            messages_after.len() < messages_before,
+            "Should have fewer messages after shift"
+        );
+
+        // 7. Check that message structure is still valid (user/assistant alternation)
+        for i in 1..messages_after.len() {
+            let prev_role = messages_after[i - 1].role();
+            let curr_role = messages_after[i].role();
+
+            // Skip system message
+            if prev_role == &Role::System {
+                assert_eq!(curr_role, &Role::User, "After system should come user");
+                continue;
+            }
+
+            // User should be followed by assistant
+            if prev_role == &Role::User {
+                assert_eq!(
+                    curr_role,
+                    &Role::Assistant,
+                    "User message should be followed by assistant"
+                );
+            }
+
+            // Assistant should be followed by user
+            if prev_role == &Role::Assistant {
+                assert_eq!(
+                    curr_role,
+                    &Role::User,
+                    "Assistant message should be followed by user"
+                );
+            }
+        }
+
+        println!("Messages before shift: {}", messages_before);
+        println!("Messages after shift: {}", messages_after.len());
+        println!("Token count after shift: {}", token_count);
+        println!("Target token size: {}", target_size);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_context_shift_with_tool_calls() -> Result<(), Box<dyn std::error::Error>> {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+
+        // Use a very small context size to force shifting
+        let n_ctx = 1024;
+        let n_messages = 10;
+        let mut worker = Worker::new_chat_worker(
+            &model,
+            n_ctx,
+            "You are a helpful assistant.".into(),
+            Arc::new(AtomicBool::new(false)),
+            vec![test_tool()],
+        )?;
+
+        // Add exchanges with tool calls mixed in
+        for i in 1..=n_messages {
+            worker
+                .extra
+                .chat_state
+                .add_user_message(format!("User message {}. What is {} * {}?", i, i, i));
+
+            // Add a tool call every other message
+            // Pattern: User -> Assistant (with tool call) -> Tool response -> Assistant
+            if i % 2 == 0 {
+                worker
+                    .extra
+                    .chat_state
+                    .add_tool_calls(vec![chat_state::ToolCall {
+                        name: "get_current_temperature".into(),
+                        arguments: serde_json::json!({"location": "Copenhagen"}),
+                    }]);
+                worker
+                    .extra
+                    .chat_state
+                    .add_tool_resp("get_current_temperature".into(), "13.37°C".into());
+                worker.extra.chat_state.add_assistant_message(format!(
+                    "The temperature is 13.37°C and {} * {} = {}.",
+                    i,
+                    i,
+                    i * i
+                ));
+            } else {
+                worker
+                    .extra
+                    .chat_state
+                    .add_assistant_message(format!("The answer is {}.", i * i));
+            }
+        }
+
+        worker
+            .extra
+            .chat_state
+            .add_user_message("Final question!".into());
+
+        // Check that we have many messages before shift
+        let messages_before = worker.extra.chat_state.get_messages().len();
+        println!("Messages before shift: {}", messages_before);
+
+        // Trigger context shift
+        worker.context_shift()?;
+
+        println!("{:?}", worker.extra.chat_state.get_messages());
+
+        let messages_after = worker.extra.chat_state.get_messages().to_vec();
+
+        // Verify essential messages are preserved:
+        // 1. System prompt should be first
+        assert_eq!(messages_after[0].role(), &Role::System);
+
+        // 2. Should have first user message
+        let first_user_idx = messages_after.iter().position(|m| m.role() == &Role::User);
+        assert!(
+            first_user_idx.is_some(),
+            "First user message should be preserved"
+        );
+
+        // 3. Count remaining user messages - should have at least 3 (first + last 2)
+        let user_count = messages_after
+            .iter()
+            .filter(|m| m.role() == &Role::User)
+            .count();
+        assert!(
+            user_count >= 3,
+            "Should preserve first user message and last 2 user messages"
+        );
+
+        // 4. Verify the last user message is there
+        let last_user = messages_after
+            .iter()
+            .rev()
+            .find(|m| m.role() == &Role::User);
+
+        if let Some(Message::Message { content, .. }) = last_user {
+            assert!(
+                content.contains("Final question!"),
+                "Last user message should be preserved"
+            );
+        }
+
+        // 5. Verify token count is within target
+        let token_count = model
+            .str_to_token(&worker.extra.chat_state.render_string()?, AddBos::Never)?
+            .len();
+
+        let target_size = (n_ctx / 2) as usize;
+        assert!(
+            token_count <= target_size,
+            "Token count {} should be <= target size {}",
+            token_count,
+            target_size
+        );
+
+        // 6. Fewer messages after shift
+        assert!(
+            messages_after.len() < messages_before,
+            "Should have fewer messages after shift"
+        );
+
+        // 7. Check that message structure is still valid
+        // Assistant role messages are either tool calls or assistant messages
+        // Tool calls should be followed by one or more tool responses
+        // Assistant messages should be followed by user messages
+        for i in 1..messages_after.len() {
+            let prev_msg = &messages_after[i - 1];
+            let curr_msg = &messages_after[i];
+            let prev_role = prev_msg.role();
+            let curr_role = curr_msg.role();
+
+            // Skip system message
+            if prev_role == &Role::System {
+                assert_eq!(curr_role, &Role::User, "After system should come user");
+                continue;
+            }
+
+            // User should be followed by assistant role (either tool calls or assistant message)
+            if prev_role == &Role::User {
+                assert_eq!(
+                    curr_role,
+                    &Role::Assistant,
+                    "User message should be followed by assistant role"
+                );
+            }
+
+            // Assistant role: check if it's tool calls or assistant message
+            if prev_role == &Role::Assistant {
+                if matches!(prev_msg, Message::ToolCalls { .. }) {
+                    // Tool calls should be followed by tool response
+                    assert_eq!(
+                        curr_role,
+                        &Role::Tool,
+                        "Tool calls should be followed by tool response"
+                    );
+                } else {
+                    // Assistant message should be followed by user
+                    assert_eq!(
+                        curr_role,
+                        &Role::User,
+                        "Assistant message should be followed by user"
+                    );
+                }
+            }
+
+            // Tool response should be followed by either another tool response or assistant
+            if prev_role == &Role::Tool {
+                assert!(
+                    curr_role == &Role::Tool || curr_role == &Role::Assistant,
+                    "Tool response should be followed by another tool response or assistant"
+                );
+            }
+        }
+
+        println!("Messages before shift: {}", messages_before);
+        println!("Messages after shift: {}", messages_after.len());
+        println!("Token count after shift: {}", token_count);
+        println!("Target token size: {}", target_size);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_chat_worker_simple_completion() -> Result<(), Box<dyn std::error::Error>> {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let sampler = SamplerConfig::default();
+        let mut worker = Worker::new_chat_worker(
+            &model,
+            4096,
+            "".into(),
+            Arc::new(AtomicBool::new(false)),
+            vec![],
+        )?;
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let f = move |x| match x {
+            llm::WriteOutput::Done(resp) => {
+                sender.send(resp).unwrap();
+            }
+            _ => (),
+        };
+
+        worker.read_tokens_and_write_response(
+            worker
+                .ctx
+                .model
+                .str_to_token("I'm going to count to 10: 1, 2, 3", AddBos::Never)?,
+            sampler,
+            vec!["10".to_string()],
+            f,
+        )?;
+
+        let response = receiver.recv()?;
+        println!("Response: {}", response);
+        assert!(response.contains("4, 5, 6, 7, 8, 9, 10"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_chat_worker_stop_tokens() -> Result<(), Box<dyn std::error::Error>> {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let sampler = SamplerConfig::default();
+        let mut worker = Worker::new_chat_worker(
+            &model,
+            1024,
+            "".into(),
+            Arc::new(AtomicBool::new(false)),
+            vec![],
+        )?;
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let f = move |x| match x {
+            llm::WriteOutput::Done(resp) => {
+                sender.send(resp).unwrap();
+            }
+            _ => (),
+        };
+
+        worker.read_tokens_and_write_response(
+            worker
+                .ctx
+                .model
+                .str_to_token("I'm going to count to 10: 1, 2, 3, 4,", AddBos::Never)?,
+            sampler,
+            vec!["7".to_string()],
+            f,
+        )?;
+
+        let response = receiver.recv()?;
+        println!("Response: {}", response);
+
+        assert!(
+            response.to_lowercase().contains("5, 6, "),
+            "Expected output to contain text before stop token. Got: {response}"
+        );
+        assert!(
+            response.to_lowercase().ends_with("7"),
+            "Expected output to stop at stop token, but continued. Got: {response}"
+        );
+        assert!(
+            !response.to_lowercase().contains("8"),
+            "Expected output to stop at stop token, but continued. Got: {response}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_chat_worker_multiple_contexts() -> Result<(), Box<dyn std::error::Error>> {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let sampler = SamplerConfig::default();
+        let n_ctx = 4096;
+
+        // Use two separate response containers for thread safety
+        let dk_response = Arc::new(std::sync::Mutex::new(None));
+        let de_response = Arc::new(std::sync::Mutex::new(None));
+
+        // Clone references for thread use
+        let model_clone = Arc::clone(&model);
+        let dk_response_clone = Arc::clone(&dk_response);
+        let de_response_clone = Arc::clone(&de_response);
+        let dk_sampler = sampler.clone();
+
+        // Start Denmark worker thread
+        let dk_handle = std::thread::spawn(move || {
+            let mut worker = Worker::new_chat_worker(
+                &model_clone,
+                n_ctx,
+                "".into(),
+                Arc::new(AtomicBool::new(false)),
+                vec![],
+            )
+            .unwrap();
+
+            let f = move |x| {
+                if let WriteOutput::Done(resp) = x {
+                    let mut response = dk_response_clone.lock().unwrap();
+                    *response = Some(resp);
+                }
+            };
+
+            worker
+                .read_tokens_and_write_response(
+                    worker.ctx.model.str_to_token("<think>\nCopenhagen is the capital of Denmark\n</think>\nThe name of the capital city of Denmark is \"", AddBos::Never).unwrap(),
+                    dk_sampler,
+                    vec!["Copenhagen".to_string()],
+                    f,
+                )
+                .unwrap();
+        });
+
+        // Start Germany worker thread
+        let de_handle = std::thread::spawn(move || {
+            let mut worker = Worker::new_chat_worker(
+                &model,
+                n_ctx,
+                "".into(),
+                Arc::new(AtomicBool::new(false)),
+                vec![],
+            )
+            .unwrap();
+
+            let f = move |x| {
+                if let WriteOutput::Done(resp) = x {
+                    let mut response = de_response_clone.lock().unwrap();
+                    *response = Some(resp);
+                }
+            };
+            worker
+                .read_tokens_and_write_response(
+                    worker.ctx.model.str_to_token("<think>\nBerlin is the capital of Germany\n</think>\nThe capital of germany is called ", AddBos::Never).unwrap(),
+                    sampler,
+                    vec!["Berlin".to_string()],
+                    f,
+                )
+                .unwrap();
+        });
+
+        // Wait for threads to complete
+        dk_handle.join().unwrap();
+        de_handle.join().unwrap();
+
+        // Retrieve and verify responses
+        let dk_resp = dk_response
+            .lock()
+            .unwrap()
+            .clone()
+            .expect("No response from dk_worker");
+        let de_resp = de_response
+            .lock()
+            .unwrap()
+            .clone()
+            .expect("No response from de_worker");
+
+        println!("Denmark response: {}", dk_resp);
+        println!("Germany response: {}", de_resp);
+
+        assert!(
+            dk_resp.to_lowercase().contains("copenhagen"),
+            "Expected completion to contain 'Copenhagen', got: {dk_resp}"
+        );
+        assert!(
+            de_resp.to_lowercase().contains("berlin"),
+            "Expected completion to contain 'Berlin', got: {de_resp}"
+        );
+
+        Ok(())
     }
 }
