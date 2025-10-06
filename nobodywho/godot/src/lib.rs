@@ -44,10 +44,10 @@ struct NobodyWhoModel {
 impl INode for NobodyWhoModel {
     fn init(_base: Base<Node>) -> Self {
         // default values to show in godot editor
-        let model_path: String = "model.gguf".into();
+        let model_path: GString = GString::from("model.gguf");
 
         Self {
-            model_path: model_path.into(),
+            model_path: model_path,
             use_gpu_if_available: true,
             model: None,
         }
@@ -167,7 +167,7 @@ impl INode for NobodyWhoChat {
 
 #[godot_api]
 impl NobodyWhoChat {
-    fn get_model(&mut self) -> Result<llm::Model, GString> {
+    fn get_model(&mut self) -> Result<llm::Model, String> {
         let gd_model_node = self.model_node.as_mut().ok_or("Model node was not set")?;
         let mut nobody_model = gd_model_node.bind_mut();
         let model: llm::Model = nobody_model.get_model().map_err(|e| e.to_string())?;
@@ -226,11 +226,11 @@ impl NobodyWhoChat {
                         nobodywho::llm::WriteOutput::Token(tok) => emit_node
                             .signals()
                             .response_updated()
-                            .emit(&GString::from(tok)),
+                            .emit(&GString::from(tok.as_str())),
                         nobodywho::llm::WriteOutput::Done(resp) => emit_node
                             .signals()
                             .response_finished()
-                            .emit(&GString::from(resp)),
+                            .emit(&GString::from(resp.as_str())),
                     }
                 }
             });
@@ -885,7 +885,7 @@ impl NobodyWhoCrossEncoder {
             .take(if limit > 0 { limit as usize } else { usize::MAX })
             .collect();
             
-        let gstring_array: Vec<GString> = ranked_docs.into_iter().map(GString::from).collect();
+        let gstring_array: Vec<GString> = ranked_docs.iter().map(GString::from).collect();
         PackedStringArray::from(gstring_array)
     }
 
@@ -927,7 +927,7 @@ fn messages_to_dictionaries(messages: &[chat_state::Message]) -> Array<Dictionar
                             }
                             _ => json_to_godot(&v),
                         };
-                        (GString::from(k), variant)
+                        (GString::from(k.as_str()), variant)
                     })
                     .collect()
             } else {
