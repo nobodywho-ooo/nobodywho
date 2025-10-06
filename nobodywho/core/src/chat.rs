@@ -796,7 +796,7 @@ impl<'a> Worker<'_, ChatWorker> {
                 "Less than two user messages in chat history.".into(),
             ))?
             - 1;
-        let mut messages_to_delete = 1; // There might be a better start guess here.
+        let mut messages_to_delete = 2; // There might be a better start guess here.
 
         // Delete messages until context is small enough or only essential messages are left.
         // Double the number of messages to delete each iteration. This is a simple and kind of stupid solution, as it might overshoot by a lot.
@@ -842,8 +842,6 @@ impl<'a> Worker<'_, ChatWorker> {
 
         // update the messages in chat_state
         self.extra.chat_state.set_messages(messages);
-        self.remove_all_tokens_after_index_from_ctx(0)?;
-        self.extra.chat_state.set_tokens_in_context(vec![]);
         Ok(())
     }
 
@@ -895,6 +893,7 @@ impl<'a> Worker<'_, ChatWorker> {
 
         while !self.stop() {
             // Check for context window overflow (it was in the end before)
+
             // !!!!!!!!!!!!!!!!!!!!!!!!!! TODO !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             // Implement smarter context shifting by deleting messages!
 
@@ -1078,11 +1077,6 @@ impl<'a> Worker<'_, ChatWorker> {
         stop_words: Vec<String>,
         wrapped_respond: impl FnMut(WriteOutput),
     ) -> Result<&mut Self, SayError> {
-        // not enough in context so we must perform a context shift!
-        //
-        if tokens.len() > (self.ctx.n_ctx() - self.n_past as u32) as usize {
-            self.context_shift()?;
-        }
         let tokens_have_been_read = self.read_tokens(tokens)?;
 
         Ok(tokens_have_been_read.write_until_done(
@@ -1103,7 +1097,12 @@ impl<'a> Worker<'_, ChatWorker> {
         F: Fn(llm::WriteOutput) + Clone,
     {
         // Check how much of the current KVCache we can keep
-        let render_as_tokens = self.get_render_as_tokens()?;
+        let mut render_as_tokens = self.get_render_as_tokens()?;
+        if render_as_tokens.len() > self.ctx.n_ctx() as usize {
+            self.context_shift()?;
+            render_as_tokens = self.get_render_as_tokens()?;
+        }
+
         let (prefix_index, token_difference) = self
             .extra
             .chat_state
@@ -1242,6 +1241,58 @@ fn extract_tool_calls(input: &str) -> Option<Vec<chat_state::ToolCall>> {
 mod tests {
     use super::*;
     use crate::test_utils;
+
+    // Helper function to verify message structure is valid
+    fn assert_valid_message_structure(messages: &[Message]) {
+        for i in 1..messages.len() {
+            let prev_msg = &messages[i - 1];
+            let curr_msg = &messages[i];
+            let prev_role = prev_msg.role();
+            let curr_role = curr_msg.role();
+
+            // Skip system message
+            if prev_role == &Role::System {
+                assert_eq!(curr_role, &Role::User, "After system should come user");
+                continue;
+            }
+
+            // User should be followed by assistant role (either tool calls or assistant message)
+            if prev_role == &Role::User {
+                assert_eq!(
+                    curr_role,
+                    &Role::Assistant,
+                    "User message should be followed by assistant role"
+                );
+            }
+
+            // Assistant role: check if it's tool calls or assistant message
+            if prev_role == &Role::Assistant {
+                if matches!(prev_msg, Message::ToolCalls { .. }) {
+                    // Tool calls should be followed by tool response
+                    assert_eq!(
+                        curr_role,
+                        &Role::Tool,
+                        "Tool calls should be followed by tool response"
+                    );
+                } else {
+                    // Assistant message should be followed by user
+                    assert_eq!(
+                        curr_role,
+                        &Role::User,
+                        "Assistant message should be followed by user"
+                    );
+                }
+            }
+
+            // Tool response should be followed by either another tool response or assistant
+            if prev_role == &Role::Tool {
+                assert!(
+                    curr_role == &Role::Tool || curr_role == &Role::Assistant,
+                    "Tool response should be followed by another tool response or assistant"
+                );
+            }
+        }
+    }
 
     #[test]
     fn test_chat_worker() -> Result<(), Box<dyn std::error::Error>> {
@@ -1629,35 +1680,8 @@ mod tests {
             "Should have fewer messages after shift"
         );
 
-        // 7. Check that message structure is still valid (user/assistant alternation)
-        for i in 1..messages_after.len() {
-            let prev_role = messages_after[i - 1].role();
-            let curr_role = messages_after[i].role();
-
-            // Skip system message
-            if prev_role == &Role::System {
-                assert_eq!(curr_role, &Role::User, "After system should come user");
-                continue;
-            }
-
-            // User should be followed by assistant
-            if prev_role == &Role::User {
-                assert_eq!(
-                    curr_role,
-                    &Role::Assistant,
-                    "User message should be followed by assistant"
-                );
-            }
-
-            // Assistant should be followed by user
-            if prev_role == &Role::Assistant {
-                assert_eq!(
-                    curr_role,
-                    &Role::User,
-                    "Assistant message should be followed by user"
-                );
-            }
-        }
+        // 7. Check that message structure is still valid
+        assert_valid_message_structure(&messages_after);
 
         println!("Messages before shift: {}", messages_before);
         println!("Messages after shift: {}", messages_after.len());
@@ -1788,62 +1812,194 @@ mod tests {
         );
 
         // 7. Check that message structure is still valid
-        // Assistant role messages are either tool calls or assistant messages
-        // Tool calls should be followed by one or more tool responses
-        // Assistant messages should be followed by user messages
-        for i in 1..messages_after.len() {
-            let prev_msg = &messages_after[i - 1];
-            let curr_msg = &messages_after[i];
-            let prev_role = prev_msg.role();
-            let curr_role = curr_msg.role();
-
-            // Skip system message
-            if prev_role == &Role::System {
-                assert_eq!(curr_role, &Role::User, "After system should come user");
-                continue;
-            }
-
-            // User should be followed by assistant role (either tool calls or assistant message)
-            if prev_role == &Role::User {
-                assert_eq!(
-                    curr_role,
-                    &Role::Assistant,
-                    "User message should be followed by assistant role"
-                );
-            }
-
-            // Assistant role: check if it's tool calls or assistant message
-            if prev_role == &Role::Assistant {
-                if matches!(prev_msg, Message::ToolCalls { .. }) {
-                    // Tool calls should be followed by tool response
-                    assert_eq!(
-                        curr_role,
-                        &Role::Tool,
-                        "Tool calls should be followed by tool response"
-                    );
-                } else {
-                    // Assistant message should be followed by user
-                    assert_eq!(
-                        curr_role,
-                        &Role::User,
-                        "Assistant message should be followed by user"
-                    );
-                }
-            }
-
-            // Tool response should be followed by either another tool response or assistant
-            if prev_role == &Role::Tool {
-                assert!(
-                    curr_role == &Role::Tool || curr_role == &Role::Assistant,
-                    "Tool response should be followed by another tool response or assistant"
-                );
-            }
-        }
+        assert_valid_message_structure(&messages_after);
 
         println!("Messages before shift: {}", messages_before);
         println!("Messages after shift: {}", messages_after.len());
         println!("Token count after shift: {}", token_count);
         println!("Target token size: {}", target_size);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_context_shift_on_say() -> Result<(), Box<dyn std::error::Error>> {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let sampler = SamplerConfig::default();
+
+        // Use a small context size to force shifting
+        let n_ctx = 512;
+        let n_messages = 14;
+        // n_messages is chosen by trial and error. This exactly fills up the
+        // the context so much that the next user message cannot be read and a context shift happens.
+        let mut worker = Worker::new_chat_worker(
+            &model,
+            n_ctx,
+            "You are a helpful assistant.".into(),
+            Arc::new(AtomicBool::new(false)),
+            vec![],
+        )?;
+
+        // Fill up the context until it's almost full
+        for i in 1..=n_messages {
+            worker.extra.chat_state.add_user_message(format!(
+                "This is user message number {}. What is {} * {}?",
+                i, i, i
+            ));
+            worker
+                .extra
+                .chat_state
+                .add_assistant_message(format!("The answer is {}.", i * i));
+        }
+
+        let messages_before_shift = worker.extra.chat_state.get_messages().len();
+        println!("Messages before shift: {}", messages_before_shift);
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let f = move |x| match x {
+            llm::WriteOutput::Done(resp) => {
+                sender.send(resp).unwrap();
+            }
+            _ => (),
+        };
+
+        // This should trigger context shift internally because there's not enough space
+        worker.say(
+            "This is a new question that will not fit in the context! What is 10 * 10?".to_string(),
+            sampler,
+            vec![],
+            f,
+        )?;
+
+        let _response = receiver.recv()?;
+        let messages_after = worker.extra.chat_state.get_messages().to_vec();
+
+        println!("Messages after operation: {}", messages_after.len());
+
+        // Verify context shift occurred
+        assert!(
+            messages_after.len() < messages_before_shift,
+            "Context shift should have reduced message count"
+        );
+
+        // Verify essential messages are preserved
+        // 1. System prompt should be first
+        assert_eq!(messages_after[0].role(), &Role::System);
+
+        // 2. Should have first user message
+        let first_user_idx = messages_after.iter().position(|m| m.role() == &Role::User);
+        assert!(
+            first_user_idx.is_some(),
+            "First user message should be preserved"
+        );
+
+        // 3. Verify the last user message is there (the one that triggered the shift)
+        let last_user = messages_after
+            .iter()
+            .rev()
+            .find(|m| m.role() == &Role::User);
+
+        if let Some(Message::Message { content, .. }) = last_user {
+            assert!(
+                content.contains("new question"),
+                "Last user message should be preserved"
+            );
+        }
+
+        // 4. Message structure should still be valid
+        assert_valid_message_structure(&messages_after);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_context_while_writing() -> Result<(), Box<dyn std::error::Error>> {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let sampler = SamplerConfig::default();
+
+        // Use a small context size to force shifting
+        let n_ctx = 512;
+        let n_messages = 3;
+        // n_messages is chosen by trial and error. This exactly fills up the
+        // the context so much that the next assistant message cannot be fully written.
+        let mut worker = Worker::new_chat_worker(
+            &model,
+            n_ctx,
+            "You are a helpful assistant.".into(),
+            Arc::new(AtomicBool::new(false)),
+            vec![],
+        )?;
+
+        // Fill up the context until it's almost full
+        for i in 1..=n_messages {
+            worker.extra.chat_state.add_user_message(format!(
+                "This is user message number {}. What is {} * {}?",
+                i, i, i
+            ));
+            worker
+                .extra
+                .chat_state
+                .add_assistant_message(format!("The answer is {}.", i * i));
+        }
+
+        let messages_before_shift = worker.extra.chat_state.get_messages().len();
+        println!("Messages before shift: {}", messages_before_shift);
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let f = move |x| match x {
+            llm::WriteOutput::Done(resp) => {
+                sender.send(resp).unwrap();
+            }
+            _ => (),
+        };
+
+        // This should trigger context shift internally because there's not enough space
+        worker.say(
+            "This is a new question that will not fit in the context! What is 10 * 10?".to_string(),
+            sampler,
+            vec![],
+            f,
+        )?;
+
+        let _response = receiver.recv()?;
+        let messages_after = worker.extra.chat_state.get_messages().to_vec();
+
+        println!("Messages after operation: {}", messages_after.len());
+
+        // Verify context shift occurred
+        assert!(
+            messages_after.len() < messages_before_shift,
+            "Context shift should have reduced message count"
+        );
+
+        // Verify essential messages are preserved
+        // 1. System prompt should be first
+        assert_eq!(messages_after[0].role(), &Role::System);
+
+        // 2. Should have first user message
+        let first_user_idx = messages_after.iter().position(|m| m.role() == &Role::User);
+        assert!(
+            first_user_idx.is_some(),
+            "First user message should be preserved"
+        );
+
+        // 3. Verify the last user message is there (the one that triggered the shift)
+        let last_user = messages_after
+            .iter()
+            .rev()
+            .find(|m| m.role() == &Role::User);
+
+        if let Some(Message::Message { content, .. }) = last_user {
+            assert!(
+                content.contains("new question"),
+                "Last user message should be preserved"
+            );
+        }
+
+        // 4. Message structure should still be valid
+        assert_valid_message_structure(&messages_after);
 
         Ok(())
     }
