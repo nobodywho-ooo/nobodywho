@@ -81,46 +81,6 @@ pub fn get_model(
     Ok(Arc::new(model))
 }
 
-/// Performs context window shifting by discarding old tokens and shifting remaining ones left.
-/// This prevents context overflow by removing older tokens when nearing context length limits.
-/// As implemented in <https://github.com/ggerganov/llama.cpp/blob/3b4f2e33e2cbfca621e623c4b92b88da57a8c2f4/examples/main/main.cpp#L528>
-///
-/// # Arguments
-/// * `ctx` - LLaMA context to perform shifting on
-/// * `pos` - Current position in context window
-///
-/// # Returns
-/// * `Ok(n_discard)` - Number of tokens discarded from start of context
-/// * `Err(WorkerError)` - If cache operations fail
-fn apply_context_shifting(
-    ctx: &mut LlamaContext,
-    n_past: i32,
-) -> Result<i32, llama_cpp_2::context::kv_cache::KvCacheConversionError> {
-    warn!("Applying context shifting.");
-    let n_keep = 0;
-    let n_left = n_past - n_keep;
-    let n_discard = n_left / 2;
-
-    // Delete the first `n_discard` tokens
-    ctx.clear_kv_cache_seq(
-        Some(0),
-        Some(n_keep as u32),
-        Some((n_keep + n_discard) as u32),
-    )?;
-
-    // Shift the context left with `n_discard` tokens
-    ctx.kv_cache_seq_add(
-        0,
-        Some((n_keep + n_discard) as u32),
-        Some(n_past as u32),
-        -n_discard,
-    )?;
-
-    debug!(target: "Context shifted", ?n_discard);
-
-    Ok(n_discard)
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum InitWorkerError {
     #[error("Could not determine number of threads available: {0}")]
@@ -254,6 +214,7 @@ where
 
     #[tracing::instrument(level = "trace", skip(self))]
     pub fn read_string(&mut self, text: String) -> Result<&mut Self, ReadError> {
+        let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
         let tokens = self.ctx.model.str_to_token(&text, AddBos::Never)?;
         self.read_tokens(tokens)
     }
@@ -277,12 +238,6 @@ where
         debug_assert!(tokens.len() > 0);
         // can't read more than the context size
         debug_assert!(tokens.len() < self.ctx.n_ctx() as usize);
-
-        // apply context shifting
-        if self.n_past as usize + tokens.len() > self.ctx.n_ctx() as usize {
-            debug!("Applying context shifting");
-            self.n_past -= apply_context_shifting(&mut self.ctx, self.n_past)?;
-        }
 
         {
             debug!("Populating batch");

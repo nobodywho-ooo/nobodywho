@@ -1017,8 +1017,6 @@ impl<'a> Worker<'_, ChatWorker> {
     where
         F: Fn(llm::WriteOutput) + Clone,
     {
-        let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
-
         // reset the stop flag
         self.extra
             .should_stop
@@ -1118,9 +1116,9 @@ impl<'a> Worker<'_, ChatWorker> {
         stop_words: Vec<String>,
         wrapped_respond: impl FnMut(WriteOutput),
     ) -> Result<&mut Self, SayError> {
-        let tokens_have_been_read = self.read_tokens(tokens)?;
+        let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
 
-        Ok(tokens_have_been_read.write_until_done(
+        Ok(self.read_tokens(tokens)?.write_until_done(
             sampler.clone(),
             stop_words.clone(),
             wrapped_respond,
