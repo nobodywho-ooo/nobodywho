@@ -1,17 +1,16 @@
-use crate::sampler_config::{make_sampler, SamplerConfig};
+use crate::errors::{InitWorkerError, LoadModelError, ReadError};
 use lazy_static::lazy_static;
 use llama_cpp_2::context::params::{LlamaContextParams, LlamaPoolingType};
 use llama_cpp_2::context::LlamaContext;
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
+use llama_cpp_2::model::AddBos;
 use llama_cpp_2::model::LlamaModel;
-use llama_cpp_2::model::{AddBos, Special};
 use llama_cpp_2::token::LlamaToken;
 use std::pin::pin;
-use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, LazyLock, Mutex};
-use tracing::{debug, debug_span, error, info, info_span, trace, trace_span, warn};
+use tracing::{debug, debug_span, error, info, info_span, warn};
 
 lazy_static! {
     pub(crate) static ref GLOBAL_INFERENCE_LOCK: Mutex<()> = Mutex::new(());
@@ -37,14 +36,6 @@ pub fn has_discrete_gpu() -> bool {
     }
 
     false
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum LoadModelError {
-    #[error("Model not found: {0}")]
-    ModelNotFound(String),
-    #[error("Invalid or unsupported GGUF model: {0}")]
-    InvalidModel(String),
 }
 
 #[tracing::instrument(level = "info")]
@@ -81,21 +72,6 @@ pub fn get_model(
     Ok(Arc::new(model))
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum InitWorkerError {
-    #[error("Could not determine number of threads available: {0}")]
-    ThreadCountError(#[from] std::io::Error),
-
-    #[error("Could not create context: {0}")]
-    CreateContextError(#[from] llama_cpp_2::LlamaContextLoadError),
-
-    #[error("Failed getting chat template from model: {0}")]
-    ChatTemplateError(#[from] crate::chat_state::FromModelError),
-
-    #[error("Got no response after initializing worker.")]
-    NoResponse,
-}
-
 #[derive(Debug)]
 pub(crate) struct Worker<'a, S> {
     pub(crate) n_past: i32,
@@ -114,48 +90,6 @@ impl<'a, T> PoolingType for Worker<'a, T> {
     fn pooling_type(&self) -> LlamaPoolingType {
         LlamaPoolingType::Unspecified
     }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum WorkerError {
-    #[error("Could not determine number of threads available: {0}")]
-    ThreadCountError(#[from] std::io::Error),
-
-    #[error("Could not create context: {0}")]
-    CreateContextError(#[from] llama_cpp_2::LlamaContextLoadError),
-
-    #[error("Could not initialize worker: {0}")]
-    InitWorkerError(#[from] InitWorkerError),
-
-    #[error("Error reading string: {0}")]
-    ReadError(#[from] ReadError),
-
-    #[error("Error getting embeddings: {0}")]
-    EmbeddingsError(#[from] llama_cpp_2::EmbeddingsError),
-
-    #[error("Could not send newly generated token out to the game engine.")]
-    SendError, // this is actually a SendError<LLMOutput>, but that becomes recursive and weird
-
-    #[error("Global Inference Lock was poisoned.")]
-    GILPoisonError, // this is actually a std::sync::PoisonError<std::sync::MutexGuard<'static, ()>>, but that doesn't implement Send, so we do this
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum ReadError {
-    #[error("Could not tokenize string: {0}")]
-    TokenizerError(#[from] llama_cpp_2::StringToTokenError),
-
-    #[error("Could not add to batch: {0}")]
-    BatchAddError(#[from] llama_cpp_2::llama_batch::BatchAddError),
-
-    #[error("Llama.cpp failed decoding: {0}")]
-    DecodeError(#[from] llama_cpp_2::DecodeError),
-
-    #[error("Could not apply context shifting: {0}")]
-    ContextShiftError(#[from] llama_cpp_2::context::kv_cache::KvCacheConversionError),
-
-    #[error("Function was called without an inference lock")]
-    NoInferenceLockError,
 }
 
 #[derive(Debug)]
@@ -279,8 +213,4 @@ where
 }
 
 #[cfg(test)]
-mod tests {
-
-    use super::*;
-    use crate::test_utils;
-}
+mod tests {}

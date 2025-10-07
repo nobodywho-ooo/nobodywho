@@ -21,21 +21,22 @@
 //! # }
 //! ```
 
-use crate::chat_state::{self, RenderError, Role};
+use crate::chat_state::{self, Role};
 use crate::chat_state::{ChatState, Message};
+use crate::errors::{
+    ChatWorkerError, FromModelError, InitWorkerError, RenderError, SayError, ShiftError, WriteError,
+};
+use crate::llm::GLOBAL_INFERENCE_LOCK;
 use crate::llm::{self};
-use crate::llm::{ReadError, GLOBAL_INFERENCE_LOCK};
 use crate::llm::{Worker, WriteOutput};
 use crate::sampler_config::{make_sampler, SamplerConfig};
-use chrono::format;
 use llama_cpp_2::model::{AddBos, Special};
 use llama_cpp_2::token::LlamaToken;
-use llama_cpp_2::StringToTokenError;
 use llama_cpp_2::{context::params::LlamaPoolingType, model::LlamaModel};
 use std::cmp::min;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use tracing::{debug, debug_span, error, info, info_span, trace, trace_span, warn};
+use tracing::{debug, error, info, trace, trace_span, warn};
 
 // PARALLELISM
 
@@ -346,27 +347,6 @@ enum ChatMsg {
     },
 }
 
-#[derive(thiserror::Error, Debug)]
-enum ChatWorkerError {
-    #[error("Error initializing worker: {0}")]
-    InitWorkerError(#[from] llm::InitWorkerError),
-
-    #[error("Error reading string: {0}")]
-    SayError(#[from] SayError),
-
-    #[error("Init template error: {0}")]
-    TemplateError(#[from] chat_state::FromModelError),
-
-    #[error("Error rendering template: {0}")]
-    TemplateRenderError(#[from] minijinja::Error),
-
-    #[error("Read error: {0}")]
-    ReadError(#[from] llm::ReadError),
-
-    #[error("Error getting token difference: {0}")]
-    RenderError(#[from] RenderError),
-}
-
 fn run_worker(
     model: Arc<LlamaModel>,
     n_ctx: u32,
@@ -669,78 +649,6 @@ struct ChatWorker {
     tool_grammar: Option<gbnf::Grammar>,
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum WriteError {
-    #[error("Could not apply context shifting: {0}")]
-    ContextShiftError(#[from] llama_cpp_2::context::kv_cache::KvCacheConversionError),
-
-    #[error("Could not add token to batch: {0}")]
-    BatchAddError(#[from] llama_cpp_2::llama_batch::BatchAddError),
-
-    #[error("Llama.cpp failed decoding: {0}")]
-    DecodeError(#[from] llama_cpp_2::DecodeError),
-
-    #[error("Error sending message")]
-    SendError,
-
-    #[error("Error converting token to bytes: {0}")]
-    TokenToStringError(#[from] llama_cpp_2::TokenToStringError),
-
-    #[error("Invalid sampler configuration")]
-    InvalidSamplerConfig,
-
-    #[error("Error during context shift: {0}")]
-    ShiftError(#[from] ShiftError),
-
-    #[error("Error reading in context after context shift: {0}")]
-    ReadError(#[from] ReadError),
-
-    #[error("Error rendering template after context shift: {0}")]
-    RenderError(#[from] RenderError),
-
-    #[error("Function was called without an inference lock")]
-    NoInferenceLockError,
-
-    #[error("Context size to small to contain generated respone!")]
-    ContextSizeError,
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum SayError {
-    #[error("Error generating text: {0}")]
-    WriteError(#[from] WriteError),
-
-    #[error("Error reading string: {0}")]
-    ReadError(#[from] llm::ReadError),
-
-    #[error("Error getting response: {0}")]
-    ResponseError(#[from] std::sync::mpsc::RecvError),
-
-    #[error("Error rendering chat template: {0}")]
-    ChatTemplateRenderError(#[from] minijinja::Error),
-
-    #[error("Error finding token difference: {0}")]
-    RenderError(#[from] RenderError),
-
-    #[error("Error during context shift {0}")]
-    ShiftError(#[from] ShiftError),
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum ShiftError {
-    #[error("Missing expected message {0}")]
-    MessageError(String),
-
-    #[error("Could not tokenize template render {0}")]
-    StringToTokenError(#[from] StringToTokenError),
-
-    #[error("Could not render messages with template {0}")]
-    TemplateRenderError(#[from] minijinja::Error),
-
-    #[error("Error reading token render into model {0}")]
-    KVCacheUpdateError(#[from] ReadError),
-}
-
 impl llm::PoolingType for ChatWorker {
     fn pooling_type(&self) -> LlamaPoolingType {
         LlamaPoolingType::None
@@ -754,7 +662,7 @@ impl<'a> Worker<'_, ChatWorker> {
         system_prompt: String,
         should_stop: Arc<AtomicBool>,
         tools: Vec<Tool>,
-    ) -> Result<Worker<'_, ChatWorker>, llm::InitWorkerError> {
+    ) -> Result<Worker<'_, ChatWorker>, InitWorkerError> {
         // initialize chat state with system prompt
         let mut chat_state = ChatState::from_model_and_tools(
             model,
@@ -1102,7 +1010,7 @@ impl<'a> Worker<'_, ChatWorker> {
         Ok(self)
     }
 
-    fn get_render_as_tokens(&mut self) -> Result<Vec<LlamaToken>, chat_state::RenderError> {
+    fn get_render_as_tokens(&mut self) -> Result<Vec<LlamaToken>, RenderError> {
         let render_as_string = self.extra.chat_state.render_string()?;
         let render_as_tokens = self
             .ctx
@@ -1175,7 +1083,7 @@ impl<'a> Worker<'_, ChatWorker> {
         &mut self,
         system_prompt: String,
         tools: Vec<Tool>,
-    ) -> Result<(), chat_state::FromModelError> {
+    ) -> Result<(), FromModelError> {
         self.reset_context();
         self.extra.chat_state = ChatState::from_model_and_tools(
             self.ctx.model,
