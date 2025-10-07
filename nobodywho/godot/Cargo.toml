@@ -1,6 +1,6 @@
 [package]
 name = "nobodywho-godot"
-version = "6.1.3"
+version = "6.1.4"
 edition = "2021"
 
 [lib]
