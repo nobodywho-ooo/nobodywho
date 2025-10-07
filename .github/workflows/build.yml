@@ -220,7 +220,7 @@ jobs:
           add-to-path: false
 
       - name: "Compile for android"
-        run: cargo build --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }}
+        run: cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }}
         working-directory: ./nobodywho
         env:
           ANDROID_NDK: ${{ steps.setup-ndk.outputs.ndk-path }}
