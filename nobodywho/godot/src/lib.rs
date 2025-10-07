@@ -188,21 +188,22 @@ impl NobodyWhoChat {
     /// Starts the LLM worker thread. This is required before you can send messages to the LLM.
     /// This fuction is blocking and can be a bit slow, so you may want to be strategic about when you call it.
     fn start_worker(&mut self) {
-        let mut result = || -> Result<(), String> {
-            let model = self.get_model()?;
-            self.chat_handle = Some(nobodywho::chat::ChatHandle::new(
-                model,
-                self.context_length,
-                self.system_prompt.to_string(),
-                self.tools.clone(),
-            ));
-            Ok(())
-        };
-
+        let result = self.start_worker_impl();
         // run it and show error in godot if it fails
-        if let Err(msg) = result() {
+        if let Err(msg) = result {
             godot_error!("Error running model: {}", msg);
         }
+    }
+
+    fn start_worker_impl(&mut self) -> Result<(), String> {
+        let model = self.get_model()?;
+        self.chat_handle = Some(nobodywho::chat::ChatHandle::new(
+            model,
+            self.context_length,
+            self.system_prompt.to_string(),
+            self.tools.clone(),
+        ));
+        Ok(())
     }
 
     #[func]
@@ -236,8 +237,10 @@ impl NobodyWhoChat {
             });
         } else {
             godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
-            self.start_worker();
-            self.say(message);
+            match self.start_worker_impl() {
+                Err(msg) => godot_error!("Failed auto-starting the worker: {}", msg),
+                Ok(()) => self.say(message),
+            }
         }
     }
 
