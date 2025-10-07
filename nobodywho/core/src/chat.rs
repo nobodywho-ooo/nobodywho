@@ -700,6 +700,9 @@ pub enum WriteError {
 
     #[error("Function was called without an inference lock")]
     NoInferenceLockError,
+
+    #[error("Context size to small to contain generated respone!")]
+    ContextSizeError,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -924,14 +927,14 @@ impl<'a> Worker<'_, ChatWorker> {
                 self.context_shift()?;
                 let render_as_tokens = self.get_render_as_tokens()?;
 
-                let (prefix_index, mut token_difference) = self
+                let (prefix_index, token_difference) = self
                     .extra
                     .chat_state
                     .find_prefix_index_and_difference_with_tokens_in_context(&render_as_tokens);
 
                 self.remove_all_tokens_after_index_from_ctx(prefix_index)?;
-                //token_difference.extend_from_slice(&tokens_written_until_now);
                 self.read_tokens(token_difference)?;
+                self.read_tokens(tokens_written_until_now.clone())?;
                 // do not update tokens_in_context as this is done later by say
             }
 
@@ -1095,7 +1098,6 @@ impl<'a> Worker<'_, ChatWorker> {
         self.extra
             .chat_state
             .set_tokens_in_context(render_as_tokens);
-        println!("{}", self.extra.chat_state.render_string()?);
 
         Ok(self)
     }
@@ -1995,12 +1997,7 @@ mod tests {
         };
 
         // This should trigger context shift internally because there's not enough space
-        worker.say(
-            "This is a new question that will not fit in the context! What is 10 * 10?".to_string(),
-            sampler,
-            vec![],
-            f,
-        )?;
+        worker.say("What is 10 * 10?".to_string(), sampler, vec![], f)?;
 
         let _response = receiver.recv()?;
         let messages_after = worker.extra.chat_state.get_messages().to_vec();
@@ -2032,7 +2029,7 @@ mod tests {
 
         if let Some(Message::Message { content, .. }) = last_user {
             assert!(
-                content.contains("new question"),
+                content.contains("What is"),
                 "Last user message should be preserved"
             );
         }
