@@ -36,9 +36,12 @@
         packages.default = nobodywho-godot.nobodywho-godot;
         checks.default = nobodywho-godot.run-integration-test;
         devShells.default = pkgs.callPackage ./nobodywho/shell.nix { inherit android-nixpkgs; };
-        devShells.flutter_app = pkgs.callPackage ./nobodywho/dart/example_app/shell.nix {
-          inherit android-nixpkgs;
-        };
+        # devShells.flutter_app = pkgs.callPackage ./nobodywho/dart/example_app/shell.nix {
+        #   inherit android-nixpkgs;
+        # };
+
+        packages.flutter_example_app = pkgs.callPackage ./nobodywho/flutter/example_app { };
+        packages.nobodywho_flutter_rust = pkgs.callPackage ./nobodywho/flutter/rust { };
       }
     );
 }
