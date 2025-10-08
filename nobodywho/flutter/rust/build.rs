@@ -1,10 +1,17 @@
 use lib_flutter_rust_bridge_codegen::codegen;
 
 fn main() {
+    println!("cargo:rerun-if-changed={}", ".");
+
     // do a special little dance for the androids
     let target = std::env::var("CARGO_CFG_TARGET_OS").unwrap();
     if target.contains("android") {
         println!("cargo:rustc-link-lib=c++_shared");
+    }
+
+    if std::env::var("NOBODYWHO_SKIP_CODEGEN").is_ok() {
+        println!("cargo:warning=Skipping codegen due to NOBODYWHO_SKIP_CODEGEN environment variable");
+        return;
     }
 
     // generate bot hrust and dart interop code
