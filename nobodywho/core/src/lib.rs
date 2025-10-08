@@ -2,6 +2,7 @@ pub mod chat;
 pub mod chat_state;
 pub mod crossencoder;
 pub mod embed;
+pub mod errors;
 pub mod llm;
 pub mod sampler_config;
 

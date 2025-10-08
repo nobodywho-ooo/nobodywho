@@ -2,12 +2,12 @@ use interoptopus::patterns::result::FFIError;
 use interoptopus::patterns::slice::FFISlice;
 use interoptopus::patterns::string::AsciiPointer;
 use interoptopus::{
-    callback, ffi_function, ffi_service, ffi_service_ctor, ffi_service_method, ffi_type, function, pattern, Inventory, InventoryBuilder
+    callback, ffi_function, ffi_service, ffi_service_ctor, ffi_service_method, ffi_type, function,
+    pattern, Inventory, InventoryBuilder,
 };
-use tracing::{debug, error, warn};
-use std::sync::Arc;
 use std::ffi::c_char;
-
+use std::sync::Arc;
+use tracing::{debug, error, warn};
 
 /// TRACING
 static INIT: std::sync::Once = std::sync::Once::new();
@@ -93,7 +93,7 @@ impl ModelWrapper {
         Ok(())
     }
 
-    fn get_model(&mut self) -> Result<nobodywho::llm::Model, nobodywho::llm::LoadModelError> {
+    fn get_model(&mut self) -> Result<nobodywho::llm::Model, nobodywho::errors::LoadModelError> {
         if let Some(ref model) = self.model {
             return Ok(model.clone());
         }
@@ -102,7 +102,9 @@ impl ModelWrapper {
             Ok(s) => s,
             Err(e) => {
                 error!("Model path contained invalid UTF-8.");
-                return Err(nobodywho::llm::LoadModelError::InvalidModel(format!("{e}")));
+                return Err(nobodywho::errors::LoadModelError::InvalidModel(format!(
+                    "{e}"
+                )));
             }
         };
 
@@ -118,7 +120,6 @@ impl ModelWrapper {
         }
     }
 }
-
 
 callback!(ToolCallback(input: *const std::ffi::c_void) -> *const std::ffi::c_void);
 
@@ -269,19 +270,27 @@ impl ChatWrapper {
     ) -> Result<(), ChatError> {
         if let Some(ref mut _handle) = self.handle {
             let name = name.as_str().map_err(|_| ChatError::BadName)?;
-            let description = description.as_str().map_err(|_| ChatError::BadDescription)?;
-            let json_schema: serde_json::Value = serde_json::from_str(
-                json_schema.as_str().map_err(|_| ChatError::BadJsonSchema)?
-            ).map_err(|_| ChatError::BadJsonSchema)?;
-        
+            let description = description
+                .as_str()
+                .map_err(|_| ChatError::BadDescription)?;
+            let json_schema: serde_json::Value =
+                serde_json::from_str(json_schema.as_str().map_err(|_| ChatError::BadJsonSchema)?)
+                    .map_err(|_| ChatError::BadJsonSchema)?;
+
             let callback_wrapper = Arc::new(move |json: serde_json::Value| -> String {
                 let json_str = std::ffi::CString::new(json.to_string()).unwrap();
-                let res: *const std::ffi::c_void = callback.call(json_str.as_ptr() as *const std::ffi::c_void);
-                // Cast back to str 
+                let res: *const std::ffi::c_void =
+                    callback.call(json_str.as_ptr() as *const std::ffi::c_void);
+                // Cast back to str
                 let res_str = unsafe { std::ffi::CStr::from_ptr(res as *const c_char) };
                 res_str.to_str().unwrap().to_string()
             });
-            let tool = nobodywho::chat::Tool::new( name.to_string(), description.to_string(), json_schema, callback_wrapper);
+            let tool = nobodywho::chat::Tool::new(
+                name.to_string(),
+                description.to_string(),
+                json_schema,
+                callback_wrapper,
+            );
             self.tools.push(tool);
             Ok(())
         } else {
@@ -313,9 +322,14 @@ impl ChatWrapper {
 
     pub fn set_chat_history(&mut self, chat_history: AsciiPointer) -> Result<(), ChatError> {
         if let Some(ref handle) = self.handle {
-            let string = chat_history.as_str().map_err(|_| ChatError::BadJsonSchema)?;
-            let json: serde_json::Value = serde_json::from_str(string).map_err(|_| ChatError::BadJsonSchema)?;
-            let messages: Vec<nobodywho::chat_state::Message> = serde_json::from_value(json["messages"].clone()).map_err(|_| ChatError::BadJsonSchema)?;
+            let string = chat_history
+                .as_str()
+                .map_err(|_| ChatError::BadJsonSchema)?;
+            let json: serde_json::Value =
+                serde_json::from_str(string).map_err(|_| ChatError::BadJsonSchema)?;
+            let messages: Vec<nobodywho::chat_state::Message> =
+                serde_json::from_value(json["messages"].clone())
+                    .map_err(|_| ChatError::BadJsonSchema)?;
 
             handle.set_chat_history(messages);
             Ok(())
@@ -323,7 +337,6 @@ impl ChatWrapper {
             Err(ChatError::WorkerNotStarted)
         }
     }
-
 
     pub fn stop(&mut self) -> Result<(), ChatError> {
         if let Some(ref mut handle) = self.handle {
@@ -554,11 +567,10 @@ fn bindings_csharp() -> Result<(), interoptopus::Error> {
         param_slice_type: ParamSliceType::Array,
         ..Config::default()
     };
-    
+
     // Generate the bindings
-    Generator::new(config, my_inventory())
-        .write_file("./src/Runtime/NobodyWhoBindings.cs")?;
-    
+    Generator::new(config, my_inventory()).write_file("./src/Runtime/NobodyWhoBindings.cs")?;
+
     // This is kind of ugly but i dont see a better way (unless we overwrite the config).
     // Post-process the generated file to add version logging
     let mut content = std::fs::read_to_string("./src/Runtime/NobodyWhoBindings.cs")?;
@@ -570,6 +582,6 @@ fn bindings_csharp() -> Result<(), interoptopus::Error> {
         )
     );
     std::fs::write("./src/Runtime/NobodyWhoBindings.cs", content)?;
-    
+
     Ok(())
 }

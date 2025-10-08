@@ -21,17 +21,24 @@
 //! # }
 //! ```
 
-use crate::chat_state::ChatState;
-use crate::chat_state::{self, RenderError};
+use crate::chat_state::{self, Role};
+use crate::chat_state::{ChatState, Message};
+use crate::errors::{
+    ChatWorkerError, DecodingError, FromModelError, GenerateResponseError, InferenceError,
+    InitWorkerError, RenderError, SayError, ShiftError, WrappedResponseError,
+};
 use crate::llm::{self};
+use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
 use crate::llm::{Worker, WriteOutput};
-use crate::sampler_config::SamplerConfig;
-use llama_cpp_2::model::AddBos;
+use crate::sampler_config::{make_sampler, SamplerConfig};
+use llama_cpp_2::model::{AddBos, Special};
+use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 use llama_cpp_2::{context::params::LlamaPoolingType, model::LlamaModel};
+use std::cmp::min;
 use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
-use tracing::{debug, error, warn};
+use std::sync::{Arc, MutexGuard};
+use tracing::{debug, error, info, trace, trace_span, warn};
 
 // PARALLELISM
 
@@ -170,7 +177,7 @@ impl ChatHandle {
     /// # Example
     /// ```
     /// # use nobodywho::chat::ChatHandle;
-    /// # async fn example(chat: &ChatHandle) -> Result<(), nobodywho::chat::SayError> {
+    /// # async fn example(chat: &ChatHandle) -> Result<(), nobodywho::errors::SayError> {
     /// let response = chat.say_complete("What is the capital of France?").await?;
     /// println!("{}", response);
     /// # Ok(())
@@ -342,27 +349,6 @@ enum ChatMsg {
     },
 }
 
-#[derive(thiserror::Error, Debug)]
-enum ChatWorkerError {
-    #[error("Error initializing worker: {0}")]
-    InitWorkerError(#[from] llm::InitWorkerError),
-
-    #[error("Error reading string: {0}")]
-    SayError(#[from] SayError),
-
-    #[error("Init template error: {0}")]
-    TemplateError(#[from] chat_state::FromModelError),
-
-    #[error("Error rendering template: {0}")]
-    TemplateRenderError(#[from] minijinja::Error),
-
-    #[error("Read error: {0}")]
-    ReadError(#[from] llm::ReadError),
-
-    #[error("Error getting token difference: {0}")]
-    RenderError(#[from] RenderError),
-}
-
 fn run_worker(
     model: Arc<LlamaModel>,
     n_ctx: u32,
@@ -403,7 +389,7 @@ fn run_worker(
                 messages,
                 output_tx,
             } => {
-                worker_state.set_chat_history(messages);
+                worker_state.set_chat_history(messages)?;
                 let _ = output_tx.blocking_send(());
             }
         }
@@ -665,31 +651,6 @@ struct ChatWorker {
     tool_grammar: Option<gbnf::Grammar>,
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum SayError {
-    #[error("Error generating text: {0}")]
-    WriteError(#[from] llm::WriteError),
-
-    #[error("Error reading string: {0}")]
-    ReadError(#[from] llm::ReadError),
-
-    #[error("Error getting response: {0}")]
-    ResponseError(#[from] std::sync::mpsc::RecvError),
-
-    #[error("Error rendering chat template: {0}")]
-    ChatTemplateRenderError(#[from] minijinja::Error),
-
-    #[error("Error finding token difference: {0}")]
-    RenderError(#[from] RenderError),
-}
-
-impl llm::GenerationCapability for ChatWorker {}
-impl llm::Stoppable for ChatWorker {
-    fn stop(&self) -> bool {
-        self.should_stop.load(std::sync::atomic::Ordering::Relaxed)
-    }
-}
-
 impl llm::PoolingType for ChatWorker {
     fn pooling_type(&self) -> LlamaPoolingType {
         LlamaPoolingType::None
@@ -703,7 +664,7 @@ impl<'a> Worker<'_, ChatWorker> {
         system_prompt: String,
         should_stop: Arc<AtomicBool>,
         tools: Vec<Tool>,
-    ) -> Result<Worker<'_, ChatWorker>, llm::InitWorkerError> {
+    ) -> Result<Worker<'_, ChatWorker>, InitWorkerError> {
         // initialize chat state with system prompt
         let mut chat_state = ChatState::from_model_and_tools(
             model,
@@ -728,6 +689,241 @@ impl<'a> Worker<'_, ChatWorker> {
                 should_stop,
             },
         )?)
+    }
+
+    fn should_stop(&self) -> bool {
+        self.extra
+            .should_stop
+            .load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    // TODO //.
+    fn context_shift(&mut self) -> Result<(), ShiftError> {
+        info!("Context shift happens!");
+        let target_token_size = (self.ctx.n_ctx() / 2) as usize;
+        let mut messages = self.extra.chat_state.get_messages().to_vec();
+
+        // Find indices to preserve
+        let system_end = if matches!(messages[0].role(), Role::System) {
+            1
+        } else {
+            0
+        };
+        let first_user_message_index =
+            self.find_next_user_message(&messages, system_end)
+                .ok_or(ShiftError::MessageError(
+                    "No first user message in chat history".into(),
+                ))?;
+        let first_deletable_index = self
+            .find_next_user_message(&messages, first_user_message_index + 1)
+            .ok_or(ShiftError::MessageError("No deletable messages".into()))?; // Assuming assistant after user
+        let mut last_deletable_index = self
+            .find_start_of_last_n_user_messages(&messages, 2)
+            .ok_or(ShiftError::MessageError(
+                "Less than two user messages in chat history.".into(),
+            ))?
+            - 1;
+
+        // Two is the smallest number of messages we can delete as we need to preserve the message structure.
+        // There might be a better start guess here.
+        let mut messages_to_delete = 2;
+
+        // Delete messages until context is small enough or only essential messages are left.
+        // Double the number of messages to delete each iteration. This is a simple and kind of stupid solution, as it might overshoot by a lot.
+        // Plenty of optimization options here.
+
+        loop {
+            // No non-essential messages left to delete or the new context has reached desired size.
+            if first_deletable_index > last_deletable_index
+                || self
+                    .ctx
+                    .model
+                    .str_to_token(
+                        &self.extra.chat_state.naive_render_message_vec(&messages)?,
+                        AddBos::Never,
+                    )?
+                    .len()
+                    <= target_token_size
+            {
+                break;
+            }
+            let target_delete_index = min(
+                first_deletable_index + messages_to_delete - 1,
+                last_deletable_index,
+            );
+
+            // Find the first user message after target delete index and choose the message before.
+            // This is to ensure that resulting chat history still follows the user then assistant format
+            let delete_index = min(
+                self.find_next_user_message(&messages, target_delete_index + 1)
+                    .ok_or(ShiftError::MessageError(
+                        "Could find user message supposed to be there".into(),
+                    ))?
+                    - 1,
+                last_deletable_index,
+            ); // should never fail
+            messages.drain(first_deletable_index..=delete_index);
+            messages_to_delete *= 2;
+
+            let messages_deleted = delete_index - first_deletable_index + 1;
+
+            last_deletable_index -= messages_deleted;
+        }
+
+        // update the messages in chat_state
+        self.extra.chat_state.set_messages(messages);
+        Ok(())
+    }
+
+    fn find_next_user_message(&self, messages: &[Message], start_index: usize) -> Option<usize> {
+        messages[start_index..]
+            .iter()
+            .position(|msg| msg.role() == &Role::User)
+            .map(|pos| pos + start_index)
+    }
+
+    fn find_start_of_last_n_user_messages(&self, messages: &[Message], n: usize) -> Option<usize> {
+        let user_indices: Vec<usize> = messages
+            .iter()
+            .enumerate()
+            .filter(|(_, msg)| msg.role() == &Role::User)
+            .map(|(idx, _)| idx)
+            .collect();
+
+        if user_indices.len() >= n {
+            Some(user_indices[user_indices.len() - n])
+        } else {
+            None
+        }
+    }
+
+    // ---------- IMPORTANT ----------
+    // Should only be used under a global inference lock
+    // This is a safety meassure to prevent bugs from multiple
+    // contexts with the same model. It might not be necessary
+    // but assume it is.
+    pub fn generate_response_until_done<F>(
+        &mut self,
+        sampler_config: SamplerConfig,
+        stop_words: Vec<String>,
+        mut respond: F,
+        inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
+    ) -> Result<&mut Self, GenerateResponseError>
+    where
+        F: FnMut(WriteOutput),
+    {
+        // Token generation loop
+        info!("Worker writing until done");
+
+        // pre-allocating 4096 bytes for the response string
+        // 4096 is a very randomly chosen number. how does this affect performance?
+        let mut full_response: String = String::with_capacity(4096);
+        let mut tokens_written_until_now = vec![];
+
+        // initialize sampler
+        // stateful samplers only live for one response
+        let mut sampler = make_sampler(&self.ctx.model, sampler_config)
+            .ok_or(GenerateResponseError::InvalidSamplerConfig)?;
+
+        let mut token_bytes_vec = Vec::new();
+
+        while !self.should_stop() {
+            // Check if the context is full
+            if self.n_past as u32 == self.ctx.n_ctx() {
+                self.context_shift()?;
+                let render_as_tokens = self.get_render_as_tokens()?;
+
+                let (prefix_index, token_difference) = self
+                    .extra
+                    .chat_state
+                    .find_prefix_index_and_difference_with_tokens_in_context(&render_as_tokens);
+
+                self.remove_all_tokens_after_index_from_ctx(prefix_index)?;
+                self.read_tokens(token_difference, inference_lock_token)?;
+                self.read_tokens(tokens_written_until_now.clone(), inference_lock_token)?;
+                // do not update tokens_in_context as this is done later by say
+            }
+
+            // Sample next token, no need to use sampler.accept as sample already accepts the token.
+            // using sampler.accept() will cause the sampler to crash when using grammar sampling.
+            // https://github.com/utilityai/llama-cpp-rs/issues/604
+            trace!("Applying sampler...");
+            let new_token = self.sample_and_decode_next_token(&mut sampler)?;
+            tokens_written_until_now.push(new_token);
+
+            // Attempt to convert token(s) to bytes
+            let token_bytes = self
+                .ctx
+                .model
+                .token_to_bytes(new_token, Special::Tokenize)?;
+
+            token_bytes_vec.extend(token_bytes);
+
+            // Attempt to convert bytes to utf8 string.
+
+            let token_str = match std::str::from_utf8(&token_bytes_vec) {
+                Ok(str) => str,
+                Err(_) => {
+                    if token_bytes_vec.len() > 4 {
+                        "�"
+                    } else {
+                        continue;
+                    }
+                }
+            };
+
+            // Basic solution to split up graphemes. If the current token bytes cannot
+            // be converted into a string then we try to read more tokens till we have
+            // at least four bytes. If these still cannot be converted into a string,
+            // we assume that the model/sampler has produced a useless token somewhere.
+            // This we currently handle by discarding all of the current bytes, but more
+            // intelligent solutions could be a good idea.
+
+            trace!(?new_token, ?token_str);
+            let has_eog = self.ctx.model.is_eog_token(new_token);
+
+            if !has_eog {
+                full_response.push_str(token_str);
+                trace!("Sending out token: {token_str}");
+                respond(WriteOutput::Token(token_str.to_string()));
+            }
+
+            // done using token_str, so now we can clear token_bytes_vec
+            token_bytes_vec.clear();
+
+            let has_stop_words = stop_words
+                .iter()
+                .any(|stop_word| full_response.contains(stop_word));
+            if has_eog || has_stop_words {
+                break;
+            }
+        }
+
+        // we're done!
+        debug!("Sending out response: {full_response}");
+        respond(WriteOutput::Done(full_response));
+        Ok(self)
+    }
+
+    fn sample_and_decode_next_token(
+        &mut self,
+        sampler: &mut LlamaSampler,
+    ) -> Result<LlamaToken, DecodingError> {
+        trace!("Applying sampler...");
+        let new_token: LlamaToken = sampler.sample(&self.ctx, -1);
+
+        // batch of one
+        self.small_batch.clear();
+        self.small_batch.add(new_token, self.n_past, &[0], true)?;
+
+        // llm go brr
+        let decode_span = trace_span!("write decode", n_past = self.n_past);
+        let decode_guard = decode_span.enter();
+        self.ctx.decode(&mut self.small_batch)?;
+        drop(decode_guard);
+        self.n_past += 1; // keep count
+
+        Ok(new_token)
     }
 
     pub fn say<F>(
@@ -761,7 +957,7 @@ impl<'a> Worker<'_, ChatWorker> {
         }
 
         // get the finished response
-        let mut response: String = self.wrapped_update_context_and_write_response(
+        let mut response: String = self.wrapped_update_context_and_generate_response(
             sampler.clone(),
             stop_words.clone(),
             respond.clone(),
@@ -802,7 +998,7 @@ impl<'a> Worker<'_, ChatWorker> {
             }
 
             // get the finished response
-            response = self.wrapped_update_context_and_write_response(
+            response = self.wrapped_update_context_and_generate_response(
                 sampler.clone(),
                 stop_words.clone(),
                 respond.clone(),
@@ -822,7 +1018,7 @@ impl<'a> Worker<'_, ChatWorker> {
         Ok(self)
     }
 
-    fn get_render_as_tokens(&mut self) -> Result<Vec<LlamaToken>, chat_state::RenderError> {
+    fn get_render_as_tokens(&mut self) -> Result<Vec<LlamaToken>, RenderError> {
         let render_as_string = self.extra.chat_state.render_string()?;
         let render_as_tokens = self
             .ctx
@@ -831,32 +1027,43 @@ impl<'a> Worker<'_, ChatWorker> {
         Ok(render_as_tokens)
     }
 
-    fn read_tokens_and_write_response(
+    fn read_tokens_and_generate_response(
         &mut self,
         tokens: Vec<LlamaToken>,
         sampler: SamplerConfig,
         stop_words: Vec<String>,
         wrapped_respond: impl FnMut(WriteOutput),
-    ) -> Result<&mut Self, SayError> {
-        Ok(self.read_tokens(tokens)?.write_until_done(
-            sampler.clone(),
-            stop_words.clone(),
-            wrapped_respond,
-        )?)
+    ) -> Result<&mut Self, InferenceError> {
+        let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
+        let inference_lock_token = _gil_guard.unwrap();
+
+        Ok(self
+            .read_tokens(tokens, &inference_lock_token)?
+            .generate_response_until_done(
+                sampler.clone(),
+                stop_words.clone(),
+                wrapped_respond,
+                &inference_lock_token,
+            )?)
     }
 
-    fn wrapped_update_context_and_write_response<F>(
+    fn wrapped_update_context_and_generate_response<F>(
         &mut self,
         sampler: SamplerConfig,
         stop_words: Vec<String>,
         respond: F,
         tool_call_begin_token: String,
-    ) -> Result<String, SayError>
+    ) -> Result<String, WrappedResponseError>
     where
         F: Fn(llm::WriteOutput) + Clone,
     {
         // Check how much of the current KVCache we can keep
-        let render_as_tokens = self.get_render_as_tokens()?;
+        let mut render_as_tokens = self.get_render_as_tokens()?;
+        if render_as_tokens.len() > self.ctx.n_ctx() as usize {
+            self.context_shift()?;
+            render_as_tokens = self.get_render_as_tokens()?;
+        }
+
         let (prefix_index, token_difference) = self
             .extra
             .chat_state
@@ -869,7 +1076,7 @@ impl<'a> Worker<'_, ChatWorker> {
         let (wrapped_respond, resp_receiver) = wrap_respond(respond.clone(), tool_call_begin_token);
 
         // llm go brrr
-        self.read_tokens_and_write_response(
+        self.read_tokens_and_generate_response(
             token_difference,
             sampler.clone(),
             stop_words.clone(),
@@ -888,7 +1095,7 @@ impl<'a> Worker<'_, ChatWorker> {
         &mut self,
         system_prompt: String,
         tools: Vec<Tool>,
-    ) -> Result<(), chat_state::FromModelError> {
+    ) -> Result<(), FromModelError> {
         self.reset_context();
         self.extra.chat_state = ChatState::from_model_and_tools(
             self.ctx.model,
@@ -906,7 +1113,6 @@ impl<'a> Worker<'_, ChatWorker> {
 
     pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), ChatWorkerError> {
         let current_messages = self.extra.chat_state.get_messages().to_vec();
-        self.reset_context();
         self.extra.chat_state = ChatState::from_model_and_tools(
             self.ctx.model,
             tools.iter().map(|t| t.to_chat_state_tool()).collect(),
@@ -918,9 +1124,17 @@ impl<'a> Worker<'_, ChatWorker> {
         };
         self.extra.tools = tools;
         self.extra.chat_state.set_messages(current_messages);
-        // prefix index is unimportant as we know there is no cached prefix.
+        // Reuse cached prefix
+        let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
+        let inference_lock_token = _gil_guard.unwrap();
         let render_as_tokens = self.get_render_as_tokens()?;
-        self.read_tokens(render_as_tokens.clone())?;
+        let (prefix_index, token_difference) = self
+            .extra
+            .chat_state
+            .find_prefix_index_and_difference_with_tokens_in_context(&render_as_tokens);
+
+        self.remove_all_tokens_after_index_from_ctx(prefix_index)?;
+        self.read_tokens(token_difference, &inference_lock_token)?;
         self.extra
             .chat_state
             .set_tokens_in_context(render_as_tokens);
@@ -928,9 +1142,29 @@ impl<'a> Worker<'_, ChatWorker> {
         Ok(())
     }
 
-    pub fn set_chat_history(&mut self, messages: Vec<crate::chat_state::Message>) {
+    pub fn set_chat_history(
+        &mut self,
+        messages: Vec<crate::chat_state::Message>,
+    ) -> Result<(), ChatWorkerError> {
         self.reset_context();
         self.extra.chat_state.set_messages(messages);
+
+        // Reuse cached prefix
+
+        let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
+        let inference_lock_token = _gil_guard.unwrap();
+        let render_as_tokens = self.get_render_as_tokens()?;
+        let (prefix_index, token_difference) = self
+            .extra
+            .chat_state
+            .find_prefix_index_and_difference_with_tokens_in_context(&render_as_tokens);
+
+        self.remove_all_tokens_after_index_from_ctx(prefix_index)?;
+        self.read_tokens(token_difference, &inference_lock_token)?;
+        self.extra
+            .chat_state
+            .set_tokens_in_context(render_as_tokens);
+        Ok(())
     }
 }
 
@@ -995,6 +1229,58 @@ fn extract_tool_calls(input: &str) -> Option<Vec<chat_state::ToolCall>> {
 mod tests {
     use super::*;
     use crate::test_utils;
+
+    // Helper function to verify message structure is valid
+    fn assert_valid_message_structure(messages: &[Message]) {
+        for i in 1..messages.len() {
+            let prev_msg = &messages[i - 1];
+            let curr_msg = &messages[i];
+            let prev_role = prev_msg.role();
+            let curr_role = curr_msg.role();
+
+            // Skip system message
+            if prev_role == &Role::System {
+                assert_eq!(curr_role, &Role::User, "After system should come user");
+                continue;
+            }
+
+            // User should be followed by assistant role (either tool calls or assistant message)
+            if prev_role == &Role::User {
+                assert_eq!(
+                    curr_role,
+                    &Role::Assistant,
+                    "User message should be followed by assistant role"
+                );
+            }
+
+            // Assistant role: check if it's tool calls or assistant message
+            if prev_role == &Role::Assistant {
+                if matches!(prev_msg, Message::ToolCalls { .. }) {
+                    // Tool calls should be followed by tool response
+                    assert_eq!(
+                        curr_role,
+                        &Role::Tool,
+                        "Tool calls should be followed by tool response"
+                    );
+                } else {
+                    // Assistant message should be followed by user
+                    assert_eq!(
+                        curr_role,
+                        &Role::User,
+                        "Assistant message should be followed by user"
+                    );
+                }
+            }
+
+            // Tool response should be followed by either another tool response or assistant
+            if prev_role == &Role::Tool {
+                assert!(
+                    curr_role == &Role::Tool || curr_role == &Role::Assistant,
+                    "Tool response should be followed by another tool response or assistant"
+                );
+            }
+        }
+    }
 
     #[test]
     fn test_chat_worker() -> Result<(), Box<dyn std::error::Error>> {
@@ -1276,5 +1562,621 @@ mod tests {
         println!("{}", result);
         assert!(result.contains("13.37"));
         assert!(result.contains("0.15"));
+    }
+
+    #[test]
+    fn test_context_shift() -> Result<(), Box<dyn std::error::Error>> {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+
+        // Use a very small context size to force shifting
+        let n_ctx = 512;
+        let n_messages = 8;
+        let mut worker = Worker::new_chat_worker(
+            &model,
+            n_ctx,
+            "You are a helpful assistant that provides informative and detailed responses. End every response with \"Do you have any further questions?\"".into(),
+            Arc::new(AtomicBool::new(false)),
+            vec![],
+        )?;
+
+        // Add many exchanges with longer messages to fill up the context
+        for i in 1..=n_messages {
+            worker.extra.chat_state.add_user_message(format!(
+                "This is user message number {}. What is {} * {}?",
+                i, i, i
+            ));
+            worker.extra.chat_state.add_assistant_message(format!(
+                "<think> </think> The answer is {}. Do you have any further questions?",
+                i * i
+            ));
+        }
+
+        worker.extra.chat_state.add_user_message("Hello!".into());
+
+        // Check that we have many messages before shift
+        let messages_before = worker.extra.chat_state.get_messages().len();
+        assert!(
+            messages_before > 6,
+            "Should have more than 6 messages before shift"
+        );
+
+        // Trigger context shift
+        worker.context_shift()?;
+
+        println!("{:?}", worker.extra.chat_state.get_messages());
+
+        let messages_after = worker.extra.chat_state.get_messages().to_vec();
+
+        // Verify essential messages are preserved:
+        // 1. System prompt should be first
+        assert_eq!(messages_after[0].role(), &Role::System);
+
+        if let Message::Message { content, .. } = &messages_after[0] {
+            assert!(
+                content.contains("helpful assistant"),
+                "System prompt should be preserved"
+            );
+        }
+
+        // 2. Should have first user message
+        let first_user_idx = messages_after.iter().position(|m| m.role() == &Role::User);
+        assert!(
+            first_user_idx.is_some(),
+            "First user message should be preserved"
+        );
+
+        // 3. Count remaining user messages - should have at least 3 (first + last 2)
+        let user_count = messages_after
+            .iter()
+            .filter(|m| m.role() == &Role::User)
+            .count();
+        assert!(
+            user_count >= 3,
+            "Should preserve first user message and last 2 user messages"
+        );
+
+        // 4. Verify the last user message is there
+        let last_user = messages_after
+            .iter()
+            .rev()
+            .find(|m| m.role() == &Role::User);
+
+        if let Some(Message::Message { content, .. }) = last_user {
+            assert!(
+                content.contains("Hello!"),
+                "Last user message should be preserved"
+            );
+        }
+
+        // 5. Verify token count is within target
+        let token_count = model
+            .str_to_token(&worker.extra.chat_state.render_string()?, AddBos::Never)?
+            .len();
+
+        let target_size = (n_ctx / 2) as usize;
+        assert!(
+            token_count <= target_size,
+            "Token count {} should be <= target size {}",
+            token_count,
+            target_size
+        );
+
+        // 6. Fewer messages after shift
+        assert!(
+            messages_after.len() < messages_before,
+            "Should have fewer messages after shift"
+        );
+
+        // 7. Check that message structure is still valid
+        assert_valid_message_structure(&messages_after);
+
+        println!("Messages before shift: {}", messages_before);
+        println!("Messages after shift: {}", messages_after.len());
+        println!("Token count after shift: {}", token_count);
+        println!("Target token size: {}", target_size);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_context_shift_with_tool_calls() -> Result<(), Box<dyn std::error::Error>> {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+
+        // Use a very small context size to force shifting
+        let n_ctx = 1024;
+        let n_messages = 10;
+        let mut worker = Worker::new_chat_worker(
+            &model,
+            n_ctx,
+            "You are a helpful assistant.".into(),
+            Arc::new(AtomicBool::new(false)),
+            vec![test_tool()],
+        )?;
+
+        // Add exchanges with tool calls mixed in
+        for i in 1..=n_messages {
+            worker
+                .extra
+                .chat_state
+                .add_user_message(format!("User message {}. What is {} * {}?", i, i, i));
+
+            // Add a tool call every other message
+            // Pattern: User -> Assistant (with tool call) -> Tool response -> Assistant
+            if i % 2 == 0 {
+                worker
+                    .extra
+                    .chat_state
+                    .add_tool_calls(vec![chat_state::ToolCall {
+                        name: "get_current_temperature".into(),
+                        arguments: serde_json::json!({"location": "Copenhagen"}),
+                    }]);
+                worker
+                    .extra
+                    .chat_state
+                    .add_tool_resp("get_current_temperature".into(), "13.37°C".into());
+                worker.extra.chat_state.add_assistant_message(format!(
+                    "The temperature is 13.37°C and {} * {} = {}.",
+                    i,
+                    i,
+                    i * i
+                ));
+            } else {
+                worker
+                    .extra
+                    .chat_state
+                    .add_assistant_message(format!("The answer is {}.", i * i));
+            }
+        }
+
+        worker
+            .extra
+            .chat_state
+            .add_user_message("Final question!".into());
+
+        // Check that we have many messages before shift
+        let messages_before = worker.extra.chat_state.get_messages().len();
+        println!("Messages before shift: {}", messages_before);
+
+        // Trigger context shift
+        worker.context_shift()?;
+
+        println!("{:?}", worker.extra.chat_state.get_messages());
+
+        let messages_after = worker.extra.chat_state.get_messages().to_vec();
+
+        // Verify essential messages are preserved:
+        // 1. System prompt should be first
+        assert_eq!(messages_after[0].role(), &Role::System);
+
+        // 2. Should have first user message
+        let first_user_idx = messages_after.iter().position(|m| m.role() == &Role::User);
+        assert!(
+            first_user_idx.is_some(),
+            "First user message should be preserved"
+        );
+
+        // 3. Count remaining user messages - should have at least 3 (first + last 2)
+        let user_count = messages_after
+            .iter()
+            .filter(|m| m.role() == &Role::User)
+            .count();
+        assert!(
+            user_count >= 3,
+            "Should preserve first user message and last 2 user messages"
+        );
+
+        // 4. Verify the last user message is there
+        let last_user = messages_after
+            .iter()
+            .rev()
+            .find(|m| m.role() == &Role::User);
+
+        if let Some(Message::Message { content, .. }) = last_user {
+            assert!(
+                content.contains("Final question!"),
+                "Last user message should be preserved"
+            );
+        }
+
+        // 5. Verify token count is within target
+        let token_count = model
+            .str_to_token(&worker.extra.chat_state.render_string()?, AddBos::Never)?
+            .len();
+
+        let target_size = (n_ctx / 2) as usize;
+        assert!(
+            token_count <= target_size,
+            "Token count {} should be <= target size {}",
+            token_count,
+            target_size
+        );
+
+        // 6. Fewer messages after shift
+        assert!(
+            messages_after.len() < messages_before,
+            "Should have fewer messages after shift"
+        );
+
+        // 7. Check that message structure is still valid
+        assert_valid_message_structure(&messages_after);
+
+        println!("Messages before shift: {}", messages_before);
+        println!("Messages after shift: {}", messages_after.len());
+        println!("Token count after shift: {}", token_count);
+        println!("Target token size: {}", target_size);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_context_shift_on_say() -> Result<(), Box<dyn std::error::Error>> {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let sampler = SamplerConfig::default();
+
+        // Use a small context size to force shifting
+        let n_ctx = 512;
+        let n_messages = 14;
+        // n_messages is chosen by trial and error. This exactly fills up the
+        // the context so much that the next user message cannot be read and a context shift happens.
+        let mut worker = Worker::new_chat_worker(
+            &model,
+            n_ctx,
+            "You are a helpful assistant.".into(),
+            Arc::new(AtomicBool::new(false)),
+            vec![],
+        )?;
+
+        // Fill up the context until it's almost full
+        for i in 1..=n_messages {
+            worker.extra.chat_state.add_user_message(format!(
+                "This is user message number {}. What is {} * {}?",
+                i, i, i
+            ));
+            worker
+                .extra
+                .chat_state
+                .add_assistant_message(format!("The answer is {}.", i * i));
+        }
+
+        let messages_before_shift = worker.extra.chat_state.get_messages().len();
+        println!("Messages before shift: {}", messages_before_shift);
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let f = move |x| match x {
+            llm::WriteOutput::Done(resp) => {
+                sender.send(resp).unwrap();
+            }
+            _ => (),
+        };
+
+        // This should trigger context shift internally because there's not enough space
+        worker.say(
+            "This is a new question that will not fit in the context! What is 10 * 10?".to_string(),
+            sampler,
+            vec![],
+            f,
+        )?;
+
+        let _response = receiver.recv()?;
+        let messages_after = worker.extra.chat_state.get_messages().to_vec();
+
+        println!("Messages after operation: {}", messages_after.len());
+
+        // Verify context shift occurred
+        assert!(
+            messages_after.len() < messages_before_shift,
+            "Context shift should have reduced message count"
+        );
+
+        // Verify essential messages are preserved
+        // 1. System prompt should be first
+        assert_eq!(messages_after[0].role(), &Role::System);
+
+        // 2. Should have first user message
+        let first_user_idx = messages_after.iter().position(|m| m.role() == &Role::User);
+        assert!(
+            first_user_idx.is_some(),
+            "First user message should be preserved"
+        );
+
+        // 3. Verify the last user message is there (the one that triggered the shift)
+        let last_user = messages_after
+            .iter()
+            .rev()
+            .find(|m| m.role() == &Role::User);
+
+        if let Some(Message::Message { content, .. }) = last_user {
+            assert!(
+                content.contains("new question"),
+                "Last user message should be preserved"
+            );
+        }
+
+        // 4. Message structure should still be valid
+        assert_valid_message_structure(&messages_after);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_context_while_writing() -> Result<(), Box<dyn std::error::Error>> {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let sampler = SamplerConfig::default();
+
+        // Use a small context size to force shifting
+        let n_ctx = 768;
+        let n_messages = 19;
+        // n_messages is chosen by trial and error. This exactly fills up the
+        // the context so much that the next assistant message cannot be fully written.
+        // The same is true for n_ctx. It needs to be large enough to where n_ctx/2 is large enough
+        // to contain the response but also small enough to fill easily and test wihtout being to slow.
+        let mut worker = Worker::new_chat_worker(
+            &model,
+            n_ctx,
+            "You are a helpful assistant.".into(),
+            Arc::new(AtomicBool::new(false)),
+            vec![],
+        )?;
+
+        // Fill up the context until it's almost full
+        for i in 1..=n_messages {
+            worker.extra.chat_state.add_user_message(format!(
+                "This is user message number {}. What is {} * {}?",
+                i, i, i
+            ));
+            worker
+                .extra
+                .chat_state
+                .add_assistant_message(format!("The answer is {}.", i * i));
+        }
+
+        let messages_before_shift = worker.extra.chat_state.get_messages().len();
+        println!("Messages before shift: {}", messages_before_shift);
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let f = move |x| match x {
+            llm::WriteOutput::Done(resp) => {
+                sender.send(resp).unwrap();
+            }
+            _ => (),
+        };
+
+        // This should trigger context shift internally because there's not enough space
+        worker.say("What is 10 * 10?".to_string(), sampler, vec![], f)?;
+
+        let _response = receiver.recv()?;
+        let messages_after = worker.extra.chat_state.get_messages().to_vec();
+
+        println!("Messages after operation: {}", messages_after.len());
+
+        // Verify context shift occurred
+        assert!(
+            messages_after.len() < messages_before_shift,
+            "Context shift should have reduced message count"
+        );
+
+        // Verify essential messages are preserved
+        // 1. System prompt should be first
+        assert_eq!(messages_after[0].role(), &Role::System);
+
+        // 2. Should have first user message
+        let first_user_idx = messages_after.iter().position(|m| m.role() == &Role::User);
+        assert!(
+            first_user_idx.is_some(),
+            "First user message should be preserved"
+        );
+
+        // 3. Verify the last user message is there (the one that triggered the shift)
+        let last_user = messages_after
+            .iter()
+            .rev()
+            .find(|m| m.role() == &Role::User);
+
+        if let Some(Message::Message { content, .. }) = last_user {
+            assert!(
+                content.contains("What is"),
+                "Last user message should be preserved"
+            );
+        }
+
+        // 4. Message structure should still be valid
+        assert_valid_message_structure(&messages_after);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_chat_worker_simple_completion() -> Result<(), Box<dyn std::error::Error>> {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let sampler = SamplerConfig::default();
+        let mut worker = Worker::new_chat_worker(
+            &model,
+            4096,
+            "".into(),
+            Arc::new(AtomicBool::new(false)),
+            vec![],
+        )?;
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let f = move |x| match x {
+            llm::WriteOutput::Done(resp) => {
+                sender.send(resp).unwrap();
+            }
+            _ => (),
+        };
+
+        worker.read_tokens_and_generate_response(
+            worker
+                .ctx
+                .model
+                .str_to_token("I'm going to count to 10: 1, 2, 3", AddBos::Never)?,
+            sampler,
+            vec!["10".to_string()],
+            f,
+        )?;
+
+        let response = receiver.recv()?;
+        println!("Response: {}", response);
+        assert!(response.contains("4, 5, 6, 7, 8, 9, 10"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_chat_worker_stop_tokens() -> Result<(), Box<dyn std::error::Error>> {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let sampler = SamplerConfig::default();
+        let mut worker = Worker::new_chat_worker(
+            &model,
+            1024,
+            "".into(),
+            Arc::new(AtomicBool::new(false)),
+            vec![],
+        )?;
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let f = move |x| match x {
+            llm::WriteOutput::Done(resp) => {
+                sender.send(resp).unwrap();
+            }
+            _ => (),
+        };
+
+        worker.read_tokens_and_generate_response(
+            worker
+                .ctx
+                .model
+                .str_to_token("I'm going to count to 10: 1, 2, 3, 4,", AddBos::Never)?,
+            sampler,
+            vec!["7".to_string()],
+            f,
+        )?;
+
+        let response = receiver.recv()?;
+        println!("Response: {}", response);
+
+        assert!(
+            response.to_lowercase().contains("5, 6, "),
+            "Expected output to contain text before stop token. Got: {response}"
+        );
+        assert!(
+            response.to_lowercase().ends_with("7"),
+            "Expected output to stop at stop token, but continued. Got: {response}"
+        );
+        assert!(
+            !response.to_lowercase().contains("8"),
+            "Expected output to stop at stop token, but continued. Got: {response}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_chat_worker_multiple_contexts() -> Result<(), Box<dyn std::error::Error>> {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let sampler = SamplerConfig::default();
+        let n_ctx = 4096;
+
+        // Use two separate response containers for thread safety
+        let dk_response = Arc::new(std::sync::Mutex::new(None));
+        let de_response = Arc::new(std::sync::Mutex::new(None));
+
+        // Clone references for thread use
+        let model_clone = Arc::clone(&model);
+        let dk_response_clone = Arc::clone(&dk_response);
+        let de_response_clone = Arc::clone(&de_response);
+        let dk_sampler = sampler.clone();
+
+        // Start Denmark worker thread
+        let dk_handle = std::thread::spawn(move || {
+            let mut worker = Worker::new_chat_worker(
+                &model_clone,
+                n_ctx,
+                "".into(),
+                Arc::new(AtomicBool::new(false)),
+                vec![],
+            )
+            .unwrap();
+
+            let f = move |x| {
+                if let WriteOutput::Done(resp) = x {
+                    let mut response = dk_response_clone.lock().unwrap();
+                    *response = Some(resp);
+                }
+            };
+
+            worker
+                .read_tokens_and_generate_response(
+                    worker.ctx.model.str_to_token("<think>\nCopenhagen is the capital of Denmark\n</think>\nThe name of the capital city of Denmark is \"", AddBos::Never).unwrap(),
+                    dk_sampler,
+                    vec!["Copenhagen".to_string()],
+                    f,
+                )
+                .unwrap();
+        });
+
+        // Start Germany worker thread
+        let de_handle = std::thread::spawn(move || {
+            let mut worker = Worker::new_chat_worker(
+                &model,
+                n_ctx,
+                "".into(),
+                Arc::new(AtomicBool::new(false)),
+                vec![],
+            )
+            .unwrap();
+
+            let f = move |x| {
+                if let WriteOutput::Done(resp) = x {
+                    let mut response = de_response_clone.lock().unwrap();
+                    *response = Some(resp);
+                }
+            };
+            worker
+                .read_tokens_and_generate_response(
+                    worker.ctx.model.str_to_token("<think>\nBerlin is the capital of Germany\n</think>\nThe capital of germany is called ", AddBos::Never).unwrap(),
+                    sampler,
+                    vec!["Berlin".to_string()],
+                    f,
+                )
+                .unwrap();
+        });
+
+        // Wait for threads to complete
+        dk_handle.join().unwrap();
+        de_handle.join().unwrap();
+
+        // Retrieve and verify responses
+        let dk_resp = dk_response
+            .lock()
+            .unwrap()
+            .clone()
+            .expect("No response from dk_worker");
+        let de_resp = de_response
+            .lock()
+            .unwrap()
+            .clone()
+            .expect("No response from de_worker");
+
+        println!("Denmark response: {}", dk_resp);
+        println!("Germany response: {}", de_resp);
+
+        assert!(
+            dk_resp.to_lowercase().contains("copenhagen"),
+            "Expected completion to contain 'Copenhagen', got: {dk_resp}"
+        );
+        assert!(
+            de_resp.to_lowercase().contains("berlin"),
+            "Expected completion to contain 'Berlin', got: {de_resp}"
+        );
+
+        Ok(())
     }
 }

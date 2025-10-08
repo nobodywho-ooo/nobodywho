@@ -1,3 +1,4 @@
+use crate::errors::{EmbeddingsWorkerError, InitWorkerError};
 use crate::llm;
 use crate::llm::Worker;
 use llama_cpp_2::context::params::LlamaPoolingType;
@@ -36,18 +37,6 @@ enum EmbeddingsMsg {
     Embed(String, tokio::sync::mpsc::Sender<Vec<f32>>),
 }
 
-#[derive(Debug, thiserror::Error)]
-enum EmbeddingsWorkerError {
-    #[error("Error initializing worker: {0}")]
-    InitWorkerError(#[from] llm::InitWorkerError),
-
-    #[error("Error reading string: {0}")]
-    ReadError(#[from] llm::ReadError),
-
-    #[error("Error generating text: {0}")]
-    EmbeddingsError(#[from] llama_cpp_2::EmbeddingsError),
-}
-
 fn run_worker(
     model: Arc<LlamaModel>,
     n_ctx: u32,
@@ -82,7 +71,7 @@ impl<'a> Worker<'a, EmbeddingsWorker> {
     pub fn new_embeddings_worker(
         model: &Arc<LlamaModel>,
         n_ctx: u32,
-    ) -> Result<Worker<'_, EmbeddingsWorker>, llm::InitWorkerError> {
+    ) -> Result<Worker<'_, EmbeddingsWorker>, InitWorkerError> {
         Worker::new_with_type(model, n_ctx, true, EmbeddingsWorker {})
     }
 
@@ -163,26 +152,21 @@ mod tests {
         test_utils::init_test_tracing();
         let model = test_utils::load_embeddings_model();
         let mut worker = Worker::new_embeddings_worker(&model, 1024)?;
-        
+
         let input = "I don't want to be different";
-        
-        let first_embedding = worker
-            .read_string(input.to_string())?
-            .get_embedding()?;
+
+        let first_embedding = worker.read_string(input.to_string())?.get_embedding()?;
 
         worker.reset_context();
 
-        let second_embedding = worker
-            .read_string(input.to_string())?
-            .get_embedding()?;
-        
+        let second_embedding = worker.read_string(input.to_string())?.get_embedding()?;
+
         assert_eq!(
-            first_embedding,
-            second_embedding,
+            first_embedding, second_embedding,
             "Same input '{}' should produce identical embeddings.",
             input
         );
-        
+
         Ok(())
     }
 }

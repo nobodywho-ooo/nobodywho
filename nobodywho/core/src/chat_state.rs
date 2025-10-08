@@ -1,5 +1,6 @@
 use std::sync::LazyLock;
 
+use crate::errors::FromModelError;
 use llama_cpp_2::token::LlamaToken;
 use minijinja::{context, Environment};
 use serde::{self, Deserialize, Serialize};
@@ -33,7 +34,7 @@ fn strftime_now(format_str: &str) -> String {
 // these types generally follow the shape described in the `transformers` docs here:
 // https://github.com/huggingface/transformers/blob/b11b28cc4e859558318690a5b41ac3a22644acd5/docs/source/en/chat_templating_writing.md
 
-#[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Serialize, Clone, PartialEq, Eq, Debug)]
 #[serde(rename_all = "lowercase")]
 pub enum Role {
     User,
@@ -42,7 +43,7 @@ pub enum Role {
     Tool,
 }
 
-#[derive(Deserialize, Serialize, Clone)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 #[serde(untagged)]
 pub enum Message {
     Message {
@@ -148,30 +149,6 @@ fn concat_system_and_first_user_messages(
     }
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum FromModelError {
-    #[error("Lama.cpp failed fetching chat template from the model file. This is likely because you're using an older GGUF file, which might not include a chat template. For example, this is the case for most LLaMA2-based GGUF files. Try using a more recent GGUF model file. If you want to check if a given model includes a chat template, you can use the gguf-dump script from llama.cpp. Here is a more technical detailed error: {0}")]
-    ChatTemplateError(#[from] llama_cpp_2::ChatTemplateError),
-
-    #[error("Could not parse chat template as UTF8: {0}")]
-    TemplateUtf8Error(#[from] std::str::Utf8Error),
-
-    #[error("Could not detokenize string: {0}")]
-    Detokenize(#[from] llama_cpp_2::TokenToStringError),
-
-    #[error("Tools were provided, but it looks like this model doesn't support tool calling.")]
-    NoToolTemplateError,
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum RenderError {
-    #[error("Template failed to render: {0}")]
-    MiniJinjaError(#[from] minijinja::Error),
-
-    #[error("Could not tokenize string: {0}")]
-    CreateContextError(#[from] llama_cpp_2::StringToTokenError),
-}
-
 impl ChatState {
     pub fn new(
         chat_template: String,
@@ -274,6 +251,27 @@ impl ChatState {
             name,
             content,
         });
+    }
+
+    pub fn naive_render_message_vec(
+        &self,
+        messages: &[Message],
+    ) -> Result<String, minijinja::Error> {
+        let tmpl = MINIJINJA_ENV.template_from_str(&self.chat_template)?;
+
+        let ctx = context! {
+            messages => messages,
+            add_generation_prompt => self.messages.last().map_or(false, |msg| match msg {
+                Message::Message { role: Role::User, .. } => true,
+                Message::ToolResp { .. } => true,
+                _ => false,
+            }),
+            eos_token => self.eos_token,
+            bos_token => self.bos_token,
+            tools => self.tools,
+        };
+
+        Ok(tmpl.render(ctx)?)
     }
 
     pub fn render_string(&mut self) -> Result<String, minijinja::Error> {
