@@ -1,3 +1,5 @@
+use llama_cpp_2::context::kv_cache::KvCacheConversionError;
+
 // Model errors
 
 #[derive(Debug, thiserror::Error)]
@@ -62,9 +64,6 @@ pub enum ReadError {
     #[error("Llama.cpp failed decoding: {0}")]
     DecodeError(#[from] llama_cpp_2::DecodeError),
 
-    #[error("Could not apply context shifting: {0}")]
-    ContextShiftError(#[from] llama_cpp_2::context::kv_cache::KvCacheConversionError),
-
     #[error("Function was called without an inference lock")]
     NoInferenceLockError,
 }
@@ -121,60 +120,83 @@ pub(crate) enum ChatWorkerError {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum WriteError {
-    #[error("Could not apply context shifting: {0}")]
-    ContextShiftError(#[from] llama_cpp_2::context::kv_cache::KvCacheConversionError),
 
-    #[error("Could not add token to batch: {0}")]
-    BatchAddError(#[from] llama_cpp_2::llama_batch::BatchAddError),
-
-    #[error("Llama.cpp failed decoding: {0}")]
-    DecodeError(#[from] llama_cpp_2::DecodeError),
-
-    #[error("Error sending message")]
-    SendError,
-
-    #[error("Error converting token to bytes: {0}")]
-    TokenToStringError(#[from] llama_cpp_2::TokenToStringError),
-
-    #[error("Invalid sampler configuration")]
-    InvalidSamplerConfig,
-
+pub enum WrappedResponseError {
     #[error("Error during context shift: {0}")]
     ShiftError(#[from] ShiftError),
 
-    #[error("Error reading in context after context shift: {0}")]
+    #[error("Error rendering chat history with chat template: {0}")]
+    RenderError(#[from] RenderError),
+
+    #[error("Error removing tokens not present in the common prefix: {0}")]
+    KVCacheUpdateError(#[from] KvCacheConversionError),
+
+    #[error("Error during inference step: {0}")]
+    InferenceError(#[from] InferenceError),
+
+    #[error("Error recieving generated respone: {0}")]
+    ReceiveError(#[from] std::sync::mpsc::RecvError),
+}
+
+#[derive(Debug, thiserror::Error)]
+
+pub enum InferenceError {
+    #[error("Error reading tokens: {0}")]
+    ReadError(#[from] ReadError),
+
+    #[error("Error while generating response: {0}")]
+    GenerateResponseError(#[from] GenerateResponseError),
+}
+#[derive(Debug, thiserror::Error)]
+
+pub enum GenerateResponseError {
+    #[error("Function was called without an inference lock")]
+    NoInferenceLockError,
+
+    #[error("Error removing tokens from context after context shift")]
+    KVCacheUpdateError(#[from] KvCacheConversionError),
+
+    #[error("Error reading updated chat template render after context shift: {0}")]
     ReadError(#[from] ReadError),
 
     #[error("Error rendering template after context shift: {0}")]
     RenderError(#[from] RenderError),
 
-    #[error("Function was called without an inference lock")]
-    NoInferenceLockError,
+    #[error("Error during context shift: {0}")]
+    ShiftError(#[from] ShiftError),
+
+    #[error("Error converting token to bytes: {0}")]
+    TokenToStringError(#[from] llama_cpp_2::TokenToStringError),
+
+    #[error("Error while decoding next token: {0}")]
+    DecodingError(#[from] DecodingError),
 
     #[error("Context size to small to contain generated respone!")]
     ContextSizeError,
+
+    #[error("Invalid sampler configuration")]
+    InvalidSamplerConfig,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum DecodingError {
+    #[error("Could not add token to batch: {0}")]
+    BatchAddError(#[from] llama_cpp_2::llama_batch::BatchAddError),
+
+    #[error("Llama.cpp failed decoding: {0}")]
+    DecodeError(#[from] llama_cpp_2::DecodeError),
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum SayError {
-    #[error("Error generating text: {0}")]
-    WriteError(#[from] WriteError),
-
-    #[error("Error reading string: {0}")]
-    ReadError(#[from] ReadError),
-
     #[error("Error getting response: {0}")]
     ResponseError(#[from] std::sync::mpsc::RecvError),
-
-    #[error("Error rendering chat template: {0}")]
-    ChatTemplateRenderError(#[from] minijinja::Error),
 
     #[error("Error finding token difference: {0}")]
     RenderError(#[from] RenderError),
 
-    #[error("Error during context shift {0}")]
-    ShiftError(#[from] ShiftError),
+    #[error("Error creating response: {0}")]
+    WrappedResponseError(#[from] WrappedResponseError),
 }
 
 #[derive(Debug, thiserror::Error)]

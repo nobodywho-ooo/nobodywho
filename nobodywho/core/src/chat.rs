@@ -24,13 +24,15 @@
 use crate::chat_state::{self, Role};
 use crate::chat_state::{ChatState, Message};
 use crate::errors::{
-    ChatWorkerError, FromModelError, InitWorkerError, RenderError, SayError, ShiftError, WriteError,
+    ChatWorkerError, DecodingError, FromModelError, GenerateResponseError, InferenceError,
+    InitWorkerError, RenderError, SayError, ShiftError, WrappedResponseError,
 };
 use crate::llm::GLOBAL_INFERENCE_LOCK;
 use crate::llm::{self};
 use crate::llm::{Worker, WriteOutput};
 use crate::sampler_config::{make_sampler, SamplerConfig};
 use llama_cpp_2::model::{AddBos, Special};
+use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 use llama_cpp_2::{context::params::LlamaPoolingType, model::LlamaModel};
 use std::cmp::min;
@@ -175,7 +177,7 @@ impl ChatHandle {
     /// # Example
     /// ```
     /// # use nobodywho::chat::ChatHandle;
-    /// # async fn example(chat: &ChatHandle) -> Result<(), nobodywho::chat::SayError> {
+    /// # async fn example(chat: &ChatHandle) -> Result<(), nobodywho::errors::SayError> {
     /// let response = chat.say_complete("What is the capital of France?").await?;
     /// println!("{}", response);
     /// # Ok(())
@@ -721,7 +723,10 @@ impl<'a> Worker<'_, ChatWorker> {
                 "Less than two user messages in chat history.".into(),
             ))?
             - 1;
-        let mut messages_to_delete = 2; // There might be a better start guess here.
+
+        // Two is the smallest number of messages we can delete as we need to preserve the message structure.
+        // There might be a better start guess here.
+        let mut messages_to_delete = 2;
 
         // Delete messages until context is small enough or only essential messages are left.
         // Double the number of messages to delete each iteration. This is a simple and kind of stupid solution, as it might overshoot by a lot.
@@ -797,18 +802,18 @@ impl<'a> Worker<'_, ChatWorker> {
     // This is a safety meassure to prevent bugs from multiple
     // contexts with the same model. It might not be necessary
     // but assume it is.
-    pub fn write_until_done<F>(
+    pub fn generate_response_until_done<F>(
         &mut self,
         sampler_config: SamplerConfig,
         stop_words: Vec<String>,
         mut respond: F,
-    ) -> Result<&mut Self, WriteError>
+    ) -> Result<&mut Self, GenerateResponseError>
     where
         F: FnMut(WriteOutput),
     {
         // Should only be called with an inference lock
         if let Ok(_) = GLOBAL_INFERENCE_LOCK.try_lock() {
-            return Err(WriteError::NoInferenceLockError);
+            return Err(GenerateResponseError::NoInferenceLockError);
         }
         // Token generation loop
         info!("Worker writing until done");
@@ -821,7 +826,7 @@ impl<'a> Worker<'_, ChatWorker> {
         // initialize sampler
         // stateful samplers only live for one response
         let mut sampler = make_sampler(&self.ctx.model, sampler_config)
-            .ok_or(WriteError::InvalidSamplerConfig)?;
+            .ok_or(GenerateResponseError::InvalidSamplerConfig)?;
 
         let mut token_bytes_vec = Vec::new();
 
@@ -850,19 +855,8 @@ impl<'a> Worker<'_, ChatWorker> {
             // using sampler.accept() will cause the sampler to crash when using grammar sampling.
             // https://github.com/utilityai/llama-cpp-rs/issues/604
             trace!("Applying sampler...");
-            let new_token: LlamaToken = sampler.sample(&self.ctx, -1);
+            let new_token = self.sample_and_decode_next_token(&mut sampler)?;
             tokens_written_until_now.push(new_token);
-
-            // batch of one
-            self.small_batch.clear();
-            self.small_batch.add(new_token, self.n_past, &[0], true)?;
-
-            // llm go brr
-            let decode_span = trace_span!("write decode", n_past = self.n_past);
-            let decode_guard = decode_span.enter();
-            self.ctx.decode(&mut self.small_batch)?;
-            drop(decode_guard);
-            self.n_past += 1; // keep count
 
             // Attempt to convert token(s) to bytes
             let token_bytes = self
@@ -918,6 +912,27 @@ impl<'a> Worker<'_, ChatWorker> {
         Ok(self)
     }
 
+    fn sample_and_decode_next_token(
+        &mut self,
+        sampler: &mut LlamaSampler,
+    ) -> Result<LlamaToken, DecodingError> {
+        trace!("Applying sampler...");
+        let new_token: LlamaToken = sampler.sample(&self.ctx, -1);
+
+        // batch of one
+        self.small_batch.clear();
+        self.small_batch.add(new_token, self.n_past, &[0], true)?;
+
+        // llm go brr
+        let decode_span = trace_span!("write decode", n_past = self.n_past);
+        let decode_guard = decode_span.enter();
+        self.ctx.decode(&mut self.small_batch)?;
+        drop(decode_guard);
+        self.n_past += 1; // keep count
+
+        Ok(new_token)
+    }
+
     pub fn say<F>(
         &mut self,
         text: String,
@@ -949,7 +964,7 @@ impl<'a> Worker<'_, ChatWorker> {
         }
 
         // get the finished response
-        let mut response: String = self.wrapped_update_context_and_write_response(
+        let mut response: String = self.wrapped_update_context_and_generate_response(
             sampler.clone(),
             stop_words.clone(),
             respond.clone(),
@@ -990,7 +1005,7 @@ impl<'a> Worker<'_, ChatWorker> {
             }
 
             // get the finished response
-            response = self.wrapped_update_context_and_write_response(
+            response = self.wrapped_update_context_and_generate_response(
                 sampler.clone(),
                 stop_words.clone(),
                 respond.clone(),
@@ -1019,29 +1034,29 @@ impl<'a> Worker<'_, ChatWorker> {
         Ok(render_as_tokens)
     }
 
-    fn read_tokens_and_write_response(
+    fn read_tokens_and_generate_response(
         &mut self,
         tokens: Vec<LlamaToken>,
         sampler: SamplerConfig,
         stop_words: Vec<String>,
         wrapped_respond: impl FnMut(WriteOutput),
-    ) -> Result<&mut Self, SayError> {
+    ) -> Result<&mut Self, InferenceError> {
         let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
 
-        Ok(self.read_tokens(tokens)?.write_until_done(
+        Ok(self.read_tokens(tokens)?.generate_response_until_done(
             sampler.clone(),
             stop_words.clone(),
             wrapped_respond,
         )?)
     }
 
-    fn wrapped_update_context_and_write_response<F>(
+    fn wrapped_update_context_and_generate_response<F>(
         &mut self,
         sampler: SamplerConfig,
         stop_words: Vec<String>,
         respond: F,
         tool_call_begin_token: String,
-    ) -> Result<String, SayError>
+    ) -> Result<String, WrappedResponseError>
     where
         F: Fn(llm::WriteOutput) + Clone,
     {
@@ -1064,7 +1079,7 @@ impl<'a> Worker<'_, ChatWorker> {
         let (wrapped_respond, resp_receiver) = wrap_respond(respond.clone(), tool_call_begin_token);
 
         // llm go brrr
-        self.read_tokens_and_write_response(
+        self.read_tokens_and_generate_response(
             token_difference,
             sampler.clone(),
             stop_words.clone(),
@@ -1869,7 +1884,7 @@ mod tests {
         let sampler = SamplerConfig::default();
 
         // Use a small context size to force shifting
-        let n_ctx = 512;
+        let n_ctx = 768;
         let n_messages = 13;
         // n_messages is chosen by trial and error. This exactly fills up the
         // the context so much that the next assistant message cannot be fully written.
@@ -1969,7 +1984,7 @@ mod tests {
             _ => (),
         };
 
-        worker.read_tokens_and_write_response(
+        worker.read_tokens_and_generate_response(
             worker
                 .ctx
                 .model
@@ -2007,7 +2022,7 @@ mod tests {
             _ => (),
         };
 
-        worker.read_tokens_and_write_response(
+        worker.read_tokens_and_generate_response(
             worker
                 .ctx
                 .model
@@ -2072,7 +2087,7 @@ mod tests {
             };
 
             worker
-                .read_tokens_and_write_response(
+                .read_tokens_and_generate_response(
                     worker.ctx.model.str_to_token("<think>\nCopenhagen is the capital of Denmark\n</think>\nThe name of the capital city of Denmark is \"", AddBos::Never).unwrap(),
                     dk_sampler,
                     vec!["Copenhagen".to_string()],
@@ -2099,7 +2114,7 @@ mod tests {
                 }
             };
             worker
-                .read_tokens_and_write_response(
+                .read_tokens_and_generate_response(
                     worker.ctx.model.str_to_token("<think>\nBerlin is the capital of Germany\n</think>\nThe capital of germany is called ", AddBos::Never).unwrap(),
                     sampler,
                     vec!["Berlin".to_string()],

@@ -1,5 +1,6 @@
 use crate::errors::{InitWorkerError, LoadModelError, ReadError};
 use lazy_static::lazy_static;
+use llama_cpp_2::context::kv_cache::KvCacheConversionError;
 use llama_cpp_2::context::params::{LlamaContextParams, LlamaPoolingType};
 use llama_cpp_2::context::LlamaContext;
 use llama_cpp_2::llama_backend::LlamaBackend;
@@ -201,7 +202,10 @@ where
     }
 
     #[tracing::instrument(level = "trace", skip(self))]
-    pub fn remove_all_tokens_after_index_from_ctx(&mut self, index: u32) -> Result<(), ReadError> {
+    pub fn remove_all_tokens_after_index_from_ctx(
+        &mut self,
+        index: u32,
+    ) -> Result<(), KvCacheConversionError> {
         if self.n_past <= index as i32 {
             return Ok(());
         }
