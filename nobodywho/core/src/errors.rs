@@ -63,9 +63,6 @@ pub enum ReadError {
 
     #[error("Llama.cpp failed decoding: {0}")]
     DecodeError(#[from] llama_cpp_2::DecodeError),
-
-    #[error("Function was called without an inference lock")]
-    NoInferenceLockError,
 }
 
 // CrossEncoderWorker errors
@@ -153,9 +150,6 @@ pub enum InferenceError {
 #[derive(Debug, thiserror::Error)]
 
 pub enum GenerateResponseError {
-    #[error("Function was called without an inference lock")]
-    NoInferenceLockError,
-
     #[error("Error removing tokens from context after context shift")]
     KVCacheUpdateError(#[from] KvCacheConversionError),
 

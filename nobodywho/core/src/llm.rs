@@ -169,11 +169,6 @@ where
         tokens: Vec<LlamaToken>,
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<&mut Self, ReadError> {
-        // Should only be called with an inference lock
-        if let Ok(_) = GLOBAL_INFERENCE_LOCK.try_lock() {
-            return Err(ReadError::NoInferenceLockError);
-        }
-
         let n_tokens = tokens.len();
         debug!("Reading {n_tokens} tokens.");
 
