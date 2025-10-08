@@ -10,11 +10,14 @@ use llama_cpp_2::model::AddBos;
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::token::LlamaToken;
 use std::pin::pin;
-use std::sync::{Arc, LazyLock, Mutex};
+use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
 use tracing::{debug, debug_span, error, info, info_span, warn};
 
+#[derive(Debug)]
+pub(crate) struct GlobalInferenceLockToken;
 lazy_static! {
-    pub(crate) static ref GLOBAL_INFERENCE_LOCK: Mutex<()> = Mutex::new(());
+    pub(crate) static ref GLOBAL_INFERENCE_LOCK: Mutex<GlobalInferenceLockToken> =
+        Mutex::new(GlobalInferenceLockToken);
 }
 
 static LLAMA_BACKEND: LazyLock<LlamaBackend> =
@@ -150,8 +153,9 @@ where
     #[tracing::instrument(level = "trace", skip(self))]
     pub fn read_string(&mut self, text: String) -> Result<&mut Self, ReadError> {
         let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
+        let inference_lock_token = _gil_guard.unwrap();
         let tokens = self.ctx.model.str_to_token(&text, AddBos::Never)?;
-        self.read_tokens(tokens)
+        self.read_tokens(tokens, &inference_lock_token)
     }
 
     // ---------- IMPORTANT ----------
@@ -160,7 +164,11 @@ where
     // contexts with the same model. It might not be necessary
     // but assume it is.
     #[tracing::instrument(level = "trace", skip(self))]
-    pub fn read_tokens(&mut self, tokens: Vec<LlamaToken>) -> Result<&mut Self, ReadError> {
+    pub fn read_tokens(
+        &mut self,
+        tokens: Vec<LlamaToken>,
+        inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
+    ) -> Result<&mut Self, ReadError> {
         // Should only be called with an inference lock
         if let Ok(_) = GLOBAL_INFERENCE_LOCK.try_lock() {
             return Err(ReadError::NoInferenceLockError);

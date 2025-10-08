@@ -117,6 +117,9 @@ pub(crate) enum ChatWorkerError {
 
     #[error("Error getting token difference: {0}")]
     RenderError(#[from] RenderError),
+
+    #[error("Error removing tokens from KvCache: {0}")]
+    KvCacheConversionError(#[from] KvCacheConversionError),
 }
 
 #[derive(Debug, thiserror::Error)]

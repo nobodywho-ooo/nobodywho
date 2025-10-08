@@ -27,8 +27,8 @@ use crate::errors::{
     ChatWorkerError, DecodingError, FromModelError, GenerateResponseError, InferenceError,
     InitWorkerError, RenderError, SayError, ShiftError, WrappedResponseError,
 };
-use crate::llm::GLOBAL_INFERENCE_LOCK;
 use crate::llm::{self};
+use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
 use crate::llm::{Worker, WriteOutput};
 use crate::sampler_config::{make_sampler, SamplerConfig};
 use llama_cpp_2::model::{AddBos, Special};
@@ -37,7 +37,7 @@ use llama_cpp_2::token::LlamaToken;
 use llama_cpp_2::{context::params::LlamaPoolingType, model::LlamaModel};
 use std::cmp::min;
 use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
+use std::sync::{Arc, MutexGuard};
 use tracing::{debug, error, info, trace, trace_span, warn};
 
 // PARALLELISM
@@ -389,7 +389,7 @@ fn run_worker(
                 messages,
                 output_tx,
             } => {
-                worker_state.set_chat_history(messages);
+                worker_state.set_chat_history(messages)?;
                 let _ = output_tx.blocking_send(());
             }
         }
@@ -691,7 +691,7 @@ impl<'a> Worker<'_, ChatWorker> {
         )?)
     }
 
-    fn stop(&self) -> bool {
+    fn should_stop(&self) -> bool {
         self.extra
             .should_stop
             .load(std::sync::atomic::Ordering::Relaxed)
@@ -807,14 +807,11 @@ impl<'a> Worker<'_, ChatWorker> {
         sampler_config: SamplerConfig,
         stop_words: Vec<String>,
         mut respond: F,
+        inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<&mut Self, GenerateResponseError>
     where
         F: FnMut(WriteOutput),
     {
-        // Should only be called with an inference lock
-        if let Ok(_) = GLOBAL_INFERENCE_LOCK.try_lock() {
-            return Err(GenerateResponseError::NoInferenceLockError);
-        }
         // Token generation loop
         info!("Worker writing until done");
 
@@ -830,12 +827,8 @@ impl<'a> Worker<'_, ChatWorker> {
 
         let mut token_bytes_vec = Vec::new();
 
-        while !self.stop() {
-            // Check for context window overflow (it was in the end before)
-
-            // !!!!!!!!!!!!!!!!!!!!!!!!!! TODO !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            // Implement smarter context shifting by deleting messages!
-
+        while !self.should_stop() {
+            // Check if the context is full
             if self.n_past as u32 == self.ctx.n_ctx() {
                 self.context_shift()?;
                 let render_as_tokens = self.get_render_as_tokens()?;
@@ -846,8 +839,8 @@ impl<'a> Worker<'_, ChatWorker> {
                     .find_prefix_index_and_difference_with_tokens_in_context(&render_as_tokens);
 
                 self.remove_all_tokens_after_index_from_ctx(prefix_index)?;
-                self.read_tokens(token_difference)?;
-                self.read_tokens(tokens_written_until_now.clone())?;
+                self.read_tokens(token_difference, inference_lock_token)?;
+                self.read_tokens(tokens_written_until_now.clone(), inference_lock_token)?;
                 // do not update tokens_in_context as this is done later by say
             }
 
@@ -1042,12 +1035,16 @@ impl<'a> Worker<'_, ChatWorker> {
         wrapped_respond: impl FnMut(WriteOutput),
     ) -> Result<&mut Self, InferenceError> {
         let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
+        let inference_lock_token = _gil_guard.unwrap();
 
-        Ok(self.read_tokens(tokens)?.generate_response_until_done(
-            sampler.clone(),
-            stop_words.clone(),
-            wrapped_respond,
-        )?)
+        Ok(self
+            .read_tokens(tokens, &inference_lock_token)?
+            .generate_response_until_done(
+                sampler.clone(),
+                stop_words.clone(),
+                wrapped_respond,
+                &inference_lock_token,
+            )?)
     }
 
     fn wrapped_update_context_and_generate_response<F>(
@@ -1116,7 +1113,6 @@ impl<'a> Worker<'_, ChatWorker> {
 
     pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), ChatWorkerError> {
         let current_messages = self.extra.chat_state.get_messages().to_vec();
-        self.reset_context();
         self.extra.chat_state = ChatState::from_model_and_tools(
             self.ctx.model,
             tools.iter().map(|t| t.to_chat_state_tool()).collect(),
@@ -1128,9 +1124,17 @@ impl<'a> Worker<'_, ChatWorker> {
         };
         self.extra.tools = tools;
         self.extra.chat_state.set_messages(current_messages);
-        // prefix index is unimportant as we know there is no cached prefix.
+        // Reuse cached prefix
+        let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
+        let inference_lock_token = _gil_guard.unwrap();
         let render_as_tokens = self.get_render_as_tokens()?;
-        self.read_tokens(render_as_tokens.clone())?;
+        let (prefix_index, token_difference) = self
+            .extra
+            .chat_state
+            .find_prefix_index_and_difference_with_tokens_in_context(&render_as_tokens);
+
+        self.remove_all_tokens_after_index_from_ctx(prefix_index)?;
+        self.read_tokens(token_difference, &inference_lock_token)?;
         self.extra
             .chat_state
             .set_tokens_in_context(render_as_tokens);
@@ -1138,9 +1142,29 @@ impl<'a> Worker<'_, ChatWorker> {
         Ok(())
     }
 
-    pub fn set_chat_history(&mut self, messages: Vec<crate::chat_state::Message>) {
+    pub fn set_chat_history(
+        &mut self,
+        messages: Vec<crate::chat_state::Message>,
+    ) -> Result<(), ChatWorkerError> {
         self.reset_context();
         self.extra.chat_state.set_messages(messages);
+
+        // Reuse cached prefix
+
+        let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
+        let inference_lock_token = _gil_guard.unwrap();
+        let render_as_tokens = self.get_render_as_tokens()?;
+        let (prefix_index, token_difference) = self
+            .extra
+            .chat_state
+            .find_prefix_index_and_difference_with_tokens_in_context(&render_as_tokens);
+
+        self.remove_all_tokens_after_index_from_ctx(prefix_index)?;
+        self.read_tokens(token_difference, &inference_lock_token)?;
+        self.extra
+            .chat_state
+            .set_tokens_in_context(render_as_tokens);
+        Ok(())
     }
 }
 
@@ -1885,9 +1909,11 @@ mod tests {
 
         // Use a small context size to force shifting
         let n_ctx = 768;
-        let n_messages = 13;
+        let n_messages = 19;
         // n_messages is chosen by trial and error. This exactly fills up the
         // the context so much that the next assistant message cannot be fully written.
+        // The same is true for n_ctx. It needs to be large enough to where n_ctx/2 is large enough
+        // to contain the response but also small enough to fill easily and test wihtout being to slow.
         let mut worker = Worker::new_chat_worker(
             &model,
             n_ctx,
