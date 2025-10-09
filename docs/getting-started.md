@@ -1,4 +1,4 @@
-# Baby's First Steps
+# Getting Started
 _A minimal, end-to-end example showing how to load a model and perform a single chat interaction._ 
 
 ---
@@ -105,7 +105,7 @@ The next step is adding a Chat to our scene.
 
     ---
 
-    Now we are ready top add a small script that sends and recieves text from the model.
+    Now we are ready to add a small script that sends and receives text from the model.
     Add a new script component on you chat object:
 
     ```csharp
@@ -120,7 +120,7 @@ The next step is adding a Chat to our scene.
             chat = GetComponent<Chat>();
 
             // start the worker, this is not required, but recommended to do in
-            // the beggining of the program to make sure it is ready when the user
+            // the beginning of the program to make sure it is ready when the user
             // prompts the chat the first time. this will be called under the hood
             // when you use `say()` as well.
             chat.StartWorker();
@@ -159,14 +159,6 @@ You should see tokens appearing one by one as the model generates its response, 
 - Make sure your model file path is correct
 - Verify that your Chat node is properly connected to your Model node
 - Look for any error messages in the console
-- Start your editor through the command line (godot) and check the logs.
+- Start your editor through the command line and check the stdout logs.
 
 Now you're ready to build more complex conversations and integrate the chat system into your game!
-
-
-
-    
-
-
-    
-

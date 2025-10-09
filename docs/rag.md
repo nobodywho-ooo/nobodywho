@@ -1,20 +1,20 @@
-# Adding long term memory to you characters
+# Adding long term memory to your characters
 _Build AI systems that can search through your game's lore, dialog, or knowledge base and find the most relevant information._
 
 ---
 
-Great! You've got chat and embeddings working. Now lets add something useful: the ability to look up specific lore, dialogiues, questlines etc.
+Great! You've got chat and embeddings working. Now lets add something useful: the ability to look up specific lore, dialogues, questlines etc.
 
 ## Why Your Game Needs Smart Document Search
 
 Picture this: Your player is 40 hours into your RPG and asks an npc "Where do I find that crystal for the sword upgrade?" 
 Your LLM, without reranking, might give a generic answer or worse - make something up - leading to a bad player experience. 
 There are several ways to combat this, one is to load a lot of information into the context (ie. the system prompt) but with a limited context, it might 'forget' the important information
-or be confused by too much information. In stead we want to add a "long term memory" module to our language model, much like when you use google to search for the correct way to implement inverse square roota
+or be confused by too much information. Instead we want to add a "long term memory" module to our language model.
 
 To do this in the llm space you are going to use RAG (retreival augmented generation) we are enriching the knowledge of the LLM by allowing it to search through a database of info we fed it. 
-There are many ways to do this. In Nobodywho we currently expose two mayor ways, one is embeddings; converting a sentence to a vector and then find the vectors that are closest to it.
-This is powerfull as you can save the vectors to a database or a file before hande and then use the really fast and cheap cosine similarity to compare them. Another more expensive but more accurate way is to use a crossencoder, that figures out the relationship between the question and the document rather that just how similar they are. 
+There are many ways to do this. In Nobodywho we currently expose two major ways, one is embeddings; converting a sentence to a vector and then find the vectors that are closest to it.
+This is powerful as you can save the vectors to a database or a file beforehand and then use the really fast and cheap cosine similarity to compare them. Another more expensive but more accurate way is to use a cross-encoder, that figures out the relationship between the question and the document rather that just how similar they are. 
 
 This approach is often called reranking, due to how it is used as a step two, for sorting and filtering large knowledge databases accesed by LLMs. I'll call it ranking as we are working with a small enough dataset that we do not need a first pass to filter out irrelevant info.
 
@@ -25,13 +25,13 @@ Query: "Where do I find crystals for my sword upgrade?"
 Documents: [
            "You asked the blacksmith: Where do I find crystals for my sword upgrade?",
            "The blacksmith said: Magic crystals are found in the Northern Mountains.",
-           "You heard in the tawern: Magic crystals are not found in the Southern Desert."
+           "You heard in the tavern: Magic crystals are not found in the Southern Desert."
 ]
 ```
 
 If we rely just on comparing the query with the embeddings using cosine similarity (as we did with the embeddings), we will get back the document "You asked the blacksmith: Where do I find crystals for my sword upgrade?" as it is the most similar sentence to our query. This gave us no useful information and we have just wasted valuable context. 
 
-But with ranking, the crossencoder model has been trained on knowing that the answer to the question is not the question itself, and thus ranks the document "The blacksmith said: Magic crystals are found in the Northern Mountains." the highest.
+But with ranking, the cross-encoder model has been trained on knowing that the answer to the question is not the question itself, and thus ranks the document "The blacksmith said: Magic crystals are found in the Northern Mountains." the highest.
 
 
 Here are the key terms you'll need:

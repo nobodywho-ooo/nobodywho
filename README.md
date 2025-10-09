@@ -4,22 +4,23 @@
 [![Matrix](https://img.shields.io/badge/Matrix-000?logo=matrix&logoColor=fff)](https://matrix.to/#/#nobodywho:matrix.org)
 [![Mastodon](https://img.shields.io/badge/Mastodon-6364FF?logo=mastodon&logoColor=fff&style=flat-square)](https://mastodon.gamedev.place/@nobodywho)
 [![Godot Engine](https://img.shields.io/badge/Godot-%23FFFFFF.svg?logo=godot-engine&style=flat-square)](https://godotengine.org/asset-library/asset/2886)
-![GitHub Sponsors](https://img.shields.io/github/sponsors/nobodywho-ooo?style=flat-square)
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg?style=flat-square)](CODE_OF_CONDUCT.md) 
+[![Read the Docs](https://img.shields.io/badge/Read%20the%20Docs-8CA1AF?logo=readthedocs&logoColor=fff)](https://nobodywho-ooo.github.io/nobodywho/)
 
 
 NobodyWho is a plugin that lets you interact with local LLMs, we currently support Godot and Unity, with even more plugins on their way.
 
-[![Read the Docs](https://img.shields.io/badge/Read%20the%20Docs-8CA1AF?logo=readthedocs&logoColor=fff)](https://nobodywho-ooo.github.io/nobodywho/)
 
 
 ## At a Glance
 
-* 🏃 Run LLM-driven characters locally without internet
+* 🏃 Run any LLM locally, offline, for free
+* ⚒️ Fast, simple tool calling - just pass a normal function
+* 👌 Guaranteed perfect tool calling every time, automatically derives a grammar from your function signature
+* 🗨️ Conversation-aware preemptive context shifting, for lobotomy-free conversations of infinite length
+* 💻 Ship optimized native code for multiple platforms: Windows, Linux, macOS, Android
 * ⚡ Super fast inference on GPU powered by Vulkan or Metal
-* 🔧 Easy setup - just two nodes to get started
-* 🎯 Perfect for games, interactive stories, and NPCs
-* 💻 Cross-platform: Windows, Linux, macOS, Android
+* 🤖 Compatible with thousands of pre-trained LLMs - use any LLM in the GGUF format
 * 🦙 Powered by the wonderful [llama.cpp](https://github.com/ggml-org/llama.cpp)
 
 
@@ -36,7 +37,9 @@ Make sure that the ignore asset root option is set in the import dialogue.
 
 ### Unity
 
-You can install it from [github releases page.](https://github.com/nobodywho-ooo/nobodywho/releases) while we are still pending acceptance on the unity assets store.
+You can install NobodyWho from the Unity AssetStore, as you usually would.
+
+You can also install it from our [github releases page.](https://github.com/nobodywho-ooo/nobodywho/releases).
 When you have downloaded the tarball use the Package manager (Windov -> Package Manager) and add a new package from a tarball.
 
 To see and play around with the samples you might need to right click the plugin and then: `> View in Package Manager > Click on NobodyWho > Samples > Install`. This should set up all the dependencies correctly.
@@ -48,7 +51,6 @@ From there you can also check the documentaiton.
 * Join our [Discord](https://discord.gg/qhaMc2qCYB) or [Matrix](https://matrix.to/#/#nobodywho:matrix.org) communities
 * Found a bug? Open an issue!
 * Submit your own PR - contributions welcome
-* 💝 [Become a sponsor](https://github.com/sponsors/nobodywho-ooo) to support development
 * Help improve docs or write tutorials
 
 
@@ -187,7 +189,7 @@ You are allowed to use this plugin in proprietary and commercial projects, free 
 
 If you distribute modified versions of the code *in this repo*, you must open source those changes.
 
-Feel free to make proprietary games using NobodyWho, but don't make a proprietary fork of NobodyWho.
+Feel free to make proprietary projects using NobodyWho, but don't make a proprietary fork of NobodyWho.
 
 
 # Featured Examples

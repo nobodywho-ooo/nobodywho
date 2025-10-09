@@ -16,8 +16,6 @@ The model can:
 * Change the world - "Open the north gate."
 * Run helper logic - damage rolls, crafting math, random loot.
 
-This can even be used in combination with GOAP to define the ideal outcome, and have to GOAP system report back when the world state changes. Creating a npc, whose action is determined completely by the llm.
-
 We'll start with a small and simple tool, add arguments, then increase accuracy using schema and adding constraints.
 
 **Note that not all models support tool calling**
@@ -123,8 +121,8 @@ Therefore it might be advantageous to write your own schema for maximum precisio
                  "Heals the local player by a number of hit-points");
     ```
 
-    Note the `System.Func<int, string>`, the `int` is the output and the string is the first parameter.  
-    So to create the correct delegate you follow this scheme: System.Func<`output type`, `first param`, `second param`, etc..> – easy!
+    Note the `System.Func<int, string>`, the `string` is the output and the `int` is the first parameter.  
+    So to create the correct delegate you follow this scheme: System.Func<`first param`, `second param`, `return type`, etc..> – easy!
 
 ---
 

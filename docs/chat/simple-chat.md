@@ -5,7 +5,7 @@ _A comprehensive guide to configuring, streaming, and controlling LLM responses 
 
 ---
 
-Great! You've completed the ["Baby's First Steps"](../getting_started.md) guide and got your first chat working as well as a basic understanding of the vocabulary.   
+Great! You've completed the ["Getting Started"](../getting-started.md) guide and got your first chat working as well as a basic understanding of the vocabulary.   
 Now let's dive deeper into the Chat component and show you all the settings and techniques you'll actually use when working with LLMs.
  
 The Chat component isn't just for conversations - it's your main interface for any kind of LLM processing, whether that's generating dialogue, analyzing text, creating content, or any other language task.
@@ -70,7 +70,7 @@ By default, NobodyWho tries to use your GPU if you have one. This makes everythi
     model.useGpuIfAvailable = true;
     ```
 
-**When to turn this off:** there are some scernarios where it might actually be better to use system ram: 
+**When to turn this off:** there are some scenarios where it might actually be better to use system ram: 
 
 - If you don't need an immediate answer, and would prefer to use GPU resources for graphics.
 - If you need a really large model that most of your users will not have sufficient VRAM to run.
@@ -100,7 +100,7 @@ The LLM maintains context (memory of the conversation/interaction), but only up 
 
 **Trade-off:** Longer context = more memory usage. The general rule of thumb is to start with the default or less and only increase if you need the LLM to remember more.
 
-**Context-switching:** NobodyWho will automatically remove older messages from the context for you, if your chat's context window is filled. Your chat will never crash because of a full context, but it will start forgetting older messages - including the system message.
+**Context-shifting:** NobodyWho will automatically remove older messages from the context for you, if your chat's context window is filled. Your chat will never crash because of a full context, but it will start forgetting older messages - including the system message.
 
 ### Streaming Responses vs Waiting for Complete Output
 
@@ -294,7 +294,7 @@ When you enable grammar without providing a custom grammar string, the system de
     // {"name": "Eldara", "weapon": "enchanted bow", "armor": "leather vest"}
     ```
 
-**Note:** For advanced use cases where you need a very specific JSON structure or structured output that is not JSON, you can provide your own custom GBNF grammar by setting the `gbnf_grammar` property (Godot) or `grammar` field (Unity). This is covered in the [Advanced Chat](advanced_chat.md) guide.
+**Note:** For advanced use cases where you need a very specific JSON structure or structured output that is not JSON, you can provide your own custom GBNF grammar by setting the `gbnf_grammar` property (Godot) or `grammar` field (Unity). This is covered in the [Structured Output](structured-output.md) guide.
 
 ## Performance and Memory Tips
 
@@ -327,8 +327,8 @@ In a real-time application, you don't want the user's first interaction to trigg
         chat.systemPrompt = "You are a helpful assistant.";
         // The model would also be assigned in the editor.
 
-        # 2. Start the worker *before* the user can interact.
-        # This pre-loads the model so the first interaction isn't slow.
+        // 2. Start the worker *before* the user can interact.
+        // This pre-loads the model so the first interaction isn't slow.
         chat.StartWorker();
 
         // 3. Now other setup can happen
@@ -337,7 +337,7 @@ In a real-time application, you don't want the user's first interaction to trigg
     ```
 
 **Why:** Starting the worker loads the model into memory. It's slow the first time, but then all LLM operations are much faster. 
-You should definetely think about when to do this to not ruin the UX too much.
+You should definitely think about when to do this to not ruin the UX too much.
 
 ### Share Models Between Components
 
@@ -383,7 +383,7 @@ An application might need to use an LLM for several different tasks. Instead of 
         casualChat.systemPrompt = "You are a friendly and helpful assistant. Keep your answers concise.";
         casualChat.StartWorker();
 
-        # 2. Configure another chat component for structured data extraction
+        // 2. Configure another chat component for structured data extraction
         extractorChat.model = sharedModel;
         extractorChat.systemPrompt = "Extract the key information from the user's text and provide it in JSON format.";
         // This one would likely use a grammar to enforce JSON output.
@@ -396,14 +396,3 @@ An application might need to use an LLM for several different tasks. Instead of 
     ```
 
 **Memory savings:** Instead of loading multiple models, you load one and share it. Much more efficient!  
-However you still pay for the context and it means that you can not have two chats generating an answer at the same time.
-
-
-### What's Next?
-
-Now you've got solid control over LLM behavior! From here you might want to explore:
-- **[Embeddings](../embeddings.md)** for understanding meaning beyond just text generation
-- **[Advanced Chat](advanced_chat.md)** for seeing how to enforce specific output form the llm.
-
-
-
