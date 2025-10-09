@@ -59,8 +59,9 @@ From there you can also check the documentaiton.
 The plugin does not include a large language model (LLM). You need to provide an LLM in the GGUF file format.
 
 A good place to start is something like [Qwen3 4B](https://huggingface.co/Qwen/Qwen3-4B-GGUF/blob/main/Qwen3-4B-Q4_K_M.gguf).
-If you need something faster, try with a smaller model (e.g. Qwen3 0.6B). If you need soemthing smarter, try with a larger model (e.g. Qwen3 14B).
+If you need something faster, try with a smaller model (e.g. Qwen3 0.6B). If you need something smarter, try with a larger model (e.g. Qwen3 14B).
 If you need something smarter *and* faster, wait a few months.
+Have a look at our [model selection guide](https://nobodywho-ooo.github.io/nobodywho/model-selection/) for more in-depth recommendations.
 
 Once you have a GGUF model file, you can add a `NobodyWhoModel` node to your Godot scene. On this node, set the model file to the GGUF model you just downloaded.
 
@@ -145,12 +146,11 @@ We're looking into solutions for including this file automatically.
 
 New language models are coming out at a breakneck pace. If you search the web for "best language models for roleplay" or something similar, you'll probably find results that are several months or years old. You want to use something newer.
 
-We recommend checking leaderboards like [The GPU-Poor LLM Gladiator Arena](https://huggingface.co/spaces/k-mktr/gpu-poor-llm-arena), or [OpenRouter's Roleplay Rankings](https://openrouter.ai/rankings/roleplay).
-Once you select a model, remember that you need a quantization of it in the GGUF format.
-The huggingface user [bartowski](https://huggingface.co/bartowski) regularly uploads GGUF quantizations for *a lot* of new models.
-
-Selecting the best model for your usecase is mostly about finding the right tradeoff between speed, memory usage and quality of the responses.
+Selecting the best model for your use-case is mostly about finding the right trade-off between speed, memory usage and quality of the responses.
 Using bigger models will yield better responses, but raise minimum system requirements and slow down generation speed.
+
+Have a look at our [model selection guide](https://nobodywho-ooo.github.io/nobodywho/model-selection/) for more in-depth recommendations.
+
 
 ### NobodyWho makes Godot crash on Arch Linux / Manjaro
 

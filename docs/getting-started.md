@@ -3,8 +3,6 @@ _A minimal, end-to-end example showing how to load a model and perform a single 
 
 ---
 
-Cool, the plugin is now enabled! Now let's understand how everything works together.
-
 One of the most important components of NobodyWho is the Chat node. It handles all the conversation logic between the user and the LLM.
 When you use the chat, you first pick a model and tell it what kind of answers you want.
 When you send a message, the chat remembers what you said and sends it off to get an answer. 
