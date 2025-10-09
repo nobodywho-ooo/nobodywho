@@ -15,11 +15,13 @@ NobodyWho is a plugin that lets you interact with local LLMs, we currently suppo
 
 ## At a Glance
 
-* 🏃 Run LLM-driven characters locally without internet
+* 🏃 Run any LLM locally, offline, for free
+* ⚒️ Fast, simple tool calling - just pass a normal function
+* 👌 Guaranteed perfect tool calling every time, automatically derives a grammar from your function signature
+* 🗨️ Conversation-aware preemptive context shifting, for lobotomy-free conversations of infinite length
+* 💻 Ship optimized native code for multiple platforms: Windows, Linux, macOS, Android
 * ⚡ Super fast inference on GPU powered by Vulkan or Metal
-* 🔧 Easy setup - just two nodes to get started
-* 🎯 Perfect for games, interactive stories, and NPCs
-* 💻 Cross-platform: Windows, Linux, macOS, Android
+* 🤖 Compatible with thousands of pre-trained LLMs - use any LLM in the GGUF format
 * 🦙 Powered by the wonderful [llama.cpp](https://github.com/ggml-org/llama.cpp)
 
 
