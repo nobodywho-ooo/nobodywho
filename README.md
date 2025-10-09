@@ -6,11 +6,11 @@
 [![Godot Engine](https://img.shields.io/badge/Godot-%23FFFFFF.svg?logo=godot-engine&style=flat-square)](https://godotengine.org/asset-library/asset/2886)
 ![GitHub Sponsors](https://img.shields.io/github/sponsors/nobodywho-ooo?style=flat-square)
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg?style=flat-square)](CODE_OF_CONDUCT.md) 
+[![Read the Docs](https://img.shields.io/badge/Read%20the%20Docs-8CA1AF?logo=readthedocs&logoColor=fff)](https://nobodywho-ooo.github.io/nobodywho/)
 
 
 NobodyWho is a plugin that lets you interact with local LLMs, we currently support Godot and Unity, with even more plugins on their way.
 
-[![Read the Docs](https://img.shields.io/badge/Read%20the%20Docs-8CA1AF?logo=readthedocs&logoColor=fff)](https://nobodywho-ooo.github.io/nobodywho/)
 
 
 ## At a Glance
@@ -38,7 +38,9 @@ Make sure that the ignore asset root option is set in the import dialogue.
 
 ### Unity
 
-You can install it from [github releases page.](https://github.com/nobodywho-ooo/nobodywho/releases) while we are still pending acceptance on the unity assets store.
+You can install NobodyWho from the Unity AssetStore, as you usually would.
+
+You can also install it from our [github releases page.](https://github.com/nobodywho-ooo/nobodywho/releases).
 When you have downloaded the tarball use the Package manager (Windov -> Package Manager) and add a new package from a tarball.
 
 To see and play around with the samples you might need to right click the plugin and then: `> View in Package Manager > Click on NobodyWho > Samples > Install`. This should set up all the dependencies correctly.
@@ -50,7 +52,6 @@ From there you can also check the documentaiton.
 * Join our [Discord](https://discord.gg/qhaMc2qCYB) or [Matrix](https://matrix.to/#/#nobodywho:matrix.org) communities
 * Found a bug? Open an issue!
 * Submit your own PR - contributions welcome
-* 💝 [Become a sponsor](https://github.com/sponsors/nobodywho-ooo) to support development
 * Help improve docs or write tutorials
 
 
