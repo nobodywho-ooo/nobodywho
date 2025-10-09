@@ -42,6 +42,9 @@ Exports are a bit weird for now: Llama.cpp expects a path to a GGUF file on your
 
 The solution (for now) is to manually copy your chosen GGUF file into the export directory (the folder with your exported game executable).
 
+If you're exporting for Android, you can't reliably pass a `res://` path to the model node. The best workaround is to use `user://` instead.
+If your model is sufficiently small, you might get away with copying it from `res://` into `user://`. If using double the storage isn't acceptable, consider downloading it at runtime, or find some other way of distributing your model as a file.
+
 We're looking into solutions for including this file automatically.
 </details>
 
