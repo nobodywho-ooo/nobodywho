@@ -338,7 +338,7 @@ You should additionally provide the right context and single or few shots prompt
 
 ### Underscores footgun
 
-The GBNF format does not support `_`. According the [the GBNF format documentation](https://github.com/ggml-org/llama.cpp/tree/master/grammars#json-schemas--gbnf), only lowercase characters and dashes are allowed for naming nonterminals.
+The GBNF format does not support `_`. According to the [the GBNF format documentation](https://github.com/ggml-org/llama.cpp/tree/master/grammars#json-schemas--gbnf), only lowercase characters and dashes are allowed for naming nonterminals.
 
 ## Practical Example: Legendary Weapon Generator
 
@@ -486,7 +486,7 @@ ability-name ::= "Flame Strike" | "Frost Bite" | "Shadow Step" | "Lightning Bolt
 backstory ::= [a-zA-Z0-9 ]+ "."
 ```
 
-Beware not to add to many symbols in you backstory. If the model can not write a `.` it will increase the chance that it will end the sentence instead of writing paragraph upon paragraph of text.
+Beware not to add too many symbols in you backstory. If the model can not write a `.` it will increase the chance that it will end the sentence instead of writing paragraph upon paragraph of text.
 
 === ":simple-godotengine: Godot"
 

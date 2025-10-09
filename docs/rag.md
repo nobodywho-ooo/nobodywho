@@ -9,12 +9,12 @@ Great! You've got chat and embeddings working. Now lets add something useful: th
 
 Picture this: Your player is 40 hours into your RPG and asks an npc "Where do I find that crystal for the sword upgrade?" 
 Your LLM, without reranking, might give a generic answer or worse - make something up - leading to a bad player experience. 
-There are several ways to combat this, one is to load a lot of information into the context (ie. the system prompt) but with a limited context, it might 'forget' the important information
+There are several ways to combat this, one is to load a lot of information into the context (i.e. the system prompt) but with a limited context, it might 'forget' the important information
 or be confused by too much information. Instead we want to add a "long term memory" module to our language model.
 
 To do this in the llm space you are going to use RAG (retreival augmented generation) we are enriching the knowledge of the LLM by allowing it to search through a database of info we fed it. 
 There are many ways to do this. In Nobodywho we currently expose two major ways, one is embeddings; converting a sentence to a vector and then find the vectors that are closest to it.
-This is powerful as you can save the vectors to a database or a file beforehand and then use the really fast and cheap cosine similarity to compare them. Another more expensive but more accurate way is to use a cross-encoder, that figures out the relationship between the question and the document rather that just how similar they are. 
+This is powerful as you can save the vectors to a database or a file beforehand and then use the really fast and cheap cosine similarity to compare them. Another more expensive but more accurate way is to use a cross-encoder that figures out the relationship between the question and the document rather that just how similar they are. 
 
 This approach is often called reranking, due to how it is used as a step two, for sorting and filtering large knowledge databases accesed by LLMs. I'll call it ranking as we are working with a small enough dataset that we do not need a first pass to filter out irrelevant info.
 
@@ -53,8 +53,7 @@ Reranking models are different from chat and embedding models. You need one spec
 
 We recommend [bge-reranker-v2-m3-Q8_0.gguf](https://huggingface.co/gpustack/bge-reranker-v2-m3-GGUF/resolve/main/bge-reranker-v2-m3-Q8_0.gguf) - it works well for most games and supports multiple languages.
 
-
-Note that the current qwen3 reranker does not work, this is due to how the created the template as it has some missing fields. 
+Note that the current qwen3 reranker does not work, due to how they created the template as it has some missing fields.
 
 ## Practical Example: Smart NPC with Knowledge Base
 
