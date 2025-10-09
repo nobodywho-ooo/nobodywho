@@ -19,6 +19,6 @@ We want every developer to have access to powerful AI without the usual trade-of
 
 ## Join the Community
 
-We're building tools that put developers first and grow stronger through community contribution, so if you want to help; Hop by our Discord or drop a PR on our Github - we would love to have you involved.
+We're building tools that put developers first and grow stronger through community contribution, so if you want to help: Hop in our Discord or drop a PR on our Github - we would love to have you involved.
 
 We are always open to talented people - so if you have experience in rust and the LLM-space feel free to contact us on services@artificialmind.ai.

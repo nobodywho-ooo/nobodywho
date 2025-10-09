@@ -10,7 +10,7 @@ Because every token is generated on the end user’s machine, you do not need a 
 
 Check the installation guide: [**> here <**](install.md)
 
- ... or get a feel for the interface:  [**> here <**](getting_started.md)
+ ... or get a feel for the interface:  [**> here <**](getting-started.md)
 
 
 
@@ -52,15 +52,11 @@ We're looking into solutions for including this file automatically.
 <summary>Where do I find good models to use?</summary>
 New language models are coming out at a breakneck pace. If you search the web for "best language models for roleplay" or something similar, you'll probably find results that are several months or years old. You want to use something newer.
 
-We recommend checking leaderboards like [The GPU-Poor LLM Gladiator Arena](https://huggingface.co/spaces/k-mktr/gpu-poor-llm-arena), or [OpenRouter's Roleplay Rankings](https://openrouter.ai/rankings/roleplay).
-Once you select a model, remember that you need a quantization of it in the GGUF format.
-The huggingface user [bartowski](https://huggingface.co/bartowski) regularly uploads GGUF quantizations for *a lot* of new models.
-
 Selecting the best model for your use-case is mostly about finding the right trade-off between speed, memory usage and quality of the responses.
 Using bigger models will yield better responses, but raise minimum system requirements and slow down generation speed.
 
+Have a look at our [model selection guide](model-selection.md) for more in-depth recommendations.
 
-TODO: Link to model selection as well here
 </details>
 
 <details markdown>

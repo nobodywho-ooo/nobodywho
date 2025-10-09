@@ -73,7 +73,7 @@ There are many places online for comparing benchmark scores of different LLMs, h
 
 **[OpenEvals on huggingface](https://huggingface.co/spaces/OpenEvals/find-a-leaderboard)**
 - A collection of benchmark leaderboards in different domains.
-- Inlcudes both inaccessible proprietary models and open models.
+- Includes both inaccessible proprietary models and open models.
 
 Remember that you need an open model, in order to be able to find a GGUF download and run it locally (e.g. Gemma is open, but Gemini isn't).
 

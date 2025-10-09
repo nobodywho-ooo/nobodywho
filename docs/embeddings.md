@@ -25,13 +25,13 @@ Let's show you how to use embeddings to understand what your players really mean
 
 Embedding models are different from chat models. You need a model specifically trained for embeddings.
 
-We normally use [bge-small-en-v1.5-q8_0.gguf](https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf), but it might be a bit outdated.
+We normally use [bge-small-en-v1.5-q8_0.gguf](https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf).
 
 
 ## Practical Example: Quest & Reputation System
 
 A good way to visualize the practicality of embeddings is through an example. 
-In this example we will guide you through how to make a quest trigger or lowering the users reputation based on what they say.
+In this example we will guide you through how to make a quest trigger or lowering the user's reputation based on what they say.
 
 We'll build it step by step, but for the impatient; The complete script is copyable in the bottom of the page.
 
@@ -205,31 +205,24 @@ you might be better off having a handful and tuning the sensitivity of the trigg
 
     ```csharp
     // When embed is finished it will call the onEmbeddingComplete event, which we hooked up to the method of the same name in Step 2
-    void PrecomputeAllEmbeddings()
-    {
+    void PrecomputeAllEmbeddings() {
         // Start with helpful statements (category 0)
-        if (currentCategory == 0 && precomputeIndex < questTriggers.Length)
-        {
+        if (currentCategory == 0 && precomputeIndex < questTriggers.Length) {
             embedding.Embed(questTriggers[precomputeIndex]);
         }
         // Then move to hostile statements (category 1)
-        else if (currentCategory == 1 && precomputeIndex < hostileStatements.Length)
-        {
+        else if (currentCategory == 1 && precomputeIndex < hostileStatements.Length) {
             embedding.Embed(hostileStatements[precomputeIndex]);
         }
-        }
+    }
 
-        void OnEmbeddingComplete(float[] embeddingResult)
-        {
-        if (isPrecomputing)
-        {
+    void OnEmbeddingComplete(float[] embeddingResult) {
+        if (isPrecomputing) {
             // Store embedding in appropriate category
-            if (currentCategory == 0)
-            {
+            if (currentCategory == 0) {
                 helpfulEmbeddings.Add(embeddingResult);
             }
-            else if (currentCategory == 1)
-            {
+            else if (currentCategory == 1) {
                 hostileEmbeddings.Add(embeddingResult);
             }
             
@@ -237,31 +230,24 @@ you might be better off having a handful and tuning the sensitivity of the trigg
             
             // Move to next category when current is complete
             if ((currentCategory == 0 && precomputeIndex >= questTriggers.Length) ||
-                (currentCategory == 1 && precomputeIndex >= hostileStatements.Length))
-            {
+                (currentCategory == 1 && precomputeIndex >= hostileStatements.Length)) {
                 currentCategory++;
                 precomputeIndex = 0;
             }
             
             // Continue precomputing or finish
-            if (currentCategory < 2)
-            {
+            if (currentCategory < 2) {
                 PrecomputeAllEmbeddings();
             }
-            else
-            {
+            else {
                 isPrecomputing = false;
             }
         }
-        else
-        {
+        else {
             // Process player input embedding
             AnalyzePlayerStatement(embeddingResult);
         }
     }
-
-
-
     ```
 
     This tracking system ensures each embedding gets stored in the right category and we know when we're done with setup.
@@ -527,25 +513,25 @@ public class QuestReputationSystem : MonoBehaviour
     
     private List<float[]> helpfulEmbeddings = new List<float[]>();
     private List<float[]> hostileEmbeddings = new List<float[]>();
-    
-        private int precomputeIndex = 0;
+
+    private int precomputeIndex = 0;
     private int currentCategory = 0; // 0=helpful, 1=hostile
-        private bool isPrecomputing = true;
+    private bool isPrecomputing = true;
     private int playerReputation = 0;
 
-        void Start()
-        {
+    void Start()
+    {
         // Create model component
         model = gameObject.AddComponent<Model>();
         string modelPath = Path.Combine(Application.streamingAssetsPath, "bge-small-en-v1.5-q8_0.gguf");
         model.modelPath = modelPath;
-        
+
         // Create and configure embedding component
         embedding = gameObject.AddComponent<Embedding>();
         embedding.model = model;
-            embedding.StartWorker();
-            embedding.onEmbeddingComplete.AddListener(OnEmbeddingComplete);
-            
+        embedding.StartWorker();
+        embedding.onEmbeddingComplete.AddListener(OnEmbeddingComplete);
+
         // Start precomputing all statement embeddings
         PrecomputeAllEmbeddings();
     }
@@ -572,13 +558,13 @@ public class QuestReputationSystem : MonoBehaviour
         else if (currentCategory == 1 && precomputeIndex < hostileStatements.Length)
         {
             embedding.Embed(hostileStatements[precomputeIndex]);
-            }
         }
+    }
 
-        void OnEmbeddingComplete(float[] embeddingResult)
+    void OnEmbeddingComplete(float[] embeddingResult)
+    {
+        if (isPrecomputing)
         {
-            if (isPrecomputing)
-            {
             // Store embedding in appropriate category
             if (currentCategory == 0)
             {
@@ -588,20 +574,20 @@ public class QuestReputationSystem : MonoBehaviour
             {
                 hostileEmbeddings.Add(embeddingResult);
             }
-            
-                precomputeIndex++;
-                
+
+            precomputeIndex++;
+
             // Move to next category when current is complete
             if ((currentCategory == 0 && precomputeIndex >= questTriggers.Length) ||
                 (currentCategory == 1 && precomputeIndex >= hostileStatements.Length))
-                {
+            {
                 currentCategory++;
                 precomputeIndex = 0;
-                }
-            
+            }
+
             // Continue precomputing or finish
             if (currentCategory < 2)
-                {
+            {
                 PrecomputeAllEmbeddings();
             }
             else
@@ -619,11 +605,11 @@ public class QuestReputationSystem : MonoBehaviour
     public void ProcessPlayerStatement(string playerText)
     {
         // Only process if precomputation is complete
-            if (!isPrecomputing)
-            {
-                embedding.Embed(playerText);
-            }
+        if (!isPrecomputing)
+        {
+            embedding.Embed(playerText);
         }
+    }
 
     void AnalyzePlayerStatement(float[] playerEmbedding)
     {
@@ -698,7 +684,7 @@ Change the text in the update methods to see different results.
 - Start your editor through the command line and check the logs
 
 **Understanding the numbers:**
- from 0 to 1
+- Similarity ranges from 0 to 1
 - 0.8+ means very similar meaning
 - 0.5-0.8 means somewhat related
 - Below 0.3 means probably unrelated

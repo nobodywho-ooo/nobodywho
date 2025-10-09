@@ -117,7 +117,7 @@ letter ::= [a-z]
 ```
 
 `[a-z]` means "any lowercase letter from a to z". This generates random 3-letter combinations like `cat`, `how`, `dog`.
-so letter letter letter will make a tree letter word
+so letter letter letter will make a three letter word
 
 Common character classes:
 - `[a-z]` - lowercase letters
@@ -130,7 +130,7 @@ Common character classes:
 ### Repetitions
 
 
-This quickly becomes tedious if you want to create euither long words or just any word. this is where repititions copme in
+This quickly becomes tedious if you want to create euither long words or just any word. This is where repetitions come in:
 
 - `*` means "zero or more"
 - `+` means "one or more"  
@@ -278,9 +278,9 @@ Use different separators for different levels:
 ```
 root ::= character ("|" character)*
 character ::= [A-Z][a-z]+ ":" stats ":" equipment
-stats ::= stats-range + "," + stats-range + "," + stats-range
+stats ::= stats-range "," stats-range "," stats-range
 stats-range ::= "low" | "medium" | "high" 
-equipment ::= weapon-type + "," + armor-type
+equipment ::= weapon-type "," armor-type
 weapon-type ::= "Sword" | "Axe" | "Staff" | "Dagger"
 armor-type ::= "Leather" | "Robes" | "Chain" | "Plate"
 ```
@@ -292,9 +292,9 @@ This generates: `Gandalf:high,low,low:Staff,Robes|Aragorn:low,high,medium:Sword,
   {
     "name": "Gandalf",
     "stats": {
-      "hp": "medium",
-      "mp": "high",
-      "level": "high"
+      "hp": "high",
+      "mp": "low",
+      "level": "low"
     },
     "equipment": {
       "weapon": "Staff",
@@ -304,9 +304,9 @@ This generates: `Gandalf:high,low,low:Staff,Robes|Aragorn:low,high,medium:Sword,
   {
     "name": "Aragorn", 
     "stats": {
-      "hp": ,
-      "mp": 60,
-      "level": 18
+      "hp": "low",
+      "mp": "high",
+      "level": "medium"
     },
     "equipment": {
       "weapon": "Sword",
@@ -320,7 +320,7 @@ This generates: `Gandalf:high,low,low:Staff,Robes|Aragorn:low,high,medium:Sword,
 
 One advantage of using JSON is the hints it gives the LLM. 
 If it sees `"name": "Gandalf"`, instead of just `Gandalf` it might be more inclined to generate a wizard class or give the character a staff.
-The same goes for numbers, the llm does not inherently understand what a good number for a high level or mana pool is - but it understadns high vs low.
+The same goes for numbers, the llm does not inherently understand what a good number for a high level or mana pool is - but it understands high vs low.
 
 When designing compact formats:
 
@@ -334,7 +334,7 @@ When designing compact formats:
 ❌ **Bad:** `"1" | "2" | "3"` - numeric values  
 
 The LLM generates text based on semantic understanding. Use full words that align perfectly with how language models think about concepts.  
-You should additionaly provide the right context and single or few shots prompting to make it more robust.
+You should additionally provide the right context and single or few shots prompting to make it more robust.
 
 ### Underscores footgun
 
@@ -347,7 +347,7 @@ Let's build a weapon generation system that creates legendary weapons for your R
 ### Why Use GBNF for Weapon Generation?
 
 Traditional random generators often create nonsensical combinations like "Flaming Sword of Ice", with 8 fire damage and a random generic backstory as well an ice ability. 
-(obviusly there are more advanced system but they rely on lookup tables which can become tedious very quickly)   
+(obviously there are more advanced systems but they rely on lookup tables which can become tedious very quickly)   
 LLMs with GBNF understand semantic coherence - they'll generate "Flamebrand, Ancient Sword of Solar Wrath" instead. 
 Which has 8 fire damage, and a meaningful backstory based on how you got it 
 or the lore from your game as well as an ability that is chosen based on the backstory, damage and name.
@@ -570,7 +570,7 @@ When doing this we want to also inject some of our lore. We will borrow from  Lo
         
         # Reset context to avoid new weapons to be influenced by already generated ones.
         chat.reset_context()
-        chat.say("The party just found a new weapon after travelling thorugh the mines of Moria:")
+        chat.say("The party just found a new weapon after travelling through the mines of Moria:")
 
     func _on_weapon_generated(weapon_data: String):
         print(weapon_data)
@@ -592,7 +592,7 @@ When doing this we want to also inject some of our lore. We will borrow from  Lo
         chat.grammar = grammar_string;
         // Reset context to avoid new weapons to be influenced by already generated ones.
         chat.resetContext();
-        chat.Say("The party just found a new weapon after travelling thorugh the mines of Moria:");
+        chat.Say("The party just found a new weapon after travelling through the mines of Moria:");
     }
 
     void OnWeaponGenerated(string weaponData)
@@ -629,7 +629,7 @@ backstory ::= [a-zA-Z0-9 ]{50,200} "."
 ```
 
 **Note:** So-called "thinking" or "reasoning" models will strongly prefer to start every generation with a block of text inside `<think>` tags. If your grammar doesn't naturally allow the output to be prefixed with a "thinking" section like this, it will try to squeeze it into free-text sections (e.g. like the backstory section in the example above). If relying a lot on structured generation, you may prefer to use a "non-thinking" model. If you prefer to keep the "thinking" ability, you could begin your grammar with a section like `"<think>" [a-zA-Z0-9 ]{10,1000} "." "</think>` to allow it to get it's reasoning section out of the way.
-Furthermore the current implementation of GBNF has some performance issues with using specifc ranges (eg: word{10,20}) - so it might be smarter to have a non grammarized model generate the short story.
+Furthermore, the current implementation of GBNF has some performance issues with using specifc ranges (eg: word{10,20}) - so it might be smarter to have a non grammarized model generate the short story.
 
 **Output examples:**
 - `Flamebrand|Sword|High|Flame Strike|Heavy|Non-throwable|Sharp|Sturdy|Epic|Glowing|Steel|Forged by fire elementals in ancient volcano`

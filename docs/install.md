@@ -3,8 +3,6 @@ _How to install NobodyWho and start building._
 
 ---
 
-So you decided to try out NobodyWho and install it; Welcome! 
-
 The plugin is currently available in **Godot** or **Unity**.  
 Each section contains a small ':material-eye-circle-outline:' marker you can click to reveal a GIF or image to guide you.
 
@@ -46,7 +44,7 @@ Each section contains a small ':material-eye-circle-outline:' marker you can cli
     - Download the tarball (`nobodywho-unity-upm.tar.gz`) for unity from the [GitHub releases](https://github.com/nobodywho-ooo/nobodywho/releases).
     - In Unity, open the **Package Manager** and select the downloaded tarball.
     - Step through the import dialog to bring everything in.
-    - To explore the samples, open y, select **NobodyWho**, then **Samples ▸ Install**. 
+    - To explore the samples, open unity, select **NobodyWho**, then **Samples ▸ Install**. 
 
     (1)
     { .annotate }
@@ -55,4 +53,4 @@ Each section contains a small ':material-eye-circle-outline:' marker you can cli
 
 ---
 
-After installation, NobodyWho’s nodes (Godot) or components (Unity) should appear in your editor. If not, trace your steps above or reach out on Discord or GitHub - we are there to help.
+After installation, NobodyWho’s nodes (Godot) or components (Unity) should appear in your editor. If not, retrace your steps above or reach out on Discord or GitHub - we are there to help.
