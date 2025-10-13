@@ -1,141 +1,337 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:nobodywho_flutter/nobodywho_flutter.dart';
 
 void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   await RustLib.init();
-  final model = NobodyWhoModel(
-    modelPath: "/home/asbjorn/Development/am/nobodywho-rs/models/Qwen_Qwen3-0.6B-Q4_0.gguf",
-    useGpu: true,
-  );
-  final chat = NobodyWhoChat(
-    model: model,
-    systemPrompt: "You are a helpful assistant",
-    contextSize: 1024,
-    tools: []
-  );
-
-  final responseStream = chat.say(message: "What is the capital city of Denmark?");
-  String response = "";
-  await for (final token in responseStream) {
-    response += token;
-  }
-  print(response);
-  runApp(const MyApp());
+  runApp(const ChatApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class ChatApp extends StatelessWidget {
+  const ChatApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'NobodyWho Chat Example',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        primarySwatch: Colors.blue,
+        useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: const ChatScreen(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
+class ChatScreen extends StatefulWidget {
+  const ChatScreen({super.key});
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _ChatScreenState extends State<ChatScreen> {
+  final List<Message> _messages = [];
+  final TextEditingController _textController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
 
-  void _incrementCounter() {
+  NobodyWhoModel? _model;
+  NobodyWhoChat? _chat;
+  bool _isModelLoaded = false;
+  bool _isResponding = false;
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  Future<void> _showModelPicker() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['gguf'],
+      dialogTitle: 'Select a GGUF model file',
+    );
+
+    if (result != null && result.files.single.path != null) {
+      _loadModel(result.files.single.path!);
+    }
+  }
+
+  void _loadModel(String modelPath) {
     setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+      // Initialize the NobodyWho model
+      _model = NobodyWhoModel(
+        modelPath: modelPath,
+        useGpu: true,
+      );
+
+      // Create a chat instance with the model
+      _chat = NobodyWhoChat(
+        model: _model!,
+        systemPrompt: "You are a helpful assistant",
+        contextSize: 2048,
+        tools: [],
+      );
+
+      _isModelLoaded = true;
+
+      // Add a system message showing the model is loaded
+      _messages.add(Message(
+        text: "Model loaded: ${modelPath.split('/').last}",
+        isUser: false,
+        isSystem: true,
+      ));
+    });
+  }
+
+  Future<void> _sendMessage(String text) async {
+    if (text.trim().isEmpty || !_isModelLoaded || _isResponding) return;
+
+    // Add user message
+    setState(() {
+      _messages.add(Message(text: text, isUser: true));
+      _isResponding = true;
+    });
+
+    _textController.clear();
+    _scrollToBottom();
+
+    // Create a message for the assistant's response
+    final assistantMessage = Message(text: "", isUser: false);
+    setState(() {
+      _messages.add(assistantMessage);
+    });
+
+    try {
+      // Get the response stream from NobodyWho
+      final responseStream = _chat!.say(message: text);
+
+      // Stream the response token by token
+      await for (final token in responseStream) {
+        setState(() {
+          assistantMessage.text += token;
+        });
+        _scrollToBottom();
+      }
+    } catch (e) {
+      setState(() {
+        assistantMessage.text = "Error: ${e.toString()}";
+      });
+    } finally {
+      setState(() {
+        _isResponding = false;
+      });
+    }
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
       appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
+        title: const Text('NobodyWho Chat Example'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.folder_open),
+            onPressed: _showModelPicker,
+            tooltip: 'Load Model',
+          ),
+        ],
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+      body: _isModelLoaded
+        ? Column(
+            children: [
+              // Chat messages area
+              Expanded(
+                child: ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.all(8.0),
+                  itemCount: _messages.length,
+                  itemBuilder: (context, index) {
+                    return _buildMessage(_messages[index]);
+                  },
+                ),
+              ),
+
+              // Input area
+              Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).cardColor,
+                  boxShadow: [
+                    BoxShadow(
+                      offset: const Offset(0, -2),
+                      blurRadius: 4,
+                      color: Colors.black.withOpacity(0.1),
+                    ),
+                  ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _textController,
+                          enabled: _isModelLoaded && !_isResponding,
+                          decoration: InputDecoration(
+                            hintText: _isResponding
+                              ? 'Waiting for response...'
+                              : 'Type a message...',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(25.0),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                              vertical: 12.0,
+                            ),
+                          ),
+                          onSubmitted: _sendMessage,
+                        ),
+                      ),
+                      const SizedBox(width: 8.0),
+                      IconButton(
+                        icon: Icon(_isResponding ? Icons.stop : Icons.send),
+                        onPressed: _isModelLoaded && !_isResponding
+                          ? () => _sendMessage(_textController.text)
+                          : null,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          )
+        : Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.chat_bubble_outline,
+                  size: 80,
+                  color: Colors.grey.shade400,
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Welcome to NobodyWho Chat',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Select a GGUF model file to start chatting',
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                ElevatedButton.icon(
+                  onPressed: _showModelPicker,
+                  icon: const Icon(Icons.folder_open),
+                  label: const Text('Select Model File'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 16,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+          ),
     );
   }
+
+  Widget _buildMessage(Message message) {
+    if (message.isSystem) {
+      return Center(
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 8.0),
+          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade200,
+            borderRadius: BorderRadius.circular(12.0),
+          ),
+          child: Text(
+            message.text,
+            style: TextStyle(
+              color: Colors.grey.shade700,
+              fontSize: 12.0,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Align(
+      alignment: message.isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.75,
+        ),
+        child: Card(
+          color: message.isUser
+            ? Theme.of(context).primaryColor.withOpacity(0.1)
+            : Theme.of(context).cardColor,
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  message.isUser ? 'You' : 'Assistant',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12.0,
+                    color: message.isUser
+                      ? Theme.of(context).primaryColor
+                      : Colors.grey.shade600,
+                  ),
+                ),
+                const SizedBox(height: 4.0),
+                Text(
+                  message.text,
+                  style: const TextStyle(fontSize: 14.0),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+}
+
+// Simple message model
+class Message {
+  String text;
+  final bool isUser;
+  final bool isSystem;
+
+  Message({
+    required this.text,
+    required this.isUser,
+    this.isSystem = false,
+  });
 }
