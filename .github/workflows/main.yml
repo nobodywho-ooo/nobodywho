@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   linting:
-    uses: ./.github/workflows/build.yml
+    uses: ./.github/workflows/linting.yml
 
   build:
     uses: ./.github/workflows/build.yml
