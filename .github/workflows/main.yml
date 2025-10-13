@@ -7,14 +7,18 @@ permissions:
   id-token: write
 
 jobs:
+  linting:
+    uses: ./.github/workflows/build.yml
+
   build:
     uses: ./.github/workflows/build.yml
     with:
       upload_artifacts: true
+    needs: [linting]
 
   test:
     uses: ./.github/workflows/test.yml
-    needs: []
+    needs: [linting]
     secrets:
       UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
       UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
