@@ -163,26 +163,21 @@ mod tests {
         test_utils::init_test_tracing();
         let model = test_utils::load_embeddings_model();
         let mut worker = Worker::new_embeddings_worker(&model, 1024)?;
-        
+
         let input = "I don't want to be different";
-        
-        let first_embedding = worker
-            .read_string(input.to_string())?
-            .get_embedding()?;
+
+        let first_embedding = worker.read_string(input.to_string())?.get_embedding()?;
 
         worker.reset_context();
 
-        let second_embedding = worker
-            .read_string(input.to_string())?
-            .get_embedding()?;
-        
+        let second_embedding = worker.read_string(input.to_string())?.get_embedding()?;
+
         assert_eq!(
-            first_embedding,
-            second_embedding,
+            first_embedding, second_embedding,
             "Same input '{}' should produce identical embeddings.",
             input
         );
-        
+
         Ok(())
     }
 }

@@ -2,8 +2,8 @@ use crate::llm;
 use crate::llm::Worker;
 use llama_cpp_2::context::params::LlamaPoolingType;
 use llama_cpp_2::model::LlamaModel;
-use tracing::error;
 use std::sync::Arc;
+use tracing::error;
 
 pub struct CrossEncoderHandle {
     msg_tx: std::sync::mpsc::Sender<CrossEncoderMsg>,
@@ -22,9 +22,15 @@ impl CrossEncoderHandle {
         Self { msg_tx }
     }
 
-    pub fn rank(&self, query: String, documents: Vec<String>) -> tokio::sync::mpsc::Receiver<Vec<f32>> {
+    pub fn rank(
+        &self,
+        query: String,
+        documents: Vec<String>,
+    ) -> tokio::sync::mpsc::Receiver<Vec<f32>> {
         let (scores_tx, scores_rx) = tokio::sync::mpsc::channel(1);
-        let _ = self.msg_tx.send(CrossEncoderMsg::Rank(query, documents, scores_tx));
+        let _ = self
+            .msg_tx
+            .send(CrossEncoderMsg::Rank(query, documents, scores_tx));
         scores_rx
     }
 }
@@ -58,7 +64,7 @@ fn run_worker(
                 worker_state.reset_context();
 
                 let scores = worker_state.rank(query, documents)?;
-                
+
                 let _ = respond.blocking_send(scores);
             }
         }
@@ -87,16 +93,25 @@ impl<'a> Worker<'a, CrossEncoderWorker> {
         // For crossencodering, all tokens have embeddings enabled (logits=true) but only the final token's
         // embedding contains the relevance score. embeddings_seq_ith(0) gets the sequence's embedding
         // vector, and embeddings[0] extracts the classification score from the final token.
-        let embeddings = self.ctx.embeddings_seq_ith(0).map_err(|e| CrossEncoderWorkerError::ClassificationError(e.to_string()))?;
-        
+        let embeddings = self
+            .ctx
+            .embeddings_seq_ith(0)
+            .map_err(|e| CrossEncoderWorkerError::ClassificationError(e.to_string()))?;
+
         if embeddings.len() >= 1 {
             Ok(embeddings[0])
         } else {
-            Err(CrossEncoderWorkerError::ClassificationError("classification head is empty".to_string()))
+            Err(CrossEncoderWorkerError::ClassificationError(
+                "classification head is empty".to_string(),
+            ))
         }
     }
 
-    pub fn rank(&mut self, query: String, documents: Vec<String>) -> Result<Vec<f32>, CrossEncoderWorkerError> {
+    pub fn rank(
+        &mut self,
+        query: String,
+        documents: Vec<String>,
+    ) -> Result<Vec<f32>, CrossEncoderWorkerError> {
         let mut scores = Vec::new();
         for document in documents {
             self.reset_context();
@@ -113,7 +128,7 @@ impl<'a> Worker<'a, CrossEncoderWorker> {
 mod tests {
     use super::*;
     use crate::test_utils;
-    use rand::{seq::SliceRandom};
+    use rand::seq::SliceRandom;
 
     #[test]
     fn test_crossencoder() -> Result<(), Box<dyn std::error::Error>> {
@@ -141,9 +156,11 @@ mod tests {
 
         let scores = worker.rank(query, documents.clone())?;
         // The highest score for this should be the phrase  Paris is the capital of France.
-        let mut docs_with_scores: Vec<(String, f32)> = documents.iter().zip(scores.iter()).map(
-            |(doc, score)| (doc.clone(), *score)
-        ).collect();
+        let mut docs_with_scores: Vec<(String, f32)> = documents
+            .iter()
+            .zip(scores.iter())
+            .map(|(doc, score)| (doc.clone(), *score))
+            .collect();
 
         docs_with_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
 
@@ -153,11 +170,11 @@ mod tests {
                 seen_paris = true;
             }
         }
-        assert!(seen_paris, "`Paris is the capital of France.` is not in top three");
+        assert!(
+            seen_paris,
+            "`Paris is the capital of France.` is not in top three"
+        );
 
         Ok(())
     }
-
-
-    
-} 
+}
