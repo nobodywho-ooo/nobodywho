@@ -13,3 +13,5 @@ jobs:
         components: rustfmt
     - name: "Run rustfmt check"
       uses: actions-rust-lang/rustfmt@v1
+      with:
+        working-directory: "./nobodywho"
