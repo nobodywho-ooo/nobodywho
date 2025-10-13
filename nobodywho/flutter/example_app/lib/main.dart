@@ -7,6 +7,19 @@ void main() async {
     modelPath: "/home/asbjorn/Development/am/nobodywho-rs/models/Qwen_Qwen3-0.6B-Q4_0.gguf",
     useGpu: true,
   );
+  final chat = NobodyWhoChat(
+    model: model,
+    systemPrompt: "You are a helpful assistant",
+    contextSize: 1024,
+    tools: []
+  );
+
+  final responseStream = chat.say(message: "What is the capital city of Denmark?");
+  String response = "";
+  await for (final token in responseStream) {
+    response += token;
+  }
+  print(response);
   runApp(const MyApp());
 }
 
