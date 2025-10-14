@@ -53,12 +53,12 @@ jobs:
           version: 3.35.5
 
       - name: "Compile for linux"
-        run: cargo build -p nobodywho-${{ matrix.integration }}  --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked
+        run: cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: ./nobodywho
 
       - name: "Rename built file"
         run: |
-          cp ./nobodywho/target/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.so ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
+          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.so ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v4
@@ -79,6 +79,7 @@ jobs:
         integration:
           - "godot"
           - "unity"
+          - "flutter"
     env:
       RUSTFLAGS: >-
         -l Advapi32
@@ -108,6 +109,13 @@ jobs:
           cache: true
           install_runtime: true
           stripdown: true
+
+      - name: Setup Flutter SDK
+        if: matrix.integration == 'flutter'
+        uses: flutter-actions/setup-flutter@v4
+        with:
+          channel: stable
+          version: 3.35.5
 
       - name: Build with Cargo
         # move things into a shortly-named dir in the root, because windows is made by fuckwits who think limiting paths to 260 chars is ok
@@ -146,6 +154,7 @@ jobs:
         integration:
           - "godot"
           - "unity"
+          - "flutter"
     steps:
       - uses: actions/checkout@v4
 
@@ -164,11 +173,18 @@ jobs:
           rustup target add ${{ matrix.target }}
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-      - run: cargo build -p nobodywho-${{ matrix.integration }} --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked
+      - name: Setup Flutter SDK
+        if: matrix.integration == 'flutter'
+        uses: flutter-actions/setup-flutter@v4
+        with:
+          channel: stable
+          version: 3.35.5
+
+      - run: cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: ./nobodywho
 
       - name: "Rename built file"
-        run: cp ./nobodywho/target/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
+        run: cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v4
@@ -188,6 +204,7 @@ jobs:
           - "release"
         integration:
           - "godot"
+          - "flutter"
     steps:
       - uses: actions/checkout@v4
 
@@ -212,6 +229,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc gcc-multilib
+
       - name: "Install Android NDK"
         uses: nttld/setup-ndk@v1
         id: setup-ndk
@@ -219,12 +237,22 @@ jobs:
           ndk-version: r28
           add-to-path: false
 
+      - name: Setup Flutter SDK
+        if: matrix.integration == 'flutter'
+        uses: flutter-actions/setup-flutter@v4
+        with:
+          channel: stable
+          version: 3.35.5
+
       - name: "Compile for android"
         run: cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }}
         working-directory: ./nobodywho
         env:
-          ANDROID_NDK: ${{ steps.setup-ndk.outputs.ndk-path }}
+          ANDROID_NDK: "${{ steps.setup-ndk.outputs.ndk-path }}"
           CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang"
+          CARGO_TARGET_AARCH64_LINUX_ANDROID_AR: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+          CC_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang"
+          AR_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
 
         # XXX: .so files for android in godot MUST start with "lib"
       - name: "Rename built file"
