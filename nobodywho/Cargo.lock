@@ -1052,6 +1052,7 @@ dependencies = [
  "pyo3",
  "pyo3-async-runtimes",
  "rand",
+ "serde_json",
  "tokio",
 ]
 
