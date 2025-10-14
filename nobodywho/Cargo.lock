@@ -1054,6 +1054,8 @@ dependencies = [
  "rand",
  "serde_json",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
