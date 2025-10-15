@@ -20,6 +20,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13' 
+      - run: cargo install --locked maturin
       - name: "Install distro dependencies"
         run: |
           sudo apt-get update
@@ -28,7 +29,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
-      - run: curl -sSf https://sshx.io/get | sh -s run
+      #- run: curl -sSf https://sshx.io/get | sh -s run
       - name: "Build linux python wheel"
         run: |
           maturin build --release
