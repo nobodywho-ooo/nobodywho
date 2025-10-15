@@ -25,14 +25,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
-      - name: "Install distro dependencies"
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
       #- run: curl -sSf https://sshx.io/get | sh -s run
       - name: "Build linux python wheel"
         run: |
-          maturin build --release
+          maturin build --release --locked
         working-directory: ./nobodywho/python
         
   

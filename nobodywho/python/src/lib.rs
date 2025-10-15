@@ -10,17 +10,17 @@ use tracing::debug;
 
 #[pyclass]
 pub struct NobodyWhoModel {
-    use_gpu_if_available: bool,
+    //use_gpu_if_available: bool,
     model: Option<llm::Model>,
 }
 
 #[pymethods]
 impl NobodyWhoModel {
     #[new]
-    #[pyo3(signature = (model_path, use_gpu_if_available = true))]
-    pub fn new(model_path: &str, use_gpu_if_available: bool) -> Self {
+    #[pyo3(signature = (model_path))]
+    pub fn new(model_path: &str) -> Self {
         Self {
-            use_gpu_if_available: use_gpu_if_available,
+            //use_gpu_if_available: use_gpu_if_available,
             model: match llm::get_model(model_path, true) {
                 Ok(model) => Some(model),
                 _ => None,
