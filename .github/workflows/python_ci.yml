@@ -14,6 +14,11 @@ permissions:
 jobs:
   linux:
     runs-on: ubuntu-24.04
+    strategy: 
+      fail-fast: false
+      matrix:
+        profile:
+          - "release"
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -27,8 +32,43 @@ jobs:
           sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
       #- run: curl -sSf https://sshx.io/get | sh -s run
       - name: "Build linux python wheel"
-        run: |
-          maturin build --release --locked
+        run: maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: ./nobodywho/python
         
-  
+  windows:
+    runs-on: windows-latest
+    strategy: 
+      fail-fast: false
+      matrix: 
+        target:
+          - "x86_64-pc-windows-msvc"
+        profile:
+          - "release"
+    env:
+      RUSTFLAGS: >-
+        -l Advapi32
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: ${{ matrix.target }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13' 
+      - run: cargo install --locked maturin
+      - name: Install Vulkan SDK
+        uses: jakoch/install-vulkan-sdk-action@v1.2.5
+        with:
+          vulkan_version: 1.3.296.0
+          cache: true
+          install_runtime: true
+          stripdown: true
+      - name: "Move into shortly named dir"
+        run: |
+          mv ./nobodywho/* C:/
+          cd C:/
+      - name: "Build windows python wheel"
+        run: maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked
+        working-directory: ./nobodywho/python
+
+      
