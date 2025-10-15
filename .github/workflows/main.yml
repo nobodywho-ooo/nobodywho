@@ -9,6 +9,10 @@ permissions:
 jobs:
   linting:
     uses: ./.github/workflows/linting.yml
+  
+  python_ci:
+    uses: ./.github/workflows/build.yml
+    needs: [linting]
 
   build:
     uses: ./.github/workflows/build.yml

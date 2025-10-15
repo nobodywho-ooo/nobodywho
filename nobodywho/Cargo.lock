@@ -750,6 +750,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "nobodywho-python"
+version = "0.1.0"
+dependencies = [
+ "nobodywho",
+ "pyo3",
+ "rand",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "nobodywho-unity"
 version = "1.2.0"
 dependencies = [
@@ -928,19 +941,6 @@ dependencies = [
  "pyo3-build-config",
  "quote",
  "syn 2.0.106",
-]
-
-[[package]]
-name = "python"
-version = "0.1.0"
-dependencies = [
- "nobodywho",
- "pyo3",
- "rand",
- "serde_json",
- "tokio",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
