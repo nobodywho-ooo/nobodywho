@@ -25,7 +25,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13' 
-      - run: cargo install --locked maturin
+      - run: pip install maturin
       - name: "Install distro dependencies"
         run: |
           sudo apt-get update
@@ -55,7 +55,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13' 
-      - run: cargo install --locked maturin
+      - run: pip install maturin
       - name: Install Vulkan SDK
         uses: jakoch/install-vulkan-sdk-action@v1.2.5
         with:
@@ -70,7 +70,7 @@ jobs:
       - run: curl -sSf https://sshx.io/get | sh -s run
       - name: "Build windows python wheel"
         run: maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked
-        working-directory: ./nobodywho/python
+        working-directory: C:/nobodywho/python
 
   mac-os:
     runs-on: macos-14
@@ -89,7 +89,6 @@ jobs:
         with:
           python-version: '3.13' 
       - run: brew install maturin
-      - run: curl -sSf https://sshx.io/get | sh -s run
       - name: "Build macos python wheel"
         run: maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: ./nobodywho/python
