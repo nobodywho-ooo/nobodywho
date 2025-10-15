@@ -240,7 +240,7 @@ pub fn function_test_call(callback: Py<PyAny>, args: Bound<'_, PyDict>) -> PyRes
 }
 
 #[pymodule]
-fn python(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn nobodywhopython(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<NobodyWhoModel>()?;
     m.add_class::<NobodyWhoChat>()?;
     m.add_class::<NobodyWhoTokenStream>()?;
