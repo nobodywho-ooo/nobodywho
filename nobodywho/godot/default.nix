@@ -59,7 +59,9 @@ rec {
     ];
     cargoLock = {
       lockFile = ../Cargo.lock;
-      outputHashes = { };
+      outputHashes = {
+        "llama-cpp-2-0.1.123" = "sha256-j69yaWBiZ9ERlNdi9sD1K4tQjmDYbzoYwr8TU/+8D2A=";
+      };
     };
     env.TEST_MODEL = fetchurl {
       name = "Qwen_Qwen3-0.6B-Q4_K_M.gguf";
