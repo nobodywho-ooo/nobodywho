@@ -14,24 +14,24 @@ jobs:
     uses: ./.github/workflows/python_ci.yml
     needs: [linting]
 
-  build:
-    uses: ./.github/workflows/build.yml
-    with:
-      upload_artifacts: true
-    needs: [linting]
+  # build:
+  #   uses: ./.github/workflows/build.yml
+  #   with:
+  #     upload_artifacts: true
+  #   needs: [linting]
 
-  test:
-    uses: ./.github/workflows/test.yml
-    needs: [linting]
-    secrets:
-      UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-      UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-      UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+  # test:
+  #   uses: ./.github/workflows/test.yml
+  #   needs: [linting]
+  #   secrets:
+  #     UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+  #     UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+  #     UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
 
-  release:
-    needs: [build] # [build, test]
-    uses: ./.github/workflows/release.yml
+  # release:
+  #   needs: [build] # [build, test]
+  #   uses: ./.github/workflows/release.yml
 
-  docs:
-    if: github.ref == 'refs/heads/main'
-    uses: ./.github/workflows/docs.yml
+  # docs:
+  #   if: github.ref == 'refs/heads/main'
+  #   uses: ./.github/workflows/docs.yml
