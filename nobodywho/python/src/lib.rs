@@ -1,11 +1,9 @@
 use nobodywho::{
     chat::{self, ChatBuilder, TokenStream, Tool, ToolBuilder},
     llm,
-    sampler_config::SamplerConfig,
 };
-use pyo3::types::{PyDict, PyList, PyTuple};
-use pyo3::{call, prelude::*};
-use pyo3_async_runtimes::tokio::{future_into_py, get_runtime};
+use pyo3::prelude::*;
+use pyo3::types::{PyDict, PyTuple};
 use serde_json;
 use std::sync::Arc;
 use tracing::debug;
@@ -31,9 +29,6 @@ impl NobodyWhoModel {
     }
 }
 
-#[pyfunction]
-async fn test() {}
-
 #[pyclass]
 pub struct NobodyWhoTokenStream {
     tokens: TokenStream,
@@ -48,6 +43,7 @@ impl NobodyWhoTokenStream {
     }
 
     async fn next_token_async(&mut self) -> Option<String> {
+        // Currently deattaching is not needed here. Noting that this might change later
         self.tokens.next_token().await
     }
 }
@@ -86,7 +82,7 @@ impl NobodyWhoTool {
 
 impl NobodyWhoTool {
     fn to_rust_tool(&self, py: Python) -> Tool {
-        println!("Attempting to create tool!");
+        debug!("Attempting to create tool!");
 
         let callback = self.callback.clone_ref(py);
         let function = move |args: serde_json::Value| -> String {
@@ -94,9 +90,19 @@ impl NobodyWhoTool {
             debug!("Entering tool call closure!");
             Python::attach(|py| {
                 // Convert JSON arguments to Python dict
+                let json_str = args.to_string();
+                let py_dict = match py
+                    .import("json")
+                    .and_then(|json_mod| json_mod.getattr("loads"))
+                    .and_then(|loads| loads.call1((json_str,)))
+                {
+                    Ok(dict) => dict,
+                    Err(e) => return format!("Error parsing arguments: {}", e),
+                };
+
                 debug!("Inside tool call closure");
                 // Call the Python function
-                match callback.bind(py).call1((PyDict::new(py),)) {
+                match callback.bind(py).call1((py_dict,)) {
                     Ok(result) => {
                         // Try to extract string result
                         match result.extract::<String>() {
@@ -122,6 +128,7 @@ impl NobodyWhoTool {
         for (name, param_type, description) in &self.parameters {
             tool_builder = tool_builder.param(name, param_type, description)
         }
+        debug!("Tool built!");
         return tool_builder.build();
     }
 }
@@ -173,15 +180,18 @@ impl NobodyWhoChat {
         }
     }
 
-    pub fn say_complete_blocking(&self, text: String) -> PyResult<String> {
+    pub fn say_complete(&self, text: String, py: Python) -> PyResult<String> {
         if let Some(ref handle) = self.chat_handle {
             // Use tokio runtime to block on the async operation
             let runtime = tokio::runtime::Runtime::new()
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))?;
-
-            runtime.block_on(async {
-                handle.say_complete(text).await.map_err(|e| {
-                    PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e))
+            // Release the GIL while generating response.
+            // This allows the background thread to aquire it for potential tool calls
+            py.detach(|| {
+                runtime.block_on(async {
+                    handle.say_complete(text).await.map_err(|e| {
+                        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e))
+                    })
                 })
             })
         } else {
@@ -191,14 +201,12 @@ impl NobodyWhoChat {
         }
     }
 
-    async fn say_complete(&self, text: String) -> PyResult<String> {
+    async fn say_complete_async(&self, text: String) -> PyResult<String> {
         if let Some(ref handle) = self.chat_handle {
-            match handle.say_complete(text).await {
-                Ok(response) => Ok(response),
-                Err(e) => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                    "Error while generating response",
-                )),
-            }
+            handle
+                .say_complete(text)
+                .await
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))
         } else {
             Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
                 "Chat handle not initialized",
