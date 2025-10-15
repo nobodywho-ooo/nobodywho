@@ -38,10 +38,7 @@
         devShells.default = pkgs.callPackage ./nobodywho/shell.nix { inherit android-nixpkgs; };
 
         packages.flutter_example_app = pkgs.callPackage ./nobodywho/flutter/example_app { };
-        packages.nobodywho_flutter_rust = pkgs.callPackage ./nobodywho/flutter/rust { };
-        devShells.flutter_app_shell = pkgs.callPackage ./nobodywho/flutter/example_app_old/shell.nix {
-          inherit android-nixpkgs;
-        };
+        packages.flutter_rust = pkgs.callPackage ./nobodywho/flutter/rust { };
         devShells.android = pkgs.callPackage ./nobodywho/android.nix { inherit android-nixpkgs; };
       }
     );
