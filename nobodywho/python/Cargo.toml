@@ -21,4 +21,4 @@ tracing-subscriber = "0.3.19"
 [dependencies.pyo3]
 version = "0.26.0"
 # "abi3-py38" tells pyo3 (and maturin) to build using the stable ABI with minimum Python version 3.8
-features = ["abi3-py38"]
+features = ["abi3-py38", "experimental-async"]

@@ -31,6 +31,9 @@ impl NobodyWhoModel {
     }
 }
 
+#[pyfunction]
+async fn test() {}
+
 #[pyclass]
 pub struct NobodyWhoTokenStream {
     tokens: TokenStream,
@@ -42,6 +45,10 @@ impl NobodyWhoTokenStream {
         // Release the GIL while waiting for the next token
         // This allows the background thread to acquire the GIL if needed for tool calls
         py.detach(|| self.tokens.next_token_sync())
+    }
+
+    async fn next_token_async(&mut self) -> Option<String> {
+        self.tokens.next_token().await
     }
 }
 
@@ -135,12 +142,13 @@ impl NobodyWhoChat {
         tools: Vec<NobodyWhoTool>,
         py: Python,
     ) -> PyResult<Self> {
-        tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::TRACE)
-            .with_timer(tracing_subscriber::fmt::time::uptime())
-            .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
-            .try_init()
-            .ok();
+        // !!!!!!!!!!!!!!!!!!!!!!!!!!! THIS TRACING CODE SHOULD ONLY BE RUN ONCE AND REMOVED BEFORE EVEN CLOSE TO PRODUCTION !!!!!!!!!!!!!!!!!!
+        // tracing_subscriber::fmt()
+        //     .with_max_level(tracing::Level::TRACE)
+        //     .with_timer(tracing_subscriber::fmt::time::uptime())
+        //     .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
+        //     .try_init()
+        //     .ok();
         let mut rust_tools = vec![];
 
         for pytool in tools {
@@ -176,6 +184,21 @@ impl NobodyWhoChat {
                     PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e))
                 })
             })
+        } else {
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "Chat handle not initialized",
+            ))
+        }
+    }
+
+    async fn say_complete(&self, text: String) -> PyResult<String> {
+        if let Some(ref handle) = self.chat_handle {
+            match handle.say_complete(text).await {
+                Ok(response) => Ok(response),
+                Err(e) => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                    "Error while generating response",
+                )),
+            }
         } else {
             Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
                 "Chat handle not initialized",
