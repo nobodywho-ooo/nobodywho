@@ -55,16 +55,16 @@ rustPlatform.buildRustPackage {
 
   # Patch the workspace to only include members we have in the filtered source
   postPatch = ''
-    substituteInPlace Cargo.toml \
-      --replace-fail 'members = [
-    "core",
-    "godot",
-    "unity",
-    "flutter/rust"
-]' 'members = [
-    "core",
-    "flutter/rust"
-]'
+        substituteInPlace Cargo.toml \
+          --replace-fail 'members = [
+        "core",
+        "godot",
+        "unity",
+        "flutter/rust"
+    ]' 'members = [
+        "core",
+        "flutter/rust"
+    ]'
   '';
 
   nativeBuildInputs = [
