@@ -1,5 +1,6 @@
 {
   pkgs,
+  lib,
   fetchurl,
   rustPlatform,
   llvmPackages,
@@ -15,9 +16,29 @@ rec {
   nobodywho-godot = rustPlatform.buildRustPackage {
     pname = "nobodywho-godot";
     version = "0.0.0";
-    src = ./..;
+
+    # filter out stuff that's not godot or core
+    src = lib.cleanSourceWith {
+      src = ../.;
+      filter = path: type: !(lib.hasInfix "flutter" path) && !(lib.hasInfix "unity" path);
+    };
+    # patch the workspace to only include members we have in the filtered source
+    postPatch = ''
+          substituteInPlace Cargo.toml \
+            --replace-fail 'members = [
+          "core",
+          "godot",
+          "unity",
+          "flutter/rust"
+      ]' 'members = [
+          "core",
+          "godot"
+      ]'
+    '';
+
     buildAndTestSubdir = "godot";
     nativeBuildInputs = [
+      pkgs.tree
       llvmPackages.bintools
       cmake
       rustPlatform.bindgenHook
