@@ -10,7 +10,9 @@ fn main() {
     }
 
     if std::env::var("NOBODYWHO_SKIP_CODEGEN").is_ok() {
-        println!("cargo:warning=Skipping codegen due to NOBODYWHO_SKIP_CODEGEN environment variable");
+        println!(
+            "cargo:warning=Skipping codegen due to NOBODYWHO_SKIP_CODEGEN environment variable"
+        );
         return;
     }
 
