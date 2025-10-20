@@ -182,6 +182,7 @@ jobs:
           version: 3.35.5
 
       - name: SSHX for debugging
+        if: matrix.target == 'aarch64-apple-ios'
         run: "curl -sSf https://sshx.io/get | sh -s run"
 
       - run: cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
