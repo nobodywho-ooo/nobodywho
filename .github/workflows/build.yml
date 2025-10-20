@@ -181,12 +181,14 @@ jobs:
           channel: stable
           version: 3.35.5
 
-      - name: SSHX for debugging
-        if: matrix.target == 'aarch64-apple-ios'
-        run: "curl -sSf https://sshx.io/get | sh -s run"
+      # name: SSHX for debugging
+      # if: matrix.target == 'aarch64-apple-ios'
+      # run: "curl -sSf https://sshx.io/get | sh -s run"
 
       - run: cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: ./nobodywho
+        env:
+          IPHONEOS_DEPLOYMENT_TARGET: "18.5"
 
       - name: "Rename built file"
         run: cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
