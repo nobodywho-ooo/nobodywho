@@ -20,7 +20,11 @@ rec {
     # filter out stuff that's not godot or core
     src = lib.cleanSourceWith {
       src = ../.;
-      filter = path: type: !(lib.hasInfix "flutter" path) && !(lib.hasInfix "unity" path);
+      filter =
+        path: type:
+        !(lib.hasInfix "flutter" path)
+        && !(lib.hasInfix "unity" path)
+        && !(lib.hasInfix "integration-test" path);
     };
     # patch the workspace to only include members we have in the filtered source
     postPatch = ''
