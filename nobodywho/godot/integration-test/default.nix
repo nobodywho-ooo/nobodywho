@@ -1,4 +1,12 @@
-{ nobodywho-godot, stdenv, fetchurl, godot_4, godot_4-export-templates-bin, fontconfig }:
+{
+  pkgs,
+  nobodywho-godot,
+  stdenv,
+  fetchurl,
+  godot_4,
+  godot_4-export-templates-bin,
+  fontconfig,
+}:
 let
   model = fetchurl {
     name = "Qwen_Qwen3-0.6B-Q4_0.gguf";
@@ -25,8 +33,8 @@ stdenv.mkDerivation {
   buildPhase = ''
     # setup stuff godot needs: export templates
     export HOME=$TMPDIR
-    mkdir -p $HOME/.local/share/godot/export_templates
-    ln -s ${godot_4-export-templates-bin}/share/godot/export_templates/4.4.1.stable $HOME/.local/share/godot/export_templates/4.4.1.stable
+    mkdir -p $HOME/.local/share
+    ln -s ${godot_4-export-templates-bin}/share/godot $HOME/.local/share/godot
 
     # copy in gdextension stuff
     rm ./nobodywho.gdextension
@@ -45,7 +53,6 @@ stdenv.mkDerivation {
 
     # build game
     mkdir -p $out
-    ${godot_4}/bin/godot4 --verbose --headless --import
     ${godot_4}/bin/godot4 --verbose --headless --export-debug "Linux" $out/game
 
     cp ${model} $out/Qwen_Qwen3-0.6B-Q4_0.gguf
