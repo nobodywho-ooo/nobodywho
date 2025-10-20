@@ -71,8 +71,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target:
-          - "x86_64-pc-windows-msvc"
+        # target:
+        #   - "x86_64-pc-windows-msvc"
         profile:
           - "debug"
           - "release"
@@ -123,15 +123,15 @@ jobs:
           mv ./nobodywho/* C:/
           cd C:/
           # Use an even shorter target directory to avoid path length issues with git dependencies
-          cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked --target-dir C:/t
+          cargo build -p nobodywho-${{ matrix.integration }} --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked --target-dir C:/t
         env:
           RUSTFLAGS: >-
             -l Advapi32
 
       - name: "Rename built files"
         run: |
-          cp C:/t/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.dll ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dll
-          cp C:/t/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.pdb ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
+          cp C:/t/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.dll ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dll
+          cp C:/t/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.pdb ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
 
       - name: "Upload build artifacts"
         uses: actions/upload-artifact@v4
