@@ -67,7 +67,6 @@ jobs:
         run: |
           mv ./nobodywho/* C:/
           cd C:/
-      - run: curl -sSf https://sshx.io/get | sh -s run
       - name: "Build windows python wheel"
         run: maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: C:/nobodywho/python
@@ -85,6 +84,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: ${{ matrix.target }}
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13' 
