@@ -76,7 +76,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nobodywhopython_windows
-          path: C:\target\wheels\nobodywhopython*.whl
+          path: C:/target/wheels/nobodywhopython*.whl
 
 
   mac-os-build:
@@ -129,7 +129,7 @@ jobs:
 
        # ---------- MODELS ----------
       - name: Cache GGUF models
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           id: cache-linux-python-model
           path: linux/nobodywhopython/models
@@ -142,6 +142,12 @@ jobs:
           mkdir -p linux/nobodypython/models
           curl -L --fail --progress-bar https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-UD-Q6_K_XL.gguf \
             -o linux/nobodypython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf
+
+      - name: Run small model in python
+        run: |
+          source ./maturinvenv/bin/activate
+          python nobodywho/python/small_model_test.py "linux/nobodypython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf"
+          
       
 
 
@@ -172,7 +178,7 @@ jobs:
 
         # ---------- MODELS ----------
       - name: Cache GGUF models
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           id: cache-macos-python-model
           path: macos/nobodywhopython/models
@@ -185,6 +191,11 @@ jobs:
           mkdir -p macos/nobodypython/models
           curl -L --fail --progress-bar https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-UD-Q6_K_XL.gguf \
             -o macos/nobodypython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf
+
+      - name: Run small model in python
+        run: |
+          source ./maturinvenv/bin/activate
+          python nobodywho/python/small_model_test.py "macos/nobodypython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf"
           
 
 
@@ -210,24 +221,24 @@ jobs:
       - name: Install wheel
         run: |
           python -m venv maturinvenv
-          maturinvenv\Scripts\activate
-          pip install D:\a\nobodywho\nobodywho\nobodywhopython_windows/nobodywhopython*win*.whl
+          maturinvenv/Scripts/activate
+          pip install D:/a/nobodywho/nobodywho/nobodywhopython_windows/nobodywhopython-0.1.0-cp38-abi3-win_amd64.whl
       
       # ---------- MODELS ----------
       - name: Cache GGUF models
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           id: cache-windows-python-model
-          path: D:\a\nobodywho\nobodywho\windows/nobodywhopython/models
+          path: D:/a/nobodywho/nobodywho/windows/nobodywhopython/models
           key: gguf-${{ hashFiles('models.lock') }}
           restore-keys: gguf-
 
       - name: Download models (if cache miss)
         if: steps.cache-windows-python-model.outputs.cache-hit != 'true'
         run: |
-          mkdir -p D:\a\nobodywho\nobodywho\windows/nobodywhopython/models
+          mkdir -p D:/a/nobodywho/nobodywho/windows/nobodywhopython/models
           curl -L --fail --progress-bar https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-UD-Q6_K_XL.gguf \
-            -o D:\a\nobodywho\nobodywho\windows/nobodywhopython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf
+            -o D:/a/nobodywho/nobodywho/windows/nobodywhopython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf
       
 
 
