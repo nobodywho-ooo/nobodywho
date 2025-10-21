@@ -98,7 +98,6 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13' 
-      - run: rustup target add ${{ matrix.target }}
       - run: brew install maturin
       - name: "Build macos python wheel"
         run: maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked
@@ -197,7 +196,7 @@ jobs:
         run: |
           python -m venv maturinvenv
           maturinvenv\Scripts\activate
-          cd aritfacts/
+          cd ./aritfacts
           pip install nobodywhopython-0.1.0-cp38-abi3-win_amd64.whl
 
       
