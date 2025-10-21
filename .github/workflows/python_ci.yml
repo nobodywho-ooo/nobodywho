@@ -36,8 +36,8 @@ jobs:
       - name: Upload wheel
         uses: actions/upload-artifact@v4
         with:
-          name: nobodywhopython-0.1.0-cp38-abi3-manylinux_2_38_x86_64.whl
-          path: ./nobodywho/target/wheels/nobodywhopython-0.1.0-cp38-abi3-manylinux_2_38_x86_64.whl
+          #name: nobodywhopython-0.1.0-cp38-abi3-manylinux_2_38_x86_64.whl
+          path: ./nobodywho/target/wheels/nobodywhopython*.whl
         
   windows-build:
     runs-on: windows-latest
@@ -76,8 +76,8 @@ jobs:
       - name: "Upload wheel artifact"
         uses: actions/upload-artifact@v4
         with:
-          name: nobodywhopython-0.1.0-cp38-abi3-win_amd64.whl
-          path: C:\target\wheels\nobodywhopython-0.1.0-cp38-abi3-win_amd64.whl
+          #name: nobodywhopython-0.1.0-cp38-abi3-win_amd64.whl
+          path: C:\target\wheels\nobodywhopython*.whl
 
 
   mac-os-build:
@@ -101,7 +101,7 @@ jobs:
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v4
         with:
-          path: ./nobodywho/target/wheels/nobodywho*
+          path: ./nobodywho/target/wheels/nobodywhopython*.whl
       
   
 
@@ -122,16 +122,13 @@ jobs:
           sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
       - name: "Download wheel"
         uses: actions/download-artifact@v4
-        with:
-          path: ./artifacts
       
       - name: Install wheel
         run: |
           python3 -m venv maturinvenv
           source ./maturinvenv/bin/activate
-          curl -sSf https://sshx.io/get | sh -s run
-          cd aritfacts/ 
-          pip install nobodywhopython-0.1.0-cp38-abi3-manylinux_2_38_x86_64.whl
+          pip install artifact/nobodywhopython*manylinux*.whl
+        # curl -sSf https://sshx.io/get | sh -s run
       
 
 
@@ -142,9 +139,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target:
-          - "x86_64-apple-darwin"
-          - "aarch64-apple-darwin"
         profile:
           - "release"
     steps:
@@ -155,16 +149,13 @@ jobs:
       
       - name: "Download wheel"
         uses: actions/download-artifact@v4
-        with:
-          path: ./artifacts
       
       - name: Install wheel
         run: |
           python3 -m venv maturinvenv
           source ./maturinvenv/bin/activate
           curl -sSf https://sshx.io/get | sh -s run
-          cd ./aritfacts 
-          pip install nobodywhopython-0.1.0-cp38-abi3-macosx_11_0_arm64.whl
+          pip install artifact/nobodywhopython*macosx*.whl
       
 
   windows-pip-install-test:
@@ -183,14 +174,12 @@ jobs:
           install_runtime: 
       - name: "Download wheel"
         uses: actions/download-artifact@v4
-        with:
-          path: ./artifacts
+
       - name: Install wheel
         run: |
           python -m venv maturinvenv
           maturinvenv\Scripts\activate
-          cd ./aritfacts
-          pip install nobodywhopython-0.1.0-cp38-abi3-win_amd64.whl
+          pip install artifact/nobodywhopython*win*.whl
 
       
 
