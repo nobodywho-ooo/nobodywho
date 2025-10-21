@@ -128,7 +128,7 @@ jobs:
         run: |
           python3 -m venv maturinvenv
           source ./maturinvenv/bin/activate
-          pip install nobodywho_linux/nobodywhopython*manylinux*.whl
+          pip install nobodywhopython_linux/nobodywhopython*manylinux*.whl
         # curl -sSf https://sshx.io/get | sh -s run
       
 
@@ -156,7 +156,7 @@ jobs:
           python3 -m venv maturinvenv
           source ./maturinvenv/bin/activate
           curl -sSf https://sshx.io/get | sh -s run
-          pip install nobodywho_macos/nobodywhopython*macosx*.whl
+          pip install nobodywhopython_macos/nobodywhopython*macosx*.whl
       
 
   windows-pip-install-test:
@@ -180,7 +180,7 @@ jobs:
         run: |
           python -m venv maturinvenv
           maturinvenv\Scripts\activate
-          pip install nobodywho_windows/nobodywhopython*win*.whl
+          pip install nobodywhopython_windows/nobodywhopython*win*.whl
 
       
 
