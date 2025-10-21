@@ -64,8 +64,7 @@ jobs:
           cd C:/
       - name: "Build windows python wheel"
         run: |
-          ls nobodywho/
-          cd nobodywho/python
+          cd python
           maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked
 
         
@@ -90,7 +89,7 @@ jobs:
           python-version: '3.13' 
       - run: brew install maturin
       - name: "Build macos python wheel"
-        run: maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked -- --macos-deployment-target = "${{ matrix.target }}" 
+        run: maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked 
         working-directory: ./nobodywho/python
 
 
