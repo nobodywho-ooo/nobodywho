@@ -14,6 +14,9 @@ jobs:
       matrix:
         profile:
           - "release"
+        target:
+          - "x86_64-unknown-linux-gnu"
+        
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -29,6 +32,8 @@ jobs:
       - name: "Build linux python wheel"
         run: maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: ./nobodywho/python
+      - name: "Rename built files"
+        run: cp .nobodywho/target/wheels/nobodywhopython* ./nobodywhopython-${{ matrix.target }}-${{ matrix.profile }}.whl
         
   windows-build:
     runs-on: windows-latest
@@ -63,7 +68,7 @@ jobs:
           mv ./nobodywho/* C:/
           cd C:/
           cd python
-          maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked
+          maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked --target ${{ matrix.target }}
 
   mac-os-build:
     runs-on: macos-14
@@ -83,10 +88,21 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13' 
+      - run: rustup target add ${{ matrix.target }}
       - run: brew install maturin
       - name: "Build macos python wheel"
         run: maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked --target ${{ matrix.target }}
         working-directory: ./nobodywho/python
+
+      - name: "Rename built files"
+        run: cp .nobodywho/target/wheels/nobodywhopython* ./nobodywhopython-${{ matrix.target }}-${{ matrix.profile }}.whl
+      
+      - name: "Upload build artifact"
+        uses: actions/upload-artifact@v4
+        with:
+          name: nobodywhopython-${{ matrix.target }}-${{ matrix.profile }}.whl
+          path: ./nobodywhopython-${{ matrix.target }}-${{ matrix.profile }}.whl
+      
   
   mac-os-test-build:
     runs-on: macos-14
@@ -106,6 +122,14 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13' 
+      
+      - name: "Download wheel"
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+      - run: pip install ./artifacts/nobodywhopython-${{ matrix.target }}-${{ matrix.profile }}.whl
+
+
 
 
 
