@@ -123,7 +123,7 @@ jobs:
           mv ./nobodywho/* C:/
           cd C:/
           # Use an even shorter target directory to avoid path length issues with git dependencies
-          cargo build -p nobodywho-${{ matrix.integration }} --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked --target-dir C:/t
+          cargo build -p nobodywho-${{ matrix.integration }} --target ${{ matrix.target }} --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked --target-dir C:/t
         env:
           RUSTFLAGS: >-
             -l Advapi32
