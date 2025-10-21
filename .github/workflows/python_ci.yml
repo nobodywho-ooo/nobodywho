@@ -28,7 +28,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
-      #- run: curl -sSf https://sshx.io/get | sh -s run
+      - run: curl -sSf https://sshx.io/get | sh -s run
       - name: "Build linux python wheel"
         run: maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: ./nobodywho/python
@@ -69,6 +69,12 @@ jobs:
           cd C:/
           cd python
           maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked --target ${{ matrix.target }}
+      - name: "Upload wheel artifact"
+        uses: actions/upload-artifact@v4
+        with:
+          name: nobodywhopython-0.1.0-cp38-abi3-win_amd64.whl
+          path: C:\target\wheels\nobodywhopython-0.1.0-cp38-abi3-win_amd64.whl
+
 
   mac-os-build:
     runs-on: macos-14
@@ -80,6 +86,8 @@ jobs:
           - "aarch64-apple-darwin"
         profile:
           - "release"
+    env:
+      CARGO_BUILD_TARGET: ${{ matrix.target }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -93,7 +101,8 @@ jobs:
       - name: "Build macos python wheel"
         run: maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked --target ${{ matrix.target }}
         working-directory: ./nobodywho/python
-
+        
+      - run: curl -sSf https://sshx.io/get | sh -s run
       - name: "Rename built files"
         run: cp .nobodywho/target/wheels/nobodywhopython* ./nobodywhopython-${{ matrix.target }}-${{ matrix.profile }}.whl
       
@@ -105,6 +114,7 @@ jobs:
       
   
   mac-os-test-build:
+    needs: [mac-os-build]
     runs-on: macos-14
     strategy:
       fail-fast: false
@@ -128,8 +138,28 @@ jobs:
         with:
           path: ./artifacts
       - run: pip install ./artifacts/nobodywhopython-${{ matrix.target }}-${{ matrix.profile }}.whl
+      
 
-
+  windows-pip-instal-test:
+    runs-on: windows-latest
+    needs: [windows-build]
+    steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13' 
+      - run: pip install maturin
+      - name: Install Vulkan SDK
+        uses: jakoch/install-vulkan-sdk-action@v1.2.5
+        with:
+          vulkan_version: 1.3.296.0
+          cache: true
+          install_runtime: 
+      - name: "Download wheel"
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+      - run: pip install ./artifacts/nobodywhopython-0.1.0-cp38-abi3-win_amd64.whl
+      
 
 
 
