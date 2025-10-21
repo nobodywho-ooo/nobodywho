@@ -31,7 +31,6 @@ jobs:
       - name: "Build linux python wheel"
         run: maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: ./nobodywho/python
-      #- run: curl -sSf https://sshx.io/get | sh -s run
      
       - name: Upload wheel
         uses: actions/upload-artifact@v4
@@ -112,11 +111,9 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-     # - uses: actions-rust-lang/setup-rust-toolchain@v1
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13' 
-      #- run: pip install maturin
       - name: "Install distro dependencies"
         run: |
           sudo apt-get update
@@ -129,7 +126,22 @@ jobs:
           python3 -m venv maturinvenv
           source ./maturinvenv/bin/activate
           pip install nobodywhopython_linux/nobodywhopython*manylinux*.whl
-          curl -sSf https://sshx.io/get | sh -s run
+
+       # ---------- MODELS ----------
+      - name: Cache GGUF models
+        uses: actions/cache@v3
+        with:
+          id: cache-linux-python-model
+          path: linux/nobodywhopython/models
+          key: gguf-${{ hashFiles('models.lock') }}
+          restore-keys: gguf-
+
+      - name: Download models (if cache miss)
+        if: steps.cache-linux-python-model.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p linux/nobodypython/models
+          curl -L --fail --progress-bar https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-UD-Q6_K_XL.gguf \
+            -o linux/nobodypython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf
       
 
 
@@ -156,7 +168,26 @@ jobs:
           python3 -m venv maturinvenv
           source ./maturinvenv/bin/activate
           pip install nobodywhopython_macos/nobodywhopython*macosx*.whl
-          curl -sSf https://sshx.io/get | sh -s run
+      
+
+        # ---------- MODELS ----------
+      - name: Cache GGUF models
+        uses: actions/cache@v3
+        with:
+          id: cache-macos-python-model
+          path: macos/nobodywhopython/models
+          key: gguf-${{ hashFiles('models.lock') }}
+          restore-keys: gguf-
+
+      - name: Download models (if cache miss)
+        if: steps.cache-macos-python-model.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p macos/nobodypython/models
+          curl -L --fail --progress-bar https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-UD-Q6_K_XL.gguf \
+            -o macos/nobodypython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf
+          
+
+
 
       
 
@@ -176,14 +207,27 @@ jobs:
           install_runtime: 
       - name: "Download wheel"
         uses: actions/download-artifact@v4
-
-      - run: Get-ChildItem -Recurse -Filter "*.whl"
       - name: Install wheel
         run: |
           python -m venv maturinvenv
           maturinvenv\Scripts\activate
-          pip install nobodywhopython_windows/nobodywhopython*win*.whl
+          pip install D:\a\nobodywho\nobodywho\nobodywhopython_windows/nobodywhopython*win*.whl
+      
+      # ---------- MODELS ----------
+      - name: Cache GGUF models
+        uses: actions/cache@v3
+        with:
+          id: cache-windows-python-model
+          path: D:\a\nobodywho\nobodywho\windows/nobodywhopython/models
+          key: gguf-${{ hashFiles('models.lock') }}
+          restore-keys: gguf-
 
+      - name: Download models (if cache miss)
+        if: steps.cache-windows-python-model.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p D:\a\nobodywho\nobodywho\windows/nobodywhopython/models
+          curl -L --fail --progress-bar https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-UD-Q6_K_XL.gguf \
+            -o D:\a\nobodywho\nobodywho\windows/nobodywhopython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf
       
 
 
