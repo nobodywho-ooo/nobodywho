@@ -129,9 +129,9 @@ jobs:
 
        # ---------- MODELS ----------
       - name: Cache GGUF models
+        id: cache-linux-python-model
         uses: actions/cache@v4
         with:
-          id: cache-linux-python-model
           path: linux/nobodywhopython/models
           key: gguf-${{ hashFiles('models.lock') }}
           restore-keys: gguf-
@@ -179,8 +179,8 @@ jobs:
         # ---------- MODELS ----------
       - name: Cache GGUF models
         uses: actions/cache@v4
+        id: cache-macos-python-model
         with:
-          id: cache-macos-python-model
           path: macos/nobodywhopython/models
           key: gguf-${{ hashFiles('models.lock') }}
           restore-keys: gguf-
@@ -209,7 +209,6 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13' 
-      - run: pip install maturin
       - name: Install Vulkan SDK
         uses: jakoch/install-vulkan-sdk-action@v1.2.5
         with:
@@ -227,8 +226,8 @@ jobs:
       # ---------- MODELS ----------
       - name: Cache GGUF models
         uses: actions/cache@v4
+        id: cache-windows-python-model
         with:
-          id: cache-windows-python-model
           path: D:/a/nobodywho/nobodywho/windows/nobodywhopython/models
           key: gguf-${{ hashFiles('models.lock') }}
           restore-keys: gguf-
@@ -237,10 +236,14 @@ jobs:
         if: steps.cache-windows-python-model.outputs.cache-hit != 'true'
         run: |
           mkdir -p D:/a/nobodywho/nobodywho/windows/nobodywhopython/models
-          curl -L --fail --progress-bar https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-UD-Q6_K_XL.gguf \
-            -o D:/a/nobodywho/nobodywho/windows/nobodywhopython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf
-      
+          pip install -U "huggingface-hub"
+          hf download unsloth/Qwen3-0.6B-GGUF Qwen3-0.6B-UD-Q6_K_XL.gguf --local-dir "D:/a/nobodywho/nobodywho/windows/nobodywhopython/models"
 
+      - name: Run small model in python
+        run: |
+          maturinvenv/Scripts/activate
+          python D:/a/nobodywho/nobodywho/python/small_model_test.py "D:/a/nobodywho/nobodywho/windows/nobodywhopython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf"
+          
 
 
       
