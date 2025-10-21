@@ -7,7 +7,7 @@ permissions:
   contents: read
 
 jobs:
-  linux:
+  linux-build:
     runs-on: ubuntu-24.04
     strategy: 
       fail-fast: false
@@ -30,7 +30,7 @@ jobs:
         run: maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: ./nobodywho/python
         
-  windows:
+  windows-build:
     runs-on: windows-latest
     strategy: 
       fail-fast: false
@@ -58,18 +58,14 @@ jobs:
           cache: true
           install_runtime: true
           stripdown: true
-      - name: "Move into shortly named dir"
+      - name: "Build windows python wheel"
         run: |
           mv ./nobodywho/* C:/
           cd C:/
-      - name: "Build windows python wheel"
-        run: |
           cd python
           maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked
 
-        
-
-  mac-os:
+  mac-os-build:
     runs-on: macos-14
     strategy:
       fail-fast: false
@@ -89,8 +85,27 @@ jobs:
           python-version: '3.13' 
       - run: brew install maturin
       - name: "Build macos python wheel"
-        run: maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked 
+        run: maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked --target ${{ matrix.target }}
         working-directory: ./nobodywho/python
+  
+  mac-os-test-build:
+    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - "x86_64-apple-darwin"
+          - "aarch64-apple-darwin"
+        profile:
+          - "release"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: ${{ matrix.target }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13' 
 
 
 
