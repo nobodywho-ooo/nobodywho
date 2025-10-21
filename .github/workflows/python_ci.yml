@@ -85,24 +85,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target:
-          - "macos-13"
-          - "macos-14"
-          #- "x86_64-apple-darwin"
-          #- "aarch64-apple-darwin"
         profile:
           - "release"
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          target: ${{ matrix.target == 'macos-13' && 'x86_64-apple-darwin' || '' }}
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13' 
       - run: brew install maturin
       - name: "Build macos python wheel"
-        run: maturin build --verbose -- target ${{ matrix.target == 'macos-13' && 'x86_64-apple-darwin' || '' }} ${{ matrix.profile == 'release' && '--release' || 'aarch64-apple-darwin' }} --locked
+        run: maturin build --verbose ${{ matrix.profile == 'release' && '--release' || 'aarch64-apple-darwin' }} --locked
         working-directory: ./nobodywho/python
       
       - name: "Upload build artifact"
@@ -143,38 +136,35 @@ jobs:
 
 
 
-  # mac-os-pip-install-test:
-  #   needs: [mac-os-build]
-  #   runs-on: macos-14
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       target:
-  #         - "x86_64-apple-darwin"
-  #         - "aarch64-apple-darwin"
-  #       profile:
-  #         - "release"
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: actions-rust-lang/setup-rust-toolchain@v1
-  #       with:
-  #         target: ${{ matrix.target }}
-  #     - uses: actions/setup-python@v6
-  #       with:
-  #         python-version: '3.13' 
+  mac-os-pip-install-test:
+    needs: [mac-os-build]
+    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - "x86_64-apple-darwin"
+          - "aarch64-apple-darwin"
+        profile:
+          - "release"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13' 
       
-  #     - name: "Download wheel"
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         path: ./artifacts
+      - name: "Download wheel"
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
       
-  #     - name: Install wheel
-  #       run: |
-  #         python3 -m venv maturinvenv
-  #         source ./maturinvenv/bin/activate
-  #         curl -sSf https://sshx.io/get | sh -s run
-  #         cd aritfacts/ 
-  #         pip install nobodywhopython*.whl
+      - name: Install wheel
+        run: |
+          python3 -m venv maturinvenv
+          source ./maturinvenv/bin/activate
+          curl -sSf https://sshx.io/get | sh -s run
+          cd ./aritfacts 
+          pip install nobodywhopython-0.1.0-cp38-abi3-macosx_11_0_arm64.whl
       
 
   windows-pip-install-test:
