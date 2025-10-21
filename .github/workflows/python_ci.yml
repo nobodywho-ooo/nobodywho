@@ -97,7 +97,7 @@ jobs:
           python-version: '3.13' 
       - run: brew install maturin
       - name: "Build macos python wheel"
-        run: maturin build --verbose ${{ matrix.profile == 'release' && '--release' || 'aarch64-apple-darwin' }} --locked
+        run: maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: ./nobodywho/python
       
       - name: "Upload build artifact"
@@ -245,7 +245,7 @@ jobs:
       - name: Run small model in python
         run: |
           maturinvenv/Scripts/activate
-          python D:/a/nobodywho/nobodywho/python/small_model_test.py "D:/a/nobodywho/nobodywho/windows/nobodywhopython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf"
+          python D:/a/nobodywho/nobodywho/nobodywho/python/small_model_test.py "D:/a/nobodywho/nobodywho/windows/nobodywhopython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf"
           
 
 
