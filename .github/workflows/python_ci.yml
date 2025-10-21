@@ -64,7 +64,7 @@ jobs:
           cd C:/
       - name: "Build windows python wheel"
         run: |
-          echo | ls nobodywho/
+          ls nobodywho/
           cd nobodywho/python
           maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked
 
