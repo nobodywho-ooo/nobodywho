@@ -129,7 +129,7 @@ jobs:
           python3 -m venv maturinvenv
           source ./maturinvenv/bin/activate
           pip install nobodywhopython_linux/nobodywhopython*manylinux*.whl
-        # curl -sSf https://sshx.io/get | sh -s run
+          curl -sSf https://sshx.io/get | sh -s run
       
 
 
@@ -155,8 +155,9 @@ jobs:
         run: |
           python3 -m venv maturinvenv
           source ./maturinvenv/bin/activate
-          curl -sSf https://sshx.io/get | sh -s run
           pip install nobodywhopython_macos/nobodywhopython*macosx*.whl
+          curl -sSf https://sshx.io/get | sh -s run
+
       
 
   windows-pip-install-test:
@@ -176,6 +177,7 @@ jobs:
       - name: "Download wheel"
         uses: actions/download-artifact@v4
 
+      - run: Get-ChildItem -Recurse -Filter "*.whl"
       - name: Install wheel
         run: |
           python -m venv maturinvenv
