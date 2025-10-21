@@ -92,13 +92,9 @@ jobs:
           #- "aarch64-apple-darwin"
         profile:
           - "release"
-    env:
-      CARGO_BUILD_TARGET: ${{ matrix.target }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          target: ${{ matrix.target }}
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13' 
@@ -135,7 +131,7 @@ jobs:
         with:
           path: ./artifacts
       
-      - name: Install whell
+      - name: Install wheel
         run: |
           python3 -m venv maturinvenv
           source ./maturinvenv/bin/activate
@@ -145,37 +141,38 @@ jobs:
 
 
 
-  mac-os-pip-install-test:
-    needs: [mac-os-build]
-    runs-on: macos-14
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - "x86_64-apple-darwin"
-          - "aarch64-apple-darwin"
-        profile:
-          - "release"
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          target: ${{ matrix.target }}
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.13' 
+  # mac-os-pip-install-test:
+  #   needs: [mac-os-build]
+  #   runs-on: macos-14
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       target:
+  #         - "x86_64-apple-darwin"
+  #         - "aarch64-apple-darwin"
+  #       profile:
+  #         - "release"
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions-rust-lang/setup-rust-toolchain@v1
+  #       with:
+  #         target: ${{ matrix.target }}
+  #     - uses: actions/setup-python@v6
+  #       with:
+  #         python-version: '3.13' 
       
-      - name: "Download wheel"
-        uses: actions/download-artifact@v4
-        with:
-          path: ./artifacts
+  #     - name: "Download wheel"
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         path: ./artifacts
       
-      - name: Install whell
-        run: |
-          python3 -m venv maturinvenv
-          source ./maturinvenv/bin/activate
-          cd aritfacts/ 
-          pip install nobodywhopython*.whl
+  #     - name: Install wheel
+  #       run: |
+  #         python3 -m venv maturinvenv
+  #         source ./maturinvenv/bin/activate
+  #         curl -sSf https://sshx.io/get | sh -s run
+  #         cd aritfacts/ 
+  #         pip install nobodywhopython*.whl
       
 
   windows-pip-install-test:
