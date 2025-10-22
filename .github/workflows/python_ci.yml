@@ -83,7 +83,7 @@ jobs:
 
 
   mac-os-build:
-    runs-on: macos-14
+    runs-on: macos-latest
     strategy:
       fail-fast: false
       matrix:
@@ -98,7 +98,7 @@ jobs:
           python-version: '3.13' 
       - run: brew install maturin
       - name: "Build macos python wheel"
-        run: maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked
+        run: maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked --target aarch64-apple-darwin
         working-directory: ./nobodywho/python
       
       - name: "Upload build artifact"
