@@ -31,7 +31,7 @@ jobs:
         with:
           target: ${{ matrix.target }}
           manylinux: auto
-          working-directory: .nobodywho/python
+          working-directory: ./nobodywho/python
 
         #run: maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         #working-directory: ./nobodywho/python
@@ -137,16 +137,16 @@ jobs:
         id: cache-linux-python-model
         uses: actions/cache@v4
         with:
-          path: linux/nobodywhopython/models
-          key: gguf-${{ hashFiles('models.lock') }}
+          path: ./linux/nobodywhopython/models
+          key: ${{ runner.os }}-gguf-${{ hashFiles('models.lock') }}
           restore-keys: gguf-
 
       - name: Download models (if cache miss)
         if: steps.cache-linux-python-model.outputs.cache-hit != 'true'
         run: |
-          mkdir -p linux/nobodypython/models
+          mkdir -p ./linux/nobodypython/models
           curl -L --fail --progress-bar https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-UD-Q6_K_XL.gguf \
-            -o linux/nobodypython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf
+            -o ./linux/nobodypython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf
 
       - name: Run small model in python
         run: |
@@ -183,16 +183,16 @@ jobs:
         uses: actions/cache@v4
         id: cache-macos-python-model
         with:
-          path: macos/nobodywhopython/models
-          key: gguf-${{ hashFiles('models.lock') }}
+          path: ./macos/nobodywhopython/models
+          key: ${{ runner.os }}-gguf-${{ hashFiles('models.lock') }}
           restore-keys: gguf-
 
       - name: Download models (if cache miss)
         if: steps.cache-macos-python-model.outputs.cache-hit != 'true'
         run: |
-          mkdir -p macos/nobodypython/models
+          mkdir -p ./macos/nobodypython/models
           curl -L --fail --progress-bar https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-UD-Q6_K_XL.gguf \
-            -o macos/nobodypython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf
+            -o ./macos/nobodypython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf
 
       - name: Run small model in python
         run: |
@@ -208,6 +208,7 @@ jobs:
     runs-on: windows-latest
     needs: [windows-build]
     steps:
+      - uses: actions/cache@v4
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13' 
@@ -231,7 +232,7 @@ jobs:
         id: cache-windows-python-model
         with:
           path: D:/a/nobodywho/nobodywho/windows/nobodywhopython/models
-          key: gguf-${{ hashFiles('models.lock') }}
+          key: ${{ runner.os }}-gguf-${{ hashFiles('models.lock') }}
           restore-keys: gguf-
 
       - name: Download models (if cache miss)
@@ -246,7 +247,7 @@ jobs:
       - name: Run small model in python
         run: |
           maturinvenv/Scripts/activate
-          python D:/a/nobodywho/nobodywho/python/small_model_test.py "D:/a/nobodywho/nobodywho/windows/nobodywhopython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf"
+          python D:/a/nobodywho/nobodywho/nobodywhopython/small_model_test.py "D:/a/nobodywho/nobodywho/windows/nobodywhopython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf"
           
 
 
