@@ -195,14 +195,17 @@ jobs:
         run: |
           # .dylib: dynamically linkable shared object
           cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
-          # .a: statically linkable ar archive of .o objects (used to build xcframework)
-          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.a     ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.a
+          if [ "${{ matrix.integration }}" == "flutter" ]; then
+            # .a: statically linkable ar archive of .o objects (used to build xcframework)
+            cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.a ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.a
+          fi
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v4
         with:
           name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
-          path: ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
+          # wildcard path to match both .dylib and .a
+          path: ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.*
 
   # builds an "xcframework"
   # which is an apple thing that contains binaries for multiple systems
