@@ -14,7 +14,7 @@ jobs:
       matrix:
         profile:
           - "debug"
-        target: [x86_64-unknown-linux-gnu, i686-unknown-linux-gnu]
+        target: [x86_64-unknown-linux-gnu, i686-unknown-linux-gnu, aarch64-unknown-linux-gnu]
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -28,6 +28,29 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
+          
+          # Install cross-compilation tools for i686
+          if [[ "${{ matrix.target }}" == "i686-unknown-linux-gnu" ]]; then
+            sudo apt-get install -y gcc-multilib g++-multilib
+            sudo apt-get install -y libclang-dev:i386 libvulkan-dev:i386 || true
+            # Set environment variables for i686 cross-compilation
+            echo "BINDGEN_EXTRA_CLANG_ARGS=-m32" >> $GITHUB_ENV
+            echo "CARGO_TARGET_I686_UNKNOWN_LINUX_GNU_LINKER=gcc" >> $GITHUB_ENV
+            echo "CC=gcc -m32" >> $GITHUB_ENV
+            echo "CXX=g++ -m32" >> $GITHUB_ENV
+          fi
+          
+          # Install cross-compilation tools for aarch64
+          if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]]; then
+            sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+            sudo apt-get install -y libclang-dev:arm64 libvulkan-dev:arm64 || true
+            # Set environment variables for aarch64 cross-compilation
+            echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+            echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+            echo "CXX=aarch64-linux-gnu-g++" >> $GITHUB_ENV
+            echo "AR=aarch64-linux-gnu-ar" >> $GITHUB_ENV
+            echo "BINDGEN_EXTRA_CLANG_ARGS=--target=aarch64-linux-gnu" >> $GITHUB_ENV
+          fi
       
       - name: Build linux python wheel
         run: maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked --target ${{ matrix.target }}
@@ -247,7 +270,7 @@ jobs:
       - name: Run small model in python
         run: |
           maturinvenv/Scripts/activate
-          python D:/a/nobodywho/nobodywho/nobodywhopython/small_model_test.py "D:/a/nobodywho/nobodywho/windows/nobodywhopython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf"
+          python D:/a/nobodywho/nobodywho/nobodywho/python/small_model_test.py "D:/a/nobodywho/nobodywho/windows/nobodywhopython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf"
           
 
 
