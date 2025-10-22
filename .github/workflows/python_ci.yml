@@ -14,33 +14,33 @@ jobs:
       matrix:
         profile:
           - "debug"
-        target: [x86, i686]
+        target: [x86_64-unknown-linux-gnu, i686-unknown-linux-gnu]
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: ${{ matrix.target }}
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13' 
-      - run: pip install maturin
-      - name: "Install distro dependencies"
+      - run: pip install maturin auditwheel
+      - name: Install distro dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
-      - name: "Build linux python wheel"
-        uses: PyO3/maturin-action@v1
-        with:
-          target: ${{ matrix.target }}
-          manylinux: auto
-          working-directory: ./nobodywho/python
-
-        #run: maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked
-        #working-directory: ./nobodywho/python
+      
+      - name: Build linux python wheel
+        run: maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked --target ${{ matrix.target }}
+        working-directory: ./nobodywho/python
+      
+      - name: Repair wheel to use manylinux
+        run: auditwheel repair nobodywho/target/wheels/nobodywhopython*.whl 
      
       - name: Upload wheel
         uses: actions/upload-artifact@v4
         with:
-          name: nobodywhopython_linux
-          path: ./nobodywho/target/wheels/nobodywhopython*.whl
+          name: nobodywhopython_${{ matrix.target }}
+          path: ./nobodywho/wheelhouse/nobodywhopython*.whl
         
   windows-build:
     runs-on: windows-latest
@@ -130,7 +130,7 @@ jobs:
         run: |
           python3 -m venv maturinvenv
           source ./maturinvenv/bin/activate
-          pip install nobodywhopython_linux/nobodywhopython*manylinux*x86*.whl
+          pip install nobodywhopython_x86_64-unknown-linux-gnu/nobodywhopython*manylinux*x86*.whl
 
        # ---------- MODELS ----------
       - name: Cache GGUF models
@@ -208,7 +208,7 @@ jobs:
     runs-on: windows-latest
     needs: [windows-build]
     steps:
-      - uses: actions/cache@v4
+      - uses: actions/checkout@v4
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13' 
