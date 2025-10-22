@@ -14,12 +14,10 @@ jobs:
       matrix:
         profile:
           - "debug"
-        target: [x86_64-unknown-linux-gnu, i686-unknown-linux-gnu, aarch64-unknown-linux-gnu]
+
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          target: ${{ matrix.target }}
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13' 
@@ -28,29 +26,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
-          
-          # Install cross-compilation tools for i686
-          if [[ "${{ matrix.target }}" == "i686-unknown-linux-gnu" ]]; then
-            sudo apt-get install -y gcc-multilib g++-multilib
-            sudo apt-get install -y libclang-dev:i386 libvulkan-dev:i386 || true
-            # Set environment variables for i686 cross-compilation
-            echo "BINDGEN_EXTRA_CLANG_ARGS=-m32" >> $GITHUB_ENV
-            echo "CARGO_TARGET_I686_UNKNOWN_LINUX_GNU_LINKER=gcc" >> $GITHUB_ENV
-            echo "CC=gcc -m32" >> $GITHUB_ENV
-            echo "CXX=g++ -m32" >> $GITHUB_ENV
-          fi
-          
-          # Install cross-compilation tools for aarch64
-          if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]]; then
-            sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
-            sudo apt-get install -y libclang-dev:arm64 libvulkan-dev:arm64 || true
-            # Set environment variables for aarch64 cross-compilation
-            echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
-            echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
-            echo "CXX=aarch64-linux-gnu-g++" >> $GITHUB_ENV
-            echo "AR=aarch64-linux-gnu-ar" >> $GITHUB_ENV
-            echo "BINDGEN_EXTRA_CLANG_ARGS=--target=aarch64-linux-gnu" >> $GITHUB_ENV
-          fi
       
       - name: Build linux python wheel
         run: maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked --target ${{ matrix.target }}
@@ -62,7 +37,7 @@ jobs:
       - name: Upload wheel
         uses: actions/upload-artifact@v4
         with:
-          name: nobodywhopython_${{ matrix.target }}
+          name: nobodywhopython_linux
           path: ./nobodywho/wheelhouse/nobodywhopython*.whl
         
   windows-build:
@@ -153,7 +128,7 @@ jobs:
         run: |
           python3 -m venv maturinvenv
           source ./maturinvenv/bin/activate
-          pip install nobodywhopython_x86_64-unknown-linux-gnu/nobodywhopython*manylinux*x86*.whl
+          pip install nobodywhopython_linux/nobodywhopython*manylinux*x86*.whl
 
        # ---------- MODELS ----------
       - name: Cache GGUF models
@@ -179,6 +154,49 @@ jobs:
       
 
 
+  windows-pip-install-test:
+    runs-on: windows-latest
+    needs: [windows-build]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13' 
+      - name: Install Vulkan SDK
+        uses: jakoch/install-vulkan-sdk-action@v1.2.5
+        with:
+          vulkan_version: 1.3.296.0
+          cache: true
+          install_runtime: 
+      - name: "Download wheel"
+        uses: actions/download-artifact@v4
+      - name: Install wheel
+        run: |
+          python -m venv maturinvenv
+          maturinvenv/Scripts/activate
+          pip install D:/a/nobodywho/nobodywho/nobodywhopython_windows/nobodywhopython-0.1.0-cp38-abi3-win_amd64.whl
+      
+      # ---------- MODELS ----------
+      - name: Cache GGUF models
+        uses: actions/cache@v4
+        id: cache-windows-python-model
+        with:
+          path: D:/a/nobodywho/nobodywho/windows/nobodywhopython/models
+          key: ${{ runner.os }}-gguf-${{ hashFiles('models.lock') }}
+          restore-keys: gguf-
+
+      - name: Download models (if cache miss)
+        if: steps.cache-windows-python-model.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p D:/a/nobodywho/nobodywho/windows/nobodywhopython/models
+          pip install -U "huggingface-hub"
+          hf download unsloth/Qwen3-0.6B-GGUF Qwen3-0.6B-UD-Q6_K_XL.gguf --local-dir "D:/a/nobodywho/nobodywho/windows/nobodywhopython/models"
+
+      - name: Run small model in python
+        run: |
+          maturinvenv/Scripts/activate
+          python D:/a/nobodywho/nobodywho/nobodywho/python/small_model_test.py "D:/a/nobodywho/nobodywho/windows/nobodywhopython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf"
+          
 
   mac-os-pip-install-test:
     needs: [mac-os-build]
@@ -227,51 +245,6 @@ jobs:
 
       
 
-  windows-pip-install-test:
-    runs-on: windows-latest
-    needs: [windows-build]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.13' 
-      - name: Install Vulkan SDK
-        uses: jakoch/install-vulkan-sdk-action@v1.2.5
-        with:
-          vulkan_version: 1.3.296.0
-          cache: true
-          install_runtime: 
-      - name: "Download wheel"
-        uses: actions/download-artifact@v4
-      - name: Install wheel
-        run: |
-          python -m venv maturinvenv
-          maturinvenv/Scripts/activate
-          pip install D:/a/nobodywho/nobodywho/nobodywhopython_windows/nobodywhopython-0.1.0-cp38-abi3-win_amd64.whl
-      
-      # ---------- MODELS ----------
-      - name: Cache GGUF models
-        uses: actions/cache@v4
-        id: cache-windows-python-model
-        with:
-          path: D:/a/nobodywho/nobodywho/windows/nobodywhopython/models
-          key: ${{ runner.os }}-gguf-${{ hashFiles('models.lock') }}
-          restore-keys: gguf-
-
-      - name: Download models (if cache miss)
-        if: steps.cache-windows-python-model.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p D:/a/nobodywho/nobodywho/windows/nobodywhopython/models
-          pip install -U "huggingface-hub"
-          hf download unsloth/Qwen3-0.6B-GGUF Qwen3-0.6B-UD-Q6_K_XL.gguf --local-dir "D:/a/nobodywho/nobodywho/windows/nobodywhopython/models"
-
-      - run: Get-ChildItem -Recurse -Depth 3 | Format-Table FullName
-      - run: Get-ChildItem -Recurse -Filter "*.gguf"
-      - name: Run small model in python
-        run: |
-          maturinvenv/Scripts/activate
-          python D:/a/nobodywho/nobodywho/nobodywho/python/small_model_test.py "D:/a/nobodywho/nobodywho/windows/nobodywhopython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf"
-          
 
 
       
