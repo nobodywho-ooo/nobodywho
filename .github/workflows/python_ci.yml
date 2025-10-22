@@ -28,7 +28,7 @@ jobs:
           sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
       
       - name: Build linux python wheel
-        run: maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked --target ${{ matrix.target }}
+        run: maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked 
         working-directory: ./nobodywho/python
       
       - name: Repair wheel to use manylinux
@@ -240,6 +240,28 @@ jobs:
           source ./maturinvenv/bin/activate
           python nobodywho/python/small_model_test.py "macos/nobodypython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf"
           
+
+  publish-wheels:
+    needs: [linux-pip-install-test, windows-pip-install-test, mac-os-pip-install-test]
+    runs-on: ubuntu-latest
+    #if: github.event_name == 'release' && github.event.action == 'published'
+    steps:
+      - name: Download all wheels
+        uses: actions/download-artifact@v4
+        with:
+          pattern: nobodywhopython_*
+          merge-multiple: true
+          path: dist/
+
+      - name: List wheels to upload
+        run: ls -la dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          packages-dir: dist/
+
 
 
 
