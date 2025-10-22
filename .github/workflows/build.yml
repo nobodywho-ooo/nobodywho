@@ -200,6 +200,41 @@ jobs:
           name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
           path: ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
 
+  # builds an "xcframework"
+  # which is an apple thing that contains binaries for multiple systems
+  build-flutter-xcframework:
+    runs-on: macos-15
+    needs: [cargo-build-macos]
+    steps:
+      - uses: actions/checkout@v4
+      - name: "Download all build artifacts"
+        uses: actions/download-artifact@v4
+        with:
+          pattern: nobodywho-flutter-*-apple-*dylib
+
+      - name: "SSHX for debug"
+        run: "curl -sSf https://sshx.io/get | sh"
+
+      - name: Build XCFramework
+        run: |
+          FRAMEWORK="LibraryName.xcframework"
+          LIBNAME=liblibrary_name.a
+          mkdir mac-lipo ios-lip
+          IOS_SIM_LIPO=ios-sim-lipo/$LIBNAME
+          MAC_LIPO=mac-lipo/$LIBNAME
+
+          lipo -create -output $IOS_SIM_LIPO \
+                  ../target/aarch64-apple-ios-sim/release/$LIBNAME \
+                  ../target/x86_64-apple-ios/release/$LIBNAME
+          lipo -create -output $MAC_LIPO \
+                  ../target/aarch64-apple-darwin/release/$LIBNAME \
+                  ../target/x86_64-apple-darwin/release/$LIBNAME
+          xcodebuild -create-xcframework \
+                  -library $IOS_SIM_LIPO \
+                  -library $MAC_LIPO \
+                  -library ../target/aarch64-apple-ios/release/$LIBNAME \
+                  -output $FRAMEWORK
+
   cargo-build-android:
     runs-on: ubuntu-24.04
     strategy:
