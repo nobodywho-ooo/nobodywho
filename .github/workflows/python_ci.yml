@@ -160,9 +160,6 @@ jobs:
     runs-on: macos-14
     strategy:
       fail-fast: false
-      matrix:
-        profile:
-          - "release"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v6
@@ -242,12 +239,12 @@ jobs:
           pip install -U "huggingface-hub"
           hf download unsloth/Qwen3-0.6B-GGUF Qwen3-0.6B-UD-Q6_K_XL.gguf --local-dir "D:/a/nobodywho/nobodywho/windows/nobodywhopython/models"
 
-      - run: Get-ChildItem -Recurse -Filter "*.py"
+      - run: Get-ChildItem -Recurse -Filter "*test.py"
       - run: Get-ChildItem -Recurse -Filter "*.gguf"
       - name: Run small model in python
         run: |
           maturinvenv/Scripts/activate
-          python D:/a/nobodywho/nobodywho/nobodywho/python/small_model_test.py "D:/a/nobodywho/nobodywho/windows/nobodywhopython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf"
+          python D:/a/nobodywho/nobodywho/python/small_model_test.py "D:/a/nobodywho/nobodywho/windows/nobodywhopython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf"
           
 
 
