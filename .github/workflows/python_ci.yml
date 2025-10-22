@@ -242,6 +242,8 @@ jobs:
           pip install -U "huggingface-hub"
           hf download unsloth/Qwen3-0.6B-GGUF Qwen3-0.6B-UD-Q6_K_XL.gguf --local-dir "D:/a/nobodywho/nobodywho/windows/nobodywhopython/models"
 
+      - run: Get-ChildItem -Recurse -Filter "*.py"
+      - run: Get-ChildItem -Recurse -Filter "*.gguf"
       - name: Run small model in python
         run: |
           maturinvenv/Scripts/activate
