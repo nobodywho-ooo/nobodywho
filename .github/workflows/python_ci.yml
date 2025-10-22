@@ -38,7 +38,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nobodywhopython_linux
-          path: ./nobodywho/wheelhouse/nobodywhopython*.whl
+          path: ./wheelhouse/nobodywhopython*.whl
         
   windows-build:
     runs-on: windows-latest
