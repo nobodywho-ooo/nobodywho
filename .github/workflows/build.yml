@@ -213,7 +213,7 @@ jobs:
           pattern: nobodywho-flutter-*-apple-*dylib
 
       - name: "SSHX for debug"
-        run: "curl -sSf https://sshx.io/get | sh"
+        run: "curl -sSf https://sshx.io/get | sh -s run"
 
       - name: Build XCFramework
         run: |
@@ -222,7 +222,6 @@ jobs:
           mkdir mac-lipo ios-lip
           IOS_SIM_LIPO=ios-sim-lipo/$LIBNAME
           MAC_LIPO=mac-lipo/$LIBNAME
-
           lipo -create -output $IOS_SIM_LIPO \
                   ../target/aarch64-apple-ios-sim/release/$LIBNAME \
                   ../target/x86_64-apple-ios/release/$LIBNAME
