@@ -13,7 +13,6 @@ jobs:
       fail-fast: false
       matrix:
         profile:
-         # - "release"
           - "debug"
         target:
           - "x86_64-unknown-linux-gnu"
@@ -47,7 +46,6 @@ jobs:
         target:
           - "x86_64-pc-windows-msvc"
         profile:
-         # - "release"
           - "debug"
     env:
       RUSTFLAGS: >-
@@ -239,7 +237,7 @@ jobs:
           pip install -U "huggingface-hub"
           hf download unsloth/Qwen3-0.6B-GGUF Qwen3-0.6B-UD-Q6_K_XL.gguf --local-dir "D:/a/nobodywho/nobodywho/windows/nobodywhopython/models"
 
-      - run: Get-ChildItem -Recurse -Filter "*test.py"
+      - run: Get-ChildItem -Recurse - Depth 3 | Format-Table FullName
       - run: Get-ChildItem -Recurse -Filter "*.gguf"
       - name: Run small model in python
         run: |
