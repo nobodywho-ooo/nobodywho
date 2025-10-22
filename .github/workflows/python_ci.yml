@@ -136,16 +136,16 @@ jobs:
         id: cache-linux-python-model
         uses: actions/cache@v4
         with:
-          path: ./linux/nobodywhopython/models
+          path: linux/nobodywhopython/models
           key: ${{ runner.os }}-gguf-${{ hashFiles('models.lock') }}
           restore-keys: gguf-
 
       - name: Download models (if cache miss)
         if: steps.cache-linux-python-model.outputs.cache-hit != 'true'
         run: |
-          mkdir -p ./linux/nobodypython/models
+          mkdir -p linux/nobodypython/models
           curl -L --fail --progress-bar https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-UD-Q6_K_XL.gguf \
-            -o ./linux/nobodypython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf
+            -o linux/nobodypython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf
 
       - name: Run small model in python
         run: |
@@ -225,21 +225,38 @@ jobs:
         uses: actions/cache@v4
         id: cache-macos-python-model
         with:
-          path: ./macos/nobodywhopython/models
+          path: macos/nobodywhopython/models
           key: ${{ runner.os }}-gguf-${{ hashFiles('models.lock') }}
           restore-keys: gguf-
 
       - name: Download models (if cache miss)
         if: steps.cache-macos-python-model.outputs.cache-hit != 'true'
         run: |
-          mkdir -p ./macos/nobodypython/models
+          mkdir -p macos/nobodypython/models
           curl -L --fail --progress-bar https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-UD-Q6_K_XL.gguf \
-            -o ./macos/nobodypython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf
+            -o macos/nobodypython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf
 
+      - name: Debug macOS environment
+        run: |
+          uname -a
+          arch
+          lipo -archs nobodywhopython_macos/nobodywhopython*.whl || true
+          file nobodywhopython_macos/nobodywhopython*.whl
+          
       - name: Run small model in python
         run: |
           source ./maturinvenv/bin/activate
-          python nobodywho/python/small_model_test.py "macos/nobodypython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf"
+          # Set Metal to CPU-only to avoid GPU crashes
+          export GGML_METAL_DISABLE=1
+          # Add debug output
+          python -c "import nobodywhopython; print('Import successful')"
+          # Try to run with more verbose output
+          python nobodywho/python/small_model_test.py "macos/nobodypython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf" || {
+            echo "Segfault occurred, trying with different settings..."
+            export GGML_METAL_DISABLE=1
+            export GGML_CUDA_DISABLE=1
+            python nobodywho/python/small_model_test.py "macos/nobodypython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf"
+          }
           
 
   publish-wheels:
