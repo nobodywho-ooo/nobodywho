@@ -192,7 +192,11 @@ jobs:
           IPHONEOS_DEPLOYMENT_TARGET: "18.5"
 
       - name: "Rename built file"
-        run: cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
+        run: |
+          # .dylib: dynamically linkable shared object
+          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
+          # .a: statically linkable ar archive of .o objects (used to build xcframework)
+          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.a     ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.a
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v4
@@ -206,7 +210,6 @@ jobs:
     runs-on: macos-15
     needs: [cargo-build-macos]
     steps:
-      - uses: actions/checkout@v4
       - name: "Download all build artifacts"
         uses: actions/download-artifact@v4
         with:
