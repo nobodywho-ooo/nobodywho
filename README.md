@@ -8,8 +8,9 @@
 [![Read the Docs](https://img.shields.io/badge/Read%20the%20Docs-8CA1AF?logo=readthedocs&logoColor=fff)](https://nobodywho-ooo.github.io/nobodywho/)
 
 
-NobodyWho is a plugin that lets you interact with local LLMs, we currently support Godot and Unity, with even more plugins on their way.
+NobodyWho is a library that lets you run LLMs locally and efficiently on any device.
 
+We currently support Godot and Unity, with more plugins on the way.
 
 
 ## At a Glance
