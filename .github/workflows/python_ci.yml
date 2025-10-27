@@ -53,7 +53,13 @@ jobs:
     env:
       RUSTFLAGS: >-
         -l Advapi32
+      CARGO_TARGET_DIR: C:/t
+      CARGO_HOME: C:/cargo
     steps:
+      - name: Enable long paths
+        run: |
+          New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force
+          git config --system core.longpaths true
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
@@ -71,17 +77,15 @@ jobs:
           stripdown: true
       - name: "Build windows python wheel"
         run: |
-          mv ./nobodywho/* C:/
-          New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force 
-          git config --system core.longpaths true
-          cd C:/
-          cd python
-          maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked --target ${{ matrix.target }}
+          # Use very short paths to avoid Windows 260 char limit
+          mv ./nobodywho C:/n
+          cd C:/n/python
+          maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked --target ${{ matrix.target }} --target-dir C:/t
       - name: "Upload wheel artifact"
         uses: actions/upload-artifact@v4
         with:
           name: nobodywhopython_windows
-          path: C:/target/wheels/nobodywhopython*.whl
+          path: C:/t/wheels/nobodywhopython*.whl
 
 
   mac-os-build:
@@ -248,18 +252,8 @@ jobs:
       - name: Run small model in python
         run: |
           source ./maturinvenv/bin/activate
-          # Set Metal to CPU-only to avoid GPU crashes
-          export GGML_METAL_DISABLE=1
-          # Add debug output
           python -c "import nobodywhopython; print('Import successful')"
-          # Try to run with more verbose output
-          python nobodywho/python/small_model_test.py "macos/nobodypython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf" || {
-            echo "Segfault occurred, trying with different settings..."
-            export GGML_METAL_DISABLE=1
-            export GGML_CUDA_DISABLE=1
-            python nobodywho/python/small_model_test.py "macos/nobodypython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf"
-          }
-          
+          python nobodywho/python/small_model_test.py "macos/nobodypython/models/Qwen3-0.6B-UD-Q6_K_XL.gguf" 
 
   publish-wheels:
     needs: [linux-pip-install-test, windows-pip-install-test, mac-os-pip-install-test]
