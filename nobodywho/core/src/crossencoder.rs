@@ -2,9 +2,9 @@ use crate::errors::{CrossEncoderWorkerError, InitWorkerError};
 use crate::llm;
 use crate::llm::Worker;
 use llama_cpp_2::context::params::LlamaPoolingType;
-use llama_cpp_2::model::LlamaModel;
+use llama_cpp_2::model::{LlamaModel, Special};
 use std::sync::Arc;
-use tracing::error;
+use tracing::{error, warn};
 
 pub struct CrossEncoderHandle {
     msg_tx: std::sync::mpsc::Sender<CrossEncoderMsg>,
@@ -49,7 +49,7 @@ fn run_worker(
     while let Ok(msg) = msg_rx.recv() {
         match msg {
             CrossEncoderMsg::Rank(query, documents, respond) => {
-                // Clear context for each crossencodering operation
+                // Clear context for each crossencodering operationd
                 worker_state.reset_context();
 
                 let scores = worker_state.rank(query, documents)?;
@@ -101,11 +101,30 @@ impl<'a> Worker<'a, CrossEncoderWorker> {
         query: String,
         documents: Vec<String>,
     ) -> Result<Vec<f32>, CrossEncoderWorkerError> {
+        // Get CLS and SEP tokens from the model (CLS = BOS per llama.cpp, the current CLS token is deprecated.)
+        let cls = self
+            .ctx
+            .model
+            .token_to_str(self.ctx.model.token_bos(), Special::Tokenize)
+            .unwrap_or_else(|_| {
+                warn!("Failed to convert BOS/CLS token to string, using fallback");
+                "<s>".to_string()
+            });
+
+        let sep = self
+            .ctx
+            .model
+            .token_to_str(self.ctx.model.token_sep(), Special::Tokenize)
+            .unwrap_or_else(|_| {
+                warn!("Failed to convert SEP token to string, using fallback");
+                "</s>".to_string()
+            });
+
         let mut scores = Vec::new();
         for document in documents {
             self.reset_context();
-            // TODO: use the cls and sep tokens for this.
-            let input = format!("{query}</s><s>{document}</s>");
+            // Format as: [CLS] query [SEP] document [SEP]
+            let input = format!("{cls}{query}{sep}{document}{sep}");
             let score = self.read_string(input)?.get_classification_score()?;
             scores.push(score);
         }
