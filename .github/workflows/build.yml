@@ -226,13 +226,20 @@ jobs:
         # commands taken from here:
         # https://cjycode.com/flutter_rust_bridge/manual/integrate/library/platform-setup/ios-and-macos
         run: |
-          # TODO? ios-sim - would be cool if we could run this in an ios simulator too
+          # ios sim stuff
+          lipo -create -output ios-sim-lipo.a \
+            nobodywho-flutter-aarch64-apple-ios-sim-release.a \
+            nobodywho-flutter-x86_64-apple-ios-release.a \
+
+          # macos stuff
           lipo -create -output macos-lipo.a \
             nobodywho-flutter-aarch64-apple-darwin-release.a \
             nobodywho-flutter-x86_64-apple-darwin-release.a
 
+          # both of those things, plus the actual ios build
           xcodebuild -create-xcframework \
                   -library macos-lipo.a \
+                  -library ios-lipo.a \
                   -library nobodywho-flutter-aarch64-apple-ios-release.a \
                   -output NobodyWho.xcframework
 
