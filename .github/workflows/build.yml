@@ -150,6 +150,9 @@ jobs:
           - "x86_64-apple-darwin"
           - "aarch64-apple-darwin"
           - "aarch64-apple-ios"
+            # these two are for running in an ios simulator
+          - "aarch64-apple-ios-sim"
+          - "x86_64-apple-ios"
         profile:
           - "debug"
           - "release"
@@ -219,14 +222,11 @@ jobs:
           pattern: nobodywho-flutter-*-apple-*
           merge-multiple: true
 
-      # - name: "SSHX for debug"
-      #   run: "curl -sSf https://sshx.io/get | sh -s run"
-
       - name: Build XCFramework
         # commands taken from here:
         # https://cjycode.com/flutter_rust_bridge/manual/integrate/library/platform-setup/ios-and-macos
         run: |
-          # TODO? ios-sim
+          # TODO? ios-sim - would be cool if we could run this in an ios simulator too
           lipo -create -output macos-lipo.a \
             nobodywho-flutter-aarch64-apple-darwin-release.a \
             nobodywho-flutter-x86_64-apple-darwin-release.a
