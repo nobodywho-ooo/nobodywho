@@ -227,12 +227,12 @@ jobs:
         # https://cjycode.com/flutter_rust_bridge/manual/integrate/library/platform-setup/ios-and-macos
         run: |
           # TODO? ios-sim
-          lipo -create -output macos-lipo \
+          lipo -create -output macos-lipo.a \
             nobodywho-flutter-aarch64-apple-darwin-release.a \
             nobodywho-flutter-x86_64-apple-darwin-release.a
 
           xcodebuild -create-xcframework \
-                  -library macos-lipo \
+                  -library macos-lipo.a \
                   -library nobodywho-flutter-aarch64-apple-ios-release.a \
                   -output NobodyWho.xcframework
 
