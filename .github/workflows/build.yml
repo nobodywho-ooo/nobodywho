@@ -239,7 +239,7 @@ jobs:
           # both of those things, plus the actual ios build
           xcodebuild -create-xcframework \
                   -library macos-lipo.a \
-                  -library ios-lipo.a \
+                  -library ios-sim-lipo.a \
                   -library nobodywho-flutter-aarch64-apple-ios-release.a \
                   -output NobodyWho.xcframework
 
