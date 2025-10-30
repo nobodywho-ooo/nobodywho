@@ -3,6 +3,23 @@
 release_tag_name = "nobodywho_flutter-v0.0.0"
 framework_name="NobodyWhoFlutter.xcframework"
 
+
+# Get the framework path from environment variable
+xcframework_path = ENV['NOBODYWHO_FLUTTER_XCFRAMEWORK']
+
+# Validate environment variable is set
+if xcframework_path.nil? || xcframework_path.empty?
+  raise "Error: NOBODYWHO_FLUTTER_XCFRAMEWORK environment variable is not set. " \
+        "Please set it to the path of your xcframework file."
+end
+
+# Validate the framework exists
+unless File.exist?(xcframework_path)
+  raise "Error: Framework not found at path: #{xcframework_path}. " \
+        "Please ensure NOBODYWHO_FLUTTER_XCFRAMEWORK points to a valid xcframework file."
+end
+
+# Copy the framework to local Frameworks directory
 `
 cd Frameworks
 if [ -f #{framework_name} ]
@@ -10,9 +27,9 @@ then
   echo "Found existing framework. Removing..."
   rm -rf #{framework_name}
 fi
-cp -r #{ENV['NOBODYWHO_FLUTTER_XCFRAMEWORK']} ./#{framework_name}
+echo "Copying framework from #{xcframework_path}..."
+cp -r #{xcframework_path} ./#{framework_name}
 `
-
 
 Pod::Spec.new do |s|
   s.name             = 'nobodywho_flutter'
