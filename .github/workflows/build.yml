@@ -231,16 +231,18 @@ jobs:
             nobodywho-flutter-aarch64-apple-ios-sim-release.a \
             nobodywho-flutter-x86_64-apple-ios-release.a \
 
-          # macos stuff
+          # macos universal binary
           lipo -create -output macos-lipo.a \
             nobodywho-flutter-aarch64-apple-darwin-release.a \
             nobodywho-flutter-x86_64-apple-darwin-release.a
 
           # both of those things, plus the actual ios build
+          # with both universal binaries and the direct ones
           xcodebuild -create-xcframework \
                   -library macos-lipo.a \
                   -library ios-sim-lipo.a \
                   -library nobodywho-flutter-aarch64-apple-ios-release.a \
+                  -library nobodywho-flutter-aarch64-apple-darwin-release.a \
                   -output NobodyWho.xcframework
 
       - name: "Upload build artifact"
