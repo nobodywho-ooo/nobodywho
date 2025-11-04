@@ -238,8 +238,8 @@ jobs:
 
           # both of those things, plus the actual ios build
           # with both universal binaries and the direct ones
+          # -library macos-lipo.a \
           xcodebuild -create-xcframework \
-                  -library macos-lipo.a \
                   -library ios-sim-lipo.a \
                   -library nobodywho-flutter-aarch64-apple-ios-release.a \
                   -library nobodywho-flutter-aarch64-apple-darwin-release.a \
