@@ -252,8 +252,8 @@ jobs:
           xcodebuild -create-xcframework \
                   -library "ios-sim-lipo/$LIBNAME" \
                   -library "macos-lipo/$LIBNAME" \
-                  -library "aarch64-ios/$LIBNAME"
-                  -library "aarch64-macos/$LIBNAME"
+                  -library "aarch64-ios/$LIBNAME" \
+                  -library "aarch64-macos/$LIBNAME" \
                   -output NobodyWho.xcframework
 
       - name: "Upload build artifact"
