@@ -226,23 +226,34 @@ jobs:
         # commands taken from here:
         # https://cjycode.com/flutter_rust_bridge/manual/integrate/library/platform-setup/ios-and-macos
         run: |
+          LIBNAME=libnobodywho_flutter.a
+
           # ios sim stuff
-          lipo -create -output ios-sim-lipo.a \
+          mkdir ios-sim-lipo
+          lipo -create -output ./ios-sim-lipo/$LIBNAME \
             nobodywho-flutter-aarch64-apple-ios-sim-release.a \
             nobodywho-flutter-x86_64-apple-ios-release.a \
 
           # macos universal binary
-          lipo -create -output macos-lipo.a \
+          mkdir macos-lipo
+          lipo -create -output macos-lipo/$LIBNAME \
             nobodywho-flutter-aarch64-apple-darwin-release.a \
             nobodywho-flutter-x86_64-apple-darwin-release.a
+
+          # rename libs so linker can find them
+          mkdir aarch64-macos
+          cp nobodywho-flutter-aarch64-apple-darwin-release.a ./aarch64-macos/$LIBNAME
+          mkdir aarch64-ios
+          cp nobodywho-flutter-aarch64-apple-ios-release.a ./aarch64-ios/$LIBNAME
 
           # both of those things, plus the actual ios build
           # with both universal binaries and the direct ones
           # -library macos-lipo.a \
           xcodebuild -create-xcframework \
-                  -library ios-sim-lipo.a \
-                  -library nobodywho-flutter-aarch64-apple-ios-release.a \
-                  -library nobodywho-flutter-aarch64-apple-darwin-release.a \
+                  -library "ios-sim-lipo/$LIBNAME" \
+                  -library "macos-lipo/$LIBNAME" \
+                  -library "aarch64-ios/$LIBNAME"
+                  -library "aarch64-macos/$LIBNAME"
                   -output NobodyWho.xcframework
 
       - name: "Upload build artifact"
