@@ -5,7 +5,7 @@
 }:
 
 let
-  unity_version = "6000.0.47f1";
+  unity_version = "6000.2.10f1";
   unity-editor = pkgs.writeShellScriptBin "unity-editor" ''
     ${pkgs.lib.getExe pkgs.unityhub.fhsEnv} ~/Unity/Hub/Editor/${unity_version}/Editor/Unity "$@"
   '';
