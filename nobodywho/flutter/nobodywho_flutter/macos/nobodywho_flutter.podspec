@@ -22,7 +22,7 @@ end
 # Copy the framework to local Frameworks directory
 `
 cd Frameworks
-if [ -f #{framework_name} ]
+if [ -d #{framework_name} ]
 then
   echo "Found existing framework. Removing..."
   rm -rf #{framework_name}
