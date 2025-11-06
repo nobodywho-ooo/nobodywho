@@ -248,10 +248,11 @@ jobs:
 
           # both of those things, plus the actual ios build
           # with both universal binaries and the direct ones
-          # -library macos-lipo.a \
+          #
+          # including this *and* the aarch64-only build makes xcodebuild sad
+          # -library "macos-lipo/$LIBNAME" \
           xcodebuild -create-xcframework \
                   -library "ios-sim-lipo/$LIBNAME" \
-                  -library "macos-lipo/$LIBNAME" \
                   -library "aarch64-ios/$LIBNAME" \
                   -library "aarch64-macos/$LIBNAME" \
                   -output NobodyWho.xcframework
