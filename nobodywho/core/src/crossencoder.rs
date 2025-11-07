@@ -87,7 +87,7 @@ impl<'a> Worker<'a, CrossEncoderWorker> {
             .embeddings_seq_ith(0)
             .map_err(|e| CrossEncoderWorkerError::ClassificationError(e.to_string()))?;
 
-        if embeddings.len() >= 1 {
+        if !embeddings.is_empty() {
             Ok(embeddings[0])
         } else {
             Err(CrossEncoderWorkerError::ClassificationError(

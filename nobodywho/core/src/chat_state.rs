@@ -173,7 +173,7 @@ impl ChatState {
         let default_template = model.chat_template(None)?.to_string()?;
         let tool_template = model.chat_template(Some("tool_use"));
 
-        let template = if tools.len() == 0 {
+        let template = if tools.is_empty() {
             // no tools. use default template.
             default_template
         } else if let Ok(tool_template) = tool_template {
@@ -261,17 +261,13 @@ impl ChatState {
 
         let ctx = context! {
             messages => messages,
-            add_generation_prompt => self.messages.last().map_or(false, |msg| match msg {
-                Message::Message { role: Role::User, .. } => true,
-                Message::ToolResp { .. } => true,
-                _ => false,
-            }),
+            add_generation_prompt => self.messages.last().is_some_and(|msg| matches!(msg, Message::Message { role: Role::User, .. } | Message::ToolResp { .. })),
             eos_token => self.eos_token,
             bos_token => self.bos_token,
             tools => self.tools,
         };
 
-        Ok(tmpl.render(ctx)?)
+        tmpl.render(ctx)
     }
 
     pub fn render_string(&mut self) -> Result<String, minijinja::Error> {
@@ -279,11 +275,7 @@ impl ChatState {
 
         let ctx = context! {
             messages => &self.messages,
-            add_generation_prompt => self.messages.last().map_or(false, |msg| match msg {
-                Message::Message { role: Role::User, .. } => true,
-                Message::ToolResp { .. } => true,
-                _ => false,
-            }),
+            add_generation_prompt => self.messages.last().is_some_and(|msg| matches!(msg, Message::Message { role: Role::User, .. } | Message::ToolResp { .. })),
             eos_token => self.eos_token,
             bos_token => self.bos_token,
             tools => self.tools,
@@ -322,10 +314,10 @@ impl ChatState {
 
     pub fn find_prefix_index_and_difference_with_tokens_in_context(
         &self,
-        tokens: &Vec<LlamaToken>,
+        tokens: &[LlamaToken],
     ) -> (u32, Vec<LlamaToken>) {
-        if self.tokens_in_context.len() == 0 {
-            return (0, tokens.clone());
+        if self.tokens_in_context.is_empty() {
+            return (0, tokens.to_owned());
         }
 
         let longest_common_prefix_index = self
@@ -335,17 +327,14 @@ impl ChatState {
             .position(|(a, b)| a != b);
 
         let (index, difference): (u32, Vec<LlamaToken>) = match longest_common_prefix_index {
-            Some(i) => (i as u32, tokens[i..].iter().cloned().collect()),
+            Some(i) => (i as u32, tokens[i..].to_vec()),
             None => (
                 self.tokens_in_context.len() as u32,
-                tokens[(self.tokens_in_context.len())..]
-                    .iter()
-                    .cloned()
-                    .collect(),
+                tokens[(self.tokens_in_context.len())..].to_vec(),
             ),
         };
 
-        return (index, difference);
+        (index, difference)
     }
 }
 
