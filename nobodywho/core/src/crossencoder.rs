@@ -34,6 +34,27 @@ impl CrossEncoderHandle {
             .send(CrossEncoderMsg::Rank(query, documents, scores_tx));
         scores_rx
     }
+
+    pub async fn rank_and_sort(
+        &self,
+        query: String,
+        documents: Vec<String>,
+    ) -> Result<Vec<(String, f32)>, CrossEncoderWorkerError> {
+        let Some(scores) = self.rank(query, documents.clone()).recv().await else {
+            return Err(CrossEncoderWorkerError::ClassificationError(
+                "Could not rank the query and documents".to_string(),
+            ));
+        };
+
+        let mut docs_with_scores: Vec<(String, f32)> = documents
+            .iter()
+            .zip(scores.iter())
+            .map(|(doc, score)| (doc.clone(), *score))
+            .collect();
+
+        docs_with_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        Ok(docs_with_scores)
+    }
 }
 
 enum CrossEncoderMsg {
@@ -136,14 +157,13 @@ impl<'a> Worker<'a, CrossEncoderWorker> {
 mod tests {
     use super::*;
     use crate::test_utils;
-    use rand::seq::SliceRandom;
+    use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 
-    #[test]
-    fn test_crossencoder() -> Result<(), Box<dyn std::error::Error>> {
+    #[tokio::test]
+    async fn test_crossencoder() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_crossencoder_model();
-
-        let mut worker = Worker::new_crossencoder_worker(&model, 1024)?;
+        let handle: CrossEncoderHandle = CrossEncoderHandle::new(model, 4096);
 
         let query = "What is the capital of France?".to_string();
         let mut documents = vec![
@@ -159,27 +179,14 @@ mod tests {
             "The president of France works in Paris, the main city of his country.".to_string(),
             "What is the capital of France?".to_string(),
         ];
-        let mut rng = rand::rng();
+        let mut rng = StdRng::seed_from_u64(42);
         documents.shuffle(&mut rng);
 
-        let scores = worker.rank(query, documents.clone())?;
-        // The highest score for this should be the phrase  Paris is the capital of France.
-        let mut docs_with_scores: Vec<(String, f32)> = documents
-            .iter()
-            .zip(scores.iter())
-            .map(|(doc, score)| (doc.clone(), *score))
-            .collect();
+        let ranked_docs = handle.rank_and_sort(query, documents.clone()).await?;
+        let (best_sentence, _) = ranked_docs.first().unwrap();
 
-        docs_with_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-
-        let mut seen_paris = false;
-        for i in 0..3 {
-            if docs_with_scores[i].0 == "Paris is the capital of France." {
-                seen_paris = true;
-            }
-        }
         assert!(
-            seen_paris,
+            best_sentence == "Paris is the capital of France.",
             "`Paris is the capital of France.` is not in top three"
         );
 
