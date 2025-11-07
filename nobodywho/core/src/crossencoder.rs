@@ -85,12 +85,12 @@ impl<'a> Worker<'a, CrossEncoderWorker> {
         let embeddings = self
             .ctx
             .embeddings_seq_ith(0)
-            .map_err(|e| CrossEncoderWorkerError::ClassificationError(e.to_string()))?;
+            .map_err(|e| CrossEncoderWorkerError::Classification(e.to_string()))?;
 
         if !embeddings.is_empty() {
             Ok(embeddings[0])
         } else {
-            Err(CrossEncoderWorkerError::ClassificationError(
+            Err(CrossEncoderWorkerError::Classification(
                 "classification head is empty".to_string(),
             ))
         }

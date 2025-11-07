@@ -185,7 +185,7 @@ impl ChatState {
             default_template
         } else {
             // tools provided, but we have no tool-capable template
-            return Err(FromModelError::NoToolTemplateError);
+            return Err(FromModelError::NoToolTemplate);
         };
         trace!(template);
 

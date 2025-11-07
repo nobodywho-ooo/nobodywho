@@ -712,15 +712,15 @@ impl Worker<'_, ChatWorker> {
         };
         let first_user_message_index =
             self.find_next_user_message(&messages, system_end)
-                .ok_or(ShiftError::MessageError(
+                .ok_or(ShiftError::Message(
                     "No first user message in chat history".into(),
                 ))?;
         let first_deletable_index = self
             .find_next_user_message(&messages, first_user_message_index + 1)
-            .ok_or(ShiftError::MessageError("No deletable messages".into()))?; // Assuming assistant after user
+            .ok_or(ShiftError::Message("No deletable messages".into()))?; // Assuming assistant after user
         let mut last_deletable_index = self
             .find_start_of_last_n_user_messages(&messages, 2)
-            .ok_or(ShiftError::MessageError(
+            .ok_or(ShiftError::Message(
                 "Less than two user messages in chat history.".into(),
             ))?
             - 1;
@@ -757,7 +757,7 @@ impl Worker<'_, ChatWorker> {
             // This is to ensure that resulting chat history still follows the user then assistant format
             let delete_index = min(
                 self.find_next_user_message(&messages, target_delete_index + 1)
-                    .ok_or(ShiftError::MessageError(
+                    .ok_or(ShiftError::Message(
                         "Could find user message supposed to be there".into(),
                     ))?
                     - 1,
