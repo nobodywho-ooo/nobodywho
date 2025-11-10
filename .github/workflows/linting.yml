@@ -16,5 +16,5 @@ jobs:
         run: cargo fmt --all --check
 
       - name: "Run clippy check"
-        working-directory: "./nobodywho"
+        working-directory: "./nobodywho/core"
         run: cargo clippy -- -D warnings
