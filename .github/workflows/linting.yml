@@ -1,8 +1,8 @@
-name: "Formatting checks"
+name: "Lint & Format checks"
 on: workflow_call
 
 jobs:
-  rustfmt-check:
+  lint:
     runs-on: ubuntu-24.04
     steps:
       - name: "Checkout"
