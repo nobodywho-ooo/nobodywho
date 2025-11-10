@@ -7,10 +7,17 @@ jobs:
     steps:
       - name: "Checkout"
         uses: actions/checkout@v4
+
+      - name: "Install build dependencies"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake pkg-config
+
       - name: "Setup rust toolchain"
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           components: rustfmt, clippy
+
       - name: "Run rustfmt check"
         working-directory: "./nobodywho"
         run: cargo fmt --all --check
