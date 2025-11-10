@@ -134,7 +134,7 @@ pub enum WrappedResponseError {
     #[error("Error during inference step: {0}")]
     Inference(#[from] InferenceError),
 
-    #[error("Error recieving generated respone: {0}")]
+    #[error("Error receiving generated response: {0}")]
     Receive(#[from] std::sync::mpsc::RecvError),
 }
 
@@ -168,7 +168,7 @@ pub enum GenerateResponseError {
     #[error("Error while decoding next token: {0}")]
     Decoding(#[from] DecodingError),
 
-    #[error("Context size to small to contain generated respone!")]
+    #[error("Context size too small to contain generated response!")]
     ContextSize,
 
     #[error("Invalid sampler configuration")]
