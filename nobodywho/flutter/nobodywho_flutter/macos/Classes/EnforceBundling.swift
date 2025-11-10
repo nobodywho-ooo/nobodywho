@@ -1,4 +1,4 @@
-public func dummyMethodToEnforceBundling() -> Int64 {
-  return dummy_method_to_enforce_bundling()
+// https://github.com/flutter/flutter/pull/96225#issuecomment-1319080539
+public func dummyMethodToEnforceBundling() {
+    enforce_binding() // disable tree shaking
 }
-let dummyVar = dummyMethodToEnforceBundling();
