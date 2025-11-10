@@ -41,7 +41,7 @@ impl CrossEncoderHandle {
         documents: Vec<String>,
     ) -> Result<Vec<(String, f32)>, CrossEncoderWorkerError> {
         let Some(scores) = self.rank(query, documents.clone()).recv().await else {
-            return Err(CrossEncoderWorkerError::ClassificationError(
+            return Err(CrossEncoderWorkerError::Classification(
                 "Could not rank the query and documents".to_string(),
             ));
         };
