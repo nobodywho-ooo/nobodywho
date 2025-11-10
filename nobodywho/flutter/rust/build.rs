@@ -7,6 +7,10 @@ fn main() {
     let target = std::env::var("CARGO_CFG_TARGET_OS").unwrap();
     if target.contains("android") {
         println!("cargo:rustc-link-lib=c++_shared");
+
+    // ...and another dance for macos
+    } else if target.contains("macos") || target.contains("darwin") {
+        println!("cargo:rustc-link-lib=c++");
     }
 
     if std::env::var("NOBODYWHO_SKIP_CODEGEN").is_ok() {
