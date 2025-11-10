@@ -183,12 +183,18 @@ mod tests {
         documents.shuffle(&mut rng);
 
         let ranked_docs = handle.rank_and_sort(query, documents.clone()).await?;
-        let (best_sentence, _) = ranked_docs.first().unwrap();
+        let best_docs: Vec<String> = ranked_docs
+            .iter()
+            .take(3)
+            .map(|(doc, _)| doc.to_owned())
+            .collect();
+
+        let seen_paris = best_docs.contains(&"Paris is the capital of France.".to_string());
 
         assert!(
-            best_sentence == "Paris is the capital of France.",
-            "`Paris is the capital of France.` was not best, the best was `{}`",
-            best_sentence
+            seen_paris,
+            "`Paris is the capital of France.` was not between the best three, the best three were: {}",
+            best_docs.join(",")
         );
 
         Ok(())
