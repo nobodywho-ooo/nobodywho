@@ -79,14 +79,8 @@ pub enum SamplerMethod {
     MirostatV2(MirostatV2),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Greedy {}
-
-impl Default for Greedy {
-    fn default() -> Self {
-        Self {}
-    }
-}
 
 #[derive(Clone, Debug)]
 pub struct DRY {
@@ -264,7 +258,7 @@ pub fn make_sampler(model: &LlamaModel, sampler_config: SamplerConfig) -> Option
                 sampler_config.lazy_grammar_trigger.as_str(),
                 llama_cpp_2::model::AddBos::Never,
             )
-            .map(|v| v.get(0).copied())
+            .map(|v| v.first().copied())
         {
             chainvec.push(LlamaSampler::grammar_lazy(
                 model,
