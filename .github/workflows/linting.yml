@@ -13,6 +13,11 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      - name: "Install distro dependencies"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
+
       - name: "Run rustfmt check"
         working-directory: "./nobodywho"
         run: cargo fmt --all --check
