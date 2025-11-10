@@ -304,7 +304,7 @@ impl TokenStream {
             return None;
         }
 
-        while let Some(output) = self.rx.recv().await {
+        if let Some(output) = self.rx.recv().await {
             match output {
                 llm::WriteOutput::Token(token) => return Some(token),
                 llm::WriteOutput::Done(_) => {
@@ -313,6 +313,7 @@ impl TokenStream {
                 }
             }
         }
+
         None
     }
 
@@ -657,7 +658,7 @@ impl llm::PoolingType for ChatWorker {
     }
 }
 
-impl<'a> Worker<'_, ChatWorker> {
+impl Worker<'_, ChatWorker> {
     fn new_chat_worker(
         model: &Arc<LlamaModel>,
         n_ctx: u32,
@@ -672,13 +673,13 @@ impl<'a> Worker<'_, ChatWorker> {
         )?;
         chat_state.add_system_message(system_prompt);
 
-        let grammar = if tools.len() > 0 {
+        let grammar = if !tools.is_empty() {
             grammar_from_tools(&tools).ok()
         } else {
             None
         };
 
-        Ok(Worker::new_with_type(
+        Worker::new_with_type(
             model,
             n_ctx,
             false,
@@ -688,7 +689,7 @@ impl<'a> Worker<'_, ChatWorker> {
                 tool_grammar: grammar,
                 should_stop,
             },
-        )?)
+        )
     }
 
     fn should_stop(&self) -> bool {
@@ -711,15 +712,15 @@ impl<'a> Worker<'_, ChatWorker> {
         };
         let first_user_message_index =
             self.find_next_user_message(&messages, system_end)
-                .ok_or(ShiftError::MessageError(
+                .ok_or(ShiftError::Message(
                     "No first user message in chat history".into(),
                 ))?;
         let first_deletable_index = self
             .find_next_user_message(&messages, first_user_message_index + 1)
-            .ok_or(ShiftError::MessageError("No deletable messages".into()))?; // Assuming assistant after user
+            .ok_or(ShiftError::Message("No deletable messages".into()))?; // Assuming assistant after user
         let mut last_deletable_index = self
             .find_start_of_last_n_user_messages(&messages, 2)
-            .ok_or(ShiftError::MessageError(
+            .ok_or(ShiftError::Message(
                 "Less than two user messages in chat history.".into(),
             ))?
             - 1;
@@ -756,7 +757,7 @@ impl<'a> Worker<'_, ChatWorker> {
             // This is to ensure that resulting chat history still follows the user then assistant format
             let delete_index = min(
                 self.find_next_user_message(&messages, target_delete_index + 1)
-                    .ok_or(ShiftError::MessageError(
+                    .ok_or(ShiftError::Message(
                         "Could find user message supposed to be there".into(),
                     ))?
                     - 1,
@@ -822,7 +823,7 @@ impl<'a> Worker<'_, ChatWorker> {
 
         // initialize sampler
         // stateful samplers only live for one response
-        let mut sampler = make_sampler(&self.ctx.model, sampler_config)
+        let mut sampler = make_sampler(self.ctx.model, sampler_config)
             .ok_or(GenerateResponseError::InvalidSamplerConfig)?;
 
         let mut token_bytes_vec = Vec::new();
@@ -1101,7 +1102,7 @@ impl<'a> Worker<'_, ChatWorker> {
             self.ctx.model,
             tools.iter().map(|t| t.to_chat_state_tool()).collect(),
         )?;
-        self.extra.tool_grammar = if tools.len() > 0 {
+        self.extra.tool_grammar = if !tools.is_empty() {
             grammar_from_tools(&tools).ok()
         } else {
             None
@@ -1117,7 +1118,7 @@ impl<'a> Worker<'_, ChatWorker> {
             self.ctx.model,
             tools.iter().map(|t| t.to_chat_state_tool()).collect(),
         )?;
-        self.extra.tool_grammar = if tools.len() > 0 {
+        self.extra.tool_grammar = if !tools.is_empty() {
             grammar_from_tools(&tools).ok()
         } else {
             None
@@ -1218,7 +1219,7 @@ fn extract_tool_calls(input: &str) -> Option<Vec<chat_state::ToolCall>> {
         })
         .collect();
 
-    if tool_calls.len() > 0 {
+    if !tool_calls.is_empty() {
         Some(tool_calls)
     } else {
         None

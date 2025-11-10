@@ -173,7 +173,7 @@ where
         debug!("Reading {n_tokens} tokens.");
 
         // can't read nothing
-        debug_assert!(tokens.len() > 0);
+        debug_assert!(!tokens.is_empty());
         // can't read more than the context size
         debug_assert!(tokens.len() < self.ctx.n_ctx() as usize);
 
@@ -215,7 +215,8 @@ where
 
         self.ctx.clear_kv_cache_seq(Some(0), Some(index), None)?;
         self.n_past = index as i32;
-        return Ok(());
+
+        Ok(())
     }
 }
 
