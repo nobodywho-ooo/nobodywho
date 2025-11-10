@@ -187,7 +187,8 @@ mod tests {
 
         assert!(
             best_sentence == "Paris is the capital of France.",
-            "`Paris is the capital of France.` is not in top three"
+            "`Paris is the capital of France.` was not best, the best was `{}`",
+            best_sentence
         );
 
         Ok(())
