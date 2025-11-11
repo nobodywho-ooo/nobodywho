@@ -199,9 +199,12 @@ impl NobodyWhoChat {
         let model = self.get_model()?;
         self.chat_handle = Some(nobodywho::chat::ChatHandle::new(
             model,
-            self.context_length,
-            self.system_prompt.to_string(),
-            self.tools.clone(),
+            nobodywho::chat::ChatConfig {
+                system_prompt: self.system_prompt.to_string(),
+                tools: self.tools.clone(),
+                n_ctx: self.context_length,
+                enable_thinking: true,
+            },
         ));
         Ok(())
     }

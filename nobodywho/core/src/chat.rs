@@ -76,12 +76,11 @@ pub struct ChatHandle {
 /// # Ok(())
 /// # }
 /// ```
-
 pub struct ChatConfig {
-    tools: Vec<Tool>,
-    n_ctx: u32,
-    system_prompt: String,
-    enable_thinking: bool,
+    pub tools: Vec<Tool>,
+    pub n_ctx: u32,
+    pub system_prompt: String,
+    pub enable_thinking: bool,
 }
 
 impl Default for ChatConfig {
@@ -256,6 +255,11 @@ impl ChatHandle {
         let _ = self.msg_tx.send(ChatMsg::SetTools { tools });
     }
 
+    // Update if the model is in thinking mode or not.
+    pub fn set_enable_thinking(&self, enable_thinking: bool) {
+        let _ = self.msg_tx.send(ChatMsg::SetThinking { enable_thinking });
+    }
+
     /// Stop the current generation if one is in progress.
     pub fn stop_generation(&self) {
         self.should_stop
@@ -349,6 +353,9 @@ enum ChatMsg {
     SetTools {
         tools: Vec<Tool>,
     },
+    SetThinking {
+        enable_thinking: bool,
+    },
     GetChatHistory {
         output_tx: tokio::sync::mpsc::Sender<Vec<crate::chat_state::Message>>,
     },
@@ -386,6 +393,9 @@ fn run_worker(
             }
             ChatMsg::SetTools { tools } => {
                 worker_state.set_tools(tools)?;
+            }
+            ChatMsg::SetThinking { enable_thinking } => {
+                worker_state.set_thinking(enable_thinking)?;
             }
             ChatMsg::GetChatHistory { output_tx } => {
                 let _ =
@@ -679,6 +689,7 @@ impl Worker<'_, ChatWorker> {
                 .collect(),
         )?;
         chat_state.add_system_message(config.system_prompt);
+        chat_state.set_thinking(config.enable_thinking);
 
         let grammar = if !config.tools.is_empty() {
             grammar_from_tools(&config.tools).ok()
@@ -1116,6 +1127,11 @@ impl Worker<'_, ChatWorker> {
         };
         self.extra.tools = tools;
         self.extra.chat_state.add_system_message(system_prompt);
+        Ok(())
+    }
+
+    pub fn set_thinking(&mut self, enable_thinking: bool) -> Result<(), ChatWorkerError> {
+        self.extra.chat_state.set_thinking(enable_thinking);
         Ok(())
     }
 
@@ -1588,7 +1604,7 @@ mod tests {
         let mut worker = Worker::new_chat_worker(
             &model,
             ChatConfig {
-                n_ctx, 
+                n_ctx,
                 system_prompt: "You are a helpful assistant that provides informative and detailed responses. End every response with \"Do you have any further questions?\"".into(),
                 ..Default::default()
             },
@@ -2148,7 +2164,7 @@ mod tests {
                     n_ctx,
                     ..Default::default()
                 },
-                Arc::new(AtomicBool::new(false))
+                Arc::new(AtomicBool::new(false)),
             )
             .unwrap();
 
@@ -2194,6 +2210,37 @@ mod tests {
         assert!(
             de_resp.to_lowercase().contains("berlin"),
             "Expected completion to contain 'Berlin', got: {de_resp}"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_enable_thinking() -> Result<(), Box<dyn std::error::Error>> {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let chat = ChatBuilder::new(model).build();
+
+        let res1: String = chat
+            .say_complete("What is the capital of Denmark?".to_string())
+            .await
+            .unwrap();
+
+        assert!(
+            res1.contains("<think>"),
+            "Expected the model to initialize with thinking mode, but it did not"
+        );
+
+        chat.set_enable_thinking(false);
+
+        let res2: String = chat
+            .say_complete("What is the capital of the Czech Republic?".to_string())
+            .await
+            .unwrap();
+
+        assert!(
+            !res2.contains("<think>"),
+            "Expected the model to not think, but it did"
         );
 
         Ok(())
