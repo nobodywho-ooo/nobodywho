@@ -136,16 +136,18 @@ impl ChatHandle {
 
         let should_stop = Arc::new(AtomicBool::new(false));
         let should_stop_clone = Arc::clone(&should_stop);
+
         std::thread::spawn(move || {
-            if let Err(e) = run_worker(
-                model,
-                n_ctx,
-                system_prompt,
-                tools,
-                msg_rx,
-                should_stop_clone,
-            ) {
-                error!("Worker crashed: {}", e)
+            let Ok(mut worker_state) =
+                Worker::new_chat_worker(&model, n_ctx, system_prompt, should_stop_clone, tools)
+            else {
+                return error!("Could not set up the worker initial state");
+            };
+
+            while let Ok(msg) = msg_rx.recv() {
+                if let Err(e) = process_worker_msg(&mut worker_state, msg) {
+                    return error!("Worker crashed: {e}");
+                }
             }
         });
 
@@ -350,51 +352,43 @@ enum ChatMsg {
     },
 }
 
-fn run_worker(
-    model: Arc<LlamaModel>,
-    n_ctx: u32,
-    system_prompt: String,
-    tools: Vec<Tool>,
-    msg_rx: std::sync::mpsc::Receiver<ChatMsg>,
-    should_stop: Arc<AtomicBool>,
+fn process_worker_msg(
+    worker_state: &mut Worker<'_, ChatWorker>,
+    msg: ChatMsg,
 ) -> Result<(), ChatWorkerError> {
-    let mut worker_state =
-        Worker::new_chat_worker(&model, n_ctx, system_prompt, should_stop, tools)?;
-    while let Ok(msg) = msg_rx.recv() {
-        match msg {
-            ChatMsg::Say {
-                text,
-                sampler,
-                stop_words,
-                output_tx,
-            } => {
-                let callback = move |out| {
-                    let _ = output_tx.blocking_send(out);
-                };
-                worker_state.say(text, sampler, stop_words, callback)?;
-            }
-            ChatMsg::ResetChat {
-                system_prompt,
-                tools,
-            } => {
-                worker_state.reset_chat(system_prompt, tools)?;
-            }
-            ChatMsg::SetTools { tools } => {
-                worker_state.set_tools(tools)?;
-            }
-            ChatMsg::GetChatHistory { output_tx } => {
-                let _ =
-                    output_tx.blocking_send(worker_state.extra.chat_state.get_messages().to_vec());
-            }
-            ChatMsg::SetChatHistory {
-                messages,
-                output_tx,
-            } => {
-                worker_state.set_chat_history(messages)?;
-                let _ = output_tx.blocking_send(());
-            }
+    match msg {
+        ChatMsg::Say {
+            text,
+            sampler,
+            stop_words,
+            output_tx,
+        } => {
+            let callback = move |out| {
+                let _ = output_tx.blocking_send(out);
+            };
+            worker_state.say(text, sampler, stop_words, callback)?;
         }
-    }
+        ChatMsg::ResetChat {
+            system_prompt,
+            tools,
+        } => {
+            worker_state.reset_chat(system_prompt, tools)?;
+        }
+        ChatMsg::SetTools { tools } => {
+            worker_state.set_tools(tools)?;
+        }
+        ChatMsg::GetChatHistory { output_tx } => {
+            let _ = output_tx.blocking_send(worker_state.extra.chat_state.get_messages().to_vec());
+        }
+        ChatMsg::SetChatHistory {
+            messages,
+            output_tx,
+        } => {
+            worker_state.set_chat_history(messages)?;
+            let _ = output_tx.blocking_send(());
+        }
+    };
+
     Ok(())
 }
 
