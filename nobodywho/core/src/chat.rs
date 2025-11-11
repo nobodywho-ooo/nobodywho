@@ -50,6 +50,33 @@ pub struct ChatHandle {
     should_stop: Arc<AtomicBool>,
 }
 
+///
+/// Configuration for chat sessions.
+///
+/// This struct groups all the settings needed to initialize a chat worker.
+/// Use [`ChatBuilder`] for a more ergonomic way to configure these settings.
+pub struct ChatConfig {
+    /// Available tools for the model to use.
+    pub tools: Vec<Tool>,
+    /// Context window size.
+    pub n_ctx: u32,
+    /// System prompt for the chat session.
+    pub system_prompt: String,
+    /// Whether to enable thinking mode during inference.
+    pub enable_thinking: bool,
+}
+
+impl Default for ChatConfig {
+    fn default() -> Self {
+        Self {
+            n_ctx: 2048,
+            enable_thinking: true,
+            system_prompt: String::new(),
+            tools: Vec::new(),
+        }
+    }
+}
+
 /// Builder for creating a [`ChatHandle`] with a fluent API.
 ///
 /// # Example
@@ -76,24 +103,6 @@ pub struct ChatHandle {
 /// # Ok(())
 /// # }
 /// ```
-pub struct ChatConfig {
-    pub tools: Vec<Tool>,
-    pub n_ctx: u32,
-    pub system_prompt: String,
-    pub enable_thinking: bool,
-}
-
-impl Default for ChatConfig {
-    fn default() -> Self {
-        Self {
-            n_ctx: 2048,
-            enable_thinking: true,
-            system_prompt: String::new(),
-            tools: Vec::new(),
-        }
-    }
-}
-
 pub struct ChatBuilder {
     model: Arc<LlamaModel>,
     config: ChatConfig,
@@ -132,6 +141,7 @@ impl ChatBuilder {
         self
     }
 
+    /// Enable or disable thinking mode during inference.
     pub fn with_thinking(mut self, enable_thinking: bool) -> Self {
         self.config.enable_thinking = enable_thinking;
         self
@@ -255,7 +265,7 @@ impl ChatHandle {
         let _ = self.msg_tx.send(ChatMsg::SetTools { tools });
     }
 
-    // Update if the model is in thinking mode or not.
+    /// Update whether the model should use thinking mode during inference.
     pub fn set_enable_thinking(&self, enable_thinking: bool) {
         let _ = self.msg_tx.send(ChatMsg::SetThinking { enable_thinking });
     }
