@@ -69,7 +69,7 @@ pub struct ChatConfig {
 impl Default for ChatConfig {
     fn default() -> Self {
         Self {
-            n_ctx: 2048,
+            n_ctx: 4096,
             enable_thinking: true,
             system_prompt: String::new(),
             tools: Vec::new(),

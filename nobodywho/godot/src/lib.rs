@@ -2,6 +2,7 @@ mod sampler_resource;
 
 use godot::classes::{INode, ProjectSettings};
 use godot::prelude::*;
+use nobodywho::chat::ChatConfig;
 use nobodywho::{chat_state, errors, llm, sampler_config};
 use std::sync::atomic::{AtomicU64, Ordering};
 use tracing::{debug, error, info, trace, warn};
@@ -131,6 +132,9 @@ struct NobodyWhoChat {
     system_prompt: GString,
 
     #[export]
+    enable_thinking: bool,
+
+    #[export]
     /// Stop tokens to stop generation at these specified tokens.
     stop_words: PackedStringArray,
 
@@ -149,17 +153,21 @@ struct NobodyWhoChat {
 #[godot_api]
 impl INode for NobodyWhoChat {
     fn init(base: Base<Node>) -> Self {
+        let default_config = ChatConfig::default();
+
         Self {
+            // defaults
+            tools: default_config.tools,
+            system_prompt: default_config.system_prompt.into(),
+            context_length: default_config.n_ctx,
+            enable_thinking: default_config.enable_thinking,
+
             // config
             model_node: None,
             sampler: None,
-            system_prompt: "".into(),
             stop_words: PackedStringArray::new(),
-            context_length: 4096,
             chat_handle: None,
             signal_counter: AtomicU64::new(0),
-            tools: vec![],
-
             base,
         }
     }
@@ -203,7 +211,7 @@ impl NobodyWhoChat {
                 system_prompt: self.system_prompt.to_string(),
                 tools: self.tools.clone(),
                 n_ctx: self.context_length,
-                enable_thinking: true,
+                enable_thinking: self.enable_thinking,
             },
         ));
         Ok(())
