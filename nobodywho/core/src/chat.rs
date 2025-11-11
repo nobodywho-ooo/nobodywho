@@ -62,15 +62,15 @@ pub struct ChatConfig {
     pub n_ctx: u32,
     /// System prompt for the chat session.
     pub system_prompt: String,
-    /// Whether to enable thinking mode during inference.
-    pub enable_thinking: bool,
+    /// Whether to allow thinking mode during inference.
+    pub allow_thinking: bool,
 }
 
 impl Default for ChatConfig {
     fn default() -> Self {
         Self {
             n_ctx: 4096,
-            enable_thinking: true,
+            allow_thinking: true,
             system_prompt: String::new(),
             tools: Vec::new(),
         }
@@ -141,9 +141,9 @@ impl ChatBuilder {
         self
     }
 
-    /// Enable or disable thinking mode during inference.
-    pub fn with_thinking(mut self, enable_thinking: bool) -> Self {
-        self.config.enable_thinking = enable_thinking;
+    /// Allow thinking mode during inference.
+    pub fn with_allow_thinking(mut self, allow_thinking: bool) -> Self {
+        self.config.allow_thinking = allow_thinking;
         self
     }
 
@@ -266,8 +266,8 @@ impl ChatHandle {
     }
 
     /// Update whether the model should use thinking mode during inference.
-    pub fn set_enable_thinking(&self, enable_thinking: bool) {
-        let _ = self.msg_tx.send(ChatMsg::SetThinking { enable_thinking });
+    pub fn set_allow_thinking(&self, allow_thinking: bool) {
+        let _ = self.msg_tx.send(ChatMsg::SetThinking { allow_thinking });
     }
 
     /// Stop the current generation if one is in progress.
@@ -364,7 +364,7 @@ enum ChatMsg {
         tools: Vec<Tool>,
     },
     SetThinking {
-        enable_thinking: bool,
+        allow_thinking: bool,
     },
     GetChatHistory {
         output_tx: tokio::sync::mpsc::Sender<Vec<crate::chat_state::Message>>,
@@ -404,8 +404,8 @@ fn run_worker(
             ChatMsg::SetTools { tools } => {
                 worker_state.set_tools(tools)?;
             }
-            ChatMsg::SetThinking { enable_thinking } => {
-                worker_state.set_thinking(enable_thinking)?;
+            ChatMsg::SetThinking { allow_thinking } => {
+                worker_state.set_allow_thinking(allow_thinking)?;
             }
             ChatMsg::GetChatHistory { output_tx } => {
                 let _ =
@@ -699,7 +699,7 @@ impl Worker<'_, ChatWorker> {
                 .collect(),
         )?;
         chat_state.add_system_message(config.system_prompt);
-        chat_state.set_thinking(config.enable_thinking);
+        chat_state.set_allow_thinking(config.allow_thinking);
 
         let grammar = if !config.tools.is_empty() {
             grammar_from_tools(&config.tools).ok()
@@ -1140,8 +1140,8 @@ impl Worker<'_, ChatWorker> {
         Ok(())
     }
 
-    pub fn set_thinking(&mut self, enable_thinking: bool) -> Result<(), ChatWorkerError> {
-        self.extra.chat_state.set_thinking(enable_thinking);
+    pub fn set_allow_thinking(&mut self, allow_thinking: bool) -> Result<(), ChatWorkerError> {
+        self.extra.chat_state.set_allow_thinking(allow_thinking);
         Ok(())
     }
 
@@ -2228,7 +2228,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_enable_thinking() -> Result<(), Box<dyn std::error::Error>> {
+    async fn test_allow_thinking() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let chat = ChatBuilder::new(model).build();
@@ -2243,7 +2243,7 @@ mod tests {
             "Expected the model to initialize with thinking mode, but it did not"
         );
 
-        chat.set_enable_thinking(false);
+        chat.set_allow_thinking(false);
 
         let res2: String = chat
             .say_complete("What is the capital of the Czech Republic?".to_string())

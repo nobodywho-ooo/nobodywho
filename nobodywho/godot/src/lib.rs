@@ -132,7 +132,7 @@ struct NobodyWhoChat {
     system_prompt: GString,
 
     #[export]
-    enable_thinking: bool,
+    allow_thinking: bool,
 
     #[export]
     /// Stop tokens to stop generation at these specified tokens.
@@ -160,7 +160,7 @@ impl INode for NobodyWhoChat {
             tools: default_config.tools,
             system_prompt: default_config.system_prompt.into(),
             context_length: default_config.n_ctx,
-            enable_thinking: default_config.enable_thinking,
+            allow_thinking: default_config.allow_thinking,
 
             // config
             model_node: None,
@@ -211,7 +211,7 @@ impl NobodyWhoChat {
                 system_prompt: self.system_prompt.to_string(),
                 tools: self.tools.clone(),
                 n_ctx: self.context_length,
-                enable_thinking: self.enable_thinking,
+                allow_thinking: self.allow_thinking,
             },
         ));
         Ok(())

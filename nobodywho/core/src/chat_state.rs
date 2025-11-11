@@ -107,7 +107,7 @@ pub struct ChatState {
     messages: Vec<Message>,
     chat_template: String,
     tokens_in_context: Vec<LlamaToken>,
-    enable_thinking: bool,
+    allow_thinking: bool,
     eos_token: String,
     bos_token: String,
     tools: Vec<Tool>,
@@ -161,7 +161,7 @@ impl ChatState {
             messages: Vec::new(),
             chat_template,
             tokens_in_context: Vec::new(),
-            enable_thinking: true,
+            allow_thinking: true,
             eos_token,
             bos_token,
             tools,
@@ -206,8 +206,8 @@ impl ChatState {
         self.tokens_in_context = Vec::new();
     }
 
-    pub fn set_thinking(&mut self, enable_thinking: bool) {
-        self.enable_thinking = enable_thinking;
+    pub fn set_allow_thinking(&mut self, allow_thinking: bool) {
+        self.allow_thinking = allow_thinking;
     }
 
     pub fn get_messages(&self) -> &[Message] {
@@ -278,7 +278,9 @@ impl ChatState {
         let ctx = context! {
             messages => messages,
             add_generation_prompt => add_generation_prompt,
-            enable_thinking => self.enable_thinking,
+            // we call it allow thinking, because not every model has thinking mode,
+            // and 'enable' could then cause confusion
+            enable_thinking => self.allow_thinking,
             eos_token => self.eos_token,
             bos_token => self.bos_token,
             tools => self.tools,

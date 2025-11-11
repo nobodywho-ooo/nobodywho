@@ -191,7 +191,7 @@ impl ChatWrapper {
                 n_ctx,
                 system_prompt,
                 tools: self.tools.clone(),
-                enable_thinking: true,
+                allow_thinking: true,
             },
         );
         self.handle = Some(handle);
