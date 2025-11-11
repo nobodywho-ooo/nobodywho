@@ -61,8 +61,15 @@ A new Flutter FFI plugin project.
   s.dependency 'Flutter'
 
   s.platform = :ios, '13.0'
-  s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES', 'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386' }
+  s.pod_target_xcconfig = {
+    'DEFINES_MODULE' => 'YES',
+    'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386',
+    'SWIFT_INCLUDE_PATHS' => '$(PODS_TARGET_SRCROOT)/Classes'
+  }
   s.swift_version = '5.0'
+
+  # Ensure the header is available to Swift
+  s.preserve_paths = 'Classes/binding.h'
 
   # this is where we include the pre-compiled nobodywho code
   s.vendored_frameworks = "Frameworks/#{framework_name}"

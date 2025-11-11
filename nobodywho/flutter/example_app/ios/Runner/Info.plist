@@ -45,5 +45,28 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+
+        <key>UTImportedTypeDeclarations</key>
+        <array>
+          <dict>
+            <key>UTTypeConformsTo</key>
+            <array>
+              <string>public.data</string>
+            </array>
+            <key>UTTypeDescription</key>
+            <string>GGUF Model File</string>
+            <key>UTTypeIdentifier</key>
+            <string>com.ggml.gguf</string>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+              <key>public.filename-extension</key>
+              <array>
+                <string>gguf</string>
+              </array>
+            </dict>
+          </dict>
+        </array>
+        <key>UISupportsDocumentBrowser</key>
+        <true/>
 </dict>
 </plist>

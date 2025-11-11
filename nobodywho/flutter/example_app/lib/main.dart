@@ -63,7 +63,7 @@ class _ChatScreenState extends State<ChatScreen> {
       // Initialize the NobodyWho model
       _model = NobodyWhoModel(
         modelPath: modelPath,
-        useGpu: true,
+        useGpu: false,
       );
 
       // Create a chat instance with the model
