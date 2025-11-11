@@ -1536,6 +1536,8 @@ mod tests {
             &model,
             ChatConfig {
                 system_prompt: "You're a helpful assistant.".into(),
+                n_ctx: 4096,
+                tools: vec![test_tool()],
                 ..Default::default()
             },
             Arc::new(AtomicBool::new(false)),
