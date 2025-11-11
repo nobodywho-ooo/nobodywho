@@ -76,11 +76,28 @@ pub struct ChatHandle {
 /// # Ok(())
 /// # }
 /// ```
-pub struct ChatBuilder {
-    model: Arc<LlamaModel>,
+
+pub struct ChatConfig {
+    tools: Vec<Tool>,
     n_ctx: u32,
     system_prompt: String,
-    tools: Vec<Tool>,
+    enable_thinking: bool,
+}
+
+impl Default for ChatConfig {
+    fn default() -> Self {
+        Self {
+            n_ctx: 2048,
+            enable_thinking: true,
+            system_prompt: String::new(),
+            tools: Vec::new(),
+        }
+    }
+}
+
+pub struct ChatBuilder {
+    model: Arc<LlamaModel>,
+    config: ChatConfig,
 }
 
 impl ChatBuilder {
@@ -88,63 +105,54 @@ impl ChatBuilder {
     pub fn new(model: Arc<LlamaModel>) -> Self {
         Self {
             model,
-            n_ctx: 2048,
-            system_prompt: String::new(),
-            tools: Vec::new(),
+            config: ChatConfig::default(),
         }
     }
 
     /// Set the context size for the chat session.
     pub fn with_context_size(mut self, n_ctx: u32) -> Self {
-        self.n_ctx = n_ctx;
+        self.config.n_ctx = n_ctx;
         self
     }
 
     /// Set the system prompt for the chat session.
     pub fn with_system_prompt<S: Into<String>>(mut self, prompt: S) -> Self {
-        self.system_prompt = prompt.into();
+        self.config.system_prompt = prompt.into();
         self
     }
 
     /// Add a tool that the model can use.
     pub fn with_tool(mut self, tool: Tool) -> Self {
-        self.tools.push(tool);
+        self.config.tools.push(tool);
         self
     }
 
     /// Add multiple tools that the model can use.
     pub fn with_tools(mut self, tools: Vec<Tool>) -> Self {
-        self.tools.extend(tools);
+        self.config.tools.extend(tools);
+        self
+    }
+
+    pub fn with_thinking(mut self, enable_thinking: bool) -> Self {
+        self.config.enable_thinking = enable_thinking;
         self
     }
 
     /// Build the chat handle and start the background worker.
     pub fn build(self) -> ChatHandle {
-        ChatHandle::new(self.model, self.n_ctx, self.system_prompt, self.tools)
+        ChatHandle::new(self.model, self.config)
     }
 }
 
 impl ChatHandle {
     /// Create a new chat handle directly. Consider using [`ChatBuilder`] for a more ergonomic API.
-    pub fn new(
-        model: Arc<LlamaModel>,
-        n_ctx: u32,
-        system_prompt: String,
-        tools: Vec<Tool>,
-    ) -> Self {
+    pub fn new(model: Arc<LlamaModel>, config: ChatConfig) -> Self {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
 
         let should_stop = Arc::new(AtomicBool::new(false));
         let should_stop_clone = Arc::clone(&should_stop);
         std::thread::spawn(move || {
-            if let Err(e) = run_worker(
-                model,
-                n_ctx,
-                system_prompt,
-                tools,
-                msg_rx,
-                should_stop_clone,
-            ) {
+            if let Err(e) = run_worker(model, msg_rx, config, should_stop_clone) {
                 error!("Worker crashed: {}", e)
             }
         });
@@ -352,14 +360,11 @@ enum ChatMsg {
 
 fn run_worker(
     model: Arc<LlamaModel>,
-    n_ctx: u32,
-    system_prompt: String,
-    tools: Vec<Tool>,
     msg_rx: std::sync::mpsc::Receiver<ChatMsg>,
+    config: ChatConfig,
     should_stop: Arc<AtomicBool>,
 ) -> Result<(), ChatWorkerError> {
-    let mut worker_state =
-        Worker::new_chat_worker(&model, n_ctx, system_prompt, should_stop, tools)?;
+    let mut worker_state = Worker::new_chat_worker(&model, config, should_stop)?;
     while let Ok(msg) = msg_rx.recv() {
         match msg {
             ChatMsg::Say {
@@ -661,31 +666,33 @@ impl llm::PoolingType for ChatWorker {
 impl Worker<'_, ChatWorker> {
     fn new_chat_worker(
         model: &Arc<LlamaModel>,
-        n_ctx: u32,
-        system_prompt: String,
+        config: ChatConfig,
         should_stop: Arc<AtomicBool>,
-        tools: Vec<Tool>,
     ) -> Result<Worker<'_, ChatWorker>, InitWorkerError> {
         // initialize chat state with system prompt
         let mut chat_state = ChatState::from_model_and_tools(
             model,
-            tools.iter().map(|t| t.to_chat_state_tool()).collect(),
+            config
+                .tools
+                .iter()
+                .map(|t| t.to_chat_state_tool())
+                .collect(),
         )?;
-        chat_state.add_system_message(system_prompt);
+        chat_state.add_system_message(config.system_prompt);
 
-        let grammar = if !tools.is_empty() {
-            grammar_from_tools(&tools).ok()
+        let grammar = if !config.tools.is_empty() {
+            grammar_from_tools(&config.tools).ok()
         } else {
             None
         };
 
         Worker::new_with_type(
             model,
-            n_ctx,
+            config.n_ctx,
             false,
             ChatWorker {
                 chat_state,
-                tools,
+                tools: config.tools,
                 tool_grammar: grammar,
                 should_stop,
             },
@@ -1288,12 +1295,14 @@ mod tests {
         // test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let sampler = SamplerConfig::default();
+
         let mut worker = Worker::new_chat_worker(
             &model,
-            1024,
-            "".into(),
+            ChatConfig {
+                n_ctx: 1024,
+                ..Default::default()
+            },
             Arc::new(AtomicBool::new(false)),
-            vec![],
         )?;
 
         let (sender, receiver) = std::sync::mpsc::channel();
@@ -1334,13 +1343,13 @@ mod tests {
     fn test_reset_chat() -> Result<(), Box<dyn std::error::Error>> {
         // test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let system_prompt = "You're a dog. End all responses with 'woof'";
         let mut worker = Worker::new_chat_worker(
             &model,
-            1024,
-            system_prompt.into(),
+            ChatConfig {
+                system_prompt: "You're a dog. End all responses with 'woof'".into(),
+                ..ChatConfig::default()
+            },
             Arc::new(AtomicBool::new(false)),
-            vec![],
         )?;
         let sampler = SamplerConfig::default();
 
@@ -1385,13 +1394,14 @@ mod tests {
     fn test_stop_mid_write() -> Result<(), Box<dyn std::error::Error>> {
         // test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let system_prompt = "You are a counter, only outputting numbers";
         let mut worker = Worker::new_chat_worker(
             &model,
-            1024,
-            system_prompt.into(),
+            ChatConfig {
+                system_prompt: "You are a counter, only outputting numbers".into(),
+                n_ctx: 1024,
+                ..ChatConfig::default()
+            },
             Arc::new(AtomicBool::new(false)),
-            vec![],
         )?;
         let should_stop = worker.extra.should_stop.clone();
 
@@ -1498,10 +1508,11 @@ mod tests {
         let model = test_utils::load_test_model();
         let mut worker = Worker::new_chat_worker(
             &model,
-            4096,
-            "You're a helpful assistant.".into(),
+            ChatConfig {
+                system_prompt: "You're a helpful assistant.".into(),
+                ..Default::default()
+            },
             Arc::new(AtomicBool::new(false)),
-            vec![test_tool()],
         )
         .expect("Failed making worker");
 
@@ -1535,10 +1546,11 @@ mod tests {
         let model = test_utils::load_test_model();
         let mut worker = Worker::new_chat_worker(
             &model,
-            1024,
-            "".into(),
+            ChatConfig {
+                tools: vec![test_tool(), dkk_exchange_rate()],
+                ..Default::default()
+            },
             Arc::new(AtomicBool::new(false)),
-            vec![test_tool(), dkk_exchange_rate()],
         )
         .expect("Failed making worker");
 
@@ -1575,10 +1587,12 @@ mod tests {
         let n_messages = 8;
         let mut worker = Worker::new_chat_worker(
             &model,
-            n_ctx,
-            "You are a helpful assistant that provides informative and detailed responses. End every response with \"Do you have any further questions?\"".into(),
+            ChatConfig {
+                n_ctx, 
+                system_prompt: "You are a helpful assistant that provides informative and detailed responses. End every response with \"Do you have any further questions?\"".into(),
+                ..Default::default()
+            },
             Arc::new(AtomicBool::new(false)),
-            vec![],
         )?;
 
         // Add many exchanges with longer messages to fill up the context
@@ -1690,10 +1704,13 @@ mod tests {
         let n_messages = 10;
         let mut worker = Worker::new_chat_worker(
             &model,
-            n_ctx,
-            "You are a helpful assistant.".into(),
+            ChatConfig {
+                n_ctx,
+                system_prompt: "You are a helpful assistant.".into(),
+                tools: vec![test_tool()],
+                ..Default::default()
+            },
             Arc::new(AtomicBool::new(false)),
-            vec![test_tool()],
         )?;
 
         // Add exchanges with tool calls mixed in
@@ -1817,17 +1834,17 @@ mod tests {
         let model = test_utils::load_test_model();
         let sampler = SamplerConfig::default();
 
-        // Use a small context size to force shifting
-        let n_ctx = 512;
         let n_messages = 14;
         // n_messages is chosen by trial and error. This exactly fills up the
         // the context so much that the next user message cannot be read and a context shift happens.
         let mut worker = Worker::new_chat_worker(
             &model,
-            n_ctx,
-            "You are a helpful assistant.".into(),
+            ChatConfig {
+                system_prompt: "You are a helpful assistant.".into(),
+                n_ctx: 512, // Use a small context size to force shifting
+                ..Default::default()
+            },
             Arc::new(AtomicBool::new(false)),
-            vec![],
         )?;
 
         // Fill up the context until it's almost full
@@ -1908,8 +1925,6 @@ mod tests {
         let model = test_utils::load_test_model();
         let sampler = SamplerConfig::default();
 
-        // Use a small context size to force shifting
-        let n_ctx = 768;
         let n_messages = 19;
         // n_messages is chosen by trial and error. This exactly fills up the
         // the context so much that the next assistant message cannot be fully written.
@@ -1917,10 +1932,12 @@ mod tests {
         // to contain the response but also small enough to fill easily and test wihtout being to slow.
         let mut worker = Worker::new_chat_worker(
             &model,
-            n_ctx,
-            "You are a helpful assistant.".into(),
+            ChatConfig {
+                n_ctx: 768, // Use a small context size to force shifting
+                system_prompt: "You are a helpful assistant.".into(),
+                ..Default::default()
+            },
             Arc::new(AtomicBool::new(false)),
-            vec![],
         )?;
 
         // Fill up the context until it's almost full
@@ -1997,10 +2014,8 @@ mod tests {
         let sampler = SamplerConfig::default();
         let mut worker = Worker::new_chat_worker(
             &model,
-            4096,
-            "".into(),
+            ChatConfig::default(),
             Arc::new(AtomicBool::new(false)),
-            vec![],
         )?;
 
         let (sender, receiver) = std::sync::mpsc::channel();
@@ -2035,10 +2050,11 @@ mod tests {
         let sampler = SamplerConfig::default();
         let mut worker = Worker::new_chat_worker(
             &model,
-            1024,
-            "".into(),
+            ChatConfig {
+                n_ctx: 1024,
+                ..Default::default()
+            },
             Arc::new(AtomicBool::new(false)),
-            vec![],
         )?;
 
         let (sender, receiver) = std::sync::mpsc::channel();
@@ -2099,10 +2115,11 @@ mod tests {
         let dk_handle = std::thread::spawn(move || {
             let mut worker = Worker::new_chat_worker(
                 &model_clone,
-                n_ctx,
-                "".into(),
+                ChatConfig {
+                    n_ctx,
+                    ..Default::default()
+                },
                 Arc::new(AtomicBool::new(false)),
-                vec![],
             )
             .unwrap();
 
@@ -2127,10 +2144,11 @@ mod tests {
         let de_handle = std::thread::spawn(move || {
             let mut worker = Worker::new_chat_worker(
                 &model,
-                n_ctx,
-                "".into(),
-                Arc::new(AtomicBool::new(false)),
-                vec![],
+                ChatConfig {
+                    n_ctx,
+                    ..Default::default()
+                },
+                Arc::new(AtomicBool::new(false))
             )
             .unwrap();
 
