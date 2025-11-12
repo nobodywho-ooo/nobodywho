@@ -26,6 +26,17 @@ static LLAMA_BACKEND: LazyLock<LlamaBackend> =
 pub type Model = Arc<LlamaModel>;
 
 pub fn has_discrete_gpu() -> bool {
+    #[cfg(any(
+        all(target_os = "ios", target_arch = "aarch64", target_abi = "sim"),
+        all(target_os = "ios", target_arch = "x86_64")
+    ))]
+    {
+        // GPU-acceleration not working on ios simulators seems to be a known issue in llama.cpp:
+        // https://github.com/ggml-org/llama.cpp/blob/017eceed61e885b79f6cf3542e0879be68c6e922/examples/llama.swiftui/llama.cpp.swift/LibLlama.swift#L66
+        warn!("Running on iOS simulator. Disabling GPU support.");
+        return false;
+    }
+
     // TODO: Upstream a safe API for accessing the ggml backend API
     unsafe {
         for i in 0..llama_cpp_sys_2::ggml_backend_dev_count() {
