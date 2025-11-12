@@ -184,7 +184,7 @@ impl ChatHandle {
     /// # }
     /// ```
     pub async fn say_complete(&self, text: impl Into<String>) -> Result<String, SayError> {
-        self.say_complete_with_config(text, SamplerPresets::default(), vec![])
+        self.say_complete_with_config(text, SamplerConfig::default(), vec![])
             .await
     }
 
@@ -222,7 +222,7 @@ impl ChatHandle {
     /// # }
     /// ```
     pub fn say_stream(&self, text: impl Into<String>) -> TokenStream {
-        TokenStream::new(self.say(text.into(), SamplerPresets::default(), vec![]))
+        TokenStream::new(self.say(text.into(), SamplerConfig::default(), vec![]))
     }
 
     /// Send a message with custom configuration and collect tokens as they arrive.
@@ -1289,7 +1289,7 @@ mod tests {
     fn test_chat_worker() -> Result<(), Box<dyn std::error::Error>> {
         // test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let sampler = SamplerPresets::default();
+        let sampler = SamplerConfig::default();
         let mut worker = Worker::new_chat_worker(
             &model,
             1024,
@@ -1344,7 +1344,7 @@ mod tests {
             Arc::new(AtomicBool::new(false)),
             vec![],
         )?;
-        let sampler = SamplerPresets::default();
+        let sampler = SamplerConfig::default();
 
         // just a hack to get a channel back
         let (sender, receiver) = std::sync::mpsc::channel();
@@ -1400,7 +1400,7 @@ mod tests {
         // ensure that the generationworker resets the flag when creating a new response.
         should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
 
-        let sampler = SamplerPresets::default();
+        let sampler = SamplerConfig::default();
 
         let (sender, receiver) = std::sync::mpsc::channel();
         let f = move |x| match x {
@@ -1519,7 +1519,7 @@ mod tests {
             .say(
                 "I would like to know the temperature in two cities: Copenhagen and Beijing."
                     .into(),
-                crate::sampler_config::SamplerPresets::default(),
+                crate::sampler_config::SamplerConfig::default(),
                 vec![],
                 f,
             )
@@ -1555,7 +1555,7 @@ mod tests {
         worker.say(
             "I would like to know the temperature in Copenhagen and the DKK to USD exchange rate."
                 .into(),
-            crate::sampler_config::SamplerPresets::default(),
+            crate::sampler_config::SamplerConfig::default(),
             vec![],
             f,
         )
@@ -1817,7 +1817,7 @@ mod tests {
     fn test_context_shift_on_say() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let sampler = SamplerPresets::default();
+        let sampler = SamplerConfig::default();
 
         // Use a small context size to force shifting
         let n_ctx = 512;
@@ -1908,7 +1908,7 @@ mod tests {
     fn test_context_while_writing() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let sampler = SamplerPresets::default();
+        let sampler = SamplerConfig::default();
 
         // Use a small context size to force shifting
         let n_ctx = 768;
@@ -1996,7 +1996,7 @@ mod tests {
     fn test_chat_worker_simple_completion() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let sampler = SamplerPresets::default();
+        let sampler = SamplerConfig::default();
         let mut worker = Worker::new_chat_worker(
             &model,
             4096,
@@ -2034,7 +2034,7 @@ mod tests {
     fn test_chat_worker_stop_tokens() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let sampler = SamplerPresets::default();
+        let sampler = SamplerConfig::default();
         let mut worker = Worker::new_chat_worker(
             &model,
             1024,
@@ -2084,7 +2084,7 @@ mod tests {
     fn test_chat_worker_multiple_contexts() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let sampler = SamplerPresets::default();
+        let sampler = SamplerConfig::default();
         let n_ctx = 4096;
 
         // Use two separate response containers for thread safety

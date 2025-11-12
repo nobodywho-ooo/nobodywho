@@ -8,9 +8,7 @@ pub struct SamplerPresets;
 
 impl SamplerPresets {
     pub fn default() -> SamplerConfig {
-        SamplerConfig::new()
-            .temperature(0.8)
-            .sample(SampleStep::MirostatV2 { tau: 5.0, eta: 0.1 })
+        SamplerConfig::default()
     }
 
     pub fn top_k(k: i32) -> SamplerConfig {
@@ -34,7 +32,7 @@ impl SamplerPresets {
 
     pub fn temperature(temperature: f32) -> SamplerConfig {
         SamplerConfig::new()
-            .temperature(temperature)
+            .shift(ShiftStep::Temperature { temperature })
             .sample(SampleStep::Dist)
     }
 
@@ -56,13 +54,19 @@ impl SamplerPresets {
     }
 
     pub fn json() -> SamplerConfig {
-        SamplerConfig::new()
-            .shift(ShiftStep::Grammar {
-                trigger_on: None,
-                root: "root".into(),
-                grammar: JSON_GRAMMAR.into(),
-            })
-            .sample(SampleStep::MirostatV2 { tau: 5.0, eta: 0.1 })
+        SamplerConfig::default().shift(ShiftStep::Grammar {
+            trigger_on: None,
+            root: "root".into(),
+            grammar: JSON_GRAMMAR.into(),
+        })
+    }
+
+    pub fn grammar(grammar: String) -> SamplerConfig {
+        SamplerConfig::default().shift(ShiftStep::Grammar {
+            trigger_on: None,
+            root: "root".into(),
+            grammar,
+        })
     }
 }
 
@@ -85,45 +89,6 @@ impl SamplerConfig {
 
     pub fn shift(mut self, step: ShiftStep) -> Self {
         self.steps.push(step);
-        self
-    }
-
-    pub fn dry(
-        mut self,
-        multiplier: f32,
-        base: f32,
-        allowed_length: i32,
-        penalty_last_n: i32,
-        seq_breakers: Vec<String>,
-    ) -> Self {
-        self.steps.push(ShiftStep::DRY {
-            multiplier,
-            base,
-            allowed_length,
-            penalty_last_n,
-            seq_breakers,
-        });
-        self
-    }
-
-    pub fn penalties(
-        mut self,
-        penalty_last_n: i32,
-        penalty_repeat: f32,
-        penalty_freq: f32,
-        penalty_present: f32,
-    ) -> Self {
-        self.steps.push(ShiftStep::Penalties {
-            penalty_last_n,
-            penalty_repeat,
-            penalty_freq,
-            penalty_present,
-        });
-        self
-    }
-
-    pub fn temperature(mut self, temperature: f32) -> Self {
-        self.steps.push(ShiftStep::Temperature { temperature });
         self
     }
 
@@ -255,6 +220,14 @@ impl SamplerConfig {
             Some(g) => Ok(g),
             None => Err(SamplerError::TriggerOrGrammarContainsNullBytes),
         }
+    }
+}
+
+impl Default for SamplerConfig {
+    fn default() -> SamplerConfig {
+        SamplerConfig::new()
+            .shift(ShiftStep::Temperature { temperature: 0.8 })
+            .sample(SampleStep::MirostatV2 { tau: 5.0, eta: 0.1 })
     }
 }
 
