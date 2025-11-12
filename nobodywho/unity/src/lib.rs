@@ -180,14 +180,19 @@ impl ChatWrapper {
             .get_model()
             .map_err(|_| ChatError::LoadModelFailed)?;
 
+        let system_prompt = system_prompt
+            .as_str()
+            .map_err(|_| ChatError::BadSystemPrompt)?
+            .into();
+
         let handle = nobodywho::chat::ChatHandle::new(
             model,
-            n_ctx,
-            system_prompt
-                .as_str()
-                .map_err(|_| ChatError::BadSystemPrompt)?
-                .into(),
-            self.tools.clone(),
+            nobodywho::chat::ChatConfig {
+                n_ctx,
+                system_prompt,
+                tools: self.tools.clone(),
+                allow_thinking: true,
+            },
         );
         self.handle = Some(handle);
         Ok(())

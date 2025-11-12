@@ -3,3 +3,4 @@
 .cursor*
 .envrc
 .direnv/
+.DS_Store

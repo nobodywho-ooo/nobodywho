@@ -68,7 +68,7 @@ pub enum ReadError {
 // CrossEncoderWorker errors
 
 #[derive(Debug, thiserror::Error)]
-pub(crate) enum CrossEncoderWorkerError {
+pub enum CrossEncoderWorkerError {
     #[error("Error initializing worker: {0}")]
     InitWorker(#[from] InitWorkerError),
 
