@@ -24,7 +24,7 @@ impl EmbeddingsHandle {
 
             while let Ok(msg) = msg_rx.recv() {
                 if let Err(e) = process_worker_msg(&mut worker_state, msg) {
-                    return error!("Worker crashed: {}", e);
+                    return error!("Embedding Worker crashed: {e}");
                 }
             }
         });

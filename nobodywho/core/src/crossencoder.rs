@@ -21,7 +21,7 @@ impl CrossEncoderHandle {
 
             while let Ok(msg) = msg_rx.recv() {
                 if let Err(e) = process_worker_msg(&mut worker_state, msg) {
-                    return error!("Crossencoder worker crashed: {e}");
+                    return error!("Cross-encoder worker crashed: {e}");
                 }
             }
         });
@@ -52,7 +52,7 @@ fn process_worker_msg(
 ) -> Result<(), CrossEncoderWorkerError> {
     match msg {
         CrossEncoderMsg::Rank(query, documents, respond) => {
-            // Clear context for each crossencodering operationd
+            // Clear context for each cross-encoder operation
             worker_state.reset_context();
 
             let scores = worker_state.rank(query, documents)?;
