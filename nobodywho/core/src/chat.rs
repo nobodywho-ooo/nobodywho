@@ -30,7 +30,7 @@ use crate::errors::{
 use crate::llm::{self};
 use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
 use crate::llm::{Worker, WriteOutput};
-use crate::sampler_config::{make_sampler, SamplerConfig};
+use crate::sampler_config::{SamplerConfig, SamplerPresets, ShiftStep};
 use llama_cpp_2::model::{AddBos, Special};
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
@@ -184,7 +184,7 @@ impl ChatHandle {
     /// # }
     /// ```
     pub async fn say_complete(&self, text: impl Into<String>) -> Result<String, SayError> {
-        self.say_complete_with_config(text, SamplerConfig::default(), vec![])
+        self.say_complete_with_config(text, SamplerPresets::default(), vec![])
             .await
     }
 
@@ -222,7 +222,7 @@ impl ChatHandle {
     /// # }
     /// ```
     pub fn say_stream(&self, text: impl Into<String>) -> TokenStream {
-        TokenStream::new(self.say(text.into(), SamplerConfig::default(), vec![]))
+        TokenStream::new(self.say(text.into(), SamplerPresets::default(), vec![]))
     }
 
     /// Send a message with custom configuration and collect tokens as they arrive.
@@ -823,9 +823,7 @@ impl Worker<'_, ChatWorker> {
 
         // initialize sampler
         // stateful samplers only live for one response
-        let mut sampler = make_sampler(self.ctx.model, sampler_config)
-            .ok_or(GenerateResponseError::InvalidSamplerConfig)?;
-
+        let mut sampler = sampler_config.to_stateful(self.ctx.model)?;
         let mut token_bytes_vec = Vec::new();
 
         while !self.should_stop() {
@@ -930,7 +928,7 @@ impl Worker<'_, ChatWorker> {
     pub fn say<F>(
         &mut self,
         text: String,
-        sampler: SamplerConfig,
+        user_sampler: SamplerConfig,
         stop_words: Vec<String>,
         respond: F,
     ) -> Result<&mut Self, SayError>
@@ -949,13 +947,17 @@ impl Worker<'_, ChatWorker> {
 
         self.extra.chat_state.add_user_message(text);
 
-        let mut sampler = sampler;
-        if let Some(ref tool_grammar) = self.extra.tool_grammar {
-            sampler.use_grammar = true;
-            sampler.grammar_root = "superroot".into();
-            sampler.lazy_grammar_trigger = "<tool_call>".into(); // TODO: multiple tool call tokens
-            sampler.gbnf_grammar = tool_grammar.to_string();
-        }
+        let sampler =
+            self.extra
+                .tool_grammar
+                .as_ref()
+                .map_or(user_sampler.clone(), |tool_grammar| {
+                    user_sampler.shift(ShiftStep::Grammar {
+                        trigger_on: Some(tool_call_begin.into()),
+                        root: "superoot".into(),
+                        grammar: tool_grammar.to_string(),
+                    })
+                });
 
         // get the finished response
         let mut response: String = self.wrapped_update_context_and_generate_response(
@@ -1041,7 +1043,7 @@ impl Worker<'_, ChatWorker> {
         Ok(self
             .read_tokens(tokens, &inference_lock_token)?
             .generate_response_until_done(
-                sampler.clone(),
+                sampler,
                 stop_words.clone(),
                 wrapped_respond,
                 &inference_lock_token,
@@ -1079,7 +1081,7 @@ impl Worker<'_, ChatWorker> {
         // llm go brrr
         self.read_tokens_and_generate_response(
             token_difference,
-            sampler.clone(),
+            sampler,
             stop_words.clone(),
             wrapped_respond,
         )?;
@@ -1287,7 +1289,7 @@ mod tests {
     fn test_chat_worker() -> Result<(), Box<dyn std::error::Error>> {
         // test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let sampler = SamplerConfig::default();
+        let sampler = SamplerPresets::default();
         let mut worker = Worker::new_chat_worker(
             &model,
             1024,
@@ -1342,7 +1344,7 @@ mod tests {
             Arc::new(AtomicBool::new(false)),
             vec![],
         )?;
-        let sampler = SamplerConfig::default();
+        let sampler = SamplerPresets::default();
 
         // just a hack to get a channel back
         let (sender, receiver) = std::sync::mpsc::channel();
@@ -1398,7 +1400,7 @@ mod tests {
         // ensure that the generationworker resets the flag when creating a new response.
         should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
 
-        let sampler = SamplerConfig::default();
+        let sampler = SamplerPresets::default();
 
         let (sender, receiver) = std::sync::mpsc::channel();
         let f = move |x| match x {
@@ -1517,7 +1519,7 @@ mod tests {
             .say(
                 "I would like to know the temperature in two cities: Copenhagen and Beijing."
                     .into(),
-                crate::sampler_config::SamplerConfig::default(),
+                crate::sampler_config::SamplerPresets::default(),
                 vec![],
                 f,
             )
@@ -1553,7 +1555,7 @@ mod tests {
         worker.say(
             "I would like to know the temperature in Copenhagen and the DKK to USD exchange rate."
                 .into(),
-            crate::sampler_config::SamplerConfig::default(),
+            crate::sampler_config::SamplerPresets::default(),
             vec![],
             f,
         )
@@ -1815,7 +1817,7 @@ mod tests {
     fn test_context_shift_on_say() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let sampler = SamplerConfig::default();
+        let sampler = SamplerPresets::default();
 
         // Use a small context size to force shifting
         let n_ctx = 512;
@@ -1906,7 +1908,7 @@ mod tests {
     fn test_context_while_writing() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let sampler = SamplerConfig::default();
+        let sampler = SamplerPresets::default();
 
         // Use a small context size to force shifting
         let n_ctx = 768;
@@ -1994,7 +1996,7 @@ mod tests {
     fn test_chat_worker_simple_completion() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let sampler = SamplerConfig::default();
+        let sampler = SamplerPresets::default();
         let mut worker = Worker::new_chat_worker(
             &model,
             4096,
@@ -2032,7 +2034,7 @@ mod tests {
     fn test_chat_worker_stop_tokens() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let sampler = SamplerConfig::default();
+        let sampler = SamplerPresets::default();
         let mut worker = Worker::new_chat_worker(
             &model,
             1024,
@@ -2082,7 +2084,7 @@ mod tests {
     fn test_chat_worker_multiple_contexts() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let sampler = SamplerConfig::default();
+        let sampler = SamplerPresets::default();
         let n_ctx = 4096;
 
         // Use two separate response containers for thread safety

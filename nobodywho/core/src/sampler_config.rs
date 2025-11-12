@@ -1,44 +1,45 @@
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::sampling::LlamaSampler;
-use tracing::error;
+
+use crate::errors::SamplerError;
 
 /// Some simple presets, that can be useful for basic sampling.
 pub struct SamplerPresets;
 
 impl SamplerPresets {
-    pub fn default(model: &LlamaModel) -> LlamaSampler {
-        SamplerConfig::new(model)
-            .shift(ShiftStep::Temperature { temperature: 0.8 })
+    pub fn default() -> SamplerConfig {
+        SamplerConfig::new()
+            .temperature(0.8)
             .sample(SampleStep::MirostatV2 { tau: 5.0, eta: 0.1 })
     }
 
-    pub fn top_k(model: &LlamaModel, k: i32) -> LlamaSampler {
-        SamplerConfig::new(model)
-            .constrain(ConstrainStep::TopK { top_k: k })
+    pub fn top_k(k: i32) -> SamplerConfig {
+        SamplerConfig::new()
+            .shift(ShiftStep::TopK { top_k: k })
             .sample(SampleStep::Dist)
     }
 
-    pub fn top_p(model: &LlamaModel, p: f32) -> LlamaSampler {
-        SamplerConfig::new(model)
-            .constrain(ConstrainStep::TopP {
+    pub fn top_p(p: f32) -> SamplerConfig {
+        SamplerConfig::new()
+            .shift(ShiftStep::TopP {
                 min_keep: 0,
                 top_p: p,
             })
             .sample(SampleStep::Dist)
     }
 
-    pub fn greedy(model: &LlamaModel) -> LlamaSampler {
-        SamplerConfig::new(model).sample(SampleStep::Greedy)
+    pub fn greedy() -> SamplerConfig {
+        SamplerConfig::new().sample(SampleStep::Greedy)
     }
 
-    pub fn temperature(model: &LlamaModel, temperature: f32) -> LlamaSampler {
-        SamplerConfig::new(model)
-            .shift(ShiftStep::Temperature { temperature })
+    pub fn temperature(temperature: f32) -> SamplerConfig {
+        SamplerConfig::new()
+            .temperature(temperature)
             .sample(SampleStep::Dist)
     }
 
-    pub fn dry(model: &LlamaModel) -> LlamaSampler {
-        SamplerConfig::new(model)
+    pub fn dry() -> SamplerConfig {
+        SamplerConfig::new()
             .shift(ShiftStep::DRY {
                 multiplier: 0.0,
                 base: 1.75,
@@ -54,79 +55,151 @@ impl SamplerPresets {
             .sample(SampleStep::Dist)
     }
 
-    pub fn json(model: &LlamaModel) -> LlamaSampler {
-        SamplerConfig::new(model)
-            .constrain(ConstrainStep::Grammar {
+    pub fn json() -> SamplerConfig {
+        SamplerConfig::new()
+            .shift(ShiftStep::Grammar {
                 trigger_on: None,
                 root: "root".into(),
-                grammar: JSON_GRAMMAR,
+                grammar: JSON_GRAMMAR.into(),
             })
             .sample(SampleStep::MirostatV2 { tau: 5.0, eta: 0.1 })
     }
 }
 
 /// Underlying sampler configuration API, with much more control and details.
-#[derive(Debug)]
-pub struct SamplerConfig<'a> {
-    steps: Vec<LlamaSampler>,
+#[derive(Debug, Clone)]
+pub struct SamplerConfig {
+    steps: Vec<ShiftStep>,
+    sample_step: Option<SampleStep>,
     seed: u32,
-    model: &'a LlamaModel,
 }
 
-impl<'a> SamplerConfig<'a> {
-    pub fn new(model: &'a LlamaModel) -> Self {
+impl SamplerConfig {
+    pub fn new() -> Self {
         return Self {
             steps: vec![],
             seed: 1234,
-            model,
+            sample_step: None,
         };
     }
 
-    pub fn constrain(mut self, step: ConstrainStep) -> Self {
+    pub fn shift(mut self, step: ShiftStep) -> Self {
+        self.steps.push(step);
+        self
+    }
+
+    pub fn dry(
+        mut self,
+        multiplier: f32,
+        base: f32,
+        allowed_length: i32,
+        penalty_last_n: i32,
+        seq_breakers: Vec<String>,
+    ) -> Self {
+        self.steps.push(ShiftStep::DRY {
+            multiplier,
+            base,
+            allowed_length,
+            penalty_last_n,
+            seq_breakers,
+        });
+        self
+    }
+
+    pub fn penalties(
+        mut self,
+        penalty_last_n: i32,
+        penalty_repeat: f32,
+        penalty_freq: f32,
+        penalty_present: f32,
+    ) -> Self {
+        self.steps.push(ShiftStep::Penalties {
+            penalty_last_n,
+            penalty_repeat,
+            penalty_freq,
+            penalty_present,
+        });
+        self
+    }
+
+    pub fn temperature(mut self, temperature: f32) -> Self {
+        self.steps.push(ShiftStep::Temperature { temperature });
+        self
+    }
+
+    pub fn sample(mut self, step: SampleStep) -> Self {
+        self.sample_step = Some(step);
+        self
+    }
+
+    pub fn to_stateful(&self, model: &LlamaModel) -> Result<LlamaSampler, SamplerError> {
+        let sample_step = self
+            .sample_step
+            .clone()
+            .ok_or(SamplerError::MissingSampleStep)?;
+
+        let mut shift_steps = self
+            .steps
+            .iter()
+            .map(|step| self.build_step(model, step.clone()))
+            .collect::<Result<Vec<_>, SamplerError>>()?;
+
+        let final_sampler = match sample_step {
+            SampleStep::Dist => LlamaSampler::dist(self.seed),
+            SampleStep::Greedy => LlamaSampler::greedy(),
+            SampleStep::MirostatV1 { tau, eta, m } => {
+                LlamaSampler::mirostat(model.n_vocab(), self.seed, tau, eta, m)
+            }
+            SampleStep::MirostatV2 { tau, eta } => LlamaSampler::mirostat_v2(self.seed, tau, eta),
+        };
+
+        shift_steps.push(final_sampler);
+
+        Ok(LlamaSampler::chain(shift_steps, true))
+    }
+
+    fn build_step(
+        &self,
+        model: &LlamaModel,
+        step: ShiftStep,
+    ) -> Result<LlamaSampler, SamplerError> {
         match step {
-            ConstrainStep::TopK { top_k } => self.steps.push(LlamaSampler::top_k(top_k)),
-            ConstrainStep::TopP { min_keep, top_p } => self
-                .steps
-                .push(LlamaSampler::top_p(top_p, min_keep as usize)),
-            ConstrainStep::XTC {
+            ShiftStep::TopK { top_k } => Ok(LlamaSampler::top_k(top_k)),
+            ShiftStep::TopP { min_keep, top_p } => {
+                Ok(LlamaSampler::top_p(top_p, min_keep as usize))
+            }
+            ShiftStep::XTC {
                 xtc_probability,
                 xtc_threshold,
                 min_keep,
-            } => self.steps.push(LlamaSampler::xtc(
+            } => Ok(LlamaSampler::xtc(
                 xtc_probability,
                 xtc_threshold,
                 min_keep as usize,
                 self.seed,
             )),
-            ConstrainStep::TypicalP { typ_p, min_keep } => self
-                .steps
-                .push(LlamaSampler::typical(typ_p, min_keep as usize)),
-            ConstrainStep::MinP { min_keep, min_p } => self
-                .steps
-                .push(LlamaSampler::min_p(min_p, min_keep as usize)),
-            ConstrainStep::Grammar {
+            ShiftStep::TypicalP { typ_p, min_keep } => {
+                Ok(LlamaSampler::typical(typ_p, min_keep as usize))
+            }
+            ShiftStep::MinP { min_keep, min_p } => {
+                Ok(LlamaSampler::min_p(min_p, min_keep as usize))
+            }
+            ShiftStep::Grammar {
                 grammar,
                 trigger_on,
                 root,
             } => match trigger_on {
-                Some(trigger) => self.add_lazy_grammar(&grammar, &root, trigger),
-                None => self.add_regular_grammar(&grammar, &root),
+                Some(trigger) => self.build_lazy_grammar(model, &grammar, &root, &trigger),
+                None => self.build_regular_grammar(model, &grammar, &root),
             },
-        };
-
-        self
-    }
-
-    pub fn shift(mut self, step: ShiftStep) -> Self {
-        match step {
             ShiftStep::DRY {
                 multiplier,
                 base,
                 allowed_length,
                 penalty_last_n,
                 seq_breakers,
-            } => self.steps.push(LlamaSampler::dry(
-                self.model,
+            } => Ok(LlamaSampler::dry(
+                model,
                 multiplier,
                 base,
                 allowed_length,
@@ -138,63 +211,49 @@ impl<'a> SamplerConfig<'a> {
                 penalty_repeat,
                 penalty_freq,
                 penalty_present,
-            } => self.steps.push(LlamaSampler::penalties(
+            } => Ok(LlamaSampler::penalties(
                 penalty_last_n,
                 penalty_repeat,
                 penalty_freq,
                 penalty_present,
             )),
-            ShiftStep::Temperature { temperature } => {
-                self.steps.push(LlamaSampler::temp(temperature))
-            }
+            ShiftStep::Temperature { temperature } => Ok(LlamaSampler::temp(temperature)),
         }
-
-        self
     }
 
-    pub fn sample(mut self, step: SampleStep) -> LlamaSampler {
-        match step {
-            SampleStep::Dist => self.steps.push(LlamaSampler::dist(self.seed)),
-            SampleStep::Greedy => self.steps.push(LlamaSampler::greedy()),
-            SampleStep::MirostatV1 { tau, eta, m } => self.steps.push(LlamaSampler::mirostat(
-                self.model.n_vocab(),
-                self.seed,
-                tau,
-                eta,
-                m,
-            )),
-            SampleStep::MirostatV2 { tau, eta } => self
-                .steps
-                .push(LlamaSampler::mirostat_v2(self.seed, tau, eta)),
-        };
-
-        LlamaSampler::chain(self.steps, true)
-    }
-
-    fn add_lazy_grammar(&mut self, grammar: &str, root: &str, trigger: &str) {
-        let token_result = self
-            .model
+    fn build_lazy_grammar(
+        &self,
+        model: &LlamaModel,
+        grammar: &str,
+        root: &str,
+        trigger: &str,
+    ) -> Result<LlamaSampler, SamplerError> {
+        let token_result = model
             .str_to_token(trigger, llama_cpp_2::model::AddBos::Never)
             .map(|v| v.first().copied());
 
         let token = match token_result {
             Ok(Some(token)) => token,
             _ => {
-                error!("Lazy GBNF grammar was specified, but the trigger token does not cleanly tokenize with the given model. You most likely tried to do tool calling with a model that doesn't natively support tool calling.");
-                return;
+                return Err(SamplerError::UnsupportedToolCallingTokenization);
             }
         };
 
-        match LlamaSampler::grammar_lazy(self.model, grammar, root, vec![trigger], &[token]) {
-            Some(g) => self.steps.push(g),
-            None => error!("Failed to create lazy grammar sampler"),
+        match LlamaSampler::grammar_lazy(model, grammar, root, vec![trigger], &[token]) {
+            Some(g) => Ok(g),
+            None => Err(SamplerError::TriggerOrGrammarContainsNullBytes),
         }
     }
 
-    fn add_regular_grammar(&mut self, grammar: &str, root: &str) {
-        match LlamaSampler::grammar(self.model, grammar, root) {
-            Some(g) => self.steps.push(g),
-            None => error!("Failed to create grammar sampler"),
+    fn build_regular_grammar(
+        &self,
+        model: &LlamaModel,
+        grammar: &str,
+        root: &str,
+    ) -> Result<LlamaSampler, SamplerError> {
+        match LlamaSampler::grammar(model, grammar, root) {
+            Some(g) => Ok(g),
+            None => Err(SamplerError::TriggerOrGrammarContainsNullBytes),
         }
     }
 }
@@ -229,7 +288,7 @@ ws ::= | " " | "\n" [ \t]{0,20}"#;
 /// ----- Sampler Methods -----
 
 #[derive(Clone, Debug)]
-pub enum ConstrainStep<'a> {
+pub enum ShiftStep {
     TopK {
         top_k: i32,
     },
@@ -251,13 +310,10 @@ pub enum ConstrainStep<'a> {
         min_keep: u32,
     },
     Grammar {
-        trigger_on: Option<&'a str>,
+        trigger_on: Option<String>,
         root: String,
-        grammar: &'a str,
+        grammar: String,
     },
-}
-#[derive(Clone, Debug)]
-pub enum ShiftStep {
     DRY {
         multiplier: f32,
         base: f32,
@@ -276,7 +332,7 @@ pub enum ShiftStep {
     },
 }
 #[derive(Clone, Debug)]
-enum SampleStep {
+pub enum SampleStep {
     Dist,
     Greedy,
     MirostatV1 { tau: f32, eta: f32, m: i32 },
