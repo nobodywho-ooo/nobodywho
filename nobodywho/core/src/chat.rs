@@ -30,7 +30,7 @@ use crate::errors::{
 use crate::llm::{self};
 use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
 use crate::llm::{Worker, WriteOutput};
-use crate::sampler_config::{SamplerConfig, SamplerPresets, ShiftStep};
+use crate::sampler_config::{SamplerConfig, ShiftStep};
 use llama_cpp_2::model::{AddBos, Special};
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;

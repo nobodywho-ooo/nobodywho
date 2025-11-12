@@ -7,10 +7,6 @@ use crate::errors::SamplerError;
 pub struct SamplerPresets;
 
 impl SamplerPresets {
-    pub fn default() -> SamplerConfig {
-        SamplerConfig::default()
-    }
-
     pub fn top_k(k: i32) -> SamplerConfig {
         SamplerConfig::new()
             .shift(ShiftStep::TopK { top_k: k })
@@ -80,11 +76,11 @@ pub struct SamplerConfig {
 
 impl SamplerConfig {
     pub fn new() -> Self {
-        return Self {
+        Self {
             steps: vec![],
             seed: 1234,
             sample_step: None,
-        };
+        }
     }
 
     pub fn shift(mut self, step: ShiftStep) -> Self {
