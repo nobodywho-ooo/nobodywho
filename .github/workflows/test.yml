@@ -45,6 +45,11 @@ jobs:
           nix --extra-experimental-features nix-command --extra-experimental-features flakes flake check -L
 
   run-unity-test:
+    # XXX: temporarily disable unity integration test
+    # it was always failing due to a licensing fail
+    # I think norsker was working on fixing the unity licensing stuff
+    # apparently it's more difficult than it should be
+    if: false
     name: Unity Test
     runs-on: ubuntu-latest
     timeout-minutes: 60
