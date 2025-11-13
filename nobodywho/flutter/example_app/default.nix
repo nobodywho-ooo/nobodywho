@@ -6,6 +6,7 @@
 }:
 
 let
+  models = callPackage ../../models.nix { };
   nobodywho_flutter_rust = callPackage ../rust { };
 in
 flutter335.buildFlutterApplication rec {
@@ -50,4 +51,14 @@ flutter335.buildFlutterApplication rec {
   # read pubspec using IFD
   # (can't be upstreamed to nixpkgs)
   autoPubspecLock = ./pubspec.lock;
+
+  doCheck = true;
+  checkPhase = ''
+    export PUB_OFFLINE=true
+    export FLUTTER_OFFLINE=true
+    export DART_VM_OPTIONS="--no-analytics"
+    export LD_LIBRARY_PATH="${nobodywho_flutter_rust}/lib"
+    export TEST_MODEL="${models.TEST_MODEL}"
+    flutter test ../nobodywho_dart/test/nobodywho_dart_test.dart
+  '';
 }
