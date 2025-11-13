@@ -1,7 +1,6 @@
 {
   lib,
   flutter335,
-  stdenv,
   callPackage,
 }:
 
@@ -31,11 +30,6 @@ flutter335.buildFlutterApplication rec {
 
   # Fix the plugin symlink for the Nix build environment
   preBuild = ''
-    # Set environment variables for offline mode
-    export PUB_OFFLINE=true
-    export FLUTTER_OFFLINE=true
-    export DART_VM_OPTIONS="--no-analytics"
-
     # Remove the absolute symlink if it exists
     rm -f linux/flutter/ephemeral/.plugin_symlinks/nobodywho_flutter
 
@@ -44,6 +38,7 @@ flutter335.buildFlutterApplication rec {
     ln -sf ../../../../../nobodywho_flutter linux/flutter/ephemeral/.plugin_symlinks/nobodywho_flutter
   '';
 
+  # see: https://github.com/fzyzcjy/flutter_rust_bridge/issues/2527
   fixupPhase = ''
     patchelf --add-rpath '$ORIGIN' $out/app/nobodywho_flutter_test_app/lib/libflutter_linux_gtk.so 
   '';
@@ -54,9 +49,6 @@ flutter335.buildFlutterApplication rec {
 
   doCheck = true;
   checkPhase = ''
-    export PUB_OFFLINE=true
-    export FLUTTER_OFFLINE=true
-    export DART_VM_OPTIONS="--no-analytics"
     export LD_LIBRARY_PATH="${nobodywho_flutter_rust}/lib"
     export TEST_MODEL="${models.TEST_MODEL}"
     flutter test ../nobodywho_dart/test/nobodywho_dart_test.dart
