@@ -15,8 +15,14 @@ impl CrossEncoderHandle {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
 
         std::thread::spawn(move || {
-            if let Err(e) = run_worker(model, n_ctx, msg_rx) {
-                error!("Crossencoder worker crashed: {}", e)
+            let Ok(mut worker_state) = Worker::new_crossencoder_worker(&model, n_ctx) else {
+                return error!("Could not set up the worker initial state");
+            };
+
+            while let Ok(msg) = msg_rx.recv() {
+                if let Err(e) = process_worker_msg(&mut worker_state, msg) {
+                    return error!("Cross-encoder worker crashed: {e}");
+                }
             }
         });
 
@@ -61,24 +67,21 @@ enum CrossEncoderMsg {
     Rank(String, Vec<String>, tokio::sync::mpsc::Sender<Vec<f32>>),
 }
 
-fn run_worker(
-    model: Arc<LlamaModel>,
-    n_ctx: u32,
-    msg_rx: std::sync::mpsc::Receiver<CrossEncoderMsg>,
+fn process_worker_msg(
+    worker_state: &mut Worker<'_, CrossEncoderWorker>,
+    msg: CrossEncoderMsg,
 ) -> Result<(), CrossEncoderWorkerError> {
-    let mut worker_state = Worker::new_crossencoder_worker(&model, n_ctx)?;
-    while let Ok(msg) = msg_rx.recv() {
-        match msg {
-            CrossEncoderMsg::Rank(query, documents, respond) => {
-                // Clear context for each crossencodering operationd
-                worker_state.reset_context();
+    match msg {
+        CrossEncoderMsg::Rank(query, documents, respond) => {
+            // Clear context for each cross-encoder operation
+            worker_state.reset_context();
 
-                let scores = worker_state.rank(query, documents)?;
+            let scores = worker_state.rank(query, documents)?;
 
-                let _ = respond.blocking_send(scores);
-            }
+            let _ = respond.blocking_send(scores);
         }
     }
+
     Ok(())
 }
 

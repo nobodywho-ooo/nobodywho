@@ -18,8 +18,14 @@ impl EmbeddingsHandle {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
 
         std::thread::spawn(move || {
-            if let Err(e) = run_worker(model, n_ctx, msg_rx) {
-                error!("Worker crashed: {}", e)
+            let Ok(mut worker_state) = Worker::new_embeddings_worker(&model, n_ctx) else {
+                return error!("Could not set up the worker initial state");
+            };
+
+            while let Ok(msg) = msg_rx.recv() {
+                if let Err(e) = process_worker_msg(&mut worker_state, msg) {
+                    return error!("Embedding Worker crashed: {e}");
+                }
             }
         });
 
@@ -37,23 +43,20 @@ enum EmbeddingsMsg {
     Embed(String, tokio::sync::mpsc::Sender<Vec<f32>>),
 }
 
-fn run_worker(
-    model: Arc<LlamaModel>,
-    n_ctx: u32,
-    msg_rx: std::sync::mpsc::Receiver<EmbeddingsMsg>,
+fn process_worker_msg(
+    worker_state: &mut Worker<'_, EmbeddingsWorker>,
+    msg: EmbeddingsMsg,
 ) -> Result<(), EmbeddingsWorkerError> {
-    let mut worker_state = Worker::new_embeddings_worker(&model, n_ctx)?;
-    while let Ok(msg) = msg_rx.recv() {
-        match msg {
-            EmbeddingsMsg::Embed(text, respond) => {
-                // we need to clear the kv_cache to ensure deterministic output.
-                worker_state.reset_context();
+    match msg {
+        EmbeddingsMsg::Embed(text, respond) => {
+            // we need to clear the kv_cache to ensure deterministic output.
+            worker_state.reset_context();
 
-                let embedding = worker_state.read_string(text)?.get_embedding()?;
-                let _ = respond.blocking_send(embedding);
-            }
+            let embedding = worker_state.read_string(text)?.get_embedding()?;
+            let _ = respond.blocking_send(embedding);
         }
     }
+
     Ok(())
 }
 
