@@ -15,17 +15,24 @@ NobodyWhoTool describeTool({
   // narrow wrapper needs to be written in dart to access `function.runtimeType`
   // and to deal with dynamic function parameters
 
-  // make it a String -> String function
-  final wrappedfunction = (String jsonString) {
+  // make it a String -> Future<String> function
+  final wrappedfunction = (String jsonString) async {
+    // decode the input string as json
     Map<String, dynamic> jsonMap = json.decode(jsonString);
+    // make it a map of symbols, to make Function.apply happy
     Map<Symbol, dynamic> namedParams = Map.fromEntries(
       jsonMap.entries.map((e) => MapEntry(Symbol(e.key), e.value))
     );
     
-    final result = Function.apply(function, [], namedParams).toString();
+    // call the function
+    final result = Function.apply(function, [], namedParams);
 
-    // TODO: await
-    return result;
+    // handle async tools and return
+    if (result is Future) {
+      return (await result).toString();
+    } else {
+      return result.toString();
+    }
   };
 
   return newToolImpl(

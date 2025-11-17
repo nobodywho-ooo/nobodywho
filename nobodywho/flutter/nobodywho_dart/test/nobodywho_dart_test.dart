@@ -2,8 +2,14 @@ import 'package:nobodywho_dart/nobodywho_dart.dart';
 import 'package:test/test.dart';
 import 'dart:io';
 
-String capitalize({required String text}) {
-  return text.toUpperCase();
+String sparklify({required String text}) {
+  return '✨$text✨';
+}
+
+// the name of this tool doesn't really make sense
+// but that helps is ensure it was called
+Future<String> strongify({required String text}) async {
+  return 'WOW $text WOW';
 }
 
 void main() {
@@ -19,9 +25,19 @@ void main() {
 
     setUp(() async {
       // Additional setup goes here.
-      tool = describeTool(function: capitalize, name: "capitalize", description: "Takes a string and returns the same string capitalized.");
+      final sparklify_tool = describeTool(
+        function: sparklify,
+        name: "sparklify",
+        description: "Applies the sparklify effect to a string"
+      );
+      final strongify_tool = describeTool(
+        function: strongify,
+        name: "strongify",
+        description: "Applies the strongify effect to a string"
+      );
+
       model = NobodyWhoModel(modelPath: modelPath, useGpu: false);
-      chat = NobodyWhoChat(model: model!, systemPrompt: "", contextSize: 1024, tools: [tool!]);
+      chat = NobodyWhoChat(model: model!, systemPrompt: "", contextSize: 1024, tools: [sparklify_tool, strongify_tool]);
     });
 
     test('Capital of Denmark test', () async {
@@ -34,12 +50,22 @@ void main() {
     });
 
     test('Tool calling test', () async {
-      final responseStream = chat!.say(message: "What is the capital of Denmark?");
+      final responseStream = chat!.say(message: "Can you please sparklify the string 'Foopdoop'?");
       String response = "";
       await for (final token in responseStream) {
         response += token;
       }
-      expect(response, contains("Copenhagen"));
+      expect(response, contains("✨Foopdoop✨"));
+    });
+
+    test('Async tool calling test', () async {
+      final responseStream = chat!.say(message: "Can you please strongify the string 'Wrawr'?");
+      String response = "";
+      await for (final token in responseStream) {
+        response += token;
+      }
+
+      expect(response, contains("WOW Wrawr WOW"));
     });
   });
 }
