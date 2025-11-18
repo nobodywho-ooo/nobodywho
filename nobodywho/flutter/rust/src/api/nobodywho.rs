@@ -83,6 +83,7 @@ pub fn new_tool_impl(
 /// Converts a Dart function runtimeType string directly to a JSON schema
 /// Example input: "({String a, int b}) => String"
 /// Returns a JSON schema for the function parameters
+/// XXX: this whole function is vibe-coded, and hence the implementation is pretty messy...
 #[tracing::instrument(ret, level = "debug")]
 fn dart_function_type_to_json_schema(runtime_type: &str) -> Result<serde_json::Value, String> {
     // Match the pattern: ({params}) => returnType
@@ -111,13 +112,20 @@ fn dart_function_type_to_json_schema(runtime_type: &str) -> Result<serde_json::V
         for param in params_str.split(',') {
             let param = param.trim();
 
+            // Check if parameter is required (and strip the keyword if present)
+            let param_without_required = if param.starts_with("required ") {
+                &param[9..] // Skip "required "
+            } else {
+                param
+            };
+
             // Find the last space to split type and name
-            let last_space = param
+            let last_space = param_without_required
                 .rfind(' ')
                 .ok_or_else(|| format!("Invalid parameter format: '{}'", param))?;
 
-            let param_type = param[..last_space].trim();
-            let param_name = param[last_space + 1..].trim();
+            let param_type = param_without_required[..last_space].trim();
+            let param_name = param_without_required[last_space + 1..].trim();
 
             // Convert Dart type to JSON schema type
             let schema_type = match param_type {
