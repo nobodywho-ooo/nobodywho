@@ -21,6 +21,7 @@ void main() {
 
     setUpAll(() async {
       await RustLib.init();
+      initDebugLog();
     });
 
     setUp(() async {

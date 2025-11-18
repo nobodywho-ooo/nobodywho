@@ -1497,6 +1497,8 @@ dependencies = [
  "nobodywho",
  "regex",
  "serde_json",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

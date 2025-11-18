@@ -83,6 +83,7 @@ pub fn new_tool_impl(
 /// Converts a Dart function runtimeType string directly to a JSON schema
 /// Example input: "({String a, int b}) => String"
 /// Returns a JSON schema for the function parameters
+#[tracing::instrument(ret, level = "debug")]
 fn dart_function_type_to_json_schema(runtime_type: &str) -> Result<serde_json::Value, String> {
     // Match the pattern: ({params}) => returnType
     let re = regex::Regex::new(r"^\(\{([^}]*)\}\)\s*=>\s*(.+)$")
@@ -177,6 +178,19 @@ fn dart_function_type_to_json_schema(runtime_type: &str) -> Result<serde_json::V
     }))
 }
 
+#[flutter_rust_bridge::frb(sync)]
+pub fn init_debug_log() {
+    // XXX: this is just for logging during dev
+    // TODO: make something with configurable log levels
+    //       maybe something that integrates with dart's standard logging packages
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::DEBUG)
+        .with_timer(tracing_subscriber::fmt::time::uptime())
+        .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
+        .try_init()
+        .ok();
+}
+
 // TODO:
 // - blocking say
 // - embeddings
@@ -218,5 +232,18 @@ mod tests {
             "additionalProperties": false
         });
         assert_eq!(schema, expected);
+    }
+
+    #[test]
+    fn test_single_string_parameter() {
+        let dart_type = "({required String text}) => Future<String>";
+        let json_schema = dart_function_type_to_json_schema(dart_type).unwrap();
+        let expected = serde_json::json!({
+            "type": "object",
+            "properties": { "text": { "type": "string" } },
+            "required": [ "text" ],
+            "additionalProperties": false,
+        });
+        assert_eq!(json_schema, expected);
     }
 }

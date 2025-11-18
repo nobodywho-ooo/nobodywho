@@ -12,6 +12,8 @@ flutter_rust_bridge = "=2.11.1"
 regex = "1.11.2"
 serde_json = "1.0.145"
 futures = "0.3.31"
+tracing-subscriber = "0.3.20"
+tracing = "0.1.41"
 
 [build-dependencies]
 flutter_rust_bridge_codegen = "2.11.1"

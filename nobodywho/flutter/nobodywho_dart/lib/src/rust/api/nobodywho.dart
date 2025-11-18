@@ -20,6 +20,8 @@ NobodyWhoTool newToolImpl({
   runtimeType: runtimeType,
 );
 
+void initDebugLog() => RustLib.instance.api.crateApiNobodywhoInitDebugLog();
+
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<NobodyWhoChat>>
 abstract class NobodyWhoChat implements RustOpaqueInterface {
   factory NobodyWhoChat({
