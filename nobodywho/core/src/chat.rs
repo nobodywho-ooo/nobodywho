@@ -347,6 +347,23 @@ impl TokenStream {
         None
     }
 
+    pub fn next_token_sync(&mut self) -> Option<String> {
+        if self.done {
+            return None;
+        }
+
+        if let Some(output) = self.rx.blocking_recv() {
+            match output {
+                llm::WriteOutput::Token(token) => return Some(token),
+                llm::WriteOutput::Done(_) => {
+                    self.done = true;
+                    return None;
+                }
+            }
+        }
+        None
+    }
+
     /// Collect all remaining tokens into a single string.
     pub async fn collect(mut self) -> String {
         let mut result = Vec::new();
