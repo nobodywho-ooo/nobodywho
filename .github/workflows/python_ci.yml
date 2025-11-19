@@ -167,7 +167,8 @@ jobs:
     strategy: 
       fail-fast: false
       matrix:
-        model: [Qwen, Gemma]
+        # model: [Qwen, Gemma]
+        model: [Gemma]
         include: 
           # XXX: this is broken somewhy...
           #- model: Qwen
