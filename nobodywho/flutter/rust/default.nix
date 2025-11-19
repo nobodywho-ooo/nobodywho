@@ -60,7 +60,8 @@ rustPlatform.buildRustPackage {
         "core",
         "godot",
         "unity",
-        "flutter/rust"
+        "flutter/rust",
+        "python",
     ]' 'members = [
         "core",
         "flutter/rust"

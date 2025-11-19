@@ -28,6 +28,7 @@ rec {
         path: type:
         !(lib.hasInfix "flutter" path)
         && !(lib.hasInfix "unity" path)
+        && !(lib.hasInfix "python" path)
         && !(lib.hasInfix "integration-test" path);
     };
     # patch the workspace to only include members we have in the filtered source
@@ -37,7 +38,8 @@ rec {
           "core",
           "godot",
           "unity",
-          "flutter/rust"
+          "flutter/rust",
+          "python",
       ]' 'members = [
           "core",
           "godot"
