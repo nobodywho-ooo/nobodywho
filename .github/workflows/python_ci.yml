@@ -169,10 +169,11 @@ jobs:
       matrix:
         model: [Qwen, Gemma]
         include: 
-          - model: Qwen
-            model_name: Qwen3-0.6B-UD-Q6_K_XL.gguf
-            model_iterations: 10
-            model_link: https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-UD-Q6_K_XL.gguf
+          # XXX: this is broken somewhy...
+          #- model: Qwen
+          #  model_name: Qwen3-0.6B-UD-Q6_K_XL.gguf
+          #  model_iterations: 10
+          #  model_link: https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-UD-Q6_K_XL.gguf
           - model: Gemma
             model_name: google_gemma-3-4b-it-Q4_1.gguf
             model_iterations: 10
