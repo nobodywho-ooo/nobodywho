@@ -1,4 +1,12 @@
-{ nobodywho-godot, stdenv, fetchurl, godot_4, godot_4-export-templates-bin, fontconfig }:
+{
+  pkgs,
+  nobodywho-godot,
+  stdenv,
+  fetchurl,
+  godot_4,
+  godot_4-export-templates-bin,
+  fontconfig,
+}:
 let
   model = fetchurl {
     name = "Qwen_Qwen3-0.6B-Q4_0.gguf";
@@ -24,11 +32,14 @@ stdenv.mkDerivation {
   buildInputs = [ fontconfig ];
   buildPhase = ''
     # setup stuff godot needs: export templates
+    echo "Extracting export templates..."
     export HOME=$TMPDIR
-    mkdir -p $HOME/.local/share/godot/export_templates
-    ln -s ${godot_4-export-templates-bin}/share/godot/export_templates/4.4.1.stable $HOME/.local/share/godot/export_templates/4.4.1.stable
+    mkdir -p $HOME/.local/share
+    ln -s ${godot_4-export-templates-bin}/share/godot $HOME/.local/share/godot
+    echo "Finished extracting export templates."
 
     # copy in gdextension stuff
+    echo "Setting up gdextension files..."
     rm ./nobodywho.gdextension
     mkdir -p ./bin/
     cp ${nobodywho-godot}/lib/libnobodywho_godot.so ./bin/libnobodywho_godot.so
@@ -42,11 +53,13 @@ stdenv.mkDerivation {
     linux.debug.x86_64 =     "res://bin/libnobodywho_godot.so"
     linux.release.x86_64 =   "res://bin/libnobodywho_godot.so"
     EOF
+    echo "Finished setting up gdextension files"
 
     # build game
     mkdir -p $out
-    ${godot_4}/bin/godot4 --verbose --headless --import
+    echo "Running godot export..."
     ${godot_4}/bin/godot4 --verbose --headless --export-debug "Linux" $out/game
+    echo "Finished exporting godot game"
 
     cp ${model} $out/Qwen_Qwen3-0.6B-Q4_0.gguf
     cp ${embedding_model} $out/bge-small-en-v1.5-q8_0.gguf

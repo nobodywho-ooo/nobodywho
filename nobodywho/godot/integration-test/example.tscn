@@ -4,7 +4,7 @@
 [ext_resource type="Script" uid="uid://tt6o1gsow6qw" path="res://run_tests.gd" id="1_mssk2"]
 [ext_resource type="Script" uid="uid://c0hh4s85r0jqj" path="res://embedding.gd" id="2_rcagm"]
 [ext_resource type="PackedScene" uid="uid://riqfmggkqpfd" path="res://grammar_test.tscn" id="4_vpjjx"]
-[ext_resource type="Script" uid="uid://edievpmy4ew6" path="res://crossencoder_test.gd" id="5_crossencoder"]
+[ext_resource type="Script" uid="uid://gqlok46cfxc4" path="res://crossencoder_test.gd" id="5_crossencoder"]
 
 [sub_resource type="NobodyWhoSampler" id="NobodyWhoSampler_ciq23"]
 penalty_repeat = -1.0
