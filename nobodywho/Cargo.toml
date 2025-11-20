@@ -3,7 +3,8 @@ members = [
     "core",
     "godot",
     "unity",
-    "flutter/rust"
+    "flutter/rust",
+    "python",
 ]
 
 # edition = "2021" implies resolver = "2".
