@@ -10,6 +10,7 @@
       nixpkgs,
       flake-utils,
       android-nixpkgs,
+      ...
     }:
     flake-utils.lib.eachDefaultSystem (
       system:
@@ -30,6 +31,8 @@
         );
 
         nobodywho-godot = pkgs.callPackage ./nobodywho/godot { };
+
+        nobodywho-python = pkgs.callPackage ./nobodywho/python { };
       in
       {
         # the godot gdextension dynamic lib
@@ -39,6 +42,7 @@
         checks.default = pkgs.callPackage ./nobodywho/flutter/example_app { };
         checks.flutter_example_app = pkgs.callPackage ./nobodywho/flutter/example_app { };
         checks.build-godot = nobodywho-godot.nobodywho-godot;
+        checks.nobodywho-python = nobodywho-python;
 
         # this integration test works just fine locally
         # but not in the github actions runnger
@@ -55,10 +59,12 @@
         packages.flutter_rust = pkgs.callPackage ./nobodywho/flutter/rust { };
 
         # python stuff
-        packages.nobodywho-python = pkgs.callPackage ./nobodywho/python { };
+        packages.nobodywho-python = nobodywho-python;
         devShells.nobodywho-python = pkgs.mkShell {
+          # a devshell that includes the built python package
+          # useful for testing local changes in repl or pytest
           packages = [
-            (pkgs.callPackage ./nobodywho/python { })
+            nobodywho-python
             pkgs.python3Packages.pytest
             pkgs.python3Packages.pytest-asyncio
           ];
