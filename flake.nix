@@ -64,7 +64,7 @@
           # a devshell that includes the built python package
           # useful for testing local changes in repl or pytest
           packages = [
-            nobodywho-python
+            (nobodywho-python.override { doCheck = false; })
             pkgs.python3Packages.pytest
             pkgs.python3Packages.pytest-asyncio
           ];
