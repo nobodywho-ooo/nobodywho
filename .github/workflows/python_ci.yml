@@ -247,7 +247,7 @@ jobs:
       - name: Run small model in python
         run: |
           source ./maturinvenv/bin/activate
-          python -c "import nobodywho_python; print('Import successful')"
+          python -c "import nobodywho; print('Import successful')"
           chmod +x nobodywho/python/tests/test_reliability.sh
           bash nobodywho/python/tests/test_reliability.sh -n ${{ matrix.model_iterations }} nobodywho/python/examples/small_model_demo.py "macos/nobodypython/models/${{ matrix.model_name }}"
           
