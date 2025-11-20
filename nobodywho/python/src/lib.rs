@@ -94,6 +94,7 @@ impl NobodyWhoChat {
 }
 
 #[pymodule]
+#[pyo3(name = "nobodywho")]
 fn nobodywhopython(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<NobodyWhoModel>()?;
     m.add_class::<NobodyWhoChat>()?;
