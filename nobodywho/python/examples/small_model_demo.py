@@ -2,8 +2,8 @@ import sys
 
 import nobodywho
 
-model = nobodywho.NobodyWhoModel(sys.argv[1])
-chat = nobodywho.NobodyWhoChat(
+model = nobodywho.Model(sys.argv[1])
+chat = nobodywho.Chat(
     model, system_prompt="You are a helpful assistant", allow_thinking=False
 )
 
