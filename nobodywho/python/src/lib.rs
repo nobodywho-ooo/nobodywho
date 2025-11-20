@@ -1,13 +1,8 @@
-use nobodywho::{
-    chat::{self, TokenStream},
-    llm,
-};
-
 use pyo3::prelude::*;
 
 #[pyclass]
 pub struct NobodyWhoModel {
-    model: llm::Model,
+    model: nobodywho::llm::Model,
 }
 
 #[pymethods]
@@ -15,7 +10,7 @@ impl NobodyWhoModel {
     #[new]
     #[pyo3(signature = (model_path, use_gpu_if_available = true))]
     pub fn new(model_path: &str, use_gpu_if_available: bool) -> PyResult<Self> {
-        let model_result = llm::get_model(model_path, use_gpu_if_available);
+        let model_result = nobodywho::llm::get_model(model_path, use_gpu_if_available);
         match model_result {
             Ok(model) => Ok(Self { model }),
             Err(err) => Err(pyo3::exceptions::PyRuntimeError::new_err(err.to_string())),
@@ -25,7 +20,7 @@ impl NobodyWhoModel {
 
 #[pyclass]
 pub struct NobodyWhoTokenStream {
-    tokens: TokenStream,
+    tokens: nobodywho::chat::TokenStream,
 }
 
 #[pymethods]
@@ -44,7 +39,7 @@ impl NobodyWhoTokenStream {
 
 #[pyclass]
 pub struct NobodyWhoChat {
-    chat_handle: chat::ChatHandle,
+    chat_handle: nobodywho::chat::ChatHandle,
 }
 
 #[pymethods]
