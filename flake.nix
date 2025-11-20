@@ -33,11 +33,14 @@
         nobodywho-godot = pkgs.callPackage ./nobodywho/godot { };
       in
       {
+        # the godot gdextension dynamic lib
         packages.default = nobodywho-godot.nobodywho-godot;
 
+        # checks
         checks.default = pkgs.callPackage ./nobodywho/flutter/example_app { };
         checks.flutter_example_app = pkgs.callPackage ./nobodywho/flutter/example_app { };
         checks.build-godot = nobodywho-godot.nobodywho-godot;
+
         # this integration test works just fine locally
         # but not in the github actions runnger
         # (running the exact same nix flake... wtf)
@@ -45,10 +48,19 @@
         # I made an issue (#112955) in godot/godot-engine
         # checks.godot = nobodywho-godot.run-integration-test;
 
+        # the Everything devshell
         devShells.default = pkgs.callPackage ./nobodywho/shell.nix { inherit android-nixpkgs; };
 
+        # flutter stuff
         packages.flutter_example_app = pkgs.callPackage ./nobodywho/flutter/example_app { };
         packages.flutter_rust = pkgs.callPackage ./nobodywho/flutter/rust { };
+
+        # python stuff
+        packages.nobodywho-python = pkgs.callPackage ./nobodywho/python { };
+        devShells.nobodywho-python = pkgs.mkShell {
+          packages = [ (pkgs.callPackage ./nobodywho/python { }) ];
+        };
+
         devShells.android = pkgs.callPackage ./nobodywho/android.nix { inherit android-nixpkgs; };
       }
     );
