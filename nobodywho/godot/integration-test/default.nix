@@ -8,7 +8,7 @@
   fontconfig,
 }:
 let
-  models = callPackage ../models.nix { };
+  models = callPackage ../../models.nix { };
 in
 stdenv.mkDerivation {
   name = "nobodywho example game";
@@ -53,8 +53,8 @@ stdenv.mkDerivation {
     echo "Finished exporting godot game"
 
     cp ${models.TEST_MODEL} $out/Qwen_Qwen3-0.6B-Q4_0.gguf
-    cp ${models.EMBEDDINGS_MODEL} $out/bge-small-en-v1.5-q8_0.gguf
-    cp ${models.CROSSENCODER_MODEL} $out/bge-reranker-v2-m3-Q8_0.gguf
+    cp ${models.TEST_EMBEDDINGS_MODEL} $out/bge-small-en-v1.5-q8_0.gguf
+    cp ${models.TEST_CROSSENCODER_MODEL} $out/bge-reranker-v2-m3-Q8_0.gguf
 
     # Patch binaries.
     patchelf --set-interpreter $(cat $NIX_CC/nix-support/dynamic-linker) $out/game
