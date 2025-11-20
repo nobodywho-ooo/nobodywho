@@ -42,7 +42,14 @@ stdenv.mkDerivation {
     # build game
     mkdir -p $out
     echo "Running godot export..."
-    ${godot_4}/bin/godot4 --verbose --headless --export-debug "Linux" $out/game
+
+    # yes, this `|| true` is verifably insane
+    # it's there because this export segfaults, but only on the github actions runner
+    # (yes, the *exact same* flake works just fine on my local machine)
+    # this kind internet stranger tells me that the export actually works fine, even though it segfaults
+    # https://github.com/godotengine/godot/issues/112955#issuecomment-3554723333
+    ${godot_4}/bin/godot4 --verbose --headless --export-debug "Linux" $out/game || true
+
     echo "Finished exporting godot game"
 
     cp ${models.TEST_MODEL} $out/Qwen_Qwen3-0.6B-Q4_0.gguf
