@@ -1,34 +1,26 @@
-use nobodywho::{
-    chat::{self, ChatBuilder, TokenStream},
-    llm,
-};
-
 use pyo3::prelude::*;
-
-use std::sync::Arc;
 
 #[pyclass]
 pub struct NobodyWhoModel {
-    model: Option<llm::Model>,
+    model: nobodywho::llm::Model,
 }
 
 #[pymethods]
 impl NobodyWhoModel {
     #[new]
     #[pyo3(signature = (model_path, use_gpu_if_available = true))]
-    pub fn new(model_path: &str, use_gpu_if_available: bool) -> Self {
-        Self {
-            model: match llm::get_model(model_path, use_gpu_if_available) {
-                Ok(model) => Some(model),
-                _ => None,
-            },
+    pub fn new(model_path: &str, use_gpu_if_available: bool) -> PyResult<Self> {
+        let model_result = nobodywho::llm::get_model(model_path, use_gpu_if_available);
+        match model_result {
+            Ok(model) => Ok(Self { model }),
+            Err(err) => Err(pyo3::exceptions::PyRuntimeError::new_err(err.to_string())),
         }
     }
 }
 
 #[pyclass]
 pub struct NobodyWhoTokenStream {
-    tokens: TokenStream,
+    tokens: nobodywho::chat::TokenStream,
 }
 
 #[pymethods]
@@ -47,7 +39,7 @@ impl NobodyWhoTokenStream {
 
 #[pyclass]
 pub struct NobodyWhoChat {
-    chat_handle: Option<chat::ChatHandle>,
+    chat_handle: nobodywho::chat::ChatHandle,
 }
 
 #[pymethods]
@@ -59,68 +51,44 @@ impl NobodyWhoChat {
         n_ctx: u32,
         system_prompt: &str,
         allow_thinking: bool,
-    ) -> PyResult<Self> {
-        if let Some(ref model) = model.model {
-            let cb = ChatBuilder::new(Arc::clone(model));
-            Ok(Self {
-                chat_handle: Some(
-                    cb.with_context_size(n_ctx)
-                        .with_system_prompt(system_prompt)
-                        .with_tools(vec![])
-                        .with_allow_thinking(allow_thinking)
-                        .build(),
-                ),
-            })
-        } else {
-            Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "Model is not initialized",
-            ))
-        }
+    ) -> Self {
+        let chat_handle = nobodywho::chat::ChatBuilder::new(model.model.clone())
+            .with_context_size(n_ctx)
+            .with_tools(vec![])
+            .with_allow_thinking(allow_thinking)
+            .with_system_prompt(system_prompt)
+            .build();
+        Self { chat_handle }
     }
 
     pub fn say_complete(&self, text: String, py: Python) -> PyResult<String> {
-        if let Some(ref handle) = self.chat_handle {
-            // Use tokio runtime to block on the async operation
-            let runtime = tokio::runtime::Runtime::new()
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))?;
-            // Release the GIL while generating response.
-            // This allows the background thread to aquire it for potential tool calls
-            py.detach(|| {
-                runtime.block_on(async {
-                    handle.say_complete(text).await.map_err(|e| {
-                        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e))
-                    })
+        let handle = &self.chat_handle;
+        // Use tokio runtime to block on the async operation
+        let runtime = tokio::runtime::Runtime::new()
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))?;
+        // Release the GIL while generating response.
+        // This allows the background thread to aquire it for potential tool calls
+        py.detach(|| {
+            runtime.block_on(async {
+                handle.say_complete(text).await.map_err(|e| {
+                    PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e))
                 })
             })
-        } else {
-            Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "Chat handle not initialized",
-            ))
-        }
+        })
     }
 
     async fn say_complete_async(&self, text: String) -> PyResult<String> {
-        if let Some(ref handle) = self.chat_handle {
-            handle
-                .say_complete(text)
-                .await
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))
-        } else {
-            Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "Chat handle not initialized",
-            ))
-        }
+        let handle = &self.chat_handle;
+        handle
+            .say_complete(text)
+            .await
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))
     }
 
-    pub fn say_stream(&self, text: String) -> PyResult<NobodyWhoTokenStream> {
-        if let Some(ref handle) = self.chat_handle {
-            Ok(NobodyWhoTokenStream {
-                tokens: handle.say_stream(text),
-            })
-        } else {
-            Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "Chat handle not initialized",
-            ))
+    pub fn say_stream(&self, text: String) -> NobodyWhoTokenStream {
+        let handle = &self.chat_handle;
+        NobodyWhoTokenStream {
+            tokens: handle.say_stream(text),
         }
     }
 }
