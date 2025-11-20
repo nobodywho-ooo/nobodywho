@@ -1,12 +1,12 @@
 use pyo3::prelude::*;
 
 #[pyclass]
-pub struct NobodyWhoModel {
+pub struct Model {
     model: nobodywho::llm::Model,
 }
 
 #[pymethods]
-impl NobodyWhoModel {
+impl Model {
     #[new]
     #[pyo3(signature = (model_path, use_gpu_if_available = true))]
     pub fn new(model_path: &str, use_gpu_if_available: bool) -> PyResult<Self> {
@@ -19,12 +19,12 @@ impl NobodyWhoModel {
 }
 
 #[pyclass]
-pub struct NobodyWhoTokenStream {
+pub struct TokenStream {
     tokens: nobodywho::chat::TokenStream,
 }
 
 #[pymethods]
-impl NobodyWhoTokenStream {
+impl TokenStream {
     pub fn next_token(&mut self, py: Python) -> Option<String> {
         // Release the GIL while waiting for the next token
         // This allows the background thread to acquire the GIL if needed for tool calls
@@ -38,20 +38,15 @@ impl NobodyWhoTokenStream {
 }
 
 #[pyclass]
-pub struct NobodyWhoChat {
+pub struct Chat {
     chat_handle: nobodywho::chat::ChatHandle,
 }
 
 #[pymethods]
-impl NobodyWhoChat {
+impl Chat {
     #[new]
     #[pyo3(signature = (model, n_ctx = 2048, system_prompt = "", allow_thinking = true))]
-    pub fn new(
-        model: &NobodyWhoModel,
-        n_ctx: u32,
-        system_prompt: &str,
-        allow_thinking: bool,
-    ) -> Self {
+    pub fn new(model: &Model, n_ctx: u32, system_prompt: &str, allow_thinking: bool) -> Self {
         let chat_handle = nobodywho::chat::ChatBuilder::new(model.model.clone())
             .with_context_size(n_ctx)
             .with_tools(vec![])
@@ -85,9 +80,9 @@ impl NobodyWhoChat {
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))
     }
 
-    pub fn say_stream(&self, text: String) -> NobodyWhoTokenStream {
+    pub fn say_stream(&self, text: String) -> TokenStream {
         let handle = &self.chat_handle;
-        NobodyWhoTokenStream {
+        TokenStream {
             tokens: handle.say_stream(text),
         }
     }
@@ -96,8 +91,8 @@ impl NobodyWhoChat {
 #[pymodule]
 #[pyo3(name = "nobodywho")]
 fn nobodywhopython(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<NobodyWhoModel>()?;
-    m.add_class::<NobodyWhoChat>()?;
-    m.add_class::<NobodyWhoTokenStream>()?;
+    m.add_class::<Model>()?;
+    m.add_class::<Chat>()?;
+    m.add_class::<TokenStream>()?;
     Ok(())
 }

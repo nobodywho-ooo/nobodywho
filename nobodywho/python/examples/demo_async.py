@@ -3,8 +3,8 @@ import sys
 
 import nobodywho
 
-model = nobodywho.NobodyWhoModel(sys.argv[1])
-chat = nobodywho.NobodyWhoChat(model, system_prompt="You are a helpful assistant")
+model = nobodywho.Model(sys.argv[1])
+chat = nobodywho.Chat(model, system_prompt="You are a helpful assistant")
 
 
 async def main_streaming():
@@ -22,4 +22,3 @@ async def main_complete():
 
 
 asyncio.run(main_complete())
-
