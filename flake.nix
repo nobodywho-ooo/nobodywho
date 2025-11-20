@@ -10,7 +10,6 @@
       nixpkgs,
       flake-utils,
       android-nixpkgs,
-      ...
     }:
     flake-utils.lib.eachDefaultSystem (
       system:
@@ -58,7 +57,11 @@
         # python stuff
         packages.nobodywho-python = pkgs.callPackage ./nobodywho/python { };
         devShells.nobodywho-python = pkgs.mkShell {
-          packages = [ (pkgs.callPackage ./nobodywho/python { }) ];
+          packages = [
+            (pkgs.callPackage ./nobodywho/python { })
+            pkgs.python3Packages.pytest
+            pkgs.python3Packages.pytest-asyncio
+          ];
         };
 
         devShells.android = pkgs.callPackage ./nobodywho/android.nix { inherit android-nixpkgs; };
