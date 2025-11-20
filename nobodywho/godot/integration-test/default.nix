@@ -1,30 +1,14 @@
 {
-  pkgs,
+
   nobodywho-godot,
   stdenv,
-  fetchurl,
+  callPackage,
   godot_4,
   godot_4-export-templates-bin,
   fontconfig,
 }:
 let
-  model = fetchurl {
-    name = "Qwen_Qwen3-0.6B-Q4_0.gguf";
-    url = "https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_0.gguf";
-    hash = "sha256-S3jY48YZds67eO9a/+GdDsp1sbR+xm9hOloyRUhHWNU=";
-  };
-
-  embedding_model = fetchurl {
-    name = "bge-small-en-v1.5-q8_0.gguf";
-    url = "https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf";
-    hash = "sha256-7Djo2hQllrqpExJK5QVQ3ihLaRa/WVd+8vDLlmDC9RQ=";
-  };
-
-  crossencoder_model = fetchurl {
-    name = "bge-reranker-v2-m3-Q8_0.gguf";
-    url = "https://huggingface.co/gpustack/bge-reranker-v2-m3-GGUF/resolve/main/bge-reranker-v2-m3-Q8_0.gguf";
-    hash = "sha256-pDx8mxGkwVF+W/lRUZYOFiHRty96STNksB44bPGqodM=";
-  };
+  models = callPackage ../models.nix { };
 in
 stdenv.mkDerivation {
   name = "nobodywho example game";
@@ -61,9 +45,9 @@ stdenv.mkDerivation {
     ${godot_4}/bin/godot4 --verbose --headless --export-debug "Linux" $out/game
     echo "Finished exporting godot game"
 
-    cp ${model} $out/Qwen_Qwen3-0.6B-Q4_0.gguf
-    cp ${embedding_model} $out/bge-small-en-v1.5-q8_0.gguf
-    cp ${crossencoder_model} $out/bge-reranker-v2-m3-Q8_0.gguf
+    cp ${models.TEST_MODEL} $out/Qwen_Qwen3-0.6B-Q4_0.gguf
+    cp ${models.EMBEDDINGS_MODEL} $out/bge-small-en-v1.5-q8_0.gguf
+    cp ${models.CROSSENCODER_MODEL} $out/bge-reranker-v2-m3-Q8_0.gguf
 
     # Patch binaries.
     patchelf --set-interpreter $(cat $NIX_CC/nix-support/dynamic-linker) $out/game
