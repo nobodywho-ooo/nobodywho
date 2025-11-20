@@ -154,9 +154,8 @@ jobs:
       - name: Run small model in python
         run: |
           source ./maturinvenv/bin/activate
-          #python nobodywho/python/small_model_test.py "linux/nobodypython/models/${{ matrix.model_name }}"
-          chmod +x nobodywho/python/test_reliability.sh
-          bash nobodywho/python/test_reliability.sh -n ${{ matrix.model_iterations }} nobodywho/python/small_model_test.py "linux/nobodypython/models/${{ matrix.model_name }}"
+          chmod +x nobodywho/python/tests/test_reliability.sh
+          bash nobodywho/python/tests/test_reliability.sh -n ${{ matrix.model_iterations }} nobodywho/python/examples/small_model_test.py "linux/nobodypython/models/${{ matrix.model_name }}"
           
       
 
@@ -207,8 +206,7 @@ jobs:
       - name: Run small model in python
         run: |
           maturinvenv/Scripts/activate
-          #python D:/a/nobodywho/nobodywho/nobodywho/python/small_model_test.py "D:/a/nobodywho/nobodywho/windows/nobodywhopython/models/${{ matrix.model_name }}"
-          ./nobodywho/python/test_reliability.ps1 -ScriptPath "D:/a/nobodywho/nobodywho/nobodywho/python/small_model_test.py" -Iterations ${{ matrix.model_iterations }} "D:/a/nobodywho/nobodywho/windows/nobodywhopython/models/${{ matrix.model_name }}"
+          ./nobodywho/python/tests/test_reliability.ps1 -ScriptPath "D:/a/nobodywho/nobodywho/nobodywho/python/examples/small_model_test.py" -Iterations ${{ matrix.model_iterations }} "D:/a/nobodywho/nobodywho/windows/nobodywhopython/models/${{ matrix.model_name }}"
 
           
 
@@ -250,9 +248,8 @@ jobs:
         run: |
           source ./maturinvenv/bin/activate
           python -c "import nobodywhopython; print('Import successful')"
-          # python nobodywho/python/small_model_test.py "macos/nobodypython/models/${{ matrix.model_name }}" 
-          chmod +x nobodywho/python/test_reliability.sh
-          bash nobodywho/python/test_reliability.sh -n ${{ matrix.model_iterations }} nobodywho/python/small_model_test.py "macos/nobodypython/models/${{ matrix.model_name }}"
+          chmod +x nobodywho/python/tests/test_reliability.sh
+          bash nobodywho/python/tests/test_reliability.sh -n ${{ matrix.model_iterations }} nobodywho/python/examples/small_model_test.py "macos/nobodypython/models/${{ matrix.model_name }}"
           
 
   publish-wheels:
