@@ -25,22 +25,22 @@ pub struct TokenStream {
 
 #[pymethods]
 impl TokenStream {
-    pub fn next_token(&mut self, py: Python) -> Option<String> {
+    pub fn next_token_blocking(&mut self, py: Python) -> Option<String> {
         // Release the GIL while waiting for the next token
         // This allows the background thread to acquire the GIL if needed for tool calls
         py.detach(|| self.stream.next_token_sync())
     }
 
-    async fn next_token_async(&mut self) -> Option<String> {
+    async fn next_token(&mut self) -> Option<String> {
         // Currently deattaching is not needed here. Noting that this might change later
         self.stream.next_token().await
     }
 
-    fn collect(&mut self, py: Python) -> String {
-        py.detach(|| futures::executor::block_on(self.collect_async()))
+    fn collect_blocking(&mut self, py: Python) -> String {
+        py.detach(|| futures::executor::block_on(self.collect()))
     }
 
-    async fn collect_async(&mut self) -> String {
+    async fn collect(&mut self) -> String {
         self.stream.collect().await
     }
 
@@ -49,7 +49,7 @@ impl TokenStream {
         slf
     }
     pub fn __next__(mut slf: PyRefMut<'_, Self>, py: Python) -> Option<String> {
-        slf.next_token(py)
+        slf.next_token_blocking(py)
     }
 
     // TODO: async iterator (turns out to be trickier than expected)
