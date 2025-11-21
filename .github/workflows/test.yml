@@ -10,20 +10,23 @@ on:
         required: true
 
 jobs:
+  # cachix actions as per these docs:
+  # https://nix.dev/guides/recipes/continuous-integration-github-actions
   nix-flake-check:
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
-      - name: "Install distro dependencies"
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y sqlite3 # ...needed to install nix
-      - run: |
-          sh <(curl -L https://nixos.org/nix/install) --no-daemon
+      - uses: cachix/install-nix-action@v25
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+      - uses: cachix/cachix-action@v14
+        with:
+          name: nobodywho
+          # If you chose API tokens for write access OR if you have a private cache
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
       - name: "nix flake check"
         run: |
-          . ~/.nix-profile/etc/profile.d/nix.sh
           nix --extra-experimental-features nix-command --extra-experimental-features flakes flake check -L --max-jobs 1
 
   run-unity-test:
