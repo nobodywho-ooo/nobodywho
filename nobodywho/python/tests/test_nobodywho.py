@@ -48,3 +48,13 @@ async def test_multiple_prompts(chat):
     for prompt in prompts:
         response = await chat.say_complete_async(prompt)
         assert len(response) > 0
+
+
+def test_sync_iterator(chat):
+    response_stream = chat.send_message("What is the capital of Copenhagen?")
+    response_str: str = ""
+    for token in response_stream:
+        response_str += token
+        assert isinstance(token, str)
+        assert len(token) > 0
+    assert "copenhagen" in response_str.lower()

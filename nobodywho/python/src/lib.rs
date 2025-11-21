@@ -20,7 +20,7 @@ impl Model {
 
 #[pyclass]
 pub struct TokenStream {
-    tokens: nobodywho::chat::TokenStream,
+    stream: nobodywho::chat::TokenStream,
 }
 
 #[pymethods]
@@ -28,13 +28,23 @@ impl TokenStream {
     pub fn next_token(&mut self, py: Python) -> Option<String> {
         // Release the GIL while waiting for the next token
         // This allows the background thread to acquire the GIL if needed for tool calls
-        py.detach(|| self.tokens.next_token_sync())
+        py.detach(|| self.stream.next_token_sync())
     }
 
     async fn next_token_async(&mut self) -> Option<String> {
         // Currently deattaching is not needed here. Noting that this might change later
-        self.tokens.next_token().await
+        self.stream.next_token().await
     }
+
+    // sync iterator stuff
+    pub fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+    pub fn __next__(mut slf: PyRefMut<'_, Self>, py: Python) -> Option<String> {
+        slf.next_token(py)
+    }
+
+    // TODO: async iterator (turns out to be trickier than expected)
 }
 
 #[pyclass]
@@ -54,6 +64,12 @@ impl Chat {
             .with_system_prompt(system_prompt)
             .build();
         Self { chat_handle }
+    }
+
+    pub fn send_message(&self, text: String) -> TokenStream {
+        TokenStream {
+            stream: self.chat_handle.say_stream(text),
+        }
     }
 
     pub fn say_complete(&self, text: String, py: Python) -> PyResult<String> {
@@ -81,9 +97,8 @@ impl Chat {
     }
 
     pub fn say_stream(&self, text: String) -> TokenStream {
-        let handle = &self.chat_handle;
         TokenStream {
-            tokens: handle.say_stream(text),
+            stream: self.chat_handle.say_stream(text),
         }
     }
 }
