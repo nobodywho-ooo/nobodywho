@@ -4,7 +4,9 @@ import sys
 import nobodywho
 
 model = nobodywho.Model(sys.argv[1])
-chat = nobodywho.Chat(model, system_prompt="You are a helpful assistant")
+chat = nobodywho.Chat(
+    model, system_prompt="You are a helpful assistant", allow_thinking=False
+)
 
 
 async def main_streaming():

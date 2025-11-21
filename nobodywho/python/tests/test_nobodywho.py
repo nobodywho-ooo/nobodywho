@@ -12,7 +12,9 @@ def model():
 
 @pytest.fixture
 def chat(model):
-    return nobodywho.Chat(model, system_prompt="You are a helpful assistant")
+    return nobodywho.Chat(
+        model, system_prompt="You are a helpful assistant", allow_thinking=False
+    )
 
 
 @pytest.mark.asyncio
