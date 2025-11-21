@@ -365,7 +365,7 @@ impl TokenStream {
     }
 
     /// Collect all remaining tokens into a single string.
-    pub async fn collect(mut self) -> String {
+    pub async fn collect(&mut self) -> String {
         let mut result = Vec::new();
         while let Some(token) = self.next_token().await {
             result.push(token);
