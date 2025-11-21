@@ -20,7 +20,7 @@ def chat(model):
 @pytest.mark.asyncio
 async def test_async_streaming(chat):
     """Test async streaming from demo_async.py"""
-    prompt = "What is 2+2? Answer in one word."
+    prompt = "What is the capital of Denmark?"
     token_stream = chat.send_message(prompt)
 
     tokens = []
@@ -29,7 +29,7 @@ async def test_async_streaming(chat):
 
     response = "".join(tokens)
     assert len(response) > 0
-    assert "4" in response or "four" in response.lower()
+    assert "copenhagen" in response.lower()
 
 
 @pytest.mark.asyncio
