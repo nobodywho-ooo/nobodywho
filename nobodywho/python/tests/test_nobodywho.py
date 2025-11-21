@@ -1,20 +1,18 @@
 import os
 
-import nobodywhopython
+import nobodywho
 import pytest
 
 
 @pytest.fixture
 def model():
     model_path = os.environ.get("TEST_MODEL")
-    return nobodywhopython.NobodyWhoModel(model_path)
+    return nobodywho.Model(model_path)
 
 
 @pytest.fixture
 def chat(model):
-    return nobodywhopython.NobodyWhoChat(
-        model, system_prompt="You are a helpful assistant"
-    )
+    return nobodywho.Chat(model, system_prompt="You are a helpful assistant")
 
 
 @pytest.mark.asyncio

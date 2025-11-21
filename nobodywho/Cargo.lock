@@ -1549,13 +1549,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "nobodywho-unity"
-version = "1.2.0"
+name = "nobodywho-python"
+version = "0.1.0"
 dependencies = [
- "interoptopus",
- "interoptopus_backend_csharp",
- "memory-stats",
  "nobodywho",
+ "pyo3",
+ "rand",
  "serde_json",
  "tokio",
  "tracing",
@@ -1563,12 +1562,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "nobodywhopython"
-version = "0.1.0"
+name = "nobodywho-unity"
+version = "1.2.0"
 dependencies = [
+ "interoptopus",
+ "interoptopus_backend_csharp",
+ "memory-stats",
  "nobodywho",
- "pyo3",
- "rand",
  "serde_json",
  "tokio",
  "tracing",

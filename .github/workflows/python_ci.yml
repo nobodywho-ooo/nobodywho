@@ -33,13 +33,13 @@ jobs:
         working-directory: ./nobodywho/python
       
       - name: Repair wheel to use manylinux
-        run: auditwheel repair nobodywho/target/wheels/nobodywhopython*.whl 
+        run: auditwheel repair nobodywho/target/wheels/nobodywho_python*.whl 
      
       - name: Upload wheel
         uses: actions/upload-artifact@v4
         with:
-          name: nobodywhopython_linux
-          path: ./wheelhouse/nobodywhopython*.whl
+          name: nobodywho_python_linux
+          path: ./wheelhouse/nobodywho_python*.whl
         
   windows-build:
     runs-on: windows-latest
@@ -80,8 +80,8 @@ jobs:
       - name: "Upload wheel artifact"
         uses: actions/upload-artifact@v4
         with:
-          name: nobodywhopython_windows
-          path: C:/target/wheels/nobodywhopython*.whl
+          name: nobodywho_python_windows
+          path: C:/target/wheels/nobodywho_python*.whl
 
 
   mac-os-build:
@@ -106,8 +106,8 @@ jobs:
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v4
         with:
-          name: nobodywhopython_macos
-          path: ./nobodywho/target/wheels/nobodywhopython*.whl
+          name: nobodywho_python_macos
+          path: ./nobodywho/target/wheels/nobodywho_python*.whl
       
   
 
@@ -144,7 +144,7 @@ jobs:
         run: |
           python3 -m venv maturinvenv
           source ./maturinvenv/bin/activate
-          pip install nobodywhopython_linux/nobodywhopython*manylinux*x86*.whl
+          pip install nobodywho_python_linux/nobodywho_python*manylinux*x86*.whl
 
       - name: Download models
         run: |
@@ -195,18 +195,18 @@ jobs:
         run: |
           python -m venv maturinvenv
           maturinvenv/Scripts/activate
-          pip install D:/a/nobodywho/nobodywho/nobodywhopython_windows/nobodywhopython-0.1.0-cp38-abi3-win_amd64.whl
+          pip install D:/a/nobodywho/nobodywho/nobodywho_python_windows/nobodywho_python-0.1.0-cp38-abi3-win_amd64.whl
 
       - name: Download models
         run: |
-          mkdir -p D:/a/nobodywho/nobodywho/windows/nobodywhopython/models
+          mkdir -p D:/a/nobodywho/nobodywho/windows/nobodywho_python/models
           pip install -U "huggingface_hub"
-          Invoke-WebRequest ${{ matrix.model_link }} -OutFile "D:/a/nobodywho/nobodywho/windows/nobodywhopython/models/${{ matrix.model_name}}"
+          Invoke-WebRequest ${{ matrix.model_link }} -OutFile "D:/a/nobodywho/nobodywho/windows/nobodywho_python/models/${{ matrix.model_name}}"
 
       - name: Run small model in python
         run: |
           maturinvenv/Scripts/activate
-          ./nobodywho/python/tests/test_reliability.ps1 -ScriptPath "D:/a/nobodywho/nobodywho/nobodywho/python/examples/small_model_demo.py" -Iterations ${{ matrix.model_iterations }} "D:/a/nobodywho/nobodywho/windows/nobodywhopython/models/${{ matrix.model_name }}"
+          ./nobodywho/python/tests/test_reliability.ps1 -ScriptPath "D:/a/nobodywho/nobodywho/nobodywho/python/examples/small_model_demo.py" -Iterations ${{ matrix.model_iterations }} "D:/a/nobodywho/nobodywho/windows/nobodywho_python/models/${{ matrix.model_name }}"
 
           
 
@@ -236,7 +236,7 @@ jobs:
         run: |
           python3 -m venv maturinvenv
           source ./maturinvenv/bin/activate
-          pip install nobodywhopython_macos/nobodywhopython*macosx*.whl
+          pip install nobodywho_python_macos/nobodywho_python*macosx*.whl
       
 
       - name: Download models
@@ -247,7 +247,7 @@ jobs:
       - name: Run small model in python
         run: |
           source ./maturinvenv/bin/activate
-          python -c "import nobodywhopython; print('Import successful')"
+          python -c "import nobodywho; print('Import successful')"
           chmod +x nobodywho/python/tests/test_reliability.sh
           bash nobodywho/python/tests/test_reliability.sh -n ${{ matrix.model_iterations }} nobodywho/python/examples/small_model_demo.py "macos/nobodypython/models/${{ matrix.model_name }}"
           
@@ -260,7 +260,7 @@ jobs:
       - name: Download all wheels
         uses: actions/download-artifact@v4
         with:
-          pattern: nobodywhopython_*
+          pattern: nobodywho_python_*
           merge-multiple: true
           path: dist/
 

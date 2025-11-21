@@ -1,4 +1,5 @@
 {
+  doCheck ? true,
   callPackage,
   python3Packages,
   rustPlatform,
@@ -46,7 +47,7 @@ python3Packages.buildPythonPackage {
 
   dontUseCmakeConfigure = true;
 
-  doCheck = true;
+  inherit doCheck;
 
   nativeCheckInputs = with python3Packages; [
     pytestCheckHook
