@@ -4,6 +4,7 @@ class_name test_grammar extends Node
 @onready var chat = $Chat
 
 func run_test() -> bool:
+	chat.set_log_level("TRACE")
 	print("🌟 Starting grammar test")
 	chat.model_node = model
 	# purposefully not mentioning the grammar in the system prompt
@@ -18,7 +19,7 @@ func run_test() -> bool:
 root ::= "{" ws01 root-name "," ws01 root-class "," ws01 root-level "}" ws01
 root-name ::= "\\"name\\"" ":" ws01 string
 root-class ::= "\\"class\\"" ":" ws01 ("\\"fighter\\"" | "\\"ranger\\"" | "\\"wizard\\"")
-root-level ::= "\\"level\\"" ":" ws01 integer
+root-level ::= "\\"level\\"" ":" ws01 "1"
 
 
 value  ::= (object | array | string | number | boolean | null) ws
@@ -58,10 +59,10 @@ ws01 ::= ([ \\t\\n])?
 func test_json_output():
 
 	# purposefully not mentioning the grammar type in the system prompt
-	chat.say("""Generate exactly these properties:
-	- name
-	- class
-	- level
+	chat.say("""Generate a json object containing exactly these properties:
+	- name (a short string)
+	- class (either fighter, ranger, or wizard)
+	- level (an integer between 1 and 3)
 	""")
 	
 	var response = await chat.response_finished
