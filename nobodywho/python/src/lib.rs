@@ -36,6 +36,14 @@ impl TokenStream {
         self.stream.next_token().await
     }
 
+    fn collect(&mut self, py: Python) -> String {
+        py.detach(|| futures::executor::block_on(self.collect_async()))
+    }
+
+    async fn collect_async(&mut self) -> String {
+        self.stream.collect().await
+    }
+
     // sync iterator stuff
     pub fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
@@ -67,36 +75,6 @@ impl Chat {
     }
 
     pub fn send_message(&self, text: String) -> TokenStream {
-        TokenStream {
-            stream: self.chat_handle.say_stream(text),
-        }
-    }
-
-    pub fn say_complete(&self, text: String, py: Python) -> PyResult<String> {
-        let handle = &self.chat_handle;
-        // Use tokio runtime to block on the async operation
-        let runtime = tokio::runtime::Runtime::new()
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))?;
-        // Release the GIL while generating response.
-        // This allows the background thread to aquire it for potential tool calls
-        py.detach(|| {
-            runtime.block_on(async {
-                handle.say_complete(text).await.map_err(|e| {
-                    PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e))
-                })
-            })
-        })
-    }
-
-    async fn say_complete_async(&self, text: String) -> PyResult<String> {
-        let handle = &self.chat_handle;
-        handle
-            .say_complete(text)
-            .await
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))
-    }
-
-    pub fn say_stream(&self, text: String) -> TokenStream {
         TokenStream {
             stream: self.chat_handle.say_stream(text),
         }
