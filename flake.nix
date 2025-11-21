@@ -35,7 +35,7 @@
         nobodywho-python = pkgs.callPackage ./nobodywho/python { };
       in
       {
-        # the godot gdextension dynamic lib
+        # default: the godot gdextension dynamic lib
         packages.default = nobodywho-godot.nobodywho-godot;
 
         # checks
@@ -48,8 +48,11 @@
         # the Everything devshell
         devShells.default = pkgs.callPackage ./nobodywho/shell.nix { inherit android-nixpkgs; };
 
+        # godot stuff
+        packages.nobodywho-godot = nobodywho-godot.nobodywho-godot;
+
         # flutter stuff
-        packages.flutter_example_app = pkgs.callPackage ./nobodywho/flutter/example_app { };
+        packages.nobodywho-flutter-example = pkgs.callPackage ./nobodywho/flutter/example_app { };
         packages.flutter_rust = pkgs.callPackage ./nobodywho/flutter/rust { };
 
         # python stuff
