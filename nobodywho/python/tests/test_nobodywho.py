@@ -19,10 +19,10 @@ def chat(model):
 async def test_async_streaming(chat):
     """Test async streaming from demo_async.py"""
     prompt = "What is 2+2? Answer in one word."
-    token_stream = chat.say_stream(prompt)
+    token_stream = chat.send_message(prompt)
 
     tokens = []
-    while token := await token_stream.next_token_async():
+    while token := await token_stream.next_token():
         tokens.append(token)
 
     response = "".join(tokens)
@@ -31,12 +31,18 @@ async def test_async_streaming(chat):
 
 
 @pytest.mark.asyncio
-async def test_async_complete(chat):
+async def test_async_collect(chat):
     """Test async complete from demo_async.py"""
-    prompt = "What is the capital of Denmark?"
-    response = await chat.say_complete_async(prompt)
+    response_stream = chat.send_message("What is the capital of Denmark?")
+    response = await response_stream.collect()
 
     assert len(response) > 0
+    assert "copenhagen" in response.lower()
+
+
+def test_blocking_collect(chat):
+    response_stream = chat.send_message("What is the capital of Denmark?")
+    response = response_stream.collect_blocking()
     assert "copenhagen" in response.lower()
 
 
@@ -46,12 +52,13 @@ async def test_multiple_prompts(chat):
     prompts = ["Hello", "What is 2+2?", "Goodbye"]
 
     for prompt in prompts:
-        response = await chat.say_complete_async(prompt)
+        response_stream = chat.send_message(prompt)
+        response = await response_stream.collect()
         assert len(response) > 0
 
 
 def test_sync_iterator(chat):
-    response_stream = chat.send_message("What is the capital of Copenhagen?")
+    response_stream = chat.send_message("What is the capital of Denmark?")
     response_str: str = ""
     for token in response_stream:
         response_str += token
