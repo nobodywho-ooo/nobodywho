@@ -180,8 +180,9 @@ pub struct Tool {
 impl Tool {
     #[new]
     #[pyo3(signature = (fun))]
-    pub fn new(fun: Py<PyAny>) -> Self {
-        let name = "foobar";
+    pub fn new(fun: Py<PyAny>, py: Python) -> PyResult<Self> {
+        // get the name of the function
+        let name = fun.getattr(py, "__name__")?.extract::<String>(py)?;
         let description = "foobar";
         let json_schema = serde_json::json!( { "foo": "bar" });
 
@@ -206,11 +207,52 @@ impl Tool {
 
         let tool = nobodywho::chat::Tool::new(
             name,
-            description,
+            description.to_string(),
             json_schema,
             std::sync::Arc::new(function),
         );
-        Self { tool }
+
+        Ok(Self { tool })
+    }
+}
+
+fn json_to_kwargs(py: Python, json: serde_json::Value) -> pyo3::types::PyDict {
+    todo!()
+}
+
+// Helper function to convert serde_json::Value to PyObject
+fn json_value_to_py<'py>(py: Python<'py>, value: &serde_json::Value) -> PyResult<Py<PyAny>> {
+    match value {
+        serde_json::Value::Null => Ok(py.None()),
+        serde_json::Value::Bool(b) => Ok(pyo3::types::PyBool::new(py, *b).to_owned().into()),
+        serde_json::Value::Number(n) => {
+            if let Some(i) = n.as_i128() {
+                Ok(pyo3::types::PyInt::new(py, i).into())
+            } else if let Some(i) = n.as_u128() {
+                Ok(pyo3::types::PyInt::new(py, i).into())
+            } else if let Some(f) = n.as_f64() {
+                Ok(pyo3::types::PyFloat::new(py, f).into())
+            } else {
+                Err(pyo3::exceptions::PyValueError::new_err("Invalid number"))
+            }
+        }
+        serde_json::Value::String(s) => Ok(pyo3::types::PyString::new(py, s).into()),
+        serde_json::Value::Array(arr) => {
+            let py_items: PyResult<Vec<_>> = arr.iter().map(|v| json_value_to_py(py, v)).collect();
+            let pylist = pyo3::types::PyList::new(py, py_items?);
+            match pylist {
+                Ok(list) => Ok(list.into()),
+                Err(_) => Err(pyo3::exceptions::PyValueError::new_err("Invalid number")),
+            }
+        }
+        serde_json::Value::Object(obj) => {
+            let py_dict = pyo3::types::PyDict::new(py);
+            for (k, v) in obj {
+                let value_py = json_value_to_py(py, v)?;
+                py_dict.set_item(k, value_py)?;
+            }
+            Ok(py_dict.into())
+        }
     }
 }
 
