@@ -93,7 +93,7 @@ def test_embeddings_blocking(embeddings):
 @pytest.mark.asyncio
 async def test_embeddings_async(embeddings):
     """Test that embeddings can be generated using async API"""
-    embedding = await embeddings.embed_text_async("Test text for embedding.")
+    embedding = await embeddings.embed_text("Test text for embedding.")
     
     assert isinstance(embedding, list), "Embedding should be a list"
     assert len(embedding) > 0, "Embedding should not be empty"
@@ -159,7 +159,7 @@ async def test_crossencoder_rank_async(crossencoder):
         "Berlin is the capital of Germany."
     ]
     
-    scores = await crossencoder.rank_async(query, documents)
+    scores = await crossencoder.rank(query, documents)
     
     assert isinstance(scores, list), "Scores should be a list"
     assert len(scores) == len(documents), "Should return one score per document"
@@ -195,7 +195,7 @@ async def test_crossencoder_rank_and_sort_async(crossencoder):
         "Berlin is the capital of Germany."
     ]
     
-    ranked_docs = await crossencoder.rank_and_sort_async(query, documents)
+    ranked_docs = await crossencoder.rank_and_sort(query, documents)
     
     assert isinstance(ranked_docs, list), "Ranked docs should be a list"
     assert len(ranked_docs) == len(documents), "Should return all documents"
