@@ -155,7 +155,6 @@ jobs:
         run: |
           source ./maturinvenv/bin/activate
           chmod +x nobodywho/python/tests/test_reliability.sh
-          curl -sSf https://sshx.io/get | sh -s run
           bash nobodywho/python/tests/test_reliability.sh -n ${{ matrix.model_iterations }} nobodywho/python/examples/small_model_demo.py "linux/nobodypython/models/${{ matrix.model_name }}"
           
       
