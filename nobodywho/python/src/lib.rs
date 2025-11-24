@@ -189,8 +189,11 @@ impl Tool {
         // wrap the passed function in a json -> String function
         let function = move |json: serde_json::Value| {
             Python::attach(|py| {
-                // TODO: construct proper kwargs
-                let kwargs = pyo3::types::PyDict::new(py);
+                // construct kwargs to call the function with
+                let kwargs = match json_to_kwargs(py, json) {
+                    Ok(kwargs) => kwargs,
+                    Err(e) => return format!("ERROR: Failed to convert arguments: {e}"),
+                };
 
                 // call the python function
                 let py_result = fun.call(py, (), Some(&kwargs));
@@ -216,8 +219,26 @@ impl Tool {
     }
 }
 
-fn json_to_kwargs(py: Python, json: serde_json::Value) -> pyo3::types::PyDict {
-    todo!()
+fn json_to_kwargs(py: Python, json: serde_json::Value) -> PyResult<Bound<pyo3::types::PyDict>> {
+    let py_dict = pyo3::types::PyDict::new(py);
+
+    match json {
+        serde_json::Value::Object(obj) => {
+            for (k, v) in obj {
+                let value_py = json_value_to_py(py, &v)?;
+                py_dict.set_item(k, value_py)?;
+            }
+            Ok(py_dict)
+        }
+        _ =>
+        // it's not an object. fail hard.
+        // this branch should be impossible to hit.
+        {
+            Err(pyo3::exceptions::PyValueError::new_err(
+                "Tool was passed some json that wasn't an object. It must be an object.",
+            ))
+        }
+    }
 }
 
 // Helper function to convert serde_json::Value to PyObject
