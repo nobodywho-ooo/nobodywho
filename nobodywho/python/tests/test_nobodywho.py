@@ -205,11 +205,21 @@ async def test_crossencoder_rank_and_sort_async(crossencoder):
 
 
 def sparklify(text: str) -> str:
-    return f"✨{text}✨"
+    return f"✨{text.upper()}✨"
 
 
 def test_tool_construction():
     tool = nobodywho.Tool(
-        sparklify, description="Applies the 'sparklify' effect to a given string."
+        sparklify, description="Applies the sparklify effect to a given piece of text."
     )
     assert tool is not None
+
+
+def test_tool_calling(model):
+    sparklify_tool = nobodywho.Tool(sparklify, description="foobar")
+
+    chat = nobodywho.Chat(model, tools=[sparklify_tool])
+    response: str = chat.send_message(
+        "Please sparklify this word: 'julemand'"
+    ).collect_blocking()
+    assert "✨JULEMAND✨"
