@@ -234,13 +234,23 @@ fn python_func_json_schema(py: Python, fun: &Py<PyAny>) -> PyResult<serde_json::
     // import inspect (from stdlib)
     let inspect = PyModule::import(py, "inspect")?;
 
-    // call "inspect.get_annotations" on the function
-    // (this seems to be a function introduces in python 3.10)
-    // https://docs.python.org/3/howto/annotations.html
-    let get_annotations = inspect.getattr("get_annotations")?;
-    let annotations = get_annotations
-        .call((fun,), None)?
+    // call `inspect.getfullargspec`
+    // (not sure when getfullargspec was first added- but it *is* in 3.4 and later)
+    let getfullargspec = inspect.getattr("getfullargspec")?;
+    let argspec = getfullargspec.call((fun,), None)?;
+    let annotations = argspec
+        .getattr("annotations")?
         .extract::<std::collections::HashMap<String, Bound<pyo3::types::PyType>>>()?;
+    let args = argspec.getattr("args")?.extract::<Vec<String>>()?;
+
+    // check that all arguments are annotated
+    for arg in args {
+        if !annotations.contains_key(&arg) {
+            return Err(pyo3::exceptions::PyTypeError::new_err(format!(
+                "ERROR: NobodyWho requires all tool function parameters to be typed. Parameter {arg} is missing a type hint. Please add a static type hint to that parameter. For example: `{arg}: int`"
+            )));
+        }
+    }
 
     let mut properties = serde_json::Map::new();
     let mut required = Vec::new();
@@ -275,7 +285,7 @@ fn python_func_json_schema(py: Python, fun: &Py<PyAny>) -> PyResult<serde_json::
             _ if type_name == "List" => serde_json::json!({"type": "array"}),
             _ if type_name == "Dict" => serde_json::json!({"type": "object"}),
             _ => {
-                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                return Err(pyo3::exceptions::PyTypeError::new_err(format!(
                     "ERROR: Tool function contains an unsupported type hint: {type_name}"
                 )));
             }
@@ -285,7 +295,7 @@ fn python_func_json_schema(py: Python, fun: &Py<PyAny>) -> PyResult<serde_json::
         properties.insert(key.clone(), schema_type);
 
         // add to list of required keys for object
-        // TODO: allow optional parameters with params that contain
+        // TODO: allow optional parameters for params that have a default argument
         required.push(key);
     }
 
