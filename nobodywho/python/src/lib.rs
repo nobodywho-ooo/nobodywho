@@ -91,11 +91,19 @@ impl CrossEncoder {
     #[new]
     #[pyo3(signature = (model, n_ctx = 2048))]
     pub fn new(model: &Model, n_ctx: u32) -> Self {
-        let crossencoder_handle = nobodywho::crossencoder::CrossEncoderHandle::new(model.model.clone(), n_ctx);
-        Self { crossencoder_handle }
+        let crossencoder_handle =
+            nobodywho::crossencoder::CrossEncoderHandle::new(model.model.clone(), n_ctx);
+        Self {
+            crossencoder_handle,
+        }
     }
 
-    pub fn rank_blocking(&self, query: String, documents: Vec<String>, py: Python) -> PyResult<Vec<f32>> {
+    pub fn rank_blocking(
+        &self,
+        query: String,
+        documents: Vec<String>,
+        py: Python,
+    ) -> PyResult<Vec<f32>> {
         py.detach(|| futures::executor::block_on(self.rank_async(query, documents)))
     }
 
@@ -106,14 +114,24 @@ impl CrossEncoder {
         })
     }
 
-    pub fn rank_and_sort_blocking(&self, query: String, documents: Vec<String>, py: Python) -> PyResult<Vec<(String, f32)>> {
+    pub fn rank_and_sort_blocking(
+        &self,
+        query: String,
+        documents: Vec<String>,
+        py: Python,
+    ) -> PyResult<Vec<(String, f32)>> {
         py.detach(|| futures::executor::block_on(self.rank_and_sort_async(query, documents)))
     }
 
-    async fn rank_and_sort_async(&self, query: String, documents: Vec<String>) -> PyResult<Vec<(String, f32)>> {
-        self.crossencoder_handle.rank_and_sort(query, documents).await.map_err(|e| {
-            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e))
-        })
+    async fn rank_and_sort_async(
+        &self,
+        query: String,
+        documents: Vec<String>,
+    ) -> PyResult<Vec<(String, f32)>> {
+        self.crossencoder_handle
+            .rank_and_sort(query, documents)
+            .await
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))
     }
 }
 
@@ -147,7 +165,7 @@ impl Chat {
 fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> PyResult<f32> {
     if a.len() != b.len() {
         return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-            "Vectors must have the same length"
+            "Vectors must have the same length",
         ));
     }
     Ok(nobodywho::embed::cosine_similarity(&a, &b))
