@@ -70,10 +70,10 @@ impl Embeddings {
     }
 
     pub fn embed_text_blocking(&self, text: String, py: Python) -> PyResult<Vec<f32>> {
-        py.detach(|| futures::executor::block_on(self.embed_text_async(text)))
+        py.detach(|| futures::executor::block_on(self.embed_text(text)))
     }
 
-    async fn embed_text_async(&self, text: String) -> PyResult<Vec<f32>> {
+    async fn embed_text(&self, text: String) -> PyResult<Vec<f32>> {
         let mut rx = self.embeddings_handle.embed_text(text);
         rx.recv().await.ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Failed to receive embedding")
@@ -104,10 +104,10 @@ impl CrossEncoder {
         documents: Vec<String>,
         py: Python,
     ) -> PyResult<Vec<f32>> {
-        py.detach(|| futures::executor::block_on(self.rank_async(query, documents)))
+        py.detach(|| futures::executor::block_on(self.rank(query, documents)))
     }
 
-    async fn rank_async(&self, query: String, documents: Vec<String>) -> PyResult<Vec<f32>> {
+    async fn rank(&self, query: String, documents: Vec<String>) -> PyResult<Vec<f32>> {
         let mut rx = self.crossencoder_handle.rank(query, documents);
         rx.recv().await.ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Failed to receive ranking scores")
@@ -120,10 +120,10 @@ impl CrossEncoder {
         documents: Vec<String>,
         py: Python,
     ) -> PyResult<Vec<(String, f32)>> {
-        py.detach(|| futures::executor::block_on(self.rank_and_sort_async(query, documents)))
+        py.detach(|| futures::executor::block_on(self.rank_and_sort(query, documents)))
     }
 
-    async fn rank_and_sort_async(
+    async fn rank_and_sort(
         &self,
         query: String,
         documents: Vec<String>,
