@@ -56,6 +56,86 @@ impl TokenStream {
 }
 
 #[pyclass]
+pub struct Embeddings {
+    embeddings_handle: nobodywho::embed::EmbeddingsHandle,
+}
+
+#[pymethods]
+impl Embeddings {
+    #[new]
+    #[pyo3(signature = (model, n_ctx = 2048))]
+    pub fn new(model: &Model, n_ctx: u32) -> Self {
+        let embeddings_handle = nobodywho::embed::EmbeddingsHandle::new(model.model.clone(), n_ctx);
+        Self { embeddings_handle }
+    }
+
+    pub fn embed_text_blocking(&self, text: String, py: Python) -> PyResult<Vec<f32>> {
+        py.detach(|| futures::executor::block_on(self.embed_text(text)))
+    }
+
+    async fn embed_text(&self, text: String) -> PyResult<Vec<f32>> {
+        let mut rx = self.embeddings_handle.embed_text(text);
+        rx.recv().await.ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Failed to receive embedding")
+        })
+    }
+}
+
+#[pyclass]
+pub struct CrossEncoder {
+    crossencoder_handle: nobodywho::crossencoder::CrossEncoderHandle,
+}
+
+#[pymethods]
+impl CrossEncoder {
+    #[new]
+    #[pyo3(signature = (model, n_ctx = 2048))]
+    pub fn new(model: &Model, n_ctx: u32) -> Self {
+        let crossencoder_handle =
+            nobodywho::crossencoder::CrossEncoderHandle::new(model.model.clone(), n_ctx);
+        Self {
+            crossencoder_handle,
+        }
+    }
+
+    pub fn rank_blocking(
+        &self,
+        query: String,
+        documents: Vec<String>,
+        py: Python,
+    ) -> PyResult<Vec<f32>> {
+        py.detach(|| futures::executor::block_on(self.rank(query, documents)))
+    }
+
+    async fn rank(&self, query: String, documents: Vec<String>) -> PyResult<Vec<f32>> {
+        let mut rx = self.crossencoder_handle.rank(query, documents);
+        rx.recv().await.ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Failed to receive ranking scores")
+        })
+    }
+
+    pub fn rank_and_sort_blocking(
+        &self,
+        query: String,
+        documents: Vec<String>,
+        py: Python,
+    ) -> PyResult<Vec<(String, f32)>> {
+        py.detach(|| futures::executor::block_on(self.rank_and_sort(query, documents)))
+    }
+
+    async fn rank_and_sort(
+        &self,
+        query: String,
+        documents: Vec<String>,
+    ) -> PyResult<Vec<(String, f32)>> {
+        self.crossencoder_handle
+            .rank_and_sort(query, documents)
+            .await
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))
+    }
+}
+
+#[pyclass]
 pub struct Chat {
     chat_handle: nobodywho::chat::ChatHandle,
 }
@@ -81,11 +161,24 @@ impl Chat {
     }
 }
 
+#[pyfunction]
+fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> PyResult<f32> {
+    if a.len() != b.len() {
+        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+            "Vectors must have the same length",
+        ));
+    }
+    Ok(nobodywho::embed::cosine_similarity(&a, &b))
+}
+
 #[pymodule]
 #[pyo3(name = "nobodywho")]
 fn nobodywhopython(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Model>()?;
     m.add_class::<Chat>()?;
     m.add_class::<TokenStream>()?;
+    m.add_class::<Embeddings>()?;
+    m.add_class::<CrossEncoder>()?;
+    m.add_function(wrap_pyfunction!(cosine_similarity, m)?)?;
     Ok(())
 }
