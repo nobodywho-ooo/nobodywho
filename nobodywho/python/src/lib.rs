@@ -171,6 +171,49 @@ fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> PyResult<f32> {
     Ok(nobodywho::embed::cosine_similarity(&a, &b))
 }
 
+#[pyclass]
+pub struct Tool {
+    tool: nobodywho::chat::Tool,
+}
+
+#[pymethods]
+impl Tool {
+    #[new]
+    #[pyo3(signature = (fun))]
+    pub fn new(fun: Py<PyAny>) -> Self {
+        let name = "foobar";
+        let description = "foobar";
+        let json_schema = serde_json::json!( { "foo": "bar" });
+
+        // wrap the passed function in a json -> String function
+        let function = move |json: serde_json::Value| {
+            Python::attach(|py| {
+                // TODO: construct proper kwargs
+                let kwargs = pyo3::types::PyDict::new(py);
+
+                // call the python function
+                let py_result = fun.call(py, (), Some(&kwargs));
+
+                // extract a string from the result
+                // return an error string to the LLM if anything fails
+                match py_result.map(|r| r.extract::<String>(py)) {
+                    Ok(Ok(str)) => str,
+                    Err(pyerr) | Ok(Err(pyerr)) => format!("ERROR: {pyerr}"),
+                }
+                .to_string()
+            })
+        };
+
+        let tool = nobodywho::chat::Tool::new(
+            name,
+            description,
+            json_schema,
+            std::sync::Arc::new(function),
+        );
+        Self { tool }
+    }
+}
+
 #[pymodule]
 #[pyo3(name = "nobodywho")]
 fn nobodywhopython(m: &Bound<'_, PyModule>) -> PyResult<()> {

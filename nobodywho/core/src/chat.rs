@@ -461,15 +461,15 @@ pub struct Tool {
 
 impl Tool {
     /// Create a new tool directly. Consider using [`ToolBuilder`] for a more ergonomic API.
-    pub fn new(
-        name: String,
-        description: String,
+    pub fn new<S: Into<String>>(
+        name: S,
+        description: S,
         json_schema: serde_json::Value,
         function: Arc<dyn Fn(serde_json::Value) -> String + Send + Sync>,
     ) -> Self {
         Self {
-            name,
-            description,
+            name: name.into(),
+            description: description.into(),
             json_schema,
             function,
         }
