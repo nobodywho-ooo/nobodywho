@@ -1552,6 +1552,7 @@ dependencies = [
 name = "nobodywho-python"
 version = "0.1.0"
 dependencies = [
+ "futures",
  "nobodywho",
  "pyo3",
  "rand",
