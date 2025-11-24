@@ -186,13 +186,15 @@ pub struct Tool {
 #[pymethods]
 impl Tool {
     #[new]
-    #[pyo3(signature = (fun))]
-    pub fn new(fun: Py<PyAny>, py: Python) -> PyResult<Self> {
+    #[pyo3(signature = (fun, description))]
+    pub fn new(fun: Py<PyAny>, description: String, py: Python) -> PyResult<Self> {
         // get the name of the function
         let name = fun.getattr(py, "__name__")?.extract::<String>(py)?;
-        // TODO: pass description somehow
-        let description = "foobar";
-        let json_schema = serde_json::json!( { "foo": "bar" });
+
+        let description = description;
+
+        // TODO: get types of python function
+        let json_schema = python_func_json_schema(py, &fun)?;
 
         // wrap the passed function in a json -> String function
         let function = move |json: serde_json::Value| {
@@ -218,7 +220,7 @@ impl Tool {
 
         let tool = nobodywho::chat::Tool::new(
             name,
-            description.to_string(),
+            description,
             json_schema,
             std::sync::Arc::new(function),
         );
@@ -227,6 +229,77 @@ impl Tool {
     }
 }
 
+// takes a python function (assumes static types), and returns a json schema for that function
+fn python_func_json_schema(py: Python, fun: &Py<PyAny>) -> PyResult<serde_json::Value> {
+    // import inspect (from stdlib)
+    let inspect = PyModule::import(py, "inspect")?;
+
+    // call "inspect.get_annotations" on the function
+    // (this seems to be a function introduces in python 3.10)
+    // https://docs.python.org/3/howto/annotations.html
+    let get_annotations = inspect.getattr("get_annotations")?;
+    let annotations = get_annotations
+        .call((fun,), None)?
+        .extract::<std::collections::HashMap<String, Bound<pyo3::types::PyType>>>()?;
+
+    let mut properties = serde_json::Map::new();
+    let mut required = Vec::new();
+
+    for (key, value) in annotations {
+        if key == "return" {
+            continue;
+        }
+
+        let type_name = value.name()?.to_string();
+        println!("{key} - {:?}", type_name);
+
+        let schema_type = match type_name.as_str() {
+            "str" => serde_json::json!({"type": "string"}),
+            "int" => serde_json::json!({"type": "integer"}),
+            "float" => serde_json::json!({"type": "number"}),
+            "bool" => serde_json::json!({"type": "boolean"}),
+            "list" => serde_json::json!({"type": "array"}),
+            "dict" => serde_json::json!({"type": "object"}),
+            "None" | "NoneType" => serde_json::json!({"type": "null"}),
+            "Any" | "any" => serde_json::json!({}), // Allow any type
+            // TODO: these two are kinda bad.. they will be passed to the function as lists
+            "set" | "frozenset" => serde_json::json!({"type": "array", "uniqueItems": true}),
+            "tuple" => serde_json::json!({"type": "array"}),
+            // TODO: bytes? - "bytes" | "bytearray" => todo!(),
+            // TODO: handle generic types better. at least handle list[int], dict[str,int], etc.
+            // TODO: consider handling more complex built-in things? Union, Option, `|`,
+            // TODO: consider handling pydantic types?
+            //       (objects subclassing pydantic's BaseModel can readily generate json schemas)
+            _ if type_name.starts_with("list[") => serde_json::json!({"type": "array"}),
+            _ if type_name.starts_with("dict[") => serde_json::json!({"type": "object"}),
+            _ if type_name == "List" => serde_json::json!({"type": "array"}),
+            _ if type_name == "Dict" => serde_json::json!({"type": "object"}),
+            _ => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "ERROR: Tool function contains an unsupported type hint: {type_name}"
+                )));
+            }
+        };
+
+        // add to json schema properties
+        properties.insert(key.clone(), schema_type);
+
+        // add to list of required keys for object
+        // TODO: allow optional parameters with params that contain
+        required.push(key);
+    }
+
+    // assemble the complete json schema for an arguments object
+    let kwargs_schema = serde_json::json!({
+        "type": "object",
+        "properties": properties,
+        "required": required
+    });
+
+    Ok(kwargs_schema)
+}
+
+// takes a sede_json::value, assumed to be an object, and returns a PyDict
 fn json_to_kwargs(py: Python, json: serde_json::Value) -> PyResult<Bound<pyo3::types::PyDict>> {
     let py_dict = pyo3::types::PyDict::new(py);
 
@@ -294,5 +367,6 @@ fn nobodywhopython(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Embeddings>()?;
     m.add_class::<CrossEncoder>()?;
     m.add_function(wrap_pyfunction!(cosine_similarity, m)?)?;
+    m.add_class::<Tool>()?;
     Ok(())
 }
