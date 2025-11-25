@@ -133,19 +133,6 @@ jobs:
           RUST_BACKTRACE: full
           CMAKE_VERBOSE_MAKEFILE: ON
           VERBOSE: 1
-          # Disable debug symbols and PDB generation
-          _NO_DEBUG_HEAP: 1
-          LINK: /INCREMENTAL:NO
-          # Correct MSVC flags to disable debug info (no /Zi flag at all)
-          CMAKE_CXX_FLAGS_RELEASE: "/O2 /DNDEBUG"
-          CMAKE_C_FLAGS_RELEASE: "/O2 /DNDEBUG"
-          # Also set debug flags without debug info
-          CMAKE_CXX_FLAGS_DEBUG: "/Od /DNDEBUG"
-          CMAKE_C_FLAGS_DEBUG: "/Od /DNDEBUG"
-          # Try to skip install step for external projects
-          CMAKE_SKIP_INSTALL_ALL_DEPENDENCY: ON
-          # Keep install messages visible for debugging
-          CMAKE_INSTALL_MESSAGE: LAZY
 
       - name: "Rename built files"
         run: |
