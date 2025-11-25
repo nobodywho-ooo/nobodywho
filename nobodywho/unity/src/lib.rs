@@ -518,7 +518,7 @@ impl EmbedWrapper {
     }
 
     #[ffi_service_method(on_panic = "undefined_behavior")]
-    pub fn poll_embedding(&mut self) -> FFISlice<f32> {
+    pub fn poll_embedding(&mut self) -> FFISlice<'_, f32> {
         use tokio::sync::mpsc::error::TryRecvError;
         if let Some(ref mut rx) = self.response_rx {
             match rx.try_recv() {

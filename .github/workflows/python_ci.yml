@@ -69,14 +69,22 @@ jobs:
           cache: true
           install_runtime: true
           stripdown: true
+      - name: Install Ninja
+        run: choco install ninja
       - name: "Build windows python wheel"
         run: |
           mv ./nobodywho/* C:/
-          New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force 
+          New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force
           git config --system core.longpaths true
           cd C:/
           cd python
           maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked --target ${{ matrix.target }}
+        env:
+          # Use Ninja generator instead of Visual Studio generator.
+          # This fixes a CMake ExternalProject issue where vulkan-shaders-gen's
+          # install step fails to find cmake_install.cmake with the VS generator.
+          # Ninja's simpler build structure avoids this problem entirely.
+          CMAKE_GENERATOR: "Ninja"
       - name: "Upload wheel artifact"
         uses: actions/upload-artifact@v4
         with:
