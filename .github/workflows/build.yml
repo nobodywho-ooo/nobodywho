@@ -111,6 +111,9 @@ jobs:
           install_runtime: true
           stripdown: true
 
+      - name: Install Ninja
+        run: choco install ninja
+
       - name: Setup Flutter SDK
         if: matrix.integration == 'flutter'
         uses: flutter-actions/setup-flutter@v4
@@ -133,6 +136,8 @@ jobs:
           RUST_BACKTRACE: full
           CMAKE_VERBOSE_MAKEFILE: ON
           VERBOSE: 1
+          # Use Ninja generator instead of Visual Studio to avoid ExternalProject issues
+          CMAKE_GENERATOR: "Ninja"
 
       - name: "Rename built files"
         run: |
