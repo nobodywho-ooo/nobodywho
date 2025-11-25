@@ -127,6 +127,16 @@ jobs:
         env:
           RUSTFLAGS: >-
             -l Advapi32
+            -C debuginfo=0
+          # Enhanced diagnostics
+          RUST_BACKTRACE: full
+          CMAKE_VERBOSE_MAKEFILE: ON
+          VERBOSE: 1
+          # Disable debug symbols and PDB generation
+          _NO_DEBUG_HEAP: 1
+          LINK: /INCREMENTAL:NO
+          CMAKE_CXX_FLAGS_RELEASE: "/O2 /DNDEBUG /Zi-"
+          CMAKE_C_FLAGS_RELEASE: "/O2 /DNDEBUG /Zi-"
 
       - name: "Rename built files"
         run: |
