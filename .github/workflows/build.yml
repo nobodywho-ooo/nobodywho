@@ -121,6 +121,7 @@ jobs:
       - name: Build with Cargo
         # move things into a shortly-named dir in the root, because windows is made by fuckwits who think limiting paths to 260 chars is ok
         run: |
+          mkdir -p C:/tmp
           mv ./nobodywho/* C:/
           cd C:/
           # Use an even shorter target directory to avoid path length issues with git dependencies
@@ -139,11 +140,19 @@ jobs:
           # Correct MSVC flags to disable debug info (no /Zi flag at all)
           CMAKE_CXX_FLAGS_RELEASE: "/O2 /DNDEBUG"
           CMAKE_C_FLAGS_RELEASE: "/O2 /DNDEBUG"
+          # Also set debug flags without debug info
+          CMAKE_CXX_FLAGS_DEBUG: "/Od /DNDEBUG"
+          CMAKE_C_FLAGS_DEBUG: "/Od /DNDEBUG"
           # Try to skip install step for external projects
           CMAKE_SKIP_INSTALL_ALL_DEPENDENCY: ON
-          # Shorter temp paths for CMake
-          TMP: "C:\\t"
-          TEMP: "C:\\t"
+          # Don't set TMP/TEMP to build directory - causes MSB8029 warning
+          # Instead use a different short path for temp files
+          TMP: "C:\\tmp"
+          TEMP: "C:\\tmp"
+          # Force single-threaded build for ExternalProject to avoid race conditions
+          CMAKE_BUILD_PARALLEL_LEVEL: 1
+          # Keep install messages visible for debugging
+          CMAKE_INSTALL_MESSAGE: LAZY
 
       - name: "Rename built files"
         run: |
