@@ -110,6 +110,9 @@ jobs:
           install_runtime: true
           stripdown: true
 
+      - name: Install Ninja
+        run: choco install ninja
+
       - name: Setup Flutter SDK
         if: matrix.integration == 'flutter'
         uses: flutter-actions/setup-flutter@v4
@@ -127,6 +130,12 @@ jobs:
         env:
           RUSTFLAGS: >-
             -l Advapi32
+            -C debuginfo=0
+          # Use Ninja generator instead of Visual Studio generator.
+          # This fixes a CMake ExternalProject issue where vulkan-shaders-gen's
+          # install step fails to find cmake_install.cmake with the VS generator.
+          # Ninja's simpler build structure avoids this problem entirely.
+          CMAKE_GENERATOR: "Ninja"
 
       - name: "Rename built files"
         run: |
