@@ -8,6 +8,7 @@ on:
 
 jobs:
   cargo-build-linux:
+    if: false  # TEMPORARILY DISABLED FOR WINDOWS PATH DEBUGGING
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -152,6 +153,7 @@ jobs:
             ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
 
   cargo-build-macos:
+    if: false  # TEMPORARILY DISABLED FOR WINDOWS PATH DEBUGGING
     runs-on: macos-15
     strategy:
       fail-fast: false
@@ -215,6 +217,7 @@ jobs:
   # builds an "xcframework"
   # which is an apple thing that contains binaries for multiple systems
   build-flutter-xcframework:
+    if: false  # TEMPORARILY DISABLED FOR WINDOWS PATH DEBUGGING
     runs-on: macos-15
     needs: [cargo-build-macos]
     steps:
@@ -266,6 +269,7 @@ jobs:
           path: ./NobodyWho.xcframework
 
   cargo-build-android:
+    if: false  # TEMPORARILY DISABLED FOR WINDOWS PATH DEBUGGING
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
