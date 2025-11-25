@@ -8,7 +8,6 @@ on:
 
 jobs:
   cargo-build-linux:
-    if: false  # TEMPORARILY DISABLED FOR WINDOWS PATH DEBUGGING
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -132,11 +131,10 @@ jobs:
           RUSTFLAGS: >-
             -l Advapi32
             -C debuginfo=0
-          # Enhanced diagnostics
-          RUST_BACKTRACE: full
-          CMAKE_VERBOSE_MAKEFILE: ON
-          VERBOSE: 1
-          # Use Ninja generator instead of Visual Studio to avoid ExternalProject issues
+          # Use Ninja generator instead of Visual Studio generator.
+          # This fixes a CMake ExternalProject issue where vulkan-shaders-gen's
+          # install step fails to find cmake_install.cmake with the VS generator.
+          # Ninja's simpler build structure avoids this problem entirely.
           CMAKE_GENERATOR: "Ninja"
 
       - name: "Rename built files"
@@ -153,7 +151,6 @@ jobs:
             ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
 
   cargo-build-macos:
-    if: false  # TEMPORARILY DISABLED FOR WINDOWS PATH DEBUGGING
     runs-on: macos-15
     strategy:
       fail-fast: false
@@ -217,7 +214,6 @@ jobs:
   # builds an "xcframework"
   # which is an apple thing that contains binaries for multiple systems
   build-flutter-xcframework:
-    if: false  # TEMPORARILY DISABLED FOR WINDOWS PATH DEBUGGING
     runs-on: macos-15
     needs: [cargo-build-macos]
     steps:
@@ -269,7 +265,6 @@ jobs:
           path: ./NobodyWho.xcframework
 
   cargo-build-android:
-    if: false  # TEMPORARILY DISABLED FOR WINDOWS PATH DEBUGGING
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
