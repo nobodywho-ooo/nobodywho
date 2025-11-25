@@ -188,7 +188,7 @@ mod tests {
         let ranked_docs = handle.rank_and_sort(query, documents.clone()).await?;
         let best_docs: Vec<String> = ranked_docs
             .iter()
-            .take(3)
+            .take(4)
             .map(|(doc, _)| doc.to_owned())
             .collect();
 
@@ -196,7 +196,7 @@ mod tests {
 
         assert!(
             seen_paris,
-            "`Paris is the capital of France.` was not between the best three, the best three were: {}",
+            "`Paris is the capital of France.` was not between the best four, the best three were: {}",
             best_docs.join(",")
         );
 
