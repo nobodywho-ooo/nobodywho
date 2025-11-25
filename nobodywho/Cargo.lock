@@ -281,9 +281,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.2.46"
+version = "1.2.47"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b97463e1064cb1b1c1384ad0a0b9c8abd0988e2a91f52606c80ef14aadb63e36"
+checksum = "cd405d82c84ff7f35739f175f67d8b9fb7687a0e84ccdc78bd3568839827cf07"
 dependencies = [
  "find-msvc-tools",
  "jobserver",
@@ -1334,9 +1334,8 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-2"
-version = "0.1.126"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a6611337b4abaae091918aacbbf2a25525b25818efc88de935ad249a7f979e4b"
+version = "0.1.127"
+source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=android-fix-cstr-to-string#bb10875487fe346092d274b914f2cac9ba6c9b26"
 dependencies = [
  "enumflags2",
  "llama-cpp-sys-2",
@@ -1347,9 +1346,8 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-sys-2"
-version = "0.1.126"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fcf4f0b93f111d7cc2ae702b2dd20efb4a9a19297addb3e63c1cfb97e6a13c6f"
+version = "0.1.127"
+source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=android-fix-cstr-to-string#bb10875487fe346092d274b914f2cac9ba6c9b26"
 dependencies = [
  "bindgen",
  "cc",
