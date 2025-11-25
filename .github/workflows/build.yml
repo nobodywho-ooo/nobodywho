@@ -136,8 +136,14 @@ jobs:
           # Disable debug symbols and PDB generation
           _NO_DEBUG_HEAP: 1
           LINK: /INCREMENTAL:NO
-          CMAKE_CXX_FLAGS_RELEASE: "/O2 /DNDEBUG /Zi-"
-          CMAKE_C_FLAGS_RELEASE: "/O2 /DNDEBUG /Zi-"
+          # Correct MSVC flags to disable debug info (no /Zi flag at all)
+          CMAKE_CXX_FLAGS_RELEASE: "/O2 /DNDEBUG"
+          CMAKE_C_FLAGS_RELEASE: "/O2 /DNDEBUG"
+          # Try to skip install step for external projects
+          CMAKE_SKIP_INSTALL_ALL_DEPENDENCY: ON
+          # Shorter temp paths for CMake
+          TMP: "C:\\t"
+          TEMP: "C:\\t"
 
       - name: "Rename built files"
         run: |
