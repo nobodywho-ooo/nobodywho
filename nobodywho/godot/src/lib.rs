@@ -684,7 +684,7 @@ struct NobodyWhoEmbedding {
     #[export]
     /// The model node for the embedding.
     model_node: Option<Gd<NobodyWhoModel>>,
-    embed_handle: Option<nobodywho::embed::EmbeddingsHandle>,
+    embed_handle: Option<nobodywho::encoder::EncoderAsync>,
     base: Base<Node>,
 }
 
@@ -720,7 +720,7 @@ impl NobodyWhoEmbedding {
             let model = self.get_model()?;
 
             // TODO: configurable n_ctx
-            self.embed_handle = Some(nobodywho::embed::EmbeddingsHandle::new(model, 4096));
+            self.embed_handle = Some(nobodywho::encoder::EncoderAsync::new(model, 4096));
             Ok(())
         };
         // run it and show error in godot if it fails
@@ -734,7 +734,7 @@ impl NobodyWhoEmbedding {
     /// The signal will return a PackedFloat32Array.
     fn embed(&mut self, text: String) -> Signal {
         if let Some(embed_handle) = &self.embed_handle {
-            let mut embedding_channel = embed_handle.embed_text(text);
+            let mut embedding_channel = embed_handle.encode(text);
             let emit_node = self.to_gd();
             godot::task::spawn(async move {
                 match embedding_channel.recv().await {
@@ -761,7 +761,7 @@ impl NobodyWhoEmbedding {
     /// Calculates the similarity between two embedding vectors.
     /// Returns a value between 0 and 1, where 1 is the highest similarity.
     fn cosine_similarity(a: PackedFloat32Array, b: PackedFloat32Array) -> f32 {
-        nobodywho::embed::cosine_similarity(a.as_slice(), b.as_slice())
+        nobodywho::encoder::cosine_similarity(a.as_slice(), b.as_slice())
     }
 
     #[func]
@@ -802,7 +802,7 @@ struct NobodyWhoCrossEncoder {
     #[export]
     /// The model node for the crossencoder.
     model_node: Option<Gd<NobodyWhoModel>>,
-    crossencoder_handle: Option<nobodywho::crossencoder::CrossEncoderHandle>,
+    crossencoder_handle: Option<nobodywho::crossencoder::CrossEncoderAsync>,
     base: Base<Node>,
 }
 
@@ -838,9 +838,8 @@ impl NobodyWhoCrossEncoder {
             let model = self.get_model()?;
 
             // TODO: configurable n_ctx liek with the embeddings node
-            self.crossencoder_handle = Some(nobodywho::crossencoder::CrossEncoderHandle::new(
-                model, 4096,
-            ));
+            self.crossencoder_handle =
+                Some(nobodywho::crossencoder::CrossEncoderAsync::new(model, 4096));
             Ok(())
         };
 

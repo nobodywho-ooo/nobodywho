@@ -468,7 +468,7 @@ impl FFIError for EmbedError {
 
 #[ffi_type(opaque)]
 pub struct EmbedWrapper {
-    handle: Option<nobodywho::embed::EmbeddingsHandle>,
+    handle: Option<nobodywho::encoder::EncoderAsync>,
     response_rx: Option<tokio::sync::mpsc::Receiver<Vec<f32>>>,
     last_returned_embedding: Vec<f32>,
 }
@@ -492,7 +492,7 @@ impl EmbedWrapper {
         let model = modelwrapper
             .get_model()
             .map_err(|_| EmbedError::LoadModelFailed)?;
-        let handle = nobodywho::embed::EmbeddingsHandle::new(model, n_ctx);
+        let handle = nobodywho::encoder::EncoderAsync::new(model, n_ctx);
         self.handle = Some(handle);
         Ok(())
     }
@@ -508,7 +508,7 @@ impl EmbedWrapper {
             .map_err(|_| EmbedError::BadEmbedText)?
             .to_string();
         if let Some(ref mut handle) = self.handle {
-            let response_rx = handle.embed_text(text);
+            let response_rx = handle.encode(text);
             debug_assert!(self.response_rx.is_none());
             self.response_rx = Some(response_rx);
             Ok(())
@@ -543,7 +543,7 @@ impl EmbedWrapper {
 #[ffi_function]
 #[no_mangle]
 pub extern "C" fn cosine_similarity(a: FFISlice<f32>, b: FFISlice<f32>) -> f32 {
-    return nobodywho::embed::cosine_similarity(a.as_slice(), b.as_slice());
+    return nobodywho::encoder::cosine_similarity(a.as_slice(), b.as_slice());
 }
 
 /// BINDINGS

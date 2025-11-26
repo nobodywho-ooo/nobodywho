@@ -56,25 +56,43 @@ impl TokenStream {
 }
 
 #[pyclass]
-pub struct Embeddings {
-    embeddings_handle: nobodywho::embed::EmbeddingsHandle,
+pub struct Encoder {
+    encoder: nobodywho::encoder::Encoder,
 }
 
 #[pymethods]
-impl Embeddings {
+impl Encoder {
     #[new]
     #[pyo3(signature = (model, n_ctx = 2048))]
     pub fn new(model: &Model, n_ctx: u32) -> Self {
-        let embeddings_handle = nobodywho::embed::EmbeddingsHandle::new(model.model.clone(), n_ctx);
-        Self { embeddings_handle }
+        let encoder = nobodywho::encoder::Encoder::new(model.model.clone(), n_ctx);
+        Self { encoder }
     }
 
-    pub fn embed_text_blocking(&self, text: String, py: Python) -> PyResult<Vec<f32>> {
-        py.detach(|| futures::executor::block_on(self.embed_text(text)))
+    pub fn encode(&self, text: String, py: Python) -> PyResult<Vec<f32>> {
+        py.detach(|| {
+            self.encoder.encode(text)
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))
+        })
+    }
+}
+
+#[pyclass]
+pub struct EncoderAsync {
+    encoder_handle: nobodywho::encoder::EncoderAsync,
+}
+
+#[pymethods]
+impl EncoderAsync {
+    #[new]
+    #[pyo3(signature = (model, n_ctx = 2048))]
+    pub fn new(model: &Model, n_ctx: u32) -> Self {
+        let encoder_handle = nobodywho::encoder::EncoderAsync::new(model.model.clone(), n_ctx);
+        Self { encoder_handle }
     }
 
-    async fn embed_text(&self, text: String) -> PyResult<Vec<f32>> {
-        let mut rx = self.embeddings_handle.embed_text(text);
+    async fn encode(&self, text: String) -> PyResult<Vec<f32>> {
+        let mut rx = self.encoder_handle.encode(text);
         rx.recv().await.ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Failed to receive embedding")
         })
@@ -83,7 +101,7 @@ impl Embeddings {
 
 #[pyclass]
 pub struct CrossEncoder {
-    crossencoder_handle: nobodywho::crossencoder::CrossEncoderHandle,
+    crossencoder: nobodywho::crossencoder::CrossEncoder,
 }
 
 #[pymethods]
@@ -91,20 +109,50 @@ impl CrossEncoder {
     #[new]
     #[pyo3(signature = (model, n_ctx = 2048))]
     pub fn new(model: &Model, n_ctx: u32) -> Self {
-        let crossencoder_handle =
-            nobodywho::crossencoder::CrossEncoderHandle::new(model.model.clone(), n_ctx);
-        Self {
-            crossencoder_handle,
-        }
+        let crossencoder = nobodywho::crossencoder::CrossEncoder::new(model.model.clone(), n_ctx);
+        Self { crossencoder }
     }
 
-    pub fn rank_blocking(
+    pub fn rank(
         &self,
         query: String,
         documents: Vec<String>,
         py: Python,
     ) -> PyResult<Vec<f32>> {
-        py.detach(|| futures::executor::block_on(self.rank(query, documents)))
+        py.detach(|| {
+            self.crossencoder.rank(query, documents)
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))
+        })
+    }
+
+    pub fn rank_and_sort(
+        &self,
+        query: String,
+        documents: Vec<String>,
+        py: Python,
+    ) -> PyResult<Vec<(String, f32)>> {
+        py.detach(|| {
+            self.crossencoder.rank_and_sort(query, documents)
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))
+        })
+    }
+}
+
+#[pyclass]
+pub struct CrossEncoderAsync {
+    crossencoder_handle: nobodywho::crossencoder::CrossEncoderAsync,
+}
+
+#[pymethods]
+impl CrossEncoderAsync {
+    #[new]
+    #[pyo3(signature = (model, n_ctx = 2048))]
+    pub fn new(model: &Model, n_ctx: u32) -> Self {
+        let crossencoder_handle =
+            nobodywho::crossencoder::CrossEncoderAsync::new(model.model.clone(), n_ctx);
+        Self {
+            crossencoder_handle,
+        }
     }
 
     async fn rank(&self, query: String, documents: Vec<String>) -> PyResult<Vec<f32>> {
@@ -112,15 +160,6 @@ impl CrossEncoder {
         rx.recv().await.ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Failed to receive ranking scores")
         })
-    }
-
-    pub fn rank_and_sort_blocking(
-        &self,
-        query: String,
-        documents: Vec<String>,
-        py: Python,
-    ) -> PyResult<Vec<(String, f32)>> {
-        py.detach(|| futures::executor::block_on(self.rank_and_sort(query, documents)))
     }
 
     async fn rank_and_sort(
@@ -174,7 +213,7 @@ fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> PyResult<f32> {
             "Vectors must have the same length",
         ));
     }
-    Ok(nobodywho::embed::cosine_similarity(&a, &b))
+    Ok(nobodywho::encoder::cosine_similarity(&a, &b))
 }
 
 #[pyclass]
@@ -374,8 +413,10 @@ fn nobodywhopython(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Model>()?;
     m.add_class::<Chat>()?;
     m.add_class::<TokenStream>()?;
-    m.add_class::<Embeddings>()?;
+    m.add_class::<Encoder>()?;
+    m.add_class::<EncoderAsync>()?;
     m.add_class::<CrossEncoder>()?;
+    m.add_class::<CrossEncoderAsync>()?;
     m.add_function(wrap_pyfunction!(cosine_similarity, m)?)?;
     m.add_class::<Tool>()?;
     Ok(())

@@ -79,18 +79,21 @@ pub enum CrossEncoderWorkerError {
     Classification(String),
 }
 
-// EmbeddingWorker errors
+// EncoderWorker errors
 
 #[derive(Debug, thiserror::Error)]
-pub(crate) enum EmbeddingsWorkerError {
+pub enum EncoderWorkerError {
     #[error("Error initializing worker: {0}")]
     InitWorker(#[from] InitWorkerError),
 
     #[error("Error reading string: {0}")]
     Read(#[from] ReadError),
 
-    #[error("Error generating text: {0}")]
+    #[error("Error encoding text: {0}")]
     Embeddings(#[from] llama_cpp_2::EmbeddingsError),
+
+    #[error("Error encoding: {0}")]
+    Encode(String),
 }
 
 // ChatWorker errors

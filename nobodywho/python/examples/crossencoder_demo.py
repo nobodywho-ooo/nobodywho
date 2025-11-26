@@ -39,7 +39,7 @@ def main():
     
     # Rank documents
     print("\nRanking documents...")
-    ranked_docs = crossencoder.rank_and_sort_blocking(query, documents)
+    ranked_docs = crossencoder.rank_and_sort(query, documents)
     
     # Display results
     print(f"\nRanked results (most relevant first):")
@@ -48,7 +48,7 @@ def main():
     
     # Also demonstrate raw scoring
     print("\nRaw scores (in original order):")
-    raw_scores = crossencoder.rank_blocking(query, documents)
+    raw_scores = crossencoder.rank(query, documents)
     for i, (doc, score) in enumerate(zip(documents, raw_scores)):
         print(f"  {i+1}. Score: {score:.3f} - {doc}")
     
