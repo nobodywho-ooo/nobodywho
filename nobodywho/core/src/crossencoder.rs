@@ -19,10 +19,17 @@ impl CrossEncoder {
     pub fn new(model: Arc<LlamaModel>, n_ctx: u32) -> Self {
         let async_handle = CrossEncoderAsync::new(model, n_ctx);
         let runtime = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
-        Self { async_handle, runtime }
+        Self {
+            async_handle,
+            runtime,
+        }
     }
 
-    pub fn rank(&self, query: String, documents: Vec<String>) -> Result<Vec<f32>, CrossEncoderWorkerError> {
+    pub fn rank(
+        &self,
+        query: String,
+        documents: Vec<String>,
+    ) -> Result<Vec<f32>, CrossEncoderWorkerError> {
         let mut receiver = self.async_handle.rank(query, documents);
         self.runtime.block_on(async {
             receiver.recv().await.ok_or_else(|| {
@@ -33,10 +40,13 @@ impl CrossEncoder {
         })
     }
 
-    pub fn rank_and_sort(&self, query: String, documents: Vec<String>) -> Result<Vec<(String, f32)>, CrossEncoderWorkerError> {
-        self.runtime.block_on(async {
-            self.async_handle.rank_and_sort(query, documents).await
-        })
+    pub fn rank_and_sort(
+        &self,
+        query: String,
+        documents: Vec<String>,
+    ) -> Result<Vec<(String, f32)>, CrossEncoderWorkerError> {
+        self.runtime
+            .block_on(async { self.async_handle.rank_and_sort(query, documents).await })
     }
 }
 

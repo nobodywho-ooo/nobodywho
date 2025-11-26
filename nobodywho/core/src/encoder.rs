@@ -20,17 +20,19 @@ impl Encoder {
     pub fn new(model: Arc<LlamaModel>, n_ctx: u32) -> Self {
         let async_handle = EncoderAsync::new(model, n_ctx);
         let runtime = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
-        Self { async_handle, runtime }
+        Self {
+            async_handle,
+            runtime,
+        }
     }
 
     pub fn encode(&self, text: String) -> Result<Vec<f32>, EncoderWorkerError> {
         let mut receiver = self.async_handle.encode(text);
         self.runtime.block_on(async {
-            receiver.recv().await.ok_or_else(|| {
-                EncoderWorkerError::Encode(
-                    "Could not encode the text".to_string(),
-                )
-            })
+            receiver
+                .recv()
+                .await
+                .ok_or_else(|| EncoderWorkerError::Encode("Could not encode the text".to_string()))
         })
     }
 }
@@ -126,9 +128,12 @@ mod tests {
         let model = test_utils::load_embeddings_model();
         let encoder = Encoder::new(model, 1024);
 
-        let copenhagen_embedding = encoder.encode("Copenhagen is the capital of Denmark.".to_string())?;
+        let copenhagen_embedding =
+            encoder.encode("Copenhagen is the capital of Denmark.".to_string())?;
         let berlin_embedding = encoder.encode("Berlin is the capital of Germany.".to_string())?;
-        let insult_embedding = encoder.encode("Your mother was a hamster and your father smelt of elderberries!".to_string())?;
+        let insult_embedding = encoder.encode(
+            "Your mother was a hamster and your father smelt of elderberries!".to_string(),
+        )?;
 
         assert!(
             insult_embedding.len() == berlin_embedding.len()

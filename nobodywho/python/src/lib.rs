@@ -71,7 +71,8 @@ impl Encoder {
 
     pub fn encode(&self, text: String, py: Python) -> PyResult<Vec<f32>> {
         py.detach(|| {
-            self.encoder.encode(text)
+            self.encoder
+                .encode(text)
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))
         })
     }
@@ -113,14 +114,10 @@ impl CrossEncoder {
         Self { crossencoder }
     }
 
-    pub fn rank(
-        &self,
-        query: String,
-        documents: Vec<String>,
-        py: Python,
-    ) -> PyResult<Vec<f32>> {
+    pub fn rank(&self, query: String, documents: Vec<String>, py: Python) -> PyResult<Vec<f32>> {
         py.detach(|| {
-            self.crossencoder.rank(query, documents)
+            self.crossencoder
+                .rank(query, documents)
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))
         })
     }
@@ -132,7 +129,8 @@ impl CrossEncoder {
         py: Python,
     ) -> PyResult<Vec<(String, f32)>> {
         py.detach(|| {
-            self.crossencoder.rank_and_sort(query, documents)
+            self.crossencoder
+                .rank_and_sort(query, documents)
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))
         })
     }
