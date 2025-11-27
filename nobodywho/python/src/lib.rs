@@ -178,9 +178,31 @@ fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> PyResult<f32> {
 }
 
 #[pyclass]
-#[derive(Clone)]
 pub struct Tool {
     tool: nobodywho::chat::Tool,
+    pyfunc: Py<PyAny>,
+}
+
+impl Clone for Tool {
+    fn clone(&self) -> Self {
+        Python::attach(|py| Self {
+            tool: self.tool.clone(),
+            pyfunc: self.pyfunc.clone_ref(py),
+        })
+    }
+}
+
+#[pymethods]
+impl Tool {
+    #[pyo3(signature = (*args, **kwargs))]
+    fn __call__(
+        &self,
+        args: &Bound<pyo3::types::PyTuple>,
+        kwargs: Option<&Bound<pyo3::types::PyDict>>,
+        py: Python,
+    ) -> PyResult<Py<PyAny>> {
+        self.pyfunc.call(py, args, kwargs)
+    }
 }
 
 // tool decorator
@@ -202,6 +224,8 @@ fn tool<'a>(description: String, py: Python<'a>) -> PyResult<Bound<'a, pyo3::typ
 
             // generate json schema from function type annotations
             let json_schema = python_func_json_schema(py, &fun)?;
+
+            let fun_clone = fun.clone_ref(py);
 
             // wrap the passed function in a json -> String function
             let wrapped_function = move |json: serde_json::Value| {
@@ -232,7 +256,10 @@ fn tool<'a>(description: String, py: Python<'a>) -> PyResult<Bound<'a, pyo3::typ
                 std::sync::Arc::new(wrapped_function),
             );
 
-            Ok(Tool { tool })
+            Ok(Tool {
+                tool,
+                pyfunc: fun_clone,
+            })
         })
     };
 

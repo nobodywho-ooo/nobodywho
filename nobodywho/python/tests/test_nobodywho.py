@@ -211,6 +211,8 @@ def sparklify(text: str) -> str:
 
 def test_tool_construction():
     assert sparklify is not None
+    assert isinstance(sparklify, nobodywho.Tool)
+    assert sparklify("foobar") == "✨FOOBAR✨"
 
 
 def test_tool_calling(model):
