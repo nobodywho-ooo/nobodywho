@@ -1,5 +1,3 @@
-mod sampler_resource;
-
 use godot::classes::{INode, ProjectSettings};
 use godot::prelude::*;
 use nobodywho::{chat_state, errors, llm, sampler_config};
@@ -8,9 +6,49 @@ use tracing::{debug, error, info, trace, warn};
 use tracing_subscriber::filter::{LevelFilter, Targets};
 use tracing_subscriber::prelude::*;
 
-use crate::sampler_resource::NobodyWhoSampler;
-
 struct NobodyWhoExtension;
+
+#[derive(GodotConvert, Var, Export, Debug, Clone, Copy)]
+#[godot(via=GString)]
+enum SamplerMethodName {
+    Default,
+    Greedy,
+    DRY,
+    TopK,
+    TopP,
+    Temperature,
+    JSON,
+    Grammar,
+}
+
+#[derive(GodotClass)]
+#[class(base=Node)]
+struct NobodyWhoSampler {
+    #[export]
+    method: SamplerMethodName,
+    #[export]
+    top_k: i32,
+    #[export]
+    top_p: f32,
+    #[export]
+    temperature: f32,
+    #[export]
+    grammar: GString,
+}
+
+#[godot_api]
+impl INode for NobodyWhoSampler {
+    fn init(_base: Base<Node>) -> Self {
+        // default values to show in godot editor
+        Self {
+            method: SamplerMethodName::Default,
+            top_k: 10,
+            top_p: 0.95,
+            temperature: 0.8,
+            grammar: "".into(),
+        }
+    }
+}
 
 #[gdextension]
 unsafe impl ExtensionLibrary for NobodyWhoExtension {
@@ -176,11 +214,40 @@ impl NobodyWhoChat {
     }
 
     fn get_sampler_config(&mut self) -> sampler_config::SamplerConfig {
-        if let Some(gd_sampler) = self.sampler.as_mut() {
-            let nobody_sampler: GdRef<NobodyWhoSampler> = gd_sampler.bind();
-            nobody_sampler.sampler_config.clone()
+        let Some(sampler) = self.sampler.as_ref() else {
+            return sampler_config::SamplerConfig::default();
+        };
+
+        let sampler_ref = sampler.bind();
+        match sampler_ref.method {
+            SamplerMethodName::Default => sampler_config::SamplerConfig::default(),
+            SamplerMethodName::Greedy => sampler_config::SamplerPresets::greedy(),
+            SamplerMethodName::DRY => sampler_config::SamplerPresets::dry(),
+            SamplerMethodName::TopK => sampler_config::SamplerPresets::top_k(sampler_ref.top_k),
+            SamplerMethodName::TopP => sampler_config::SamplerPresets::top_p(sampler_ref.top_p),
+            SamplerMethodName::Temperature => {
+                sampler_config::SamplerPresets::temperature(sampler_ref.temperature)
+            }
+            SamplerMethodName::JSON => sampler_config::SamplerPresets::json(),
+            SamplerMethodName::Grammar => {
+                sampler_config::SamplerPresets::grammar(sampler_ref.grammar.to_string())
+            }
+        }
+    }
+
+    #[func]
+    fn set_sampler_config(&mut self, method: SamplerMethodName) {
+        if let Some(sampler) = self.sampler.as_mut() {
+            sampler.bind_mut().method = method;
         } else {
-            sampler_config::SamplerConfig::default()
+            let sampler = Gd::from_object(NobodyWhoSampler {
+                method,
+                top_k: 10,
+                top_p: 0.95,
+                temperature: 0.8,
+                grammar: "".into(),
+            });
+            self.sampler = Some(sampler);
         }
     }
 
