@@ -107,6 +107,7 @@ pub struct ChatState {
     messages: Vec<Message>,
     chat_template: String,
     tokens_in_context: Vec<LlamaToken>,
+    allow_thinking: bool,
     eos_token: String,
     bos_token: String,
     tools: Vec<Tool>,
@@ -160,6 +161,7 @@ impl ChatState {
             messages: Vec::new(),
             chat_template,
             tokens_in_context: Vec::new(),
+            allow_thinking: true,
             eos_token,
             bos_token,
             tools,
@@ -202,6 +204,10 @@ impl ChatState {
     pub fn reset(&mut self) {
         self.messages = Vec::new();
         self.tokens_in_context = Vec::new();
+    }
+
+    pub fn set_allow_thinking(&mut self, allow_thinking: bool) {
+        self.allow_thinking = allow_thinking;
     }
 
     pub fn get_messages(&self) -> &[Message] {
@@ -253,15 +259,28 @@ impl ChatState {
         });
     }
 
+    /// Prefer using `render_string` which handles also error cases well
     pub fn naive_render_message_vec(
         &self,
         messages: &[Message],
     ) -> Result<String, minijinja::Error> {
         let tmpl = MINIJINJA_ENV.template_from_str(&self.chat_template)?;
+        let add_generation_prompt = self.messages.last().is_some_and(|msg| {
+            matches!(
+                msg,
+                Message::Message {
+                    role: Role::User,
+                    ..
+                } | Message::ToolResp { .. }
+            )
+        });
 
         let ctx = context! {
             messages => messages,
-            add_generation_prompt => self.messages.last().is_some_and(|msg| matches!(msg, Message::Message { role: Role::User, .. } | Message::ToolResp { .. })),
+            add_generation_prompt => add_generation_prompt,
+            // we call it allow thinking, because not every model has thinking mode,
+            // and 'enable' could then cause confusion
+            enable_thinking => self.allow_thinking,
             eos_token => self.eos_token,
             bos_token => self.bos_token,
             tools => self.tools,
@@ -271,17 +290,8 @@ impl ChatState {
     }
 
     pub fn render_string(&mut self) -> Result<String, minijinja::Error> {
-        let tmpl = MINIJINJA_ENV.template_from_str(&self.chat_template)?;
-
-        let ctx = context! {
-            messages => &self.messages,
-            add_generation_prompt => self.messages.last().is_some_and(|msg| matches!(msg, Message::Message { role: Role::User, .. } | Message::ToolResp { .. })),
-            eos_token => self.eos_token,
-            bos_token => self.bos_token,
-            tools => self.tools,
-        };
-
-        let result = match tmpl.render(ctx) {
+        let rendered_template = self.naive_render_message_vec(&self.messages);
+        let result = match rendered_template {
             Ok(rendered) => Ok(rendered),
             Err(err) => match err.kind() {
                 minijinja::ErrorKind::InvalidOperation => {

@@ -3,3 +3,5 @@
 .cursor*
 .envrc
 .direnv/
+.DS_Store
+python_dev_envs/

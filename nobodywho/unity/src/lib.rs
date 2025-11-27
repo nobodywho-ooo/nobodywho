@@ -181,14 +181,19 @@ impl ChatWrapper {
             .get_model()
             .map_err(|_| ChatError::LoadModelFailed)?;
 
+        let system_prompt = system_prompt
+            .as_str()
+            .map_err(|_| ChatError::BadSystemPrompt)?
+            .into();
+
         let handle = nobodywho::chat::ChatHandle::new(
             model,
-            n_ctx,
-            system_prompt
-                .as_str()
-                .map_err(|_| ChatError::BadSystemPrompt)?
-                .into(),
-            self.tools.clone(),
+            nobodywho::chat::ChatConfig {
+                n_ctx,
+                system_prompt,
+                tools: self.tools.clone(),
+                allow_thinking: true,
+            },
         );
         self.handle = Some(handle);
         Ok(())
@@ -279,19 +284,19 @@ impl ChatWrapper {
                 serde_json::from_str(json_schema.as_str().map_err(|_| ChatError::BadJsonSchema)?)
                     .map_err(|_| ChatError::BadJsonSchema)?;
 
-            let callback_wrapper = Arc::new(move |json: serde_json::Value| -> String {
+            let callback = move |json: serde_json::Value| -> String {
                 let json_str = std::ffi::CString::new(json.to_string()).unwrap();
                 let res: *const std::ffi::c_void =
                     callback.call(json_str.as_ptr() as *const std::ffi::c_void);
                 // Cast back to str
                 let res_str = unsafe { std::ffi::CStr::from_ptr(res as *const c_char) };
                 res_str.to_str().unwrap().to_string()
-            });
+            };
             let tool = nobodywho::chat::Tool::new(
                 name.to_string(),
                 description.to_string(),
                 json_schema,
-                callback_wrapper,
+                Arc::new(callback),
             );
             self.tools.push(tool);
             Ok(())
@@ -515,7 +520,7 @@ impl EmbedWrapper {
     }
 
     #[ffi_service_method(on_panic = "undefined_behavior")]
-    pub fn poll_embedding(&mut self) -> FFISlice<f32> {
+    pub fn poll_embedding(&mut self) -> FFISlice<'_, f32> {
         use tokio::sync::mpsc::error::TryRecvError;
         if let Some(ref mut rx) = self.response_rx {
             match rx.try_recv() {

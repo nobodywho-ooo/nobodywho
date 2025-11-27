@@ -1,10 +1,15 @@
 use godot::classes::{INode, ProjectSettings};
 use godot::prelude::*;
+use nobodywho::chat::ChatConfig;
 use nobodywho::{chat_state, errors, llm, sampler_config};
 use std::sync::atomic::{AtomicU64, Ordering};
 use tracing::{debug, error, info, trace, warn};
 use tracing_subscriber::filter::{LevelFilter, Targets};
 use tracing_subscriber::prelude::*;
+
+// Wrapper to make Callable Send (we ensure it's only accessed safely via Mutex)
+struct SendCallable(Callable);
+unsafe impl Send for SendCallable {}
 
 struct NobodyWhoExtension;
 
@@ -169,6 +174,9 @@ struct NobodyWhoChat {
     system_prompt: GString,
 
     #[export]
+    allow_thinking: bool,
+
+    #[export]
     /// Stop tokens to stop generation at these specified tokens.
     stop_words: PackedStringArray,
 
@@ -187,17 +195,21 @@ struct NobodyWhoChat {
 #[godot_api]
 impl INode for NobodyWhoChat {
     fn init(base: Base<Node>) -> Self {
+        let default_config = ChatConfig::default();
+
         Self {
+            // defaults
+            tools: default_config.tools,
+            system_prompt: default_config.system_prompt.into(),
+            context_length: default_config.n_ctx,
+            allow_thinking: default_config.allow_thinking,
+
             // config
             model_node: None,
             sampler: None,
-            system_prompt: "".into(),
             stop_words: PackedStringArray::new(),
-            context_length: 4096,
             chat_handle: None,
             signal_counter: AtomicU64::new(0),
-            tools: vec![],
-
             base,
         }
     }
@@ -266,9 +278,12 @@ impl NobodyWhoChat {
         let model = self.get_model()?;
         self.chat_handle = Some(nobodywho::chat::ChatHandle::new(
             model,
-            self.context_length,
-            self.system_prompt.to_string(),
-            self.tools.clone(),
+            nobodywho::chat::ChatConfig {
+                system_prompt: self.system_prompt.to_string(),
+                tools: self.tools.clone(),
+                n_ctx: self.context_length,
+                allow_thinking: self.allow_thinking,
+            },
         ));
         Ok(())
     }
@@ -522,6 +537,11 @@ impl NobodyWhoChat {
             return;
         };
 
+        // Wrap the callable to make it Send (we ensure thread-safe access via Mutex)
+        use std::sync::{Arc, Mutex};
+        let callable = Arc::new(Mutex::new(SendCallable(callable)));
+        let properties = Arc::new(properties);
+
         // the callback that the actual tool call uses
         let func = move |j: serde_json::Value| {
             let Some(obj) = j.as_object() else {
@@ -530,7 +550,7 @@ impl NobodyWhoChat {
             };
 
             let mut args: Vec<Variant> = vec![];
-            for prop in &properties {
+            for prop in properties.iter() {
                 let Some(val) = obj.get(prop.as_str()) else {
                     warn!("LLM passed bad arguments to tool. Missing argument {prop}");
                     return format!("Error: Missing argument {prop}");
@@ -538,8 +558,11 @@ impl NobodyWhoChat {
                 args.push(json_to_godot(val));
             }
 
+            // Lock the callable for the duration of the call
+            let callable_guard = callable.lock().unwrap();
+
             // TODO: if arguments are incorrect here, the callable returns null
-            let res: Variant = callable.call(&args);
+            let res: Variant = callable_guard.0.call(&args);
 
             // Handling of async methods,
             // as soon as you use await in godot, the will return GDScriptState, which contains a signal.

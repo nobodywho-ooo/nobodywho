@@ -50,6 +50,33 @@ pub struct ChatHandle {
     should_stop: Arc<AtomicBool>,
 }
 
+///
+/// Configuration for chat sessions.
+///
+/// This struct groups all the settings needed to initialize a chat worker.
+/// Use [`ChatBuilder`] for a more ergonomic way to configure these settings.
+pub struct ChatConfig {
+    /// Available tools for the model to use.
+    pub tools: Vec<Tool>,
+    /// Context window size.
+    pub n_ctx: u32,
+    /// System prompt for the chat session.
+    pub system_prompt: String,
+    /// Whether to allow thinking mode during inference.
+    pub allow_thinking: bool,
+}
+
+impl Default for ChatConfig {
+    fn default() -> Self {
+        Self {
+            n_ctx: 4096,
+            allow_thinking: true,
+            system_prompt: String::new(),
+            tools: Vec::new(),
+        }
+    }
+}
+
 /// Builder for creating a [`ChatHandle`] with a fluent API.
 ///
 /// # Example
@@ -78,9 +105,7 @@ pub struct ChatHandle {
 /// ```
 pub struct ChatBuilder {
     model: Arc<LlamaModel>,
-    n_ctx: u32,
-    system_prompt: String,
-    tools: Vec<Tool>,
+    config: ChatConfig,
 }
 
 impl ChatBuilder {
@@ -88,64 +113,64 @@ impl ChatBuilder {
     pub fn new(model: Arc<LlamaModel>) -> Self {
         Self {
             model,
-            n_ctx: 2048,
-            system_prompt: String::new(),
-            tools: Vec::new(),
+            config: ChatConfig::default(),
         }
     }
 
     /// Set the context size for the chat session.
     pub fn with_context_size(mut self, n_ctx: u32) -> Self {
-        self.n_ctx = n_ctx;
+        self.config.n_ctx = n_ctx;
         self
     }
 
     /// Set the system prompt for the chat session.
     pub fn with_system_prompt<S: Into<String>>(mut self, prompt: S) -> Self {
-        self.system_prompt = prompt.into();
+        self.config.system_prompt = prompt.into();
         self
     }
 
     /// Add a tool that the model can use.
     pub fn with_tool(mut self, tool: Tool) -> Self {
-        self.tools.push(tool);
+        self.config.tools.push(tool);
         self
     }
 
     /// Add multiple tools that the model can use.
     pub fn with_tools(mut self, tools: Vec<Tool>) -> Self {
-        self.tools.extend(tools);
+        self.config.tools.extend(tools);
+        self
+    }
+
+    /// Allow thinking mode during inference.
+    pub fn with_allow_thinking(mut self, allow_thinking: bool) -> Self {
+        self.config.allow_thinking = allow_thinking;
         self
     }
 
     /// Build the chat handle and start the background worker.
     pub fn build(self) -> ChatHandle {
-        ChatHandle::new(self.model, self.n_ctx, self.system_prompt, self.tools)
+        ChatHandle::new(self.model, self.config)
     }
 }
 
 impl ChatHandle {
     /// Create a new chat handle directly. Consider using [`ChatBuilder`] for a more ergonomic API.
-    pub fn new(
-        model: Arc<LlamaModel>,
-        n_ctx: u32,
-        system_prompt: String,
-        tools: Vec<Tool>,
-    ) -> Self {
+    pub fn new(model: Arc<LlamaModel>, config: ChatConfig) -> Self {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
 
         let should_stop = Arc::new(AtomicBool::new(false));
         let should_stop_clone = Arc::clone(&should_stop);
+
         std::thread::spawn(move || {
-            if let Err(e) = run_worker(
-                model,
-                n_ctx,
-                system_prompt,
-                tools,
-                msg_rx,
-                should_stop_clone,
-            ) {
-                error!("Worker crashed: {}", e)
+            let Ok(mut worker_state) = Worker::new_chat_worker(&model, config, should_stop_clone)
+            else {
+                return error!("Could not set up the worker initial state");
+            };
+
+            while let Ok(msg) = msg_rx.recv() {
+                if let Err(e) = process_worker_msg(&mut worker_state, msg) {
+                    return error!("Worker crashed: {e}");
+                }
             }
         });
 
@@ -248,6 +273,11 @@ impl ChatHandle {
         let _ = self.msg_tx.send(ChatMsg::SetTools { tools });
     }
 
+    /// Update whether the model should use thinking mode during inference.
+    pub fn set_allow_thinking(&self, allow_thinking: bool) {
+        let _ = self.msg_tx.send(ChatMsg::SetThinking { allow_thinking });
+    }
+
     /// Stop the current generation if one is in progress.
     pub fn stop_generation(&self) {
         self.should_stop
@@ -317,8 +347,25 @@ impl TokenStream {
         None
     }
 
+    pub fn next_token_sync(&mut self) -> Option<String> {
+        if self.done {
+            return None;
+        }
+
+        if let Some(output) = self.rx.blocking_recv() {
+            match output {
+                llm::WriteOutput::Token(token) => return Some(token),
+                llm::WriteOutput::Done(_) => {
+                    self.done = true;
+                    return None;
+                }
+            }
+        }
+        None
+    }
+
     /// Collect all remaining tokens into a single string.
-    pub async fn collect(mut self) -> String {
+    pub async fn collect(&mut self) -> String {
         let mut result = Vec::new();
         while let Some(token) = self.next_token().await {
             result.push(token);
@@ -341,6 +388,9 @@ enum ChatMsg {
     SetTools {
         tools: Vec<Tool>,
     },
+    SetThinking {
+        allow_thinking: bool,
+    },
     GetChatHistory {
         output_tx: tokio::sync::mpsc::Sender<Vec<crate::chat_state::Message>>,
     },
@@ -350,51 +400,46 @@ enum ChatMsg {
     },
 }
 
-fn run_worker(
-    model: Arc<LlamaModel>,
-    n_ctx: u32,
-    system_prompt: String,
-    tools: Vec<Tool>,
-    msg_rx: std::sync::mpsc::Receiver<ChatMsg>,
-    should_stop: Arc<AtomicBool>,
+fn process_worker_msg(
+    worker_state: &mut Worker<'_, ChatWorker>,
+    msg: ChatMsg,
 ) -> Result<(), ChatWorkerError> {
-    let mut worker_state =
-        Worker::new_chat_worker(&model, n_ctx, system_prompt, should_stop, tools)?;
-    while let Ok(msg) = msg_rx.recv() {
-        match msg {
-            ChatMsg::Say {
-                text,
-                sampler,
-                stop_words,
-                output_tx,
-            } => {
-                let callback = move |out| {
-                    let _ = output_tx.blocking_send(out);
-                };
-                worker_state.say(text, sampler, stop_words, callback)?;
-            }
-            ChatMsg::ResetChat {
-                system_prompt,
-                tools,
-            } => {
-                worker_state.reset_chat(system_prompt, tools)?;
-            }
-            ChatMsg::SetTools { tools } => {
-                worker_state.set_tools(tools)?;
-            }
-            ChatMsg::GetChatHistory { output_tx } => {
-                let _ =
-                    output_tx.blocking_send(worker_state.extra.chat_state.get_messages().to_vec());
-            }
-            ChatMsg::SetChatHistory {
-                messages,
-                output_tx,
-            } => {
-                worker_state.set_chat_history(messages)?;
-                let _ = output_tx.blocking_send(());
-            }
+    match msg {
+        ChatMsg::Say {
+            text,
+            sampler,
+            stop_words,
+            output_tx,
+        } => {
+            let callback = move |out| {
+                let _ = output_tx.blocking_send(out);
+            };
+            worker_state.say(text, sampler, stop_words, callback)?;
         }
-    }
+        ChatMsg::ResetChat {
+            system_prompt,
+            tools,
+        } => {
+            worker_state.reset_chat(system_prompt, tools)?;
+        }
+        ChatMsg::SetTools { tools } => {
+            worker_state.set_tools(tools)?;
+        }
+        ChatMsg::SetThinking { allow_thinking } => {
+            worker_state.set_allow_thinking(allow_thinking)?;
+        }
+        ChatMsg::GetChatHistory { output_tx } => {
+            let _ = output_tx.blocking_send(worker_state.extra.chat_state.get_messages().to_vec());
+        }
+        ChatMsg::SetChatHistory {
+            messages,
+            output_tx,
+        } => {
+            worker_state.set_chat_history(messages)?;
+            let _ = output_tx.blocking_send(());
+        }
+    };
+
     Ok(())
 }
 
@@ -403,7 +448,7 @@ fn run_worker(
 // the callback closure isn't normally Send
 // but we just cheat a little here
 // so far it has been fine...
-unsafe impl Send for Tool {}
+// unsafe impl Send for Tool {}
 
 /// A tool that the model can call during conversation.
 #[derive(Clone)]
@@ -411,28 +456,23 @@ pub struct Tool {
     pub name: String,
     description: String,
     json_schema: serde_json::Value,
-    function: Arc<dyn Fn(serde_json::Value) -> String>,
+    function: Arc<dyn Fn(serde_json::Value) -> String + Send + Sync>,
 }
 
 impl Tool {
     /// Create a new tool directly. Consider using [`ToolBuilder`] for a more ergonomic API.
-    pub fn new(
-        name: String,
-        description: String,
+    pub fn new<S: Into<String>>(
+        name: S,
+        description: S,
         json_schema: serde_json::Value,
-        function: Arc<dyn Fn(serde_json::Value) -> String>,
+        function: Arc<dyn Fn(serde_json::Value) -> String + Send + Sync>,
     ) -> Self {
         Self {
-            name,
-            description,
+            name: name.into(),
+            description: description.into(),
             json_schema,
             function,
         }
-    }
-
-    /// Create a new tool builder.
-    pub fn builder<S: Into<String>>(name: S) -> ToolBuilder {
-        ToolBuilder::new(name)
     }
 
     fn to_chat_state_tool(&self) -> chat_state::Tool {
@@ -443,104 +483,6 @@ impl Tool {
                 description: self.description.clone(),
                 parameters: self.json_schema.clone(),
             },
-        }
-    }
-}
-
-/// Builder for creating tools with a fluent API.
-///
-/// # Example
-/// ```
-/// use nobodywho::chat::{Tool};
-/// let tool = Tool::builder("get_weather")
-///     .description("Get the current weather for a location")
-///     .param("location", "string", "The city to get weather for")
-///     .required("location")
-///     .handler(|args| {
-///         let location = args["location"].as_str().unwrap();
-///         format!("Weather in {}: Sunny, 22°C", location)
-///     })
-///     .build();
-/// ```
-pub struct ToolBuilder {
-    name: String,
-    description: String,
-    properties: serde_json::Map<String, serde_json::Value>,
-    required: Vec<String>,
-    handler: Option<Arc<dyn Fn(serde_json::Value) -> String>>,
-}
-
-impl ToolBuilder {
-    /// Create a new tool builder with a name.
-    pub fn new<S: Into<String>>(name: S) -> Self {
-        Self {
-            name: name.into(),
-            description: String::new(),
-            properties: serde_json::Map::new(),
-            required: Vec::new(),
-            handler: None,
-        }
-    }
-
-    /// Set the description of the tool.
-    pub fn description<S: Into<String>>(mut self, desc: S) -> Self {
-        self.description = desc.into();
-        self
-    }
-
-    /// Add a parameter to the tool.
-    pub fn param<S: Into<String>>(mut self, name: S, param_type: &str, description: S) -> Self {
-        let name = name.into();
-        self.properties.insert(
-            name,
-            serde_json::json!({
-                "type": param_type,
-                "description": description.into(),
-            }),
-        );
-        self
-    }
-
-    /// Add a parameter with a custom JSON schema.
-    pub fn param_with_schema<S: Into<String>>(
-        mut self,
-        name: S,
-        schema: serde_json::Value,
-    ) -> Self {
-        self.properties.insert(name.into(), schema);
-        self
-    }
-
-    /// Mark a parameter as required.
-    pub fn required<S: Into<String>>(mut self, name: S) -> Self {
-        self.required.push(name.into());
-        self
-    }
-
-    /// Set the handler function for the tool.
-    pub fn handler<F>(mut self, f: F) -> Self
-    where
-        F: Fn(serde_json::Value) -> String + 'static,
-    {
-        self.handler = Some(Arc::new(f));
-        self
-    }
-
-    /// Build the tool.
-    pub fn build(self) -> Tool {
-        let json_schema = serde_json::json!({
-            "type": "object",
-            "properties": self.properties,
-            "required": self.required,
-        });
-
-        Tool {
-            name: self.name,
-            description: self.description,
-            json_schema,
-            function: self
-                .handler
-                .unwrap_or_else(|| Arc::new(|_| "Tool handler not implemented".to_string())),
         }
     }
 }
@@ -661,31 +603,34 @@ impl llm::PoolingType for ChatWorker {
 impl Worker<'_, ChatWorker> {
     fn new_chat_worker(
         model: &Arc<LlamaModel>,
-        n_ctx: u32,
-        system_prompt: String,
+        config: ChatConfig,
         should_stop: Arc<AtomicBool>,
-        tools: Vec<Tool>,
     ) -> Result<Worker<'_, ChatWorker>, InitWorkerError> {
         // initialize chat state with system prompt
         let mut chat_state = ChatState::from_model_and_tools(
             model,
-            tools.iter().map(|t| t.to_chat_state_tool()).collect(),
+            config
+                .tools
+                .iter()
+                .map(|t| t.to_chat_state_tool())
+                .collect(),
         )?;
-        chat_state.add_system_message(system_prompt);
+        chat_state.add_system_message(config.system_prompt);
+        chat_state.set_allow_thinking(config.allow_thinking);
 
-        let grammar = if !tools.is_empty() {
-            grammar_from_tools(&tools).ok()
+        let grammar = if !config.tools.is_empty() {
+            grammar_from_tools(&config.tools).ok()
         } else {
             None
         };
 
         Worker::new_with_type(
             model,
-            n_ctx,
+            config.n_ctx,
             false,
             ChatWorker {
                 chat_state,
-                tools,
+                tools: config.tools,
                 tool_grammar: grammar,
                 should_stop,
             },
@@ -1114,6 +1059,11 @@ impl Worker<'_, ChatWorker> {
         Ok(())
     }
 
+    pub fn set_allow_thinking(&mut self, allow_thinking: bool) -> Result<(), ChatWorkerError> {
+        self.extra.chat_state.set_allow_thinking(allow_thinking);
+        Ok(())
+    }
+
     pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), ChatWorkerError> {
         let current_messages = self.extra.chat_state.get_messages().to_vec();
         self.extra.chat_state = ChatState::from_model_and_tools(
@@ -1290,12 +1240,14 @@ mod tests {
         // test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let sampler = SamplerConfig::default();
+
         let mut worker = Worker::new_chat_worker(
             &model,
-            1024,
-            "".into(),
+            ChatConfig {
+                n_ctx: 1024,
+                ..Default::default()
+            },
             Arc::new(AtomicBool::new(false)),
-            vec![],
         )?;
 
         let (sender, receiver) = std::sync::mpsc::channel();
@@ -1336,13 +1288,13 @@ mod tests {
     fn test_reset_chat() -> Result<(), Box<dyn std::error::Error>> {
         // test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let system_prompt = "You're a dog. End all responses with 'woof'";
         let mut worker = Worker::new_chat_worker(
             &model,
-            1024,
-            system_prompt.into(),
+            ChatConfig {
+                system_prompt: "You're a dog. End all responses with 'woof'".into(),
+                ..ChatConfig::default()
+            },
             Arc::new(AtomicBool::new(false)),
-            vec![],
         )?;
         let sampler = SamplerConfig::default();
 
@@ -1387,13 +1339,14 @@ mod tests {
     fn test_stop_mid_write() -> Result<(), Box<dyn std::error::Error>> {
         // test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let system_prompt = "You are a counter, only outputting numbers";
         let mut worker = Worker::new_chat_worker(
             &model,
-            1024,
-            system_prompt.into(),
+            ChatConfig {
+                system_prompt: "You are a counter, only outputting numbers".into(),
+                n_ctx: 1024,
+                ..ChatConfig::default()
+            },
             Arc::new(AtomicBool::new(false)),
-            vec![],
         )?;
         let should_stop = worker.extra.should_stop.clone();
 
@@ -1445,7 +1398,7 @@ mod tests {
                     "location"
                 ]
             }),
-            function: Arc::new(|args| {
+            function: Arc::new(|args: serde_json::Value| {
                 let Some(location) = args.get("location") else {
                     return "Bad arguments format. Location key was missing.".into();
                 };
@@ -1479,7 +1432,7 @@ mod tests {
                     "to-currency"
                 ]
             }),
-            function: Arc::new(|args| {
+            function: Arc::new(|args: serde_json::Value| {
                 let Some(to_currency) = args.get("to-currency") else {
                     return "Bad arguments format. To currency key was missing.".into();
                 };
@@ -1500,10 +1453,13 @@ mod tests {
         let model = test_utils::load_test_model();
         let mut worker = Worker::new_chat_worker(
             &model,
-            4096,
-            "You're a helpful assistant.".into(),
+            ChatConfig {
+                system_prompt: "You're a helpful assistant.".into(),
+                n_ctx: 4096,
+                tools: vec![test_tool()],
+                ..Default::default()
+            },
             Arc::new(AtomicBool::new(false)),
-            vec![test_tool()],
         )
         .expect("Failed making worker");
 
@@ -1537,10 +1493,11 @@ mod tests {
         let model = test_utils::load_test_model();
         let mut worker = Worker::new_chat_worker(
             &model,
-            1024,
-            "".into(),
+            ChatConfig {
+                tools: vec![test_tool(), dkk_exchange_rate()],
+                ..Default::default()
+            },
             Arc::new(AtomicBool::new(false)),
-            vec![test_tool(), dkk_exchange_rate()],
         )
         .expect("Failed making worker");
 
@@ -1577,10 +1534,12 @@ mod tests {
         let n_messages = 8;
         let mut worker = Worker::new_chat_worker(
             &model,
-            n_ctx,
-            "You are a helpful assistant that provides informative and detailed responses. End every response with \"Do you have any further questions?\"".into(),
+            ChatConfig {
+                n_ctx,
+                system_prompt: "You are a helpful assistant that provides informative and detailed responses. End every response with \"Do you have any further questions?\"".into(),
+                ..Default::default()
+            },
             Arc::new(AtomicBool::new(false)),
-            vec![],
         )?;
 
         // Add many exchanges with longer messages to fill up the context
@@ -1692,10 +1651,13 @@ mod tests {
         let n_messages = 10;
         let mut worker = Worker::new_chat_worker(
             &model,
-            n_ctx,
-            "You are a helpful assistant.".into(),
+            ChatConfig {
+                n_ctx,
+                system_prompt: "You are a helpful assistant.".into(),
+                tools: vec![test_tool()],
+                ..Default::default()
+            },
             Arc::new(AtomicBool::new(false)),
-            vec![test_tool()],
         )?;
 
         // Add exchanges with tool calls mixed in
@@ -1819,17 +1781,17 @@ mod tests {
         let model = test_utils::load_test_model();
         let sampler = SamplerConfig::default();
 
-        // Use a small context size to force shifting
-        let n_ctx = 512;
         let n_messages = 14;
         // n_messages is chosen by trial and error. This exactly fills up the
         // the context so much that the next user message cannot be read and a context shift happens.
         let mut worker = Worker::new_chat_worker(
             &model,
-            n_ctx,
-            "You are a helpful assistant.".into(),
+            ChatConfig {
+                system_prompt: "You are a helpful assistant.".into(),
+                n_ctx: 512, // Use a small context size to force shifting
+                ..Default::default()
+            },
             Arc::new(AtomicBool::new(false)),
-            vec![],
         )?;
 
         // Fill up the context until it's almost full
@@ -1910,8 +1872,6 @@ mod tests {
         let model = test_utils::load_test_model();
         let sampler = SamplerConfig::default();
 
-        // Use a small context size to force shifting
-        let n_ctx = 768;
         let n_messages = 19;
         // n_messages is chosen by trial and error. This exactly fills up the
         // the context so much that the next assistant message cannot be fully written.
@@ -1919,10 +1879,12 @@ mod tests {
         // to contain the response but also small enough to fill easily and test wihtout being to slow.
         let mut worker = Worker::new_chat_worker(
             &model,
-            n_ctx,
-            "You are a helpful assistant.".into(),
+            ChatConfig {
+                n_ctx: 768, // Use a small context size to force shifting
+                system_prompt: "You are a helpful assistant.".into(),
+                ..Default::default()
+            },
             Arc::new(AtomicBool::new(false)),
-            vec![],
         )?;
 
         // Fill up the context until it's almost full
@@ -1999,10 +1961,8 @@ mod tests {
         let sampler = SamplerConfig::default();
         let mut worker = Worker::new_chat_worker(
             &model,
-            4096,
-            "".into(),
+            ChatConfig::default(),
             Arc::new(AtomicBool::new(false)),
-            vec![],
         )?;
 
         let (sender, receiver) = std::sync::mpsc::channel();
@@ -2037,10 +1997,11 @@ mod tests {
         let sampler = SamplerConfig::default();
         let mut worker = Worker::new_chat_worker(
             &model,
-            1024,
-            "".into(),
+            ChatConfig {
+                n_ctx: 1024,
+                ..Default::default()
+            },
             Arc::new(AtomicBool::new(false)),
-            vec![],
         )?;
 
         let (sender, receiver) = std::sync::mpsc::channel();
@@ -2101,10 +2062,11 @@ mod tests {
         let dk_handle = std::thread::spawn(move || {
             let mut worker = Worker::new_chat_worker(
                 &model_clone,
-                n_ctx,
-                "".into(),
+                ChatConfig {
+                    n_ctx,
+                    ..Default::default()
+                },
                 Arc::new(AtomicBool::new(false)),
-                vec![],
             )
             .unwrap();
 
@@ -2129,10 +2091,11 @@ mod tests {
         let de_handle = std::thread::spawn(move || {
             let mut worker = Worker::new_chat_worker(
                 &model,
-                n_ctx,
-                "".into(),
+                ChatConfig {
+                    n_ctx,
+                    ..Default::default()
+                },
                 Arc::new(AtomicBool::new(false)),
-                vec![],
             )
             .unwrap();
 
@@ -2178,6 +2141,37 @@ mod tests {
         assert!(
             de_resp.to_lowercase().contains("berlin"),
             "Expected completion to contain 'Berlin', got: {de_resp}"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_allow_thinking() -> Result<(), Box<dyn std::error::Error>> {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let chat = ChatBuilder::new(model).build();
+
+        let res1: String = chat
+            .say_complete("What is the capital of Denmark?".to_string())
+            .await
+            .unwrap();
+
+        assert!(
+            res1.contains("<think>"),
+            "Expected the model to initialize with thinking mode, but it did not"
+        );
+
+        chat.set_allow_thinking(false);
+
+        let res2: String = chat
+            .say_complete("What is the capital of the Czech Republic?".to_string())
+            .await
+            .unwrap();
+
+        assert!(
+            !res2.contains("<think>"),
+            "Expected the model to not think, but it did"
         );
 
         Ok(())

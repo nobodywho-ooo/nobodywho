@@ -21,12 +21,12 @@ func run_test():
 	])
 	
 	# Test ranking with limit
-	var ranked_docs: PackedStringArray = await rank(query, documents, 3)
+	var ranked_docs: PackedStringArray = await rank(query, documents, 4)
 	print("✨ Got ranked documents: " + str(ranked_docs))
 	
 	# Basic validation
-	assert(ranked_docs.size() == 3, "Should return exactly 3 documents")
-	assert("".join(ranked_docs).contains("Paris is the capital of France"), "Paris is the capital of France should be in the top 3")
+	assert(ranked_docs.size() == 4, "Should return exactly 4 documents")
+	assert("".join(ranked_docs).contains("Paris is the capital of France"), "Paris is the capital of France should be in the top 4")
 	
 	# Test ranking without limit (should return all documents)
 	var all_ranked_docs = await rank(query, documents, -1)
