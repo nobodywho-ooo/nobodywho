@@ -206,7 +206,6 @@ impl Tool {
 }
 
 // tool decorator
-// TODO: force function return type
 #[pyfunction(signature = (description, params=None))]
 fn tool<'a>(
     description: String,
@@ -294,12 +293,34 @@ fn python_func_json_schema(
     let args = argspec.getattr("args")?.extract::<Vec<String>>()?;
 
     // check that all arguments are annotated
-    for arg in args {
-        if !annotations.contains_key(&arg) {
-            return Err(pyo3::exceptions::PyTypeError::new_err(format!(
-                "ERROR: NobodyWho requires all tool function parameters to be typed. Parameter {arg} is missing a type hint. Please add a static type hint to that parameter. For example: `{arg}: int`"
-            )));
-        }
+    if let Some(missing_arg) = args.iter().find(|arg| !annotations.contains_key(*arg)) {
+        return Err(pyo3::exceptions::PyTypeError::new_err(format!(
+            "ERROR: Parameter {missing_arg} is missing a type hint. NobodyWho requires all tool function parameters to have static type hints. E.g.: `{missing_arg}: str`"
+        )));
+    }
+
+    // check that return type is `str`
+    // the intent of this is to force people to consider how to convert to string
+    if annotations
+        .get("return")
+        .map(|t| t.name().map(|n| n.to_string()))
+        .transpose()?
+        != Some("str".to_string())
+    {
+        return Err(pyo3::exceptions::PyTypeError::new_err(format!(
+            "ERROR: Return type of tool must be str. Please add an explicit type hint for the tool's return type, like this: `-> str:`"
+        )));
+    }
+
+    // check that names of parameter descriptions correspond to names of actual function arguments
+    if let Some(invalid_param) = param_descriptions
+        .keys()
+        .find(|param| !args.contains(param))
+    {
+        return Err(pyo3::exceptions::PyTypeError::new_err(format!(
+            "ERROR: Parameter description provided for '{invalid_param}' but function has no such parameter. Available parameters: [{}]",
+            args.join(", ")
+        )));
     }
 
     let mut properties = serde_json::Map::new();

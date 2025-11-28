@@ -235,8 +235,25 @@ def reflarbicator(reflarb: int, unfloop: bool) -> str:
 
 
 def test_tool_parameter_description(model):
-    chat = nobodywho.Chat(model, tools=[reflarbicator], allow_thinking=False)
+    # XXX: maybe there is a faster/better way of testing this behavior than running a full-ass LLM
+    chat = nobodywho.Chat(model, tools=[reflarbicator, sparklify], allow_thinking=False)
     answer = chat.send_message(
         "Please tell me the description of the 'unfloop' parameter of the reflarbicator tool"
     ).collect_blocking()
     assert "velocidensity" in answer
+
+
+def test_tool_bad_parameters():
+    with pytest.raises(TypeError):
+
+        @nobodywho.tool(description="foobar", params={"b": "uh-oh"})
+        def i_fucked_up(a: int) -> str:
+            return "fuck"
+
+
+def test_tool_missing_return_type():
+    with pytest.raises(TypeError):
+
+        @nobodywho.tool(description="foobar", params={"b": "uh-oh"})
+        def i_fucked_up(a: int):
+            return "fuck"
