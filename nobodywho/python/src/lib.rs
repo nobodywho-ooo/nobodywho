@@ -178,55 +178,92 @@ fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> PyResult<f32> {
 }
 
 #[pyclass]
-#[derive(Clone)]
 pub struct Tool {
     tool: nobodywho::chat::Tool,
+    pyfunc: Py<PyAny>,
+}
+
+impl Clone for Tool {
+    fn clone(&self) -> Self {
+        Python::attach(|py| Self {
+            tool: self.tool.clone(),
+            pyfunc: self.pyfunc.clone_ref(py),
+        })
+    }
 }
 
 #[pymethods]
 impl Tool {
-    #[new]
-    #[pyo3(signature = (fun, description))]
-    pub fn new(fun: Py<PyAny>, description: String, py: Python) -> PyResult<Self> {
-        // get the name of the function
-        let name = fun.getattr(py, "__name__")?.extract::<String>(py)?;
-
-        let description = description;
-
-        // TODO: get types of python function
-        let json_schema = python_func_json_schema(py, &fun)?;
-
-        // wrap the passed function in a json -> String function
-        let function = move |json: serde_json::Value| {
-            Python::attach(|py| {
-                // construct kwargs to call the function with
-                let kwargs = match json_to_kwargs(py, json) {
-                    Ok(kwargs) => kwargs,
-                    Err(e) => return format!("ERROR: Failed to convert arguments: {e}"),
-                };
-
-                // call the python function
-                let py_result = fun.call(py, (), Some(&kwargs));
-
-                // extract a string from the result
-                // return an error string to the LLM if anything fails
-                match py_result.map(|r| r.extract::<String>(py)) {
-                    Ok(Ok(str)) => str,
-                    Err(pyerr) | Ok(Err(pyerr)) => format!("ERROR: {pyerr}"),
-                }
-                .to_string()
-            })
-        };
-
-        let tool = nobodywho::chat::Tool::new(
-            name,
-            description,
-            json_schema,
-            std::sync::Arc::new(function),
-        );
-
-        Ok(Self { tool })
+    #[pyo3(signature = (*args, **kwargs))]
+    fn __call__(
+        &self,
+        args: &Bound<pyo3::types::PyTuple>,
+        kwargs: Option<&Bound<pyo3::types::PyDict>>,
+        py: Python,
+    ) -> PyResult<Py<PyAny>> {
+        self.pyfunc.call(py, args, kwargs)
     }
+}
+
+// tool decorator
+// TODO: params descriptions dict
+// TODO: force function return type
+#[pyfunction]
+fn tool<'a>(description: String, py: Python<'a>) -> PyResult<Bound<'a, pyo3::types::PyCFunction>> {
+    // the decurateor returned when calling @tool(...)
+    // a function that takes the native-python function and returns a callable `Tool` object
+    let function_to_tool = move |args: &Bound<pyo3::types::PyTuple>,
+                                 _kwargs: Option<&Bound<pyo3::types::PyDict>>|
+          -> PyResult<Tool> {
+        Python::attach(|py| {
+            // extract the function from *args
+            let fun: Py<PyAny> = args.get_item(0)?.extract()?;
+
+            // get the name of the function
+            let name = fun.getattr(py, "__name__")?.extract::<String>(py)?;
+
+            // generate json schema from function type annotations
+            let json_schema = python_func_json_schema(py, &fun)?;
+
+            let fun_clone = fun.clone_ref(py);
+
+            // wrap the passed function in a json -> String function
+            let wrapped_function = move |json: serde_json::Value| {
+                Python::attach(|py| {
+                    // construct kwargs to call the function with
+                    let kwargs = match json_to_kwargs(py, json) {
+                        Ok(kwargs) => kwargs,
+                        Err(e) => return format!("ERROR: Failed to convert arguments: {e}"),
+                    };
+
+                    // call the python function
+                    let py_result = fun.call(py, (), Some(&kwargs));
+
+                    // extract a string from the result
+                    // return an error string to the LLM if anything fails
+                    match py_result.map(|r| r.extract::<String>(py)) {
+                        Ok(Ok(str)) => str,
+                        Err(pyerr) | Ok(Err(pyerr)) => format!("ERROR: {pyerr}"),
+                    }
+                    .to_string()
+                })
+            };
+
+            let tool = nobodywho::chat::Tool::new(
+                name,
+                description.clone(),
+                json_schema,
+                std::sync::Arc::new(wrapped_function),
+            );
+
+            Ok(Tool {
+                tool,
+                pyfunc: fun_clone,
+            })
+        })
+    };
+
+    pyo3::types::PyCFunction::new_closure(py, None, None, function_to_tool)
 }
 
 // takes a python function (assumes static types), and returns a json schema for that function
@@ -261,7 +298,6 @@ fn python_func_json_schema(py: Python, fun: &Py<PyAny>) -> PyResult<serde_json::
         }
 
         let type_name = value.name()?.to_string();
-        println!("{key} - {:?}", type_name);
 
         let schema_type = match type_name.as_str() {
             "str" => serde_json::json!({"type": "string"}),
@@ -377,6 +413,7 @@ fn nobodywhopython(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Embeddings>()?;
     m.add_class::<CrossEncoder>()?;
     m.add_function(wrap_pyfunction!(cosine_similarity, m)?)?;
+    m.add_function(wrap_pyfunction!(tool, m)?)?;
     m.add_class::<Tool>()?;
     Ok(())
 }
