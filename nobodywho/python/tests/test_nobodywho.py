@@ -249,11 +249,3 @@ def test_tool_bad_parameters():
         @nobodywho.tool(description="foobar", params={"b": "uh-oh"})
         def i_fucked_up(a: int) -> str:
             return "fuck"
-
-
-def test_tool_missing_return_type():
-    with pytest.raises(TypeError):
-
-        @nobodywho.tool(description="foobar", params={"b": "uh-oh"})
-        def i_fucked_up(a: int):
-            return "fuck"

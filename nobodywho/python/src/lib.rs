@@ -307,9 +307,7 @@ fn python_func_json_schema(
         .transpose()?
         != Some("str".to_string())
     {
-        return Err(pyo3::exceptions::PyTypeError::new_err(format!(
-            "ERROR: Return type of tool must be str. Please add an explicit type hint for the tool's return type, like this: `-> str:`"
-        )));
+        tracing::warn!("Return type of this tool should be `str`. Anything else will be cast to string, which might lead to unexpected results. It's recommended that you add a return type annotation to the tool: `-> str:`");
     }
 
     // check that names of parameter descriptions correspond to names of actual function arguments
