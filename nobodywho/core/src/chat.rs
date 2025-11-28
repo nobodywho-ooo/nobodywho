@@ -899,7 +899,7 @@ impl Worker<'_, ChatWorker> {
                 .map_or(user_sampler.clone(), |tool_grammar| {
                     user_sampler.shift(ShiftStep::Grammar {
                         trigger_on: Some(tool_call_begin.into()),
-                        root: "superoot".into(),
+                        root: "superroot".into(),
                         grammar: tool_grammar.to_string(),
                     })
                 });
