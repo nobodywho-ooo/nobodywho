@@ -206,11 +206,20 @@ impl Tool {
 }
 
 // tool decorator
-// TODO: params descriptions dict
 // TODO: force function return type
-#[pyfunction]
-fn tool<'a>(description: String, py: Python<'a>) -> PyResult<Bound<'a, pyo3::types::PyCFunction>> {
-    // the decurateor returned when calling @tool(...)
+#[pyfunction(signature = (description, params=None))]
+fn tool<'a>(
+    description: String,
+    params: Option<Py<pyo3::types::PyDict>>,
+    py: Python<'a>,
+) -> PyResult<Bound<'a, pyo3::types::PyCFunction>> {
+    // extract hashmap from parameter descriptions, default to empty hashmap
+    let params: std::collections::HashMap<String, String> = match params {
+        Some(pd) => pd.extract(py)?,
+        None => std::collections::HashMap::new(),
+    };
+
+    // the decorator returned when calling @tool(...)
     // a function that takes the native-python function and returns a callable `Tool` object
     let function_to_tool = move |args: &Bound<pyo3::types::PyTuple>,
                                  _kwargs: Option<&Bound<pyo3::types::PyDict>>|
@@ -223,7 +232,7 @@ fn tool<'a>(description: String, py: Python<'a>) -> PyResult<Bound<'a, pyo3::typ
             let name = fun.getattr(py, "__name__")?.extract::<String>(py)?;
 
             // generate json schema from function type annotations
-            let json_schema = python_func_json_schema(py, &fun)?;
+            let json_schema = python_func_json_schema(py, &fun, &params)?;
 
             let fun_clone = fun.clone_ref(py);
 
@@ -267,7 +276,11 @@ fn tool<'a>(description: String, py: Python<'a>) -> PyResult<Bound<'a, pyo3::typ
 }
 
 // takes a python function (assumes static types), and returns a json schema for that function
-fn python_func_json_schema(py: Python, fun: &Py<PyAny>) -> PyResult<serde_json::Value> {
+fn python_func_json_schema(
+    py: Python,
+    fun: &Py<PyAny>,
+    param_descriptions: &std::collections::HashMap<String, String>,
+) -> PyResult<serde_json::Value> {
     // import inspect (from stdlib)
     let inspect = PyModule::import(py, "inspect")?;
 
@@ -300,26 +313,22 @@ fn python_func_json_schema(py: Python, fun: &Py<PyAny>) -> PyResult<serde_json::
         let type_name = value.name()?.to_string();
 
         let schema_type = match type_name.as_str() {
-            "str" => serde_json::json!({"type": "string"}),
-            "int" => serde_json::json!({"type": "integer"}),
-            "float" => serde_json::json!({"type": "number"}),
-            "bool" => serde_json::json!({"type": "boolean"}),
-            "list" => serde_json::json!({"type": "array"}),
-            "dict" => serde_json::json!({"type": "object"}),
-            "None" | "NoneType" => serde_json::json!({"type": "null"}),
-            "Any" | "any" => serde_json::json!({}), // Allow any type
-            // TODO: these two are kinda bad.. they will be passed to the function as lists
-            "set" | "frozenset" => serde_json::json!({"type": "array", "uniqueItems": true}),
-            "tuple" => serde_json::json!({"type": "array"}),
-            // TODO: bytes? - "bytes" | "bytearray" => todo!(),
-            // TODO: handle generic types better. at least handle list[int], dict[str,int], etc.
-            // TODO: consider handling more complex built-in things? Union, Option, `|`,
+            "str" => "string",
+            "int" => "integer",
+            "float" => "number",
+            "bool" => "boolean",
+            "list" => "array",
+            "dict" => "object",
+            "None" | "NoneType" => "null",
+            // TODO: we could consider supporting sets like this:
+            // "set" | "frozenset" => serde_json::json!({"type": "array", "uniqueItems": true}),
             // TODO: consider handling pydantic types?
             //       (objects subclassing pydantic's BaseModel can readily generate json schemas)
-            _ if type_name.starts_with("list[") => serde_json::json!({"type": "array"}),
-            _ if type_name.starts_with("dict[") => serde_json::json!({"type": "object"}),
-            _ if type_name == "List" => serde_json::json!({"type": "array"}),
-            _ if type_name == "Dict" => serde_json::json!({"type": "object"}),
+            // TODO: handle generic types better. at least handle list[int], dict[str,int], etc.
+            _ if type_name.starts_with("list[") => "array",
+            _ if type_name.starts_with("dict[") => "object",
+            _ if type_name == "List" => "array",
+            _ if type_name == "Dict" => "object",
             _ => {
                 return Err(pyo3::exceptions::PyTypeError::new_err(format!(
                     "ERROR: Tool function contains an unsupported type hint: {type_name}"
@@ -327,8 +336,21 @@ fn python_func_json_schema(py: Python, fun: &Py<PyAny>) -> PyResult<serde_json::
             }
         };
 
+        let property = if let Some(description) = param_descriptions.get(&key) {
+            // add description if available
+            serde_json::json!({
+                "type": schema_type,
+                "description": description
+            })
+        } else {
+            // ...otherwise only use the type
+            serde_json::json!({
+                "type": schema_type
+            })
+        };
+
         // add to json schema properties
-        properties.insert(key.clone(), schema_type);
+        properties.insert(key.clone(), property);
 
         // add to list of required keys for object
         // TODO: allow optional parameters for params that have a default argument
