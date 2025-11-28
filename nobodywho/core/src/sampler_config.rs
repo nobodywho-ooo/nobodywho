@@ -1,18 +1,230 @@
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::sampling::LlamaSampler;
-use tracing::error;
 
-#[derive(Clone, Debug)]
+use crate::errors::SamplerError;
+
+/// Some simple presets, that can be useful for basic sampling.
+pub struct SamplerPresets;
+
+impl SamplerPresets {
+    pub fn top_k(k: i32) -> SamplerConfig {
+        SamplerConfig::new()
+            .shift(ShiftStep::TopK { top_k: k })
+            .sample(SampleStep::Dist)
+    }
+
+    pub fn top_p(p: f32) -> SamplerConfig {
+        SamplerConfig::new()
+            .shift(ShiftStep::TopP {
+                min_keep: 0,
+                top_p: p,
+            })
+            .sample(SampleStep::Dist)
+    }
+
+    pub fn greedy() -> SamplerConfig {
+        SamplerConfig::new().sample(SampleStep::Greedy)
+    }
+
+    pub fn temperature(temperature: f32) -> SamplerConfig {
+        SamplerConfig::new()
+            .shift(ShiftStep::Temperature { temperature })
+            .sample(SampleStep::Dist)
+    }
+
+    pub fn dry() -> SamplerConfig {
+        SamplerConfig::new()
+            .shift(ShiftStep::DRY {
+                multiplier: 0.0,
+                base: 1.75,
+                allowed_length: 2,
+                penalty_last_n: -1,
+                seq_breakers: vec![
+                    "\n".to_string(),
+                    ":".to_string(),
+                    "\"".to_string(),
+                    "*".to_string(),
+                ],
+            })
+            .sample(SampleStep::Dist)
+    }
+
+    pub fn json() -> SamplerConfig {
+        SamplerConfig::default().shift(ShiftStep::Grammar {
+            trigger_on: None,
+            root: "root".into(),
+            grammar: JSON_GRAMMAR.into(),
+        })
+    }
+
+    pub fn grammar(grammar: String) -> SamplerConfig {
+        SamplerConfig::default().shift(ShiftStep::Grammar {
+            trigger_on: None,
+            root: "root".into(),
+            grammar,
+        })
+    }
+}
+
+/// Underlying sampler configuration API, with much more control and details.
+#[derive(Debug, Clone)]
 pub struct SamplerConfig {
-    pub method: SamplerMethod,
-    pub penalty_last_n: i32,
-    pub penalty_repeat: f32,
-    pub penalty_freq: f32,
-    pub penalty_present: f32,
-    pub use_grammar: bool,
-    pub gbnf_grammar: String,
-    pub lazy_grammar_trigger: String,
-    pub grammar_root: String,
+    steps: Vec<ShiftStep>,
+    sample_step: Option<SampleStep>,
+    seed: u32,
+}
+
+impl SamplerConfig {
+    pub fn new() -> Self {
+        Self {
+            steps: vec![],
+            seed: 1234,
+            sample_step: None,
+        }
+    }
+
+    pub fn shift(mut self, step: ShiftStep) -> Self {
+        self.steps.push(step);
+        self
+    }
+
+    pub fn sample(mut self, step: SampleStep) -> Self {
+        self.sample_step = Some(step);
+        self
+    }
+
+    pub fn to_stateful(&self, model: &LlamaModel) -> Result<LlamaSampler, SamplerError> {
+        let sample_step = self
+            .sample_step
+            .clone()
+            .ok_or(SamplerError::MissingSampleStep)?;
+
+        let mut shift_steps = self
+            .steps
+            .iter()
+            .map(|step| self.build_step(model, step.clone()))
+            .collect::<Result<Vec<_>, SamplerError>>()?;
+
+        let final_sampler = match sample_step {
+            SampleStep::Dist => LlamaSampler::dist(self.seed),
+            SampleStep::Greedy => LlamaSampler::greedy(),
+            SampleStep::MirostatV1 { tau, eta, m } => {
+                LlamaSampler::mirostat(model.n_vocab(), self.seed, tau, eta, m)
+            }
+            SampleStep::MirostatV2 { tau, eta } => LlamaSampler::mirostat_v2(self.seed, tau, eta),
+        };
+
+        shift_steps.push(final_sampler);
+
+        Ok(LlamaSampler::chain(shift_steps, true))
+    }
+
+    fn build_step(
+        &self,
+        model: &LlamaModel,
+        step: ShiftStep,
+    ) -> Result<LlamaSampler, SamplerError> {
+        match step {
+            ShiftStep::TopK { top_k } => Ok(LlamaSampler::top_k(top_k)),
+            ShiftStep::TopP { min_keep, top_p } => {
+                Ok(LlamaSampler::top_p(top_p, min_keep as usize))
+            }
+            ShiftStep::XTC {
+                xtc_probability,
+                xtc_threshold,
+                min_keep,
+            } => Ok(LlamaSampler::xtc(
+                xtc_probability,
+                xtc_threshold,
+                min_keep as usize,
+                self.seed,
+            )),
+            ShiftStep::TypicalP { typ_p, min_keep } => {
+                Ok(LlamaSampler::typical(typ_p, min_keep as usize))
+            }
+            ShiftStep::MinP { min_keep, min_p } => {
+                Ok(LlamaSampler::min_p(min_p, min_keep as usize))
+            }
+            ShiftStep::Grammar {
+                grammar,
+                trigger_on,
+                root,
+            } => match trigger_on {
+                Some(trigger) => self.build_lazy_grammar(model, &grammar, &root, &trigger),
+                None => self.build_regular_grammar(model, &grammar, &root),
+            },
+            ShiftStep::DRY {
+                multiplier,
+                base,
+                allowed_length,
+                penalty_last_n,
+                seq_breakers,
+            } => Ok(LlamaSampler::dry(
+                model,
+                multiplier,
+                base,
+                allowed_length,
+                penalty_last_n,
+                seq_breakers,
+            )),
+            ShiftStep::Penalties {
+                penalty_last_n,
+                penalty_repeat,
+                penalty_freq,
+                penalty_present,
+            } => Ok(LlamaSampler::penalties(
+                penalty_last_n,
+                penalty_repeat,
+                penalty_freq,
+                penalty_present,
+            )),
+            ShiftStep::Temperature { temperature } => Ok(LlamaSampler::temp(temperature)),
+        }
+    }
+
+    fn build_lazy_grammar(
+        &self,
+        model: &LlamaModel,
+        grammar: &str,
+        root: &str,
+        trigger: &str,
+    ) -> Result<LlamaSampler, SamplerError> {
+        let token_result = model
+            .str_to_token(trigger, llama_cpp_2::model::AddBos::Never)
+            .map(|v| v.first().copied());
+
+        let token = match token_result {
+            Ok(Some(token)) => token,
+            _ => {
+                return Err(SamplerError::UnsupportedToolCallingTokenization);
+            }
+        };
+
+        match LlamaSampler::grammar_lazy(model, grammar, root, vec![trigger], &[token]) {
+            Some(g) => Ok(g),
+            None => Err(SamplerError::TriggerOrGrammarContainsNullBytes),
+        }
+    }
+
+    fn build_regular_grammar(
+        &self,
+        model: &LlamaModel,
+        grammar: &str,
+        root: &str,
+    ) -> Result<LlamaSampler, SamplerError> {
+        match LlamaSampler::grammar(model, grammar, root) {
+            Some(g) => Ok(g),
+            None => Err(SamplerError::TriggerOrGrammarContainsNullBytes),
+        }
+    }
+}
+
+impl Default for SamplerConfig {
+    fn default() -> SamplerConfig {
+        SamplerConfig::new()
+            .shift(ShiftStep::Temperature { temperature: 0.8 })
+            .sample(SampleStep::MirostatV2 { tau: 5.0, eta: 0.1 })
+    }
 }
 
 const JSON_GRAMMAR: &str = r#"# this default gbnf grammar forces valid json output
@@ -42,304 +254,56 @@ number ::= ("-"? ([0-9] | [1-9] [0-9]{0,15})) ("." [0-9]+)? ([eE] [-+]? [0-9] [1
 # Optional space: by convention, applied in this grammar after literal chars when allowed
 ws ::= | " " | "\n" [ \t]{0,20}"#;
 
-impl Default for SamplerConfig {
-    fn default() -> Self {
-        Self {
-            penalty_last_n: -1,
-            penalty_repeat: 0.0,
-            penalty_freq: 0.0,
-            penalty_present: 0.0,
-            use_grammar: false,
-            gbnf_grammar: JSON_GRAMMAR.into(),
-            lazy_grammar_trigger: "".into(),
-            grammar_root: "root".into(),
-            method: SamplerMethod::MirostatV2(MirostatV2 {
-                seed: 1234,
-                temperature: 0.8,
-                tau: 5.0,
-                eta: 0.1,
-            }),
-        }
-    }
-}
-
 /// ----- Sampler Methods -----
 
 #[derive(Clone, Debug)]
-pub enum SamplerMethod {
-    Greedy(Greedy),
-    DRY(DRY),
-    TopK(TopK),
-    TopP(TopP),
-    MinP(MinP),
-    XTC(XTC),
-    TypicalP(TypicalP),
-    Temperature(Temperature),
-    MirostatV1(MirostatV1),
-    MirostatV2(MirostatV2),
+pub enum ShiftStep {
+    TopK {
+        top_k: i32,
+    },
+    TopP {
+        min_keep: u32,
+        top_p: f32,
+    },
+    MinP {
+        min_keep: u32,
+        min_p: f32,
+    },
+    XTC {
+        xtc_probability: f32,
+        xtc_threshold: f32,
+        min_keep: u32,
+    },
+    TypicalP {
+        typ_p: f32,
+        min_keep: u32,
+    },
+    Grammar {
+        trigger_on: Option<String>,
+        root: String,
+        grammar: String,
+    },
+    DRY {
+        multiplier: f32,
+        base: f32,
+        allowed_length: i32,
+        penalty_last_n: i32,
+        seq_breakers: Vec<String>,
+    },
+    Penalties {
+        penalty_last_n: i32,
+        penalty_repeat: f32,
+        penalty_freq: f32,
+        penalty_present: f32,
+    },
+    Temperature {
+        temperature: f32,
+    },
 }
-
-#[derive(Clone, Debug, Default)]
-pub struct Greedy {}
-
 #[derive(Clone, Debug)]
-pub struct DRY {
-    pub seed: u32,
-    pub dry_multiplier: f32,
-    pub dry_base: f32,
-    pub dry_allowed_length: i32,
-    pub dry_penalty_last_n: i32,
-}
-
-impl Default for DRY {
-    fn default() -> Self {
-        Self {
-            seed: 1234,
-            dry_multiplier: 0.0,
-            dry_base: 1.75,
-            dry_allowed_length: 2,
-            dry_penalty_last_n: -1,
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct TopK {
-    pub top_k: i32,
-    pub seed: u32,
-}
-
-impl Default for TopK {
-    fn default() -> Self {
-        Self {
-            top_k: 40,
-            seed: 1234,
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct TopP {
-    pub seed: u32,
-    pub min_keep: u32,
-    pub top_p: f32,
-}
-
-impl Default for TopP {
-    fn default() -> Self {
-        Self {
-            seed: 1234,
-            top_p: 0.95,
-            min_keep: 0,
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct MinP {
-    pub seed: u32,
-    pub min_keep: u32,
-    pub min_p: f32,
-}
-
-impl Default for MinP {
-    fn default() -> Self {
-        Self {
-            seed: 1234,
-            min_p: 0.05,
-            min_keep: 0,
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct XTC {
-    pub seed: u32,
-    pub xtc_probability: f32,
-    pub xtc_threshold: f32,
-    pub min_keep: u32,
-}
-
-impl Default for XTC {
-    fn default() -> Self {
-        Self {
-            xtc_probability: 0.00,
-            xtc_threshold: 0.10,
-            min_keep: 0,
-            seed: 1234,
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct TypicalP {
-    pub seed: u32,
-    pub typ_p: f32,
-    pub min_keep: u32,
-}
-
-impl Default for TypicalP {
-    fn default() -> Self {
-        Self {
-            seed: 1234,
-            typ_p: 1.0,
-            min_keep: 0,
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct Temperature {
-    pub seed: u32,
-    pub temperature: f32,
-}
-
-impl Default for Temperature {
-    fn default() -> Self {
-        Self {
-            seed: 1234,
-            temperature: 0.8,
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct MirostatV1 {
-    pub seed: u32,
-    pub temperature: f32,
-    pub tau: f32,
-    pub eta: f32,
-}
-
-impl Default for MirostatV1 {
-    fn default() -> Self {
-        Self {
-            seed: 1234,
-            temperature: 0.8,
-            tau: 5.0,
-            eta: 0.1,
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct MirostatV2 {
-    pub seed: u32,
-    pub temperature: f32,
-    pub tau: f32,
-    pub eta: f32,
-}
-
-impl Default for MirostatV2 {
-    fn default() -> Self {
-        Self {
-            seed: 1234,
-            temperature: 0.8,
-            tau: 5.0,
-            eta: 0.1,
-        }
-    }
-}
-
-pub fn make_sampler(model: &LlamaModel, sampler_config: SamplerConfig) -> Option<LlamaSampler> {
-    let mut chainvec: Vec<LlamaSampler> = Vec::new();
-
-    // Add grammar sampler first if configured
-    let trigger_len = sampler_config.lazy_grammar_trigger.trim().len();
-    if sampler_config.use_grammar && trigger_len == 0 {
-        chainvec.push(LlamaSampler::grammar(
-            model,
-            &sampler_config.gbnf_grammar,
-            &sampler_config.grammar_root,
-        )?);
-    } else if sampler_config.use_grammar && trigger_len > 0 {
-        if let Ok(Some(trigger_token)) = model
-            .str_to_token(
-                sampler_config.lazy_grammar_trigger.as_str(),
-                llama_cpp_2::model::AddBos::Never,
-            )
-            .map(|v| v.first().copied())
-        {
-            chainvec.push(LlamaSampler::grammar_lazy(
-                model,
-                sampler_config.gbnf_grammar.as_str(),
-                &sampler_config.grammar_root,
-                vec![sampler_config.lazy_grammar_trigger], // TODO: remove this argument
-                &[trigger_token],
-            )?);
-        } else {
-            error!("Lazy GBNF grammar was specified, but the trigger token does not cleanly tokenize with the given model. You most likely tried to do tool calling with a model that doesn't natively support tool calling.");
-        }
-    }
-
-    // Add penalties
-    chainvec.push(LlamaSampler::penalties(
-        sampler_config.penalty_last_n,
-        sampler_config.penalty_repeat,
-        sampler_config.penalty_freq,
-        sampler_config.penalty_present,
-    ));
-
-    // Add method-specific samplers
-    match sampler_config.method {
-        SamplerMethod::Greedy(_) => {
-            chainvec.push(LlamaSampler::greedy());
-        }
-        SamplerMethod::DRY(conf) => {
-            chainvec.push(LlamaSampler::dry(
-                model,
-                conf.dry_multiplier,
-                conf.dry_base,
-                conf.dry_allowed_length,
-                conf.dry_penalty_last_n,
-                vec!["\n", ":", "\"", "*"],
-            ));
-            chainvec.push(LlamaSampler::dist(conf.seed));
-        }
-        SamplerMethod::TopK(conf) => {
-            chainvec.push(LlamaSampler::top_k(conf.top_k));
-            chainvec.push(LlamaSampler::dist(conf.seed));
-        }
-        SamplerMethod::TopP(conf) => {
-            chainvec.push(LlamaSampler::top_p(conf.top_p, conf.min_keep as usize));
-            chainvec.push(LlamaSampler::dist(conf.seed));
-        }
-        SamplerMethod::MinP(conf) => {
-            chainvec.push(LlamaSampler::min_p(conf.min_p, conf.min_keep as usize));
-            chainvec.push(LlamaSampler::dist(conf.seed));
-        }
-        SamplerMethod::XTC(conf) => {
-            chainvec.push(LlamaSampler::xtc(
-                conf.xtc_probability,
-                conf.xtc_threshold,
-                conf.min_keep as usize,
-                conf.seed,
-            ));
-            chainvec.push(LlamaSampler::dist(conf.seed));
-        }
-        SamplerMethod::TypicalP(conf) => {
-            chainvec.push(LlamaSampler::typical(conf.typ_p, conf.min_keep as usize));
-            chainvec.push(LlamaSampler::dist(conf.seed));
-        }
-        SamplerMethod::Temperature(conf) => {
-            chainvec.push(LlamaSampler::temp(conf.temperature));
-            chainvec.push(LlamaSampler::dist(conf.seed));
-        }
-        SamplerMethod::MirostatV1(conf) => {
-            chainvec.push(LlamaSampler::temp(conf.temperature));
-            chainvec.push(LlamaSampler::mirostat(
-                model.n_vocab(),
-                conf.seed,
-                conf.tau,
-                conf.eta,
-                100,
-            ));
-        }
-        SamplerMethod::MirostatV2(conf) => {
-            chainvec.push(LlamaSampler::temp(conf.temperature));
-            chainvec.push(LlamaSampler::mirostat_v2(conf.seed, conf.tau, conf.eta));
-        }
-    }
-
-    Some(LlamaSampler::chain(chainvec, true))
+pub enum SampleStep {
+    Dist,
+    Greedy,
+    MirostatV1 { tau: f32, eta: f32, m: i32 },
+    MirostatV2 { tau: f32, eta: f32 },
 }
