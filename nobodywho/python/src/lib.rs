@@ -295,7 +295,7 @@ fn python_func_json_schema(
     // check that all arguments are annotated
     if let Some(missing_arg) = args.iter().find(|arg| !annotations.contains_key(*arg)) {
         return Err(pyo3::exceptions::PyTypeError::new_err(format!(
-            "ERROR: Parameter {missing_arg} is missing a type hint. NobodyWho requires all tool function parameters to have static type hints. E.g.: `{missing_arg}: str`"
+            "ERROR: Parameter '{missing_arg}' is missing a type hint. NobodyWho requires all tool function parameters to have static type hints. E.g.: `{missing_arg}: str`"
         )));
     }
 
