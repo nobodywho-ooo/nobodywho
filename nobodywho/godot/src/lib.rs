@@ -27,6 +27,12 @@ unsafe impl ExtensionLibrary for NobodyWhoExtension {
     }
 }
 
+/// Configuration for text generation sampling strategies.
+///
+/// The sampler controls how the LLM selects tokens during generation, affecting
+/// the randomness, coherence, and style of the output. Use the preset methods
+/// to configure different sampling strategies like greedy, top-k, top-p, temperature,
+/// DRY, JSON, or custom grammars.
 #[derive(GodotClass)]
 #[class(init, base=Object)]
 struct NobodyWhoSampler {
@@ -35,41 +41,64 @@ struct NobodyWhoSampler {
 
 #[godot_api]
 impl NobodyWhoSampler {
+    /// Sets the sampler to use default sampling parameters.
+    /// This provides a balanced configuration suitable for most use cases.
     #[func]
     fn set_preset_default(&mut self) {
         self.sampler_config = SamplerConfig::default();
     }
 
+    /// Sets the sampler to use greedy sampling.
+    /// Always selects the most likely token at each step, resulting in deterministic output.
+    /// Use this for predictable, focused responses.
     #[func]
     fn set_preset_greedy(&mut self) {
         self.sampler_config = SamplerPresets::greedy();
     }
 
+    /// Sets the sampler to use top-k sampling.
+    /// Only considers the k most likely tokens at each step.
+    /// Lower values (e.g., 10-40) make output more focused, higher values more diverse.
     #[func]
     fn set_preset_top_k(&mut self, k: i32) {
         self.sampler_config = SamplerPresets::top_k(k);
     }
 
+    /// Sets the sampler to use top-p (nucleus) sampling.
+    /// Considers tokens until their cumulative probability reaches p.
+    /// Values like 0.9-0.95 provide a good balance between coherence and creativity.
     #[func]
     fn set_preset_top_p(&mut self, p: f32) {
         self.sampler_config = SamplerPresets::top_p(p);
     }
 
+    /// Sets the sampler to use temperature-based sampling.
+    /// Higher values (e.g., 0.8-1.2) increase randomness and creativity.
+    /// Lower values (e.g., 0.2-0.5) make output more focused and deterministic.
     #[func]
     fn set_preset_temperature(&mut self, temperature: f32) {
         self.sampler_config = SamplerPresets::temperature(temperature);
     }
 
+    /// Sets the sampler to use DRY (Don't Repeat Yourself) sampling.
+    /// Helps reduce repetitive text by penalizing recently generated tokens.
+    /// Useful for longer text generation where repetition is undesirable.
     #[func]
     fn set_preset_dry(&mut self) {
         self.sampler_config = SamplerPresets::dry();
     }
 
+    /// Sets the sampler to enforce JSON output format.
+    /// Constrains the model to generate valid JSON.
+    /// Useful when you need structured data from the LLM.
     #[func]
     fn set_preset_json(&mut self) {
         self.sampler_config = SamplerPresets::json();
     }
 
+    /// Sets the sampler to use a custom GBNF grammar.
+    /// Constrains the model output to match the provided grammar specification.
+    /// Use GBNF format (similar to EBNF) to define the structure of valid output.
     #[func]
     fn set_preset_grammar(&mut self, grammar: String) {
         self.sampler_config = SamplerPresets::grammar(grammar);
