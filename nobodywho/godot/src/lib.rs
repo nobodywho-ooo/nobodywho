@@ -1,7 +1,8 @@
 use godot::classes::{INode, ProjectSettings};
 use godot::prelude::*;
 use nobodywho::chat::ChatConfig;
-use nobodywho::{chat_state, errors, llm, sampler_config};
+use nobodywho::sampler_config::{SamplerConfig, SamplerPresets};
+use nobodywho::{chat_state, errors, llm};
 use std::sync::atomic::{AtomicU64, Ordering};
 use tracing::{debug, error, info, trace, warn};
 use tracing_subscriber::filter::{LevelFilter, Targets};
@@ -13,48 +14,6 @@ unsafe impl Send for SendCallable {}
 
 struct NobodyWhoExtension;
 
-#[derive(GodotConvert, Var, Export, Debug, Clone, Copy)]
-#[godot(via=GString)]
-enum SamplerMethodName {
-    Default,
-    Greedy,
-    DRY,
-    TopK,
-    TopP,
-    Temperature,
-    JSON,
-    Grammar,
-}
-
-#[derive(GodotClass)]
-#[class(base=Node)]
-struct NobodyWhoSampler {
-    #[export]
-    method: SamplerMethodName,
-    #[export]
-    top_k: i32,
-    #[export]
-    top_p: f32,
-    #[export]
-    temperature: f32,
-    #[export]
-    grammar: GString,
-}
-
-#[godot_api]
-impl INode for NobodyWhoSampler {
-    fn init(_base: Base<Node>) -> Self {
-        // default values to show in godot editor
-        Self {
-            method: SamplerMethodName::Default,
-            top_k: 10,
-            top_p: 0.95,
-            temperature: 0.8,
-            grammar: "".into(),
-        }
-    }
-}
-
 #[gdextension]
 unsafe impl ExtensionLibrary for NobodyWhoExtension {
     fn on_level_init(level: InitLevel) {
@@ -64,6 +23,63 @@ unsafe impl ExtensionLibrary for NobodyWhoExtension {
             // Initialize tracing_subscriber - sends all tracing events to godot console.
             info!("NobodyWho Godot version: {}", env!("CARGO_PKG_VERSION"));
             set_log_level("INFO"); // default behavior
+        }
+    }
+}
+
+#[derive(GodotClass)]
+#[class(init, base=Object)]
+struct NobodyWhoSampler {
+    sampler_config: SamplerConfig,
+}
+
+#[godot_api]
+impl NobodyWhoSampler {
+    #[func]
+    fn set_preset_default(&mut self) {
+        self.sampler_config = SamplerConfig::default();
+    }
+
+    #[func]
+    fn set_preset_greedy(&mut self) {
+        self.sampler_config = SamplerPresets::greedy();
+    }
+
+    #[func]
+    fn set_preset_top_k(&mut self, k: i32) {
+        self.sampler_config = SamplerPresets::top_k(k);
+    }
+
+    #[func]
+    fn set_preset_top_p(&mut self, p: f32) {
+        self.sampler_config = SamplerPresets::top_p(p);
+    }
+
+    #[func]
+    fn set_preset_temperature(&mut self, temperature: f32) {
+        self.sampler_config = SamplerPresets::temperature(temperature);
+    }
+
+    #[func]
+    fn set_preset_dry(&mut self) {
+        self.sampler_config = SamplerPresets::dry();
+    }
+
+    #[func]
+    fn set_preset_json(&mut self) {
+        self.sampler_config = SamplerPresets::json();
+    }
+
+    #[func]
+    fn set_preset_grammar(&mut self, grammar: String) {
+        self.sampler_config = SamplerPresets::grammar(grammar);
+    }
+}
+
+impl Default for NobodyWhoSampler {
+    fn default() -> Self {
+        Self {
+            sampler_config: SamplerConfig::default(),
         }
     }
 }
@@ -164,9 +180,9 @@ struct NobodyWhoChat {
     /// The model node for the chat.
     model_node: Option<Gd<NobodyWhoModel>>,
 
-    #[export]
     /// The sampler configuration for the chat.
-    sampler: Option<Gd<NobodyWhoSampler>>,
+    #[var]
+    sampler: Gd<NobodyWhoSampler>,
 
     #[export]
     #[var(hint = MULTILINE_TEXT)]
@@ -206,7 +222,7 @@ impl INode for NobodyWhoChat {
 
             // config
             model_node: None,
-            sampler: None,
+            sampler: Gd::from_init_fn(|_| NobodyWhoSampler::default()),
             stop_words: PackedStringArray::new(),
             chat_handle: None,
             signal_counter: AtomicU64::new(0),
@@ -223,44 +239,6 @@ impl NobodyWhoChat {
         let model: llm::Model = nobody_model.get_model().map_err(|e| e.to_string())?;
 
         Ok(model)
-    }
-
-    fn get_sampler_config(&mut self) -> sampler_config::SamplerConfig {
-        let Some(sampler) = self.sampler.as_ref() else {
-            return sampler_config::SamplerConfig::default();
-        };
-
-        let sampler_ref = sampler.bind();
-        match sampler_ref.method {
-            SamplerMethodName::Default => sampler_config::SamplerConfig::default(),
-            SamplerMethodName::Greedy => sampler_config::SamplerPresets::greedy(),
-            SamplerMethodName::DRY => sampler_config::SamplerPresets::dry(),
-            SamplerMethodName::TopK => sampler_config::SamplerPresets::top_k(sampler_ref.top_k),
-            SamplerMethodName::TopP => sampler_config::SamplerPresets::top_p(sampler_ref.top_p),
-            SamplerMethodName::Temperature => {
-                sampler_config::SamplerPresets::temperature(sampler_ref.temperature)
-            }
-            SamplerMethodName::JSON => sampler_config::SamplerPresets::json(),
-            SamplerMethodName::Grammar => {
-                sampler_config::SamplerPresets::grammar(sampler_ref.grammar.to_string())
-            }
-        }
-    }
-
-    #[func]
-    fn set_sampler_config(&mut self, method: SamplerMethodName) {
-        if let Some(sampler) = self.sampler.as_mut() {
-            sampler.bind_mut().method = method;
-        } else {
-            let sampler = Gd::from_object(NobodyWhoSampler {
-                method,
-                top_k: 10,
-                top_p: 0.95,
-                temperature: 0.8,
-                grammar: "".into(),
-            });
-            self.sampler = Some(sampler);
-        }
     }
 
     #[func]
@@ -292,7 +270,7 @@ impl NobodyWhoChat {
     /// Sends a message to the LLM.
     /// This will start the inference process. meaning you can also listen on the `response_updated` and `response_finished` signals to get the response.
     fn say(&mut self, message: String) {
-        let sampler = self.get_sampler_config();
+        let sampler = self.sampler.bind().sampler_config.clone();
         if let Some(chat_handle) = self.chat_handle.as_mut() {
             let stop_words = self
                 .stop_words
