@@ -5,6 +5,7 @@ use interoptopus::{
     callback, ffi_function, ffi_service, ffi_service_ctor, ffi_service_method, ffi_type, function,
     pattern, Inventory, InventoryBuilder,
 };
+use nobodywho::sampler_config::{SamplerConfig, SamplerPresets};
 use std::ffi::c_char;
 use std::sync::Arc;
 use tracing::{debug, error, warn};
@@ -225,14 +226,15 @@ impl ChatWrapper {
 
         if let Some(ref mut handle) = self.handle {
             // TODO: proper sampler config
-            let mut sampler = nobodywho::sampler_config::SamplerConfig::default();
-            if use_grammar {
-                sampler.use_grammar = true;
-                if let Ok(grammar) = grammar.as_str() {
-                    sampler.gbnf_grammar = grammar.to_string();
-                }
-            }
+            let grammar = if use_grammar {
+                grammar.as_str().ok()
+            } else {
+                None
+            };
 
+            let sampler = grammar.map_or(SamplerConfig::default(), |g| {
+                SamplerPresets::grammar(g.to_string())
+            });
             // TODO: can we pass stop words in as a slice instead of comma-separated string?
             let Ok(stop_words_str) = stop_words.as_str() else {
                 error!("Null byte in stop words");

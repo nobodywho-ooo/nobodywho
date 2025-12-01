@@ -1538,7 +1538,7 @@ dependencies = [
 
 [[package]]
 name = "nobodywho-godot"
-version = "6.1.5"
+version = "7.0.0"
 dependencies = [
  "godot",
  "nobodywho",
