@@ -11,7 +11,7 @@ chat = nobodywho.Chat(
 def main_streaming():
     while True:
         prompt = input("\nPlease enter your prompt: ")
-        token_stream = chat.send_message(prompt)
+        token_stream = chat.ask(prompt)
         while token := token_stream.next_token_blocking():
             print(token, end="", flush=True)
 
@@ -19,7 +19,7 @@ def main_streaming():
 def main_complete():
     while True:
         prompt = input("\nPlease enter your prompt: ")
-        print(chat.send_message(prompt).collect_blocking())
+        print(chat.ask(prompt).collect_blocking())
 
 
 main_complete()

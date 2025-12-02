@@ -197,9 +197,9 @@ impl Chat {
         Self { chat_handle }
     }
 
-    pub fn send_message(&self, text: String) -> TokenStream {
+    pub fn ask(&self, text: String) -> TokenStream {
         TokenStream {
-            stream: self.chat_handle.say_stream(text),
+            stream: self.chat_handle.ask(text),
         }
     }
 }

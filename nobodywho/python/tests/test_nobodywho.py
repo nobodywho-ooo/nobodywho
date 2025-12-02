@@ -21,7 +21,7 @@ def chat(model):
 async def test_async_streaming(chat):
     """Test async streaming from demo_async.py"""
     prompt = "What is the capital of Denmark?"
-    token_stream = chat.send_message(prompt)
+    token_stream = chat.ask(prompt)
 
     tokens = []
     while token := await token_stream.next_token():
@@ -35,7 +35,7 @@ async def test_async_streaming(chat):
 @pytest.mark.asyncio
 async def test_async_collect(chat):
     """Test async complete from demo_async.py"""
-    response_stream = chat.send_message("What is the capital of Denmark?")
+    response_stream = chat.ask("What is the capital of Denmark?")
     response = await response_stream.collect()
 
     assert len(response) > 0
@@ -43,7 +43,7 @@ async def test_async_collect(chat):
 
 
 def test_blocking_collect(chat):
-    response_stream = chat.send_message("What is the capital of Denmark?")
+    response_stream = chat.ask("What is the capital of Denmark?")
     response = response_stream.collect_blocking()
     assert "copenhagen" in response.lower()
 
@@ -54,13 +54,13 @@ async def test_multiple_prompts(chat):
     prompts = ["Hello", "What is 2+2?", "Goodbye"]
 
     for prompt in prompts:
-        response_stream = chat.send_message(prompt)
+        response_stream = chat.ask(prompt)
         response = await response_stream.collect()
         assert len(response) > 0
 
 
 def test_sync_iterator(chat):
-    response_stream = chat.send_message("What is the capital of Denmark?")
+    response_stream = chat.ask("What is the capital of Denmark?")
     response_str: str = ""
     for token in response_stream:
         response_str += token
@@ -229,7 +229,7 @@ def test_tool_construction():
 
 def test_tool_calling(model):
     chat = nobodywho.Chat(model, tools=[sparklify])
-    response: str = chat.send_message(
+    response: str = chat.ask(
         "Please sparklify this word: 'julemand'"
     ).collect_blocking()
     assert "✨JULEMAND✨" in response
@@ -249,7 +249,7 @@ def reflarbicator(reflarb: int, unfloop: bool) -> str:
 def test_tool_parameter_description(model):
     # XXX: maybe there is a faster/better way of testing this behavior than running a full-ass LLM
     chat = nobodywho.Chat(model, tools=[reflarbicator, sparklify], allow_thinking=False)
-    answer = chat.send_message(
+    answer = chat.ask(
         "Please tell me the description of the 'unfloop' parameter of the reflarbicator tool"
     ).collect_blocking()
     assert "velocidensity" in answer

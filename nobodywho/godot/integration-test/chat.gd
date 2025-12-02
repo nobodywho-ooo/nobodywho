@@ -15,7 +15,7 @@ func run_test():
 	return true
 
 func test_say():
-	say("Please tell me what the capital city of Denmark is.")
+	ask("Please tell me what the capital city of Denmark is.")
 	var response = await response_finished
 
 	print("✨ Got response: " + response)
@@ -26,7 +26,7 @@ func test_antiprompts():
 	stop_words = PackedStringArray(["fly"])
 	reset_context() # restart the worker to include the antiprompts
 	
-	say("List these animals in alphabetical order: cat, dog, fly, lion, mouse")
+	ask("List these animals in alphabetical order: cat, dog, fly, lion, mouse")
 	var response = await response_finished
 
 	print("✨ Got antiprompt response: " + response)
@@ -45,7 +45,7 @@ func test_antiprompts_multitokens():
 
 	reset_context() # restart the worker to include the antiprompts
 	
-	say("List all the words in alphabetical order: dog, horse-rider, lion, mouse")
+	ask("List all the words in alphabetical order: dog, horse-rider, lion, mouse")
 	var response = await response_finished
 
 	print("✨ Got antiprompt response: " + response)
@@ -79,7 +79,7 @@ func test_chat_history():
 	assert(retrieved_messages[1]["role"] == "assistant", "Second message should be from assistant")
 	assert("4" in retrieved_messages[1]["content"], "Second message should contain the answer")
 
-	say("What did I just ask you about?")
+	ask("What did I just ask you about?")
 	var resp = await response_finished
 	print("Got resp: " + resp)
 	assert("2 + 2" in resp)
@@ -98,7 +98,7 @@ func test_tool_call():
 	self.system_prompt = "You're a helpful tool-calling assistant. Remember to keep proper tool calling syntax."
 	self.reset_context()
 	# 12.3 is on pupose to test correct type inputs for the tool call
-	say("I'd like to know the current temperature in Copenhagen. with zipcode 12.3 and in denmark is true")
+	ask("I'd like to know the current temperature in Copenhagen. with zipcode 12.3 and in denmark is true")
 	var response = await response_finished
 	print(response)
 	assert("12.34" in response)
@@ -117,13 +117,13 @@ func test_tool_remove():
 	self.add_tool(call_tool, "A simple test tool that toggles a flag")
 	self.system_prompt = "You're a helpful tool-calling assistant. You may call functions when asked."
 	self.reset_context()
-	say("Call the function named 'call_tool' now.")
+	ask("Call the function named 'call_tool' now.")
 	var response = await response_finished
 	assert(tool_called, "Tool should be called when registered")
 
 	tool_called = false
 	remove_tool(call_tool)
-	say("I disabled the flag, can you set it again by calling the function named 'call_tool' now.")
+	ask("I disabled the flag, can you set it again by calling the function named 'call_tool' now.")
 	response = await response_finished
 	assert(not tool_called, "Tool should not be called after removal")
 	return true
@@ -136,7 +136,7 @@ func test_tool_call_underscores():
 	self.add_tool(guess_password, "A tool that supplies the password")
 	self.system_prompt = "You're a helpful tool-calling assistant, always use your tools"
 	self.reset_context()
-	say("please supply the password using inpout: '___', '____', '_____'")
+	ask("please supply the password using inpout: '___', '____', '_____'")
 	var response = await response_finished
 	print(response)
 	assert("P@sSW0rd" in response)
@@ -154,7 +154,7 @@ func test_stop_generation():
 		if "2" in token:
 			stop_generation()
 	)
-	say("count from 0 to 9")
+	ask("count from 0 to 9")
 	
 	var response = await response_finished
 
