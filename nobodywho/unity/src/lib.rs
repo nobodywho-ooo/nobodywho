@@ -345,14 +345,6 @@ impl ChatWrapper {
         }
     }
 
-    pub fn stop(&mut self) -> Result<(), ChatError> {
-        if let Some(ref mut handle) = self.handle {
-            handle.stop_generation();
-            Ok(())
-        } else {
-            Err(ChatError::WorkerNotStarted)
-        }
-    }
 
     #[ffi_service_method(on_panic = "return_default")]
     pub fn poll_response(&mut self) -> PollResponseResult {

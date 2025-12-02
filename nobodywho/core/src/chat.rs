@@ -157,8 +157,7 @@ impl ChatHandle {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
 
         std::thread::spawn(move || {
-            let Ok(mut worker_state) = Worker::new_chat_worker(&model, config)
-            else {
+            let Ok(mut worker_state) = Worker::new_chat_worker(&model, config) else {
                 return error!("Could not set up the worker initial state");
             };
 
@@ -169,9 +168,7 @@ impl ChatHandle {
             }
         });
 
-        Self {
-            msg_tx,
-        }
+        Self { msg_tx }
     }
 
     /// Send a message to the model and get a stream of tokens back.
@@ -271,7 +268,6 @@ impl ChatHandle {
     pub fn set_allow_thinking(&self, allow_thinking: bool) {
         let _ = self.msg_tx.send(ChatMsg::SetThinking { allow_thinking });
     }
-
 
     /// Get the current chat history.
     pub async fn get_chat_history_async(&self) -> Vec<crate::chat_state::Message> {
@@ -623,7 +619,6 @@ impl Worker<'_, ChatWorker> {
         )
     }
 
-
     // TODO //.
     fn context_shift(&mut self) -> Result<(), ShiftError> {
         info!("Context shift happens!");
@@ -773,7 +768,8 @@ impl Worker<'_, ChatWorker> {
             // using sampler.accept() will cause the sampler to crash when using grammar sampling.
             // https://github.com/utilityai/llama-cpp-rs/issues/604
             trace!("Applying sampler...");
-            let new_token = self.sample_and_decode_next_token(&mut sampler)?;
+            let new_token =
+                self.sample_and_decode_next_token(&mut sampler, inference_lock_token)?;
             tokens_written_until_now.push(new_token);
 
             // Attempt to convert token(s) to bytes
@@ -833,6 +829,7 @@ impl Worker<'_, ChatWorker> {
     fn sample_and_decode_next_token(
         &mut self,
         sampler: &mut LlamaSampler,
+        _inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<LlamaToken, DecodingError> {
         trace!("Applying sampler...");
         let new_token: LlamaToken = sampler.sample(&self.ctx, -1);
@@ -1308,7 +1305,6 @@ mod tests {
 
         Ok(())
     }
-
 
     fn test_tool() -> Tool {
         Tool {
@@ -1881,10 +1877,7 @@ mod tests {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let sampler = SamplerConfig::default();
-        let mut worker = Worker::new_chat_worker(
-            &model,
-            ChatConfig::default(),
-        )?;
+        let mut worker = Worker::new_chat_worker(&model, ChatConfig::default())?;
 
         let (sender, receiver) = std::sync::mpsc::channel();
         let f = move |x| match x {
@@ -1986,7 +1979,7 @@ mod tests {
                     n_ctx,
                     ..Default::default()
                 },
-                )
+            )
             .unwrap();
 
             let f = move |x| {
@@ -2014,7 +2007,7 @@ mod tests {
                     n_ctx,
                     ..Default::default()
                 },
-                )
+            )
             .unwrap();
 
             let f = move |x| {
