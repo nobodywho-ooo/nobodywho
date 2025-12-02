@@ -193,6 +193,7 @@ impl ChatWrapper {
                 system_prompt,
                 tools: self.tools.clone(),
                 allow_thinking: true,
+                sampler_config: SamplerConfig::default(),
             },
         );
         self.handle = Some(handle);
@@ -224,7 +225,6 @@ impl ChatWrapper {
         }
 
         if let Some(ref mut handle) = self.handle {
-            // TODO: proper sampler config
             let grammar = if use_grammar {
                 grammar.as_str().ok()
             } else {
@@ -235,20 +235,15 @@ impl ChatWrapper {
                 SamplerPresets::grammar(g.to_string())
             });
 
-            // lets go!
-            let response_rx = handle.say(
-                text.as_str().map_err(|_| ChatError::BadSayText)?.into(),
-                sampler,
-            );
+            handle.set_sampler_config(sampler);
+
+            let response_rx = handle.say(text.as_str().map_err(|_| ChatError::BadSayText)?.into());
 
             debug_assert!(self.response_rx.is_none());
             self.response_rx = Some(response_rx);
 
             Ok(())
         } else {
-            // TODO: would be nice to start worker automatically here
-            // this probably requires that we own configuration-state rust-side
-            // like we do on the modelwrapper node. we should look into making getters/setters here
             warn!("Worker not started yet. Please call StartWorker first.");
             Err(ChatError::WorkerNotStarted)
         }
@@ -334,6 +329,29 @@ impl ChatWrapper {
     pub fn stop(&mut self) -> Result<(), ChatError> {
         if let Some(ref mut handle) = self.handle {
             handle.stop_generation();
+            Ok(())
+        } else {
+            Err(ChatError::WorkerNotStarted)
+        }
+    }
+
+    pub fn set_sampler_config(
+        &mut self,
+        use_grammar: bool,
+        grammar: AsciiPointer,
+    ) -> Result<(), ChatError> {
+        if let Some(ref handle) = self.handle {
+            let grammar = if use_grammar {
+                grammar.as_str().ok()
+            } else {
+                None
+            };
+
+            let sampler = grammar.map_or(SamplerConfig::default(), |g| {
+                SamplerPresets::grammar(g.to_string())
+            });
+
+            handle.set_sampler_config(sampler);
             Ok(())
         } else {
             Err(ChatError::WorkerNotStarted)

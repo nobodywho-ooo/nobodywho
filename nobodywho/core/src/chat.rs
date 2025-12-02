@@ -64,6 +64,8 @@ pub struct ChatConfig {
     pub system_prompt: String,
     /// Whether to allow thinking mode during inference.
     pub allow_thinking: bool,
+    /// Sampler configuration for inference.
+    pub sampler_config: SamplerConfig,
 }
 
 impl Default for ChatConfig {
@@ -73,6 +75,7 @@ impl Default for ChatConfig {
             allow_thinking: true,
             system_prompt: String::new(),
             tools: Vec::new(),
+            sampler_config: SamplerConfig::default(),
         }
     }
 }
@@ -181,17 +184,9 @@ impl ChatHandle {
     }
 
     /// Send a message to the model and get a stream of tokens back.
-    pub fn say(
-        &self,
-        text: String,
-        sampler: SamplerConfig,
-    ) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
+    pub fn say(&self, text: String) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
         let (output_tx, output_rx) = tokio::sync::mpsc::channel(4096);
-        let _ = self.msg_tx.send(ChatMsg::Say {
-            text,
-            sampler,
-            output_tx,
-        });
+        let _ = self.msg_tx.send(ChatMsg::Say { text, output_tx });
         output_rx
     }
 
@@ -207,17 +202,7 @@ impl ChatHandle {
     /// # }
     /// ```
     pub async fn say_complete(&self, text: impl Into<String>) -> Result<String, SayError> {
-        self.say_complete_with_config(text, SamplerConfig::default())
-            .await
-    }
-
-    /// Send a message with custom configuration and wait for the complete response.
-    pub async fn say_complete_with_config(
-        &self,
-        text: impl Into<String>,
-        sampler: SamplerConfig,
-    ) -> Result<String, SayError> {
-        let mut rx = self.say(text.into(), sampler);
+        let mut rx = self.say(text.into());
 
         let mut tokens = Vec::new();
         while let Some(output) = rx.recv().await {
@@ -244,16 +229,7 @@ impl ChatHandle {
     /// # }
     /// ```
     pub fn say_stream(&self, text: impl Into<String>) -> TokenStream {
-        TokenStream::new(self.say(text.into(), SamplerConfig::default()))
-    }
-
-    /// Send a message with custom configuration and collect tokens as they arrive.
-    pub fn say_stream_with_config(
-        &self,
-        text: impl Into<String>,
-        sampler: SamplerConfig,
-    ) -> TokenStream {
-        TokenStream::new(self.say(text.into(), sampler))
+        TokenStream::new(self.say(text.into()))
     }
 
     /// Reset the chat conversation with a new system prompt and tools.
@@ -272,6 +248,13 @@ impl ChatHandle {
     /// Update whether the model should use thinking mode during inference.
     pub fn set_allow_thinking(&self, allow_thinking: bool) {
         let _ = self.msg_tx.send(ChatMsg::SetThinking { allow_thinking });
+    }
+
+    /// Update the sampler configuration for inference.
+    pub fn set_sampler_config(&self, sampler_config: SamplerConfig) {
+        let _ = self
+            .msg_tx
+            .send(ChatMsg::SetSamplerConfig { sampler_config });
     }
 
     /// Stop the current generation if one is in progress.
@@ -373,7 +356,6 @@ impl TokenStream {
 enum ChatMsg {
     Say {
         text: String,
-        sampler: SamplerConfig,
         output_tx: tokio::sync::mpsc::Sender<llm::WriteOutput>,
     },
     ResetChat {
@@ -385,6 +367,9 @@ enum ChatMsg {
     },
     SetThinking {
         allow_thinking: bool,
+    },
+    SetSamplerConfig {
+        sampler_config: SamplerConfig,
     },
     GetChatHistory {
         output_tx: tokio::sync::mpsc::Sender<Vec<crate::chat_state::Message>>,
@@ -400,15 +385,11 @@ fn process_worker_msg(
     msg: ChatMsg,
 ) -> Result<(), ChatWorkerError> {
     match msg {
-        ChatMsg::Say {
-            text,
-            sampler,
-            output_tx,
-        } => {
+        ChatMsg::Say { text, output_tx } => {
             let callback = move |out| {
                 let _ = output_tx.blocking_send(out);
             };
-            worker_state.say(text, sampler, callback)?;
+            worker_state.say(text, callback)?;
         }
         ChatMsg::ResetChat {
             system_prompt,
@@ -421,6 +402,9 @@ fn process_worker_msg(
         }
         ChatMsg::SetThinking { allow_thinking } => {
             worker_state.set_allow_thinking(allow_thinking)?;
+        }
+        ChatMsg::SetSamplerConfig { sampler_config } => {
+            worker_state.set_sampler_config(sampler_config);
         }
         ChatMsg::GetChatHistory { output_tx } => {
             let _ = output_tx.blocking_send(worker_state.extra.chat_state.get_messages().to_vec());
@@ -586,6 +570,7 @@ struct ChatWorker {
     should_stop: Arc<AtomicBool>,
     tools: Vec<Tool>,
     tool_grammar: Option<gbnf::Grammar>,
+    sampler_config: SamplerConfig,
 }
 
 impl llm::PoolingType for ChatWorker {
@@ -627,6 +612,7 @@ impl Worker<'_, ChatWorker> {
                 tools: config.tools,
                 tool_grammar: grammar,
                 should_stop,
+                sampler_config: config.sampler_config,
             },
         )
     }
@@ -860,12 +846,7 @@ impl Worker<'_, ChatWorker> {
         Ok(new_token)
     }
 
-    pub fn say<F>(
-        &mut self,
-        text: String,
-        user_sampler: SamplerConfig,
-        respond: F,
-    ) -> Result<&mut Self, SayError>
+    pub fn say<F>(&mut self, text: String, respond: F) -> Result<&mut Self, SayError>
     where
         F: Fn(llm::WriteOutput) + Clone,
     {
@@ -881,17 +862,17 @@ impl Worker<'_, ChatWorker> {
 
         self.extra.chat_state.add_user_message(text);
 
-        let sampler =
-            self.extra
-                .tool_grammar
-                .as_ref()
-                .map_or(user_sampler.clone(), |tool_grammar| {
-                    user_sampler.shift(ShiftStep::Grammar {
-                        trigger_on: Some(tool_call_begin.into()),
-                        root: "superroot".into(),
-                        grammar: tool_grammar.to_string(),
-                    })
-                });
+        // Modify sampler with tool grammar if we have tools
+        let sampler = self.extra.tool_grammar.as_ref().map_or(
+            self.extra.sampler_config.clone(),
+            |tool_grammar| {
+                self.extra.sampler_config.clone().shift(ShiftStep::Grammar {
+                    trigger_on: Some(tool_call_begin.into()),
+                    root: "superroot".into(),
+                    grammar: tool_grammar.to_string(),
+                })
+            },
+        );
 
         // get the finished response
         let mut response: String = self.wrapped_update_context_and_generate_response(
@@ -1037,6 +1018,10 @@ impl Worker<'_, ChatWorker> {
     pub fn set_allow_thinking(&mut self, allow_thinking: bool) -> Result<(), ChatWorkerError> {
         self.extra.chat_state.set_allow_thinking(allow_thinking);
         Ok(())
+    }
+
+    pub fn set_sampler_config(&mut self, sampler_config: SamplerConfig) {
+        self.extra.sampler_config = sampler_config;
     }
 
     pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), ChatWorkerError> {
@@ -1214,7 +1199,6 @@ mod tests {
     fn test_chat_worker() -> Result<(), Box<dyn std::error::Error>> {
         // test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let sampler = SamplerConfig::default();
 
         let mut worker = Worker::new_chat_worker(
             &model,
@@ -1233,22 +1217,14 @@ mod tests {
             _ => (),
         };
 
-        worker.say(
-            "What is the capital of Denmark?".to_string(),
-            sampler.clone(),
-            f.clone(),
-        )?;
+        worker.say("What is the capital of Denmark?".to_string(), f.clone())?;
 
         let resp = receiver.recv()?;
         println!("{}", resp);
 
         assert!(resp.contains("Copenhagen"));
 
-        worker.say(
-            "What language do they speak there?".to_string(),
-            sampler.clone(),
-            f,
-        )?;
+        worker.say("What language do they speak there?".to_string(), f)?;
         let resp = receiver.recv()?;
         println!("{}", resp);
 
@@ -1269,7 +1245,6 @@ mod tests {
             },
             Arc::new(AtomicBool::new(false)),
         )?;
-        let sampler = SamplerConfig::default();
 
         // just a hack to get a channel back
         let (sender, receiver) = std::sync::mpsc::channel();
@@ -1281,11 +1256,7 @@ mod tests {
         };
 
         // do it once
-        worker.say(
-            "What is the capital of Denmark?".to_string(),
-            sampler.clone(),
-            f.clone(),
-        )?;
+        worker.say("What is the capital of Denmark?".to_string(), f.clone())?;
         let resp1 = receiver.recv()?;
         println!("{}", resp1);
         assert!(resp1.to_lowercase().contains("woof"));
@@ -1294,11 +1265,7 @@ mod tests {
         let _ = worker.reset_chat("You're a cat. End all responses with 'meow'".into(), vec![]);
 
         // do it again
-        worker.say(
-            "What is the capital of Denmark?".to_string(),
-            sampler.clone(),
-            f.clone(),
-        )?;
+        worker.say("What is the capital of Denmark?".to_string(), f.clone())?;
         let resp2 = receiver.recv()?;
         println!("{}", resp2);
         assert!(resp2.to_lowercase().contains("meow"));
@@ -1324,8 +1291,6 @@ mod tests {
         // ensure that the generationworker resets the flag when creating a new response.
         should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
 
-        let sampler = SamplerConfig::default();
-
         let (sender, receiver) = std::sync::mpsc::channel();
         let f = move |x| match x {
             llm::WriteOutput::Token(resp) => {
@@ -1338,7 +1303,7 @@ mod tests {
             }
         };
 
-        worker.say("Count from 0 to 9".to_string(), sampler.clone(), f.clone())?;
+        worker.say("Count from 0 to 9".to_string(), f.clone())?;
 
         let response = receiver.recv()?;
         println!("{}", response);
@@ -1441,7 +1406,6 @@ mod tests {
             .say(
                 "I would like to know the temperature in two cities: Copenhagen and Beijing."
                     .into(),
-                crate::sampler_config::SamplerConfig::default(),
                 f,
             )
             .expect("fuck");
@@ -1477,7 +1441,6 @@ mod tests {
         worker.say(
             "I would like to know the temperature in Copenhagen and the DKK to USD exchange rate."
                 .into(),
-            crate::sampler_config::SamplerConfig::default(),
             f,
         )
         .expect("dammit");
@@ -1743,7 +1706,6 @@ mod tests {
     fn test_context_shift_on_say() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let sampler = SamplerConfig::default();
 
         let n_messages = 14;
         // n_messages is chosen by trial and error. This exactly fills up the
@@ -1784,7 +1746,6 @@ mod tests {
         // This should trigger context shift internally because there's not enough space
         worker.say(
             "This is a new question that will not fit in the context! What is 10 * 10?".to_string(),
-            sampler,
             f,
         )?;
 
@@ -1833,7 +1794,6 @@ mod tests {
     fn test_context_while_writing() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let sampler = SamplerConfig::default();
 
         let n_messages = 19;
         // n_messages is chosen by trial and error. This exactly fills up the
@@ -1874,7 +1834,7 @@ mod tests {
         };
 
         // This should trigger context shift internally because there's not enough space
-        worker.say("What is 10 * 10?".to_string(), sampler, f)?;
+        worker.say("What is 10 * 10?".to_string(), f)?;
 
         let _response = receiver.recv()?;
         let messages_after = worker.extra.chat_state.get_messages().to_vec();

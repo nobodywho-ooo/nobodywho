@@ -285,6 +285,7 @@ impl NobodyWhoChat {
                 tools: self.tools.clone(),
                 n_ctx: self.context_length,
                 allow_thinking: self.allow_thinking,
+                sampler_config: self.sampler.bind().sampler_config.clone(),
             },
         ));
         Ok(())
@@ -294,9 +295,10 @@ impl NobodyWhoChat {
     /// Sends a message to the LLM.
     /// This will start the inference process. meaning you can also listen on the `response_updated` and `response_finished` signals to get the response.
     fn say(&mut self, message: String) {
-        let sampler = self.sampler.bind().sampler_config.clone();
         if let Some(chat_handle) = self.chat_handle.as_mut() {
-            let mut generation_channel = chat_handle.say(message, sampler);
+            let sampler = self.sampler.bind().sampler_config.clone();
+            chat_handle.set_sampler_config(sampler);
+            let mut generation_channel = chat_handle.say(message);
 
             let emit_node = self.to_gd();
             godot::task::spawn(async move {
@@ -337,6 +339,16 @@ impl NobodyWhoChat {
             chat_handle.reset_chat(self.system_prompt.to_string(), self.tools.clone());
         } else {
             godot_error!("Attempted to reset context, but no worker is running. Doing nothing.");
+        }
+    }
+
+    #[func]
+    fn set_sampler_config(&mut self) {
+        if let Some(chat_handle) = &self.chat_handle {
+            let sampler = self.sampler.bind().sampler_config.clone();
+            chat_handle.set_sampler_config(sampler);
+        } else {
+            godot_warn!("Attempted to set sampler config, but no worker is running. Config will be applied when worker starts.");
         }
     }
 
