@@ -36,7 +36,6 @@ use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 use llama_cpp_2::{context::params::LlamaPoolingType, model::LlamaModel};
 use std::cmp::min;
-use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, MutexGuard};
 use tracing::{debug, error, info, trace, trace_span, warn};
 
@@ -47,7 +46,6 @@ use tracing::{debug, error, info, trace, trace_span, warn};
 /// Use [`ChatBuilder`] to create a new instance with a fluent API.
 pub struct ChatHandle {
     msg_tx: std::sync::mpsc::Sender<ChatMsg>,
-    should_stop: Arc<AtomicBool>,
 }
 
 ///
@@ -158,11 +156,8 @@ impl ChatHandle {
     pub fn new(model: Arc<LlamaModel>, config: ChatConfig) -> Self {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
 
-        let should_stop = Arc::new(AtomicBool::new(false));
-        let should_stop_clone = Arc::clone(&should_stop);
-
         std::thread::spawn(move || {
-            let Ok(mut worker_state) = Worker::new_chat_worker(&model, config, should_stop_clone)
+            let Ok(mut worker_state) = Worker::new_chat_worker(&model, config)
             else {
                 return error!("Could not set up the worker initial state");
             };
@@ -176,7 +171,6 @@ impl ChatHandle {
 
         Self {
             msg_tx,
-            should_stop,
         }
     }
 
@@ -278,11 +272,6 @@ impl ChatHandle {
         let _ = self.msg_tx.send(ChatMsg::SetThinking { allow_thinking });
     }
 
-    /// Stop the current generation if one is in progress.
-    pub fn stop_generation(&self) {
-        self.should_stop
-            .store(true, std::sync::atomic::Ordering::Relaxed);
-    }
 
     /// Get the current chat history.
     pub async fn get_chat_history_async(&self) -> Vec<crate::chat_state::Message> {
@@ -589,7 +578,6 @@ fn grammar_from_tools(tools: &[Tool]) -> Result<gbnf::Grammar, gbnf::json::JsonS
 
 struct ChatWorker {
     chat_state: ChatState,
-    should_stop: Arc<AtomicBool>,
     tools: Vec<Tool>,
     tool_grammar: Option<gbnf::Grammar>,
 }
@@ -604,7 +592,6 @@ impl Worker<'_, ChatWorker> {
     fn new_chat_worker(
         model: &Arc<LlamaModel>,
         config: ChatConfig,
-        should_stop: Arc<AtomicBool>,
     ) -> Result<Worker<'_, ChatWorker>, InitWorkerError> {
         // initialize chat state with system prompt
         let mut chat_state = ChatState::from_model_and_tools(
@@ -632,16 +619,10 @@ impl Worker<'_, ChatWorker> {
                 chat_state,
                 tools: config.tools,
                 tool_grammar: grammar,
-                should_stop,
             },
         )
     }
 
-    fn should_stop(&self) -> bool {
-        self.extra
-            .should_stop
-            .load(std::sync::atomic::Ordering::Relaxed)
-    }
 
     // TODO //.
     fn context_shift(&mut self) -> Result<(), ShiftError> {
@@ -771,7 +752,7 @@ impl Worker<'_, ChatWorker> {
         let mut sampler = sampler_config.to_stateful(self.ctx.model)?;
         let mut token_bytes_vec = Vec::new();
 
-        while !self.should_stop() {
+        loop {
             // Check if the context is full
             if self.n_past as u32 == self.ctx.n_ctx() {
                 self.context_shift()?;
@@ -880,11 +861,6 @@ impl Worker<'_, ChatWorker> {
     where
         F: Fn(llm::WriteOutput) + Clone,
     {
-        // reset the stop flag
-        self.extra
-            .should_stop
-            .store(false, std::sync::atomic::Ordering::Relaxed);
-
         // TODO: this is the token used by qwen3
         //       but e.g. deepseek uses "<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>" instead.
         //       we need to support multiple different tool call begin tokens
@@ -1247,7 +1223,6 @@ mod tests {
                 n_ctx: 1024,
                 ..Default::default()
             },
-            Arc::new(AtomicBool::new(false)),
         )?;
 
         let (sender, receiver) = std::sync::mpsc::channel();
@@ -1294,7 +1269,6 @@ mod tests {
                 system_prompt: "You're a dog. End all responses with 'woof'".into(),
                 ..ChatConfig::default()
             },
-            Arc::new(AtomicBool::new(false)),
         )?;
         let sampler = SamplerConfig::default();
 
@@ -1335,52 +1309,6 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn test_stop_mid_write() -> Result<(), Box<dyn std::error::Error>> {
-        // test_utils::init_test_tracing();
-        let model = test_utils::load_test_model();
-        let mut worker = Worker::new_chat_worker(
-            &model,
-            ChatConfig {
-                system_prompt: "You are a counter, only outputting numbers".into(),
-                n_ctx: 1024,
-                ..ChatConfig::default()
-            },
-            Arc::new(AtomicBool::new(false)),
-        )?;
-        let should_stop = worker.extra.should_stop.clone();
-
-        // ensure that the generationworker resets the flag when creating a new response.
-        should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
-
-        let sampler = SamplerConfig::default();
-
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| match x {
-            llm::WriteOutput::Token(resp) => {
-                if resp.contains("5") {
-                    should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
-                }
-            }
-            llm::WriteOutput::Done(resp) => {
-                sender.send(resp).unwrap();
-            }
-        };
-
-        worker.say(
-            "Count from 0 to 9".to_string(),
-            sampler.clone(),
-            vec![],
-            f.clone(),
-        )?;
-
-        let response = receiver.recv()?;
-        println!("{}", response);
-
-        assert!(response.contains("5"));
-        assert!(!response.contains("8"));
-        Ok(())
-    }
 
     fn test_tool() -> Tool {
         Tool {
@@ -1459,7 +1387,6 @@ mod tests {
                 tools: vec![test_tool()],
                 ..Default::default()
             },
-            Arc::new(AtomicBool::new(false)),
         )
         .expect("Failed making worker");
 
@@ -1497,7 +1424,6 @@ mod tests {
                 tools: vec![test_tool(), dkk_exchange_rate()],
                 ..Default::default()
             },
-            Arc::new(AtomicBool::new(false)),
         )
         .expect("Failed making worker");
 
@@ -1539,7 +1465,6 @@ mod tests {
                 system_prompt: "You are a helpful assistant that provides informative and detailed responses. End every response with \"Do you have any further questions?\"".into(),
                 ..Default::default()
             },
-            Arc::new(AtomicBool::new(false)),
         )?;
 
         // Add many exchanges with longer messages to fill up the context
@@ -1657,7 +1582,6 @@ mod tests {
                 tools: vec![test_tool()],
                 ..Default::default()
             },
-            Arc::new(AtomicBool::new(false)),
         )?;
 
         // Add exchanges with tool calls mixed in
@@ -1791,7 +1715,6 @@ mod tests {
                 n_ctx: 512, // Use a small context size to force shifting
                 ..Default::default()
             },
-            Arc::new(AtomicBool::new(false)),
         )?;
 
         // Fill up the context until it's almost full
@@ -1884,7 +1807,6 @@ mod tests {
                 system_prompt: "You are a helpful assistant.".into(),
                 ..Default::default()
             },
-            Arc::new(AtomicBool::new(false)),
         )?;
 
         // Fill up the context until it's almost full
@@ -1962,7 +1884,6 @@ mod tests {
         let mut worker = Worker::new_chat_worker(
             &model,
             ChatConfig::default(),
-            Arc::new(AtomicBool::new(false)),
         )?;
 
         let (sender, receiver) = std::sync::mpsc::channel();
@@ -2001,7 +1922,6 @@ mod tests {
                 n_ctx: 1024,
                 ..Default::default()
             },
-            Arc::new(AtomicBool::new(false)),
         )?;
 
         let (sender, receiver) = std::sync::mpsc::channel();
@@ -2066,8 +1986,7 @@ mod tests {
                     n_ctx,
                     ..Default::default()
                 },
-                Arc::new(AtomicBool::new(false)),
-            )
+                )
             .unwrap();
 
             let f = move |x| {
@@ -2095,8 +2014,7 @@ mod tests {
                     n_ctx,
                     ..Default::default()
                 },
-                Arc::new(AtomicBool::new(false)),
-            )
+                )
             .unwrap();
 
             let f = move |x| {
