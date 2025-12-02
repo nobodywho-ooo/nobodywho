@@ -213,7 +213,7 @@ impl ChatWrapper {
         }
     }
 
-    pub fn say(
+    pub fn ask(
         &mut self,
         text: AsciiPointer,
         use_grammar: bool,
@@ -237,7 +237,7 @@ impl ChatWrapper {
 
             handle.set_sampler_config(sampler);
 
-            let response_rx = handle.say(text.as_str().map_err(|_| ChatError::BadSayText)?.into());
+            let response_rx = handle.ask_channel(text.as_str().map_err(|_| ChatError::BadSayText)?);
 
             debug_assert!(self.response_rx.is_none());
             self.response_rx = Some(response_rx);

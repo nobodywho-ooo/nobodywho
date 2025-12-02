@@ -36,12 +36,12 @@ impl NobodyWhoChat {
         Self { chat }
     }
 
-    pub async fn say(
+    pub async fn ask(
         &self,
         sink: crate::frb_generated::StreamSink<String>,
         message: String,
     ) -> Result<(), Rust2DartSendError> {
-        let mut stream = self.chat.say_stream(message);
+        let mut stream = self.chat.ask(message);
         while let Some(token) = stream.next_token().await {
             sink.add(token)?;
         }
@@ -200,7 +200,7 @@ pub fn init_debug_log() {
 }
 
 // TODO:
-// - blocking say
+// - blocking ask
 // - embeddings
 // - cross encoder
 // - sampler

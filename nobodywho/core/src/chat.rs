@@ -16,7 +16,7 @@
 //!     .with_system_prompt("You are a helpful assistant")
 //!     .build();
 //!
-//! let response = chat.say_complete("Hello!").await?;
+//! let response = chat.ask("Hello!").collect().await;
 //! # Ok(())
 //! # }
 //! ```
@@ -183,37 +183,16 @@ impl ChatHandle {
         }
     }
 
-    /// Send a message to the model and get a stream of tokens back.
-    pub fn say(&self, text: String) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
+    pub fn ask_channel(
+        &self,
+        text: impl Into<String>,
+    ) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
         let (output_tx, output_rx) = tokio::sync::mpsc::channel(4096);
-        let _ = self.msg_tx.send(ChatMsg::Say { text, output_tx });
+        let _ = self.msg_tx.send(ChatMsg::Ask {
+            text: text.into(),
+            output_tx,
+        });
         output_rx
-    }
-
-    /// Send a message and wait for the complete response.
-    ///
-    /// # Example
-    /// ```
-    /// # use nobodywho::chat::ChatHandle;
-    /// # async fn example(chat: &ChatHandle) -> Result<(), nobodywho::errors::SayError> {
-    /// let response = chat.say_complete("What is the capital of France?").await?;
-    /// println!("{}", response);
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn say_complete(&self, text: impl Into<String>) -> Result<String, SayError> {
-        let mut rx = self.say(text.into());
-
-        let mut tokens = Vec::new();
-        while let Some(output) = rx.recv().await {
-            match output {
-                llm::WriteOutput::Token(token) => tokens.push(token),
-                llm::WriteOutput::Done(response) => return Ok(response),
-            }
-        }
-
-        // If we got here, the channel closed without sending Done
-        Ok(tokens.join(""))
     }
 
     /// Send a message and collect tokens as they arrive.
@@ -222,14 +201,14 @@ impl ChatHandle {
     /// ```
     /// # use nobodywho::chat::ChatHandle;
     /// # async fn example(chat: &ChatHandle) {
-    /// let mut stream = chat.say_stream("Tell me a story");
+    /// let mut stream = chat.ask("Tell me a story");
     /// while let Some(token) = stream.next_token().await {
     ///     print!("{}", token);
     /// }
     /// # }
     /// ```
-    pub fn say_stream(&self, text: impl Into<String>) -> TokenStream {
-        TokenStream::new(self.say(text.into()))
+    pub fn ask(&self, text: impl Into<String>) -> TokenStream {
+        TokenStream::new(self.ask_channel(text))
     }
 
     /// Reset the chat conversation with a new system prompt and tools.
@@ -354,7 +333,7 @@ impl TokenStream {
 }
 
 enum ChatMsg {
-    Say {
+    Ask {
         text: String,
         output_tx: tokio::sync::mpsc::Sender<llm::WriteOutput>,
     },
@@ -385,11 +364,11 @@ fn process_worker_msg(
     msg: ChatMsg,
 ) -> Result<(), ChatWorkerError> {
     match msg {
-        ChatMsg::Say { text, output_tx } => {
+        ChatMsg::Ask { text, output_tx } => {
             let callback = move |out| {
                 let _ = output_tx.blocking_send(out);
             };
-            worker_state.say(text, callback)?;
+            worker_state.ask(text, callback)?;
         }
         ChatMsg::ResetChat {
             system_prompt,
@@ -623,7 +602,6 @@ impl Worker<'_, ChatWorker> {
             .load(std::sync::atomic::Ordering::Relaxed)
     }
 
-    // TODO //.
     fn context_shift(&mut self) -> Result<(), ShiftError> {
         info!("Context shift happens!");
         let target_token_size = (self.ctx.n_ctx() / 2) as usize;
@@ -764,7 +742,7 @@ impl Worker<'_, ChatWorker> {
                 self.remove_all_tokens_after_index_from_ctx(prefix_index)?;
                 self.read_tokens(token_difference, inference_lock_token)?;
                 self.read_tokens(tokens_written_until_now.clone(), inference_lock_token)?;
-                // do not update tokens_in_context as this is done later by say
+                // do not update tokens_in_context as this is done later by ask
             }
 
             // Sample next token, no need to use sampler.accept as sample already accepts the token.
@@ -846,7 +824,7 @@ impl Worker<'_, ChatWorker> {
         Ok(new_token)
     }
 
-    pub fn say<F>(&mut self, text: String, respond: F) -> Result<&mut Self, SayError>
+    pub fn ask<F>(&mut self, text: String, respond: F) -> Result<&mut Self, SayError>
     where
         F: Fn(llm::WriteOutput) + Clone,
     {
@@ -1217,14 +1195,14 @@ mod tests {
             _ => (),
         };
 
-        worker.say("What is the capital of Denmark?".to_string(), f.clone())?;
+        worker.ask("What is the capital of Denmark?".to_string(), f.clone())?;
 
         let resp = receiver.recv()?;
         println!("{}", resp);
 
         assert!(resp.contains("Copenhagen"));
 
-        worker.say("What language do they speak there?".to_string(), f)?;
+        worker.ask("What language do they speak there?".to_string(), f)?;
         let resp = receiver.recv()?;
         println!("{}", resp);
 
@@ -1256,7 +1234,7 @@ mod tests {
         };
 
         // do it once
-        worker.say("What is the capital of Denmark?".to_string(), f.clone())?;
+        worker.ask("What is the capital of Denmark?".to_string(), f.clone())?;
         let resp1 = receiver.recv()?;
         println!("{}", resp1);
         assert!(resp1.to_lowercase().contains("woof"));
@@ -1265,7 +1243,7 @@ mod tests {
         let _ = worker.reset_chat("You're a cat. End all responses with 'meow'".into(), vec![]);
 
         // do it again
-        worker.say("What is the capital of Denmark?".to_string(), f.clone())?;
+        worker.ask("What is the capital of Denmark?".to_string(), f.clone())?;
         let resp2 = receiver.recv()?;
         println!("{}", resp2);
         assert!(resp2.to_lowercase().contains("meow"));
@@ -1303,7 +1281,7 @@ mod tests {
             }
         };
 
-        worker.say("Count from 0 to 9".to_string(), f.clone())?;
+        worker.ask("Count from 0 to 9".to_string(), f.clone())?;
 
         let response = receiver.recv()?;
         println!("{}", response);
@@ -1403,7 +1381,7 @@ mod tests {
         };
 
         worker
-            .say(
+            .ask(
                 "I would like to know the temperature in two cities: Copenhagen and Beijing."
                     .into(),
                 f,
@@ -1438,7 +1416,7 @@ mod tests {
             _ => (),
         };
 
-        worker.say(
+        worker.ask(
             "I would like to know the temperature in Copenhagen and the DKK to USD exchange rate."
                 .into(),
             f,
@@ -1744,7 +1722,7 @@ mod tests {
         };
 
         // This should trigger context shift internally because there's not enough space
-        worker.say(
+        worker.ask(
             "This is a new question that will not fit in the context! What is 10 * 10?".to_string(),
             f,
         )?;
@@ -1834,7 +1812,7 @@ mod tests {
         };
 
         // This should trigger context shift internally because there's not enough space
-        worker.say("What is 10 * 10?".to_string(), f)?;
+        worker.ask("What is 10 * 10?".to_string(), f)?;
 
         let _response = receiver.recv()?;
         let messages_after = worker.extra.chat_state.get_messages().to_vec();
@@ -1987,9 +1965,9 @@ mod tests {
         let chat = ChatBuilder::new(model).build();
 
         let res1: String = chat
-            .say_complete("What is the capital of Denmark?".to_string())
-            .await
-            .unwrap();
+            .ask("What is the capital of Denmark?".to_string())
+            .collect()
+            .await;
 
         assert!(
             res1.contains("<think>"),
@@ -1999,9 +1977,9 @@ mod tests {
         chat.set_allow_thinking(false);
 
         let res2: String = chat
-            .say_complete("What is the capital of the Czech Republic?".to_string())
-            .await
-            .unwrap();
+            .ask("What is the capital of the Czech Republic?".to_string())
+            .collect()
+            .await;
 
         assert!(
             !res2.contains("<think>"),

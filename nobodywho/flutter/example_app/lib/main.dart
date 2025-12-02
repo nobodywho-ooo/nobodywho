@@ -105,7 +105,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     try {
       // Get the response stream from NobodyWho
-      final responseStream = _chat!.say(message: text);
+      final responseStream = _chat!.ask(message: text);
 
       // Stream the response token by token
       await for (final token in responseStream) {

@@ -58,7 +58,7 @@ ws01 ::= ([ \\t\\n])?
 func test_json_output():
 
 	# purposefully not mentioning the grammar type in the system prompt
-	chat.say("""Generate a json object containing exactly these properties:
+	chat.ask("""Generate a json object containing exactly these properties:
 	- name (a short string)
 	- class (either fighter, ranger, or wizard)
 	- level (an integer between 1 and 3)

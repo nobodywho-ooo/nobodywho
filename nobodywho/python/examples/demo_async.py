@@ -12,7 +12,7 @@ chat = nobodywho.Chat(
 async def main_streaming():
     while True:
         prompt = input("\nPlease enter your prompt: ")
-        token_stream = chat.send_message(prompt)
+        token_stream = chat.ask(prompt)
         while token := await token_stream.next_token():
             print(token, end="", flush=True)
 
@@ -20,7 +20,7 @@ async def main_streaming():
 async def main_complete():
     while True:
         prompt = input("\nPlease enter your prompt: ")
-        print(await chat.send_message(prompt).collect())
+        print(await chat.ask(prompt).collect())
 
 
 asyncio.run(main_complete())
