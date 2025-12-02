@@ -345,7 +345,6 @@ impl ChatWrapper {
         }
     }
 
-
     #[ffi_service_method(on_panic = "return_default")]
     pub fn poll_response(&mut self) -> PollResponseResult {
         use tokio::sync::mpsc::error::TryRecvError;

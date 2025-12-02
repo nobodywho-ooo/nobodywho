@@ -333,7 +333,6 @@ impl NobodyWhoChat {
         }
     }
 
-
     #[func]
     fn reset_context(&mut self) {
         if let Some(chat_handle) = &self.chat_handle {
