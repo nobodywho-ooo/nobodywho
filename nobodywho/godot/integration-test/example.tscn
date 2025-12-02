@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://dkqdgp3feonn7" path="res://chat.gd" id="1_178kq"]
 [ext_resource type="Script" uid="uid://tt6o1gsow6qw" path="res://run_tests.gd" id="1_mssk2"]
-[ext_resource type="Script" uid="uid://c0hh4s85r0jqj" path="res://embedding.gd" id="2_rcagm"]
+[ext_resource type="Script" uid="uid://c0hh4s85r0jqj" path="res://encoder.gd" id="2_rcagm"]
 [ext_resource type="PackedScene" uid="uid://riqfmggkqpfd" path="res://grammar_test.tscn" id="4_vpjjx"]
 [ext_resource type="Script" uid="uid://gqlok46cfxc4" path="res://crossencoder_test.gd" id="5_crossencoder"]
 
@@ -28,7 +28,7 @@ model_path = "res://bge-reranker-v2-m3-Q8_0.gguf"
 allow_thinking = false
 script = ExtResource("1_178kq")
 
-[node name="NobodyWhoEmbedding" type="NobodyWhoEmbedding" parent="."]
+[node name="NobodyWhoEncoder" type="NobodyWhoEncoder" parent="."]
 script = ExtResource("2_rcagm")
 
 [node name="Grammar" parent="." instance=ExtResource("4_vpjjx")]

@@ -714,10 +714,10 @@ fn json_schema_from_callable(
 
 #[derive(GodotClass)]
 #[class(base=Node)]
-/// The Embedding node is used to compare text. This is useful for detecting whether the user said
+/// The Encoder node is used to compare text. This is useful for detecting whether the user said
 /// something specific, without having to match on literal keywords or sentences.
 ///
-/// This is done by embedding the text into a vector space and then comparing the cosine similarity between the vectors.
+/// This is done by encoding the text into a vector space and then comparing the cosine similarity between the vectors.
 ///
 /// A good example of this would be to check if a user signals an action like "I'd like to buy the red potion". The following sentences will have high similarity:
 /// - Give me the potion that is red
@@ -727,57 +727,57 @@ fn json_schema_from_callable(
 /// Meaning you can trigger a "sell red potion" task based on natural language, without requiring a speciific formulation.
 /// It can of course be used for all sorts of tasks.
 ///
-/// It requires a "NobodyWhoModel" node to be set with a GGUF model capable of generating embeddings.
+/// It requires a "NobodyWhoModel" node to be set with a GGUF model capable of generating encodings.
 /// Example:
 ///
 /// ```
-/// extends NobodyWhoEmbedding
+/// extends NobodyWhoEncoder
 ///
 /// func _ready():
 ///     # configure node
-///     self.model_node = get_node(“../EmbeddingModel”)
+///     self.model_node = get_node("../EmbeddingModel")
 ///
-///     # generate some embeddings
-///     embed(“The dragon is on the hill.”)
-///     var dragon_hill_embd = await self.embedding_finished
+///     # generate some encodings
+///     encode("The dragon is on the hill.")
+///     var dragon_hill_enc = await self.encoding_finished
 ///
-///     embed(“The dragon is hungry for humans.”)
-///     var dragon_hungry_embd = await self.embedding_finished
+///     encode("The dragon is hungry for humans.")
+///     var dragon_hungry_enc = await self.encoding_finished
 ///
-///     embed(“This does not matter.”)
-///     var irrelevant_embd = await self.embedding_finished
+///     encode("This does not matter.")
+///     var irrelevant_enc = await self.encoding_finished
 ///
 ///     # test similarity,
-///     # here we show that two embeddings will have high similarity, if they mean similar things
-///     var low_similarity = cosine_similarity(irrelevant_embd, dragon_hill_embd)
-///     var high_similarity = cosine_similarity(dragon_hill_embd, dragon_hungry_embd)
+///     # here we show that two encodings will have high similarity, if they mean similar things
+///     var low_similarity = cosine_similarity(irrelevant_enc, dragon_hill_enc)
+///     var high_similarity = cosine_similarity(dragon_hill_enc, dragon_hungry_enc)
 ///     assert(low_similarity < high_similarity)
 /// ```
 ///
-struct NobodyWhoEmbedding {
+struct NobodyWhoEncoder {
     #[export]
-    /// The model node for the embedding.
+    /// The model node for the encoder.
     model_node: Option<Gd<NobodyWhoModel>>,
-    embed_handle: Option<nobodywho::encoder::EncoderAsync>,
+    encoder_handle: Option<nobodywho::encoder::EncoderAsync>,
     base: Base<Node>,
 }
 
 #[godot_api]
-impl INode for NobodyWhoEmbedding {
+impl INode for NobodyWhoEncoder {
     fn init(base: Base<Node>) -> Self {
         Self {
             model_node: None,
-            embed_handle: None,
+            encoder_handle: None,
             base,
         }
     }
 }
 
 #[godot_api]
-impl NobodyWhoEmbedding {
+impl NobodyWhoEncoder {
     #[signal]
-    /// Triggered when the embedding has finished. Returns the embedding as a PackedFloat32Array.
-    fn embedding_finished(embedding: PackedFloat32Array);
+    /// Triggered when the encoding has finished. Returns the encoding as a PackedFloat32Array.
+    fn encoding_finished(encoding: PackedFloat32Array);
 
     fn get_model(&mut self) -> Result<llm::Model, String> {
         let gd_model_node = self.model_node.as_mut().ok_or("Model node was not set")?;
@@ -788,13 +788,13 @@ impl NobodyWhoEmbedding {
     }
 
     #[func]
-    /// Starts the embedding worker thread. This is called automatically when you call `embed`, if it wasn't already called.
+    /// Starts the encoder worker thread. This is called automatically when you call `encode`, if it wasn't already called.
     fn start_worker(&mut self) {
         let mut result = || -> Result<(), String> {
             let model = self.get_model()?;
 
             // TODO: configurable n_ctx
-            self.embed_handle = Some(nobodywho::encoder::EncoderAsync::new(model, 4096));
+            self.encoder_handle = Some(nobodywho::encoder::EncoderAsync::new(model, 4096));
             Ok(())
         };
         // run it and show error in godot if it fails
@@ -804,35 +804,35 @@ impl NobodyWhoEmbedding {
     }
 
     #[func]
-    /// Generates the embedding of a text string. This will return a signal that you can use to wait for the embedding.
+    /// Generates the encoding of a text string. This will return a signal that you can use to wait for the encoding.
     /// The signal will return a PackedFloat32Array.
-    fn embed(&mut self, text: String) -> Signal {
-        if let Some(embed_handle) = &self.embed_handle {
-            let mut embedding_channel = embed_handle.encode(text);
+    fn encode(&mut self, text: String) -> Signal {
+        if let Some(encoder_handle) = &self.encoder_handle {
+            let mut encoding_channel = encoder_handle.encode(text);
             let emit_node = self.to_gd();
             godot::task::spawn(async move {
-                match embedding_channel.recv().await {
-                    Some(embd) => emit_node
+                match encoding_channel.recv().await {
+                    Some(encoding) => emit_node
                         .signals()
-                        .embedding_finished()
-                        .emit(&PackedFloat32Array::from(embd)),
+                        .encoding_finished()
+                        .emit(&PackedFloat32Array::from(encoding)),
                     None => {
-                        godot_error!("Failed generating embedding.");
+                        godot_error!("Failed generating encoding.");
                     }
                 }
             });
         } else {
             godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
             self.start_worker();
-            return self.embed(text);
+            return self.encode(text);
         };
 
-        // returns signal, so that you can `var vec = await embed("Hello, world!")`
-        return godot::builtin::Signal::from_object_signal(&self.base_mut(), "embedding_finished");
+        // returns signal, so that you can `var vec = await encode("Hello, world!")`
+        return godot::builtin::Signal::from_object_signal(&self.base_mut(), "encoding_finished");
     }
 
     #[func]
-    /// Calculates the similarity between two embedding vectors.
+    /// Calculates the similarity between two encoding vectors.
     /// Returns a value between 0 and 1, where 1 is the highest similarity.
     fn cosine_similarity(a: PackedFloat32Array, b: PackedFloat32Array) -> f32 {
         nobodywho::encoder::cosine_similarity(a.as_slice(), b.as_slice())
