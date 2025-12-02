@@ -67,7 +67,7 @@ namespace NobodyWho
         public static extern ChatError chatwrapper_reset_context(IntPtr context, string system_prompt);
 
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "chatwrapper_say")]
-        public static extern ChatError chatwrapper_say(IntPtr context, string text, bool use_grammar, string grammar, string stop_words);
+        public static extern ChatError chatwrapper_say(IntPtr context, string text, bool use_grammar, string grammar);
 
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "chatwrapper_add_tool")]
         public static extern ChatError chatwrapper_add_tool(IntPtr context, ToolCallback callback, string name, string description, string json_schema);
@@ -341,9 +341,9 @@ namespace NobodyWho
             }
         }
 
-        public void Say(string text, bool use_grammar, string grammar, string stop_words)
+        public void Say(string text, bool use_grammar, string grammar)
         {
-            var rval = NobodyWhoBindings.chatwrapper_say(_context, text, use_grammar, grammar, stop_words);
+            var rval = NobodyWhoBindings.chatwrapper_say(_context, text, use_grammar, grammar);
             if (rval != ChatError.Ok)
             {
                 throw new InteropException<ChatError>(rval);

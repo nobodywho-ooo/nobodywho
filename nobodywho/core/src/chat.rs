@@ -185,13 +185,11 @@ impl ChatHandle {
         &self,
         text: String,
         sampler: SamplerConfig,
-        stop_words: Vec<String>,
     ) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
         let (output_tx, output_rx) = tokio::sync::mpsc::channel(4096);
         let _ = self.msg_tx.send(ChatMsg::Say {
             text,
             sampler,
-            stop_words,
             output_tx,
         });
         output_rx
@@ -209,7 +207,7 @@ impl ChatHandle {
     /// # }
     /// ```
     pub async fn say_complete(&self, text: impl Into<String>) -> Result<String, SayError> {
-        self.say_complete_with_config(text, SamplerConfig::default(), vec![])
+        self.say_complete_with_config(text, SamplerConfig::default())
             .await
     }
 
@@ -218,9 +216,8 @@ impl ChatHandle {
         &self,
         text: impl Into<String>,
         sampler: SamplerConfig,
-        stop_words: Vec<String>,
     ) -> Result<String, SayError> {
-        let mut rx = self.say(text.into(), sampler, stop_words);
+        let mut rx = self.say(text.into(), sampler);
 
         let mut tokens = Vec::new();
         while let Some(output) = rx.recv().await {
@@ -247,7 +244,7 @@ impl ChatHandle {
     /// # }
     /// ```
     pub fn say_stream(&self, text: impl Into<String>) -> TokenStream {
-        TokenStream::new(self.say(text.into(), SamplerConfig::default(), vec![]))
+        TokenStream::new(self.say(text.into(), SamplerConfig::default()))
     }
 
     /// Send a message with custom configuration and collect tokens as they arrive.
@@ -255,9 +252,8 @@ impl ChatHandle {
         &self,
         text: impl Into<String>,
         sampler: SamplerConfig,
-        stop_words: Vec<String>,
     ) -> TokenStream {
-        TokenStream::new(self.say(text.into(), sampler, stop_words))
+        TokenStream::new(self.say(text.into(), sampler))
     }
 
     /// Reset the chat conversation with a new system prompt and tools.
@@ -378,7 +374,6 @@ enum ChatMsg {
     Say {
         text: String,
         sampler: SamplerConfig,
-        stop_words: Vec<String>,
         output_tx: tokio::sync::mpsc::Sender<llm::WriteOutput>,
     },
     ResetChat {
@@ -408,13 +403,12 @@ fn process_worker_msg(
         ChatMsg::Say {
             text,
             sampler,
-            stop_words,
             output_tx,
         } => {
             let callback = move |out| {
                 let _ = output_tx.blocking_send(out);
             };
-            worker_state.say(text, sampler, stop_words, callback)?;
+            worker_state.say(text, sampler, callback)?;
         }
         ChatMsg::ResetChat {
             system_prompt,
@@ -751,7 +745,6 @@ impl Worker<'_, ChatWorker> {
     pub fn generate_response_until_done<F>(
         &mut self,
         sampler_config: SamplerConfig,
-        stop_words: Vec<String>,
         mut respond: F,
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<&mut Self, GenerateResponseError>
@@ -835,10 +828,7 @@ impl Worker<'_, ChatWorker> {
             // done using token_str, so now we can clear token_bytes_vec
             token_bytes_vec.clear();
 
-            let has_stop_words = stop_words
-                .iter()
-                .any(|stop_word| full_response.contains(stop_word));
-            if has_eog || has_stop_words {
+            if has_eog {
                 break;
             }
         }
@@ -874,7 +864,6 @@ impl Worker<'_, ChatWorker> {
         &mut self,
         text: String,
         user_sampler: SamplerConfig,
-        stop_words: Vec<String>,
         respond: F,
     ) -> Result<&mut Self, SayError>
     where
@@ -907,7 +896,6 @@ impl Worker<'_, ChatWorker> {
         // get the finished response
         let mut response: String = self.wrapped_update_context_and_generate_response(
             sampler.clone(),
-            stop_words.clone(),
             respond.clone(),
             tool_call_begin.into(),
         )?;
@@ -948,7 +936,6 @@ impl Worker<'_, ChatWorker> {
             // get the finished response
             response = self.wrapped_update_context_and_generate_response(
                 sampler.clone(),
-                stop_words.clone(),
                 respond.clone(),
                 tool_call_begin.into(),
             )?;
@@ -979,7 +966,6 @@ impl Worker<'_, ChatWorker> {
         &mut self,
         tokens: Vec<LlamaToken>,
         sampler: SamplerConfig,
-        stop_words: Vec<String>,
         wrapped_respond: impl FnMut(WriteOutput),
     ) -> Result<&mut Self, InferenceError> {
         let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
@@ -987,18 +973,12 @@ impl Worker<'_, ChatWorker> {
 
         Ok(self
             .read_tokens(tokens, &inference_lock_token)?
-            .generate_response_until_done(
-                sampler,
-                stop_words.clone(),
-                wrapped_respond,
-                &inference_lock_token,
-            )?)
+            .generate_response_until_done(sampler, wrapped_respond, &inference_lock_token)?)
     }
 
     fn wrapped_update_context_and_generate_response<F>(
         &mut self,
         sampler: SamplerConfig,
-        stop_words: Vec<String>,
         respond: F,
         tool_call_begin_token: String,
     ) -> Result<String, WrappedResponseError>
@@ -1024,12 +1004,7 @@ impl Worker<'_, ChatWorker> {
         let (wrapped_respond, resp_receiver) = wrap_respond(respond.clone(), tool_call_begin_token);
 
         // llm go brrr
-        self.read_tokens_and_generate_response(
-            token_difference,
-            sampler,
-            stop_words.clone(),
-            wrapped_respond,
-        )?;
+        self.read_tokens_and_generate_response(token_difference, sampler, wrapped_respond)?;
 
         // update the chat_state to match the tokens in the context.
         self.extra
@@ -1261,7 +1236,6 @@ mod tests {
         worker.say(
             "What is the capital of Denmark?".to_string(),
             sampler.clone(),
-            vec![],
             f.clone(),
         )?;
 
@@ -1273,7 +1247,6 @@ mod tests {
         worker.say(
             "What language do they speak there?".to_string(),
             sampler.clone(),
-            vec![],
             f,
         )?;
         let resp = receiver.recv()?;
@@ -1311,7 +1284,6 @@ mod tests {
         worker.say(
             "What is the capital of Denmark?".to_string(),
             sampler.clone(),
-            vec![],
             f.clone(),
         )?;
         let resp1 = receiver.recv()?;
@@ -1325,7 +1297,6 @@ mod tests {
         worker.say(
             "What is the capital of Denmark?".to_string(),
             sampler.clone(),
-            vec![],
             f.clone(),
         )?;
         let resp2 = receiver.recv()?;
@@ -1367,12 +1338,7 @@ mod tests {
             }
         };
 
-        worker.say(
-            "Count from 0 to 9".to_string(),
-            sampler.clone(),
-            vec![],
-            f.clone(),
-        )?;
+        worker.say("Count from 0 to 9".to_string(), sampler.clone(), f.clone())?;
 
         let response = receiver.recv()?;
         println!("{}", response);
@@ -1476,7 +1442,6 @@ mod tests {
                 "I would like to know the temperature in two cities: Copenhagen and Beijing."
                     .into(),
                 crate::sampler_config::SamplerConfig::default(),
-                vec![],
                 f,
             )
             .expect("fuck");
@@ -1513,7 +1478,6 @@ mod tests {
             "I would like to know the temperature in Copenhagen and the DKK to USD exchange rate."
                 .into(),
             crate::sampler_config::SamplerConfig::default(),
-            vec![],
             f,
         )
         .expect("dammit");
@@ -1821,7 +1785,6 @@ mod tests {
         worker.say(
             "This is a new question that will not fit in the context! What is 10 * 10?".to_string(),
             sampler,
-            vec![],
             f,
         )?;
 
@@ -1911,7 +1874,7 @@ mod tests {
         };
 
         // This should trigger context shift internally because there's not enough space
-        worker.say("What is 10 * 10?".to_string(), sampler, vec![], f)?;
+        worker.say("What is 10 * 10?".to_string(), sampler, f)?;
 
         let _response = receiver.recv()?;
         let messages_after = worker.extra.chat_state.get_messages().to_vec();
@@ -1950,93 +1913,6 @@ mod tests {
 
         // 4. Message structure should still be valid
         assert_valid_message_structure(&messages_after);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_chat_worker_simple_completion() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
-        let model = test_utils::load_test_model();
-        let sampler = SamplerConfig::default();
-        let mut worker = Worker::new_chat_worker(
-            &model,
-            ChatConfig::default(),
-            Arc::new(AtomicBool::new(false)),
-        )?;
-
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| match x {
-            llm::WriteOutput::Done(resp) => {
-                sender.send(resp).unwrap();
-            }
-            _ => (),
-        };
-
-        worker.read_tokens_and_generate_response(
-            worker
-                .ctx
-                .model
-                .str_to_token("I'm going to count to 10: 1, 2, 3", AddBos::Never)?,
-            sampler,
-            vec!["10".to_string()],
-            f,
-        )?;
-
-        let response = receiver.recv()?;
-        println!("Response: {}", response);
-        assert!(response.contains("4, 5, 6, 7, 8, 9, 10"));
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_chat_worker_stop_tokens() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
-        let model = test_utils::load_test_model();
-        let sampler = SamplerConfig::default();
-        let mut worker = Worker::new_chat_worker(
-            &model,
-            ChatConfig {
-                n_ctx: 1024,
-                ..Default::default()
-            },
-            Arc::new(AtomicBool::new(false)),
-        )?;
-
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| match x {
-            llm::WriteOutput::Done(resp) => {
-                sender.send(resp).unwrap();
-            }
-            _ => (),
-        };
-
-        worker.read_tokens_and_generate_response(
-            worker
-                .ctx
-                .model
-                .str_to_token("I'm going to count to 10: 1, 2, 3, 4,", AddBos::Never)?,
-            sampler,
-            vec!["7".to_string()],
-            f,
-        )?;
-
-        let response = receiver.recv()?;
-        println!("Response: {}", response);
-
-        assert!(
-            response.to_lowercase().contains("5, 6, "),
-            "Expected output to contain text before stop token. Got: {response}"
-        );
-        assert!(
-            response.to_lowercase().ends_with("7"),
-            "Expected output to stop at stop token, but continued. Got: {response}"
-        );
-        assert!(
-            !response.to_lowercase().contains("8"),
-            "Expected output to stop at stop token, but continued. Got: {response}"
-        );
 
         Ok(())
     }
@@ -2081,7 +1957,6 @@ mod tests {
                 .read_tokens_and_generate_response(
                     worker.ctx.model.str_to_token("<think>\nCopenhagen is the capital of Denmark\n</think>\nThe name of the capital city of Denmark is \"", AddBos::Never).unwrap(),
                     dk_sampler,
-                    vec!["Copenhagen".to_string()],
                     f,
                 )
                 .unwrap();
@@ -2109,7 +1984,6 @@ mod tests {
                 .read_tokens_and_generate_response(
                     worker.ctx.model.str_to_token("<think>\nBerlin is the capital of Germany\n</think>\nThe capital of germany is called ", AddBos::Never).unwrap(),
                     sampler,
-                    vec!["Berlin".to_string()],
                     f,
                 )
                 .unwrap();

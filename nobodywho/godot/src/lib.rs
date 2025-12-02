@@ -222,10 +222,6 @@ struct NobodyWhoChat {
     allow_thinking: bool,
 
     #[export]
-    /// Stop tokens to stop generation at these specified tokens.
-    stop_words: PackedStringArray,
-
-    #[export]
     /// This is the maximum number of tokens that can be stored in the chat history. It will delete information from the chat history if it exceeds this limit.
     /// Higher values use more VRAM, but allow for longer "short term memory" for the LLM.
     context_length: u32,
@@ -252,7 +248,6 @@ impl INode for NobodyWhoChat {
             // config
             model_node: None,
             sampler: Gd::from_init_fn(|_| NobodyWhoSampler::default()),
-            stop_words: PackedStringArray::new(),
             chat_handle: None,
             signal_counter: AtomicU64::new(0),
             base,
@@ -301,13 +296,7 @@ impl NobodyWhoChat {
     fn say(&mut self, message: String) {
         let sampler = self.sampler.bind().sampler_config.clone();
         if let Some(chat_handle) = self.chat_handle.as_mut() {
-            let stop_words = self
-                .stop_words
-                .to_vec()
-                .into_iter()
-                .map(|g| g.to_string())
-                .collect();
-            let mut generation_channel = chat_handle.say(message, sampler, stop_words);
+            let mut generation_channel = chat_handle.say(message, sampler);
 
             let emit_node = self.to_gd();
             godot::task::spawn(async move {
