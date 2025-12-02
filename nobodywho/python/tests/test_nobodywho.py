@@ -216,22 +216,48 @@ async def test_crossencoder_rank_and_sort_async():
         assert doc in documents, "Document should be from original list"
 
 
+@nobodywho.tool(description="Applies the sparklify effect to a given piece of text.")
 def sparklify(text: str) -> str:
     return f"✨{text.upper()}✨"
 
 
 def test_tool_construction():
-    tool = nobodywho.Tool(
-        sparklify, description="Applies the sparklify effect to a given piece of text."
-    )
-    assert tool is not None
+    assert sparklify is not None
+    assert isinstance(sparklify, nobodywho.Tool)
+    assert sparklify("foobar") == "✨FOOBAR✨"
 
 
 def test_tool_calling(model):
-    sparklify_tool = nobodywho.Tool(sparklify, description="foobar")
-
-    chat = nobodywho.Chat(model, tools=[sparklify_tool])
+    chat = nobodywho.Chat(model, tools=[sparklify])
     response: str = chat.send_message(
         "Please sparklify this word: 'julemand'"
     ).collect_blocking()
-    assert "✨JULEMAND✨"
+    assert "✨JULEMAND✨" in response
+
+
+@nobodywho.tool(
+    description="Boop foob",
+    params={
+        "reflarb": "the clump factor for the flopar",
+        "unfloop": "activate the rotational velocidensity collider",
+    },
+)
+def reflarbicator(reflarb: int, unfloop: bool) -> str:
+    return "hahaha"
+
+
+def test_tool_parameter_description(model):
+    # XXX: maybe there is a faster/better way of testing this behavior than running a full-ass LLM
+    chat = nobodywho.Chat(model, tools=[reflarbicator, sparklify], allow_thinking=False)
+    answer = chat.send_message(
+        "Please tell me the description of the 'unfloop' parameter of the reflarbicator tool"
+    ).collect_blocking()
+    assert "velocidensity" in answer
+
+
+def test_tool_bad_parameters():
+    with pytest.raises(TypeError):
+
+        @nobodywho.tool(description="foobar", params={"b": "uh-oh"})
+        def i_fucked_up(a: int) -> str:
+            return "fuck"

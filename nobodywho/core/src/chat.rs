@@ -30,7 +30,7 @@ use crate::errors::{
 use crate::llm::{self};
 use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
 use crate::llm::{Worker, WriteOutput};
-use crate::sampler_config::{make_sampler, SamplerConfig};
+use crate::sampler_config::{SamplerConfig, ShiftStep};
 use llama_cpp_2::model::{AddBos, Special};
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
@@ -768,9 +768,7 @@ impl Worker<'_, ChatWorker> {
 
         // initialize sampler
         // stateful samplers only live for one response
-        let mut sampler = make_sampler(self.ctx.model, sampler_config)
-            .ok_or(GenerateResponseError::InvalidSamplerConfig)?;
-
+        let mut sampler = sampler_config.to_stateful(self.ctx.model)?;
         let mut token_bytes_vec = Vec::new();
 
         while !self.should_stop() {
@@ -875,7 +873,7 @@ impl Worker<'_, ChatWorker> {
     pub fn say<F>(
         &mut self,
         text: String,
-        sampler: SamplerConfig,
+        user_sampler: SamplerConfig,
         stop_words: Vec<String>,
         respond: F,
     ) -> Result<&mut Self, SayError>
@@ -894,13 +892,17 @@ impl Worker<'_, ChatWorker> {
 
         self.extra.chat_state.add_user_message(text);
 
-        let mut sampler = sampler;
-        if let Some(ref tool_grammar) = self.extra.tool_grammar {
-            sampler.use_grammar = true;
-            sampler.grammar_root = "superroot".into();
-            sampler.lazy_grammar_trigger = "<tool_call>".into(); // TODO: multiple tool call tokens
-            sampler.gbnf_grammar = tool_grammar.to_string();
-        }
+        let sampler =
+            self.extra
+                .tool_grammar
+                .as_ref()
+                .map_or(user_sampler.clone(), |tool_grammar| {
+                    user_sampler.shift(ShiftStep::Grammar {
+                        trigger_on: Some(tool_call_begin.into()),
+                        root: "superroot".into(),
+                        grammar: tool_grammar.to_string(),
+                    })
+                });
 
         // get the finished response
         let mut response: String = self.wrapped_update_context_and_generate_response(
@@ -986,7 +988,7 @@ impl Worker<'_, ChatWorker> {
         Ok(self
             .read_tokens(tokens, &inference_lock_token)?
             .generate_response_until_done(
-                sampler.clone(),
+                sampler,
                 stop_words.clone(),
                 wrapped_respond,
                 &inference_lock_token,
@@ -1024,7 +1026,7 @@ impl Worker<'_, ChatWorker> {
         // llm go brrr
         self.read_tokens_and_generate_response(
             token_difference,
-            sampler.clone(),
+            sampler,
             stop_words.clone(),
             wrapped_respond,
         )?;

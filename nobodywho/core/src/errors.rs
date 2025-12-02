@@ -174,8 +174,20 @@ pub enum GenerateResponseError {
     #[error("Context size too small to contain generated response!")]
     ContextSize,
 
-    #[error("Invalid sampler configuration")]
-    InvalidSamplerConfig,
+    #[error("Invalid sampler configuration: {0}")]
+    InvalidSamplerConfig(#[from] SamplerError),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum SamplerError {
+    #[error("Sample step is missing in the sampler! Maybe you did forget to add .sample() call?")]
+    MissingSampleStep,
+
+    #[error("Lazy GBNF grammar was specified, but the trigger token does not cleanly tokenize with the given model. You most likely tried to do tool calling with a model that doesn't natively support tool calling.")]
+    UnsupportedToolCallingTokenization,
+
+    #[error("Could not create grammar! Likely the trigger or grammar itself contains null bytes.")]
+    TriggerOrGrammarContainsNullBytes,
 }
 
 #[derive(Debug, thiserror::Error)]

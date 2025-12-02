@@ -9,3 +9,4 @@ script = ExtResource("1_xxxxx")
 model_path = "res://Qwen_Qwen3-0.6B-Q4_0.gguf"
 
 [node name="Chat" type="NobodyWhoChat" parent="."]
+allow_thinking = false

@@ -390,13 +390,8 @@ weapon-type ::= "Sword" | "Axe" | "Dagger" | "Staff" | "Bow" | "Hammer"
             generate_weapon()
 
     func generate_weapon():
-        var sampler = NobodyWhoSampler.new()
-        sampler.use_grammar = true
-        sampler.gbnf_grammar = grammar_string
-        # Generate random seed for variety
-        sampler.seed = randi()
-        chat.sampler = sampler
-        
+        chat.sampler.set_preset_grammar(grammar_string)
+
         # Reset context to avoid new weapons to be influenced by already generated ones.
         chat.reset_context()
         chat.Say("Generate a weapon:")
@@ -492,13 +487,8 @@ Beware not to add too many symbols in you backstory. If the model can not write 
 
     ```gdscript
     func generate_weapon():
-        var sampler = NobodyWhoSampler.new()
-        sampler.use_grammar = true
-        sampler.gbnf_grammar = grammar_string
-        # Generate random seed for variety
-        sampler.seed = randi()
-        chat.sampler = sampler
-        
+        chat.sampler.set_preset_grammar(grammar_string)
+
         # Reset context to avoid new weapons to be influenced by already generated ones.
         chat.reset_context()
         chat.Say("Generate a weapon:")

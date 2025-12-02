@@ -215,59 +215,108 @@ fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> PyResult<f32> {
 }
 
 #[pyclass]
-#[derive(Clone)]
 pub struct Tool {
     tool: nobodywho::chat::Tool,
+    pyfunc: Py<PyAny>,
+}
+
+impl Clone for Tool {
+    fn clone(&self) -> Self {
+        Python::attach(|py| Self {
+            tool: self.tool.clone(),
+            pyfunc: self.pyfunc.clone_ref(py),
+        })
+    }
 }
 
 #[pymethods]
 impl Tool {
-    #[new]
-    #[pyo3(signature = (fun, description))]
-    pub fn new(fun: Py<PyAny>, description: String, py: Python) -> PyResult<Self> {
-        // get the name of the function
-        let name = fun.getattr(py, "__name__")?.extract::<String>(py)?;
-
-        let description = description;
-
-        // TODO: get types of python function
-        let json_schema = python_func_json_schema(py, &fun)?;
-
-        // wrap the passed function in a json -> String function
-        let function = move |json: serde_json::Value| {
-            Python::attach(|py| {
-                // construct kwargs to call the function with
-                let kwargs = match json_to_kwargs(py, json) {
-                    Ok(kwargs) => kwargs,
-                    Err(e) => return format!("ERROR: Failed to convert arguments: {e}"),
-                };
-
-                // call the python function
-                let py_result = fun.call(py, (), Some(&kwargs));
-
-                // extract a string from the result
-                // return an error string to the LLM if anything fails
-                match py_result.map(|r| r.extract::<String>(py)) {
-                    Ok(Ok(str)) => str,
-                    Err(pyerr) | Ok(Err(pyerr)) => format!("ERROR: {pyerr}"),
-                }
-                .to_string()
-            })
-        };
-
-        let tool = nobodywho::chat::Tool::new(
-            name,
-            description,
-            json_schema,
-            std::sync::Arc::new(function),
-        );
-
-        Ok(Self { tool })
+    #[pyo3(signature = (*args, **kwargs))]
+    fn __call__(
+        &self,
+        args: &Bound<pyo3::types::PyTuple>,
+        kwargs: Option<&Bound<pyo3::types::PyDict>>,
+        py: Python,
+    ) -> PyResult<Py<PyAny>> {
+        self.pyfunc.call(py, args, kwargs)
     }
 }
 
+// tool decorator
+#[pyfunction(signature = (description, params=None))]
+fn tool<'a>(
+    description: String,
+    params: Option<Py<pyo3::types::PyDict>>,
+    py: Python<'a>,
+) -> PyResult<Bound<'a, pyo3::types::PyCFunction>> {
+    // extract hashmap from parameter descriptions, default to empty hashmap
+    let params: std::collections::HashMap<String, String> = match params {
+        Some(pd) => pd.extract(py)?,
+        None => std::collections::HashMap::new(),
+    };
+
+    // the decorator returned when calling @tool(...)
+    // a function that takes the native-python function and returns a callable `Tool` object
+    let function_to_tool = move |args: &Bound<pyo3::types::PyTuple>,
+                                 _kwargs: Option<&Bound<pyo3::types::PyDict>>|
+          -> PyResult<Tool> {
+        Python::attach(|py| {
+            // extract the function from *args
+            let fun: Py<PyAny> = args.get_item(0)?.extract()?;
+
+            // get the name of the function
+            let name = fun.getattr(py, "__name__")?.extract::<String>(py)?;
+
+            // generate json schema from function type annotations
+            let json_schema = python_func_json_schema(py, &fun, &params)?;
+
+            let fun_clone = fun.clone_ref(py);
+
+            // wrap the passed function in a json -> String function
+            let wrapped_function = move |json: serde_json::Value| {
+                Python::attach(|py| {
+                    // construct kwargs to call the function with
+                    let kwargs = match json_to_kwargs(py, json) {
+                        Ok(kwargs) => kwargs,
+                        Err(e) => return format!("ERROR: Failed to convert arguments: {e}"),
+                    };
+
+                    // call the python function
+                    let py_result = fun.call(py, (), Some(&kwargs));
+
+                    // extract a string from the result
+                    // return an error string to the LLM if anything fails
+                    match py_result.map(|r| r.extract::<String>(py)) {
+                        Ok(Ok(str)) => str,
+                        Err(pyerr) | Ok(Err(pyerr)) => format!("ERROR: {pyerr}"),
+                    }
+                    .to_string()
+                })
+            };
+
+            let tool = nobodywho::chat::Tool::new(
+                name,
+                description.clone(),
+                json_schema,
+                std::sync::Arc::new(wrapped_function),
+            );
+
+            Ok(Tool {
+                tool,
+                pyfunc: fun_clone,
+            })
+        })
+    };
+
+    pyo3::types::PyCFunction::new_closure(py, None, None, function_to_tool)
+}
+
 // takes a python function (assumes static types), and returns a json schema for that function
-fn python_func_json_schema(py: Python, fun: &Py<PyAny>) -> PyResult<serde_json::Value> {
+fn python_func_json_schema(
+    py: Python,
+    fun: &Py<PyAny>,
+    param_descriptions: &std::collections::HashMap<String, String>,
+) -> PyResult<serde_json::Value> {
     // import inspect (from stdlib)
     let inspect = PyModule::import(py, "inspect")?;
 
@@ -281,12 +330,32 @@ fn python_func_json_schema(py: Python, fun: &Py<PyAny>) -> PyResult<serde_json::
     let args = argspec.getattr("args")?.extract::<Vec<String>>()?;
 
     // check that all arguments are annotated
-    for arg in args {
-        if !annotations.contains_key(&arg) {
-            return Err(pyo3::exceptions::PyTypeError::new_err(format!(
-                "ERROR: NobodyWho requires all tool function parameters to be typed. Parameter {arg} is missing a type hint. Please add a static type hint to that parameter. For example: `{arg}: int`"
-            )));
-        }
+    if let Some(missing_arg) = args.iter().find(|arg| !annotations.contains_key(*arg)) {
+        return Err(pyo3::exceptions::PyTypeError::new_err(format!(
+            "ERROR: Parameter '{missing_arg}' is missing a type hint. NobodyWho requires all tool function parameters to have static type hints. E.g.: `{missing_arg}: str`"
+        )));
+    }
+
+    // check that return type is `str`
+    // the intent of this is to force people to consider how to convert to string
+    if annotations
+        .get("return")
+        .map(|t| t.name().map(|n| n.to_string()))
+        .transpose()?
+        != Some("str".to_string())
+    {
+        tracing::warn!("Return type of this tool should be `str`. Anything else will be cast to string, which might lead to unexpected results. It's recommended that you add a return type annotation to the tool: `-> str:`");
+    }
+
+    // check that names of parameter descriptions correspond to names of actual function arguments
+    if let Some(invalid_param) = param_descriptions
+        .keys()
+        .find(|param| !args.contains(param))
+    {
+        return Err(pyo3::exceptions::PyTypeError::new_err(format!(
+            "ERROR: Parameter description provided for '{invalid_param}' but function has no such parameter. Available parameters: [{}]",
+            args.join(", ")
+        )));
     }
 
     let mut properties = serde_json::Map::new();
@@ -298,29 +367,24 @@ fn python_func_json_schema(py: Python, fun: &Py<PyAny>) -> PyResult<serde_json::
         }
 
         let type_name = value.name()?.to_string();
-        println!("{key} - {:?}", type_name);
 
         let schema_type = match type_name.as_str() {
-            "str" => serde_json::json!({"type": "string"}),
-            "int" => serde_json::json!({"type": "integer"}),
-            "float" => serde_json::json!({"type": "number"}),
-            "bool" => serde_json::json!({"type": "boolean"}),
-            "list" => serde_json::json!({"type": "array"}),
-            "dict" => serde_json::json!({"type": "object"}),
-            "None" | "NoneType" => serde_json::json!({"type": "null"}),
-            "Any" | "any" => serde_json::json!({}), // Allow any type
-            // TODO: these two are kinda bad.. they will be passed to the function as lists
-            "set" | "frozenset" => serde_json::json!({"type": "array", "uniqueItems": true}),
-            "tuple" => serde_json::json!({"type": "array"}),
-            // TODO: bytes? - "bytes" | "bytearray" => todo!(),
-            // TODO: handle generic types better. at least handle list[int], dict[str,int], etc.
-            // TODO: consider handling more complex built-in things? Union, Option, `|`,
+            "str" => "string",
+            "int" => "integer",
+            "float" => "number",
+            "bool" => "boolean",
+            "list" => "array",
+            "dict" => "object",
+            "None" | "NoneType" => "null",
+            // TODO: we could consider supporting sets like this:
+            // "set" | "frozenset" => serde_json::json!({"type": "array", "uniqueItems": true}),
             // TODO: consider handling pydantic types?
             //       (objects subclassing pydantic's BaseModel can readily generate json schemas)
-            _ if type_name.starts_with("list[") => serde_json::json!({"type": "array"}),
-            _ if type_name.starts_with("dict[") => serde_json::json!({"type": "object"}),
-            _ if type_name == "List" => serde_json::json!({"type": "array"}),
-            _ if type_name == "Dict" => serde_json::json!({"type": "object"}),
+            // TODO: handle generic types better. at least handle list[int], dict[str,int], etc.
+            _ if type_name.starts_with("list[") => "array",
+            _ if type_name.starts_with("dict[") => "object",
+            _ if type_name == "List" => "array",
+            _ if type_name == "Dict" => "object",
             _ => {
                 return Err(pyo3::exceptions::PyTypeError::new_err(format!(
                     "ERROR: Tool function contains an unsupported type hint: {type_name}"
@@ -328,8 +392,21 @@ fn python_func_json_schema(py: Python, fun: &Py<PyAny>) -> PyResult<serde_json::
             }
         };
 
+        let property = if let Some(description) = param_descriptions.get(&key) {
+            // add description if available
+            serde_json::json!({
+                "type": schema_type,
+                "description": description
+            })
+        } else {
+            // ...otherwise only use the type
+            serde_json::json!({
+                "type": schema_type
+            })
+        };
+
         // add to json schema properties
-        properties.insert(key.clone(), schema_type);
+        properties.insert(key.clone(), property);
 
         // add to list of required keys for object
         // TODO: allow optional parameters for params that have a default argument
@@ -416,6 +493,7 @@ fn nobodywhopython(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<CrossEncoder>()?;
     m.add_class::<CrossEncoderAsync>()?;
     m.add_function(wrap_pyfunction!(cosine_similarity, m)?)?;
+    m.add_function(wrap_pyfunction!(tool, m)?)?;
     m.add_class::<Tool>()?;
     Ok(())
 }
