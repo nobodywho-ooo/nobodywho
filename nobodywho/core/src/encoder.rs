@@ -9,7 +9,6 @@ use std::sync::Arc;
 
 pub struct Encoder {
     async_handle: EncoderAsync,
-    runtime: tokio::runtime::Runtime,
 }
 
 pub struct EncoderAsync {
@@ -19,16 +18,12 @@ pub struct EncoderAsync {
 impl Encoder {
     pub fn new(model: Arc<LlamaModel>, n_ctx: u32) -> Self {
         let async_handle = EncoderAsync::new(model, n_ctx);
-        let runtime = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
-        Self {
-            async_handle,
-            runtime,
-        }
+        Self { async_handle }
     }
 
     pub fn encode(&self, text: String) -> Result<Vec<f32>, EncoderWorkerError> {
         let mut receiver = self.async_handle.encode(text);
-        self.runtime.block_on(async {
+        futures::executor::block_on(async {
             receiver
                 .recv()
                 .await
