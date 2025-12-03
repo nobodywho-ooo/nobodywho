@@ -25,7 +25,7 @@ So to get a environment up and runnign follow these steps:
 
 - Open Unityhub, log in, and wait for the license file to be created in your home folder. XDG deeplink handler must be set up for this to work. (So installing unityhub in a temporary shell is likely not sufficient).
 
-- Visit https://unity.com/releases/editor/archive and select "6000.0.47f1" from the "All versions" tab.
+- Visit https://unity.com/releases/editor/archive and select "6000.2.10f1" from the "All versions" tab.
 
 - Wait for unityhub to open, Install the editor, along with linux build tooling and headless linux build tooling. (XDG deeplink handlers needed again. Be aware if you're running your browser in an environment that doesn't have unityhub deeplink handlers)
 
