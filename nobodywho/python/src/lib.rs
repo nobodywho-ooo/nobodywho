@@ -143,20 +143,26 @@ pub struct Chat {
 #[pymethods]
 impl Chat {
     #[new]
-    #[pyo3(signature = (model, n_ctx = 2048, system_prompt = "", allow_thinking = true, tools = vec![]))]
+    #[pyo3(signature = (model, n_ctx = 2048, system_prompt = "", allow_thinking = true, tools = vec![], sampler=None))]
     pub fn new(
         model: &Model,
         n_ctx: u32,
         system_prompt: &str,
         allow_thinking: bool,
         tools: Vec<Tool>,
+        sampler: Option<SamplerConfig>,
     ) -> Self {
-        let chat_handle = nobodywho::chat::ChatBuilder::new(model.model.clone())
+        let mut chat_handle = nobodywho::chat::ChatBuilder::new(model.model.clone())
             .with_context_size(n_ctx)
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
             .with_allow_thinking(allow_thinking)
             .with_system_prompt(system_prompt)
             .build();
+
+        if let Some(sampler) = sampler {
+            chat_handle.set_sampler(sampler.sampler_config);
+        }
+
         Self { chat_handle }
     }
 
@@ -175,6 +181,243 @@ fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> PyResult<f32> {
         ));
     }
     Ok(nobodywho::embed::cosine_similarity(&a, &b))
+}
+
+#[pyclass]
+pub struct SamplerConfig {
+    sampler_config: nobodywho::sampler_config::SamplerConfig,
+}
+
+impl Clone for SamplerConfig {
+    fn clone(&self) -> Self {
+        Self {
+            sampler_config: self.sampler_config.clone(),
+        }
+    }
+}
+
+#[pyclass]
+pub struct SamplerBuilder {
+    sampler_config: nobodywho::sampler_config::SamplerConfig,
+}
+
+impl Clone for SamplerBuilder {
+    fn clone(&self) -> Self {
+        Self {
+            sampler_config: self.sampler_config.clone(),
+        }
+    }
+}
+
+#[pymethods]
+impl SamplerBuilder {
+    #[new]
+    pub fn new() -> Self {
+        Self {
+            sampler_config: nobodywho::sampler_config::SamplerConfig::default(),
+        }
+    }
+
+    pub fn top_k(&self, top_k: i32) -> PyResult<Self> {
+        shift_step(
+            self.clone(),
+            nobodywho::sampler_config::ShiftStep::TopK { top_k },
+        )
+    }
+
+    pub fn top_p(&self, top_p: f32, min_keep: u32) -> PyResult<Self> {
+        shift_step(
+            self.clone(),
+            nobodywho::sampler_config::ShiftStep::TopP { top_p, min_keep },
+        )
+    }
+
+    pub fn min_p(&self, min_p: f32, min_keep: u32) -> PyResult<Self> {
+        shift_step(
+            self.clone(),
+            nobodywho::sampler_config::ShiftStep::MinP { min_p, min_keep },
+        )
+    }
+
+    pub fn xtc(&self, xtc_probability: f32, xtc_threshold: f32, min_keep: u32) -> PyResult<Self> {
+        shift_step(
+            self.clone(),
+            nobodywho::sampler_config::ShiftStep::XTC {
+                xtc_probability,
+                xtc_threshold,
+                min_keep,
+            },
+        )
+    }
+
+    pub fn typical_p(&self, typ_p: f32, min_keep: u32) -> PyResult<Self> {
+        shift_step(
+            self.clone(),
+            nobodywho::sampler_config::ShiftStep::TypicalP { typ_p, min_keep },
+        )
+    }
+
+    pub fn grammar(
+        &self,
+        grammar: String,
+        trigger_on: Option<String>,
+        root: String,
+    ) -> PyResult<Self> {
+        shift_step(
+            self.clone(),
+            nobodywho::sampler_config::ShiftStep::Grammar {
+                grammar,
+                trigger_on,
+                root,
+            },
+        )
+    }
+
+    pub fn dry(
+        &self,
+        multiplier: f32,
+        base: f32,
+        allowed_length: i32,
+        penalty_last_n: i32,
+        seq_breakers: Vec<String>,
+    ) -> PyResult<Self> {
+        shift_step(
+            self.clone(),
+            nobodywho::sampler_config::ShiftStep::DRY {
+                multiplier,
+                base,
+                allowed_length,
+                penalty_last_n,
+                seq_breakers,
+            },
+        )
+    }
+
+    pub fn penalties(
+        &self,
+        penalty_last_n: i32,
+        penalty_repeat: f32,
+        penalty_freq: f32,
+        penalty_present: f32,
+    ) -> PyResult<Self> {
+        shift_step(
+            self.clone(),
+            nobodywho::sampler_config::ShiftStep::Penalties {
+                penalty_last_n,
+                penalty_repeat,
+                penalty_freq,
+                penalty_present,
+            },
+        )
+    }
+
+    pub fn temperature(&self, temperature: f32) -> PyResult<Self> {
+        shift_step(
+            self.clone(),
+            nobodywho::sampler_config::ShiftStep::Temperature { temperature },
+        )
+    }
+
+    pub fn dist(&self) -> PyResult<SamplerConfig> {
+        sample_step(self.clone(), nobodywho::sampler_config::SampleStep::Dist)
+    }
+
+    pub fn greedy(&self) -> PyResult<SamplerConfig> {
+        sample_step(self.clone(), nobodywho::sampler_config::SampleStep::Greedy)
+    }
+
+    pub fn mirostat_v1(&self, tau: f32, eta: f32, m: i32) -> PyResult<SamplerConfig> {
+        sample_step(
+            self.clone(),
+            nobodywho::sampler_config::SampleStep::MirostatV1 { tau, eta, m },
+        )
+    }
+
+    pub fn mirostat_v2(&self, tau: f32, eta: f32) -> PyResult<SamplerConfig> {
+        sample_step(
+            self.clone(),
+            nobodywho::sampler_config::SampleStep::MirostatV2 { tau, eta },
+        )
+    }
+}
+
+fn shift_step(
+    mut builder: SamplerBuilder,
+    step: nobodywho::sampler_config::ShiftStep,
+) -> PyResult<SamplerBuilder> {
+    builder.sampler_config = builder.sampler_config.clone().shift(step);
+    PyResult::Ok(builder)
+}
+
+fn sample_step(
+    builder: SamplerBuilder,
+    step: nobodywho::sampler_config::SampleStep,
+) -> PyResult<SamplerConfig> {
+    Ok(SamplerConfig {
+        sampler_config: builder.sampler_config.clone().sample(step),
+    })
+}
+
+#[pyclass]
+pub struct SamplerPresets {}
+
+#[pymethods]
+impl SamplerPresets {
+    #[staticmethod]
+    pub fn default() -> PyResult<SamplerConfig> {
+        Ok(SamplerConfig {
+            sampler_config: nobodywho::sampler_config::SamplerConfig::default(),
+        })
+    }
+
+    #[staticmethod]
+    pub fn top_k(top_k: i32) -> PyResult<SamplerConfig> {
+        Ok(SamplerConfig {
+            sampler_config: nobodywho::sampler_config::SamplerPresets::top_k(top_k),
+        })
+    }
+
+    #[staticmethod]
+    pub fn top_p(top_p: f32) -> PyResult<SamplerConfig> {
+        Ok(SamplerConfig {
+            sampler_config: nobodywho::sampler_config::SamplerPresets::top_p(top_p),
+        })
+    }
+
+    #[staticmethod]
+    pub fn greedy() -> PyResult<SamplerConfig> {
+        Ok(SamplerConfig {
+            sampler_config: nobodywho::sampler_config::SamplerPresets::greedy(),
+        })
+    }
+
+    #[staticmethod]
+    pub fn temperature(temperature: f32) -> PyResult<SamplerConfig> {
+        Ok(SamplerConfig {
+            sampler_config: nobodywho::sampler_config::SamplerPresets::temperature(temperature),
+        })
+    }
+
+    #[staticmethod]
+    pub fn dry() -> PyResult<SamplerConfig> {
+        Ok(SamplerConfig {
+            sampler_config: nobodywho::sampler_config::SamplerPresets::dry(),
+        })
+    }
+
+    #[staticmethod]
+    pub fn json() -> PyResult<SamplerConfig> {
+        Ok(SamplerConfig {
+            sampler_config: nobodywho::sampler_config::SamplerPresets::json(),
+        })
+    }
+
+    #[staticmethod]
+    pub fn grammar(grammar: String) -> PyResult<SamplerConfig> {
+        Ok(SamplerConfig {
+            sampler_config: nobodywho::sampler_config::SamplerPresets::grammar(grammar),
+        })
+    }
 }
 
 #[pyclass]
@@ -404,16 +647,35 @@ fn json_value_to_py<'py>(py: Python<'py>, value: &serde_json::Value) -> PyResult
     }
 }
 
-#[pymodule]
-#[pyo3(name = "nobodywho")]
-fn nobodywhopython(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<Model>()?;
-    m.add_class::<Chat>()?;
-    m.add_class::<TokenStream>()?;
-    m.add_class::<Embeddings>()?;
-    m.add_class::<CrossEncoder>()?;
-    m.add_function(wrap_pyfunction!(cosine_similarity, m)?)?;
-    m.add_function(wrap_pyfunction!(tool, m)?)?;
-    m.add_class::<Tool>()?;
-    Ok(())
+#[pymodule(name = "nobodywho")]
+pub mod nobodywhopython {
+    #[pymodule_export]
+    use super::cosine_similarity;
+
+    #[pymodule_export]
+    use super::tool;
+
+    #[pymodule_export]
+    use super::Chat;
+
+    #[pymodule_export]
+    use super::CrossEncoder;
+
+    #[pymodule_export]
+    use super::Embeddings;
+
+    #[pymodule_export]
+    use super::Model;
+
+    #[pymodule_export]
+    use super::SamplerBuilder;
+
+    #[pymodule_export]
+    use super::SamplerConfig;
+
+    #[pymodule_export]
+    use super::TokenStream;
+
+    #[pymodule_export]
+    use super::Tool;
 }
