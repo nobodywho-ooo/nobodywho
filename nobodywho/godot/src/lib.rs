@@ -735,7 +735,7 @@ fn json_schema_from_callable(
 ///
 /// func _ready():
 ///     # configure node
-///     self.model_node = get_node("../EmbeddingModel")
+///     self.model_node = get_node("../EncoderModel")
 ///
 ///     # generate some encodings
 ///     encode("The dragon is on the hill.")
