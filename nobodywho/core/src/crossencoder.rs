@@ -6,11 +6,47 @@ use llama_cpp_2::model::{LlamaModel, Special};
 use std::sync::Arc;
 use tracing::{error, warn};
 
-pub struct CrossEncoderHandle {
+pub struct CrossEncoder {
+    async_handle: CrossEncoderAsync,
+}
+
+pub struct CrossEncoderAsync {
     msg_tx: std::sync::mpsc::Sender<CrossEncoderMsg>,
 }
 
-impl CrossEncoderHandle {
+impl CrossEncoder {
+    pub fn new(model: Arc<LlamaModel>, n_ctx: u32) -> Self {
+        let async_handle = CrossEncoderAsync::new(model, n_ctx);
+        Self { async_handle }
+    }
+
+    pub fn rank(
+        &self,
+        query: String,
+        documents: Vec<String>,
+    ) -> Result<Vec<f32>, CrossEncoderWorkerError> {
+        let mut receiver = self.async_handle.rank(query, documents);
+        futures::executor::block_on(async {
+            receiver.recv().await.ok_or_else(|| {
+                CrossEncoderWorkerError::Classification(
+                    "Could not rank the query and documents".to_string(),
+                )
+            })
+        })
+    }
+
+    pub fn rank_and_sort(
+        &self,
+        query: String,
+        documents: Vec<String>,
+    ) -> Result<Vec<(String, f32)>, CrossEncoderWorkerError> {
+        futures::executor::block_on(async {
+            self.async_handle.rank_and_sort(query, documents).await
+        })
+    }
+}
+
+impl CrossEncoderAsync {
     pub fn new(model: Arc<LlamaModel>, n_ctx: u32) -> Self {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
 
@@ -58,7 +94,12 @@ impl CrossEncoderHandle {
             .map(|(doc, score)| (doc.clone(), *score))
             .collect();
 
-        docs_with_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        docs_with_scores.sort_by(|a, b| {
+            b.1.partial_cmp(&a.1).unwrap_or_else(|| {
+                warn!("Got NaN while sorting cross-encoded documents.");
+                std::cmp::Ordering::Equal
+            })
+        });
         Ok(docs_with_scores)
     }
 }
@@ -163,10 +204,10 @@ mod tests {
     use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 
     #[tokio::test]
-    async fn test_crossencoder() -> Result<(), Box<dyn std::error::Error>> {
+    async fn test_crossencoder_async() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_crossencoder_model();
-        let handle: CrossEncoderHandle = CrossEncoderHandle::new(model, 4096);
+        let handle: CrossEncoderAsync = CrossEncoderAsync::new(model, 4096);
 
         let query = "What is the capital of France?".to_string();
         let mut documents = vec![
@@ -186,6 +227,45 @@ mod tests {
         documents.shuffle(&mut rng);
 
         let ranked_docs = handle.rank_and_sort(query, documents.clone()).await?;
+        let best_docs: Vec<String> = ranked_docs
+            .iter()
+            .take(4)
+            .map(|(doc, _)| doc.to_owned())
+            .collect();
+
+        let seen_paris = best_docs.contains(&"Paris is the capital of France.".to_string());
+
+        assert!(
+            seen_paris,
+            "`Paris is the capital of France.` was not between the best four, the best three were: {}",
+            best_docs.join(",")
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_crossencoder_sync() -> Result<(), Box<dyn std::error::Error>> {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_crossencoder_model();
+        let encoder = CrossEncoder::new(model, 4096);
+
+        let query = "What is the capital of France?".to_string();
+        let documents = vec![
+            "The Eiffel Tower is a famous landmark in the capital of France.".to_string(),
+            "France is a country in Europe.".to_string(),
+            "Lyon is a major city in France, but not the capital.".to_string(),
+            "The capital of Germany is France.".to_string(),
+            "The French government is based in Paris.".to_string(),
+            "France's capital city is known for its art and culture, it is called Paris.".to_string(),
+            "The Louvre Museum is located in Paris, France - which is the largest city, and the seat of the government".to_string(),
+            "Paris is the capital of France.".to_string(),
+            "Paris is not the capital of France.".to_string(),
+            "The president of France works in Paris, the main city of his country.".to_string(),
+            "What is the capital of France?".to_string(),
+        ];
+
+        let ranked_docs = encoder.rank_and_sort(query, documents.clone())?;
         let best_docs: Vec<String> = ranked_docs
             .iter()
             .take(4)
