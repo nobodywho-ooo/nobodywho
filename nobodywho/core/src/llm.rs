@@ -91,8 +91,8 @@ pub fn get_model(
 pub(crate) struct Worker<'a, S> {
     pub(crate) n_past: i32,
     pub(crate) ctx: LlamaContext<'a>,
-    pub(crate) big_batch: LlamaBatch,
-    pub(crate) small_batch: LlamaBatch,
+    pub(crate) big_batch: LlamaBatch<'a>,
+    pub(crate) small_batch: LlamaBatch<'a>,
 
     pub(crate) extra: S,
 }

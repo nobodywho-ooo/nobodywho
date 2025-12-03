@@ -200,10 +200,13 @@ impl SamplerConfig {
             }
         };
 
-        match LlamaSampler::grammar_lazy(model, grammar, root, vec![trigger], &[token]) {
-            Some(g) => Ok(g),
-            None => Err(SamplerError::TriggerOrGrammarContainsNullBytes),
-        }
+        Ok(LlamaSampler::grammar_lazy(
+            model,
+            grammar,
+            root,
+            vec![trigger],
+            &[token],
+        )?)
     }
 
     fn build_regular_grammar(
@@ -212,10 +215,7 @@ impl SamplerConfig {
         grammar: &str,
         root: &str,
     ) -> Result<LlamaSampler, SamplerError> {
-        match LlamaSampler::grammar(model, grammar, root) {
-            Some(g) => Ok(g),
-            None => Err(SamplerError::TriggerOrGrammarContainsNullBytes),
-        }
+        Ok(LlamaSampler::grammar(model, grammar, root)?)
     }
 }
 

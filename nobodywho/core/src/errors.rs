@@ -120,7 +120,6 @@ pub(crate) enum ChatWorkerError {
 }
 
 #[derive(Debug, thiserror::Error)]
-
 pub enum WrappedResponseError {
     #[error("Error during context shift: {0}")]
     Shift(#[from] ShiftError),
@@ -139,7 +138,6 @@ pub enum WrappedResponseError {
 }
 
 #[derive(Debug, thiserror::Error)]
-
 pub enum InferenceError {
     #[error("Error reading tokens: {0}")]
     Read(#[from] ReadError),
@@ -183,8 +181,8 @@ pub enum SamplerError {
     #[error("Lazy GBNF grammar was specified, but the trigger token does not cleanly tokenize with the given model. You most likely tried to do tool calling with a model that doesn't natively support tool calling.")]
     UnsupportedToolCallingTokenization,
 
-    #[error("Could not create grammar! Likely the trigger or grammar itself contains null bytes.")]
-    TriggerOrGrammarContainsNullBytes,
+    #[error("Could not initialize lazy grammar: {0}")]
+    LazyGrammarError(#[from] llama_cpp_2::GrammarError),
 }
 
 #[derive(Debug, thiserror::Error)]
