@@ -94,7 +94,12 @@ impl CrossEncoderAsync {
             .map(|(doc, score)| (doc.clone(), *score))
             .collect();
 
-        docs_with_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        docs_with_scores.sort_by(|a, b| {
+            b.1.partial_cmp(&a.1).unwrap_or_else(|| {
+                warn!("Got NaN while sorting cross-encoded documents.");
+                std::cmp::Ordering::Equal
+            })
+        });
         Ok(docs_with_scores)
     }
 }
