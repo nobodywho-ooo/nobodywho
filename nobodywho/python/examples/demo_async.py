@@ -20,7 +20,7 @@ async def main_streaming():
 async def main_complete():
     while True:
         prompt = input("\nPlease enter your prompt: ")
-        print(await chat.send_message(prompt).collect())
+        print(chat.send_message(prompt).collect())
 
 
 asyncio.run(main_complete())

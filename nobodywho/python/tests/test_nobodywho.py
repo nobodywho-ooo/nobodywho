@@ -7,6 +7,9 @@ import pytest
 @pytest.fixture
 def model():
     model_path = os.environ.get("TEST_MODEL")
+    if not model_path:
+        raise ValueError("TEST_MODEL environment variable is not set")
+
     return nobodywho.Model(model_path)
 
 
@@ -73,11 +76,17 @@ def test_sync_iterator(chat):
 @pytest.fixture
 def embeddings_model():
     model_path = os.environ.get("TEST_EMBEDDINGS_MODEL")
+    if not model_path:
+        raise ValueError("TEST_EMBEDDINGS_MODEL environment variable is not set")
+
     return nobodywho.Model(model_path, use_gpu_if_available=False)
 
 
 @pytest.fixture
 def embeddings(embeddings_model):
+    if not embeddings_model:
+        raise ValueError("Embeddings model is not set")
+
     return nobodywho.Embeddings(embeddings_model, n_ctx=1024)
 
 
@@ -130,6 +139,9 @@ def test_cosine_similarity_error():
 @pytest.fixture
 def crossencoder_model():
     model_path = os.environ.get("TEST_CROSSENCODER_MODEL")
+    if not model_path:
+        raise ValueError("TEST_CROSSENCODER_MODEL environment variable is not set")
+
     return nobodywho.Model(model_path, use_gpu_if_available=False)
 
 

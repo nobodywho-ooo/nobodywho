@@ -40,7 +40,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let stub_files = module_stub_files(&module);
 
     // Output directory (can be overridden with STUBS_DIR env var)
-    let output_dir = env::var("STUBS_DIR").unwrap_or_else(|_| "stubs".to_string());
+    let output_dir = env::var("STUBS_DIR").unwrap_or_else(|_| "nobodywho".to_string());
 
     println!("Generating stub files in: {}", output_dir);
     for (file_path, contents) in stub_files.clone().iter() {

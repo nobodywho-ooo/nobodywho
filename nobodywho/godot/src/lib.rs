@@ -225,7 +225,7 @@ impl NobodyWhoChat {
         Ok(model)
     }
 
-    fn get_sampler_config(&mut self) -> sampler_config::SamplerConfig {
+    fn get_sampler_config(&self) -> sampler_config::SamplerConfig {
         let Some(sampler) = self.sampler.as_ref() else {
             return sampler_config::SamplerConfig::default();
         };
@@ -261,6 +261,11 @@ impl NobodyWhoChat {
             });
             self.sampler = Some(sampler);
         }
+
+        let sampler_config = self.get_sampler_config();
+        if let Some(chat_handle) = self.chat_handle.as_mut() {
+            chat_handle.set_sampler(sampler_config);
+        }
     }
 
     #[func]
@@ -292,15 +297,8 @@ impl NobodyWhoChat {
     /// Sends a message to the LLM.
     /// This will start the inference process. meaning you can also listen on the `response_updated` and `response_finished` signals to get the response.
     fn say(&mut self, message: String) {
-        let sampler = self.get_sampler_config();
         if let Some(chat_handle) = self.chat_handle.as_mut() {
-            let stop_words = self
-                .stop_words
-                .to_vec()
-                .into_iter()
-                .map(|g| g.to_string())
-                .collect();
-            let mut generation_channel = chat_handle.say(message, sampler, stop_words);
+            let mut generation_channel = chat_handle.say(message);
 
             let emit_node = self.to_gd();
             godot::task::spawn(async move {

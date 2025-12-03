@@ -25,6 +25,7 @@ pub struct TokenStream {
 
 #[pymethods]
 impl TokenStream {
+    #[pyo3(signature = () -> "str | None")]
     pub fn next_token_blocking(&mut self, py: Python) -> Option<String> {
         // Release the GIL while waiting for the next token
         // This allows the background thread to acquire the GIL if needed for tool calls
@@ -143,7 +144,7 @@ pub struct Chat {
 #[pymethods]
 impl Chat {
     #[new]
-    #[pyo3(signature = (model, n_ctx = 2048, system_prompt = "", allow_thinking = true, tools = vec![], sampler=None))]
+    #[pyo3(signature = (model, n_ctx = 2048, system_prompt = "", allow_thinking = true, tools = Vec::<Tool>::new(), sampler=None))]
     pub fn new(
         model: &Model,
         n_ctx: u32,
