@@ -232,16 +232,9 @@ fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> PyResult<f32> {
 }
 
 #[pyclass]
+#[derive(Clone)]
 pub struct SamplerConfig {
     sampler_config: nobodywho::sampler_config::SamplerConfig,
-}
-
-impl Clone for SamplerConfig {
-    fn clone(&self) -> Self {
-        Self {
-            sampler_config: self.sampler_config.clone(),
-        }
-    }
 }
 
 #[pyclass]
