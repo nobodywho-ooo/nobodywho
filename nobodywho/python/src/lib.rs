@@ -1,5 +1,4 @@
 use pyo3::prelude::*;
-
 #[pyclass]
 pub struct Model {
     model: nobodywho::llm::Model,
@@ -32,15 +31,18 @@ impl TokenStream {
         py.detach(|| self.stream.next_token_sync())
     }
 
-    async fn next_token(&mut self) -> Option<String> {
+    #[pyo3(signature = () -> "typing.Awaitable[str | None]")]
+    pub async fn next_token(&mut self) -> Option<String> {
         // Currently deattaching is not needed here. Noting that this might change later
         self.stream.next_token().await
     }
 
+    #[pyo3(signature = () -> "str")]
     fn collect_blocking(&mut self, py: Python) -> String {
         py.detach(|| futures::executor::block_on(self.collect()))
     }
 
+    #[pyo3(signature = () -> "typing.Awaitable[str]")]
     async fn collect(&mut self) -> String {
         self.stream.collect().await
     }
@@ -70,6 +72,7 @@ impl Encoder {
         Self { encoder }
     }
 
+    #[pyo3(signature = (text: "str") -> "list[float]")]
     pub fn encode(&self, text: String, py: Python) -> PyResult<Vec<f32>> {
         py.detach(|| {
             self.encoder
@@ -93,6 +96,7 @@ impl EncoderAsync {
         Self { encoder_handle }
     }
 
+    #[pyo3(signature = (text: "str") -> "typing.Awaitable[list[float]]")]
     async fn encode(&self, text: String) -> PyResult<Vec<f32>> {
         let mut rx = self.encoder_handle.encode(text);
         rx.recv().await.ok_or_else(|| {
@@ -115,6 +119,7 @@ impl CrossEncoder {
         Self { crossencoder }
     }
 
+    #[pyo3(signature = (query: "str", documents: "list[str]") -> "list[float]")]
     pub fn rank(&self, query: String, documents: Vec<String>, py: Python) -> PyResult<Vec<f32>> {
         py.detach(|| {
             self.crossencoder
@@ -123,6 +128,7 @@ impl CrossEncoder {
         })
     }
 
+    #[pyo3(signature = (query: "str", documents: "list[str]") -> "list[(str, float)]")]
     pub fn rank_and_sort(
         &self,
         query: String,
@@ -154,6 +160,7 @@ impl CrossEncoderAsync {
         }
     }
 
+    #[pyo3(signature = (query: "str", documents: "list[str]") -> "typing.Awaitable[list[float]]")]
     async fn rank(&self, query: String, documents: Vec<String>) -> PyResult<Vec<f32>> {
         let mut rx = self.crossencoder_handle.rank(query, documents);
         rx.recv().await.ok_or_else(|| {
@@ -161,6 +168,7 @@ impl CrossEncoderAsync {
         })
     }
 
+    #[pyo3(signature = (query: "str", documents: "list[str]") -> "typing.Awaitable[list[(str, float)]]")]
     async fn rank_and_sort(
         &self,
         query: String,
@@ -181,7 +189,7 @@ pub struct Chat {
 #[pymethods]
 impl Chat {
     #[new]
-    #[pyo3(signature = (model, n_ctx = 2048, system_prompt = "", allow_thinking = true, tools = Vec::<Tool>::new(), sampler=None))]
+    #[pyo3(signature = (model, n_ctx = 2048, system_prompt = "", allow_thinking = true, tools: "list[Tool]" = Vec::<Tool>::new(), sampler=None))]
     pub fn new(
         model: &Model,
         n_ctx: u32,
@@ -212,6 +220,7 @@ impl Chat {
 }
 
 #[pyfunction]
+#[pyo3(signature = (a: "list[float]", b: "list[float]") -> "float")]
 fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> PyResult<f32> {
     if a.len() != b.len() {
         return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
@@ -311,6 +320,7 @@ impl SamplerBuilder {
         )
     }
 
+    #[pyo3(signature = (multiplier: "float", base: "float", allowed_length: "int", penalty_last_n: "int", seq_breakers: "list[str]") -> "SamplerBuilder")]
     pub fn dry(
         &self,
         multiplier: f32,
@@ -487,7 +497,7 @@ impl Tool {
 }
 
 // tool decorator
-#[pyfunction(signature = (description, params=None))]
+#[pyfunction(signature = (description: "str", params: "dict[str, str] | None" = None))]
 fn tool<'a>(
     description: String,
     params: Option<Py<pyo3::types::PyDict>>,
