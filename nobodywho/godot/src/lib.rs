@@ -200,6 +200,7 @@ impl NobodyWhoChat {
                 tools: self.tools.clone(),
                 n_ctx: self.context_length,
                 allow_thinking: self.allow_thinking,
+                sampler: SamplerConfig::default(),
             },
         ));
         Ok(())

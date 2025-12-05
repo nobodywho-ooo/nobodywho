@@ -190,25 +190,22 @@ pub struct Chat {
 #[pymethods]
 impl Chat {
     #[new]
-    #[pyo3(signature = (model, n_ctx = 2048, system_prompt = "", allow_thinking = true, tools: "list[Tool]" = Vec::<Tool>::new(), sampler=None) -> "Chat")]
+    #[pyo3(signature = (model, n_ctx = 2048, system_prompt = "", allow_thinking = true, tools: "list[Tool]" = Vec::<Tool>::new(), sampler=SamplerConfig::default()) -> "Chat")]
     pub fn new(
         model: &Model,
         n_ctx: u32,
         system_prompt: &str,
         allow_thinking: bool,
         tools: Vec<Tool>,
-        sampler: Option<SamplerConfig>,
+        sampler: SamplerConfig,
     ) -> Self {
-        let mut chat_handle = nobodywho::chat::ChatBuilder::new(model.model.clone())
+        let chat_handle = nobodywho::chat::ChatBuilder::new(model.model.clone())
             .with_context_size(n_ctx)
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
             .with_allow_thinking(allow_thinking)
             .with_system_prompt(system_prompt)
+            .with_sampler(sampler.sampler_config)
             .build();
-
-        if let Some(sampler) = sampler {
-            chat_handle.set_sampler(sampler.sampler_config);
-        }
 
         Self { chat_handle }
     }
@@ -232,7 +229,7 @@ fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> PyResult<f32> {
 }
 
 #[pyclass]
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct SamplerConfig {
     sampler_config: nobodywho::sampler_config::SamplerConfig,
 }

@@ -193,6 +193,7 @@ impl ChatWrapper {
                 system_prompt,
                 tools: self.tools.clone(),
                 allow_thinking: true,
+                sampler: SamplerConfig::default(),
             },
         );
         self.handle = Some(handle);
