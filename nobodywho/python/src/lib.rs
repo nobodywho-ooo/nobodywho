@@ -267,28 +267,28 @@ impl SamplerBuilder {
         }
     }
 
-    pub fn top_k(&self, top_k: i32) -> PyResult<Self> {
+    pub fn top_k(&self, top_k: i32) -> Self {
         shift_step(
             self.clone(),
             nobodywho::sampler_config::ShiftStep::TopK { top_k },
         )
     }
 
-    pub fn top_p(&self, top_p: f32, min_keep: u32) -> PyResult<Self> {
+    pub fn top_p(&self, top_p: f32, min_keep: u32) -> Self {
         shift_step(
             self.clone(),
             nobodywho::sampler_config::ShiftStep::TopP { top_p, min_keep },
         )
     }
 
-    pub fn min_p(&self, min_p: f32, min_keep: u32) -> PyResult<Self> {
+    pub fn min_p(&self, min_p: f32, min_keep: u32) -> Self {
         shift_step(
             self.clone(),
             nobodywho::sampler_config::ShiftStep::MinP { min_p, min_keep },
         )
     }
 
-    pub fn xtc(&self, xtc_probability: f32, xtc_threshold: f32, min_keep: u32) -> PyResult<Self> {
+    pub fn xtc(&self, xtc_probability: f32, xtc_threshold: f32, min_keep: u32) -> Self {
         shift_step(
             self.clone(),
             nobodywho::sampler_config::ShiftStep::XTC {
@@ -299,19 +299,14 @@ impl SamplerBuilder {
         )
     }
 
-    pub fn typical_p(&self, typ_p: f32, min_keep: u32) -> PyResult<Self> {
+    pub fn typical_p(&self, typ_p: f32, min_keep: u32) -> Self {
         shift_step(
             self.clone(),
             nobodywho::sampler_config::ShiftStep::TypicalP { typ_p, min_keep },
         )
     }
 
-    pub fn grammar(
-        &self,
-        grammar: String,
-        trigger_on: Option<String>,
-        root: String,
-    ) -> PyResult<Self> {
+    pub fn grammar(&self, grammar: String, trigger_on: Option<String>, root: String) -> Self {
         shift_step(
             self.clone(),
             nobodywho::sampler_config::ShiftStep::Grammar {
@@ -330,7 +325,7 @@ impl SamplerBuilder {
         allowed_length: i32,
         penalty_last_n: i32,
         seq_breakers: Vec<String>,
-    ) -> PyResult<Self> {
+    ) -> Self {
         shift_step(
             self.clone(),
             nobodywho::sampler_config::ShiftStep::DRY {
@@ -349,7 +344,7 @@ impl SamplerBuilder {
         penalty_repeat: f32,
         penalty_freq: f32,
         penalty_present: f32,
-    ) -> PyResult<Self> {
+    ) -> Self {
         shift_step(
             self.clone(),
             nobodywho::sampler_config::ShiftStep::Penalties {
@@ -361,29 +356,29 @@ impl SamplerBuilder {
         )
     }
 
-    pub fn temperature(&self, temperature: f32) -> PyResult<Self> {
+    pub fn temperature(&self, temperature: f32) -> Self {
         shift_step(
             self.clone(),
             nobodywho::sampler_config::ShiftStep::Temperature { temperature },
         )
     }
 
-    pub fn dist(&self) -> PyResult<SamplerConfig> {
+    pub fn dist(&self) -> SamplerConfig {
         sample_step(self.clone(), nobodywho::sampler_config::SampleStep::Dist)
     }
 
-    pub fn greedy(&self) -> PyResult<SamplerConfig> {
+    pub fn greedy(&self) -> SamplerConfig {
         sample_step(self.clone(), nobodywho::sampler_config::SampleStep::Greedy)
     }
 
-    pub fn mirostat_v1(&self, tau: f32, eta: f32, m: i32) -> PyResult<SamplerConfig> {
+    pub fn mirostat_v1(&self, tau: f32, eta: f32, m: i32) -> SamplerConfig {
         sample_step(
             self.clone(),
             nobodywho::sampler_config::SampleStep::MirostatV1 { tau, eta, m },
         )
     }
 
-    pub fn mirostat_v2(&self, tau: f32, eta: f32) -> PyResult<SamplerConfig> {
+    pub fn mirostat_v2(&self, tau: f32, eta: f32) -> SamplerConfig {
         sample_step(
             self.clone(),
             nobodywho::sampler_config::SampleStep::MirostatV2 { tau, eta },
@@ -394,18 +389,18 @@ impl SamplerBuilder {
 fn shift_step(
     mut builder: SamplerBuilder,
     step: nobodywho::sampler_config::ShiftStep,
-) -> PyResult<SamplerBuilder> {
+) -> SamplerBuilder {
     builder.sampler_config = builder.sampler_config.clone().shift(step);
-    PyResult::Ok(builder)
+    builder
 }
 
 fn sample_step(
     builder: SamplerBuilder,
     step: nobodywho::sampler_config::SampleStep,
-) -> PyResult<SamplerConfig> {
-    Ok(SamplerConfig {
+) -> SamplerConfig {
+    SamplerConfig {
         sampler_config: builder.sampler_config.clone().sample(step),
-    })
+    }
 }
 
 #[pyclass]
@@ -414,59 +409,59 @@ pub struct SamplerPresets {}
 #[pymethods]
 impl SamplerPresets {
     #[staticmethod]
-    pub fn default() -> PyResult<SamplerConfig> {
-        Ok(SamplerConfig {
+    pub fn default() -> SamplerConfig {
+        SamplerConfig {
             sampler_config: nobodywho::sampler_config::SamplerConfig::default(),
-        })
+        }
     }
 
     #[staticmethod]
-    pub fn top_k(top_k: i32) -> PyResult<SamplerConfig> {
-        Ok(SamplerConfig {
+    pub fn top_k(top_k: i32) -> SamplerConfig {
+        SamplerConfig {
             sampler_config: nobodywho::sampler_config::SamplerPresets::top_k(top_k),
-        })
+        }
     }
 
     #[staticmethod]
-    pub fn top_p(top_p: f32) -> PyResult<SamplerConfig> {
-        Ok(SamplerConfig {
+    pub fn top_p(top_p: f32) -> SamplerConfig {
+        SamplerConfig {
             sampler_config: nobodywho::sampler_config::SamplerPresets::top_p(top_p),
-        })
+        }
     }
 
     #[staticmethod]
-    pub fn greedy() -> PyResult<SamplerConfig> {
-        Ok(SamplerConfig {
+    pub fn greedy() -> SamplerConfig {
+        SamplerConfig {
             sampler_config: nobodywho::sampler_config::SamplerPresets::greedy(),
-        })
+        }
     }
 
     #[staticmethod]
-    pub fn temperature(temperature: f32) -> PyResult<SamplerConfig> {
-        Ok(SamplerConfig {
+    pub fn temperature(temperature: f32) -> SamplerConfig {
+        SamplerConfig {
             sampler_config: nobodywho::sampler_config::SamplerPresets::temperature(temperature),
-        })
+        }
     }
 
     #[staticmethod]
-    pub fn dry() -> PyResult<SamplerConfig> {
-        Ok(SamplerConfig {
+    pub fn dry() -> SamplerConfig {
+        SamplerConfig {
             sampler_config: nobodywho::sampler_config::SamplerPresets::dry(),
-        })
+        }
     }
 
     #[staticmethod]
-    pub fn json() -> PyResult<SamplerConfig> {
-        Ok(SamplerConfig {
+    pub fn json() -> SamplerConfig {
+        SamplerConfig {
             sampler_config: nobodywho::sampler_config::SamplerPresets::json(),
-        })
+        }
     }
 
     #[staticmethod]
-    pub fn grammar(grammar: String) -> PyResult<SamplerConfig> {
-        Ok(SamplerConfig {
+    pub fn grammar(grammar: String) -> SamplerConfig {
+        SamplerConfig {
             sampler_config: nobodywho::sampler_config::SamplerPresets::grammar(grammar),
-        })
+        }
     }
 }
 
