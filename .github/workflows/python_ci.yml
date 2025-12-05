@@ -17,12 +17,15 @@ jobs:
           version: "latest"
 
       - name: Install dependencies
-        run: uv sync
+        working-directory: ./nobodywho/python
+        run: uv venv && uv sync
 
       - name: Regenerate stubs
+        working-directory: ./nobodywho/python
         run: cargo build && cargo run --bin make_stubs
 
       - name: Check for uncommitted changes
+        working-directory: ./nobodywho/python
         run: |
           if ! git diff --quiet; then
             echo "❌ Generated stubs are outdated. Run the generator and commit results."
@@ -31,12 +34,15 @@ jobs:
           fi
 
       - name: Format check
+        working-directory: ./nobodywho/python
         run: uvx ruff format --check .
 
       - name: Lint check
+        working-directory: ./nobodywho/python
         run: uvx ruff check
 
       - name: Type check
+        working-directory: ./nobodywho/python
         run: uvx ty check
 
   linux-build:
