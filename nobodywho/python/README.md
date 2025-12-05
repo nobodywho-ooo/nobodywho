@@ -12,7 +12,7 @@ uv sync
 We utilize [pyo3](https://github.com/PyO3/pyo3/) to generate the Python bindings from Rust code.
 When building the library, use `maturin` to perform the conversion:
 ```
-maturin develop
+maturin develop --uv
 ```
 Also, don't forget to create the Python type stubs (which unfortunately have to be generated separately):
 ```

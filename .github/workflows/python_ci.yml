@@ -18,7 +18,10 @@ jobs:
 
       - name: Install dependencies
         working-directory: ./nobodywho/python
-        run: uv venv && uv sync
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
+          uv venv && uv sync
 
       - name: Regenerate stubs
         working-directory: ./nobodywho/python
