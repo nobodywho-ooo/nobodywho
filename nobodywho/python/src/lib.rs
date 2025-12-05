@@ -238,16 +238,9 @@ pub struct SamplerConfig {
 }
 
 #[pyclass]
+#[derive(Clone)]
 pub struct SamplerBuilder {
     sampler_config: nobodywho::sampler_config::SamplerConfig,
-}
-
-impl Clone for SamplerBuilder {
-    fn clone(&self) -> Self {
-        Self {
-            sampler_config: self.sampler_config.clone(),
-        }
-    }
 }
 
 #[pymethods]
