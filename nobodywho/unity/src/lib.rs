@@ -217,7 +217,6 @@ impl ChatWrapper {
         text: AsciiPointer,
         use_grammar: bool,
         grammar: AsciiPointer,
-        stop_words: AsciiPointer,
     ) -> Result<(), ChatError> {
         if self.response_rx.is_some() {
             error!("There is already a generation in progress. Please wait for it to finish before starting a new one.");
@@ -235,25 +234,11 @@ impl ChatWrapper {
             let sampler = grammar.map_or(SamplerConfig::default(), |g| {
                 SamplerPresets::grammar(g.to_string())
             });
-            // TODO: can we pass stop words in as a slice instead of comma-separated string?
-            let Ok(stop_words_str) = stop_words.as_str() else {
-                error!("Null byte in stop words");
-                return Err(ChatError::Null);
-            };
-            let stop_words = stop_words_str
-                .split(",")
-                .filter(|x| x.len() > 0)
-                .map(|x| x.trim())
-                .map(String::from)
-                .collect();
-            debug!("stop_words: {stop_words:?}");
+
+            handle.set_sampler(sampler);
 
             // lets go!
-            let response_rx = handle.say(
-                text.as_str().map_err(|_| ChatError::BadSayText)?.into(),
-                sampler,
-                stop_words,
-            );
+            let response_rx = handle.say(text.as_str().map_err(|_| ChatError::BadSayText)?.into());
 
             debug_assert!(self.response_rx.is_none());
             self.response_rx = Some(response_rx);

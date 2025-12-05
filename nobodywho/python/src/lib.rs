@@ -1,5 +1,4 @@
 use pyo3::prelude::*;
-
 #[pyclass]
 pub struct Model {
     model: nobodywho::llm::Model,
@@ -8,7 +7,7 @@ pub struct Model {
 #[pymethods]
 impl Model {
     #[new]
-    #[pyo3(signature = (model_path, use_gpu_if_available = true))]
+    #[pyo3(signature = (model_path, use_gpu_if_available = true) -> "Model")]
     pub fn new(model_path: &str, use_gpu_if_available: bool) -> PyResult<Self> {
         let model_result = nobodywho::llm::get_model(model_path, use_gpu_if_available);
         match model_result {
@@ -25,21 +24,25 @@ pub struct TokenStream {
 
 #[pymethods]
 impl TokenStream {
+    #[pyo3(signature = () -> "str | None")]
     pub fn next_token_blocking(&mut self, py: Python) -> Option<String> {
         // Release the GIL while waiting for the next token
         // This allows the background thread to acquire the GIL if needed for tool calls
         py.detach(|| self.stream.next_token_sync())
     }
 
-    async fn next_token(&mut self) -> Option<String> {
+    #[pyo3(signature = () -> "typing.Awaitable[str | None]")]
+    pub async fn next_token(&mut self) -> Option<String> {
         // Currently deattaching is not needed here. Noting that this might change later
         self.stream.next_token().await
     }
 
+    #[pyo3(signature = () -> "str")]
     fn collect_blocking(&mut self, py: Python) -> String {
         py.detach(|| futures::executor::block_on(self.collect()))
     }
 
+    #[pyo3(signature = () -> "typing.Awaitable[str]")]
     async fn collect(&mut self) -> String {
         self.stream.collect().await
     }
@@ -48,6 +51,7 @@ impl TokenStream {
     pub fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
     }
+
     pub fn __next__(mut slf: PyRefMut<'_, Self>, py: Python) -> Option<String> {
         slf.next_token_blocking(py)
     }
@@ -63,12 +67,13 @@ pub struct Encoder {
 #[pymethods]
 impl Encoder {
     #[new]
-    #[pyo3(signature = (model, n_ctx = 2048))]
+    #[pyo3(signature = (model, n_ctx = 2048) -> "Encoder")]
     pub fn new(model: &Model, n_ctx: u32) -> Self {
         let encoder = nobodywho::encoder::Encoder::new(model.model.clone(), n_ctx);
         Self { encoder }
     }
 
+    #[pyo3(signature = (text: "str") -> "list[float]")]
     pub fn encode(&self, text: String, py: Python) -> PyResult<Vec<f32>> {
         py.detach(|| {
             self.encoder
@@ -86,12 +91,13 @@ pub struct EncoderAsync {
 #[pymethods]
 impl EncoderAsync {
     #[new]
-    #[pyo3(signature = (model, n_ctx = 2048))]
+    #[pyo3(signature = (model, n_ctx = 2048) -> "EncoderAsync")]
     pub fn new(model: &Model, n_ctx: u32) -> Self {
         let encoder_handle = nobodywho::encoder::EncoderAsync::new(model.model.clone(), n_ctx);
         Self { encoder_handle }
     }
 
+    #[pyo3(signature = (text: "str") -> "typing.Awaitable[list[float]]")]
     async fn encode(&self, text: String) -> PyResult<Vec<f32>> {
         let mut rx = self.encoder_handle.encode(text);
         rx.recv().await.ok_or_else(|| {
@@ -108,12 +114,13 @@ pub struct CrossEncoder {
 #[pymethods]
 impl CrossEncoder {
     #[new]
-    #[pyo3(signature = (model, n_ctx = 2048))]
+    #[pyo3(signature = (model, n_ctx = 2048) -> "CrossEncoder")]
     pub fn new(model: &Model, n_ctx: u32) -> Self {
         let crossencoder = nobodywho::crossencoder::CrossEncoder::new(model.model.clone(), n_ctx);
         Self { crossencoder }
     }
 
+    #[pyo3(signature = (query: "str", documents: "list[str]") -> "list[float]")]
     pub fn rank(&self, query: String, documents: Vec<String>, py: Python) -> PyResult<Vec<f32>> {
         py.detach(|| {
             self.crossencoder
@@ -122,6 +129,7 @@ impl CrossEncoder {
         })
     }
 
+    #[pyo3(signature = (query: "str", documents: "list[str]") -> "list[tuple[str, float]]")]
     pub fn rank_and_sort(
         &self,
         query: String,
@@ -144,7 +152,7 @@ pub struct CrossEncoderAsync {
 #[pymethods]
 impl CrossEncoderAsync {
     #[new]
-    #[pyo3(signature = (model, n_ctx = 2048))]
+    #[pyo3(signature = (model, n_ctx = 2048) -> "CrossEncoderAsync")]
     pub fn new(model: &Model, n_ctx: u32) -> Self {
         let crossencoder_handle =
             nobodywho::crossencoder::CrossEncoderAsync::new(model.model.clone(), n_ctx);
@@ -153,6 +161,7 @@ impl CrossEncoderAsync {
         }
     }
 
+    #[pyo3(signature = (query: "str", documents: "list[str]") -> "typing.Awaitable[list[float]]")]
     async fn rank(&self, query: String, documents: Vec<String>) -> PyResult<Vec<f32>> {
         let mut rx = self.crossencoder_handle.rank(query, documents);
         rx.recv().await.ok_or_else(|| {
@@ -160,6 +169,7 @@ impl CrossEncoderAsync {
         })
     }
 
+    #[pyo3(signature = (query: "str", documents: "list[str]") -> "typing.Awaitable[list[tuple[str, float]]]")]
     async fn rank_and_sort(
         &self,
         query: String,
@@ -180,20 +190,26 @@ pub struct Chat {
 #[pymethods]
 impl Chat {
     #[new]
-    #[pyo3(signature = (model, n_ctx = 2048, system_prompt = "", allow_thinking = true, tools = vec![]))]
+    #[pyo3(signature = (model, n_ctx = 2048, system_prompt = "", allow_thinking = true, tools: "list[Tool]" = Vec::<Tool>::new(), sampler=None) -> "Chat")]
     pub fn new(
         model: &Model,
         n_ctx: u32,
         system_prompt: &str,
         allow_thinking: bool,
         tools: Vec<Tool>,
+        sampler: Option<SamplerConfig>,
     ) -> Self {
-        let chat_handle = nobodywho::chat::ChatBuilder::new(model.model.clone())
+        let mut chat_handle = nobodywho::chat::ChatBuilder::new(model.model.clone())
             .with_context_size(n_ctx)
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
             .with_allow_thinking(allow_thinking)
             .with_system_prompt(system_prompt)
             .build();
+
+        if let Some(sampler) = sampler {
+            chat_handle.set_sampler(sampler.sampler_config);
+        }
+
         Self { chat_handle }
     }
 
@@ -205,6 +221,7 @@ impl Chat {
 }
 
 #[pyfunction]
+#[pyo3(signature = (a: "list[float]", b: "list[float]") -> "float")]
 fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> PyResult<f32> {
     if a.len() != b.len() {
         return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
@@ -212,6 +229,245 @@ fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> PyResult<f32> {
         ));
     }
     Ok(nobodywho::encoder::cosine_similarity(&a, &b))
+}
+
+#[pyclass]
+pub struct SamplerConfig {
+    sampler_config: nobodywho::sampler_config::SamplerConfig,
+}
+
+impl Clone for SamplerConfig {
+    fn clone(&self) -> Self {
+        Self {
+            sampler_config: self.sampler_config.clone(),
+        }
+    }
+}
+
+#[pyclass]
+pub struct SamplerBuilder {
+    sampler_config: nobodywho::sampler_config::SamplerConfig,
+}
+
+impl Clone for SamplerBuilder {
+    fn clone(&self) -> Self {
+        Self {
+            sampler_config: self.sampler_config.clone(),
+        }
+    }
+}
+
+#[pymethods]
+impl SamplerBuilder {
+    #[new]
+    #[pyo3(signature = () -> "SamplerBuilder")]
+    pub fn new() -> Self {
+        Self {
+            sampler_config: nobodywho::sampler_config::SamplerConfig::default(),
+        }
+    }
+
+    pub fn top_k(&self, top_k: i32) -> PyResult<Self> {
+        shift_step(
+            self.clone(),
+            nobodywho::sampler_config::ShiftStep::TopK { top_k },
+        )
+    }
+
+    pub fn top_p(&self, top_p: f32, min_keep: u32) -> PyResult<Self> {
+        shift_step(
+            self.clone(),
+            nobodywho::sampler_config::ShiftStep::TopP { top_p, min_keep },
+        )
+    }
+
+    pub fn min_p(&self, min_p: f32, min_keep: u32) -> PyResult<Self> {
+        shift_step(
+            self.clone(),
+            nobodywho::sampler_config::ShiftStep::MinP { min_p, min_keep },
+        )
+    }
+
+    pub fn xtc(&self, xtc_probability: f32, xtc_threshold: f32, min_keep: u32) -> PyResult<Self> {
+        shift_step(
+            self.clone(),
+            nobodywho::sampler_config::ShiftStep::XTC {
+                xtc_probability,
+                xtc_threshold,
+                min_keep,
+            },
+        )
+    }
+
+    pub fn typical_p(&self, typ_p: f32, min_keep: u32) -> PyResult<Self> {
+        shift_step(
+            self.clone(),
+            nobodywho::sampler_config::ShiftStep::TypicalP { typ_p, min_keep },
+        )
+    }
+
+    pub fn grammar(
+        &self,
+        grammar: String,
+        trigger_on: Option<String>,
+        root: String,
+    ) -> PyResult<Self> {
+        shift_step(
+            self.clone(),
+            nobodywho::sampler_config::ShiftStep::Grammar {
+                grammar,
+                trigger_on,
+                root,
+            },
+        )
+    }
+
+    #[pyo3(signature = (multiplier: "float", base: "float", allowed_length: "int", penalty_last_n: "int", seq_breakers: "list[str]") -> "SamplerBuilder")]
+    pub fn dry(
+        &self,
+        multiplier: f32,
+        base: f32,
+        allowed_length: i32,
+        penalty_last_n: i32,
+        seq_breakers: Vec<String>,
+    ) -> PyResult<Self> {
+        shift_step(
+            self.clone(),
+            nobodywho::sampler_config::ShiftStep::DRY {
+                multiplier,
+                base,
+                allowed_length,
+                penalty_last_n,
+                seq_breakers,
+            },
+        )
+    }
+
+    pub fn penalties(
+        &self,
+        penalty_last_n: i32,
+        penalty_repeat: f32,
+        penalty_freq: f32,
+        penalty_present: f32,
+    ) -> PyResult<Self> {
+        shift_step(
+            self.clone(),
+            nobodywho::sampler_config::ShiftStep::Penalties {
+                penalty_last_n,
+                penalty_repeat,
+                penalty_freq,
+                penalty_present,
+            },
+        )
+    }
+
+    pub fn temperature(&self, temperature: f32) -> PyResult<Self> {
+        shift_step(
+            self.clone(),
+            nobodywho::sampler_config::ShiftStep::Temperature { temperature },
+        )
+    }
+
+    pub fn dist(&self) -> PyResult<SamplerConfig> {
+        sample_step(self.clone(), nobodywho::sampler_config::SampleStep::Dist)
+    }
+
+    pub fn greedy(&self) -> PyResult<SamplerConfig> {
+        sample_step(self.clone(), nobodywho::sampler_config::SampleStep::Greedy)
+    }
+
+    pub fn mirostat_v1(&self, tau: f32, eta: f32, m: i32) -> PyResult<SamplerConfig> {
+        sample_step(
+            self.clone(),
+            nobodywho::sampler_config::SampleStep::MirostatV1 { tau, eta, m },
+        )
+    }
+
+    pub fn mirostat_v2(&self, tau: f32, eta: f32) -> PyResult<SamplerConfig> {
+        sample_step(
+            self.clone(),
+            nobodywho::sampler_config::SampleStep::MirostatV2 { tau, eta },
+        )
+    }
+}
+
+fn shift_step(
+    mut builder: SamplerBuilder,
+    step: nobodywho::sampler_config::ShiftStep,
+) -> PyResult<SamplerBuilder> {
+    builder.sampler_config = builder.sampler_config.clone().shift(step);
+    PyResult::Ok(builder)
+}
+
+fn sample_step(
+    builder: SamplerBuilder,
+    step: nobodywho::sampler_config::SampleStep,
+) -> PyResult<SamplerConfig> {
+    Ok(SamplerConfig {
+        sampler_config: builder.sampler_config.clone().sample(step),
+    })
+}
+
+#[pyclass]
+pub struct SamplerPresets {}
+
+#[pymethods]
+impl SamplerPresets {
+    #[staticmethod]
+    pub fn default() -> PyResult<SamplerConfig> {
+        Ok(SamplerConfig {
+            sampler_config: nobodywho::sampler_config::SamplerConfig::default(),
+        })
+    }
+
+    #[staticmethod]
+    pub fn top_k(top_k: i32) -> PyResult<SamplerConfig> {
+        Ok(SamplerConfig {
+            sampler_config: nobodywho::sampler_config::SamplerPresets::top_k(top_k),
+        })
+    }
+
+    #[staticmethod]
+    pub fn top_p(top_p: f32) -> PyResult<SamplerConfig> {
+        Ok(SamplerConfig {
+            sampler_config: nobodywho::sampler_config::SamplerPresets::top_p(top_p),
+        })
+    }
+
+    #[staticmethod]
+    pub fn greedy() -> PyResult<SamplerConfig> {
+        Ok(SamplerConfig {
+            sampler_config: nobodywho::sampler_config::SamplerPresets::greedy(),
+        })
+    }
+
+    #[staticmethod]
+    pub fn temperature(temperature: f32) -> PyResult<SamplerConfig> {
+        Ok(SamplerConfig {
+            sampler_config: nobodywho::sampler_config::SamplerPresets::temperature(temperature),
+        })
+    }
+
+    #[staticmethod]
+    pub fn dry() -> PyResult<SamplerConfig> {
+        Ok(SamplerConfig {
+            sampler_config: nobodywho::sampler_config::SamplerPresets::dry(),
+        })
+    }
+
+    #[staticmethod]
+    pub fn json() -> PyResult<SamplerConfig> {
+        Ok(SamplerConfig {
+            sampler_config: nobodywho::sampler_config::SamplerPresets::json(),
+        })
+    }
+
+    #[staticmethod]
+    pub fn grammar(grammar: String) -> PyResult<SamplerConfig> {
+        Ok(SamplerConfig {
+            sampler_config: nobodywho::sampler_config::SamplerPresets::grammar(grammar),
+        })
+    }
 }
 
 #[pyclass]
@@ -231,7 +487,7 @@ impl Clone for Tool {
 
 #[pymethods]
 impl Tool {
-    #[pyo3(signature = (*args, **kwargs))]
+    #[pyo3(signature = (*args, **kwargs) -> "str")]
     fn __call__(
         &self,
         args: &Bound<pyo3::types::PyTuple>,
@@ -243,7 +499,7 @@ impl Tool {
 }
 
 // tool decorator
-#[pyfunction(signature = (description, params=None))]
+#[pyfunction(signature = (description: "str", params: "dict[str, str] | None" = None) -> "typing.Callable[..., Tool]")]
 fn tool<'a>(
     description: String,
     params: Option<Py<pyo3::types::PyDict>>,
@@ -482,18 +738,59 @@ fn json_value_to_py<'py>(py: Python<'py>, value: &serde_json::Value) -> PyResult
     }
 }
 
-#[pymodule]
-#[pyo3(name = "nobodywho")]
-fn nobodywhopython(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<Model>()?;
-    m.add_class::<Chat>()?;
-    m.add_class::<TokenStream>()?;
-    m.add_class::<Encoder>()?;
-    m.add_class::<EncoderAsync>()?;
-    m.add_class::<CrossEncoder>()?;
-    m.add_class::<CrossEncoderAsync>()?;
-    m.add_function(wrap_pyfunction!(cosine_similarity, m)?)?;
-    m.add_function(wrap_pyfunction!(tool, m)?)?;
-    m.add_class::<Tool>()?;
-    Ok(())
+#[pymodule(name = "nobodywho")]
+pub mod nobodywhopython {
+    use pyo3::prelude::*;
+
+    #[pymodule_init]
+    fn init(_m: &Bound<'_, PyModule>) -> PyResult<()> {
+        // init the rust->python logging bridge
+        // this will pick up logs from rust's `log` crate, and send those into python's `logging`
+        // we have the `"log"` feature enabled in the `tracing` crate, it will pick up everything
+        // this works as long as no tracing_subscriber is active. otherwise we'd need `"log-always"`
+        // note that we need the `"log"` feature on both core and this crate
+        pyo3_log::init();
+
+        // collect llamacpp logs in tracing
+        // this will send llamacpp logs into `tracing`
+        nobodywho::send_llamacpp_logs_to_tracing();
+
+        Ok(())
+    }
+
+    #[pymodule_export]
+    use super::cosine_similarity;
+
+    #[pymodule_export]
+    use super::tool;
+
+    #[pymodule_export]
+    use super::Chat;
+
+    #[pymodule_export]
+    use super::CrossEncoder;
+
+    #[pymodule_export]
+    use super::CrossEncoderAsync;
+
+    #[pymodule_export]
+    use super::Encoder;
+
+    #[pymodule_export]
+    use super::EncoderAsync;
+
+    #[pymodule_export]
+    use super::Model;
+
+    #[pymodule_export]
+    use super::SamplerBuilder;
+
+    #[pymodule_export]
+    use super::SamplerConfig;
+
+    #[pymodule_export]
+    use super::TokenStream;
+
+    #[pymodule_export]
+    use super::Tool;
 }

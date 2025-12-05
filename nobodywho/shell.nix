@@ -66,6 +66,7 @@ pkgs.mkShell {
     # python
     pkgs.python3
     pkgs.maturin
+    pkgs.python3Packages.uv
     pkgs.python3Packages.pytest
     pkgs.python3Packages.pytest-asyncio
   ];

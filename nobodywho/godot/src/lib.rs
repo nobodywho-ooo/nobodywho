@@ -27,92 +27,6 @@ unsafe impl ExtensionLibrary for NobodyWhoExtension {
     }
 }
 
-/// Configuration for text generation sampling strategies.
-///
-/// The sampler controls how the LLM selects tokens during generation, affecting
-/// the randomness, coherence, and style of the output. Use the preset methods
-/// to configure different sampling strategies like greedy, top-k, top-p, temperature,
-/// DRY, JSON, or custom grammars.
-#[derive(GodotClass)]
-#[class(init, base=Object)]
-struct NobodyWhoSampler {
-    sampler_config: SamplerConfig,
-}
-
-#[godot_api]
-impl NobodyWhoSampler {
-    /// Sets the sampler to use default sampling parameters.
-    /// This provides a balanced configuration suitable for most use cases.
-    #[func]
-    fn set_preset_default(&mut self) {
-        self.sampler_config = SamplerConfig::default();
-    }
-
-    /// Sets the sampler to use greedy sampling.
-    /// Always selects the most likely token at each step, resulting in deterministic output.
-    /// Use this for predictable, focused responses.
-    #[func]
-    fn set_preset_greedy(&mut self) {
-        self.sampler_config = SamplerPresets::greedy();
-    }
-
-    /// Sets the sampler to use top-k sampling.
-    /// Only considers the k most likely tokens at each step.
-    /// Lower values (e.g., 10-40) make output more focused, higher values more diverse.
-    #[func]
-    fn set_preset_top_k(&mut self, k: i32) {
-        self.sampler_config = SamplerPresets::top_k(k);
-    }
-
-    /// Sets the sampler to use top-p (nucleus) sampling.
-    /// Considers tokens until their cumulative probability reaches p.
-    /// Values like 0.9-0.95 provide a good balance between coherence and creativity.
-    #[func]
-    fn set_preset_top_p(&mut self, p: f32) {
-        self.sampler_config = SamplerPresets::top_p(p);
-    }
-
-    /// Sets the sampler to use temperature-based sampling.
-    /// Higher values (e.g., 0.8-1.2) increase randomness and creativity.
-    /// Lower values (e.g., 0.2-0.5) make output more focused and deterministic.
-    #[func]
-    fn set_preset_temperature(&mut self, temperature: f32) {
-        self.sampler_config = SamplerPresets::temperature(temperature);
-    }
-
-    /// Sets the sampler to use DRY (Don't Repeat Yourself) sampling.
-    /// Helps reduce repetitive text by penalizing recently generated tokens.
-    /// Useful for longer text generation where repetition is undesirable.
-    #[func]
-    fn set_preset_dry(&mut self) {
-        self.sampler_config = SamplerPresets::dry();
-    }
-
-    /// Sets the sampler to enforce JSON output format.
-    /// Constrains the model to generate valid JSON.
-    /// Useful when you need structured data from the LLM.
-    #[func]
-    fn set_preset_json(&mut self) {
-        self.sampler_config = SamplerPresets::json();
-    }
-
-    /// Sets the sampler to use a custom GBNF grammar.
-    /// Constrains the model output to match the provided grammar specification.
-    /// Use GBNF format (similar to EBNF) to define the structure of valid output.
-    #[func]
-    fn set_preset_grammar(&mut self, grammar: String) {
-        self.sampler_config = SamplerPresets::grammar(grammar);
-    }
-}
-
-impl Default for NobodyWhoSampler {
-    fn default() -> Self {
-        Self {
-            sampler_config: SamplerConfig::default(),
-        }
-    }
-}
-
 #[derive(GodotClass)]
 #[class(base=Node)]
 /// The model node is used to load the model, currently only GGUF models are supported.
@@ -209,10 +123,6 @@ struct NobodyWhoChat {
     /// The model node for the chat.
     model_node: Option<Gd<NobodyWhoModel>>,
 
-    /// The sampler configuration for the chat.
-    #[var]
-    sampler: Gd<NobodyWhoSampler>,
-
     #[export]
     #[var(hint = MULTILINE_TEXT)]
     /// The system prompt for the chat, this is the basic instructions for the LLM's behavior.
@@ -251,7 +161,6 @@ impl INode for NobodyWhoChat {
 
             // config
             model_node: None,
-            sampler: Gd::from_init_fn(|_| NobodyWhoSampler::default()),
             stop_words: PackedStringArray::new(),
             chat_handle: None,
             signal_counter: AtomicU64::new(0),
@@ -283,6 +192,7 @@ impl NobodyWhoChat {
 
     fn start_worker_impl(&mut self) -> Result<(), String> {
         let model = self.get_model()?;
+
         self.chat_handle = Some(nobodywho::chat::ChatHandle::new(
             model,
             nobodywho::chat::ChatConfig {
@@ -299,15 +209,8 @@ impl NobodyWhoChat {
     /// Sends a message to the LLM.
     /// This will start the inference process. meaning you can also listen on the `response_updated` and `response_finished` signals to get the response.
     fn say(&mut self, message: String) {
-        let sampler = self.sampler.bind().sampler_config.clone();
         if let Some(chat_handle) = self.chat_handle.as_mut() {
-            let stop_words = self
-                .stop_words
-                .to_vec()
-                .into_iter()
-                .map(|g| g.to_string())
-                .collect();
-            let mut generation_channel = chat_handle.say(message, sampler, stop_words);
+            let mut generation_channel = chat_handle.say(message);
 
             let emit_node = self.to_gd();
             godot::task::spawn(async move {
@@ -628,6 +531,85 @@ impl NobodyWhoChat {
     /// Valid arguments are "TRACE", "DEBUG", "INFO", "WARN", and "ERROR".
     fn set_log_level(level: String) {
         set_log_level(&level);
+    }
+
+    /// Sets the sampler to use default sampling parameters.
+    /// This provides a balanced configuration suitable for most use cases.
+    #[func]
+    fn set_sampler_preset_default(&mut self) {
+        if let Some(chat_handle) = &mut self.chat_handle {
+            chat_handle.set_sampler(SamplerConfig::default());
+        }
+    }
+
+    /// Sets the sampler to use greedy sampling.
+    /// Always selects the most likely token at each step, resulting in deterministic output.
+    /// Use this for predictable, focused responses.
+    #[func]
+    fn set_sampler_preset_greedy(&mut self) {
+        if let Some(chat_handle) = &mut self.chat_handle {
+            chat_handle.set_sampler(SamplerPresets::greedy());
+        }
+    }
+
+    /// Sets the sampler to use top-k sampling.
+    /// Only considers the k most likely tokens at each step.
+    /// Lower values (e.g., 10-40) make output more focused, higher values more diverse.
+    #[func]
+    fn set_sampler_preset_top_k(&mut self, k: i32) {
+        if let Some(chat_handle) = &mut self.chat_handle {
+            chat_handle.set_sampler(SamplerPresets::top_k(k));
+        }
+    }
+
+    /// Sets the sampler to use top-p (nucleus) sampling.
+    /// Considers tokens until their cumulative probability reaches p.
+    /// Values like 0.9-0.95 provide a good balance between coherence and creativity.
+    #[func]
+    fn set_sampler_preset_top_p(&mut self, p: f32) {
+        if let Some(chat_handle) = &mut self.chat_handle {
+            chat_handle.set_sampler(SamplerPresets::top_p(p));
+        }
+    }
+
+    /// Sets the sampler to use temperature-based sampling.
+    /// Higher values (e.g., 0.8-1.2) increase randomness and creativity.
+    /// Lower values (e.g., 0.2-0.5) make output more focused and deterministic.
+    #[func]
+    fn set_sampler_preset_temperature(&mut self, temperature: f32) {
+        if let Some(chat_handle) = &mut self.chat_handle {
+            chat_handle.set_sampler(SamplerPresets::temperature(temperature));
+        }
+    }
+
+    /// Sets the sampler to use DRY (Don't Repeat Yourself) sampling.
+    /// Helps reduce repetitive text by penalizing recently generated tokens.
+    /// Useful for longer text generation where repetition is undesirable.
+    #[func]
+    fn set_sampler_preset_dry(&mut self) {
+        if let Some(chat_handle) = &mut self.chat_handle {
+            chat_handle.set_sampler(SamplerPresets::dry());
+        }
+    }
+
+    /// Sets the sampler to enforce JSON output format.
+    /// Constrains the model to generate valid JSON.
+    /// Useful when you need structured data from the LLM.
+    #[func]
+    fn set_sampler_preset_json(&mut self) {
+        if let Some(chat_handle) = &mut self.chat_handle {
+            chat_handle.set_sampler(SamplerPresets::json());
+        }
+    }
+
+    /// Sets the sampler to use a custom GBNF grammar.
+    /// Constrains the model output to match the provided grammar specification.
+    /// Use GBNF format (similar to EBNF) to define the structure of valid output.
+    #[func]
+    fn set_sampler_preset_grammar(&mut self, grammar: String) {
+        if let Some(chat_handle) = &mut self.chat_handle {
+            chat_handle.set_sampler(SamplerPresets::grammar(grammar));
+        }
     }
 }
 
