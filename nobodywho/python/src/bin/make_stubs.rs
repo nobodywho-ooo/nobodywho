@@ -40,7 +40,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let stub_files = module_stub_files(&module);
 
     // Output directory (can be overridden with STUBS_DIR env var)
-    let output_dir = env::var("STUBS_DIR").unwrap_or_else(|_| "nobodywho".to_string());
+    let output_dir = env::var("STUBS_DIR").unwrap_or_else(|_| ".".to_string());
 
     println!("Generating stub files in: {}", output_dir);
     for (file_path, contents) in stub_files.clone().iter() {
@@ -53,6 +53,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         fs::write(&full_path, contents)?;
         println!("  Generated: {}", full_path.display());
+    }
+
+    // Move __init__.pyi to nobodywho.pyi
+    let init_path = PathBuf::from(&output_dir).join("__init__.pyi");
+    let target_path = PathBuf::from(&output_dir).join("nobodywho.pyi");
+
+    if init_path.exists() {
+        fs::rename(&init_path, &target_path)?;
+        println!(
+            "  Moved: {} -> {}",
+            init_path.display(),
+            target_path.display()
+        );
     }
 
     println!("Done! Generated {} stub file(s)", stub_files.clone().len());
