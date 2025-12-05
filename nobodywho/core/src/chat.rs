@@ -811,6 +811,10 @@ impl Worker<'_, ChatWorker> {
 
             // done using token_str, so now we can clear token_bytes_vec
             token_bytes_vec.clear();
+
+            if has_eog {
+                break;
+            }
         }
 
         // we're done!
