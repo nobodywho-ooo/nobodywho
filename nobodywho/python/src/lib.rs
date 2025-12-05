@@ -740,6 +740,23 @@ fn json_value_to_py<'py>(py: Python<'py>, value: &serde_json::Value) -> PyResult
 
 #[pymodule(name = "nobodywho")]
 pub mod nobodywhopython {
+    use pyo3::prelude::*;
+
+    #[pymodule_init]
+    fn init(_m: &Bound<'_, PyModule>) -> PyResult<()> {
+        // init the rust->python logging bridge
+        // this will pick up logs from rust's `log` crate, and send those into python's `logging`
+        // we have the `"log"` feature enabled in the `tracing` crate, it will pick up everything
+        // this works as long as no tracing_subscriber is active. otherwise we'd need `"log-always"`
+        pyo3_log::init();
+
+        // collect llamacpp logs in tracing
+        // this will send llamacpp logs into `tracing`
+        nobodywho::send_llamacpp_logs_to_tracing();
+
+        Ok(())
+    }
+
     #[pymodule_export]
     use super::cosine_similarity;
 
