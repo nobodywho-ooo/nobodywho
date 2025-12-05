@@ -748,6 +748,7 @@ pub mod nobodywhopython {
         // this will pick up logs from rust's `log` crate, and send those into python's `logging`
         // we have the `"log"` feature enabled in the `tracing` crate, it will pick up everything
         // this works as long as no tracing_subscriber is active. otherwise we'd need `"log-always"`
+        // note that we need the `"log"` feature on both core and this crate
         pyo3_log::init();
 
         // collect llamacpp logs in tracing
