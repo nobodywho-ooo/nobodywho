@@ -265,10 +265,8 @@ When you enable grammar without providing a custom grammar string, the system de
 === ":simple-godotengine: Godot"
     
     ```gdscript
-    # Create and configure the sampler
-    chat.sampler = NobodyWhoSampler.new()
-    chat.sampler.use_grammar = true
-    # The gbnf_grammar property defaults to JSON grammar when not set
+    # configure the sampler to use the json preset
+    chat.sampler.set_preset_json()
 
     # Tell the LLM to provide structured data
     chat.system_prompt = """You are a character creator. 

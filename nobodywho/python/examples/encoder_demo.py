@@ -16,9 +16,9 @@ def main():
     model_path = sys.argv[1]
     print(f"Loading embeddings model: {model_path}")
 
-    # Create model and embeddings instance
+    # Create model and encoder instance
     model = nobodywho.Model(model_path, use_gpu_if_available=True)
-    embeddings = nobodywho.Embeddings(model, n_ctx=2048)
+    encoder = nobodywho.Encoder(model, n_ctx=2048)
 
     # Example texts
     texts = [
@@ -33,7 +33,7 @@ def main():
     text_embeddings = []
     for i, text in enumerate(texts):
         print(f"  {i + 1}. {text}")
-        embedding = embeddings.embed_text_blocking(text)
+        embedding = encoder.encode(text)
         text_embeddings.append((text, embedding))
 
     print(f"\nEmbedding dimension: {len(text_embeddings[0][1])}")

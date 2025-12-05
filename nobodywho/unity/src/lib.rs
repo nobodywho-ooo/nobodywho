@@ -432,42 +432,42 @@ impl Default for JsonPointer {
         }
     }
 }
-/// EMBEDDINGS
+/// ENCODER
 
 #[ffi_type(patterns(ffi_error))]
 #[repr(C)]
 #[derive(Debug)]
-pub enum EmbedError {
+pub enum EncodeError {
     Ok = 0,
     Null = 1,
     Panic = 2,
     GenerationInProgress = 3,
-    BadEmbedText = 4,
+    BadEncodeText = 4,
     LoadModelFailed = 5,
     WorkerNotStarted = 6,
 }
 
-impl FFIError for EmbedError {
+impl FFIError for EncodeError {
     const SUCCESS: Self = Self::Ok;
     const NULL: Self = Self::Null;
     const PANIC: Self = Self::Panic;
 }
 
 #[ffi_type(opaque)]
-pub struct EmbedWrapper {
-    handle: Option<nobodywho::embed::EmbeddingsHandle>,
+pub struct EncoderWrapper {
+    handle: Option<nobodywho::encoder::EncoderAsync>,
     response_rx: Option<tokio::sync::mpsc::Receiver<Vec<f32>>>,
-    last_returned_embedding: Vec<f32>,
+    last_returned_encoding: Vec<f32>,
 }
 
-#[ffi_service(error = "EmbedError", prefix = "embedwrapper_")]
-impl EmbedWrapper {
+#[ffi_service(error = "EncodeError", prefix = "encoderwrapper_")]
+impl EncoderWrapper {
     #[ffi_service_ctor]
-    pub fn new() -> Result<Self, EmbedError> {
-        Ok(EmbedWrapper {
+    pub fn new() -> Result<Self, EncodeError> {
+        Ok(EncoderWrapper {
             handle: None,
             response_rx: None,
-            last_returned_embedding: vec![],
+            last_returned_encoding: vec![],
         })
     }
 
@@ -475,37 +475,37 @@ impl EmbedWrapper {
         &mut self,
         modelwrapper: &mut ModelWrapper,
         n_ctx: u32,
-    ) -> Result<(), EmbedError> {
+    ) -> Result<(), EncodeError> {
         let model = modelwrapper
             .get_model()
-            .map_err(|_| EmbedError::LoadModelFailed)?;
-        let handle = nobodywho::embed::EmbeddingsHandle::new(model, n_ctx);
+            .map_err(|_| EncodeError::LoadModelFailed)?;
+        let handle = nobodywho::encoder::EncoderAsync::new(model, n_ctx);
         self.handle = Some(handle);
         Ok(())
     }
 
-    pub fn embed(&mut self, text: AsciiPointer) -> Result<(), EmbedError> {
+    pub fn encode(&mut self, text: AsciiPointer) -> Result<(), EncodeError> {
         if self.response_rx.is_some() {
             error!("There is already a generation in progress. Please wait for it to finish before starting a new one.");
-            return Err(EmbedError::GenerationInProgress);
+            return Err(EncodeError::GenerationInProgress);
         }
 
         let text = text
             .as_str()
-            .map_err(|_| EmbedError::BadEmbedText)?
+            .map_err(|_| EncodeError::BadEncodeText)?
             .to_string();
         if let Some(ref mut handle) = self.handle {
-            let response_rx = handle.embed_text(text);
+            let response_rx = handle.encode(text);
             debug_assert!(self.response_rx.is_none());
             self.response_rx = Some(response_rx);
             Ok(())
         } else {
-            Err(EmbedError::WorkerNotStarted)
+            Err(EncodeError::WorkerNotStarted)
         }
     }
 
     #[ffi_service_method(on_panic = "undefined_behavior")]
-    pub fn poll_embedding(&mut self) -> FFISlice<'_, f32> {
+    pub fn poll_encoding(&mut self) -> FFISlice<'_, f32> {
         use tokio::sync::mpsc::error::TryRecvError;
         if let Some(ref mut rx) = self.response_rx {
             match rx.try_recv() {
@@ -515,10 +515,10 @@ impl EmbedWrapper {
                     self.response_rx = None;
                     FFISlice::default()
                 }
-                Ok(embd) => {
-                    self.last_returned_embedding = embd;
+                Ok(encoding) => {
+                    self.last_returned_encoding = encoding;
                     self.response_rx = None;
-                    return FFISlice::from_slice(self.last_returned_embedding.as_slice());
+                    return FFISlice::from_slice(self.last_returned_encoding.as_slice());
                 }
             }
         } else {
@@ -530,7 +530,7 @@ impl EmbedWrapper {
 #[ffi_function]
 #[no_mangle]
 pub extern "C" fn cosine_similarity(a: FFISlice<f32>, b: FFISlice<f32>) -> f32 {
-    return nobodywho::embed::cosine_similarity(a.as_slice(), b.as_slice());
+    return nobodywho::encoder::cosine_similarity(a.as_slice(), b.as_slice());
 }
 
 /// BINDINGS
@@ -540,7 +540,7 @@ pub fn my_inventory() -> Inventory {
         .register(function!(init_tracing))
         .register(pattern!(ModelWrapper))
         .register(pattern!(ChatWrapper))
-        .register(pattern!(EmbedWrapper))
+        .register(pattern!(EncoderWrapper))
         .register(function!(cosine_similarity))
         .inventory()
 }

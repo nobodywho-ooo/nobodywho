@@ -1,7 +1,8 @@
 use godot::classes::{INode, ProjectSettings};
 use godot::prelude::*;
 use nobodywho::chat::ChatConfig;
-use nobodywho::{chat_state, errors, llm, sampler_config};
+use nobodywho::sampler_config::{SamplerConfig, SamplerPresets};
+use nobodywho::{chat_state, errors, llm};
 use std::sync::atomic::{AtomicU64, Ordering};
 use tracing::{debug, error, info, trace, warn};
 use tracing_subscriber::filter::{LevelFilter, Targets};
@@ -12,48 +13,6 @@ struct SendCallable(Callable);
 unsafe impl Send for SendCallable {}
 
 struct NobodyWhoExtension;
-
-#[derive(GodotConvert, Var, Export, Debug, Clone, Copy)]
-#[godot(via=GString)]
-enum SamplerMethodName {
-    Default,
-    Greedy,
-    DRY,
-    TopK,
-    TopP,
-    Temperature,
-    JSON,
-    Grammar,
-}
-
-#[derive(GodotClass)]
-#[class(base=Node)]
-struct NobodyWhoSampler {
-    #[export]
-    method: SamplerMethodName,
-    #[export]
-    top_k: i32,
-    #[export]
-    top_p: f32,
-    #[export]
-    temperature: f32,
-    #[export]
-    grammar: GString,
-}
-
-#[godot_api]
-impl INode for NobodyWhoSampler {
-    fn init(_base: Base<Node>) -> Self {
-        // default values to show in godot editor
-        Self {
-            method: SamplerMethodName::Default,
-            top_k: 10,
-            top_p: 0.95,
-            temperature: 0.8,
-            grammar: "".into(),
-        }
-    }
-}
 
 #[gdextension]
 unsafe impl ExtensionLibrary for NobodyWhoExtension {
@@ -165,10 +124,6 @@ struct NobodyWhoChat {
     model_node: Option<Gd<NobodyWhoModel>>,
 
     #[export]
-    /// The sampler configuration for the chat.
-    sampler: Option<Gd<NobodyWhoSampler>>,
-
-    #[export]
     #[var(hint = MULTILINE_TEXT)]
     /// The system prompt for the chat, this is the basic instructions for the LLM's behavior.
     system_prompt: GString,
@@ -206,7 +161,6 @@ impl INode for NobodyWhoChat {
 
             // config
             model_node: None,
-            sampler: None,
             stop_words: PackedStringArray::new(),
             chat_handle: None,
             signal_counter: AtomicU64::new(0),
@@ -225,49 +179,6 @@ impl NobodyWhoChat {
         Ok(model)
     }
 
-    fn get_sampler_config(&self) -> sampler_config::SamplerConfig {
-        let Some(sampler) = self.sampler.as_ref() else {
-            return sampler_config::SamplerConfig::default();
-        };
-
-        let sampler_ref = sampler.bind();
-        match sampler_ref.method {
-            SamplerMethodName::Default => sampler_config::SamplerConfig::default(),
-            SamplerMethodName::Greedy => sampler_config::SamplerPresets::greedy(),
-            SamplerMethodName::DRY => sampler_config::SamplerPresets::dry(),
-            SamplerMethodName::TopK => sampler_config::SamplerPresets::top_k(sampler_ref.top_k),
-            SamplerMethodName::TopP => sampler_config::SamplerPresets::top_p(sampler_ref.top_p),
-            SamplerMethodName::Temperature => {
-                sampler_config::SamplerPresets::temperature(sampler_ref.temperature)
-            }
-            SamplerMethodName::JSON => sampler_config::SamplerPresets::json(),
-            SamplerMethodName::Grammar => {
-                sampler_config::SamplerPresets::grammar(sampler_ref.grammar.to_string())
-            }
-        }
-    }
-
-    #[func]
-    fn set_sampler_config(&mut self, method: SamplerMethodName) {
-        if let Some(sampler) = self.sampler.as_mut() {
-            sampler.bind_mut().method = method;
-        } else {
-            let sampler = Gd::from_object(NobodyWhoSampler {
-                method,
-                top_k: 10,
-                top_p: 0.95,
-                temperature: 0.8,
-                grammar: "".into(),
-            });
-            self.sampler = Some(sampler);
-        }
-
-        let sampler_config = self.get_sampler_config();
-        if let Some(chat_handle) = self.chat_handle.as_mut() {
-            chat_handle.set_sampler(sampler_config);
-        }
-    }
-
     #[func]
     /// Starts the LLM worker thread. This is required before you can send messages to the LLM.
     /// This fuction is blocking and can be a bit slow, so you may want to be strategic about when you call it.
@@ -281,6 +192,7 @@ impl NobodyWhoChat {
 
     fn start_worker_impl(&mut self) -> Result<(), String> {
         let model = self.get_model()?;
+
         self.chat_handle = Some(nobodywho::chat::ChatHandle::new(
             model,
             nobodywho::chat::ChatConfig {
@@ -620,6 +532,85 @@ impl NobodyWhoChat {
     fn set_log_level(level: String) {
         set_log_level(&level);
     }
+
+    /// Sets the sampler to use default sampling parameters.
+    /// This provides a balanced configuration suitable for most use cases.
+    #[func]
+    fn set_sampler_preset_default(&mut self) {
+        if let Some(chat_handle) = &mut self.chat_handle {
+            chat_handle.set_sampler(SamplerConfig::default());
+        }
+    }
+
+    /// Sets the sampler to use greedy sampling.
+    /// Always selects the most likely token at each step, resulting in deterministic output.
+    /// Use this for predictable, focused responses.
+    #[func]
+    fn set_sampler_preset_greedy(&mut self) {
+        if let Some(chat_handle) = &mut self.chat_handle {
+            chat_handle.set_sampler(SamplerPresets::greedy());
+        }
+    }
+
+    /// Sets the sampler to use top-k sampling.
+    /// Only considers the k most likely tokens at each step.
+    /// Lower values (e.g., 10-40) make output more focused, higher values more diverse.
+    #[func]
+    fn set_sampler_preset_top_k(&mut self, k: i32) {
+        if let Some(chat_handle) = &mut self.chat_handle {
+            chat_handle.set_sampler(SamplerPresets::top_k(k));
+        }
+    }
+
+    /// Sets the sampler to use top-p (nucleus) sampling.
+    /// Considers tokens until their cumulative probability reaches p.
+    /// Values like 0.9-0.95 provide a good balance between coherence and creativity.
+    #[func]
+    fn set_sampler_preset_top_p(&mut self, p: f32) {
+        if let Some(chat_handle) = &mut self.chat_handle {
+            chat_handle.set_sampler(SamplerPresets::top_p(p));
+        }
+    }
+
+    /// Sets the sampler to use temperature-based sampling.
+    /// Higher values (e.g., 0.8-1.2) increase randomness and creativity.
+    /// Lower values (e.g., 0.2-0.5) make output more focused and deterministic.
+    #[func]
+    fn set_sampler_preset_temperature(&mut self, temperature: f32) {
+        if let Some(chat_handle) = &mut self.chat_handle {
+            chat_handle.set_sampler(SamplerPresets::temperature(temperature));
+        }
+    }
+
+    /// Sets the sampler to use DRY (Don't Repeat Yourself) sampling.
+    /// Helps reduce repetitive text by penalizing recently generated tokens.
+    /// Useful for longer text generation where repetition is undesirable.
+    #[func]
+    fn set_sampler_preset_dry(&mut self) {
+        if let Some(chat_handle) = &mut self.chat_handle {
+            chat_handle.set_sampler(SamplerPresets::dry());
+        }
+    }
+
+    /// Sets the sampler to enforce JSON output format.
+    /// Constrains the model to generate valid JSON.
+    /// Useful when you need structured data from the LLM.
+    #[func]
+    fn set_sampler_preset_json(&mut self) {
+        if let Some(chat_handle) = &mut self.chat_handle {
+            chat_handle.set_sampler(SamplerPresets::json());
+        }
+    }
+
+    /// Sets the sampler to use a custom GBNF grammar.
+    /// Constrains the model output to match the provided grammar specification.
+    /// Use GBNF format (similar to EBNF) to define the structure of valid output.
+    #[func]
+    fn set_sampler_preset_grammar(&mut self, grammar: String) {
+        if let Some(chat_handle) = &mut self.chat_handle {
+            chat_handle.set_sampler(SamplerPresets::grammar(grammar));
+        }
+    }
 }
 
 fn json_to_godot(value: &serde_json::Value) -> Variant {
@@ -705,10 +696,10 @@ fn json_schema_from_callable(
 
 #[derive(GodotClass)]
 #[class(base=Node)]
-/// The Embedding node is used to compare text. This is useful for detecting whether the user said
+/// The Encoder node is used to compare text. This is useful for detecting whether the user said
 /// something specific, without having to match on literal keywords or sentences.
 ///
-/// This is done by embedding the text into a vector space and then comparing the cosine similarity between the vectors.
+/// This is done by encoding the text into a vector space and then comparing the cosine similarity between the vectors.
 ///
 /// A good example of this would be to check if a user signals an action like "I'd like to buy the red potion". The following sentences will have high similarity:
 /// - Give me the potion that is red
@@ -718,57 +709,57 @@ fn json_schema_from_callable(
 /// Meaning you can trigger a "sell red potion" task based on natural language, without requiring a speciific formulation.
 /// It can of course be used for all sorts of tasks.
 ///
-/// It requires a "NobodyWhoModel" node to be set with a GGUF model capable of generating embeddings.
+/// It requires a "NobodyWhoModel" node to be set with a GGUF model capable of generating encodings.
 /// Example:
 ///
 /// ```
-/// extends NobodyWhoEmbedding
+/// extends NobodyWhoEncoder
 ///
 /// func _ready():
 ///     # configure node
-///     self.model_node = get_node(“../EmbeddingModel”)
+///     self.model_node = get_node("../EncoderModel")
 ///
-///     # generate some embeddings
-///     embed(“The dragon is on the hill.”)
-///     var dragon_hill_embd = await self.embedding_finished
+///     # generate some encodings
+///     encode("The dragon is on the hill.")
+///     var dragon_hill_enc = await self.encoding_finished
 ///
-///     embed(“The dragon is hungry for humans.”)
-///     var dragon_hungry_embd = await self.embedding_finished
+///     encode("The dragon is hungry for humans.")
+///     var dragon_hungry_enc = await self.encoding_finished
 ///
-///     embed(“This does not matter.”)
-///     var irrelevant_embd = await self.embedding_finished
+///     encode("This does not matter.")
+///     var irrelevant_enc = await self.encoding_finished
 ///
 ///     # test similarity,
-///     # here we show that two embeddings will have high similarity, if they mean similar things
-///     var low_similarity = cosine_similarity(irrelevant_embd, dragon_hill_embd)
-///     var high_similarity = cosine_similarity(dragon_hill_embd, dragon_hungry_embd)
+///     # here we show that two encodings will have high similarity, if they mean similar things
+///     var low_similarity = cosine_similarity(irrelevant_enc, dragon_hill_enc)
+///     var high_similarity = cosine_similarity(dragon_hill_enc, dragon_hungry_enc)
 ///     assert(low_similarity < high_similarity)
 /// ```
 ///
-struct NobodyWhoEmbedding {
+struct NobodyWhoEncoder {
     #[export]
-    /// The model node for the embedding.
+    /// The model node for the encoder.
     model_node: Option<Gd<NobodyWhoModel>>,
-    embed_handle: Option<nobodywho::embed::EmbeddingsHandle>,
+    encoder_handle: Option<nobodywho::encoder::EncoderAsync>,
     base: Base<Node>,
 }
 
 #[godot_api]
-impl INode for NobodyWhoEmbedding {
+impl INode for NobodyWhoEncoder {
     fn init(base: Base<Node>) -> Self {
         Self {
             model_node: None,
-            embed_handle: None,
+            encoder_handle: None,
             base,
         }
     }
 }
 
 #[godot_api]
-impl NobodyWhoEmbedding {
+impl NobodyWhoEncoder {
     #[signal]
-    /// Triggered when the embedding has finished. Returns the embedding as a PackedFloat32Array.
-    fn embedding_finished(embedding: PackedFloat32Array);
+    /// Triggered when the encoding has finished. Returns the encoding as a PackedFloat32Array.
+    fn encoding_finished(encoding: PackedFloat32Array);
 
     fn get_model(&mut self) -> Result<llm::Model, String> {
         let gd_model_node = self.model_node.as_mut().ok_or("Model node was not set")?;
@@ -779,13 +770,13 @@ impl NobodyWhoEmbedding {
     }
 
     #[func]
-    /// Starts the embedding worker thread. This is called automatically when you call `embed`, if it wasn't already called.
+    /// Starts the encoder worker thread. This is called automatically when you call `encode`, if it wasn't already called.
     fn start_worker(&mut self) {
         let mut result = || -> Result<(), String> {
             let model = self.get_model()?;
 
             // TODO: configurable n_ctx
-            self.embed_handle = Some(nobodywho::embed::EmbeddingsHandle::new(model, 4096));
+            self.encoder_handle = Some(nobodywho::encoder::EncoderAsync::new(model, 4096));
             Ok(())
         };
         // run it and show error in godot if it fails
@@ -795,38 +786,38 @@ impl NobodyWhoEmbedding {
     }
 
     #[func]
-    /// Generates the embedding of a text string. This will return a signal that you can use to wait for the embedding.
+    /// Generates the encoding of a text string. This will return a signal that you can use to wait for the encoding.
     /// The signal will return a PackedFloat32Array.
-    fn embed(&mut self, text: String) -> Signal {
-        if let Some(embed_handle) = &self.embed_handle {
-            let mut embedding_channel = embed_handle.embed_text(text);
+    fn encode(&mut self, text: String) -> Signal {
+        if let Some(encoder_handle) = &self.encoder_handle {
+            let mut encoding_channel = encoder_handle.encode(text);
             let emit_node = self.to_gd();
             godot::task::spawn(async move {
-                match embedding_channel.recv().await {
-                    Some(embd) => emit_node
+                match encoding_channel.recv().await {
+                    Some(encoding) => emit_node
                         .signals()
-                        .embedding_finished()
-                        .emit(&PackedFloat32Array::from(embd)),
+                        .encoding_finished()
+                        .emit(&PackedFloat32Array::from(encoding)),
                     None => {
-                        godot_error!("Failed generating embedding.");
+                        godot_error!("Failed generating encoding.");
                     }
                 }
             });
         } else {
             godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
             self.start_worker();
-            return self.embed(text);
+            return self.encode(text);
         };
 
-        // returns signal, so that you can `var vec = await embed("Hello, world!")`
-        return godot::builtin::Signal::from_object_signal(&self.base_mut(), "embedding_finished");
+        // returns signal, so that you can `var vec = await encode("Hello, world!")`
+        return godot::builtin::Signal::from_object_signal(&self.base_mut(), "encoding_finished");
     }
 
     #[func]
-    /// Calculates the similarity between two embedding vectors.
+    /// Calculates the similarity between two encoding vectors.
     /// Returns a value between 0 and 1, where 1 is the highest similarity.
     fn cosine_similarity(a: PackedFloat32Array, b: PackedFloat32Array) -> f32 {
-        nobodywho::embed::cosine_similarity(a.as_slice(), b.as_slice())
+        nobodywho::encoder::cosine_similarity(a.as_slice(), b.as_slice())
     }
 
     #[func]
@@ -867,7 +858,7 @@ struct NobodyWhoCrossEncoder {
     #[export]
     /// The model node for the crossencoder.
     model_node: Option<Gd<NobodyWhoModel>>,
-    crossencoder_handle: Option<nobodywho::crossencoder::CrossEncoderHandle>,
+    crossencoder_handle: Option<nobodywho::crossencoder::CrossEncoderAsync>,
     base: Base<Node>,
 }
 
@@ -903,9 +894,8 @@ impl NobodyWhoCrossEncoder {
             let model = self.get_model()?;
 
             // TODO: configurable n_ctx liek with the embeddings node
-            self.crossencoder_handle = Some(nobodywho::crossencoder::CrossEncoderHandle::new(
-                model, 4096,
-            ));
+            self.crossencoder_handle =
+                Some(nobodywho::crossencoder::CrossEncoderAsync::new(model, 4096));
             Ok(())
         };
 

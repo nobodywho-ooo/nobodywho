@@ -72,9 +72,9 @@ def test_sync_iterator(chat):
     assert "copenhagen" in response_str.lower()
 
 
-# Embeddings tests
+# Encoder tests
 @pytest.fixture
-def embeddings_model():
+def encoder_model():
     model_path = os.environ.get("TEST_EMBEDDINGS_MODEL")
     if not model_path:
         raise ValueError("TEST_EMBEDDINGS_MODEL environment variable is not set")
@@ -83,16 +83,15 @@ def embeddings_model():
 
 
 @pytest.fixture
-def embeddings(embeddings_model):
-    if not embeddings_model:
+def encoder(encoder_model):
+    if not encoder_model:
         raise ValueError("Embeddings model is not set")
+    return nobodywho.Encoder(encoder_model, n_ctx=1024)
 
-    return nobodywho.Embeddings(embeddings_model, n_ctx=1024)
 
-
-def test_embeddings_blocking(embeddings):
-    """Test that embeddings can be generated using blocking API"""
-    embedding = embeddings.embed_text_blocking("Test text for embedding.")
+def test_encoder_sync(encoder):
+    """Test that encoder can generate embeddings using sync API"""
+    embedding = encoder.encode("Test text for embedding.")
 
     assert isinstance(embedding, list), "Embedding should be a list"
     assert len(embedding) > 0, "Embedding should not be empty"
@@ -102,9 +101,13 @@ def test_embeddings_blocking(embeddings):
 
 
 @pytest.mark.asyncio
-async def test_embeddings_async(embeddings):
-    """Test that embeddings can be generated using async API"""
-    embedding = await embeddings.embed_text("Test text for embedding.")
+async def test_encoder_async():
+    """Test that encoder can generate embeddings using async API"""
+    model_path = os.environ.get("TEST_EMBEDDINGS_MODEL")
+    model = nobodywho.Model(model_path, use_gpu_if_available=False)
+    encoder_async = nobodywho.EncoderAsync(model, n_ctx=1024)
+
+    embedding = await encoder_async.encode("Test text for embedding.")
 
     assert isinstance(embedding, list), "Embedding should be a list"
     assert len(embedding) > 0, "Embedding should not be empty"
@@ -150,8 +153,8 @@ def crossencoder(crossencoder_model):
     return nobodywho.CrossEncoder(crossencoder_model, n_ctx=4096)
 
 
-def test_crossencoder_rank_blocking(crossencoder):
-    """Test that cross-encoder ranking works with blocking API"""
+def test_crossencoder_rank_sync(crossencoder):
+    """Test that cross-encoder ranking works with sync API"""
     query = "What is the capital of France?"
     documents = [
         "Paris is the capital of France.",
@@ -159,7 +162,7 @@ def test_crossencoder_rank_blocking(crossencoder):
         "The weather is nice today.",
     ]
 
-    scores = crossencoder.rank_blocking(query, documents)
+    scores = crossencoder.rank(query, documents)
 
     assert isinstance(scores, list), "Scores should be a list"
     assert len(scores) == len(documents), "Should return one score per document"
@@ -167,20 +170,24 @@ def test_crossencoder_rank_blocking(crossencoder):
 
 
 @pytest.mark.asyncio
-async def test_crossencoder_rank_async(crossencoder):
+async def test_crossencoder_rank_async():
     """Test that cross-encoder ranking works with async API"""
+    model_path = os.environ.get("TEST_CROSSENCODER_MODEL")
+    model = nobodywho.Model(model_path, use_gpu_if_available=False)
+    crossencoder_async = nobodywho.CrossEncoderAsync(model, n_ctx=4096)
+
     query = "What is the capital of France?"
     documents = ["Paris is the capital of France.", "Berlin is the capital of Germany."]
 
-    scores = await crossencoder.rank(query, documents)
+    scores = await crossencoder_async.rank(query, documents)
 
     assert isinstance(scores, list), "Scores should be a list"
     assert len(scores) == len(documents), "Should return one score per document"
     assert all(isinstance(x, float) for x in scores), "All scores should be floats"
 
 
-def test_crossencoder_rank_and_sort_blocking(crossencoder):
-    """Test that cross-encoder rank and sort works with blocking API"""
+def test_crossencoder_rank_and_sort_sync(crossencoder):
+    """Test that cross-encoder rank and sort works with sync API"""
     query = "What is the capital of France?"
     documents = [
         "Paris is the capital of France.",
@@ -188,7 +195,7 @@ def test_crossencoder_rank_and_sort_blocking(crossencoder):
         "The weather is nice today.",
     ]
 
-    ranked_docs = crossencoder.rank_and_sort_blocking(query, documents)
+    ranked_docs = crossencoder.rank_and_sort(query, documents)
 
     assert isinstance(ranked_docs, list), "Ranked docs should be a list"
     assert len(ranked_docs) == len(documents), "Should return all documents"
@@ -200,12 +207,16 @@ def test_crossencoder_rank_and_sort_blocking(crossencoder):
 
 
 @pytest.mark.asyncio
-async def test_crossencoder_rank_and_sort_async(crossencoder):
+async def test_crossencoder_rank_and_sort_async():
     """Test that cross-encoder rank and sort works with async API"""
+    model_path = os.environ.get("TEST_CROSSENCODER_MODEL")
+    model = nobodywho.Model(model_path, use_gpu_if_available=False)
+    crossencoder_async = nobodywho.CrossEncoderAsync(model, n_ctx=4096)
+
     query = "What is the capital of France?"
     documents = ["Paris is the capital of France.", "Berlin is the capital of Germany."]
 
-    ranked_docs = await crossencoder.rank_and_sort(query, documents)
+    ranked_docs = await crossencoder_async.rank_and_sort(query, documents)
 
     assert isinstance(ranked_docs, list), "Ranked docs should be a list"
     assert len(ranked_docs) == len(documents), "Should return all documents"
@@ -233,3 +244,31 @@ def test_tool_calling(model):
         "Please sparklify this word: 'julemand'"
     ).collect_blocking()
     assert "✨JULEMAND✨" in response
+
+
+@nobodywho.tool(
+    description="Boop foob",
+    params={
+        "reflarb": "the clump factor for the flopar",
+        "unfloop": "activate the rotational velocidensity collider",
+    },
+)
+def reflarbicator(reflarb: int, unfloop: bool) -> str:
+    return "hahaha"
+
+
+def test_tool_parameter_description(model):
+    # XXX: maybe there is a faster/better way of testing this behavior than running a full-ass LLM
+    chat = nobodywho.Chat(model, tools=[reflarbicator, sparklify], allow_thinking=False)
+    answer = chat.send_message(
+        "Please tell me the description of the 'unfloop' parameter of the reflarbicator tool"
+    ).collect_blocking()
+    assert "velocidensity" in answer
+
+
+def test_tool_bad_parameters():
+    with pytest.raises(TypeError):
+
+        @nobodywho.tool(description="foobar", params={"b": "uh-oh"})
+        def i_fucked_up(a: int) -> str:
+            return "fuck"

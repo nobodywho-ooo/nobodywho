@@ -10,12 +10,10 @@ func run_test() -> bool:
 	# purposefully not mentioning the grammar in the system prompt
 	chat.system_prompt = "You are a character creator for a fantasy game. You will be given a list of properties and you will need to fill out thoe properties.s"
 
-	chat.sampler = NobodyWhoSampler.new()
-	chat.sampler.use_grammar = true
 	# I used this webapp to make a gbnf from a json schema
 	# https://adrienbrault.github.io/json-schema-to-gbnf/
 	# XXX: needed to :%s/\\/\\\\/g afterwards to escape the backslashes
-	chat.sampler.gbnf_grammar = """
+	var gbnf_grammar = """
 root ::= "{" ws01 root-name "," ws01 root-class "," ws01 root-level "}" ws01
 root-name ::= "\\"name\\"" ":" ws01 string
 root-class ::= "\\"class\\"" ":" ws01 ("\\"fighter\\"" | "\\"ranger\\"" | "\\"wizard\\"")
@@ -50,6 +48,7 @@ null ::= "null"
 ws ::= ([ \\t\\n] ws)?
 ws01 ::= ([ \\t\\n])?
 	"""
+	chat.sampler.set_preset_grammar(gbnf_grammar);
 
 	chat.start_worker()
 

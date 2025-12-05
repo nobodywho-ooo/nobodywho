@@ -57,25 +57,44 @@ impl TokenStream {
 }
 
 #[pyclass]
-pub struct Embeddings {
-    embeddings_handle: nobodywho::embed::EmbeddingsHandle,
+pub struct Encoder {
+    encoder: nobodywho::encoder::Encoder,
 }
 
 #[pymethods]
-impl Embeddings {
+impl Encoder {
     #[new]
     #[pyo3(signature = (model, n_ctx = 2048))]
     pub fn new(model: &Model, n_ctx: u32) -> Self {
-        let embeddings_handle = nobodywho::embed::EmbeddingsHandle::new(model.model.clone(), n_ctx);
-        Self { embeddings_handle }
+        let encoder = nobodywho::encoder::Encoder::new(model.model.clone(), n_ctx);
+        Self { encoder }
     }
 
-    pub fn embed_text_blocking(&self, text: String, py: Python) -> PyResult<Vec<f32>> {
-        py.detach(|| futures::executor::block_on(self.embed_text(text)))
+    pub fn encode(&self, text: String, py: Python) -> PyResult<Vec<f32>> {
+        py.detach(|| {
+            self.encoder
+                .encode(text)
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))
+        })
+    }
+}
+
+#[pyclass]
+pub struct EncoderAsync {
+    encoder_handle: nobodywho::encoder::EncoderAsync,
+}
+
+#[pymethods]
+impl EncoderAsync {
+    #[new]
+    #[pyo3(signature = (model, n_ctx = 2048))]
+    pub fn new(model: &Model, n_ctx: u32) -> Self {
+        let encoder_handle = nobodywho::encoder::EncoderAsync::new(model.model.clone(), n_ctx);
+        Self { encoder_handle }
     }
 
-    async fn embed_text(&self, text: String) -> PyResult<Vec<f32>> {
-        let mut rx = self.embeddings_handle.embed_text(text);
+    async fn encode(&self, text: String) -> PyResult<Vec<f32>> {
+        let mut rx = self.encoder_handle.encode(text);
         rx.recv().await.ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Failed to receive embedding")
         })
@@ -84,7 +103,7 @@ impl Embeddings {
 
 #[pyclass]
 pub struct CrossEncoder {
-    crossencoder_handle: nobodywho::crossencoder::CrossEncoderHandle,
+    crossencoder: nobodywho::crossencoder::CrossEncoder,
 }
 
 #[pymethods]
@@ -92,20 +111,47 @@ impl CrossEncoder {
     #[new]
     #[pyo3(signature = (model, n_ctx = 2048))]
     pub fn new(model: &Model, n_ctx: u32) -> Self {
-        let crossencoder_handle =
-            nobodywho::crossencoder::CrossEncoderHandle::new(model.model.clone(), n_ctx);
-        Self {
-            crossencoder_handle,
-        }
+        let crossencoder = nobodywho::crossencoder::CrossEncoder::new(model.model.clone(), n_ctx);
+        Self { crossencoder }
     }
 
-    pub fn rank_blocking(
+    pub fn rank(&self, query: String, documents: Vec<String>, py: Python) -> PyResult<Vec<f32>> {
+        py.detach(|| {
+            self.crossencoder
+                .rank(query, documents)
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))
+        })
+    }
+
+    pub fn rank_and_sort(
         &self,
         query: String,
         documents: Vec<String>,
         py: Python,
-    ) -> PyResult<Vec<f32>> {
-        py.detach(|| futures::executor::block_on(self.rank(query, documents)))
+    ) -> PyResult<Vec<(String, f32)>> {
+        py.detach(|| {
+            self.crossencoder
+                .rank_and_sort(query, documents)
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))
+        })
+    }
+}
+
+#[pyclass]
+pub struct CrossEncoderAsync {
+    crossencoder_handle: nobodywho::crossencoder::CrossEncoderAsync,
+}
+
+#[pymethods]
+impl CrossEncoderAsync {
+    #[new]
+    #[pyo3(signature = (model, n_ctx = 2048))]
+    pub fn new(model: &Model, n_ctx: u32) -> Self {
+        let crossencoder_handle =
+            nobodywho::crossencoder::CrossEncoderAsync::new(model.model.clone(), n_ctx);
+        Self {
+            crossencoder_handle,
+        }
     }
 
     async fn rank(&self, query: String, documents: Vec<String>) -> PyResult<Vec<f32>> {
@@ -113,15 +159,6 @@ impl CrossEncoder {
         rx.recv().await.ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Failed to receive ranking scores")
         })
-    }
-
-    pub fn rank_and_sort_blocking(
-        &self,
-        query: String,
-        documents: Vec<String>,
-        py: Python,
-    ) -> PyResult<Vec<(String, f32)>> {
-        py.detach(|| futures::executor::block_on(self.rank_and_sort(query, documents)))
     }
 
     async fn rank_and_sort(
@@ -181,7 +218,7 @@ fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> PyResult<f32> {
             "Vectors must have the same length",
         ));
     }
-    Ok(nobodywho::embed::cosine_similarity(&a, &b))
+    Ok(nobodywho::encoder::cosine_similarity(&a, &b))
 }
 
 #[pyclass]
@@ -450,11 +487,19 @@ impl Tool {
 }
 
 // tool decorator
-// TODO: params descriptions dict
-// TODO: force function return type
-#[pyfunction]
-fn tool<'a>(description: String, py: Python<'a>) -> PyResult<Bound<'a, pyo3::types::PyCFunction>> {
-    // the decurateor returned when calling @tool(...)
+#[pyfunction(signature = (description, params=None))]
+fn tool<'a>(
+    description: String,
+    params: Option<Py<pyo3::types::PyDict>>,
+    py: Python<'a>,
+) -> PyResult<Bound<'a, pyo3::types::PyCFunction>> {
+    // extract hashmap from parameter descriptions, default to empty hashmap
+    let params: std::collections::HashMap<String, String> = match params {
+        Some(pd) => pd.extract(py)?,
+        None => std::collections::HashMap::new(),
+    };
+
+    // the decorator returned when calling @tool(...)
     // a function that takes the native-python function and returns a callable `Tool` object
     let function_to_tool = move |args: &Bound<pyo3::types::PyTuple>,
                                  _kwargs: Option<&Bound<pyo3::types::PyDict>>|
@@ -467,7 +512,7 @@ fn tool<'a>(description: String, py: Python<'a>) -> PyResult<Bound<'a, pyo3::typ
             let name = fun.getattr(py, "__name__")?.extract::<String>(py)?;
 
             // generate json schema from function type annotations
-            let json_schema = python_func_json_schema(py, &fun)?;
+            let json_schema = python_func_json_schema(py, &fun, &params)?;
 
             let fun_clone = fun.clone_ref(py);
 
@@ -511,7 +556,11 @@ fn tool<'a>(description: String, py: Python<'a>) -> PyResult<Bound<'a, pyo3::typ
 }
 
 // takes a python function (assumes static types), and returns a json schema for that function
-fn python_func_json_schema(py: Python, fun: &Py<PyAny>) -> PyResult<serde_json::Value> {
+fn python_func_json_schema(
+    py: Python,
+    fun: &Py<PyAny>,
+    param_descriptions: &std::collections::HashMap<String, String>,
+) -> PyResult<serde_json::Value> {
     // import inspect (from stdlib)
     let inspect = PyModule::import(py, "inspect")?;
 
@@ -525,12 +574,32 @@ fn python_func_json_schema(py: Python, fun: &Py<PyAny>) -> PyResult<serde_json::
     let args = argspec.getattr("args")?.extract::<Vec<String>>()?;
 
     // check that all arguments are annotated
-    for arg in args {
-        if !annotations.contains_key(&arg) {
-            return Err(pyo3::exceptions::PyTypeError::new_err(format!(
-                "ERROR: NobodyWho requires all tool function parameters to be typed. Parameter {arg} is missing a type hint. Please add a static type hint to that parameter. For example: `{arg}: int`"
-            )));
-        }
+    if let Some(missing_arg) = args.iter().find(|arg| !annotations.contains_key(*arg)) {
+        return Err(pyo3::exceptions::PyTypeError::new_err(format!(
+            "ERROR: Parameter '{missing_arg}' is missing a type hint. NobodyWho requires all tool function parameters to have static type hints. E.g.: `{missing_arg}: str`"
+        )));
+    }
+
+    // check that return type is `str`
+    // the intent of this is to force people to consider how to convert to string
+    if annotations
+        .get("return")
+        .map(|t| t.name().map(|n| n.to_string()))
+        .transpose()?
+        != Some("str".to_string())
+    {
+        tracing::warn!("Return type of this tool should be `str`. Anything else will be cast to string, which might lead to unexpected results. It's recommended that you add a return type annotation to the tool: `-> str:`");
+    }
+
+    // check that names of parameter descriptions correspond to names of actual function arguments
+    if let Some(invalid_param) = param_descriptions
+        .keys()
+        .find(|param| !args.contains(param))
+    {
+        return Err(pyo3::exceptions::PyTypeError::new_err(format!(
+            "ERROR: Parameter description provided for '{invalid_param}' but function has no such parameter. Available parameters: [{}]",
+            args.join(", ")
+        )));
     }
 
     let mut properties = serde_json::Map::new();
@@ -544,26 +613,22 @@ fn python_func_json_schema(py: Python, fun: &Py<PyAny>) -> PyResult<serde_json::
         let type_name = value.name()?.to_string();
 
         let schema_type = match type_name.as_str() {
-            "str" => serde_json::json!({"type": "string"}),
-            "int" => serde_json::json!({"type": "integer"}),
-            "float" => serde_json::json!({"type": "number"}),
-            "bool" => serde_json::json!({"type": "boolean"}),
-            "list" => serde_json::json!({"type": "array"}),
-            "dict" => serde_json::json!({"type": "object"}),
-            "None" | "NoneType" => serde_json::json!({"type": "null"}),
-            "Any" | "any" => serde_json::json!({}), // Allow any type
-            // TODO: these two are kinda bad.. they will be passed to the function as lists
-            "set" | "frozenset" => serde_json::json!({"type": "array", "uniqueItems": true}),
-            "tuple" => serde_json::json!({"type": "array"}),
-            // TODO: bytes? - "bytes" | "bytearray" => todo!(),
-            // TODO: handle generic types better. at least handle list[int], dict[str,int], etc.
-            // TODO: consider handling more complex built-in things? Union, Option, `|`,
+            "str" => "string",
+            "int" => "integer",
+            "float" => "number",
+            "bool" => "boolean",
+            "list" => "array",
+            "dict" => "object",
+            "None" | "NoneType" => "null",
+            // TODO: we could consider supporting sets like this:
+            // "set" | "frozenset" => serde_json::json!({"type": "array", "uniqueItems": true}),
             // TODO: consider handling pydantic types?
             //       (objects subclassing pydantic's BaseModel can readily generate json schemas)
-            _ if type_name.starts_with("list[") => serde_json::json!({"type": "array"}),
-            _ if type_name.starts_with("dict[") => serde_json::json!({"type": "object"}),
-            _ if type_name == "List" => serde_json::json!({"type": "array"}),
-            _ if type_name == "Dict" => serde_json::json!({"type": "object"}),
+            // TODO: handle generic types better. at least handle list[int], dict[str,int], etc.
+            _ if type_name.starts_with("list[") => "array",
+            _ if type_name.starts_with("dict[") => "object",
+            _ if type_name == "List" => "array",
+            _ if type_name == "Dict" => "object",
             _ => {
                 return Err(pyo3::exceptions::PyTypeError::new_err(format!(
                     "ERROR: Tool function contains an unsupported type hint: {type_name}"
@@ -571,8 +636,21 @@ fn python_func_json_schema(py: Python, fun: &Py<PyAny>) -> PyResult<serde_json::
             }
         };
 
+        let property = if let Some(description) = param_descriptions.get(&key) {
+            // add description if available
+            serde_json::json!({
+                "type": schema_type,
+                "description": description
+            })
+        } else {
+            // ...otherwise only use the type
+            serde_json::json!({
+                "type": schema_type
+            })
+        };
+
         // add to json schema properties
-        properties.insert(key.clone(), schema_type);
+        properties.insert(key.clone(), property);
 
         // add to list of required keys for object
         // TODO: allow optional parameters for params that have a default argument
@@ -663,7 +741,13 @@ pub mod nobodywhopython {
     use super::CrossEncoder;
 
     #[pymodule_export]
-    use super::Embeddings;
+    use super::CrossEncoderAsync;
+
+    #[pymodule_export]
+    use super::Encoder;
+
+    #[pymodule_export]
+    use super::EncoderAsync;
 
     #[pymodule_export]
     use super::Model;
