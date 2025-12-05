@@ -749,6 +749,9 @@ pub mod nobodywhopython {
     use super::SamplerConfig;
 
     #[pymodule_export]
+    use super::SamplerPresets;
+
+    #[pymodule_export]
     use super::TokenStream;
 
     #[pymodule_export]
