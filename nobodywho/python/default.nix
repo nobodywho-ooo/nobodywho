@@ -24,6 +24,7 @@ python3Packages.buildPythonPackage {
 
   cargoDeps = rustPlatform.importCargoLock {
     lockFile = ../Cargo.lock;
+    outputHashes = { };
   };
 
   nativeBuildInputs = [

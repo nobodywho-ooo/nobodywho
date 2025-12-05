@@ -21,6 +21,9 @@ jobs:
           - "godot"
           - "unity"
           - "flutter"
+    env:
+      RUSTFLAGS: >-
+        -C target-cpu=x86-64-v3
     steps:
       - uses: actions/checkout@v4
 
@@ -83,6 +86,7 @@ jobs:
     env:
       RUSTFLAGS: >-
         -l Advapi32
+        -C target-cpu=x86-64-v3
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
