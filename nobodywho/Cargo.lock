@@ -1335,7 +1335,8 @@ dependencies = [
 [[package]]
 name = "llama-cpp-2"
 version = "0.1.129"
-source = "git+https://github.com/AsbjornOlling/llama-cpp-rs?branch=use-cargo-cpu-features-configuration#b078bc95dc30e9967c1e7720aef7bae2e51b0405"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "edeaf79ca398bd899ef31d57f5b7c888727ec44ed875478185f9dea451fae4c3"
 dependencies = [
  "enumflags2",
  "llama-cpp-sys-2",
@@ -1347,7 +1348,8 @@ dependencies = [
 [[package]]
 name = "llama-cpp-sys-2"
 version = "0.1.129"
-source = "git+https://github.com/AsbjornOlling/llama-cpp-rs?branch=use-cargo-cpu-features-configuration#b078bc95dc30e9967c1e7720aef7bae2e51b0405"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85182a2831f6809f6c7cef123b9471e75ac04378f29364eaa43bb30d1ee398bd"
 dependencies = [
  "bindgen",
  "cc",
@@ -1506,7 +1508,6 @@ dependencies = [
  "gbnf",
  "lazy_static",
  "llama-cpp-2",
- "llama-cpp-sys-2",
  "minijinja",
  "minijinja-contrib",
  "rand",

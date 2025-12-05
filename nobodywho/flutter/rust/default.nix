@@ -90,9 +90,7 @@ rustPlatform.buildRustPackage {
   ];
   cargoLock = {
     lockFile = ../../Cargo.lock;
-    outputHashes = {
-      "llama-cpp-2-0.1.129" = "sha256-neamY8s414X0DJTw0UPWCzG4U1UplRGU1DjviK4DDOM=";
-    };
+    outputHashes = { };
   };
   doCheck = false;
 }
