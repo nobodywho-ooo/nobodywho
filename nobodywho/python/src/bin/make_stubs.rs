@@ -9,6 +9,18 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 
+const EXCEPTIONS_TO_REPLACE: &[(&str, &str)] = &[(
+    "def __next__(self, /) -> typing.Any: ...",
+    "def __next__(self, /) -> str: ... # Replaced with str to avoid type errors",
+)];
+
+fn replace_exceptions(mut contents: String) -> String {
+    for (pattern, replacement) in EXCEPTIONS_TO_REPLACE {
+        contents = contents.replace(pattern, replacement);
+    }
+    contents
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Determine build profile (debug or release)
     let profile = if env::var("PROFILE").unwrap_or_default() == "release" {
@@ -44,7 +56,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Generating stub files in: {}", output_dir);
     for (file_path, contents) in stub_files.clone().iter() {
+        let contents = replace_exceptions(contents.clone());
         let full_path = PathBuf::from(&output_dir).join(&file_path);
+
+        if contents.contains("typing.Any") {
+            eprintln!(
+                "❌ Error: typing.Any found in contents of {}. Please replace all typing.Any with the appropriate type.",
+                full_path.display()
+            );
+            std::process::exit(1);
+        } else {
+            println!("✅ No anys found in {}!", full_path.display());
+        }
 
         // Create parent directories if they don't exist
         if let Some(parent) = full_path.parent() {

@@ -19,6 +19,17 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
+      - name: Regenerate stubs
+        run: cargo build && cargo run --bin make_stubs
+
+      - name: Check for uncommitted changes
+        run: |
+          if ! git diff --quiet; then
+            echo "❌ Generated stubs are outdated. Run the generator and commit results."
+            git --no-pager diff
+            exit 1
+          fi
+
       - name: Format check
         run: uvx ruff format --check .
 

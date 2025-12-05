@@ -7,7 +7,7 @@ pub struct Model {
 #[pymethods]
 impl Model {
     #[new]
-    #[pyo3(signature = (model_path, use_gpu_if_available = true))]
+    #[pyo3(signature = (model_path, use_gpu_if_available = true) -> "Model")]
     pub fn new(model_path: &str, use_gpu_if_available: bool) -> PyResult<Self> {
         let model_result = nobodywho::llm::get_model(model_path, use_gpu_if_available);
         match model_result {
@@ -51,6 +51,7 @@ impl TokenStream {
     pub fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
     }
+
     pub fn __next__(mut slf: PyRefMut<'_, Self>, py: Python) -> Option<String> {
         slf.next_token_blocking(py)
     }
@@ -66,7 +67,7 @@ pub struct Encoder {
 #[pymethods]
 impl Encoder {
     #[new]
-    #[pyo3(signature = (model, n_ctx = 2048))]
+    #[pyo3(signature = (model, n_ctx = 2048) -> "Encoder")]
     pub fn new(model: &Model, n_ctx: u32) -> Self {
         let encoder = nobodywho::encoder::Encoder::new(model.model.clone(), n_ctx);
         Self { encoder }
@@ -90,7 +91,7 @@ pub struct EncoderAsync {
 #[pymethods]
 impl EncoderAsync {
     #[new]
-    #[pyo3(signature = (model, n_ctx = 2048))]
+    #[pyo3(signature = (model, n_ctx = 2048) -> "EncoderAsync")]
     pub fn new(model: &Model, n_ctx: u32) -> Self {
         let encoder_handle = nobodywho::encoder::EncoderAsync::new(model.model.clone(), n_ctx);
         Self { encoder_handle }
@@ -113,7 +114,7 @@ pub struct CrossEncoder {
 #[pymethods]
 impl CrossEncoder {
     #[new]
-    #[pyo3(signature = (model, n_ctx = 2048))]
+    #[pyo3(signature = (model, n_ctx = 2048) -> "CrossEncoder")]
     pub fn new(model: &Model, n_ctx: u32) -> Self {
         let crossencoder = nobodywho::crossencoder::CrossEncoder::new(model.model.clone(), n_ctx);
         Self { crossencoder }
@@ -128,7 +129,7 @@ impl CrossEncoder {
         })
     }
 
-    #[pyo3(signature = (query: "str", documents: "list[str]") -> "list[(str, float)]")]
+    #[pyo3(signature = (query: "str", documents: "list[str]") -> "list[tuple[str, float]]")]
     pub fn rank_and_sort(
         &self,
         query: String,
@@ -151,7 +152,7 @@ pub struct CrossEncoderAsync {
 #[pymethods]
 impl CrossEncoderAsync {
     #[new]
-    #[pyo3(signature = (model, n_ctx = 2048))]
+    #[pyo3(signature = (model, n_ctx = 2048) -> "CrossEncoderAsync")]
     pub fn new(model: &Model, n_ctx: u32) -> Self {
         let crossencoder_handle =
             nobodywho::crossencoder::CrossEncoderAsync::new(model.model.clone(), n_ctx);
@@ -168,7 +169,7 @@ impl CrossEncoderAsync {
         })
     }
 
-    #[pyo3(signature = (query: "str", documents: "list[str]") -> "typing.Awaitable[list[(str, float)]]")]
+    #[pyo3(signature = (query: "str", documents: "list[str]") -> "typing.Awaitable[list[tuple[str, float]]]")]
     async fn rank_and_sort(
         &self,
         query: String,
@@ -189,7 +190,7 @@ pub struct Chat {
 #[pymethods]
 impl Chat {
     #[new]
-    #[pyo3(signature = (model, n_ctx = 2048, system_prompt = "", allow_thinking = true, tools: "list[Tool]" = Vec::<Tool>::new(), sampler=None))]
+    #[pyo3(signature = (model, n_ctx = 2048, system_prompt = "", allow_thinking = true, tools: "list[Tool]" = Vec::<Tool>::new(), sampler=None) -> "Chat")]
     pub fn new(
         model: &Model,
         n_ctx: u32,
@@ -259,6 +260,7 @@ impl Clone for SamplerBuilder {
 #[pymethods]
 impl SamplerBuilder {
     #[new]
+    #[pyo3(signature = () -> "SamplerBuilder")]
     pub fn new() -> Self {
         Self {
             sampler_config: nobodywho::sampler_config::SamplerConfig::default(),
@@ -485,7 +487,7 @@ impl Clone for Tool {
 
 #[pymethods]
 impl Tool {
-    #[pyo3(signature = (*args, **kwargs))]
+    #[pyo3(signature = (*args, **kwargs) -> "str")]
     fn __call__(
         &self,
         args: &Bound<pyo3::types::PyTuple>,
@@ -497,7 +499,7 @@ impl Tool {
 }
 
 // tool decorator
-#[pyfunction(signature = (description: "str", params: "dict[str, str] | None" = None))]
+#[pyfunction(signature = (description: "str", params: "dict[str, str] | None" = None) -> "typing.Callable[..., Tool]")]
 fn tool<'a>(
     description: String,
     params: Option<Py<pyo3::types::PyDict>>,
