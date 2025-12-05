@@ -7,6 +7,9 @@ import pytest
 @pytest.fixture
 def model():
     model_path = os.environ.get("TEST_MODEL")
+    if not model_path:
+        raise ValueError("TEST_MODEL environment variable is not set")
+
     return nobodywho.Model(model_path)
 
 
@@ -73,11 +76,16 @@ def test_sync_iterator(chat):
 @pytest.fixture
 def encoder_model():
     model_path = os.environ.get("TEST_EMBEDDINGS_MODEL")
+    if not model_path:
+        raise ValueError("TEST_EMBEDDINGS_MODEL environment variable is not set")
+
     return nobodywho.Model(model_path, use_gpu_if_available=False)
 
 
 @pytest.fixture
 def encoder(encoder_model):
+    if not encoder_model:
+        raise ValueError("Embeddings model is not set")
     return nobodywho.Encoder(encoder_model, n_ctx=1024)
 
 
@@ -98,7 +106,7 @@ async def test_encoder_async():
     model_path = os.environ.get("TEST_EMBEDDINGS_MODEL")
     model = nobodywho.Model(model_path, use_gpu_if_available=False)
     encoder_async = nobodywho.EncoderAsync(model, n_ctx=1024)
-    
+
     embedding = await encoder_async.encode("Test text for embedding.")
 
     assert isinstance(embedding, list), "Embedding should be a list"
@@ -134,6 +142,9 @@ def test_cosine_similarity_error():
 @pytest.fixture
 def crossencoder_model():
     model_path = os.environ.get("TEST_CROSSENCODER_MODEL")
+    if not model_path:
+        raise ValueError("TEST_CROSSENCODER_MODEL environment variable is not set")
+
     return nobodywho.Model(model_path, use_gpu_if_available=False)
 
 
@@ -164,7 +175,7 @@ async def test_crossencoder_rank_async():
     model_path = os.environ.get("TEST_CROSSENCODER_MODEL")
     model = nobodywho.Model(model_path, use_gpu_if_available=False)
     crossencoder_async = nobodywho.CrossEncoderAsync(model, n_ctx=4096)
-    
+
     query = "What is the capital of France?"
     documents = ["Paris is the capital of France.", "Berlin is the capital of Germany."]
 
@@ -201,7 +212,7 @@ async def test_crossencoder_rank_and_sort_async():
     model_path = os.environ.get("TEST_CROSSENCODER_MODEL")
     model = nobodywho.Model(model_path, use_gpu_if_available=False)
     crossencoder_async = nobodywho.CrossEncoderAsync(model, n_ctx=4096)
-    
+
     query = "What is the capital of France?"
     documents = ["Paris is the capital of France.", "Berlin is the capital of Germany."]
 

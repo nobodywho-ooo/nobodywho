@@ -5,3 +5,4 @@
 .direnv/
 .DS_Store
 python_dev_envs/
+checkpoints/
