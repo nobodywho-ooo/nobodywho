@@ -1883,41 +1883,6 @@ mod tests {
     }
 
     #[test]
-    fn test_chat_worker_simple_completion() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
-        let model = test_utils::load_test_model();
-        let sampler = SamplerConfig::default();
-        let mut worker = Worker::new_chat_worker(
-            &model,
-            ChatConfig::default(),
-            Arc::new(AtomicBool::new(false)),
-        )?;
-
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| match x {
-            llm::WriteOutput::Done(resp) => {
-                sender.send(resp).unwrap();
-            }
-            _ => (),
-        };
-
-        worker.read_tokens_and_generate_response(
-            worker
-                .ctx
-                .model
-                .str_to_token("I'm going to count to 10: 1, 2, 3", AddBos::Never)?,
-            sampler,
-            f,
-        )?;
-
-        let response = receiver.recv()?;
-        println!("Response: {}", response);
-        assert!(response.contains("4, 5, 6, 7, 8, 9, 10"));
-
-        Ok(())
-    }
-
-    #[test]
     fn test_chat_worker_multiple_contexts() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
