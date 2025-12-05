@@ -1081,7 +1081,7 @@ impl Worker<'_, ChatWorker> {
         Ok(())
     }
 
-    pub fn set_sampler(&mut self, sampler: SamplerConfig) -> () {
+    pub fn set_sampler(&mut self, sampler: SamplerConfig) {
         self.extra.sampler_config = sampler;
     }
 }
