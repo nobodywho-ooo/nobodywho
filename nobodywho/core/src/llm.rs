@@ -38,8 +38,8 @@ pub fn has_discrete_gpu() -> bool {
     }
 
     for backend_device in llama_cpp_2::list_llama_ggml_backend_devices() {
-        // TODO: account for memoery available on backend device - .memory_total and .memory free
-        //       we might use these with GGUF model metadata, to decide on an umber of layers to offload
+        // TODO: account for memory available on backend device - .memory_total and .memory free
+        //       we might use these with GGUF model metadata, to decide on a number of layers to offload
         match backend_device.device_type {
             llama_cpp_2::LlamaBackendDeviceType::Unknown => {
                 continue;
