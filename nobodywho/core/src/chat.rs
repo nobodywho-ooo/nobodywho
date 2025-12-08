@@ -16,7 +16,7 @@
 //!     .with_system_prompt("You are a helpful assistant")
 //!     .build();
 //!
-//! let response = chat.ask("Hello!").collect().await;
+//! let response = chat.ask("Hello!").completed();
 //! # Ok(())
 //! # }
 //! ```
@@ -206,8 +206,8 @@ impl ChatHandle {
     ///
     /// # Example
     /// ```
-    /// # use nobodywho::chat::ChatHandle;
-    /// # async fn example(chat: &ChatHandle) {
+    /// # use nobodywho::chat::ChatHandleAsync;
+    /// # async fn example(chat: &ChatHandleAsync) {
     /// let mut stream = chat.ask("Tell me a story");
     /// while let Some(token) = stream.next_token().await {
     ///     print!("{}", token);
@@ -364,8 +364,8 @@ impl ChatHandleAsync {
     ///
     /// # Example
     /// ```
-    /// # use nobodywho::chat::ChatHandle;
-    /// # async fn example(chat: &ChatHandle) {
+    /// # use nobodywho::chat::ChatHandleAsync;
+    /// # async fn example(chat: &ChatHandleAsync) {
     /// let mut stream = chat.ask("Tell me a story");
     /// while let Some(token) = stream.next_token().await {
     ///     print!("{}", token);
