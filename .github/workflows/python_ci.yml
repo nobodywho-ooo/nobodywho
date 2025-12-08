@@ -55,7 +55,9 @@ jobs:
       matrix:
         profile:
           - "debug"
-
+    env:
+      RUSTFLAGS: >-
+        -C target-cpu=x86-64-v3
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -93,6 +95,7 @@ jobs:
     env:
       RUSTFLAGS: >-
         -l Advapi32
+        -C target-cpu=x86-64-v3
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1

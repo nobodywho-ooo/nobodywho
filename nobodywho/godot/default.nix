@@ -69,8 +69,7 @@ rec {
     ];
     cargoLock = {
       lockFile = ../Cargo.lock;
-      outputHashes = {
-      };
+      outputHashes = { };
     };
     env.TEST_MODEL = models.TEST_MODEL;
     env.TEST_EMBEDDINGS_MODEL = models.TEST_EMBEDDINGS_MODEL;
