@@ -23,6 +23,14 @@ jobs:
           sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
           uv venv && uv sync
 
+      - name: Format check
+        working-directory: ./nobodywho/python
+        run: uvx ruff format --check .
+
+      - name: Lint check
+        working-directory: ./nobodywho/python
+        run: uvx ruff check
+
       - name: Regenerate stubs
         working-directory: ./nobodywho/python
         run: cargo build && cargo run --bin make_stubs
@@ -35,14 +43,6 @@ jobs:
             git --no-pager diff
             exit 1
           fi
-
-      - name: Format check
-        working-directory: ./nobodywho/python
-        run: uvx ruff format --check .
-
-      - name: Lint check
-        working-directory: ./nobodywho/python
-        run: uvx ruff check
 
       - name: Type check
         working-directory: ./nobodywho/python
