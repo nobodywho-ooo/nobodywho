@@ -227,7 +227,7 @@ struct NobodyWhoChat {
     context_length: u32,
 
     // internal state
-    chat_handle: Option<nobodywho::chat::ChatHandle>,
+    chat_handle: Option<nobodywho::chat::ChatHandleAsync>,
     tools: Vec<nobodywho::chat::Tool>,
     signal_counter: AtomicU64,
     base: Base<Node>,
@@ -278,7 +278,7 @@ impl NobodyWhoChat {
 
     fn start_worker_impl(&mut self) -> Result<(), String> {
         let model = self.get_model()?;
-        self.chat_handle = Some(nobodywho::chat::ChatHandle::new(
+        self.chat_handle = Some(nobodywho::chat::ChatHandleAsync::new(
             model,
             nobodywho::chat::ChatConfig {
                 system_prompt: self.system_prompt.to_string(),
@@ -354,61 +354,63 @@ impl NobodyWhoChat {
 
     #[func]
     fn get_chat_history(&mut self) -> Variant {
-        if let Some(chat_handle) = &self.chat_handle {
-            // kick off operation
-            let mut rx = chat_handle.get_chat_history();
+        // Clone the handle so we don't hold a reference to self
+        let chat_handle = match self.chat_handle.as_ref() {
+            Some(handle) => handle.clone(),
+            None => {
+                godot_error!("Attempted to get chat history, but no worker is running. Doing nothing and returning nil.");
+                return Variant::nil();
+            }
+        };
 
-            // decide on a unique name for the response signal
-            let signal_name = format!(
-                "get_chat_history_{}",
-                self.signal_counter.fetch_add(1, Ordering::Relaxed)
-            );
-            self.base_mut().add_user_signal(&signal_name);
+        // decide on a unique name for the response signal
+        let signal_name = format!(
+            "get_chat_history_{}",
+            self.signal_counter.fetch_add(1, Ordering::Relaxed)
+        );
+        self.base_mut().add_user_signal(&signal_name);
 
-            let mut emit_node = self.to_gd();
-            let signal_name_copy = signal_name.clone();
-            godot::task::spawn(async move {
-                let Some(chat_history) = rx.recv().await else {
-                    error!("Chat worker died while waiting for get_chat_history.");
-                    emit_node.emit_signal(&signal_name_copy, &vec![]);
+        let mut emit_node = self.to_gd();
+        let signal_name_copy = signal_name.clone();
+        godot::task::spawn(async move {
+            // kick off operation inside the async block so the future owns the handle
+            let Ok(chat_history) = chat_handle.get_chat_history().await else {
+                error!("Chat worker died while waiting for get_chat_history.");
+                emit_node.emit_signal(&signal_name_copy, &vec![]);
+                return;
+            };
+            let godot_dict_msgs: Array<Dictionary> = messages_to_dictionaries(&chat_history);
+            let godot_variant_array: Array<Variant> = godot_dict_msgs
+                .iter_shared()
+                .map(|dict| Variant::from(dict))
+                .collect();
+
+            // wait for godot code to connect to signal
+            let signal = Signal::from_object_signal(&emit_node, &signal_name_copy);
+            let tree: Gd<SceneTree> = godot::classes::Engine::singleton()
+                .get_main_loop()
+                .unwrap()
+                .cast();
+            for _ in 0..10 {
+                if signal.connections().len() > 0 {
+                    // happy path: signal has a connection.
+                    signal.emit(&vec![Variant::from(godot_variant_array)]);
+                    // we're done.
                     return;
                 };
-                let godot_dict_msgs: Array<Dictionary> = messages_to_dictionaries(&chat_history);
-                let godot_variant_array: Array<Variant> = godot_dict_msgs
-                    .iter_shared()
-                    .map(|dict| Variant::from(dict))
-                    .collect();
+                // wait one frame before checking number of connections again
+                trace!("Nothing connected to signal yet, waiting one frame...");
+                tree.signals().process_frame().to_future().await;
+            }
+            // unhappy path: nothing ever connected:
+            warn!("Nothing connected to get_chat_history signal for 10 frames. Giving up...");
+        });
 
-                // wait for godot code to connect to signal
-                let signal = Signal::from_object_signal(&emit_node, &signal_name_copy);
-                let tree: Gd<SceneTree> = godot::classes::Engine::singleton()
-                    .get_main_loop()
-                    .unwrap()
-                    .cast();
-                for _ in 0..10 {
-                    if signal.connections().len() > 0 {
-                        // happy path: signal has a connection.
-                        signal.emit(&vec![Variant::from(godot_variant_array)]);
-                        // we're done.
-                        return;
-                    };
-                    // wait one frame before checking number of connections again
-                    trace!("Nothing connected to signal yet, waiting one frame...");
-                    tree.signals().process_frame().to_future().await;
-                }
-                // unhappy path: nothing ever connected:
-                warn!("Nothing connected to get_chat_history signal for 10 frames. Giving up...");
-            });
-
-            // returns signal, so that you can `var msgs = await get_chat_history()`
-            Variant::from(godot::builtin::Signal::from_object_signal(
-                &self.base_mut(),
-                &signal_name,
-            ))
-        } else {
-            godot_error!("Attempted to reset context, but no worker is running. Doing nothing and returning nil.");
-            Variant::nil()
-        }
+        // returns signal, so that you can `var msgs = await get_chat_history()`
+        Variant::from(godot::builtin::Signal::from_object_signal(
+            &self.base_mut(),
+            &signal_name,
+        ))
     }
 
     #[func]

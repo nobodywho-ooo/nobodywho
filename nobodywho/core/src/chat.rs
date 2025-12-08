@@ -313,6 +313,7 @@ impl ChatHandle {
 /// Interact with a ChatWorker in an asynchronous manner.
 ///
 /// Use [`ChatBuilder`] to create a new instance with a fluent API.
+#[derive(Clone)]
 pub struct ChatHandleAsync {
     msg_tx: std::sync::mpsc::Sender<ChatMsg>,
     should_stop: Arc<AtomicBool>,
