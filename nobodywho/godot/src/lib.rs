@@ -278,7 +278,7 @@ impl NobodyWhoChat {
 
     fn start_worker_impl(&mut self) -> Result<(), String> {
         let model = self.get_model()?;
-        self.chat_handle = Some(nobodywho::chat::ChatHandleAsync::new(
+        let chat_handle = nobodywho::chat::ChatHandleAsync::new(
             model,
             nobodywho::chat::ChatConfig {
                 system_prompt: self.system_prompt.to_string(),
@@ -287,7 +287,8 @@ impl NobodyWhoChat {
                 allow_thinking: self.allow_thinking,
                 sampler_config: self.sampler.bind().sampler_config.clone(),
             },
-        ));
+        );
+        self.chat_handle = Some(chat_handle);
         Ok(())
     }
 
@@ -295,33 +296,33 @@ impl NobodyWhoChat {
     /// Sends a message to the LLM.
     /// This will start the inference process. meaning you can also listen on the `response_updated` and `response_finished` signals to get the response.
     fn ask(&mut self, message: String) {
-        if let Some(chat_handle) = self.chat_handle.as_mut() {
-            let sampler = self.sampler.bind().sampler_config.clone();
-            chat_handle.set_sampler_config(sampler);
-            let mut generation_channel = chat_handle.ask_channel(message);
-
-            let emit_node = self.to_gd();
-            godot::task::spawn(async move {
-                while let Some(out) = generation_channel.recv().await {
-                    match out {
-                        nobodywho::llm::WriteOutput::Token(tok) => emit_node
-                            .signals()
-                            .response_updated()
-                            .emit(&GString::from(tok)),
-                        nobodywho::llm::WriteOutput::Done(resp) => emit_node
-                            .signals()
-                            .response_finished()
-                            .emit(&GString::from(resp)),
-                    }
-                }
-            });
-        } else {
+        let Some(chat_handle) = self.chat_handle.as_ref() else {
             godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
             match self.start_worker_impl() {
-                Err(msg) => godot_error!("Failed auto-starting the worker: {}", msg),
-                Ok(()) => self.ask(message),
+                Err(msg) => {
+                    godot_error!("Failed auto-starting the worker: {}", msg);
+                    return;
+                }
+                Ok(_) => return self.ask(message),
+            };
+        };
+
+        let emit_node = self.to_gd();
+        let mut generation_channel = chat_handle.ask_channel(message);
+        godot::task::spawn(async move {
+            while let Some(out) = generation_channel.recv().await {
+                match out {
+                    nobodywho::llm::WriteOutput::Token(tok) => emit_node
+                        .signals()
+                        .response_updated()
+                        .emit(&GString::from(tok)),
+                    nobodywho::llm::WriteOutput::Done(resp) => emit_node
+                        .signals()
+                        .response_finished()
+                        .emit(&GString::from(resp)),
+                }
             }
-        }
+        });
     }
 
     #[func]
@@ -335,21 +336,52 @@ impl NobodyWhoChat {
 
     #[func]
     fn reset_context(&mut self) {
-        if let Some(chat_handle) = &self.chat_handle {
-            chat_handle.reset_chat(self.system_prompt.to_string(), self.tools.clone());
-        } else {
-            godot_error!("Attempted to reset context, but no worker is running. Doing nothing.");
-        }
+        // Clone the handle so we don't hold a reference to self
+        let chat_handle = match self.chat_handle.as_ref() {
+            Some(handle) => handle.clone(),
+            None => {
+                godot_error!(
+                    "Attempted to reset context, but no worker is running. Doing nothing."
+                );
+                return;
+            }
+        };
+
+        let system_prompt = self.system_prompt.to_string();
+        let tools = self.tools.clone();
+
+        godot::task::spawn(async move {
+            match chat_handle.reset_chat(system_prompt, tools).await {
+                Ok(()) => (),
+                Err(errmsg) => {
+                    godot_error!("Error: {}", errmsg.to_string());
+                    return;
+                }
+            }
+        });
     }
 
     #[func]
     fn set_sampler_config(&mut self) {
-        if let Some(chat_handle) = &self.chat_handle {
-            let sampler = self.sampler.bind().sampler_config.clone();
-            chat_handle.set_sampler_config(sampler);
-        } else {
-            godot_warn!("Attempted to set sampler config, but no worker is running. Config will be applied when worker starts.");
-        }
+        // Clone the handle so we don't hold a reference to self
+        let chat_handle = match self.chat_handle.as_ref() {
+            Some(handle) => handle.clone(),
+            None => {
+                godot_error!("Attempted to set sampler config, but no worker is running.");
+                return;
+            }
+        };
+
+        let sampler = self.sampler.bind().sampler_config.clone();
+
+        godot::task::spawn(async move {
+            match chat_handle.set_sampler_config(sampler).await {
+                Ok(()) => (),
+                Err(errmsg) => {
+                    godot_error!("Error: {}", errmsg.to_string());
+                }
+            }
+        });
     }
 
     #[func]
@@ -606,14 +638,33 @@ impl NobodyWhoChat {
                 return;
             }
         };
-        let tools_before = self.tools.len();
+
+        // check that it's around
+        let tool_found = self.tools.iter().any(|tool| tool.name == method_name);
+        if !tool_found {
+            godot_error!("remove_tool: unknown tool '{}'", method_name);
+            return;
+        }
+
+        // remove from lsit
         self.tools.retain(|tool| tool.name != method_name);
-        if self.tools.len() == tools_before {
-            godot_warn!("remove_tool: unknown tool '{}'", method_name);
-        }
-        if let Some(chat_handle) = &self.chat_handle {
-            chat_handle.set_tools(self.tools.clone());
-        }
+
+        // Clone the handle so we don't hold a reference to self
+        let chat_handle = match self.chat_handle.as_ref() {
+            Some(handle) => handle.clone(),
+            None => {
+                godot_error!("Attempted remove tool, but no worker is running. Doing nothing and returning nil.");
+                return;
+            }
+        };
+
+        let new_tools = self.tools.clone();
+
+        godot::task::spawn(async move {
+            if let Err(err) = chat_handle.set_tools(new_tools).await {
+                godot_error!("Error: {}", err.to_string());
+            }
+        });
     }
 
     #[signal]
