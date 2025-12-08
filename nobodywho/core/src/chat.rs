@@ -42,14 +42,6 @@ use tracing::{debug, error, info, trace, trace_span, warn};
 
 // PARALLELISM
 
-/// A handle to interact with a chat session running in a background thread.
-///
-/// Use [`ChatBuilder`] to create a new instance with a fluent API.
-pub struct ChatHandle {
-    msg_tx: std::sync::mpsc::Sender<ChatMsg>,
-    should_stop: Arc<AtomicBool>,
-}
-
 ///
 /// Configuration for chat sessions.
 ///
@@ -150,10 +142,23 @@ impl ChatBuilder {
         self
     }
 
-    /// Build the chat handle and start the background worker.
+    /// Build a blockign chat handle and start the background worker.
     pub fn build(self) -> ChatHandle {
         ChatHandle::new(self.model, self.config)
     }
+
+    /// Build an async chat handle and start the background worker.
+    pub fn build_async(self) -> ChatHandleAsync {
+        ChatHandleAsync::new(self.model, self.config)
+    }
+}
+
+/// Interact with a ChatWorker in a blocking manner.
+///
+/// Use [`ChatBuilder`] to create a new instance with a fluent API.
+pub struct ChatHandle {
+    msg_tx: std::sync::mpsc::Sender<ChatMsg>,
+    should_stop: Arc<AtomicBool>,
 }
 
 impl ChatHandle {
@@ -183,6 +188,8 @@ impl ChatHandle {
         }
     }
 
+    /// Send a message and get a tokio channel
+    /// TODO: deprecate this in favor of plain `ask` once integrations are updated
     pub fn ask_channel(
         &self,
         text: impl Into<String>,
@@ -211,29 +218,49 @@ impl ChatHandle {
         TokenStream::new(self.ask_channel(text))
     }
 
+    fn set_and_wait_blocking<F>(&self, make_msg: F)
+    where
+        F: FnOnce(tokio::sync::mpsc::Sender<()>) -> ChatMsg,
+    {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        let msg = make_msg(output_tx);
+        let _ = self.msg_tx.send(msg);
+        // block until processed
+        let _ = output_rx.blocking_recv();
+    }
+
     /// Reset the chat conversation with a new system prompt and tools.
     pub fn reset_chat(&self, system_prompt: String, tools: Vec<Tool>) {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         let _ = self.msg_tx.send(ChatMsg::ResetChat {
             system_prompt,
             tools,
+            output_tx,
         });
+
+        // block until chat has reset
+        let _ = output_rx.blocking_recv();
     }
 
     /// Update the available tools for the model to use.
     pub fn set_tools(&self, tools: Vec<Tool>) {
-        let _ = self.msg_tx.send(ChatMsg::SetTools { tools });
+        self.set_and_wait_blocking(|output_tx| ChatMsg::SetTools { tools, output_tx });
     }
 
     /// Update whether the model should use thinking mode during inference.
     pub fn set_allow_thinking(&self, allow_thinking: bool) {
-        let _ = self.msg_tx.send(ChatMsg::SetThinking { allow_thinking });
+        self.set_and_wait_blocking(|output_tx| ChatMsg::SetThinking {
+            allow_thinking,
+            output_tx,
+        });
     }
 
     /// Update the sampler configuration for inference.
     pub fn set_sampler_config(&self, sampler_config: SamplerConfig) {
-        let _ = self
-            .msg_tx
-            .send(ChatMsg::SetSamplerConfig { sampler_config });
+        self.set_and_wait_blocking(|output_tx| ChatMsg::SetSamplerConfig {
+            sampler_config,
+            output_tx,
+        });
     }
 
     /// Stop the current generation if one is in progress.
@@ -242,79 +269,181 @@ impl ChatHandle {
             .store(true, std::sync::atomic::Ordering::Relaxed);
     }
 
-    /// Get the current chat history.
-    pub async fn get_chat_history_async(&self) -> Vec<crate::chat_state::Message> {
-        let mut rx = self.get_chat_history();
-        rx.recv().await.unwrap_or_default()
-    }
-
     /// Get a receiver for the chat history (lower-level API).
-    pub fn get_chat_history(&self) -> tokio::sync::mpsc::Receiver<Vec<crate::chat_state::Message>> {
-        let (output_tx, output_rx) = tokio::sync::mpsc::channel(1);
+    pub fn get_chat_history(&self) -> Vec<crate::chat_state::Message> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         let _ = self.msg_tx.send(ChatMsg::GetChatHistory { output_tx });
-        output_rx
-    }
-
-    /// Set the chat history.
-    pub async fn set_chat_history_async(&self, messages: Vec<crate::chat_state::Message>) {
-        let mut rx = self.set_chat_history(messages);
-        let _ = rx.recv().await;
+        output_rx.blocking_recv().unwrap_or_default()
     }
 
     /// Set the chat history (lower-level API).
-    pub fn set_chat_history(
-        &self,
-        messages: Vec<crate::chat_state::Message>,
-    ) -> tokio::sync::mpsc::Receiver<()> {
-        let (output_tx, output_rx) = tokio::sync::mpsc::channel(1);
-        let _ = self.msg_tx.send(ChatMsg::SetChatHistory {
-            output_tx,
+    pub fn set_chat_history(&self, messages: Vec<crate::chat_state::Message>) {
+        self.set_and_wait_blocking(|output_tx| ChatMsg::SetChatHistory {
             messages,
+            output_tx,
+        });
+    }
+}
+
+/// Interact with a ChatWorker in an asynchronous manner.
+///
+/// Use [`ChatBuilder`] to create a new instance with a fluent API.
+pub struct ChatHandleAsync {
+    msg_tx: std::sync::mpsc::Sender<ChatMsg>,
+    should_stop: Arc<AtomicBool>,
+}
+
+impl ChatHandleAsync {
+    /// Create a new chat handle directly. Consider using [`ChatBuilder`] for a more ergonomic API.
+    pub fn new(model: Arc<LlamaModel>, config: ChatConfig) -> Self {
+        let (msg_tx, msg_rx) = std::sync::mpsc::channel();
+
+        let should_stop = Arc::new(AtomicBool::new(false));
+        let should_stop_clone = Arc::clone(&should_stop);
+
+        std::thread::spawn(move || {
+            let Ok(mut worker_state) = Worker::new_chat_worker(&model, config, should_stop_clone)
+            else {
+                return error!("Could not set up the worker initial state");
+            };
+
+            while let Ok(msg) = msg_rx.recv() {
+                if let Err(e) = process_worker_msg(&mut worker_state, msg) {
+                    return error!("Worker crashed: {e}");
+                }
+            }
+        });
+
+        Self {
+            msg_tx,
+            should_stop,
+        }
+    }
+
+    /// Send a message and get a tokio channel
+    /// TODO: deprecate this in favor of plain `ask` once integrations are updated
+    pub fn ask_channel(
+        &self,
+        text: impl Into<String>,
+    ) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
+        let (output_tx, output_rx) = tokio::sync::mpsc::channel(4096);
+        let _ = self.msg_tx.send(ChatMsg::Ask {
+            text: text.into(),
+            output_tx,
         });
         output_rx
+    }
+
+    /// Send a message and collect tokens as they arrive.
+    ///
+    /// # Example
+    /// ```
+    /// # use nobodywho::chat::ChatHandle;
+    /// # async fn example(chat: &ChatHandle) {
+    /// let mut stream = chat.ask("Tell me a story");
+    /// while let Some(token) = stream.next_token().await {
+    ///     print!("{}", token);
+    /// }
+    /// # }
+    /// ```
+    pub fn ask(&self, text: impl Into<String>) -> TokenStreamAsync {
+        TokenStreamAsync::new(self.ask_channel(text))
+    }
+
+    // internal helper function for async setters
+    async fn set_and_wait_async<F>(&self, make_msg: F)
+    where
+        F: FnOnce(tokio::sync::mpsc::Sender<()>) -> ChatMsg,
+    {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        let msg = make_msg(output_tx);
+        let _ = self.msg_tx.send(msg);
+        // wait until processed
+        let _ = output_rx.recv().await;
+    }
+
+    /// Reset the chat conversation with a new system prompt and tools.
+    pub async fn reset_chat(&self, system_prompt: String, tools: Vec<Tool>) {
+        self.set_and_wait_async(|output_tx| ChatMsg::ResetChat {
+            system_prompt,
+            tools,
+            output_tx,
+        })
+        .await;
+    }
+
+    /// Update the available tools for the model to use.
+    pub async fn set_tools(&self, tools: Vec<Tool>) {
+        self.set_and_wait_async(|output_tx| ChatMsg::SetTools { tools, output_tx })
+            .await;
+    }
+
+    /// Update whether the model should use thinking mode during inference.
+    pub async fn set_allow_thinking(&self, allow_thinking: bool) {
+        self.set_and_wait_async(|output_tx| ChatMsg::SetThinking {
+            allow_thinking,
+            output_tx,
+        })
+        .await;
+    }
+
+    /// Update the sampler configuration for inference.
+    pub async fn set_sampler_config(&self, sampler_config: SamplerConfig) {
+        self.set_and_wait_async(|output_tx| ChatMsg::SetSamplerConfig {
+            sampler_config,
+            output_tx,
+        })
+        .await;
+    }
+
+    /// Stop the current generation if one is in progress.
+    pub fn stop_generation(&self) {
+        self.should_stop
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Get a receiver for the chat history (lower-level API).
+    pub async fn get_chat_history(&self) -> Vec<crate::chat_state::Message> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        let _ = self.msg_tx.send(ChatMsg::GetChatHistory { output_tx });
+        output_rx.recv().await.unwrap_or_default()
+    }
+
+    /// Set the chat history (lower-level API).
+    pub async fn set_chat_history(&self, messages: Vec<crate::chat_state::Message>) {
+        self.set_and_wait_async(|output_tx| ChatMsg::SetChatHistory {
+            messages,
+            output_tx,
+        })
+        .await;
     }
 }
 
 /// A stream of tokens from the model.
 pub struct TokenStream {
     rx: tokio::sync::mpsc::Receiver<llm::WriteOutput>,
-    done: bool,
+    completed_response: Option<String>,
 }
 
 impl TokenStream {
     fn new(rx: tokio::sync::mpsc::Receiver<llm::WriteOutput>) -> Self {
-        Self { rx, done: false }
+        Self {
+            rx,
+            completed_response: None,
+        }
     }
 
     /// Get the next token from the stream.
-    pub async fn next_token(&mut self) -> Option<String> {
-        if self.done {
-            return None;
-        }
-
-        if let Some(output) = self.rx.recv().await {
-            match output {
-                llm::WriteOutput::Token(token) => return Some(token),
-                llm::WriteOutput::Done(_) => {
-                    self.done = true;
-                    return None;
-                }
-            }
-        }
-
-        None
-    }
-
-    pub fn next_token_sync(&mut self) -> Option<String> {
-        if self.done {
+    pub fn next_token(&mut self) -> Option<String> {
+        if self.completed_response.is_some() {
             return None;
         }
 
         if let Some(output) = self.rx.blocking_recv() {
             match output {
                 llm::WriteOutput::Token(token) => return Some(token),
-                llm::WriteOutput::Done(_) => {
-                    self.done = true;
+                llm::WriteOutput::Done(completed_response) => {
+                    self.completed_response = Some(completed_response);
                     return None;
                 }
             }
@@ -322,13 +451,75 @@ impl TokenStream {
         None
     }
 
-    /// Collect all remaining tokens into a single string.
-    pub async fn collect(&mut self) -> String {
-        let mut result = Vec::new();
-        while let Some(token) = self.next_token().await {
-            result.push(token);
+    /// Blocks until the  entire response is completed. Does not consume the response, so this
+    /// method is idempotent.
+    pub fn completed(&mut self) -> String {
+        loop {
+            match self.next_token() {
+                Some(_) => {
+                    continue;
+                }
+                None => {
+                    let resp = self
+                        .completed_response
+                        .clone()
+                        .unwrap_or_else(|| unreachable!("This error should never be thrown. Open an issue on GitHub if you see this."));
+                    return resp;
+                }
+            }
         }
-        result.join("")
+    }
+}
+
+/// A stream of tokens from the model, async version.
+pub struct TokenStreamAsync {
+    rx: tokio::sync::mpsc::Receiver<llm::WriteOutput>,
+    completed_response: Option<String>,
+}
+
+impl TokenStreamAsync {
+    pub fn new(rx: tokio::sync::mpsc::Receiver<llm::WriteOutput>) -> Self {
+        Self {
+            rx,
+            completed_response: None,
+        }
+    }
+
+    /// Waits for the next token in the stream. Consumes the token when emitted.
+    pub async fn next_token(&mut self) -> Option<String> {
+        if self.completed_response.is_some() {
+            return None;
+        }
+
+        if let Some(output) = self.rx.recv().await {
+            match output {
+                llm::WriteOutput::Token(token) => return Some(token),
+                llm::WriteOutput::Done(completed_response) => {
+                    self.completed_response = Some(completed_response);
+                    return None;
+                }
+            }
+        }
+        None
+    }
+
+    /// Waits for the entire response to be completed. Does not consume the response, so this
+    /// method is idempotent.
+    pub async fn completed(&mut self) -> String {
+        loop {
+            match self.next_token().await {
+                Some(_) => {
+                    continue;
+                }
+                None => {
+                    let resp = self
+                        .completed_response
+                        .clone()
+                        .unwrap_or_else(|| unreachable!("This error should never be thrown. Open an issue on GitHub if you see this."));
+                    return resp;
+                }
+            }
+        }
     }
 }
 
@@ -340,15 +531,19 @@ enum ChatMsg {
     ResetChat {
         system_prompt: String,
         tools: Vec<Tool>,
+        output_tx: tokio::sync::mpsc::Sender<()>,
     },
     SetTools {
         tools: Vec<Tool>,
+        output_tx: tokio::sync::mpsc::Sender<()>,
     },
     SetThinking {
         allow_thinking: bool,
+        output_tx: tokio::sync::mpsc::Sender<()>,
     },
     SetSamplerConfig {
         sampler_config: SamplerConfig,
+        output_tx: tokio::sync::mpsc::Sender<()>,
     },
     GetChatHistory {
         output_tx: tokio::sync::mpsc::Sender<Vec<crate::chat_state::Message>>,
@@ -373,17 +568,28 @@ fn process_worker_msg(
         ChatMsg::ResetChat {
             system_prompt,
             tools,
+            output_tx,
         } => {
             worker_state.reset_chat(system_prompt, tools)?;
+            let _ = output_tx.blocking_send(());
         }
-        ChatMsg::SetTools { tools } => {
+        ChatMsg::SetTools { tools, output_tx } => {
             worker_state.set_tools(tools)?;
+            let _ = output_tx.blocking_send(());
         }
-        ChatMsg::SetThinking { allow_thinking } => {
+        ChatMsg::SetThinking {
+            allow_thinking,
+            output_tx,
+        } => {
             worker_state.set_allow_thinking(allow_thinking)?;
+            let _ = output_tx.blocking_send(());
         }
-        ChatMsg::SetSamplerConfig { sampler_config } => {
+        ChatMsg::SetSamplerConfig {
+            sampler_config,
+            output_tx,
+        } => {
             worker_state.set_sampler_config(sampler_config);
+            let _ = output_tx.blocking_send(());
         }
         ChatMsg::GetChatHistory { output_tx } => {
             let _ = output_tx.blocking_send(worker_state.extra.chat_state.get_messages().to_vec());
@@ -1966,7 +2172,7 @@ mod tests {
 
         let res1: String = chat
             .ask("What is the capital of Denmark?".to_string())
-            .collect()
+            .completed()
             .await;
 
         assert!(
@@ -1978,7 +2184,7 @@ mod tests {
 
         let res2: String = chat
             .ask("What is the capital of the Czech Republic?".to_string())
-            .collect()
+            .completed()
             .await;
 
         assert!(

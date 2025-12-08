@@ -17,11 +17,18 @@ def chat(model):
     )
 
 
+@pytest.fixture
+def chat_async(model):
+    return nobodywho.ChatAsync(
+        model, system_prompt="You are a helpful assistant", allow_thinking=False
+    )
+
+
 @pytest.mark.asyncio
-async def test_async_streaming(chat):
+async def test_async_streaming(chat_async):
     """Test async streaming from demo_async.py"""
-    prompt = "What is the capital of Denmark?"
-    token_stream = chat.ask(prompt)
+    prompt: str = "What is the capital of Denmark?"
+    token_stream: nobodywho.TokenStreamAsync = chat_async.ask(prompt)
 
     tokens = []
     while token := await token_stream.next_token():
@@ -33,29 +40,31 @@ async def test_async_streaming(chat):
 
 
 @pytest.mark.asyncio
-async def test_async_collect(chat):
+async def test_async_completed(chat_async):
     """Test async complete from demo_async.py"""
-    response_stream = chat.ask("What is the capital of Denmark?")
-    response = await response_stream.collect()
+    response_stream: nobodywho.TokenStreamAsync = chat_async.ask(
+        "What is the capital of Denmark?"
+    )
+    response: str = await response_stream.completed()
 
     assert len(response) > 0
     assert "copenhagen" in response.lower()
 
 
-def test_blocking_collect(chat):
+def test_blocking_completed(chat):
     response_stream = chat.ask("What is the capital of Denmark?")
-    response = response_stream.collect_blocking()
+    response: str = response_stream.completed()
     assert "copenhagen" in response.lower()
 
 
 @pytest.mark.asyncio
-async def test_multiple_prompts(chat):
+async def test_multiple_prompts(chat_async):
     """Test multiple sequential prompts like the demo loop"""
     prompts = ["Hello", "What is 2+2?", "Goodbye"]
 
     for prompt in prompts:
-        response_stream = chat.ask(prompt)
-        response = await response_stream.collect()
+        response_stream: nobodywho.TokenStreamAsync = chat_async.ask(prompt)
+        response = await response_stream.completed()
         assert len(response) > 0
 
 
@@ -98,7 +107,7 @@ async def test_encoder_async():
     model_path = os.environ.get("TEST_EMBEDDINGS_MODEL")
     model = nobodywho.Model(model_path, use_gpu_if_available=False)
     encoder_async = nobodywho.EncoderAsync(model, n_ctx=1024)
-    
+
     embedding = await encoder_async.encode("Test text for embedding.")
 
     assert isinstance(embedding, list), "Embedding should be a list"
@@ -164,7 +173,7 @@ async def test_crossencoder_rank_async():
     model_path = os.environ.get("TEST_CROSSENCODER_MODEL")
     model = nobodywho.Model(model_path, use_gpu_if_available=False)
     crossencoder_async = nobodywho.CrossEncoderAsync(model, n_ctx=4096)
-    
+
     query = "What is the capital of France?"
     documents = ["Paris is the capital of France.", "Berlin is the capital of Germany."]
 
@@ -201,7 +210,7 @@ async def test_crossencoder_rank_and_sort_async():
     model_path = os.environ.get("TEST_CROSSENCODER_MODEL")
     model = nobodywho.Model(model_path, use_gpu_if_available=False)
     crossencoder_async = nobodywho.CrossEncoderAsync(model, n_ctx=4096)
-    
+
     query = "What is the capital of France?"
     documents = ["Paris is the capital of France.", "Berlin is the capital of Germany."]
 
@@ -229,9 +238,7 @@ def test_tool_construction():
 
 def test_tool_calling(model):
     chat = nobodywho.Chat(model, tools=[sparklify])
-    response: str = chat.ask(
-        "Please sparklify this word: 'julemand'"
-    ).collect_blocking()
+    response: str = chat.ask("Please sparklify this word: 'julemand'").completed()
     assert "✨JULEMAND✨" in response
 
 
@@ -251,7 +258,7 @@ def test_tool_parameter_description(model):
     chat = nobodywho.Chat(model, tools=[reflarbicator, sparklify], allow_thinking=False)
     answer = chat.ask(
         "Please tell me the description of the 'unfloop' parameter of the reflarbicator tool"
-    ).collect_blocking()
+    ).completed()
     assert "velocidensity" in answer
 
 
