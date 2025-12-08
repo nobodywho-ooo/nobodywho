@@ -106,7 +106,6 @@ impl NobodyWhoSampler {
     }
 }
 
-
 #[derive(GodotClass)]
 #[class(base=Node)]
 /// The model node is used to load the model, currently only GGUF models are supported.
@@ -405,10 +404,8 @@ impl NobodyWhoChat {
                 return;
             };
             let godot_dict_msgs: Array<Dictionary> = messages_to_dictionaries(&chat_history);
-            let godot_variant_array: Array<Variant> = godot_dict_msgs
-                .iter_shared()
-                .map(Variant::from)
-                .collect();
+            let godot_variant_array: Array<Variant> =
+                godot_dict_msgs.iter_shared().map(Variant::from).collect();
 
             // wait for godot code to connect to signal
             let signal = Signal::from_object_signal(&emit_node, &signal_name_copy);
