@@ -141,6 +141,7 @@ pub enum ChatError {
     BadDescription = 9,
     BadJsonSchema = 10,
     BadReturnValue = 11,
+    WorkerDiedWhileWaiting = 12,
 }
 
 impl FFIError for ChatError {
@@ -235,7 +236,9 @@ impl ChatWrapper {
                 SamplerPresets::grammar(g.to_string())
             });
 
-            handle.set_sampler_config(sampler);
+            if let Err(_) = handle.set_sampler_config(sampler) {
+                return Err(ChatError::WorkerDiedWhileWaiting);
+            }
 
             let response_rx = handle.ask_channel(text.as_str().map_err(|_| ChatError::BadSayText)?);
 
@@ -296,11 +299,17 @@ impl ChatWrapper {
         let Some(ref handle) = self.handle else {
             return JsonPointer::default();
         };
-        let mut rx = handle.get_chat_history();
-        let chat_history = rx.blocking_recv();
+
+        let Ok(chat_history) = handle.get_chat_history() else {
+            // XXX: this error handling pattern is quite bad...
+            return JsonPointer::default();
+        };
+
         let json: String = serde_json::to_string(&chat_history).unwrap_or_default();
         debug!("chat_history: {json}");
         let cstring = std::ffi::CString::new(json).unwrap_or_default();
+
+        // let Ok(chat_history) = handle.get_chat_history() else {};
         self._cstring_allocation = cstring;
         JsonPointer {
             ptr: self._cstring_allocation.as_ptr(),
@@ -319,7 +328,10 @@ impl ChatWrapper {
                 serde_json::from_value(json["messages"].clone())
                     .map_err(|_| ChatError::BadJsonSchema)?;
 
-            handle.set_chat_history(messages);
+            if let Err(_) = handle.set_chat_history(messages) {
+                return Err(ChatError::WorkerDiedWhileWaiting);
+            }
+
             Ok(())
         } else {
             Err(ChatError::WorkerNotStarted)
@@ -351,7 +363,10 @@ impl ChatWrapper {
                 SamplerPresets::grammar(g.to_string())
             });
 
-            handle.set_sampler_config(sampler);
+            if let Err(_) = handle.set_sampler_config(sampler) {
+                return Err(ChatError::WorkerDiedWhileWaiting);
+            };
+
             Ok(())
         } else {
             Err(ChatError::WorkerNotStarted)
