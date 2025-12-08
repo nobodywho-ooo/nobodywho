@@ -17,7 +17,7 @@ impl NobodyWhoModel {
 
 #[flutter_rust_bridge::frb(opaque)]
 pub struct NobodyWhoChat {
-    chat: nobodywho::chat::ChatHandle,
+    chat: nobodywho::chat::ChatHandleAsync,
 }
 
 impl NobodyWhoChat {
@@ -32,7 +32,7 @@ impl NobodyWhoChat {
             .with_system_prompt(system_prompt)
             .with_context_size(context_size)
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
-            .build();
+            .build_async();
         Self { chat }
     }
 
