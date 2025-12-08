@@ -218,7 +218,7 @@ impl ChatHandle {
         TokenStream::new(self.ask_channel(text))
     }
 
-    fn set_and_wait_blocking<F>(&self, make_msg: F)
+    fn set_and_wait_blocking<F>(&self, make_msg: F) -> Option<()>
     where
         F: FnOnce(tokio::sync::mpsc::Sender<()>) -> ChatMsg,
     {
@@ -226,7 +226,7 @@ impl ChatHandle {
         let msg = make_msg(output_tx);
         let _ = self.msg_tx.send(msg);
         // block until processed
-        let _ = output_rx.blocking_recv();
+        output_rx.blocking_recv()
     }
 
     /// Reset the chat conversation with a new system prompt and tools.
@@ -243,24 +243,37 @@ impl ChatHandle {
     }
 
     /// Update the available tools for the model to use.
-    pub fn set_tools(&self, tools: Vec<Tool>) {
-        self.set_and_wait_blocking(|output_tx| ChatMsg::SetTools { tools, output_tx });
+    pub fn set_tools(&self, tools: Vec<Tool>) -> Result<(), crate::errors::SetterError> {
+        self.set_and_wait_blocking(|output_tx| ChatMsg::SetTools { tools, output_tx })
+            .ok_or(crate::errors::SetterError::SetterError("set_tools".into()))
     }
 
     /// Update whether the model should use thinking mode during inference.
-    pub fn set_allow_thinking(&self, allow_thinking: bool) {
+    pub fn set_allow_thinking(
+        &self,
+        allow_thinking: bool,
+    ) -> Result<(), crate::errors::SetterError> {
         self.set_and_wait_blocking(|output_tx| ChatMsg::SetThinking {
             allow_thinking,
             output_tx,
-        });
+        })
+        .ok_or(crate::errors::SetterError::SetterError(
+            "set_allow_thinking".into(),
+        ))
     }
 
     /// Update the sampler configuration for inference.
-    pub fn set_sampler_config(&self, sampler_config: SamplerConfig) {
+    pub fn set_sampler_config(
+        &self,
+        sampler_config: SamplerConfig,
+    ) -> Result<(), crate::errors::SetterError> {
         self.set_and_wait_blocking(|output_tx| ChatMsg::SetSamplerConfig {
             sampler_config,
             output_tx,
-        });
+        })
+        .ok_or(crate::errors::SetterError::SetterError(
+            "set_sampler_config".into(),
+        ))
     }
 
     /// Stop the current generation if one is in progress.
@@ -270,18 +283,30 @@ impl ChatHandle {
     }
 
     /// Get a receiver for the chat history (lower-level API).
-    pub fn get_chat_history(&self) -> Vec<crate::chat_state::Message> {
+    pub fn get_chat_history(
+        &self,
+    ) -> Result<Vec<crate::chat_state::Message>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         let _ = self.msg_tx.send(ChatMsg::GetChatHistory { output_tx });
-        output_rx.blocking_recv().unwrap_or_default()
+        output_rx
+            .blocking_recv()
+            .ok_or(crate::errors::GetterError::GetterError(
+                "get_chat_history".into(),
+            ))
     }
 
     /// Set the chat history (lower-level API).
-    pub fn set_chat_history(&self, messages: Vec<crate::chat_state::Message>) {
+    pub fn set_chat_history(
+        &self,
+        messages: Vec<crate::chat_state::Message>,
+    ) -> Result<(), crate::errors::SetterError> {
         self.set_and_wait_blocking(|output_tx| ChatMsg::SetChatHistory {
             messages,
             output_tx,
-        });
+        })
+        .ok_or(crate::errors::SetterError::SetterError(
+            "set_chat_history".into(),
+        ))
     }
 }
 
@@ -351,7 +376,7 @@ impl ChatHandleAsync {
     }
 
     // internal helper function for async setters
-    async fn set_and_wait_async<F>(&self, make_msg: F)
+    async fn set_and_wait_async<F>(&self, make_msg: F) -> Option<()>
     where
         F: FnOnce(tokio::sync::mpsc::Sender<()>) -> ChatMsg,
     {
@@ -359,41 +384,59 @@ impl ChatHandleAsync {
         let msg = make_msg(output_tx);
         let _ = self.msg_tx.send(msg);
         // wait until processed
-        let _ = output_rx.recv().await;
+        output_rx.recv().await
     }
 
     /// Reset the chat conversation with a new system prompt and tools.
-    pub async fn reset_chat(&self, system_prompt: String, tools: Vec<Tool>) {
+    pub async fn reset_chat(
+        &self,
+        system_prompt: String,
+        tools: Vec<Tool>,
+    ) -> Result<(), crate::errors::SetterError> {
         self.set_and_wait_async(|output_tx| ChatMsg::ResetChat {
             system_prompt,
             tools,
             output_tx,
         })
-        .await;
+        .await
+        .ok_or(crate::errors::SetterError::SetterError("reset_chat".into()))
     }
 
     /// Update the available tools for the model to use.
-    pub async fn set_tools(&self, tools: Vec<Tool>) {
+    pub async fn set_tools(&self, tools: Vec<Tool>) -> Result<(), crate::errors::SetterError> {
         self.set_and_wait_async(|output_tx| ChatMsg::SetTools { tools, output_tx })
-            .await;
+            .await
+            .ok_or(crate::errors::SetterError::SetterError("set_tools".into()))
     }
 
     /// Update whether the model should use thinking mode during inference.
-    pub async fn set_allow_thinking(&self, allow_thinking: bool) {
+    pub async fn set_allow_thinking(
+        &self,
+        allow_thinking: bool,
+    ) -> Result<(), crate::errors::SetterError> {
         self.set_and_wait_async(|output_tx| ChatMsg::SetThinking {
             allow_thinking,
             output_tx,
         })
-        .await;
+        .await
+        .ok_or(crate::errors::SetterError::SetterError(
+            "set_allow_thinking".into(),
+        ))
     }
 
     /// Update the sampler configuration for inference.
-    pub async fn set_sampler_config(&self, sampler_config: SamplerConfig) {
+    pub async fn set_sampler_config(
+        &self,
+        sampler_config: SamplerConfig,
+    ) -> Result<(), crate::errors::SetterError> {
         self.set_and_wait_async(|output_tx| ChatMsg::SetSamplerConfig {
             sampler_config,
             output_tx,
         })
-        .await;
+        .await
+        .ok_or(crate::errors::SetterError::SetterError(
+            "set_sampler_config".into(),
+        ))
     }
 
     /// Stop the current generation if one is in progress.
@@ -403,19 +446,32 @@ impl ChatHandleAsync {
     }
 
     /// Get a receiver for the chat history (lower-level API).
-    pub async fn get_chat_history(&self) -> Vec<crate::chat_state::Message> {
+    pub async fn get_chat_history(
+        &self,
+    ) -> Result<Vec<crate::chat_state::Message>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         let _ = self.msg_tx.send(ChatMsg::GetChatHistory { output_tx });
-        output_rx.recv().await.unwrap_or_default()
+        output_rx
+            .recv()
+            .await
+            .ok_or(crate::errors::GetterError::GetterError(
+                "get_chat_history".into(),
+            ))
     }
 
     /// Set the chat history (lower-level API).
-    pub async fn set_chat_history(&self, messages: Vec<crate::chat_state::Message>) {
+    pub async fn set_chat_history(
+        &self,
+        messages: Vec<crate::chat_state::Message>,
+    ) -> Result<(), crate::errors::SetterError> {
         self.set_and_wait_async(|output_tx| ChatMsg::SetChatHistory {
             messages,
             output_tx,
         })
-        .await;
+        .await
+        .ok_or(crate::errors::SetterError::SetterError(
+            "set_chat_history".into(),
+        ))
     }
 }
 
@@ -2168,7 +2224,7 @@ mod tests {
     async fn test_allow_thinking() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let chat = ChatBuilder::new(model).build();
+        let chat = ChatBuilder::new(model).build_async();
 
         let res1: String = chat
             .ask("What is the capital of Denmark?".to_string())
@@ -2180,7 +2236,7 @@ mod tests {
             "Expected the model to initialize with thinking mode, but it did not"
         );
 
-        chat.set_allow_thinking(false);
+        chat.set_allow_thinking(false).await?;
 
         let res2: String = chat
             .ask("What is the capital of the Czech Republic?".to_string())
