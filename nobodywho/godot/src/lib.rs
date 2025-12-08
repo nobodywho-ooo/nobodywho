@@ -35,6 +35,7 @@ unsafe impl ExtensionLibrary for NobodyWhoExtension {
 /// DRY, JSON, or custom grammars.
 #[derive(GodotClass)]
 #[class(init, base=Object)]
+#[derive(Default)]
 struct NobodyWhoSampler {
     sampler_config: SamplerConfig,
 }
@@ -105,13 +106,6 @@ impl NobodyWhoSampler {
     }
 }
 
-impl Default for NobodyWhoSampler {
-    fn default() -> Self {
-        Self {
-            sampler_config: SamplerConfig::default(),
-        }
-    }
-}
 
 #[derive(GodotClass)]
 #[class(base=Node)]
@@ -355,7 +349,6 @@ impl NobodyWhoChat {
                 Ok(()) => (),
                 Err(errmsg) => {
                     godot_error!("Error: {}", errmsg.to_string());
-                    return;
                 }
             }
         });
@@ -408,13 +401,13 @@ impl NobodyWhoChat {
             // kick off operation inside the async block so the future owns the handle
             let Ok(chat_history) = chat_handle.get_chat_history().await else {
                 error!("Chat worker died while waiting for get_chat_history.");
-                emit_node.emit_signal(&signal_name_copy, &vec![]);
+                emit_node.emit_signal(&signal_name_copy, &[]);
                 return;
             };
             let godot_dict_msgs: Array<Dictionary> = messages_to_dictionaries(&chat_history);
             let godot_variant_array: Array<Variant> = godot_dict_msgs
                 .iter_shared()
-                .map(|dict| Variant::from(dict))
+                .map(Variant::from)
                 .collect();
 
             // wait for godot code to connect to signal
@@ -424,9 +417,9 @@ impl NobodyWhoChat {
                 .unwrap()
                 .cast();
             for _ in 0..10 {
-                if signal.connections().len() > 0 {
+                if !signal.connections().is_empty() {
                     // happy path: signal has a connection.
-                    signal.emit(&vec![Variant::from(godot_variant_array)]);
+                    signal.emit(&[Variant::from(godot_variant_array)]);
                     // we're done.
                     return;
                 };
@@ -453,7 +446,7 @@ impl NobodyWhoChat {
                     // Check if last message is from user and warn
                     if msg_vec
                         .last()
-                        .map_or(false, |msg| msg.role() == &chat_state::Role::User)
+                        .is_some_and(|msg| msg.role() == &chat_state::Role::User)
                     {
                         godot_warn!("Chat history ends with a user message. This may cause unexpected behavior during generation.");
                     }
@@ -555,7 +548,7 @@ impl NobodyWhoChat {
             godot_error!("Passed json schema was not a valid json object.");
             return;
         };
-        return self._add_tool_with_schema(callable, description, json_schema);
+        self._add_tool_with_schema(callable, description, json_schema)
     }
 
     fn _add_tool_with_schema(
@@ -703,7 +696,7 @@ fn json_to_godot(value: &serde_json::Value) -> Variant {
         }
         serde_json::Value::String(s) => Variant::from(s.as_str()),
         serde_json::Value::Array(arr) => {
-            let vec: Vec<Variant> = arr.into_iter().map(json_to_godot).collect();
+            let vec: Vec<Variant> = arr.iter().map(json_to_godot).collect();
             Variant::from(vec)
         }
         serde_json::Value::Object(obj) => {

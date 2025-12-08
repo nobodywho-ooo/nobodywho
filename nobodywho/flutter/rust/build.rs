@@ -1,7 +1,7 @@
 use lib_flutter_rust_bridge_codegen::codegen;
 
 fn main() {
-    println!("cargo:rerun-if-changed={}", ".");
+    println!("cargo:rerun-if-changed=.");
 
     // do a special little dance for the androids
     let target = std::env::var("CARGO_CFG_TARGET_OS").unwrap();

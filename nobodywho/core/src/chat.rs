@@ -1451,11 +1451,8 @@ mod tests {
         )?;
 
         let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| match x {
-            llm::WriteOutput::Done(resp) => {
-                sender.send(resp).unwrap();
-            }
-            _ => (),
+        let f = move |x| if let llm::WriteOutput::Done(resp) = x {
+            sender.send(resp).unwrap();
         };
 
         worker.ask("What is the capital of Denmark?".to_string(), f.clone())?;
@@ -1489,11 +1486,8 @@ mod tests {
 
         // just a hack to get a channel back
         let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| match x {
-            llm::WriteOutput::Done(resp) => {
-                sender.send(resp).unwrap();
-            }
-            _ => (),
+        let f = move |x| if let llm::WriteOutput::Done(resp) = x {
+            sender.send(resp).unwrap();
         };
 
         // do it once
@@ -1636,11 +1630,8 @@ mod tests {
         .expect("Failed making worker");
 
         let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| match x {
-            llm::WriteOutput::Done(resp) => {
-                sender.send(resp).unwrap();
-            }
-            _ => (),
+        let f = move |x| if let llm::WriteOutput::Done(resp) = x {
+            sender.send(resp).unwrap();
         };
 
         worker
@@ -1672,11 +1663,8 @@ mod tests {
         .expect("Failed making worker");
 
         let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| match x {
-            llm::WriteOutput::Done(resp) => {
-                sender.send(resp).unwrap();
-            }
-            _ => (),
+        let f = move |x| if let llm::WriteOutput::Done(resp) = x {
+            sender.send(resp).unwrap();
         };
 
         worker.ask(
@@ -1977,11 +1965,8 @@ mod tests {
         println!("Messages before shift: {}", messages_before_shift);
 
         let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| match x {
-            llm::WriteOutput::Done(resp) => {
-                sender.send(resp).unwrap();
-            }
-            _ => (),
+        let f = move |x| if let llm::WriteOutput::Done(resp) = x {
+            sender.send(resp).unwrap();
         };
 
         // This should trigger context shift internally because there's not enough space
@@ -2067,11 +2052,8 @@ mod tests {
         println!("Messages before shift: {}", messages_before_shift);
 
         let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| match x {
-            llm::WriteOutput::Done(resp) => {
-                sender.send(resp).unwrap();
-            }
-            _ => (),
+        let f = move |x| if let llm::WriteOutput::Done(resp) = x {
+            sender.send(resp).unwrap();
         };
 
         // This should trigger context shift internally because there's not enough space

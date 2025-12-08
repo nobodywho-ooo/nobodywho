@@ -236,7 +236,7 @@ impl ChatWrapper {
                 SamplerPresets::grammar(g.to_string())
             });
 
-            if let Err(_) = handle.set_sampler_config(sampler) {
+            if handle.set_sampler_config(sampler).is_err() {
                 return Err(ChatError::WorkerDiedWhileWaiting);
             }
 
@@ -328,7 +328,7 @@ impl ChatWrapper {
                 serde_json::from_value(json["messages"].clone())
                     .map_err(|_| ChatError::BadJsonSchema)?;
 
-            if let Err(_) = handle.set_chat_history(messages) {
+            if handle.set_chat_history(messages).is_err() {
                 return Err(ChatError::WorkerDiedWhileWaiting);
             }
 
@@ -363,7 +363,7 @@ impl ChatWrapper {
                 SamplerPresets::grammar(g.to_string())
             });
 
-            if let Err(_) = handle.set_sampler_config(sampler) {
+            if handle.set_sampler_config(sampler).is_err() {
                 return Err(ChatError::WorkerDiedWhileWaiting);
             };
 
@@ -552,7 +552,7 @@ impl EncoderWrapper {
                 Ok(encoding) => {
                     self.last_returned_encoding = encoding;
                     self.response_rx = None;
-                    return FFISlice::from_slice(self.last_returned_encoding.as_slice());
+                    FFISlice::from_slice(self.last_returned_encoding.as_slice())
                 }
             }
         } else {
@@ -564,7 +564,7 @@ impl EncoderWrapper {
 #[ffi_function]
 #[no_mangle]
 pub extern "C" fn cosine_similarity(a: FFISlice<f32>, b: FFISlice<f32>) -> f32 {
-    return nobodywho::encoder::cosine_similarity(a.as_slice(), b.as_slice());
+    nobodywho::encoder::cosine_similarity(a.as_slice(), b.as_slice())
 }
 
 /// BINDINGS
