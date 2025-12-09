@@ -112,8 +112,7 @@ def test_encoder_sync(encoder):
 @pytest.mark.asyncio
 async def test_encoder_async():
     """Test that encoder can generate embeddings using async API"""
-    model = encoder_model()
-    encoder_async = nobodywho.EncoderAsync(model, n_ctx=1024)
+    encoder_async = nobodywho.EncoderAsync(encoder_model, n_ctx=1024)
 
     embedding = await encoder_async.encode("Test text for embedding.")
 
@@ -179,8 +178,7 @@ def test_crossencoder_rank_sync(crossencoder):
 
 @pytest.mark.asyncio
 async def test_crossencoder_rank_async():
-    model = crossencoder_model()
-    crossencoder_async = nobodywho.CrossEncoderAsync(model, n_ctx=4096)
+    crossencoder_async = nobodywho.CrossEncoderAsync(crossencoder_model, n_ctx=4096)
 
     query = "What is the capital of France?"
     documents = ["Paris is the capital of France.", "Berlin is the capital of Germany."]
@@ -215,8 +213,7 @@ def test_crossencoder_rank_and_sort_sync(crossencoder):
 @pytest.mark.asyncio
 async def test_crossencoder_rank_and_sort_async():
     """Test that cross-encoder rank and sort works with async API"""
-    model = crossencoder_model()
-    crossencoder_async = nobodywho.CrossEncoderAsync(model, n_ctx=4096)
+    crossencoder_async = nobodywho.CrossEncoderAsync(crossencoder_model, n_ctx=4096)
 
     query = "What is the capital of France?"
     documents = ["Paris is the capital of France.", "Berlin is the capital of Germany."]
