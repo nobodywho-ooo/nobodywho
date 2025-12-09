@@ -76,6 +76,7 @@ jobs:
       matrix:
         target:
           - "x86_64-pc-windows-msvc"
+          - "aarch64-pc-windows-msvc"
         profile:
           - "debug"
           - "release"
@@ -83,10 +84,6 @@ jobs:
           - "godot"
           - "unity"
           - "flutter"
-    env:
-      RUSTFLAGS: >-
-        -l Advapi32
-        -C target-cpu=x86-64-v3
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -135,6 +132,7 @@ jobs:
           RUSTFLAGS: >-
             -l Advapi32
             -C debuginfo=0
+            ${{ matrix.target == 'x86_64-pc-windows-msvc' && '-C target-cpu=x86-64-v3' || '' }}
           # Use Ninja generator instead of Visual Studio generator.
           # This fixes a CMake ExternalProject issue where vulkan-shaders-gen's
           # install step fails to find cmake_install.cmake with the VS generator.
