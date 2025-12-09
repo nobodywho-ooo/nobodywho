@@ -8,6 +8,6 @@ chat = nobodywho.Chat(
 )
 
 
-result = chat.send_message("What is the capital of Denmark?").collect_blocking()
+result = chat.ask("What is the capital of Denmark?").completed()
 print(result)
 assert "copenhagen" in result.lower(), "Model does not know the capital of Denmark."

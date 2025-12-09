@@ -11,6 +11,7 @@
   shaderc,
   mesa,
   callPackage,
+  doCheck ? false,
 }:
 
 let
@@ -74,10 +75,12 @@ rec {
     env.TEST_MODEL = models.TEST_MODEL;
     env.TEST_EMBEDDINGS_MODEL = models.TEST_EMBEDDINGS_MODEL;
     env.TEST_CROSSENCODER_MODEL = models.TEST_CROSSENCODER_MODEL;
+
+    # skips running the unit tests. we integration test godot anyway, and unit test elsewhere
+    doCheck = false;
     checkPhase = ''
       cargo test -- --test-threads=1 --nocapture
     '';
-    doCheck = true;
   };
 
   integration-test = pkgs.callPackage ./integration-test { inherit nobodywho-godot; };

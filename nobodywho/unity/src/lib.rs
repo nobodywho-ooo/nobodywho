@@ -141,6 +141,7 @@ pub enum ChatError {
     BadDescription = 9,
     BadJsonSchema = 10,
     BadReturnValue = 11,
+    WorkerDiedWhileWaiting = 12,
 }
 
 impl FFIError for ChatError {
@@ -193,7 +194,7 @@ impl ChatWrapper {
                 system_prompt,
                 tools: self.tools.clone(),
                 allow_thinking: true,
-                sampler: SamplerConfig::default(),
+                sampler_config: SamplerConfig::default(),
             },
         );
         self.handle = Some(handle);
@@ -213,7 +214,7 @@ impl ChatWrapper {
         }
     }
 
-    pub fn say(
+    pub fn ask(
         &mut self,
         text: AsciiPointer,
         use_grammar: bool,
@@ -225,7 +226,6 @@ impl ChatWrapper {
         }
 
         if let Some(ref mut handle) = self.handle {
-            // TODO: proper sampler config
             let grammar = if use_grammar {
                 grammar.as_str().ok()
             } else {
@@ -236,19 +236,17 @@ impl ChatWrapper {
                 SamplerPresets::grammar(g.to_string())
             });
 
-            handle.set_sampler(sampler);
+            if handle.set_sampler_config(sampler).is_err() {
+                return Err(ChatError::WorkerDiedWhileWaiting);
+            }
 
-            // lets go!
-            let response_rx = handle.say(text.as_str().map_err(|_| ChatError::BadSayText)?.into());
+            let response_rx = handle.ask_channel(text.as_str().map_err(|_| ChatError::BadSayText)?);
 
             debug_assert!(self.response_rx.is_none());
             self.response_rx = Some(response_rx);
 
             Ok(())
         } else {
-            // TODO: would be nice to start worker automatically here
-            // this probably requires that we own configuration-state rust-side
-            // like we do on the modelwrapper node. we should look into making getters/setters here
             warn!("Worker not started yet. Please call StartWorker first.");
             Err(ChatError::WorkerNotStarted)
         }
@@ -301,11 +299,17 @@ impl ChatWrapper {
         let Some(ref handle) = self.handle else {
             return JsonPointer::default();
         };
-        let mut rx = handle.get_chat_history();
-        let chat_history = rx.blocking_recv();
+
+        let Ok(chat_history) = handle.get_chat_history() else {
+            // XXX: this error handling pattern is quite bad...
+            return JsonPointer::default();
+        };
+
         let json: String = serde_json::to_string(&chat_history).unwrap_or_default();
         debug!("chat_history: {json}");
         let cstring = std::ffi::CString::new(json).unwrap_or_default();
+
+        // let Ok(chat_history) = handle.get_chat_history() else {};
         self._cstring_allocation = cstring;
         JsonPointer {
             ptr: self._cstring_allocation.as_ptr(),
@@ -324,7 +328,10 @@ impl ChatWrapper {
                 serde_json::from_value(json["messages"].clone())
                     .map_err(|_| ChatError::BadJsonSchema)?;
 
-            handle.set_chat_history(messages);
+            if handle.set_chat_history(messages).is_err() {
+                return Err(ChatError::WorkerDiedWhileWaiting);
+            }
+
             Ok(())
         } else {
             Err(ChatError::WorkerNotStarted)
@@ -334,6 +341,32 @@ impl ChatWrapper {
     pub fn stop(&mut self) -> Result<(), ChatError> {
         if let Some(ref mut handle) = self.handle {
             handle.stop_generation();
+            Ok(())
+        } else {
+            Err(ChatError::WorkerNotStarted)
+        }
+    }
+
+    pub fn set_sampler_config(
+        &mut self,
+        use_grammar: bool,
+        grammar: AsciiPointer,
+    ) -> Result<(), ChatError> {
+        if let Some(ref handle) = self.handle {
+            let grammar = if use_grammar {
+                grammar.as_str().ok()
+            } else {
+                None
+            };
+
+            let sampler = grammar.map_or(SamplerConfig::default(), |g| {
+                SamplerPresets::grammar(g.to_string())
+            });
+
+            if handle.set_sampler_config(sampler).is_err() {
+                return Err(ChatError::WorkerDiedWhileWaiting);
+            };
+
             Ok(())
         } else {
             Err(ChatError::WorkerNotStarted)
@@ -519,7 +552,7 @@ impl EncoderWrapper {
                 Ok(encoding) => {
                     self.last_returned_encoding = encoding;
                     self.response_rx = None;
-                    return FFISlice::from_slice(self.last_returned_encoding.as_slice());
+                    FFISlice::from_slice(self.last_returned_encoding.as_slice())
                 }
             }
         } else {
@@ -531,7 +564,7 @@ impl EncoderWrapper {
 #[ffi_function]
 #[no_mangle]
 pub extern "C" fn cosine_similarity(a: FFISlice<f32>, b: FFISlice<f32>) -> f32 {
-    return nobodywho::encoder::cosine_similarity(a.as_slice(), b.as_slice());
+    nobodywho::encoder::cosine_similarity(a.as_slice(), b.as_slice())
 }
 
 /// BINDINGS

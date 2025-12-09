@@ -17,7 +17,7 @@ impl NobodyWhoModel {
 
 #[flutter_rust_bridge::frb(opaque)]
 pub struct NobodyWhoChat {
-    chat: nobodywho::chat::ChatHandle,
+    chat: nobodywho::chat::ChatHandleAsync,
 }
 
 impl NobodyWhoChat {
@@ -32,16 +32,16 @@ impl NobodyWhoChat {
             .with_system_prompt(system_prompt)
             .with_context_size(context_size)
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
-            .build();
+            .build_async();
         Self { chat }
     }
 
-    pub async fn say(
+    pub async fn ask(
         &self,
         sink: crate::frb_generated::StreamSink<String>,
         message: String,
     ) -> Result<(), Rust2DartSendError> {
-        let mut stream = self.chat.say_stream(message);
+        let mut stream = self.chat.ask(message);
         while let Some(token) = stream.next_token().await {
             sink.add(token)?;
         }
@@ -200,7 +200,7 @@ pub fn init_debug_log() {
 }
 
 // TODO:
-// - blocking say
+// - blocking ask
 // - embeddings
 // - cross encoder
 // - sampler

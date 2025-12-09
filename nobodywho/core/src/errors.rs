@@ -54,6 +54,18 @@ pub enum WorkerError {
 }
 
 #[derive(Debug, thiserror::Error)]
+pub enum SetterError {
+    #[error("Worker terminated before processing setter: {0}")]
+    SetterError(String),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum GetterError {
+    #[error("Worker terminated before processing getter: {0}")]
+    GetterError(String),
+}
+
+#[derive(Debug, thiserror::Error)]
 pub enum ReadError {
     #[error("Could not tokenize string: {0}")]
     Tokenizer(#[from] llama_cpp_2::StringToTokenError),
