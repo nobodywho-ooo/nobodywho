@@ -142,7 +142,7 @@ impl ChatBuilder {
         self
     }
 
-    /// Build a blockign chat handle and start the background worker.
+    /// Build a blocking chat handle and start the background worker.
     pub fn build(self) -> ChatHandle {
         ChatHandle::new(self.model, self.config)
     }
