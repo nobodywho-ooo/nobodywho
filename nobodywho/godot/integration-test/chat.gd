@@ -31,7 +31,7 @@ func test_chat_history():
 		{"role": "assistant", "content": "2 + 2 equals 4."}
 	]
 	
-	set_chat_history(messages)
+	await set_chat_history(messages)
 	var retrieved_messages = await get_chat_history()
 	print("✨ Retrieved chat history: " + str(retrieved_messages))
 	
