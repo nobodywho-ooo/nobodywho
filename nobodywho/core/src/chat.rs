@@ -580,6 +580,7 @@ impl TokenStreamAsync {
     }
 }
 
+#[derive(Debug)]
 enum ChatMsg {
     Ask {
         text: String,
@@ -615,6 +616,7 @@ fn process_worker_msg(
     worker_state: &mut Worker<'_, ChatWorker>,
     msg: ChatMsg,
 ) -> Result<(), ChatWorkerError> {
+    debug!("Worker processing msg: {:?}", msg);
     match msg {
         ChatMsg::Ask { text, output_tx } => {
             let callback = move |out| {
@@ -677,6 +679,17 @@ pub struct Tool {
     description: String,
     json_schema: serde_json::Value,
     function: Arc<dyn Fn(serde_json::Value) -> String + Send + Sync>,
+}
+
+impl std::fmt::Debug for Tool {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Tool")
+            .field("name", &self.name)
+            .field("description", &self.description)
+            .field("json_schema", &self.json_schema)
+            .field("function", &"<function>")
+            .finish()
+    }
 }
 
 impl Tool {
