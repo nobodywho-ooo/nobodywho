@@ -23,6 +23,10 @@ jobs:
           sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
           uv venv && uv sync
 
+      - name: Regenerate stubs
+        working-directory: ./nobodywho/python
+        run: cargo build && cargo run --bin make_stubs
+
       - name: Format check
         working-directory: ./nobodywho/python
         run: uvx ruff format --check .
@@ -30,10 +34,6 @@ jobs:
       - name: Lint check
         working-directory: ./nobodywho/python
         run: uvx ruff check
-
-      - name: Regenerate stubs
-        working-directory: ./nobodywho/python
-        run: cargo build && cargo run --bin make_stubs
 
       - name: Check for uncommitted changes
         working-directory: ./nobodywho/python
