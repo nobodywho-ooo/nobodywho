@@ -24,6 +24,7 @@ pub struct TokenStream {
 
 #[pymethods]
 impl TokenStream {
+    #[pyo3(signature = () -> "str | None")]
     pub fn next_token(&mut self, py: Python) -> Option<String> {
         // Release the GIL while waiting for the next token
         // This allows the background thread to acquire the GIL if needed for tool calls
@@ -53,6 +54,7 @@ pub struct TokenStreamAsync {
 
 #[pymethods]
 impl TokenStreamAsync {
+    #[pyo3(signature = () -> "typing.Awaitable[str | None]")]
     pub async fn next_token(&mut self) -> Option<String> {
         // no need to release GIL in async functions
         self.stream.next_token().await
@@ -231,19 +233,21 @@ pub struct ChatAsync {
 #[pymethods]
 impl ChatAsync {
     #[new]
-    #[pyo3(signature = (model, n_ctx = 2048, system_prompt = "", allow_thinking = true, tools = vec![]))]
+    #[pyo3(signature = (model, n_ctx = 2048, system_prompt = "", allow_thinking = true, tools: "list[Tool]" = vec![], sampler = SamplerConfig::default()) -> "ChatAsync")]
     pub fn new(
         model: &Model,
         n_ctx: u32,
         system_prompt: &str,
         allow_thinking: bool,
         tools: Vec<Tool>,
+        sampler: SamplerConfig,
     ) -> Self {
         let chat_handle = nobodywho::chat::ChatBuilder::new(model.model.clone())
             .with_context_size(n_ctx)
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
             .with_allow_thinking(allow_thinking)
             .with_system_prompt(system_prompt)
+            .with_sampler(sampler.sampler_config)
             .build_async();
         Self { chat_handle }
     }
@@ -791,6 +795,12 @@ pub mod nobodywhopython {
     use super::EncoderAsync;
     #[pymodule_export]
     use super::Model;
+    #[pymodule_export]
+    use super::SamplerBuilder;
+    #[pymodule_export]
+    use super::SamplerConfig;
+    #[pymodule_export]
+    use super::SamplerPresets;
     #[pymodule_export]
     use super::TokenStream;
     #[pymodule_export]

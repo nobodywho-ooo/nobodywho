@@ -69,11 +69,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("✅ No anys found in {}!", full_path.display());
         }
 
-        // Create parent directories if they don't exist
-        if let Some(parent) = full_path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-
         fs::write(&full_path, contents)?;
         println!("  Generated: {}", full_path.display());
     }
