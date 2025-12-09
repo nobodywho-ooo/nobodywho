@@ -46,7 +46,7 @@ void main() {
     });
 
     test('Capital of Denmark test', () async {
-      final responseStream = chat!.say(message: "What is the capital of Denmark?");
+      final responseStream = chat!.ask(message: "What is the capital of Denmark?");
       String response = "";
       await for (final token in responseStream) {
         response += token;
@@ -55,7 +55,7 @@ void main() {
     });
 
     test('Tool calling test', () async {
-      final responseStream = chat!.say(message: "Can you please sparklify the string 'Foopdoop'?");
+      final responseStream = chat!.ask(message: "Can you please sparklify the string 'Foopdoop'?");
       String response = "";
       await for (final token in responseStream) {
         response += token;
@@ -64,7 +64,7 @@ void main() {
     });
 
     test('Async tool calling test', () async {
-      final responseStream = chat!.say(message: "Can you please strongify the string 'Wrawr'?");
+      final responseStream = chat!.ask(message: "Can you please strongify the string 'Wrawr'?");
       String response = "";
       await for (final token in responseStream) {
         response += token;

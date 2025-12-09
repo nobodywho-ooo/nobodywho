@@ -16,7 +16,7 @@
 //!     .with_system_prompt("You are a helpful assistant")
 //!     .build();
 //!
-//! let response = chat.say_complete("Hello!").await?;
+//! let response = chat.ask("Hello!").completed();
 //! # Ok(())
 //! # }
 //! ```
@@ -42,14 +42,6 @@ use tracing::{debug, error, info, trace, trace_span, warn};
 
 // PARALLELISM
 
-/// A handle to interact with a chat session running in a background thread.
-///
-/// Use [`ChatBuilder`] to create a new instance with a fluent API.
-pub struct ChatHandle {
-    msg_tx: std::sync::mpsc::Sender<ChatMsg>,
-    should_stop: Arc<AtomicBool>,
-}
-
 ///
 /// Configuration for chat sessions.
 ///
@@ -64,6 +56,8 @@ pub struct ChatConfig {
     pub system_prompt: String,
     /// Whether to allow thinking mode during inference.
     pub allow_thinking: bool,
+    /// Sampler configuration for inference.
+    pub sampler_config: SamplerConfig,
 }
 
 impl Default for ChatConfig {
@@ -73,6 +67,7 @@ impl Default for ChatConfig {
             allow_thinking: true,
             system_prompt: String::new(),
             tools: Vec::new(),
+            sampler_config: SamplerConfig::default(),
         }
     }
 }
@@ -147,10 +142,23 @@ impl ChatBuilder {
         self
     }
 
-    /// Build the chat handle and start the background worker.
+    /// Build a blocking chat handle and start the background worker.
     pub fn build(self) -> ChatHandle {
         ChatHandle::new(self.model, self.config)
     }
+
+    /// Build an async chat handle and start the background worker.
+    pub fn build_async(self) -> ChatHandleAsync {
+        ChatHandleAsync::new(self.model, self.config)
+    }
+}
+
+/// Interact with a ChatWorker in a blocking manner.
+///
+/// Use [`ChatBuilder`] to create a new instance with a fluent API.
+pub struct ChatHandle {
+    msg_tx: std::sync::mpsc::Sender<ChatMsg>,
+    should_stop: Arc<AtomicBool>,
 }
 
 impl ChatHandle {
@@ -180,102 +188,92 @@ impl ChatHandle {
         }
     }
 
-    /// Send a message to the model and get a stream of tokens back.
-    pub fn say(
+    /// Send a message and get a tokio channel
+    /// TODO: deprecate this in favor of plain `ask` once integrations are updated
+    pub fn ask_channel(
         &self,
-        text: String,
-        sampler: SamplerConfig,
-        stop_words: Vec<String>,
+        text: impl Into<String>,
     ) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
         let (output_tx, output_rx) = tokio::sync::mpsc::channel(4096);
-        let _ = self.msg_tx.send(ChatMsg::Say {
-            text,
-            sampler,
-            stop_words,
+        let _ = self.msg_tx.send(ChatMsg::Ask {
+            text: text.into(),
             output_tx,
         });
         output_rx
-    }
-
-    /// Send a message and wait for the complete response.
-    ///
-    /// # Example
-    /// ```
-    /// # use nobodywho::chat::ChatHandle;
-    /// # async fn example(chat: &ChatHandle) -> Result<(), nobodywho::errors::SayError> {
-    /// let response = chat.say_complete("What is the capital of France?").await?;
-    /// println!("{}", response);
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn say_complete(&self, text: impl Into<String>) -> Result<String, SayError> {
-        self.say_complete_with_config(text, SamplerConfig::default(), vec![])
-            .await
-    }
-
-    /// Send a message with custom configuration and wait for the complete response.
-    pub async fn say_complete_with_config(
-        &self,
-        text: impl Into<String>,
-        sampler: SamplerConfig,
-        stop_words: Vec<String>,
-    ) -> Result<String, SayError> {
-        let mut rx = self.say(text.into(), sampler, stop_words);
-
-        let mut tokens = Vec::new();
-        while let Some(output) = rx.recv().await {
-            match output {
-                llm::WriteOutput::Token(token) => tokens.push(token),
-                llm::WriteOutput::Done(response) => return Ok(response),
-            }
-        }
-
-        // If we got here, the channel closed without sending Done
-        Ok(tokens.join(""))
     }
 
     /// Send a message and collect tokens as they arrive.
     ///
     /// # Example
     /// ```
-    /// # use nobodywho::chat::ChatHandle;
-    /// # async fn example(chat: &ChatHandle) {
-    /// let mut stream = chat.say_stream("Tell me a story");
+    /// # use nobodywho::chat::ChatHandleAsync;
+    /// # async fn example(chat: &ChatHandleAsync) {
+    /// let mut stream = chat.ask("Tell me a story");
     /// while let Some(token) = stream.next_token().await {
     ///     print!("{}", token);
     /// }
     /// # }
     /// ```
-    pub fn say_stream(&self, text: impl Into<String>) -> TokenStream {
-        TokenStream::new(self.say(text.into(), SamplerConfig::default(), vec![]))
+    pub fn ask(&self, text: impl Into<String>) -> TokenStream {
+        TokenStream::new(self.ask_channel(text))
     }
 
-    /// Send a message with custom configuration and collect tokens as they arrive.
-    pub fn say_stream_with_config(
-        &self,
-        text: impl Into<String>,
-        sampler: SamplerConfig,
-        stop_words: Vec<String>,
-    ) -> TokenStream {
-        TokenStream::new(self.say(text.into(), sampler, stop_words))
+    fn set_and_wait_blocking<F>(&self, make_msg: F) -> Option<()>
+    where
+        F: FnOnce(tokio::sync::mpsc::Sender<()>) -> ChatMsg,
+    {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        let msg = make_msg(output_tx);
+        let _ = self.msg_tx.send(msg);
+        // block until processed
+        output_rx.blocking_recv()
     }
 
     /// Reset the chat conversation with a new system prompt and tools.
     pub fn reset_chat(&self, system_prompt: String, tools: Vec<Tool>) {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         let _ = self.msg_tx.send(ChatMsg::ResetChat {
             system_prompt,
             tools,
+            output_tx,
         });
+
+        // block until chat has reset
+        let _ = output_rx.blocking_recv();
     }
 
     /// Update the available tools for the model to use.
-    pub fn set_tools(&self, tools: Vec<Tool>) {
-        let _ = self.msg_tx.send(ChatMsg::SetTools { tools });
+    pub fn set_tools(&self, tools: Vec<Tool>) -> Result<(), crate::errors::SetterError> {
+        self.set_and_wait_blocking(|output_tx| ChatMsg::SetTools { tools, output_tx })
+            .ok_or(crate::errors::SetterError::SetterError("set_tools".into()))
     }
 
     /// Update whether the model should use thinking mode during inference.
-    pub fn set_allow_thinking(&self, allow_thinking: bool) {
-        let _ = self.msg_tx.send(ChatMsg::SetThinking { allow_thinking });
+    pub fn set_allow_thinking(
+        &self,
+        allow_thinking: bool,
+    ) -> Result<(), crate::errors::SetterError> {
+        self.set_and_wait_blocking(|output_tx| ChatMsg::SetThinking {
+            allow_thinking,
+            output_tx,
+        })
+        .ok_or(crate::errors::SetterError::SetterError(
+            "set_allow_thinking".into(),
+        ))
+    }
+
+    /// Update the sampler configuration for inference.
+    pub fn set_sampler_config(
+        &self,
+        sampler_config: SamplerConfig,
+    ) -> Result<(), crate::errors::SetterError> {
+        self.set_and_wait_blocking(|output_tx| ChatMsg::SetSamplerConfig {
+            sampler_config,
+            output_tx,
+        })
+        .ok_or(crate::errors::SetterError::SetterError(
+            "set_sampler_config".into(),
+        ))
     }
 
     /// Stop the current generation if one is in progress.
@@ -284,79 +282,225 @@ impl ChatHandle {
             .store(true, std::sync::atomic::Ordering::Relaxed);
     }
 
-    /// Get the current chat history.
-    pub async fn get_chat_history_async(&self) -> Vec<crate::chat_state::Message> {
-        let mut rx = self.get_chat_history();
-        rx.recv().await.unwrap_or_default()
-    }
-
     /// Get a receiver for the chat history (lower-level API).
-    pub fn get_chat_history(&self) -> tokio::sync::mpsc::Receiver<Vec<crate::chat_state::Message>> {
-        let (output_tx, output_rx) = tokio::sync::mpsc::channel(1);
+    pub fn get_chat_history(
+        &self,
+    ) -> Result<Vec<crate::chat_state::Message>, crate::errors::GetterError> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         let _ = self.msg_tx.send(ChatMsg::GetChatHistory { output_tx });
         output_rx
-    }
-
-    /// Set the chat history.
-    pub async fn set_chat_history_async(&self, messages: Vec<crate::chat_state::Message>) {
-        let mut rx = self.set_chat_history(messages);
-        let _ = rx.recv().await;
+            .blocking_recv()
+            .ok_or(crate::errors::GetterError::GetterError(
+                "get_chat_history".into(),
+            ))
     }
 
     /// Set the chat history (lower-level API).
     pub fn set_chat_history(
         &self,
         messages: Vec<crate::chat_state::Message>,
-    ) -> tokio::sync::mpsc::Receiver<()> {
-        let (output_tx, output_rx) = tokio::sync::mpsc::channel(1);
-        let _ = self.msg_tx.send(ChatMsg::SetChatHistory {
-            output_tx,
+    ) -> Result<(), crate::errors::SetterError> {
+        self.set_and_wait_blocking(|output_tx| ChatMsg::SetChatHistory {
             messages,
+            output_tx,
+        })
+        .ok_or(crate::errors::SetterError::SetterError(
+            "set_chat_history".into(),
+        ))
+    }
+}
+
+/// Interact with a ChatWorker in an asynchronous manner.
+///
+/// Use [`ChatBuilder`] to create a new instance with a fluent API.
+#[derive(Clone)]
+pub struct ChatHandleAsync {
+    msg_tx: std::sync::mpsc::Sender<ChatMsg>,
+    should_stop: Arc<AtomicBool>,
+}
+
+impl ChatHandleAsync {
+    /// Create a new chat handle directly. Consider using [`ChatBuilder`] for a more ergonomic API.
+    pub fn new(model: Arc<LlamaModel>, config: ChatConfig) -> Self {
+        let (msg_tx, msg_rx) = std::sync::mpsc::channel();
+
+        let should_stop = Arc::new(AtomicBool::new(false));
+        let should_stop_clone = Arc::clone(&should_stop);
+
+        std::thread::spawn(move || {
+            let Ok(mut worker_state) = Worker::new_chat_worker(&model, config, should_stop_clone)
+            else {
+                return error!("Could not set up the worker initial state");
+            };
+
+            while let Ok(msg) = msg_rx.recv() {
+                if let Err(e) = process_worker_msg(&mut worker_state, msg) {
+                    return error!("Worker crashed: {e}");
+                }
+            }
+        });
+
+        Self {
+            msg_tx,
+            should_stop,
+        }
+    }
+
+    /// Send a message and get a tokio channel
+    /// TODO: deprecate this in favor of plain `ask` once integrations are updated
+    pub fn ask_channel(
+        &self,
+        text: impl Into<String>,
+    ) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
+        let (output_tx, output_rx) = tokio::sync::mpsc::channel(4096);
+        let _ = self.msg_tx.send(ChatMsg::Ask {
+            text: text.into(),
+            output_tx,
         });
         output_rx
+    }
+
+    /// Send a message and collect tokens as they arrive.
+    ///
+    /// # Example
+    /// ```
+    /// # use nobodywho::chat::ChatHandleAsync;
+    /// # async fn example(chat: &ChatHandleAsync) {
+    /// let mut stream = chat.ask("Tell me a story");
+    /// while let Some(token) = stream.next_token().await {
+    ///     print!("{}", token);
+    /// }
+    /// # }
+    /// ```
+    pub fn ask(&self, text: impl Into<String>) -> TokenStreamAsync {
+        TokenStreamAsync::new(self.ask_channel(text))
+    }
+
+    // internal helper function for async setters
+    async fn set_and_wait_async<F>(&self, make_msg: F) -> Option<()>
+    where
+        F: FnOnce(tokio::sync::mpsc::Sender<()>) -> ChatMsg,
+    {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        let msg = make_msg(output_tx);
+        let _ = self.msg_tx.send(msg);
+        // wait until processed
+        output_rx.recv().await
+    }
+
+    /// Reset the chat conversation with a new system prompt and tools.
+    pub async fn reset_chat(
+        &self,
+        system_prompt: String,
+        tools: Vec<Tool>,
+    ) -> Result<(), crate::errors::SetterError> {
+        self.set_and_wait_async(|output_tx| ChatMsg::ResetChat {
+            system_prompt,
+            tools,
+            output_tx,
+        })
+        .await
+        .ok_or(crate::errors::SetterError::SetterError("reset_chat".into()))
+    }
+
+    /// Update the available tools for the model to use.
+    pub async fn set_tools(&self, tools: Vec<Tool>) -> Result<(), crate::errors::SetterError> {
+        self.set_and_wait_async(|output_tx| ChatMsg::SetTools { tools, output_tx })
+            .await
+            .ok_or(crate::errors::SetterError::SetterError("set_tools".into()))
+    }
+
+    /// Update whether the model should use thinking mode during inference.
+    pub async fn set_allow_thinking(
+        &self,
+        allow_thinking: bool,
+    ) -> Result<(), crate::errors::SetterError> {
+        self.set_and_wait_async(|output_tx| ChatMsg::SetThinking {
+            allow_thinking,
+            output_tx,
+        })
+        .await
+        .ok_or(crate::errors::SetterError::SetterError(
+            "set_allow_thinking".into(),
+        ))
+    }
+
+    /// Update the sampler configuration for inference.
+    pub async fn set_sampler_config(
+        &self,
+        sampler_config: SamplerConfig,
+    ) -> Result<(), crate::errors::SetterError> {
+        self.set_and_wait_async(|output_tx| ChatMsg::SetSamplerConfig {
+            sampler_config,
+            output_tx,
+        })
+        .await
+        .ok_or(crate::errors::SetterError::SetterError(
+            "set_sampler_config".into(),
+        ))
+    }
+
+    /// Stop the current generation if one is in progress.
+    pub fn stop_generation(&self) {
+        self.should_stop
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Get a receiver for the chat history (lower-level API).
+    pub async fn get_chat_history(
+        &self,
+    ) -> Result<Vec<crate::chat_state::Message>, crate::errors::GetterError> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        let _ = self.msg_tx.send(ChatMsg::GetChatHistory { output_tx });
+        output_rx
+            .recv()
+            .await
+            .ok_or(crate::errors::GetterError::GetterError(
+                "get_chat_history".into(),
+            ))
+    }
+
+    /// Set the chat history (lower-level API).
+    pub async fn set_chat_history(
+        &self,
+        messages: Vec<crate::chat_state::Message>,
+    ) -> Result<(), crate::errors::SetterError> {
+        self.set_and_wait_async(|output_tx| ChatMsg::SetChatHistory {
+            messages,
+            output_tx,
+        })
+        .await
+        .ok_or(crate::errors::SetterError::SetterError(
+            "set_chat_history".into(),
+        ))
     }
 }
 
 /// A stream of tokens from the model.
 pub struct TokenStream {
     rx: tokio::sync::mpsc::Receiver<llm::WriteOutput>,
-    done: bool,
+    completed_response: Option<String>,
 }
 
 impl TokenStream {
     fn new(rx: tokio::sync::mpsc::Receiver<llm::WriteOutput>) -> Self {
-        Self { rx, done: false }
+        Self {
+            rx,
+            completed_response: None,
+        }
     }
 
     /// Get the next token from the stream.
-    pub async fn next_token(&mut self) -> Option<String> {
-        if self.done {
-            return None;
-        }
-
-        if let Some(output) = self.rx.recv().await {
-            match output {
-                llm::WriteOutput::Token(token) => return Some(token),
-                llm::WriteOutput::Done(_) => {
-                    self.done = true;
-                    return None;
-                }
-            }
-        }
-
-        None
-    }
-
-    pub fn next_token_sync(&mut self) -> Option<String> {
-        if self.done {
+    pub fn next_token(&mut self) -> Option<String> {
+        if self.completed_response.is_some() {
             return None;
         }
 
         if let Some(output) = self.rx.blocking_recv() {
             match output {
                 llm::WriteOutput::Token(token) => return Some(token),
-                llm::WriteOutput::Done(_) => {
-                    self.done = true;
+                llm::WriteOutput::Done(completed_response) => {
+                    self.completed_response = Some(completed_response);
                     return None;
                 }
             }
@@ -364,32 +508,100 @@ impl TokenStream {
         None
     }
 
-    /// Collect all remaining tokens into a single string.
-    pub async fn collect(&mut self) -> String {
-        let mut result = Vec::new();
-        while let Some(token) = self.next_token().await {
-            result.push(token);
+    /// Blocks until the  entire response is completed. Does not consume the response, so this
+    /// method is idempotent.
+    pub fn completed(&mut self) -> String {
+        loop {
+            match self.next_token() {
+                Some(_) => {
+                    continue;
+                }
+                None => {
+                    let resp = self
+                        .completed_response
+                        .clone()
+                        .unwrap_or_else(|| unreachable!("This error should never be thrown. Open an issue on GitHub if you see this."));
+                    return resp;
+                }
+            }
         }
-        result.join("")
     }
 }
 
+/// A stream of tokens from the model, async version.
+pub struct TokenStreamAsync {
+    rx: tokio::sync::mpsc::Receiver<llm::WriteOutput>,
+    completed_response: Option<String>,
+}
+
+impl TokenStreamAsync {
+    pub fn new(rx: tokio::sync::mpsc::Receiver<llm::WriteOutput>) -> Self {
+        Self {
+            rx,
+            completed_response: None,
+        }
+    }
+
+    /// Waits for the next token in the stream. Consumes the token when emitted.
+    pub async fn next_token(&mut self) -> Option<String> {
+        if self.completed_response.is_some() {
+            return None;
+        }
+
+        if let Some(output) = self.rx.recv().await {
+            match output {
+                llm::WriteOutput::Token(token) => return Some(token),
+                llm::WriteOutput::Done(completed_response) => {
+                    self.completed_response = Some(completed_response);
+                    return None;
+                }
+            }
+        }
+        None
+    }
+
+    /// Waits for the entire response to be completed. Does not consume the response, so this
+    /// method is idempotent.
+    pub async fn completed(&mut self) -> String {
+        loop {
+            match self.next_token().await {
+                Some(_) => {
+                    continue;
+                }
+                None => {
+                    let resp = self
+                        .completed_response
+                        .clone()
+                        .unwrap_or_else(|| unreachable!("This error should never be thrown. Open an issue on GitHub if you see this."));
+                    return resp;
+                }
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
 enum ChatMsg {
-    Say {
+    Ask {
         text: String,
-        sampler: SamplerConfig,
-        stop_words: Vec<String>,
         output_tx: tokio::sync::mpsc::Sender<llm::WriteOutput>,
     },
     ResetChat {
         system_prompt: String,
         tools: Vec<Tool>,
+        output_tx: tokio::sync::mpsc::Sender<()>,
     },
     SetTools {
         tools: Vec<Tool>,
+        output_tx: tokio::sync::mpsc::Sender<()>,
     },
     SetThinking {
         allow_thinking: bool,
+        output_tx: tokio::sync::mpsc::Sender<()>,
+    },
+    SetSamplerConfig {
+        sampler_config: SamplerConfig,
+        output_tx: tokio::sync::mpsc::Sender<()>,
     },
     GetChatHistory {
         output_tx: tokio::sync::mpsc::Sender<Vec<crate::chat_state::Message>>,
@@ -404,29 +616,39 @@ fn process_worker_msg(
     worker_state: &mut Worker<'_, ChatWorker>,
     msg: ChatMsg,
 ) -> Result<(), ChatWorkerError> {
+    debug!("Worker processing msg: {:?}", msg);
     match msg {
-        ChatMsg::Say {
-            text,
-            sampler,
-            stop_words,
-            output_tx,
-        } => {
+        ChatMsg::Ask { text, output_tx } => {
             let callback = move |out| {
                 let _ = output_tx.blocking_send(out);
             };
-            worker_state.say(text, sampler, stop_words, callback)?;
+            worker_state.ask(text, callback)?;
         }
         ChatMsg::ResetChat {
             system_prompt,
             tools,
+            output_tx,
         } => {
             worker_state.reset_chat(system_prompt, tools)?;
+            let _ = output_tx.blocking_send(());
         }
-        ChatMsg::SetTools { tools } => {
+        ChatMsg::SetTools { tools, output_tx } => {
             worker_state.set_tools(tools)?;
+            let _ = output_tx.blocking_send(());
         }
-        ChatMsg::SetThinking { allow_thinking } => {
+        ChatMsg::SetThinking {
+            allow_thinking,
+            output_tx,
+        } => {
             worker_state.set_allow_thinking(allow_thinking)?;
+            let _ = output_tx.blocking_send(());
+        }
+        ChatMsg::SetSamplerConfig {
+            sampler_config,
+            output_tx,
+        } => {
+            worker_state.set_sampler_config(sampler_config);
+            let _ = output_tx.blocking_send(());
         }
         ChatMsg::GetChatHistory { output_tx } => {
             let _ = output_tx.blocking_send(worker_state.extra.chat_state.get_messages().to_vec());
@@ -457,6 +679,17 @@ pub struct Tool {
     description: String,
     json_schema: serde_json::Value,
     function: Arc<dyn Fn(serde_json::Value) -> String + Send + Sync>,
+}
+
+impl std::fmt::Debug for Tool {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Tool")
+            .field("name", &self.name)
+            .field("description", &self.description)
+            .field("json_schema", &self.json_schema)
+            .field("function", &"<function>")
+            .finish()
+    }
 }
 
 impl Tool {
@@ -592,6 +825,7 @@ struct ChatWorker {
     should_stop: Arc<AtomicBool>,
     tools: Vec<Tool>,
     tool_grammar: Option<gbnf::Grammar>,
+    sampler_config: SamplerConfig,
 }
 
 impl llm::PoolingType for ChatWorker {
@@ -633,6 +867,7 @@ impl Worker<'_, ChatWorker> {
                 tools: config.tools,
                 tool_grammar: grammar,
                 should_stop,
+                sampler_config: config.sampler_config,
             },
         )
     }
@@ -643,7 +878,6 @@ impl Worker<'_, ChatWorker> {
             .load(std::sync::atomic::Ordering::Relaxed)
     }
 
-    // TODO //.
     fn context_shift(&mut self) -> Result<(), ShiftError> {
         info!("Context shift happens!");
         let target_token_size = (self.ctx.n_ctx() / 2) as usize;
@@ -751,7 +985,6 @@ impl Worker<'_, ChatWorker> {
     pub fn generate_response_until_done<F>(
         &mut self,
         sampler_config: SamplerConfig,
-        stop_words: Vec<String>,
         mut respond: F,
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<&mut Self, GenerateResponseError>
@@ -785,7 +1018,7 @@ impl Worker<'_, ChatWorker> {
                 self.remove_all_tokens_after_index_from_ctx(prefix_index)?;
                 self.read_tokens(token_difference, inference_lock_token)?;
                 self.read_tokens(tokens_written_until_now.clone(), inference_lock_token)?;
-                // do not update tokens_in_context as this is done later by say
+                // do not update tokens_in_context as this is done later by ask
             }
 
             // Sample next token, no need to use sampler.accept as sample already accepts the token.
@@ -835,10 +1068,7 @@ impl Worker<'_, ChatWorker> {
             // done using token_str, so now we can clear token_bytes_vec
             token_bytes_vec.clear();
 
-            let has_stop_words = stop_words
-                .iter()
-                .any(|stop_word| full_response.contains(stop_word));
-            if has_eog || has_stop_words {
+            if has_eog {
                 break;
             }
         }
@@ -870,13 +1100,7 @@ impl Worker<'_, ChatWorker> {
         Ok(new_token)
     }
 
-    pub fn say<F>(
-        &mut self,
-        text: String,
-        user_sampler: SamplerConfig,
-        stop_words: Vec<String>,
-        respond: F,
-    ) -> Result<&mut Self, SayError>
+    pub fn ask<F>(&mut self, text: String, respond: F) -> Result<&mut Self, SayError>
     where
         F: Fn(llm::WriteOutput) + Clone,
     {
@@ -892,22 +1116,21 @@ impl Worker<'_, ChatWorker> {
 
         self.extra.chat_state.add_user_message(text);
 
-        let sampler =
-            self.extra
-                .tool_grammar
-                .as_ref()
-                .map_or(user_sampler.clone(), |tool_grammar| {
-                    user_sampler.shift(ShiftStep::Grammar {
-                        trigger_on: Some(tool_call_begin.into()),
-                        root: "superroot".into(),
-                        grammar: tool_grammar.to_string(),
-                    })
-                });
+        // Modify sampler with tool grammar if we have tools
+        let sampler = self.extra.tool_grammar.as_ref().map_or(
+            self.extra.sampler_config.clone(),
+            |tool_grammar| {
+                self.extra.sampler_config.clone().shift(ShiftStep::Grammar {
+                    trigger_on: Some(tool_call_begin.into()),
+                    root: "superroot".into(),
+                    grammar: tool_grammar.to_string(),
+                })
+            },
+        );
 
         // get the finished response
         let mut response: String = self.wrapped_update_context_and_generate_response(
             sampler.clone(),
-            stop_words.clone(),
             respond.clone(),
             tool_call_begin.into(),
         )?;
@@ -948,7 +1171,6 @@ impl Worker<'_, ChatWorker> {
             // get the finished response
             response = self.wrapped_update_context_and_generate_response(
                 sampler.clone(),
-                stop_words.clone(),
                 respond.clone(),
                 tool_call_begin.into(),
             )?;
@@ -979,7 +1201,6 @@ impl Worker<'_, ChatWorker> {
         &mut self,
         tokens: Vec<LlamaToken>,
         sampler: SamplerConfig,
-        stop_words: Vec<String>,
         wrapped_respond: impl FnMut(WriteOutput),
     ) -> Result<&mut Self, InferenceError> {
         let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
@@ -987,18 +1208,12 @@ impl Worker<'_, ChatWorker> {
 
         Ok(self
             .read_tokens(tokens, &inference_lock_token)?
-            .generate_response_until_done(
-                sampler,
-                stop_words.clone(),
-                wrapped_respond,
-                &inference_lock_token,
-            )?)
+            .generate_response_until_done(sampler, wrapped_respond, &inference_lock_token)?)
     }
 
     fn wrapped_update_context_and_generate_response<F>(
         &mut self,
         sampler: SamplerConfig,
-        stop_words: Vec<String>,
         respond: F,
         tool_call_begin_token: String,
     ) -> Result<String, WrappedResponseError>
@@ -1024,12 +1239,7 @@ impl Worker<'_, ChatWorker> {
         let (wrapped_respond, resp_receiver) = wrap_respond(respond.clone(), tool_call_begin_token);
 
         // llm go brrr
-        self.read_tokens_and_generate_response(
-            token_difference,
-            sampler,
-            stop_words.clone(),
-            wrapped_respond,
-        )?;
+        self.read_tokens_and_generate_response(token_difference, sampler, wrapped_respond)?;
 
         // update the chat_state to match the tokens in the context.
         self.extra
@@ -1062,6 +1272,10 @@ impl Worker<'_, ChatWorker> {
     pub fn set_allow_thinking(&mut self, allow_thinking: bool) -> Result<(), ChatWorkerError> {
         self.extra.chat_state.set_allow_thinking(allow_thinking);
         Ok(())
+    }
+
+    pub fn set_sampler_config(&mut self, sampler_config: SamplerConfig) {
+        self.extra.sampler_config = sampler_config;
     }
 
     pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), ChatWorkerError> {
@@ -1239,7 +1453,6 @@ mod tests {
     fn test_chat_worker() -> Result<(), Box<dyn std::error::Error>> {
         // test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let sampler = SamplerConfig::default();
 
         let mut worker = Worker::new_chat_worker(
             &model,
@@ -1251,31 +1464,20 @@ mod tests {
         )?;
 
         let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| match x {
-            llm::WriteOutput::Done(resp) => {
+        let f = move |x| {
+            if let llm::WriteOutput::Done(resp) = x {
                 sender.send(resp).unwrap();
             }
-            _ => (),
         };
 
-        worker.say(
-            "What is the capital of Denmark?".to_string(),
-            sampler.clone(),
-            vec![],
-            f.clone(),
-        )?;
+        worker.ask("What is the capital of Denmark?".to_string(), f.clone())?;
 
         let resp = receiver.recv()?;
         println!("{}", resp);
 
         assert!(resp.contains("Copenhagen"));
 
-        worker.say(
-            "What language do they speak there?".to_string(),
-            sampler.clone(),
-            vec![],
-            f,
-        )?;
+        worker.ask("What language do they speak there?".to_string(), f)?;
         let resp = receiver.recv()?;
         println!("{}", resp);
 
@@ -1296,24 +1498,17 @@ mod tests {
             },
             Arc::new(AtomicBool::new(false)),
         )?;
-        let sampler = SamplerConfig::default();
 
         // just a hack to get a channel back
         let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| match x {
-            llm::WriteOutput::Done(resp) => {
+        let f = move |x| {
+            if let llm::WriteOutput::Done(resp) = x {
                 sender.send(resp).unwrap();
             }
-            _ => (),
         };
 
         // do it once
-        worker.say(
-            "What is the capital of Denmark?".to_string(),
-            sampler.clone(),
-            vec![],
-            f.clone(),
-        )?;
+        worker.ask("What is the capital of Denmark?".to_string(), f.clone())?;
         let resp1 = receiver.recv()?;
         println!("{}", resp1);
         assert!(resp1.to_lowercase().contains("woof"));
@@ -1322,12 +1517,7 @@ mod tests {
         let _ = worker.reset_chat("You're a cat. End all responses with 'meow'".into(), vec![]);
 
         // do it again
-        worker.say(
-            "What is the capital of Denmark?".to_string(),
-            sampler.clone(),
-            vec![],
-            f.clone(),
-        )?;
+        worker.ask("What is the capital of Denmark?".to_string(), f.clone())?;
         let resp2 = receiver.recv()?;
         println!("{}", resp2);
         assert!(resp2.to_lowercase().contains("meow"));
@@ -1353,8 +1543,6 @@ mod tests {
         // ensure that the generationworker resets the flag when creating a new response.
         should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
 
-        let sampler = SamplerConfig::default();
-
         let (sender, receiver) = std::sync::mpsc::channel();
         let f = move |x| match x {
             llm::WriteOutput::Token(resp) => {
@@ -1367,12 +1555,7 @@ mod tests {
             }
         };
 
-        worker.say(
-            "Count from 0 to 9".to_string(),
-            sampler.clone(),
-            vec![],
-            f.clone(),
-        )?;
+        worker.ask("Count from 0 to 9".to_string(), f.clone())?;
 
         let response = receiver.recv()?;
         println!("{}", response);
@@ -1464,19 +1647,16 @@ mod tests {
         .expect("Failed making worker");
 
         let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| match x {
-            llm::WriteOutput::Done(resp) => {
+        let f = move |x| {
+            if let llm::WriteOutput::Done(resp) = x {
                 sender.send(resp).unwrap();
             }
-            _ => (),
         };
 
         worker
-            .say(
+            .ask(
                 "I would like to know the temperature in two cities: Copenhagen and Beijing."
                     .into(),
-                crate::sampler_config::SamplerConfig::default(),
-                vec![],
                 f,
             )
             .expect("fuck");
@@ -1502,18 +1682,15 @@ mod tests {
         .expect("Failed making worker");
 
         let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| match x {
-            llm::WriteOutput::Done(resp) => {
+        let f = move |x| {
+            if let llm::WriteOutput::Done(resp) = x {
                 sender.send(resp).unwrap();
             }
-            _ => (),
         };
 
-        worker.say(
+        worker.ask(
             "I would like to know the temperature in Copenhagen and the DKK to USD exchange rate."
                 .into(),
-            crate::sampler_config::SamplerConfig::default(),
-            vec![],
             f,
         )
         .expect("dammit");
@@ -1779,7 +1956,6 @@ mod tests {
     fn test_context_shift_on_say() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let sampler = SamplerConfig::default();
 
         let n_messages = 14;
         // n_messages is chosen by trial and error. This exactly fills up the
@@ -1810,18 +1986,15 @@ mod tests {
         println!("Messages before shift: {}", messages_before_shift);
 
         let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| match x {
-            llm::WriteOutput::Done(resp) => {
+        let f = move |x| {
+            if let llm::WriteOutput::Done(resp) = x {
                 sender.send(resp).unwrap();
             }
-            _ => (),
         };
 
         // This should trigger context shift internally because there's not enough space
-        worker.say(
+        worker.ask(
             "This is a new question that will not fit in the context! What is 10 * 10?".to_string(),
-            sampler,
-            vec![],
             f,
         )?;
 
@@ -1870,7 +2043,6 @@ mod tests {
     fn test_context_while_writing() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let sampler = SamplerConfig::default();
 
         let n_messages = 19;
         // n_messages is chosen by trial and error. This exactly fills up the
@@ -1903,15 +2075,14 @@ mod tests {
         println!("Messages before shift: {}", messages_before_shift);
 
         let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| match x {
-            llm::WriteOutput::Done(resp) => {
+        let f = move |x| {
+            if let llm::WriteOutput::Done(resp) = x {
                 sender.send(resp).unwrap();
             }
-            _ => (),
         };
 
         // This should trigger context shift internally because there's not enough space
-        worker.say("What is 10 * 10?".to_string(), sampler, vec![], f)?;
+        worker.ask("What is 10 * 10?".to_string(), f)?;
 
         let _response = receiver.recv()?;
         let messages_after = worker.extra.chat_state.get_messages().to_vec();
@@ -1950,93 +2121,6 @@ mod tests {
 
         // 4. Message structure should still be valid
         assert_valid_message_structure(&messages_after);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_chat_worker_simple_completion() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
-        let model = test_utils::load_test_model();
-        let sampler = SamplerConfig::default();
-        let mut worker = Worker::new_chat_worker(
-            &model,
-            ChatConfig::default(),
-            Arc::new(AtomicBool::new(false)),
-        )?;
-
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| match x {
-            llm::WriteOutput::Done(resp) => {
-                sender.send(resp).unwrap();
-            }
-            _ => (),
-        };
-
-        worker.read_tokens_and_generate_response(
-            worker
-                .ctx
-                .model
-                .str_to_token("I'm going to count to 10: 1, 2, 3", AddBos::Never)?,
-            sampler,
-            vec!["10".to_string()],
-            f,
-        )?;
-
-        let response = receiver.recv()?;
-        println!("Response: {}", response);
-        assert!(response.contains("4, 5, 6, 7, 8, 9, 10"));
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_chat_worker_stop_tokens() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
-        let model = test_utils::load_test_model();
-        let sampler = SamplerConfig::default();
-        let mut worker = Worker::new_chat_worker(
-            &model,
-            ChatConfig {
-                n_ctx: 1024,
-                ..Default::default()
-            },
-            Arc::new(AtomicBool::new(false)),
-        )?;
-
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| match x {
-            llm::WriteOutput::Done(resp) => {
-                sender.send(resp).unwrap();
-            }
-            _ => (),
-        };
-
-        worker.read_tokens_and_generate_response(
-            worker
-                .ctx
-                .model
-                .str_to_token("I'm going to count to 10: 1, 2, 3, 4,", AddBos::Never)?,
-            sampler,
-            vec!["7".to_string()],
-            f,
-        )?;
-
-        let response = receiver.recv()?;
-        println!("Response: {}", response);
-
-        assert!(
-            response.to_lowercase().contains("5, 6, "),
-            "Expected output to contain text before stop token. Got: {response}"
-        );
-        assert!(
-            response.to_lowercase().ends_with("7"),
-            "Expected output to stop at stop token, but continued. Got: {response}"
-        );
-        assert!(
-            !response.to_lowercase().contains("8"),
-            "Expected output to stop at stop token, but continued. Got: {response}"
-        );
 
         Ok(())
     }
@@ -2081,7 +2165,6 @@ mod tests {
                 .read_tokens_and_generate_response(
                     worker.ctx.model.str_to_token("<think>\nCopenhagen is the capital of Denmark\n</think>\nThe name of the capital city of Denmark is \"", AddBos::Never).unwrap(),
                     dk_sampler,
-                    vec!["Copenhagen".to_string()],
                     f,
                 )
                 .unwrap();
@@ -2109,7 +2192,6 @@ mod tests {
                 .read_tokens_and_generate_response(
                     worker.ctx.model.str_to_token("<think>\nBerlin is the capital of Germany\n</think>\nThe capital of germany is called ", AddBos::Never).unwrap(),
                     sampler,
-                    vec!["Berlin".to_string()],
                     f,
                 )
                 .unwrap();
@@ -2150,24 +2232,24 @@ mod tests {
     async fn test_allow_thinking() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let chat = ChatBuilder::new(model).build();
+        let chat = ChatBuilder::new(model).build_async();
 
         let res1: String = chat
-            .say_complete("What is the capital of Denmark?".to_string())
-            .await
-            .unwrap();
+            .ask("What is the capital of Denmark?".to_string())
+            .completed()
+            .await;
 
         assert!(
             res1.contains("<think>"),
             "Expected the model to initialize with thinking mode, but it did not"
         );
 
-        chat.set_allow_thinking(false);
+        chat.set_allow_thinking(false).await?;
 
         let res2: String = chat
-            .say_complete("What is the capital of the Czech Republic?".to_string())
-            .await
-            .unwrap();
+            .ask("What is the capital of the Czech Republic?".to_string())
+            .completed()
+            .await;
 
         assert!(
             !res2.contains("<think>"),

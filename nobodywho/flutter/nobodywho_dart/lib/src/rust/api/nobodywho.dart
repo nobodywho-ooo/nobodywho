@@ -24,6 +24,8 @@ void initDebugLog() => RustLib.instance.api.crateApiNobodywhoInitDebugLog();
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<NobodyWhoChat>>
 abstract class NobodyWhoChat implements RustOpaqueInterface {
+  Stream<String> ask({required String message});
+
   factory NobodyWhoChat({
     required NobodyWhoModel model,
     required String systemPrompt,
@@ -35,8 +37,6 @@ abstract class NobodyWhoChat implements RustOpaqueInterface {
     contextSize: contextSize,
     tools: tools,
   );
-
-  Stream<String> say({required String message});
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<NobodyWhoModel>>

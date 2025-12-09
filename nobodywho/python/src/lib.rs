@@ -25,31 +25,42 @@ pub struct TokenStream {
 
 #[pymethods]
 impl TokenStream {
-    pub fn next_token_blocking(&mut self, py: Python) -> Option<String> {
+    pub fn next_token(&mut self, py: Python) -> Option<String> {
         // Release the GIL while waiting for the next token
         // This allows the background thread to acquire the GIL if needed for tool calls
-        py.detach(|| self.stream.next_token_sync())
+        py.detach(|| self.stream.next_token())
     }
 
-    async fn next_token(&mut self) -> Option<String> {
-        // Currently deattaching is not needed here. Noting that this might change later
-        self.stream.next_token().await
-    }
-
-    fn collect_blocking(&mut self, py: Python) -> String {
-        py.detach(|| futures::executor::block_on(self.collect()))
-    }
-
-    async fn collect(&mut self) -> String {
-        self.stream.collect().await
+    pub fn completed(&mut self, py: Python) -> String {
+        py.detach(|| self.stream.completed())
     }
 
     // sync iterator stuff
     pub fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
     }
-    pub fn __next__(mut slf: PyRefMut<'_, Self>, py: Python) -> Option<String> {
-        slf.next_token_blocking(py)
+    // XXX TODO: does iterators still work?
+    pub fn __next__(&mut self, py: Python) -> Option<String> {
+        py.detach(|| self.stream.next_token())
+    }
+
+    // TODO: async iterator (turns out to be trickier than expected)
+}
+
+#[pyclass]
+pub struct TokenStreamAsync {
+    stream: nobodywho::chat::TokenStreamAsync,
+}
+
+#[pymethods]
+impl TokenStreamAsync {
+    pub async fn next_token(&mut self) -> Option<String> {
+        // no need to release GIL in async functions
+        self.stream.next_token().await
+    }
+
+    pub async fn completed(&mut self) -> String {
+        self.stream.completed().await
     }
 
     // TODO: async iterator (turns out to be trickier than expected)
@@ -197,9 +208,41 @@ impl Chat {
         Self { chat_handle }
     }
 
-    pub fn send_message(&self, text: String) -> TokenStream {
+    pub fn ask(&self, text: String) -> TokenStream {
         TokenStream {
-            stream: self.chat_handle.say_stream(text),
+            stream: self.chat_handle.ask(text),
+        }
+    }
+}
+
+#[pyclass]
+pub struct ChatAsync {
+    chat_handle: nobodywho::chat::ChatHandleAsync,
+}
+
+#[pymethods]
+impl ChatAsync {
+    #[new]
+    #[pyo3(signature = (model, n_ctx = 2048, system_prompt = "", allow_thinking = true, tools = vec![]))]
+    pub fn new(
+        model: &Model,
+        n_ctx: u32,
+        system_prompt: &str,
+        allow_thinking: bool,
+        tools: Vec<Tool>,
+    ) -> Self {
+        let chat_handle = nobodywho::chat::ChatBuilder::new(model.model.clone())
+            .with_context_size(n_ctx)
+            .with_tools(tools.into_iter().map(|t| t.tool).collect())
+            .with_allow_thinking(allow_thinking)
+            .with_system_prompt(system_prompt)
+            .build_async();
+        Self { chat_handle }
+    }
+
+    pub fn ask(&self, text: String) -> TokenStreamAsync {
+        TokenStreamAsync {
+            stream: self.chat_handle.ask(text),
         }
     }
 }
@@ -487,7 +530,9 @@ fn json_value_to_py<'py>(py: Python<'py>, value: &serde_json::Value) -> PyResult
 fn nobodywhopython(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Model>()?;
     m.add_class::<Chat>()?;
+    m.add_class::<ChatAsync>()?;
     m.add_class::<TokenStream>()?;
+    m.add_class::<TokenStreamAsync>()?;
     m.add_class::<Encoder>()?;
     m.add_class::<EncoderAsync>()?;
     m.add_class::<CrossEncoder>()?;

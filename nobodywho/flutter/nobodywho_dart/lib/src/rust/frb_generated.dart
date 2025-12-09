@@ -64,7 +64,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 570123884;
+  int get rustContentHash => -586959940;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -75,16 +75,16 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 }
 
 abstract class RustLibApi extends BaseApi {
+  Stream<String> crateApiNobodywhoNobodyWhoChatAsk({
+    required NobodyWhoChat that,
+    required String message,
+  });
+
   NobodyWhoChat crateApiNobodywhoNobodyWhoChatNew({
     required NobodyWhoModel model,
     required String systemPrompt,
     required int contextSize,
     required List<NobodyWhoTool> tools,
-  });
-
-  Stream<String> crateApiNobodywhoNobodyWhoChatSay({
-    required NobodyWhoChat that,
-    required String message,
   });
 
   NobodyWhoModel crateApiNobodywhoNobodyWhoModelNew({
@@ -147,6 +147,50 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   });
 
   @override
+  Stream<String> crateApiNobodywhoNobodyWhoChatAsk({
+    required NobodyWhoChat that,
+    required String message,
+  }) {
+    final sink = RustStreamSink<String>();
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoChat(
+              that,
+              serializer,
+            );
+            sse_encode_StreamSink_String_Sse(sink, serializer);
+            sse_encode_String(message, serializer);
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 1,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData:
+                sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRust2DartSendError,
+          ),
+          constMeta: kCrateApiNobodywhoNobodyWhoChatAskConstMeta,
+          argValues: [that, sink, message],
+          apiImpl: this,
+        ),
+      ),
+    );
+    return sink.stream;
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoNobodyWhoChatAskConstMeta =>
+      const TaskConstMeta(
+        debugName: "NobodyWhoChat_ask",
+        argNames: ["that", "sink", "message"],
+      );
+
+  @override
   NobodyWhoChat crateApiNobodywhoNobodyWhoChatNew({
     required NobodyWhoModel model,
     required String systemPrompt,
@@ -167,7 +211,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             tools,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 1)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 2)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -185,50 +229,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "NobodyWhoChat_new",
         argNames: ["model", "systemPrompt", "contextSize", "tools"],
-      );
-
-  @override
-  Stream<String> crateApiNobodywhoNobodyWhoChatSay({
-    required NobodyWhoChat that,
-    required String message,
-  }) {
-    final sink = RustStreamSink<String>();
-    unawaited(
-      handler.executeNormal(
-        NormalTask(
-          callFfi: (port_) {
-            final serializer = SseSerializer(generalizedFrbRustBinding);
-            sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoChat(
-              that,
-              serializer,
-            );
-            sse_encode_StreamSink_String_Sse(sink, serializer);
-            sse_encode_String(message, serializer);
-            pdeCallFfi(
-              generalizedFrbRustBinding,
-              serializer,
-              funcId: 2,
-              port: port_,
-            );
-          },
-          codec: SseCodec(
-            decodeSuccessData: sse_decode_unit,
-            decodeErrorData:
-                sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRust2DartSendError,
-          ),
-          constMeta: kCrateApiNobodywhoNobodyWhoChatSayConstMeta,
-          argValues: [that, sink, message],
-          apiImpl: this,
-        ),
-      ),
-    );
-    return sink.stream;
-  }
-
-  TaskConstMeta get kCrateApiNobodywhoNobodyWhoChatSayConstMeta =>
-      const TaskConstMeta(
-        debugName: "NobodyWhoChat_say",
-        argNames: ["that", "sink", "message"],
       );
 
   @override
@@ -1023,8 +1023,8 @@ class NobodyWhoChatImpl extends RustOpaque implements NobodyWhoChat {
         RustLib.instance.api.rust_arc_decrement_strong_count_NobodyWhoChatPtr,
   );
 
-  Stream<String> say({required String message}) => RustLib.instance.api
-      .crateApiNobodywhoNobodyWhoChatSay(that: this, message: message);
+  Stream<String> ask({required String message}) => RustLib.instance.api
+      .crateApiNobodywhoNobodyWhoChatAsk(that: this, message: message);
 }
 
 @sealed

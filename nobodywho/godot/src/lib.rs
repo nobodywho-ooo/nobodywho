@@ -35,6 +35,7 @@ unsafe impl ExtensionLibrary for NobodyWhoExtension {
 /// DRY, JSON, or custom grammars.
 #[derive(GodotClass)]
 #[class(init, base=Object)]
+#[derive(Default)]
 struct NobodyWhoSampler {
     sampler_config: SamplerConfig,
 }
@@ -102,14 +103,6 @@ impl NobodyWhoSampler {
     #[func]
     fn set_preset_grammar(&mut self, grammar: String) {
         self.sampler_config = SamplerPresets::grammar(grammar);
-    }
-}
-
-impl Default for NobodyWhoSampler {
-    fn default() -> Self {
-        Self {
-            sampler_config: SamplerConfig::default(),
-        }
     }
 }
 
@@ -222,16 +215,12 @@ struct NobodyWhoChat {
     allow_thinking: bool,
 
     #[export]
-    /// Stop tokens to stop generation at these specified tokens.
-    stop_words: PackedStringArray,
-
-    #[export]
     /// This is the maximum number of tokens that can be stored in the chat history. It will delete information from the chat history if it exceeds this limit.
     /// Higher values use more VRAM, but allow for longer "short term memory" for the LLM.
     context_length: u32,
 
     // internal state
-    chat_handle: Option<nobodywho::chat::ChatHandle>,
+    chat_handle: Option<nobodywho::chat::ChatHandleAsync>,
     tools: Vec<nobodywho::chat::Tool>,
     signal_counter: AtomicU64,
     base: Base<Node>,
@@ -252,7 +241,6 @@ impl INode for NobodyWhoChat {
             // config
             model_node: None,
             sampler: Gd::from_init_fn(|_| NobodyWhoSampler::default()),
-            stop_words: PackedStringArray::new(),
             chat_handle: None,
             signal_counter: AtomicU64::new(0),
             base,
@@ -283,54 +271,51 @@ impl NobodyWhoChat {
 
     fn start_worker_impl(&mut self) -> Result<(), String> {
         let model = self.get_model()?;
-        self.chat_handle = Some(nobodywho::chat::ChatHandle::new(
+        let chat_handle = nobodywho::chat::ChatHandleAsync::new(
             model,
             nobodywho::chat::ChatConfig {
                 system_prompt: self.system_prompt.to_string(),
                 tools: self.tools.clone(),
                 n_ctx: self.context_length,
                 allow_thinking: self.allow_thinking,
+                sampler_config: self.sampler.bind().sampler_config.clone(),
             },
-        ));
+        );
+        self.chat_handle = Some(chat_handle);
         Ok(())
     }
 
     #[func]
     /// Sends a message to the LLM.
     /// This will start the inference process. meaning you can also listen on the `response_updated` and `response_finished` signals to get the response.
-    fn say(&mut self, message: String) {
-        let sampler = self.sampler.bind().sampler_config.clone();
-        if let Some(chat_handle) = self.chat_handle.as_mut() {
-            let stop_words = self
-                .stop_words
-                .to_vec()
-                .into_iter()
-                .map(|g| g.to_string())
-                .collect();
-            let mut generation_channel = chat_handle.say(message, sampler, stop_words);
-
-            let emit_node = self.to_gd();
-            godot::task::spawn(async move {
-                while let Some(out) = generation_channel.recv().await {
-                    match out {
-                        nobodywho::llm::WriteOutput::Token(tok) => emit_node
-                            .signals()
-                            .response_updated()
-                            .emit(&GString::from(tok)),
-                        nobodywho::llm::WriteOutput::Done(resp) => emit_node
-                            .signals()
-                            .response_finished()
-                            .emit(&GString::from(resp)),
-                    }
-                }
-            });
-        } else {
+    fn ask(&mut self, message: String) {
+        let Some(chat_handle) = self.chat_handle.as_ref() else {
             godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
             match self.start_worker_impl() {
-                Err(msg) => godot_error!("Failed auto-starting the worker: {}", msg),
-                Ok(()) => self.say(message),
+                Err(msg) => {
+                    godot_error!("Failed auto-starting the worker: {}", msg);
+                    return;
+                }
+                Ok(_) => return self.ask(message),
+            };
+        };
+
+        let emit_node = self.to_gd();
+        let mut generation_channel = chat_handle.ask_channel(message);
+        godot::task::spawn(async move {
+            while let Some(out) = generation_channel.recv().await {
+                match out {
+                    nobodywho::llm::WriteOutput::Token(tok) => emit_node
+                        .signals()
+                        .response_updated()
+                        .emit(&GString::from(tok)),
+                    nobodywho::llm::WriteOutput::Done(resp) => emit_node
+                        .signals()
+                        .response_finished()
+                        .emit(&GString::from(resp)),
+                }
             }
-        }
+        });
     }
 
     #[func]
@@ -344,93 +329,156 @@ impl NobodyWhoChat {
 
     #[func]
     fn reset_context(&mut self) {
-        if let Some(chat_handle) = &self.chat_handle {
-            chat_handle.reset_chat(self.system_prompt.to_string(), self.tools.clone());
-        } else {
-            godot_error!("Attempted to reset context, but no worker is running. Doing nothing.");
-        }
+        // Clone the handle so we don't hold a reference to self
+        let chat_handle = match self.chat_handle.as_ref() {
+            Some(handle) => handle.clone(),
+            None => {
+                godot_error!(
+                    "Attempted to reset context, but no worker is running. Doing nothing."
+                );
+                return;
+            }
+        };
+
+        let system_prompt = self.system_prompt.to_string();
+        let tools = self.tools.clone();
+
+        godot::task::spawn(async move {
+            match chat_handle.reset_chat(system_prompt, tools).await {
+                Ok(()) => (),
+                Err(errmsg) => {
+                    godot_error!("Error: {}", errmsg.to_string());
+                }
+            }
+        });
+    }
+
+    #[func]
+    fn set_sampler_config(&mut self) {
+        // Clone the handle so we don't hold a reference to self
+        let chat_handle = match self.chat_handle.as_ref() {
+            Some(handle) => handle.clone(),
+            None => {
+                godot_error!("Attempted to set sampler config, but no worker is running.");
+                return;
+            }
+        };
+
+        let sampler = self.sampler.bind().sampler_config.clone();
+
+        godot::task::spawn(async move {
+            match chat_handle.set_sampler_config(sampler).await {
+                Ok(()) => (),
+                Err(errmsg) => {
+                    godot_error!("Error: {}", errmsg.to_string());
+                }
+            }
+        });
     }
 
     #[func]
     fn get_chat_history(&mut self) -> Variant {
-        if let Some(chat_handle) = &self.chat_handle {
-            // kick off operation
-            let mut rx = chat_handle.get_chat_history();
+        // Clone the handle so we don't hold a reference to self
+        let chat_handle = match self.chat_handle.as_ref() {
+            Some(handle) => handle.clone(),
+            None => {
+                godot_error!("Attempted to get chat history, but no worker is running. Doing nothing and returning nil.");
+                return Variant::nil();
+            }
+        };
 
-            // decide on a unique name for the response signal
-            let signal_name = format!(
-                "get_chat_history_{}",
-                self.signal_counter.fetch_add(1, Ordering::Relaxed)
-            );
-            self.base_mut().add_user_signal(&signal_name);
+        // decide on a unique name for the response signal
+        let signal_name = format!(
+            "get_chat_history_{}",
+            self.signal_counter.fetch_add(1, Ordering::Relaxed)
+        );
+        self.base_mut().add_user_signal(&signal_name);
 
-            let mut emit_node = self.to_gd();
-            let signal_name_copy = signal_name.clone();
-            godot::task::spawn(async move {
-                let Some(chat_history) = rx.recv().await else {
-                    error!("Chat worker died while waiting for get_chat_history.");
-                    emit_node.emit_signal(&signal_name_copy, &vec![]);
+        let mut emit_node = self.to_gd();
+        let signal_name_copy = signal_name.clone();
+        godot::task::spawn(async move {
+            // kick off operation inside the async block so the future owns the handle
+            let Ok(chat_history) = chat_handle.get_chat_history().await else {
+                error!("Chat worker died while waiting for get_chat_history.");
+                emit_node.emit_signal(&signal_name_copy, &[]);
+                return;
+            };
+            let godot_dict_msgs: Array<Dictionary> = messages_to_dictionaries(&chat_history);
+            let godot_variant_array: Array<Variant> =
+                godot_dict_msgs.iter_shared().map(Variant::from).collect();
+
+            // this potentially waits for 10 frames forbefore giving up
+            match wait_for_signal_connect(&emit_node, &signal_name_copy).await {
+                Ok(()) => (),
+                Err(e) => {
+                    godot_error!("Failed getting chat history: {}", e);
                     return;
-                };
-                let godot_dict_msgs: Array<Dictionary> = messages_to_dictionaries(&chat_history);
-                let godot_variant_array: Array<Variant> = godot_dict_msgs
-                    .iter_shared()
-                    .map(|dict| Variant::from(dict))
-                    .collect();
-
-                // wait for godot code to connect to signal
-                let signal = Signal::from_object_signal(&emit_node, &signal_name_copy);
-                let tree: Gd<SceneTree> = godot::classes::Engine::singleton()
-                    .get_main_loop()
-                    .unwrap()
-                    .cast();
-                for _ in 0..10 {
-                    if signal.connections().len() > 0 {
-                        // happy path: signal has a connection.
-                        signal.emit(&vec![Variant::from(godot_variant_array)]);
-                        // we're done.
-                        return;
-                    };
-                    // wait one frame before checking number of connections again
-                    trace!("Nothing connected to signal yet, waiting one frame...");
-                    tree.signals().process_frame().to_future().await;
                 }
-                // unhappy path: nothing ever connected:
-                warn!("Nothing connected to get_chat_history signal for 10 frames. Giving up...");
-            });
+            }
 
-            // returns signal, so that you can `var msgs = await get_chat_history()`
-            Variant::from(godot::builtin::Signal::from_object_signal(
-                &self.base_mut(),
-                &signal_name,
-            ))
-        } else {
-            godot_error!("Attempted to reset context, but no worker is running. Doing nothing and returning nil.");
-            Variant::nil()
-        }
+            emit_node.emit_signal(&signal_name_copy, &[Variant::from(godot_variant_array)]);
+        });
+
+        // returns signal, so that you can `var msgs = await get_chat_history()`
+        Variant::from(godot::builtin::Signal::from_object_signal(
+            &self.base_mut(),
+            &signal_name,
+        ))
     }
 
     #[func]
-    fn set_chat_history(&mut self, messages: Array<Variant>) {
-        if let Some(chat_handle) = &self.chat_handle {
-            match dictionaries_to_messages(messages) {
-                Ok(msg_vec) => {
-                    // Check if last message is from user and warn
-                    if msg_vec
-                        .last()
-                        .map_or(false, |msg| msg.role() == &chat_state::Role::User)
-                    {
-                        godot_warn!("Chat history ends with a user message. This may cause unexpected behavior during generation.");
-                    }
-
-                    let _rx = chat_handle.set_chat_history(msg_vec);
-                    // we ignore the receiver for now, fire-and-forget
-                }
-                Err(e) => godot_error!("Failed to set chat history: {}", e),
+    fn set_chat_history(&mut self, messages: Array<Variant>) -> Variant {
+        let chat_handle = match self.chat_handle.as_ref() {
+            Some(handle) => handle.clone(),
+            None => {
+                godot_error!(
+                    "Attempted to set chat history, but no worker is running. Doing nothing."
+                );
+                return Variant::nil();
             }
-        } else {
-            godot_error!("Attempted to set chat history, but no worker is running. Doing nothing.");
+        };
+
+        let msg_vec = match dictionaries_to_messages(messages) {
+            Ok(msg_vec) => msg_vec,
+            Err(e) => {
+                godot_error!("Failed to set chat history: {}", e);
+                return Variant::nil();
+            }
+        };
+
+        // Check if last message is from user and warn
+        if msg_vec
+            .last()
+            .is_some_and(|msg| msg.role() == &chat_state::Role::User)
+        {
+            godot_warn!("Chat history ends with a user message. This may cause unexpected behavior during generation.");
         }
+
+        // decide on a unique name for the response signal
+        let signal_name = format!(
+            "set_chat_history_{}",
+            self.signal_counter.fetch_add(1, Ordering::Relaxed)
+        );
+        self.base_mut().add_user_signal(&signal_name);
+
+        let mut emit_node = self.to_gd();
+        let signal_name_copy = signal_name.clone();
+        godot::task::spawn(async move {
+            if let Err(e) = wait_for_signal_connect(&emit_node, &signal_name_copy).await {
+                godot_error!("Failed setting chat history: {}", e);
+            };
+            if let Err(e) = chat_handle.set_chat_history(msg_vec).await {
+                godot_error!("Failed setting chat history: {}", e);
+            }
+
+            emit_node.emit_signal(&signal_name_copy, &[]);
+        });
+
+        // returns signal, so that you can `await set_chat_history(...)`
+        Variant::from(godot::builtin::Signal::from_object_signal(
+            &self.base_mut(),
+            &signal_name,
+        ))
     }
 
     #[func]
@@ -520,7 +568,7 @@ impl NobodyWhoChat {
             godot_error!("Passed json schema was not a valid json object.");
             return;
         };
-        return self._add_tool_with_schema(callable, description, json_schema);
+        self._add_tool_with_schema(callable, description, json_schema)
     }
 
     fn _add_tool_with_schema(
@@ -603,14 +651,33 @@ impl NobodyWhoChat {
                 return;
             }
         };
-        let tools_before = self.tools.len();
+
+        // check that it's around
+        let tool_found = self.tools.iter().any(|tool| tool.name == method_name);
+        if !tool_found {
+            godot_error!("remove_tool: unknown tool '{}'", method_name);
+            return;
+        }
+
+        // remove from lsit
         self.tools.retain(|tool| tool.name != method_name);
-        if self.tools.len() == tools_before {
-            godot_warn!("remove_tool: unknown tool '{}'", method_name);
-        }
-        if let Some(chat_handle) = &self.chat_handle {
-            chat_handle.set_tools(self.tools.clone());
-        }
+
+        // Clone the handle so we don't hold a reference to self
+        let chat_handle = match self.chat_handle.as_ref() {
+            Some(handle) => handle.clone(),
+            None => {
+                godot_error!("Attempted remove tool, but no worker is running. Doing nothing and returning nil.");
+                return;
+            }
+        };
+
+        let new_tools = self.tools.clone();
+
+        godot::task::spawn(async move {
+            if let Err(err) = chat_handle.set_tools(new_tools).await {
+                godot_error!("Error: {}", err.to_string());
+            }
+        });
     }
 
     #[signal]
@@ -631,6 +698,38 @@ impl NobodyWhoChat {
     }
 }
 
+/// this solves a weird godot behavior
+/// when we return a signal to be awaited, there is a chance of the signal triggering before
+/// anyone awaits it. this is as async function that will block until a given signal is awaited.
+async fn wait_for_signal_connect(
+    node: &Gd<NobodyWhoChat>,
+    signal_name: &str,
+) -> Result<(), String> {
+    // wait for godot code to connect to signal
+    let signal = Signal::from_object_signal(node, signal_name);
+    let tree: Gd<SceneTree> = godot::classes::Engine::singleton()
+        .get_main_loop()
+        .expect("Uh-oh.. failed getting main loop. This should be unreachable. Please report a bug to the devs")
+        .cast();
+    for _ in 0..10 {
+        if !signal.connections().is_empty() {
+            // happy path: signal has a connection.
+            // we're done.
+            return Ok(());
+        };
+        // wait one frame before checking number of connections again
+        trace!("Nothing connected to signal yet, waiting one frame...");
+        tree.signals().process_frame().to_future().await;
+    }
+    // unhappy path: nothing ever connected:
+    let msg = format!(
+        "Nothing connected to signal '{}' for 10 frames. Giving up...",
+        signal_name
+    );
+    warn!(msg);
+    Err(msg.to_string())
+}
+
 fn json_to_godot(value: &serde_json::Value) -> Variant {
     match value {
         serde_json::Value::Null => Variant::nil(),
@@ -649,7 +748,7 @@ fn json_to_godot(value: &serde_json::Value) -> Variant {
         }
         serde_json::Value::String(s) => Variant::from(s.as_str()),
         serde_json::Value::Array(arr) => {
-            let vec: Vec<Variant> = arr.into_iter().map(json_to_godot).collect();
+            let vec: Vec<Variant> = arr.iter().map(json_to_godot).collect();
             Variant::from(vec)
         }
         serde_json::Value::Object(obj) => {
@@ -659,6 +758,40 @@ fn json_to_godot(value: &serde_json::Value) -> Variant {
                 dict.set(key.as_str(), json_to_godot(val));
             }
             Variant::from(dict)
+        }
+    }
+}
+
+fn godot_to_json(value: &Variant) -> serde_json::Value {
+    match value.get_type() {
+        VariantType::NIL => serde_json::Value::Null,
+        VariantType::BOOL => serde_json::Value::Bool(value.to::<bool>()),
+        VariantType::INT => serde_json::Value::Number(value.to::<i64>().into()),
+        VariantType::FLOAT => {
+            let f = value.to::<f64>();
+            serde_json::Number::from_f64(f)
+                .map(serde_json::Value::Number)
+                .unwrap_or(serde_json::Value::Null)
+        }
+        VariantType::STRING => serde_json::Value::String(value.to::<GString>().to_string()),
+        VariantType::ARRAY => {
+            let arr = value.to::<Array<Variant>>();
+            let json_arr: Vec<serde_json::Value> =
+                arr.iter_shared().map(|v| godot_to_json(&v)).collect();
+            serde_json::Value::Array(json_arr)
+        }
+        VariantType::DICTIONARY => {
+            let dict = value.to::<Dictionary>();
+            let mut json_obj = serde_json::Map::new();
+            for (key, val) in dict.iter_shared() {
+                let key_str = key.to::<GString>().to_string();
+                json_obj.insert(key_str, godot_to_json(&val));
+            }
+            serde_json::Value::Object(json_obj)
+        }
+        _ => {
+            // Fallback: try to convert to string
+            serde_json::Value::String(value.to::<GString>().to_string())
         }
     }
 }
@@ -1076,11 +1209,8 @@ fn dictionaries_to_messages(dicts: Array<Variant>) -> Result<Vec<chat_state::Mes
                     .try_to::<GString>()
                     .map_err(|_| "Dictionary key is not a string")?
                     .to_string();
-                let value_str = value
-                    .try_to::<GString>()
-                    .map_err(|_| "Dictionary value is not a string")?
-                    .to_string();
-                json_obj.insert(key_str, serde_json::Value::String(value_str));
+                let json_value = godot_to_json(&value);
+                json_obj.insert(key_str, json_value);
             }
 
             // Deserialize using serde
