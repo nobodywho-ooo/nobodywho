@@ -112,8 +112,7 @@ def test_encoder_sync(encoder):
 @pytest.mark.asyncio
 async def test_encoder_async():
     """Test that encoder can generate embeddings using async API"""
-    model_path = os.environ.get("TEST_EMBEDDINGS_MODEL")
-    model = nobodywho.Model(model_path, use_gpu_if_available=False)
+    model = encoder_model()
     encoder_async = nobodywho.EncoderAsync(model, n_ctx=1024)
 
     embedding = await encoder_async.encode("Test text for embedding.")
@@ -180,9 +179,7 @@ def test_crossencoder_rank_sync(crossencoder):
 
 @pytest.mark.asyncio
 async def test_crossencoder_rank_async():
-    """Test that cross-encoder ranking works with async API"""
-    model_path = os.environ.get("TEST_CROSSENCODER_MODEL")
-    model = nobodywho.Model(model_path, use_gpu_if_available=False)
+    model = crossencoder_model()
     crossencoder_async = nobodywho.CrossEncoderAsync(model, n_ctx=4096)
 
     query = "What is the capital of France?"
@@ -218,8 +215,7 @@ def test_crossencoder_rank_and_sort_sync(crossencoder):
 @pytest.mark.asyncio
 async def test_crossencoder_rank_and_sort_async():
     """Test that cross-encoder rank and sort works with async API"""
-    model_path = os.environ.get("TEST_CROSSENCODER_MODEL")
-    model = nobodywho.Model(model_path, use_gpu_if_available=False)
+    model = crossencoder_model()
     crossencoder_async = nobodywho.CrossEncoderAsync(model, n_ctx=4096)
 
     query = "What is the capital of France?"
