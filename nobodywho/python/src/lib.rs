@@ -525,20 +525,47 @@ fn json_value_to_py<'py>(py: Python<'py>, value: &serde_json::Value) -> PyResult
     }
 }
 
-#[pymodule]
-#[pyo3(name = "nobodywho")]
-fn nobodywhopython(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<Model>()?;
-    m.add_class::<Chat>()?;
-    m.add_class::<ChatAsync>()?;
-    m.add_class::<TokenStream>()?;
-    m.add_class::<TokenStreamAsync>()?;
-    m.add_class::<Encoder>()?;
-    m.add_class::<EncoderAsync>()?;
-    m.add_class::<CrossEncoder>()?;
-    m.add_class::<CrossEncoderAsync>()?;
-    m.add_function(wrap_pyfunction!(cosine_similarity, m)?)?;
-    m.add_function(wrap_pyfunction!(tool, m)?)?;
-    m.add_class::<Tool>()?;
-    Ok(())
+#[pymodule(name = "nobodywho")]
+pub mod nobodywhopython {
+    use pyo3::prelude::*;
+
+    #[pymodule_init]
+    fn init(_m: &Bound<'_, PyModule>) -> PyResult<()> {
+        // collect llamacpp logs in tracing
+        // this will send llamacpp logs into `tracing`
+        nobodywho::send_llamacpp_logs_to_tracing();
+
+        // init the rust->python logging bridge
+        // this will pick up logs from rust's `log`, and send those into python's `logging`
+        // the "log" feature in the `tracing` crate will send tracing logs to the `log` interface
+        // so: rust's `tracing` -> rust's `log` -> python's `logging`
+        // this works as long as no other tracing_subscriber is active. otherwise we'd need `"log-always"`
+        pyo3_log::init();
+        Ok(())
+    }
+
+    #[pymodule_export]
+    use super::cosine_similarity;
+    #[pymodule_export]
+    use super::tool;
+    #[pymodule_export]
+    use super::Chat;
+    #[pymodule_export]
+    use super::ChatAsync;
+    #[pymodule_export]
+    use super::CrossEncoder;
+    #[pymodule_export]
+    use super::CrossEncoderAsync;
+    #[pymodule_export]
+    use super::Encoder;
+    #[pymodule_export]
+    use super::EncoderAsync;
+    #[pymodule_export]
+    use super::Model;
+    #[pymodule_export]
+    use super::TokenStream;
+    #[pymodule_export]
+    use super::TokenStreamAsync;
+    #[pymodule_export]
+    use super::Tool;
 }
