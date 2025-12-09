@@ -727,7 +727,7 @@ async fn wait_for_signal_connect(
         signal_name
     );
     warn!(msg);
-    return Err(msg.to_string());
+    Err(msg.to_string())
 }
 
 fn json_to_godot(value: &serde_json::Value) -> Variant {
