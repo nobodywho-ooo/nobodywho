@@ -30,7 +30,7 @@ jobs:
       - name: Format check
         working-directory: ./nobodywho/python
         run: |
-          uvx ruff format ./nobodywho/python/nobodywho.pyi
+          uvx ruff format ./nobodywho.pyi
           uvx ruff format --check .
 
       - name: Lint check
