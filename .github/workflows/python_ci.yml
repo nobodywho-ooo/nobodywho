@@ -29,7 +29,9 @@ jobs:
 
       - name: Format check
         working-directory: ./nobodywho/python
-        run: uvx ruff format --check .
+        run: |
+          uvx ruff format --check .
+          uvx ruff format ./nobodywho/python/nobodywho.pyi
 
       - name: Lint check
         working-directory: ./nobodywho/python
