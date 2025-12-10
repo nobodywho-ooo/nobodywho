@@ -273,6 +273,7 @@ impl Chat {
             .reset_chat(system_prompt, tools.into_iter().map(|t| t.tool).collect());
     }
 
+    #[pyo3(signature = (allow_thinking: "bool") -> "None")]
     pub fn set_allow_thinking(&self, allow_thinking: bool) -> PyResult<()> {
         self.chat_handle
             .set_allow_thinking(allow_thinking)
