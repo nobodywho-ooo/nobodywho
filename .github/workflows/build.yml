@@ -114,6 +114,10 @@ jobs:
       - name: Install Ninja
         run: choco install ninja
 
+      - name: Install LLVM (for ARM64 cross-compilation)
+        if: matrix.target == 'aarch64-pc-windows-msvc'
+        run: choco install llvm
+
       - name: Setup Flutter SDK
         if: matrix.integration == 'flutter'
         uses: flutter-actions/setup-flutter@v4
@@ -138,6 +142,10 @@ jobs:
           # install step fails to find cmake_install.cmake with the VS generator.
           # Ninja's simpler build structure avoids this problem entirely.
           CMAKE_GENERATOR: "Ninja"
+          # For ARM64 cross-compilation, use clang-cl instead of MSVC cl.exe
+          # llama.cpp's CMake configuration requires clang for ARM64 builds
+          CMAKE_C_COMPILER: ${{ matrix.target == 'aarch64-pc-windows-msvc' && 'clang-cl' || '' }}
+          CMAKE_CXX_COMPILER: ${{ matrix.target == 'aarch64-pc-windows-msvc' && 'clang-cl' || '' }}
 
       - name: "Rename built files"
         run: |
