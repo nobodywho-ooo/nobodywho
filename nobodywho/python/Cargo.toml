@@ -17,10 +17,11 @@ serde_json = { version = "1.0.140", features = ["preserve_order"] }
 tracing = { version = "0.1.41", features = ["log"] }
 tracing-subscriber = "0.3.19"
 futures = "0.3.31"
+pyo3-introspection = "0.27.2"
 pyo3-log = "0.13.2"
 
 
 [dependencies.pyo3]
-version = "0.26.0"
+version = "0.27.2"
 # "abi3-py38" tells pyo3 (and maturin) to build using the stable ABI with minimum Python version 3.8
-features = ["abi3-py38", "experimental-async"]
+features = ["abi3-py38", "experimental-async", "experimental-inspect"]

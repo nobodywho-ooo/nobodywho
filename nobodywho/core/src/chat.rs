@@ -142,6 +142,12 @@ impl ChatBuilder {
         self
     }
 
+    /// Set a custom sampler configuration
+    pub fn with_sampler(mut self, sampler: SamplerConfig) -> Self {
+        self.config.sampler_config = sampler;
+        self
+    }
+
     /// Build a blocking chat handle and start the background worker.
     pub fn build(self) -> ChatHandle {
         ChatHandle::new(self.model, self.config)
