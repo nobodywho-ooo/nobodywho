@@ -1,11 +1,12 @@
-import _typeshed
 import typing
+
+import _typeshed
 
 class Chat:
     def __new__(
         cls,
         /,
-        model: Model,
+        model: Model | str,
         n_ctx: int = 2048,
         system_prompt: str = "",
         allow_thinking: bool = True,
@@ -18,7 +19,7 @@ class ChatAsync:
     def __new__(
         cls,
         /,
-        model: Model,
+        model: Model | str,
         n_ctx: int = 2048,
         system_prompt: str = "",
         allow_thinking: bool = True,
@@ -28,14 +29,14 @@ class ChatAsync:
     def ask(self, /, text: str) -> TokenStreamAsync: ...
 
 class CrossEncoder:
-    def __new__(cls, /, model: Model, n_ctx: int = 2048) -> CrossEncoder: ...
+    def __new__(cls, /, model: Model | str, n_ctx: int = 2048) -> CrossEncoder: ...
     def rank(self, /, query: str, documents: list[str]) -> list[float]: ...
     def rank_and_sort(
         self, /, query: str, documents: list[str]
     ) -> list[tuple[str, float]]: ...
 
 class CrossEncoderAsync:
-    def __new__(cls, /, model: Model, n_ctx: int = 2048) -> CrossEncoderAsync: ...
+    def __new__(cls, /, model: Model | str, n_ctx: int = 2048) -> CrossEncoderAsync: ...
     def rank(
         self, /, query: str, documents: list[str]
     ) -> typing.Awaitable[list[float]]: ...
@@ -44,11 +45,11 @@ class CrossEncoderAsync:
     ) -> typing.Awaitable[list[tuple[str, float]]]: ...
 
 class Encoder:
-    def __new__(cls, /, model: Model, n_ctx: int = 2048) -> Encoder: ...
+    def __new__(cls, /, model: Model | str, n_ctx: int = 2048) -> Encoder: ...
     def encode(self, /, text: str) -> list[float]: ...
 
 class EncoderAsync:
-    def __new__(cls, /, model: Model, n_ctx: int = 2048) -> EncoderAsync: ...
+    def __new__(cls, /, model: Model | str, n_ctx: int = 2048) -> EncoderAsync: ...
     def encode(self, /, text: str) -> typing.Awaitable[list[float]]: ...
 
 class Model:
