@@ -1,6 +1,5 @@
-import typing
-
 import _typeshed
+import typing
 
 class Chat:
     def __new__(
