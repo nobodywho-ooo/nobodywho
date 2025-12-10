@@ -17,6 +17,29 @@ impl Model {
     }
 }
 
+/// This type represents a `Model | str` from python
+/// The intent is to allow passing a string path directly to constructors like Chat
+/// to make the simplest possible usage of nobodywho even simpler
+/// i.e. `Chat("./model.gguf")` instead of `Chat(Model("./model.gguf"))`
+#[derive(FromPyObject)]
+pub enum ModelOrPath<'py> {
+    ModelObj(Bound<'py, Model>),
+    StrPath(String),
+}
+
+impl<'py> ModelOrPath<'py> {
+    /// returns nobodywho core's internal model struct from a python `str | Model`
+    fn get_inner_model(&self) -> PyResult<nobodywho::llm::Model> {
+        match self {
+            // the inner model is Arc<...>, so clone is cheap.
+            ModelOrPath::ModelObj(model_obj) => Ok(model_obj.borrow().model.clone()),
+            // default to (trying to) use GPU if a string is passed
+            ModelOrPath::StrPath(path) => nobodywho::llm::get_model(&path, true)
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string())),
+        }
+    }
+}
+
 #[pyclass]
 pub struct TokenStream {
     stream: nobodywho::chat::TokenStream,
@@ -76,9 +99,10 @@ pub struct Encoder {
 impl Encoder {
     #[new]
     #[pyo3(signature = (model, n_ctx = 2048) -> "Encoder")]
-    pub fn new(model: &Model, n_ctx: u32) -> Self {
-        let encoder = nobodywho::encoder::Encoder::new(model.model.clone(), n_ctx);
-        Self { encoder }
+    pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
+        let nw_model = model.get_inner_model()?;
+        let encoder = nobodywho::encoder::Encoder::new(nw_model, n_ctx);
+        Ok(Self { encoder })
     }
 
     #[pyo3(signature = (text: "str") -> "list[float]")]
@@ -100,9 +124,10 @@ pub struct EncoderAsync {
 impl EncoderAsync {
     #[new]
     #[pyo3(signature = (model, n_ctx = 2048) -> "EncoderAsync")]
-    pub fn new(model: &Model, n_ctx: u32) -> Self {
-        let encoder_handle = nobodywho::encoder::EncoderAsync::new(model.model.clone(), n_ctx);
-        Self { encoder_handle }
+    pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
+        let nw_model = model.get_inner_model()?;
+        let encoder_handle = nobodywho::encoder::EncoderAsync::new(nw_model, n_ctx);
+        Ok(Self { encoder_handle })
     }
 
     #[pyo3(signature = (text: "str") -> "typing.Awaitable[list[float]]")]
@@ -123,9 +148,10 @@ pub struct CrossEncoder {
 impl CrossEncoder {
     #[new]
     #[pyo3(signature = (model, n_ctx = 2048) -> "CrossEncoder")]
-    pub fn new(model: &Model, n_ctx: u32) -> Self {
-        let crossencoder = nobodywho::crossencoder::CrossEncoder::new(model.model.clone(), n_ctx);
-        Self { crossencoder }
+    pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
+        let nw_model = model.get_inner_model()?;
+        let crossencoder = nobodywho::crossencoder::CrossEncoder::new(nw_model, n_ctx);
+        Ok(Self { crossencoder })
     }
 
     #[pyo3(signature = (query: "str", documents: "list[str]") -> "list[float]")]
@@ -161,12 +187,12 @@ pub struct CrossEncoderAsync {
 impl CrossEncoderAsync {
     #[new]
     #[pyo3(signature = (model, n_ctx = 2048) -> "CrossEncoderAsync")]
-    pub fn new(model: &Model, n_ctx: u32) -> Self {
-        let crossencoder_handle =
-            nobodywho::crossencoder::CrossEncoderAsync::new(model.model.clone(), n_ctx);
-        Self {
+    pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
+        let nw_model = model.get_inner_model()?;
+        let crossencoder_handle = nobodywho::crossencoder::CrossEncoderAsync::new(nw_model, n_ctx);
+        Ok(Self {
             crossencoder_handle,
-        }
+        })
     }
 
     #[pyo3(signature = (query: "str", documents: "list[str]") -> "typing.Awaitable[list[float]]")]
@@ -200,22 +226,22 @@ impl Chat {
     #[new]
     #[pyo3(signature = (model, n_ctx = 2048, system_prompt = "", allow_thinking = true, tools: "list[Tool]" = Vec::<Tool>::new(), sampler=SamplerConfig::default()) -> "Chat")]
     pub fn new(
-        model: &Model,
+        model: ModelOrPath,
         n_ctx: u32,
         system_prompt: &str,
         allow_thinking: bool,
         tools: Vec<Tool>,
         sampler: SamplerConfig,
-    ) -> Self {
-        let chat_handle = nobodywho::chat::ChatBuilder::new(model.model.clone())
+    ) -> PyResult<Self> {
+        let nw_model = model.get_inner_model()?;
+        let chat_handle = nobodywho::chat::ChatBuilder::new(nw_model)
             .with_context_size(n_ctx)
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
             .with_allow_thinking(allow_thinking)
             .with_system_prompt(system_prompt)
             .with_sampler(sampler.sampler_config)
             .build();
-
-        Self { chat_handle }
+        Ok(Self { chat_handle })
     }
 
     pub fn ask(&self, text: String) -> TokenStream {
@@ -235,21 +261,22 @@ impl ChatAsync {
     #[new]
     #[pyo3(signature = (model, n_ctx = 2048, system_prompt = "", allow_thinking = true, tools: "list[Tool]" = vec![], sampler = SamplerConfig::default()) -> "ChatAsync")]
     pub fn new(
-        model: &Model,
+        model: ModelOrPath,
         n_ctx: u32,
         system_prompt: &str,
         allow_thinking: bool,
         tools: Vec<Tool>,
         sampler: SamplerConfig,
-    ) -> Self {
-        let chat_handle = nobodywho::chat::ChatBuilder::new(model.model.clone())
+    ) -> PyResult<Self> {
+        let nw_model = model.get_inner_model()?;
+        let chat_handle = nobodywho::chat::ChatBuilder::new(nw_model)
             .with_context_size(n_ctx)
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
             .with_allow_thinking(allow_thinking)
             .with_system_prompt(system_prompt)
             .with_sampler(sampler.sampler_config)
             .build_async();
-        Self { chat_handle }
+        Ok(Self { chat_handle })
     }
 
     pub fn ask(&self, text: String) -> TokenStreamAsync {

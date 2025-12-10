@@ -272,3 +272,36 @@ def test_tool_bad_parameters():
         @nobodywho.tool(description="foobar", params={"b": "uh-oh"})
         def i_fucked_up(a: int) -> str:
             return "fuck"
+
+
+def test_load_chat_from_path():
+    model_path = os.environ.get("TEST_MODEL")
+    assert isinstance(model_path, str)
+
+    new_chat = nobodywho.Chat(model_path, allow_thinking=False)
+    assert isinstance(new_chat, nobodywho.Chat)
+
+    new_async_chat = nobodywho.ChatAsync(model_path, allow_thinking=False)
+    assert isinstance(new_async_chat, nobodywho.ChatAsync)
+
+
+def test_load_encoder_from_path():
+    model_path = os.environ.get("TEST_EMBEDDINGS_MODEL")
+    assert isinstance(model_path, str)
+
+    new_encoder = nobodywho.Encoder(model_path)
+    assert isinstance(new_encoder, nobodywho.Encoder)
+
+    new_encoder_async = nobodywho.EncoderAsync(model_path)
+    assert isinstance(new_encoder_async, nobodywho.EncoderAsync)
+
+
+def test_load_crossencoder_from_path():
+    model_path = os.environ.get("TEST_CROSSENCODER_MODEL")
+    assert isinstance(model_path, str)
+
+    new_encoder = nobodywho.CrossEncoder(model_path)
+    assert isinstance(new_encoder, nobodywho.CrossEncoder)
+
+    new_encoder_async = nobodywho.CrossEncoderAsync(model_path)
+    assert isinstance(new_encoder_async, nobodywho.CrossEncoderAsync)
