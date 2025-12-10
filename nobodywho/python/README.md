@@ -26,3 +26,20 @@ Then you should be able to run `nobodywho`:
 >>> import nobodywho
 ...
 ```
+
+## Testing
+
+We use pytest for testing.
+
+Assuming that you've already activated the virtual environment:
+
+To run the tests:
+```shell
+python3 -m pytest
+```
+
+We also test all codeblocks in the markdown documentation:
+
+```shell
+python3 -m pytest --markdown-docs
+```
