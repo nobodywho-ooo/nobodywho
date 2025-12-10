@@ -33,9 +33,39 @@ class SamplerPresets:
     ...
 ```
 
+## Structured output
+
+One of the most useful presets to have, is to be able to generate structured output,
+such as JSON. This way, you dont have to rely on your model being clever enough to
+generate syntactically valid JSON, but instead you are strictly guaranteed that the
+output will be right. For plain JSON, it suffices to:
+```python
+Chat('./model.gguf', sampler=SamplerPresets.json())
+```
+
+Still, you might have more advanced needs, such as generating CSVs or JSON with some specific keys. This can be supported by creating custom grammars, such as this one for CSV:
+```python
+sampler = SamplerPresets.grammar("""
+    file ::= record (newline record)* newline?
+    record ::= field ("," field)*
+    field ::= quoted_field | unquoted_field
+    unquoted_field ::= unquoted_char*
+    unquoted_char ::= [^,"\n\r]
+    quoted_field ::= "\"" quoted_char* "\""
+    quoted_char ::= [^"] | "\"\""
+    newline ::= "\r\n" | "\n"
+""")
+```
+The format that NobodyWho utilizes is called GBNF, which is a Llama.cpp native format.
+For a nice specification, [head over to this site](https://github.com/ggml-org/llama.cpp/blob/master/grammars/README.md).
+
+<div style="background-color: red;">
+    TODO: Enable importing grammar from JSON.
+</div>
+
 ## Defining your own samplers
 
-Still, presets abstract away some control, that you might want - for example, if you
+Sampler presets abstract away some control, that you might want - for example, if you
 want to chain samplers, change more "advanced" parameters, etc. For that use case,
 we provide `SamplerBuilder` class:
 ```python
@@ -54,6 +84,4 @@ types of methods: these which modify the distribution (returning again the insta
 `SamplerBuilder`) and these which sample from the distribution (returning `SamplerConfig`).
 So in order to have the sampler working properly and not giving you type errors, be careful
 to always end the chain with some of the sampling steps (e.g. `dist`, `greedy`, `mirostat_v2`, etc.).
-
-## Structured output
 
