@@ -6,7 +6,7 @@ build-backend = "maturin"
 name = "nobodywho-python"
 version = "0.1.0"
 description = "Python bindings for nobodywho"
-requires-python = ">=3.13"
+requires-python = ">=3.10"
 
 [tool.maturin]
 # "extension-module" tells pyo3 we want to build an extension module (skips linking against libpython.so)
