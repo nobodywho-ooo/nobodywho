@@ -266,6 +266,18 @@ impl Chat {
             stream: self.chat_handle.ask(text),
         }
     }
+
+    #[pyo3(signature = (system_prompt: "str", tools: "list[Tool]"))]
+    pub fn reset(&self, system_prompt: String, tools: Vec<Tool>) {
+        self.chat_handle
+            .reset_chat(system_prompt, tools.into_iter().map(|t| t.tool).collect());
+    }
+
+    pub fn set_allow_thinking(&self, allow_thinking: bool) -> PyResult<()> {
+        self.chat_handle
+            .set_allow_thinking(allow_thinking)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+    }
 }
 
 #[pyclass]

@@ -2,62 +2,72 @@ site_name: NobodyWho
 site_url: https://nobodywho-ooo.github.io/nobodywho
 nav:
   - Home: index.md
-  - Install: install.md
-  - Baby's First Steps: getting-started.md
-  - Chat:
-      - Simple Chat: chat/simple-chat.md
-      - Structured Output: chat/structured-output.md
-      - Tool Calling: chat/tool-calling.md
-  - Embeddings: embeddings.md
-  - RAG: rag.md
+  - Basics: basic-concepts.md
+  - Tool Calling: tool-calling.md
+  - Sampling: sampling.md
+  - Streaming & Async API: streaming-and-async-api.md
+  - Embeddings & RAG: embeddings-and-rag.md
   - Model Selection: model-selection.md
-  - Contributing:
-      - Development Environment: contributing/dev-environment.md
-  - About: about.md
 
 # github link in the top right
 repo_url: https://github.com/nobodywho-ooo/nobodywho
 repo_name: nobodywho-ooo/nobodywho
-
 theme:
-  # use eyes icon to trigger people clicking on images and gifs.
-  icon:
-    annotation: material/eye-circle
-  # enable mkdocs-material theme
-  name: material
-  # disable loading from google fonts, fallback to system fonts
-  font: false 
-  # set color scheme 
-  palette:
-    primary: black
-    scheme: slate
-  # icon (just a symlink to :/assets/icon.svg)
-  logo: icon.svg
-  # link tab selection across all content tab blocks
-  features: 
-    - content.tabs.link
-    - navigation.instant
-    - navigation.footer
-extra:
-  generator: false
-  social:
-    - icon: fontawesome/brands/github
-      link: https://github.com/nobodywho-ooo/nobodywho
-    - icon: fontawesome/brands/discord
-      link: https://discord.gg/qhaMc2qCYB
+  name: shadcn
+  show_title: true # show the title in the top bar
+  show_stargazers: true # show the stargazers in the top bar
+  pygments_style: # default styles
+    light: shadcn-light
+    dark: github-dark
+  icon: ./assets/icon.svg # use the shadcn svg if not defined
+  topbar_sections: false # NEW!
+  show_datetime: false
 
 markdown_extensions:
-  # enable content tabs
-  - pymdownx.superfences
-  - pymdownx.tabbed:
-      alternate_style: true
+  - codehilite
+  - admonition
 
-  # for images and grids
-  - md_in_html
-  - pymdownx.blocks.caption
-  - attr_list
-
-  # for icons and emoji
-  - pymdownx.emoji:
-      emoji_index: !!python/name:material.extensions.emoji.twemoji
-      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+extra_css:
+  - ./css/extra.css
+# theme:
+#   # use eyes icon to trigger people clicking on images and gifs.
+#   icon:
+#     annotation: material/eye-circle
+#   # enable mkdocs-material theme
+#   name: material
+#   # disable loading from google fonts, fallback to system fonts
+#   font: false
+#   # set color scheme
+#   palette:
+#     primary: black
+#     scheme: slate
+#   # icon (just a symlink to :/assets/icon.svg)
+#   logo: icon.svg
+#   # link tab selection across all content tab blocks
+#   features:
+#     - content.tabs.link
+#     - navigation.instant
+#     - navigation.footer
+# extra:
+#   generator: false
+#   social:
+#     - icon: fontawesome/brands/github
+#       link: https://github.com/nobodywho-ooo/nobodywho
+#     - icon: fontawesome/brands/discord
+#       link: https://discord.gg/qhaMc2qCYB
+#
+# markdown_extensions:
+#   # enable content tabs
+#   - pymdownx.superfences
+#   - pymdownx.tabbed:
+#       alternate_style: true
+#
+#   # for images and grids
+#   - md_in_html
+#   - pymdownx.blocks.caption
+#   - attr_list
+#
+#   # for icons and emoji
+#   - pymdownx.emoji:
+#       emoji_index: !!python/name:material.extensions.emoji.twemoji
+#       emoji_generator: !!python/name:material.extensions.emoji.to_svg
