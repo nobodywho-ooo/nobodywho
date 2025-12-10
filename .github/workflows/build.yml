@@ -165,12 +165,13 @@ jobs:
           # llama.cpp's CMake configuration requires clang for ARM64 builds
           CMAKE_C_COMPILER: "clang-cl"
           CMAKE_CXX_COMPILER: "clang-cl"
-          # Tell clang-cl to target ARM64 architecture
-          CMAKE_C_FLAGS: "--target=arm64-pc-windows-msvc"
-          CMAKE_CXX_FLAGS: "--target=arm64-pc-windows-msvc"
-          # Override cmake-rs's default flags that include /machine:x64
-          CFLAGS_aarch64_pc_windows_msvc: "--target=arm64-pc-windows-msvc"
-          CXXFLAGS_aarch64_pc_windows_msvc: "--target=arm64-pc-windows-msvc"
+          # Tell CMake we're cross-compiling for ARM64
+          CMAKE_SYSTEM_NAME: "Windows"
+          CMAKE_SYSTEM_PROCESSOR: "ARM64"
+          # Set compiler flags for ARM64 target
+          # Note: We need to append to existing flags that cmake-rs sets
+          CFLAGS: "--target=arm64-pc-windows-msvc"
+          CXXFLAGS: "--target=arm64-pc-windows-msvc"
 
       - name: "Rename built files"
         run: |
