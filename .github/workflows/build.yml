@@ -125,7 +125,8 @@ jobs:
           channel: stable
           version: 3.35.5
 
-      - name: Build with Cargo
+      - name: Build with Cargo (x86_64)
+        if: matrix.target == 'x86_64-pc-windows-msvc'
         # move things into a shortly-named dir in the root, because windows is made by fuckwits who think limiting paths to 260 chars is ok
         run: |
           mv ./nobodywho/* C:/
@@ -136,7 +137,25 @@ jobs:
           RUSTFLAGS: >-
             -l Advapi32
             -C debuginfo=0
-            ${{ matrix.target == 'x86_64-pc-windows-msvc' && '-C target-cpu=x86-64-v3' || '' }}
+            -C target-cpu=x86-64-v3
+          # Use Ninja generator instead of Visual Studio generator.
+          # This fixes a CMake ExternalProject issue where vulkan-shaders-gen's
+          # install step fails to find cmake_install.cmake with the VS generator.
+          # Ninja's simpler build structure avoids this problem entirely.
+          CMAKE_GENERATOR: "Ninja"
+
+      - name: Build with Cargo (ARM64)
+        if: matrix.target == 'aarch64-pc-windows-msvc'
+        # move things into a shortly-named dir in the root, because windows is made by fuckwits who think limiting paths to 260 chars is ok
+        run: |
+          mv ./nobodywho/* C:/
+          cd C:/
+          # Use an even shorter target directory to avoid path length issues with git dependencies
+          cargo build -p nobodywho-${{ matrix.integration }} --target ${{ matrix.target }} --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked --target-dir C:/t
+        env:
+          RUSTFLAGS: >-
+            -l Advapi32
+            -C debuginfo=0
           # Use Ninja generator instead of Visual Studio generator.
           # This fixes a CMake ExternalProject issue where vulkan-shaders-gen's
           # install step fails to find cmake_install.cmake with the VS generator.
@@ -144,8 +163,14 @@ jobs:
           CMAKE_GENERATOR: "Ninja"
           # For ARM64 cross-compilation, use clang-cl instead of MSVC cl.exe
           # llama.cpp's CMake configuration requires clang for ARM64 builds
-          CMAKE_C_COMPILER: ${{ matrix.target == 'aarch64-pc-windows-msvc' && 'clang-cl' || '' }}
-          CMAKE_CXX_COMPILER: ${{ matrix.target == 'aarch64-pc-windows-msvc' && 'clang-cl' || '' }}
+          CMAKE_C_COMPILER: "clang-cl"
+          CMAKE_CXX_COMPILER: "clang-cl"
+          # Tell clang-cl to target ARM64 architecture
+          CMAKE_C_FLAGS: "--target=arm64-pc-windows-msvc"
+          CMAKE_CXX_FLAGS: "--target=arm64-pc-windows-msvc"
+          # Override cmake-rs's default flags that include /machine:x64
+          CFLAGS_aarch64_pc_windows_msvc: "--target=arm64-pc-windows-msvc"
+          CXXFLAGS_aarch64_pc_windows_msvc: "--target=arm64-pc-windows-msvc"
 
       - name: "Rename built files"
         run: |
