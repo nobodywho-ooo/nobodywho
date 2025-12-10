@@ -189,7 +189,8 @@ jobs:
         working-directory: ./nobodywho/python
         run: |
           uv venv
-          uv sync
+          # install deps - and not nobodywho-python - into the venv
+          uv sync --no-install-project --group dev
           source .venv/bin/activate
           pip install ../../wheels/nobodywho_python*.whl
       - name: Run pytest
