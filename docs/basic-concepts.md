@@ -15,7 +15,8 @@ which should specify an overall behaviour through the `Chat` context. System pro
 are either provided by the creator of the model (in which case NobodyWho opts for this system prompt),
 or an empty string is selected. System prompt can be also set manually, when creating the chat:
 ```python
-Chat(system_prompt="You are a mischievous assistant!")
+from nobodywho import Chat
+Chat("./model.gguf", system_prompt="You are a mischievous assistant!")
 ```
 This `system_prompt` is then persisted until the chat context is `reset`.
 
@@ -23,15 +24,15 @@ This `system_prompt` is then persisted until the chat context is `reset`.
 
 The context is the text window which the LLM currently considers - you can see it as a limited-length chat history.
 As bigger context size means more computational overhead, it makes sense to constrain it. This can be done with `n_ctx` setting, again at the time of creation:
-```
-Chat(n_ctx=4096)
+```python continuation
+Chat("./model.gguf", n_ctx=4096)
 ```
 The default value is `2048`. When text is about to overflow away from the context, NobodyWho automatically crops
 the first messages apart from the system prompt and first user message (as these usually bear the most context),
 until the size reaches `n_ctx / 2`. KV cache is also updated automatically.
 
 Again, `n_ctx` is fixed to the `Chat` instance, so it is currently not possible to change the size after `Chat` is created. To reset the current context content, just call `.reset()` with the new system prompt and potentionally changed tools.
-```python
+```python continuation
 chat.reset(system_prompt="New system prompt", tools=[])
 ```
 
@@ -68,11 +69,11 @@ of more architectures is planned (for details check out our [issues](https://git
 
 To enhance the cognitive performance, allowing reasoning can be a good idea:
 ```python
-Chat(allow_thinking=True)
+Chat("./model.gguf", allow_thinking=True)
 ```
 Note that `Chat` has thinking set to `True` by default. This time, you can also change the setting
 with already existing chat instance:
-```python
+```python continuation
 chat.set_allow_thinking(True)
 ```
 With the next message send, the setting will be propagated.

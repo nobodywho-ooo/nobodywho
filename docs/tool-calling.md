@@ -13,7 +13,7 @@ To perform the conversion, all that is needed, is using simple `@tool` decorator
 a good sense of how such a tool can look like, consider this arbitrary weather scenario:
 ```python
 import requests
-from nobodywho import tool
+from nobodywho import tool, Chat
 
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 
@@ -28,7 +28,7 @@ def get_current_temperature(lon: str, lat: str) -> str:
 ```
 As you can see, every `@tool` definition has to be complemented by a description
 of what such tool does. To let your LLM use it, simply add it when creating `Chat`:
-```python
+```python continuation
 chat = Chat('./model.gguf', tools=[get_current_temperature])
 ```
 NobodyWho then figures out the right tool calling format, infers the parameters of types
@@ -78,10 +78,11 @@ When a tool call is declared, information about the description, the types and t
 
 If those are not enough, you can decide to provide additional information by the `params` parameter:
 ```python
+from nobodywho import tool
 @tool(
-    description="Given a longitude and latitude, gets the current temperature."
+    description="Given a longitude and latitude, gets the current temperature.",
     params={
-        "lon": "Longitude - that is the vertical one!"
+        "lon": "Longitude - that is the vertical one!",
         "lat": "Latitude - that is the horizontal one!"
     }
 )

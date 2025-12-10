@@ -15,7 +15,7 @@ For example, if you want to increase or decrease the "creativity" of your model,
 ```python
 from nobodywho import SamplerPresets
 
-Chat(sampler=SamplerPresets.temperature(0.2))
+Chat("./model.gguf", sampler=SamplerPresets.temperature(0.2))
 ```
 Setting `temperature` to `0.2`, will then affect the sampler when choosing the next word, making the distribution less flat and therefore the model will favour more probable words.
 
@@ -72,6 +72,7 @@ we provide `SamplerBuilder` class:
 from nobodywho import SamplerBuilder
 
 Chat(
+    "./model.gguf",
     sampler=SamplerBuilder()
         .temperature(0.8)
         .top_k(5)
