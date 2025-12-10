@@ -341,6 +341,7 @@ jobs:
         linux-pip-install-test,
         windows-pip-install-test,
         mac-os-pip-install-test,
+        linux-pytest,
       ]
     runs-on: ubuntu-latest
     if: false
