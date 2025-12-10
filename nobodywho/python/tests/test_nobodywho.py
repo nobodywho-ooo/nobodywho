@@ -4,7 +4,7 @@ import nobodywho
 import pytest
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def model():
     model_path = os.environ.get("TEST_MODEL")
     if not model_path:
@@ -82,7 +82,7 @@ def test_sync_iterator(chat):
 
 
 # Encoder tests
-@pytest.fixture
+@pytest.fixture(scope="module")
 def encoder_model():
     model_path = os.environ.get("TEST_EMBEDDINGS_MODEL")
     if not model_path:
@@ -110,7 +110,7 @@ def test_encoder_sync(encoder):
 
 
 @pytest.mark.asyncio
-async def test_encoder_async():
+async def test_encoder_async(encoder_model):
     """Test that encoder can generate embeddings using async API"""
     encoder_async = nobodywho.EncoderAsync(encoder_model, n_ctx=1024)
 
@@ -146,7 +146,7 @@ def test_cosine_similarity_error():
 
 
 # CrossEncoder tests
-@pytest.fixture
+@pytest.fixture(scope="module")
 def crossencoder_model():
     model_path = os.environ.get("TEST_CROSSENCODER_MODEL")
     if not model_path:
@@ -177,7 +177,7 @@ def test_crossencoder_rank_sync(crossencoder):
 
 
 @pytest.mark.asyncio
-async def test_crossencoder_rank_async():
+async def test_crossencoder_rank_async(crossencoder_model):
     crossencoder_async = nobodywho.CrossEncoderAsync(crossencoder_model, n_ctx=4096)
 
     query = "What is the capital of France?"
@@ -211,7 +211,7 @@ def test_crossencoder_rank_and_sort_sync(crossencoder):
 
 
 @pytest.mark.asyncio
-async def test_crossencoder_rank_and_sort_async():
+async def test_crossencoder_rank_and_sort_async(crossencoder_model):
     """Test that cross-encoder rank and sort works with async API"""
     crossencoder_async = nobodywho.CrossEncoderAsync(crossencoder_model, n_ctx=4096)
 
