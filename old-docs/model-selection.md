@@ -2,8 +2,7 @@
 
 ---
 
-Choosing the right language model can make or break your project. In general you want to go as small as possible while still
-having the capabilities you need for your application.
+Choosing the right language model can make or break your project. In general you want to go as small as possible while still having the capabilities you need for your application.
 
 ## TL;DR
 
@@ -12,7 +11,7 @@ If you just want a ~2GB chat model that works well, try [Qwen3 4B Q4_K_M](https:
 
 ## Which models are compatible with NobodyWho?
 
-Broadly: almost anything in the "GGUF" file format.
+Broadly: almost anything in the `.gguf` file format.
 
 For chatting, it should be an instruction-tuned GGUF file that includes a jinja2 chat template in the metadata.
 This description fits the vast majority of GGUF files out there. If in doubt, try it. NobodyWho will throw you a descriptive error message if something is wrong.
