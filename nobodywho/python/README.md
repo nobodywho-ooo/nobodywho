@@ -41,5 +41,5 @@ python3 -m pytest
 We also test all codeblocks in the markdown documentation:
 
 ```shell
-python3 -m pytest --markdown-docs
+python3 -m pytest --markdown-docs ../../docs --markdown-docs-syntax=superfences --log-cli-level=9
 ```
