@@ -62,17 +62,20 @@ impl TokenStream {
     pub fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
     }
-    // XXX TODO: does iterators still work?
+
     pub fn __next__(&mut self, py: Python) -> Option<String> {
         py.detach(|| self.stream.next_token())
     }
-
-    // TODO: async iterator (turns out to be trickier than expected)
 }
 
 #[pyclass]
 pub struct TokenStreamAsync {
-    stream: nobodywho::chat::TokenStreamAsync,
+    // this needs to be behind a mutex for async iterators to work
+    // because __anext__ needs to return a python awaitable for *one* element
+    // and our single-consumer channels can't be cloned
+    stream: std::sync::Arc<tokio::sync::Mutex<nobodywho::chat::TokenStreamAsync>>,
+    // we can probably get rid of this Arc<Mutex<...>>, if we switch to mpmc channels
+    // (e.g. via the async_channel crate)
 }
 
 #[pymethods]
@@ -80,14 +83,28 @@ impl TokenStreamAsync {
     #[pyo3(signature = () -> "typing.Awaitable[str | None]")]
     pub async fn next_token(&mut self) -> Option<String> {
         // no need to release GIL in async functions
-        self.stream.next_token().await
+        self.stream.lock().await.next_token().await
     }
 
     pub async fn completed(&mut self) -> String {
-        self.stream.completed().await
+        self.stream.lock().await.completed().await
     }
 
-    // TODO: async iterator (turns out to be trickier than expected)
+    pub fn __aiter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    pub fn __anext__<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, pyo3::types::PyAny>> {
+        let locals = pyo3_async_runtimes::TaskLocals::with_running_loop(py)?.copy_context(py)?;
+        let stream_clone = self.stream.clone();
+        pyo3_async_runtimes::tokio::future_into_py_with_locals(py, locals, async move {
+            let token = stream_clone.lock().await.next_token().await;
+            match token {
+                Some(t) => Ok(t),
+                None => Err(pyo3::exceptions::PyStopAsyncIteration::new_err(())),
+            }
+        })
+    }
 }
 
 #[pyclass]
@@ -281,7 +298,7 @@ impl ChatAsync {
 
     pub fn ask(&self, text: String) -> TokenStreamAsync {
         TokenStreamAsync {
-            stream: self.chat_handle.ask(text),
+            stream: std::sync::Arc::new(tokio::sync::Mutex::new(self.chat_handle.ask(text))),
         }
     }
 }

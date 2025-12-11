@@ -54,6 +54,20 @@ async def test_async_completed(chat_async):
     assert "copenhagen" in response.lower()
 
 
+@pytest.mark.asyncio
+async def test_async_iterator(chat_async):
+    """Test async complete from demo_async.py"""
+    response_stream: nobodywho.TokenStreamAsync = chat_async.ask(
+        "What is the capital of Denmark?"
+    )
+    assert isinstance(response_stream, nobodywho.TokenStreamAsync)
+    response = ""
+    async for token in response_stream:
+        assert isinstance(token, str)
+        response += token
+    assert "copenhagen" in response.lower()
+
+
 def test_blocking_completed(chat):
     response_stream = chat.ask("What is the capital of Denmark?")
     response: str = response_stream.completed()
