@@ -11,9 +11,11 @@ NobodyWho is a lightweight, open-source AI engine for local LLM inference. <br/>
 Simple, privacy-oriented with no infrastructure needed.
 
 In short, if you want to run a LLM, and integrate it with [tools](./tool-calling.md), configure its output,
-enable real-time streaming of tokens, or maybe use it for creation of embeddings, NobodyWho can help.
+enable real-time streaming of tokens, or maybe use it for creation of embeddings, NobodyWho makes it easy.
 
-All of this is enabled by [Llama.cpp](https://github.com/ggml-org/llama.cpp), while having nice, simple Python API. All of this is only a single `pip install` away. No additional docker container needed.
+All of this is enabled by [Llama.cpp](https://github.com/ggml-org/llama.cpp), while having nice, simple Python API.
+
+No messing around with docker containers, GPU servers, API keys, etc. Just pip install and get going.
 
 ## How do I get started?
 
@@ -22,8 +24,10 @@ First, install `nobodywho`.
 pip install nobodywho
 ```
 
-Next, download a model you like - we can help with this.
-When you have the `.gguf` file, just ask!
+Next, download a GGUF model you like - if you don't have a specific model in mind, try [this one](https://huggingface.co/Qwen/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q5_0.gguf?download=true).
+
+Once you have the `.gguf` file, make a `Chat` object and call `.ask()`!
+
 ```python
 from nobodywho import Chat
 
@@ -32,8 +36,7 @@ response = chat.ask('Hello world?').completed()
 print(response) # Hello world!
 ```
 
-This is a super simple example, but we believe,
-that examples which do simple things, should be simple!
+This is a super simple example, but we believe that examples which do simple things, should be simple!
 
 However, you can follow to plenty of more advanced stuff.
 
