@@ -199,7 +199,9 @@ jobs:
           TEST_CROSSENCODER_MODEL: ${{ github.workspace }}/models/bge-reranker-v2-m3-Q8_0.gguf
         run: |
           source .venv/bin/activate
-          pip install ../../wheels/nobodywho_python*.whl
+          which python
+          which pip
+          .venv/bin/pip install ../../wheels/nobodywho_python*manylinux*x86*.whl
           python3 -m pytest
 
   linux-pip-install-test:
