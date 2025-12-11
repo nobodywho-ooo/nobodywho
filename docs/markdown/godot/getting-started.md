@@ -34,117 +34,52 @@ Otherwise, check out our [recommended models](model-selection.md) or if you have
 
 At this point you should have downloaded the model and put it into your project folder.
 
-=== ":simple-godotengine: Godot"
 
-    Add a `NobodyWhoModel` node to your scene tree.
+Add a `NobodyWhoModel` node to your scene tree.
 
-    Set the model path to point to your GGUF model. (1)
-    { .annotate }
+Set the model path to point to your GGUF model. (1)
+{ .annotate }
 
-    1. ![set model path](assets/godot_model_selection.png)
+1. ![set model path](assets/godot_model_selection.png)
 
-=== ":simple-unity: Unity"
-
-    Make sure that the model is downloaded and put inside your `project-root:/Assets/StreamingAssets/`
-
-    Create a new scene in your project and add the `NobodyWho > Model` component, then use the file finder to get your model.
-    Make sure to have GPU acceleration enabled for faster responses at the cost of VRAM.
 
 ## Create a new Chat
 
 The next step is adding a Chat to our scene. 
 
-=== ":simple-godotengine: Godot"
 
-    Add a `NobodyWhoChat` node to your scene tree.
+Add a `NobodyWhoChat` node to your scene tree.
 
-    Then add a script to the node:
+Then add a script to the node:
 
-    ```gdscript
-    extends NobodyWhoChat
+```gdscript
+extends NobodyWhoChat
 
-    func _ready():
-        # configure the node (feel free to do this in the UI)
-        self.system_prompt = "You are an evil wizard."
-        self.model_node = get_node("../ChatModel")
+func _ready():
+    # configure the node (feel free to do this in the UI)
+    self.system_prompt = "You are an evil wizard."
+    self.model_node = get_node("../ChatModel")
 
-        # connect signals to signal handlers
-        self.response_updated.connect(_on_response_updated)
-        self.response_finished.connect(_on_response_finished)
+    # connect signals to signal handlers
+    self.response_updated.connect(_on_response_updated)
+    self.response_finished.connect(_on_response_finished)
 
-        # Start the worker, this is not required, but recommended to do in
-        # the beginning of the program to make sure it is ready
-        # when the user prompts the chat the first time. This will be called
-        # under the hood when you use `say()` as well.
-        self.start_worker()
+    # Start the worker, this is not required, but recommended to do in
+    # the beginning of the program to make sure it is ready
+    # when the user prompts the chat the first time. This will be called
+    # under the hood when you use `say()` as well.
+    self.start_worker()
 
-        self.say("How are you?")
+    self.say("How are you?")
 
-    func _on_response_updated(token):
-        # this will print every time a new token is generated
-        print(token)
+func _on_response_updated(token):
+    # this will print every time a new token is generated
+    print(token)
 
-    func _on_response_finished(response):
-        # this will print when the entire response is finished
-        print(response)
-    ```
-
-=== ":simple-unity: Unity"
-
-    The next step is adding the Chat object.`NobodyWho > Chat`.
-    Make sure to select the model you just added in the model field.
-
-    It has a lot of options - but for now we are only going to focus on the System prompt.
-    These are the instructions that the LLM will try to follow. (1)
-    { .annotate }
-
-    1. ![Example Setup](assets/unity_1.png)
-
-
-    ---
-
-    Now we are ready to add a small script that sends and receives text from the model.
-    Add a new script component on you chat object:
-
-    ```csharp
-    using UnityEngine;
-
-    public class SendMessageToChat : MonoBehaviour
-    {
-        public Chat chat;
-
-        void Start()
-        {
-            chat = GetComponent<Chat>();
-
-            // start the worker, this is not required, but recommended to do in
-            // the beginning of the program to make sure it is ready when the user
-            // prompts the chat the first time. this will be called under the hood
-            // when you use `say()` as well.
-            chat.StartWorker();
-
-            // add a listener to the responseFinished event, this will be called when
-            // the model has completed its answer.
-            chat.responseFinished.AddListener(OnResponseFinished);
-            // this will update everytime that a new token is generated
-            chat.responseUpdated.AddListener(OnResponseUpdated);
-
-            // send a message to the model
-            chat.Say("Hey there kitten, nice to meet you!");
-        }
-
-        void OnResponseUpdated(string update)
-        {
-            Debug.Log(update);
-        }
-        void OnResponseFinished(string fullResponse)
-        {
-            Debug.Log(fullResponse);
-        }
-    }
-    ```
-
-
+func _on_response_finished(response):
+    # this will print when the entire response is finished
+    print(response)
+```
 
 ## Testing Your Setup
 
