@@ -25,5 +25,5 @@ dev = [
 testpaths = ["tests", "../../docs"]
 python_files = ["test_*.py", "*.md"]
 pythonpath = ["."]
-# Ensure conftest.py is discovered from tests directory
-confcutdir = "."
+# Allow conftest.py discovery up to the repository root
+confcutdir = "../.."
