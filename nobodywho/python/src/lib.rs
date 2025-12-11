@@ -268,16 +268,20 @@ impl Chat {
     }
 
     #[pyo3(signature = (system_prompt: "str", tools: "list[Tool]"))]
-    pub fn reset(&self, system_prompt: String, tools: Vec<Tool>) {
-        self.chat_handle
-            .reset_chat(system_prompt, tools.into_iter().map(|t| t.tool).collect());
+    pub fn reset(&self, system_prompt: String, tools: Vec<Tool>, py: Python) {
+        py.detach(|| {
+            self.chat_handle
+                .reset_chat(system_prompt, tools.into_iter().map(|t| t.tool).collect());
+        })
     }
 
     #[pyo3(signature = (allow_thinking: "bool") -> "None")]
-    pub fn set_allow_thinking(&self, allow_thinking: bool) -> PyResult<()> {
-        self.chat_handle
-            .set_allow_thinking(allow_thinking)
-            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+    pub fn set_allow_thinking(&self, allow_thinking: bool, py: Python) -> PyResult<()> {
+        py.detach(|| {
+            self.chat_handle
+                .set_allow_thinking(allow_thinking)
+                .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+        })
     }
 }
 
