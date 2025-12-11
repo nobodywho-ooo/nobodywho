@@ -9,10 +9,16 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 
-const EXCEPTIONS_TO_REPLACE: &[(&str, &str)] = &[(
-    "def __next__(self, /) -> typing.Any: ...",
-    "def __next__(self, /) -> str: ... # Replaced with str to avoid type errors",
-)];
+const EXCEPTIONS_TO_REPLACE: &[(&str, &str)] = &[
+    (
+        "def __next__(self, /) -> typing.Any: ...",
+        "def __next__(self, /) -> str: ... # Replaced with str to avoid type errors",
+    ),
+    (
+        "def __anext__(self, /) -> typing.Any: ...",
+        "def __anext__(self, /) -> typing.Awaitable[str]: ... # Replaced with str to avoid type errors",
+    ),
+];
 
 fn replace_exceptions(mut contents: String) -> String {
     for (pattern, replacement) in EXCEPTIONS_TO_REPLACE {
@@ -60,6 +66,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let full_path = PathBuf::from(&output_dir).join(&file_path);
 
         if contents.contains("typing.Any") {
+            println!("--- type stubs content: ---");
+            println!("{}", contents);
+            println!("--- end type stubs content ---");
             eprintln!(
                 "❌ Error: typing.Any found in contents of {}. Please replace all typing.Any with the appropriate type.",
                 full_path.display()
