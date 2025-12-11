@@ -28,7 +28,7 @@ When you have the `.gguf` file, just ask!
 from nobodywho import Chat
 
 chat = Chat('./model.gguf')
-response = chat.ask('Hello world?').complete()
+response = chat.ask('Hello world?').completed()
 print(response) # Hello world!
 ```
 

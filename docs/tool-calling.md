@@ -64,7 +64,7 @@ def get_city_position(city: str) -> str:
     return f"Longitude: {lon}, latitude: {lat}"
 
 chat = Chat('./model.gguf', tools=[get_city_position, get_current_temperature])
-response = chat.ask('What is the current temperature in Copenhagen?').complete()
+response = chat.ask('What is the current temperature in Copenhagen?').completed()
 print(response) # It is ... degrees in Copenhagen!
 ```
 
