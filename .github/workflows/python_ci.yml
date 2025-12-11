@@ -191,9 +191,7 @@ jobs:
           uv venv
           # install deps - and not nobodywho-python - into the venv
           uv sync --no-install-project --group dev
-          source .venv/bin/activate
-          pip install ../../wheels/nobodywho_python*.whl
-      - name: Run pytest
+      - name: Install wheel from artifacts and run pytest
         working-directory: ./nobodywho/python
         env:
           TEST_MODEL: ${{ github.workspace }}/models/Qwen_Qwen3-0.6B-Q4_K_M.gguf
@@ -201,6 +199,7 @@ jobs:
           TEST_CROSSENCODER_MODEL: ${{ github.workspace }}/models/bge-reranker-v2-m3-Q8_0.gguf
         run: |
           source .venv/bin/activate
+          pip install ../../wheels/nobodywho_python*.whl
           python3 -m pytest
 
   linux-pip-install-test:
