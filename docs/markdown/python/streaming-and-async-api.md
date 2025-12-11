@@ -53,8 +53,3 @@ asyncio.run(main())
 Similarly, also our other classes implement async behaviour, so
 you can go for `EncoderAsync` and `CrossEncoderAsync`, which are
 both part of the [embeddings & rag functionality](./embeddings-and-rag.md).
-
-<div style="background-color: red;">
-    TODO: Impement the async iterator if possible, or ditch this part of async api
-</div>
-
