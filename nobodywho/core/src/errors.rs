@@ -261,3 +261,9 @@ pub enum FromModelError {
     #[error("Tools were provided, but it looks like this model doesn't support tool calling.")]
     NoToolTemplate,
 }
+
+#[derive(Debug, thiserror::Error)]
+pub enum CompletionError {
+    #[error("Worker thread terminated before completing the response. This usually indicates an error occurred during token generation (e.g., context shift failure, sampling error, or token decoding issue).")]
+    WorkerCrashed,
+}

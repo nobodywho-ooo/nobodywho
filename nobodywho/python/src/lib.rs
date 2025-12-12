@@ -54,8 +54,9 @@ impl TokenStream {
         py.detach(|| self.stream.next_token())
     }
 
-    pub fn completed(&mut self, py: Python) -> String {
+    pub fn completed(&mut self, py: Python) -> PyResult<String> {
         py.detach(|| self.stream.completed())
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     // sync iterator stuff
@@ -86,8 +87,13 @@ impl TokenStreamAsync {
         self.stream.lock().await.next_token().await
     }
 
-    pub async fn completed(&mut self) -> String {
-        self.stream.lock().await.completed().await
+    pub async fn completed(&mut self) -> PyResult<String> {
+        self.stream
+            .lock()
+            .await
+            .completed()
+            .await
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     pub fn __aiter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
