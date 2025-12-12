@@ -6,7 +6,7 @@ order: 1
 ---
 
 As you may noticed in the [welcome guide](./index.md), every interaction with your LLM starts by instantiating a `Chat` object.
-In the following sections, we talk about which configuration options does it have, and when to use them.
+In the following sections, we talk about which configuration options is has, and when to use them.
 
 ## Prompts and responses
 
@@ -20,7 +20,7 @@ response: TokenStream = chat.ask("Is water wet?")
 
 The return type of `ask` is a `TokenStream`.
 If you want to start reading the response as soon as possible, you can just iterate over the `TokenStream`.
-The individual tokens are either individual words or fragments of words.
+Each token is either an individual word or fragments of a word.
 
 ```{.python continuation}
 for token in response:
@@ -54,15 +54,15 @@ This `system_prompt` is then persisted until the chat context is `reset`.
 
 ## Context
 
-The context is the text window which the LLM currently considers - you can see it as a limited-length chat history.
+The context is the text window which the LLM currently considers. Specifically this is the number of tokens the LLM keeps in memory and you can view it as the LLM's memory of your current conversation.
 As bigger context size means more computational overhead, it makes sense to constrain it. This can be done with `n_ctx` setting, again at the time of creation:
 
 ```python
 chat = Chat("./model.gguf", n_ctx=4096)
 ```
 
-The default value is `2048`. When text is about to overflow away from the context, NobodyWho will shrink the context for you. Currently this is done by removing old messages (apart from the system prompt and the first user message) from the chat history,
-until the size reaches `n_ctx / 2`. KV cache is also updated automatically. In the future we plan on adding more advanced methods of context shrinking.
+The default value is `2048`, however this is mainly usefull for short and simple conversations. Choosing the right context size is quite important and depends heavily on your use case. A good place to start is to look at your selected models documentation and see what their recommended context size is.<br> Even with properly selected context size it might happen that you fill up your entire context during a conversation. When this happens, NobodyWho will shrink the context for you. Currently this is done by removing old messages (apart from the system prompt and the first user message) from the chat history,
+until the size reaches `n_ctx / 2`. The KV cache is also updated automatically. In the future we plan on adding more advanced methods of context shrinking.
 
 Again, `n_ctx` is fixed to the `Chat` instance, so it is currently not possible to change the size after `Chat` is created. To reset the current context content, just call `.reset()` with the new system prompt and potentionally changed tools.
 
@@ -105,8 +105,8 @@ To enhance the cognitive performance, allowing reasoning can be a good idea:
 ```python
 chat = Chat("./model.gguf", allow_thinking=True)
 ```
-Note that `Chat` has thinking set to `True` by default. This time, you can also change the setting
-with already existing chat instance:
+Note that `Chat` has thinking set to `True` by default. Note that you can also change the setting
+of an already existing chat instance:
 ```{.python continuation}
 chat.set_allow_thinking(True)
 ```

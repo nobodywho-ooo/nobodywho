@@ -24,7 +24,7 @@ Still, bear in mind that for the individual tokens, you are waiting synchronousl
 
 ## Async API
 
-To not having to wait synchronously, swap out the `Chat` object for a `ChatAsync`. All of the API stays the same, so either you can opt in for a full completed message:
+If you don't want to wait synchronously, swap out the `Chat` object for a `ChatAsync`. All of the API stays the same, so either you can opt for a full completed message:
 ```python
 import asyncio
 from nobodywho import ChatAsync
@@ -50,6 +50,6 @@ async def main():
 asyncio.run(main())
 ```
 
-Similarly, also our other classes implement async behaviour, so
+Similarly, the other model types we support also implement async behaviour, so
 you can go for `EncoderAsync` and `CrossEncoderAsync`, which are
 both part of the [embeddings & rag functionality](./embeddings-and-rag.md).

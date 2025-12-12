@@ -81,8 +81,8 @@ Chat(
 ```
 With `SamplerBuilder` you can chain multiple steps together and then select how do you
 want to sample from the distribution. Keep in mind, that `SamplerBuilder` provides two
-types of methods: these which modify the distribution (returning again the instance of
-`SamplerBuilder`) and these which sample from the distribution (returning `SamplerConfig`).
+types of methods: ones which modify the distribution (returning again the instance of
+`SamplerBuilder`) and ones which sample from the distribution (returning `SamplerConfig`).
 So in order to have the sampler working properly and not giving you type errors, be careful
-to always end the chain with some of the sampling steps (e.g. `dist`, `greedy`, `mirostat_v2`, etc.).
+to always end the chain with one of the sampling steps (e.g. `dist`, `greedy`, `mirostat_v2`, etc.).
 

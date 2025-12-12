@@ -18,7 +18,6 @@ nav:
       - Simple Chat: godot/chat/simple-chat.md
       - Structured output: godot/chat/structured-output.md
       - Tool calling: godot/chat/tool-calling.md
-    - About: godot/about.md
     - Installation: godot/install.md
     - Getting Started: godot/getting-started.md
     - Embeddings: godot/embeddings.md
