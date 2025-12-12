@@ -161,6 +161,49 @@ jobs:
           name: nobodywho_python_macos
           path: ./nobodywho/target/wheels/nobodywho_python*.whl
 
+  linux-pytest:
+    needs: [linux-build]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v2
+        with:
+          version: "latest"
+      - name: Download wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: nobodywho_python_linux
+          path: ./wheels
+      - name: Download test models
+        run: |
+          mkdir -p models
+          curl -L --fail --progress-bar https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf -o models/Qwen_Qwen3-0.6B-Q4_K_M.gguf
+          curl -L --fail --progress-bar https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf -o models/bge-small-en-v1.5-q8_0.gguf
+          curl -L --fail --progress-bar https://huggingface.co/gpustack/bge-reranker-v2-m3-GGUF/resolve/main/bge-reranker-v2-m3-Q8_0.gguf -o models/bge-reranker-v2-m3-Q8_0.gguf
+      - name: Set up virtualenv and install dependencies
+        working-directory: ./nobodywho/python
+        run: |
+          uv venv
+          # install deps - and not nobodywho-python - into the venv
+          uv sync --no-install-project --group dev
+          # install nobodywho from pre-built wheel
+          uv pip install ../../wheels/nobodywho_python*manylinux*x86*.whl
+      - name: Run pytest
+        working-directory: ./nobodywho/python
+        env:
+          TEST_MODEL: ${{ github.workspace }}/models/Qwen_Qwen3-0.6B-Q4_K_M.gguf
+          TEST_EMBEDDINGS_MODEL: ${{ github.workspace }}/models/bge-small-en-v1.5-q8_0.gguf
+          TEST_CROSSENCODER_MODEL: ${{ github.workspace }}/models/bge-reranker-v2-m3-Q8_0.gguf
+        run: |
+          source .venv/bin/activate
+          # python bindings tests
+          python3 -m pytest
+          # docs tests
+          python3 -m pytest --markdown-docs ../../docs --markdown-docs-syntax=superfences
+
+
+
   linux-pip-install-test:
     needs: [linux-build]
     runs-on: ubuntu-24.04
@@ -182,10 +225,6 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
-      - name: "Install distro dependencies"
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
       - name: "Download wheel"
         uses: actions/download-artifact@v4
 
@@ -293,12 +332,14 @@ jobs:
           chmod +x nobodywho/python/tests/test_reliability.sh
           bash nobodywho/python/tests/test_reliability.sh -n ${{ matrix.model_iterations }} nobodywho/python/examples/small_model_demo.py "macos/nobodypython/models/${{ matrix.model_name }}"
 
+
   publish-wheels:
     needs:
       [
         linux-pip-install-test,
         windows-pip-install-test,
         mac-os-pip-install-test,
+        linux-pytest,
       ]
     runs-on: ubuntu-latest
     if: false

@@ -16,7 +16,7 @@
 //!     .with_system_prompt("You are a helpful assistant")
 //!     .build();
 //!
-//! let response = chat.ask("Hello!").completed();
+//! let response = chat.ask("Hello!").completed()?;
 //! # Ok(())
 //! # }
 //! ```
@@ -516,18 +516,17 @@ impl TokenStream {
 
     /// Blocks until the  entire response is completed. Does not consume the response, so this
     /// method is idempotent.
-    pub fn completed(&mut self) -> String {
+    pub fn completed(&mut self) -> Result<String, crate::errors::CompletionError> {
         loop {
             match self.next_token() {
                 Some(_) => {
                     continue;
                 }
                 None => {
-                    let resp = self
+                    return self
                         .completed_response
                         .clone()
-                        .unwrap_or_else(|| unreachable!("This error should never be thrown. Open an issue on GitHub if you see this."));
-                    return resp;
+                        .ok_or(crate::errors::CompletionError::WorkerCrashed);
                 }
             }
         }
@@ -568,18 +567,17 @@ impl TokenStreamAsync {
 
     /// Waits for the entire response to be completed. Does not consume the response, so this
     /// method is idempotent.
-    pub async fn completed(&mut self) -> String {
+    pub async fn completed(&mut self) -> Result<String, crate::errors::CompletionError> {
         loop {
             match self.next_token().await {
                 Some(_) => {
                     continue;
                 }
                 None => {
-                    let resp = self
+                    return self
                         .completed_response
                         .clone()
-                        .unwrap_or_else(|| unreachable!("This error should never be thrown. Open an issue on GitHub if you see this."));
-                    return resp;
+                        .ok_or(crate::errors::CompletionError::WorkerCrashed);
                 }
             }
         }
@@ -2243,7 +2241,7 @@ mod tests {
         let res1: String = chat
             .ask("What is the capital of Denmark?".to_string())
             .completed()
-            .await;
+            .await?;
 
         assert!(
             res1.contains("<think>"),
@@ -2255,7 +2253,7 @@ mod tests {
         let res2: String = chat
             .ask("What is the capital of the Czech Republic?".to_string())
             .completed()
-            .await;
+            .await?;
 
         assert!(
             !res2.contains("<think>"),

@@ -54,8 +54,9 @@ impl TokenStream {
         py.detach(|| self.stream.next_token())
     }
 
-    pub fn completed(&mut self, py: Python) -> String {
+    pub fn completed(&mut self, py: Python) -> PyResult<String> {
         py.detach(|| self.stream.completed())
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     // sync iterator stuff
@@ -86,8 +87,13 @@ impl TokenStreamAsync {
         self.stream.lock().await.next_token().await
     }
 
-    pub async fn completed(&mut self) -> String {
-        self.stream.lock().await.completed().await
+    pub async fn completed(&mut self) -> PyResult<String> {
+        self.stream
+            .lock()
+            .await
+            .completed()
+            .await
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     pub fn __aiter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
@@ -266,6 +272,48 @@ impl Chat {
             stream: self.chat_handle.ask(text),
         }
     }
+
+    #[pyo3(signature = (system_prompt: "str", tools: "list[Tool]"))]
+    pub fn reset(&self, system_prompt: String, tools: Vec<Tool>, py: Python) {
+        py.detach(|| {
+            self.chat_handle
+                .reset_chat(system_prompt, tools.into_iter().map(|t| t.tool).collect());
+        })
+    }
+
+    #[pyo3(signature = (allow_thinking: "bool") -> "None")]
+    pub fn set_allow_thinking(&self, allow_thinking: bool, py: Python) -> PyResult<()> {
+        py.detach(|| {
+            self.chat_handle
+                .set_allow_thinking(allow_thinking)
+                .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+        })
+    }
+
+    #[pyo3(signature = () -> "list[dict]")]
+    pub fn get_chat_history(&self, py: Python) -> PyResult<Py<PyAny>> {
+        let msgs = py.detach(|| {
+            self.chat_handle
+                .get_chat_history()
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        })?;
+
+        pythonize::pythonize(py, &msgs)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+            .map(|bound| bound.unbind())
+    }
+
+    #[pyo3(signature = (msgs: "list[dict]") -> "None")]
+    pub fn set_chat_history(&self, msgs: Bound<'_, PyAny>, py: Python) -> PyResult<()> {
+        let msgs = pythonize::depythonize(&msgs)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+
+        py.detach(|| {
+            self.chat_handle
+                .set_chat_history(msgs)
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        })
+    }
 }
 
 #[pyclass]
@@ -300,6 +348,51 @@ impl ChatAsync {
         TokenStreamAsync {
             stream: std::sync::Arc::new(tokio::sync::Mutex::new(self.chat_handle.ask(text))),
         }
+    }
+
+    #[pyo3(signature = (system_prompt: "str", tools: "list[Tool]") -> "None")]
+    pub async fn reset(&self, system_prompt: String, tools: Vec<Tool>) -> PyResult<()> {
+        self.chat_handle
+            .reset_chat(system_prompt, tools.into_iter().map(|t| t.tool).collect())
+            .await
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    #[pyo3(signature = (allow_thinking: "bool") -> "None")]
+    pub async fn set_allow_thinking(&self, allow_thinking: bool) -> PyResult<()> {
+        self.chat_handle
+            .set_allow_thinking(allow_thinking)
+            .await
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    #[pyo3(signature = () -> "list[dict]")]
+    pub async fn get_chat_history(&self) -> PyResult<Py<PyAny>> {
+        let msgs = self
+            .chat_handle
+            .get_chat_history()
+            .await
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+
+        Python::attach(|py| {
+            pythonize::pythonize(py, &msgs)
+                .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+                .map(|bound| bound.unbind())
+        })
+    }
+
+    #[pyo3(signature = (msgs: "list[dict]") -> "None")]
+    pub async fn set_chat_history(&self, msgs: Py<PyAny>) -> PyResult<()> {
+        let msgs = Python::attach(|py| {
+            let bound_msgs = msgs.bind(py);
+            pythonize::depythonize(bound_msgs)
+                .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+        })?;
+
+        self.chat_handle
+            .set_chat_history(msgs)
+            .await
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 }
 

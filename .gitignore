@@ -6,3 +6,5 @@
 .DS_Store
 python_dev_envs/
 checkpoints/
+docs/site/
+docs/__pycache__
