@@ -45,7 +45,7 @@ async def main():
     chat = ChatAsync('./model.gguf')
     response = chat.ask('How are you?')
     async for token in response:
-        print(response)
+        print(token)
 
 asyncio.run(main())
 ```
