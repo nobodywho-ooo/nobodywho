@@ -344,6 +344,22 @@ impl ChatAsync {
         }
     }
 
+    #[pyo3(signature = (system_prompt: "str", tools: "list[Tool]") -> "None")]
+    pub async fn reset(&self, system_prompt: String, tools: Vec<Tool>) -> PyResult<()> {
+        self.chat_handle
+            .reset_chat(system_prompt, tools.into_iter().map(|t| t.tool).collect())
+            .await
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    #[pyo3(signature = (allow_thinking: "bool") -> "None")]
+    pub async fn set_allow_thinking(&self, allow_thinking: bool) -> PyResult<()> {
+        self.chat_handle
+            .set_allow_thinking(allow_thinking)
+            .await
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
     #[pyo3(signature = () -> "list[dict]")]
     pub async fn get_chat_history(&self) -> PyResult<Py<PyAny>> {
         let msgs = self
