@@ -292,6 +292,7 @@ jobs:
           python -c "import nobodywho; print('Import successful')"
           chmod +x nobodywho/python/tests/test_reliability.sh
           bash nobodywho/python/tests/test_reliability.sh -n ${{ matrix.model_iterations }} nobodywho/python/examples/small_model_demo.py "macos/nobodypython/models/${{ matrix.model_name }}"
+  
   test-publish-wheels:
     needs:
       [
@@ -300,7 +301,6 @@ jobs:
         mac-os-pip-install-test,
       ]
     runs-on: ubuntu-latest
-    if: false
     steps:
       - name: Download all wheels
         uses: actions/download-artifact@v4
