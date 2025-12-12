@@ -1,21 +1,11 @@
 ---
-title: Welcome to NobodyWho!
+title: Getting started
 description:  NobodyWho is a lightweight, open-source AI engine for local LLM inference. Simple, privacy oriented with no infrastructure needed.
-sidebar_title: Welcome
+sidebar_title: Getting started
 order: 0
 ---
 
-## What is NobodyWho?
 
-NobodyWho is a lightweight, open-source AI engine for local LLM inference. <br/>
-We provide a simple, privacy forward way of interacting with LLMs with no infrastructure needed!
-
-In short, if you want to run a LLM, and integrate it with [tools](./tool-calling.md), configure its output,
-enable real-time streaming of tokens, or maybe use it for creation of embeddings, NobodyWho makes it easy.
-
-All of this is enabled by [Llama.cpp](https://github.com/ggml-org/llama.cpp), while having nice, simple Python API.
-
-No need to mess around with docker containers, GPU servers, API keys, etc. Just pip install and get going.
 
 ## How do I get started?
 
