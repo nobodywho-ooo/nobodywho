@@ -28,7 +28,7 @@ The first step is to get a model.
 If you're in a hurry, just download [Qwen_Qwen3-4B-Q4_K_M.gguf](https://huggingface.co/bartowski/Qwen_Qwen3-4B-GGUF/resolve/main/Qwen_Qwen3-4B-Q4_K_M.gguf). 
 It's pretty good and we will base our tutorials around this model. 
 
-Otherwise, check out our [recommended models](model-selection.md) or if you have a non-standard use case, shoot us a question in Discord.
+Otherwise, check out our [recommended models](../model-selection.md) or if you have a non-standard use case, shoot us a question in Discord.
 
 ## Load the GGUF model
 

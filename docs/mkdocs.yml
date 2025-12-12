@@ -5,6 +5,7 @@ docs_dir: ./markdown
 
 nav:
   - Home: ./index.md
+  - Model Selection: ./model-selection.md
   - Python: 
     - Home: python/index.md
     - Basics: python/basic-concepts.md
@@ -12,7 +13,6 @@ nav:
     - Sampling: python/sampling.md
     - Streaming & Async API: python/streaming-and-async-api.md
     - Embeddings & RAG: python/embeddings-and-rag.md
-    - Model Selection: python/model-selection.md
   - Godot:
     - Chat:
       - Simple Chat: godot/chat/simple-chat.md
