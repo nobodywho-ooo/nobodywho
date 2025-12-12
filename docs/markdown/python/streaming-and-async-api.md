@@ -7,7 +7,7 @@ order: 3
 
 Synchronously waiting for the full response to arrive can be costly. If your application
 domain allows you to, you would ideally want to stream the tokens to the user as soon
-as they arrive, and spend the time in between doing useful work, than just waiting.
+as they arrive, and spend the time in between doing useful work, rather than just waiting.
 
 ## Streaming tokens
 
