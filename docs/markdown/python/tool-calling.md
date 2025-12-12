@@ -8,64 +8,55 @@ order: 2
 To give your LLM the ability to interact with the outside world, you will need tool calling.
 
 ## Declaring a tool
+
 A tool can be created from any (synchronous) python function, which returns a string.
 To perform the conversion, all that is needed, is using simple `@tool` decorator. To get
-a good sense of how such a tool can look like, consider this arbitrary weather scenario:
+a good sense of how such a tool can look like, consider this geometry example:
+
 ```python
-import requests
+import math
 from nobodywho import tool, Chat
 
-FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
-
-@tool(description="Given coordinates, gets the current temperature.")
-def get_current_temperature(lon: str, lat: str) -> str:
-    res = requests.get(
-        url=FORECAST_URL,
-        params={"latitude": lat, "longitude": lon, "current_weather": True}
-    ).json()
-
-    return str(res.current_weather.temperature)
+@tool(description="Calculates the area of a circle given its radius")
+def circle_area(radius: float) -> str:
+    area = math.pi * radius ** 2
+    return f"Circle with radius {radius} has area {area:.2f}"
 ```
+
 As you can see, every `@tool` definition has to be complemented by a description
 of what such tool does. To let your LLM use it, simply add it when creating `Chat`:
+
 ```python continuation
-chat = Chat('./model.gguf', tools=[get_current_temperature])
+chat = Chat('./model.gguf', tools=[circle_area])
 ```
-NobodyWho then figures out the right tool calling format, infers the parameters of types
+
+NobodyWho then figures out the right tool calling format, inspects the names and types of the parameters,
 and configures the sampler so that when the model decides to use tools, it will adhere to the format.
 
 Naturally, more tools can be defined and the model can chain the calls for them:
+
 ```python
-import requests
+import os
+from pathlib import Path
 from nobodywho import Chat, tool
 
-FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
-GEOLOCATION_URL = "https://geocoding-api.open-meteo.com/v1/search"
+@tool(description="Gets path of the current directory")
+def get_current_dir() -> str:
+    return os.getcwd()
 
-@tool(description="Given a longitude and latitude, gets the current temperature.")
-def get_current_temperature(lon: str, lat: str) -> str:
-    res = requests.get(
-        url=FORECAST_URL,
-        params={"latitude": lat, "longitude": lon, "current_weather": True}
-    ).json()
+@tool(description="Lists files in the given directory", params={"path": "a relative or absolute path to a directory"})  
+def list_files(path: str) -> str:
+    files = [f.name for f in Path(path).iterdir() if f.is_file()]
+    return f"Files: {', '.join(files)}"
 
-    return str(res.current_weather.temperature)
+@tool(description="Gets the size of a file in bytes")
+def get_file_size(filepath: str) -> str:
+    size = Path(filepath).stat().st_size
+    return f"File size: {size} bytes"
 
-@tool(description="Given a city name, gives you the longitude and latitude.")
-def get_city_position(city: str) -> str:
-    position_res = requests.get(
-        url=GEOLOCATION_URL,
-        params={"name": city, "count": 1}
-    ).json()
-
-    lat = position_res.results[0].latitude
-    lon = position_res.results[0].longitude
-
-    return f"Longitude: {lon}, latitude: {lat}"
-
-chat = Chat('./model.gguf', tools=[get_city_position, get_current_temperature])
-response = chat.ask('What is the current temperature in Copenhagen?').completed()
-print(response) # It is ... degrees in Copenhagen!
+chat = Chat('./model.gguf', tools=[get_current_dir, list_files, get_file_size])
+response = chat.ask('What is the biggest file in my current directory?').completed()
+print(response) # The largest file in your current directory is `model.gguf`.
 ```
 
 !!! info ""
