@@ -283,6 +283,31 @@ impl Chat {
                 .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
         })
     }
+
+    #[pyo3(signature = () -> "list[dict]")]
+    pub fn get_chat_history(&self, py: Python) -> PyResult<Py<PyAny>> {
+        let msgs = py.detach(|| {
+            self.chat_handle
+                .get_chat_history()
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        })?;
+
+        pythonize::pythonize(py, &msgs)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+            .map(|bound| bound.unbind())
+    }
+
+    #[pyo3(signature = (msgs: "list[dict]") -> "None")]
+    pub fn set_chat_history(&self, msgs: Bound<'_, PyAny>, py: Python) -> PyResult<()> {
+        let msgs = pythonize::depythonize(&msgs)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+
+        py.detach(|| {
+            self.chat_handle
+                .set_chat_history(msgs)
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        })
+    }
 }
 
 #[pyclass]
@@ -317,6 +342,35 @@ impl ChatAsync {
         TokenStreamAsync {
             stream: std::sync::Arc::new(tokio::sync::Mutex::new(self.chat_handle.ask(text))),
         }
+    }
+
+    #[pyo3(signature = () -> "list[dict]")]
+    pub async fn get_chat_history(&self) -> PyResult<Py<PyAny>> {
+        let msgs = self
+            .chat_handle
+            .get_chat_history()
+            .await
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+
+        Python::attach(|py| {
+            pythonize::pythonize(py, &msgs)
+                .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+                .map(|bound| bound.unbind())
+        })
+    }
+
+    #[pyo3(signature = (msgs: "list[dict]") -> "None")]
+    pub async fn set_chat_history(&self, msgs: Py<PyAny>) -> PyResult<()> {
+        let msgs = Python::attach(|py| {
+            let bound_msgs = msgs.bind(py);
+            pythonize::depythonize(bound_msgs)
+                .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+        })?;
+
+        self.chat_handle
+            .set_chat_history(msgs)
+            .await
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 }
 
