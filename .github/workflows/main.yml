@@ -14,6 +14,24 @@ jobs:
     uses: ./.github/workflows/python_ci.yml
     needs: [linting]
 
+  test-python-publish:
+    needs: [python_ci]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all wheels
+        uses: actions/download-artifact@v4
+        with:
+          pattern: nobodywho_python_*
+          merge-multiple: true
+          path: dist/
+
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          password: ${{ secrets.TEST_PYPI_AUTH_TOKEN }}
+
+
   build:
     uses: ./.github/workflows/build.yml
     with:

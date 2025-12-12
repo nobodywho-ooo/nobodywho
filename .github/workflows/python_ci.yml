@@ -311,6 +311,9 @@ jobs:
 
       - name: List wheels to upload
         run: ls -la dist/
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
