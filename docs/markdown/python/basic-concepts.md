@@ -37,6 +37,22 @@ full_response: str = response.completed()
 
 All of your messages and the model's responses are stored in the `Chat` object, so the next time you call `Chat.ask()`, it will remember the previous messages.
 
+## Chat history
+
+If you want to inspect the messages inside the `Chat` object, you can use `get_chat_history`.
+
+```{.python continuation}
+msgs: list[dict] = chat.get_chat_history()
+print(msgs[0]["content"]) # "Is water wet?"
+```
+
+Similarly, if you want to edit what messages are in the context, you can use `set_chat_history`:
+
+
+```{.python continuation}
+chat.set_chat_history([{"role": "user", "content": "What is water?"}])
+```
+
 ## System prompt
 
 A system prompt is a special message put into the chat context, which should guide its overall behavior.
@@ -50,6 +66,7 @@ chat = Chat("./model.gguf", system_prompt="You are a mischievous assistant!")
 ```
 
 This `system_prompt` is then persisted until the chat context is `reset`.
+
 
 
 ## Context
