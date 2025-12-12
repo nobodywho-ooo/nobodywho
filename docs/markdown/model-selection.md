@@ -46,7 +46,7 @@ without losing *too much* accuracy.
 Look at the plot below to get a feel for how quantization levels differ.
 It shows the models' ability to predict text on the y-axis versus the number of bits per weight on the x-axis.
 
-![Perplexity/Quantization curve](../assets/quantcurve.png)
+![Perplexity/Quantization curve](./assets/quantcurve.png)
 
 In general, it's preferable to use a model with more parameters and fewer bits per parameter, as compared to a model with fewer parameters and more bits per parameter.
 Your results may vary.

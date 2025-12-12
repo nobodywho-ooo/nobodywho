@@ -33,7 +33,7 @@ theme:
   pygments_style: # default styles
     light: shadcn-light
     dark: github-dark
-  icon: ../assets/icon.svg # use the shadcn svg if not defined
+  icon: ./assets/icon.svg # use the shadcn svg if not defined
   topbar_sections: false # NEW!
   show_datetime: false
 
