@@ -39,16 +39,18 @@ All of your messages and the model's responses are stored in the `Chat` object, 
 
 ## System prompt
 
-Every LLM usually has some sort of system prompt - an instruction passed to the model,
-which should specify an overall behaviour through the `Chat` context. System prompts
-are either provided by the creator of the model (in which case NobodyWho opts for this system prompt),
-or an empty string is selected. System prompt can be also set manually, when creating the chat:
+A system prompt is a special message put into the chat context, which should guide its overall behavior.
+Some models ship with a built-in system prompt. If you don't specify a system prompt yourself, NobodyWho will fall back to using the model's default system prompt.
+
+You can specify a system prompt when initializing a `Chat`:
 
 ```python
 from nobodywho import Chat
 chat = Chat("./model.gguf", system_prompt="You are a mischievous assistant!")
 ```
+
 This `system_prompt` is then persisted until the chat context is `reset`.
+
 
 ## Context
 
