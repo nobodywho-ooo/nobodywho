@@ -8,12 +8,42 @@ order: 1
 As you may noticed in the [welcome guide](./index.md), every interaction with your LLM starts by instantiating a `Chat` object.
 In the following sections, we talk about which configuration options does it have, and when to use them.
 
+## Prompts and responses
+
+The `Chat.ask()` function is central to NobodyWho. It is so named because it lets you say something to the LLM, and starts generating a response in return.
+
+```python
+from nobodywho import Chat, TokenStream
+chat = Chat("./model.gguf")
+response: TokenStream = chat.ask("Is water wet?")
+```
+
+The return type of `ask` is a `TokenStream`.
+If you want to start reading the response as soon as possible, you can just iterate over the `TokenStream`.
+The individual tokens are either individual words or fragments of words.
+
+```{.python continuation}
+for token in response:
+   print(token, end="")
+print("\n")
+```
+
+If you just want to get the complete response, you can call `TokenStream.completed()`.
+This will block until the model is done generating its entire response.
+
+```{.python continuation}
+full_response: str = response.completed()
+```
+
+All of your messages and the model's responses are stored in the `Chat` object, so the next time you call `Chat.ask()`, it will remember the previous messages.
+
 ## System prompt
 
 Every LLM usually has some sort of system prompt - an instruction passed to the model,
 which should specify an overall behaviour through the `Chat` context. System prompts
 are either provided by the creator of the model (in which case NobodyWho opts for this system prompt),
 or an empty string is selected. System prompt can be also set manually, when creating the chat:
+
 ```python
 from nobodywho import Chat
 chat = Chat("./model.gguf", system_prompt="You are a mischievous assistant!")
