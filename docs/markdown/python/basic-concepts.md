@@ -59,9 +59,8 @@ As bigger context size means more computational overhead, it makes sense to cons
 chat = Chat("./model.gguf", n_ctx=4096)
 ```
 
-The default value is `2048`. When text is about to overflow away from the context, NobodyWho automatically crops
-the first messages apart from the system prompt and first user message (as these usually bear the most context),
-until the size reaches `n_ctx / 2`. KV cache is also updated automatically.
+The default value is `2048`. When text is about to overflow away from the context, NobodyWho will shrink the context for you. Currently this is done by removing old messages (apart from the system prompt and the first user message) from the chat history,
+until the size reaches `n_ctx / 2`. KV cache is also updated automatically. In the future we plan on adding more advanced methods of context shrinking.
 
 Again, `n_ctx` is fixed to the `Chat` instance, so it is currently not possible to change the size after `Chat` is created. To reset the current context content, just call `.reset()` with the new system prompt and potentionally changed tools.
 
