@@ -292,13 +292,37 @@ jobs:
           python -c "import nobodywho; print('Import successful')"
           chmod +x nobodywho/python/tests/test_reliability.sh
           bash nobodywho/python/tests/test_reliability.sh -n ${{ matrix.model_iterations }} nobodywho/python/examples/small_model_demo.py "macos/nobodypython/models/${{ matrix.model_name }}"
-
-  publish-wheels:
+  test-publish-wheels:
     needs:
       [
         linux-pip-install-test,
         windows-pip-install-test,
         mac-os-pip-install-test,
+      ]
+    runs-on: ubuntu-latest
+    if: false
+    steps:
+      - name: Download all wheels
+        uses: actions/download-artifact@v4
+        with:
+          pattern: nobodywho_python_*
+          merge-multiple: true
+          path: dist/
+
+      - name: List wheels to upload
+        run: ls -la dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          password: ${{ secrets.TEST_PYPI_AUTH_TOKEN }}
+
+
+  publish-wheels:
+    needs:
+      [
+        test-publish-wheels
       ]
     runs-on: ubuntu-latest
     if: false
