@@ -9,12 +9,15 @@
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     android-nixpkgs.url = "github:tadfisher/android-nixpkgs";
+    crate2nix.url = "github:nix-community/crate2nix";
+    crate2nix.inputs.nixpkgs.follows = "nixpkgs";
   };
   outputs =
     {
       nixpkgs,
       flake-utils,
       android-nixpkgs,
+      crate2nix,
       ...
     }:
     flake-utils.lib.eachDefaultSystem (
@@ -57,8 +60,8 @@
         packages.nobodywho-godot = nobodywho-godot.nobodywho-godot;
 
         # flutter stuff
-        packages.nobodywho-flutter-example = pkgs.callPackage ./nobodywho/flutter/example_app { };
-        packages.flutter_rust = pkgs.callPackage ./nobodywho/flutter/rust { };
+        packages.flutter_example_app = pkgs.callPackage ./nobodywho/flutter/example_app { };
+        packages.flutter_rust = pkgs.callPackage ./nobodywho/flutter/rust { inherit crate2nix; };
 
         # python stuff
         packages.nobodywho-python = nobodywho-python;
