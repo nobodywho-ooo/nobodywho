@@ -5,7 +5,7 @@ docs_dir: ./markdown
 
 nav:
   - Home: ./index.md
-  - LLM Basics: ./llm-basic.md
+  - LLM Basics: ./llm-basics.md
   - Model Selection: ./model-selection.md
   - Python:
       - Home: python/index.md

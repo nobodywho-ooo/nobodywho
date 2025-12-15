@@ -5,7 +5,7 @@ sidebar_title: LLM Basics
 order: 2
 ---
 
-In the following section we will provide a very brief introduction to the most essential concepts you need to know in order to use NobodyWho propably. The concepts covered are tokens, context, samplers and tools. 
+Our goal with NobodyWho is to make easy to run local LLMs. This means we to have tried to make it possible to use NobodyWho with minimal knowledge of how LLM works. However you still need to know some basic concepts, so for these we provide some brief explanations. The concepts covered are tokens, context, samplers and tools. 
 
 ## Tokens
 
@@ -51,7 +51,7 @@ It is important to note that the steps in this part of the process can be chaine
 ### Sampling the distribution
 Once the distribution has been shifted the next step is to actually sample the distribution. This can also be done a few different ways:
 
-- **Dist**: Sample the distribution randomly. 
+- **Dist**: Sample the distribution randomly 
 - **Greedy**: Always pick the most likely token (deterministic but sometimes repetitive)
 - **Mirostat**: Advanced sampling presented in this [article](https://arxiv.org/abs/1904.09751)
 

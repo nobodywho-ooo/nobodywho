@@ -19,4 +19,4 @@ If you are already familiar with the basics of LLMs we suggest you go straight t
 
 ## Basic LLM concepts
 
-If are unfamiliar with the basics of LLMs or are just intestered we also provide a simple introduction to the most important concepts you need to know in order to get the most out of NobodyWho. 
+If you are unfamiliar with the basics of LLMs or are just intestered we also provide a simple introduction to the most important concepts you need to know in order to get the most out of NobodyWho. 
