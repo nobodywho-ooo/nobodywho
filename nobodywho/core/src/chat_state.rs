@@ -172,10 +172,22 @@ impl ChatState {
         model: &llama_cpp_2::model::LlamaModel,
         tools: Vec<Tool>,
     ) -> Result<Self, FromModelError> {
+        let template = Self::select_template(model, !tools.is_empty())?;
+
+        let tokenize = llama_cpp_2::model::Special::Tokenize;
+        let bos = model.token_to_str(model.token_bos(), tokenize)?;
+        let eos = model.token_to_str(model.token_eos(), tokenize)?;
+        Ok(Self::new(template, bos, eos, tools))
+    }
+
+    fn select_template(
+        model: &llama_cpp_2::model::LlamaModel,
+        with_tools: bool,
+    ) -> Result<String, FromModelError> {
         let default_template = model.chat_template(None)?.to_string()?;
         let tool_template = model.chat_template(Some("tool_use"));
 
-        let template = if tools.is_empty() {
+        let template = if !with_tools {
             // no tools. use default template.
             default_template
         } else if let Ok(tool_template) = tool_template {
@@ -191,10 +203,7 @@ impl ChatState {
         };
         trace!(template);
 
-        let tokenize = llama_cpp_2::model::Special::Tokenize;
-        let bos = model.token_to_str(model.token_bos(), tokenize)?;
-        let eos = model.token_to_str(model.token_eos(), tokenize)?;
-        Ok(Self::new(template, bos, eos, tools))
+        Ok(template)
     }
 
     pub fn from_model(model: &llama_cpp_2::model::LlamaModel) -> Result<Self, FromModelError> {

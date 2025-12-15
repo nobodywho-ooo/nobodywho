@@ -87,9 +87,7 @@ Again, `n_ctx` is fixed to the `Chat` instance, so it is currently not possible 
 chat.reset(system_prompt="New system prompt", tools=[])
 ```
 
-<div style="background-color: red;">
-    TODO: Enable smoother reset, with defaults. This is clunky.
-</div>
+If you don't want to change the already set defaults (`system_prompt`, `tools`), but only reset the context, then go for `reset_history`.
 
 ## Sharing model between contexts
 
