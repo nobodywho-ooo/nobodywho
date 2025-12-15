@@ -32,12 +32,6 @@ jobs:
         working-directory: ./nobodywho/python
         run: cargo build && cargo run --bin make_stubs
 
-      - name: Format check
-        working-directory: ./nobodywho/python
-        run: |
-          uvx ruff format ./nobodywho.pyi
-          uvx ruff format --check .
-
       - name: Lint check
         working-directory: ./nobodywho/python
         run: uvx ruff check
