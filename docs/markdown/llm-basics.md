@@ -45,7 +45,7 @@ Before sampling the distribution to get the next token, it is possible to adjust
 - **Top-k/Top-p**: Limit which tokens are considered, filtering out unlikely options
 - **Penalties**: Lower the probalities of tokens already present in the context.
 
-It is important to note that the steps in this part of the process can be chained. So it is possible to first apply a Temperature shift and then 
+It is important to note that the steps in this part of the process can be chained. So it is possible to first apply a Temperature shift and then Top-k.
 
 
 ### Sampling the distribution
