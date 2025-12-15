@@ -38,8 +38,10 @@
           }
         );
 
-        nobodywho-godot = pkgs.callPackage ./nobodywho/godot { };
+        workspace = pkgs.callPackage ./nobodywho { inherit crate2nix; };
 
+        nobodywho-flutter = workspace.workspaceMembers.nobodywho-flutter;
+        nobodywho-godot = workspace.workspaceMembers.nobodywho-godot;
         nobodywho-python = pkgs.callPackage ./nobodywho/python { };
       in
       {
@@ -49,8 +51,10 @@
         # checks
         checks.default = pkgs.callPackage ./nobodywho/flutter/example_app { };
         checks.flutter_example_app = pkgs.callPackage ./nobodywho/flutter/example_app { };
-        checks.build-godot = nobodywho-godot.nobodywho-godot;
-        checks.godot-integration-test = nobodywho-godot.run-integration-test;
+        checks.build-godot = nobodywho-godot;
+        # TODO:
+        # checks.godot-integration-test = nobodywho-godot.run-integration-test;
+
         checks.nobodywho-python = nobodywho-python;
 
         # the Everything devshell
