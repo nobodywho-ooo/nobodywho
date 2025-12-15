@@ -248,6 +248,7 @@ impl ChatHandle {
         let _ = output_rx.blocking_recv();
     }
 
+    /// Reset the chat conversation history.
     pub fn reset_history(&self) {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         let _ = self.msg_tx.send(ChatMsg::SetChatHistory {
@@ -417,6 +418,18 @@ impl ChatHandleAsync {
         })
         .await
         .ok_or(crate::errors::SetterError::SetterError("reset_chat".into()))
+    }
+
+    /// Reset the chat conversation history.
+    pub async fn reset_history(&self) -> Result<(), crate::errors::SetterError> {
+        self.set_and_wait_async(|output_tx| ChatMsg::SetChatHistory {
+            messages: vec![],
+            output_tx,
+        })
+        .await
+        .ok_or(crate::errors::SetterError::SetterError(
+            "reset_history".into(),
+        ))
     }
 
     /// Update the available tools for the model to use.
