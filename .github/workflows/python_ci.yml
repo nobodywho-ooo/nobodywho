@@ -74,11 +74,11 @@ jobs:
         working-directory: ./nobodywho/python
 
       - name: Repair wheel to use manylinux
-        # this manylinux version targets glibc version 2.28
-        # that should cover most distros going back cirka 2018
+        # this manylinux version targets glibc version 2.35
+        # that should cover most distros going back to 2022
         # here is a table of distro support for manylinux stuff
         # https://github.com/mayeut/pep600_compliance?tab=readme-ov-file#distro-compatibility
-        run: auditwheel repair --plat manylinux_2_28_x86_64 nobodywho/target/wheels/nobodywho*.whl
+        run: auditwheel repair --plat manylinux_2_35_x86_64 nobodywho/target/wheels/nobodywho*.whl
 
       - name: Upload wheel
         uses: actions/upload-artifact@v4
