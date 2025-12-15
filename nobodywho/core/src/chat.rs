@@ -236,27 +236,28 @@ impl ChatHandle {
     }
 
     /// Reset the chat conversation with a new system prompt and tools.
-    pub fn reset_chat(&self, system_prompt: String, tools: Vec<Tool>) {
-        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        let _ = self.msg_tx.send(ChatMsg::ResetChat {
+    pub fn reset_chat(
+        &self,
+        system_prompt: String,
+        tools: Vec<Tool>,
+    ) -> Result<(), crate::errors::SetterError> {
+        self.set_and_wait_blocking(|output_tx| ChatMsg::ResetChat {
             system_prompt,
             tools,
             output_tx,
-        });
-
-        // block until chat has reset
-        let _ = output_rx.blocking_recv();
+        })
+        .ok_or(crate::errors::SetterError::SetterError("reset_chat".into()))
     }
 
     /// Reset the chat conversation history.
-    pub fn reset_history(&self) {
-        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        let _ = self.msg_tx.send(ChatMsg::SetChatHistory {
+    pub fn reset_history(&self) -> Result<(), crate::errors::SetterError> {
+        self.set_and_wait_blocking(|output_tx| ChatMsg::SetChatHistory {
             messages: vec![],
             output_tx,
-        });
-        // block until chat has reset
-        let _ = output_rx.blocking_recv();
+        })
+        .ok_or(crate::errors::SetterError::SetterError(
+            "reset_history".into(),
+        ))
     }
 
     /// Update the available tools for the model to use.

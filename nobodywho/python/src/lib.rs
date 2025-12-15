@@ -273,17 +273,21 @@ impl Chat {
         }
     }
 
-    #[pyo3(signature = (system_prompt: "str", tools: "list[Tool]"))]
-    pub fn reset(&self, system_prompt: String, tools: Vec<Tool>, py: Python) {
+    #[pyo3(signature = (system_prompt: "str", tools: "list[Tool]") -> "None")]
+    pub fn reset(&self, system_prompt: String, tools: Vec<Tool>, py: Python) -> PyResult<()> {
         py.detach(|| {
             self.chat_handle
-                .reset_chat(system_prompt, tools.into_iter().map(|t| t.tool).collect());
+                .reset_chat(system_prompt, tools.into_iter().map(|t| t.tool).collect())
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         })
     }
 
-    pub fn reset_history(&self, py: Python) {
+    #[pyo3(signature = () -> "None")]
+    pub fn reset_history(&self, py: Python) -> PyResult<()> {
         py.detach(|| {
-            self.chat_handle.reset_history();
+            self.chat_handle
+                .reset_history()
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         })
     }
 
@@ -364,6 +368,7 @@ impl ChatAsync {
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
+    #[pyo3(signature = () -> "None")]
     pub async fn reset_history(&self) -> PyResult<()> {
         self.chat_handle
             .reset_history()
