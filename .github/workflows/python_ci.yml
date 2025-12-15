@@ -366,7 +366,7 @@ jobs:
           python -m pip install twine
 
       - name: Publish to TestPyPI
-        run: python -m twine upload -repository testpypi dist/*
+        run: python -m twine upload --repository testpypi dist/*
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.TEST_PYPI_AUTH_TOKEN }}
@@ -389,8 +389,17 @@ jobs:
 
       - name: List wheels to upload
         run: ls -la dist/
-
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: actions/setup-python@v6
         with:
-          packages-dir: dist/
+          python-version: "3.13"
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install twine
+
+      - name: Publish to TestPyPI
+        run: python -m twine upload dist/*
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_AUTH_TOKEN }}
