@@ -1,10 +1,11 @@
 name: "python_ci"
 
-on: workflow_call
+on: 
+  workflow_call:
+    
 
 permissions:
   contents: read
-  id-token: write # For PyPI OIDC publishing
 
 jobs:
   static-checks:
@@ -27,12 +28,6 @@ jobs:
         working-directory: ./nobodywho/python
         run: cargo build && cargo run --bin make_stubs
 
-      - name: Format check
-        working-directory: ./nobodywho/python
-        run: |
-          uvx ruff format ./nobodywho.pyi
-          uvx ruff format --check .
-
       - name: Lint check
         working-directory: ./nobodywho/python
         run: uvx ruff check
@@ -51,39 +46,45 @@ jobs:
         run: uvx ty check
 
   linux-build:
-    runs-on: ubuntu-24.04
+    # XXX: this needs to run on a little older ubuntu release
+    #      ...in order to have an older glibc release
+    #      ...in order to have wide compatibility for the wheels
+    #      this also means that the distro deps and vulkan isntall steps are a bit different
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
-      matrix:
-        profile:
-          - "debug"
     env:
       RUSTFLAGS: >-
         -C target-cpu=x86-64-v3
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.13"
       - run: pip install maturin auditwheel
-      - name: Install distro dependencies
+
+      - name: Install Vulkan SDK and build deps
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
+          # Add LunarG repo for Vulkan SDK
+          wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc
+          sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list https://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list
+          sudo apt update
+          sudo apt install -y vulkan-sdk libclang-dev cmake
 
       - name: Build linux python wheel
-        run: maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked
+        run: maturin build --verbose --release --locked
         working-directory: ./nobodywho/python
 
       - name: Repair wheel to use manylinux
-        run: auditwheel repair nobodywho/target/wheels/nobodywho_python*.whl
+        # this manylinux version targets glibc version 2.35
+        # that should cover most distros going back to 2022
+        # here is a table of distro support for manylinux stuff
+        # https://github.com/mayeut/pep600_compliance?tab=readme-ov-file#distro-compatibility
+        run: auditwheel repair --plat manylinux_2_35_x86_64 nobodywho/target/wheels/nobodywho*.whl
 
       - name: Upload wheel
         uses: actions/upload-artifact@v4
         with:
           name: nobodywho_python_linux
-          path: ./wheelhouse/nobodywho_python*.whl
+          path: ./wheelhouse/nobodywho*.whl
 
   windows-build:
     runs-on: windows-latest
@@ -92,8 +93,6 @@ jobs:
       matrix:
         target:
           - "x86_64-pc-windows-msvc"
-        profile:
-          - "debug"
     env:
       RUSTFLAGS: >-
         -l Advapi32
@@ -123,7 +122,7 @@ jobs:
           git config --system core.longpaths true
           cd C:/
           cd python
-          maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked --target ${{ matrix.target }}
+          maturin build --verbose --release --locked --target ${{ matrix.target }}
         env:
           # Use Ninja generator instead of Visual Studio generator.
           # This fixes a CMake ExternalProject issue where vulkan-shaders-gen's
@@ -134,7 +133,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nobodywho_python_windows
-          path: C:/target/wheels/nobodywho_python*.whl
+          path: C:/target/wheels/nobodywho*.whl
 
   mac-os-build:
     runs-on: macos-latest
@@ -152,14 +151,14 @@ jobs:
           python-version: "3.13"
       - run: brew install maturin
       - name: "Build macos python wheel"
-        run: maturin build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked --target aarch64-apple-darwin
+        run: maturin build --verbose --release --locked --target aarch64-apple-darwin
         working-directory: ./nobodywho/python
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v4
         with:
           name: nobodywho_python_macos
-          path: ./nobodywho/target/wheels/nobodywho_python*.whl
+          path: ./nobodywho/target/wheels/nobodywho*.whl
 
   linux-pytest:
     needs: [linux-build]
@@ -188,7 +187,7 @@ jobs:
           # install deps - and not nobodywho-python - into the venv
           uv sync --no-install-project --group dev
           # install nobodywho from pre-built wheel
-          uv pip install ../../wheels/nobodywho_python*manylinux*x86*.whl
+          uv pip install ../../wheels/nobodywho*manylinux*x86*.whl
       - name: Run pytest
         working-directory: ./nobodywho/python
         env:
@@ -232,7 +231,7 @@ jobs:
         run: |
           python3 -m venv maturinvenv
           source ./maturinvenv/bin/activate
-          pip install nobodywho_python_linux/nobodywho_python*manylinux*x86*.whl
+          pip install nobodywho_python_linux/nobodywho*manylinux*x86*.whl
 
       - name: Download models
         run: |
@@ -280,7 +279,7 @@ jobs:
         run: |
           python -m venv maturinvenv
           maturinvenv/Scripts/activate
-          pip install D:/a/nobodywho/nobodywho/nobodywho_python_windows/nobodywho_python-0.1.0-cp38-abi3-win_amd64.whl
+          pip install (Get-ChildItem D:/a/nobodywho/nobodywho/nobodywho_python_windows/nobodywho*win*.whl).FullName
 
       - name: Download models
         run: |
@@ -318,7 +317,7 @@ jobs:
         run: |
           python3 -m venv maturinvenv
           source ./maturinvenv/bin/activate
-          pip install nobodywho_python_macos/nobodywho_python*macosx*.whl
+          pip install nobodywho_python_macos/nobodywho*macosx*.whl
 
       - name: Download models
         run: |
@@ -331,30 +330,5 @@ jobs:
           python -c "import nobodywho; print('Import successful')"
           chmod +x nobodywho/python/tests/test_reliability.sh
           bash nobodywho/python/tests/test_reliability.sh -n ${{ matrix.model_iterations }} nobodywho/python/examples/small_model_demo.py "macos/nobodypython/models/${{ matrix.model_name }}"
-
-
-  publish-wheels:
-    needs:
-      [
-        linux-pip-install-test,
-        windows-pip-install-test,
-        mac-os-pip-install-test,
-        linux-pytest,
-      ]
-    runs-on: ubuntu-latest
-    if: false
-    steps:
-      - name: Download all wheels
-        uses: actions/download-artifact@v4
-        with:
-          pattern: nobodywho_python_*
-          merge-multiple: true
-          path: dist/
-
-      - name: List wheels to upload
-        run: ls -la dist/
-
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          packages-dir: dist/
+  
+  
