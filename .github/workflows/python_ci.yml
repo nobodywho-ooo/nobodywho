@@ -285,7 +285,7 @@ jobs:
         run: |
           python -m venv maturinvenv
           maturinvenv/Scripts/activate
-          pip install D:/a/nobodywho/nobodywho/nobodywho_python_windows/nobodywho*win*.whl
+          pip install (Get-ChildItem D:/a/nobodywho/nobodywho/nobodywho_python_windows/nobodywho*win*.whl).FullName
 
       - name: Download models
         run: |
