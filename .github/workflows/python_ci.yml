@@ -46,6 +46,10 @@ jobs:
         run: uvx ty check
 
   linux-build:
+    # XXX: this needs to run on a little older ubuntu release
+    #      ...in order to have an older glibc release
+    #      ...in order to have wide compatibility for the wheels
+    #      this also means that the distro deps and vulkan isntall steps are a bit different
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
@@ -55,14 +59,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.13"
       - run: pip install maturin auditwheel
-      - name: Install distro dependencies
+
+      - name: Install Vulkan SDK and build deps
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
+          # Add LunarG repo for Vulkan SDK
+          wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc
+          sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list https://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list
+          sudo apt update
+          sudo apt install -y vulkan-sdk libclang-dev cmake
 
       - name: Build linux python wheel
         run: maturin build --verbose --release --locked
