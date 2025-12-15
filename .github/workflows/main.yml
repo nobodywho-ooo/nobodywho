@@ -13,9 +13,6 @@ jobs:
   python_ci:
     uses: ./.github/workflows/python_ci.yml
     needs: [linting]
-    secrets: 
-      TEST_PYPI_AUTH_TOKEN: ${{ secrets.TEST_PYPI_AUTH_TOKEN }}
-      PYPI_AUTH_TOKEN: ${{ secrets.PYPI_AUTH_TOKEN }}
 
 
   build:
@@ -33,8 +30,11 @@ jobs:
       UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
 
   release:
-    needs: [build, test]
+    needs: [build, test, python_ci]
     uses: ./.github/workflows/release.yml
+    secrets: 
+      TEST_PYPI_AUTH_TOKEN: ${{ secrets.TEST_PYPI_AUTH_TOKEN }}
+      PYPI_AUTH_TOKEN: ${{ secrets.PYPI_AUTH_TOKEN }}
 
   docs:
     if: github.ref == 'refs/heads/main'
