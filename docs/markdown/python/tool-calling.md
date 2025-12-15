@@ -7,6 +7,11 @@ order: 2
 
 To give your LLM the ability to interact with the outside world, you will need tool calling.
 
+!!! info ""
+    Note that **not every model** supports tool calling. If the model does not have
+    such an option, it might not call your tools.
+    For reliable tool calling, we recommend trying the [Qwen](https://huggingface.co/Qwen/models) family of models.
+
 ## Declaring a tool
 
 A tool can be created from any (synchronous) python function, which returns a string.
@@ -26,7 +31,7 @@ def circle_area(radius: float) -> str:
 As you can see, every `@tool` definition has to be complemented by a description
 of what such tool does. To let your LLM use it, simply add it when creating `Chat`:
 
-```python continuation
+```{.python continuation}
 chat = Chat('./model.gguf', tools=[circle_area])
 ```
 
@@ -58,10 +63,6 @@ chat = Chat('./model.gguf', tools=[get_current_dir, list_files, get_file_size])
 response = chat.ask('What is the biggest file in my current directory?').completed()
 print(response) # The largest file in your current directory is `model.gguf`.
 ```
-
-!!! info ""
-    Note that **not every model** supports tool calling. If the model does not have
-    such an option, it might not call your tools.
 
 ## Providing params descriptions
 

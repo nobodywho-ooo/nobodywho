@@ -1,17 +1,19 @@
 ## What is NobodyWho?
 
-NobodyWho is a lightweight, open-source AI engine for local LLM inference. <br/>
-We provide a simple, privacy forward way of interacting with LLMs with no infrastructure needed!
+NobodyWho is a lightweight, open-source inference engine for running open-weights LLMs inside your software.
+We provide a simple, efficient, offline and privacy forward way of interacting with LLMs. No infrastructure needed!
 
-In short, if you want to run a LLM, and integrate it with [tools](./tool-calling.md), configure its output,
+In short, if you want to run a LLM, and integrate it with [tools](./python/tool-calling.md), configure its output,
 enable real-time streaming of tokens, or maybe use it for creation of embeddings, NobodyWho makes it easy.
 
 All of this is enabled by [Llama.cpp](https://github.com/ggml-org/llama.cpp), while having nice, simple Python API.
 
-No need to mess around with docker containers, GPU servers, API keys, etc. We make it easy to run local LMMs in python and Godot with more integrations coming soon!
+No need to mess around with docker containers, GPU servers, API keys, etc. We make it easy to run local LLMs in Python and Godot with more integrations coming soon!
 
 ## Code documentation 
+
 If you are already familiar with the basics of LLMs we suggest you go straight to the documentation of your selected integration. 
+
 - [Godot](godot/index.md)
 - [Python](python/index.md)
 
