@@ -344,6 +344,7 @@ jobs:
         windows-pip-install-test,
         mac-os-pip-install-test,
         linux-pytest,
+        static-checks
       ]
     runs-on: ubuntu-latest
     steps:
