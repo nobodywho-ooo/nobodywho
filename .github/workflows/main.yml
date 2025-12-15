@@ -17,23 +17,6 @@ jobs:
       TEST_PYPI_AUTH_TOKEN: ${{ secrets.TEST_PYPI_AUTH_TOKEN }}
       PYPI_AUTH_TOKEN: ${{ secrets.PYPI_AUTH_TOKEN }}
 
-  test-python-publish:
-    needs: [python_ci]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download all wheels
-        uses: actions/download-artifact@v4
-        with:
-          pattern: nobodywho_python_*
-          merge-multiple: true
-          path: dist/
-
-      - name: Publish to TestPyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          repository-url: https://test.pypi.org/legacy/
-          password: ${{ secrets.TEST_PYPI_AUTH_TOKEN }}
-
 
   build:
     uses: ./.github/workflows/build.yml
