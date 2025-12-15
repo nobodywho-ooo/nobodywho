@@ -365,96 +365,39 @@ name-suffix ::= "brand" | "fang" | "bane" | "call" | "ward" | "rend"
 weapon-type ::= "Sword" | "Axe" | "Dagger" | "Staff" | "Bow" | "Hammer"
 ```
 
-=== ":simple-godotengine: Godot"
+```gdscript
+extends Node
 
-    ```gdscript
-    extends Node
+@onready var model = $Model # Your NobodyWhoModel node
+@onready var chat = $Chat   # Your NobodyWhoChat node
 
-    @onready var model = $Model # Your NobodyWhoModel node
-    @onready var chat = $Chat   # Your NobodyWhoChat node
+func _ready():
+    # Configure the weapon generator
+    model.model_path = "res://models/your-model.gguf"
+    chat.model_node = model
+    chat.system_prompt = "You are a legendary weapon generator for a fantasy RPG."
+    
+    # Start the worker so it's ready
+    chat.start_worker()
+    
+    # Connect to handle responses
+    chat.response_finished.connect(_on_weapon_generated)
 
-    func _ready():
-        # Configure the weapon generator
-        model.model_path = "res://models/your-model.gguf"
-        chat.model_node = model
-        chat.system_prompt = "You are a legendary weapon generator for a fantasy RPG."
-        
-        # Start the worker so it's ready
-        chat.start_worker()
-        
-        # Connect to handle responses
-        chat.response_finished.connect(_on_weapon_generated)
+func _input(event):
+    if event is InputEventKey and event.pressed and event.keycode == KEY_SPACE:
+        generate_weapon()
 
-    func _input(event):
-        if event is InputEventKey and event.pressed and event.keycode == KEY_SPACE:
-            generate_weapon()
+func generate_weapon():
+    chat.sampler.set_preset_grammar(grammar_string)
 
-    func generate_weapon():
-        chat.sampler.set_preset_grammar(grammar_string)
+    # Reset context to avoid new weapons to be influenced by already generated ones.
+    chat.reset_context()
+    chat.Say("Generate a weapon:")
 
-        # Reset context to avoid new weapons to be influenced by already generated ones.
-        chat.reset_context()
-        chat.Say("Generate a weapon:")
-
-    func _on_weapon_generated(weapon_name: String):
-        print(weapon_name)
-        # Here you could add the weapon to inventory, display it in UI, etc.
-    ```
-
-=== ":simple-unity: Unity"
-
-    ```csharp
-    using UnityEngine;
-    using NobodyWho;
-    using System.IO;
-
-    public class WeaponGenerator : MonoBehaviour
-    {
-        private Model model;
-        private Chat chat;
-        
-        void Start()
-        {
-            // Configure the weapon generator
-            model = gameObject.AddComponent<Model>();
-            model.modelPath = Path.Combine(Application.streamingAssetsPath, "your-model.gguf");
-            
-            chat = gameObject.AddComponent<Chat>();
-            chat.model = model;
-            chat.systemPrompt = "You are a weapon generator for a fantasy RPG.";
-            
-            // Start the worker so it's ready
-            chat.StartWorker();
-            
-            // Connect to handle responses
-            chat.onResponseFinished.AddListener(OnWeaponGenerated);
-        }
-        
-        void Update()
-        {
-            if (Input.GetKeyDown(KeyCode.Space))
-            {
-                GenerateWeapon();
-            }
-        }
-        
-        void GenerateWeapon()
-        {
-            chat.useGrammar = true;
-            chat.grammar = grammar_string;
-
-            // Reset context to avoid new weapons to be influenced by already generated ones.
-            chat.resetContext();
-            chat.Say("Generate a weapon:");
-        }
-        
-        void OnWeaponGenerated(string weaponName)
-        {
-            Debug.Log(weaponName);
-            // Here you could add the weapon to inventory, display it in UI, etc.
-        }
-    }
-    ```
+func _on_weapon_generated(weapon_name: String):
+    print(weapon_name)
+    # Here you could add the weapon to inventory, display it in UI, etc.
+```
 
 **Output examples:**
 
@@ -483,37 +426,17 @@ backstory ::= [a-zA-Z0-9 ]+ "."
 
 Beware not to add too many symbols in you backstory. If the model can not write a `.` it will increase the chance that it will end the sentence instead of writing paragraph upon paragraph of text.
 
-=== ":simple-godotengine: Godot"
+```gdscript
+func generate_weapon():
+    chat.sampler.set_preset_grammar(grammar_string)
 
-    ```gdscript
-    func generate_weapon():
-        chat.sampler.set_preset_grammar(grammar_string)
+    # Reset context to avoid new weapons to be influenced by already generated ones.
+    chat.reset_context()
+    chat.Say("Generate a weapon:")
 
-        # Reset context to avoid new weapons to be influenced by already generated ones.
-        chat.reset_context()
-        chat.Say("Generate a weapon:")
-
-    func _on_weapon_generated(weapon_data: String):
-        print(weapon_data)
-    ```
-
-=== ":simple-unity: Unity"
-
-    ```csharp
-    void GenerateWeapon()
-    {
-        chat.useGrammar = true;
-        chat.grammar = grammar_string;
-        // Reset context to avoid new weapons to be influenced by already generated ones.
-        chat.resetContext();
-        chat.Say("Generate a weapon:");
-    }
-
-    void OnWeaponGenerated(string weaponName)
-    {
-        Debug.Log(weaponName);
-    }
-    ```
+func _on_weapon_generated(weapon_data: String):
+    print(weapon_data)
+```
 
 **Output examples:**
 
@@ -539,57 +462,30 @@ backstory ::= [a-zA-Z0-9 ]{50,200} "."
 
 When doing this we want to also inject some of our lore. We will borrow from  Lord of the rings here - replace with your own lore.
 
-=== ":simple-godotengine: Godot"
+```gdscript
 
-    ```gdscript
+func _ready():
+  # Configure the weapon generator 
+  chat.model_node = model
+  chat.system_prompt = "Generate a weapon a backstory in the LOTR universe"
+    # ... rest of the setup
 
-    func _ready():
-    	# Configure the weapon generator 
-    	chat.model_node = model
-    	chat.system_prompt = "Generate a weapon a backstory in the LOTR universe"
-        # ... rest of the setup
-	
 
-    func generate_weapon():
-        var sampler = NobodyWhoSampler.new()
-        sampler.use_grammar = true
-        sampler.gbnf_grammar = grammar_string
-        # Generate random seed for variety
-        sampler.seed = randi()
-        chat.sampler = sampler
-        
-        # Reset context to avoid new weapons to be influenced by already generated ones.
-        chat.reset_context()
-        chat.say("The party just found a new weapon after travelling through the mines of Moria:")
+func generate_weapon():
+    var sampler = NobodyWhoSampler.new()
+    sampler.use_grammar = true
+    sampler.gbnf_grammar = grammar_string
+    # Generate random seed for variety
+    sampler.seed = randi()
+    chat.sampler = sampler
+    
+    # Reset context to avoid new weapons to be influenced by already generated ones.
+    chat.reset_context()
+    chat.say("The party just found a new weapon after travelling through the mines of Moria:")
 
-    func _on_weapon_generated(weapon_data: String):
-        print(weapon_data)
-    ```
-
-=== ":simple-unity: Unity"
-
-    ```csharp
-    void Start()
-    {
-        // Configure the weapon generator
-        chat.systemPrompt = "Generate a weapon a backstory in the LOTR universe";
-        // ... rest of the setup
-    }
-
-    void GenerateWeapon()
-    {
-        chat.useGrammar = true;
-        chat.grammar = grammar_string;
-        // Reset context to avoid new weapons to be influenced by already generated ones.
-        chat.resetContext();
-        chat.Say("The party just found a new weapon after travelling through the mines of Moria:");
-    }
-
-    void OnWeaponGenerated(string weaponData)
-    {
-        Debug.Log(weaponData);
-    }
-    ```
+func _on_weapon_generated(weapon_data: String):
+    print(weapon_data)
+```
 
 **Output examples:**
 - `Shadowfang (Sword) - Legendary damage, Shadow Step ability. The sword is made from the dark shards that were once part of the Balrog`

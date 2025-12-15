@@ -14,12 +14,11 @@ nav:
       - Streaming & Async API: python/streaming-and-async-api.md
       - Embeddings & RAG: python/embeddings-and-rag.md
   - Godot:
-      - Chat:
-          - Simple Chat: godot/chat/simple-chat.md
-          - Structured output: godot/chat/structured-output.md
-          - Tool calling: godot/chat/tool-calling.md
       - Installation: godot/install.md
       - Getting Started: godot/getting-started.md
+      - Simple Chat: godot/chat/simple-chat.md
+      - Structured output: godot/chat/structured-output.md
+      - Tool calling: godot/chat/tool-calling.md
       - Embeddings: godot/embeddings.md
       - RAG: godot/rag.md
 
