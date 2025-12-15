@@ -248,6 +248,16 @@ impl ChatHandle {
         let _ = output_rx.blocking_recv();
     }
 
+    pub fn reset_history(&self) {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        let _ = self.msg_tx.send(ChatMsg::SetChatHistory {
+            messages: vec![],
+            output_tx,
+        });
+        // block until chat has reset
+        let _ = output_rx.blocking_recv();
+    }
+
     /// Update the available tools for the model to use.
     pub fn set_tools(&self, tools: Vec<Tool>) -> Result<(), crate::errors::SetterError> {
         self.set_and_wait_blocking(|output_tx| ChatMsg::SetTools { tools, output_tx })

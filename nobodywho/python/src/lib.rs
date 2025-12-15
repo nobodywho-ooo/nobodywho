@@ -281,6 +281,10 @@ impl Chat {
         })
     }
 
+    pub fn reset_history(&self) {
+        self.chat_handle.reset_history();
+    }
+
     #[pyo3(signature = (allow_thinking: "bool") -> "None")]
     pub fn set_allow_thinking(&self, allow_thinking: bool, py: Python) -> PyResult<()> {
         py.detach(|| {
