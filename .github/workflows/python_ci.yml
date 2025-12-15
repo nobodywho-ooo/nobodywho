@@ -82,13 +82,13 @@ jobs:
         working-directory: ./nobodywho/python
 
       - name: Repair wheel to use manylinux
-        run: auditwheel repair nobodywho/target/wheels/nobodywho_python*.whl
+        run: auditwheel repair nobodywho/target/wheels/nobodywho*.whl
 
       - name: Upload wheel
         uses: actions/upload-artifact@v4
         with:
           name: nobodywho_python_linux
-          path: ./wheelhouse/nobodywho_python*.whl
+          path: ./wheelhouse/nobodywho*.whl
 
   windows-build:
     runs-on: windows-latest
@@ -139,7 +139,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nobodywho_python_windows
-          path: C:/target/wheels/nobodywho_python*.whl
+          path: C:/target/wheels/nobodywho*.whl
 
   mac-os-build:
     runs-on: macos-latest
@@ -164,7 +164,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nobodywho_python_macos
-          path: ./nobodywho/target/wheels/nobodywho_python*.whl
+          path: ./nobodywho/target/wheels/nobodywho*.whl
 
   linux-pytest:
     needs: [linux-build]
@@ -193,7 +193,7 @@ jobs:
           # install deps - and not nobodywho-python - into the venv
           uv sync --no-install-project --group dev
           # install nobodywho from pre-built wheel
-          uv pip install ../../wheels/nobodywho_python*manylinux*x86*.whl
+          uv pip install ../../wheels/nobodywho*manylinux*x86*.whl
       - name: Run pytest
         working-directory: ./nobodywho/python
         env:
@@ -237,7 +237,7 @@ jobs:
         run: |
           python3 -m venv maturinvenv
           source ./maturinvenv/bin/activate
-          pip install nobodywho_python_linux/nobodywho_python*manylinux*x86*.whl
+          pip install nobodywho_python_linux/nobodywho*manylinux*x86*.whl
 
       - name: Download models
         run: |
@@ -285,7 +285,7 @@ jobs:
         run: |
           python -m venv maturinvenv
           maturinvenv/Scripts/activate
-          pip install D:/a/nobodywho/nobodywho/nobodywho_python_windows/nobodywho_python-0.1.0-cp38-abi3-win_amd64.whl
+          pip install D:/a/nobodywho/nobodywho/nobodywho_python_windows/nobodywho*win*.whl
 
       - name: Download models
         run: |
@@ -323,7 +323,7 @@ jobs:
         run: |
           python3 -m venv maturinvenv
           source ./maturinvenv/bin/activate
-          pip install nobodywho_python_macos/nobodywho_python*macosx*.whl
+          pip install nobodywho_python_macos/nobodywho*macosx*.whl
 
       - name: Download models
         run: |
