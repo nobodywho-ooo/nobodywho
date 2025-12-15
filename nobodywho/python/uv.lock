@@ -63,7 +63,7 @@ wheels = [
 ]
 
 [[package]]
-name = "nobodywho-python"
+name = "nobodywho"
 version = "0.1.0"
 source = { editable = "." }
 

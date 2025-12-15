@@ -341,6 +341,7 @@ jobs:
         static-checks
       ]
     runs-on: ubuntu-latest
+    #if: startsWith(github.ref, 'refs/tags/nobodywho-python-')
     steps:
       - name: Download all wheels
         uses: actions/download-artifact@v4
@@ -379,7 +380,7 @@ jobs:
         test-publish-wheels
       ]
     runs-on: ubuntu-latest
-    # if: startsWith(github.ref, 'refs/tags/nobodywho-python-')
+    #if: startsWith(github.ref, 'refs/tags/nobodywho-python-')
     steps:
       - name: Download all wheels
         uses: actions/download-artifact@v4
