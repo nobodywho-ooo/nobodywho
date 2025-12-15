@@ -13,6 +13,7 @@ nav:
       - Sampling: python/sampling.md
       - Streaming & Async API: python/streaming-and-async-api.md
       - Embeddings & RAG: python/embeddings-and-rag.md
+      - Logging: python/logging-and-troubleshooting.md
   - Godot:
       - Chat:
           - Simple Chat: godot/chat/simple-chat.md
