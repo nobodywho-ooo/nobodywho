@@ -10,21 +10,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: echo "cache_id=$(date --utc '+%V')" >> $GITHUB_ENV 
-      - uses: actions/cache@v4
-        with:
-          key: mkdocs-material-${{ env.cache_id }}
-          path: .cache 
-          restore-keys: |
-            mkdocs-material-
-      - run: pip install mkdocs-material 
 
-      - run: mkdocs build
-      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "docs/uv.lock"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: "docs/pyproject.toml"
+
+      - name: Install dependencies
+        working-directory: ./docs
+        run: uv sync
+
+      - name: Build documentation
+        working-directory: ./docs
+        run: uv run mkdocs build
+
       - uses: actions/upload-pages-artifact@v3
         with:
           name: docs
-          path: site
+          path: docs/site
 
       - uses: actions/deploy-pages@v4
         with:

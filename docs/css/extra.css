@@ -1,0 +1,8 @@
+.codehilite .nn {
+    color: #fff;
+}
+
+/* Hide the copy button in the header */
+#page-header button {
+    display: none;
+}

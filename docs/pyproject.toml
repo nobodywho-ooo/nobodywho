@@ -1,0 +1,10 @@
+[project]
+name = "nobodywho-docs"
+version = "0.1.0"
+description = "Documentation for NobodyWho"
+requires-python = ">=3.13"
+dependencies = [
+    "mkdocs>=1.6.1",
+    "mkdocs-material>=9.7.0",
+    "mkdocs-shadcn>=0.9.8",
+]

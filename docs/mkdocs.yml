@@ -1,0 +1,87 @@
+site_name: NobodyWho
+site_url: https://nobodywho-ooo.github.io/nobodywho
+
+docs_dir: ./markdown
+
+nav:
+  - Home: ./index.md
+  - Model Selection: ./model-selection.md
+  - Python: 
+    - Home: python/index.md
+    - Basics: python/basic-concepts.md
+    - Tool Calling: python/tool-calling.md
+    - Sampling: python/sampling.md
+    - Streaming & Async API: python/streaming-and-async-api.md
+    - Embeddings & RAG: python/embeddings-and-rag.md
+  - Godot:
+    - Chat:
+      - Simple Chat: godot/chat/simple-chat.md
+      - Structured output: godot/chat/structured-output.md
+      - Tool calling: godot/chat/tool-calling.md
+    - Installation: godot/install.md
+    - Getting Started: godot/getting-started.md
+    - Embeddings: godot/embeddings.md
+    - RAG: godot/rag.md
+
+# github link in the top right
+repo_url: https://github.com/nobodywho-ooo/nobodywho
+repo_name: nobodywho-ooo/nobodywho
+theme:
+  name: shadcn
+  show_title: true # show the title in the top bar
+  show_stargazers: true # show the stargazers in the top bar
+  pygments_style: # default styles
+    light: shadcn-light
+    dark: github-dark
+  icon: ./assets/icon.svg # use the shadcn svg if not defined
+  topbar_sections: false # NEW!
+  show_datetime: false
+
+markdown_extensions:
+  - codehilite
+  - admonition
+
+extra_css:
+  - ./css/extra.css
+# theme:
+#   # use eyes icon to trigger people clicking on images and gifs.
+#   icon:
+#     annotation: material/eye-circle
+#   # enable mkdocs-material theme
+#   name: material
+#   # disable loading from google fonts, fallback to system fonts
+#   font: false
+#   # set color scheme
+#   palette:
+#     primary: black
+#     scheme: slate
+#   # icon (just a symlink to :/assets/icon.svg)
+#   logo: icon.svg
+#   # link tab selection across all content tab blocks
+#   features:
+#     - content.tabs.link
+#     - navigation.instant
+#     - navigation.footer
+# extra:
+#   generator: false
+#   social:
+#     - icon: fontawesome/brands/github
+#       link: https://github.com/nobodywho-ooo/nobodywho
+#     - icon: fontawesome/brands/discord
+#       link: https://discord.gg/qhaMc2qCYB
+#
+# markdown_extensions:
+#   # enable content tabs
+#   - pymdownx.superfences
+#   - pymdownx.tabbed:
+#       alternate_style: true
+#
+#   # for images and grids
+#   - md_in_html
+#   - pymdownx.blocks.caption
+#   - attr_list
+#
+#   # for icons and emoji
+#   - pymdownx.emoji:
+#       emoji_index: !!python/name:material.extensions.emoji.twemoji
+#       emoji_generator: !!python/name:material.extensions.emoji.to_svg

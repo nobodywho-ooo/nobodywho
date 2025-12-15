@@ -319,3 +319,22 @@ def test_load_crossencoder_from_path():
 
     new_encoder_async = nobodywho.CrossEncoderAsync(model_path)
     assert isinstance(new_encoder_async, nobodywho.CrossEncoderAsync)
+
+
+def test_set_and_get_chat_history(chat):
+    chat_history = [
+        {"role": "user", "content": "What's 2 + 2?"},
+        {"role": "assistant", "content": "2 + 2 = 4"},
+    ]
+    chat.set_chat_history(chat_history)
+    assert chat.get_chat_history() == chat_history
+
+
+@pytest.mark.asyncio
+async def test_async_set_and_get_chat_history(chat_async):
+    chat_history = [
+        {"role": "user", "content": "What's 2 + 2?"},
+        {"role": "assistant", "content": "2 + 2 = 4"},
+    ]
+    await chat_async.set_chat_history(chat_history)
+    assert (await chat_async.get_chat_history()) == chat_history
