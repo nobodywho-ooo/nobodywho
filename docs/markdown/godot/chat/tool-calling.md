@@ -26,42 +26,21 @@ We'll start with a small and simple tool, add arguments, then increase accuracy 
 
 This is an example of how to give the model access to a function we have created that gets the player's current stats (health, mana, gold).
 
-=== ":simple-godotengine: Godot"
     
-    ```gdscript
-    extends NobodyWhoChat
-    
-    func get_player_stats() -> String:
-        var player = GameManager.get_local_player()
-        return JSON.stringify({
-            "health": player.health,
-            "mana":   player.mana,
-            "gold":   player.gold
-        })
-    
-    func _ready():
-        add_tool(get_player_stats, "Returns the local player's health, mana, and gold.")
-    ```
+```gdscript
+extends NobodyWhoChat
 
-=== ":simple-unity: Unity"
+func get_player_stats() -> String:
+    var player = GameManager.get_local_player()
+    return JSON.stringify({
+        "health": player.health,
+        "mana":   player.mana,
+        "gold":   player.gold
+    })
 
-    ```csharp
-    private int GetPlayerHealth()
-    {
-        return GameManager.LocalPlayer.health;
-    }
-
-    public void Start() 
-    {
-        chat.AddTool((System.Func<int>)GetPlayerHealth,
-                     "Returns the local player's current health");
-    }
-    ```
-
-    You need to use delegates for the schema generation to work: 
-    In my opinion the prettiest way to do it is by casting, like this  `(System.Func<int>)GetPlayerHealth`.  
-    System.Func makes it a delegate type; the  <int> defines that the output from this function is an int.
-    
+func _ready():
+    add_tool(get_player_stats, "Returns the local player's health, mana, and gold.")
+```
 
 Ask "How hurt am I?" - the model calls your tool and answers with real numbers.
 
@@ -96,33 +75,15 @@ This is then used to construct a lazy loadable gbnf grammar, so the models alway
 A limitation of this is that we cannot extract the description from a given argument. 
 Therefore it might be advantageous to write your own schema for maximum precision.
 
-=== ":simple-godotengine: Godot"
+```gdscript
+func heal_player(amount: int) -> String:
+    GameManager.get_local_player().heal(amount)
+    return "Healed %d HP" % amount
 
-    ```gdscript
-    func heal_player(amount: int) -> String:
-        GameManager.get_local_player().heal(amount)
-        return "Healed %d HP" % amount
-
-    add_tool(heal_player, "Heals the local player by a number of hit-points")
-    ```
-    *Godot auto-builds the JSON schema from the type hints.*  
-    Therefore you must ensure that all parameters are listed and return type is defined from the method.
-
-=== ":simple-unity: Unity"
-
-    ```csharp
-    private string HealPlayer(int amount)
-    {
-        GameManager.LocalPlayer.Heal(amount);
-        return $"Healed {amount} HP";
-    }
-    
-    chat.AddTool((System.Func<int, string>)HealPlayer,
-                 "Heals the local player by a number of hit-points");
-    ```
-
-    Note the `System.Func<int, string>`, the `string` is the output and the `int` is the first parameter.  
-    So to create the correct delegate you follow this scheme: System.Func<`first param`, `second param`, `return type`, etc..> – easy!
+add_tool(heal_player, "Heals the local player by a number of hit-points")
+```
+*Godot auto-builds the JSON schema from the type hints.*  
+Therefore you must ensure that all parameters are listed and return type is defined from the method.
 
 ---
 
@@ -131,31 +92,15 @@ Therefore it might be advantageous to write your own schema for maximum precisio
 
 Have the model open a door.
 
-=== ":simple-godotengine: Godot"
+```gdscript
+func open_door(door_id: String) -> String:
+    DoorManager.open(door_id)
+    return "Opened door %s" % door_id
 
-    ```gdscript
-    func open_door(door_id: String) -> String:
-        DoorManager.open(door_id)
-        return "Opened door %s" % door_id
+add_tool(open_door, "Opens a door in the world by id")
 
-    add_tool(open_door, "Opens a door in the world by id")
-
-    chat.say("can you open the door")
-    ```
-
-=== ":simple-unity: Unity"
-
-    ```csharp
-    private string OpenDoor(string doorId)
-    {
-        DoorManager.Open(doorId);
-        return $"Opened door {doorId}";
-    }
-    
-    chat.AddTool((System.Func<string, string>)OpenDoor,
-                 "Opens a door in the world by id");
-    chat.Say("can you open the door");
-    ```
+chat.say("can you open the door")
+```
 
 The model will pause any generation until the tool is completed.
 
@@ -166,22 +111,11 @@ The model will pause any generation until the tool is completed.
 
 You can add as many tools as like, but you need to reset the context before they will be taken into account.
 
-=== ":simple-godotengine: Godot"
-
-    ```gdscript
-    add_tool(get_player_stats, "Player stats")
-    add_tool(open_door,        "Open a door")
-    reset_context()
-    ```
-
-=== ":simple-unity: Unity"
-
-    ```csharp
-    chat.AddTool((System.Func<int>)GetPlayerHealth, "Player health");
-    chat.AddTool((System.Func<string, string>)OpenDoor, "Open a door");
-    chat.ResetContext(); // the tool are now available
-    chat.ClearTools(); // this clears the tools, but also resets the context
-    ```
+```gdscript
+add_tool(get_player_stats, "Player stats")
+add_tool(open_door,        "Open a door")
+reset_context()
+```
 
 ---
 
@@ -206,25 +140,18 @@ As I mentioned before, we are using the OpenSchema specification, which goes lik
 
 The type must always be an `object`, the properties are a dictionary of where the key is the parameter name, and the value describes the data for the parameter. Ie. type determines wheter it is a string, a list or something else. Description describes how the parameter is used. 
 
-if the properties are not a part of the `required` list, the model will see them as optional parameter.
+If the properties are not a part of the `required` list, the model will see them as optional parameter.
 
-=== ":simple-godotengine: Godot"
+```gdscript
+# `press_button_schema` holds the JSON shown above.
+func press_button(color: String) -> String:
+    ButtonManager.press(color)
+    return "Pressed %s button" % color
 
-    ```gdscript
-    # `press_button_schema` holds the JSON shown above.
-    func press_button(color: String) -> String:
-        ButtonManager.press(color)
-        return "Pressed %s button" % color
-
-    add_tool_with_schema(press_button,
-                         press_button_schema,
-                         "Press one of the three coloured buttons (red, blue, green)")
-    ```
-
-=== ":simple-unity: Unity"
-
-    I lied...  
-    We do not in fact 'got you', at least not yet - this feature is still in the works for Unity.
+add_tool_with_schema(press_button,
+                     press_button_schema,
+                     "Press one of the three coloured buttons (red, blue, green)")
+```
 
 Result: the model **cannot** request any color other than *red*, *blue*, or *green*.  Use the same pattern for item rarities, quest tiers, etc...
 
