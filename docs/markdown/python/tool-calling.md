@@ -83,9 +83,3 @@ def get_current_temperature(lon: str, lat: str) -> str:
 ```
 These will be then appended to the information provided to model, so it can better navigate itself
 when using the tool.
-
-## Converting from JSON schema
-
-<div style="background-color: red;">
-    TODO: Enable smoother reset, with defaults. This is clunky.
-</div>
