@@ -3,7 +3,7 @@ requires = ["maturin>=1.0,<2.0"]
 build-backend = "maturin"
 
 [project]
-name = "nobodywho-python"
+name = "nobodywho"
 version = "0.1.0"
 description = "Python bindings for nobodywho"
 requires-python = ">=3.10"
