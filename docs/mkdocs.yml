@@ -13,6 +13,7 @@ nav:
       - Sampling: python/sampling.md
       - Streaming & Async API: python/streaming-and-async-api.md
       - Embeddings & RAG: python/embeddings-and-rag.md
+      - Logging: python/logging-and-troubleshooting.md
   - Godot:
       - Installation: godot/install.md
       - Getting Started: godot/getting-started.md
