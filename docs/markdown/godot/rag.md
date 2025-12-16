@@ -16,7 +16,7 @@ To do this in the llm space you are going to use RAG (retreival augmented genera
 There are many ways to do this. In Nobodywho we currently expose two major ways, one is embeddings; converting a sentence to a vector and then find the vectors that are closest to it.
 This is powerful as you can save the vectors to a database or a file beforehand and then use the really fast and cheap cosine similarity to compare them. Another more expensive but more accurate way is to use a cross-encoder that figures out the relationship between the question and the document rather that just how similar they are. 
 
-This approach is often called reranking, due to how it is used as a step two, for sorting and filtering large knowledge databases accesed by LLMs. I'll call it ranking as we are working with a small enough dataset that we do not need a first pass to filter out irrelevant info.
+This approach is often called reranking, due to how it is used as a step two, for sorting and filtering large knowledge databases accesed by LLMs. we'll call it ranking as we are working with a small enough dataset that we do not need a first pass to filter out irrelevant info.
 
 Take this example:
 

@@ -1,6 +1,6 @@
 ---
 title: Tool Calling
-description: NobodyWho is a lightweight, open-source AI engine for local LLM inference. Simple, privacy oriented with no infrastructure needed.
+description: An introduction to tools in NobodyWho
 sidebar_title: Tool Calling
 order: 2
 ---
@@ -15,7 +15,7 @@ To give your LLM the ability to interact with the outside world, you will need t
 ## Declaring a tool
 
 A tool can be created from any (synchronous) python function, which returns a string.
-To perform the conversion, all that is needed, is using simple `@tool` decorator. To get
+To perform the conversion, you simly need to use the `@tool` decorator. To get
 a good sense of how such a tool can look like, consider this geometry example:
 
 ```python
@@ -36,7 +36,7 @@ chat = Chat('./model.gguf', tools=[circle_area])
 ```
 
 NobodyWho then figures out the right tool calling format, inspects the names and types of the parameters,
-and configures the sampler so that when the model decides to use tools, it will adhere to the format.
+and configures the sampler.
 
 Naturally, more tools can be defined and the model can chain the calls for them:
 
@@ -83,3 +83,8 @@ def get_current_temperature(lon: str, lat: str) -> str:
 ```
 These will be then appended to the information provided to model, so it can better navigate itself
 when using the tool.
+
+
+## Tool calling and the context
+
+As with everything made to improve response quality, using tool calls fills up the context faster than simply chatting with an LMM. So be aware that you might need to use a larger context size than expected when using tools.

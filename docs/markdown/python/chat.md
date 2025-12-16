@@ -1,7 +1,7 @@
 ---
-title: Basics
-description: NobodyWho is a lightweight, open-source AI engine for local LLM inference. Simple, privacy oriented with no infrastructure needed.
-sidebar_title: Basics
+title: Chat
+description: A concise introduction to the Chat functionaility of NobodyWho.
+sidebar_title: Chat
 order: 1
 ---
 
@@ -10,7 +10,7 @@ In the following sections, we talk about which configuration options is has, and
 
 ## Prompts and responses
 
-The `Chat.ask()` function is central to NobodyWho. It is so named because it lets you say something to the LLM, and starts generating a response in return.
+The `Chat.ask()` function is central to NobodyWho. This function sends your message to the LLM, which then starts generating a respone.
 
 ```python
 from nobodywho import Chat, TokenStream

@@ -1,6 +1,6 @@
 ---
 title: Getting started
-description:  NobodyWho is a lightweight, open-source AI engine for local LLM inference. Simple, privacy oriented with no infrastructure needed.
+description:  How to setup NobodyWho in Python
 sidebar_title: Getting started
 order: 0
 ---
