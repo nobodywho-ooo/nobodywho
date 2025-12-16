@@ -69,7 +69,7 @@ jobs:
       - name: Install build dependencies
         run: |
           # Install basic build tools
-          yum install -y clang cmake wget tar gzip
+          yum install -y clang cmake wget tar gzip python3-pip
 
           # Download and install Vulkan SDK
           export VULKAN_VERSION=1.3.296.0
