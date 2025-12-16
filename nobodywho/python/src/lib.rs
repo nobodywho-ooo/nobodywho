@@ -121,7 +121,7 @@ pub struct Encoder {
 #[pymethods]
 impl Encoder {
     #[new]
-    #[pyo3(signature = (model, n_ctx = 2048) -> "Encoder")]
+    #[pyo3(signature = (model, n_ctx = 4096) -> "Encoder")]
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
         let encoder = nobodywho::encoder::Encoder::new(nw_model, n_ctx);
@@ -146,7 +146,7 @@ pub struct EncoderAsync {
 #[pymethods]
 impl EncoderAsync {
     #[new]
-    #[pyo3(signature = (model, n_ctx = 2048) -> "EncoderAsync")]
+    #[pyo3(signature = (model, n_ctx = 4096) -> "EncoderAsync")]
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
         let encoder_handle = nobodywho::encoder::EncoderAsync::new(nw_model, n_ctx);
@@ -170,7 +170,7 @@ pub struct CrossEncoder {
 #[pymethods]
 impl CrossEncoder {
     #[new]
-    #[pyo3(signature = (model, n_ctx = 2048) -> "CrossEncoder")]
+    #[pyo3(signature = (model, n_ctx = 4096) -> "CrossEncoder")]
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
         let crossencoder = nobodywho::crossencoder::CrossEncoder::new(nw_model, n_ctx);
@@ -209,7 +209,7 @@ pub struct CrossEncoderAsync {
 #[pymethods]
 impl CrossEncoderAsync {
     #[new]
-    #[pyo3(signature = (model, n_ctx = 2048) -> "CrossEncoderAsync")]
+    #[pyo3(signature = (model, n_ctx = 4096) -> "CrossEncoderAsync")]
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
         let crossencoder_handle = nobodywho::crossencoder::CrossEncoderAsync::new(nw_model, n_ctx);
@@ -247,7 +247,7 @@ pub struct Chat {
 #[pymethods]
 impl Chat {
     #[new]
-    #[pyo3(signature = (model, n_ctx = 2048, system_prompt = "", allow_thinking = true, tools: "list[Tool]" = Vec::<Tool>::new(), sampler=SamplerConfig::default()) -> "Chat")]
+    #[pyo3(signature = (model, n_ctx = 4096, system_prompt = "", allow_thinking = true, tools: "list[Tool]" = Vec::<Tool>::new(), sampler=SamplerConfig::default()) -> "Chat")]
     pub fn new(
         model: ModelOrPath,
         n_ctx: u32,
@@ -334,7 +334,7 @@ pub struct ChatAsync {
 #[pymethods]
 impl ChatAsync {
     #[new]
-    #[pyo3(signature = (model, n_ctx = 2048, system_prompt = "", allow_thinking = true, tools: "list[Tool]" = vec![], sampler = SamplerConfig::default()) -> "ChatAsync")]
+    #[pyo3(signature = (model, n_ctx = 4096, system_prompt = "", allow_thinking = true, tools: "list[Tool]" = vec![], sampler = SamplerConfig::default()) -> "ChatAsync")]
     pub fn new(
         model: ModelOrPath,
         n_ctx: u32,
