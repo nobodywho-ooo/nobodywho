@@ -6,7 +6,12 @@ build-backend = "maturin"
 name = "nobodywho"
 version = "0.3.0"
 description = "Python bindings for nobodywho"
+readme = "PYPI_DESCRIPTION.md"
 requires-python = ">=3.10"
+urls = {Homepage = "https://nobodywho.ooo/", Documentation = "https://docs.nobodywho.com", Repository = "https://github.com/nobodywho-ooo/nobodywho"}
+license = { text = "EUPL-1.2" }
+keywords = ["AI", "LLM", "Large Language Models", "Inference", "Tool calling", "Local LLM", "Local Inference"]
+
 
 [tool.maturin]
 # "extension-module" tells pyo3 we want to build an extension module (skips linking against libpython.so)
