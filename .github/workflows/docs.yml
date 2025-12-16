@@ -30,7 +30,7 @@ jobs:
         working-directory: ./docs
         run: uv run mkdocs build
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v4
         with:
           name: docs
           path: docs/site
