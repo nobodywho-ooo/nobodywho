@@ -18,7 +18,7 @@ Here are the key terms you'll see throughout this guide:
 | **Token** | The smallest chunk of text the model emits (roughly a word). |
 | **Chat** | The node/component that owns the context, sends user input to the worker, and keeps conversation state in sync with the LLM. |
 | **Context** | The message history and metadata passed to the model each turn; it lives inside the Chat. |
-| **Worker** | NobodyWho's background task for a single conversation — it keeps the model ready and acts a a communication layer between the program and the model. Each Chat has its own worker. |
+| **Worker** | NobodyWho's background task for a single conversation — it keeps the model ready and acts as a communication layer between the program and the model. Each Chat has its own worker. |
 
 Let's show you how to use the plugin to get a large language model to answer you.
 

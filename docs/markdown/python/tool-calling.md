@@ -15,7 +15,7 @@ To give your LLM the ability to interact with the outside world, you will need t
 ## Declaring a tool
 
 A tool can be created from any (synchronous) python function, which returns a string.
-To perform the conversion, you simly need to use the `@tool` decorator. To get
+To perform the conversion, you simply need to use the `@tool` decorator. To get
 a good sense of how such a tool can look like, consider this geometry example:
 
 ```python
@@ -64,7 +64,7 @@ response = chat.ask('What is the biggest file in my current directory?').complet
 print(response) # The largest file in your current directory is `model.gguf`.
 ```
 
-## Providing params descriptions
+## Providing parameter descriptions
 
 When a tool call is declared, information about the description, the types and the parameters is provided to the model, so it knows it can use it. Crucially, also parameter names are provided.
 
@@ -87,4 +87,4 @@ when using the tool.
 
 ## Tool calling and the context
 
-As with everything made to improve response quality, using tool calls fills up the context faster than simply chatting with an LMM. So be aware that you might need to use a larger context size than expected when using tools.
+As with everything made to improve response quality, using tool calls fills up the context faster than simply chatting with an LLM. So be aware that you might need to use a larger context size than expected when using tools.

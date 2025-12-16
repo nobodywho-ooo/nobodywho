@@ -22,7 +22,7 @@ Yeah, most models will fail to generate valid json at some point if you just ask
 But fret not dear friend, the solution you are looking for is called :star: **STRUCTURED OUTPUT** :star:. 
 
 It is pretty much what it claims to be; A system that constrains the model's vocabulary to one that you determine.
-This can be useful for a myraid of things, from forcing the LLM to never use modern words, to using the LLM
+This can be useful for a myriad of things, from forcing the LLM to never use modern words, to using the LLM
 as the engine for your own procedural generation dungeon room.
 
 This section will take you through creating your own grammar that the model will have to use.
@@ -130,7 +130,7 @@ Common character classes:
 ### Repetitions
 
 
-This quickly becomes tedious if you want to create euither long words or just any word. This is where repetitions come in:
+This quickly becomes tedious if you want to create either long words or just any word. This is where repetitions come in:
 
 - `*` means "zero or more"
 - `+` means "one or more"  
@@ -346,8 +346,7 @@ Let's build a weapon generation system that creates legendary weapons for your R
 
 ### Why Use GBNF for Weapon Generation?
 
-Traditional random generators often create nonsensical combinations like "Flaming Sword of Ice", with 8 fire damage and a random generic backstory as well an ice ability. 
-(obviously there are more advanced systems but they rely on lookup tables which can become tedious very quickly)   
+Traditional random generators often create nonsensical combinations like "Flaming Sword of Ice", with 8 fire damage and a random generic backstory as well an ice ability. More advanced systems exist but they rely on lookup tables which can become tedious very quickly.
 LLMs with GBNF understand semantic coherence - they'll generate "Flamebrand, Ancient Sword of Solar Wrath" instead. 
 Which has 8 fire damage, and a meaningful backstory based on how you got it 
 or the lore from your game as well as an ability that is chosen based on the backstory, damage and name.
@@ -392,7 +391,7 @@ func generate_weapon():
 
     # Reset context to avoid new weapons to be influenced by already generated ones.
     chat.reset_context()
-    chat.Say("Generate a weapon:")
+    chat.say("Generate a weapon:")
 
 func _on_weapon_generated(weapon_name: String):
     print(weapon_name)
@@ -406,7 +405,7 @@ func _on_weapon_generated(weapon_name: String):
 - `Stormcall (Staff)`
 - `Darkward (Bow)`
 
-This is more or less just a random number generator, although but more gpu expensive...
+This is more or less just a random number generator, but more GPU expensive...
 
 ### Step 2: Adding Weapon Stats
 
@@ -424,7 +423,7 @@ ability-name ::= "Flame Strike" | "Frost Bite" | "Shadow Step" | "Lightning Bolt
 backstory ::= [a-zA-Z0-9 ]+ "."
 ```
 
-Beware not to add too many symbols in you backstory. If the model can not write a `.` it will increase the chance that it will end the sentence instead of writing paragraph upon paragraph of text.
+Be careful not to add too many symbols in your backstory. If the model can not write a `.` it will increase the chance that it will end the sentence instead of writing paragraph upon paragraph of text.
 
 ```gdscript
 func generate_weapon():
@@ -432,7 +431,7 @@ func generate_weapon():
 
     # Reset context to avoid new weapons to be influenced by already generated ones.
     chat.reset_context()
-    chat.Say("Generate a weapon:")
+    chat.say("Generate a weapon:")
 
 func _on_weapon_generated(weapon_data: String):
     print(weapon_data)
@@ -525,7 +524,7 @@ or with thinking models (demonstrating that it will squeeze in the "thinking" se
 - `Shadowfang|Axe|Legendary|Shadow Step|Light|Throwable|Sharp|Sturdy|Epic|Silent|Steel|The Shadowfang is a legendary axe that is said to have been forged in the depths of the Shadowspire Mountains by the elusive Night Hunter.`
 - `Stormcall|Staff|Legendary|Lightning Bolt|Light|Non-throwable|Blunt|Unbreakable|Legendary|Pulsing|Crystal|The user wants me to generate a short story for the weapon. I will think...`
 
---
+---
 
 This is quite a powerful system for procedural generation of anything being weapons, levels, questlines or whatever you can think of, and even better 
 You get to influence the generation meaningfully with the prompt that you send, while keeping the variety offered by the system.

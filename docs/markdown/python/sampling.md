@@ -5,7 +5,7 @@ sidebar_title: Sampling
 order: 3
 ---
 
-During generation the model does not produce tokens but rather a probability distribution over the all possible tokens. We must then choose how to pick the next token from the distribution. This is the job of a **sampler**, which using NobodyWho you can freely modify,
+The model does not produce tokens but rather a probability distribution over all possible tokens. We must then choose how to pick the next token from the distribution. This is the job of a **sampler**, which using NobodyWho you can freely modify,
 to achieve better quality outputs or constrain the outputs to some known format (e.g. JSON).
 
 ## Sampler presets
@@ -57,7 +57,7 @@ sampler = SamplerPresets.grammar("""
 """)
 ```
 The format that NobodyWho utilizes is called GBNF, which is a Llama.cpp native format.
-For a nice specification, [head over to this site](https://github.com/ggml-org/llama.cpp/blob/master/grammars/README.md).
+See the [GBNF specification](https://github.com/ggml-org/llama.cpp/blob/master/grammars/README.md).
 
 
 ## Defining your own samplers
