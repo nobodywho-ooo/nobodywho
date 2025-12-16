@@ -1,8 +1,8 @@
 ---
 title: Embeddings & RAG
-description: NobodyWho is a lightweight, open-source AI engine for local LLM inference. Simple, privacy oriented with no infrastructure needed.
+description: Learn how to use embeddings and cross-encoders to build retrieval-augmented generation (RAG) systems with NobodyWho.
 sidebar_title: Embeddings & RAG
-order: 4
+order: 5
 ---
 
 When you want your LLM to search through documents, understand semantic similarity, or build retrieval-augmented generation (RAG) systems, you'll need embeddings and cross-encoders.
@@ -11,7 +11,7 @@ When you want your LLM to search through documents, understand semantic similari
 
 Embeddings convert text into vectors (lists of numbers) that capture semantic meaning. Texts with similar meanings have similar vectors, even if they use different words.
 
-For example, "Hand me the red potion" and "Give me the scarlet flask" would have very similar embeddings, despite sharing no common words.
+For example, "Schedule a meeting for next Tuesday" and "Book an appointment next week" would have very similar embeddings, despite using different words.
 
 ## The Encoder
 
@@ -38,9 +38,9 @@ from nobodywho import Encoder, cosine_similarity
 
 encoder = Encoder('./embedding-model.gguf')
 
-query = encoder.encode("Where do I find crystals?")
-doc1 = encoder.encode("Crystals are found in the Northern Mountains")
-doc2 = encoder.encode("The Southern Desert has no crystals")
+query = encoder.encode("How do I reset my password?")
+doc1 = encoder.encode("You can reset your password in the account settings")
+doc2 = encoder.encode("The password requirements include 8 characters minimum")
 
 similarity1 = cosine_similarity(query, doc1)
 similarity2 = cosine_similarity(query, doc2)
@@ -60,17 +60,17 @@ encoder = Encoder('./embedding-model.gguf')
 
 # Your knowledge base
 documents = [
-    "The blacksmith sells weapons and armor",
-    "The inn provides food and lodging",
-    "The library contains ancient scrolls and books",
-    "The market sells fruits and vegetables"
+    "Python supports multiple programming paradigms including object-oriented and functional",
+    "JavaScript is primarily used for web development and runs in browsers",
+    "SQL is a domain-specific language for managing relational databases",
+    "Git is a version control system for tracking changes in source code"
 ]
 
 # Pre-compute document embeddings
 doc_embeddings = [encoder.encode(doc) for doc in documents]
 
 # Search query
-query = "Where can I buy a sword?"
+query = "What language should I use for database queries?"
 query_embedding = encoder.encode(query)
 
 # Find the most relevant document
@@ -92,11 +92,11 @@ The key difference: embeddings compare vector similarity, while cross-encoders u
 Consider this example:
 
 ```
-Query: "Where do I find crystals for my sword upgrade?"
+Query: "What are the office hours for customer support?"
 Documents: [
-    "You asked the blacksmith: Where do I find crystals for my sword upgrade?",
-    "The blacksmith said: Magic crystals are found in the Northern Mountains",
-    "You heard in the tavern: Magic crystals are not found in the Southern Desert"
+    "Customer asked: What are the office hours for customer support?",
+    "Support team responds: Our customer support is available Monday-Friday 9am-5pm EST",
+    "Note: Weekend support is not available at this time"
 ]
 ```
 
@@ -110,11 +110,11 @@ from nobodywho import CrossEncoder
 # Download a reranking model like bge-reranker-v2-m3-Q8_0.gguf
 crossencoder = CrossEncoder('./reranker-model.gguf')
 
-query = "Where can I find magic crystals?"
+query = "How do I install Python packages?"
 documents = [
-    "You asked about crystals yesterday",
-    "Magic crystals are found in the Northern Mountains",
-    "The Southern Desert has no crystals"
+    "Someone previously asked about Python packages",
+    "Use pip install package-name to install Python packages",
+    "Python packages are not included in the standard library"
 ]
 
 # Get relevance scores for each document
@@ -140,7 +140,7 @@ This returns documents ordered from most to least relevant.
 
 Retrieval-Augmented Generation (RAG) combines document search with LLM generation. The LLM uses retrieved documents to ground its responses in your knowledge base.
 
-Here's a complete example building a smart assistant with access to game lore:
+Here's a complete example building a customer service assistant with access to company policies:
 
 ```python
 from nobodywho import Chat, CrossEncoder
@@ -150,11 +150,11 @@ crossencoder = CrossEncoder('./reranker-model.gguf')
 
 # Your knowledge base
 knowledge = [
-    "The Crystal Mines contain valuable gems but are dangerous",
-    "Blacksmith Gareth pays double for rare materials",
-    "The old mine has been abandoned for years",
-    "Strange sounds echo from deep inside the mine at night",
-    "Magic crystals form naturally in the southern mines"
+    "Our company offers a 30-day return policy for all products",
+    "Free shipping is available on orders over $50",
+    "Customer support is available via email and phone",
+    "We accept credit cards, PayPal, and bank transfers",
+    "Order tracking is available through your account dashboard"
 ]
 
 # Create a tool that searches the knowledge base
@@ -172,12 +172,12 @@ def search_knowledge(query: str) -> str:
 # Create a chat with access to the knowledge base
 chat = Chat(
     './model.gguf',
-    system_prompt="You are a helpful assistant. Use the search_knowledge tool to find relevant information before answering questions.",
+    system_prompt="You are a customer service assistant. Use the search_knowledge tool to find relevant information from our policies before answering customer questions.",
     tools=[search_knowledge]
 )
 
 # The chat will automatically search the knowledge base when needed
-response = chat.ask("Where can I find crystals?").completed()
+response = chat.ask("What is your return policy?").completed()
 print(response)
 ```
 
@@ -199,8 +199,8 @@ async def main():
     embedding = await encoder.encode("What is the weather?")
     
     # Rank documents asynchronously
-    query = "Where are the crystals?"
-    docs = ["In the mountains", "In the desert", "In the caves"]
+    query = "What is our refund policy?"
+    docs = ["Refunds processed within 5-7 business days", "No refunds on sale items", "Contact support to initiate refund"]
     ranked = await crossencoder.rank_and_sort(query, docs)
     
     for doc, score in ranked:
@@ -248,8 +248,10 @@ crossencoder = CrossEncoder('./reranker-model.gguf')
 
 # Large knowledge base
 knowledge_base = [
-    "The ancient library contains scrolls about dragon lore",
-    "Blacksmith Gareth forges legendary weapons",
+    "Python 3.11 introduced performance improvements through faster CPython",
+    "The Django framework is used for building web applications",
+    "NumPy provides support for large multi-dimensional arrays",
+    "Pandas is the standard library for data manipulation and analysis",
     # ... 100+ more documents
 ]
 
@@ -278,12 +280,12 @@ def search(query: str) -> str:
 # Create RAG-enabled chat
 chat = Chat(
     './model.gguf',
-    system_prompt="You are a knowledgeable assistant. Always use the search tool to find relevant information before answering.",
+    system_prompt="You are a technical documentation assistant. Always use the search tool to find relevant information before answering programming questions.",
     tools=[search]
 )
 
 # The chat automatically searches and uses retrieved documents
-response = chat.ask("Tell me about legendary weapons").completed()
+response = chat.ask("What Python libraries are best for data analysis?").completed()
 print(response)
 ```
 

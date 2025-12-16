@@ -1,7 +1,7 @@
 ---
 title: Logging and Troubleshooting
-sidebar title: Logging
-order: 5
+sidebar_title: Logging
+order: 6
 ---
 
 # Logging and troubleshooting
@@ -10,7 +10,7 @@ The python bindings for NobodyWho integrate with python's standard `logging` uti
 
 In short, to enable debug logs:
 
-```
+```python
 import logging
 logging.basicConfig(level=logging.DEBUG)
 ```

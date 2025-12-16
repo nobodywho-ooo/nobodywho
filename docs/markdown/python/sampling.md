@@ -1,11 +1,11 @@
 ---
 title: Sampling
-description: NobodyWho is a lightweight, open-source AI engine for local LLM inference. Simple, privacy oriented with no infrastructure needed.
+description: A description of how samplers can be configured in NobodyWho
 sidebar_title: Sampling
 order: 3
 ---
 
-As you may know, current transformer-based LLMs are "just" clever next word prediction machines (also called auto-regressive). Since these next word predictions come not as a fixed word, but a probability distribution, we can choose how to pick the next word from the distribution. This is the job of a **sampler**, which using NobodyWho you can freely modify,
+The model does not produce tokens but rather a probability distribution over all possible tokens. We must then choose how to pick the next token from the distribution. This is the job of a **sampler**, which using NobodyWho you can freely modify,
 to achieve better quality outputs or constrain the outputs to some known format (e.g. JSON).
 
 ## Sampler presets
@@ -17,7 +17,7 @@ from nobodywho import SamplerPresets
 
 Chat("./model.gguf", sampler=SamplerPresets.temperature(0.2))
 ```
-Setting `temperature` to `0.2`, will then affect the sampler when choosing the next word, making the distribution less flat and therefore the model will favour more probable words.
+Setting `temperature` to `0.2`, will then affect the sampler when choosing the next token, making the distribution less flat and therefore the model will favour more probable tokens.
 
 To see the whole list of presets, check out the `SamplerPresets` class:
 ```python
@@ -57,11 +57,8 @@ sampler = SamplerPresets.grammar("""
 """)
 ```
 The format that NobodyWho utilizes is called GBNF, which is a Llama.cpp native format.
-For a nice specification, [head over to this site](https://github.com/ggml-org/llama.cpp/blob/master/grammars/README.md).
+See the [GBNF specification](https://github.com/ggml-org/llama.cpp/blob/master/grammars/README.md).
 
-<div style="background-color: red;">
-    TODO: Enable importing grammar from JSON.
-</div>
 
 ## Defining your own samplers
 

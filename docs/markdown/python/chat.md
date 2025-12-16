@@ -1,16 +1,16 @@
 ---
-title: Basics
-description: NobodyWho is a lightweight, open-source AI engine for local LLM inference. Simple, privacy oriented with no infrastructure needed.
-sidebar_title: Basics
+title: Chat
+description: A concise introduction to the Chat functionality of NobodyWho.
+sidebar_title: Chat
 order: 1
 ---
 
-As you may noticed in the [welcome guide](./index.md), every interaction with your LLM starts by instantiating a `Chat` object.
-In the following sections, we talk about which configuration options is has, and when to use them.
+As you may have noticed in the [welcome guide](./index.md), every interaction with your LLM starts by instantiating a `Chat` object.
+In the following sections, we talk about which configuration options it has, and when to use them.
 
 ## Prompts and responses
 
-The `Chat.ask()` function is central to NobodyWho. It is so named because it lets you say something to the LLM, and starts generating a response in return.
+The `Chat.ask()` function is central to NobodyWho. This function sends your message to the LLM, which then starts generating a response.
 
 ```python
 from nobodywho import Chat, TokenStream
@@ -71,17 +71,18 @@ This `system_prompt` is then persisted until the chat context is `reset`.
 
 ## Context
 
-The context is the text window which the LLM currently considers. Specifically this is the number of tokens the LLM keeps in memory and you can view it as the LLM's memory of your current conversation.
+The context is the text window which the LLM currently considers. Specifically this is the number of tokens the LLM keeps in memory for your current conversation.
 As bigger context size means more computational overhead, it makes sense to constrain it. This can be done with `n_ctx` setting, again at the time of creation:
 
 ```python
 chat = Chat("./model.gguf", n_ctx=4096)
 ```
 
-The default value is `2048`, however this is mainly usefull for short and simple conversations. Choosing the right context size is quite important and depends heavily on your use case. A good place to start is to look at your selected models documentation and see what their recommended context size is.<br> Even with properly selected context size it might happen that you fill up your entire context during a conversation. When this happens, NobodyWho will shrink the context for you. Currently this is done by removing old messages (apart from the system prompt and the first user message) from the chat history,
-until the size reaches `n_ctx / 2`. The KV cache is also updated automatically. In the future we plan on adding more advanced methods of context shrinking.
+The default value is `4096`, however this is mainly useful for short and simple conversations. Choosing the right context size is quite important and depends heavily on your use case. A good place to start is to look at your selected models documentation and see what their recommended context size is.
 
-Again, `n_ctx` is fixed to the `Chat` instance, so it is currently not possible to change the size after `Chat` is created. To reset the current context content, just call `.reset()` with the new system prompt and potentionally changed tools.
+Even with properly selected context size it might happen that you fill up your entire context during a conversation. When this happens, NobodyWho will shrink the context for you. Currently this is done by removing old messages (apart from the system prompt and the first user message) from the chat history, until the size reaches `n_ctx / 2`. The KV cache is also updated automatically. In the future we plan on adding more advanced methods of context shrinking.
+
+Again, `n_ctx` is fixed to the `Chat` instance, so it is currently not possible to change the size after `Chat` is created. To reset the current context content, just call `.reset()` with the new system prompt and potentially changed tools.
 
 ```{.python continuation}
 chat.reset(system_prompt="New system prompt", tools=[])
@@ -91,7 +92,7 @@ If you don't want to change the already set defaults (`system_prompt`, `tools`),
 
 ## Sharing model between contexts
 
-There are scenarios, where you would like to keep separate chat contexts (e.g. for every user of your app), but have only one model loaded. With plain `Chat` this is not possible.
+There are scenarios where you would like to keep separate chat contexts (e.g. for every user of your app), but have only one model loaded. With plain `Chat` this is not possible.
 
 For this use case, instead of the path to the `.gguf` model, you can pass in `Model` object, which can be shared between multiple `Chat` instances.
 
@@ -116,11 +117,11 @@ of more architectures is planned (for details check out our [issues](https://git
 
 ## Reasoning
 
-To enhance the cognitive performance, allowing reasoning can be a good idea:
+To enhance cognitive performance, allowing reasoning can be a good idea:
 ```python
 chat = Chat("./model.gguf", allow_thinking=True)
 ```
-Note that `Chat` has thinking set to `True` by default. Note that you can also change the setting
+Note that `Chat` has thinking set to `True` by default. You can also change the setting
 of an already existing chat instance:
 ```{.python continuation}
 chat.set_allow_thinking(True)

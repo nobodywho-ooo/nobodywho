@@ -93,7 +93,7 @@ You have two main approaches for handling LLM responses, and choosing the right 
 
 **Waiting for complete responses** waits until the full output is ready - good for when you need the entire response before doing something.
 
-If you're implemeting an interactive chat, you likely want to do both:
+If you're implementing an interactive chat, you likely want to do both:
 
 - Show each token to the user as they arrive. This will make the chat feel a lot faster.
 - Wait for the completion of the entire response, before re-enabling text areas, and allowing the user to send a new message.
@@ -119,9 +119,9 @@ func _on_response_finished(response: String):
 
 **When to wait for complete responses:**
 - When you need to make decisions based on the full LLM output
-- Content generation where partial results are useless (like json or structured output answers).
+- Content generation where partial results are useless (like JSON or structured output answers).
 
-you most likely end up using both; having the response_updated to stream to your UI and then triggering the next step in your program when you get the full response.
+You most likely end up using both; having the response_updated to stream to your UI and then triggering the next step in your program when you get the full response.
 
 ## Managing Context and Memory
 

@@ -71,7 +71,7 @@ In the example below the generated json will look something like this:
 }
 ```
 
-This is then used to construct a lazy loadable gbnf grammar, so the models always pass the correct number and set of arguments.
+This is then used to construct a lazy-loadable gbnf grammar, so the models always pass the correct number and set of arguments.
 A limitation of this is that we cannot extract the description from a given argument. 
 Therefore it might be advantageous to write your own schema for maximum precision.
 
@@ -138,7 +138,7 @@ As I mentioned before, we are using the OpenSchema specification, which goes lik
 }
 ```
 
-The type must always be an `object`, the properties are a dictionary of where the key is the parameter name, and the value describes the data for the parameter. Ie. type determines wheter it is a string, a list or something else. Description describes how the parameter is used. 
+The type must always be an `object`, the properties are a dictionary of where the key is the parameter name, and the value describes the data for the parameter. Ie. type determines whether it is a string, a list or something else. Description describes how the parameter is used. 
 
 If the properties are not a part of the `required` list, the model will see them as optional parameter.
 

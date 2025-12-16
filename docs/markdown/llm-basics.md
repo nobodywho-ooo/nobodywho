@@ -5,7 +5,7 @@ sidebar_title: LLM Basics
 order: 2
 ---
 
-Our goal with NobodyWho is to make easy to run local LLMs. This means we to have tried to make it possible to use NobodyWho with minimal knowledge of how LLM works. However you still need to know some basic concepts, so for these we provide some brief explanations. The concepts covered are tokens, context, samplers and tools. 
+Our goal with NobodyWho is to make it easy to run local LLMs. For this reason we have made it possible to use NobodyWho with minimal knowledge of how LLM works. However you still need to know some basic concepts, so for these we provide some brief explanations. The concepts covered are tokens, context, samplers and tools. 
 
 ## Tokens
 

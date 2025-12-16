@@ -1,8 +1,8 @@
 ---
 title: Streaming & Async API
-description: NobodyWho is a lightweight, open-source AI engine for local LLM inference. Simple, privacy oriented with no infrastructure needed.
+description: Illustrating the differences between Sync & Async in NobodyWho
 sidebar_title: Streaming & Async API
-order: 3
+order: 4
 ---
 
 Synchronously waiting for the full response to arrive can be costly. If your application
@@ -24,7 +24,7 @@ Still, bear in mind that for the individual tokens, you are waiting synchronousl
 
 ## Async API
 
-If you don't want to wait synchronously, swap out the `Chat` object for a `ChatAsync`. All of the API stays the same, so either you can opt for a full completed message:
+If you don't want to wait synchronously, swap out the `Chat` object for a `ChatAsync`. All of the API stays the same, so either you can opt for a full, completed message:
 ```python
 import asyncio
 from nobodywho import ChatAsync
