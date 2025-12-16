@@ -61,13 +61,29 @@ let
             vulkan-loader
             flutter335
           ];
+          # installPhase = ''
+          #   ls -la
+          #   exit 42
+          # '';
+        };
+
+        nobodywho-godot = attrs: {
+          nativeBuildInputs = [
+            # XXX: can we do this with propagatedNativeBuildInputs??
+            # this needs to be available at link-time
+            vulkan-loader
+          ];
+          # installPhase = ''
+          #   ls -la
+          #   exit 42
+          # '';
         };
       };
     };
 
   generatedCargoNix = crate2nix.tools.${stdenv.hostPlatform.system}.generatedCargoNix {
-    name = "nobodywho-flutter";
-    src = ../../.;
+    name = "nobodywho";
+    src = ./.;
   };
 
   cargoNix = import generatedCargoNix {

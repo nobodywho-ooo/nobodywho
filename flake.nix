@@ -38,22 +38,43 @@
           }
         );
 
-        workspace = pkgs.callPackage ./nobodywho { inherit crate2nix; };
+        workspace = pkgs.callPackage ./nobodywho/workspace.nix { inherit crate2nix; };
 
-        nobodywho-flutter = workspace.workspaceMembers.nobodywho-flutter;
-        nobodywho-godot = workspace.workspaceMembers.nobodywho-godot;
+        # python stuff
         nobodywho-python = pkgs.callPackage ./nobodywho/python { };
+
+        # flutter stuff
+        nobodywho-flutter = workspace.workspaceMembers.nobodywho-flutter.build;
+        flutter_example_app = pkgs.callPackage ./nobodywho/flutter/example_app {
+          nobodywho_flutter_rust = nobodywho-flutter;
+        };
+
+        # godot stuff
+        nobodywho-godot = workspace.workspaceMembers.nobodywho-godot.build;
+        godot-integration-test = pkgs.callPackage ./nobodywho/godot/integration-test {
+          inherit nobodywho-godot;
+        };
+        run-godot-integration-test =
+          pkgs.runCommand "checkgame"
+            {
+              nativeBuildInputs = [ pkgs.mesa ];
+            }
+            ''
+              cd ${godot-integration-test}
+              export HOME=$TMPDIR
+              ./game --headless
+              touch $out
+            '';
       in
       {
-        # default: the godot gdextension dynamic lib
-        packages.default = nobodywho-godot.nobodywho-godot;
+        # the godot gdextension dynamic lib
+        packages.default = nobodywho-godot;
 
         # checks
-        checks.default = pkgs.callPackage ./nobodywho/flutter/example_app { };
-        checks.flutter_example_app = pkgs.callPackage ./nobodywho/flutter/example_app { };
+        checks.default = flutter_example_app;
+        checks.flutter_example_app = flutter_example_app;
         checks.build-godot = nobodywho-godot;
-        # TODO:
-        # checks.godot-integration-test = nobodywho-godot.run-integration-test;
+        checks.godot-integration-test = run-godot-integration-test;
 
         checks.nobodywho-python = nobodywho-python;
 
@@ -64,8 +85,8 @@
         packages.nobodywho-godot = nobodywho-godot.nobodywho-godot;
 
         # flutter stuff
-        packages.flutter_example_app = pkgs.callPackage ./nobodywho/flutter/example_app { };
-        packages.flutter_rust = pkgs.callPackage ./nobodywho/flutter/rust { inherit crate2nix; };
+        packages.flutter_example_app = flutter_example_app;
+        packages.flutter_rust = nobodywho-flutter;
 
         # python stuff
         packages.nobodywho-python = nobodywho-python;
