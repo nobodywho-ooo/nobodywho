@@ -84,8 +84,8 @@ Remember that you need an open model, in order to be able to find a GGUF downloa
 
 Once you have decided on an LLM you want to try, you can usually find it on one of the big HuggingFace pages:
 
-- https://huggingface.co/bartowski
-- https://huggingface.co/unsloth/models
+- <https://huggingface.co/bartowski>
+- <https://huggingface.co/unsloth/models>
 
 You can also just search "<modelname> GGUF" in your favorite search engine.
 
