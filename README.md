@@ -5,7 +5,7 @@
 [![Mastodon](https://img.shields.io/badge/Mastodon-6364FF?logo=mastodon&logoColor=fff&style=flat-square)](https://mastodon.gamedev.place/@nobodywho)
 [![Godot Engine](https://img.shields.io/badge/Godot-%23FFFFFF.svg?logo=godot-engine&style=flat-square)](https://godotengine.org/asset-library/asset/2886)
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg?style=flat-square)](CODE_OF_CONDUCT.md) 
-[![Docs](https://img.shields.io/badge/Read%20the%20Docs-8CA1AF?logo=readthedocs&logoColor=fff)](https://nobodywho-ooo.github.io/nobodywho/)
+[![Docs](https://img.shields.io/badge/Docs-lightblue?style=flat-square)](https://docs.nobodywho.ooo)
 
 
 NobodyWho is a library that lets you run LLMs locally and efficiently on any device.
@@ -90,6 +90,10 @@ You can install it from inside the Godot editor: In Godot 4.4+, go to AssetLib a
 Make sure that the ignore asset root option is set in the import dialogue.
 
 For further instructions on how to setup NobodyWho in Godot please refer to our docs.
+
+## Documentation
+
+[The documentation](https://docs.nobodywho.ooo) has everything you might want to know: https://docs.nobodywho.ooo/
 
 ## How to Help 
 
