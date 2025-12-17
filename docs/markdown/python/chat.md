@@ -24,7 +24,7 @@ Each token is either an individual word or fragments of a word.
 
 ```{.python continuation}
 for token in response:
-   print(token, end="")
+   print(token, end="", flush=True)
 print("\n")
 ```
 

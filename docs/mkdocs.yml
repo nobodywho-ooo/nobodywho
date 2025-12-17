@@ -23,6 +23,7 @@ nav:
       - Tool calling: godot/chat/tool-calling.md
       - Embeddings: godot/embeddings.md
       - RAG: godot/rag.md
+      - FAQ: godot/faq.md
 
 # github link in the top right
 repo_url: https://github.com/nobodywho-ooo/nobodywho

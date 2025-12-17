@@ -17,7 +17,7 @@ over the response object:
 chat = Chat('./model.gguf')
 response = chat.ask('How are you?')
 for token in response:
-    print(token)
+    print(token, end="", flush=True)
 ```
 
 Still, bear in mind that for the individual tokens, you are waiting synchronously.
@@ -45,7 +45,7 @@ async def main():
     chat = ChatAsync('./model.gguf')
     response = chat.ask('How are you?')
     async for token in response:
-        print(token)
+        print(token, end="", flush=True)
 
 asyncio.run(main())
 ```
