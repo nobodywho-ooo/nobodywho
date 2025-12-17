@@ -1,6 +1,11 @@
 name: "Docs"
 on:
   workflow_call:
+    secrets:
+      CLOUDFLARE_API_TOKEN:
+        required: true
+      CLOUDFLARE_ACCOUNT_ID:
+        required: true
 permissions:
   contents: write
   pages: write
