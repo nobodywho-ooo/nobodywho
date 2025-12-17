@@ -38,5 +38,8 @@ jobs:
       PYPI_AUTH_TOKEN: ${{ secrets.PYPI_AUTH_TOKEN }}
 
   docs:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/deploy-cloudflare-pages'
     uses: ./.github/workflows/docs.yml
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
