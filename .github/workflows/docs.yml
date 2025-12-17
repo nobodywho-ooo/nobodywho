@@ -5,6 +5,7 @@ permissions:
   contents: write
   pages: write
   id-token: write
+  deployments: write
 jobs:
   deploy-pages:
     runs-on: ubuntu-latest
@@ -30,11 +31,11 @@ jobs:
         working-directory: ./docs
         run: uv run mkdocs build
 
-      - uses: actions/upload-pages-artifact@v4
+      - name: Deploy to cloudflare pages
+        uses: cloudflare/wrangler-action@v3
         with:
-          name: docs
-          path: docs/site
-
-      - uses: actions/deploy-pages@v4
-        with:
-          artifact_name: docs
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy ./docs/site/ --project-name=nobodywho-docs
+          # Optional: Enable this if you want to have GitHub Deployments triggered
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
