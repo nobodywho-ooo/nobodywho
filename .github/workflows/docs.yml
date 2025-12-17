@@ -36,6 +36,9 @@ jobs:
         working-directory: ./docs
         run: uv run mkdocs build
 
+      - name: "DEBUG: list files in docs/site"
+        run: ls -la ./docs/site/
+
       - name: Deploy to cloudflare pages
         uses: cloudflare/wrangler-action@v3
         with:
