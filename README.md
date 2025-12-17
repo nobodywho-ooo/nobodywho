@@ -24,31 +24,31 @@ We currently support Python and Godot, with more integrations on the way.
 * 🤖 Compatible with thousands of pre-trained LLMs - use any LLM in the GGUF format
 * 🦙 Powered by the wonderful [llama.cpp](https://github.com/ggml-org/llama.cpp)
 
+## Documentation
 
-## How to Install
+[The documentation](https://nobodywho-ooo.github.io/nobodywho/) has everything you might want to know: https://nobodywho-ooo.github.io/nobodywho/
 
-### Python
 
-Just do as usual:
+## Python
+
+### Quick Start
+
+Start by installing NobodyWho. This is simply
 
 ```sh
 pip install nobodywho
 ```
 
-### Godot 
+Next download a model. For a quick start we recommend this [one](https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q5_K_L.gguf). It is quite small, but will get the job done.
 
-You can install it from inside the Godot editor: In Godot 4.4+, go to AssetLib and search for "NobodyWho".
+Then you can try to get a response from the model with the following code snippet:
+```python
+from nobodywho import Chat, TokenStream
+chat = Chat("./path/to/your/model.gguf")
+response: TokenStream = chat.ask("Is water wet?")
+```
 
-...or you can grab a specific version from our [github releases page.](https://github.com/nobodywho-ooo/nobodywho/releases) You can install these zip files by going to the "AssetLib" tab in Godot and selecting "Import".
-
-Make sure that the ignore asset root option is set in the import dialogue.
-
-## Quick Start
-
-### Python 
-First download a model. For a quick start we recommend this [one](https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q5_K_L.gguf). It is quite small, but will get the job done.
-
-Then try setting up a simple chat with the following code snippet
+You can also setup a basic chat bot very quickly with the code snippet below: 
 
 ```python
 from nobodywho import Chat, TokenStream
@@ -62,14 +62,34 @@ while True:
 
 ```
 
-### Godot
+### Tool calling
 
-For Godot the quick start is slightly less quick so we recommend you take a look at our docs.
+Once you have a chat up and running you will likely want to give it access to tools. This is very easy in NobodyWho:
 
-## Documentation
+```python
+import math
+from nobodywho import tool, Chat
 
-[The documentation](https://nobodywho-ooo.github.io/nobodywho/) has everything you might want to know: https://nobodywho-ooo.github.io/nobodywho/
+@tool(description="Calculates the area of a circle given its radius")
+def circle_area(radius: float) -> str:
+    area = math.pi * radius ** 2
+    return f"Circle with radius {radius} has area {area:.2f}"
 
+chat = Chat("./path/to/your/model.gguf", tools=[circle_area])
+```
+
+Adding tools to your chat like above will automatically make these available to the model.
+There plenty of things you can do with tools and many of these are coverend in our docs.
+
+## Godot
+
+You can install it from inside the Godot editor: In Godot 4.4+, go to AssetLib and search for "NobodyWho".
+
+...or you can grab a specific version from our [github releases page.](https://github.com/nobodywho-ooo/nobodywho/releases) You can install these zip files by going to the "AssetLib" tab in Godot and selecting "Import".
+
+Make sure that the ignore asset root option is set in the import dialogue.
+
+For further instructions on how to setup NobodyWho in Godot please refer to our docs.
 
 ## How to Help 
 
