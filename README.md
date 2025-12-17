@@ -24,10 +24,6 @@ We currently support Python and Godot, with more integrations on the way.
 * 🤖 Compatible with thousands of pre-trained LLMs - use any LLM in the GGUF format
 * 🦙 Powered by the wonderful [llama.cpp](https://github.com/ggml-org/llama.cpp)
 
-## Documentation
-
-[The documentation](https://nobodywho-ooo.github.io/nobodywho/) has everything you might want to know: https://nobodywho-ooo.github.io/nobodywho/
-
 
 ## Python
 
