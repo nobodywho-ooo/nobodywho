@@ -391,7 +391,7 @@ func generate_weapon():
 
     # Reset context to avoid new weapons to be influenced by already generated ones.
     chat.reset_context()
-    chat.say("Generate a weapon:")
+    chat.ask("Generate a weapon:")
 
 func _on_weapon_generated(weapon_name: String):
     print(weapon_name)
@@ -431,7 +431,7 @@ func generate_weapon():
 
     # Reset context to avoid new weapons to be influenced by already generated ones.
     chat.reset_context()
-    chat.say("Generate a weapon:")
+    chat.ask("Generate a weapon:")
 
 func _on_weapon_generated(weapon_data: String):
     print(weapon_data)
@@ -471,16 +471,11 @@ func _ready():
 
 
 func generate_weapon():
-    var sampler = NobodyWhoSampler.new()
-    sampler.use_grammar = true
-    sampler.gbnf_grammar = grammar_string
-    # Generate random seed for variety
-    sampler.seed = randi()
-    chat.sampler = sampler
-    
+    chat.set_sampler_preset_grammar(grammar_string)
+
     # Reset context to avoid new weapons to be influenced by already generated ones.
     chat.reset_context()
-    chat.say("The party just found a new weapon after travelling through the mines of Moria:")
+    chat.ask("The party just found a new weapon after travelling through the mines of Moria:")
 
 func _on_weapon_generated(weapon_data: String):
     print(weapon_data)

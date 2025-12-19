@@ -99,7 +99,7 @@ func open_door(door_id: String) -> String:
 
 add_tool(open_door, "Opens a door in the world by id")
 
-chat.say("can you open the door")
+chat.ask("can you open the door")
 ```
 
 The model will pause any generation until the tool is completed.

@@ -177,7 +177,7 @@ First, let's create a knowledge base for our tavern keeper - everything this spe
         if Input.is_action_just_pressed("enter"):
             var test_question = "Where is strider?"
             print("Player asks Finn: ", test_question)
-            say(test_question)
+            ask(test_question)
     ```
 
 
@@ -331,7 +331,7 @@ func _process(delta):
     if Input.is_action_just_pressed("enter"):
         var test_question = "Where is strider?"
         print("Player asks Finn: ", test_question)
-        say(test_question)
+        ask(test_question)
 
 # Tool function that the LLM can call to search the knowledge base
 func remember(query: String) -> String:
