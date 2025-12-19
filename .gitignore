@@ -4,6 +4,7 @@
 .envrc
 .direnv/
 .DS_Store
+.claude
 python_dev_envs/
 checkpoints/
 docs/site/
