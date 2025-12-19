@@ -169,7 +169,9 @@ impl NobodyWhoChat {
     fn get_model(&mut self) -> Result<llm::Model, GString> {
         let gd_model_node = self.model_node.as_mut().ok_or("Model node was not set")?;
         let mut nobody_model = gd_model_node.bind_mut();
-        let model: llm::Model = nobody_model.get_model().map_err(|e| GString::from(e.to_string().as_str()))?;
+        let model: llm::Model = nobody_model
+            .get_model()
+            .map_err(|e| GString::from(e.to_string().as_str()))?;
 
         Ok(model)
     }
@@ -199,6 +201,12 @@ impl NobodyWhoChat {
         );
         self.chat_handle = Some(chat_handle);
         Ok(())
+    }
+
+    #[func]
+    fn say(&mut self, message: String) {
+        godot_warn!("DEPRECATED: the `say` function has been renamed to `ask`, to indicate that it generates a response. `say` will be removed in the future.");
+        self.ask(message)
     }
 
     #[func]
