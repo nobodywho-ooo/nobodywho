@@ -67,10 +67,10 @@ func _ready():
     # Start the worker, this is not required, but recommended to do in
     # the beginning of the program to make sure it is ready
     # when the user prompts the chat the first time. This will be called
-    # under the hood when you use `say()` as well.
+    # under the hood when you use `ask()` as well.
     self.start_worker()
 
-    self.say("How are you?")
+    self.ask("How are you?")
 
 func _on_response_updated(token):
     # this will print every time a new token is generated

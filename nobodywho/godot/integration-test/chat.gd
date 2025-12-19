@@ -127,7 +127,7 @@ func test_stop_generation():
 
 	# test get/set history w/ tool call messages in there
 	var messages = await get_chat_history()
-	set_chat_history(messages)
+	await set_chat_history(messages)
 	var messages_again = await get_chat_history()
 	assert(messages == messages_again)
 

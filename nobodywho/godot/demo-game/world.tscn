@@ -1,15 +1,10 @@
-[gd_scene load_steps=9 format=3 uid="uid://bvcdl8qvga2hb"]
+[gd_scene load_steps=8 format=3 uid="uid://bvcdl8qvga2hb"]
 
 [ext_resource type="Script" path="res://chat.gd" id="1_f7oge"]
 [ext_resource type="Texture2D" uid="uid://bg2u7yyo5vql6" path="res://images/00046-1991569093.png" id="2_16oig"]
 [ext_resource type="Texture2D" uid="uid://dey8lpwhodhxl" path="res://images/red_potion.png" id="3_f6k1y"]
 [ext_resource type="Texture2D" uid="uid://bo76e0gfsfyl" path="res://images/orange_potion.png" id="3_i6d4h"]
 [ext_resource type="Texture2D" uid="uid://b6n88gaf1tpmq" path="res://images/blue_potion.png" id="4_2gslt"]
-
-[sub_resource type="NobodyWhoSampler" id="NobodyWhoSampler_iakhw"]
-method = "MinP"
-min_keep = 0
-min_p = 0.05
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_um0sp"]
 bg_color = Color(0.93408, 0.93408, 0.93408, 1)
@@ -53,7 +48,6 @@ model_path = "res://bge-m3-q8_0.gguf"
 
 [node name="NobodyWhoChat" type="NobodyWhoChat" parent="." node_paths=PackedStringArray("model_node")]
 model_node = NodePath("../ChatModel")
-sampler = SubResource("NobodyWhoSampler_iakhw")
 system_prompt = "The following is a roleplay dialogue between the user and you.
 You will play the medieval-fantasy potionshop shopkeeper named Foobar.
 You are the owner of the potion shop. You are friendly, but serious.

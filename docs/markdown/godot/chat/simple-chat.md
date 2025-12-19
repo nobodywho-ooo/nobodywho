@@ -155,23 +155,8 @@ var task_context = [
     {"role": "assistant", "content": "I'm ready to analyze data. Please provide it."},
     {"role": "user", "content": "Here's the data: " + data_to_analyze}
 ]
-set_chat_history(task_context)
+await set_chat_history(task_context)
 ```
-
-### Stop Words: Controlling LLM Output
-
-Some LLMs can be very verbose and you might want the LLM to limit its verbosity and stop generating at specific words or phrases:
-
-```gdscript
-chat.system_prompt = "Always answer with a question, no matter what."
-chat.stop_words = PackedStringArray(["?"])
-chat.say("I think we should plan something special for Sarah's birthday. any ideas?")
-
-# The LLM will generate something like:
-# llm: "What do you think about a surprise party?" (stops here)
-```
-
-This is useful when you want to prevent the LLM from running on. You can end generation prematurely, conditioned on specific words.
 
 ### Enforce Structured Output (JSON)
 
@@ -180,13 +165,13 @@ For reliable data extraction, you can force the LLM to output a response that st
 When you enable grammar without providing a custom grammar string, the system defaults to a built-in JSON grammar that ensures valid JSON output.
 
 ```gdscript
-# configure the sampler to use the json preset
-chat.sampler.set_preset_json()
+# Set the sampler to use the json preset
+chat.set_sampler_preset_json()
 
 # Tell the LLM to provide structured data
-chat.system_prompt = """You are a character creator. 
+chat.system_prompt = """You are a character creator.
 Generate a character with name, weapon, and armor properties."""
-chat.say("Create a fantasy character")
+chat.ask("Create a fantasy character")
 
 # Expected output will be valid JSON, like:
 # {"name": "Eldara", "weapon": "enchanted bow", "armor": "leather vest"}
@@ -243,8 +228,8 @@ func _ready():
     extractor_chat.start_worker()
 
     # Now you can use both for different tasks without loading two models!
-    casual_chat.say("Can you tell me about your capabilities?")
-    extractor_chat.say("My name is Jane Doe and my email is jane@example.com.")
+    casual_chat.ask("Can you tell me about your capabilities?")
+    extractor_chat.ask("My name is Jane Doe and my email is jane@example.com.")
 ```
 
 **Memory savings:** Instead of loading multiple models, you load one and share it. Much more efficient!  

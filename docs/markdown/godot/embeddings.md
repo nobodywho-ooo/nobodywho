@@ -42,10 +42,10 @@ The first step is to setup our components. We will add some statements for quest
 **Do note** that it will take a longer time to embed a lot of sentences (depending on model and hardware of course), so depending on how complex your statements need to be, 
 you might be better off having a handful and tuning the sensitivity of the trigger instead.
 
-First, create your script that extends `NobodyWhoEmbedding` and define your statement categories:
+First, create your script that extends `NobodyWhoEncoder` and define your statement categories:
 
 ```gdscript
-extends NobodyWhoEmbedding
+extends NobodyWhoEncoder
 
 var quest_triggers= [
     "I know where the dragon rests",
@@ -81,7 +81,7 @@ func _ready():
     
     # Link to the embedding model
     self.model_node = embedding_model
-    self.embedding_finished.connect(_on_embedding_finished)
+    self.encoding_finished.connect(_on_encoding_finished)
     self.start_worker()
     
     # Pre-generate embeddings for all statement types
@@ -97,14 +97,14 @@ Generate embeddings for all your reference statements:
 func precompute_all_embeddings():
     # Generate embeddings for helpful statements
     for statement in quest_triggers:
-        embed(statement)
-        var embedding = await self.embedding_finished
+        encode(statement)
+        var embedding = await self.encoding_finished
         helpful_embeddings.append(embedding)
-    
+
     # Generate embeddings for hostile statements
     for statement in hostile_statements:
-        embed(statement)
-        var embedding = await self.embedding_finished
+        encode(statement)
+        var embedding = await self.encoding_finished
         hostile_embeddings.append(embedding)
 ```
 
@@ -132,8 +132,8 @@ Compare the player's message against your reference embeddings:
 ```gdscript
 func analyze_player_statement(player_text: String):
     # Generate embedding for player input
-    embed(player_text)
-    var player_embedding = await self.embedding_finished
+    encode(player_text)
+    var player_embedding = await self.encoding_finished
     
     # Compare against both categories
     var best_helpful_similarity = get_best_similarity(player_embedding, helpful_embeddings)

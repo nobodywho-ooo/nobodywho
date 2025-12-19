@@ -29,9 +29,9 @@ func user_submitted_text():
 	
 	# reset the speech bubble
 	%SpeechBubbleLabel.text = ""
-	
+
 	# send user text to the llm
-	say(%TextEdit.text)
+	ask(%TextEdit.text)
 	
 	# test if they asked to buy a potion
 	var potion = await match_sentence(%TextEdit.text)
@@ -109,7 +109,7 @@ func _on_yes_button_pressed() -> void:
 	%SpeechBubbleLabel.text = ""
 	%ConfirmBox.visible = false
 
-	say("*user has confirmed buying a " + selected_potion + "*")
+	ask("*user has confirmed buying a " + selected_potion + "*")
 	selected_potion = null
 
 func _on_no_button_pressed() -> void:

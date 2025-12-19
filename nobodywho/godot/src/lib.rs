@@ -27,85 +27,6 @@ unsafe impl ExtensionLibrary for NobodyWhoExtension {
     }
 }
 
-/// Configuration for text generation sampling strategies.
-///
-/// The sampler controls how the LLM selects tokens during generation, affecting
-/// the randomness, coherence, and style of the output. Use the preset methods
-/// to configure different sampling strategies like greedy, top-k, top-p, temperature,
-/// DRY, JSON, or custom grammars.
-#[derive(GodotClass)]
-#[class(init, base=Object)]
-#[derive(Default)]
-struct NobodyWhoSampler {
-    sampler_config: SamplerConfig,
-}
-
-#[godot_api]
-impl NobodyWhoSampler {
-    /// Sets the sampler to use default sampling parameters.
-    /// This provides a balanced configuration suitable for most use cases.
-    #[func]
-    fn set_preset_default(&mut self) {
-        self.sampler_config = SamplerConfig::default();
-    }
-
-    /// Sets the sampler to use greedy sampling.
-    /// Always selects the most likely token at each step, resulting in deterministic output.
-    /// Use this for predictable, focused responses.
-    #[func]
-    fn set_preset_greedy(&mut self) {
-        self.sampler_config = SamplerPresets::greedy();
-    }
-
-    /// Sets the sampler to use top-k sampling.
-    /// Only considers the k most likely tokens at each step.
-    /// Lower values (e.g., 10-40) make output more focused, higher values more diverse.
-    #[func]
-    fn set_preset_top_k(&mut self, k: i32) {
-        self.sampler_config = SamplerPresets::top_k(k);
-    }
-
-    /// Sets the sampler to use top-p (nucleus) sampling.
-    /// Considers tokens until their cumulative probability reaches p.
-    /// Values like 0.9-0.95 provide a good balance between coherence and creativity.
-    #[func]
-    fn set_preset_top_p(&mut self, p: f32) {
-        self.sampler_config = SamplerPresets::top_p(p);
-    }
-
-    /// Sets the sampler to use temperature-based sampling.
-    /// Higher values (e.g., 0.8-1.2) increase randomness and creativity.
-    /// Lower values (e.g., 0.2-0.5) make output more focused and deterministic.
-    #[func]
-    fn set_preset_temperature(&mut self, temperature: f32) {
-        self.sampler_config = SamplerPresets::temperature(temperature);
-    }
-
-    /// Sets the sampler to use DRY (Don't Repeat Yourself) sampling.
-    /// Helps reduce repetitive text by penalizing recently generated tokens.
-    /// Useful for longer text generation where repetition is undesirable.
-    #[func]
-    fn set_preset_dry(&mut self) {
-        self.sampler_config = SamplerPresets::dry();
-    }
-
-    /// Sets the sampler to enforce JSON output format.
-    /// Constrains the model to generate valid JSON.
-    /// Useful when you need structured data from the LLM.
-    #[func]
-    fn set_preset_json(&mut self) {
-        self.sampler_config = SamplerPresets::json();
-    }
-
-    /// Sets the sampler to use a custom GBNF grammar.
-    /// Constrains the model output to match the provided grammar specification.
-    /// Use GBNF format (similar to EBNF) to define the structure of valid output.
-    #[func]
-    fn set_preset_grammar(&mut self, grammar: String) {
-        self.sampler_config = SamplerPresets::grammar(grammar);
-    }
-}
-
 #[derive(GodotClass)]
 #[class(base=Node)]
 /// The model node is used to load the model, currently only GGUF models are supported.
@@ -125,10 +46,10 @@ struct NobodyWhoModel {
 impl INode for NobodyWhoModel {
     fn init(_base: Base<Node>) -> Self {
         // default values to show in godot editor
-        let model_path: String = "model.gguf".into();
+        let model_path: GString = GString::from("model.gguf");
 
         Self {
-            model_path: model_path.into(),
+            model_path: model_path,
             use_gpu_if_available: true,
             model: None,
         }
@@ -185,8 +106,8 @@ impl NobodyWhoModel {
 ///     self.model_node = get_node("../ChatModel")
 ///     self.system_prompt = "You are an evil wizard. Always try to curse anyone who talks to you."
 ///
-///     # say something
-///     say("Hi there! Who are you?")
+///     # ask something
+///     ask("Hi there! Who are you?")
 ///
 ///     # wait for the response
 ///     var response = await response_finished
@@ -206,10 +127,6 @@ struct NobodyWhoChat {
     #[var(hint = MULTILINE_TEXT)]
     /// The system prompt for the chat, this is the basic instructions for the LLM's behavior.
     system_prompt: GString,
-
-    /// The sampler configuration for the chat.
-    #[var]
-    sampler: Gd<NobodyWhoSampler>,
 
     #[export]
     allow_thinking: bool,
@@ -234,7 +151,7 @@ impl INode for NobodyWhoChat {
         Self {
             // defaults
             tools: default_config.tools,
-            system_prompt: default_config.system_prompt.into(),
+            system_prompt: GString::from(default_config.system_prompt.as_str()),
             context_length: default_config.n_ctx,
             allow_thinking: default_config.allow_thinking,
 
@@ -243,7 +160,6 @@ impl INode for NobodyWhoChat {
             chat_handle: None,
             signal_counter: AtomicU64::new(0),
             base,
-            sampler: Gd::from_init_fn(|_| NobodyWhoSampler::default()),
         }
     }
 }
@@ -253,7 +169,9 @@ impl NobodyWhoChat {
     fn get_model(&mut self) -> Result<llm::Model, GString> {
         let gd_model_node = self.model_node.as_mut().ok_or("Model node was not set")?;
         let mut nobody_model = gd_model_node.bind_mut();
-        let model: llm::Model = nobody_model.get_model().map_err(|e| e.to_string())?;
+        let model: llm::Model = nobody_model
+            .get_model()
+            .map_err(|e| GString::from(e.to_string().as_str()))?;
 
         Ok(model)
     }
@@ -278,11 +196,17 @@ impl NobodyWhoChat {
                 tools: self.tools.clone(),
                 n_ctx: self.context_length,
                 allow_thinking: self.allow_thinking,
-                sampler_config: self.sampler.bind().sampler_config.clone(),
+                sampler_config: SamplerConfig::default(),
             },
         );
         self.chat_handle = Some(chat_handle);
         Ok(())
+    }
+
+    #[func]
+    fn say(&mut self, message: String) {
+        godot_warn!("DEPRECATED: the `say` function has been renamed to `ask`, to indicate that it generates a response. `say` will be removed in the future.");
+        self.ask(message)
     }
 
     #[func]
@@ -308,11 +232,11 @@ impl NobodyWhoChat {
                     nobodywho::llm::WriteOutput::Token(tok) => emit_node
                         .signals()
                         .response_updated()
-                        .emit(&GString::from(tok)),
+                        .emit(&GString::from(tok.as_str())),
                     nobodywho::llm::WriteOutput::Done(resp) => emit_node
                         .signals()
                         .response_finished()
-                        .emit(&GString::from(resp)),
+                        .emit(&GString::from(resp.as_str())),
                 }
             }
         });
@@ -354,29 +278,6 @@ impl NobodyWhoChat {
     }
 
     #[func]
-    fn set_sampler_config(&mut self) {
-        // Clone the handle so we don't hold a reference to self
-        let chat_handle = match self.chat_handle.as_ref() {
-            Some(handle) => handle.clone(),
-            None => {
-                godot_error!("Attempted to set sampler config, but no worker is running.");
-                return;
-            }
-        };
-
-        let sampler = self.sampler.bind().sampler_config.clone();
-
-        godot::task::spawn(async move {
-            match chat_handle.set_sampler_config(sampler).await {
-                Ok(()) => (),
-                Err(errmsg) => {
-                    godot_error!("Error: {}", errmsg.to_string());
-                }
-            }
-        });
-    }
-
-    #[func]
     fn get_chat_history(&mut self) -> Variant {
         // Clone the handle so we don't hold a reference to self
         let chat_handle = match self.chat_handle.as_ref() {
@@ -403,7 +304,7 @@ impl NobodyWhoChat {
                 emit_node.emit_signal(&signal_name_copy, &[]);
                 return;
             };
-            let godot_dict_msgs: Array<Dictionary> = messages_to_dictionaries(&chat_history);
+            let godot_dict_msgs: Array<VarDictionary> = messages_to_dictionaries(&chat_history);
             let godot_variant_array: Array<Variant> =
                 godot_dict_msgs.iter_shared().map(Variant::from).collect();
 
@@ -507,7 +408,7 @@ impl NobodyWhoChat {
     ///     add_tool(add_numbers, "Adds two integers")
     ///
     ///     # see that the llm invokes the tool
-    ///     say("What is two plus two?")
+    ///     ask("What is two plus two?")
     /// ```
     fn add_tool(&mut self, callable: Callable, description: String) {
         if self.chat_handle.is_some() {
@@ -555,7 +456,7 @@ impl NobodyWhoChat {
     ///     add_tool_with_schema(add_numbers, "Adds two integers", json_schema)
     ///
     ///     # see that the llm invokes the tool
-    ///     say("What is two plus two?")
+    ///     ask("What is two plus two?")
     /// ```
     fn add_tool_with_schema(
         &mut self,
@@ -697,16 +598,29 @@ impl NobodyWhoChat {
         set_log_level(&level);
     }
 
+    fn set_sampler_preset_impl(&mut self, sampler: SamplerConfig) {
+        let Some(chat_handle) = self.chat_handle.as_ref() else {
+            godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
+            match self.start_worker_impl() {
+                Err(msg) => {
+                    godot_error!("Failed auto-starting the worker: {}", msg);
+                    return;
+                }
+                Ok(_) => return self.set_sampler_preset_impl(sampler),
+            };
+        };
+
+        let chat_handle = chat_handle.clone();
+        let _ = godot::task::spawn(async move {
+            let _ = chat_handle.set_sampler_config(sampler).await;
+        });
+    }
+
     /// Sets the sampler to use default sampling parameters.
     /// This provides a balanced configuration suitable for most use cases.
     #[func]
     fn set_sampler_preset_default(&mut self) {
-        if let Some(chat_handle) = self.chat_handle.as_ref().cloned() {
-            let sampler = SamplerConfig::default();
-            let _ = godot::task::spawn(async move {
-                let _ = chat_handle.set_sampler_config(sampler).await;
-            });
-        }
+        self.set_sampler_preset_impl(SamplerConfig::default());
     }
 
     /// Sets the sampler to use greedy sampling.
@@ -714,12 +628,7 @@ impl NobodyWhoChat {
     /// Use this for predictable, focused responses.
     #[func]
     fn set_sampler_preset_greedy(&mut self) {
-        if let Some(chat_handle) = self.chat_handle.as_ref().cloned() {
-            let sampler = SamplerPresets::greedy();
-            let _ = godot::task::spawn(async move {
-                let _ = chat_handle.set_sampler_config(sampler).await;
-            });
-        }
+        self.set_sampler_preset_impl(SamplerPresets::greedy());
     }
 
     /// Sets the sampler to use top-k sampling.
@@ -727,12 +636,7 @@ impl NobodyWhoChat {
     /// Lower values (e.g., 10-40) make output more focused, higher values more diverse.
     #[func]
     fn set_sampler_preset_top_k(&mut self, k: i32) {
-        if let Some(chat_handle) = self.chat_handle.as_ref().cloned() {
-            let sampler = SamplerPresets::top_k(k);
-            let _ = godot::task::spawn(async move {
-                let _ = chat_handle.set_sampler_config(sampler).await;
-            });
-        }
+        self.set_sampler_preset_impl(SamplerPresets::top_k(k));
     }
 
     /// Sets the sampler to use top-p (nucleus) sampling.
@@ -740,12 +644,7 @@ impl NobodyWhoChat {
     /// Values like 0.9-0.95 provide a good balance between coherence and creativity.
     #[func]
     fn set_sampler_preset_top_p(&mut self, p: f32) {
-        if let Some(chat_handle) = self.chat_handle.as_ref().cloned() {
-            let sampler = SamplerPresets::top_p(p);
-            let _ = godot::task::spawn(async move {
-                let _ = chat_handle.set_sampler_config(sampler).await;
-            });
-        }
+        self.set_sampler_preset_impl(SamplerPresets::top_p(p));
     }
 
     /// Sets the sampler to use temperature-based sampling.
@@ -753,12 +652,7 @@ impl NobodyWhoChat {
     /// Lower values (e.g., 0.2-0.5) make output more focused and deterministic.
     #[func]
     fn set_sampler_preset_temperature(&mut self, temperature: f32) {
-        if let Some(chat_handle) = self.chat_handle.as_ref().cloned() {
-            let sampler = SamplerPresets::temperature(temperature);
-            let _ = godot::task::spawn(async move {
-                let _ = chat_handle.set_sampler_config(sampler).await;
-            });
-        }
+        self.set_sampler_preset_impl(SamplerPresets::temperature(temperature));
     }
 
     /// Sets the sampler to use DRY (Don't Repeat Yourself) sampling.
@@ -766,12 +660,7 @@ impl NobodyWhoChat {
     /// Useful for longer text generation where repetition is undesirable.
     #[func]
     fn set_sampler_preset_dry(&mut self) {
-        if let Some(chat_handle) = self.chat_handle.as_ref().cloned() {
-            let sampler = SamplerPresets::dry();
-            let _ = godot::task::spawn(async move {
-                let _ = chat_handle.set_sampler_config(sampler).await;
-            });
-        }
+        self.set_sampler_preset_impl(SamplerPresets::dry());
     }
 
     /// Sets the sampler to enforce JSON output format.
@@ -779,12 +668,7 @@ impl NobodyWhoChat {
     /// Useful when you need structured data from the LLM.
     #[func]
     fn set_sampler_preset_json(&mut self) {
-        if let Some(chat_handle) = self.chat_handle.as_ref().cloned() {
-            let sampler = SamplerPresets::json();
-            let _ = godot::task::spawn(async move {
-                let _ = chat_handle.set_sampler_config(sampler).await;
-            });
-        }
+        self.set_sampler_preset_impl(SamplerPresets::json());
     }
 
     /// Sets the sampler to use a custom GBNF grammar.
@@ -792,12 +676,7 @@ impl NobodyWhoChat {
     /// Use GBNF format (similar to EBNF) to define the structure of valid output.
     #[func]
     fn set_sampler_preset_grammar(&mut self, grammar: String) {
-        if let Some(chat_handle) = self.chat_handle.as_ref().cloned() {
-            let sampler = SamplerPresets::grammar(grammar);
-            let _ = godot::task::spawn(async move {
-                let _ = chat_handle.set_sampler_config(sampler).await;
-            });
-        }
+        self.set_sampler_preset_impl(SamplerPresets::grammar(grammar));
     }
 }
 
@@ -856,7 +735,7 @@ fn json_to_godot(value: &serde_json::Value) -> Variant {
         }
         serde_json::Value::Object(obj) => {
             // XXX: this is prerty lazy
-            let mut dict = Dictionary::new();
+            let mut dict = VarDictionary::new();
             for (key, val) in obj {
                 dict.set(key.as_str(), json_to_godot(val));
             }
@@ -884,7 +763,7 @@ fn godot_to_json(value: &Variant) -> serde_json::Value {
             serde_json::Value::Array(json_arr)
         }
         VariantType::DICTIONARY => {
-            let dict = value.to::<Dictionary>();
+            let dict = value.to::<VarDictionary>();
             let mut json_obj = serde_json::Map::new();
             for (key, val) in dict.iter_shared() {
                 let key_str = key.to::<GString>().to_string();
@@ -911,7 +790,7 @@ fn json_schema_from_callable(
         // XXX: I expect that this bit is pretty slow. But it works for now...
         .find(|dict| dict.at("name").to::<String>() == method_name.to_string());
     let method_info = method_info.ok_or("Could not find method on this object. Is the method you passed defined on the NobodyWhoChat script?".to_string())?;
-    let method_args: Array<Dictionary> = method_info.at("args").to();
+    let method_args: Array<VarDictionary> = method_info.at("args").to();
 
     // start building json schema
     let mut properties = serde_json::Map::new();
@@ -1243,7 +1122,7 @@ impl NobodyWhoCrossEncoder {
             })
             .collect();
 
-        let gstring_array: Vec<GString> = ranked_docs.into_iter().map(GString::from).collect();
+        let gstring_array: Vec<GString> = ranked_docs.iter().map(GString::from).collect();
         PackedStringArray::from(gstring_array)
     }
 
@@ -1256,7 +1135,7 @@ impl NobodyWhoCrossEncoder {
 }
 
 /// Small utility to convert our internal Messsage type to godot dictionaries.
-fn messages_to_dictionaries(messages: &[chat_state::Message]) -> Array<Dictionary> {
+fn messages_to_dictionaries(messages: &[chat_state::Message]) -> Array<VarDictionary> {
     messages
         .iter()
         .map(|msg| {
@@ -1272,7 +1151,7 @@ fn messages_to_dictionaries(messages: &[chat_state::Message]) -> Array<Dictionar
                                     .into_iter()
                                     .map(|item| match item {
                                         serde_json::Value::Object(obj) => {
-                                            let mut dict = Dictionary::new();
+                                            let mut dict = VarDictionary::new();
                                             for (key, val) in obj {
                                                 dict.set(key, json_to_godot(&val));
                                             }
@@ -1285,11 +1164,11 @@ fn messages_to_dictionaries(messages: &[chat_state::Message]) -> Array<Dictionar
                             }
                             _ => json_to_godot(&v),
                         };
-                        (GString::from(k), variant)
+                        (GString::from(k.as_str()), variant)
                     })
                     .collect()
             } else {
-                Dictionary::new()
+                VarDictionary::new()
             }
         })
         .collect()
@@ -1302,7 +1181,7 @@ fn dictionaries_to_messages(dicts: Array<Variant>) -> Result<Vec<chat_state::Mes
         .map(|variant| {
             // First convert the Variant to Dictionary
             let dict = variant
-                .try_to::<Dictionary>()
+                .try_to::<VarDictionary>()
                 .map_err(|_| "Array element is not a Dictionary")?;
 
             // Convert Dictionary to serde_json::Value
