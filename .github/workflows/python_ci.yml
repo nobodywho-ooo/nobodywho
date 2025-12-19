@@ -125,11 +125,15 @@ jobs:
       fail-fast: false
       matrix:
         target:
-          - "x86_64-pc-windows-msvc"
+          - x86_64-pc-windows-msvc
+          - aarch64-pc-windows-msvc
+        include:
+          - target: x86_64-pc-windows-msvc
+            rustflags: -l Advapi32 -C target-cpu=x86-64-v3
+          - target: aarch64-pc-windows-msvc
+            rustflags: -l Advapi32
     env:
-      RUSTFLAGS: >-
-        -l Advapi32
-        -C target-cpu=x86-64-v3
+      RUSTFLAGS: ${{ matrix.rustflags }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -165,7 +169,7 @@ jobs:
       - name: "Upload wheel artifact"
         uses: actions/upload-artifact@v4
         with:
-          name: nobodywho_python_windows
+          name: nobodywho_python_windows_${{ matrix.target }}
           path: C:/target/wheels/nobodywho*.whl
 
   mac-os-build:
@@ -286,29 +290,29 @@ jobs:
           bash nobodywho/python/tests/test_reliability.sh -n ${{ matrix.model_iterations }} nobodywho/python/examples/small_model_demo.py "linux/nobodypython/models/${{ matrix.model_name }}"
 
   windows-pip-install-test:
-    runs-on: windows-latest
     needs: [windows-build]
     strategy:
       fail-fast: false
       matrix:
-        # model: [Qwen, Gemma]
+        architecture: [windows-latest, windows-11-arm]
         model: [Gemma]
         include:
-          # XXX: this is broken somewhy...
-          #- model: Qwen
-          #  model_name: Qwen3-0.6B-UD-Q6_K_XL.gguf
-          #  model_iterations: 10
-          #  model_link: https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-UD-Q6_K_XL.gguf
           - model: Gemma
             model_name: google_gemma-3-4b-it-Q4_1.gguf
             model_iterations: 10
             model_link: https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-Q4_1.gguf
+          - architecture: windows-latest
+            target: x86_64-pc-windows-msvc
+          - architecture: windows-11-arm
+            target: aarch64-pc-windows-msvc
+    runs-on: ${{ matrix.architecture }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
       - name: Install Vulkan SDK
+        if: matrix.target == 'x86_64-pc-windows-msvc'
         uses: jakoch/install-vulkan-sdk-action@v1.2.5
         with:
           vulkan_version: 1.3.296.0
@@ -316,11 +320,14 @@ jobs:
           install_runtime: true
       - name: "Download wheel"
         uses: actions/download-artifact@v4
+        with:
+          name: nobodywho_python_windows_${{ matrix.target }}
+          path: ./wheels
       - name: Install wheel
         run: |
           python -m venv maturinvenv
           maturinvenv/Scripts/activate
-          pip install (Get-ChildItem D:/a/nobodywho/nobodywho/nobodywho_python_windows/nobodywho*win*.whl).FullName
+          pip install (Get-ChildItem ./wheels/nobodywho*.whl).FullName
 
       - name: Download models
         run: |
