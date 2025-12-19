@@ -296,7 +296,7 @@ impl NobodyWhoChat {
                 emit_node.emit_signal(&signal_name_copy, &[]);
                 return;
             };
-            let godot_dict_msgs: Array<Dictionary> = messages_to_dictionaries(&chat_history);
+            let godot_dict_msgs: Array<VarDictionary> = messages_to_dictionaries(&chat_history);
             let godot_variant_array: Array<Variant> =
                 godot_dict_msgs.iter_shared().map(Variant::from).collect();
 
@@ -727,7 +727,7 @@ fn json_to_godot(value: &serde_json::Value) -> Variant {
         }
         serde_json::Value::Object(obj) => {
             // XXX: this is prerty lazy
-            let mut dict = Dictionary::new();
+            let mut dict = VarDictionary::new();
             for (key, val) in obj {
                 dict.set(key.as_str(), json_to_godot(val));
             }
@@ -755,7 +755,7 @@ fn godot_to_json(value: &Variant) -> serde_json::Value {
             serde_json::Value::Array(json_arr)
         }
         VariantType::DICTIONARY => {
-            let dict = value.to::<Dictionary>();
+            let dict = value.to::<VarDictionary>();
             let mut json_obj = serde_json::Map::new();
             for (key, val) in dict.iter_shared() {
                 let key_str = key.to::<GString>().to_string();
@@ -782,7 +782,7 @@ fn json_schema_from_callable(
         // XXX: I expect that this bit is pretty slow. But it works for now...
         .find(|dict| dict.at("name").to::<String>() == method_name.to_string());
     let method_info = method_info.ok_or("Could not find method on this object. Is the method you passed defined on the NobodyWhoChat script?".to_string())?;
-    let method_args: Array<Dictionary> = method_info.at("args").to();
+    let method_args: Array<VarDictionary> = method_info.at("args").to();
 
     // start building json schema
     let mut properties = serde_json::Map::new();
@@ -1127,7 +1127,7 @@ impl NobodyWhoCrossEncoder {
 }
 
 /// Small utility to convert our internal Messsage type to godot dictionaries.
-fn messages_to_dictionaries(messages: &[chat_state::Message]) -> Array<Dictionary> {
+fn messages_to_dictionaries(messages: &[chat_state::Message]) -> Array<VarDictionary> {
     messages
         .iter()
         .map(|msg| {
@@ -1143,7 +1143,7 @@ fn messages_to_dictionaries(messages: &[chat_state::Message]) -> Array<Dictionar
                                     .into_iter()
                                     .map(|item| match item {
                                         serde_json::Value::Object(obj) => {
-                                            let mut dict = Dictionary::new();
+                                            let mut dict = VarDictionary::new();
                                             for (key, val) in obj {
                                                 dict.set(key, json_to_godot(&val));
                                             }
@@ -1160,7 +1160,7 @@ fn messages_to_dictionaries(messages: &[chat_state::Message]) -> Array<Dictionar
                     })
                     .collect()
             } else {
-                Dictionary::new()
+                VarDictionary::new()
             }
         })
         .collect()
@@ -1173,7 +1173,7 @@ fn dictionaries_to_messages(dicts: Array<Variant>) -> Result<Vec<chat_state::Mes
         .map(|variant| {
             // First convert the Variant to Dictionary
             let dict = variant
-                .try_to::<Dictionary>()
+                .try_to::<VarDictionary>()
                 .map_err(|_| "Array element is not a Dictionary")?;
 
             // Convert Dictionary to serde_json::Value
