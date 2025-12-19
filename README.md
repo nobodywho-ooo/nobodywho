@@ -39,9 +39,10 @@ Next download a model. For a quick start we recommend this [one](https://hugging
 
 Then you can try to get a response from the model with the following code snippet:
 ```python
-from nobodywho import Chat, TokenStream
+from nobodywho import Chat
 chat = Chat("./path/to/your/model.gguf")
-response: TokenStream = chat.ask("Is water wet?")
+response = chat.ask("Is water wet?").completed()
+print(response)
 ```
 
 You can also setup a basic chat bot very quickly with the code snippet below: 
