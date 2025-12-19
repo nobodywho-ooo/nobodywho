@@ -27,85 +27,6 @@ unsafe impl ExtensionLibrary for NobodyWhoExtension {
     }
 }
 
-/// Configuration for text generation sampling strategies.
-///
-/// The sampler controls how the LLM selects tokens during generation, affecting
-/// the randomness, coherence, and style of the output. Use the preset methods
-/// to configure different sampling strategies like greedy, top-k, top-p, temperature,
-/// DRY, JSON, or custom grammars.
-#[derive(GodotClass)]
-#[class(init, base=Object)]
-#[derive(Default)]
-struct NobodyWhoSampler {
-    sampler_config: SamplerConfig,
-}
-
-#[godot_api]
-impl NobodyWhoSampler {
-    /// Sets the sampler to use default sampling parameters.
-    /// This provides a balanced configuration suitable for most use cases.
-    #[func]
-    fn set_preset_default(&mut self) {
-        self.sampler_config = SamplerConfig::default();
-    }
-
-    /// Sets the sampler to use greedy sampling.
-    /// Always selects the most likely token at each step, resulting in deterministic output.
-    /// Use this for predictable, focused responses.
-    #[func]
-    fn set_preset_greedy(&mut self) {
-        self.sampler_config = SamplerPresets::greedy();
-    }
-
-    /// Sets the sampler to use top-k sampling.
-    /// Only considers the k most likely tokens at each step.
-    /// Lower values (e.g., 10-40) make output more focused, higher values more diverse.
-    #[func]
-    fn set_preset_top_k(&mut self, k: i32) {
-        self.sampler_config = SamplerPresets::top_k(k);
-    }
-
-    /// Sets the sampler to use top-p (nucleus) sampling.
-    /// Considers tokens until their cumulative probability reaches p.
-    /// Values like 0.9-0.95 provide a good balance between coherence and creativity.
-    #[func]
-    fn set_preset_top_p(&mut self, p: f32) {
-        self.sampler_config = SamplerPresets::top_p(p);
-    }
-
-    /// Sets the sampler to use temperature-based sampling.
-    /// Higher values (e.g., 0.8-1.2) increase randomness and creativity.
-    /// Lower values (e.g., 0.2-0.5) make output more focused and deterministic.
-    #[func]
-    fn set_preset_temperature(&mut self, temperature: f32) {
-        self.sampler_config = SamplerPresets::temperature(temperature);
-    }
-
-    /// Sets the sampler to use DRY (Don't Repeat Yourself) sampling.
-    /// Helps reduce repetitive text by penalizing recently generated tokens.
-    /// Useful for longer text generation where repetition is undesirable.
-    #[func]
-    fn set_preset_dry(&mut self) {
-        self.sampler_config = SamplerPresets::dry();
-    }
-
-    /// Sets the sampler to enforce JSON output format.
-    /// Constrains the model to generate valid JSON.
-    /// Useful when you need structured data from the LLM.
-    #[func]
-    fn set_preset_json(&mut self) {
-        self.sampler_config = SamplerPresets::json();
-    }
-
-    /// Sets the sampler to use a custom GBNF grammar.
-    /// Constrains the model output to match the provided grammar specification.
-    /// Use GBNF format (similar to EBNF) to define the structure of valid output.
-    #[func]
-    fn set_preset_grammar(&mut self, grammar: String) {
-        self.sampler_config = SamplerPresets::grammar(grammar);
-    }
-}
-
 #[derive(GodotClass)]
 #[class(base=Node)]
 /// The model node is used to load the model, currently only GGUF models are supported.
@@ -207,10 +128,6 @@ struct NobodyWhoChat {
     /// The system prompt for the chat, this is the basic instructions for the LLM's behavior.
     system_prompt: GString,
 
-    /// The sampler configuration for the chat.
-    #[var]
-    sampler: Gd<NobodyWhoSampler>,
-
     #[export]
     allow_thinking: bool,
 
@@ -243,7 +160,6 @@ impl INode for NobodyWhoChat {
             chat_handle: None,
             signal_counter: AtomicU64::new(0),
             base,
-            sampler: Gd::from_init_fn(|_| NobodyWhoSampler::default()),
         }
     }
 }
@@ -278,7 +194,7 @@ impl NobodyWhoChat {
                 tools: self.tools.clone(),
                 n_ctx: self.context_length,
                 allow_thinking: self.allow_thinking,
-                sampler_config: self.sampler.bind().sampler_config.clone(),
+                sampler_config: SamplerConfig::default(),
             },
         );
         self.chat_handle = Some(chat_handle);
@@ -345,29 +261,6 @@ impl NobodyWhoChat {
 
         godot::task::spawn(async move {
             match chat_handle.reset_chat(system_prompt, tools).await {
-                Ok(()) => (),
-                Err(errmsg) => {
-                    godot_error!("Error: {}", errmsg.to_string());
-                }
-            }
-        });
-    }
-
-    #[func]
-    fn set_sampler_config(&mut self) {
-        // Clone the handle so we don't hold a reference to self
-        let chat_handle = match self.chat_handle.as_ref() {
-            Some(handle) => handle.clone(),
-            None => {
-                godot_error!("Attempted to set sampler config, but no worker is running.");
-                return;
-            }
-        };
-
-        let sampler = self.sampler.bind().sampler_config.clone();
-
-        godot::task::spawn(async move {
-            match chat_handle.set_sampler_config(sampler).await {
                 Ok(()) => (),
                 Err(errmsg) => {
                     godot_error!("Error: {}", errmsg.to_string());
@@ -697,16 +590,29 @@ impl NobodyWhoChat {
         set_log_level(&level);
     }
 
+    fn set_sampler_preset_impl(&mut self, sampler: SamplerConfig) {
+        let Some(chat_handle) = self.chat_handle.as_ref() else {
+            godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
+            match self.start_worker_impl() {
+                Err(msg) => {
+                    godot_error!("Failed auto-starting the worker: {}", msg);
+                    return;
+                }
+                Ok(_) => return self.set_sampler_preset_impl(sampler),
+            };
+        };
+
+        let chat_handle = chat_handle.clone();
+        let _ = godot::task::spawn(async move {
+            let _ = chat_handle.set_sampler_config(sampler).await;
+        });
+    }
+
     /// Sets the sampler to use default sampling parameters.
     /// This provides a balanced configuration suitable for most use cases.
     #[func]
     fn set_sampler_preset_default(&mut self) {
-        if let Some(chat_handle) = self.chat_handle.as_ref().cloned() {
-            let sampler = SamplerConfig::default();
-            let _ = godot::task::spawn(async move {
-                let _ = chat_handle.set_sampler_config(sampler).await;
-            });
-        }
+        self.set_sampler_preset_impl(SamplerConfig::default());
     }
 
     /// Sets the sampler to use greedy sampling.
@@ -714,12 +620,7 @@ impl NobodyWhoChat {
     /// Use this for predictable, focused responses.
     #[func]
     fn set_sampler_preset_greedy(&mut self) {
-        if let Some(chat_handle) = self.chat_handle.as_ref().cloned() {
-            let sampler = SamplerPresets::greedy();
-            let _ = godot::task::spawn(async move {
-                let _ = chat_handle.set_sampler_config(sampler).await;
-            });
-        }
+        self.set_sampler_preset_impl(SamplerPresets::greedy());
     }
 
     /// Sets the sampler to use top-k sampling.
@@ -727,12 +628,7 @@ impl NobodyWhoChat {
     /// Lower values (e.g., 10-40) make output more focused, higher values more diverse.
     #[func]
     fn set_sampler_preset_top_k(&mut self, k: i32) {
-        if let Some(chat_handle) = self.chat_handle.as_ref().cloned() {
-            let sampler = SamplerPresets::top_k(k);
-            let _ = godot::task::spawn(async move {
-                let _ = chat_handle.set_sampler_config(sampler).await;
-            });
-        }
+        self.set_sampler_preset_impl(SamplerPresets::top_k(k));
     }
 
     /// Sets the sampler to use top-p (nucleus) sampling.
@@ -740,12 +636,7 @@ impl NobodyWhoChat {
     /// Values like 0.9-0.95 provide a good balance between coherence and creativity.
     #[func]
     fn set_sampler_preset_top_p(&mut self, p: f32) {
-        if let Some(chat_handle) = self.chat_handle.as_ref().cloned() {
-            let sampler = SamplerPresets::top_p(p);
-            let _ = godot::task::spawn(async move {
-                let _ = chat_handle.set_sampler_config(sampler).await;
-            });
-        }
+        self.set_sampler_preset_impl(SamplerPresets::top_p(p));
     }
 
     /// Sets the sampler to use temperature-based sampling.
@@ -753,12 +644,7 @@ impl NobodyWhoChat {
     /// Lower values (e.g., 0.2-0.5) make output more focused and deterministic.
     #[func]
     fn set_sampler_preset_temperature(&mut self, temperature: f32) {
-        if let Some(chat_handle) = self.chat_handle.as_ref().cloned() {
-            let sampler = SamplerPresets::temperature(temperature);
-            let _ = godot::task::spawn(async move {
-                let _ = chat_handle.set_sampler_config(sampler).await;
-            });
-        }
+        self.set_sampler_preset_impl(SamplerPresets::temperature(temperature));
     }
 
     /// Sets the sampler to use DRY (Don't Repeat Yourself) sampling.
@@ -766,12 +652,7 @@ impl NobodyWhoChat {
     /// Useful for longer text generation where repetition is undesirable.
     #[func]
     fn set_sampler_preset_dry(&mut self) {
-        if let Some(chat_handle) = self.chat_handle.as_ref().cloned() {
-            let sampler = SamplerPresets::dry();
-            let _ = godot::task::spawn(async move {
-                let _ = chat_handle.set_sampler_config(sampler).await;
-            });
-        }
+        self.set_sampler_preset_impl(SamplerPresets::dry());
     }
 
     /// Sets the sampler to enforce JSON output format.
@@ -779,12 +660,7 @@ impl NobodyWhoChat {
     /// Useful when you need structured data from the LLM.
     #[func]
     fn set_sampler_preset_json(&mut self) {
-        if let Some(chat_handle) = self.chat_handle.as_ref().cloned() {
-            let sampler = SamplerPresets::json();
-            let _ = godot::task::spawn(async move {
-                let _ = chat_handle.set_sampler_config(sampler).await;
-            });
-        }
+        self.set_sampler_preset_impl(SamplerPresets::json());
     }
 
     /// Sets the sampler to use a custom GBNF grammar.
@@ -792,12 +668,7 @@ impl NobodyWhoChat {
     /// Use GBNF format (similar to EBNF) to define the structure of valid output.
     #[func]
     fn set_sampler_preset_grammar(&mut self, grammar: String) {
-        if let Some(chat_handle) = self.chat_handle.as_ref().cloned() {
-            let sampler = SamplerPresets::grammar(grammar);
-            let _ = godot::task::spawn(async move {
-                let _ = chat_handle.set_sampler_config(sampler).await;
-            });
-        }
+        self.set_sampler_preset_impl(SamplerPresets::grammar(grammar));
     }
 }
 

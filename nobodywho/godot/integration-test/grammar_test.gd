@@ -48,7 +48,7 @@ null ::= "null"
 ws ::= ([ \\t\\n] ws)?
 ws01 ::= ([ \\t\\n])?
 	"""
-	chat.sampler.set_preset_grammar(gbnf_grammar);
+	chat.set_sampler_preset_grammar(gbnf_grammar)
 
 	chat.start_worker()
 

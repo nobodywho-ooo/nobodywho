@@ -166,7 +166,7 @@ When you enable grammar without providing a custom grammar string, the system de
 
 ```gdscript
 # Set the sampler to use the json preset
-chat.sampler.set_preset_json()
+chat.set_sampler_preset_json()
 
 # Tell the LLM to provide structured data
 chat.system_prompt = """You are a character creator.

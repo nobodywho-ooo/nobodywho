@@ -387,7 +387,7 @@ func _input(event):
         generate_weapon()
 
 func generate_weapon():
-    chat.sampler.set_preset_grammar(grammar_string)
+    chat.set_sampler_preset_grammar(grammar_string)
 
     # Reset context to avoid new weapons to be influenced by already generated ones.
     chat.reset_context()
@@ -427,7 +427,7 @@ Be careful not to add too many symbols in your backstory. If the model can not w
 
 ```gdscript
 func generate_weapon():
-    chat.sampler.set_preset_grammar(grammar_string)
+    chat.set_sampler_preset_grammar(grammar_string)
 
     # Reset context to avoid new weapons to be influenced by already generated ones.
     chat.reset_context()
