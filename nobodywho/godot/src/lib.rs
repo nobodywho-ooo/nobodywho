@@ -106,8 +106,8 @@ impl NobodyWhoModel {
 ///     self.model_node = get_node("../ChatModel")
 ///     self.system_prompt = "You are an evil wizard. Always try to curse anyone who talks to you."
 ///
-///     # say something
-///     say("Hi there! Who are you?")
+///     # ask something
+///     ask("Hi there! Who are you?")
 ///
 ///     # wait for the response
 ///     var response = await response_finished
@@ -400,7 +400,7 @@ impl NobodyWhoChat {
     ///     add_tool(add_numbers, "Adds two integers")
     ///
     ///     # see that the llm invokes the tool
-    ///     say("What is two plus two?")
+    ///     ask("What is two plus two?")
     /// ```
     fn add_tool(&mut self, callable: Callable, description: String) {
         if self.chat_handle.is_some() {
@@ -448,7 +448,7 @@ impl NobodyWhoChat {
     ///     add_tool_with_schema(add_numbers, "Adds two integers", json_schema)
     ///
     ///     # see that the llm invokes the tool
-    ///     say("What is two plus two?")
+    ///     ask("What is two plus two?")
     /// ```
     fn add_tool_with_schema(
         &mut self,
