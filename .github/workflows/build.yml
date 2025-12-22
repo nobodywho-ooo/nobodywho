@@ -49,11 +49,14 @@ jobs:
           rustup update stable
           rustup default stable
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-      - name: Install Vulkan SDK
-        uses: jakoch/install-vulkan-sdk-action@v1.2.5
-        with:
-          vulkan_version: 1.4.304.0
-          cache: true
+      - name: Install distro dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev cmake 
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+      - name: Install Vulkan dependencies for x86
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        run: sudo apt-get install libshaderc-dev libvulkan-dev glslc
       - name: Setup Flutter SDK (manual for ARM64)
         if: matrix.integration == 'flutter' && matrix.target == 'aarch64-unknown-linux-gnu'
         run: |

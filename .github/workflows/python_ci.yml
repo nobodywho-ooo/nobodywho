@@ -109,17 +109,9 @@ jobs:
       matrix:
         target:
           - x86_64-pc-windows-msvc
-          - aarch64-pc-windows-msvc
-        include:
-          - target: x86_64-pc-windows-msvc
-            rustflags: -l Advapi32 -C target-cpu=x86-64-v3
-            system: windows-latest
-          - target: aarch64-pc-windows-msvc
-            rustflags: -l Advapi32
-            system: windows-11-arm
-    runs-on: ${{ matrix.system }}
+    runs-on: windows
     env:
-      RUSTFLAGS: ${{ matrix.rustflags }}
+      RUSTFLAGS: -l Advapi32 -C target-cpu=x86-64-v3
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -139,15 +131,6 @@ jobs:
       - name: Install Ninja
         run: choco install ninja
       
-      - name: Install LLVM/Clang (ARM only)
-        if: matrix.target == 'aarch64-pc-windows-msvc'
-        run: |
-          $LLVMVersion = "19.1.7"
-          $URL = "https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVMVersion/LLVM-$LLVMVersion-woa64.exe"
-          Invoke-WebRequest -Uri $URL -OutFile "llvm-installer.exe"
-          Start-Process -Wait -FilePath "llvm-installer.exe" -ArgumentList "/S"
-          echo "LIBCLANG_PATH=C:\Program Files\LLVM\bin" >> $env:GITHUB_ENV
-      
       - name: "Build windows python wheel"
         run: |
           mv ./nobodywho/* C:/
@@ -162,9 +145,6 @@ jobs:
           # install step fails to find cmake_install.cmake with the VS generator.
           # Ninja's simpler build structure avoids this problem entirely.
           CMAKE_GENERATOR: "Ninja"
-          # For ARM builds, use Clang instead of MSVC
-          CMAKE_C_COMPILER: ${{ matrix.target == 'aarch64-pc-windows-msvc' && 'clang' || '' }}
-          CMAKE_CXX_COMPILER: ${{ matrix.target == 'aarch64-pc-windows-msvc' && 'clang++' || '' }}
       - name: "Upload wheel artifact"
         uses: actions/upload-artifact@v4
         with:
@@ -289,7 +269,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        architecture: [windows-latest, windows-11-arm]
+        architecture: [windows-latest]
         model: [Gemma]
         include:
           - model: Gemma
@@ -298,8 +278,6 @@ jobs:
             model_link: https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-Q4_1.gguf
           - architecture: windows-latest
             target: x86_64-pc-windows-msvc
-          - architecture: windows-11-arm
-            target: aarch64-pc-windows-msvc
     runs-on: ${{ matrix.architecture }}
     steps:
       - uses: actions/checkout@v4
