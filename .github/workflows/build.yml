@@ -8,22 +8,28 @@ on:
 
 jobs:
   cargo-build-linux:
-    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
         target:
-          - "x86_64-unknown-linux-gnu"
+          - x86_64-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
         profile:
-          - "debug"
-          - "release"
+          - debug
+          - release
         integration:
-          - "godot"
-          - "unity"
-          - "flutter"
+          - godot
+          - unity
+          - flutter
+        include:
+          - target: x86_64-unknown-linux-gnu
+            architecture: ubuntu-24.04
+          - target: aarch64-unknown-linux-gnu
+            architecture: ubuntu-24.04-arm
+
+    runs-on: ${{ matrix.architecture }}
     env:
-      RUSTFLAGS: >-
-        -C target-cpu=x86-64-v3
+      RUSTFLAGS:  ${{ matrix.architecture == 'ubuntu-24.04' && '-C target-cpu=x86-64-v3' || '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -36,17 +42,22 @@ jobs:
           key: ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}-
-      - name: "Setup rust toolchain"
+      - name: Setup rust toolchain
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           . "$HOME/.cargo/env"
           rustup update stable
           rustup default stable
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-      - name: "Install distro dependencies"
+      - name: Install Vulkan SDK
+        uses: jakoch/install-vulkan-sdk-action@v1.2.5
+        with:
+          vulkan_version: 1.4.304.0
+          cache: true
+      - name: Install distro dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
+          sudo apt-get install -y libclang-dev cmake 
 
       - name: Setup Flutter SDK
         if: matrix.integration == 'flutter'
@@ -55,11 +66,11 @@ jobs:
           channel: stable
           version: 3.35.5
 
-      - name: "Compile for linux"
+      - name: Compile for linux
         run: cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: ./nobodywho
 
-      - name: "Rename built file"
+      - name: Rename built file
         run: |
           cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.so ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
 
