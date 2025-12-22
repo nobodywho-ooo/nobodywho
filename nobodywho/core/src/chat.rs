@@ -1308,6 +1308,11 @@ impl Worker<'_, ChatWorker> {
 
     pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), ChatWorkerError> {
         let current_messages = self.extra.chat_state.get_messages().to_vec();
+
+        // XXX: this is a quickfix
+        // TODO: we really need to consolidate state, to avoid this getter/setter spaghetti
+        let current_allow_thinking = self.extra.chat_state.get_allow_thinking();
+
         self.extra.chat_state = ChatState::from_model_and_tools(
             self.ctx.model,
             tools.iter().map(|t| t.to_chat_state_tool()).collect(),
@@ -1318,7 +1323,13 @@ impl Worker<'_, ChatWorker> {
             None
         };
         self.extra.tools = tools;
+
+        // TODO: this state management must be improved.
         self.extra.chat_state.set_messages(current_messages);
+        self.extra
+            .chat_state
+            .set_allow_thinking(current_allow_thinking);
+
         // Reuse cached prefix
         let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
         let inference_lock_token = _gil_guard.unwrap();

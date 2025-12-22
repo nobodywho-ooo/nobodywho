@@ -219,6 +219,10 @@ impl ChatState {
         self.allow_thinking = allow_thinking;
     }
 
+    pub fn get_allow_thinking(&self) -> bool {
+        self.allow_thinking
+    }
+
     pub fn get_messages(&self) -> &[Message] {
         &self.messages
     }
