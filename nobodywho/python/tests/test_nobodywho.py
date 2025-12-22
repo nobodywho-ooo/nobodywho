@@ -338,3 +338,14 @@ async def test_async_set_and_get_chat_history(chat_async):
     ]
     await chat_async.set_chat_history(chat_history)
     assert (await chat_async.get_chat_history()) == chat_history
+
+
+def test_chat_from_pathlib():
+    from pathlib import Path
+
+    model_path_str = os.environ.get("TEST_MODEL")
+    assert isinstance(model_path_str, str)
+    model_path = Path(model_path_str)
+
+    chat = nobodywho.Chat(model_path)
+    assert isinstance(chat, nobodywho.Chat)
