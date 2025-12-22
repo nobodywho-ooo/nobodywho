@@ -61,10 +61,6 @@ let
             vulkan-loader
             flutter335
           ];
-          # installPhase = ''
-          #   ls -la
-          #   exit 42
-          # '';
         };
 
         nobodywho-godot = attrs: {
@@ -73,10 +69,6 @@ let
             # this needs to be available at link-time
             vulkan-loader
           ];
-          # installPhase = ''
-          #   ls -la
-          #   exit 42
-          # '';
         };
       };
     };
