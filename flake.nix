@@ -82,7 +82,7 @@
         devShells.default = pkgs.callPackage ./nobodywho/shell.nix { inherit android-nixpkgs; };
 
         # godot stuff
-        packages.nobodywho-godot = nobodywho-godot.nobodywho-godot;
+        packages.nobodywho-godot = nobodywho-godot;
 
         # flutter stuff
         packages.flutter_example_app = flutter_example_app;
