@@ -7,9 +7,15 @@ pub struct Model {
 #[pymethods]
 impl Model {
     #[new]
-    #[pyo3(signature = (model_path, use_gpu_if_available = true) -> "Model")]
-    pub fn new(model_path: &str, use_gpu_if_available: bool) -> PyResult<Self> {
-        let model_result = nobodywho::llm::get_model(model_path, use_gpu_if_available);
+    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true) -> "Model")]
+    pub fn new(model_path: std::path::PathBuf, use_gpu_if_available: bool) -> PyResult<Self> {
+        let path_str = model_path.to_str().ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "Path contains invalid UTF-8: {}",
+                model_path.display()
+            ))
+        })?;
+        let model_result = nobodywho::llm::get_model(path_str, use_gpu_if_available);
         match model_result {
             Ok(model) => Ok(Self { model }),
             Err(err) => Err(pyo3::exceptions::PyRuntimeError::new_err(err.to_string())),
@@ -24,7 +30,7 @@ impl Model {
 #[derive(FromPyObject)]
 pub enum ModelOrPath<'py> {
     ModelObj(Bound<'py, Model>),
-    StrPath(String),
+    Path(std::path::PathBuf),
 }
 
 impl<'py> ModelOrPath<'py> {
@@ -34,8 +40,16 @@ impl<'py> ModelOrPath<'py> {
             // the inner model is Arc<...>, so clone is cheap.
             ModelOrPath::ModelObj(model_obj) => Ok(model_obj.borrow().model.clone()),
             // default to (trying to) use GPU if a string is passed
-            ModelOrPath::StrPath(path) => nobodywho::llm::get_model(&path, true)
-                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string())),
+            ModelOrPath::Path(path) => {
+                let path_str = path.to_str().ok_or_else(|| {
+                    pyo3::exceptions::PyValueError::new_err(format!(
+                        "Path contains invalid UTF-8: {}",
+                        path.display()
+                    ))
+                })?;
+                nobodywho::llm::get_model(path_str, true)
+                    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+            }
         }
     }
 }
@@ -122,7 +136,7 @@ pub struct Encoder {
 #[pymethods]
 impl Encoder {
     #[new]
-    #[pyo3(signature = (model, n_ctx = 4096) -> "Encoder")]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096) -> "Encoder")]
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
         let encoder = nobodywho::encoder::Encoder::new(nw_model, n_ctx);
@@ -147,7 +161,7 @@ pub struct EncoderAsync {
 #[pymethods]
 impl EncoderAsync {
     #[new]
-    #[pyo3(signature = (model, n_ctx = 4096) -> "EncoderAsync")]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096) -> "EncoderAsync")]
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
         let encoder_handle = nobodywho::encoder::EncoderAsync::new(nw_model, n_ctx);
@@ -171,7 +185,7 @@ pub struct CrossEncoder {
 #[pymethods]
 impl CrossEncoder {
     #[new]
-    #[pyo3(signature = (model, n_ctx = 4096) -> "CrossEncoder")]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096) -> "CrossEncoder")]
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
         let crossencoder = nobodywho::crossencoder::CrossEncoder::new(nw_model, n_ctx);
@@ -210,7 +224,7 @@ pub struct CrossEncoderAsync {
 #[pymethods]
 impl CrossEncoderAsync {
     #[new]
-    #[pyo3(signature = (model, n_ctx = 4096) -> "CrossEncoderAsync")]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096) -> "CrossEncoderAsync")]
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
         let crossencoder_handle = nobodywho::crossencoder::CrossEncoderAsync::new(nw_model, n_ctx);
@@ -248,7 +262,7 @@ pub struct Chat {
 #[pymethods]
 impl Chat {
     #[new]
-    #[pyo3(signature = (model, n_ctx = 4096, system_prompt = "", allow_thinking = true, tools: "list[Tool]" = Vec::<Tool>::new(), sampler=SamplerConfig::default()) -> "Chat")]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = "", allow_thinking = true, tools: "list[Tool]" = Vec::<Tool>::new(), sampler=SamplerConfig::default()) -> "Chat")]
     pub fn new(
         model: ModelOrPath,
         n_ctx: u32,
@@ -335,7 +349,7 @@ pub struct ChatAsync {
 #[pymethods]
 impl ChatAsync {
     #[new]
-    #[pyo3(signature = (model, n_ctx = 4096, system_prompt = "", allow_thinking = true, tools: "list[Tool]" = vec![], sampler = SamplerConfig::default()) -> "ChatAsync")]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = "", allow_thinking = true, tools: "list[Tool]" = vec![], sampler = SamplerConfig::default()) -> "ChatAsync")]
     pub fn new(
         model: ModelOrPath,
         n_ctx: u32,
