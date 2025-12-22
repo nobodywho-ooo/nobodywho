@@ -87,6 +87,7 @@ impl TokenStreamAsync {
         self.stream.lock().await.next_token().await
     }
 
+    #[pyo3(signature = () -> "typing.Awaitable[str]")]
     pub async fn completed(&mut self) -> PyResult<String> {
         self.stream
             .lock()
