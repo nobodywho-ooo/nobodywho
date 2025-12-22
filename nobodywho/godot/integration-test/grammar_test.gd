@@ -9,6 +9,7 @@ func run_test() -> bool:
 	chat.model_node = model
 	# purposefully not mentioning the grammar in the system prompt
 	chat.system_prompt = "You are a character creator for a fantasy game. You will be given a list of properties and you will need to fill out thoe properties.s"
+	chat.allow_thinking = false
 
 	# I used this webapp to make a gbnf from a json schema
 	# https://adrienbrault.github.io/json-schema-to-gbnf/
@@ -56,6 +57,7 @@ ws01 ::= ([ \\t\\n])?
 	return true
 
 func test_json_output():
+	chat.allow_thinking = false
 
 	# purposefully not mentioning the grammar type in the system prompt
 	chat.ask("""Generate a json object containing exactly these properties:

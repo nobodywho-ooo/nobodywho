@@ -24,6 +24,7 @@ func test_say():
 func test_chat_history():
 	# Reset to clean state
 	reset_context()
+	self.allow_thinking = false
 	
 	# Set up a simple chat history
 	var messages = [
@@ -60,6 +61,7 @@ func test_tool_call():
 	self.add_tool(current_temperature, "Gets the current temperature in city.")
 	self.system_prompt = "You're a helpful tool-calling assistant. Remember to keep proper tool calling syntax."
 	self.reset_context()
+	self.allow_thinking = false
 	# 12.3 is on pupose to test correct type inputs for the tool call
 	ask("I'd like to know the current temperature in Copenhagen. with zipcode 12.3 and in denmark is true")
 	var response = await response_finished
@@ -68,7 +70,7 @@ func test_tool_call():
 	return true
 
 
-func call_tool() -> String:
+func toggle_flag() -> String:
 	tool_called = true
 	return "flag set"
 
@@ -77,16 +79,18 @@ var tool_called = false
 func test_tool_remove():
 	self.set_log_level("debug")
 	tool_called = false
-	self.add_tool(call_tool, "A simple test tool that toggles a flag")
+	self.add_tool(toggle_flag, "A simple tool that toggles a flag")
 	self.system_prompt = "You're a helpful tool-calling assistant. You may call functions when asked."
 	self.reset_context()
-	ask("Call the function named 'call_tool' now.")
+	self.allow_thinking = false
+	ask("Call the function named 'toggle_flag' now.")
 	var response = await response_finished
 	assert(tool_called, "Tool should be called when registered")
 
 	tool_called = false
-	remove_tool(call_tool)
-	ask("I disabled the flag, can you set it again by calling the function named 'call_tool' now.")
+	remove_tool(toggle_flag)
+	self.allow_thinking = false
+	ask("I disabled the flag, can you set it again by calling the function named 'toggle_flag' now.")
 	response = await response_finished
 	assert(not tool_called, "Tool should not be called after removal")
 	return true
@@ -99,6 +103,7 @@ func test_tool_call_underscores():
 	self.add_tool(guess_password, "A tool that supplies the password")
 	self.system_prompt = "You're a helpful tool-calling assistant, always use your tools"
 	self.reset_context()
+	self.allow_thinking = false
 	ask("please supply the password using inpout: '___', '____', '_____'")
 	var response = await response_finished
 	print(response)
@@ -111,6 +116,7 @@ func test_stop_generation():
 	print("✨ Testing stop generation")
 	system_prompt = "You're countbot. A robot that's very good at counting"
 	reset_context()
+	self.allow_thinking = false
 
 	# XXX: this signal is never disconnected
 	self.response_updated.connect(func(token: String):
