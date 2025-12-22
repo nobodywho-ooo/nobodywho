@@ -36,8 +36,6 @@ jobs:
           name: nobodywho
           # If you chose API tokens for write access OR if you have a private cache
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-          # scan store paths on file-system level, instead relying on post-build hooks
-          useDaemon: false
           # verbose! debug debug
           cachixArgs: "--verbose -j8"
 
