@@ -72,7 +72,13 @@ jobs:
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           source "$HOME/.cargo/env"
-
+      - name: Install Vulkan SDK
+        uses: jakoch/install-vulkan-sdk-action@v1.2.5
+        with:
+          vulkan_version: 1.3.296.0
+          cache: true
+          install_runtime: true
+          stripdown: true
       - name: Install build dependencies
         run: |
           # Install basic build tools
@@ -80,19 +86,20 @@ jobs:
 
           # Handle Vulkan differently for x86_64 vs ARM
           if [[ "${{ matrix.manylinux_target }}" == "manylinux_2_34_x86_64" ]]; then
-            # x86_64: Download Vulkan SDK from LunarG
-            export VULKAN_VERSION=1.3.296.0
-            wget -q https://sdk.lunarg.com/sdk/download/${VULKAN_VERSION}/linux/vulkansdk-linux-x86_64-${VULKAN_VERSION}.tar.xz
-            tar -xf vulkansdk-linux-x86_64-${VULKAN_VERSION}.tar.xz
+          
+            ## x86_64: Download Vulkan SDK from LunarG
+            #export VULKAN_VERSION=1.3.296.0
+            #wget -q https://sdk.lunarg.com/sdk/download/${VULKAN_VERSION}/linux/vulkansdk-linux-x86_64-${VULKAN_VERSION}.tar.xz
+            #tar -xf vulkansdk-linux-x86_64-${VULKAN_VERSION}.tar.xz
 
-            # Set up Vulkan SDK environment and persist to subsequent steps
-            export VULKAN_SDK_PATH=$(pwd)/${VULKAN_VERSION}/x86_64
-            echo "VULKAN_SDK=$VULKAN_SDK_PATH" >> $GITHUB_ENV
-            echo "$VULKAN_SDK_PATH/bin" >> $GITHUB_PATH
-            echo "LD_LIBRARY_PATH=$VULKAN_SDK_PATH/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
-            echo "VK_LAYER_PATH=$VULKAN_SDK_PATH/etc/vulkan/explicit_layer.d" >> $GITHUB_ENV
+            ## Set up Vulkan SDK environment and persist to subsequent steps
+            #export VULKAN_SDK_PATH=$(pwd)/${VULKAN_VERSION}/x86_64
+            #echo "VULKAN_SDK=$VULKAN_SDK_PATH" >> $GITHUB_ENV
+            #echo "$VULKAN_SDK_PATH/bin" >> $GITHUB_PATH
+            #echo "LD_LIBRARY_PATH=$VULKAN_SDK_PATH/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+            #echo "VK_LAYER_PATH=$VULKAN_SDK_PATH/etc/vulkan/explicit_layer.d" >> $GITHUB_ENV
 
-            # Verify glslc is available (for this step, set PATH temporarily)
+            ## Verify glslc is available (for this step, set PATH temporarily)
             export PATH=$VULKAN_SDK_PATH/bin:$PATH
             which glslc
             glslc --version
@@ -107,6 +114,12 @@ jobs:
           source "$HOME/.cargo/env"
           maturin build --verbose --release --locked
         working-directory: ./nobodywho/python
+        env:
+          # Use Ninja generator instead of Visual Studio generator.
+          # This fixes a CMake ExternalProject issue where vulkan-shaders-gen's
+          # install step fails to find cmake_install.cmake with the VS generator.
+          # Ninja's simpler build structure avoids this problem entirely.
+          CMAKE_GENERATOR: "Ninja"
 
       - name: Repair wheel to use manylinux
         # auditwheel bundles external libraries and verifies manylinux compliance
@@ -120,7 +133,6 @@ jobs:
 
 
   windows-build:
-    runs-on: windows-latest
     strategy:
       fail-fast: false
       matrix:
@@ -130,8 +142,11 @@ jobs:
         include:
           - target: x86_64-pc-windows-msvc
             rustflags: -l Advapi32 -C target-cpu=x86-64-v3
+            system: windows-latest
           - target: aarch64-pc-windows-msvc
             rustflags: -l Advapi32
+            system: windows-11-arm
+    runs-on: ${{ matrix.system }}
     env:
       RUSTFLAGS: ${{ matrix.rustflags }}
     steps:
