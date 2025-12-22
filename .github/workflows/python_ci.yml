@@ -81,7 +81,7 @@ jobs:
       - name: Install build dependencies
         run: |
           # Install basic build tools
-          yum install -y clang cmake wget tar gzip python3-pip
+          yum install -y clang cmake wget tar gzip python3-pip 
 
           # Handle Vulkan differently for x86_64 vs ARM
           if [[ "${{ matrix.manylinux_target }}" == "manylinux_2_34_x86_64" ]]; then
@@ -99,11 +99,11 @@ jobs:
             #echo "VK_LAYER_PATH=$VULKAN_SDK_PATH/etc/vulkan/explicit_layer.d" >> $GITHUB_ENV
 
             ## Verify glslc is available (for this step, set PATH temporarily)
-            export PATH=$VULKAN_SDK_PATH/bin:$PATH
-            which glslc
-            glslc --version
-          fi
-
+            fi
+            
+          #export PATH=$VULKAN_SDK_PATH/bin:$PATH
+          #which glslc
+          #glslc --version
           # Install Python build tools
           pip3 install maturin auditwheel
 
@@ -113,12 +113,6 @@ jobs:
           source "$HOME/.cargo/env"
           maturin build --verbose --release --locked
         working-directory: ./nobodywho/python
-        env:
-          # Use Ninja generator instead of Visual Studio generator.
-          # This fixes a CMake ExternalProject issue where vulkan-shaders-gen's
-          # install step fails to find cmake_install.cmake with the VS generator.
-          # Ninja's simpler build structure avoids this problem entirely.
-          CMAKE_GENERATOR: "Ninja"
 
       - name: Repair wheel to use manylinux
         # auditwheel bundles external libraries and verifies manylinux compliance
