@@ -129,6 +129,7 @@ struct NobodyWhoChat {
     system_prompt: GString,
 
     #[export]
+    #[var(get = get_allow_thinking, set = set_allow_thinking)]
     allow_thinking: bool,
 
     #[export]
@@ -275,6 +276,28 @@ impl NobodyWhoChat {
                 }
             }
         });
+    }
+
+    #[func]
+    fn get_allow_thinking(&mut self) -> bool {
+        self.allow_thinking
+    }
+
+    #[func]
+    fn set_allow_thinking(&mut self, allow_thinking: bool) {
+        // always mutate local state
+        self.allow_thinking = allow_thinking;
+
+        // if worker is running, also inform that
+        if let Some(chat_handle) = self.chat_handle.as_ref() {
+            let handle_clone = chat_handle.clone();
+            godot::task::spawn(async move {
+                let result = handle_clone.set_allow_thinking(allow_thinking).await;
+                if let Err(msg) = result {
+                    godot_warn!("Error setting allow_thinking: {}", msg);
+                }
+            });
+        }
     }
 
     #[func]
