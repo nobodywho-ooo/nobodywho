@@ -2,11 +2,11 @@
   lib,
   flutter335,
   callPackage,
+  nobodywho_flutter_rust,
 }:
 
 let
   models = callPackage ../../models.nix { };
-  nobodywho_flutter_rust = callPackage ../rust { };
 in
 flutter335.buildFlutterApplication rec {
   pname = "nobodywho_flutter_test_app";
@@ -19,7 +19,7 @@ flutter335.buildFlutterApplication rec {
 
   sourceRoot = "${src.name}/example_app";
 
-  env.NOBODYWHO_FLUTTER_LIB_PATH = "${nobodywho_flutter_rust}/lib/libnobodywho_flutter.so";
+  env.NOBODYWHO_FLUTTER_LIB_PATH = "${nobodywho_flutter_rust.lib}/lib/libnobodywho_flutter.so";
 
   # Force offline mode to prevent network access attempts
   PUB_OFFLINE = true;
@@ -49,7 +49,7 @@ flutter335.buildFlutterApplication rec {
 
   doCheck = true;
   checkPhase = ''
-    export LD_LIBRARY_PATH="${nobodywho_flutter_rust}/lib"
+    export LD_LIBRARY_PATH="${nobodywho_flutter_rust.lib}/lib"
     export TEST_MODEL="${models.TEST_MODEL}"
     flutter test ../nobodywho_dart/test/nobodywho_dart_test.dart
   '';

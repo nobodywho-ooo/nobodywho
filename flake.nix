@@ -9,12 +9,15 @@
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     android-nixpkgs.url = "github:tadfisher/android-nixpkgs";
+    crate2nix.url = "github:nix-community/crate2nix";
+    crate2nix.inputs.nixpkgs.follows = "nixpkgs";
   };
   outputs =
     {
       nixpkgs,
       flake-utils,
       android-nixpkgs,
+      crate2nix,
       ...
     }:
     flake-utils.lib.eachDefaultSystem (
@@ -35,30 +38,55 @@
           }
         );
 
-        nobodywho-godot = pkgs.callPackage ./nobodywho/godot { };
+        workspace = pkgs.callPackage ./nobodywho/workspace.nix { inherit crate2nix; };
 
+        # python stuff
         nobodywho-python = pkgs.callPackage ./nobodywho/python { };
+
+        # flutter stuff
+        nobodywho-flutter = workspace.workspaceMembers.nobodywho-flutter.build;
+        flutter_example_app = pkgs.callPackage ./nobodywho/flutter/example_app {
+          nobodywho_flutter_rust = nobodywho-flutter;
+        };
+
+        # godot stuff
+        nobodywho-godot = workspace.workspaceMembers.nobodywho-godot.build;
+        godot-integration-test = pkgs.callPackage ./nobodywho/godot/integration-test {
+          inherit nobodywho-godot;
+        };
+        run-godot-integration-test =
+          pkgs.runCommand "checkgame"
+            {
+              nativeBuildInputs = [ pkgs.mesa ];
+            }
+            ''
+              cd ${godot-integration-test}
+              export HOME=$TMPDIR
+              ./game --headless
+              touch $out
+            '';
       in
       {
-        # default: the godot gdextension dynamic lib
-        packages.default = nobodywho-godot.nobodywho-godot;
+        # the godot gdextension dynamic lib
+        packages.default = nobodywho-godot;
 
         # checks
-        checks.default = pkgs.callPackage ./nobodywho/flutter/example_app { };
-        checks.flutter_example_app = pkgs.callPackage ./nobodywho/flutter/example_app { };
-        checks.build-godot = nobodywho-godot.nobodywho-godot;
-        checks.godot-integration-test = nobodywho-godot.run-integration-test;
+        checks.default = flutter_example_app;
+        checks.flutter_example_app = flutter_example_app;
+        checks.build-godot = nobodywho-godot;
+        checks.godot-integration-test = run-godot-integration-test;
+
         checks.nobodywho-python = nobodywho-python;
 
         # the Everything devshell
         devShells.default = pkgs.callPackage ./nobodywho/shell.nix { inherit android-nixpkgs; };
 
         # godot stuff
-        packages.nobodywho-godot = nobodywho-godot.nobodywho-godot;
+        packages.nobodywho-godot = nobodywho-godot;
 
         # flutter stuff
-        packages.nobodywho-flutter-example = pkgs.callPackage ./nobodywho/flutter/example_app { };
-        packages.flutter_rust = pkgs.callPackage ./nobodywho/flutter/rust { };
+        packages.flutter_example_app = flutter_example_app;
+        packages.flutter_rust = nobodywho-flutter;
 
         # python stuff
         packages.nobodywho-python = nobodywho-python;
