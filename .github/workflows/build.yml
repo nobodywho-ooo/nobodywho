@@ -49,18 +49,18 @@ jobs:
           rustup update stable
           rustup default stable
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-      - name: Install distro dependencies
+
+      - name: Install Vulkan dependencies for x86 builds
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
         run: |
           sudo apt-get update
           sudo apt-get install -y libclang-dev cmake 
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
-      - name: Install Vulkan dependencies for x86
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
-        run: sudo apt-get install libshaderc-dev libvulkan-dev glslc
+          sudo apt-get install libshaderc-dev libvulkan-dev glslc
+
       - name: Setup Flutter SDK (manual for ARM64)
         if: matrix.integration == 'flutter' && matrix.target == 'aarch64-unknown-linux-gnu'
         run: |
-          git clone https://github.com/flutter/flutter.git -b stable --depth 1
+          git clone https://github.com/flutter/flutter.git -b 3.35.5 --depth 1
           echo "$PWD/flutter/bin" >> $GITHUB_PATH
           ./flutter/bin/flutter doctor
       
