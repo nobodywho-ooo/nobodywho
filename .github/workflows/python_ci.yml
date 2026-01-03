@@ -108,7 +108,7 @@ jobs:
       fail-fast: false
       matrix:
         target:
-          - x86_64-pc-windows-msvc
+          - "x86_64-pc-windows-msvc"
     runs-on: windows-latest
     env:
       RUSTFLAGS: -l Advapi32 -C target-cpu=x86-64-v3

@@ -12,15 +12,15 @@ jobs:
       fail-fast: false
       matrix:
         target:
-          - x86_64-unknown-linux-gnu
-          - aarch64-unknown-linux-gnu
+          - "x86_64-unknown-linux-gnu"
+          - "aarch64-unknown-linux-gnu"
         profile:
-          - debug
-          - release
+          - "debug"
+          - "release"
         integration:
-          - godot
-          - unity
-          - flutter
+          - "godot"
+          - "unity"
+          - "flutter"
         include:
           - target: x86_64-unknown-linux-gnu
             architecture: ubuntu-24.04
@@ -42,7 +42,7 @@ jobs:
           key: ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}-
-      - name: Setup rust toolchain
+      - name: "Setup rust toolchain"
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           . "$HOME/.cargo/env"
@@ -50,32 +50,32 @@ jobs:
           rustup default stable
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-      - name: Install Vulkan dependencies for x86 builds
+      - name: "Install Vulkan dependencies for x86 builds"
         if: matrix.target == 'x86_64-unknown-linux-gnu'
         run: |
           sudo apt-get update
           sudo apt-get install -y libclang-dev cmake 
           sudo apt-get install libshaderc-dev libvulkan-dev glslc
 
-      - name: Setup Flutter SDK (manual for ARM64)
+      - name: "Setup Flutter SDK (manual for ARM64)"
         if: matrix.integration == 'flutter' && matrix.target == 'aarch64-unknown-linux-gnu'
         run: |
           git clone https://github.com/flutter/flutter.git -b 3.35.5 --depth 1
           echo "$PWD/flutter/bin" >> $GITHUB_PATH
           ./flutter/bin/flutter doctor
       
-      - name: Setup Flutter SDK (action for x64)
+      - name: "Setup Flutter SDK (action for x64)"
         if: matrix.integration == 'flutter' && matrix.target == 'x86_64-unknown-linux-gnu'
         uses: flutter-actions/setup-flutter@v4
         with:
           channel: stable
           version: 3.35.5
 
-      - name: Compile for linux
+      - name: "Compile for linux"
         run: cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: ./nobodywho
 
-      - name: Rename built file
+      - name: "Rename built file"
         run: |
           cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.so ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
 
