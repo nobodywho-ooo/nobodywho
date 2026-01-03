@@ -23,13 +23,13 @@ jobs:
           - "flutter"
         include:
           - target: x86_64-unknown-linux-gnu
-            architecture: ubuntu-24.04
+            runner: ubuntu-24.04
           - target: aarch64-unknown-linux-gnu
-            architecture: ubuntu-24.04-arm
+            runner: ubuntu-24.04-arm
 
-    runs-on: ${{ matrix.architecture }}
+    runs-on: ${{ matrix.runner }}
     env:
-      RUSTFLAGS:  ${{ matrix.architecture == 'ubuntu-24.04' && '-C target-cpu=x86-64-v3' || '' }}
+      RUSTFLAGS:  ${{ matrix.runner == 'ubuntu-24.04' && '-C target-cpu=x86-64-v3' || '' }}
     steps:
       - uses: actions/checkout@v4
 

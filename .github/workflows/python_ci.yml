@@ -53,17 +53,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        architecture: [ubuntu-24.04, ubuntu-24.04-arm]
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
         include:
-          - architecture: ubuntu-24.04
+          - runner: ubuntu-24.04
             manylinux_target: manylinux_2_34_x86_64 
-          - architecture: ubuntu-24.04-arm
+          - runner: ubuntu-24.04-arm
             manylinux_target: manylinux_2_34_aarch64
-    runs-on: ${{ matrix.architecture }}
+    runs-on: ${{ matrix.runner }}
     container:
       image: quay.io/pypa/${{ matrix.manylinux_target }}
     env:
-      RUSTFLAGS: ${{ matrix.architecture == 'ubuntu-24.04' && '-C target-cpu=x86-64-v3' || '' }}
+      RUSTFLAGS: ${{ matrix.runner == 'ubuntu-24.04' && '-C target-cpu=x86-64-v3' || '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -221,7 +221,7 @@ jobs:
       fail-fast: false
       matrix:
         model: [Qwen, Gemma]
-        architecture : [ubuntu-24.04, ubuntu-24.04-arm]
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
         include:
           - model: Qwen
             model_name: Qwen3-0.6B-UD-Q6_K_XL.gguf
@@ -231,11 +231,11 @@ jobs:
             model_name: google_gemma-3-4b-it-Q4_1.gguf
             model_iterations: 10
             model_link: https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-Q4_1.gguf
-          - architecture: ubuntu-24.04
+          - runner: ubuntu-24.04
             manylinux_target: manylinux_2_34_x86_64 
-          - architecture: ubuntu-24.04-arm
+          - runner: ubuntu-24.04-arm
             manylinux_target: manylinux_2_34_aarch64
-    runs-on: ${{ matrix.architecture }}
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v6
@@ -269,16 +269,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        architecture: [windows-latest]
+        runner: [windows-latest]
         model: [Gemma]
         include:
           - model: Gemma
             model_name: google_gemma-3-4b-it-Q4_1.gguf
             model_iterations: 10
             model_link: https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-Q4_1.gguf
-          - architecture: windows-latest
+          - runner: windows-latest
             target: x86_64-pc-windows-msvc
-    runs-on: ${{ matrix.architecture }}
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v6
