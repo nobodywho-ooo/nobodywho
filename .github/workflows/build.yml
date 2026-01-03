@@ -8,12 +8,12 @@ on:
 
 jobs:
   cargo-build-linux:
-    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
         target:
           - "x86_64-unknown-linux-gnu"
+          - "aarch64-unknown-linux-gnu"
         profile:
           - "debug"
           - "release"
@@ -21,9 +21,15 @@ jobs:
           - "godot"
           - "unity"
           - "flutter"
+        include:
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-24.04
+          - target: aarch64-unknown-linux-gnu
+            runner: ubuntu-24.04-arm
+
+    runs-on: ${{ matrix.runner }}
     env:
-      RUSTFLAGS: >-
-        -C target-cpu=x86-64-v3
+      RUSTFLAGS:  ${{ matrix.runner == 'ubuntu-24.04' && '-C target-cpu=x86-64-v3' || '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -43,13 +49,23 @@ jobs:
           rustup update stable
           rustup default stable
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-      - name: "Install distro dependencies"
+
+      - name: "Install Vulkan dependencies for x86 builds"
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
+          sudo apt-get install -y libclang-dev cmake 
+          sudo apt-get install libshaderc-dev libvulkan-dev glslc
 
-      - name: Setup Flutter SDK
-        if: matrix.integration == 'flutter'
+      - name: "Setup Flutter SDK (manual for ARM64)"
+        if: matrix.integration == 'flutter' && matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          git clone https://github.com/flutter/flutter.git -b 3.35.5 --depth 1
+          echo "$PWD/flutter/bin" >> $GITHUB_PATH
+          ./flutter/bin/flutter doctor
+      
+      - name: "Setup Flutter SDK (action for x64)"
+        if: matrix.integration == 'flutter' && matrix.target == 'x86_64-unknown-linux-gnu'
         uses: flutter-actions/setup-flutter@v4
         with:
           channel: stable
