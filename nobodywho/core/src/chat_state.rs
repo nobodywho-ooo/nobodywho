@@ -75,6 +75,14 @@ impl Message {
             | Message::ToolResp { role, .. } => role,
         }
     }
+
+    pub fn content(&self) -> &String {
+        match self {
+            Message::Message { content, .. }
+            | Message::ToolCalls { content, .. }
+            | Message::ToolResp { content, .. } => content,
+        }
+    }
 }
 
 #[derive(Serialize)]
@@ -228,8 +236,15 @@ impl ChatState {
     }
 
     pub fn set_messages(&mut self, messages: Vec<Message>) {
+        let system_message = self.get_system_message();
+
         self.reset();
         self.messages = messages;
+
+        // we should always keep the system prompt around
+        if let (true, Some(msg)) = (self.messages.is_empty(), system_message) {
+            self.add_system_message(msg);
+        }
     }
 
     pub fn get_tokens_in_context(&self) -> &[LlamaToken] {
@@ -358,6 +373,22 @@ impl ChatState {
         };
 
         (index, difference)
+    }
+
+    pub fn get_system_message(&self) -> Option<String> {
+        self.messages.iter().find_map(|msg| {
+            if matches!(
+                msg,
+                Message::Message {
+                    role: Role::System,
+                    ..
+                }
+            ) {
+                Some(msg.content().clone())
+            } else {
+                None
+            }
+        })
     }
 }
 
