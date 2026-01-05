@@ -143,6 +143,7 @@ where
             let n_ctx = std::cmp::min(n_ctx, model.n_ctx_train());
             let ctx_params = LlamaContextParams::default()
                 .with_n_ctx(std::num::NonZero::new(n_ctx))
+                .with_n_batch(n_ctx)
                 .with_n_threads(n_threads)
                 .with_n_threads_batch(n_threads)
                 .with_embeddings(use_embeddings)
