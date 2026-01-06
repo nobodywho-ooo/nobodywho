@@ -22,7 +22,7 @@ A clear and concise description of what you expected to happen.
 
 **Environment:**
  - OS: [e.g. Windows, Linux, macOS]
- - Godot Version: [e.g. 4.2]
+ - Godot Version: [e.g. 4.5]
  - Nobodywho Version: [e.g. 4.4.0] (should be logged as `NobodyWho Library Version: x.x.x` )
  - LLM Model: [e.g. Gemma 2B]
 
