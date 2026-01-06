@@ -80,7 +80,7 @@ There plenty of things you can do with tools and many of these are coverend in o
 
 ## Godot
 
-You can install it from inside the Godot editor: In Godot 4.4+, go to AssetLib and search for "NobodyWho".
+You can install it from inside the Godot editor: In Godot 4.5+, go to AssetLib and search for "NobodyWho".
 
 ...or you can grab a specific version from our [github releases page.](https://github.com/nobodywho-ooo/nobodywho/releases) You can install these zip files by going to the "AssetLib" tab in Godot and selecting "Import".
 

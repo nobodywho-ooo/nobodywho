@@ -5,7 +5,7 @@ _How to install NobodyWho and start building._
 
 ### Via Asset Library
 
-- **Open Godot 4.4** (or any newer 4.x release).
+- **Open Godot 4.5** (or any newer 4.x release).
 - Switch to the **Asset Library** tab.
 - Search for **“NobodyWho”** and select the entry.
 - Click **Download**, tick **Ignore asset root**, then choose **Install**.
