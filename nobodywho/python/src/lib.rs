@@ -1,4 +1,8 @@
 use pyo3::prelude::*;
+
+/// `Model` objects contain a GGUF model. It is primarily useful for sharing a single model instance
+/// between multiple `Chat`, `Encoder`, or `CrossEncoder` instances.
+/// There is no `ModelAsync` variant. A regular `Model` can be used with both `Chat` and `ChatAsync`.
 #[pyclass]
 pub struct Model {
     model: nobodywho::llm::Model,
@@ -54,6 +58,11 @@ impl<'py> ModelOrPath<'py> {
     }
 }
 
+/// `TokenStream` represents an in-progress text completion. It is the return value of `Chat.ask`.
+/// You can iterate over the tokens in a `TokenStream` using the normal python iterator protocol,
+/// or by explicitly calling the `.next_token()` method.
+/// If you want to wait for the entire response to be generated, you can call `.completed()`.
+/// Also see `TokenStreamAsync`, for an async version of this class.
 #[pyclass]
 pub struct TokenStream {
     stream: nobodywho::chat::TokenStream,
@@ -83,6 +92,9 @@ impl TokenStream {
     }
 }
 
+/// `TokenStreamAsync` is the async variant of the `TokenStream` class.
+/// It has the same methods as `TokenStream`, but all the methods are coroutines.
+/// This class also supports async iteration, using the `async for` syntax.
 #[pyclass]
 pub struct TokenStreamAsync {
     // this needs to be behind a mutex for async iterators to work
@@ -128,6 +140,11 @@ impl TokenStreamAsync {
     }
 }
 
+/// `Encoder` will let you generate vector representations of text.
+/// It must be initialized with a model that specifically supports generating embeddings.
+/// A regular chat/text-generation model will not just work.
+/// Once initialized, you can call `.encode()` on a string, which returns a list of 32-bit floats.
+/// See `EncoderAsync` for the async version of this class.
 #[pyclass]
 pub struct Encoder {
     encoder: nobodywho::encoder::Encoder,
@@ -153,6 +170,7 @@ impl Encoder {
     }
 }
 
+/// This is the async version of the `Encoder` class. See the docs on `Encoder` for more detail.
 #[pyclass]
 pub struct EncoderAsync {
     encoder_handle: nobodywho::encoder::EncoderAsync,
@@ -177,6 +195,10 @@ impl EncoderAsync {
     }
 }
 
+/// A `CrossEncoder` is a kind of encoder that is trained to compare similarity between two texts.
+/// It is particularly useful for searching a list of texts with a query, to find the closest one.
+/// `CrossEncoder` requires a model made specifically for cross-encoding.
+/// See `CrossEncoderAsync` for the async version of this class.
 #[pyclass]
 pub struct CrossEncoder {
     crossencoder: nobodywho::crossencoder::CrossEncoder,
@@ -216,6 +238,8 @@ impl CrossEncoder {
     }
 }
 
+/// This is the async version of `CrossEncoder`.
+/// See the docs for `CrossEncoder` for more details.
 #[pyclass]
 pub struct CrossEncoderAsync {
     crossencoder_handle: nobodywho::crossencoder::CrossEncoderAsync,
@@ -254,6 +278,15 @@ impl CrossEncoderAsync {
     }
 }
 
+/// `Chat` is a general-purpose class for interacting with instruction-tuned conversational LLMs.
+/// It should be initialized with a turn-taking LLM, which includes a chat template.
+/// On a `Chat` instance, you can call `.ask()` with the prompt you intend to pass to the model,
+/// which returns a `TokenStream`, representing the generated response.
+/// `Chat` also supports calling tools.
+/// When initializing a `Chat`, you can also specify additional generation configuration, like
+/// whether to allow sampling, what tools to provide, what sampling strategy to use for chosing
+/// tokens, what system prompt to use, etc.
+/// See `ChatAsync` for the async version of this class.
 #[pyclass]
 pub struct Chat {
     chat_handle: nobodywho::chat::ChatHandle,
@@ -341,6 +374,8 @@ impl Chat {
     }
 }
 
+/// This is the async version of the `Chat` class.
+/// See the docs for the `Chat` class for more information.
 #[pyclass]
 pub struct ChatAsync {
     chat_handle: nobodywho::chat::ChatHandleAsync,
@@ -429,6 +464,10 @@ impl ChatAsync {
     }
 }
 
+/// This function computes the cosine similarity between two vectors.
+/// It always returns a float between 0 and 1. Higher means more similar.
+/// The two vectors passed must be of equal length.
+/// It is particularly useful for comparing two embedding vectors.
 #[pyfunction]
 #[pyo3(signature = (a: "list[float]", b: "list[float]") -> "float")]
 fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> PyResult<f32> {
@@ -440,12 +479,26 @@ fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> PyResult<f32> {
     Ok(nobodywho::encoder::cosine_similarity(&a, &b))
 }
 
+/// `SamplerConfig` contains the configuration for a token sampler. The mechanism by which
+/// NobodyWho will sample a token from the probability distribution, to include in the
+/// generation result.
+/// A `SamplerConfig` can be constructed either using a preset function from the `SamplerPresets`
+/// class, or by manually constructing a sampler chain using the `SamplerBuilder` class.
 #[pyclass]
 #[derive(Clone, Default)]
 pub struct SamplerConfig {
     sampler_config: nobodywho::sampler_config::SamplerConfig,
 }
 
+/// `SamplerBuilder` is used to manually construct a sampler chain.
+/// A sampler chain consists of any number probability-shifting steps, and a single sampling step.
+/// Probability-shifting steps are operations that transform the probablity-distribution of next
+/// tokens, as generated by the model. E.g. the top_k step will zero the probability of all tokens
+/// that aren't among the top K most probable (where K is some integer).
+/// A sampling step is a final step that selects a single token from the probability distribution
+/// that results from applying all of the probability-shifting steps in order.
+/// E.g. the `dist` sampling steps selects a simple token with weighted randomness, and the
+/// `greedy` sampling step always selects the most probable.
 #[pyclass]
 #[derive(Clone)]
 pub struct SamplerBuilder {
@@ -598,6 +651,9 @@ fn sample_step(
     }
 }
 
+/// `SamplerPresets` is a static class which contains a bunch of functions to easily create a
+/// `SamplerConfig` from some pre-defined sampler chain.
+/// E.g. `SamplerPresets.temperature(0.8)` will return a `SamplerConfig`, with temperature=0.5.
 #[pyclass]
 pub struct SamplerPresets {}
 
@@ -660,6 +716,8 @@ impl SamplerPresets {
     }
 }
 
+/// A `Tool` is a wrapped python function, that can be passed as a tool for the model to call.
+/// `Tool`s are constructed using the `@tool` decorator.
 #[pyclass]
 pub struct Tool {
     tool: nobodywho::chat::Tool,
@@ -688,7 +746,11 @@ impl Tool {
     }
 }
 
-// tool decorator
+/// The `@tool` decorator can be applied to a regular python function, to turn it into a
+/// `Chat`-compatible `Tool` instance.
+/// `@tool` requires that you provide a description of the tool (which the model will read), and
+/// you may optionally provide a `params` dict, which can include descriptions of the individual
+/// parameters.
 #[pyfunction(signature = (description: "str", params: "dict[str, str] | None" = None) -> "typing.Callable[..., Tool]")]
 fn tool<'a>(
     description: String,
