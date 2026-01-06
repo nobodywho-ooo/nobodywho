@@ -143,7 +143,8 @@ where
             let n_ctx = std::cmp::min(n_ctx, model.n_ctx_train());
             let ctx_params = LlamaContextParams::default()
                 .with_n_ctx(std::num::NonZero::new(n_ctx))
-                .with_n_batch(n_ctx)
+                .with_n_batch(n_ctx) // n_batch sets the max size of a batch (i.e. max prompt size)
+                .with_n_ubatch(n_ctx) // n_ubatch is physical batch size (must be large for encoders)
                 .with_n_threads(n_threads)
                 .with_n_threads_batch(n_threads)
                 .with_embeddings(use_embeddings)
