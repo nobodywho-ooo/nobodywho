@@ -1,4 +1,9 @@
 use pyo3::prelude::*;
+
+/// `Model` objects contain a GGUF model. It is primarily useful for sharing a single model instance
+/// between multiple `Chat`, `Encoder`, or `CrossEncoder` instances.
+/// Sharing is efficient because the underlying model data is reference-counted.
+/// There is no `ModelAsync` variant. A regular `Model` can be used with both `Chat` and `ChatAsync`.
 #[pyclass]
 pub struct Model {
     model: nobodywho::llm::Model,
@@ -6,6 +11,17 @@ pub struct Model {
 
 #[pymethods]
 impl Model {
+    /// Create a new Model from a GGUF file.
+    ///
+    /// Args:
+    ///     model_path: Path to the GGUF model file
+    ///     use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
+    ///
+    /// Returns:
+    ///     A Model instance
+    ///
+    /// Raises:
+    ///     RuntimeError: If the model file cannot be loaded
     #[new]
     #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true) -> "Model")]
     pub fn new(model_path: std::path::PathBuf, use_gpu_if_available: bool) -> PyResult<Self> {
@@ -54,6 +70,11 @@ impl<'py> ModelOrPath<'py> {
     }
 }
 
+/// `TokenStream` represents an in-progress text completion. It is the return value of `Chat.ask`.
+/// You can iterate over the tokens in a `TokenStream` using the normal python iterator protocol,
+/// or by explicitly calling the `.next_token()` method.
+/// If you want to wait for the entire response to be generated, you can call `.completed()`.
+/// Also see `TokenStreamAsync`, for an async version of this class.
 #[pyclass]
 pub struct TokenStream {
     stream: nobodywho::chat::TokenStream,
@@ -61,6 +82,10 @@ pub struct TokenStream {
 
 #[pymethods]
 impl TokenStream {
+    /// Get the next token from the stream. Blocks until a token is available.
+    ///
+    /// Returns:
+    ///     The next token as a string, or None if the stream has ended.
     #[pyo3(signature = () -> "str | None")]
     pub fn next_token(&mut self, py: Python) -> Option<String> {
         // Release the GIL while waiting for the next token
@@ -68,6 +93,14 @@ impl TokenStream {
         py.detach(|| self.stream.next_token())
     }
 
+    /// Wait for the entire response to be generated and return it as a single string.
+    /// This blocks until generation is complete.
+    ///
+    /// Returns:
+    ///     The complete generated text.
+    ///
+    /// Raises:
+    ///     RuntimeError: If generation fails.
     pub fn completed(&mut self, py: Python) -> PyResult<String> {
         py.detach(|| self.stream.completed())
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
@@ -83,6 +116,9 @@ impl TokenStream {
     }
 }
 
+/// `TokenStreamAsync` is the async variant of the `TokenStream` class.
+/// It has the same methods as `TokenStream`, but all methods must be awaited.
+/// This class also supports async iteration using `async for token in stream:` syntax.
 #[pyclass]
 pub struct TokenStreamAsync {
     // this needs to be behind a mutex for async iterators to work
@@ -95,12 +131,23 @@ pub struct TokenStreamAsync {
 
 #[pymethods]
 impl TokenStreamAsync {
+    /// Get the next token from the stream asynchronously.
+    ///
+    /// Returns:
+    ///     The next token as a string, or None if the stream has ended.
     #[pyo3(signature = () -> "typing.Awaitable[str | None]")]
     pub async fn next_token(&mut self) -> Option<String> {
         // no need to release GIL in async functions
         self.stream.lock().await.next_token().await
     }
 
+    /// Wait for the entire response to be generated and return it as a single string.
+    ///
+    /// Returns:
+    ///     The complete generated text.
+    ///
+    /// Raises:
+    ///     RuntimeError: If generation fails.
     #[pyo3(signature = () -> "typing.Awaitable[str]")]
     pub async fn completed(&mut self) -> PyResult<String> {
         self.stream
@@ -128,6 +175,11 @@ impl TokenStreamAsync {
     }
 }
 
+/// `Encoder` will let you generate vector representations of text.
+/// It must be initialized with a model that specifically supports generating embeddings.
+/// A regular chat/text-generation model will not just work.
+/// Once initialized, you can call `.encode()` on a string, which returns a list of 32-bit floats.
+/// See `EncoderAsync` for the async version of this class.
 #[pyclass]
 pub struct Encoder {
     encoder: nobodywho::encoder::Encoder,
@@ -135,6 +187,18 @@ pub struct Encoder {
 
 #[pymethods]
 impl Encoder {
+    /// Create a new Encoder for generating text embeddings.
+    ///
+    /// Args:
+    ///     model: An embedding model (Model instance or path to GGUF file)
+    ///     n_ctx: Context size (maximum sequence length). Defaults to 4096.
+    ///
+    /// Returns:
+    ///     An Encoder instance
+    ///
+    /// Raises:
+    ///     RuntimeError: If the model cannot be loaded
+    ///     ValueError: If the path contains invalid UTF-8
     #[new]
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096) -> "Encoder")]
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
@@ -143,6 +207,16 @@ impl Encoder {
         Ok(Self { encoder })
     }
 
+    /// Generate an embedding vector for the given text. This method blocks until complete.
+    ///
+    /// Args:
+    ///     text: The text to encode
+    ///
+    /// Returns:
+    ///     A list of floats representing the embedding vector
+    ///
+    /// Raises:
+    ///     RuntimeError: If encoding fails
     #[pyo3(signature = (text: "str") -> "list[float]")]
     pub fn encode(&self, text: String, py: Python) -> PyResult<Vec<f32>> {
         py.detach(|| {
@@ -153,6 +227,7 @@ impl Encoder {
     }
 }
 
+/// This is the async version of the `Encoder` class. See the docs on `Encoder` for more detail.
 #[pyclass]
 pub struct EncoderAsync {
     encoder_handle: nobodywho::encoder::EncoderAsync,
@@ -160,6 +235,18 @@ pub struct EncoderAsync {
 
 #[pymethods]
 impl EncoderAsync {
+    /// Create a new async Encoder for generating text embeddings.
+    ///
+    /// Args:
+    ///     model: An embedding model (Model instance or path to GGUF file)
+    ///     n_ctx: Context size (maximum sequence length). Defaults to 4096.
+    ///
+    /// Returns:
+    ///     An EncoderAsync instance
+    ///
+    /// Raises:
+    ///     RuntimeError: If the model cannot be loaded
+    ///     ValueError: If the path contains invalid UTF-8
     #[new]
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096) -> "EncoderAsync")]
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
@@ -168,6 +255,16 @@ impl EncoderAsync {
         Ok(Self { encoder_handle })
     }
 
+    /// Generate an embedding vector for the given text asynchronously.
+    ///
+    /// Args:
+    ///     text: The text to encode
+    ///
+    /// Returns:
+    ///     A list of floats representing the embedding vector
+    ///
+    /// Raises:
+    ///     RuntimeError: If encoding fails
     #[pyo3(signature = (text: "str") -> "typing.Awaitable[list[float]]")]
     async fn encode(&self, text: String) -> PyResult<Vec<f32>> {
         let mut rx = self.encoder_handle.encode(text);
@@ -177,6 +274,10 @@ impl EncoderAsync {
     }
 }
 
+/// A `CrossEncoder` is a kind of encoder that is trained to compare similarity between two texts.
+/// It is particularly useful for searching a list of texts with a query, to find the closest one.
+/// `CrossEncoder` requires a model made specifically for cross-encoding.
+/// See `CrossEncoderAsync` for the async version of this class.
 #[pyclass]
 pub struct CrossEncoder {
     crossencoder: nobodywho::crossencoder::CrossEncoder,
@@ -184,6 +285,18 @@ pub struct CrossEncoder {
 
 #[pymethods]
 impl CrossEncoder {
+    /// Create a new CrossEncoder for comparing text similarity.
+    ///
+    /// Args:
+    ///     model: A cross-encoder model (Model instance or path to GGUF file)
+    ///     n_ctx: Context size (maximum sequence length). Defaults to 4096.
+    ///
+    /// Returns:
+    ///     A CrossEncoder instance
+    ///
+    /// Raises:
+    ///     RuntimeError: If the model cannot be loaded
+    ///     ValueError: If the path contains invalid UTF-8
     #[new]
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096) -> "CrossEncoder")]
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
@@ -192,6 +305,17 @@ impl CrossEncoder {
         Ok(Self { crossencoder })
     }
 
+    /// Compute similarity scores between a query and multiple documents. This method blocks.
+    ///
+    /// Args:
+    ///     query: The query text
+    ///     documents: List of documents to compare against the query
+    ///
+    /// Returns:
+    ///     List of similarity scores (higher = more similar). Scores are in the same order as documents.
+    ///
+    /// Raises:
+    ///     RuntimeError: If ranking fails
     #[pyo3(signature = (query: "str", documents: "list[str]") -> "list[float]")]
     pub fn rank(&self, query: String, documents: Vec<String>, py: Python) -> PyResult<Vec<f32>> {
         py.detach(|| {
@@ -201,6 +325,17 @@ impl CrossEncoder {
         })
     }
 
+    /// Rank documents by similarity to query and return them sorted. This method blocks.
+    ///
+    /// Args:
+    ///     query: The query text
+    ///     documents: List of documents to compare against the query
+    ///
+    /// Returns:
+    ///     List of (document, score) tuples sorted by descending similarity (most similar first).
+    ///
+    /// Raises:
+    ///     RuntimeError: If ranking fails
     #[pyo3(signature = (query: "str", documents: "list[str]") -> "list[tuple[str, float]]")]
     pub fn rank_and_sort(
         &self,
@@ -216,6 +351,8 @@ impl CrossEncoder {
     }
 }
 
+/// This is the async version of `CrossEncoder`.
+/// See the docs for `CrossEncoder` for more details.
 #[pyclass]
 pub struct CrossEncoderAsync {
     crossencoder_handle: nobodywho::crossencoder::CrossEncoderAsync,
@@ -223,6 +360,18 @@ pub struct CrossEncoderAsync {
 
 #[pymethods]
 impl CrossEncoderAsync {
+    /// Create a new async CrossEncoder for comparing text similarity.
+    ///
+    /// Args:
+    ///     model: A cross-encoder model (Model instance or path to GGUF file)
+    ///     n_ctx: Context size (maximum sequence length). Defaults to 4096.
+    ///
+    /// Returns:
+    ///     A CrossEncoderAsync instance
+    ///
+    /// Raises:
+    ///     RuntimeError: If the model cannot be loaded
+    ///     ValueError: If the path contains invalid UTF-8
     #[new]
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096) -> "CrossEncoderAsync")]
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
@@ -233,6 +382,17 @@ impl CrossEncoderAsync {
         })
     }
 
+    /// Compute similarity scores between a query and multiple documents asynchronously.
+    ///
+    /// Args:
+    ///     query: The query text
+    ///     documents: List of documents to compare against the query
+    ///
+    /// Returns:
+    ///     List of similarity scores (higher = more similar). Scores are in the same order as documents.
+    ///
+    /// Raises:
+    ///     RuntimeError: If ranking fails
     #[pyo3(signature = (query: "str", documents: "list[str]") -> "typing.Awaitable[list[float]]")]
     async fn rank(&self, query: String, documents: Vec<String>) -> PyResult<Vec<f32>> {
         let mut rx = self.crossencoder_handle.rank(query, documents);
@@ -241,6 +401,17 @@ impl CrossEncoderAsync {
         })
     }
 
+    /// Rank documents by similarity to query and return them sorted asynchronously.
+    ///
+    /// Args:
+    ///     query: The query text
+    ///     documents: List of documents to compare against the query
+    ///
+    /// Returns:
+    ///     List of (document, score) tuples sorted by descending similarity (most similar first).
+    ///
+    /// Raises:
+    ///     RuntimeError: If ranking fails
     #[pyo3(signature = (query: "str", documents: "list[str]") -> "typing.Awaitable[list[tuple[str, float]]]")]
     async fn rank_and_sort(
         &self,
@@ -254,6 +425,15 @@ impl CrossEncoderAsync {
     }
 }
 
+/// `Chat` is a general-purpose class for interacting with instruction-tuned conversational LLMs.
+/// It should be initialized with a turn-taking LLM, which includes a chat template.
+/// On a `Chat` instance, you can call `.ask()` with the prompt you intend to pass to the model,
+/// which returns a `TokenStream`, representing the generated response.
+/// `Chat` also supports calling tools.
+/// When initializing a `Chat`, you can also specify additional generation configuration, like
+/// what tools to provide, what sampling strategy to use for choosing tokens, what system prompt
+/// to use, whether to allow extended thinking, etc.
+/// See `ChatAsync` for the async version of this class.
 #[pyclass]
 pub struct Chat {
     chat_handle: nobodywho::chat::ChatHandle,
@@ -261,6 +441,22 @@ pub struct Chat {
 
 #[pymethods]
 impl Chat {
+    /// Create a new Chat instance for conversational text generation.
+    ///
+    /// Args:
+    ///     model: A chat model (Model instance or path to GGUF file)
+    ///     n_ctx: Context size (maximum conversation length in tokens). Defaults to 4096.
+    ///     system_prompt: System message to guide the model's behavior. Defaults to empty string.
+    ///     allow_thinking: If True, allows extended reasoning tokens for supported models. Defaults to True.
+    ///     tools: List of Tool instances the model can call. Defaults to empty list.
+    ///     sampler: SamplerConfig for token selection. Defaults to SamplerConfig.default().
+    ///
+    /// Returns:
+    ///     A Chat instance
+    ///
+    /// Raises:
+    ///     RuntimeError: If the model cannot be loaded
+    ///     ValueError: If the path contains invalid UTF-8
     #[new]
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = "", allow_thinking = true, tools: "list[Tool]" = Vec::<Tool>::new(), sampler=SamplerConfig::default()) -> "Chat")]
     pub fn new(
@@ -282,12 +478,27 @@ impl Chat {
         Ok(Self { chat_handle })
     }
 
+    /// Send a message to the model and get a streaming response.
+    ///
+    /// Args:
+    ///     text: The user message to send
+    ///
+    /// Returns:
+    ///     A TokenStream that yields tokens as they are generated
     pub fn ask(&self, text: String) -> TokenStream {
         TokenStream {
             stream: self.chat_handle.ask(text),
         }
     }
 
+    /// Reset the conversation with a new system prompt and tools. Clears all chat history.
+    ///
+    /// Args:
+    ///     system_prompt: New system message to guide the model's behavior
+    ///     tools: New list of Tool instances the model can call
+    ///
+    /// Raises:
+    ///     RuntimeError: If reset fails
     #[pyo3(signature = (system_prompt: "str", tools: "list[Tool]") -> "None")]
     pub fn reset(&self, system_prompt: String, tools: Vec<Tool>, py: Python) -> PyResult<()> {
         py.detach(|| {
@@ -297,6 +508,10 @@ impl Chat {
         })
     }
 
+    /// Clear the chat history while keeping the system prompt and tools unchanged.
+    ///
+    /// Raises:
+    ///     RuntimeError: If reset fails
     #[pyo3(signature = () -> "None")]
     pub fn reset_history(&self, py: Python) -> PyResult<()> {
         py.detach(|| {
@@ -306,6 +521,13 @@ impl Chat {
         })
     }
 
+    /// Enable or disable extended reasoning tokens for supported models.
+    ///
+    /// Args:
+    ///     allow_thinking: If True, allows extended reasoning tokens
+    ///
+    /// Raises:
+    ///     ValueError: If the setting cannot be changed
     #[pyo3(signature = (allow_thinking: "bool") -> "None")]
     pub fn set_allow_thinking(&self, allow_thinking: bool, py: Python) -> PyResult<()> {
         py.detach(|| {
@@ -315,6 +537,14 @@ impl Chat {
         })
     }
 
+    /// Get the current chat history as a list of message dictionaries.
+    ///
+    /// Returns:
+    ///     List of message dicts, each with 'role' (str) and 'content' (str) keys.
+    ///     Example: [{"role": "user", "content": "Hello"}, {"role": "assistant", "content": "Hi!"}]
+    ///
+    /// Raises:
+    ///     RuntimeError: If retrieval fails
     #[pyo3(signature = () -> "list[dict]")]
     pub fn get_chat_history(&self, py: Python) -> PyResult<Py<PyAny>> {
         let msgs = py.detach(|| {
@@ -328,6 +558,15 @@ impl Chat {
             .map(|bound| bound.unbind())
     }
 
+    /// Replace the chat history with a new list of messages.
+    ///
+    /// Args:
+    ///     msgs: List of message dicts, each with 'role' (str) and 'content' (str) keys.
+    ///           Example: [{"role": "user", "content": "Hello"}, {"role": "assistant", "content": "Hi!"}]
+    ///
+    /// Raises:
+    ///     ValueError: If message format is invalid
+    ///     RuntimeError: If setting history fails
     #[pyo3(signature = (msgs: "list[dict]") -> "None")]
     pub fn set_chat_history(&self, msgs: Bound<'_, PyAny>, py: Python) -> PyResult<()> {
         let msgs = pythonize::depythonize(&msgs)
@@ -341,6 +580,8 @@ impl Chat {
     }
 }
 
+/// This is the async version of the `Chat` class.
+/// See the docs for the `Chat` class for more information.
 #[pyclass]
 pub struct ChatAsync {
     chat_handle: nobodywho::chat::ChatHandleAsync,
@@ -348,6 +589,22 @@ pub struct ChatAsync {
 
 #[pymethods]
 impl ChatAsync {
+    /// Create a new async Chat instance for conversational text generation.
+    ///
+    /// Args:
+    ///     model: A chat model (Model instance or path to GGUF file)
+    ///     n_ctx: Context size (maximum conversation length in tokens). Defaults to 4096.
+    ///     system_prompt: System message to guide the model's behavior. Defaults to empty string.
+    ///     allow_thinking: If True, allows extended reasoning tokens for supported models. Defaults to True.
+    ///     tools: List of Tool instances the model can call. Defaults to empty list.
+    ///     sampler: SamplerConfig for token selection. Defaults to SamplerConfig.default().
+    ///
+    /// Returns:
+    ///     A ChatAsync instance
+    ///
+    /// Raises:
+    ///     RuntimeError: If the model cannot be loaded
+    ///     ValueError: If the path contains invalid UTF-8
     #[new]
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = "", allow_thinking = true, tools: "list[Tool]" = vec![], sampler = SamplerConfig::default()) -> "ChatAsync")]
     pub fn new(
@@ -369,12 +626,27 @@ impl ChatAsync {
         Ok(Self { chat_handle })
     }
 
+    /// Send a message to the model and get a streaming response asynchronously.
+    ///
+    /// Args:
+    ///     text: The user message to send
+    ///
+    /// Returns:
+    ///     A TokenStreamAsync that yields tokens as they are generated
     pub fn ask(&self, text: String) -> TokenStreamAsync {
         TokenStreamAsync {
             stream: std::sync::Arc::new(tokio::sync::Mutex::new(self.chat_handle.ask(text))),
         }
     }
 
+    /// Reset the conversation with a new system prompt and tools. Clears all chat history.
+    ///
+    /// Args:
+    ///     system_prompt: New system message to guide the model's behavior
+    ///     tools: New list of Tool instances the model can call
+    ///
+    /// Raises:
+    ///     RuntimeError: If reset fails
     #[pyo3(signature = (system_prompt: "str", tools: "list[Tool]") -> "None")]
     pub async fn reset(&self, system_prompt: String, tools: Vec<Tool>) -> PyResult<()> {
         self.chat_handle
@@ -383,6 +655,10 @@ impl ChatAsync {
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
+    /// Clear the chat history while keeping the system prompt and tools unchanged.
+    ///
+    /// Raises:
+    ///     RuntimeError: If reset fails
     #[pyo3(signature = () -> "None")]
     pub async fn reset_history(&self) -> PyResult<()> {
         self.chat_handle
@@ -391,14 +667,29 @@ impl ChatAsync {
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
+    /// Enable or disable extended reasoning tokens for supported models.
+    ///
+    /// Args:
+    ///     allow_thinking: If True, allows extended reasoning tokens
+    ///
+    /// Raises:
+    ///     ValueError: If the setting cannot be changed
     #[pyo3(signature = (allow_thinking: "bool") -> "None")]
     pub async fn set_allow_thinking(&self, allow_thinking: bool) -> PyResult<()> {
         self.chat_handle
             .set_allow_thinking(allow_thinking)
             .await
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
     }
 
+    /// Get the current chat history as a list of message dictionaries.
+    ///
+    /// Returns:
+    ///     List of message dicts, each with 'role' (str) and 'content' (str) keys.
+    ///     Example: [{"role": "user", "content": "Hello"}, {"role": "assistant", "content": "Hi!"}]
+    ///
+    /// Raises:
+    ///     RuntimeError: If retrieval fails
     #[pyo3(signature = () -> "list[dict]")]
     pub async fn get_chat_history(&self) -> PyResult<Py<PyAny>> {
         let msgs = self
@@ -414,6 +705,15 @@ impl ChatAsync {
         })
     }
 
+    /// Replace the chat history with a new list of messages.
+    ///
+    /// Args:
+    ///     msgs: List of message dicts, each with 'role' (str) and 'content' (str) keys.
+    ///           Example: [{"role": "user", "content": "Hello"}, {"role": "assistant", "content": "Hi!"}]
+    ///
+    /// Raises:
+    ///     ValueError: If message format is invalid
+    ///     RuntimeError: If setting history fails
     #[pyo3(signature = (msgs: "list[dict]") -> "None")]
     pub async fn set_chat_history(&self, msgs: Py<PyAny>) -> PyResult<()> {
         let msgs = Python::attach(|py| {
@@ -429,6 +729,18 @@ impl ChatAsync {
     }
 }
 
+/// Compute the cosine similarity between two vectors.
+/// Particularly useful for comparing embedding vectors from an Encoder.
+///
+/// Args:
+///     a: First vector
+///     b: Second vector (must have the same length as a)
+///
+/// Returns:
+///     Similarity score between 0.0 and 1.0 (higher means more similar)
+///
+/// Raises:
+///     ValueError: If vectors have different lengths
 #[pyfunction]
 #[pyo3(signature = (a: "list[float]", b: "list[float]") -> "float")]
 fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> PyResult<f32> {
@@ -440,12 +752,26 @@ fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> PyResult<f32> {
     Ok(nobodywho::encoder::cosine_similarity(&a, &b))
 }
 
+/// `SamplerConfig` contains the configuration for a token sampler. The mechanism by which
+/// NobodyWho will sample a token from the probability distribution, to include in the
+/// generation result.
+/// A `SamplerConfig` can be constructed either using a preset function from the `SamplerPresets`
+/// class, or by manually constructing a sampler chain using the `SamplerBuilder` class.
 #[pyclass]
 #[derive(Clone, Default)]
 pub struct SamplerConfig {
     sampler_config: nobodywho::sampler_config::SamplerConfig,
 }
 
+/// `SamplerBuilder` is used to manually construct a sampler chain.
+/// A sampler chain consists of any number of probability-shifting steps, and a single sampling step.
+/// Probability-shifting steps are operations that transform the probability distribution of next
+/// tokens, as generated by the model. E.g. the top_k step will zero the probability of all tokens
+/// that aren't among the top K most probable (where K is some integer).
+/// A sampling step is a final step that selects a single token from the probability distribution
+/// that results from applying all of the probability-shifting steps in order.
+/// E.g. the `dist` sampling step selects a token with weighted randomness, and the
+/// `greedy` sampling step always selects the most probable.
 #[pyclass]
 #[derive(Clone)]
 pub struct SamplerBuilder {
@@ -454,6 +780,7 @@ pub struct SamplerBuilder {
 
 #[pymethods]
 impl SamplerBuilder {
+    /// Create a new SamplerBuilder to construct a custom sampler chain.
     #[new]
     #[pyo3(signature = () -> "SamplerBuilder")]
     pub fn new() -> Self {
@@ -462,6 +789,10 @@ impl SamplerBuilder {
         }
     }
 
+    /// Keep only the top K most probable tokens. Typical values: 40-50.
+    ///
+    /// Args:
+    ///     top_k: Number of top tokens to keep
     pub fn top_k(&self, top_k: i32) -> Self {
         shift_step(
             self.clone(),
@@ -469,6 +800,11 @@ impl SamplerBuilder {
         )
     }
 
+    /// Keep tokens whose cumulative probability is below top_p. Typical values: 0.9-0.95.
+    ///
+    /// Args:
+    ///     top_p: Cumulative probability threshold (0.0 to 1.0)
+    ///     min_keep: Minimum number of tokens to always keep
     pub fn top_p(&self, top_p: f32, min_keep: u32) -> Self {
         shift_step(
             self.clone(),
@@ -476,6 +812,11 @@ impl SamplerBuilder {
         )
     }
 
+    /// Keep tokens with probability above min_p * (probability of most likely token).
+    ///
+    /// Args:
+    ///     min_p: Minimum relative probability threshold (0.0 to 1.0). Typical: 0.05-0.1.
+    ///     min_keep: Minimum number of tokens to always keep
     pub fn min_p(&self, min_p: f32, min_keep: u32) -> Self {
         shift_step(
             self.clone(),
@@ -483,6 +824,13 @@ impl SamplerBuilder {
         )
     }
 
+    /// XTC (eXclude Top Choices) sampler that probabilistically excludes high-probability tokens.
+    /// This can increase output diversity by sometimes forcing the model to pick less obvious tokens.
+    ///
+    /// Args:
+    ///     xtc_probability: Probability of applying XTC on each token (0.0 to 1.0)
+    ///     xtc_threshold: Tokens with probability above this threshold may be excluded (0.0 to 1.0)
+    ///     min_keep: Minimum number of tokens to always keep (prevents excluding all tokens)
     pub fn xtc(&self, xtc_probability: f32, xtc_threshold: f32, min_keep: u32) -> Self {
         shift_step(
             self.clone(),
@@ -494,6 +842,11 @@ impl SamplerBuilder {
         )
     }
 
+    /// Typical sampling: keeps tokens close to expected information content.
+    ///
+    /// Args:
+    ///     typ_p: Typical probability mass (0.0 to 1.0). Typical: 0.9.
+    ///     min_keep: Minimum number of tokens to always keep
     pub fn typical_p(&self, typ_p: f32, min_keep: u32) -> Self {
         shift_step(
             self.clone(),
@@ -501,6 +854,13 @@ impl SamplerBuilder {
         )
     }
 
+    /// Apply a grammar constraint to enforce structured output.
+    ///
+    /// Args:
+    ///     grammar: Grammar specification in GBNF format (GGML BNF, a variant of BNF used by llama.cpp)
+    ///     trigger_on: Optional string that, when generated, activates the grammar constraint.
+    ///                 Useful for letting the model generate free-form text until a specific marker.
+    ///     root: Name of the root grammar rule to start parsing from
     pub fn grammar(&self, grammar: String, trigger_on: Option<String>, root: String) -> Self {
         shift_step(
             self.clone(),
@@ -512,6 +872,14 @@ impl SamplerBuilder {
         )
     }
 
+    /// DRY (Don't Repeat Yourself) sampler to reduce repetition.
+    ///
+    /// Args:
+    ///     multiplier: Penalty strength multiplier
+    ///     base: Base penalty value
+    ///     allowed_length: Maximum allowed repetition length
+    ///     penalty_last_n: Number of recent tokens to consider
+    ///     seq_breakers: List of strings that break repetition sequences
     #[pyo3(signature = (multiplier: "float", base: "float", allowed_length: "int", penalty_last_n: "int", seq_breakers: "list[str]") -> "SamplerBuilder")]
     pub fn dry(
         &self,
@@ -533,6 +901,13 @@ impl SamplerBuilder {
         )
     }
 
+    /// Apply repetition penalties to discourage repeated tokens.
+    ///
+    /// Args:
+    ///     penalty_last_n: Number of recent tokens to penalize (0 = disable)
+    ///     penalty_repeat: Base repetition penalty (1.0 = no penalty, >1.0 = penalize)
+    ///     penalty_freq: Frequency penalty based on token occurrence count
+    ///     penalty_present: Presence penalty for any token that appeared before
     pub fn penalties(
         &self,
         penalty_last_n: i32,
@@ -551,6 +926,10 @@ impl SamplerBuilder {
         )
     }
 
+    /// Apply temperature scaling to the probability distribution.
+    ///
+    /// Args:
+    ///     temperature: Temperature value (0.0 = deterministic, 1.0 = unchanged, >1.0 = more random)
     pub fn temperature(&self, temperature: f32) -> Self {
         shift_step(
             self.clone(),
@@ -558,14 +937,33 @@ impl SamplerBuilder {
         )
     }
 
+    /// Sample from the probability distribution (weighted random selection).
+    ///
+    /// Returns:
+    ///     A complete SamplerConfig ready to use
     pub fn dist(&self) -> SamplerConfig {
         sample_step(self.clone(), nobodywho::sampler_config::SampleStep::Dist)
     }
 
+    /// Always select the most probable token (deterministic).
+    ///
+    /// Returns:
+    ///     A complete SamplerConfig ready to use
     pub fn greedy(&self) -> SamplerConfig {
         sample_step(self.clone(), nobodywho::sampler_config::SampleStep::Greedy)
     }
 
+    /// Use Mirostat v1 algorithm for perplexity-controlled sampling.
+    /// Mirostat dynamically adjusts sampling to maintain a target "surprise" level,
+    /// producing more coherent output than fixed temperature. Good for long-form generation.
+    ///
+    /// Args:
+    ///     tau: Target perplexity/surprise value (typically 3.0-5.0; lower = more focused)
+    ///     eta: Learning rate for perplexity adjustment (typically 0.1)
+    ///     m: Number of candidates to consider (typically 100)
+    ///
+    /// Returns:
+    ///     A complete SamplerConfig ready to use
     pub fn mirostat_v1(&self, tau: f32, eta: f32, m: i32) -> SamplerConfig {
         sample_step(
             self.clone(),
@@ -573,6 +971,16 @@ impl SamplerBuilder {
         )
     }
 
+    /// Use Mirostat v2 algorithm for perplexity-controlled sampling.
+    /// Mirostat v2 is a simplified version of Mirostat that's often preferred.
+    /// It dynamically adjusts sampling to maintain a target "surprise" level.
+    ///
+    /// Args:
+    ///     tau: Target perplexity/surprise value (typically 3.0-5.0; lower = more focused)
+    ///     eta: Learning rate for perplexity adjustment (typically 0.1)
+    ///
+    /// Returns:
+    ///     A complete SamplerConfig ready to use
     pub fn mirostat_v2(&self, tau: f32, eta: f32) -> SamplerConfig {
         sample_step(
             self.clone(),
@@ -598,11 +1006,15 @@ fn sample_step(
     }
 }
 
+/// `SamplerPresets` is a static class which contains a bunch of functions to easily create a
+/// `SamplerConfig` from some pre-defined sampler chain.
+/// E.g. `SamplerPresets.temperature(0.8)` will return a `SamplerConfig` with temperature=0.8.
 #[pyclass]
 pub struct SamplerPresets {}
 
 #[pymethods]
 impl SamplerPresets {
+    /// Get the default sampler configuration.
     #[staticmethod]
     pub fn default() -> SamplerConfig {
         SamplerConfig {
@@ -610,6 +1022,10 @@ impl SamplerPresets {
         }
     }
 
+    /// Create a sampler with top-k filtering only.
+    ///
+    /// Args:
+    ///     top_k: Number of top tokens to keep
     #[staticmethod]
     pub fn top_k(top_k: i32) -> SamplerConfig {
         SamplerConfig {
@@ -617,6 +1033,10 @@ impl SamplerPresets {
         }
     }
 
+    /// Create a sampler with nucleus (top-p) sampling.
+    ///
+    /// Args:
+    ///     top_p: Cumulative probability threshold (0.0 to 1.0)
     #[staticmethod]
     pub fn top_p(top_p: f32) -> SamplerConfig {
         SamplerConfig {
@@ -624,6 +1044,7 @@ impl SamplerPresets {
         }
     }
 
+    /// Create a greedy sampler (always picks most probable token).
     #[staticmethod]
     pub fn greedy() -> SamplerConfig {
         SamplerConfig {
@@ -631,6 +1052,10 @@ impl SamplerPresets {
         }
     }
 
+    /// Create a sampler with temperature scaling.
+    ///
+    /// Args:
+    ///     temperature: Temperature value (lower = more focused, higher = more random)
     #[staticmethod]
     pub fn temperature(temperature: f32) -> SamplerConfig {
         SamplerConfig {
@@ -638,6 +1063,7 @@ impl SamplerPresets {
         }
     }
 
+    /// Create a DRY sampler preset to reduce repetition.
     #[staticmethod]
     pub fn dry() -> SamplerConfig {
         SamplerConfig {
@@ -645,6 +1071,8 @@ impl SamplerPresets {
         }
     }
 
+    /// Create a sampler configured for JSON output generation.
+    /// Uses a grammar constraint to ensure the model outputs only valid JSON.
     #[staticmethod]
     pub fn json() -> SamplerConfig {
         SamplerConfig {
@@ -652,6 +1080,10 @@ impl SamplerPresets {
         }
     }
 
+    /// Create a sampler with a custom grammar constraint.
+    ///
+    /// Args:
+    ///     grammar: Grammar specification in GBNF format (GGML BNF, a variant of BNF used by llama.cpp)
     #[staticmethod]
     pub fn grammar(grammar: String) -> SamplerConfig {
         SamplerConfig {
@@ -660,6 +1092,8 @@ impl SamplerPresets {
     }
 }
 
+/// A `Tool` is a wrapped python function, that can be passed as a tool for the model to call.
+/// `Tool`s are constructed using the `@tool` decorator.
 #[pyclass]
 pub struct Tool {
     tool: nobodywho::chat::Tool,
@@ -688,7 +1122,25 @@ impl Tool {
     }
 }
 
-// tool decorator
+/// Decorator to convert a Python function into a Chat-compatible Tool instance.
+///
+/// The decorated function will be callable by the model during chat. The model sees the
+/// function's name, description, and parameter types/descriptions to decide when to call it.
+///
+/// Args:
+///     description: A description of what the tool does (shown to the model)
+///     params: Optional dict mapping parameter names to their descriptions (shown to the model)
+///
+/// Returns:
+///     A decorator that transforms a function into a Tool instance
+///
+/// Example:
+///     @tool("Get the current weather for a city", params={"city": "The city name"})
+///     def get_weather(city: str) -> str:
+///         return f"Weather in {city}: sunny"
+///
+/// Note:
+///     All function parameters must have type hints. The function should return a string.
 #[pyfunction(signature = (description: "str", params: "dict[str, str] | None" = None) -> "typing.Callable[..., Tool]")]
 fn tool<'a>(
     description: String,
