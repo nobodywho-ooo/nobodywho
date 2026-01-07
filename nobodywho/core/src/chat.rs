@@ -2529,6 +2529,21 @@ mod tests {
     }
 
     #[test]
+    fn test_strftime_now() {
+        // huggingface chat template docs say that `strftime_now(format_str)` should be equivalent to `datetime.now().strftime(format_str)`
+        // https://huggingface.co/docs/transformers/main/chat_templating#callable-functions
+
+        let result = strftime_now("%Y-%m-%d");
+        assert!(
+            result.len() == 10,
+            "Expected format YYYY-MM-DD to be 10 chars"
+        );
+
+        let result = strftime_now("%H:%M:%S");
+        assert!(result.len() == 8, "Expected format HH:MM:SS to be 8 chars");
+    }
+
+    #[test]
     fn test_render_string_llama3_template() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_test_model();
 

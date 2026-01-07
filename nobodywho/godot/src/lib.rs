@@ -2,7 +2,7 @@ use godot::classes::{INode, ProjectSettings};
 use godot::prelude::*;
 use nobodywho::chat::{ChatConfig, Message, Role};
 use nobodywho::sampler_config::{SamplerConfig, SamplerPresets};
-use nobodywho::{chat_state, errors, llm};
+use nobodywho::{errors, llm};
 use std::sync::atomic::{AtomicU64, Ordering};
 use tracing::{debug, error, info, trace, warn};
 use tracing_subscriber::filter::{LevelFilter, Targets};

@@ -1,5 +1,4 @@
 pub mod chat;
-pub mod chat_state;
 pub mod crossencoder;
 pub mod encoder;
 pub mod errors;
