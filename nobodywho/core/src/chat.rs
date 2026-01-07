@@ -20,9 +20,10 @@
 //! # Ok(())
 //! # }
 //! ```
+//!
 
-use crate::chat_state::{self, Role};
-use crate::chat_state::{ChatState, Message};
+use std::sync::LazyLock;
+
 use crate::errors::{
     ChatWorkerError, DecodingError, FromModelError, GenerateResponseError, InferenceError,
     InitWorkerError, RenderError, SayError, ShiftError, WrappedResponseError,
@@ -35,10 +36,87 @@ use llama_cpp_2::model::{AddBos, Special};
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 use llama_cpp_2::{context::params::LlamaPoolingType, model::LlamaModel};
+use minijinja::{context, Environment};
+use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::cmp::min;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, MutexGuard};
 use tracing::{debug, error, info, trace, trace_span, warn};
+
+static MINIJINJA_ENV: LazyLock<Environment> = LazyLock::new(|| {
+    let mut env = Environment::new();
+    env.add_function(
+        "raise_exception",
+        |msg: String| -> Result<(), minijinja::Error> {
+            Err(minijinja::Error::new(
+                minijinja::ErrorKind::InvalidOperation,
+                msg,
+            ))
+        },
+    );
+    env.add_function("strftime_now", strftime_now);
+
+    // add a bunch of python-isms, like str.split() or dict.get()
+    // was introduced in #106 to fix the deepseek chat template
+    env.set_unknown_method_callback(minijinja_contrib::pycompat::unknown_method_callback);
+    env
+});
+
+fn strftime_now(format_str: &str) -> String {
+    chrono::Local::now().format(format_str).to_string()
+}
+
+#[derive(Deserialize, Serialize, Clone, PartialEq, Eq, Debug)]
+#[serde(rename_all = "lowercase")]
+pub enum Role {
+    User,
+    Assistant,
+    System,
+    Tool,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug)]
+#[serde(untagged)]
+pub enum Message {
+    Message {
+        role: Role,
+        content: String,
+    },
+    // it's kind of weird to have the content field in here
+    // but according to the qwen3 docs, it should be an empty field on tool call messages
+    // https://github.com/QwenLM/Qwen3/blob/e5a1d326/docs/source/framework/function_call.md
+    // this also causes a crash when rendering qwen3 chat template, because it tries to get the
+    // length of the content field, which is otherwise undefiend
+    ToolCalls {
+        role: Role,
+        content: String,
+        tool_calls: Vec<ToolCall>,
+    },
+    ToolResp {
+        role: Role,
+        name: String,
+        content: String,
+    },
+}
+
+impl Message {
+    pub fn role(&self) -> &Role {
+        match self {
+            Message::Message { role, .. }
+            | Message::ToolCalls { role, .. }
+            | Message::ToolResp { role, .. } => role,
+        }
+    }
+
+    pub fn content(&self) -> &String {
+        match self {
+            Message::Message { content, .. }
+            | Message::ToolCalls { content, .. }
+            | Message::ToolResp { content, .. } => content,
+        }
+    }
+}
 
 // PARALLELISM
 
@@ -301,9 +379,7 @@ impl ChatHandle {
     }
 
     /// Get a receiver for the chat history (lower-level API).
-    pub fn get_chat_history(
-        &self,
-    ) -> Result<Vec<crate::chat_state::Message>, crate::errors::GetterError> {
+    pub fn get_chat_history(&self) -> Result<Vec<Message>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         let _ = self.msg_tx.send(ChatMsg::GetChatHistory { output_tx });
         output_rx
@@ -316,7 +392,7 @@ impl ChatHandle {
     /// Set the chat history (lower-level API).
     pub fn set_chat_history(
         &self,
-        messages: Vec<crate::chat_state::Message>,
+        messages: Vec<Message>,
     ) -> Result<(), crate::errors::SetterError> {
         self.set_and_wait_blocking(|output_tx| ChatMsg::SetChatHistory {
             messages,
@@ -477,9 +553,7 @@ impl ChatHandleAsync {
     }
 
     /// Get a receiver for the chat history (lower-level API).
-    pub async fn get_chat_history(
-        &self,
-    ) -> Result<Vec<crate::chat_state::Message>, crate::errors::GetterError> {
+    pub async fn get_chat_history(&self) -> Result<Vec<Message>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         let _ = self.msg_tx.send(ChatMsg::GetChatHistory { output_tx });
         output_rx
@@ -493,7 +567,7 @@ impl ChatHandleAsync {
     /// Set the chat history (lower-level API).
     pub async fn set_chat_history(
         &self,
-        messages: Vec<crate::chat_state::Message>,
+        messages: Vec<Message>,
     ) -> Result<(), crate::errors::SetterError> {
         self.set_and_wait_async(|output_tx| ChatMsg::SetChatHistory {
             messages,
@@ -632,10 +706,10 @@ enum ChatMsg {
         output_tx: tokio::sync::mpsc::Sender<()>,
     },
     GetChatHistory {
-        output_tx: tokio::sync::mpsc::Sender<Vec<crate::chat_state::Message>>,
+        output_tx: tokio::sync::mpsc::Sender<Vec<Message>>,
     },
     SetChatHistory {
-        messages: Vec<crate::chat_state::Message>,
+        messages: Vec<Message>,
         output_tx: tokio::sync::mpsc::Sender<()>,
     },
 }
@@ -679,7 +753,7 @@ fn process_worker_msg(
             let _ = output_tx.blocking_send(());
         }
         ChatMsg::GetChatHistory { output_tx } => {
-            let _ = output_tx.blocking_send(worker_state.extra.chat_state.get_messages().to_vec());
+            let _ = output_tx.blocking_send(worker_state.extra.messages.clone());
         }
         ChatMsg::SetChatHistory {
             messages,
@@ -735,16 +809,26 @@ impl Tool {
             function,
         }
     }
+}
 
-    fn to_chat_state_tool(&self) -> chat_state::Tool {
-        chat_state::Tool {
-            r#type: chat_state::ToolType::Function,
-            function: chat_state::Function {
-                name: self.name.clone(),
-                description: self.description.clone(),
-                parameters: self.json_schema.clone(),
-            },
-        }
+impl Serialize for Tool {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+
+        let mut state = serializer.serialize_struct("Tool", 2)?;
+        state.serialize_field("type", "function")?;
+        state.serialize_field(
+            "function",
+            &json!({
+                "name": self.name,
+                "description": self.description,
+                "parameters": self.json_schema,
+            }),
+        )?;
+        state.end()
     }
 }
 
@@ -846,14 +930,89 @@ fn grammar_from_tools(tools: &[Tool]) -> Result<gbnf::Grammar, gbnf::json::JsonS
     Ok(json_grammar)
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+pub struct ToolCall {
+    pub name: String,
+    pub arguments: serde_json::Value, // Flexible structure for arbitrary arguments
+}
+
 // TOOL CHAT WORKER
 
+/// CHAT TEMPLATE SELECTION & RENDERING Helper functions
+fn select_template(
+    model: &llama_cpp_2::model::LlamaModel,
+    with_tools: bool,
+) -> Result<String, FromModelError> {
+    let default_template = model.chat_template(None)?.to_string()?;
+    let tool_template = model.chat_template(Some("tool_use"));
+
+    let template = if !with_tools {
+        // no tools. use default template.
+        default_template
+    } else if let Ok(tool_template) = tool_template {
+        // tools provided, and we have a tool template, use that.
+        debug_assert!(tool_template.to_string()?.contains("tools"));
+        tool_template.to_string()?
+    } else if default_template.contains("tools") {
+        // tools provided, but no tool template, but the default template seems to mention tools
+        default_template
+    } else {
+        // tools provided, but we have no tool-capable template
+        return Err(FromModelError::NoToolTemplate);
+    };
+    trace!(template);
+
+    Ok(template)
+}
+
+/// given a chat history where the first two messages are from system and user
+/// return a history where the first message is from user, and contains the system prompt as well.
+/// (this is what llama.cpp does for the gemma template too)
+fn concat_system_and_first_user_messages(
+    messages: &[Message],
+) -> Result<Vec<Message>, minijinja::Error> {
+    warn!("System role not supported by this chat template. Concatenating first user message and system prompt.");
+    match messages {
+        [Message::Message {
+            role: Role::System,
+            content: first_content,
+        }, Message::Message {
+            role: Role::User,
+            content: second_content,
+        }, rest @ ..] => {
+            let new_first_message = Message::Message {
+                role: Role::User,
+                content: format!("{}\n\n{}", first_content, second_content),
+            };
+            let new_messages = vec![new_first_message]
+                .into_iter()
+                .chain(rest.iter().cloned())
+                .collect();
+            Ok(new_messages)
+        }
+        _ => {
+            // HACK: this should probably be a custom ChatStateError, and nont a minijinja error
+            //       but this was quick and easy rn, and we "abuse" the minijinja errors for
+            //       `raise_exception` anyway...
+            Err(minijinja::Error::new(
+                minijinja::ErrorKind::InvalidOperation,
+                "Cannot replace system prompt unless the first two messages are from system and user roles."
+            ))
+        }
+    }
+}
+
 struct ChatWorker {
-    chat_state: ChatState,
     should_stop: Arc<AtomicBool>,
     tools: Vec<Tool>,
     tool_grammar: Option<gbnf::Grammar>,
     sampler_config: SamplerConfig,
+    messages: Vec<Message>,
+    chat_template: String,
+    tokens_in_context: Vec<LlamaToken>,
+    allow_thinking: bool,
+    eos_token: String,
+    bos_token: String,
 }
 
 impl llm::PoolingType for ChatWorker {
@@ -868,17 +1027,11 @@ impl Worker<'_, ChatWorker> {
         config: ChatConfig,
         should_stop: Arc<AtomicBool>,
     ) -> Result<Worker<'_, ChatWorker>, InitWorkerError> {
-        // initialize chat state with system prompt
-        let mut chat_state = ChatState::from_model_and_tools(
-            model,
-            config
-                .tools
-                .iter()
-                .map(|t| t.to_chat_state_tool())
-                .collect(),
-        )?;
-        chat_state.add_system_message(config.system_prompt);
-        chat_state.set_allow_thinking(config.allow_thinking);
+        let template = select_template(model, !config.tools.is_empty())?;
+
+        let tokenize = llama_cpp_2::model::Special::Tokenize;
+        let bos = model.token_to_str(model.token_bos(), tokenize)?;
+        let eos = model.token_to_str(model.token_eos(), tokenize)?;
 
         let grammar = if !config.tools.is_empty() {
             grammar_from_tools(&config.tools).ok()
@@ -891,11 +1044,19 @@ impl Worker<'_, ChatWorker> {
             config.n_ctx,
             false,
             ChatWorker {
-                chat_state,
+                should_stop,
                 tools: config.tools,
                 tool_grammar: grammar,
-                should_stop,
                 sampler_config: config.sampler_config,
+                messages: vec![Message::Message {
+                    role: Role::System,
+                    content: config.system_prompt,
+                }],
+                chat_template: template,
+                tokens_in_context: Vec::new(),
+                allow_thinking: config.allow_thinking,
+                eos_token: eos,
+                bos_token: bos,
             },
         )
     }
@@ -906,10 +1067,70 @@ impl Worker<'_, ChatWorker> {
             .load(std::sync::atomic::Ordering::Relaxed)
     }
 
+    pub fn add_system_message(&mut self, content: String) {
+        self.add_message(Role::System, content)
+    }
+
+    pub fn add_assistant_message(&mut self, content: String) {
+        self.add_message(Role::Assistant, content)
+    }
+
+    pub fn add_user_message(&mut self, content: String) {
+        self.add_message(Role::User, content)
+    }
+
+    fn add_message(&mut self, role: Role, content: String) {
+        self.extra.messages.push(Message::Message { role, content });
+    }
+
+    pub fn add_tool_calls(&mut self, tool_calls: Vec<ToolCall>) {
+        self.extra.messages.push(Message::ToolCalls {
+            role: Role::Assistant,
+            content: "".into(),
+            tool_calls,
+        });
+    }
+
+    pub fn add_tool_resp(&mut self, name: String, content: String) {
+        self.extra.messages.push(Message::ToolResp {
+            role: Role::Tool,
+            name,
+            content,
+        });
+    }
+
+    // Context shifting
+
+    pub fn find_prefix_index_and_difference_with_tokens_in_context(
+        &self,
+        tokens: &[LlamaToken],
+    ) -> (u32, Vec<LlamaToken>) {
+        if self.extra.tokens_in_context.is_empty() {
+            return (0, tokens.to_owned());
+        }
+
+        let longest_common_prefix_index = self
+            .extra
+            .tokens_in_context
+            .iter()
+            .zip(tokens.iter())
+            .position(|(a, b)| a != b);
+
+        let (index, difference): (u32, Vec<LlamaToken>) = match longest_common_prefix_index {
+            Some(i) => (i as u32, tokens[i..].to_vec()),
+            None => (
+                self.extra.tokens_in_context.len() as u32,
+                tokens[(self.extra.tokens_in_context.len())..].to_vec(),
+            ),
+        };
+
+        (index, difference)
+    }
+
     fn context_shift(&mut self) -> Result<(), ShiftError> {
         info!("Context shift happens!");
         let target_token_size = (self.ctx.n_ctx() / 2) as usize;
-        let mut messages = self.extra.chat_state.get_messages().to_vec();
+        let mut messages = self.extra.messages.clone();
 
         // Find indices to preserve
         let system_end = if matches!(messages[0].role(), Role::System) {
@@ -942,14 +1163,12 @@ impl Worker<'_, ChatWorker> {
 
         loop {
             // No non-essential messages left to delete or the new context has reached desired size.
+            println!("{:?}", self.extra.messages);
             if first_deletable_index > last_deletable_index
                 || self
                     .ctx
                     .model
-                    .str_to_token(
-                        &self.extra.chat_state.naive_render_message_vec(&messages)?,
-                        AddBos::Never,
-                    )?
+                    .str_to_token(&self.naive_render_message_vec(&messages)?, AddBos::Never)?
                     .len()
                     <= target_token_size
             {
@@ -979,7 +1198,7 @@ impl Worker<'_, ChatWorker> {
         }
 
         // update the messages in chat_state
-        self.extra.chat_state.set_messages(messages);
+        self.extra.messages = messages;
         Ok(())
     }
 
@@ -1003,6 +1222,72 @@ impl Worker<'_, ChatWorker> {
         } else {
             None
         }
+    }
+
+    // Chat Template Rendering
+
+    pub fn naive_render_message_vec(
+        &self,
+        messages: &[Message],
+    ) -> Result<String, minijinja::Error> {
+        let tmpl = MINIJINJA_ENV.template_from_str(&self.extra.chat_template)?;
+        let add_generation_prompt = self.extra.messages.last().is_some_and(|msg| {
+            matches!(
+                msg,
+                Message::Message {
+                    role: Role::User,
+                    ..
+                } | Message::ToolResp { .. }
+            )
+        });
+
+        let ctx = context! {
+            messages => messages,
+            add_generation_prompt => add_generation_prompt,
+            // we call it allow thinking, because not every model has thinking mode,
+            // and 'enable' could then cause confusion
+            enable_thinking => self.extra.allow_thinking,
+            eos_token => self.extra.eos_token,
+            bos_token => self.extra.bos_token,
+            tools => self.extra.tools,
+        };
+
+        tmpl.render(ctx)
+    }
+
+    pub fn render_string(&mut self) -> Result<String, minijinja::Error> {
+        let rendered_template = self.naive_render_message_vec(&self.extra.messages);
+        let result = match rendered_template {
+            Ok(rendered) => Ok(rendered),
+            Err(err) => match err.kind() {
+                minijinja::ErrorKind::InvalidOperation => {
+                    if err.to_string().contains("System role not supported") {
+                        // this is the error message we get when rendering the gemma2 template
+                        // concat the first two messages and try again
+                        self.extra.messages =
+                            concat_system_and_first_user_messages(&self.extra.messages)?;
+                        self.render_string()
+                    } else if err.to_string().contains(
+                        "Conversation roles must alternate user/assistant/user/assistant/...",
+                    ) {
+                        // this is the error we get when rendering the mistral 7b v0.3 template,
+                        // which, like gemma2, does not support the system role
+                        // concat the first two messages and try again
+                        self.extra.messages =
+                            concat_system_and_first_user_messages(&self.extra.messages)?;
+                        self.render_string()
+                    } else {
+                        Err(err)
+                    }
+                }
+                _ => Err(err),
+            },
+        };
+
+        let text = result?;
+        trace!(text);
+
+        Ok(text)
     }
 
     // ---------- IMPORTANT ----------
@@ -1038,10 +1323,8 @@ impl Worker<'_, ChatWorker> {
                 self.context_shift()?;
                 let render_as_tokens = self.get_render_as_tokens()?;
 
-                let (prefix_index, token_difference) = self
-                    .extra
-                    .chat_state
-                    .find_prefix_index_and_difference_with_tokens_in_context(&render_as_tokens);
+                let (prefix_index, token_difference) =
+                    self.find_prefix_index_and_difference_with_tokens_in_context(&render_as_tokens);
 
                 self.remove_all_tokens_after_index_from_ctx(prefix_index)?;
                 self.read_tokens(token_difference, inference_lock_token)?;
@@ -1142,7 +1425,7 @@ impl Worker<'_, ChatWorker> {
         //       we need to support multiple different tool call begin tokens
         let tool_call_begin = "<tool_call>";
 
-        self.extra.chat_state.add_user_message(text);
+        self.add_user_message(text);
 
         // Modify sampler with tool grammar if we have tools
         let sampler = self.extra.tool_grammar.as_ref().map_or(
@@ -1166,7 +1449,7 @@ impl Worker<'_, ChatWorker> {
         while let Some(tool_calls) = extract_tool_calls(&response) {
             debug!("Got tool calls! {tool_calls:?}");
 
-            self.extra.chat_state.add_tool_calls(tool_calls.clone());
+            self.add_tool_calls(tool_calls.clone());
 
             for tool_call in tool_calls {
                 // find the tool
@@ -1182,7 +1465,7 @@ impl Worker<'_, ChatWorker> {
                         tool_call.name
                     );
                     let errmsg = format!("ERROR - Invalid tool name: {}", tool_call.name);
-                    self.extra.chat_state.add_tool_resp(tool_call.name, errmsg);
+                    self.add_tool_resp(tool_call.name, errmsg);
                     continue;
                 };
 
@@ -1191,9 +1474,7 @@ impl Worker<'_, ChatWorker> {
                 debug!(?tool_call.name, ?response);
 
                 // add to chat history
-                self.extra
-                    .chat_state
-                    .add_tool_resp(tool_call.name, response);
+                self.add_tool_resp(tool_call.name, response);
             }
 
             // get the finished response
@@ -1204,20 +1485,18 @@ impl Worker<'_, ChatWorker> {
             )?;
         }
         debug_assert!(!response.contains(tool_call_begin));
-        self.extra.chat_state.add_assistant_message(response);
+        self.add_assistant_message(response);
 
         // Update tokens_in_context as the model already has seen this respone
         let render_as_tokens = self.get_render_as_tokens()?;
 
-        self.extra
-            .chat_state
-            .set_tokens_in_context(render_as_tokens);
+        self.extra.tokens_in_context = render_as_tokens;
 
         Ok(self)
     }
 
     fn get_render_as_tokens(&mut self) -> Result<Vec<LlamaToken>, RenderError> {
-        let render_as_string = self.extra.chat_state.render_string()?;
+        let render_as_string = self.render_string()?;
         let render_as_tokens = self
             .ctx
             .model
@@ -1255,10 +1534,8 @@ impl Worker<'_, ChatWorker> {
             render_as_tokens = self.get_render_as_tokens()?;
         }
 
-        let (prefix_index, token_difference) = self
-            .extra
-            .chat_state
-            .find_prefix_index_and_difference_with_tokens_in_context(&render_as_tokens);
+        let (prefix_index, token_difference) =
+            self.find_prefix_index_and_difference_with_tokens_in_context(&render_as_tokens);
 
         self.remove_all_tokens_after_index_from_ctx(prefix_index)?;
 
@@ -1270,9 +1547,7 @@ impl Worker<'_, ChatWorker> {
         self.read_tokens_and_generate_response(token_difference, sampler, wrapped_respond)?;
 
         // update the chat_state to match the tokens in the context.
-        self.extra
-            .chat_state
-            .set_tokens_in_context(render_as_tokens);
+        self.extra.tokens_in_context = render_as_tokens;
 
         Ok(resp_receiver.recv()?)
     }
@@ -1283,22 +1558,20 @@ impl Worker<'_, ChatWorker> {
         tools: Vec<Tool>,
     ) -> Result<(), FromModelError> {
         self.reset_context();
-        self.extra.chat_state = ChatState::from_model_and_tools(
-            self.ctx.model,
-            tools.iter().map(|t| t.to_chat_state_tool()).collect(),
-        )?;
         self.extra.tool_grammar = if !tools.is_empty() {
             grammar_from_tools(&tools).ok()
         } else {
             None
         };
         self.extra.tools = tools;
-        self.extra.chat_state.add_system_message(system_prompt);
+        self.extra.messages = Vec::new();
+        self.extra.tokens_in_context = Vec::new();
+        self.add_system_message(system_prompt);
         Ok(())
     }
 
     pub fn set_allow_thinking(&mut self, allow_thinking: bool) -> Result<(), ChatWorkerError> {
-        self.extra.chat_state.set_allow_thinking(allow_thinking);
+        self.extra.allow_thinking = allow_thinking;
         Ok(())
     }
 
@@ -1307,16 +1580,6 @@ impl Worker<'_, ChatWorker> {
     }
 
     pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), ChatWorkerError> {
-        let current_messages = self.extra.chat_state.get_messages().to_vec();
-
-        // XXX: this is a quickfix
-        // TODO: we really need to consolidate state, to avoid this getter/setter spaghetti
-        let current_allow_thinking = self.extra.chat_state.get_allow_thinking();
-
-        self.extra.chat_state = ChatState::from_model_and_tools(
-            self.ctx.model,
-            tools.iter().map(|t| t.to_chat_state_tool()).collect(),
-        )?;
         self.extra.tool_grammar = if !tools.is_empty() {
             grammar_from_tools(&tools).ok()
         } else {
@@ -1324,52 +1587,36 @@ impl Worker<'_, ChatWorker> {
         };
         self.extra.tools = tools;
 
-        // TODO: this state management must be improved.
-        self.extra.chat_state.set_messages(current_messages);
-        self.extra
-            .chat_state
-            .set_allow_thinking(current_allow_thinking);
-
         // Reuse cached prefix
         let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
         let inference_lock_token = _gil_guard.unwrap();
         let render_as_tokens = self.get_render_as_tokens()?;
-        let (prefix_index, token_difference) = self
-            .extra
-            .chat_state
-            .find_prefix_index_and_difference_with_tokens_in_context(&render_as_tokens);
+        let (prefix_index, token_difference) =
+            self.find_prefix_index_and_difference_with_tokens_in_context(&render_as_tokens);
 
         self.remove_all_tokens_after_index_from_ctx(prefix_index)?;
         self.read_tokens(token_difference, &inference_lock_token)?;
-        self.extra
-            .chat_state
-            .set_tokens_in_context(render_as_tokens);
+        self.extra.tokens_in_context = render_as_tokens;
 
         Ok(())
     }
 
-    pub fn set_chat_history(
-        &mut self,
-        messages: Vec<crate::chat_state::Message>,
-    ) -> Result<(), ChatWorkerError> {
+    pub fn set_chat_history(&mut self, messages: Vec<Message>) -> Result<(), ChatWorkerError> {
         self.reset_context();
-        self.extra.chat_state.set_messages(messages);
+        self.extra.messages = messages;
 
         // Reuse cached prefix
 
         let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
         let inference_lock_token = _gil_guard.unwrap();
         let render_as_tokens = self.get_render_as_tokens()?;
-        let (prefix_index, token_difference) = self
-            .extra
-            .chat_state
-            .find_prefix_index_and_difference_with_tokens_in_context(&render_as_tokens);
+        let (prefix_index, token_difference) =
+            self.find_prefix_index_and_difference_with_tokens_in_context(&render_as_tokens);
 
         self.remove_all_tokens_after_index_from_ctx(prefix_index)?;
         self.read_tokens(token_difference, &inference_lock_token)?;
-        self.extra
-            .chat_state
-            .set_tokens_in_context(render_as_tokens);
+        self.extra.tokens_in_context = render_as_tokens;
+
         Ok(())
     }
 }
@@ -1409,17 +1656,17 @@ where
     (wrapped_respond, resp_receiver)
 }
 
-fn extract_tool_calls(input: &str) -> Option<Vec<chat_state::ToolCall>> {
+fn extract_tool_calls(input: &str) -> Option<Vec<ToolCall>> {
     // Find the start and end tags
     // TODO: these are the tokens used by qwen3
     //       but e.g. deepseek uses "<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>" instead.
     //       we need to support multiple different tool call begin tokens
     let re = regex::Regex::new(r"<tool_call>([\s\S]*?)</tool_call>").expect("Invalid regex");
 
-    let tool_calls: Vec<chat_state::ToolCall> = re
+    let tool_calls: Vec<ToolCall> = re
         .captures_iter(input)
         .filter_map(|cap| {
-            let tool_call: Option<chat_state::ToolCall> = serde_json::from_str(cap[1].trim()).ok();
+            let tool_call: Option<ToolCall> = serde_json::from_str(cap[1].trim()).ok();
             tool_call
         })
         .collect();
@@ -1760,20 +2007,20 @@ mod tests {
 
         // Add many exchanges with longer messages to fill up the context
         for i in 1..=n_messages {
-            worker.extra.chat_state.add_user_message(format!(
+            worker.add_user_message(format!(
                 "This is user message number {}. What is {} * {}?",
                 i, i, i
             ));
-            worker.extra.chat_state.add_assistant_message(format!(
+            worker.add_assistant_message(format!(
                 "<think> </think> The answer is {}. Do you have any further questions?",
                 i * i
             ));
         }
 
-        worker.extra.chat_state.add_user_message("Hello!".into());
+        worker.add_user_message("Hello!".into());
 
         // Check that we have many messages before shift
-        let messages_before = worker.extra.chat_state.get_messages().len();
+        let messages_before = worker.extra.messages.len();
         assert!(
             messages_before > 6,
             "Should have more than 6 messages before shift"
@@ -1782,13 +2029,17 @@ mod tests {
         // Trigger context shift
         worker.context_shift()?;
 
-        println!("{:?}", worker.extra.chat_state.get_messages());
+        println!("{:?}", worker.extra.messages);
 
-        let messages_after = worker.extra.chat_state.get_messages().to_vec();
+        let messages_after = worker.extra.messages.clone();
 
         // Verify essential messages are preserved:
         // 1. System prompt should be first
-        assert_eq!(messages_after[0].role(), &Role::System);
+        assert_eq!(
+            messages_after[0].role(),
+            &Role::System,
+            "System message should remain"
+        );
 
         if let Message::Message { content, .. } = &messages_after[0] {
             assert!(
@@ -1829,7 +2080,7 @@ mod tests {
 
         // 5. Verify token count is within target
         let token_count = model
-            .str_to_token(&worker.extra.chat_state.render_string()?, AddBos::Never)?
+            .str_to_token(&worker.render_string()?, AddBos::Never)?
             .len();
 
         let target_size = (n_ctx / 2) as usize;
@@ -1878,54 +2129,39 @@ mod tests {
 
         // Add exchanges with tool calls mixed in
         for i in 1..=n_messages {
-            worker
-                .extra
-                .chat_state
-                .add_user_message(format!("User message {}. What is {} * {}?", i, i, i));
+            worker.add_user_message(format!("User message {}. What is {} * {}?", i, i, i));
 
             // Add a tool call every other message
             // Pattern: User -> Assistant (with tool call) -> Tool response -> Assistant
             if i % 2 == 0 {
-                worker
-                    .extra
-                    .chat_state
-                    .add_tool_calls(vec![chat_state::ToolCall {
-                        name: "get_current_temperature".into(),
-                        arguments: serde_json::json!({"location": "Copenhagen"}),
-                    }]);
-                worker
-                    .extra
-                    .chat_state
-                    .add_tool_resp("get_current_temperature".into(), "13.37°C".into());
-                worker.extra.chat_state.add_assistant_message(format!(
+                worker.add_tool_calls(vec![ToolCall {
+                    name: "get_current_temperature".into(),
+                    arguments: serde_json::json!({"location": "Copenhagen"}),
+                }]);
+                worker.add_tool_resp("get_current_temperature".into(), "13.37°C".into());
+                worker.add_assistant_message(format!(
                     "The temperature is 13.37°C and {} * {} = {}.",
                     i,
                     i,
                     i * i
                 ));
             } else {
-                worker
-                    .extra
-                    .chat_state
-                    .add_assistant_message(format!("The answer is {}.", i * i));
+                worker.add_assistant_message(format!("The answer is {}.", i * i));
             }
         }
 
-        worker
-            .extra
-            .chat_state
-            .add_user_message("Final question!".into());
+        worker.add_user_message("Final question!".into());
 
         // Check that we have many messages before shift
-        let messages_before = worker.extra.chat_state.get_messages().len();
+        let messages_before = worker.extra.messages.len();
         println!("Messages before shift: {}", messages_before);
 
         // Trigger context shift
         worker.context_shift()?;
 
-        println!("{:?}", worker.extra.chat_state.get_messages());
+        println!("{:?}", worker.extra.messages);
 
-        let messages_after = worker.extra.chat_state.get_messages().to_vec();
+        let messages_after = worker.extra.messages.clone();
 
         // Verify essential messages are preserved:
         // 1. System prompt should be first
@@ -1963,7 +2199,7 @@ mod tests {
 
         // 5. Verify token count is within target
         let token_count = model
-            .str_to_token(&worker.extra.chat_state.render_string()?, AddBos::Never)?
+            .str_to_token(&worker.render_string()?, AddBos::Never)?
             .len();
 
         let target_size = (n_ctx / 2) as usize;
@@ -2011,17 +2247,14 @@ mod tests {
 
         // Fill up the context until it's almost full
         for i in 1..=n_messages {
-            worker.extra.chat_state.add_user_message(format!(
+            worker.add_user_message(format!(
                 "This is user message number {}. What is {} * {}?",
                 i, i, i
             ));
-            worker
-                .extra
-                .chat_state
-                .add_assistant_message(format!("The answer is {}.", i * i));
+            worker.add_assistant_message(format!("The answer is {}.", i * i));
         }
 
-        let messages_before_shift = worker.extra.chat_state.get_messages().len();
+        let messages_before_shift = worker.extra.messages.len();
         println!("Messages before shift: {}", messages_before_shift);
 
         let (sender, receiver) = std::sync::mpsc::channel();
@@ -2038,7 +2271,7 @@ mod tests {
         )?;
 
         let _response = receiver.recv()?;
-        let messages_after = worker.extra.chat_state.get_messages().to_vec();
+        let messages_after = worker.extra.messages.clone();
 
         println!("Messages after operation: {}", messages_after.len());
 
@@ -2100,17 +2333,14 @@ mod tests {
 
         // Fill up the context until it's almost full
         for i in 1..=n_messages {
-            worker.extra.chat_state.add_user_message(format!(
+            worker.add_user_message(format!(
                 "This is user message number {}. What is {} * {}?",
                 i, i, i
             ));
-            worker
-                .extra
-                .chat_state
-                .add_assistant_message(format!("The answer is {}.", i * i));
+            worker.add_assistant_message(format!("The answer is {}.", i * i));
         }
 
-        let messages_before_shift = worker.extra.chat_state.get_messages().len();
+        let messages_before_shift = worker.extra.messages.len();
         println!("Messages before shift: {}", messages_before_shift);
 
         let (sender, receiver) = std::sync::mpsc::channel();
@@ -2124,7 +2354,7 @@ mod tests {
         worker.ask("What is 10 * 10?".to_string(), f)?;
 
         let _response = receiver.recv()?;
-        let messages_after = worker.extra.chat_state.get_messages().to_vec();
+        let messages_after = worker.extra.messages.clone();
 
         println!("Messages after operation: {}", messages_after.len());
 
@@ -2294,6 +2524,223 @@ mod tests {
             !res2.contains("<think>"),
             "Expected the model to not think, but it did"
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_render_string_llama3_template() -> Result<(), Box<dyn std::error::Error>> {
+        let model = test_utils::load_test_model();
+
+        // Llama 3.1 template
+        let template = "{% set loop_messages = messages %}{% for message in loop_messages %}{% set content = '<|start_header_id|>' + message['role'] + '<|end_header_id|>\n\n'+ message['content'] | trim + '<|eot_id|>' %}{% if loop.index0 == 0 %}{% set content = bos_token + content %}{% endif %}{{ content }}{% endfor %}{{ '<|start_header_id|>assistant<|end_header_id|>\n\n' }}";
+
+        let mut worker = Worker::new_chat_worker(
+            &model,
+            ChatConfig {
+                n_ctx: 1024,
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )?;
+
+        // Override the chat template and tokens to use llama3 format
+        worker.extra.chat_template = template.into();
+        worker.extra.bos_token = "<|begin_of_text|>".into();
+        worker.extra.eos_token = "<|end_of_text|>".into();
+
+        // Test 1: Single user message
+        worker.extra.messages.clear();
+        worker.add_user_message("Hello, world!".into());
+        let rendered = worker.render_string()?;
+
+        let expected = "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nHello, world!<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n";
+        assert_eq!(rendered, expected);
+
+        // Test 2: Add assistant response
+        worker.add_assistant_message("Hi there! How can I help?".into());
+        let rendered2 = worker.render_string()?;
+
+        let expected2 = "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nHello, world!<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\nHi there! How can I help?<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n";
+        assert_eq!(rendered2, expected2);
+
+        // Test 3: Multi-turn conversation
+        worker.add_user_message("What's the weather like?".into());
+        worker.add_assistant_message("I don't have access to weather data.".into());
+        let rendered3 = worker.render_string()?;
+
+        assert!(rendered3.starts_with(
+            "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nHello, world!<|eot_id|>"
+        ));
+        assert!(rendered3.contains(
+            "<|start_header_id|>user<|end_header_id|>\n\nWhat's the weather like?<|eot_id|>"
+        ));
+        assert!(rendered3.contains("<|start_header_id|>assistant<|end_header_id|>\n\nI don't have access to weather data.<|eot_id|>"));
+        assert!(rendered3.ends_with("<|start_header_id|>assistant<|end_header_id|>\n\n"));
+
+        // Test 4: System message
+        worker.reset_chat("You are a helpful assistant.".into(), vec![])?;
+        worker.add_user_message("Hi".into());
+        let rendered4 = worker.render_string()?;
+
+        assert!(rendered4.starts_with("<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nYou are a helpful assistant.<|eot_id|>"));
+        assert!(rendered4.contains("<|start_header_id|>user<|end_header_id|>\n\nHi<|eot_id|>"));
+        assert!(rendered4.ends_with("<|start_header_id|>assistant<|end_header_id|>\n\n"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_render_string_deepseek_template() -> Result<(), Box<dyn std::error::Error>> {
+        let model = test_utils::load_test_model();
+
+        // DeepSeek template
+        let template = "{% if not add_generation_prompt is defined %}{% set add_generation_prompt = false %}{% endif %}{% set ns = namespace(is_first=false, is_tool=false, is_output_first=true, system_prompt='') %}{%- for message in messages %}{%- if message['role'] == 'system' %}{% set ns.system_prompt = message['content'] %}{%- endif %}{%- endfor %}{{bos_token}}{{ns.system_prompt}}{%- for message in messages %}{%- if message['role'] == 'user' %}{%- set ns.is_tool = false -%}{{'<｜User｜>' + message['content']}}{%- endif %}{%- if message['role'] == 'assistant' and message['content'] is none %}{%- set ns.is_tool = false -%}{%- for tool in message['tool_calls']%}{%- if not ns.is_first %}{{'<｜Assistant｜><｜tool▁calls▁begin｜><｜tool▁call▁begin｜>' + tool['type'] + '<｜tool▁sep｜>' + tool['function']['name'] + '\\n' + '```json' + '\\n' + tool['function']['arguments'] + '\\n' + '```' + '<｜tool▁call▁end｜>'}}{%- set ns.is_first = true -%}{%- else %}{{'\\n' + '<｜tool▁call▁begin｜>' + tool['type'] + '<｜tool▁sep｜>' + tool['function']['name'] + '\\n' + '```json' + '\\n' + tool['function']['arguments'] + '\\n' + '```' + '<｜tool▁call▁end｜>'}}{{'<｜tool▁calls▁end｜><｜end▁of▁sentence｜>'}}{%- endif %}{%- endfor %}{%- endif %}{%- if message['role'] == 'assistant' and message['content'] is not none %}{%- if ns.is_tool %}{{'<｜tool▁outputs▁end｜>' + message['content'] + '<｜end▁of▁sentence｜>'}}{%- set ns.is_tool = false -%}{%- else %}{% set content = message['content'] %}{% if '</think>' in content %}{% set content = content.split('</think>')[-1] %}{% endif %}{{'<｜Assistant｜>' + content + '<｜end▁of▁sentence｜>'}}{%- endif %}{%- endif %}{%- if message['role'] == 'tool' %}{%- set ns.is_tool = true -%}{%- if ns.is_output_first %}{{'<｜tool▁outputs▁begin｜><｜tool▁output▁begin｜>' + message['content'] + '<｜tool▁output▁end｜>'}}{%- set ns.is_output_first = false %}{%- else %}{{'\\n<｜tool▁output▁begin｜>' + message['content'] + '<｜tool▁output▁end｜>'}}{%- endif %}{%- endif %}{%- endfor -%}{% if ns.is_tool %}{{'<｜tool▁outputs▁end｜>'}}{% endif %}{% if add_generation_prompt and not ns.is_tool %}{{'<｜Assistant｜>'}}{% endif %}";
+
+        let mut worker = Worker::new_chat_worker(
+            &model,
+            ChatConfig {
+                n_ctx: 1024,
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )?;
+
+        // Override the chat template and tokens to use deepseek format
+        worker.extra.chat_template = template.into();
+        worker.extra.bos_token = "<|bos|>".into();
+        worker.extra.eos_token = "<|eos|>".into();
+
+        // Test 1: Single user message
+        worker.extra.messages.clear();
+        worker.add_user_message("Hello, world!".into());
+        let rendered = worker.render_string()?;
+
+        let expected = "<|bos|><｜User｜>Hello, world!<｜Assistant｜>";
+        assert_eq!(rendered, expected);
+
+        // Test 2: Add assistant response
+        worker.add_assistant_message("Hi there! How can I help?".into());
+        let rendered2 = worker.render_string()?;
+
+        let expected2 = "<|bos|><｜User｜>Hello, world!<｜Assistant｜>Hi there! How can I help?<｜end▁of▁sentence｜>";
+        assert_eq!(rendered2, expected2);
+
+        // Test 3: Assistant message with thinking block
+        worker.add_user_message("Can you help me?".into());
+        worker.add_assistant_message(
+            "<think>The user is asking for help</think>I'd be happy to assist you!".into(),
+        );
+        let rendered3 = worker.render_string()?;
+
+        // The thinking block should be stripped out
+        assert!(
+            rendered3.contains("<｜Assistant｜>I'd be happy to assist you!<｜end▁of▁sentence｜>")
+        );
+        assert!(!rendered3.contains("<think>"));
+        assert!(!rendered3.contains("</think>"));
+
+        // Test 4: System message
+        worker.reset_chat("You are a helpful assistant.".into(), vec![])?;
+        worker.add_user_message("Hi".into());
+        let rendered4 = worker.render_string()?;
+
+        let expected4 = "<|bos|>You are a helpful assistant.<｜User｜>Hi<｜Assistant｜>";
+        assert_eq!(rendered4, expected4);
+
+        // Test 5: Multi-turn conversation
+        worker.extra.messages.clear();
+        worker.add_user_message("What's 2+2?".into());
+        worker.add_assistant_message("4".into());
+        worker.add_user_message("Thanks!".into());
+        let rendered5 = worker.render_string()?;
+
+        let expected5 =
+            "<|bos|><｜User｜>What's 2+2?<｜Assistant｜>4<｜end▁of▁sentence｜><｜User｜>Thanks!<｜Assistant｜>";
+        assert_eq!(rendered5, expected5);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_render_string_qwen3_template() -> Result<(), Box<dyn std::error::Error>> {
+        let model = test_utils::load_test_model();
+
+        // The full qwen3 template string
+        let template = "{%- if tools %}\n    {{- '<|im_start|>system\\n' }}\n    {%- if messages[0].role == 'system' %}\n        {{- messages[0].content + '\\n\\n' }}\n    {%- endif %}\n    {{- \"# Tools\\n\\nYou may call one or more functions to 
+  assist with the user query.\\n\\nYou are provided with function signatures within <tools></tools> XML tags:\\n<tools>\" }}\n    {%- for tool in tools %}\n        {{- \"\\n\" }}\n        {{- tool | tojson }}\n    {%- endfor %}\n    {{- 
+  \"\\n</tools>\\n\\nFor each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:\\n<tool_call>\\n{\\\"name\\\": <function-name>, \\\"arguments\\\": 
+  <args-json-object>}\\n</tool_call><|im_end|>\\n\" }}\n{%- else %}\n    {%- if messages[0].role == 'system' %}\n        {{- '<|im_start|>system\\n' + messages[0].content + '<|im_end|>\\n' }}\n    {%- endif %}\n{%- endif %}\n{%- set ns = 
+  namespace(multi_step_tool=true, last_query_index=messages|length - 1) %}\n{%- for message in messages[::-1] %}\n    {%- set index = (messages|length - 1) - loop.index0 %}\n    {%- if ns.multi_step_tool and message.role == \"user\" and 
+  not(message.content.startswith('<tool_response>') and message.content.endswith('</tool_response>')) %}\n        {%- set ns.multi_step_tool = false %}\n        {%- set ns.last_query_index = index %}\n    {%- endif %}\n{%- endfor %}\n{%- for 
+  message in messages %}\n    {%- if (message.role == \"user\") or (message.role == \"system\" and not loop.first) %}\n        {{- '<|im_start|>' + message.role + '\\n' + message.content + '<|im_end|>' + '\\n' }}\n    {%- elif message.role == 
+  \"assistant\" %}\n        {%- set content = message.content %}\n        {%- set reasoning_content = '' %}\n        {%- if message.reasoning_content is defined and message.reasoning_content is not none %}\n            {%- set reasoning_content = 
+  message.reasoning_content %}\n        {%- else %}\n            {%- if '</think>' in message.content %}\n                {%- set content = message.content.split('</think>')[-1].lstrip('\\n') %}\n                {%- set reasoning_content = 
+  message.content.split('</think>')[0].rstrip('\\n').split('<think>')[-1].lstrip('\\n') %}\n            {%- endif %}\n        {%- endif %}\n        {%- if loop.index0 > ns.last_query_index %}\n            {%- if loop.last or (not loop.last and 
+  reasoning_content) %}\n                {{- '<|im_start|>' + message.role + '\\n<think>\\n' + reasoning_content.strip('\\n') + '\\n</think>\\n\\n' + content.lstrip('\\n') }}\n            {%- else %}\n                {{- '<|im_start|>' + 
+  message.role + '\\n' + content }}\n            {%- endif %}\n        {%- else %}\n            {{- '<|im_start|>' + message.role + '\\n' + content }}\n        {%- endif %}\n        {%- if message.tool_calls %}\n            {%- for tool_call in 
+  message.tool_calls %}\n                {%- if (loop.first and content) or (not loop.first) %}\n                    {{- '\\n' }}\n                {%- endif %}\n                {%- if tool_call.function %}\n                    {%- set tool_call = 
+  tool_call.function %}\n                {%- endif %}\n                {{- '<tool_call>\\n{\"name\": \"' }}\n                {{- tool_call.name }}\n                {{- '\", \"arguments\": ' }}\n                {%- if tool_call.arguments is string 
+  %}\n                    {{- tool_call.arguments }}\n                {%- else %}\n                    {{- tool_call.arguments | tojson }}\n                {%- endif %}\n                {{- '}\\n</tool_call>' }}\n            {%- endfor %}\n        
+  {%- endif %}\n        {{- '<|im_end|>\\n' }}\n    {%- elif message.role == \"tool\" %}\n        {%- if loop.first or (messages[loop.index0 - 1].role != \"tool\") %}\n            {{- '<|im_start|>user' }}\n        {%- endif %}\n        {{- 
+  '\\n<tool_response>\\n' }}\n        {{- message.content }}\n        {{- '\\n</tool_response>' }}\n        {%- if loop.last or (messages[loop.index0 + 1].role != \"tool\") %}\n            {{- '<|im_end|>\\n' }}\n        {%- endif %}\n    {%- endif
+   %}\n{%- endfor %}\n{%- if add_generation_prompt %}\n    {{- '<|im_start|>assistant\\n' }}\n    {%- if enable_thinking is defined and enable_thinking is false %}\n        {{- '<think>\\n\\n</think>\\n\\n' }}\n    {%- endif %}\n{%- endif %}";
+
+        let mut worker = Worker::new_chat_worker(
+            &model,
+            ChatConfig {
+                n_ctx: 1024,
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )?;
+
+        // Override the chat template and tokens to use qwen3 format
+        worker.extra.chat_template = template.into();
+        worker.extra.bos_token = "".into();
+        worker.extra.eos_token = "".into();
+
+        // Test 1: Single user message
+        worker.extra.messages.clear();
+        worker.add_user_message("Hi, robot!".into());
+        let rendered = worker.render_string()?;
+
+        let expected = "<|im_start|>user\nHi, robot!<|im_end|>\n<|im_start|>assistant\n";
+        assert_eq!(rendered, expected);
+
+        // Test 2: Add assistant response with thinking
+        worker.add_assistant_message("<think>\nHm... That's a tough cookie. I think the answer is probably 42.\nCould it be something else?\nNah... It's 42!\n</think>\nThe answer is 42!".into());
+        let rendered2 = worker.render_string()?;
+
+        let expected2 = "<|im_start|>user\nHi, robot!<|im_end|>\n<|im_start|>assistant\n<think>\nHm... That's a tough cookie. I think the answer is probably 42.\nCould it be something else?\nNah... It's 42!\n</think>\n\nThe answer is 42!<|im_end|>\n";
+        assert_eq!(rendered2, expected2);
+
+        // Test 3: System message
+        worker.reset_chat("You are a helpful assistant.".into(), vec![])?;
+        worker.add_user_message("Hello".into());
+        let rendered3 = worker.render_string()?;
+
+        let expected3 = "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nHello<|im_end|>\n<|im_start|>assistant\n";
+        assert_eq!(rendered3, expected3);
+
+        // Test 4: Multi-turn conversation
+        worker.extra.messages.clear();
+        worker.add_user_message("What's 2+2?".into());
+        worker.add_assistant_message("4".into());
+        worker.add_user_message("Thanks!".into());
+        let rendered4 = worker.render_string()?;
+
+        let expected4 = "<|im_start|>user\nWhat's 2+2?<|im_end|>\n<|im_start|>assistant\n4<|im_end|>\n<|im_start|>user\nThanks!<|im_end|>\n<|im_start|>assistant\n";
+        assert_eq!(rendered4, expected4);
+
+        // Test 5: Assistant message without thinking
+        worker.extra.messages.clear();
+        worker.add_user_message("Hello".into());
+        worker.add_assistant_message("Hi there!".into());
+        let rendered5 = worker.render_string()?;
+
+        let expected5 = "<|im_start|>user\nHello<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\nHi there!<|im_end|>\n";
+        assert_eq!(rendered5, expected5);
 
         Ok(())
     }

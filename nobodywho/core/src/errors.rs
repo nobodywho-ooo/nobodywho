@@ -1,4 +1,4 @@
-use llama_cpp_2::context::kv_cache::KvCacheConversionError;
+use llama_cpp_2::{context::kv_cache::KvCacheConversionError, TokenToStringError};
 
 // Model errors
 
@@ -24,6 +24,9 @@ pub enum InitWorkerError {
 
     #[error("Failed getting chat template from model: {0}")]
     ChatTemplate(#[from] FromModelError),
+
+    #[error("Failed to tokenize eos or bos tokens: {0}")]
+    TokenToStringError(#[from] TokenToStringError),
 
     #[error("Got no response after initializing worker.")]
     NoResponse,

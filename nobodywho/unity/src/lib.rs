@@ -324,7 +324,7 @@ impl ChatWrapper {
                 .map_err(|_| ChatError::BadJsonSchema)?;
             let json: serde_json::Value =
                 serde_json::from_str(string).map_err(|_| ChatError::BadJsonSchema)?;
-            let messages: Vec<nobodywho::chat_state::Message> =
+            let messages: Vec<nobodywho::chat::Message> =
                 serde_json::from_value(json["messages"].clone())
                     .map_err(|_| ChatError::BadJsonSchema)?;
 

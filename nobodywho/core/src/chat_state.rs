@@ -1,5 +1,6 @@
 use std::sync::LazyLock;
 
+use crate::chat::{Message, Role, ToolCall};
 use crate::errors::FromModelError;
 use llama_cpp_2::token::LlamaToken;
 use minijinja::{context, Environment};
@@ -34,57 +35,6 @@ fn strftime_now(format_str: &str) -> String {
 // these types generally follow the shape described in the `transformers` docs here:
 // https://github.com/huggingface/transformers/blob/b11b28cc4e859558318690a5b41ac3a22644acd5/docs/source/en/chat_templating_writing.md
 
-#[derive(Deserialize, Serialize, Clone, PartialEq, Eq, Debug)]
-#[serde(rename_all = "lowercase")]
-pub enum Role {
-    User,
-    Assistant,
-    System,
-    Tool,
-}
-
-#[derive(Deserialize, Serialize, Clone, Debug)]
-#[serde(untagged)]
-pub enum Message {
-    Message {
-        role: Role,
-        content: String,
-    },
-    // it's kind of weird to have the content field in here
-    // but according to the qwen3 docs, it should be an empty field on tool call messages
-    // https://github.com/QwenLM/Qwen3/blob/e5a1d326/docs/source/framework/function_call.md
-    // this also causes a crash when rendering qwen3 chat template, because it tries to get the
-    // length of the content field, which is otherwise undefiend
-    ToolCalls {
-        role: Role,
-        content: String,
-        tool_calls: Vec<ToolCall>,
-    },
-    ToolResp {
-        role: Role,
-        name: String,
-        content: String,
-    },
-}
-
-impl Message {
-    pub fn role(&self) -> &Role {
-        match self {
-            Message::Message { role, .. }
-            | Message::ToolCalls { role, .. }
-            | Message::ToolResp { role, .. } => role,
-        }
-    }
-
-    pub fn content(&self) -> &String {
-        match self {
-            Message::Message { content, .. }
-            | Message::ToolCalls { content, .. }
-            | Message::ToolResp { content, .. } => content,
-        }
-    }
-}
-
 #[derive(Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ToolType {
@@ -103,12 +53,6 @@ pub struct Function {
 pub struct Tool {
     pub r#type: ToolType,
     pub function: Function,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
-pub struct ToolCall {
-    pub name: String,
-    pub arguments: serde_json::Value, // Flexible structure for arbitrary arguments
 }
 
 pub struct ChatState {
