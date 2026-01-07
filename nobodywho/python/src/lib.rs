@@ -2,6 +2,7 @@ use pyo3::prelude::*;
 
 /// `Model` objects contain a GGUF model. It is primarily useful for sharing a single model instance
 /// between multiple `Chat`, `Encoder`, or `CrossEncoder` instances.
+/// Sharing is efficient because the underlying model data is reference-counted.
 /// There is no `ModelAsync` variant. A regular `Model` can be used with both `Chat` and `ChatAsync`.
 #[pyclass]
 pub struct Model {
@@ -116,8 +117,8 @@ impl TokenStream {
 }
 
 /// `TokenStreamAsync` is the async variant of the `TokenStream` class.
-/// It has the same methods as `TokenStream`, but all the methods are coroutines.
-/// This class also supports async iteration, using the `async for` syntax.
+/// It has the same methods as `TokenStream`, but all methods must be awaited.
+/// This class also supports async iteration using `async for token in stream:` syntax.
 #[pyclass]
 pub struct TokenStreamAsync {
     // this needs to be behind a mutex for async iterators to work
@@ -194,6 +195,10 @@ impl Encoder {
     ///
     /// Returns:
     ///     An Encoder instance
+    ///
+    /// Raises:
+    ///     RuntimeError: If the model cannot be loaded
+    ///     ValueError: If the path contains invalid UTF-8
     #[new]
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096) -> "Encoder")]
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
@@ -238,6 +243,10 @@ impl EncoderAsync {
     ///
     /// Returns:
     ///     An EncoderAsync instance
+    ///
+    /// Raises:
+    ///     RuntimeError: If the model cannot be loaded
+    ///     ValueError: If the path contains invalid UTF-8
     #[new]
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096) -> "EncoderAsync")]
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
@@ -284,6 +293,10 @@ impl CrossEncoder {
     ///
     /// Returns:
     ///     A CrossEncoder instance
+    ///
+    /// Raises:
+    ///     RuntimeError: If the model cannot be loaded
+    ///     ValueError: If the path contains invalid UTF-8
     #[new]
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096) -> "CrossEncoder")]
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
@@ -355,6 +368,10 @@ impl CrossEncoderAsync {
     ///
     /// Returns:
     ///     A CrossEncoderAsync instance
+    ///
+    /// Raises:
+    ///     RuntimeError: If the model cannot be loaded
+    ///     ValueError: If the path contains invalid UTF-8
     #[new]
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096) -> "CrossEncoderAsync")]
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
@@ -436,6 +453,10 @@ impl Chat {
     ///
     /// Returns:
     ///     A Chat instance
+    ///
+    /// Raises:
+    ///     RuntimeError: If the model cannot be loaded
+    ///     ValueError: If the path contains invalid UTF-8
     #[new]
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = "", allow_thinking = true, tools: "list[Tool]" = Vec::<Tool>::new(), sampler=SamplerConfig::default()) -> "Chat")]
     pub fn new(
@@ -519,7 +540,8 @@ impl Chat {
     /// Get the current chat history as a list of message dictionaries.
     ///
     /// Returns:
-    ///     List of message dicts with 'role' and 'content' keys (OpenAI format)
+    ///     List of message dicts, each with 'role' (str) and 'content' (str) keys.
+    ///     Example: [{"role": "user", "content": "Hello"}, {"role": "assistant", "content": "Hi!"}]
     ///
     /// Raises:
     ///     RuntimeError: If retrieval fails
@@ -539,7 +561,8 @@ impl Chat {
     /// Replace the chat history with a new list of messages.
     ///
     /// Args:
-    ///     msgs: List of message dicts with 'role' and 'content' keys (OpenAI format)
+    ///     msgs: List of message dicts, each with 'role' (str) and 'content' (str) keys.
+    ///           Example: [{"role": "user", "content": "Hello"}, {"role": "assistant", "content": "Hi!"}]
     ///
     /// Raises:
     ///     ValueError: If message format is invalid
@@ -578,6 +601,10 @@ impl ChatAsync {
     ///
     /// Returns:
     ///     A ChatAsync instance
+    ///
+    /// Raises:
+    ///     RuntimeError: If the model cannot be loaded
+    ///     ValueError: If the path contains invalid UTF-8
     #[new]
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = "", allow_thinking = true, tools: "list[Tool]" = vec![], sampler = SamplerConfig::default()) -> "ChatAsync")]
     pub fn new(
@@ -646,19 +673,20 @@ impl ChatAsync {
     ///     allow_thinking: If True, allows extended reasoning tokens
     ///
     /// Raises:
-    ///     RuntimeError: If the setting cannot be changed
+    ///     ValueError: If the setting cannot be changed
     #[pyo3(signature = (allow_thinking: "bool") -> "None")]
     pub async fn set_allow_thinking(&self, allow_thinking: bool) -> PyResult<()> {
         self.chat_handle
             .set_allow_thinking(allow_thinking)
             .await
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
     }
 
     /// Get the current chat history as a list of message dictionaries.
     ///
     /// Returns:
-    ///     List of message dicts with 'role' and 'content' keys (OpenAI format)
+    ///     List of message dicts, each with 'role' (str) and 'content' (str) keys.
+    ///     Example: [{"role": "user", "content": "Hello"}, {"role": "assistant", "content": "Hi!"}]
     ///
     /// Raises:
     ///     RuntimeError: If retrieval fails
@@ -680,7 +708,8 @@ impl ChatAsync {
     /// Replace the chat history with a new list of messages.
     ///
     /// Args:
-    ///     msgs: List of message dicts with 'role' and 'content' keys (OpenAI format)
+    ///     msgs: List of message dicts, each with 'role' (str) and 'content' (str) keys.
+    ///           Example: [{"role": "user", "content": "Hello"}, {"role": "assistant", "content": "Hi!"}]
     ///
     /// Raises:
     ///     ValueError: If message format is invalid
@@ -700,10 +729,18 @@ impl ChatAsync {
     }
 }
 
-/// This function computes the cosine similarity between two vectors.
-/// It always returns a float between 0 and 1. Higher means more similar.
-/// The two vectors passed must be of equal length.
-/// It is particularly useful for comparing two embedding vectors.
+/// Compute the cosine similarity between two vectors.
+/// Particularly useful for comparing embedding vectors from an Encoder.
+///
+/// Args:
+///     a: First vector
+///     b: Second vector (must have the same length as a)
+///
+/// Returns:
+///     Similarity score between 0.0 and 1.0 (higher means more similar)
+///
+/// Raises:
+///     ValueError: If vectors have different lengths
 #[pyfunction]
 #[pyo3(signature = (a: "list[float]", b: "list[float]") -> "float")]
 fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> PyResult<f32> {
@@ -727,13 +764,13 @@ pub struct SamplerConfig {
 }
 
 /// `SamplerBuilder` is used to manually construct a sampler chain.
-/// A sampler chain consists of any number probability-shifting steps, and a single sampling step.
-/// Probability-shifting steps are operations that transform the probablity-distribution of next
+/// A sampler chain consists of any number of probability-shifting steps, and a single sampling step.
+/// Probability-shifting steps are operations that transform the probability distribution of next
 /// tokens, as generated by the model. E.g. the top_k step will zero the probability of all tokens
 /// that aren't among the top K most probable (where K is some integer).
 /// A sampling step is a final step that selects a single token from the probability distribution
 /// that results from applying all of the probability-shifting steps in order.
-/// E.g. the `dist` sampling steps selects a simple token with weighted randomness, and the
+/// E.g. the `dist` sampling step selects a token with weighted randomness, and the
 /// `greedy` sampling step always selects the most probable.
 #[pyclass]
 #[derive(Clone)]
@@ -787,12 +824,13 @@ impl SamplerBuilder {
         )
     }
 
-    /// XTC (eXclude Top Choices) sampler that excludes tokens above a threshold.
+    /// XTC (eXclude Top Choices) sampler that probabilistically excludes high-probability tokens.
+    /// This can increase output diversity by sometimes forcing the model to pick less obvious tokens.
     ///
     /// Args:
-    ///     xtc_probability: Probability of applying XTC (0.0 to 1.0)
-    ///     xtc_threshold: Threshold for exclusion (0.0 to 1.0)
-    ///     min_keep: Minimum number of tokens to always keep
+    ///     xtc_probability: Probability of applying XTC on each token (0.0 to 1.0)
+    ///     xtc_threshold: Tokens with probability above this threshold may be excluded (0.0 to 1.0)
+    ///     min_keep: Minimum number of tokens to always keep (prevents excluding all tokens)
     pub fn xtc(&self, xtc_probability: f32, xtc_threshold: f32, min_keep: u32) -> Self {
         shift_step(
             self.clone(),
@@ -819,9 +857,10 @@ impl SamplerBuilder {
     /// Apply a grammar constraint to enforce structured output.
     ///
     /// Args:
-    ///     grammar: Grammar specification in GBNF format
-    ///     trigger_on: Optional trigger sequence to activate grammar
-    ///     root: Name of the root grammar rule
+    ///     grammar: Grammar specification in GBNF format (GGML BNF, a variant of BNF used by llama.cpp)
+    ///     trigger_on: Optional string that, when generated, activates the grammar constraint.
+    ///                 Useful for letting the model generate free-form text until a specific marker.
+    ///     root: Name of the root grammar rule to start parsing from
     pub fn grammar(&self, grammar: String, trigger_on: Option<String>, root: String) -> Self {
         shift_step(
             self.clone(),
@@ -915,11 +954,13 @@ impl SamplerBuilder {
     }
 
     /// Use Mirostat v1 algorithm for perplexity-controlled sampling.
+    /// Mirostat dynamically adjusts sampling to maintain a target "surprise" level,
+    /// producing more coherent output than fixed temperature. Good for long-form generation.
     ///
     /// Args:
-    ///     tau: Target perplexity value
-    ///     eta: Learning rate for perplexity adjustment
-    ///     m: Number of candidates to consider
+    ///     tau: Target perplexity/surprise value (typically 3.0-5.0; lower = more focused)
+    ///     eta: Learning rate for perplexity adjustment (typically 0.1)
+    ///     m: Number of candidates to consider (typically 100)
     ///
     /// Returns:
     ///     A complete SamplerConfig ready to use
@@ -931,10 +972,12 @@ impl SamplerBuilder {
     }
 
     /// Use Mirostat v2 algorithm for perplexity-controlled sampling.
+    /// Mirostat v2 is a simplified version of Mirostat that's often preferred.
+    /// It dynamically adjusts sampling to maintain a target "surprise" level.
     ///
     /// Args:
-    ///     tau: Target perplexity value
-    ///     eta: Learning rate for perplexity adjustment
+    ///     tau: Target perplexity/surprise value (typically 3.0-5.0; lower = more focused)
+    ///     eta: Learning rate for perplexity adjustment (typically 0.1)
     ///
     /// Returns:
     ///     A complete SamplerConfig ready to use
@@ -1029,6 +1072,7 @@ impl SamplerPresets {
     }
 
     /// Create a sampler configured for JSON output generation.
+    /// Uses a grammar constraint to ensure the model outputs only valid JSON.
     #[staticmethod]
     pub fn json() -> SamplerConfig {
         SamplerConfig {
@@ -1039,7 +1083,7 @@ impl SamplerPresets {
     /// Create a sampler with a custom grammar constraint.
     ///
     /// Args:
-    ///     grammar: Grammar specification in GBNF format
+    ///     grammar: Grammar specification in GBNF format (GGML BNF, a variant of BNF used by llama.cpp)
     #[staticmethod]
     pub fn grammar(grammar: String) -> SamplerConfig {
         SamplerConfig {
@@ -1078,11 +1122,25 @@ impl Tool {
     }
 }
 
-/// The `@tool` decorator can be applied to a regular python function, to turn it into a
-/// `Chat`-compatible `Tool` instance.
-/// `@tool` requires that you provide a description of the tool (which the model will read), and
-/// you may optionally provide a `params` dict mapping parameter names to their descriptions.
-/// All function parameters must have type hints. The function should return a string.
+/// Decorator to convert a Python function into a Chat-compatible Tool instance.
+///
+/// The decorated function will be callable by the model during chat. The model sees the
+/// function's name, description, and parameter types/descriptions to decide when to call it.
+///
+/// Args:
+///     description: A description of what the tool does (shown to the model)
+///     params: Optional dict mapping parameter names to their descriptions (shown to the model)
+///
+/// Returns:
+///     A decorator that transforms a function into a Tool instance
+///
+/// Example:
+///     @tool("Get the current weather for a city", params={"city": "The city name"})
+///     def get_weather(city: str) -> str:
+///         return f"Weather in {city}: sunny"
+///
+/// Note:
+///     All function parameters must have type hints. The function should return a string.
 #[pyfunction(signature = (description: "str", params: "dict[str, str] | None" = None) -> "typing.Callable[..., Tool]")]
 fn tool<'a>(
     description: String,
