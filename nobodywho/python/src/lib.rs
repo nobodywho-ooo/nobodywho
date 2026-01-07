@@ -815,7 +815,7 @@ impl SamplerBuilder {
     /// Keep tokens with probability above min_p * (probability of most likely token).
     ///
     /// Args:
-    ///     min_p: Minimum relative probability threshold (0.0 to 1.0). Typical: 0.05.
+    ///     min_p: Minimum relative probability threshold (0.0 to 1.0). Typical: 0.05-0.1.
     ///     min_keep: Minimum number of tokens to always keep
     pub fn min_p(&self, min_p: f32, min_keep: u32) -> Self {
         shift_step(
