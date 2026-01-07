@@ -1603,6 +1603,7 @@ impl Worker<'_, ChatWorker> {
 
     pub fn set_chat_history(&mut self, messages: Vec<Message>) -> Result<(), ChatWorkerError> {
         self.reset_context();
+        self.extra.tokens_in_context = Vec::new();
         self.extra.messages = messages;
 
         // Reuse cached prefix
