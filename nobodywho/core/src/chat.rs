@@ -87,7 +87,7 @@ pub enum Message {
     // but according to the qwen3 docs, it should be an empty field on tool call messages
     // https://github.com/QwenLM/Qwen3/blob/e5a1d326/docs/source/framework/function_call.md
     // this also causes a crash when rendering qwen3 chat template, because it tries to get the
-    // length of the content field, which is otherwise undefiend
+    // length of the content field, which is otherwise undefined
     ToolCalls {
         role: Role,
         content: String,
