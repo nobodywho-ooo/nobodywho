@@ -109,7 +109,7 @@ impl Message {
         }
     }
 
-    pub fn content(&self) -> &String {
+    pub fn content(&self) -> &str {
         match self {
             Message::Message { content, .. }
             | Message::ToolCalls { content, .. }
