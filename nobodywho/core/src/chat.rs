@@ -992,7 +992,7 @@ fn concat_system_and_first_user_messages(
             Ok(new_messages)
         }
         _ => {
-            // HACK: this should probably be a custom ChatStateError, and not a minijinja error
+            // HACK: this should probably be a custom error, and not a minijinja error
             //       but this was quick and easy rn, and we "abuse" the minijinja errors for
             //       `raise_exception` anyway...
             Err(minijinja::Error::new(
