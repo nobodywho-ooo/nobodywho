@@ -753,7 +753,8 @@ fn process_worker_msg(
             let _ = output_tx.blocking_send(());
         }
         ChatMsg::GetChatHistory { output_tx } => {
-            let _ = output_tx.blocking_send(worker_state.extra.messages.clone());
+            let msgs = worker_state.get_chat_history();
+            let _ = output_tx.blocking_send(msgs);
         }
         ChatMsg::SetChatHistory {
             messages,
@@ -1645,9 +1646,20 @@ impl Worker<'_, ChatWorker> {
     }
 
     pub fn set_chat_history(&mut self, messages: Vec<Message>) -> Result<(), ChatWorkerError> {
-        self.reset_context();
+        // get system prompt, if it is there
+        let system_msg: Option<Message> = match self.extra.messages.as_slice() {
+            [msg @ Message::Message {
+                role: Role::System, ..
+            }, ..] => Some(msg.clone()),
+            _ => None,
+        };
+
+        self.reset_context(); // TODO: is this necesary?
         self.extra.tokens_in_context = Vec::new();
-        self.extra.messages = messages;
+
+        // preserve system prompt from before, if it was there
+        // (.into_iter() on None returns an empty iterator)
+        self.extra.messages = system_msg.into_iter().chain(messages).collect();
 
         // Reuse cached prefix
 
@@ -1662,6 +1674,15 @@ impl Worker<'_, ChatWorker> {
         self.extra.tokens_in_context = render_as_tokens;
 
         Ok(())
+    }
+
+    pub fn get_chat_history(&self) -> Vec<Message> {
+        match self.extra.messages.as_slice() {
+            [Message::Message {
+                role: Role::System, ..
+            }, rest @ ..] => rest.to_vec(),
+            _ => self.extra.messages.clone(),
+        }
     }
 }
 
