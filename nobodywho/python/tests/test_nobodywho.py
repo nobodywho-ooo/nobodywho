@@ -349,3 +349,12 @@ def test_chat_from_pathlib():
 
     chat = nobodywho.Chat(model_path)
     assert isinstance(chat, nobodywho.Chat)
+
+
+def test_reset_chat_history(chat):
+    resp = chat.ask("My name is Bob.").completed()
+    assert isinstance(resp, str)
+    chat.set_chat_history([])
+    resp = chat.ask("What did I just tell you?").completed()
+    assert isinstance(resp, str)
+    assert "bob" not in resp.lower()
