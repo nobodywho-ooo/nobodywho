@@ -101,9 +101,12 @@ install(FILES "${FLUTTER_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
   COMPONENT Runtime)
 
 foreach(bundled_library ${PLUGIN_BUNDLED_LIBRARIES})
-  install(FILES "${bundled_library}"
-    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
-    COMPONENT Runtime)
+  # Dereference symlinks for Nix builds by using file(INSTALL) with FOLLOW_SYMLINK_CHAIN
+  install(CODE "
+    file(INSTALL \"${bundled_library}\"
+      DESTINATION \"${INSTALL_BUNDLE_LIB_DIR}\"
+      FOLLOW_SYMLINK_CHAIN)
+    " COMPONENT Runtime)
 endforeach(bundled_library)
 
 # Copy the native assets provided by the build.dart from all packages.
