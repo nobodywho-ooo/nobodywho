@@ -1256,7 +1256,6 @@ impl Worker<'_, ChatWorker> {
 
         loop {
             // No non-essential messages left to delete or the new context has reached desired size.
-            println!("{:?}", self.extra.messages);
             if first_deletable_index > last_deletable_index
                 || self
                     .ctx
