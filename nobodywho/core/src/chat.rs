@@ -938,7 +938,7 @@ pub struct ToolCall {
 
 // TOOL CHAT WORKER
 
-/// CHAT TEMPLATE SELECTION & RENDERING Helper functions
+/// CHAT TEMPLATE SELECTION & RENDERING
 fn select_template(
     model: &llama_cpp_2::model::LlamaModel,
     with_tools: bool,
@@ -991,7 +991,7 @@ fn concat_system_and_first_user_messages(
             Ok(new_messages)
         }
         _ => {
-            // HACK: this should probably be a custom ChatStateError, and nont a minijinja error
+            // HACK: this should probably be a custom ChatStateError, and not a minijinja error
             //       but this was quick and easy rn, and we "abuse" the minijinja errors for
             //       `raise_exception` anyway...
             Err(minijinja::Error::new(
@@ -1000,6 +1000,99 @@ fn concat_system_and_first_user_messages(
             ))
         }
     }
+}
+
+pub fn naive_render_message_vec(
+    messages: &[Message],
+    chat_template: &str,
+    allow_thinking: bool,
+    bos_token: &str,
+    eos_token: &str,
+    tools: &[Tool],
+) -> Result<String, minijinja::Error> {
+    let tmpl = MINIJINJA_ENV.template_from_str(chat_template)?;
+    let add_generation_prompt = messages.last().is_some_and(|msg| {
+        matches!(
+            msg,
+            Message::Message {
+                role: Role::User,
+                ..
+            } | Message::ToolResp { .. }
+        )
+    });
+
+    let ctx = context! {
+        messages => messages,
+        add_generation_prompt => add_generation_prompt,
+        // we call it allow thinking, because not every model has thinking mode,
+        // and 'enable' could then cause confusion
+        enable_thinking => allow_thinking,
+        bos_token => bos_token,
+        eos_token => eos_token,
+        tools => tools,
+    };
+
+    tmpl.render(ctx)
+}
+
+pub fn render_string(
+    messages: &[Message],
+    chat_template: &str,
+    allow_thinking: bool,
+    bos_token: &str,
+    eos_token: &str,
+    tools: &[Tool],
+) -> Result<String, minijinja::Error> {
+    let rendered_template = naive_render_message_vec(
+        messages,
+        chat_template,
+        allow_thinking,
+        bos_token,
+        eos_token,
+        tools,
+    );
+    let result = match rendered_template {
+        Ok(rendered) => Ok(rendered),
+        Err(err) => match err.kind() {
+            minijinja::ErrorKind::InvalidOperation => {
+                if err.to_string().contains("System role not supported") {
+                    // this is the error message we get when rendering the gemma2 template
+                    // concat the first two messages and try again
+                    naive_render_message_vec(
+                        &concat_system_and_first_user_messages(messages)?,
+                        chat_template,
+                        allow_thinking,
+                        bos_token,
+                        eos_token,
+                        tools,
+                    )
+                } else if err
+                    .to_string()
+                    .contains("Conversation roles must alternate user/assistant/user/assistant/...")
+                {
+                    // this is the error we get when rendering the mistral 7b v0.3 template,
+                    // which, like gemma2, does not support the system role
+                    // concat the first two messages and try again
+                    naive_render_message_vec(
+                        &concat_system_and_first_user_messages(messages)?,
+                        chat_template,
+                        allow_thinking,
+                        bos_token,
+                        eos_token,
+                        tools,
+                    )
+                } else {
+                    Err(err)
+                }
+            }
+            _ => Err(err),
+        },
+    };
+
+    let text = result?;
+    trace!(text);
+
+    Ok(text)
 }
 
 struct ChatWorker {
@@ -1011,8 +1104,8 @@ struct ChatWorker {
     chat_template: String,
     tokens_in_context: Vec<LlamaToken>,
     allow_thinking: bool,
-    eos_token: String,
     bos_token: String,
+    eos_token: String,
 }
 
 impl llm::PoolingType for ChatWorker {
@@ -1055,8 +1148,8 @@ impl Worker<'_, ChatWorker> {
                 chat_template: template,
                 tokens_in_context: Vec::new(),
                 allow_thinking: config.allow_thinking,
-                eos_token: eos,
                 bos_token: bos,
+                eos_token: eos,
             },
         )
     }
@@ -1168,7 +1261,17 @@ impl Worker<'_, ChatWorker> {
                 || self
                     .ctx
                     .model
-                    .str_to_token(&self.naive_render_message_vec(&messages)?, AddBos::Never)?
+                    .str_to_token(
+                        &naive_render_message_vec(
+                            &messages,
+                            &self.extra.chat_template,
+                            self.extra.allow_thinking,
+                            &self.extra.bos_token,
+                            &self.extra.eos_token,
+                            &self.extra.tools,
+                        )?,
+                        AddBos::Never,
+                    )?
                     .len()
                     <= target_token_size
             {
@@ -1222,72 +1325,6 @@ impl Worker<'_, ChatWorker> {
         } else {
             None
         }
-    }
-
-    // Chat Template Rendering
-
-    pub fn naive_render_message_vec(
-        &self,
-        messages: &[Message],
-    ) -> Result<String, minijinja::Error> {
-        let tmpl = MINIJINJA_ENV.template_from_str(&self.extra.chat_template)?;
-        let add_generation_prompt = self.extra.messages.last().is_some_and(|msg| {
-            matches!(
-                msg,
-                Message::Message {
-                    role: Role::User,
-                    ..
-                } | Message::ToolResp { .. }
-            )
-        });
-
-        let ctx = context! {
-            messages => messages,
-            add_generation_prompt => add_generation_prompt,
-            // we call it allow thinking, because not every model has thinking mode,
-            // and 'enable' could then cause confusion
-            enable_thinking => self.extra.allow_thinking,
-            eos_token => self.extra.eos_token,
-            bos_token => self.extra.bos_token,
-            tools => self.extra.tools,
-        };
-
-        tmpl.render(ctx)
-    }
-
-    pub fn render_string(&mut self) -> Result<String, minijinja::Error> {
-        let rendered_template = self.naive_render_message_vec(&self.extra.messages);
-        let result = match rendered_template {
-            Ok(rendered) => Ok(rendered),
-            Err(err) => match err.kind() {
-                minijinja::ErrorKind::InvalidOperation => {
-                    if err.to_string().contains("System role not supported") {
-                        // this is the error message we get when rendering the gemma2 template
-                        // concat the first two messages and try again
-                        self.extra.messages =
-                            concat_system_and_first_user_messages(&self.extra.messages)?;
-                        self.render_string()
-                    } else if err.to_string().contains(
-                        "Conversation roles must alternate user/assistant/user/assistant/...",
-                    ) {
-                        // this is the error we get when rendering the mistral 7b v0.3 template,
-                        // which, like gemma2, does not support the system role
-                        // concat the first two messages and try again
-                        self.extra.messages =
-                            concat_system_and_first_user_messages(&self.extra.messages)?;
-                        self.render_string()
-                    } else {
-                        Err(err)
-                    }
-                }
-                _ => Err(err),
-            },
-        };
-
-        let text = result?;
-        trace!(text);
-
-        Ok(text)
     }
 
     // ---------- IMPORTANT ----------
@@ -1496,7 +1533,14 @@ impl Worker<'_, ChatWorker> {
     }
 
     fn get_render_as_tokens(&mut self) -> Result<Vec<LlamaToken>, RenderError> {
-        let render_as_string = self.render_string()?;
+        let render_as_string = render_string(
+            &self.extra.messages,
+            &self.extra.chat_template,
+            self.extra.allow_thinking,
+            &self.extra.bos_token,
+            &self.extra.eos_token,
+            &self.extra.tools,
+        )?;
         let render_as_tokens = self
             .ctx
             .model
@@ -2080,9 +2124,7 @@ mod tests {
         }
 
         // 5. Verify token count is within target
-        let token_count = model
-            .str_to_token(&worker.render_string()?, AddBos::Never)?
-            .len();
+        let token_count = worker.get_render_as_tokens()?.len();
 
         let target_size = (n_ctx / 2) as usize;
         assert!(
@@ -2199,9 +2241,7 @@ mod tests {
         }
 
         // 5. Verify token count is within target
-        let token_count = model
-            .str_to_token(&worker.render_string()?, AddBos::Never)?
-            .len();
+        let token_count = worker.get_render_as_tokens()?.len();
 
         let target_size = (n_ctx / 2) as usize;
         assert!(
@@ -2545,45 +2585,48 @@ mod tests {
     }
 
     #[test]
-    fn test_render_string_llama3_template() -> Result<(), Box<dyn std::error::Error>> {
-        let model = test_utils::load_test_model();
-
-        // Llama 3.1 template
+    fn test_render_string_llama3_template() {
+        // Llama 3.1 template from the existing test
         let template = "{% set loop_messages = messages %}{% for message in loop_messages %}{% set content = '<|start_header_id|>' + message['role'] + '<|end_header_id|>\n\n'+ message['content'] | trim + '<|eot_id|>' %}{% if loop.index0 == 0 %}{% set content = bos_token + content %}{% endif %}{{ content }}{% endfor %}{{ '<|start_header_id|>assistant<|end_header_id|>\n\n' }}";
 
-        let mut worker = Worker::new_chat_worker(
-            &model,
-            ChatConfig {
-                n_ctx: 1024,
-                ..Default::default()
-            },
-            Arc::new(AtomicBool::new(false)),
-        )?;
-
-        // Override the chat template and tokens to use llama3 format
-        worker.extra.chat_template = template.into();
-        worker.extra.bos_token = "<|begin_of_text|>".into();
-        worker.extra.eos_token = "<|end_of_text|>".into();
+        let allow_thinking = true;
+        let bos = "<|begin_of_text|>";
+        let eos = "<|end_of_text|>";
+        let tools = vec![];
 
         // Test 1: Single user message
-        worker.extra.messages.clear();
-        worker.add_user_message("Hello, world!".into());
-        let rendered = worker.render_string()?;
+        let mut messages = vec![Message::Message {
+            role: Role::User,
+            content: "Hello, world!".into(),
+        }];
+        let rendered =
+            render_string(&messages, template, allow_thinking, &bos, &eos, &tools).unwrap();
 
         let expected = "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nHello, world!<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n";
         assert_eq!(rendered, expected);
 
         // Test 2: Add assistant response
-        worker.add_assistant_message("Hi there! How can I help?".into());
-        let rendered2 = worker.render_string()?;
+        messages.push(Message::Message {
+            role: Role::Assistant,
+            content: "Hi there! How can I help?".into(),
+        });
+        let rendered2 =
+            render_string(&messages, template, allow_thinking, &bos, &eos, &tools).unwrap();
 
         let expected2 = "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nHello, world!<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\nHi there! How can I help?<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n";
         assert_eq!(rendered2, expected2);
 
         // Test 3: Multi-turn conversation
-        worker.add_user_message("What's the weather like?".into());
-        worker.add_assistant_message("I don't have access to weather data.".into());
-        let rendered3 = worker.render_string()?;
+        messages.push(Message::Message {
+            role: Role::User,
+            content: "What's the weather like?".into(),
+        });
+        messages.push(Message::Message {
+            role: Role::Assistant,
+            content: "I don't have access to weather data.".into(),
+        });
+        let rendered3 =
+            render_string(&messages, template, allow_thinking, &bos, &eos, &tools).unwrap();
 
         assert!(rendered3.starts_with(
             "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nHello, world!<|eot_id|>"
@@ -2594,62 +2637,73 @@ mod tests {
         assert!(rendered3.contains("<|start_header_id|>assistant<|end_header_id|>\n\nI don't have access to weather data.<|eot_id|>"));
         assert!(rendered3.ends_with("<|start_header_id|>assistant<|end_header_id|>\n\n"));
 
-        // Test 4: System message
-        worker.reset_chat("You are a helpful assistant.".into(), vec![])?;
-        worker.add_user_message("Hi".into());
-        let rendered4 = worker.render_string()?;
+        // Test 4: System message (if added first)
+        let messages = vec![
+            Message::Message {
+                role: Role::System,
+                content: "You are a helpful assistant.".into(),
+            },
+            Message::Message {
+                role: Role::User,
+                content: "Hi".into(),
+            },
+        ];
+        let rendered4 =
+            render_string(&messages, template, allow_thinking, &bos, &eos, &tools).unwrap();
+
+        println!("{:?}", rendered4);
 
         assert!(rendered4.starts_with("<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nYou are a helpful assistant.<|eot_id|>"));
         assert!(rendered4.contains("<|start_header_id|>user<|end_header_id|>\n\nHi<|eot_id|>"));
         assert!(rendered4.ends_with("<|start_header_id|>assistant<|end_header_id|>\n\n"));
-
-        Ok(())
     }
 
     #[test]
-    fn test_render_string_deepseek_template() -> Result<(), Box<dyn std::error::Error>> {
-        let model = test_utils::load_test_model();
-
-        // DeepSeek template
+    fn test_render_string_deepseek_template() {
+        // DeepSeek template from the existing test
         let template = "{% if not add_generation_prompt is defined %}{% set add_generation_prompt = false %}{% endif %}{% set ns = namespace(is_first=false, is_tool=false, is_output_first=true, system_prompt='') %}{%- for message in messages %}{%- if message['role'] == 'system' %}{% set ns.system_prompt = message['content'] %}{%- endif %}{%- endfor %}{{bos_token}}{{ns.system_prompt}}{%- for message in messages %}{%- if message['role'] == 'user' %}{%- set ns.is_tool = false -%}{{'<｜User｜>' + message['content']}}{%- endif %}{%- if message['role'] == 'assistant' and message['content'] is none %}{%- set ns.is_tool = false -%}{%- for tool in message['tool_calls']%}{%- if not ns.is_first %}{{'<｜Assistant｜><｜tool▁calls▁begin｜><｜tool▁call▁begin｜>' + tool['type'] + '<｜tool▁sep｜>' + tool['function']['name'] + '\\n' + '```json' + '\\n' + tool['function']['arguments'] + '\\n' + '```' + '<｜tool▁call▁end｜>'}}{%- set ns.is_first = true -%}{%- else %}{{'\\n' + '<｜tool▁call▁begin｜>' + tool['type'] + '<｜tool▁sep｜>' + tool['function']['name'] + '\\n' + '```json' + '\\n' + tool['function']['arguments'] + '\\n' + '```' + '<｜tool▁call▁end｜>'}}{{'<｜tool▁calls▁end｜><｜end▁of▁sentence｜>'}}{%- endif %}{%- endfor %}{%- endif %}{%- if message['role'] == 'assistant' and message['content'] is not none %}{%- if ns.is_tool %}{{'<｜tool▁outputs▁end｜>' + message['content'] + '<｜end▁of▁sentence｜>'}}{%- set ns.is_tool = false -%}{%- else %}{% set content = message['content'] %}{% if '</think>' in content %}{% set content = content.split('</think>')[-1] %}{% endif %}{{'<｜Assistant｜>' + content + '<｜end▁of▁sentence｜>'}}{%- endif %}{%- endif %}{%- if message['role'] == 'tool' %}{%- set ns.is_tool = true -%}{%- if ns.is_output_first %}{{'<｜tool▁outputs▁begin｜><｜tool▁output▁begin｜>' + message['content'] + '<｜tool▁output▁end｜>'}}{%- set ns.is_output_first = false %}{%- else %}{{'\\n<｜tool▁output▁begin｜>' + message['content'] + '<｜tool▁output▁end｜>'}}{%- endif %}{%- endif %}{%- endfor -%}{% if ns.is_tool %}{{'<｜tool▁outputs▁end｜>'}}{% endif %}{% if add_generation_prompt and not ns.is_tool %}{{'<｜Assistant｜>'}}{% endif %}";
 
-        let mut worker = Worker::new_chat_worker(
-            &model,
-            ChatConfig {
-                n_ctx: 1024,
-                ..Default::default()
-            },
-            Arc::new(AtomicBool::new(false)),
-        )?;
-
-        // Override the chat template and tokens to use deepseek format
-        worker.extra.chat_template = template.into();
-        worker.extra.bos_token = "<|bos|>".into();
-        worker.extra.eos_token = "<|eos|>".into();
+        let allow_thinking = true;
+        let bos = "<|bos|>";
+        let eos = "<|eos|>";
+        let tools = vec![];
 
         // Test 1: Single user message
-        worker.extra.messages.clear();
-        worker.add_user_message("Hello, world!".into());
-        let rendered = worker.render_string()?;
+        let mut messages = vec![Message::Message {
+            role: Role::User,
+            content: "Hello, world!".into(),
+        }];
+        let rendered =
+            render_string(&messages, template, allow_thinking, bos, eos, &tools).unwrap();
 
+        // render_string sets add_generation_prompt to true for user messages, so <｜Assistant｜> is added
         let expected = "<|bos|><｜User｜>Hello, world!<｜Assistant｜>";
         assert_eq!(rendered, expected);
 
         // Test 2: Add assistant response
-        worker.add_assistant_message("Hi there! How can I help?".into());
-        let rendered2 = worker.render_string()?;
+        messages.push(Message::Message {
+            role: Role::Assistant,
+            content: "Hi there! How can I help?".into(),
+        });
+        let rendered2 =
+            render_string(&messages, template, allow_thinking, bos, eos, &tools).unwrap();
 
         let expected2 = "<|bos|><｜User｜>Hello, world!<｜Assistant｜>Hi there! How can I help?<｜end▁of▁sentence｜>";
         assert_eq!(rendered2, expected2);
 
         // Test 3: Assistant message with thinking block
-        worker.add_user_message("Can you help me?".into());
-        worker.add_assistant_message(
-            "<think>The user is asking for help</think>I'd be happy to assist you!".into(),
-        );
-        let rendered3 = worker.render_string()?;
+        messages.push(Message::Message {
+            role: Role::User,
+            content: "Can you help me?".into(),
+        });
+        messages.push(Message::Message {
+            role: Role::Assistant,
+            content: "<think>The user is asking for help</think>I'd be happy to assist you!".into(),
+        });
+        let rendered3 =
+            render_string(&messages, template, allow_thinking, bos, eos, &tools).unwrap();
 
-        // The thinking block should be stripped out
+        // The thinking block should be stripped out, only the content after </think> should remain
         assert!(
             rendered3.contains("<｜Assistant｜>I'd be happy to assist you!<｜end▁of▁sentence｜>")
         );
@@ -2657,107 +2711,139 @@ mod tests {
         assert!(!rendered3.contains("</think>"));
 
         // Test 4: System message
-        worker.reset_chat("You are a helpful assistant.".into(), vec![])?;
-        worker.add_user_message("Hi".into());
-        let rendered4 = worker.render_string()?;
+        let messages = vec![
+            Message::Message {
+                role: Role::System,
+                content: "You are a helpful assistant.".into(),
+            },
+            Message::Message {
+                role: Role::User,
+                content: "Hi".into(),
+            },
+        ];
+        let rendered4 =
+            render_string(&messages, template, allow_thinking, bos, eos, &tools).unwrap();
 
         let expected4 = "<|bos|>You are a helpful assistant.<｜User｜>Hi<｜Assistant｜>";
         assert_eq!(rendered4, expected4);
 
         // Test 5: Multi-turn conversation
-        worker.extra.messages.clear();
-        worker.add_user_message("What's 2+2?".into());
-        worker.add_assistant_message("4".into());
-        worker.add_user_message("Thanks!".into());
-        let rendered5 = worker.render_string()?;
+        let messages = vec![
+            Message::Message {
+                role: Role::User,
+                content: "What's 2+2?".into(),
+            },
+            Message::Message {
+                role: Role::Assistant,
+                content: "4".into(),
+            },
+            Message::Message {
+                role: Role::User,
+                content: "Thanks!".into(),
+            },
+        ];
+        let rendered5 =
+            render_string(&messages, template, allow_thinking, bos, eos, &tools).unwrap();
 
         let expected5 =
             "<|bos|><｜User｜>What's 2+2?<｜Assistant｜>4<｜end▁of▁sentence｜><｜User｜>Thanks!<｜Assistant｜>";
         assert_eq!(rendered5, expected5);
 
-        Ok(())
+        // Test 6: Empty messages (no generation prompt by default)
+        let messages: Vec<Message> = vec![];
+        let rendered6 =
+            render_string(&messages, template, allow_thinking, bos, eos, &tools).unwrap();
+
+        let expected6 = "<|bos|>";
+        assert_eq!(rendered6, expected6);
     }
 
     #[test]
-    fn test_render_string_qwen3_template() -> Result<(), Box<dyn std::error::Error>> {
-        let model = test_utils::load_test_model();
+    fn test_render_string_qwen3_template() {
+        // Qwen3 template from the existing test
+        let template = "{%- if tools %}\n    {{- '<|im_start|>system\\n' }}\n    {%- if messages[0].role == 'system' %}\n        {{- messages[0].content + '\\n\\n' }}\n    {%- endif %}\n    {{- \"# Tools\\n\\nYou may call one or more functions to assist with the user query.\\n\\nYou are provided with function signatures within <tools></tools> XML tags:\\n<tools>\" }}\n    {%- for tool in tools %}\n        {{- \"\\n\" }}\n        {{- tool | tojson }}\n    {%- endfor %}\n    {{- \"\\n</tools>\\n\\nFor each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:\\n<tool_call>\\n{\\\"name\\\": <function-name>, \\\"arguments\\\": <args-json-object>}\\n</tool_call><|im_end|>\\n\" }}\n{%- else %}\n    {%- if messages[0].role == 'system' %}\n        {{- '<|im_start|>system\\n' + messages[0].content + '<|im_end|>\\n' }}\n    {%- endif %}\n{%- endif %}\n{%- set ns = namespace(multi_step_tool=true, last_query_index=messages|length - 1) %}\n{%- for message in messages[::-1] %}\n    {%- set index = (messages|length - 1) - loop.index0 %}\n    {%- if ns.multi_step_tool and message.role == \"user\" and not(message.content.startswith('<tool_response>') and message.content.endswith('</tool_response>')) %}\n        {%- set ns.multi_step_tool = false %}\n        {%- set ns.last_query_index = index %}\n    {%- endif %}\n{%- endfor %}\n{%- for message in messages %}\n    {%- if (message.role == \"user\") or (message.role == \"system\" and not loop.first) %}\n        {{- '<|im_start|>' + message.role + '\\n' + message.content + '<|im_end|>' + '\\n' }}\n    {%- elif message.role == \"assistant\" %}\n        {%- set content = message.content %}\n        {%- set reasoning_content = '' %}\n        {%- if message.reasoning_content is defined and message.reasoning_content is not none %}\n            {%- set reasoning_content = message.reasoning_content %}\n        {%- else %}\n            {%- if '</think>' in message.content %}\n                {%- set content = message.content.split('</think>')[-1].lstrip('\\n') %}\n                {%- set reasoning_content = message.content.split('</think>')[0].rstrip('\\n').split('<think>')[-1].lstrip('\\n') %}\n            {%- endif %}\n        {%- endif %}\n        {%- if loop.index0 > ns.last_query_index %}\n            {%- if loop.last or (not loop.last and reasoning_content) %}\n                {{- '<|im_start|>' + message.role + '\\n<think>\\n' + reasoning_content.strip('\\n') + '\\n</think>\\n\\n' + content.lstrip('\\n') }}\n            {%- else %}\n                {{- '<|im_start|>' + message.role + '\\n' + content }}\n            {%- endif %}\n        {%- else %}\n            {{- '<|im_start|>' + message.role + '\\n' + content }}\n        {%- endif %}\n        {%- if message.tool_calls %}\n            {%- for tool_call in message.tool_calls %}\n                {%- if (loop.first and content) or (not loop.first) %}\n                    {{- '\\n' }}\n                {%- endif %}\n                {%- if tool_call.function %}\n                    {%- set tool_call = tool_call.function %}\n                {%- endif %}\n                {{- '<tool_call>\\n{\"name\": \"' }}\n                {{- tool_call.name }}\n                {{- '\", \"arguments\": ' }}\n                {%- if tool_call.arguments is string %}\n                    {{- tool_call.arguments }}\n                {%- else %}\n                    {{- tool_call.arguments | tojson }}\n                {%- endif %}\n                {{- '}\\n</tool_call>' }}\n            {%- endfor %}\n        {%- endif %}\n        {{- '<|im_end|>\\n' }}\n    {%- elif message.role == \"tool\" %}\n        {%- if loop.first or (messages[loop.index0 - 1].role != \"tool\") %}\n            {{- '<|im_start|>user' }}\n        {%- endif %}\n        {{- '\\n<tool_response>\\n' }}\n        {{- message.content }}\n        {{- '\\n</tool_response>' }}\n        {%- if loop.last or (messages[loop.index0 + 1].role != \"tool\") %}\n            {{- '<|im_end|>\\n' }}\n        {%- endif %}\n    {%- endif %}\n{%- endfor %}\n{%- if add_generation_prompt %}\n    {{- '<|im_start|>assistant\\n' }}\n    {%- if enable_thinking is defined and enable_thinking is false %}\n        {{- '<think>\\n\\n</think>\\n\\n' }}\n    {%- endif %}\n{%- endif %}";
 
-        // The full qwen3 template string
-        let template = "{%- if tools %}\n    {{- '<|im_start|>system\\n' }}\n    {%- if messages[0].role == 'system' %}\n        {{- messages[0].content + '\\n\\n' }}\n    {%- endif %}\n    {{- \"# Tools\\n\\nYou may call one or more functions to 
-  assist with the user query.\\n\\nYou are provided with function signatures within <tools></tools> XML tags:\\n<tools>\" }}\n    {%- for tool in tools %}\n        {{- \"\\n\" }}\n        {{- tool | tojson }}\n    {%- endfor %}\n    {{- 
-  \"\\n</tools>\\n\\nFor each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:\\n<tool_call>\\n{\\\"name\\\": <function-name>, \\\"arguments\\\": 
-  <args-json-object>}\\n</tool_call><|im_end|>\\n\" }}\n{%- else %}\n    {%- if messages[0].role == 'system' %}\n        {{- '<|im_start|>system\\n' + messages[0].content + '<|im_end|>\\n' }}\n    {%- endif %}\n{%- endif %}\n{%- set ns = 
-  namespace(multi_step_tool=true, last_query_index=messages|length - 1) %}\n{%- for message in messages[::-1] %}\n    {%- set index = (messages|length - 1) - loop.index0 %}\n    {%- if ns.multi_step_tool and message.role == \"user\" and 
-  not(message.content.startswith('<tool_response>') and message.content.endswith('</tool_response>')) %}\n        {%- set ns.multi_step_tool = false %}\n        {%- set ns.last_query_index = index %}\n    {%- endif %}\n{%- endfor %}\n{%- for 
-  message in messages %}\n    {%- if (message.role == \"user\") or (message.role == \"system\" and not loop.first) %}\n        {{- '<|im_start|>' + message.role + '\\n' + message.content + '<|im_end|>' + '\\n' }}\n    {%- elif message.role == 
-  \"assistant\" %}\n        {%- set content = message.content %}\n        {%- set reasoning_content = '' %}\n        {%- if message.reasoning_content is defined and message.reasoning_content is not none %}\n            {%- set reasoning_content = 
-  message.reasoning_content %}\n        {%- else %}\n            {%- if '</think>' in message.content %}\n                {%- set content = message.content.split('</think>')[-1].lstrip('\\n') %}\n                {%- set reasoning_content = 
-  message.content.split('</think>')[0].rstrip('\\n').split('<think>')[-1].lstrip('\\n') %}\n            {%- endif %}\n        {%- endif %}\n        {%- if loop.index0 > ns.last_query_index %}\n            {%- if loop.last or (not loop.last and 
-  reasoning_content) %}\n                {{- '<|im_start|>' + message.role + '\\n<think>\\n' + reasoning_content.strip('\\n') + '\\n</think>\\n\\n' + content.lstrip('\\n') }}\n            {%- else %}\n                {{- '<|im_start|>' + 
-  message.role + '\\n' + content }}\n            {%- endif %}\n        {%- else %}\n            {{- '<|im_start|>' + message.role + '\\n' + content }}\n        {%- endif %}\n        {%- if message.tool_calls %}\n            {%- for tool_call in 
-  message.tool_calls %}\n                {%- if (loop.first and content) or (not loop.first) %}\n                    {{- '\\n' }}\n                {%- endif %}\n                {%- if tool_call.function %}\n                    {%- set tool_call = 
-  tool_call.function %}\n                {%- endif %}\n                {{- '<tool_call>\\n{\"name\": \"' }}\n                {{- tool_call.name }}\n                {{- '\", \"arguments\": ' }}\n                {%- if tool_call.arguments is string 
-  %}\n                    {{- tool_call.arguments }}\n                {%- else %}\n                    {{- tool_call.arguments | tojson }}\n                {%- endif %}\n                {{- '}\\n</tool_call>' }}\n            {%- endfor %}\n        
-  {%- endif %}\n        {{- '<|im_end|>\\n' }}\n    {%- elif message.role == \"tool\" %}\n        {%- if loop.first or (messages[loop.index0 - 1].role != \"tool\") %}\n            {{- '<|im_start|>user' }}\n        {%- endif %}\n        {{- 
-  '\\n<tool_response>\\n' }}\n        {{- message.content }}\n        {{- '\\n</tool_response>' }}\n        {%- if loop.last or (messages[loop.index0 + 1].role != \"tool\") %}\n            {{- '<|im_end|>\\n' }}\n        {%- endif %}\n    {%- endif
-   %}\n{%- endfor %}\n{%- if add_generation_prompt %}\n    {{- '<|im_start|>assistant\\n' }}\n    {%- if enable_thinking is defined and enable_thinking is false %}\n        {{- '<think>\\n\\n</think>\\n\\n' }}\n    {%- endif %}\n{%- endif %}";
-
-        let mut worker = Worker::new_chat_worker(
-            &model,
-            ChatConfig {
-                n_ctx: 1024,
-                ..Default::default()
-            },
-            Arc::new(AtomicBool::new(false)),
-        )?;
-
-        // Override the chat template and tokens to use qwen3 format
-        worker.extra.chat_template = template.into();
-        worker.extra.bos_token = "".into();
-        worker.extra.eos_token = "".into();
+        let allow_thinking = true;
+        let bos = "";
+        let eos = "";
+        let tools = vec![];
 
         // Test 1: Single user message
-        worker.extra.messages.clear();
-        worker.add_user_message("Hi, robot!".into());
-        let rendered = worker.render_string()?;
+        let mut messages = vec![Message::Message {
+            role: Role::User,
+            content: "Hi, robot!".into(),
+        }];
+        let rendered =
+            render_string(&messages, template, allow_thinking, bos, eos, &tools).unwrap();
 
         let expected = "<|im_start|>user\nHi, robot!<|im_end|>\n<|im_start|>assistant\n";
         assert_eq!(rendered, expected);
 
         // Test 2: Add assistant response with thinking
-        worker.add_assistant_message("<think>\nHm... That's a tough cookie. I think the answer is probably 42.\nCould it be something else?\nNah... It's 42!\n</think>\nThe answer is 42!".into());
-        let rendered2 = worker.render_string()?;
+        messages.push(Message::Message {
+            role: Role::Assistant,
+            content: "<think>\nHm... That's a tough cookie. I think the answer is probably 42.\nCould it be something else?\nNah... It's 42!\n</think>\nThe answer is 42!".into(),
+        });
+        let rendered2 =
+            render_string(&messages, template, allow_thinking, bos, eos, &tools).unwrap();
 
+        // The thinking block should be included in the output for Qwen3
         let expected2 = "<|im_start|>user\nHi, robot!<|im_end|>\n<|im_start|>assistant\n<think>\nHm... That's a tough cookie. I think the answer is probably 42.\nCould it be something else?\nNah... It's 42!\n</think>\n\nThe answer is 42!<|im_end|>\n";
         assert_eq!(rendered2, expected2);
 
         // Test 3: System message
-        worker.reset_chat("You are a helpful assistant.".into(), vec![])?;
-        worker.add_user_message("Hello".into());
-        let rendered3 = worker.render_string()?;
+        let messages = vec![
+            Message::Message {
+                role: Role::System,
+                content: "You are a helpful assistant.".into(),
+            },
+            Message::Message {
+                role: Role::User,
+                content: "Hello".into(),
+            },
+        ];
+        let rendered3 =
+            render_string(&messages, template, allow_thinking, bos, eos, &tools).unwrap();
 
         let expected3 = "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nHello<|im_end|>\n<|im_start|>assistant\n";
         assert_eq!(rendered3, expected3);
 
         // Test 4: Multi-turn conversation
-        worker.extra.messages.clear();
-        worker.add_user_message("What's 2+2?".into());
-        worker.add_assistant_message("4".into());
-        worker.add_user_message("Thanks!".into());
-        let rendered4 = worker.render_string()?;
+        let messages = vec![
+            Message::Message {
+                role: Role::User,
+                content: "What's 2+2?".into(),
+            },
+            Message::Message {
+                role: Role::Assistant,
+                content: "4".into(),
+            },
+            Message::Message {
+                role: Role::User,
+                content: "Thanks!".into(),
+            },
+        ];
+        let rendered4 =
+            render_string(&messages, template, allow_thinking, bos, eos, &tools).unwrap();
 
         let expected4 = "<|im_start|>user\nWhat's 2+2?<|im_end|>\n<|im_start|>assistant\n4<|im_end|>\n<|im_start|>user\nThanks!<|im_end|>\n<|im_start|>assistant\n";
         assert_eq!(rendered4, expected4);
 
         // Test 5: Assistant message without thinking
-        worker.extra.messages.clear();
-        worker.add_user_message("Hello".into());
-        worker.add_assistant_message("Hi there!".into());
-        let rendered5 = worker.render_string()?;
+        let messages = vec![
+            Message::Message {
+                role: Role::User,
+                content: "Hello".into(),
+            },
+            Message::Message {
+                role: Role::Assistant,
+                content: "Hi there!".into(),
+            },
+        ];
+        let rendered5 = render_string(&messages, template, false, bos, eos, &tools).unwrap();
 
+        // The template now includes empty thinking blocks for assistant messages
         let expected5 = "<|im_start|>user\nHello<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\nHi there!<|im_end|>\n";
         assert_eq!(rendered5, expected5);
-
-        Ok(())
     }
 }
