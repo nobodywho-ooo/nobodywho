@@ -305,6 +305,14 @@ def test_async_tool_calling(model):
     assert "✨JULEMAND✨" in response
 
 
+def test_tool_bad_parameters():
+    with pytest.raises(TypeError):
+
+        @nobodywho.tool(description="foobar", params={"b": "uh-oh"})
+        async def i_fucked_up(a: int) -> str:
+            return "fuck"
+
+
 def test_load_chat_from_path():
     model_path = os.environ.get("TEST_MODEL")
     assert isinstance(model_path, str)
