@@ -44,7 +44,7 @@ impl NobodyWhoChat {
 
     pub async fn get_chat_history(
         &self,
-    ) -> Result<Vec<nobodywho::chat_state::Message>, nobodywho::errors::GetterError> {
+    ) -> Result<Vec<nobodywho::chat::Message>, nobodywho::errors::GetterError> {
         self.chat.get_chat_history().await
     }
 }

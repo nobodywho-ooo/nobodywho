@@ -25,7 +25,7 @@ fn main() {
         rust_input: Some("crate::api".to_string()),
         rust_root: Some(".".to_string()),
         rust_preamble: Some(
-            "use flutter_rust_bridge::Rust2DartSendError;\nuse nobodywho::errors::{GetterError, CompletionError};\nuse nobodywho::chat_state::Message;".to_string(),
+            "use flutter_rust_bridge::Rust2DartSendError;\nuse nobodywho::errors::{GetterError, CompletionError};\nuse nobodywho::chat::Message;".to_string(),
         ),
         dart_output: Some("../nobodywho_dart/lib/src/rust".to_string()),
         ..Default::default()
