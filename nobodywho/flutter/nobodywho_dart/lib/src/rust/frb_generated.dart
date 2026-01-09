@@ -92,7 +92,7 @@ abstract class RustLibApi extends BaseApi {
     bool useGpu = true,
   });
 
-  String crateApiNobodywhoNobodyWhoTokenStreamCompleted({
+  Future<String> crateApiNobodywhoNobodyWhoTokenStreamCompleted({
     required NobodyWhoTokenStream that,
   });
 
@@ -279,18 +279,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  String crateApiNobodywhoNobodyWhoTokenStreamCompleted({
+  Future<String> crateApiNobodywhoNobodyWhoTokenStreamCompleted({
     required NobodyWhoTokenStream that,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTokenStream(
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 4)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 4,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -315,25 +320,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required NobodyWhoTokenStream that,
   }) {
     final sink = RustStreamSink<String>();
-    handler.executeSync(
-      SyncTask(
-        callFfi: () {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTokenStream(
-            that,
-            serializer,
-          );
-          sse_encode_StreamSink_String_Sse(sink, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 5)!;
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRust2DartSendError,
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTokenStream(
+              that,
+              serializer,
+            );
+            sse_encode_StreamSink_String_Sse(sink, serializer);
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 5,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData:
+                sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRust2DartSendError,
+          ),
+          constMeta: kCrateApiNobodywhoNobodyWhoTokenStreamIterConstMeta,
+          argValues: [that, sink],
+          apiImpl: this,
         ),
-        constMeta: kCrateApiNobodywhoNobodyWhoTokenStreamIterConstMeta,
-        argValues: [that, sink],
-        apiImpl: this,
       ),
     );
     return sink.stream;
@@ -1364,7 +1376,7 @@ class NobodyWhoTokenStreamImpl extends RustOpaque
         .rust_arc_decrement_strong_count_NobodyWhoTokenStreamPtr,
   );
 
-  String completed() => RustLib.instance.api
+  Future<String> completed() => RustLib.instance.api
       .crateApiNobodywhoNobodyWhoTokenStreamCompleted(that: this);
 
   Stream<String> iter() => RustLib.instance.api
