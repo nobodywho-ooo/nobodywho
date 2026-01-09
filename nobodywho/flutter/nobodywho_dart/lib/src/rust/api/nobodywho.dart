@@ -33,7 +33,7 @@ abstract class Message implements RustOpaqueInterface {}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<NobodyWhoChat>>
 abstract class NobodyWhoChat implements RustOpaqueInterface {
-  Future<NobodyWhoTokenStream> ask({required String message});
+  NobodyWhoTokenStream ask({required String message});
 
   Future<List<Message>> getChatHistory();
 
