@@ -25,9 +25,17 @@ void initDebugLog() => RustLib.instance.api.crateApiNobodywhoInitDebugLog();
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CompletionError>>
 abstract class CompletionError implements RustOpaqueInterface {}
 
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< GetterError>>
+abstract class GetterError implements RustOpaqueInterface {}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< Message>>
+abstract class Message implements RustOpaqueInterface {}
+
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<NobodyWhoChat>>
 abstract class NobodyWhoChat implements RustOpaqueInterface {
-  NobodyWhoTokenStream ask({required String message});
+  Future<NobodyWhoTokenStream> ask({required String message});
+
+  Future<List<Message>> getChatHistory();
 
   factory NobodyWhoChat({
     required NobodyWhoModel model,
