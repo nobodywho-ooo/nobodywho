@@ -1111,7 +1111,7 @@ impl Clone for Tool {
 
 #[pymethods]
 impl Tool {
-    #[pyo3(signature = (*args, **kwargs) -> "str")]
+    #[pyo3(signature = (*args, **kwargs) -> "str | typing.Coroutine[typing.Any, typing.Any, str]")]
     fn __call__(
         &self,
         args: &Bound<pyo3::types::PyTuple>,
@@ -1127,6 +1127,9 @@ impl Tool {
 /// The decorated function will be callable by the model during chat. The model sees the
 /// function's name, description, and parameter types/descriptions to decide when to call it.
 ///
+/// Both synchronous and asynchronous functions are supported. Async functions are executed
+/// synchronously when called by the model.
+///
 /// Args:
 ///     description: A description of what the tool does (shown to the model)
 ///     params: Optional dict mapping parameter names to their descriptions (shown to the model)
@@ -1134,14 +1137,22 @@ impl Tool {
 /// Returns:
 ///     A decorator that transforms a function into a Tool instance
 ///
-/// Example:
+/// Examples:
 ///     @tool("Get the current weather for a city", params={"city": "The city name"})
 ///     def get_weather(city: str) -> str:
 ///         return f"Weather in {city}: sunny"
 ///
+///     @tool("Fetch data from a URL", params={"url": "The URL to fetch"})
+///     async def fetch_url(url: str) -> str:
+///         import aiohttp
+///         async with aiohttp.ClientSession() as session:
+///             async with session.get(url) as response:
+///                 return await response.text()
+///
 /// Note:
 ///     All function parameters must have type hints. The function should return a string.
-#[pyfunction(signature = (description: "str", params: "dict[str, str] | None" = None) -> "typing.Callable[..., Tool]")]
+///     Async functions (defined with 'async def') are automatically detected and handled.
+#[pyfunction(signature = (description: "str", params: "dict[str, str] | None" = None) -> "typing.Callable[[typing.Callable[..., str | typing.Coroutine[typing.Any, typing.Any, str]]], Tool]")]
 fn tool<'a>(
     description: String,
     params: Option<Py<pyo3::types::PyDict>>,
