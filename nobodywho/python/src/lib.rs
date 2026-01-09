@@ -1111,7 +1111,7 @@ impl Clone for Tool {
 
 #[pymethods]
 impl Tool {
-    #[pyo3(signature = (*args, **kwargs) -> "str | typing.Coroutine[None, None, str]")]
+    #[pyo3(signature = (*args, **kwargs) -> "object")]
     fn __call__(
         &self,
         args: &Bound<pyo3::types::PyTuple>,
@@ -1152,7 +1152,7 @@ impl Tool {
 /// Note:
 ///     All function parameters must have type hints. The function should return a string.
 ///     Async functions (defined with 'async def') are automatically detected and handled.
-#[pyfunction(signature = (description: "str", params: "dict[str, str] | None" = None) -> "typing.Callable[[typing.Callable[..., str | typing.Coroutine[typing.Any, typing.Any, str]]], Tool]")]
+#[pyfunction(signature = (description: "str", params: "dict[str, str] | None" = None) -> "typing.Callable[[typing.Callable[..., str | typing.Awaitable[str]]], Tool]")]
 fn tool<'a>(
     description: String,
     params: Option<Py<pyo3::types::PyDict>>,
