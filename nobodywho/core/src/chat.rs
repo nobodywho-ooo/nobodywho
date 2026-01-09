@@ -1030,7 +1030,7 @@ fn naive_render_message_vec(
         enable_thinking => allow_thinking,
         bos_token => bos_token,
         eos_token => eos_token,
-        tools => tools,
+        tools => if tools.is_empty() {None} else {Some(tools)} ,
     };
 
     tmpl.render(ctx)
@@ -1630,7 +1630,13 @@ impl Worker<'_, ChatWorker> {
         };
         self.extra.tools = tools;
 
+        self.extra.chat_template = select_template(self.ctx.model, !self.extra.tools.is_empty())?;
+
+        self.reset_context();
+        self.extra.tokens_in_context = vec![];
+
         // Reuse cached prefix
+
         let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
         let inference_lock_token = _gil_guard.unwrap();
         let render_as_tokens = self.get_render_as_tokens()?;
