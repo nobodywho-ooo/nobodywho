@@ -144,7 +144,7 @@ where
             let ctx_params = LlamaContextParams::default()
                 .with_n_ctx(std::num::NonZero::new(n_ctx))
                 .with_n_batch(n_ctx) // n_batch sets the max size of a batch (i.e. max prompt size)
-                .with_n_ubatch(n_ctx) // n_ubatch is physical batch size (must be large for encoders)
+                .with_n_ubatch(512) // TODO: This is just the default value decided by llama cpp. A smarter choice definitely exists
                 .with_n_threads(n_threads)
                 .with_n_threads_batch(n_threads)
                 .with_embeddings(use_embeddings)
