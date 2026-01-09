@@ -53,7 +53,7 @@ abstract class NobodyWhoModel implements RustOpaqueInterface {
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<NobodyWhoTokenStream>>
 abstract class NobodyWhoTokenStream implements RustOpaqueInterface {
-  String completed();
+  Future<String> completed();
 
   Stream<String> iter();
 }
