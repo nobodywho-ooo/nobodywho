@@ -65,7 +65,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let contents = replace_exceptions(contents.clone());
         let full_path = PathBuf::from(&output_dir).join(&file_path);
 
-        if contents.contains("typing.Any") {
+        if contents.contains(" typing.Any") {
             println!("--- type stubs content: ---");
             println!("{}", contents);
             println!("--- end type stubs content ---");
