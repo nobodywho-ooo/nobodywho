@@ -1111,7 +1111,7 @@ impl Clone for Tool {
 
 #[pymethods]
 impl Tool {
-    #[pyo3(signature = (*args, **kwargs) -> "str | typing.Coroutine[typing.Any, typing.Any, str]")]
+    #[pyo3(signature = (*args, **kwargs) -> "str | typing.Coroutine[None, None, str]")]
     fn __call__(
         &self,
         args: &Bound<pyo3::types::PyTuple>,

@@ -288,7 +288,7 @@ def test_tool_bad_parameters():
             return "fuck"
 
 @nobodywho.tool(
-    description="Applies the sparklify effect to a given piece of text. Can be called as a regular tool."
+    description="Applies the sparklify effect to a given piece of text."
 )
 async def async_sparklify(text: str) -> str:
     return f"✨{text.upper()}✨"
@@ -304,6 +304,7 @@ async def test_async_tool_construction():
 def test_async_tool_calling(model):
     chat = nobodywho.Chat(model, tools=[async_sparklify])
     response: str = chat.ask("Please sparklify this word: 'julemand'").completed()
+    assert False, response
     assert "✨JULEMAND✨" in response
 
 
