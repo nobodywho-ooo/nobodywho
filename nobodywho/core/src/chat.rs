@@ -1300,7 +1300,6 @@ impl Worker<'_, ChatWorker> {
             last_deletable_index -= messages_deleted;
         }
 
-        // update the messages in chat_state
         self.extra.messages = messages;
         Ok(())
     }
@@ -1590,7 +1589,7 @@ impl Worker<'_, ChatWorker> {
         // llm go brrr
         self.read_tokens_and_generate_response(token_difference, sampler, wrapped_respond)?;
 
-        // update the chat_state to match the tokens in the context.
+        // update our representation of the tokens to match the tokens in the context.
         self.extra.tokens_in_context = render_as_tokens;
 
         Ok(resp_receiver.recv()?)
@@ -1653,9 +1652,6 @@ impl Worker<'_, ChatWorker> {
             }, ..] => Some(msg.clone()),
             _ => None,
         };
-
-        self.reset_context(); // TODO: is this necesary?
-        self.extra.tokens_in_context = Vec::new();
 
         // preserve system prompt from before, if it was there
         // (.into_iter() on None returns an empty iterator)
