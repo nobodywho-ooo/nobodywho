@@ -1203,18 +1203,13 @@ fn tool<'a>(
                             Err(e) => return format!("ERROR: {e}"),
                         };
 
-                        let future =
-                            match pyo3_async_runtimes::tokio::into_future(coroutine.into_bound(py))
-                            {
-                                Ok(fut) => fut,
-                                Err(e) => {
-                                    return format!(
-                                        "ERROR: Failed to convert coroutine into future: {e}"
-                                    )
-                                }
-                            };
+                        // Use Python's asyncio.run() to execute the coroutine
+                        let asyncio = match py.import("asyncio") {
+                            Ok(module) => module,
+                            Err(e) => return format!("ERROR: Failed to import asyncio: {e}"),
+                        };
 
-                        futures::executor::block_on(async { future.await })
+                        asyncio.call_method1("run", (coroutine,)).map(|r| r.into())
                     } else {
                         fun.call(py, (), Some(&kwargs))
                     };
