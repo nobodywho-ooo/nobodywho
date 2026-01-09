@@ -135,6 +135,9 @@ pub(crate) enum ChatWorkerError {
 
     #[error("Error removing tokens from KvCache: {0}")]
     KvCacheConversion(#[from] KvCacheConversionError),
+
+    #[error("Error during context syncing: {0}")]
+    ContextSyncError(#[from] ContextSyncError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -148,8 +151,11 @@ pub enum WrappedResponseError {
     #[error("Error removing tokens not present in the common prefix: {0}")]
     KVCacheUpdate(#[from] KvCacheConversionError),
 
-    #[error("Error during inference step: {0}")]
-    Inference(#[from] InferenceError),
+    #[error("Error syncing context and reading prompt: {0}")]
+    ReadError(#[from] ContextSyncError),
+
+    #[error("Error while generating response: {0}")]
+    GenerateResponse(#[from] GenerateResponseError),
 
     #[error("Error receiving generated response: {0}")]
     Receive(#[from] std::sync::mpsc::RecvError),
@@ -174,6 +180,9 @@ pub enum GenerateResponseError {
 
     #[error("Error rendering template after context shift: {0}")]
     Render(#[from] RenderError),
+
+    #[error("Error syncing context after context shift: {0}")]
+    ReadError(#[from] ContextSyncError),
 
     #[error("Error during context shift: {0}")]
     Shift(#[from] ShiftError),
@@ -239,7 +248,20 @@ pub enum ShiftError {
     KVCacheUpdate(#[from] ReadError),
 }
 
-// ChatState errors
+#[derive(Debug, thiserror::Error)]
+pub enum ContextSyncError {
+    #[error("Error removing tokens from context {0}")]
+    KvCacheConversionError(#[from] KvCacheConversionError),
+
+    #[error("Could not tokenize template render {0}")]
+    StringToToken(#[from] llama_cpp_2::StringToTokenError),
+
+    #[error("Could not render messages {0}")]
+    TemplateRender(#[from] RenderError),
+
+    #[error("Error reading token render into model {0}")]
+    KVCacheUpdate(#[from] ReadError),
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum RenderError {
