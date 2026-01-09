@@ -1165,6 +1165,13 @@ fn tool<'a>(
             // get the name of the function
             let name = fun.getattr(py, "__name__")?.extract::<String>(py)?;
 
+            // detect if function is async
+            let inspect = PyModule::import(py, "inspect")?;
+            let is_async = inspect
+                .getattr("iscoroutinefunction")?
+                .call1((&fun,))?
+                .extract::<bool>()?;
+
             // generate json schema from function type annotations
             let json_schema = python_func_json_schema(py, &fun, &params)?;
 
@@ -1179,16 +1186,38 @@ fn tool<'a>(
                         Err(e) => return format!("ERROR: Failed to convert arguments: {e}"),
                     };
 
-                    // call the python function
-                    let py_result = fun.call(py, (), Some(&kwargs));
+                    if is_async {
+                        // Handle async function
+                        // Call the async function to get a coroutine
+                        let coroutine = match fun.call(py, (), Some(&kwargs)) {
+                            Ok(coro) => coro,
+                            Err(e) => return format!("ERROR: {e}"),
+                        };
 
-                    // extract a string from the result
-                    // return an error string to the LLM if anything fails
-                    match py_result.map(|r| r.extract::<String>(py)) {
-                        Ok(Ok(str)) => str,
-                        Err(pyerr) | Ok(Err(pyerr)) => format!("ERROR: {pyerr}"),
+                        // Run the coroutine to completion using asyncio
+                        let asyncio = match py.import("asyncio") {
+                            Ok(module) => module,
+                            Err(e) => return format!("ERROR: Failed to import asyncio: {e}"),
+                        };
+
+                        let result = asyncio.call_method1("run", (coroutine,));
+
+                        // Extract string result
+                        match result.and_then(|r| r.extract::<String>()) {
+                            Ok(s) => s,
+                            Err(e) => format!("ERROR: {e}"),
+                        }
+                    } else {
+                        // Handle sync function
+                        let py_result = fun.call(py, (), Some(&kwargs));
+
+                        // extract a string from the result
+                        // return an error string to the LLM if anything fails
+                        match py_result.and_then(|r| r.extract::<String>(py)) {
+                            Ok(str) => str,
+                            Err(pyerr) => format!("ERROR: {pyerr}"),
+                        }
                     }
-                    .to_string()
                 })
             };
 
