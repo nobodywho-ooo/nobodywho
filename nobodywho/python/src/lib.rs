@@ -1186,37 +1186,29 @@ fn tool<'a>(
                         Err(e) => return format!("ERROR: Failed to convert arguments: {e}"),
                     };
 
-                    if is_async {
-                        // Handle async function
-                        // Call the async function to get a coroutine
+                    let py_result = if is_async {
                         let coroutine = match fun.call(py, (), Some(&kwargs)) {
                             Ok(coro) => coro,
                             Err(e) => return format!("ERROR: {e}"),
                         };
 
-                        // Run the coroutine to completion using asyncio
-                        let asyncio = match py.import("asyncio") {
-                            Ok(module) => module,
-                            Err(e) => return format!("ERROR: Failed to import asyncio: {e}"),
+                        let future = match pyo3_async_runtimes::tokio::into_future(coroutine.into_bound(py)) {
+                            Ok(fut) => fut,
+                            Err(e) => return format!("ERROR: Failed to convert coroutine into future: {e}"),
                         };
 
-                        let result = asyncio.call_method1("run", (coroutine,));
-
-                        // Extract string result
-                        match result.and_then(|r| r.extract::<String>()) {
-                            Ok(s) => s,
-                            Err(e) => format!("ERROR: {e}"),
-                        }
+                        futures::executor::block_on(async {
+                            future.await
+                        })
                     } else {
-                        // Handle sync function
-                        let py_result = fun.call(py, (), Some(&kwargs));
+                        fun.call(py, (), Some(&kwargs))
+                    };
 
-                        // extract a string from the result
-                        // return an error string to the LLM if anything fails
-                        match py_result.and_then(|r| r.extract::<String>(py)) {
-                            Ok(str) => str,
-                            Err(pyerr) => format!("ERROR: {pyerr}"),
-                        }
+                    // extract a string from the result
+                    // return an error string to the LLM if anything fails
+                    match py_result.and_then(|r| r.extract::<String>(py)) {
+                        Ok(s) => s,
+                        Err(e) => format!("ERROR: {e}"),
                     }
                 })
             };
