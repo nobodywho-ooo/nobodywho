@@ -75,7 +75,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 }
 
 abstract class RustLibApi extends BaseApi {
-  Future<NobodyWhoTokenStream> crateApiNobodywhoNobodyWhoChatAsk({
+  NobodyWhoTokenStream crateApiNobodywhoNobodyWhoChatAsk({
     required NobodyWhoChat that,
     required String message,
   });
@@ -191,25 +191,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   });
 
   @override
-  Future<NobodyWhoTokenStream> crateApiNobodywhoNobodyWhoChatAsk({
+  NobodyWhoTokenStream crateApiNobodywhoNobodyWhoChatAsk({
     required NobodyWhoChat that,
     required String message,
   }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoChat(
             that,
             serializer,
           );
           sse_encode_String(message, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 1,
-            port: port_,
-          );
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 1)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -1625,9 +1620,7 @@ class NobodyWhoChatImpl extends RustOpaque implements NobodyWhoChat {
         RustLib.instance.api.rust_arc_decrement_strong_count_NobodyWhoChatPtr,
   );
 
-  Future<NobodyWhoTokenStream> ask({required String message}) => RustLib
-      .instance
-      .api
+  NobodyWhoTokenStream ask({required String message}) => RustLib.instance.api
       .crateApiNobodywhoNobodyWhoChatAsk(that: this, message: message);
 
   Future<List<Message>> getChatHistory() => RustLib.instance.api

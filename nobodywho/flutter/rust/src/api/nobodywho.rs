@@ -36,6 +36,7 @@ impl NobodyWhoChat {
         Self { chat }
     }
 
+    #[flutter_rust_bridge::frb(sync)]
     pub fn ask(&self, message: String) -> NobodyWhoTokenStream {
         NobodyWhoTokenStream {
             stream: self.chat.ask(message),
