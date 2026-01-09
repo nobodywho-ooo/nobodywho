@@ -1,8 +1,8 @@
 use godot::classes::{INode, ProjectSettings};
 use godot::prelude::*;
-use nobodywho::chat::ChatConfig;
+use nobodywho::chat::{ChatConfig, Message, Role};
 use nobodywho::sampler_config::{SamplerConfig, SamplerPresets};
-use nobodywho::{chat_state, errors, llm};
+use nobodywho::{errors, llm};
 use std::sync::atomic::{AtomicU64, Ordering};
 use tracing::{debug, error, info, trace, warn};
 use tracing_subscriber::filter::{LevelFilter, Targets};
@@ -371,10 +371,7 @@ impl NobodyWhoChat {
         };
 
         // Check if last message is from user and warn
-        if msg_vec
-            .last()
-            .is_some_and(|msg| msg.role() == &chat_state::Role::User)
-        {
+        if msg_vec.last().is_some_and(|msg| msg.role() == &Role::User) {
             godot_warn!("Chat history ends with a user message. This may cause unexpected behavior during generation.");
         }
 
@@ -1158,7 +1155,7 @@ impl NobodyWhoCrossEncoder {
 }
 
 /// Small utility to convert our internal Messsage type to godot dictionaries.
-fn messages_to_dictionaries(messages: &[chat_state::Message]) -> Array<VarDictionary> {
+fn messages_to_dictionaries(messages: &[Message]) -> Array<VarDictionary> {
     messages
         .iter()
         .map(|msg| {
@@ -1198,7 +1195,7 @@ fn messages_to_dictionaries(messages: &[chat_state::Message]) -> Array<VarDictio
 }
 
 /// Small utility to convert godot dictionaries back to our internal Message type.
-fn dictionaries_to_messages(dicts: Array<Variant>) -> Result<Vec<chat_state::Message>, String> {
+fn dictionaries_to_messages(dicts: Array<Variant>) -> Result<Vec<Message>, String> {
     dicts
         .iter_shared()
         .map(|variant| {
