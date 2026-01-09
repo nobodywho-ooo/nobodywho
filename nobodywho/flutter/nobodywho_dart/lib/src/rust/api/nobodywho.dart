@@ -22,9 +22,12 @@ NobodyWhoTool newToolImpl({
 
 void initDebugLog() => RustLib.instance.api.crateApiNobodywhoInitDebugLog();
 
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CompletionError>>
+abstract class CompletionError implements RustOpaqueInterface {}
+
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<NobodyWhoChat>>
 abstract class NobodyWhoChat implements RustOpaqueInterface {
-  Stream<String> ask({required String message});
+  NobodyWhoTokenStream ask({required String message});
 
   factory NobodyWhoChat({
     required NobodyWhoModel model,
@@ -46,6 +49,13 @@ abstract class NobodyWhoModel implements RustOpaqueInterface {
         modelPath: modelPath,
         useGpu: useGpu,
       );
+}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<NobodyWhoTokenStream>>
+abstract class NobodyWhoTokenStream implements RustOpaqueInterface {
+  String completed();
+
+  Stream<String> iter();
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<NobodyWhoTool>>

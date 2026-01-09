@@ -17,6 +17,7 @@ NobodyWhoTool describeTool({
 
   // make it a String -> Future<String> function
   final wrappedfunction = (String jsonString) async {
+    print("Inside dart wrappedfunction!");
     // decode the input string as json
     Map<String, dynamic> jsonMap = json.decode(jsonString);
     // make it a map of symbols, to make Function.apply happy
