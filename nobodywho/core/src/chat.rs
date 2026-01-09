@@ -25,8 +25,8 @@
 use std::sync::LazyLock;
 
 use crate::errors::{
-    ChatWorkerError, DecodingError, FromModelError, GenerateResponseError, InferenceError,
-    InitWorkerError, RenderError, SayError, ShiftError, WrappedResponseError,
+    ChatWorkerError, ContextSyncError, DecodingError, FromModelError, GenerateResponseError,
+    InferenceError, InitWorkerError, RenderError, SayError, ShiftError, WrappedResponseError,
 };
 use crate::llm::{self};
 use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
@@ -36,7 +36,7 @@ use llama_cpp_2::model::{AddBos, Special};
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 use llama_cpp_2::{context::params::LlamaPoolingType, model::LlamaModel};
-use minijinja::{context, Environment};
+use minijinja::{context, render, Environment};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::cmp::min;
@@ -1193,9 +1193,7 @@ impl Worker<'_, ChatWorker> {
         });
     }
 
-    // Context shifting
-
-    pub fn find_prefix_index_and_difference_with_tokens_in_context(
+    fn find_prefix_index_and_difference_with_tokens_in_context(
         &self,
         tokens: &[LlamaToken],
     ) -> (u32, Vec<LlamaToken>) {
@@ -1212,13 +1210,36 @@ impl Worker<'_, ChatWorker> {
 
         let (index, difference): (u32, Vec<LlamaToken>) = match longest_common_prefix_index {
             Some(i) => (i as u32, tokens[i..].to_vec()),
-            None => (
-                self.extra.tokens_in_context.len() as u32,
-                tokens[(self.extra.tokens_in_context.len())..].to_vec(),
-            ),
+            None => {
+                if tokens.len() <= self.extra.tokens_in_context.len() {
+                    (tokens.len() as u32, vec![])
+                } else {
+                    (
+                        self.extra.tokens_in_context.len() as u32,
+                        tokens[(self.extra.tokens_in_context.len())..].to_vec(),
+                    )
+                }
+            }
         };
 
         (index, difference)
+    }
+
+    fn sync_context_with_state(
+        &mut self,
+        rendered_tokens: Vec<LlamaToken>,
+        inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
+    ) -> Result<(), ContextSyncError> {
+        let (prefix_index, token_difference) =
+            self.find_prefix_index_and_difference_with_tokens_in_context(&rendered_tokens);
+
+        self.remove_all_tokens_after_index_from_ctx(prefix_index)?;
+        if token_difference.len() > 0 {
+            self.read_tokens(token_difference, &inference_lock_token)?;
+        }
+        self.extra.tokens_in_context = rendered_tokens;
+
+        Ok(())
     }
 
     fn context_shift(&mut self) -> Result<(), ShiftError> {
@@ -1357,13 +1378,8 @@ impl Worker<'_, ChatWorker> {
             // Check if the context is full
             if self.n_past as u32 == self.ctx.n_ctx() {
                 self.context_shift()?;
-                let render_as_tokens = self.get_render_as_tokens()?;
-
-                let (prefix_index, token_difference) =
-                    self.find_prefix_index_and_difference_with_tokens_in_context(&render_as_tokens);
-
-                self.remove_all_tokens_after_index_from_ctx(prefix_index)?;
-                self.read_tokens(token_difference, inference_lock_token)?;
+                let rendered_tokens = self.get_render_as_tokens()?;
+                self.sync_context_with_state(rendered_tokens, inference_lock_token)?;
                 self.read_tokens(tokens_written_until_now.clone(), inference_lock_token)?;
                 // do not update tokens_in_context as this is done later by ask
             }
@@ -1524,9 +1540,7 @@ impl Worker<'_, ChatWorker> {
         self.add_assistant_message(response);
 
         // Update tokens_in_context as the model already has seen this respone
-        let render_as_tokens = self.get_render_as_tokens()?;
-
-        self.extra.tokens_in_context = render_as_tokens;
+        self.extra.tokens_in_context = self.get_render_as_tokens()?;
 
         Ok(self)
     }
@@ -1547,19 +1561,19 @@ impl Worker<'_, ChatWorker> {
         Ok(render_as_tokens)
     }
 
-    fn read_tokens_and_generate_response(
-        &mut self,
-        tokens: Vec<LlamaToken>,
-        sampler: SamplerConfig,
-        wrapped_respond: impl FnMut(WriteOutput),
-    ) -> Result<&mut Self, InferenceError> {
-        let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
-        let inference_lock_token = _gil_guard.unwrap();
+    // fn read_tokens_and_generate_response(
+    //     &mut self,
+    //     tokens: Vec<LlamaToken>,
+    //     sampler: SamplerConfig,
+    //     wrapped_respond: impl FnMut(WriteOutput),
+    // ) -> Result<&mut Self, InferenceError> {
+    //     let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
+    //     let inference_lock_token = _gil_guard.unwrap();
 
-        Ok(self
-            .read_tokens(tokens, &inference_lock_token)?
-            .generate_response_until_done(sampler, wrapped_respond, &inference_lock_token)?)
-    }
+    //     Ok(self
+    //         .read_tokens(tokens, &inference_lock_token)?
+    //         .generate_response_until_done(sampler, wrapped_respond, &inference_lock_token)?)
+    // }
 
     fn wrapped_update_context_and_generate_response<F>(
         &mut self,
@@ -1571,26 +1585,23 @@ impl Worker<'_, ChatWorker> {
         F: Fn(llm::WriteOutput) + Clone,
     {
         // Check how much of the current KVCache we can keep
-        let mut render_as_tokens = self.get_render_as_tokens()?;
-        if render_as_tokens.len() > self.ctx.n_ctx() as usize {
+        let mut rendered_tokens = self.get_render_as_tokens()?;
+
+        if rendered_tokens.len() > self.ctx.n_ctx() as usize {
             self.context_shift()?;
-            render_as_tokens = self.get_render_as_tokens()?;
+            rendered_tokens = self.get_render_as_tokens()?;
         }
 
-        let (prefix_index, token_difference) =
-            self.find_prefix_index_and_difference_with_tokens_in_context(&render_as_tokens);
-
-        self.remove_all_tokens_after_index_from_ctx(prefix_index)?;
+        let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
+        let inference_lock_token = _gil_guard.unwrap();
+        self.sync_context_with_state(rendered_tokens, &inference_lock_token)?;
 
         // wrap the response callback to keep a copy of the completed response
         // and to avoid emitting tool calls
         let (wrapped_respond, resp_receiver) = wrap_respond(respond.clone(), tool_call_begin_token);
 
         // llm go brrr
-        self.read_tokens_and_generate_response(token_difference, sampler, wrapped_respond)?;
-
-        // update our representation of the tokens to match the tokens in the context.
-        self.extra.tokens_in_context = render_as_tokens;
+        self.generate_response_until_done(sampler, wrapped_respond, &inference_lock_token)?;
 
         Ok(resp_receiver.recv()?)
     }
@@ -1622,7 +1633,7 @@ impl Worker<'_, ChatWorker> {
         self.extra.sampler_config = sampler_config;
     }
 
-    pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), ChatWorkerError> {
+    pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), ContextSyncError> {
         self.extra.tool_grammar = if !tools.is_empty() {
             grammar_from_tools(&tools).ok()
         } else {
@@ -1639,18 +1650,13 @@ impl Worker<'_, ChatWorker> {
 
         let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
         let inference_lock_token = _gil_guard.unwrap();
-        let render_as_tokens = self.get_render_as_tokens()?;
-        let (prefix_index, token_difference) =
-            self.find_prefix_index_and_difference_with_tokens_in_context(&render_as_tokens);
-
-        self.remove_all_tokens_after_index_from_ctx(prefix_index)?;
-        self.read_tokens(token_difference, &inference_lock_token)?;
-        self.extra.tokens_in_context = render_as_tokens;
+        let rendered_tokens = self.get_render_as_tokens()?;
+        self.sync_context_with_state(rendered_tokens, &inference_lock_token)?;
 
         Ok(())
     }
 
-    pub fn set_chat_history(&mut self, messages: Vec<Message>) -> Result<(), ChatWorkerError> {
+    pub fn set_chat_history(&mut self, messages: Vec<Message>) -> Result<(), ContextSyncError> {
         // get system prompt, if it is there
         let system_msg: Option<Message> = match self.extra.messages.as_slice() {
             [msg @ Message::Message {
@@ -1659,23 +1665,13 @@ impl Worker<'_, ChatWorker> {
             _ => None,
         };
 
-        // preserve system prompt from before, if it was there
-        // (.into_iter() on None returns an empty iterator)
-        self.reset_context();
-        self.extra.tokens_in_context = vec![];
         self.extra.messages = system_msg.into_iter().chain(messages).collect();
 
         // Reuse cached prefix
-
         let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
         let inference_lock_token = _gil_guard.unwrap();
-        let render_as_tokens = self.get_render_as_tokens()?;
-        let (prefix_index, token_difference) =
-            self.find_prefix_index_and_difference_with_tokens_in_context(&render_as_tokens);
-
-        self.remove_all_tokens_after_index_from_ctx(prefix_index)?;
-        self.read_tokens(token_difference, &inference_lock_token)?;
-        self.extra.tokens_in_context = render_as_tokens;
+        let rendered_tokens = self.get_render_as_tokens()?;
+        self.sync_context_with_state(rendered_tokens, &inference_lock_token)?;
 
         Ok(())
     }
@@ -2463,89 +2459,33 @@ mod tests {
     fn test_chat_worker_multiple_contexts() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let sampler = SamplerConfig::default();
-        let n_ctx = 4096;
 
-        // Use two separate response containers for thread safety
-        let dk_response = Arc::new(std::sync::Mutex::new(None));
-        let de_response = Arc::new(std::sync::Mutex::new(None));
-
-        // Clone references for thread use
+        // Create two separate chat handles that will run in parallel
         let model_clone = Arc::clone(&model);
-        let dk_response_clone = Arc::clone(&dk_response);
-        let de_response_clone = Arc::clone(&de_response);
-        let dk_sampler = sampler.clone();
 
-        // Start Denmark worker thread
+        // Start Denmark chat thread
         let dk_handle = std::thread::spawn(move || {
-            let mut worker = Worker::new_chat_worker(
-                &model_clone,
-                ChatConfig {
-                    n_ctx,
-                    ..Default::default()
-                },
-                Arc::new(AtomicBool::new(false)),
-            )
-            .unwrap();
+            let chat = ChatBuilder::new(model_clone)
+                .with_context_size(4096)
+                .with_allow_thinking(false)
+                .build();
 
-            let f = move |x| {
-                if let WriteOutput::Done(resp) = x {
-                    let mut response = dk_response_clone.lock().unwrap();
-                    *response = Some(resp);
-                }
-            };
-
-            worker
-                .read_tokens_and_generate_response(
-                    worker.ctx.model.str_to_token("<think>\nCopenhagen is the capital of Denmark\n</think>\nThe name of the capital city of Denmark is \"", AddBos::Never).unwrap(),
-                    dk_sampler,
-                    f,
-                )
-                .unwrap();
+            chat.ask("What is the capital of Denmark?").completed()
         });
 
-        // Start Germany worker thread
+        // Start Germany chat thread
         let de_handle = std::thread::spawn(move || {
-            let mut worker = Worker::new_chat_worker(
-                &model,
-                ChatConfig {
-                    n_ctx,
-                    ..Default::default()
-                },
-                Arc::new(AtomicBool::new(false)),
-            )
-            .unwrap();
+            let chat = ChatBuilder::new(model)
+                .with_context_size(4096)
+                .with_allow_thinking(false)
+                .build();
 
-            let f = move |x| {
-                if let WriteOutput::Done(resp) = x {
-                    let mut response = de_response_clone.lock().unwrap();
-                    *response = Some(resp);
-                }
-            };
-            worker
-                .read_tokens_and_generate_response(
-                    worker.ctx.model.str_to_token("<think>\nBerlin is the capital of Germany\n</think>\nThe capital of germany is called ", AddBos::Never).unwrap(),
-                    sampler,
-                    f,
-                )
-                .unwrap();
+            chat.ask("What is the capital of Germany?").completed()
         });
 
-        // Wait for threads to complete
-        dk_handle.join().unwrap();
-        de_handle.join().unwrap();
-
-        // Retrieve and verify responses
-        let dk_resp = dk_response
-            .lock()
-            .unwrap()
-            .clone()
-            .expect("No response from dk_worker");
-        let de_resp = de_response
-            .lock()
-            .unwrap()
-            .clone()
-            .expect("No response from de_worker");
+        // Wait for both threads to complete and get responses
+        let dk_resp = dk_handle.join().unwrap()?;
+        let de_resp = de_handle.join().unwrap()?;
 
         println!("Denmark response: {}", dk_resp);
         println!("Germany response: {}", de_resp);
