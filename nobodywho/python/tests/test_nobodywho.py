@@ -287,7 +287,9 @@ def test_tool_bad_parameters():
         def i_fucked_up(a: int) -> str:
             return "fuck"
 
-@nobodywho.tool(description="Asynchronously applies the sparklify effect to a given piece of text.")
+@nobodywho.tool(
+    description="Applies the sparklify effect to a given piece of text. Can be called as a regular tool."
+)
 async def async_sparklify(text: str) -> str:
     return f"✨{text.upper()}✨"
 
@@ -305,7 +307,7 @@ def test_async_tool_calling(model):
     assert "✨JULEMAND✨" in response
 
 
-def test_tool_bad_parameters():
+def test_async_tool_bad_parameters():
     with pytest.raises(TypeError):
 
         @nobodywho.tool(description="foobar", params={"b": "uh-oh"})
