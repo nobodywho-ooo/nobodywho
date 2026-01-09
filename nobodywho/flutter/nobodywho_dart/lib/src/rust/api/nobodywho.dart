@@ -48,6 +48,17 @@ abstract class NobodyWhoChat implements RustOpaqueInterface {
     contextSize: contextSize,
     tools: tools,
   );
+
+  Future<void> resetContext({
+    required String systemPrompt,
+    required List<NobodyWhoTool> tools,
+  });
+
+  Future<void> resetHistory();
+
+  Future<void> setAllowThinking({required bool allowThinking});
+
+  Future<void> setChatHistory({required List<Message> messages});
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<NobodyWhoModel>>
@@ -71,3 +82,6 @@ abstract class NobodyWhoTool implements RustOpaqueInterface {}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Rust2DartSendError>>
 abstract class Rust2DartSendError implements RustOpaqueInterface {}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< SetterError>>
+abstract class SetterError implements RustOpaqueInterface {}

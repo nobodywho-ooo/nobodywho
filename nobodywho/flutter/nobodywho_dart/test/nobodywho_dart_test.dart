@@ -74,5 +74,11 @@ void main() {
 
       expect(response, contains("WOW Wrawr WOW"));
     });
+
+    test('Get chat history', () async {
+      final messages = await chat!.get_chat_history();
+      print(messages);
+      expect(messages.length, equals(2));
+    });
   });
 }
