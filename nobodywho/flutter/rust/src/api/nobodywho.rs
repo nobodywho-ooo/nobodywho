@@ -36,11 +36,16 @@ impl NobodyWhoChat {
         Self { chat }
     }
 
-    #[flutter_rust_bridge::frb(sync)]
     pub fn ask(&self, message: String) -> NobodyWhoTokenStream {
         NobodyWhoTokenStream {
             stream: self.chat.ask(message),
         }
+    }
+
+    pub async fn get_chat_history(
+        &self,
+    ) -> Result<Vec<nobodywho::chat_state::Message>, nobodywho::errors::GetterError> {
+        self.chat.get_chat_history().await
     }
 }
 
