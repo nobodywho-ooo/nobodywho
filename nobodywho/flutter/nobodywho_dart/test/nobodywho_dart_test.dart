@@ -7,12 +7,14 @@ import 'package:test/test.dart';
 import 'dart:io';
 
 String sparklify({required String text}) {
+  print("Sparklify called!");
   return '✨$text✨';
 }
 
 // the name of this tool doesn't really make sense
 // but that helps is ensure it was called
 Future<String> strongify({required String text}) async {
+  print("Strongify called!");
   return 'WOW $text WOW';
 }
 
@@ -48,7 +50,7 @@ void main() {
     test('Capital of Denmark test', () async {
       final responseStream = chat!.ask(message: "What is the capital of Denmark?");
       String response = "";
-      await for (final token in responseStream) {
+      await for (final token in responseStream.iter()) {
         response += token;
       }
       expect(response, contains("Copenhagen"));
@@ -57,7 +59,7 @@ void main() {
     test('Tool calling test', () async {
       final responseStream = chat!.ask(message: "Can you please sparklify the string 'Foopdoop'?");
       String response = "";
-      await for (final token in responseStream) {
+      await for (final token in responseStream.iter()) {
         response += token;
       }
       expect(response, contains("✨Foopdoop✨"));
@@ -66,7 +68,7 @@ void main() {
     test('Async tool calling test', () async {
       final responseStream = chat!.ask(message: "Can you please strongify the string 'Wrawr'?");
       String response = "";
-      await for (final token in responseStream) {
+      await for (final token in responseStream.iter()) {
         response += token;
       }
 

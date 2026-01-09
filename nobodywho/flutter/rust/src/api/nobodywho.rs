@@ -17,7 +17,7 @@ impl NobodyWhoModel {
 
 #[flutter_rust_bridge::frb(opaque)]
 pub struct NobodyWhoChat {
-    chat: nobodywho::chat::ChatHandleAsync,
+    chat: nobodywho::chat::ChatHandle,
 }
 
 impl NobodyWhoChat {
@@ -32,20 +32,38 @@ impl NobodyWhoChat {
             .with_system_prompt(system_prompt)
             .with_context_size(context_size)
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
-            .build_async();
+            .build();
         Self { chat }
     }
 
-    pub async fn ask(
-        &self,
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn ask(&self, message: String) -> NobodyWhoTokenStream {
+        NobodyWhoTokenStream {
+            stream: self.chat.ask(message),
+        }
+    }
+}
+
+#[flutter_rust_bridge::frb(opaque)]
+pub struct NobodyWhoTokenStream {
+    stream: nobodywho::chat::TokenStream,
+}
+
+impl NobodyWhoTokenStream {
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn iter(
+        &mut self,
         sink: crate::frb_generated::StreamSink<String>,
-        message: String,
     ) -> Result<(), Rust2DartSendError> {
-        let mut stream = self.chat.ask(message);
-        while let Some(token) = stream.next_token().await {
+        while let Some(token) = self.stream.next_token() {
             sink.add(token)?;
         }
         Ok(())
+    }
+
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn completed(&mut self) -> Result<String, nobodywho::errors::CompletionError> {
+        self.stream.completed()
     }
 }
 

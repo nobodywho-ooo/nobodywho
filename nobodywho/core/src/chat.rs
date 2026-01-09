@@ -1506,6 +1506,7 @@ impl Worker<'_, ChatWorker> {
                 };
 
                 // call the tool
+                debug!("Calling the tool now!");
                 let response = (tool.function)(tool_call.arguments);
                 debug!(?tool_call.name, ?response);
 

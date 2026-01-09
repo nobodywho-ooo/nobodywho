@@ -108,7 +108,7 @@ class _ChatScreenState extends State<ChatScreen> {
       final responseStream = _chat!.ask(message: text);
 
       // Stream the response token by token
-      await for (final token in responseStream) {
+      await for (final token in responseStream.iter()) {
         setState(() {
           assistantMessage.text += token;
         });
