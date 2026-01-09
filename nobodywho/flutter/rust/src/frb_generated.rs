@@ -33,7 +33,7 @@ use flutter_rust_bridge::{Handler, IntoIntoDart};
 // Section: boilerplate
 
 use flutter_rust_bridge::Rust2DartSendError;
-use nobodywho::chat_state::Message;
+use nobodywho::chat::Message;
 use nobodywho::errors::{CompletionError, GetterError};
 
 flutter_rust_bridge::frb_generated_boilerplate!(
@@ -1209,7 +1209,7 @@ mod io {
     // Section: boilerplate
 
     use flutter_rust_bridge::Rust2DartSendError;
-    use nobodywho::chat_state::Message;
+    use nobodywho::chat::Message;
     use nobodywho::errors::{CompletionError, GetterError};
 
     flutter_rust_bridge::frb_generated_boilerplate_io!();
@@ -1350,7 +1350,7 @@ mod web {
     // Section: boilerplate
 
     use flutter_rust_bridge::Rust2DartSendError;
-    use nobodywho::chat_state::Message;
+    use nobodywho::chat::Message;
     use nobodywho::errors::{CompletionError, GetterError};
 
     flutter_rust_bridge::frb_generated_boilerplate_web!();
