@@ -1655,6 +1655,7 @@ impl Worker<'_, ChatWorker> {
 
         // preserve system prompt from before, if it was there
         // (.into_iter() on None returns an empty iterator)
+        self.reset_context();
         self.extra.messages = system_msg.into_iter().chain(messages).collect();
 
         // Reuse cached prefix
