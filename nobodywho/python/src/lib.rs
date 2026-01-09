@@ -1192,14 +1192,18 @@ fn tool<'a>(
                             Err(e) => return format!("ERROR: {e}"),
                         };
 
-                        let future = match pyo3_async_runtimes::tokio::into_future(coroutine.into_bound(py)) {
-                            Ok(fut) => fut,
-                            Err(e) => return format!("ERROR: Failed to convert coroutine into future: {e}"),
-                        };
+                        let future =
+                            match pyo3_async_runtimes::tokio::into_future(coroutine.into_bound(py))
+                            {
+                                Ok(fut) => fut,
+                                Err(e) => {
+                                    return format!(
+                                        "ERROR: Failed to convert coroutine into future: {e}"
+                                    )
+                                }
+                            };
 
-                        futures::executor::block_on(async {
-                            future.await
-                        })
+                        futures::executor::block_on(async { future.await })
                     } else {
                         fun.call(py, (), Some(&kwargs))
                     };
