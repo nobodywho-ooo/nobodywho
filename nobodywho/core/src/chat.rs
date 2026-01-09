@@ -1003,7 +1003,7 @@ fn concat_system_and_first_user_messages(
     }
 }
 
-pub fn naive_render_message_vec(
+fn naive_render_message_vec(
     messages: &[Message],
     chat_template: &str,
     allow_thinking: bool,
@@ -1036,7 +1036,7 @@ pub fn naive_render_message_vec(
     tmpl.render(ctx)
 }
 
-pub fn render_string(
+fn render_string(
     messages: &[Message],
     chat_template: &str,
     allow_thinking: bool,
