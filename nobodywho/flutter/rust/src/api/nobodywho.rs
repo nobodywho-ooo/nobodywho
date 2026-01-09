@@ -48,6 +48,34 @@ impl NobodyWhoChat {
     ) -> Result<Vec<nobodywho::chat::Message>, nobodywho::errors::GetterError> {
         self.chat.get_chat_history().await
     }
+
+    pub async fn set_chat_history(
+        &self,
+        messages: Vec<nobodywho::chat::Message>,
+    ) -> Result<(), nobodywho::errors::SetterError> {
+        self.chat.set_chat_history(messages).await
+    }
+
+    pub async fn reset_context(
+        &self,
+        system_prompt: String,
+        tools: Vec<NobodyWhoTool>,
+    ) -> Result<(), nobodywho::errors::SetterError> {
+        self.chat
+            .reset_chat(system_prompt, tools.into_iter().map(|t| t.tool).collect())
+            .await
+    }
+
+    pub async fn reset_history(&self) -> Result<(), nobodywho::errors::SetterError> {
+        self.chat.reset_history().await
+    }
+
+    pub async fn set_allow_thinking(
+        &self,
+        allow_thinking: bool,
+    ) -> Result<(), nobodywho::errors::SetterError> {
+        self.chat.set_allow_thinking(allow_thinking).await
+    }
 }
 
 #[flutter_rust_bridge::frb(opaque)]
