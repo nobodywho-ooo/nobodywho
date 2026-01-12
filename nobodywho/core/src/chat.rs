@@ -1230,7 +1230,10 @@ impl Worker<'_, ChatWorker> {
         });
     }
 
-    fn sync_context_with_state(
+    /// Compare tokens from a template-rendered chat history with the tokens in the LLM's context,
+    /// and perform the LLM 'reading' to make the LLM's context match the rendered tokens exactly.
+    /// Because this invokes the model, this is potentially an expensive method to call.
+    fn sync_context_with_render(
         &mut self,
         rendered_tokens: Vec<LlamaToken>,
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
@@ -1241,7 +1244,7 @@ impl Worker<'_, ChatWorker> {
                 &rendered_tokens,
             );
 
-        self.remove_all_tokens_after_index_from_ctx(prefix_index)?;
+        self.remove_all_tokens_from_index_from_ctx(prefix_index)?;
         if !token_difference.is_empty() {
             self.read_tokens(token_difference, inference_lock_token)?;
         }
@@ -1387,7 +1390,7 @@ impl Worker<'_, ChatWorker> {
             if self.n_past as u32 == self.ctx.n_ctx() {
                 self.context_shift()?;
                 let rendered_tokens = self.get_render_as_tokens()?;
-                self.sync_context_with_state(rendered_tokens, inference_lock_token)?;
+                self.sync_context_with_render(rendered_tokens, inference_lock_token)?;
                 self.read_tokens(tokens_written_until_now.clone(), inference_lock_token)?;
                 // do not update tokens_in_context as this is done later by ask
             }
@@ -1588,7 +1591,7 @@ impl Worker<'_, ChatWorker> {
 
         let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
         let inference_lock_token = _gil_guard.unwrap();
-        self.sync_context_with_state(rendered_tokens, &inference_lock_token)?;
+        self.sync_context_with_render(rendered_tokens, &inference_lock_token)?;
 
         // wrap the response callback to keep a copy of the completed response
         // and to avoid emitting tool calls
@@ -1645,7 +1648,7 @@ impl Worker<'_, ChatWorker> {
         let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
         let inference_lock_token = _gil_guard.unwrap();
         let rendered_tokens = self.get_render_as_tokens()?;
-        self.sync_context_with_state(rendered_tokens, &inference_lock_token)?;
+        self.sync_context_with_render(rendered_tokens, &inference_lock_token)?;
 
         Ok(())
     }
@@ -1665,7 +1668,7 @@ impl Worker<'_, ChatWorker> {
         let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
         let inference_lock_token = _gil_guard.unwrap();
         let rendered_tokens = self.get_render_as_tokens()?;
-        self.sync_context_with_state(rendered_tokens, &inference_lock_token)?;
+        self.sync_context_with_render(rendered_tokens, &inference_lock_token)?;
 
         Ok(())
     }

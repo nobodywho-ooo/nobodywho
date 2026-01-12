@@ -229,7 +229,7 @@ where
     }
 
     #[tracing::instrument(level = "trace", skip(self))]
-    pub fn remove_all_tokens_after_index_from_ctx(
+    pub fn remove_all_tokens_from_index_from_ctx(
         &mut self,
         index: usize,
     ) -> Result<(), KvCacheConversionError> {
