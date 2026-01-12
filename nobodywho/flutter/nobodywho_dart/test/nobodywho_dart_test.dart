@@ -21,9 +21,7 @@ Future<String> strongify({required String text}) async {
 void main() {
   group('A group of tests', () {
     final modelPath = Platform.environment["TEST_MODEL"]!;
-    NobodyWhoModel? model;
     NobodyWhoChat? chat;
-    NobodyWhoTool? tool;
 
     setUpAll(() async {
       await RustLib.init();
@@ -43,8 +41,7 @@ void main() {
         description: "Applies the strongify effect to a string"
       );
 
-      model = NobodyWhoModel(modelPath: modelPath, useGpu: false);
-      chat = NobodyWhoChat(model: model!, systemPrompt: "", contextSize: 1024, tools: [sparklify_tool, strongify_tool]);
+      chat = NobodyWhoChat.fromPath(modelPath: modelPath, systemPrompt: "", contextSize: 1024, tools: [sparklify_tool, strongify_tool]);
     });
 
     test('Capital of Denmark test', () async {
@@ -76,7 +73,8 @@ void main() {
     });
 
     test('Get chat history', () async {
-      final messages = await chat!.get_chat_history();
+      await chat!.ask(message: "Hello!").completed();
+      final messages = await chat!.getChatHistory();
       print(messages);
       expect(messages.length, equals(2));
     });

@@ -21,19 +21,40 @@ pub struct NobodyWhoChat {
 }
 
 impl NobodyWhoChat {
+    /// Create chat from existing model
     #[flutter_rust_bridge::frb(sync)]
     pub fn new(
-        model: NobodyWhoModel,
+        model: &NobodyWhoModel,
         system_prompt: String,
         context_size: u32,
         tools: Vec<NobodyWhoTool>,
     ) -> Self {
-        let chat = nobodywho::chat::ChatBuilder::new(model.model)
+        let chat = nobodywho::chat::ChatBuilder::new(model.model.clone())
             .with_system_prompt(system_prompt)
             .with_context_size(context_size)
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
             .build_async();
         Self { chat }
+    }
+
+    /// Create chat directly from a model path
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn from_path(
+        model_path: String,
+        system_prompt: String,
+        context_size: u32,
+        tools: Vec<NobodyWhoTool>,
+        #[frb(default = true)] use_gpu: bool,
+    ) -> Result<Self, String> {
+        let model = nobodywho::llm::get_model(&model_path, use_gpu).map_err(|e| e.to_string())?;
+
+        let chat = nobodywho::chat::ChatBuilder::new(model)
+            .with_system_prompt(system_prompt)
+            .with_context_size(context_size)
+            .with_tools(tools.into_iter().map(|t| t.tool).collect())
+            .build_async();
+
+        Ok(Self { chat })
     }
 
     #[flutter_rust_bridge::frb(sync)]

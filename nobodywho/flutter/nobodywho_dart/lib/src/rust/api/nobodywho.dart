@@ -35,8 +35,24 @@ abstract class Message implements RustOpaqueInterface {}
 abstract class NobodyWhoChat implements RustOpaqueInterface {
   NobodyWhoTokenStream ask({required String message});
 
+  /// Create chat directly from a model path
+  static NobodyWhoChat fromPath({
+    required String modelPath,
+    required String systemPrompt,
+    required int contextSize,
+    required List<NobodyWhoTool> tools,
+    bool useGpu = true,
+  }) => RustLib.instance.api.crateApiNobodywhoNobodyWhoChatFromPath(
+    modelPath: modelPath,
+    systemPrompt: systemPrompt,
+    contextSize: contextSize,
+    tools: tools,
+    useGpu: useGpu,
+  );
+
   Future<List<Message>> getChatHistory();
 
+  /// Create chat from existing model
   factory NobodyWhoChat({
     required NobodyWhoModel model,
     required String systemPrompt,
