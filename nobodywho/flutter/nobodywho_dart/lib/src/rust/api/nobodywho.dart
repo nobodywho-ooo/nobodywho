@@ -6,7 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `dart_function_type_to_json_schema`
+// These functions are ignored because they are not marked as `pub`: `dart_function_type_to_json_schema`, `sample_step`, `shift_step`
 
 NobodyWhoTool newToolImpl({
   required FutureOr<String> Function(String) function,
@@ -70,34 +70,53 @@ abstract class Message implements RustOpaqueInterface {}
 abstract class NobodyWhoChat implements RustOpaqueInterface {
   NobodyWhoTokenStream ask({required String message});
 
-  /// Create chat directly from a model path
+  /// Create chat directly from a model path.
+  ///
+  /// Args:
+  ///     model_path: Path to GGUF model file
+  ///     system_prompt: System message to guide the model's behavior
+  ///     context_size: Context size (maximum conversation length in tokens)
+  ///     tools: List of NobodyWhoTool instances the model can call
+  ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
+  ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
   static NobodyWhoChat fromPath({
     required String modelPath,
     required String systemPrompt,
     required int contextSize,
     required List<NobodyWhoTool> tools,
+    SamplerConfig? sampler = null,
     bool useGpu = true,
   }) => RustLib.instance.api.crateApiNobodywhoNobodyWhoChatFromPath(
     modelPath: modelPath,
     systemPrompt: systemPrompt,
     contextSize: contextSize,
     tools: tools,
+    sampler: sampler,
     useGpu: useGpu,
   );
 
   Future<List<Message>> getChatHistory();
 
-  /// Create chat from existing model
+  /// Create chat from existing model.
+  ///
+  /// Args:
+  ///     model: A NobodyWhoModel instance
+  ///     system_prompt: System message to guide the model's behavior
+  ///     context_size: Context size (maximum conversation length in tokens)
+  ///     tools: List of NobodyWhoTool instances the model can call
+  ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
   factory NobodyWhoChat({
     required NobodyWhoModel model,
     required String systemPrompt,
     required int contextSize,
     required List<NobodyWhoTool> tools,
+    SamplerConfig? sampler = null,
   }) => RustLib.instance.api.crateApiNobodywhoNobodyWhoChatNew(
     model: model,
     systemPrompt: systemPrompt,
     contextSize: contextSize,
     tools: tools,
+    sampler: sampler,
   );
 
   Future<void> resetContext({
@@ -110,6 +129,8 @@ abstract class NobodyWhoChat implements RustOpaqueInterface {
   Future<void> setAllowThinking({required bool allowThinking});
 
   Future<void> setChatHistory({required List<Message> messages});
+
+  Future<void> setSamplerConfig({required SamplerConfig samplerConfig});
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<NobodyWhoModel>>
@@ -133,6 +154,198 @@ abstract class NobodyWhoTool implements RustOpaqueInterface {}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Rust2DartSendError>>
 abstract class Rust2DartSendError implements RustOpaqueInterface {}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerBuilder>>
+abstract class SamplerBuilder implements RustOpaqueInterface {
+  /// Sample from the probability distribution (weighted random selection).
+  ///
+  /// Returns:
+  ///     A complete SamplerConfig ready to use
+  SamplerConfig dist();
+
+  /// DRY (Don't Repeat Yourself) sampler to reduce repetition.
+  ///
+  /// Args:
+  ///     multiplier: Penalty strength multiplier
+  ///     base: Base penalty value
+  ///     allowed_length: Maximum allowed repetition length
+  ///     penalty_last_n: Number of recent tokens to consider
+  ///     seq_breakers: List of strings that break repetition sequences
+  SamplerBuilder dry({
+    required double multiplier,
+    required double base,
+    required int allowedLength,
+    required int penaltyLastN,
+    required List<String> seqBreakers,
+  });
+
+  /// Apply a grammar constraint to enforce structured output.
+  ///
+  /// Args:
+  ///     grammar: Grammar specification in GBNF format (GGML BNF, a variant of BNF used by llama.cpp)
+  ///     trigger_on: Optional string that, when generated, activates the grammar constraint.
+  ///                 Useful for letting the model generate free-form text until a specific marker.
+  ///     root: Name of the root grammar rule to start parsing from
+  SamplerBuilder grammar({
+    required String grammar,
+    String? triggerOn,
+    required String root,
+  });
+
+  /// Always select the most probable token (deterministic).
+  ///
+  /// Returns:
+  ///     A complete SamplerConfig ready to use
+  SamplerConfig greedy();
+
+  /// Keep tokens with probability above min_p * (probability of most likely token).
+  ///
+  /// Args:
+  ///     min_p: Minimum relative probability threshold (0.0 to 1.0). Typical: 0.05-0.1.
+  ///     min_keep: Minimum number of tokens to always keep
+  SamplerBuilder minP({required double minP, required int minKeep});
+
+  /// Use Mirostat v1 algorithm for perplexity-controlled sampling.
+  /// Mirostat dynamically adjusts sampling to maintain a target "surprise" level,
+  /// producing more coherent output than fixed temperature. Good for long-form generation.
+  ///
+  /// Args:
+  ///     tau: Target perplexity/surprise value (typically 3.0-5.0; lower = more focused)
+  ///     eta: Learning rate for perplexity adjustment (typically 0.1)
+  ///     m: Number of candidates to consider (typically 100)
+  ///
+  /// Returns:
+  ///     A complete SamplerConfig ready to use
+  SamplerConfig mirostatV1({
+    required double tau,
+    required double eta,
+    required int m,
+  });
+
+  /// Use Mirostat v2 algorithm for perplexity-controlled sampling.
+  /// Mirostat v2 is a simplified version of Mirostat that's often preferred.
+  /// It dynamically adjusts sampling to maintain a target "surprise" level.
+  ///
+  /// Args:
+  ///     tau: Target perplexity/surprise value (typically 3.0-5.0; lower = more focused)
+  ///     eta: Learning rate for perplexity adjustment (typically 0.1)
+  ///
+  /// Returns:
+  ///     A complete SamplerConfig ready to use
+  SamplerConfig mirostatV2({required double tau, required double eta});
+
+  /// Create a new SamplerBuilder to construct a custom sampler chain.
+  factory SamplerBuilder() =>
+      RustLib.instance.api.crateApiNobodywhoSamplerBuilderNew();
+
+  /// Apply repetition penalties to discourage repeated tokens.
+  ///
+  /// Args:
+  ///     penalty_last_n: Number of recent tokens to penalize (0 = disable)
+  ///     penalty_repeat: Base repetition penalty (1.0 = no penalty, >1.0 = penalize)
+  ///     penalty_freq: Frequency penalty based on token occurrence count
+  ///     penalty_present: Presence penalty for any token that appeared before
+  SamplerBuilder penalties({
+    required int penaltyLastN,
+    required double penaltyRepeat,
+    required double penaltyFreq,
+    required double penaltyPresent,
+  });
+
+  /// Apply temperature scaling to the probability distribution.
+  ///
+  /// Args:
+  ///     temperature: Temperature value (0.0 = deterministic, 1.0 = unchanged, >1.0 = more random)
+  SamplerBuilder temperature({required double temperature});
+
+  /// Keep only the top K most probable tokens. Typical values: 40-50.
+  ///
+  /// Args:
+  ///     top_k: Number of top tokens to keep
+  SamplerBuilder topK({required int topK});
+
+  /// Keep tokens whose cumulative probability is below top_p. Typical values: 0.9-0.95.
+  ///
+  /// Args:
+  ///     top_p: Cumulative probability threshold (0.0 to 1.0)
+  ///     min_keep: Minimum number of tokens to always keep
+  SamplerBuilder topP({required double topP, required int minKeep});
+
+  /// Typical sampling: keeps tokens close to expected information content.
+  ///
+  /// Args:
+  ///     typ_p: Typical probability mass (0.0 to 1.0). Typical: 0.9.
+  ///     min_keep: Minimum number of tokens to always keep
+  SamplerBuilder typicalP({required double typP, required int minKeep});
+
+  /// XTC (eXclude Top Choices) sampler that probabilistically excludes high-probability tokens.
+  /// This can increase output diversity by sometimes forcing the model to pick less obvious tokens.
+  ///
+  /// Args:
+  ///     xtc_probability: Probability of applying XTC on each token (0.0 to 1.0)
+  ///     xtc_threshold: Tokens with probability above this threshold may be excluded (0.0 to 1.0)
+  ///     min_keep: Minimum number of tokens to always keep (prevents excluding all tokens)
+  SamplerBuilder xtc({
+    required double xtcProbability,
+    required double xtcThreshold,
+    required int minKeep,
+  });
+}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerConfig>>
+abstract class SamplerConfig implements RustOpaqueInterface {}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerPresets>>
+abstract class SamplerPresets implements RustOpaqueInterface {
+  /// Get the default sampler configuration.
+  static SamplerConfig defaultSampler() =>
+      RustLib.instance.api.crateApiNobodywhoSamplerPresetsDefaultSampler();
+
+  /// Create a DRY sampler preset to reduce repetition.
+  static SamplerConfig dry() =>
+      RustLib.instance.api.crateApiNobodywhoSamplerPresetsDry();
+
+  /// Create a sampler with a custom grammar constraint.
+  ///
+  /// Args:
+  ///     grammar: Grammar specification in GBNF format (GGML BNF, a variant of BNF used by llama.cpp)
+  static SamplerConfig grammar({required String grammar}) => RustLib
+      .instance
+      .api
+      .crateApiNobodywhoSamplerPresetsGrammar(grammar: grammar);
+
+  /// Create a greedy sampler (always picks most probable token).
+  static SamplerConfig greedy() =>
+      RustLib.instance.api.crateApiNobodywhoSamplerPresetsGreedy();
+
+  /// Create a sampler configured for JSON output generation.
+  /// Uses a grammar constraint to ensure the model outputs only valid JSON.
+  static SamplerConfig json() =>
+      RustLib.instance.api.crateApiNobodywhoSamplerPresetsJson();
+
+  /// Create a sampler with temperature scaling.
+  ///
+  /// Args:
+  ///     temperature: Temperature value (lower = more focused, higher = more random)
+  static SamplerConfig temperature({required double temperature}) => RustLib
+      .instance
+      .api
+      .crateApiNobodywhoSamplerPresetsTemperature(temperature: temperature);
+
+  /// Create a sampler with top-k filtering only.
+  ///
+  /// Args:
+  ///     top_k: Number of top tokens to keep
+  static SamplerConfig topK({required int topK}) =>
+      RustLib.instance.api.crateApiNobodywhoSamplerPresetsTopK(topK: topK);
+
+  /// Create a sampler with nucleus (top-p) sampling.
+  ///
+  /// Args:
+  ///     top_p: Cumulative probability threshold (0.0 to 1.0)
+  static SamplerConfig topP({required double topP}) =>
+      RustLib.instance.api.crateApiNobodywhoSamplerPresetsTopP(topP: topP);
+}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< SetterError>>
 abstract class SetterError implements RustOpaqueInterface {}

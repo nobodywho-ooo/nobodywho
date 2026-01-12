@@ -75,8 +75,24 @@ void main() {
     test('Get chat history', () async {
       await chat!.ask(message: "Hello!").completed();
       final messages = await chat!.getChatHistory();
-      print(messages);
       expect(messages.length, equals(2));
     });
+
+    test('Tools work with custom sampler', () async {
+      final sampler = SamplerBuilder().topP(topP: 0.9, minKeep: 20).temperature(temperature: 1.2).dist();
+      await chat!.setSamplerConfig(samplerConfig: sampler);
+      final response = await chat!.ask(message: "Can you please strongify the string 'Wrawr'?").completed();
+
+      expect(response, contains("WOW Wrawr WOW"));
+    });
+
+    test('Tools work with sampler presets', () async {
+      final sampler = SamplerPresets.temperature(temperature: 1.2);
+      await chat!.setSamplerConfig(samplerConfig: sampler);
+      final response = await chat!.ask(message: "Can you please strongify the string 'Wrawr'?").completed();
+
+      expect(response, contains("WOW Wrawr WOW"));
+    });
+
   });
 }

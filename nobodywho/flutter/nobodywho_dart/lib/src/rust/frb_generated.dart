@@ -64,7 +64,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -1375485696;
+  int get rustContentHash => -2124348793;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -112,6 +112,7 @@ abstract class RustLibApi extends BaseApi {
     required String systemPrompt,
     required int contextSize,
     required List<NobodyWhoTool> tools,
+    SamplerConfig? sampler = null,
     bool useGpu = true,
   });
 
@@ -124,6 +125,7 @@ abstract class RustLibApi extends BaseApi {
     required String systemPrompt,
     required int contextSize,
     required List<NobodyWhoTool> tools,
+    SamplerConfig? sampler = null,
   });
 
   Future<void> crateApiNobodywhoNobodyWhoChatResetContext({
@@ -146,6 +148,11 @@ abstract class RustLibApi extends BaseApi {
     required List<Message> messages,
   });
 
+  Future<void> crateApiNobodywhoNobodyWhoChatSetSamplerConfig({
+    required NobodyWhoChat that,
+    required SamplerConfig samplerConfig,
+  });
+
   NobodyWhoModel crateApiNobodywhoNobodyWhoModelNew({
     required String modelPath,
     bool useGpu = true,
@@ -158,6 +165,108 @@ abstract class RustLibApi extends BaseApi {
   Stream<String> crateApiNobodywhoNobodyWhoTokenStreamIter({
     required NobodyWhoTokenStream that,
   });
+
+  SamplerConfig crateApiNobodywhoSamplerBuilderDist({
+    required SamplerBuilder that,
+  });
+
+  SamplerBuilder crateApiNobodywhoSamplerBuilderDry({
+    required SamplerBuilder that,
+    required double multiplier,
+    required double base,
+    required int allowedLength,
+    required int penaltyLastN,
+    required List<String> seqBreakers,
+  });
+
+  SamplerBuilder crateApiNobodywhoSamplerBuilderGrammar({
+    required SamplerBuilder that,
+    required String grammar,
+    String? triggerOn,
+    required String root,
+  });
+
+  SamplerConfig crateApiNobodywhoSamplerBuilderGreedy({
+    required SamplerBuilder that,
+  });
+
+  SamplerBuilder crateApiNobodywhoSamplerBuilderMinP({
+    required SamplerBuilder that,
+    required double minP,
+    required int minKeep,
+  });
+
+  SamplerConfig crateApiNobodywhoSamplerBuilderMirostatV1({
+    required SamplerBuilder that,
+    required double tau,
+    required double eta,
+    required int m,
+  });
+
+  SamplerConfig crateApiNobodywhoSamplerBuilderMirostatV2({
+    required SamplerBuilder that,
+    required double tau,
+    required double eta,
+  });
+
+  SamplerBuilder crateApiNobodywhoSamplerBuilderNew();
+
+  SamplerBuilder crateApiNobodywhoSamplerBuilderPenalties({
+    required SamplerBuilder that,
+    required int penaltyLastN,
+    required double penaltyRepeat,
+    required double penaltyFreq,
+    required double penaltyPresent,
+  });
+
+  SamplerBuilder crateApiNobodywhoSamplerBuilderTemperature({
+    required SamplerBuilder that,
+    required double temperature,
+  });
+
+  SamplerBuilder crateApiNobodywhoSamplerBuilderTopK({
+    required SamplerBuilder that,
+    required int topK,
+  });
+
+  SamplerBuilder crateApiNobodywhoSamplerBuilderTopP({
+    required SamplerBuilder that,
+    required double topP,
+    required int minKeep,
+  });
+
+  SamplerBuilder crateApiNobodywhoSamplerBuilderTypicalP({
+    required SamplerBuilder that,
+    required double typP,
+    required int minKeep,
+  });
+
+  SamplerBuilder crateApiNobodywhoSamplerBuilderXtc({
+    required SamplerBuilder that,
+    required double xtcProbability,
+    required double xtcThreshold,
+    required int minKeep,
+  });
+
+  SamplerConfig crateApiNobodywhoSamplerPresetsDefaultSampler();
+
+  SamplerConfig crateApiNobodywhoSamplerPresetsDry();
+
+  SamplerConfig crateApiNobodywhoSamplerPresetsGrammar({
+    required String grammar,
+  });
+
+  SamplerConfig crateApiNobodywhoSamplerPresetsGreedy();
+
+  SamplerConfig crateApiNobodywhoSamplerPresetsJson();
+
+  SamplerConfig crateApiNobodywhoSamplerPresetsTemperature({
+    required double temperature,
+  });
+
+  SamplerConfig crateApiNobodywhoSamplerPresetsTopK({required int topK});
+
+  SamplerConfig crateApiNobodywhoSamplerPresetsTopP({required double topP});
 
   void crateApiNobodywhoInitDebugLog();
 
@@ -267,6 +376,33 @@ abstract class RustLibApi extends BaseApi {
 
   CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_Rust2DartSendErrorPtr;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_SamplerBuilder;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_SamplerBuilder;
+
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_SamplerBuilderPtr;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_SamplerConfig;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_SamplerConfig;
+
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_SamplerConfigPtr;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_SamplerPresets;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_SamplerPresets;
+
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_SamplerPresetsPtr;
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_SetterError;
@@ -514,6 +650,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required String systemPrompt,
     required int contextSize,
     required List<NobodyWhoTool> tools,
+    SamplerConfig? sampler = null,
     bool useGpu = true,
   }) {
     return handler.executeSync(
@@ -527,6 +664,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             tools,
             serializer,
           );
+          sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
+            sampler,
+            serializer,
+          );
           sse_encode_bool(useGpu, serializer);
           return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 7)!;
         },
@@ -536,7 +677,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateApiNobodywhoNobodyWhoChatFromPathConstMeta,
-        argValues: [modelPath, systemPrompt, contextSize, tools, useGpu],
+        argValues: [
+          modelPath,
+          systemPrompt,
+          contextSize,
+          tools,
+          sampler,
+          useGpu,
+        ],
         apiImpl: this,
       ),
     );
@@ -550,6 +698,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           "systemPrompt",
           "contextSize",
           "tools",
+          "sampler",
           "useGpu",
         ],
       );
@@ -598,12 +747,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required String systemPrompt,
     required int contextSize,
     required List<NobodyWhoTool> tools,
+    SamplerConfig? sampler = null,
   }) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoModel(
+          sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoModel(
             model,
             serializer,
           );
@@ -611,6 +761,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_u_32(contextSize, serializer);
           sse_encode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTool(
             tools,
+            serializer,
+          );
+          sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
+            sampler,
             serializer,
           );
           return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 9)!;
@@ -621,7 +775,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: null,
         ),
         constMeta: kCrateApiNobodywhoNobodyWhoChatNewConstMeta,
-        argValues: [model, systemPrompt, contextSize, tools],
+        argValues: [model, systemPrompt, contextSize, tools, sampler],
         apiImpl: this,
       ),
     );
@@ -630,7 +784,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiNobodywhoNobodyWhoChatNewConstMeta =>
       const TaskConstMeta(
         debugName: "NobodyWhoChat_new",
-        argNames: ["model", "systemPrompt", "contextSize", "tools"],
+        argNames: ["model", "systemPrompt", "contextSize", "tools", "sampler"],
       );
 
   @override
@@ -796,6 +950,48 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<void> crateApiNobodywhoNobodyWhoChatSetSamplerConfig({
+    required NobodyWhoChat that,
+    required SamplerConfig samplerConfig,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoChat(
+            that,
+            serializer,
+          );
+          sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
+            samplerConfig,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 14,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError,
+        ),
+        constMeta: kCrateApiNobodywhoNobodyWhoChatSetSamplerConfigConstMeta,
+        argValues: [that, samplerConfig],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoNobodyWhoChatSetSamplerConfigConstMeta =>
+      const TaskConstMeta(
+        debugName: "NobodyWhoChat_set_sampler_config",
+        argNames: ["that", "samplerConfig"],
+      );
+
+  @override
   NobodyWhoModel crateApiNobodywhoNobodyWhoModelNew({
     required String modelPath,
     bool useGpu = true,
@@ -806,7 +1002,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(modelPath, serializer);
           sse_encode_bool(useGpu, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 14)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 15)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -841,7 +1037,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 16,
             port: port_,
           );
         },
@@ -881,7 +1077,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 16,
+              funcId: 17,
               port: port_,
             );
           },
@@ -906,12 +1102,737 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  SamplerConfig crateApiNobodywhoSamplerBuilderDist({
+    required SamplerBuilder that,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder(
+            that,
+            serializer,
+          );
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 18)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiNobodywhoSamplerBuilderDistConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoSamplerBuilderDistConstMeta =>
+      const TaskConstMeta(debugName: "SamplerBuilder_dist", argNames: ["that"]);
+
+  @override
+  SamplerBuilder crateApiNobodywhoSamplerBuilderDry({
+    required SamplerBuilder that,
+    required double multiplier,
+    required double base,
+    required int allowedLength,
+    required int penaltyLastN,
+    required List<String> seqBreakers,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder(
+            that,
+            serializer,
+          );
+          sse_encode_f_32(multiplier, serializer);
+          sse_encode_f_32(base, serializer);
+          sse_encode_i_32(allowedLength, serializer);
+          sse_encode_i_32(penaltyLastN, serializer);
+          sse_encode_list_String(seqBreakers, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 19)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiNobodywhoSamplerBuilderDryConstMeta,
+        argValues: [
+          that,
+          multiplier,
+          base,
+          allowedLength,
+          penaltyLastN,
+          seqBreakers,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoSamplerBuilderDryConstMeta =>
+      const TaskConstMeta(
+        debugName: "SamplerBuilder_dry",
+        argNames: [
+          "that",
+          "multiplier",
+          "base",
+          "allowedLength",
+          "penaltyLastN",
+          "seqBreakers",
+        ],
+      );
+
+  @override
+  SamplerBuilder crateApiNobodywhoSamplerBuilderGrammar({
+    required SamplerBuilder that,
+    required String grammar,
+    String? triggerOn,
+    required String root,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder(
+            that,
+            serializer,
+          );
+          sse_encode_String(grammar, serializer);
+          sse_encode_opt_String(triggerOn, serializer);
+          sse_encode_String(root, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 20)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiNobodywhoSamplerBuilderGrammarConstMeta,
+        argValues: [that, grammar, triggerOn, root],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoSamplerBuilderGrammarConstMeta =>
+      const TaskConstMeta(
+        debugName: "SamplerBuilder_grammar",
+        argNames: ["that", "grammar", "triggerOn", "root"],
+      );
+
+  @override
+  SamplerConfig crateApiNobodywhoSamplerBuilderGreedy({
+    required SamplerBuilder that,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder(
+            that,
+            serializer,
+          );
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 21)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiNobodywhoSamplerBuilderGreedyConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoSamplerBuilderGreedyConstMeta =>
+      const TaskConstMeta(
+        debugName: "SamplerBuilder_greedy",
+        argNames: ["that"],
+      );
+
+  @override
+  SamplerBuilder crateApiNobodywhoSamplerBuilderMinP({
+    required SamplerBuilder that,
+    required double minP,
+    required int minKeep,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder(
+            that,
+            serializer,
+          );
+          sse_encode_f_32(minP, serializer);
+          sse_encode_u_32(minKeep, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 22)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiNobodywhoSamplerBuilderMinPConstMeta,
+        argValues: [that, minP, minKeep],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoSamplerBuilderMinPConstMeta =>
+      const TaskConstMeta(
+        debugName: "SamplerBuilder_min_p",
+        argNames: ["that", "minP", "minKeep"],
+      );
+
+  @override
+  SamplerConfig crateApiNobodywhoSamplerBuilderMirostatV1({
+    required SamplerBuilder that,
+    required double tau,
+    required double eta,
+    required int m,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder(
+            that,
+            serializer,
+          );
+          sse_encode_f_32(tau, serializer);
+          sse_encode_f_32(eta, serializer);
+          sse_encode_i_32(m, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 23)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiNobodywhoSamplerBuilderMirostatV1ConstMeta,
+        argValues: [that, tau, eta, m],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoSamplerBuilderMirostatV1ConstMeta =>
+      const TaskConstMeta(
+        debugName: "SamplerBuilder_mirostat_v1",
+        argNames: ["that", "tau", "eta", "m"],
+      );
+
+  @override
+  SamplerConfig crateApiNobodywhoSamplerBuilderMirostatV2({
+    required SamplerBuilder that,
+    required double tau,
+    required double eta,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder(
+            that,
+            serializer,
+          );
+          sse_encode_f_32(tau, serializer);
+          sse_encode_f_32(eta, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 24)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiNobodywhoSamplerBuilderMirostatV2ConstMeta,
+        argValues: [that, tau, eta],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoSamplerBuilderMirostatV2ConstMeta =>
+      const TaskConstMeta(
+        debugName: "SamplerBuilder_mirostat_v2",
+        argNames: ["that", "tau", "eta"],
+      );
+
+  @override
+  SamplerBuilder crateApiNobodywhoSamplerBuilderNew() {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 25)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiNobodywhoSamplerBuilderNewConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoSamplerBuilderNewConstMeta =>
+      const TaskConstMeta(debugName: "SamplerBuilder_new", argNames: []);
+
+  @override
+  SamplerBuilder crateApiNobodywhoSamplerBuilderPenalties({
+    required SamplerBuilder that,
+    required int penaltyLastN,
+    required double penaltyRepeat,
+    required double penaltyFreq,
+    required double penaltyPresent,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder(
+            that,
+            serializer,
+          );
+          sse_encode_i_32(penaltyLastN, serializer);
+          sse_encode_f_32(penaltyRepeat, serializer);
+          sse_encode_f_32(penaltyFreq, serializer);
+          sse_encode_f_32(penaltyPresent, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 26)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiNobodywhoSamplerBuilderPenaltiesConstMeta,
+        argValues: [
+          that,
+          penaltyLastN,
+          penaltyRepeat,
+          penaltyFreq,
+          penaltyPresent,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoSamplerBuilderPenaltiesConstMeta =>
+      const TaskConstMeta(
+        debugName: "SamplerBuilder_penalties",
+        argNames: [
+          "that",
+          "penaltyLastN",
+          "penaltyRepeat",
+          "penaltyFreq",
+          "penaltyPresent",
+        ],
+      );
+
+  @override
+  SamplerBuilder crateApiNobodywhoSamplerBuilderTemperature({
+    required SamplerBuilder that,
+    required double temperature,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder(
+            that,
+            serializer,
+          );
+          sse_encode_f_32(temperature, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 27)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiNobodywhoSamplerBuilderTemperatureConstMeta,
+        argValues: [that, temperature],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoSamplerBuilderTemperatureConstMeta =>
+      const TaskConstMeta(
+        debugName: "SamplerBuilder_temperature",
+        argNames: ["that", "temperature"],
+      );
+
+  @override
+  SamplerBuilder crateApiNobodywhoSamplerBuilderTopK({
+    required SamplerBuilder that,
+    required int topK,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder(
+            that,
+            serializer,
+          );
+          sse_encode_i_32(topK, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 28)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiNobodywhoSamplerBuilderTopKConstMeta,
+        argValues: [that, topK],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoSamplerBuilderTopKConstMeta =>
+      const TaskConstMeta(
+        debugName: "SamplerBuilder_top_k",
+        argNames: ["that", "topK"],
+      );
+
+  @override
+  SamplerBuilder crateApiNobodywhoSamplerBuilderTopP({
+    required SamplerBuilder that,
+    required double topP,
+    required int minKeep,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder(
+            that,
+            serializer,
+          );
+          sse_encode_f_32(topP, serializer);
+          sse_encode_u_32(minKeep, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 29)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiNobodywhoSamplerBuilderTopPConstMeta,
+        argValues: [that, topP, minKeep],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoSamplerBuilderTopPConstMeta =>
+      const TaskConstMeta(
+        debugName: "SamplerBuilder_top_p",
+        argNames: ["that", "topP", "minKeep"],
+      );
+
+  @override
+  SamplerBuilder crateApiNobodywhoSamplerBuilderTypicalP({
+    required SamplerBuilder that,
+    required double typP,
+    required int minKeep,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder(
+            that,
+            serializer,
+          );
+          sse_encode_f_32(typP, serializer);
+          sse_encode_u_32(minKeep, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 30)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiNobodywhoSamplerBuilderTypicalPConstMeta,
+        argValues: [that, typP, minKeep],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoSamplerBuilderTypicalPConstMeta =>
+      const TaskConstMeta(
+        debugName: "SamplerBuilder_typical_p",
+        argNames: ["that", "typP", "minKeep"],
+      );
+
+  @override
+  SamplerBuilder crateApiNobodywhoSamplerBuilderXtc({
+    required SamplerBuilder that,
+    required double xtcProbability,
+    required double xtcThreshold,
+    required int minKeep,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder(
+            that,
+            serializer,
+          );
+          sse_encode_f_32(xtcProbability, serializer);
+          sse_encode_f_32(xtcThreshold, serializer);
+          sse_encode_u_32(minKeep, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 31)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiNobodywhoSamplerBuilderXtcConstMeta,
+        argValues: [that, xtcProbability, xtcThreshold, minKeep],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoSamplerBuilderXtcConstMeta =>
+      const TaskConstMeta(
+        debugName: "SamplerBuilder_xtc",
+        argNames: ["that", "xtcProbability", "xtcThreshold", "minKeep"],
+      );
+
+  @override
+  SamplerConfig crateApiNobodywhoSamplerPresetsDefaultSampler() {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 32)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiNobodywhoSamplerPresetsDefaultSamplerConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoSamplerPresetsDefaultSamplerConstMeta =>
+      const TaskConstMeta(
+        debugName: "SamplerPresets_default_sampler",
+        argNames: [],
+      );
+
+  @override
+  SamplerConfig crateApiNobodywhoSamplerPresetsDry() {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 33)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiNobodywhoSamplerPresetsDryConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoSamplerPresetsDryConstMeta =>
+      const TaskConstMeta(debugName: "SamplerPresets_dry", argNames: []);
+
+  @override
+  SamplerConfig crateApiNobodywhoSamplerPresetsGrammar({
+    required String grammar,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(grammar, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 34)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiNobodywhoSamplerPresetsGrammarConstMeta,
+        argValues: [grammar],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoSamplerPresetsGrammarConstMeta =>
+      const TaskConstMeta(
+        debugName: "SamplerPresets_grammar",
+        argNames: ["grammar"],
+      );
+
+  @override
+  SamplerConfig crateApiNobodywhoSamplerPresetsGreedy() {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 35)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiNobodywhoSamplerPresetsGreedyConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoSamplerPresetsGreedyConstMeta =>
+      const TaskConstMeta(debugName: "SamplerPresets_greedy", argNames: []);
+
+  @override
+  SamplerConfig crateApiNobodywhoSamplerPresetsJson() {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 36)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiNobodywhoSamplerPresetsJsonConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoSamplerPresetsJsonConstMeta =>
+      const TaskConstMeta(debugName: "SamplerPresets_json", argNames: []);
+
+  @override
+  SamplerConfig crateApiNobodywhoSamplerPresetsTemperature({
+    required double temperature,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_f_32(temperature, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 37)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiNobodywhoSamplerPresetsTemperatureConstMeta,
+        argValues: [temperature],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoSamplerPresetsTemperatureConstMeta =>
+      const TaskConstMeta(
+        debugName: "SamplerPresets_temperature",
+        argNames: ["temperature"],
+      );
+
+  @override
+  SamplerConfig crateApiNobodywhoSamplerPresetsTopK({required int topK}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_32(topK, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 38)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiNobodywhoSamplerPresetsTopKConstMeta,
+        argValues: [topK],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoSamplerPresetsTopKConstMeta =>
+      const TaskConstMeta(
+        debugName: "SamplerPresets_top_k",
+        argNames: ["topK"],
+      );
+
+  @override
+  SamplerConfig crateApiNobodywhoSamplerPresetsTopP({required double topP}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_f_32(topP, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 39)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiNobodywhoSamplerPresetsTopPConstMeta,
+        argValues: [topP],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoSamplerPresetsTopPConstMeta =>
+      const TaskConstMeta(
+        debugName: "SamplerPresets_top_p",
+        argNames: ["topP"],
+      );
+
+  @override
   void crateApiNobodywhoInitDebugLog() {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 17)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 40)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -945,7 +1866,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(name, serializer);
           sse_encode_String(description, serializer);
           sse_encode_String(runtimeType, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 18)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 41)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -1097,6 +2018,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRust2DartSendError;
 
   RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_SamplerBuilder => wire
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_SamplerBuilder => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_SamplerConfig => wire
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_SamplerConfig => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_SamplerPresets => wire
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerPresets;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_SamplerPresets => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerPresets;
+
+  RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_SetterError => wire
       .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError;
 
@@ -1221,6 +2166,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  SamplerBuilder
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return SamplerBuilderImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  SamplerConfig
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return SamplerConfigImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  SamplerPresets
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerPresets(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return SamplerPresetsImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
   SetterError
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError(
     dynamic raw,
@@ -1266,12 +2238,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  NobodyWhoModel
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoModel(
+  SamplerBuilder
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return NobodyWhoModelImpl.frbInternalDcoDecode(raw as List<dynamic>);
+    return SamplerBuilderImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -1398,6 +2370,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  SamplerBuilder
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return SamplerBuilderImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  SamplerConfig
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return SamplerConfigImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  SamplerPresets
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerPresets(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return SamplerPresetsImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
   SetterError
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError(
     dynamic raw,
@@ -1425,9 +2424,26 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  SamplerConfig
+  dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
+      raw,
+    );
+  }
+
+  @protected
   double dco_decode_f_32(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as double;
+  }
+
+  @protected
+  int dco_decode_i_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as int;
   }
 
   @protected
@@ -1484,6 +2500,25 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<(String, double)> dco_decode_list_record_string_f_32(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_record_string_f_32).toList();
+  }
+
+  @protected
+  String? dco_decode_opt_String(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_String(raw);
+  }
+
+  @protected
+  SamplerConfig?
+  dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null
+        ? null
+        : dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
+            raw,
+          );
   }
 
   @protected
@@ -1672,6 +2707,42 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  SamplerBuilder
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return SamplerBuilderImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  SamplerConfig
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return SamplerConfigImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  SamplerPresets
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerPresets(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return SamplerPresetsImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
   SetterError
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError(
     SseDeserializer deserializer,
@@ -1732,12 +2803,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  NobodyWhoModel
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoModel(
+  SamplerBuilder
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return NobodyWhoModelImpl.frbInternalSseDecode(
+    return SamplerBuilderImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -1895,6 +2966,42 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  SamplerBuilder
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return SamplerBuilderImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  SamplerConfig
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return SamplerConfigImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  SamplerPresets
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerPresets(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return SamplerPresetsImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
   SetterError
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError(
     SseDeserializer deserializer,
@@ -1928,9 +3035,26 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  SamplerConfig
+  sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
+      deserializer,
+    ));
+  }
+
+  @protected
   double sse_decode_f_32(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getFloat32();
+  }
+
+  @protected
+  int sse_decode_i_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getInt32();
   }
 
   @protected
@@ -2018,6 +3142,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  String? sse_decode_opt_String(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_String(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  SamplerConfig?
+  sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
+        deserializer,
+      ));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   (String, double) sse_decode_record_string_f_32(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_field0 = sse_decode_String(deserializer);
@@ -2046,12 +3197,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   BigInt sse_decode_usize(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getBigUint64();
-  }
-
-  @protected
-  int sse_decode_i_32(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return deserializer.buffer.getInt32();
   }
 
   @protected
@@ -2221,6 +3366,45 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder(
+    SamplerBuilder self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as SamplerBuilderImpl).frbInternalSseEncode(move: true),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
+    SamplerConfig self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as SamplerConfigImpl).frbInternalSseEncode(move: true),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerPresets(
+    SamplerPresets self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as SamplerPresetsImpl).frbInternalSseEncode(move: true),
+      serializer,
+    );
+  }
+
+  @protected
+  void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError(
     SetterError self,
     SseSerializer serializer,
@@ -2286,13 +3470,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoModel(
-    NobodyWhoModel self,
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder(
+    SamplerBuilder self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
-      (self as NobodyWhoModelImpl).frbInternalSseEncode(move: false),
+      (self as SamplerBuilderImpl).frbInternalSseEncode(move: false),
       serializer,
     );
   }
@@ -2482,6 +3666,45 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder(
+    SamplerBuilder self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as SamplerBuilderImpl).frbInternalSseEncode(move: null),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
+    SamplerConfig self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as SamplerConfigImpl).frbInternalSseEncode(move: null),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerPresets(
+    SamplerPresets self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as SamplerPresetsImpl).frbInternalSseEncode(move: null),
+      serializer,
+    );
+  }
+
+  @protected
+  void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError(
     SetterError self,
     SseSerializer serializer,
@@ -2523,9 +3746,28 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void
+  sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
+    SamplerConfig self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
+      self,
+      serializer,
+    );
+  }
+
+  @protected
   void sse_encode_f_32(double self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putFloat32(self);
+  }
+
+  @protected
+  void sse_encode_i_32(int self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putInt32(self);
   }
 
   @protected
@@ -2608,6 +3850,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_String(String? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_String(self, serializer);
+    }
+  }
+
+  @protected
+  void
+  sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
+    SamplerConfig? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
+        self,
+        serializer,
+      );
+    }
+  }
+
+  @protected
   void sse_encode_record_string_f_32(
     (String, double) self,
     SseSerializer serializer,
@@ -2638,12 +3907,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_usize(BigInt self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putBigUint64(self);
-  }
-
-  @protected
-  void sse_encode_i_32(int self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    serializer.buffer.putInt32(self);
   }
 }
 
@@ -2869,6 +4132,12 @@ class NobodyWhoChatImpl extends RustOpaque implements NobodyWhoChat {
         that: this,
         messages: messages,
       );
+
+  Future<void> setSamplerConfig({required SamplerConfig samplerConfig}) =>
+      RustLib.instance.api.crateApiNobodywhoNobodyWhoChatSetSamplerConfig(
+        that: this,
+        samplerConfig: samplerConfig,
+      );
 }
 
 @sealed
@@ -2967,6 +4236,251 @@ class Rust2DartSendErrorImpl extends RustOpaque implements Rust2DartSendError {
         .instance
         .api
         .rust_arc_decrement_strong_count_Rust2DartSendErrorPtr,
+  );
+}
+
+@sealed
+class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
+  // Not to be used by end users
+  SamplerBuilderImpl.frbInternalDcoDecode(List<dynamic> wire)
+    : super.frbInternalDcoDecode(wire, _kStaticData);
+
+  // Not to be used by end users
+  SamplerBuilderImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
+    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
+
+  static final _kStaticData = RustArcStaticData(
+    rustArcIncrementStrongCount:
+        RustLib.instance.api.rust_arc_increment_strong_count_SamplerBuilder,
+    rustArcDecrementStrongCount:
+        RustLib.instance.api.rust_arc_decrement_strong_count_SamplerBuilder,
+    rustArcDecrementStrongCountPtr:
+        RustLib.instance.api.rust_arc_decrement_strong_count_SamplerBuilderPtr,
+  );
+
+  /// Sample from the probability distribution (weighted random selection).
+  ///
+  /// Returns:
+  ///     A complete SamplerConfig ready to use
+  SamplerConfig dist() =>
+      RustLib.instance.api.crateApiNobodywhoSamplerBuilderDist(that: this);
+
+  /// DRY (Don't Repeat Yourself) sampler to reduce repetition.
+  ///
+  /// Args:
+  ///     multiplier: Penalty strength multiplier
+  ///     base: Base penalty value
+  ///     allowed_length: Maximum allowed repetition length
+  ///     penalty_last_n: Number of recent tokens to consider
+  ///     seq_breakers: List of strings that break repetition sequences
+  SamplerBuilder dry({
+    required double multiplier,
+    required double base,
+    required int allowedLength,
+    required int penaltyLastN,
+    required List<String> seqBreakers,
+  }) => RustLib.instance.api.crateApiNobodywhoSamplerBuilderDry(
+    that: this,
+    multiplier: multiplier,
+    base: base,
+    allowedLength: allowedLength,
+    penaltyLastN: penaltyLastN,
+    seqBreakers: seqBreakers,
+  );
+
+  /// Apply a grammar constraint to enforce structured output.
+  ///
+  /// Args:
+  ///     grammar: Grammar specification in GBNF format (GGML BNF, a variant of BNF used by llama.cpp)
+  ///     trigger_on: Optional string that, when generated, activates the grammar constraint.
+  ///                 Useful for letting the model generate free-form text until a specific marker.
+  ///     root: Name of the root grammar rule to start parsing from
+  SamplerBuilder grammar({
+    required String grammar,
+    String? triggerOn,
+    required String root,
+  }) => RustLib.instance.api.crateApiNobodywhoSamplerBuilderGrammar(
+    that: this,
+    grammar: grammar,
+    triggerOn: triggerOn,
+    root: root,
+  );
+
+  /// Always select the most probable token (deterministic).
+  ///
+  /// Returns:
+  ///     A complete SamplerConfig ready to use
+  SamplerConfig greedy() =>
+      RustLib.instance.api.crateApiNobodywhoSamplerBuilderGreedy(that: this);
+
+  /// Keep tokens with probability above min_p * (probability of most likely token).
+  ///
+  /// Args:
+  ///     min_p: Minimum relative probability threshold (0.0 to 1.0). Typical: 0.05-0.1.
+  ///     min_keep: Minimum number of tokens to always keep
+  SamplerBuilder minP({required double minP, required int minKeep}) =>
+      RustLib.instance.api.crateApiNobodywhoSamplerBuilderMinP(
+        that: this,
+        minP: minP,
+        minKeep: minKeep,
+      );
+
+  /// Use Mirostat v1 algorithm for perplexity-controlled sampling.
+  /// Mirostat dynamically adjusts sampling to maintain a target "surprise" level,
+  /// producing more coherent output than fixed temperature. Good for long-form generation.
+  ///
+  /// Args:
+  ///     tau: Target perplexity/surprise value (typically 3.0-5.0; lower = more focused)
+  ///     eta: Learning rate for perplexity adjustment (typically 0.1)
+  ///     m: Number of candidates to consider (typically 100)
+  ///
+  /// Returns:
+  ///     A complete SamplerConfig ready to use
+  SamplerConfig mirostatV1({
+    required double tau,
+    required double eta,
+    required int m,
+  }) => RustLib.instance.api.crateApiNobodywhoSamplerBuilderMirostatV1(
+    that: this,
+    tau: tau,
+    eta: eta,
+    m: m,
+  );
+
+  /// Use Mirostat v2 algorithm for perplexity-controlled sampling.
+  /// Mirostat v2 is a simplified version of Mirostat that's often preferred.
+  /// It dynamically adjusts sampling to maintain a target "surprise" level.
+  ///
+  /// Args:
+  ///     tau: Target perplexity/surprise value (typically 3.0-5.0; lower = more focused)
+  ///     eta: Learning rate for perplexity adjustment (typically 0.1)
+  ///
+  /// Returns:
+  ///     A complete SamplerConfig ready to use
+  SamplerConfig mirostatV2({required double tau, required double eta}) =>
+      RustLib.instance.api.crateApiNobodywhoSamplerBuilderMirostatV2(
+        that: this,
+        tau: tau,
+        eta: eta,
+      );
+
+  /// Apply repetition penalties to discourage repeated tokens.
+  ///
+  /// Args:
+  ///     penalty_last_n: Number of recent tokens to penalize (0 = disable)
+  ///     penalty_repeat: Base repetition penalty (1.0 = no penalty, >1.0 = penalize)
+  ///     penalty_freq: Frequency penalty based on token occurrence count
+  ///     penalty_present: Presence penalty for any token that appeared before
+  SamplerBuilder penalties({
+    required int penaltyLastN,
+    required double penaltyRepeat,
+    required double penaltyFreq,
+    required double penaltyPresent,
+  }) => RustLib.instance.api.crateApiNobodywhoSamplerBuilderPenalties(
+    that: this,
+    penaltyLastN: penaltyLastN,
+    penaltyRepeat: penaltyRepeat,
+    penaltyFreq: penaltyFreq,
+    penaltyPresent: penaltyPresent,
+  );
+
+  /// Apply temperature scaling to the probability distribution.
+  ///
+  /// Args:
+  ///     temperature: Temperature value (0.0 = deterministic, 1.0 = unchanged, >1.0 = more random)
+  SamplerBuilder temperature({required double temperature}) =>
+      RustLib.instance.api.crateApiNobodywhoSamplerBuilderTemperature(
+        that: this,
+        temperature: temperature,
+      );
+
+  /// Keep only the top K most probable tokens. Typical values: 40-50.
+  ///
+  /// Args:
+  ///     top_k: Number of top tokens to keep
+  SamplerBuilder topK({required int topK}) => RustLib.instance.api
+      .crateApiNobodywhoSamplerBuilderTopK(that: this, topK: topK);
+
+  /// Keep tokens whose cumulative probability is below top_p. Typical values: 0.9-0.95.
+  ///
+  /// Args:
+  ///     top_p: Cumulative probability threshold (0.0 to 1.0)
+  ///     min_keep: Minimum number of tokens to always keep
+  SamplerBuilder topP({required double topP, required int minKeep}) =>
+      RustLib.instance.api.crateApiNobodywhoSamplerBuilderTopP(
+        that: this,
+        topP: topP,
+        minKeep: minKeep,
+      );
+
+  /// Typical sampling: keeps tokens close to expected information content.
+  ///
+  /// Args:
+  ///     typ_p: Typical probability mass (0.0 to 1.0). Typical: 0.9.
+  ///     min_keep: Minimum number of tokens to always keep
+  SamplerBuilder typicalP({required double typP, required int minKeep}) =>
+      RustLib.instance.api.crateApiNobodywhoSamplerBuilderTypicalP(
+        that: this,
+        typP: typP,
+        minKeep: minKeep,
+      );
+
+  /// XTC (eXclude Top Choices) sampler that probabilistically excludes high-probability tokens.
+  /// This can increase output diversity by sometimes forcing the model to pick less obvious tokens.
+  ///
+  /// Args:
+  ///     xtc_probability: Probability of applying XTC on each token (0.0 to 1.0)
+  ///     xtc_threshold: Tokens with probability above this threshold may be excluded (0.0 to 1.0)
+  ///     min_keep: Minimum number of tokens to always keep (prevents excluding all tokens)
+  SamplerBuilder xtc({
+    required double xtcProbability,
+    required double xtcThreshold,
+    required int minKeep,
+  }) => RustLib.instance.api.crateApiNobodywhoSamplerBuilderXtc(
+    that: this,
+    xtcProbability: xtcProbability,
+    xtcThreshold: xtcThreshold,
+    minKeep: minKeep,
+  );
+}
+
+@sealed
+class SamplerConfigImpl extends RustOpaque implements SamplerConfig {
+  // Not to be used by end users
+  SamplerConfigImpl.frbInternalDcoDecode(List<dynamic> wire)
+    : super.frbInternalDcoDecode(wire, _kStaticData);
+
+  // Not to be used by end users
+  SamplerConfigImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
+    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
+
+  static final _kStaticData = RustArcStaticData(
+    rustArcIncrementStrongCount:
+        RustLib.instance.api.rust_arc_increment_strong_count_SamplerConfig,
+    rustArcDecrementStrongCount:
+        RustLib.instance.api.rust_arc_decrement_strong_count_SamplerConfig,
+    rustArcDecrementStrongCountPtr:
+        RustLib.instance.api.rust_arc_decrement_strong_count_SamplerConfigPtr,
+  );
+}
+
+@sealed
+class SamplerPresetsImpl extends RustOpaque implements SamplerPresets {
+  // Not to be used by end users
+  SamplerPresetsImpl.frbInternalDcoDecode(List<dynamic> wire)
+    : super.frbInternalDcoDecode(wire, _kStaticData);
+
+  // Not to be used by end users
+  SamplerPresetsImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
+    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
+
+  static final _kStaticData = RustArcStaticData(
+    rustArcIncrementStrongCount:
+        RustLib.instance.api.rust_arc_increment_strong_count_SamplerPresets,
+    rustArcDecrementStrongCount:
+        RustLib.instance.api.rust_arc_decrement_strong_count_SamplerPresets,
+    rustArcDecrementStrongCountPtr:
+        RustLib.instance.api.rust_arc_decrement_strong_count_SamplerPresetsPtr,
   );
 }
 
