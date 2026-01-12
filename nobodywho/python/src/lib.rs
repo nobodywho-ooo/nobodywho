@@ -1111,7 +1111,7 @@ impl Clone for Tool {
 
 #[pymethods]
 impl Tool {
-    #[pyo3(signature = (*args, **kwargs) -> "str")]
+    #[pyo3(signature = (*args, **kwargs) -> "T")]
     fn __call__(
         &self,
         args: &Bound<pyo3::types::PyTuple>,
@@ -1127,6 +1127,9 @@ impl Tool {
 /// The decorated function will be callable by the model during chat. The model sees the
 /// function's name, description, and parameter types/descriptions to decide when to call it.
 ///
+/// Both synchronous and asynchronous functions are supported. Async functions are executed
+/// synchronously when called by the model.
+///
 /// Args:
 ///     description: A description of what the tool does (shown to the model)
 ///     params: Optional dict mapping parameter names to their descriptions (shown to the model)
@@ -1134,14 +1137,22 @@ impl Tool {
 /// Returns:
 ///     A decorator that transforms a function into a Tool instance
 ///
-/// Example:
+/// Examples:
 ///     @tool("Get the current weather for a city", params={"city": "The city name"})
 ///     def get_weather(city: str) -> str:
 ///         return f"Weather in {city}: sunny"
 ///
+///     @tool("Fetch data from a URL", params={"url": "The URL to fetch"})
+///     async def fetch_url(url: str) -> str:
+///         import aiohttp
+///         async with aiohttp.ClientSession() as session:
+///             async with session.get(url) as response:
+///                 return await response.text()
+///
 /// Note:
 ///     All function parameters must have type hints. The function should return a string.
-#[pyfunction(signature = (description: "str", params: "dict[str, str] | None" = None) -> "typing.Callable[..., Tool]")]
+///     Async functions (defined with 'async def') are automatically detected and handled.
+#[pyfunction(signature = (description: "str", params: "dict[str, str] | None" = None) -> "typing.Callable[[typing.Callable[..., T]], Tool]")]
 fn tool<'a>(
     description: String,
     params: Option<Py<pyo3::types::PyDict>>,
@@ -1165,6 +1176,13 @@ fn tool<'a>(
             // get the name of the function
             let name = fun.getattr(py, "__name__")?.extract::<String>(py)?;
 
+            // detect if function is async
+            let inspect = PyModule::import(py, "inspect")?;
+            let is_async = inspect
+                .getattr("iscoroutinefunction")?
+                .call1((&fun,))?
+                .extract::<bool>()?;
+
             // generate json schema from function type annotations
             let json_schema = python_func_json_schema(py, &fun, &params)?;
 
@@ -1179,16 +1197,29 @@ fn tool<'a>(
                         Err(e) => return format!("ERROR: Failed to convert arguments: {e}"),
                     };
 
-                    // call the python function
-                    let py_result = fun.call(py, (), Some(&kwargs));
+                    let py_result = if is_async {
+                        let coroutine = match fun.call(py, (), Some(&kwargs)) {
+                            Ok(coro) => coro,
+                            Err(e) => return format!("ERROR: {e}"),
+                        };
+
+                        // Use Python's asyncio.run() to execute the coroutine
+                        let asyncio = match py.import("asyncio") {
+                            Ok(module) => module,
+                            Err(e) => return format!("ERROR: Failed to import asyncio: {e}"),
+                        };
+
+                        asyncio.call_method1("run", (coroutine,)).map(|r| r.into())
+                    } else {
+                        fun.call(py, (), Some(&kwargs))
+                    };
 
                     // extract a string from the result
                     // return an error string to the LLM if anything fails
-                    match py_result.map(|r| r.extract::<String>(py)) {
-                        Ok(Ok(str)) => str,
-                        Err(pyerr) | Ok(Err(pyerr)) => format!("ERROR: {pyerr}"),
+                    match py_result.and_then(|r| r.extract::<String>(py)) {
+                        Ok(s) => s,
+                        Err(e) => format!("ERROR: {e}"),
                     }
-                    .to_string()
                 })
             };
 

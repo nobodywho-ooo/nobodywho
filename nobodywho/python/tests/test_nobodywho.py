@@ -287,6 +287,33 @@ def test_tool_bad_parameters():
         def i_fucked_up(a: int) -> str:
             return "fuck"
 
+@nobodywho.tool(
+    description="Applies the sparklify effect to a given piece of text."
+)
+async def async_sparklify(text: str) -> str:
+    return f"✨{text.upper()}✨"
+
+
+@pytest.mark.asyncio
+async def test_async_tool_construction():
+    assert async_sparklify is not None
+    assert isinstance(async_sparklify, nobodywho.Tool)
+    assert await async_sparklify("foobar") == "✨FOOBAR✨"
+
+
+def test_async_tool_calling(model):
+    chat = nobodywho.Chat(model, tools=[async_sparklify])
+    response: str = chat.ask("Please sparklify this word: 'julemand'").completed()
+    assert "✨JULEMAND✨" in response
+
+
+def test_async_tool_bad_parameters():
+    with pytest.raises(TypeError):
+
+        @nobodywho.tool(description="foobar", params={"b": "uh-oh"})
+        async def i_fucked_up(a: int) -> str:
+            return "fuck"
+
 
 def test_load_chat_from_path():
     model_path = os.environ.get("TEST_MODEL")
