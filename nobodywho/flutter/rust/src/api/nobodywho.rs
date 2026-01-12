@@ -121,6 +121,47 @@ impl NobodyWhoTokenStream {
 }
 
 #[flutter_rust_bridge::frb(opaque)]
+pub struct Encoder {
+    handle: nobodywho::encoder::EncoderAsync,
+}
+
+impl Encoder {
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn new(model: NobodyWhoModel, #[frb(default = 4096)] n_ctx: u32) -> Self {
+        let handle = nobodywho::encoder::EncoderAsync::new(model.model.clone(), n_ctx);
+        Self { handle }
+    }
+
+    pub async fn encode(
+        &self,
+        text: String,
+    ) -> Result<Vec<f32>, nobodywho::errors::EncoderWorkerError> {
+        self.handle.encode(text).await
+    }
+}
+
+#[flutter_rust_bridge::frb(opaque)]
+pub struct CrossEncoder {
+    handle: nobodywho::crossencoder::CrossEncoderAsync,
+}
+
+impl CrossEncoder {
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn new(model: NobodyWhoModel, #[frb(default = 4096)] n_ctx: u32) -> Self {
+        let handle = nobodywho::crossencoder::CrossEncoderAsync::new(model.model.clone(), n_ctx);
+        Self { handle }
+    }
+
+    pub async fn rank(
+        &self,
+        query: String,
+        documents: Vec<String>,
+    ) -> Result<Vec<f32>, nobodywho::errors::EncoderWorkerError> {
+        self.handle.encode(text).await
+    }
+}
+
+#[flutter_rust_bridge::frb(opaque)]
 pub struct NobodyWhoTool {
     tool: nobodywho::chat::Tool,
 }
