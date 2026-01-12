@@ -31,7 +31,7 @@ impl NobodyWhoChat {
     ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
     #[flutter_rust_bridge::frb(sync)]
     pub fn new(
-        model: NobodyWhoModel,
+        model: &NobodyWhoModel,
         system_prompt: String,
         context_size: u32,
         tools: Vec<NobodyWhoTool>,
@@ -59,14 +59,14 @@ impl NobodyWhoChat {
     ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
     #[flutter_rust_bridge::frb(sync)]
     pub fn from_path(
-        model_path: String,
+        model_path: &str,
         system_prompt: String,
         context_size: u32,
         tools: Vec<NobodyWhoTool>,
         #[frb(default = "null")] sampler: Option<SamplerConfig>,
         #[frb(default = true)] use_gpu: bool,
     ) -> Result<Self, String> {
-        let model = nobodywho::llm::get_model(&model_path, use_gpu).map_err(|e| e.to_string())?;
+        let model = nobodywho::llm::get_model(model_path, use_gpu).map_err(|e| e.to_string())?;
 
         let sampler_config = sampler.map(|s| s.sampler_config).unwrap_or_default();
 
@@ -368,11 +368,12 @@ pub struct SamplerConfig {
 }
 
 fn shift_step(
-    mut builder: SamplerBuilder,
+    builder: SamplerBuilder,
     step: nobodywho::sampler_config::ShiftStep,
 ) -> SamplerBuilder {
-    builder.sampler_config = builder.sampler_config.clone().shift(step);
-    builder
+    SamplerBuilder {
+        sampler_config: builder.sampler_config.shift(step),
+    }
 }
 
 fn sample_step(
@@ -380,7 +381,7 @@ fn sample_step(
     step: nobodywho::sampler_config::SampleStep,
 ) -> SamplerConfig {
     SamplerConfig {
-        sampler_config: builder.sampler_config.clone().sample(step),
+        sampler_config: builder.sampler_config.sample(step),
     }
 }
 
@@ -613,12 +614,10 @@ impl SamplerBuilder {
     ///     A complete SamplerConfig ready to use
     #[flutter_rust_bridge::frb(sync)]
     pub fn mirostat_v2(&self, tau: f32, eta: f32) -> SamplerConfig {
-        SamplerConfig {
-            sampler_config: self
-                .sampler_config
-                .clone()
-                .sample(nobodywho::sampler_config::SampleStep::MirostatV2 { tau, eta }),
-        }
+        sample_step(
+            self.clone(),
+            nobodywho::sampler_config::SampleStep::MirostatV2 { tau, eta },
+        )
     }
 }
 

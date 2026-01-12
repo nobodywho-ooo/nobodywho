@@ -94,5 +94,18 @@ void main() {
       expect(response, contains("WOW Wrawr WOW"));
     });
 
+    test('Sampler actually affects output', () async {
+    // Test that greedy sampler gives deterministic output
+    final greedy = SamplerPresets.greedy();
+    await chat!.setSamplerConfig(samplerConfig: greedy);
+
+    final response1 = await chat!.ask(message: "Say exactly: 'Hello'").completed();
+    await chat!.resetHistory();
+    final response2 = await chat!.ask(message: "Say exactly: 'Hello'").completed();
+
+    expect(response1, equals(response2));  // Should be identical with greedy
+  });
+
+
   });
 }

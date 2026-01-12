@@ -377,7 +377,7 @@ fn wire__crate__api__nobodywho__NobodyWhoChat_from_path_impl(
             deserializer.end();
             transform_result_sse::<_, String>((move || {
                 let output_ok = crate::api::nobodywho::NobodyWhoChat::from_path(
-                    api_model_path,
+                    &api_model_path,
                     api_system_prompt,
                     api_context_size,
                     api_tools,
@@ -468,15 +468,31 @@ fn wire__crate__api__nobodywho__NobodyWhoChat_new_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_model = <NobodyWhoModel>::sse_decode(&mut deserializer);
+            let api_model = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<NobodyWhoModel>,
+            >>::sse_decode(&mut deserializer);
             let api_system_prompt = <String>::sse_decode(&mut deserializer);
             let api_context_size = <u32>::sse_decode(&mut deserializer);
             let api_tools = <Vec<NobodyWhoTool>>::sse_decode(&mut deserializer);
             let api_sampler = <Option<SamplerConfig>>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
+                let mut api_model_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_model, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_model_guard = Some(api_model.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
+                    }
+                }
+                let api_model_guard = api_model_guard.unwrap();
                 let output_ok = Result::<_, ()>::Ok(crate::api::nobodywho::NobodyWhoChat::new(
-                    api_model,
+                    &*api_model_guard,
                     api_system_prompt,
                     api_context_size,
                     api_tools,

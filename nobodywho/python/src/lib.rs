@@ -990,11 +990,12 @@ impl SamplerBuilder {
 }
 
 fn shift_step(
-    mut builder: SamplerBuilder,
+    builder: SamplerBuilder,
     step: nobodywho::sampler_config::ShiftStep,
 ) -> SamplerBuilder {
-    builder.sampler_config = builder.sampler_config.clone().shift(step);
-    builder
+    SamplerBuilder {
+        sampler_config: builder.sampler_config.shift(step),
+    }
 }
 
 fn sample_step(
@@ -1002,7 +1003,7 @@ fn sample_step(
     step: nobodywho::sampler_config::SampleStep,
 ) -> SamplerConfig {
     SamplerConfig {
-        sampler_config: builder.sampler_config.clone().sample(step),
+        sampler_config: builder.sampler_config.sample(step),
     }
 }
 
