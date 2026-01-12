@@ -1107,7 +1107,7 @@ fn find_prefix_index_and_difference_with_tokens_in_context(
     tokens_in_context: &[LlamaToken],
     tokens: &[LlamaToken],
 ) -> (usize, Vec<LlamaToken>) {
-    if self.extra.tokens_in_context.is_empty() {
+    if tokens_in_context.is_empty() {
         return (0, tokens.to_owned());
     }
 
