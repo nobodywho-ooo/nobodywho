@@ -26,10 +26,7 @@ const TYPEVARS_TO_INJECT: &[(&str, &str)] = &[(
 )];
 
 const GENERIC_TYPE_REPLACEMENTS: &[(&str, &str)] = &[
-    (
-        "class Tool:",
-        "class Tool(typing.Generic[T]):",
-    ),
+    ("class Tool:", "class Tool(typing.Generic[T]):"),
     (
         "typing.Callable[[typing.Callable[..., T]], Tool]",
         "typing.Callable[[typing.Callable[..., T]], Tool[T]]",
