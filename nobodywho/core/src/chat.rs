@@ -26,7 +26,7 @@ use std::sync::LazyLock;
 
 use crate::errors::{
     ChatWorkerError, ContextSyncError, DecodingError, FromModelError, GenerateResponseError,
-    InferenceError, InitWorkerError, RenderError, SayError, ShiftError, WrappedResponseError,
+    InitWorkerError, RenderError, SayError, ShiftError, WrappedResponseError,
 };
 use crate::llm::{self};
 use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
@@ -36,7 +36,7 @@ use llama_cpp_2::model::{AddBos, Special};
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 use llama_cpp_2::{context::params::LlamaPoolingType, model::LlamaModel};
-use minijinja::{context, render, Environment};
+use minijinja::{context, Environment};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::cmp::min;
