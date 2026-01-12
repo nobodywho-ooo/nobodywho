@@ -156,8 +156,16 @@ impl CrossEncoder {
         &self,
         query: String,
         documents: Vec<String>,
-    ) -> Result<Vec<f32>, nobodywho::errors::EncoderWorkerError> {
-        self.handle.encode(text).await
+    ) -> Result<Vec<f32>, nobodywho::errors::CrossEncoderWorkerError> {
+        self.handle.rank(query, documents).await
+    }
+
+    pub async fn rank_and_sort(
+        &self,
+        query: String,
+        documents: Vec<String>,
+    ) -> Result<Vec<(String, f32)>, nobodywho::errors::CrossEncoderWorkerError> {
+        self.handle.rank_and_sort(query, documents).await
     }
 }
 
