@@ -19,7 +19,6 @@ jobs:
           - "release"
         integration:
           - "godot"
-          - "unity"
           - "flutter"
         include:
           - target: x86_64-unknown-linux-gnu
@@ -97,7 +96,6 @@ jobs:
           - "release"
         integration:
           - "godot"
-          - "unity"
           - "flutter"
     env:
       RUSTFLAGS: >-
@@ -187,7 +185,6 @@ jobs:
           - "release"
         integration:
           - "godot"
-          - "unity"
           - "flutter"
     steps:
       - uses: actions/checkout@v4

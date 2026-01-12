@@ -1,1 +1,0 @@
-Dockerised Unity Editor.
