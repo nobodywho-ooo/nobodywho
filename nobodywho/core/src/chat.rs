@@ -25,8 +25,8 @@
 use std::sync::LazyLock;
 
 use crate::errors::{
-    ChatWorkerError, ContextSyncError, DecodingError, FromModelError, GenerateResponseError,
-    InitWorkerError, RenderError, SayError, ShiftError, WrappedResponseError,
+    ChatWorkerError, ContextSyncError, DecodingError, GenerateResponseError, InitWorkerError,
+    RenderError, SayError, SelectTemplateError, SetToolsError, ShiftError, WrappedResponseError,
 };
 use crate::llm::{self};
 use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
@@ -943,7 +943,7 @@ pub struct ToolCall {
 fn select_template(
     model: &llama_cpp_2::model::LlamaModel,
     with_tools: bool,
-) -> Result<String, FromModelError> {
+) -> Result<String, SelectTemplateError> {
     let default_template = model.chat_template(None)?.to_string()?;
     let tool_template = model.chat_template(Some("tool_use"));
 
@@ -959,7 +959,7 @@ fn select_template(
         default_template
     } else {
         // tools provided, but we have no tool-capable template
-        return Err(FromModelError::NoToolTemplate);
+        return Err(SelectTemplateError::NoToolTemplate);
     };
     trace!(template);
 
@@ -1607,7 +1607,7 @@ impl Worker<'_, ChatWorker> {
         &mut self,
         system_prompt: String,
         tools: Vec<Tool>,
-    ) -> Result<(), FromModelError> {
+    ) -> Result<(), SelectTemplateError> {
         self.reset_context();
         self.extra.tool_grammar = if !tools.is_empty() {
             grammar_from_tools(&tools).ok()
@@ -1630,7 +1630,7 @@ impl Worker<'_, ChatWorker> {
         self.extra.sampler_config = sampler_config;
     }
 
-    pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), ContextSyncError> {
+    pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), SetToolsError> {
         self.extra.tool_grammar = if !tools.is_empty() {
             grammar_from_tools(&tools).ok()
         } else {
