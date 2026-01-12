@@ -7,10 +7,12 @@ use tracing::error;
 
 use std::sync::Arc;
 
+#[derive(Clone)]
 pub struct Encoder {
     async_handle: EncoderAsync,
 }
 
+#[derive(Clone)]
 pub struct EncoderAsync {
     msg_tx: std::sync::mpsc::Sender<EncoderMsg>,
 }

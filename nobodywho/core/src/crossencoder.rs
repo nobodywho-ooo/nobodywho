@@ -6,10 +6,12 @@ use llama_cpp_2::model::{LlamaModel, Special};
 use std::sync::Arc;
 use tracing::{error, warn};
 
+#[derive(Clone)]
 pub struct CrossEncoder {
     async_handle: CrossEncoderAsync,
 }
 
+#[derive(Clone)]
 pub struct CrossEncoderAsync {
     msg_tx: std::sync::mpsc::Sender<CrossEncoderMsg>,
 }

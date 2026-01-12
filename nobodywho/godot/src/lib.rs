@@ -942,25 +942,25 @@ impl NobodyWhoEncoder {
     /// Generates the encoding of a text string. This will return a signal that you can use to wait for the encoding.
     /// The signal will return a PackedFloat32Array.
     fn encode(&mut self, text: String) -> Signal {
-        if let Some(encoder_handle) = &self.encoder_handle {
-            let mut encoding_channel = encoder_handle.encode(text);
-            let emit_node = self.to_gd();
-            godot::task::spawn(async move {
-                match encoding_channel.recv().await {
-                    Some(encoding) => emit_node
-                        .signals()
-                        .encoding_finished()
-                        .emit(&PackedFloat32Array::from(encoding)),
-                    None => {
-                        godot_error!("Failed generating encoding.");
-                    }
-                }
-            });
-        } else {
+        let Some(encoder_handle) = &mut self.encoder_handle else {
             godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
             self.start_worker();
             return self.encode(text);
         };
+        let encoder_handle = encoder_handle.clone();
+        let emit_node = self.to_gd();
+
+        godot::task::spawn(async move {
+            match encoder_handle.encode(text).await {
+                Ok(encoding) => emit_node
+                    .signals()
+                    .encoding_finished()
+                    .emit(&PackedFloat32Array::from(encoding)),
+                Err(err) => {
+                    godot_error!("Failed generating encoding: {err}");
+                }
+            }
+        });
 
         // returns signal, so that you can `var vec = await encode("Hello, world!")`
         return godot::builtin::Signal::from_object_signal(&self.base_mut(), "encoding_finished");
@@ -1067,60 +1067,31 @@ impl NobodyWhoCrossEncoder {
     /// - documents: Array of document strings to rank
     /// - limit: Maximum number of documents to return (-1 for all documents)
     fn rank(&mut self, query: String, documents: PackedStringArray, limit: i32) -> Signal {
-        let Some(crossencoder_handle) = &self.crossencoder_handle else {
+        let Some(crossencoder_handle) = &mut self.crossencoder_handle else {
             godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
             self.start_worker();
             return self.rank(query, documents, limit);
         };
+        let crossencoder_handle = crossencoder_handle.clone();
 
         let docs_vec: Vec<String> = documents
             .to_vec()
             .into_iter()
             .map(|s| s.to_string())
             .collect();
-        let mut ranking_channel = crossencoder_handle.rank(query, docs_vec.clone());
         let emit_node = self.to_gd();
 
         godot::task::spawn(async move {
-            match ranking_channel.recv().await {
-                Some(scores) => {
+            match crossencoder_handle.rank(query, docs_vec.clone()).await {
+                Ok(scores) => {
                     let result = Self::_to_sorted_string_array(docs_vec, scores, limit);
                     emit_node.signals().ranking_finished().emit(&result);
                 }
-                None => godot_error!("Failed generating ranking."),
+                Err(err) => godot_error!("Failed generating ranking: {err}"),
             }
         });
 
         godot::builtin::Signal::from_object_signal(&self.base_mut(), "ranking_finished")
-    }
-
-    #[func]
-    fn rank_sync(
-        &mut self,
-        query: String,
-        documents: PackedStringArray,
-        limit: i32,
-    ) -> PackedStringArray {
-        let Some(crossencoder_handle) = &self.crossencoder_handle else {
-            godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
-            self.start_worker();
-            return self.rank_sync(query, documents, limit);
-        };
-
-        let docs_vec: Vec<String> = documents
-            .to_vec()
-            .into_iter()
-            .map(|s| s.to_string())
-            .collect();
-        let mut ranking_channel = crossencoder_handle.rank(query, docs_vec.clone());
-
-        match ranking_channel.blocking_recv() {
-            Some(scores) => Self::_to_sorted_string_array(docs_vec, scores, limit),
-            None => {
-                godot_error!("Failed generating ranking.");
-                PackedStringArray::new()
-            }
-        }
     }
 
     /// takes a list of scores and documents and returns a sorted packedstring array
