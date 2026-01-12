@@ -1234,8 +1234,8 @@ impl Worker<'_, ChatWorker> {
             self.find_prefix_index_and_difference_with_tokens_in_context(&rendered_tokens);
 
         self.remove_all_tokens_after_index_from_ctx(prefix_index)?;
-        if token_difference.len() > 0 {
-            self.read_tokens(token_difference, &inference_lock_token)?;
+        if !token_difference.is_empty() {
+            self.read_tokens(token_difference, inference_lock_token)?;
         }
         self.extra.tokens_in_context = rendered_tokens;
 
