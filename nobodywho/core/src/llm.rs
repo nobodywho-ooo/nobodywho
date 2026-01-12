@@ -231,13 +231,14 @@ where
     #[tracing::instrument(level = "trace", skip(self))]
     pub fn remove_all_tokens_after_index_from_ctx(
         &mut self,
-        index: u32,
+        index: usize,
     ) -> Result<(), KvCacheConversionError> {
         if self.n_past <= index as i32 {
             return Ok(());
         }
 
-        self.ctx.clear_kv_cache_seq(Some(0), Some(index), None)?;
+        self.ctx
+            .clear_kv_cache_seq(Some(0), Some(index as u32), None)?;
         self.n_past = index as i32;
 
         Ok(())

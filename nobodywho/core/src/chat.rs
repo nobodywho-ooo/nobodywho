@@ -1193,10 +1193,17 @@ impl Worker<'_, ChatWorker> {
         });
     }
 
+    /// Utility function for prefix caching
+    /// Given a rendered chat template (intended for the LLM's context),
+    /// it compares with the tokens currently in the LLM's context, to find a common prefix.
+    /// The return value is a tuple of:
+    /// - the index of the first differing token
+    ///   and
+    /// - the tokens that should be read into the context (starting at that index)
     fn find_prefix_index_and_difference_with_tokens_in_context(
         &self,
         tokens: &[LlamaToken],
-    ) -> (u32, Vec<LlamaToken>) {
+    ) -> (usize, Vec<LlamaToken>) {
         if self.extra.tokens_in_context.is_empty() {
             return (0, tokens.to_owned());
         }
@@ -1208,14 +1215,14 @@ impl Worker<'_, ChatWorker> {
             .zip(tokens.iter())
             .position(|(a, b)| a != b);
 
-        let (index, difference): (u32, Vec<LlamaToken>) = match longest_common_prefix_index {
-            Some(i) => (i as u32, tokens[i..].to_vec()),
+        let (index, difference): (usize, Vec<LlamaToken>) = match longest_common_prefix_index {
+            Some(i) => (i, tokens[i..].to_vec()),
             None => {
                 if tokens.len() <= self.extra.tokens_in_context.len() {
-                    (tokens.len() as u32, vec![])
+                    (tokens.len(), vec![])
                 } else {
                     (
-                        self.extra.tokens_in_context.len() as u32,
+                        self.extra.tokens_in_context.len(),
                         tokens[(self.extra.tokens_in_context.len())..].to_vec(),
                     )
                 }
