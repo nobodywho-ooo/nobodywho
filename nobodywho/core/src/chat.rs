@@ -1569,20 +1569,6 @@ impl Worker<'_, ChatWorker> {
         Ok(render_as_tokens)
     }
 
-    // fn read_tokens_and_generate_response(
-    //     &mut self,
-    //     tokens: Vec<LlamaToken>,
-    //     sampler: SamplerConfig,
-    //     wrapped_respond: impl FnMut(WriteOutput),
-    // ) -> Result<&mut Self, InferenceError> {
-    //     let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
-    //     let inference_lock_token = _gil_guard.unwrap();
-
-    //     Ok(self
-    //         .read_tokens(tokens, &inference_lock_token)?
-    //         .generate_response_until_done(sampler, wrapped_respond, &inference_lock_token)?)
-    // }
-
     fn wrapped_update_context_and_generate_response<F>(
         &mut self,
         sampler: SamplerConfig,
