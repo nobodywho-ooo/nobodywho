@@ -23,7 +23,7 @@ pub enum InitWorkerError {
     CreateContext(#[from] llama_cpp_2::LlamaContextLoadError),
 
     #[error("Failed getting chat template from model: {0}")]
-    ChatTemplate(#[from] FromModelError),
+    ChatTemplate(#[from] SelectTemplateError),
 
     #[error("Failed to tokenize eos or bos tokens: {0}")]
     TokenToStringError(#[from] TokenToStringError),
@@ -122,7 +122,7 @@ pub(crate) enum ChatWorkerError {
     Say(#[from] SayError),
 
     #[error("Init template error: {0}")]
-    Template(#[from] FromModelError),
+    Template(#[from] SelectTemplateError),
 
     #[error("Error rendering template: {0}")]
     TemplateRender(#[from] minijinja::Error),
@@ -135,6 +135,12 @@ pub(crate) enum ChatWorkerError {
 
     #[error("Error removing tokens from KvCache: {0}")]
     KvCacheConversion(#[from] KvCacheConversionError),
+
+    #[error("Error during context syncing: {0}")]
+    ContextSyncError(#[from] ContextSyncError),
+
+    #[error("Error setting tools: {0}")]
+    SetTools(#[from] SetToolsError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -148,8 +154,11 @@ pub enum WrappedResponseError {
     #[error("Error removing tokens not present in the common prefix: {0}")]
     KVCacheUpdate(#[from] KvCacheConversionError),
 
-    #[error("Error during inference step: {0}")]
-    Inference(#[from] InferenceError),
+    #[error("Error syncing context and reading prompt: {0}")]
+    ReadError(#[from] ContextSyncError),
+
+    #[error("Error while generating response: {0}")]
+    GenerateResponse(#[from] GenerateResponseError),
 
     #[error("Error receiving generated response: {0}")]
     Receive(#[from] std::sync::mpsc::RecvError),
@@ -174,6 +183,9 @@ pub enum GenerateResponseError {
 
     #[error("Error rendering template after context shift: {0}")]
     Render(#[from] RenderError),
+
+    #[error("Error syncing context after context shift: {0}")]
+    ReadError(#[from] ContextSyncError),
 
     #[error("Error during context shift: {0}")]
     Shift(#[from] ShiftError),
@@ -239,7 +251,20 @@ pub enum ShiftError {
     KVCacheUpdate(#[from] ReadError),
 }
 
-// ChatState errors
+#[derive(Debug, thiserror::Error)]
+pub enum ContextSyncError {
+    #[error("Error removing tokens from context {0}")]
+    KvCacheConversionError(#[from] KvCacheConversionError),
+
+    #[error("Could not tokenize template render {0}")]
+    StringToToken(#[from] llama_cpp_2::StringToTokenError),
+
+    #[error("Could not render messages {0}")]
+    TemplateRender(#[from] RenderError),
+
+    #[error("Error reading token render into model {0}")]
+    KVCacheUpdate(#[from] ReadError),
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum RenderError {
@@ -251,7 +276,7 @@ pub enum RenderError {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum FromModelError {
+pub enum SelectTemplateError {
     #[error("Lama.cpp failed fetching chat template from the model file. This is likely because you're using an older GGUF file, which might not include a chat template. For example, this is the case for most LLaMA2-based GGUF files. Try using a more recent GGUF model file. If you want to check if a given model includes a chat template, you can use the gguf-dump script from llama.cpp. Here is a more technical detailed error: {0}")]
     ChatTemplate(#[from] llama_cpp_2::ChatTemplateError),
 
@@ -263,6 +288,16 @@ pub enum FromModelError {
 
     #[error("Tools were provided, but it looks like this model doesn't support tool calling.")]
     NoToolTemplate,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum SetToolsError {
+    #[error("Failed syncing context to include the new tools: {0}")]
+    ContextSync(#[from] ContextSyncError),
+    #[error("Failed selecting chat template for the new tools: {0}")]
+    SelectTemplate(#[from] SelectTemplateError),
+    #[error("Failed rendering chat template with the new tools: {0}")]
+    Render(#[from] RenderError),
 }
 
 #[derive(Debug, thiserror::Error)]
