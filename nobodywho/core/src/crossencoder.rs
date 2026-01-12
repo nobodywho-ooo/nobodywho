@@ -51,8 +51,12 @@ impl CrossEncoderAsync {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
 
         std::thread::spawn(move || {
-            let Ok(mut worker_state) = Worker::new_crossencoder_worker(&model, n_ctx) else {
-                return error!("Could not set up the worker initial state");
+            let worker = Worker::new_crossencoder_worker(&model, n_ctx);
+            let mut worker_state = match worker {
+                Ok(worker_state) => worker_state,
+                Err(errmsg) => {
+                    return error!("Could not set up the worker initial state: {errmsg}")
+                }
             };
 
             while let Ok(msg) = msg_rx.recv() {
