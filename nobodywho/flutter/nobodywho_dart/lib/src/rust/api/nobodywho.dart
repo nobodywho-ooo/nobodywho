@@ -25,6 +25,41 @@ void initDebugLog() => RustLib.instance.api.crateApiNobodywhoInitDebugLog();
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CompletionError>>
 abstract class CompletionError implements RustOpaqueInterface {}
 
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CrossEncoder>>
+abstract class CrossEncoder implements RustOpaqueInterface {
+  factory CrossEncoder({required NobodyWhoModel model, int nCtx = 4096}) =>
+      RustLib.instance.api.crateApiNobodywhoCrossEncoderNew(
+        model: model,
+        nCtx: nCtx,
+      );
+
+  Future<Float32List> rank({
+    required String query,
+    required List<String> documents,
+  });
+
+  Future<List<(String, double)>> rankAndSort({
+    required String query,
+    required List<String> documents,
+  });
+}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CrossEncoderWorkerError>>
+abstract class CrossEncoderWorkerError implements RustOpaqueInterface {}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Encoder>>
+abstract class Encoder implements RustOpaqueInterface {
+  Future<Float32List> encode({required String text});
+
+  factory Encoder({required NobodyWhoModel model, int nCtx = 4096}) => RustLib
+      .instance
+      .api
+      .crateApiNobodywhoEncoderNew(model: model, nCtx: nCtx);
+}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< EncoderWorkerError>>
+abstract class EncoderWorkerError implements RustOpaqueInterface {}
+
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< GetterError>>
 abstract class GetterError implements RustOpaqueInterface {}
 
