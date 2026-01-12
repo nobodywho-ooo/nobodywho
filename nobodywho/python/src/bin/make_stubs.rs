@@ -25,6 +25,17 @@ const TYPEVARS_TO_INJECT: &[(&str, &str)] = &[(
     "typing.TypeVar('T', str, typing.Awaitable[str])  # Type variable for tool return types (sync str or async Awaitable[str])",
 )];
 
+const GENERIC_TYPE_REPLACEMENTS: &[(&str, &str)] = &[
+    (
+        "class Tool:",
+        "class Tool(typing.Generic[T]):",
+    ),
+    (
+        "typing.Callable[[typing.Callable[..., T]], Tool]",
+        "typing.Callable[[typing.Callable[..., T]], Tool[T]]",
+    ),
+];
+
 fn replace_exceptions(mut contents: String) -> String {
     for (pattern, replacement) in EXCEPTIONS_TO_REPLACE {
         contents = contents.replace(pattern, replacement);
@@ -32,7 +43,12 @@ fn replace_exceptions(mut contents: String) -> String {
     contents
 }
 
-fn inject_typevars(contents: String) -> String {
+fn inject_typevars(mut contents: String) -> String {
+    // First apply generic type replacements
+    for (pattern, replacement) in GENERIC_TYPE_REPLACEMENTS {
+        contents = contents.replace(pattern, replacement);
+    }
+
     // Find the last import statement and inject TypeVar definitions after it
     let lines: Vec<&str> = contents.lines().collect();
     let mut result = Vec::new();
