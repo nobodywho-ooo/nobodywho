@@ -2,7 +2,7 @@
 // TODO ^ kind a sucks that we need this high a timeout
 //      the issue is mostly that the llvmpipe stuff we're doing inside nix sandbox is slow as hell
 
-import 'package:nobodywho_dart/nobodywho_dart.dart';
+import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
 import 'package:test/test.dart';
 import 'dart:io';
 
@@ -21,27 +21,27 @@ Future<String> strongify({required String text}) async {
 void main() {
   group('A group of tests', () {
     final modelPath = Platform.environment["TEST_MODEL"]!;
-    NobodyWhoChat? chat;
+    nobodywho.Chat? chat;
 
     setUpAll(() async {
-      await RustLib.init();
-      initDebugLog();
+      await nobodywho.RustLib.init();
+      nobodywho.initDebugLog();
     });
 
     setUp(() async {
       // Additional setup goes here.
-      final sparklify_tool = describeTool(
+      final sparklify_tool = nobodywho.describeTool(
         function: sparklify,
         name: "sparklify",
         description: "Applies the sparklify effect to a string"
       );
-      final strongify_tool = describeTool(
+      final strongify_tool = nobodywho.describeTool(
         function: strongify,
         name: "strongify",
         description: "Applies the strongify effect to a string"
       );
 
-      chat = NobodyWhoChat.fromPath(modelPath: modelPath, systemPrompt: "", contextSize: 1024, tools: [sparklify_tool, strongify_tool]);
+      chat = nobodywho.Chat.fromPath(modelPath: modelPath, systemPrompt: "", contextSize: 1024, tools: [sparklify_tool, strongify_tool]);
     });
 
     test('Capital of Denmark test', () async {
@@ -79,7 +79,7 @@ void main() {
     });
 
     test('Tools work with custom sampler', () async {
-      final sampler = SamplerBuilder().topP(topP: 0.9, minKeep: 20).temperature(temperature: 1.2).dist();
+      final sampler = nobodywho.SamplerBuilder().topP(topP: 0.9, minKeep: 20).temperature(temperature: 1.2).dist();
       await chat!.setSamplerConfig(samplerConfig: sampler);
       final response = await chat!.ask(message: "Can you please strongify the string 'Wrawr'?").completed();
 
@@ -87,7 +87,7 @@ void main() {
     });
 
     test('Tools work with sampler presets', () async {
-      final sampler = SamplerPresets.temperature(temperature: 1.2);
+      final sampler = nobodywho.SamplerPresets.temperature(temperature: 1.2);
       await chat!.setSamplerConfig(samplerConfig: sampler);
       final response = await chat!.ask(message: "Can you please strongify the string 'Wrawr'?").completed();
 
@@ -96,7 +96,7 @@ void main() {
 
     test('Sampler actually affects output', () async {
     // Test that greedy sampler gives deterministic output
-    final greedy = SamplerPresets.greedy();
+    final greedy = nobodywho.SamplerPresets.greedy();
     await chat!.setSamplerConfig(samplerConfig: greedy);
 
     final response1 = await chat!.ask(message: "Say exactly: 'Hello'").completed();

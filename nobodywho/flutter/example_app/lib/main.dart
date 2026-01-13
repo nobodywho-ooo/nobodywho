@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:nobodywho_flutter/nobodywho_flutter.dart';
+import 'package:nobodywho_flutter/nobodywho_flutter.dart' as nobodywho;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await RustLib.init();
+  await nobodywho.RustLib.init();
   runApp(const ChatApp());
 }
 
@@ -36,8 +36,8 @@ class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
-  NobodyWhoModel? _model;
-  NobodyWhoChat? _chat;
+  nobodywho.Model? _model;
+  nobodywho.Chat? _chat;
   bool _isModelLoaded = false;
   bool _isResponding = false;
 
@@ -61,13 +61,13 @@ class _ChatScreenState extends State<ChatScreen> {
   void _loadModel(String modelPath) {
     setState(() {
       // Initialize the NobodyWho model
-      _model = NobodyWhoModel(
+      _model = nobodywho.Model(
         modelPath: modelPath,
         useGpu: false,
       );
 
       // Create a chat instance with the model
-      _chat = NobodyWhoChat(
+      _chat = nobodywho.Chat(
         model: _model!,
         systemPrompt: "You are a helpful assistant",
         contextSize: 2048,
