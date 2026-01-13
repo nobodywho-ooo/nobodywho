@@ -7,7 +7,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'src/rust/api/nobodywho.dart';
 
-NobodyWhoTool describeTool({
+Tool describeTool({
   required Function function,
   required String name,
   required String description
