@@ -32,10 +32,10 @@ impl Chat {
     #[flutter_rust_bridge::frb(sync)]
     pub fn new(
         model: &Model,
-        #[frb(default = None)] system_prompt: Option<String>,
+        #[frb(default = "null")] system_prompt: Option<String>,
         #[frb(default = 4096)] context_size: u32,
-        #[frb(default = vec![])] tools: Vec<Tool>,
-        #[frb(default = None)] sampler: Option<SamplerConfig>,
+        #[frb(default = "const []")] tools: Vec<Tool>,
+        #[frb(default = "null")] sampler: Option<SamplerConfig>,
     ) -> Self {
         let sampler_config = sampler.map(|s| s.sampler_config).unwrap_or_default();
 
@@ -67,10 +67,10 @@ impl Chat {
     #[flutter_rust_bridge::frb(sync)]
     pub fn from_path(
         model_path: &str,
-        #[frb(default = None)] system_prompt: Option<String>,
+        #[frb(default = "null")] system_prompt: Option<String>,
         #[frb(default = 4096)] context_size: u32,
-        #[frb(default = vec![])] tools: Vec<Tool>,
-        #[frb(default = None)] sampler: Option<SamplerConfig>,
+        #[frb(default = "const []")] tools: Vec<Tool>,
+        #[frb(default = "null")] sampler: Option<SamplerConfig>,
         #[frb(default = true)] use_gpu: bool,
     ) -> Result<Self, String> {
         let model = nobodywho::llm::get_model(model_path, use_gpu).map_err(|e| e.to_string())?;

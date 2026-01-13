@@ -7,7 +7,6 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `dart_function_type_to_json_schema`, `sample_step`, `shift_step`
-// These functions have error during generation (see debug logs or enable `stop_on_error: true` for more details): `from_path`, `new`
 
 Tool newToolImpl({
   required FutureOr<String> Function(String) function,
@@ -27,7 +26,54 @@ void initDebugLog() => RustLib.instance.api.crateApiNobodywhoInitDebugLog();
 abstract class Chat implements RustOpaqueInterface {
   TokenStream ask({required String message});
 
+  /// Create chat directly from a model path.
+  ///
+  /// Args:
+  ///     model_path: Path to GGUF model file
+  ///     system_prompt: System message to guide the model's behavior
+  ///     context_size: Context size (maximum conversation length in tokens)
+  ///     tools: List of Tool instances the model can call
+  ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
+  ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
+  static Chat fromPath({
+    required String modelPath,
+    String? systemPrompt = null,
+    int contextSize = 4096,
+    List<Tool> tools = const [],
+    SamplerConfig? sampler = null,
+    bool useGpu = true,
+  }) => RustLib.instance.api.crateApiNobodywhoChatFromPath(
+    modelPath: modelPath,
+    systemPrompt: systemPrompt,
+    contextSize: contextSize,
+    tools: tools,
+    sampler: sampler,
+    useGpu: useGpu,
+  );
+
   Future<List<Message>> getChatHistory();
+
+  /// Create chat from existing model.
+  ///
+  /// Args:
+  ///     model: A Model instance
+  ///     system_prompt: System message to guide the model's behavior
+  ///     context_size: Context size (maximum conversation length in tokens)
+  ///     tools: List of Tool instances the model can call
+  ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
+  factory Chat({
+    required Model model,
+    String? systemPrompt = null,
+    int contextSize = 4096,
+    List<Tool> tools = const [],
+    SamplerConfig? sampler = null,
+  }) => RustLib.instance.api.crateApiNobodywhoChatNew(
+    model: model,
+    systemPrompt: systemPrompt,
+    contextSize: contextSize,
+    tools: tools,
+    sampler: sampler,
+  );
 
   Future<void> resetContext({
     required String systemPrompt,
