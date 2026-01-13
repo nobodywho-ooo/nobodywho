@@ -267,9 +267,10 @@ impl EncoderAsync {
     ///     RuntimeError: If encoding fails
     #[pyo3(signature = (text: "str") -> "typing.Awaitable[list[float]]")]
     async fn encode(&self, text: String) -> PyResult<Vec<f32>> {
-        let mut rx = self.encoder_handle.encode(text);
-        rx.recv().await.ok_or_else(|| {
-            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Failed to receive embedding")
+        self.encoder_handle.encode(text).await.map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                "Failed to receive embedding: {e}"
+            ))
         })
     }
 }
@@ -395,10 +396,14 @@ impl CrossEncoderAsync {
     ///     RuntimeError: If ranking fails
     #[pyo3(signature = (query: "str", documents: "list[str]") -> "typing.Awaitable[list[float]]")]
     async fn rank(&self, query: String, documents: Vec<String>) -> PyResult<Vec<f32>> {
-        let mut rx = self.crossencoder_handle.rank(query, documents);
-        rx.recv().await.ok_or_else(|| {
-            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Failed to receive ranking scores")
-        })
+        self.crossencoder_handle
+            .rank(query, documents)
+            .await
+            .map_err(|e| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                    "Failed to receive ranking scores: {e}"
+                ))
+            })
     }
 
     /// Rank documents by similarity to query and return them sorted asynchronously.
