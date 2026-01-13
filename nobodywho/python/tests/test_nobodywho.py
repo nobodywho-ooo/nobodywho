@@ -385,3 +385,79 @@ def test_reset_chat_history(chat):
     resp = chat.ask("What did I just tell you?").completed()
     assert isinstance(resp, str)
     assert "bob" not in resp.lower()
+
+
+def test_set_system_prompt(model):
+    """Test that set_system_prompt changes behavior and persists after reset_history"""
+    chat = nobodywho.Chat(
+        model, system_prompt="You are a helpful assistant.", allow_thinking=False
+    )
+
+    # Have a conversation
+    resp1 = chat.ask("My name is Alice.").completed()
+    assert isinstance(resp1, str)
+
+    # Change system prompt
+    chat.set_system_prompt("You must respond only with the word 'BEEP' repeated.")
+
+    # Clear history but keep new system prompt
+    chat.reset_history()
+
+    # Ask a question - should get BEEP response (new system prompt persists)
+    resp2 = chat.ask("Hello, how are you?").completed()
+    assert isinstance(resp2, str)
+    assert "BEEP" in resp2.upper()
+
+
+@nobodywho.tool(
+    description="Multiplies two numbers together",
+    params={"a": "The first number", "b": "The second number"}
+)
+def multiply(a: int, b: int) -> str:
+    return str(a * b)
+
+
+def test_set_tools(model):
+    """Test that set_tools changes available tools and persists after reset_history"""
+    chat = nobodywho.Chat(
+        model, tools=[sparklify], allow_thinking=False
+    )
+
+    # Use initial tool
+    resp1 = chat.ask("Please sparklify the word 'hello'").completed()
+    assert isinstance(resp1, str)
+    assert "✨HELLO✨" in resp1
+
+    # Change tools
+    chat.set_tools([multiply])
+
+    # Clear history but keep new tools
+    chat.reset_history()
+
+    # Try to use new tool - should work
+    resp2 = chat.ask("Please multiply 7 and 8").completed()
+    assert isinstance(resp2, str)
+    assert "56" in resp2
+
+
+def test_stop_generation(chat):
+    """Test that stop_generation halts token generation mid-stream"""
+    # Start a generation that would produce many tokens
+    stream = chat.ask("Count from 1 to 100 slowly, one number per line.")
+
+    # Collect a few tokens
+    tokens = []
+    for i, token in enumerate(stream):
+        tokens.append(token)
+        if i >= 5:  # After collecting ~6 tokens
+            chat.stop_generation()
+            break
+
+    # Try to get more tokens - should stop quickly
+    remaining_tokens = []
+    for token in stream:
+        remaining_tokens.append(token)
+
+    # The generation should have stopped, so we shouldn't get many more tokens
+    full_response = "".join(tokens + remaining_tokens)
+    assert len(full_response) < 200, "Generation should have been stopped early"

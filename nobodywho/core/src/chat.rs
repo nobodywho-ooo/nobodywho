@@ -381,7 +381,7 @@ impl ChatHandle {
             .store(true, std::sync::atomic::Ordering::Relaxed);
     }
 
-    /// Get a receiver for the chat history (lower-level API).
+    /// Get the chat history without the system prompt (lower-level API).
     pub fn get_chat_history(&self) -> Result<Vec<Message>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         let _ = self.msg_tx.send(ChatMsg::GetChatHistory { output_tx });
@@ -403,6 +403,20 @@ impl ChatHandle {
         })
         .ok_or(crate::errors::SetterError::SetterError(
             "set_chat_history".into(),
+        ))
+    }
+
+    /// Set the system prompt
+    pub fn set_system_prompt(
+        &self,
+        system_prompt: String,
+    ) -> Result<(), crate::errors::SetterError> {
+        self.set_and_wait_blocking(|output_tx| ChatMsg::SetSystemPrompt {
+            system_prompt,
+            output_tx,
+        })
+        .ok_or(crate::errors::SetterError::SetterError(
+            "set_system_prompt".into(),
         ))
     }
 }
@@ -558,7 +572,7 @@ impl ChatHandleAsync {
             .store(true, std::sync::atomic::Ordering::Relaxed);
     }
 
-    /// Get a receiver for the chat history (lower-level API).
+    /// Get the chat history without the system prompt (lower-level API).
     pub async fn get_chat_history(&self) -> Result<Vec<Message>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         let _ = self.msg_tx.send(ChatMsg::GetChatHistory { output_tx });
@@ -582,6 +596,21 @@ impl ChatHandleAsync {
         .await
         .ok_or(crate::errors::SetterError::SetterError(
             "set_chat_history".into(),
+        ))
+    }
+
+    /// Set the system prompt
+    pub async fn set_system_prompt(
+        &self,
+        system_prompt: String,
+    ) -> Result<(), crate::errors::SetterError> {
+        self.set_and_wait_async(|output_tx| ChatMsg::SetSystemPrompt {
+            system_prompt,
+            output_tx,
+        })
+        .await
+        .ok_or(crate::errors::SetterError::SetterError(
+            "set_system_prompt".into(),
         ))
     }
 }
@@ -703,6 +732,10 @@ enum ChatMsg {
         tools: Vec<Tool>,
         output_tx: tokio::sync::mpsc::Sender<()>,
     },
+    SetSystemPrompt {
+        system_prompt: String,
+        output_tx: tokio::sync::mpsc::Sender<()>,
+    },
     SetThinking {
         allow_thinking: bool,
         output_tx: tokio::sync::mpsc::Sender<()>,
@@ -742,6 +775,13 @@ fn process_worker_msg(
         }
         ChatMsg::SetTools { tools, output_tx } => {
             worker_state.set_tools(tools)?;
+            let _ = output_tx.blocking_send(());
+        }
+        ChatMsg::SetSystemPrompt {
+            system_prompt,
+            output_tx,
+        } => {
+            worker_state.set_system_prompt(system_prompt)?;
             let _ = output_tx.blocking_send(());
         }
         ChatMsg::SetThinking {
@@ -1637,6 +1677,29 @@ impl Worker<'_, ChatWorker> {
         self.extra.sampler_config = sampler_config;
     }
 
+    pub fn set_system_prompt(&mut self, system_prompt: String) -> Result<(), ContextSyncError> {
+        let system_message = Message::Message {
+            role: Role::System,
+            content: system_prompt,
+        };
+        if self.extra.messages.is_empty() {
+            self.extra.messages.push(system_message);
+        } else if *self.extra.messages[0].role() == Role::System {
+            self.extra.messages[0] = system_message;
+        } else {
+            self.extra.messages.insert(0, system_message);
+        }
+
+        // Reuse cached prefix
+
+        let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
+        let inference_lock_token = _gil_guard.unwrap();
+        let rendered_tokens = self.get_render_as_tokens()?;
+        self.sync_context_with_render(rendered_tokens, &inference_lock_token)?;
+
+        Ok(())
+    }
+
     pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), SetToolsError> {
         self.extra.tool_grammar = if !tools.is_empty() {
             grammar_from_tools(&tools).ok()
@@ -2054,6 +2117,26 @@ mod tests {
         println!("{}", result);
         assert!(result.contains("13.37"));
         assert!(result.contains("0.15"));
+    }
+
+    #[test]
+    fn test_set_system_prompt() {
+        let model = test_utils::load_test_model();
+
+        let chat = ChatBuilder::new(model)
+            .with_context_size(2048)
+            .with_system_prompt("You are a dog. End all responses with woof.")
+            .build();
+
+        let dog_response = chat.ask("Hello!").completed().unwrap();
+
+        assert!(dog_response.contains("woof"));
+
+        chat.set_system_prompt("You are a cat. End all responses with meow.".into())
+            .unwrap();
+        let cat_response = chat.ask("Hello again!").completed().unwrap();
+
+        assert!(cat_response.contains("meow"))
     }
 
     #[test]
