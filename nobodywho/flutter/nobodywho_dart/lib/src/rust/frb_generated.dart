@@ -64,7 +64,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -1221111470;
+  int get rustContentHash => 633110446;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -260,6 +260,10 @@ abstract class RustLibApi extends BaseApi {
   });
 
   Stream<String> crateApiNobodywhoTokenStreamIter({required TokenStream that});
+
+  Future<String?> crateApiNobodywhoTokenStreamNextToken({
+    required TokenStream that,
+  });
 
   double crateApiNobodywhoCosineSimilarity({
     required List<double> a,
@@ -1800,6 +1804,42 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<String?> crateApiNobodywhoTokenStreamNextToken({
+    required TokenStream that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTokenStream(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 40,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiNobodywhoTokenStreamNextTokenConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoTokenStreamNextTokenConstMeta =>
+      const TaskConstMeta(
+        debugName: "TokenStream_next_token",
+        argNames: ["that"],
+      );
+
+  @override
   double crateApiNobodywhoCosineSimilarity({
     required List<double> a,
     required List<double> b,
@@ -1810,7 +1850,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_prim_f_32_loose(a, serializer);
           sse_encode_list_prim_f_32_loose(b, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 40)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 41)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_f_32,
@@ -1832,7 +1872,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 41)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 42)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -1866,7 +1906,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(name, serializer);
           sse_encode_String(description, serializer);
           sse_encode_String(runtimeType, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 42)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 43)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -4531,6 +4571,9 @@ class TokenStreamImpl extends RustOpaque implements TokenStream {
 
   Stream<String> iter() =>
       RustLib.instance.api.crateApiNobodywhoTokenStreamIter(that: this);
+
+  Future<String?> nextToken() =>
+      RustLib.instance.api.crateApiNobodywhoTokenStreamNextToken(that: this);
 }
 
 @sealed

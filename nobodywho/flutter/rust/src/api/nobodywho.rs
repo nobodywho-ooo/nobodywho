@@ -159,6 +159,10 @@ impl TokenStream {
         Ok(())
     }
 
+    pub async fn next_token(&mut self) -> Option<String> {
+        self.stream.next_token().await
+    }
+
     pub async fn completed(&mut self) -> Result<String, nobodywho::errors::CompletionError> {
         self.stream.completed().await
     }
