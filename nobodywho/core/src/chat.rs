@@ -406,7 +406,31 @@ impl ChatHandle {
         ))
     }
 
-    /// Set the system prompt
+    /// Update the system prompt without resetting chat history.
+    ///
+    /// This modifies the system message while preserving the conversation history.
+    /// If no system prompt exists, it will be added. If one exists, it will be replaced.
+    /// The model context is re-synchronized after the change, reusing the KV cache where possible.
+    ///
+    /// # Arguments
+    ///
+    /// * `system_prompt` - New system message to guide the model's behavior
+    ///
+    /// # Errors
+    ///
+    /// Returns `SetterError` if the system prompt cannot be changed or if context
+    /// synchronization fails.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use nobodywho::chat::ChatBuilder;
+    /// # use nobodywho::llm::get_model;
+    /// # let model = get_model("model.gguf", true).unwrap();
+    /// # let chat = ChatBuilder::new(model).build();
+    /// chat.set_system_prompt("You are a helpful coding assistant.".to_string())?;
+    /// # Ok::<(), nobodywho::errors::SetterError>(())
+    /// ```
     pub fn set_system_prompt(
         &self,
         system_prompt: String,
@@ -599,7 +623,31 @@ impl ChatHandleAsync {
         ))
     }
 
-    /// Set the system prompt
+    /// Update the system prompt without resetting chat history.
+    ///
+    /// This modifies the system message while preserving the conversation history.
+    /// If no system prompt exists, it will be added. If one exists, it will be replaced.
+    /// The model context is re-synchronized after the change, reusing the KV cache where possible.
+    ///
+    /// # Arguments
+    ///
+    /// * `system_prompt` - New system message to guide the model's behavior
+    ///
+    /// # Errors
+    ///
+    /// Returns `SetterError` if the system prompt cannot be changed or if context
+    /// synchronization fails.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use nobodywho::chat::ChatBuilder;
+    /// # use nobodywho::llm::get_model;
+    /// # let model = get_model("model.gguf", true).unwrap();
+    /// # let chat = ChatBuilder::new(model).build_async();
+    /// chat.set_system_prompt("You are a helpful coding assistant.".to_string()).await?;
+    /// # Ok::<(), nobodywho::errors::SetterError>(())
+    /// ```
     pub async fn set_system_prompt(
         &self,
         system_prompt: String,
@@ -1710,9 +1758,6 @@ impl Worker<'_, ChatWorker> {
 
         self.extra.chat_template = select_template(self.ctx.model, !self.extra.tools.is_empty())?;
 
-        self.reset_context();
-        self.extra.tokens_in_context = vec![];
-
         // Reuse cached prefix
 
         let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
@@ -2136,7 +2181,7 @@ mod tests {
             .unwrap();
         let cat_response = chat.ask("Hello again!").completed().unwrap();
 
-        assert!(cat_response.contains("meow"))
+        assert!(cat_response.contains("meow"));
     }
 
     #[test]

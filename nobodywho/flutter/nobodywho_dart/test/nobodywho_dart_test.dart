@@ -41,7 +41,7 @@ void main() {
         description: "Applies the strongify effect to a string"
       );
 
-      chat = nobodywho.Chat.fromPath(modelPath: modelPath, systemPrompt: "", contextSize: 1024, tools: [sparklify_tool, strongify_tool]);
+      chat = nobodywho.Chat.fromPath(modelPath: modelPath, systemPrompt: "", contextSize: 1024, allowThinking: false, tools: [sparklify_tool, strongify_tool]);
     });
 
     test('Capital of Denmark test', () async {
@@ -149,6 +149,7 @@ void main() {
         modelPath: modelPath,
         systemPrompt: "",
         contextSize: 1024,
+        allowThinking: false,
         tools: [sparklify_tool]
       );
 

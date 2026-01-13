@@ -124,6 +124,7 @@ fn wire__crate__api__nobodywho__Chat_from_path_impl(
             let api_model_path = <String>::sse_decode(&mut deserializer);
             let api_system_prompt = <Option<String>>::sse_decode(&mut deserializer);
             let api_context_size = <u32>::sse_decode(&mut deserializer);
+            let api_allow_thinking = <bool>::sse_decode(&mut deserializer);
             let api_tools = <Vec<Tool>>::sse_decode(&mut deserializer);
             let api_sampler = <Option<SamplerConfig>>::sse_decode(&mut deserializer);
             let api_use_gpu = <bool>::sse_decode(&mut deserializer);
@@ -133,6 +134,7 @@ fn wire__crate__api__nobodywho__Chat_from_path_impl(
                     &api_model_path,
                     api_system_prompt,
                     api_context_size,
+                    api_allow_thinking,
                     api_tools,
                     api_sampler,
                     api_use_gpu,
@@ -224,6 +226,7 @@ fn wire__crate__api__nobodywho__Chat_new_impl(
             >>::sse_decode(&mut deserializer);
             let api_system_prompt = <Option<String>>::sse_decode(&mut deserializer);
             let api_context_size = <u32>::sse_decode(&mut deserializer);
+            let api_allow_thinking = <bool>::sse_decode(&mut deserializer);
             let api_tools = <Vec<Tool>>::sse_decode(&mut deserializer);
             let api_sampler = <Option<SamplerConfig>>::sse_decode(&mut deserializer);
             deserializer.end();
@@ -246,6 +249,7 @@ fn wire__crate__api__nobodywho__Chat_new_impl(
                     &*api_model_guard,
                     api_system_prompt,
                     api_context_size,
+                    api_allow_thinking,
                     api_tools,
                     api_sampler,
                 ))?;

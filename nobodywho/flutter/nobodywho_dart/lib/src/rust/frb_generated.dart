@@ -84,6 +84,7 @@ abstract class RustLibApi extends BaseApi {
     required String modelPath,
     String? systemPrompt = null,
     int contextSize = 4096,
+    bool allowThinking = true,
     List<Tool> tools = const [],
     SamplerConfig? sampler = null,
     bool useGpu = true,
@@ -97,6 +98,7 @@ abstract class RustLibApi extends BaseApi {
     required Model model,
     String? systemPrompt = null,
     int contextSize = 4096,
+    bool allowThinking = true,
     List<Tool> tools = const [],
     SamplerConfig? sampler = null,
   });
@@ -461,6 +463,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required String modelPath,
     String? systemPrompt = null,
     int contextSize = 4096,
+    bool allowThinking = true,
     List<Tool> tools = const [],
     SamplerConfig? sampler = null,
     bool useGpu = true,
@@ -472,6 +475,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(modelPath, serializer);
           sse_encode_opt_String(systemPrompt, serializer);
           sse_encode_u_32(contextSize, serializer);
+          sse_encode_bool(allowThinking, serializer);
           sse_encode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTool(
             tools,
             serializer,
@@ -493,6 +497,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           modelPath,
           systemPrompt,
           contextSize,
+          allowThinking,
           tools,
           sampler,
           useGpu,
@@ -509,6 +514,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           "modelPath",
           "systemPrompt",
           "contextSize",
+          "allowThinking",
           "tools",
           "sampler",
           "useGpu",
@@ -558,6 +564,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required Model model,
     String? systemPrompt = null,
     int contextSize = 4096,
+    bool allowThinking = true,
     List<Tool> tools = const [],
     SamplerConfig? sampler = null,
   }) {
@@ -571,6 +578,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
           sse_encode_opt_String(systemPrompt, serializer);
           sse_encode_u_32(contextSize, serializer);
+          sse_encode_bool(allowThinking, serializer);
           sse_encode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTool(
             tools,
             serializer,
@@ -587,7 +595,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: null,
         ),
         constMeta: kCrateApiNobodywhoChatNewConstMeta,
-        argValues: [model, systemPrompt, contextSize, tools, sampler],
+        argValues: [
+          model,
+          systemPrompt,
+          contextSize,
+          allowThinking,
+          tools,
+          sampler,
+        ],
         apiImpl: this,
       ),
     );
@@ -595,7 +610,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiNobodywhoChatNewConstMeta => const TaskConstMeta(
     debugName: "Chat_new",
-    argNames: ["model", "systemPrompt", "contextSize", "tools", "sampler"],
+    argNames: [
+      "model",
+      "systemPrompt",
+      "contextSize",
+      "allowThinking",
+      "tools",
+      "sampler",
+    ],
   );
 
   @override
