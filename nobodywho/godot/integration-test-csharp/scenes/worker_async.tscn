@@ -1,0 +1,24 @@
+[gd_scene load_steps=2 format=3 uid="uid://bpaaujywl0c14"]
+
+[ext_resource type="Script" uid="uid://b8my7rs4m06qn" path="res://scripts/WorkerAsync.cs" id="1_0drxe"]
+
+[node name="WorkerAsync" type="Node"]
+script = ExtResource("1_0drxe")
+
+[node name="NobodyWhoChat1" type="NobodyWhoChat" parent="." node_paths=PackedStringArray("model_node")]
+model_node = NodePath("../NobodyWhoModel1")
+
+[node name="NobodyWhoModel1" type="NobodyWhoModel" parent="."]
+model_path = "res://Qwen_Qwen3-0.6B-Q4_0.gguf"
+
+[node name="NobodyWhoChat2" type="NobodyWhoChat" parent="." node_paths=PackedStringArray("model_node")]
+model_node = NodePath("../NobodyWhoModel2")
+
+[node name="NobodyWhoModel2" type="NobodyWhoModel" parent="."]
+model_path = "res://Qwen_Qwen3-0.6B-Q4_0.gguf"
+
+[node name="NobodyWhoChat3" type="NobodyWhoChat" parent="." node_paths=PackedStringArray("model_node")]
+model_node = NodePath("../NobodyWhoModel3")
+
+[node name="NobodyWhoModel3" type="NobodyWhoModel" parent="."]
+model_path = "res://Qwen_Qwen3-0.6B-Q4_0.gguf"
