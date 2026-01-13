@@ -2,7 +2,6 @@
 members = [
     "core",
     "godot",
-    "unity",
     "flutter/rust",
     "python",
 ]

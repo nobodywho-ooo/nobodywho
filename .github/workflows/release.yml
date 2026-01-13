@@ -32,72 +32,6 @@ jobs:
             name: nobodywho-godot-all-platforms
             path: ./nobodywho-release
 
-  unity-distributable:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Create Unity package output directory
-        run: mkdir -p ./nobodywho-release/
-
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: ./artifacts
-
-      - name: Prepare Unity package
-        run: | 
-          # copy the all (integration:platform:profile) where integration is unity and platform is any and profile is releasiles to the package directory
-          # so we end with a structure like this:
-          # Runtime/
-          #   Plugins/
-          #     "x86_64-unknown-linux-gnu"/
-          #       libnobodywho_unity.so
-          #       libnobodywho_unity.so.meta
-          #     "x86_64-apple-darwin"/
-          #       libnobodywho_unity.dylib
-          #       libnobodywho_unity.dylib.meta
-          #     "aarch64-apple-darwin"/
-          #       libnobodywho_unity.dylib
-          #       libnobodywho_unity.dylib.meta
-          #     "x86_64-pc-windows-msvc"/
-          #       nobodywho_unity.dll
-          #       nobodywho_unity.pdb
-          
-          mkdir -p ./nobodywho/unity/src/Runtime/Plugins/{x86_64-unknown-linux-gnu,x86_64-apple-darwin,aarch64-apple-darwin,x86_64-pc-windows-msvc}
-
-          mv ./artifacts/nobodywho-unity-x86_64-unknown-linux-gnu-release/nobodywho-unity-x86_64-unknown-linux-gnu-release.so ./nobodywho/unity/src/Runtime/Plugins/x86_64-unknown-linux-gnu/libnobodywho_unity.so
-          
-          mv ./artifacts/nobodywho-unity-x86_64-apple-darwin-release/nobodywho-unity-x86_64-apple-darwin-release.dylib ./nobodywho/unity/src/Runtime/Plugins/x86_64-apple-darwin/libnobodywho_unity.dylib
-          mv ./artifacts/nobodywho-unity-aarch64-apple-darwin-release/nobodywho-unity-aarch64-apple-darwin-release.dylib ./nobodywho/unity/src/Runtime/Plugins/aarch64-apple-darwin/libnobodywho_unity.dylib
-
-          # copy .pdb for windows as well
-          mv ./artifacts/nobodywho-unity-x86_64-pc-windows-msvc-release/nobodywho-unity-x86_64-pc-windows-msvc-release.dll ./nobodywho/unity/src/Runtime/Plugins/x86_64-pc-windows-msvc/nobodywho_unity.dll
-          mv ./artifacts/nobodywho-unity-x86_64-pc-windows-msvc-release/nobodywho-unity-x86_64-pc-windows-msvc-release.pdb ./nobodywho/unity/src/Runtime/Plugins/x86_64-pc-windows-msvc/nobodywho_unity.pdb 
-
-          # This is required for the package to be added to the package manager (Packages is just an accepted unity-project path )
-          mkdir -p dist/package
-          mv ./nobodywho/unity/src/* dist/package
-          # remove tests from package
-          rm -rf dist/package/Tests
-
-      - name: Test .meta-files # this just ensures that there are actually .meta files for all of our relevant files. 
-        uses: natsuneko-laboratory/create-unitypackage@v3
-        with:
-          root: dist/
-          files-glob: "dist/package/**/*.{cs,meta,unity,rtf,rtf.meta,dll,dylib,pdb,so,asmdef}"
-          dest: ./nobodywho.unitypackage
-
-      - name: Create Unity Package
-        working-directory: ./dist
-        run: tar -czf "../nobodywho-unity-upm.tgz"  "package"
-
-      - name: Upload Unity UPM Tarball Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: nobodywho-unity-upm-tarball
-          path: ./nobodywho-unity-upm.tgz
-
   create-github-release-godot:
     needs: [godot-distributable]
     if: startsWith(github.ref, 'refs/tags/nobodywho-godot-')
@@ -119,26 +53,6 @@ jobs:
           files: "./nobodywho-godot-${{ github.ref_name }}.zip"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  create-github-release-unity:
-    needs: [unity-distributable]
-    if: startsWith(github.ref, 'refs/tags/nobodywho-unity-')
-    runs-on: ubuntu-24.04
-    steps:
-      - name: "Download Unity Package"
-        uses: actions/download-artifact@v4
-        with:
-          name: nobodywho-unity-upm-tarball
-          path: ./nobodywho-unity-release
-
-      - name: "Create GitHub Release"
-        uses: softprops/action-gh-release@v1
-        with:
-          files: ./nobodywho-unity-release/nobodywho-unity-upm.tgz
-
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
 
   test-publish-wheels:
       runs-on: ubuntu-latest

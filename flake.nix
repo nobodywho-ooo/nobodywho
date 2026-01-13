@@ -27,12 +27,6 @@
           import nixpkgs {
             inherit system;
             config = {
-              allowUnfreePredicate =
-                pkg:
-                builtins.elem (pkgs.lib.getName pkg) [
-                  "unityhub"
-                  "corefonts"
-                ]; # allow unfree unityhub
               android_sdk.accept_license = true;
             };
           }
