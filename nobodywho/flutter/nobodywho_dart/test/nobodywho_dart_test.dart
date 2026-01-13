@@ -136,5 +136,41 @@ void main() {
       final oppositeSim = nobodywho.cosineSimilarity(a : opposite1, b : opposite2);
       expect(oppositeSim, closeTo(-1.0, 0.001));
     });
+
+    test('set_tools changes available tools', () async {
+      // Create a chat with only sparklify tool
+      final sparklify_tool = nobodywho.describeTool(
+        function: sparklify,
+        name: "sparklify",
+        description: "Applies the sparklify effect to a string"
+      );
+
+      final testChat = nobodywho.Chat.fromPath(
+        modelPath: modelPath,
+        systemPrompt: "",
+        contextSize: 1024,
+        tools: [sparklify_tool]
+      );
+
+      // Verify sparklify tool works
+      final response1 = await testChat.ask(message: "Please sparklify the word 'hello'").completed();
+      expect(response1, contains("✨hello✨"));
+
+      // Change tools to strongify
+      final strongify_tool = nobodywho.describeTool(
+        function: strongify,
+        name: "strongify",
+        description: "Applies the strongify effect to a string"
+      );
+
+      await testChat.setTools(tools: [strongify_tool]);
+
+      // Reset history but keep new tools
+      await testChat.resetHistory();
+
+      // Verify strongify tool now works
+      final response2 = await testChat.ask(message: "Please strongify the word 'test'").completed();
+      expect(response2, contains("WOW test WOW"));
+    });
   });
 }

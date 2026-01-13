@@ -141,6 +141,27 @@ impl Chat {
     ) -> Result<(), nobodywho::errors::SetterError> {
         self.chat.set_allow_thinking(allow_thinking).await
     }
+
+    pub async fn set_system_prompt(
+        &self,
+        system_prompt: String,
+    ) -> Result<(), nobodywho::errors::SetterError> {
+        self.chat.set_system_prompt(system_prompt).await
+    }
+
+    pub async fn set_tools(
+        &self,
+        tools: Vec<Tool>,
+    ) -> Result<(), nobodywho::errors::SetterError> {
+        self.chat
+            .set_tools(tools.into_iter().map(|t| t.tool).collect())
+            .await
+    }
+
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn stop_generation(&self) {
+        self.chat.stop_generation()
+    }
 }
 
 #[flutter_rust_bridge::frb(opaque)]

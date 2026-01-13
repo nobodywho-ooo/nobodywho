@@ -42,7 +42,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 633110446;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1249156275;
 
 // Section: executor
 
@@ -549,6 +549,172 @@ fn wire__crate__api__nobodywho__Chat_set_sampler_config_impl(
                     .await,
                 )
             }
+        },
+    )
+}
+fn wire__crate__api__nobodywho__Chat_set_system_prompt_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "Chat_set_system_prompt",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Chat>,
+            >>::sse_decode(&mut deserializer);
+            let api_system_prompt = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, SetterError>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok = crate::api::nobodywho::Chat::set_system_prompt(
+                            &*api_that_guard,
+                            api_system_prompt,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__nobodywho__Chat_set_tools_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "Chat_set_tools",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Chat>,
+            >>::sse_decode(&mut deserializer);
+            let api_tools = <Vec<Tool>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, SetterError>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok =
+                            crate::api::nobodywho::Chat::set_tools(&*api_that_guard, api_tools)
+                                .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__nobodywho__Chat_stop_generation_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "Chat_stop_generation",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Chat>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let mut api_that_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_that, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
+                    }
+                }
+                let api_that_guard = api_that_guard.unwrap();
+                let output_ok = Result::<_, ()>::Ok({
+                    crate::api::nobodywho::Chat::stop_generation(&*api_that_guard);
+                })?;
+                Ok(output_ok)
+            })())
         },
     )
 }
@@ -2696,24 +2862,31 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        11 => {
+        10 => wire__crate__api__nobodywho__Chat_set_system_prompt_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        11 => wire__crate__api__nobodywho__Chat_set_tools_impl(port, ptr, rust_vec_len, data_len),
+        14 => {
             wire__crate__api__nobodywho__CrossEncoder_rank_impl(port, ptr, rust_vec_len, data_len)
         }
-        12 => wire__crate__api__nobodywho__CrossEncoder_rank_and_sort_impl(
+        15 => wire__crate__api__nobodywho__CrossEncoder_rank_and_sort_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        13 => wire__crate__api__nobodywho__Encoder_encode_impl(port, ptr, rust_vec_len, data_len),
-        38 => wire__crate__api__nobodywho__TokenStream_completed_impl(
+        16 => wire__crate__api__nobodywho__Encoder_encode_impl(port, ptr, rust_vec_len, data_len),
+        41 => wire__crate__api__nobodywho__TokenStream_completed_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        39 => wire__crate__api__nobodywho__TokenStream_iter_impl(port, ptr, rust_vec_len, data_len),
-        40 => wire__crate__api__nobodywho__TokenStream_next_token_impl(
+        42 => wire__crate__api__nobodywho__TokenStream_iter_impl(port, ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__nobodywho__TokenStream_next_token_impl(
             port,
             ptr,
             rust_vec_len,
@@ -2734,58 +2907,59 @@ fn pde_ffi_dispatcher_sync_impl(
         1 => wire__crate__api__nobodywho__Chat_ask_impl(ptr, rust_vec_len, data_len),
         2 => wire__crate__api__nobodywho__Chat_from_path_impl(ptr, rust_vec_len, data_len),
         4 => wire__crate__api__nobodywho__Chat_new_impl(ptr, rust_vec_len, data_len),
-        10 => wire__crate__api__nobodywho__CrossEncoder_new_impl(ptr, rust_vec_len, data_len),
-        14 => wire__crate__api__nobodywho__Encoder_new_impl(ptr, rust_vec_len, data_len),
-        15 => wire__crate__api__nobodywho__Model_new_impl(ptr, rust_vec_len, data_len),
-        16 => wire__crate__api__nobodywho__SamplerBuilder_dist_impl(ptr, rust_vec_len, data_len),
-        17 => wire__crate__api__nobodywho__SamplerBuilder_dry_impl(ptr, rust_vec_len, data_len),
-        18 => wire__crate__api__nobodywho__SamplerBuilder_grammar_impl(ptr, rust_vec_len, data_len),
-        19 => wire__crate__api__nobodywho__SamplerBuilder_greedy_impl(ptr, rust_vec_len, data_len),
-        20 => wire__crate__api__nobodywho__SamplerBuilder_min_p_impl(ptr, rust_vec_len, data_len),
-        21 => wire__crate__api__nobodywho__SamplerBuilder_mirostat_v1_impl(
+        12 => wire__crate__api__nobodywho__Chat_stop_generation_impl(ptr, rust_vec_len, data_len),
+        13 => wire__crate__api__nobodywho__CrossEncoder_new_impl(ptr, rust_vec_len, data_len),
+        17 => wire__crate__api__nobodywho__Encoder_new_impl(ptr, rust_vec_len, data_len),
+        18 => wire__crate__api__nobodywho__Model_new_impl(ptr, rust_vec_len, data_len),
+        19 => wire__crate__api__nobodywho__SamplerBuilder_dist_impl(ptr, rust_vec_len, data_len),
+        20 => wire__crate__api__nobodywho__SamplerBuilder_dry_impl(ptr, rust_vec_len, data_len),
+        21 => wire__crate__api__nobodywho__SamplerBuilder_grammar_impl(ptr, rust_vec_len, data_len),
+        22 => wire__crate__api__nobodywho__SamplerBuilder_greedy_impl(ptr, rust_vec_len, data_len),
+        23 => wire__crate__api__nobodywho__SamplerBuilder_min_p_impl(ptr, rust_vec_len, data_len),
+        24 => wire__crate__api__nobodywho__SamplerBuilder_mirostat_v1_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        22 => wire__crate__api__nobodywho__SamplerBuilder_mirostat_v2_impl(
+        25 => wire__crate__api__nobodywho__SamplerBuilder_mirostat_v2_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        23 => wire__crate__api__nobodywho__SamplerBuilder_new_impl(ptr, rust_vec_len, data_len),
-        24 => {
+        26 => wire__crate__api__nobodywho__SamplerBuilder_new_impl(ptr, rust_vec_len, data_len),
+        27 => {
             wire__crate__api__nobodywho__SamplerBuilder_penalties_impl(ptr, rust_vec_len, data_len)
         }
-        25 => wire__crate__api__nobodywho__SamplerBuilder_temperature_impl(
+        28 => wire__crate__api__nobodywho__SamplerBuilder_temperature_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        26 => wire__crate__api__nobodywho__SamplerBuilder_top_k_impl(ptr, rust_vec_len, data_len),
-        27 => wire__crate__api__nobodywho__SamplerBuilder_top_p_impl(ptr, rust_vec_len, data_len),
-        28 => {
+        29 => wire__crate__api__nobodywho__SamplerBuilder_top_k_impl(ptr, rust_vec_len, data_len),
+        30 => wire__crate__api__nobodywho__SamplerBuilder_top_p_impl(ptr, rust_vec_len, data_len),
+        31 => {
             wire__crate__api__nobodywho__SamplerBuilder_typical_p_impl(ptr, rust_vec_len, data_len)
         }
-        29 => wire__crate__api__nobodywho__SamplerBuilder_xtc_impl(ptr, rust_vec_len, data_len),
-        30 => wire__crate__api__nobodywho__SamplerPresets_default_sampler_impl(
+        32 => wire__crate__api__nobodywho__SamplerBuilder_xtc_impl(ptr, rust_vec_len, data_len),
+        33 => wire__crate__api__nobodywho__SamplerPresets_default_sampler_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        31 => wire__crate__api__nobodywho__SamplerPresets_dry_impl(ptr, rust_vec_len, data_len),
-        32 => wire__crate__api__nobodywho__SamplerPresets_grammar_impl(ptr, rust_vec_len, data_len),
-        33 => wire__crate__api__nobodywho__SamplerPresets_greedy_impl(ptr, rust_vec_len, data_len),
-        34 => wire__crate__api__nobodywho__SamplerPresets_json_impl(ptr, rust_vec_len, data_len),
-        35 => wire__crate__api__nobodywho__SamplerPresets_temperature_impl(
+        34 => wire__crate__api__nobodywho__SamplerPresets_dry_impl(ptr, rust_vec_len, data_len),
+        35 => wire__crate__api__nobodywho__SamplerPresets_grammar_impl(ptr, rust_vec_len, data_len),
+        36 => wire__crate__api__nobodywho__SamplerPresets_greedy_impl(ptr, rust_vec_len, data_len),
+        37 => wire__crate__api__nobodywho__SamplerPresets_json_impl(ptr, rust_vec_len, data_len),
+        38 => wire__crate__api__nobodywho__SamplerPresets_temperature_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        36 => wire__crate__api__nobodywho__SamplerPresets_top_k_impl(ptr, rust_vec_len, data_len),
-        37 => wire__crate__api__nobodywho__SamplerPresets_top_p_impl(ptr, rust_vec_len, data_len),
-        41 => wire__crate__api__nobodywho__cosine_similarity_impl(ptr, rust_vec_len, data_len),
-        42 => wire__crate__api__nobodywho__init_debug_log_impl(ptr, rust_vec_len, data_len),
-        43 => wire__crate__api__nobodywho__new_tool_impl_impl(ptr, rust_vec_len, data_len),
+        39 => wire__crate__api__nobodywho__SamplerPresets_top_k_impl(ptr, rust_vec_len, data_len),
+        40 => wire__crate__api__nobodywho__SamplerPresets_top_p_impl(ptr, rust_vec_len, data_len),
+        44 => wire__crate__api__nobodywho__cosine_similarity_impl(ptr, rust_vec_len, data_len),
+        45 => wire__crate__api__nobodywho__init_debug_log_impl(ptr, rust_vec_len, data_len),
+        46 => wire__crate__api__nobodywho__new_tool_impl_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }

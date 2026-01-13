@@ -90,6 +90,12 @@ abstract class Chat implements RustOpaqueInterface {
   Future<void> setChatHistory({required List<Message> messages});
 
   Future<void> setSamplerConfig({required SamplerConfig samplerConfig});
+
+  Future<void> setSystemPrompt({required String systemPrompt});
+
+  Future<void> setTools({required List<Tool> tools});
+
+  void stopGeneration();
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CompletionError>>
