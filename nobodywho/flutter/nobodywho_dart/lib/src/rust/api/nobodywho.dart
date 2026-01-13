@@ -8,6 +8,9 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `dart_function_type_to_json_schema`, `sample_step`, `shift_step`
 
+double cosineSimilarity({required List<double> a, required List<double> b}) =>
+    RustLib.instance.api.crateApiNobodywhoCosineSimilarity(a: a, b: b);
+
 Tool newToolImpl({
   required FutureOr<String> Function(String) function,
   required String name,

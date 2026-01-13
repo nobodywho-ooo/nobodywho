@@ -213,6 +213,11 @@ impl CrossEncoder {
     }
 }
 
+#[flutter_rust_bridge::frb(sync)]
+pub fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> f32 {
+    nobodywho::encoder::cosine_similarity(&a, &b)
+}
+
 #[flutter_rust_bridge::frb(opaque)]
 pub struct Tool {
     tool: nobodywho::chat::Tool,

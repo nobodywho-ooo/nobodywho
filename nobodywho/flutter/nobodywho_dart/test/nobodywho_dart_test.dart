@@ -95,17 +95,46 @@ void main() {
     });
 
     test('Sampler actually affects output', () async {
-    // Test that greedy sampler gives deterministic output
-    final greedy = nobodywho.SamplerPresets.greedy();
-    await chat!.setSamplerConfig(samplerConfig: greedy);
+      // Test that greedy sampler gives deterministic output
+      final greedy = nobodywho.SamplerPresets.greedy();
+      await chat!.setSamplerConfig(samplerConfig: greedy);
 
-    final response1 = await chat!.ask(message: "Say exactly: 'Hello'").completed();
-    await chat!.resetHistory();
-    final response2 = await chat!.ask(message: "Say exactly: 'Hello'").completed();
+      final response1 = await chat!.ask(message: "Say exactly: 'Hello'").completed();
+      await chat!.resetHistory();
+      final response2 = await chat!.ask(message: "Say exactly: 'Hello'").completed();
 
-    expect(response1, equals(response2));  // Should be identical with greedy
-  });
+      expect(response1, equals(response2));  // Should be identical with greedy
+    });
 
+    test('Cosine similarity works', () {
+      // Test with simple vectors
+      final vec1 = [1.0, 2.0, 3.0];
+      final vec2 = [4.0, 5.0, 6.0];
 
+      final similarity = nobodywho.cosineSimilarity(a : vec1, b : vec2);
+
+      // Check return type
+      expect(similarity, isA<double>());
+
+      // Cosine similarity should be between -1 and 1
+      expect(similarity, greaterThanOrEqualTo(-1.0));
+      expect(similarity, lessThanOrEqualTo(1.0));
+
+      // Test self-similarity (should be 1.0)
+      final selfSim = nobodywho.cosineSimilarity(a : vec1, b : vec1);
+      expect(selfSim, closeTo(1.0, 0.001));
+
+      // Test orthogonal vectors (should be close to 0)
+      final orthogonal1 = [1.0, 0.0, 0.0];
+      final orthogonal2 = [0.0, 1.0, 0.0];
+      final orthogonalSim = nobodywho.cosineSimilarity(a : orthogonal1, b : orthogonal2);
+      expect(orthogonalSim, closeTo(0.0, 0.001));
+
+      // Test opposite vectors (should be close to -1)
+      final opposite1 = [1.0, 2.0, 3.0];
+      final opposite2 = [-1.0, -2.0, -3.0];
+      final oppositeSim = nobodywho.cosineSimilarity(a : opposite1, b : opposite2);
+      expect(oppositeSim, closeTo(-1.0, 0.001));
+    });
   });
 }
