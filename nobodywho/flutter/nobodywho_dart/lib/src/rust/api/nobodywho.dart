@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `dart_function_type_to_json_schema`, `sample_step`, `shift_step`
 
-NobodyWhoTool newToolImpl({
+Tool newToolImpl({
   required FutureOr<String> Function(String) function,
   required String name,
   required String description,
@@ -22,16 +22,82 @@ NobodyWhoTool newToolImpl({
 
 void initDebugLog() => RustLib.instance.api.crateApiNobodywhoInitDebugLog();
 
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Chat>>
+abstract class Chat implements RustOpaqueInterface {
+  TokenStream ask({required String message});
+
+  /// Create chat directly from a model path.
+  ///
+  /// Args:
+  ///     model_path: Path to GGUF model file
+  ///     system_prompt: System message to guide the model's behavior
+  ///     context_size: Context size (maximum conversation length in tokens)
+  ///     tools: List of Tool instances the model can call
+  ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
+  ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
+  static Chat fromPath({
+    required String modelPath,
+    required String systemPrompt,
+    required int contextSize,
+    required List<Tool> tools,
+    SamplerConfig? sampler = null,
+    bool useGpu = true,
+  }) => RustLib.instance.api.crateApiNobodywhoChatFromPath(
+    modelPath: modelPath,
+    systemPrompt: systemPrompt,
+    contextSize: contextSize,
+    tools: tools,
+    sampler: sampler,
+    useGpu: useGpu,
+  );
+
+  Future<List<Message>> getChatHistory();
+
+  /// Create chat from existing model.
+  ///
+  /// Args:
+  ///     model: A Model instance
+  ///     system_prompt: System message to guide the model's behavior
+  ///     context_size: Context size (maximum conversation length in tokens)
+  ///     tools: List of Tool instances the model can call
+  ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
+  factory Chat({
+    required Model model,
+    required String systemPrompt,
+    required int contextSize,
+    required List<Tool> tools,
+    SamplerConfig? sampler = null,
+  }) => RustLib.instance.api.crateApiNobodywhoChatNew(
+    model: model,
+    systemPrompt: systemPrompt,
+    contextSize: contextSize,
+    tools: tools,
+    sampler: sampler,
+  );
+
+  Future<void> resetContext({
+    required String systemPrompt,
+    required List<Tool> tools,
+  });
+
+  Future<void> resetHistory();
+
+  Future<void> setAllowThinking({required bool allowThinking});
+
+  Future<void> setChatHistory({required List<Message> messages});
+
+  Future<void> setSamplerConfig({required SamplerConfig samplerConfig});
+}
+
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CompletionError>>
 abstract class CompletionError implements RustOpaqueInterface {}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CrossEncoder>>
 abstract class CrossEncoder implements RustOpaqueInterface {
-  factory CrossEncoder({required NobodyWhoModel model, int nCtx = 4096}) =>
-      RustLib.instance.api.crateApiNobodywhoCrossEncoderNew(
-        model: model,
-        nCtx: nCtx,
-      );
+  factory CrossEncoder({required Model model, int nCtx = 4096}) => RustLib
+      .instance
+      .api
+      .crateApiNobodywhoCrossEncoderNew(model: model, nCtx: nCtx);
 
   Future<Float32List> rank({
     required String query,
@@ -51,7 +117,7 @@ abstract class CrossEncoderWorkerError implements RustOpaqueInterface {}
 abstract class Encoder implements RustOpaqueInterface {
   Future<Float32List> encode({required String text});
 
-  factory Encoder({required NobodyWhoModel model, int nCtx = 4096}) => RustLib
+  factory Encoder({required Model model, int nCtx = 4096}) => RustLib
       .instance
       .api
       .crateApiNobodywhoEncoderNew(model: model, nCtx: nCtx);
@@ -66,91 +132,13 @@ abstract class GetterError implements RustOpaqueInterface {}
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< Message>>
 abstract class Message implements RustOpaqueInterface {}
 
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<NobodyWhoChat>>
-abstract class NobodyWhoChat implements RustOpaqueInterface {
-  NobodyWhoTokenStream ask({required String message});
-
-  /// Create chat directly from a model path.
-  ///
-  /// Args:
-  ///     model_path: Path to GGUF model file
-  ///     system_prompt: System message to guide the model's behavior
-  ///     context_size: Context size (maximum conversation length in tokens)
-  ///     tools: List of NobodyWhoTool instances the model can call
-  ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
-  ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
-  static NobodyWhoChat fromPath({
-    required String modelPath,
-    required String systemPrompt,
-    required int contextSize,
-    required List<NobodyWhoTool> tools,
-    SamplerConfig? sampler = null,
-    bool useGpu = true,
-  }) => RustLib.instance.api.crateApiNobodywhoNobodyWhoChatFromPath(
-    modelPath: modelPath,
-    systemPrompt: systemPrompt,
-    contextSize: contextSize,
-    tools: tools,
-    sampler: sampler,
-    useGpu: useGpu,
-  );
-
-  Future<List<Message>> getChatHistory();
-
-  /// Create chat from existing model.
-  ///
-  /// Args:
-  ///     model: A NobodyWhoModel instance
-  ///     system_prompt: System message to guide the model's behavior
-  ///     context_size: Context size (maximum conversation length in tokens)
-  ///     tools: List of NobodyWhoTool instances the model can call
-  ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
-  factory NobodyWhoChat({
-    required NobodyWhoModel model,
-    required String systemPrompt,
-    required int contextSize,
-    required List<NobodyWhoTool> tools,
-    SamplerConfig? sampler = null,
-  }) => RustLib.instance.api.crateApiNobodywhoNobodyWhoChatNew(
-    model: model,
-    systemPrompt: systemPrompt,
-    contextSize: contextSize,
-    tools: tools,
-    sampler: sampler,
-  );
-
-  Future<void> resetContext({
-    required String systemPrompt,
-    required List<NobodyWhoTool> tools,
-  });
-
-  Future<void> resetHistory();
-
-  Future<void> setAllowThinking({required bool allowThinking});
-
-  Future<void> setChatHistory({required List<Message> messages});
-
-  Future<void> setSamplerConfig({required SamplerConfig samplerConfig});
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Model>>
+abstract class Model implements RustOpaqueInterface {
+  factory Model({required String modelPath, bool useGpu = true}) => RustLib
+      .instance
+      .api
+      .crateApiNobodywhoModelNew(modelPath: modelPath, useGpu: useGpu);
 }
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<NobodyWhoModel>>
-abstract class NobodyWhoModel implements RustOpaqueInterface {
-  factory NobodyWhoModel({required String modelPath, bool useGpu = true}) =>
-      RustLib.instance.api.crateApiNobodywhoNobodyWhoModelNew(
-        modelPath: modelPath,
-        useGpu: useGpu,
-      );
-}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<NobodyWhoTokenStream>>
-abstract class NobodyWhoTokenStream implements RustOpaqueInterface {
-  Future<String> completed();
-
-  Stream<String> iter();
-}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<NobodyWhoTool>>
-abstract class NobodyWhoTool implements RustOpaqueInterface {}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Rust2DartSendError>>
 abstract class Rust2DartSendError implements RustOpaqueInterface {}
@@ -349,3 +337,13 @@ abstract class SamplerPresets implements RustOpaqueInterface {
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< SetterError>>
 abstract class SetterError implements RustOpaqueInterface {}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<TokenStream>>
+abstract class TokenStream implements RustOpaqueInterface {
+  Future<String> completed();
+
+  Stream<String> iter();
+}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Tool>>
+abstract class Tool implements RustOpaqueInterface {}

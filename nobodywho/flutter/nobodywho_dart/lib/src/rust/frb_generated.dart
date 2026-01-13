@@ -64,7 +64,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -2124348793;
+  int get rustContentHash => -1059809564;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -75,8 +75,57 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 }
 
 abstract class RustLibApi extends BaseApi {
+  TokenStream crateApiNobodywhoChatAsk({
+    required Chat that,
+    required String message,
+  });
+
+  Chat crateApiNobodywhoChatFromPath({
+    required String modelPath,
+    required String systemPrompt,
+    required int contextSize,
+    required List<Tool> tools,
+    SamplerConfig? sampler = null,
+    bool useGpu = true,
+  });
+
+  Future<List<Message>> crateApiNobodywhoChatGetChatHistory({
+    required Chat that,
+  });
+
+  Chat crateApiNobodywhoChatNew({
+    required Model model,
+    required String systemPrompt,
+    required int contextSize,
+    required List<Tool> tools,
+    SamplerConfig? sampler = null,
+  });
+
+  Future<void> crateApiNobodywhoChatResetContext({
+    required Chat that,
+    required String systemPrompt,
+    required List<Tool> tools,
+  });
+
+  Future<void> crateApiNobodywhoChatResetHistory({required Chat that});
+
+  Future<void> crateApiNobodywhoChatSetAllowThinking({
+    required Chat that,
+    required bool allowThinking,
+  });
+
+  Future<void> crateApiNobodywhoChatSetChatHistory({
+    required Chat that,
+    required List<Message> messages,
+  });
+
+  Future<void> crateApiNobodywhoChatSetSamplerConfig({
+    required Chat that,
+    required SamplerConfig samplerConfig,
+  });
+
   CrossEncoder crateApiNobodywhoCrossEncoderNew({
-    required NobodyWhoModel model,
+    required Model model,
     int nCtx = 4096,
   });
 
@@ -97,73 +146,11 @@ abstract class RustLibApi extends BaseApi {
     required String text,
   });
 
-  Encoder crateApiNobodywhoEncoderNew({
-    required NobodyWhoModel model,
-    int nCtx = 4096,
-  });
+  Encoder crateApiNobodywhoEncoderNew({required Model model, int nCtx = 4096});
 
-  NobodyWhoTokenStream crateApiNobodywhoNobodyWhoChatAsk({
-    required NobodyWhoChat that,
-    required String message,
-  });
-
-  NobodyWhoChat crateApiNobodywhoNobodyWhoChatFromPath({
-    required String modelPath,
-    required String systemPrompt,
-    required int contextSize,
-    required List<NobodyWhoTool> tools,
-    SamplerConfig? sampler = null,
-    bool useGpu = true,
-  });
-
-  Future<List<Message>> crateApiNobodywhoNobodyWhoChatGetChatHistory({
-    required NobodyWhoChat that,
-  });
-
-  NobodyWhoChat crateApiNobodywhoNobodyWhoChatNew({
-    required NobodyWhoModel model,
-    required String systemPrompt,
-    required int contextSize,
-    required List<NobodyWhoTool> tools,
-    SamplerConfig? sampler = null,
-  });
-
-  Future<void> crateApiNobodywhoNobodyWhoChatResetContext({
-    required NobodyWhoChat that,
-    required String systemPrompt,
-    required List<NobodyWhoTool> tools,
-  });
-
-  Future<void> crateApiNobodywhoNobodyWhoChatResetHistory({
-    required NobodyWhoChat that,
-  });
-
-  Future<void> crateApiNobodywhoNobodyWhoChatSetAllowThinking({
-    required NobodyWhoChat that,
-    required bool allowThinking,
-  });
-
-  Future<void> crateApiNobodywhoNobodyWhoChatSetChatHistory({
-    required NobodyWhoChat that,
-    required List<Message> messages,
-  });
-
-  Future<void> crateApiNobodywhoNobodyWhoChatSetSamplerConfig({
-    required NobodyWhoChat that,
-    required SamplerConfig samplerConfig,
-  });
-
-  NobodyWhoModel crateApiNobodywhoNobodyWhoModelNew({
+  Model crateApiNobodywhoModelNew({
     required String modelPath,
     bool useGpu = true,
-  });
-
-  Future<String> crateApiNobodywhoNobodyWhoTokenStreamCompleted({
-    required NobodyWhoTokenStream that,
-  });
-
-  Stream<String> crateApiNobodywhoNobodyWhoTokenStreamIter({
-    required NobodyWhoTokenStream that,
   });
 
   SamplerConfig crateApiNobodywhoSamplerBuilderDist({
@@ -268,14 +255,26 @@ abstract class RustLibApi extends BaseApi {
 
   SamplerConfig crateApiNobodywhoSamplerPresetsTopP({required double topP});
 
+  Future<String> crateApiNobodywhoTokenStreamCompleted({
+    required TokenStream that,
+  });
+
+  Stream<String> crateApiNobodywhoTokenStreamIter({required TokenStream that});
+
   void crateApiNobodywhoInitDebugLog();
 
-  NobodyWhoTool crateApiNobodywhoNewToolImpl({
+  Tool crateApiNobodywhoNewToolImpl({
     required FutureOr<String> Function(String) function,
     required String name,
     required String description,
     required String runtimeType,
   });
+
+  RustArcIncrementStrongCountFnType get rust_arc_increment_strong_count_Chat;
+
+  RustArcDecrementStrongCountFnType get rust_arc_decrement_strong_count_Chat;
+
+  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_ChatPtr;
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_CompletionError;
@@ -332,41 +331,11 @@ abstract class RustLibApi extends BaseApi {
 
   CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_MessagePtr;
 
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_NobodyWhoChat;
+  RustArcIncrementStrongCountFnType get rust_arc_increment_strong_count_Model;
 
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_NobodyWhoChat;
+  RustArcDecrementStrongCountFnType get rust_arc_decrement_strong_count_Model;
 
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_NobodyWhoChatPtr;
-
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_NobodyWhoModel;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_NobodyWhoModel;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_NobodyWhoModelPtr;
-
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_NobodyWhoTokenStream;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_NobodyWhoTokenStream;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_NobodyWhoTokenStreamPtr;
-
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_NobodyWhoTool;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_NobodyWhoTool;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_NobodyWhoToolPtr;
+  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_ModelPtr;
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_Rust2DartSendError;
@@ -411,6 +380,20 @@ abstract class RustLibApi extends BaseApi {
   get rust_arc_decrement_strong_count_SetterError;
 
   CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_SetterErrorPtr;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_TokenStream;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_TokenStream;
+
+  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_TokenStreamPtr;
+
+  RustArcIncrementStrongCountFnType get rust_arc_increment_strong_count_Tool;
+
+  RustArcDecrementStrongCountFnType get rust_arc_decrement_strong_count_Tool;
+
+  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_ToolPtr;
 }
 
 class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
@@ -422,20 +405,392 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   });
 
   @override
+  TokenStream crateApiNobodywhoChatAsk({
+    required Chat that,
+    required String message,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChat(
+            that,
+            serializer,
+          );
+          sse_encode_String(message, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 1)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTokenStream,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiNobodywhoChatAskConstMeta,
+        argValues: [that, message],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoChatAskConstMeta =>
+      const TaskConstMeta(debugName: "Chat_ask", argNames: ["that", "message"]);
+
+  @override
+  Chat crateApiNobodywhoChatFromPath({
+    required String modelPath,
+    required String systemPrompt,
+    required int contextSize,
+    required List<Tool> tools,
+    SamplerConfig? sampler = null,
+    bool useGpu = true,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(modelPath, serializer);
+          sse_encode_String(systemPrompt, serializer);
+          sse_encode_u_32(contextSize, serializer);
+          sse_encode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTool(
+            tools,
+            serializer,
+          );
+          sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
+            sampler,
+            serializer,
+          );
+          sse_encode_bool(useGpu, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 2)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChat,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiNobodywhoChatFromPathConstMeta,
+        argValues: [
+          modelPath,
+          systemPrompt,
+          contextSize,
+          tools,
+          sampler,
+          useGpu,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoChatFromPathConstMeta =>
+      const TaskConstMeta(
+        debugName: "Chat_from_path",
+        argNames: [
+          "modelPath",
+          "systemPrompt",
+          "contextSize",
+          "tools",
+          "sampler",
+          "useGpu",
+        ],
+      );
+
+  @override
+  Future<List<Message>> crateApiNobodywhoChatGetChatHistory({
+    required Chat that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChat(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 3,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessage,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGetterError,
+        ),
+        constMeta: kCrateApiNobodywhoChatGetChatHistoryConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoChatGetChatHistoryConstMeta =>
+      const TaskConstMeta(
+        debugName: "Chat_get_chat_history",
+        argNames: ["that"],
+      );
+
+  @override
+  Chat crateApiNobodywhoChatNew({
+    required Model model,
+    required String systemPrompt,
+    required int contextSize,
+    required List<Tool> tools,
+    SamplerConfig? sampler = null,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerModel(
+            model,
+            serializer,
+          );
+          sse_encode_String(systemPrompt, serializer);
+          sse_encode_u_32(contextSize, serializer);
+          sse_encode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTool(
+            tools,
+            serializer,
+          );
+          sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
+            sampler,
+            serializer,
+          );
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 4)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChat,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiNobodywhoChatNewConstMeta,
+        argValues: [model, systemPrompt, contextSize, tools, sampler],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoChatNewConstMeta => const TaskConstMeta(
+    debugName: "Chat_new",
+    argNames: ["model", "systemPrompt", "contextSize", "tools", "sampler"],
+  );
+
+  @override
+  Future<void> crateApiNobodywhoChatResetContext({
+    required Chat that,
+    required String systemPrompt,
+    required List<Tool> tools,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChat(
+            that,
+            serializer,
+          );
+          sse_encode_String(systemPrompt, serializer);
+          sse_encode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTool(
+            tools,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 5,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError,
+        ),
+        constMeta: kCrateApiNobodywhoChatResetContextConstMeta,
+        argValues: [that, systemPrompt, tools],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoChatResetContextConstMeta =>
+      const TaskConstMeta(
+        debugName: "Chat_reset_context",
+        argNames: ["that", "systemPrompt", "tools"],
+      );
+
+  @override
+  Future<void> crateApiNobodywhoChatResetHistory({required Chat that}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChat(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 6,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError,
+        ),
+        constMeta: kCrateApiNobodywhoChatResetHistoryConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoChatResetHistoryConstMeta =>
+      const TaskConstMeta(debugName: "Chat_reset_history", argNames: ["that"]);
+
+  @override
+  Future<void> crateApiNobodywhoChatSetAllowThinking({
+    required Chat that,
+    required bool allowThinking,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChat(
+            that,
+            serializer,
+          );
+          sse_encode_bool(allowThinking, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 7,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError,
+        ),
+        constMeta: kCrateApiNobodywhoChatSetAllowThinkingConstMeta,
+        argValues: [that, allowThinking],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoChatSetAllowThinkingConstMeta =>
+      const TaskConstMeta(
+        debugName: "Chat_set_allow_thinking",
+        argNames: ["that", "allowThinking"],
+      );
+
+  @override
+  Future<void> crateApiNobodywhoChatSetChatHistory({
+    required Chat that,
+    required List<Message> messages,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChat(
+            that,
+            serializer,
+          );
+          sse_encode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessage(
+            messages,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 8,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError,
+        ),
+        constMeta: kCrateApiNobodywhoChatSetChatHistoryConstMeta,
+        argValues: [that, messages],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoChatSetChatHistoryConstMeta =>
+      const TaskConstMeta(
+        debugName: "Chat_set_chat_history",
+        argNames: ["that", "messages"],
+      );
+
+  @override
+  Future<void> crateApiNobodywhoChatSetSamplerConfig({
+    required Chat that,
+    required SamplerConfig samplerConfig,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChat(
+            that,
+            serializer,
+          );
+          sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
+            samplerConfig,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 9,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError,
+        ),
+        constMeta: kCrateApiNobodywhoChatSetSamplerConfigConstMeta,
+        argValues: [that, samplerConfig],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoChatSetSamplerConfigConstMeta =>
+      const TaskConstMeta(
+        debugName: "Chat_set_sampler_config",
+        argNames: ["that", "samplerConfig"],
+      );
+
+  @override
   CrossEncoder crateApiNobodywhoCrossEncoderNew({
-    required NobodyWhoModel model,
+    required Model model,
     int nCtx = 4096,
   }) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoModel(
+          sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerModel(
             model,
             serializer,
           );
           sse_encode_u_32(nCtx, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 1)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 10)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -474,7 +829,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 2,
+            funcId: 11,
             port: port_,
           );
         },
@@ -515,7 +870,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 3,
+            funcId: 12,
             port: port_,
           );
         },
@@ -554,7 +909,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 4,
+            funcId: 13,
             port: port_,
           );
         },
@@ -577,20 +932,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Encoder crateApiNobodywhoEncoderNew({
-    required NobodyWhoModel model,
-    int nCtx = 4096,
-  }) {
+  Encoder crateApiNobodywhoEncoderNew({required Model model, int nCtx = 4096}) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoModel(
+          sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerModel(
             model,
             serializer,
           );
           sse_encode_u_32(nCtx, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 5)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 14)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -611,388 +963,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  NobodyWhoTokenStream crateApiNobodywhoNobodyWhoChatAsk({
-    required NobodyWhoChat that,
-    required String message,
-  }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoChat(
-            that,
-            serializer,
-          );
-          sse_encode_String(message, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
-        },
-        codec: SseCodec(
-          decodeSuccessData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTokenStream,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateApiNobodywhoNobodyWhoChatAskConstMeta,
-        argValues: [that, message],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiNobodywhoNobodyWhoChatAskConstMeta =>
-      const TaskConstMeta(
-        debugName: "NobodyWhoChat_ask",
-        argNames: ["that", "message"],
-      );
-
-  @override
-  NobodyWhoChat crateApiNobodywhoNobodyWhoChatFromPath({
-    required String modelPath,
-    required String systemPrompt,
-    required int contextSize,
-    required List<NobodyWhoTool> tools,
-    SamplerConfig? sampler = null,
-    bool useGpu = true,
-  }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_String(modelPath, serializer);
-          sse_encode_String(systemPrompt, serializer);
-          sse_encode_u_32(contextSize, serializer);
-          sse_encode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTool(
-            tools,
-            serializer,
-          );
-          sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
-            sampler,
-            serializer,
-          );
-          sse_encode_bool(useGpu, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 7)!;
-        },
-        codec: SseCodec(
-          decodeSuccessData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoChat,
-          decodeErrorData: sse_decode_String,
-        ),
-        constMeta: kCrateApiNobodywhoNobodyWhoChatFromPathConstMeta,
-        argValues: [
-          modelPath,
-          systemPrompt,
-          contextSize,
-          tools,
-          sampler,
-          useGpu,
-        ],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiNobodywhoNobodyWhoChatFromPathConstMeta =>
-      const TaskConstMeta(
-        debugName: "NobodyWhoChat_from_path",
-        argNames: [
-          "modelPath",
-          "systemPrompt",
-          "contextSize",
-          "tools",
-          "sampler",
-          "useGpu",
-        ],
-      );
-
-  @override
-  Future<List<Message>> crateApiNobodywhoNobodyWhoChatGetChatHistory({
-    required NobodyWhoChat that,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoChat(
-            that,
-            serializer,
-          );
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 8,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData:
-              sse_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessage,
-          decodeErrorData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGetterError,
-        ),
-        constMeta: kCrateApiNobodywhoNobodyWhoChatGetChatHistoryConstMeta,
-        argValues: [that],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiNobodywhoNobodyWhoChatGetChatHistoryConstMeta =>
-      const TaskConstMeta(
-        debugName: "NobodyWhoChat_get_chat_history",
-        argNames: ["that"],
-      );
-
-  @override
-  NobodyWhoChat crateApiNobodywhoNobodyWhoChatNew({
-    required NobodyWhoModel model,
-    required String systemPrompt,
-    required int contextSize,
-    required List<NobodyWhoTool> tools,
-    SamplerConfig? sampler = null,
-  }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoModel(
-            model,
-            serializer,
-          );
-          sse_encode_String(systemPrompt, serializer);
-          sse_encode_u_32(contextSize, serializer);
-          sse_encode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTool(
-            tools,
-            serializer,
-          );
-          sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
-            sampler,
-            serializer,
-          );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 9)!;
-        },
-        codec: SseCodec(
-          decodeSuccessData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoChat,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateApiNobodywhoNobodyWhoChatNewConstMeta,
-        argValues: [model, systemPrompt, contextSize, tools, sampler],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiNobodywhoNobodyWhoChatNewConstMeta =>
-      const TaskConstMeta(
-        debugName: "NobodyWhoChat_new",
-        argNames: ["model", "systemPrompt", "contextSize", "tools", "sampler"],
-      );
-
-  @override
-  Future<void> crateApiNobodywhoNobodyWhoChatResetContext({
-    required NobodyWhoChat that,
-    required String systemPrompt,
-    required List<NobodyWhoTool> tools,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoChat(
-            that,
-            serializer,
-          );
-          sse_encode_String(systemPrompt, serializer);
-          sse_encode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTool(
-            tools,
-            serializer,
-          );
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 10,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError,
-        ),
-        constMeta: kCrateApiNobodywhoNobodyWhoChatResetContextConstMeta,
-        argValues: [that, systemPrompt, tools],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiNobodywhoNobodyWhoChatResetContextConstMeta =>
-      const TaskConstMeta(
-        debugName: "NobodyWhoChat_reset_context",
-        argNames: ["that", "systemPrompt", "tools"],
-      );
-
-  @override
-  Future<void> crateApiNobodywhoNobodyWhoChatResetHistory({
-    required NobodyWhoChat that,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoChat(
-            that,
-            serializer,
-          );
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 11,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError,
-        ),
-        constMeta: kCrateApiNobodywhoNobodyWhoChatResetHistoryConstMeta,
-        argValues: [that],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiNobodywhoNobodyWhoChatResetHistoryConstMeta =>
-      const TaskConstMeta(
-        debugName: "NobodyWhoChat_reset_history",
-        argNames: ["that"],
-      );
-
-  @override
-  Future<void> crateApiNobodywhoNobodyWhoChatSetAllowThinking({
-    required NobodyWhoChat that,
-    required bool allowThinking,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoChat(
-            that,
-            serializer,
-          );
-          sse_encode_bool(allowThinking, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 12,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError,
-        ),
-        constMeta: kCrateApiNobodywhoNobodyWhoChatSetAllowThinkingConstMeta,
-        argValues: [that, allowThinking],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiNobodywhoNobodyWhoChatSetAllowThinkingConstMeta =>
-      const TaskConstMeta(
-        debugName: "NobodyWhoChat_set_allow_thinking",
-        argNames: ["that", "allowThinking"],
-      );
-
-  @override
-  Future<void> crateApiNobodywhoNobodyWhoChatSetChatHistory({
-    required NobodyWhoChat that,
-    required List<Message> messages,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoChat(
-            that,
-            serializer,
-          );
-          sse_encode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessage(
-            messages,
-            serializer,
-          );
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 13,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError,
-        ),
-        constMeta: kCrateApiNobodywhoNobodyWhoChatSetChatHistoryConstMeta,
-        argValues: [that, messages],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiNobodywhoNobodyWhoChatSetChatHistoryConstMeta =>
-      const TaskConstMeta(
-        debugName: "NobodyWhoChat_set_chat_history",
-        argNames: ["that", "messages"],
-      );
-
-  @override
-  Future<void> crateApiNobodywhoNobodyWhoChatSetSamplerConfig({
-    required NobodyWhoChat that,
-    required SamplerConfig samplerConfig,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoChat(
-            that,
-            serializer,
-          );
-          sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
-            samplerConfig,
-            serializer,
-          );
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 14,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError,
-        ),
-        constMeta: kCrateApiNobodywhoNobodyWhoChatSetSamplerConfigConstMeta,
-        argValues: [that, samplerConfig],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiNobodywhoNobodyWhoChatSetSamplerConfigConstMeta =>
-      const TaskConstMeta(
-        debugName: "NobodyWhoChat_set_sampler_config",
-        argNames: ["that", "samplerConfig"],
-      );
-
-  @override
-  NobodyWhoModel crateApiNobodywhoNobodyWhoModelNew({
+  Model crateApiNobodywhoModelNew({
     required String modelPath,
     bool useGpu = true,
   }) {
@@ -1006,100 +977,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoModel,
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerModel,
           decodeErrorData: sse_decode_String,
         ),
-        constMeta: kCrateApiNobodywhoNobodyWhoModelNewConstMeta,
+        constMeta: kCrateApiNobodywhoModelNewConstMeta,
         argValues: [modelPath, useGpu],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoNobodyWhoModelNewConstMeta =>
-      const TaskConstMeta(
-        debugName: "NobodyWhoModel_new",
-        argNames: ["modelPath", "useGpu"],
-      );
-
-  @override
-  Future<String> crateApiNobodywhoNobodyWhoTokenStreamCompleted({
-    required NobodyWhoTokenStream that,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTokenStream(
-            that,
-            serializer,
-          );
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 16,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCompletionError,
-        ),
-        constMeta: kCrateApiNobodywhoNobodyWhoTokenStreamCompletedConstMeta,
-        argValues: [that],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiNobodywhoNobodyWhoTokenStreamCompletedConstMeta =>
-      const TaskConstMeta(
-        debugName: "NobodyWhoTokenStream_completed",
-        argNames: ["that"],
-      );
-
-  @override
-  Stream<String> crateApiNobodywhoNobodyWhoTokenStreamIter({
-    required NobodyWhoTokenStream that,
-  }) {
-    final sink = RustStreamSink<String>();
-    unawaited(
-      handler.executeNormal(
-        NormalTask(
-          callFfi: (port_) {
-            final serializer = SseSerializer(generalizedFrbRustBinding);
-            sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTokenStream(
-              that,
-              serializer,
-            );
-            sse_encode_StreamSink_String_Sse(sink, serializer);
-            pdeCallFfi(
-              generalizedFrbRustBinding,
-              serializer,
-              funcId: 17,
-              port: port_,
-            );
-          },
-          codec: SseCodec(
-            decodeSuccessData: sse_decode_unit,
-            decodeErrorData:
-                sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRust2DartSendError,
-          ),
-          constMeta: kCrateApiNobodywhoNobodyWhoTokenStreamIterConstMeta,
-          argValues: [that, sink],
-          apiImpl: this,
-        ),
-      ),
-    );
-    return sink.stream;
-  }
-
-  TaskConstMeta get kCrateApiNobodywhoNobodyWhoTokenStreamIterConstMeta =>
-      const TaskConstMeta(
-        debugName: "NobodyWhoTokenStream_iter",
-        argNames: ["that", "sink"],
-      );
+  TaskConstMeta get kCrateApiNobodywhoModelNewConstMeta => const TaskConstMeta(
+    debugName: "Model_new",
+    argNames: ["modelPath", "useGpu"],
+  );
 
   @override
   SamplerConfig crateApiNobodywhoSamplerBuilderDist({
@@ -1113,7 +1004,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 18)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 16)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -1152,7 +1043,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_i_32(allowedLength, serializer);
           sse_encode_i_32(penaltyLastN, serializer);
           sse_encode_list_String(seqBreakers, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 19)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 17)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -1204,7 +1095,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(grammar, serializer);
           sse_encode_opt_String(triggerOn, serializer);
           sse_encode_String(root, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 20)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 18)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -1236,7 +1127,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 21)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 19)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -1272,7 +1163,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
           sse_encode_f_32(minP, serializer);
           sse_encode_u_32(minKeep, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 22)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 20)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -1310,7 +1201,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_f_32(tau, serializer);
           sse_encode_f_32(eta, serializer);
           sse_encode_i_32(m, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 23)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 21)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -1346,7 +1237,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
           sse_encode_f_32(tau, serializer);
           sse_encode_f_32(eta, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 24)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 22)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -1372,7 +1263,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 25)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 23)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -1409,7 +1300,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_f_32(penaltyRepeat, serializer);
           sse_encode_f_32(penaltyFreq, serializer);
           sse_encode_f_32(penaltyPresent, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 26)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 24)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -1455,7 +1346,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             serializer,
           );
           sse_encode_f_32(temperature, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 27)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 25)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -1489,7 +1380,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             serializer,
           );
           sse_encode_i_32(topK, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 28)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 26)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -1525,7 +1416,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
           sse_encode_f_32(topP, serializer);
           sse_encode_u_32(minKeep, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 29)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 27)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -1561,7 +1452,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
           sse_encode_f_32(typP, serializer);
           sse_encode_u_32(minKeep, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 30)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 28)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -1599,7 +1490,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_f_32(xtcProbability, serializer);
           sse_encode_f_32(xtcThreshold, serializer);
           sse_encode_u_32(minKeep, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 31)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 29)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -1625,7 +1516,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 32)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 30)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -1651,7 +1542,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 33)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 31)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -1677,7 +1568,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(grammar, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 34)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 32)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -1703,7 +1594,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 35)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 33)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -1726,7 +1617,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 36)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 34)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -1752,7 +1643,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_f_32(temperature, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 37)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 35)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -1779,7 +1670,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_i_32(topK, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 38)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 36)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -1806,7 +1697,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_f_32(topP, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 39)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 37)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -1824,6 +1715,83 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "SamplerPresets_top_p",
         argNames: ["topP"],
+      );
+
+  @override
+  Future<String> crateApiNobodywhoTokenStreamCompleted({
+    required TokenStream that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTokenStream(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 38,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCompletionError,
+        ),
+        constMeta: kCrateApiNobodywhoTokenStreamCompletedConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoTokenStreamCompletedConstMeta =>
+      const TaskConstMeta(
+        debugName: "TokenStream_completed",
+        argNames: ["that"],
+      );
+
+  @override
+  Stream<String> crateApiNobodywhoTokenStreamIter({required TokenStream that}) {
+    final sink = RustStreamSink<String>();
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTokenStream(
+              that,
+              serializer,
+            );
+            sse_encode_StreamSink_String_Sse(sink, serializer);
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 39,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData:
+                sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRust2DartSendError,
+          ),
+          constMeta: kCrateApiNobodywhoTokenStreamIterConstMeta,
+          argValues: [that, sink],
+          apiImpl: this,
+        ),
+      ),
+    );
+    return sink.stream;
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoTokenStreamIterConstMeta =>
+      const TaskConstMeta(
+        debugName: "TokenStream_iter",
+        argNames: ["that", "sink"],
       );
 
   @override
@@ -1849,7 +1817,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "init_debug_log", argNames: []);
 
   @override
-  NobodyWhoTool crateApiNobodywhoNewToolImpl({
+  Tool crateApiNobodywhoNewToolImpl({
     required FutureOr<String> Function(String) function,
     required String name,
     required String description,
@@ -1870,7 +1838,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTool,
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTool,
           decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateApiNobodywhoNewToolImplConstMeta,
@@ -1920,6 +1888,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
     };
   }
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_Chat => wire
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChat;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_Chat => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChat;
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_CompletionError => wire
@@ -1978,36 +1954,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessage;
 
   RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_NobodyWhoChat => wire
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoChat;
+  get rust_arc_increment_strong_count_Model => wire
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerModel;
 
   RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_NobodyWhoChat => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoChat;
-
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_NobodyWhoModel => wire
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoModel;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_NobodyWhoModel => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoModel;
-
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_NobodyWhoTokenStream => wire
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTokenStream;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_NobodyWhoTokenStream => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTokenStream;
-
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_NobodyWhoTool => wire
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTool;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_NobodyWhoTool => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTool;
+  get rust_arc_decrement_strong_count_Model => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerModel;
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_Rust2DartSendError => wire
@@ -2049,10 +2001,35 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   get rust_arc_decrement_strong_count_SetterError => wire
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError;
 
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_TokenStream => wire
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTokenStream;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_TokenStream => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTokenStream;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_Tool => wire
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTool;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_Tool => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTool;
+
   @protected
   AnyhowException dco_decode_AnyhowException(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return AnyhowException(raw as String);
+  }
+
+  @protected
+  Chat
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChat(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return ChatImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -2121,39 +2098,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  NobodyWhoChat
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoChat(
+  Model
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerModel(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return NobodyWhoChatImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
-  NobodyWhoModel
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoModel(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return NobodyWhoModelImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
-  NobodyWhoTokenStream
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTokenStream(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return NobodyWhoTokenStreamImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
-  NobodyWhoTool
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTool(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return NobodyWhoToolImpl.frbInternalDcoDecode(raw as List<dynamic>);
+    return ModelImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -2202,12 +2152,39 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  NobodyWhoTokenStream
-  dco_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTokenStream(
+  TokenStream
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTokenStream(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return NobodyWhoTokenStreamImpl.frbInternalDcoDecode(raw as List<dynamic>);
+    return TokenStreamImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  Tool
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTool(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return ToolImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  TokenStream
+  dco_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTokenStream(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return TokenStreamImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  Chat
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChat(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return ChatImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -2229,21 +2206,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  NobodyWhoChat
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoChat(
+  Model
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerModel(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return NobodyWhoChatImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
-  NobodyWhoModel
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoModel(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return NobodyWhoModelImpl.frbInternalDcoDecode(raw as List<dynamic>);
+    return ModelImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -2266,6 +2234,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Object dco_decode_DartOpaque(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return decodeDartOpaque(raw, generalizedFrbRustBinding);
+  }
+
+  @protected
+  Chat
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChat(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return ChatImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -2334,39 +2311,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  NobodyWhoChat
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoChat(
+  Model
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerModel(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return NobodyWhoChatImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
-  NobodyWhoModel
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoModel(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return NobodyWhoModelImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
-  NobodyWhoTokenStream
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTokenStream(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return NobodyWhoTokenStreamImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
-  NobodyWhoTool
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTool(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return NobodyWhoToolImpl.frbInternalDcoDecode(raw as List<dynamic>);
+    return ModelImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -2412,6 +2362,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return SetterErrorImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  TokenStream
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTokenStream(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return TokenStreamImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  Tool
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTool(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return ToolImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -2475,14 +2443,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  List<NobodyWhoTool>
-  dco_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTool(
+  List<Tool>
+  dco_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTool(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>)
         .map(
-          dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTool,
+          dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTool,
         )
         .toList();
   }
@@ -2572,6 +2540,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  Chat
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChat(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return ChatImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
   CompletionError
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCompletionError(
     SseDeserializer deserializer,
@@ -2656,48 +2636,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  NobodyWhoChat
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoChat(
+  Model
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerModel(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return NobodyWhoChatImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  NobodyWhoModel
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoModel(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return NobodyWhoModelImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  NobodyWhoTokenStream
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTokenStream(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return NobodyWhoTokenStreamImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  NobodyWhoTool
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTool(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return NobodyWhoToolImpl.frbInternalSseDecode(
+    return ModelImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -2764,12 +2708,48 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  NobodyWhoTokenStream
-  sse_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTokenStream(
+  TokenStream
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTokenStream(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return NobodyWhoTokenStreamImpl.frbInternalSseDecode(
+    return TokenStreamImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  Tool
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTool(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return ToolImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  TokenStream
+  sse_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTokenStream(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return TokenStreamImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  Chat
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChat(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return ChatImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -2800,24 +2780,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  NobodyWhoChat
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoChat(
+  Model
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerModel(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return NobodyWhoChatImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  NobodyWhoModel
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoModel(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return NobodyWhoModelImpl.frbInternalSseDecode(
+    return ModelImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -2840,6 +2808,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_isize(deserializer);
     return decodeDartOpaque(inner, generalizedFrbRustBinding);
+  }
+
+  @protected
+  Chat
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChat(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return ChatImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
   }
 
   @protected
@@ -2927,48 +2907,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  NobodyWhoChat
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoChat(
+  Model
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerModel(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return NobodyWhoChatImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  NobodyWhoModel
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoModel(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return NobodyWhoModelImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  NobodyWhoTokenStream
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTokenStream(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return NobodyWhoTokenStreamImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  NobodyWhoTool
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTool(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return NobodyWhoToolImpl.frbInternalSseDecode(
+    return ModelImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -3029,6 +2973,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return SetterErrorImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  TokenStream
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTokenStream(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return TokenStreamImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  Tool
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTool(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return ToolImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -3104,17 +3072,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  List<NobodyWhoTool>
-  sse_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTool(
+  List<Tool>
+  sse_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTool(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     var len_ = sse_decode_i_32(deserializer);
-    var ans_ = <NobodyWhoTool>[];
+    var ans_ = <Tool>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(
-        sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTool(
+        sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTool(
           deserializer,
         ),
       );
@@ -3231,6 +3199,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChat(
+    Chat self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as ChatImpl).frbInternalSseEncode(move: true),
+      serializer,
+    );
+  }
+
+  @protected
+  void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCompletionError(
     CompletionError self,
     SseSerializer serializer,
@@ -3322,52 +3303,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoChat(
-    NobodyWhoChat self,
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerModel(
+    Model self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
-      (self as NobodyWhoChatImpl).frbInternalSseEncode(move: true),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoModel(
-    NobodyWhoModel self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as NobodyWhoModelImpl).frbInternalSseEncode(move: true),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTokenStream(
-    NobodyWhoTokenStream self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as NobodyWhoTokenStreamImpl).frbInternalSseEncode(move: true),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTool(
-    NobodyWhoTool self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as NobodyWhoToolImpl).frbInternalSseEncode(move: true),
+      (self as ModelImpl).frbInternalSseEncode(move: true),
       serializer,
     );
   }
@@ -3439,13 +3381,52 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
-  sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTokenStream(
-    NobodyWhoTokenStream self,
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTokenStream(
+    TokenStream self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
-      (self as NobodyWhoTokenStreamImpl).frbInternalSseEncode(move: false),
+      (self as TokenStreamImpl).frbInternalSseEncode(move: true),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTool(
+    Tool self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as ToolImpl).frbInternalSseEncode(move: true),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTokenStream(
+    TokenStream self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as TokenStreamImpl).frbInternalSseEncode(move: false),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChat(
+    Chat self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as ChatImpl).frbInternalSseEncode(move: false),
       serializer,
     );
   }
@@ -3478,26 +3459,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoChat(
-    NobodyWhoChat self,
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerModel(
+    Model self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
-      (self as NobodyWhoChatImpl).frbInternalSseEncode(move: false),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoModel(
-    NobodyWhoModel self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as NobodyWhoModelImpl).frbInternalSseEncode(move: false),
+      (self as ModelImpl).frbInternalSseEncode(move: false),
       serializer,
     );
   }
@@ -3538,6 +3506,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           generalizedFrbRustBinding,
         ),
       ),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChat(
+    Chat self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as ChatImpl).frbInternalSseEncode(move: null),
       serializer,
     );
   }
@@ -3635,52 +3616,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoChat(
-    NobodyWhoChat self,
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerModel(
+    Model self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
-      (self as NobodyWhoChatImpl).frbInternalSseEncode(move: null),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoModel(
-    NobodyWhoModel self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as NobodyWhoModelImpl).frbInternalSseEncode(move: null),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTokenStream(
-    NobodyWhoTokenStream self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as NobodyWhoTokenStreamImpl).frbInternalSseEncode(move: null),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTool(
-    NobodyWhoTool self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as NobodyWhoToolImpl).frbInternalSseEncode(move: null),
+      (self as ModelImpl).frbInternalSseEncode(move: null),
       serializer,
     );
   }
@@ -3746,6 +3688,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
       (self as SetterErrorImpl).frbInternalSseEncode(move: null),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTokenStream(
+    TokenStream self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as TokenStreamImpl).frbInternalSseEncode(move: null),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTool(
+    Tool self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as ToolImpl).frbInternalSseEncode(move: null),
       serializer,
     );
   }
@@ -3828,14 +3796,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
-  sse_encode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTool(
-    List<NobodyWhoTool> self,
+  sse_encode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTool(
+    List<Tool> self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
-      sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNobodyWhoTool(
+      sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTool(
         item,
         serializer,
       );
@@ -3942,6 +3910,61 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putBigUint64(self);
   }
+}
+
+@sealed
+class ChatImpl extends RustOpaque implements Chat {
+  // Not to be used by end users
+  ChatImpl.frbInternalDcoDecode(List<dynamic> wire)
+    : super.frbInternalDcoDecode(wire, _kStaticData);
+
+  // Not to be used by end users
+  ChatImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
+    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
+
+  static final _kStaticData = RustArcStaticData(
+    rustArcIncrementStrongCount:
+        RustLib.instance.api.rust_arc_increment_strong_count_Chat,
+    rustArcDecrementStrongCount:
+        RustLib.instance.api.rust_arc_decrement_strong_count_Chat,
+    rustArcDecrementStrongCountPtr:
+        RustLib.instance.api.rust_arc_decrement_strong_count_ChatPtr,
+  );
+
+  TokenStream ask({required String message}) => RustLib.instance.api
+      .crateApiNobodywhoChatAsk(that: this, message: message);
+
+  Future<List<Message>> getChatHistory() =>
+      RustLib.instance.api.crateApiNobodywhoChatGetChatHistory(that: this);
+
+  Future<void> resetContext({
+    required String systemPrompt,
+    required List<Tool> tools,
+  }) => RustLib.instance.api.crateApiNobodywhoChatResetContext(
+    that: this,
+    systemPrompt: systemPrompt,
+    tools: tools,
+  );
+
+  Future<void> resetHistory() =>
+      RustLib.instance.api.crateApiNobodywhoChatResetHistory(that: this);
+
+  Future<void> setAllowThinking({required bool allowThinking}) =>
+      RustLib.instance.api.crateApiNobodywhoChatSetAllowThinking(
+        that: this,
+        allowThinking: allowThinking,
+      );
+
+  Future<void> setChatHistory({required List<Message> messages}) => RustLib
+      .instance
+      .api
+      .crateApiNobodywhoChatSetChatHistory(that: this, messages: messages);
+
+  Future<void> setSamplerConfig({required SamplerConfig samplerConfig}) =>
+      RustLib.instance.api.crateApiNobodywhoChatSetSamplerConfig(
+        that: this,
+        samplerConfig: samplerConfig,
+      );
 }
 
 @sealed
@@ -4119,133 +4142,22 @@ class MessageImpl extends RustOpaque implements Message {
 }
 
 @sealed
-class NobodyWhoChatImpl extends RustOpaque implements NobodyWhoChat {
+class ModelImpl extends RustOpaque implements Model {
   // Not to be used by end users
-  NobodyWhoChatImpl.frbInternalDcoDecode(List<dynamic> wire)
+  ModelImpl.frbInternalDcoDecode(List<dynamic> wire)
     : super.frbInternalDcoDecode(wire, _kStaticData);
 
   // Not to be used by end users
-  NobodyWhoChatImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
+  ModelImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
     : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
 
   static final _kStaticData = RustArcStaticData(
     rustArcIncrementStrongCount:
-        RustLib.instance.api.rust_arc_increment_strong_count_NobodyWhoChat,
+        RustLib.instance.api.rust_arc_increment_strong_count_Model,
     rustArcDecrementStrongCount:
-        RustLib.instance.api.rust_arc_decrement_strong_count_NobodyWhoChat,
+        RustLib.instance.api.rust_arc_decrement_strong_count_Model,
     rustArcDecrementStrongCountPtr:
-        RustLib.instance.api.rust_arc_decrement_strong_count_NobodyWhoChatPtr,
-  );
-
-  NobodyWhoTokenStream ask({required String message}) => RustLib.instance.api
-      .crateApiNobodywhoNobodyWhoChatAsk(that: this, message: message);
-
-  Future<List<Message>> getChatHistory() => RustLib.instance.api
-      .crateApiNobodywhoNobodyWhoChatGetChatHistory(that: this);
-
-  Future<void> resetContext({
-    required String systemPrompt,
-    required List<NobodyWhoTool> tools,
-  }) => RustLib.instance.api.crateApiNobodywhoNobodyWhoChatResetContext(
-    that: this,
-    systemPrompt: systemPrompt,
-    tools: tools,
-  );
-
-  Future<void> resetHistory() => RustLib.instance.api
-      .crateApiNobodywhoNobodyWhoChatResetHistory(that: this);
-
-  Future<void> setAllowThinking({required bool allowThinking}) =>
-      RustLib.instance.api.crateApiNobodywhoNobodyWhoChatSetAllowThinking(
-        that: this,
-        allowThinking: allowThinking,
-      );
-
-  Future<void> setChatHistory({required List<Message> messages}) =>
-      RustLib.instance.api.crateApiNobodywhoNobodyWhoChatSetChatHistory(
-        that: this,
-        messages: messages,
-      );
-
-  Future<void> setSamplerConfig({required SamplerConfig samplerConfig}) =>
-      RustLib.instance.api.crateApiNobodywhoNobodyWhoChatSetSamplerConfig(
-        that: this,
-        samplerConfig: samplerConfig,
-      );
-}
-
-@sealed
-class NobodyWhoModelImpl extends RustOpaque implements NobodyWhoModel {
-  // Not to be used by end users
-  NobodyWhoModelImpl.frbInternalDcoDecode(List<dynamic> wire)
-    : super.frbInternalDcoDecode(wire, _kStaticData);
-
-  // Not to be used by end users
-  NobodyWhoModelImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
-    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
-
-  static final _kStaticData = RustArcStaticData(
-    rustArcIncrementStrongCount:
-        RustLib.instance.api.rust_arc_increment_strong_count_NobodyWhoModel,
-    rustArcDecrementStrongCount:
-        RustLib.instance.api.rust_arc_decrement_strong_count_NobodyWhoModel,
-    rustArcDecrementStrongCountPtr:
-        RustLib.instance.api.rust_arc_decrement_strong_count_NobodyWhoModelPtr,
-  );
-}
-
-@sealed
-class NobodyWhoTokenStreamImpl extends RustOpaque
-    implements NobodyWhoTokenStream {
-  // Not to be used by end users
-  NobodyWhoTokenStreamImpl.frbInternalDcoDecode(List<dynamic> wire)
-    : super.frbInternalDcoDecode(wire, _kStaticData);
-
-  // Not to be used by end users
-  NobodyWhoTokenStreamImpl.frbInternalSseDecode(
-    BigInt ptr,
-    int externalSizeOnNative,
-  ) : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
-
-  static final _kStaticData = RustArcStaticData(
-    rustArcIncrementStrongCount: RustLib
-        .instance
-        .api
-        .rust_arc_increment_strong_count_NobodyWhoTokenStream,
-    rustArcDecrementStrongCount: RustLib
-        .instance
-        .api
-        .rust_arc_decrement_strong_count_NobodyWhoTokenStream,
-    rustArcDecrementStrongCountPtr: RustLib
-        .instance
-        .api
-        .rust_arc_decrement_strong_count_NobodyWhoTokenStreamPtr,
-  );
-
-  Future<String> completed() => RustLib.instance.api
-      .crateApiNobodywhoNobodyWhoTokenStreamCompleted(that: this);
-
-  Stream<String> iter() => RustLib.instance.api
-      .crateApiNobodywhoNobodyWhoTokenStreamIter(that: this);
-}
-
-@sealed
-class NobodyWhoToolImpl extends RustOpaque implements NobodyWhoTool {
-  // Not to be used by end users
-  NobodyWhoToolImpl.frbInternalDcoDecode(List<dynamic> wire)
-    : super.frbInternalDcoDecode(wire, _kStaticData);
-
-  // Not to be used by end users
-  NobodyWhoToolImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
-    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
-
-  static final _kStaticData = RustArcStaticData(
-    rustArcIncrementStrongCount:
-        RustLib.instance.api.rust_arc_increment_strong_count_NobodyWhoTool,
-    rustArcDecrementStrongCount:
-        RustLib.instance.api.rust_arc_decrement_strong_count_NobodyWhoTool,
-    rustArcDecrementStrongCountPtr:
-        RustLib.instance.api.rust_arc_decrement_strong_count_NobodyWhoToolPtr,
+        RustLib.instance.api.rust_arc_decrement_strong_count_ModelPtr,
   );
 }
 
@@ -4535,5 +4447,51 @@ class SetterErrorImpl extends RustOpaque implements SetterError {
         RustLib.instance.api.rust_arc_decrement_strong_count_SetterError,
     rustArcDecrementStrongCountPtr:
         RustLib.instance.api.rust_arc_decrement_strong_count_SetterErrorPtr,
+  );
+}
+
+@sealed
+class TokenStreamImpl extends RustOpaque implements TokenStream {
+  // Not to be used by end users
+  TokenStreamImpl.frbInternalDcoDecode(List<dynamic> wire)
+    : super.frbInternalDcoDecode(wire, _kStaticData);
+
+  // Not to be used by end users
+  TokenStreamImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
+    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
+
+  static final _kStaticData = RustArcStaticData(
+    rustArcIncrementStrongCount:
+        RustLib.instance.api.rust_arc_increment_strong_count_TokenStream,
+    rustArcDecrementStrongCount:
+        RustLib.instance.api.rust_arc_decrement_strong_count_TokenStream,
+    rustArcDecrementStrongCountPtr:
+        RustLib.instance.api.rust_arc_decrement_strong_count_TokenStreamPtr,
+  );
+
+  Future<String> completed() =>
+      RustLib.instance.api.crateApiNobodywhoTokenStreamCompleted(that: this);
+
+  Stream<String> iter() =>
+      RustLib.instance.api.crateApiNobodywhoTokenStreamIter(that: this);
+}
+
+@sealed
+class ToolImpl extends RustOpaque implements Tool {
+  // Not to be used by end users
+  ToolImpl.frbInternalDcoDecode(List<dynamic> wire)
+    : super.frbInternalDcoDecode(wire, _kStaticData);
+
+  // Not to be used by end users
+  ToolImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
+    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
+
+  static final _kStaticData = RustArcStaticData(
+    rustArcIncrementStrongCount:
+        RustLib.instance.api.rust_arc_increment_strong_count_Tool,
+    rustArcDecrementStrongCount:
+        RustLib.instance.api.rust_arc_decrement_strong_count_Tool,
+    rustArcDecrementStrongCountPtr:
+        RustLib.instance.api.rust_arc_decrement_strong_count_ToolPtr,
   );
 }

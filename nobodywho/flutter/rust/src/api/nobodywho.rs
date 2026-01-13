@@ -3,11 +3,11 @@ use flutter_rust_bridge::{DartFnFuture, Rust2DartSendError};
 // satisfy some frb macros
 
 #[flutter_rust_bridge::frb(opaque)]
-pub struct NobodyWhoModel {
+pub struct Model {
     model: nobodywho::llm::Model,
 }
 
-impl NobodyWhoModel {
+impl Model {
     #[flutter_rust_bridge::frb(sync)]
     pub fn new(model_path: &str, #[frb(default = true)] use_gpu: bool) -> Result<Self, String> {
         let model = nobodywho::llm::get_model(model_path, use_gpu).map_err(|e| e.to_string())?;
@@ -16,25 +16,25 @@ impl NobodyWhoModel {
 }
 
 #[flutter_rust_bridge::frb(opaque)]
-pub struct NobodyWhoChat {
+pub struct Chat {
     chat: nobodywho::chat::ChatHandleAsync,
 }
 
-impl NobodyWhoChat {
+impl Chat {
     /// Create chat from existing model.
     ///
     /// Args:
-    ///     model: A NobodyWhoModel instance
+    ///     model: A Model instance
     ///     system_prompt: System message to guide the model's behavior
     ///     context_size: Context size (maximum conversation length in tokens)
-    ///     tools: List of NobodyWhoTool instances the model can call
+    ///     tools: List of Tool instances the model can call
     ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
     #[flutter_rust_bridge::frb(sync)]
     pub fn new(
-        model: &NobodyWhoModel,
+        model: &Model,
         system_prompt: String,
         context_size: u32,
-        tools: Vec<NobodyWhoTool>,
+        tools: Vec<Tool>,
         #[frb(default = "null")] sampler: Option<SamplerConfig>,
     ) -> Self {
         let sampler_config = sampler.map(|s| s.sampler_config).unwrap_or_default();
@@ -54,7 +54,7 @@ impl NobodyWhoChat {
     ///     model_path: Path to GGUF model file
     ///     system_prompt: System message to guide the model's behavior
     ///     context_size: Context size (maximum conversation length in tokens)
-    ///     tools: List of NobodyWhoTool instances the model can call
+    ///     tools: List of Tool instances the model can call
     ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
     ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
     #[flutter_rust_bridge::frb(sync)]
@@ -62,7 +62,7 @@ impl NobodyWhoChat {
         model_path: &str,
         system_prompt: String,
         context_size: u32,
-        tools: Vec<NobodyWhoTool>,
+        tools: Vec<Tool>,
         #[frb(default = "null")] sampler: Option<SamplerConfig>,
         #[frb(default = true)] use_gpu: bool,
     ) -> Result<Self, String> {
@@ -81,8 +81,8 @@ impl NobodyWhoChat {
     }
 
     #[flutter_rust_bridge::frb(sync)]
-    pub fn ask(&self, message: String) -> NobodyWhoTokenStream {
-        NobodyWhoTokenStream {
+    pub fn ask(&self, message: String) -> TokenStream {
+        TokenStream {
             stream: self.chat.ask(message),
         }
     }
@@ -112,7 +112,7 @@ impl NobodyWhoChat {
     pub async fn reset_context(
         &self,
         system_prompt: String,
-        tools: Vec<NobodyWhoTool>,
+        tools: Vec<Tool>,
     ) -> Result<(), nobodywho::errors::SetterError> {
         self.chat
             .reset_chat(system_prompt, tools.into_iter().map(|t| t.tool).collect())
@@ -132,11 +132,11 @@ impl NobodyWhoChat {
 }
 
 #[flutter_rust_bridge::frb(opaque)]
-pub struct NobodyWhoTokenStream {
+pub struct TokenStream {
     stream: nobodywho::chat::TokenStreamAsync,
 }
 
-impl NobodyWhoTokenStream {
+impl TokenStream {
     pub async fn iter(
         &mut self,
         sink: crate::frb_generated::StreamSink<String>,
@@ -159,7 +159,7 @@ pub struct Encoder {
 
 impl Encoder {
     #[flutter_rust_bridge::frb(sync)]
-    pub fn new(model: NobodyWhoModel, #[frb(default = 4096)] n_ctx: u32) -> Self {
+    pub fn new(model: Model, #[frb(default = 4096)] n_ctx: u32) -> Self {
         let handle = nobodywho::encoder::EncoderAsync::new(model.model.clone(), n_ctx);
         Self { handle }
     }
@@ -179,7 +179,7 @@ pub struct CrossEncoder {
 
 impl CrossEncoder {
     #[flutter_rust_bridge::frb(sync)]
-    pub fn new(model: NobodyWhoModel, #[frb(default = 4096)] n_ctx: u32) -> Self {
+    pub fn new(model: Model, #[frb(default = 4096)] n_ctx: u32) -> Self {
         let handle = nobodywho::crossencoder::CrossEncoderAsync::new(model.model.clone(), n_ctx);
         Self { handle }
     }
@@ -202,7 +202,7 @@ impl CrossEncoder {
 }
 
 #[flutter_rust_bridge::frb(opaque)]
-pub struct NobodyWhoTool {
+pub struct Tool {
     tool: nobodywho::chat::Tool,
 }
 
@@ -212,7 +212,7 @@ pub fn new_tool_impl(
     name: String,
     description: String,
     runtime_type: String,
-) -> Result<NobodyWhoTool, String> {
+) -> Result<Tool, String> {
     let json_schema = dart_function_type_to_json_schema(&runtime_type)?;
 
     // TODO: this seems to silently block forever if we get a type error on the dart side.
@@ -229,7 +229,7 @@ pub fn new_tool_impl(
         std::sync::Arc::new(sync_callback),
     );
 
-    Ok(NobodyWhoTool { tool })
+    Ok(Tool { tool })
 }
 
 /// Converts a Dart function runtimeType string directly to a JSON schema
