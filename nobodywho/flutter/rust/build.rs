@@ -24,8 +24,11 @@ fn main() {
     let config = codegen::Config {
         rust_input: Some("crate::api".to_string()),
         rust_root: Some(".".to_string()),
-        rust_preamble: Some("use flutter_rust_bridge::Rust2DartSendError;".to_string()),
+        rust_preamble: Some(
+            "use flutter_rust_bridge::Rust2DartSendError;\nuse nobodywho::errors::*;\nuse nobodywho::chat::Message;".to_string(),
+        ),
         dart_output: Some("../nobodywho_dart/lib/src/rust".to_string()),
+        stop_on_error: Some(true),
         ..Default::default()
     };
 

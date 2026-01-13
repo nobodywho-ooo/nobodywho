@@ -6,10 +6,12 @@ use llama_cpp_2::model::{LlamaModel, Special};
 use std::sync::Arc;
 use tracing::{error, warn};
 
+#[derive(Clone)]
 pub struct CrossEncoder {
     async_handle: CrossEncoderAsync,
 }
 
+#[derive(Clone)]
 pub struct CrossEncoderAsync {
     msg_tx: std::sync::mpsc::Sender<CrossEncoderMsg>,
 }
@@ -25,14 +27,7 @@ impl CrossEncoder {
         query: String,
         documents: Vec<String>,
     ) -> Result<Vec<f32>, CrossEncoderWorkerError> {
-        let mut receiver = self.async_handle.rank(query, documents);
-        futures::executor::block_on(async {
-            receiver.recv().await.ok_or_else(|| {
-                CrossEncoderWorkerError::Classification(
-                    "Could not rank the query and documents".to_string(),
-                )
-            })
-        })
+        futures::executor::block_on(async { self.async_handle.rank(query, documents).await })
     }
 
     pub fn rank_and_sort(
@@ -69,16 +64,19 @@ impl CrossEncoderAsync {
         Self { msg_tx }
     }
 
-    pub fn rank(
+    pub async fn rank(
         &self,
         query: String,
         documents: Vec<String>,
-    ) -> tokio::sync::mpsc::Receiver<Vec<f32>> {
-        let (scores_tx, scores_rx) = tokio::sync::mpsc::channel(1);
+    ) -> Result<Vec<f32>, CrossEncoderWorkerError> {
+        let (scores_tx, mut scores_rx) = tokio::sync::mpsc::channel(1);
         let _ = self
             .msg_tx
             .send(CrossEncoderMsg::Rank(query, documents, scores_tx));
         scores_rx
+            .recv()
+            .await
+            .ok_or(CrossEncoderWorkerError::NoResponse)
     }
 
     pub async fn rank_and_sort(
@@ -86,11 +84,7 @@ impl CrossEncoderAsync {
         query: String,
         documents: Vec<String>,
     ) -> Result<Vec<(String, f32)>, CrossEncoderWorkerError> {
-        let Some(scores) = self.rank(query, documents.clone()).recv().await else {
-            return Err(CrossEncoderWorkerError::Classification(
-                "Could not rank the query and documents".to_string(),
-            ));
-        };
+        let scores = self.rank(query, documents.clone()).await?;
 
         let mut docs_with_scores: Vec<(String, f32)> = documents
             .iter()
@@ -151,17 +145,12 @@ impl<'a> Worker<'a, CrossEncoderWorker> {
         // For crossencodering, all tokens have embeddings enabled (logits=true) but only the final token's
         // embedding contains the relevance score. embeddings_seq_ith(0) gets the sequence's embedding
         // vector, and embeddings[0] extracts the classification score from the final token.
-        let embeddings = self
-            .ctx
-            .embeddings_seq_ith(0)
-            .map_err(|e| CrossEncoderWorkerError::Classification(e.to_string()))?;
+        let embeddings = self.ctx.embeddings_seq_ith(0)?;
 
         if !embeddings.is_empty() {
             Ok(embeddings[0])
         } else {
-            Err(CrossEncoderWorkerError::Classification(
-                "classification head is empty".to_string(),
-            ))
+            Err(CrossEncoderWorkerError::EmptyClassificationHead)
         }
     }
 

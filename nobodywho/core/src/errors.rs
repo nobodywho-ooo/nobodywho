@@ -90,8 +90,14 @@ pub enum CrossEncoderWorkerError {
     #[error("Error reading string: {0}")]
     Read(#[from] ReadError),
 
-    #[error("Error getting classification score: {0}")]
-    Classification(String),
+    #[error("Worker crashed while waiting for response. Enable logging for details.")]
+    NoResponse,
+
+    #[error("Llama.cpp failed getting embeddings: {0}")]
+    GettingEmbeddings(#[from] llama_cpp_2::EmbeddingsError),
+
+    #[error("Empty classification head")]
+    EmptyClassificationHead,
 }
 
 // EncoderWorker errors

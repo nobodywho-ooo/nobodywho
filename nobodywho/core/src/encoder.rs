@@ -7,10 +7,12 @@ use tracing::error;
 
 use std::sync::Arc;
 
+#[derive(Clone)]
 pub struct Encoder {
     async_handle: EncoderAsync,
 }
 
+#[derive(Clone)]
 pub struct EncoderAsync {
     msg_tx: std::sync::mpsc::Sender<EncoderMsg>,
 }
@@ -22,13 +24,7 @@ impl Encoder {
     }
 
     pub fn encode(&self, text: String) -> Result<Vec<f32>, EncoderWorkerError> {
-        let mut receiver = self.async_handle.encode(text);
-        futures::executor::block_on(async {
-            receiver
-                .recv()
-                .await
-                .ok_or_else(|| EncoderWorkerError::Encode("Could not encode the text".to_string()))
-        })
+        futures::executor::block_on(async { self.async_handle.encode(text).await })
     }
 }
 
@@ -55,10 +51,12 @@ impl EncoderAsync {
         Self { msg_tx }
     }
 
-    pub fn encode(&self, text: String) -> tokio::sync::mpsc::Receiver<Vec<f32>> {
-        let (embedding_tx, embedding_rx) = tokio::sync::mpsc::channel(1);
+    pub async fn encode(&self, text: String) -> Result<Vec<f32>, EncoderWorkerError> {
+        let (embedding_tx, mut embedding_rx) = tokio::sync::mpsc::channel(1);
         let _ = self.msg_tx.send(EncoderMsg::Encode(text, embedding_tx));
-        embedding_rx
+        embedding_rx.recv().await.ok_or(EncoderWorkerError::Encode(
+            "Could not encode the text. Worker never responded.".into(),
+        ))
     }
 }
 
