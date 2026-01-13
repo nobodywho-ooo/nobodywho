@@ -254,9 +254,12 @@ impl ChatHandle {
         let should_stop_clone = Arc::clone(&should_stop);
 
         std::thread::spawn(move || {
-            let Ok(mut worker_state) = Worker::new_chat_worker(&model, config, should_stop_clone)
-            else {
-                return error!("Could not set up the worker initial state");
+            let worker = Worker::new_chat_worker(&model, config, should_stop_clone);
+            let mut worker_state = match worker {
+                Ok(worker_state) => worker_state,
+                Err(errmsg) => {
+                    return error!("Could not set up the worker initial state: {errmsg}")
+                }
             };
 
             while let Ok(msg) = msg_rx.recv() {
@@ -422,9 +425,12 @@ impl ChatHandleAsync {
         let should_stop_clone = Arc::clone(&should_stop);
 
         std::thread::spawn(move || {
-            let Ok(mut worker_state) = Worker::new_chat_worker(&model, config, should_stop_clone)
-            else {
-                return error!("Could not set up the worker initial state");
+            let worker = Worker::new_chat_worker(&model, config, should_stop_clone);
+            let mut worker_state = match worker {
+                Ok(worker_state) => worker_state,
+                Err(errmsg) => {
+                    return error!("Could not set up the worker initial state: {errmsg}")
+                }
             };
 
             while let Ok(msg) = msg_rx.recv() {
