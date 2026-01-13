@@ -32,19 +32,26 @@ impl Chat {
     #[flutter_rust_bridge::frb(sync)]
     pub fn new(
         model: &Model,
-        system_prompt: String,
-        context_size: u32,
-        tools: Vec<Tool>,
-        #[frb(default = "null")] sampler: Option<SamplerConfig>,
+        #[frb(default = None)] system_prompt: Option<String>,
+        #[frb(default = 4096)] context_size: u32,
+        #[frb(default = vec![])] tools: Vec<Tool>,
+        #[frb(default = None)] sampler: Option<SamplerConfig>,
     ) -> Self {
         let sampler_config = sampler.map(|s| s.sampler_config).unwrap_or_default();
 
-        let chat = nobodywho::chat::ChatBuilder::new(model.model.clone())
-            .with_system_prompt(system_prompt)
-            .with_context_size(context_size)
-            .with_tools(tools.into_iter().map(|t| t.tool).collect())
-            .with_sampler(sampler_config)
-            .build_async();
+        let chat = {
+            let mut chat_builder = nobodywho::chat::ChatBuilder::new(model.model.clone())
+                .with_context_size(context_size)
+                .with_tools(tools.into_iter().map(|t| t.tool).collect())
+                .with_sampler(sampler_config);
+
+            if let Some(system_prompt) = system_prompt {
+                chat_builder = chat_builder.with_system_prompt(system_prompt);
+            }
+
+            chat_builder.build_async()
+        };
+
         Self { chat }
     }
 
@@ -60,22 +67,27 @@ impl Chat {
     #[flutter_rust_bridge::frb(sync)]
     pub fn from_path(
         model_path: &str,
-        system_prompt: String,
-        context_size: u32,
-        tools: Vec<Tool>,
-        #[frb(default = "null")] sampler: Option<SamplerConfig>,
+        #[frb(default = None)] system_prompt: Option<String>,
+        #[frb(default = 4096)] context_size: u32,
+        #[frb(default = vec![])] tools: Vec<Tool>,
+        #[frb(default = None)] sampler: Option<SamplerConfig>,
         #[frb(default = true)] use_gpu: bool,
     ) -> Result<Self, String> {
         let model = nobodywho::llm::get_model(model_path, use_gpu).map_err(|e| e.to_string())?;
-
         let sampler_config = sampler.map(|s| s.sampler_config).unwrap_or_default();
 
-        let chat = nobodywho::chat::ChatBuilder::new(model)
-            .with_system_prompt(system_prompt)
-            .with_context_size(context_size)
-            .with_tools(tools.into_iter().map(|t| t.tool).collect())
-            .with_sampler(sampler_config)
-            .build_async();
+        let chat = {
+            let mut chat_builder = nobodywho::chat::ChatBuilder::new(model)
+                .with_context_size(context_size)
+                .with_tools(tools.into_iter().map(|t| t.tool).collect())
+                .with_sampler(sampler_config);
+
+            if let Some(system_prompt) = system_prompt {
+                chat_builder = chat_builder.with_system_prompt(system_prompt);
+            }
+
+            chat_builder.build_async()
+        };
 
         Ok(Self { chat })
     }
