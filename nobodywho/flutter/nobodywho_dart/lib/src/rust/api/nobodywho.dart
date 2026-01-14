@@ -42,6 +42,7 @@ abstract class Chat implements RustOpaqueInterface {
     required String modelPath,
     String? systemPrompt = null,
     int contextSize = 4096,
+    bool allowThinking = true,
     List<Tool> tools = const [],
     SamplerConfig? sampler = null,
     bool useGpu = true,
@@ -49,6 +50,7 @@ abstract class Chat implements RustOpaqueInterface {
     modelPath: modelPath,
     systemPrompt: systemPrompt,
     contextSize: contextSize,
+    allowThinking: allowThinking,
     tools: tools,
     sampler: sampler,
     useGpu: useGpu,
@@ -68,12 +70,14 @@ abstract class Chat implements RustOpaqueInterface {
     required Model model,
     String? systemPrompt = null,
     int contextSize = 4096,
+    bool allowThinking = true,
     List<Tool> tools = const [],
     SamplerConfig? sampler = null,
   }) => RustLib.instance.api.crateApiNobodywhoChatNew(
     model: model,
     systemPrompt: systemPrompt,
     contextSize: contextSize,
+    allowThinking: allowThinking,
     tools: tools,
     sampler: sampler,
   );
@@ -90,6 +94,12 @@ abstract class Chat implements RustOpaqueInterface {
   Future<void> setChatHistory({required List<Message> messages});
 
   Future<void> setSamplerConfig({required SamplerConfig samplerConfig});
+
+  Future<void> setSystemPrompt({required String systemPrompt});
+
+  Future<void> setTools({required List<Tool> tools});
+
+  void stopGeneration();
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CompletionError>>

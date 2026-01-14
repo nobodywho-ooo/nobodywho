@@ -583,6 +583,62 @@ impl Chat {
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         })
     }
+    /// Stop the current text generation immediately.
+    ///
+    /// This can be used to cancel an in-progress generation if the response is taking too long
+    /// or is no longer needed.
+    #[pyo3(signature = () -> "None")]
+    pub fn stop_generation(&self, py: Python) {
+        py.detach(|| self.chat_handle.stop_generation())
+    }
+
+    /// Update the list of tools available to the model without resetting chat history.
+    ///
+    /// Args:
+    ///     tools: New list of Tool instances the model can call
+    ///
+    /// Raises:
+    ///     RuntimeError: If updating tools fails
+    #[pyo3(signature = (tools : "list[Tool]") -> "None")]
+    pub fn set_tools(&self, tools: Vec<Tool>, py: Python) -> PyResult<()> {
+        py.detach(|| {
+            self.chat_handle
+                .set_tools(tools.into_iter().map(|t| t.tool).collect())
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        })
+    }
+
+    /// Update the system prompt without resetting chat history.
+    ///
+    /// Args:
+    ///     system_prompt: New system message to guide the model's behavior
+    ///
+    /// Raises:
+    ///     RuntimeError: If the system prompt cannot be changed
+    #[pyo3(signature = (system_prompt : "str") -> "None")]
+    pub fn set_system_prompt(&self, system_prompt: String, py: Python) -> PyResult<()> {
+        py.detach(|| {
+            self.chat_handle
+                .set_system_prompt(system_prompt)
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        })
+    }
+
+    /// Update the sampler configuration without resetting chat history.
+    ///
+    /// Args:
+    ///     sampler: New SamplerConfig for token selection
+    ///
+    /// Raises:
+    ///     RuntimeError: If the sampler config cannot be changed
+    #[pyo3(signature = (sampler : "SamplerConfig") -> "None")]
+    pub fn set_sampler_config(&self, sampler: SamplerConfig, py: Python) -> PyResult<()> {
+        py.detach(|| {
+            self.chat_handle
+                .set_sampler_config(sampler.sampler_config)
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        })
+    }
 }
 
 /// This is the async version of the `Chat` class.
@@ -729,6 +785,60 @@ impl ChatAsync {
 
         self.chat_handle
             .set_chat_history(msgs)
+            .await
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Stop the current text generation immediately.
+    ///
+    /// This can be used to cancel an in-progress generation if the response is taking too long
+    /// or is no longer needed.
+    #[pyo3(signature = () -> "None")]
+    pub async fn stop_generation(&self) {
+        self.chat_handle.stop_generation()
+    }
+
+    /// Update the list of tools available to the model without resetting chat history.
+    ///
+    /// Args:
+    ///     tools: New list of Tool instances the model can call
+    ///
+    /// Raises:
+    ///     RuntimeError: If updating tools fails
+    #[pyo3(signature = (tools : "list[Tool]") -> "None")]
+    pub async fn set_tools(&self, tools: Vec<Tool>) -> PyResult<()> {
+        self.chat_handle
+            .set_tools(tools.into_iter().map(|t| t.tool).collect())
+            .await
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Update the system prompt without resetting chat history.
+    ///
+    /// Args:
+    ///     system_prompt: New system message to guide the model's behavior
+    ///
+    /// Raises:
+    ///     RuntimeError: If the system prompt cannot be changed
+    #[pyo3(signature = (system_prompt : "str") -> "None")]
+    pub async fn set_system_prompt(&self, system_prompt: String) -> PyResult<()> {
+        self.chat_handle
+            .set_system_prompt(system_prompt)
+            .await
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Update the sampler configuration without resetting chat history.
+    ///
+    /// Args:
+    ///     sampler: New SamplerConfig for token selection
+    ///
+    /// Raises:
+    ///     RuntimeError: If the sampler config cannot be changed
+    #[pyo3(signature = (sampler : "SamplerConfig") -> "None")]
+    pub async fn set_sampler_config(&self, sampler: SamplerConfig) -> PyResult<()> {
+        self.chat_handle
+            .set_sampler_config(sampler.sampler_config)
             .await
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }

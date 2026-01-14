@@ -34,6 +34,7 @@ impl Chat {
         model: &Model,
         #[frb(default = "null")] system_prompt: Option<String>,
         #[frb(default = 4096)] context_size: u32,
+        #[frb(default = true)] allow_thinking: bool,
         #[frb(default = "const []")] tools: Vec<Tool>,
         #[frb(default = "null")] sampler: Option<SamplerConfig>,
     ) -> Self {
@@ -42,6 +43,7 @@ impl Chat {
         let chat = {
             let mut chat_builder = nobodywho::chat::ChatBuilder::new(model.model.clone())
                 .with_context_size(context_size)
+                .with_allow_thinking(allow_thinking)
                 .with_tools(tools.into_iter().map(|t| t.tool).collect())
                 .with_sampler(sampler_config);
 
@@ -69,6 +71,7 @@ impl Chat {
         model_path: &str,
         #[frb(default = "null")] system_prompt: Option<String>,
         #[frb(default = 4096)] context_size: u32,
+        #[frb(default = true)] allow_thinking: bool,
         #[frb(default = "const []")] tools: Vec<Tool>,
         #[frb(default = "null")] sampler: Option<SamplerConfig>,
         #[frb(default = true)] use_gpu: bool,
@@ -79,6 +82,7 @@ impl Chat {
         let chat = {
             let mut chat_builder = nobodywho::chat::ChatBuilder::new(model)
                 .with_context_size(context_size)
+                .with_allow_thinking(allow_thinking)
                 .with_tools(tools.into_iter().map(|t| t.tool).collect())
                 .with_sampler(sampler_config);
 
@@ -140,6 +144,24 @@ impl Chat {
         allow_thinking: bool,
     ) -> Result<(), nobodywho::errors::SetterError> {
         self.chat.set_allow_thinking(allow_thinking).await
+    }
+
+    pub async fn set_system_prompt(
+        &self,
+        system_prompt: String,
+    ) -> Result<(), nobodywho::errors::SetterError> {
+        self.chat.set_system_prompt(system_prompt).await
+    }
+
+    pub async fn set_tools(&self, tools: Vec<Tool>) -> Result<(), nobodywho::errors::SetterError> {
+        self.chat
+            .set_tools(tools.into_iter().map(|t| t.tool).collect())
+            .await
+    }
+
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn stop_generation(&self) {
+        self.chat.stop_generation()
     }
 }
 
