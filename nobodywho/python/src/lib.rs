@@ -614,13 +614,13 @@ impl Chat {
     ///     system_prompt: New system message to guide the model's behavior
     ///
     /// Raises:
-    ///     ValueError: If the system prompt cannot be changed
+    ///     RuntimeError: If the system prompt cannot be changed
     #[pyo3(signature = (system_prompt : "str") -> "None")]
     pub fn set_system_prompt(&self, system_prompt: String, py: Python) -> PyResult<()> {
         py.detach(|| {
             self.chat_handle
                 .set_system_prompt(system_prompt)
-                .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         })
     }
 
@@ -630,13 +630,13 @@ impl Chat {
     ///     sampler: New SamplerConfig for token selection
     ///
     /// Raises:
-    ///     ValueError: If the sampler config cannot be changed
+    ///     RuntimeError: If the sampler config cannot be changed
     #[pyo3(signature = (sampler : "SamplerConfig") -> "None")]
     pub fn set_sampler_config(&self, sampler: SamplerConfig, py: Python) -> PyResult<()> {
         py.detach(|| {
             self.chat_handle
                 .set_sampler_config(sampler.sampler_config)
-                .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         })
     }
 }
@@ -819,13 +819,13 @@ impl ChatAsync {
     ///     system_prompt: New system message to guide the model's behavior
     ///
     /// Raises:
-    ///     ValueError: If the system prompt cannot be changed
+    ///     RuntimeError: If the system prompt cannot be changed
     #[pyo3(signature = (system_prompt : "str") -> "None")]
     pub async fn set_system_prompt(&self, system_prompt: String) -> PyResult<()> {
         self.chat_handle
             .set_system_prompt(system_prompt)
             .await
-            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     /// Update the sampler configuration without resetting chat history.
@@ -834,13 +834,13 @@ impl ChatAsync {
     ///     sampler: New SamplerConfig for token selection
     ///
     /// Raises:
-    ///     ValueError: If the sampler config cannot be changed
+    ///     RuntimeError: If the sampler config cannot be changed
     #[pyo3(signature = (sampler : "SamplerConfig") -> "None")]
     pub async fn set_sampler_config(&self, sampler: SamplerConfig) -> PyResult<()> {
         self.chat_handle
             .set_sampler_config(sampler.sampler_config)
             .await
-            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 }
 
