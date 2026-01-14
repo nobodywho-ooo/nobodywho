@@ -11,6 +11,8 @@ Choosing the right language model can make or break your project. In general you
 
 If you just want a ~2GB chat model that works well, try [Qwen3 4B Q4_K_M](https://huggingface.co/Qwen/Qwen3-4B-GGUF/blob/main/Qwen3-4B-Q4_K_M.gguf).
 
+If you want something smaller and faster, try [Qwen3 0.6B Q4_K_M](https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf).
+
 
 ## Which models are compatible with NobodyWho?
 

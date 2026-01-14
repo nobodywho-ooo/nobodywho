@@ -35,24 +35,32 @@ Start by installing NobodyWho. This is simply
 pip install nobodywho
 ```
 
-Next download a model. For a quick start we recommend this [one](https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q5_K_L.gguf). It is quite small, but will get the job done.
+Next download a model. For a quick start we recommend [this one](https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf). It is quite small, but will get the job done.
 
-Then you can try to get a response from the model with the following code snippet:
+Then you start generating a response from the model with the following code snippet:
+
 ```python
 from nobodywho import Chat
 chat = Chat("./path/to/your/model.gguf")
-response = chat.ask("Is water wet?").completed()
-print(response)
+response = chat.ask("Is water wet?")
+for token in response:
+    print(token, end="", flush=True)
 ```
 
-You can also setup a basic chat bot very quickly with the code snippet below: 
+If you want to block and wait for the complete response as a string, you can use `.completed()`:
+
+```python
+full_response = chat.ask("Is water wet?").completed()
+```
+
+You can also setup a basic interactive chatbot very quickly with the code snippet below: 
 
 ```python
 from nobodywho import Chat, TokenStream
 chat = Chat("./path/to/your/model.gguf")
 while True:
     prompt = input("Enter your prompt: ")
-    response : TokenStream = chat.ask(prompt)
+    response: TokenStream = chat.ask(prompt)
     for token in response:
         print(token, end="", flush=True)
     print()
