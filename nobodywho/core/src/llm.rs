@@ -9,7 +9,6 @@ use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::AddBos;
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::token::LlamaToken;
-use std::os::unix::raw::mode_t;
 use std::pin::pin;
 use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
 use tracing::{debug, debug_span, error, info, info_span, warn};
@@ -101,14 +100,18 @@ pub fn get_model(
 
 #[tracing::instrument(level = "info")]
 pub async fn get_model_async(
-    model_path: &str,
+    model_path: String,
     use_gpu_if_available: bool,
 ) -> Result<Arc<LlamaModel>, LoadModelError> {
-    let model = get_model(model_path, use_gpu_if_available);
+    let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(4096);
+    std::thread::spawn(move || {
+        output_tx.blocking_send(get_model(&model_path, use_gpu_if_available))
+    });
 
-    std::thread::spawn(move || {});
-
-    return model;
+    match output_rx.recv().await {
+        Some(model) => return model,
+        None => Err(LoadModelError::ModelChannelError),
+    }
 }
 
 fn read_add_bos_metadata(model: &Arc<LlamaModel>) -> Result<AddBos, InitWorkerError> {
