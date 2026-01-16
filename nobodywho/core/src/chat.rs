@@ -928,6 +928,10 @@ impl Serialize for Tool {
 }
 
 fn grammar_from_tools(tools: &[Tool]) -> Result<gbnf::Grammar, gbnf::json::JsonSchemaParseError> {
+    qwen_grammar_from_tools(tools)
+}
+
+fn qwen_grammar_from_tools(tools: &[Tool]) -> Result<gbnf::Grammar, gbnf::json::JsonSchemaParseError> {
     // get a json schema that describes the tool call for each tool
     let tool_call_schemas: serde_json::Value = tools
         .iter()
@@ -1023,6 +1027,121 @@ fn grammar_from_tools(tools: &[Tool]) -> Result<gbnf::Grammar, gbnf::json::JsonS
     json_grammar.items.push(new_root_rule);
 
     Ok(json_grammar)
+}
+
+fn llama31_grammar_from_tools(tools: &[Tool]) -> Result<gbnf::Grammar, gbnf::json::JsonSchemaParseError> {
+    // Start with a minimal base grammar that we'll build upon
+    // We'll use an empty object schema to get a valid Grammar structure
+    let base_schema = serde_json::json!({"type": "object", "properties": {}});
+    let mut combined_grammar = match gbnf::Grammar::from_json_schema(&base_schema.to_string()) {
+        Ok(g) => g,
+        Err(e) => return Err(e),
+    };
+    // Clear the items from the base grammar, but keep the recurring_items
+    combined_grammar.items.clear();
+
+    // optional whitespace
+    let ws = gbnf::ProductionItem::NonTerminal(
+        gbnf::NonTerminalSymbol { name: "ws".into() },
+        gbnf::RepetitionType::One,
+    );
+
+    // For each tool, generate a JSON grammar for its arguments and create a tool-specific call rule
+    for (idx, tool) in tools.iter().enumerate() {
+        // Generate JSON grammar for this tool's arguments (just the arguments, not name/arguments wrapper)
+        let mut json_grammar = match gbnf::Grammar::from_json_schema(&tool.json_schema.to_string()) {
+            Ok(jg) => jg,
+            Err(e) => {
+                warn!("Failed generating grammar for tool '{}'. Probably because of a bad json schema: {e:?}.", tool.name);
+                return Err(e);
+            }
+        };
+
+        // Prefix all non-terminals in this grammar to avoid conflicts between different tools
+        let prefix = format!("tool{}_", idx);
+        for item in &mut json_grammar.items {
+            if let gbnf::GrammarItem::Rule(rule) = item {
+                // Prefix the LHS
+                if !rule.lhs.name.starts_with(&prefix) {
+                    rule.lhs.name = format!("{}{}", prefix, rule.lhs.name);
+                }
+                // Prefix all non-terminals in the RHS (except ws which is shared)
+                for prod_item in &mut rule.rhs.items {
+                    if let gbnf::ProductionItem::NonTerminal(nt, _) = prod_item {
+                        if !nt.name.starts_with(&prefix) && nt.name != "ws" {
+                            nt.name = format!("{}{}", prefix, nt.name);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Add all the prefixed rules from this tool's JSON grammar to the combined grammar
+        combined_grammar.items.extend(json_grammar.items);
+
+        // Create a rule for this specific tool call
+        // Format: <function=tool_name> ws json_args ws </function> ws
+        let tool_call_rule = gbnf::GrammarItem::Rule(gbnf::Rule {
+            lhs: gbnf::NonTerminalSymbol {
+                name: "toolcall".into(),
+            },
+            rhs: gbnf::Production {
+                items: vec![
+                    // <function=tool_name>
+                    gbnf::ProductionItem::Terminal(
+                        gbnf::TerminalSymbol {
+                            value: format!("<function={}>", tool.name),
+                        },
+                        gbnf::RepetitionType::One,
+                    ),
+                    // optional whitespace
+                    ws.clone(),
+                    // JSON arguments for this tool (refer to the prefixed root)
+                    gbnf::ProductionItem::NonTerminal(
+                        gbnf::NonTerminalSymbol {
+                            name: format!("{}root", prefix),
+                        },
+                        gbnf::RepetitionType::One,
+                    ),
+                    // optional whitespace
+                    ws.clone(),
+                    // </function>
+                    gbnf::ProductionItem::Terminal(
+                        gbnf::TerminalSymbol {
+                            value: "</function>".into(),
+                        },
+                        gbnf::RepetitionType::One,
+                    ),
+                    // optional whitespace
+                    ws.clone(),
+                ],
+            },
+        });
+
+        // Add this as an alternative for "toolcall"
+        // Multiple rules with the same LHS create alternation in GBNF
+        combined_grammar.items.push(tool_call_rule);
+    }
+
+    // Create superroot that allows one or more tool calls
+    // This enables multiple consecutive function calls: <function=a>{}</function><function=b>{}</function>
+    let superroot_rule = gbnf::GrammarItem::Rule(gbnf::Rule {
+        lhs: gbnf::NonTerminalSymbol {
+            name: "superroot".into(),
+        },
+        rhs: gbnf::Production {
+            items: vec![gbnf::ProductionItem::NonTerminal(
+                gbnf::NonTerminalSymbol {
+                    name: "toolcall".into(),
+                },
+                gbnf::RepetitionType::OneOrMore,
+            )],
+        },
+    });
+
+    combined_grammar.items.push(superroot_rule);
+
+    Ok(combined_grammar)
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
