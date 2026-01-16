@@ -504,8 +504,8 @@ class AppState extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Load model
-      _model = nobodywho.Model(modelPath: _modelPath!, useGpu: _useGpu);
+      // Load model (async)
+      _model = await nobodywho.Model.load(modelPath: _modelPath!, useGpu: _useGpu);
 
       // Build tools
       final tools = _buildSelectedTools();

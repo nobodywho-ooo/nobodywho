@@ -8,7 +8,7 @@ pub struct Model {
 }
 
 impl Model {
-    #[frb]
+    #[flutter_rust_bridge::frb]
     pub fn load(model_path: &str, #[frb(default = true)] use_gpu: bool) -> Result<Self, String> {
         let model = nobodywho::llm::get_model(model_path, use_gpu).map_err(|e| e.to_string())?;
         Ok(Self { model })
