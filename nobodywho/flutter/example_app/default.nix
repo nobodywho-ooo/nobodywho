@@ -38,6 +38,20 @@ flutter335.buildFlutterApplication rec {
     ln -sf ../../../../../nobodywho_flutter linux/flutter/ephemeral/.plugin_symlinks/nobodywho_flutter
   '';
 
+  # Run flutter analyze and tests during check phase
+  doCheck = true;
+  checkPhase = ''
+    runHook preCheck
+
+    echo "Running flutter analyze..."
+    flutter analyze
+
+    echo "Running flutter test..."
+    flutter test
+
+    runHook postCheck
+  '';
+
   # see: https://github.com/fzyzcjy/flutter_rust_bridge/issues/2527
   fixupPhase = ''
     patchelf --add-rpath '$ORIGIN' $out/app/nobodywho_flutter_example_app/lib/libflutter_linux_gtk.so
