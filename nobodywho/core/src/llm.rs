@@ -98,6 +98,27 @@ pub fn get_model(
     Ok(Arc::new(model))
 }
 
+/// Asynchronously loads a GGUF model from disk.
+///
+/// This function offloads the blocking model load operation to a background thread,
+/// allowing the async runtime to remain responsive. This is particularly useful when
+/// loading large models that can take several seconds to initialize.
+///
+/// # Arguments
+///
+/// * `model_path` - Path to the GGUF model file
+/// * `use_gpu_if_available` - Whether to attempt GPU acceleration if a discrete GPU is available
+///
+/// # Returns
+///
+/// Returns an `Arc<LlamaModel>` on success, or a `LoadModelError` on failure.
+///
+/// # Errors
+///
+/// This function will return an error if:
+/// * The model file is not found (`LoadModelError::ModelNotFound`)
+/// * The model file is invalid or unsupported (`LoadModelError::InvalidModel`)
+/// * The communication channel closes unexpectedly (`LoadModelError::ModelChannelError`)
 #[tracing::instrument(level = "info")]
 pub async fn get_model_async(
     model_path: String,
