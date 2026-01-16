@@ -200,7 +200,7 @@ where
     pub fn read_string(&mut self, text: String) -> Result<&mut Self, ReadError> {
         let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
         let inference_lock_token = _gil_guard.unwrap();
-        let tokens = self.ctx.model.str_to_token(&text, AddBos::Never)?;
+        let tokens = self.ctx.model.str_to_token(&text, self.add_bos)?;
         self.read_tokens(tokens, &inference_lock_token)
     }
 
