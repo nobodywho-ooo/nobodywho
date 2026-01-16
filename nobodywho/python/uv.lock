@@ -64,7 +64,11 @@ wheels = [
 
 [[package]]
 name = "nobodywho"
+<<<<<<< HEAD
 version = "0.6.2"
+=======
+version = "0.6.1"
+>>>>>>> 417bc4a (godot 8.0.1, python 0.6.1)
 source = { editable = "." }
 
 [package.dev-dependencies]
