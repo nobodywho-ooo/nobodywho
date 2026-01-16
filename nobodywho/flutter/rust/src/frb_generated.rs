@@ -42,7 +42,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1249156275;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1479447481;
 
 // Section: executor
 
@@ -969,16 +969,17 @@ fn wire__crate__api__nobodywho__Encoder_new_impl(
         },
     )
 }
-fn wire__crate__api__nobodywho__Model_new_impl(
+fn wire__crate__api__nobodywho__Model_load_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "Model_new",
-            port: None,
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+            debug_name: "Model_load",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
         move || {
             let message = unsafe {
@@ -993,10 +994,13 @@ fn wire__crate__api__nobodywho__Model_new_impl(
             let api_model_path = <String>::sse_decode(&mut deserializer);
             let api_use_gpu = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
-            transform_result_sse::<_, String>((move || {
-                let output_ok = crate::api::nobodywho::Model::new(&api_model_path, api_use_gpu)?;
-                Ok(output_ok)
-            })())
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok =
+                        crate::api::nobodywho::Model::load(&api_model_path, api_use_gpu)?;
+                    Ok(output_ok)
+                })())
+            }
         },
     )
 }
@@ -2883,6 +2887,7 @@ fn pde_ffi_dispatcher_primary_impl(
             data_len,
         ),
         16 => wire__crate__api__nobodywho__Encoder_encode_impl(port, ptr, rust_vec_len, data_len),
+        18 => wire__crate__api__nobodywho__Model_load_impl(port, ptr, rust_vec_len, data_len),
         41 => wire__crate__api__nobodywho__TokenStream_completed_impl(
             port,
             ptr,
@@ -2914,7 +2919,6 @@ fn pde_ffi_dispatcher_sync_impl(
         12 => wire__crate__api__nobodywho__Chat_stop_generation_impl(ptr, rust_vec_len, data_len),
         13 => wire__crate__api__nobodywho__CrossEncoder_new_impl(ptr, rust_vec_len, data_len),
         17 => wire__crate__api__nobodywho__Encoder_new_impl(ptr, rust_vec_len, data_len),
-        18 => wire__crate__api__nobodywho__Model_new_impl(ptr, rust_vec_len, data_len),
         19 => wire__crate__api__nobodywho__SamplerBuilder_dist_impl(ptr, rust_vec_len, data_len),
         20 => wire__crate__api__nobodywho__SamplerBuilder_dry_impl(ptr, rust_vec_len, data_len),
         21 => wire__crate__api__nobodywho__SamplerBuilder_grammar_impl(ptr, rust_vec_len, data_len),

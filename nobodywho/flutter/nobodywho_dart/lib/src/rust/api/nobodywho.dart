@@ -147,10 +147,11 @@ abstract class Message implements RustOpaqueInterface {}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Model>>
 abstract class Model implements RustOpaqueInterface {
-  factory Model({required String modelPath, bool useGpu = true}) => RustLib
-      .instance
-      .api
-      .crateApiNobodywhoModelNew(modelPath: modelPath, useGpu: useGpu);
+  static Future<Model> load({required String modelPath, bool useGpu = true}) =>
+      RustLib.instance.api.crateApiNobodywhoModelLoad(
+        modelPath: modelPath,
+        useGpu: useGpu,
+      );
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Rust2DartSendError>>

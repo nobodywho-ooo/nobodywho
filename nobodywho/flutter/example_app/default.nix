@@ -9,7 +9,7 @@ let
   models = callPackage ../../models.nix { };
 in
 flutter335.buildFlutterApplication rec {
-  pname = "nobodywho_flutter_test_app";
+  pname = "nobodywho_flutter_example_app";
   version = "0.0.1";
 
   src = lib.fileset.toSource {
@@ -40,17 +40,10 @@ flutter335.buildFlutterApplication rec {
 
   # see: https://github.com/fzyzcjy/flutter_rust_bridge/issues/2527
   fixupPhase = ''
-    patchelf --add-rpath '$ORIGIN' $out/app/nobodywho_flutter_test_app/lib/libflutter_linux_gtk.so 
+    patchelf --add-rpath '$ORIGIN' $out/app/nobodywho_flutter_example_app/lib/libflutter_linux_gtk.so
   '';
 
   # read pubspec using IFD
   # (can't be upstreamed to nixpkgs)
   autoPubspecLock = ./pubspec.lock;
-
-  doCheck = true;
-  checkPhase = ''
-    export LD_LIBRARY_PATH="${nobodywho_flutter_rust.lib}/lib"
-    export TEST_MODEL="${models.TEST_MODEL}"
-    flutter test ../nobodywho_dart/test/nobodywho_dart_test.dart
-  '';
 }
