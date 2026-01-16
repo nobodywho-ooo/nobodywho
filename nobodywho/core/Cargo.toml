@@ -10,7 +10,7 @@ minijinja = { version = "2.11.0", features = ["builtins", "json", "loader"] }
 minijinja-contrib = { version = "2.11.0", features = ["pycompat"] }
 serde = { version = "1.0.215", features = ["derive"] }
 chrono = "0.4.39"
-llama-cpp-2 = { version = "0.1.129" }
+llama-cpp-2 = "0.1.132"
 lazy_static = "1.5.0"
 tokio = { version = "1.43.0", features = ["sync", "rt", "rt-multi-thread", "macros"] }
 tokio-stream = "0.1.17"
@@ -24,4 +24,4 @@ futures = "0.3.31"
 
 # Enable Vulkan for x86_64 and x86 targets (excluding macOS, iOS, Android)
 [target.'cfg(all(not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android"), any(target_arch = "x86_64", target_arch = "x86")))'.dependencies]
-llama-cpp-2 = { version = "0.1.129", features = ["vulkan"] }
+llama-cpp-2 = "0.1.132"
