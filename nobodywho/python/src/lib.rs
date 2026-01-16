@@ -37,6 +37,26 @@ impl Model {
             Err(err) => Err(pyo3::exceptions::PyRuntimeError::new_err(err.to_string())),
         }
     }
+
+    #[staticmethod]
+    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true) -> "typing.Awaitable[Model]")]
+    pub async fn load_model_async(
+        model_path: std::path::PathBuf,
+        use_gpu_if_available: bool,
+    ) -> PyResult<Self> {
+        let path_str = model_path.to_str().ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "Path contains invalid UTF-8: {}",
+                model_path.display()
+            ))
+        })?;
+        let model_result =
+            nobodywho::llm::get_model_async(path_str.into(), use_gpu_if_available).await;
+        match model_result {
+            Ok(model) => Ok(Self { model }),
+            Err(err) => Err(pyo3::exceptions::PyRuntimeError::new_err(err.to_string())),
+        }
+    }
 }
 
 /// This type represents a `Model | str` from python
