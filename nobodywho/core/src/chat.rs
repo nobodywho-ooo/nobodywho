@@ -32,7 +32,7 @@ use crate::llm::{self};
 use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
 use crate::llm::{Worker, WriteOutput};
 use crate::sampler_config::{SamplerConfig, ShiftStep};
-use llama_cpp_2::model::{AddBos, Special};
+use llama_cpp_2::model::Special;
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 use llama_cpp_2::{context::params::LlamaPoolingType, model::LlamaModel};
@@ -1396,7 +1396,7 @@ impl Worker<'_, ChatWorker> {
                             &self.extra.eos_token,
                             &self.extra.tools,
                         )?,
-                        AddBos::Never,
+                        self.add_bos,
                     )?
                     .len()
                     <= target_token_size
@@ -1663,7 +1663,7 @@ impl Worker<'_, ChatWorker> {
         let render_as_tokens = self
             .ctx
             .model
-            .str_to_token(&render_as_string, AddBos::Never)?;
+            .str_to_token(&render_as_string, self.add_bos)?;
         Ok(render_as_tokens)
     }
 
