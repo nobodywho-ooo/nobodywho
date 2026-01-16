@@ -30,6 +30,9 @@ pub enum InitWorkerError {
 
     #[error("Got no response after initializing worker.")]
     NoResponse,
+
+    #[error("Failed parsing tokenizer.ggml.add_bos field: {0}")]
+    InvalidAddBosData(String),
 }
 
 #[derive(Debug, thiserror::Error)]

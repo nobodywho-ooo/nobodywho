@@ -98,12 +98,30 @@ pub fn get_model(
     Ok(Arc::new(model))
 }
 
+fn read_add_bos_metadata(model: &Arc<LlamaModel>) -> Result<AddBos, InitWorkerError> {
+    match model.meta_val_str("tokenizer.ggml.add_bos_token") {
+        Ok(val) => match val.as_str() {
+            "true" => Ok(AddBos::Always),
+            "false" => Ok(AddBos::Never),
+            _ => Err(InitWorkerError::InvalidAddBosData(format!(
+                "Invalid boolean value for tokenizer.ggml.add_bos_token: '{}'",
+                val,
+            ))),
+        },
+        Err(_) => {
+            warn!("tokenizer.ggml.add_bos_token not found in GGUF metadata, defaulting to false");
+            Ok(AddBos::Never)
+        }
+    }
+}
+
 #[derive(Debug)]
 pub(crate) struct Worker<'a, S> {
     pub(crate) n_past: i32,
     pub(crate) ctx: LlamaContext<'a>,
     pub(crate) big_batch: LlamaBatch<'a>,
     pub(crate) small_batch: LlamaBatch<'a>,
+    pub(crate) add_bos: AddBos,
 
     pub(crate) extra: S,
 }
@@ -157,12 +175,16 @@ where
         let big_batch = LlamaBatch::new(ctx.n_ctx() as usize, 1);
         let small_batch = LlamaBatch::new(1, 1);
 
+        let add_bos = read_add_bos_metadata(model)?;
+        debug!("Read add_bos from GGUF metadata: {add_bos:?}");
+
         let state = Worker {
             n_past: 0,
             ctx,
             big_batch,
             small_batch,
             extra,
+            add_bos,
         };
         Ok(state)
     }
@@ -178,7 +200,7 @@ where
     pub fn read_string(&mut self, text: String) -> Result<&mut Self, ReadError> {
         let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
         let inference_lock_token = _gil_guard.unwrap();
-        let tokens = self.ctx.model.str_to_token(&text, AddBos::Never)?;
+        let tokens = self.ctx.model.str_to_token(&text, self.add_bos)?;
         self.read_tokens(tokens, &inference_lock_token)
     }
 
