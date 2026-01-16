@@ -54,20 +54,26 @@ function Show-Progress {
 for ($i = 1; $i -le $TotalRuns; $i++) {
     Show-Progress -Current $i -Total $TotalRuns
     
-    # Run the Python script and capture exit code (suppress all output)
+    # Run the Python script and capture both output and exit code
     $ArgumentList = @($ScriptPath) + $ScriptArgs
     try {
-        & python @ArgumentList *>&1 | Out-Null
+        $Output = & python @ArgumentList 2>&1 | Out-String
         $ExitCode = $LASTEXITCODE
     } catch {
+        $Output = $_.Exception.Message
         $ExitCode = 1
     }
-    
+
     if ($ExitCode -eq 0) {
         $SuccessCount++
     } else {
         $FailureCount++
-        $Failures += "Run $i`: exit code $ExitCode"
+        $ErrorInfo = @{
+            Run = $i
+            ExitCode = $ExitCode
+            Output = $Output.Trim()
+        }
+        $Failures += $ErrorInfo
     }
 }
 
@@ -84,7 +90,12 @@ if ($FailureCount -gt 0) {
     Write-Host ""
     Write-Host "=== FAILURE DETAILS ===" -ForegroundColor Red
     foreach ($failure in $Failures) {
-        Write-Host $failure -ForegroundColor Red
+        Write-Host ""
+        Write-Host "Run $($failure.Run): exit code $($failure.ExitCode)" -ForegroundColor Red
+        if ($failure.Output) {
+            Write-Host "Output:" -ForegroundColor Yellow
+            Write-Host $failure.Output -ForegroundColor DarkGray
+        }
     }
 }
 

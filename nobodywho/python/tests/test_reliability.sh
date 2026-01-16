@@ -54,7 +54,8 @@ fi
 # Initialize counters
 SUCCESS_COUNT=0
 FAILURE_COUNT=0
-FAILURES=()
+declare -a FAILURES
+declare -a FAILURE_OUTPUTS
 
 echo "Running '$SCRIPT_PATH' $TOTAL_RUNS times..."
 echo "Arguments: $@"
@@ -78,15 +79,16 @@ progress_bar() {
 for i in $(seq 1 $TOTAL_RUNS); do
     progress_bar $i $TOTAL_RUNS
     
-    # Run the Python script and capture exit code
-    python "$SCRIPT_PATH" "$@" > /dev/null 2>&1
+    # Run the Python script and capture both output and exit code
+    OUTPUT=$(python "$SCRIPT_PATH" "$@" 2>&1)
     EXIT_CODE=$?
-    
+
     if [ $EXIT_CODE -eq 0 ]; then
         SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
     else
         FAILURE_COUNT=$((FAILURE_COUNT + 1))
         FAILURES+=("Run $i: exit code $EXIT_CODE")
+        FAILURE_OUTPUTS+=("$OUTPUT")
     fi
 done
 
@@ -102,8 +104,13 @@ echo "Failure rate: $(( FAILURE_COUNT * 100 / TOTAL_RUNS ))%"
 if [ $FAILURE_COUNT -gt 0 ]; then
     echo ""
     echo "=== FAILURE DETAILS ==="
-    for failure in "${FAILURES[@]}"; do
-        echo "$failure"
+    for idx in "${!FAILURES[@]}"; do
+        echo ""
+        echo "${FAILURES[$idx]}"
+        if [ -n "${FAILURE_OUTPUTS[$idx]}" ]; then
+            echo "Output:"
+            echo "${FAILURE_OUTPUTS[$idx]}"
+        fi
     done
 fi
 
