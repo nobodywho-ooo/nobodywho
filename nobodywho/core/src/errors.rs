@@ -1,4 +1,20 @@
 use llama_cpp_2::context::kv_cache::KvCacheConversionError;
+use hf_hub::api::sync::ApiError;
+
+
+// TODO: Likely fits under something else... Hf-Hub being used for one thing... doesn't warrent its own error type-type?
+// Hf-Hub errors
+
+#[derive(Debug, thiserror::Error)]
+pub enum HfHubError {
+    #[error("Error calling HfHub: {0}")]
+    ApiCreationError(#[from] hf_hub::api::sync::ApiError ),
+    #[error("No .gguf file found in given HuggingFace repository")]
+    NoGgufError(),
+    // TODO: Consider if we should pass debug string here or something...
+    #[error("Could not get name of downloaded .gguf file")]
+    StrCreationError(),
+}
 
 // Model errors
 
@@ -8,6 +24,8 @@ pub enum LoadModelError {
     ModelNotFound(String),
     #[error("Invalid or unsupported GGUF model: {0}")]
     InvalidModel(String),
+    #[error("Hf-Hub download failed")]
+    HfHubDownloadFailed(#[from] HfHubError),
 }
 
 // Worker errors

@@ -1,4 +1,4 @@
-use crate::errors::{InitWorkerError, LoadModelError, ReadError};
+use crate::errors::{InitWorkerError, LoadModelError, ReadError, HfHubError};
 use lazy_static::lazy_static;
 use llama_cpp_2::context::kv_cache::KvCacheConversionError;
 use llama_cpp_2::context::params::{LlamaContextParams, LlamaPoolingType};
@@ -9,9 +9,12 @@ use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::AddBos;
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::token::LlamaToken;
+use minijinja::filters::first;
+use std::path::PathBuf;
 use std::pin::pin;
 use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
 use tracing::{debug, debug_span, error, info, info_span, warn};
+use hf_hub::{api::sync::{ApiError, Api}, Repo, RepoType};
 
 #[derive(Debug)]
 pub(crate) struct GlobalInferenceLockToken;
@@ -64,15 +67,53 @@ pub fn has_discrete_gpu() -> bool {
     false
 }
 
+// Yeee, we in the ghetto, so we place it here!
+fn get_model_from_name(model_id: &str) -> Result<String, HfHubError> {
+    let api = Api::new()?;
+
+    // TODO: Add stuff here which tries to download, then convert to url using api.url and download
+    // To ensure case where user has entire model path covered
+    // We can get that functionality by just using the URI... going into repo.download if it appears to be a full one...
+
+    let repo = api.repo(Repo::new(
+        model_id.into(),
+        RepoType::Model
+    ));
+
+    let repo_info = repo.info()?;
+    let first_gguf = repo_info
+        .siblings
+        .iter()
+        .find(|s| s.rfilename.ends_with(".gguf"))
+        .ok_or_else(|| HfHubError::NoGgufError())?;
+
+    // TODO: Check *how* .get actually checks locally whether a model is present or not
+    // ... It doesn't check specific local locations, for example
+    let local_filename = repo.get(&first_gguf.rfilename)?
+        .into_os_string()
+        .into_string()
+        // Don't know if this makes sense... Do we need to convert an Option<T> to a StrCreationError? Overkill?
+        .or_else(|_| Err(HfHubError::StrCreationError()))?;
+    Ok(local_filename)
+}
+
 #[tracing::instrument(level = "info")]
 pub fn get_model(
     model_path: &str,
     use_gpu_if_available: bool,
 ) -> Result<Arc<LlamaModel>, LoadModelError> {
-    if !std::path::Path::new(model_path).exists() {
-        let e = LoadModelError::ModelNotFound(model_path.into());
-        error!(error = %e, "Model file not found");
-        return Err(e);
+    let mut model_path = model_path.to_owned();
+    // TODO: Consider if we wanna match on like the URI or smth, right now the approach might be... ignorant 
+    if !std::path::Path::new(&model_path).exists() {
+        info!("Model file not found locally, attempting from Hf-Hub");
+        if let Ok(new_path) = get_model_from_name(&model_path) {
+            info!("Using fallback model path: {}", new_path);
+            model_path = new_path;
+        } else {
+            let e = LoadModelError::ModelNotFound(model_path.into());
+            error!(error = %e, "Model file not found");
+            return Err(e);
+        }
     }
 
     // TODO: `LlamaModelParams` uses all devices by default. Set it to an empty list once an upstream device API is available.
@@ -88,7 +129,7 @@ pub fn get_model(
     let _guard = load_span.enter();
 
     let model =
-        LlamaModel::load_from_file(&LLAMA_BACKEND, model_path, &model_params).map_err(|e| {
+        LlamaModel::load_from_file(&LLAMA_BACKEND, &model_path, &model_params).map_err(|e| {
             let error_msg = format!("Bad model path: {} - Llama.cpp error: {}", model_path, e);
             error!(error = %error_msg, "Failed to load model");
             LoadModelError::InvalidModel(error_msg)
