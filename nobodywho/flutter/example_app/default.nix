@@ -49,6 +49,11 @@ flutter335.buildFlutterApplication rec {
     echo "Running flutter test..."
     flutter test
 
+    echo "Testing the nobodywho dart wrapper package"
+    export LD_LIBRARY_PATH="${nobodywho_flutter_rust.lib}/lib"
+    export TEST_MODEL="${models.TEST_MODEL}"
+    flutter test ../nobodywho_dart/test/nobodywho_dart_test.dart
+
     runHook postCheck
   '';
 
