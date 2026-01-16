@@ -55,9 +55,13 @@ for ($i = 1; $i -le $TotalRuns; $i++) {
     Show-Progress -Current $i -Total $TotalRuns
     
     # Run the Python script and capture both output and exit code
+    # Set PYTHONIOENCODING to UTF-8 to handle emoji and other Unicode characters on Windows
     $ArgumentList = @($ScriptPath) + $ScriptArgs
     try {
-        $Output = & python @ArgumentList 2>&1 | Out-String
+        $Output = & {
+            $env:PYTHONIOENCODING = 'utf-8'
+            python @ArgumentList 2>&1 | Out-String
+        }
         $ExitCode = $LASTEXITCODE
     } catch {
         $Output = $_.Exception.Message
