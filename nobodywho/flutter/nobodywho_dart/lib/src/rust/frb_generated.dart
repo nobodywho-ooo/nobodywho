@@ -12,15 +12,16 @@ import 'frb_generated.io.dart'
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 /// Main entrypoint of the Rust API
-class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
+class NobodyWho
+    extends BaseEntrypoint<NobodyWhoApi, NobodyWhoApiImpl, NobodyWhoWire> {
   @internal
-  static final instance = RustLib._();
+  static final instance = NobodyWho._();
 
-  RustLib._();
+  NobodyWho._();
 
   /// Initialize flutter_rust_bridge
   static Future<void> init({
-    RustLibApi? api,
+    NobodyWhoApi? api,
     BaseHandler? handler,
     ExternalLibrary? externalLibrary,
     bool forceSameCodegenVersion = true,
@@ -35,7 +36,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 
   /// Initialize flutter_rust_bridge in mock mode.
   /// No libraries for FFI are loaded.
-  static void initMock({required RustLibApi api}) {
+  static void initMock({required NobodyWhoApi api}) {
     instance.initMockImpl(api: api);
   }
 
@@ -46,12 +47,12 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   static void dispose() => instance.disposeImpl();
 
   @override
-  ApiImplConstructor<RustLibApiImpl, RustLibWire> get apiImplConstructor =>
-      RustLibApiImpl.new;
+  ApiImplConstructor<NobodyWhoApiImpl, NobodyWhoWire> get apiImplConstructor =>
+      NobodyWhoApiImpl.new;
 
   @override
-  WireConstructor<RustLibWire> get wireConstructor =>
-      RustLibWire.fromExternalLibrary;
+  WireConstructor<NobodyWhoWire> get wireConstructor =>
+      NobodyWhoWire.fromExternalLibrary;
 
   @override
   Future<void> executeRustInitializers() async {}
@@ -74,7 +75,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
       );
 }
 
-abstract class RustLibApi extends BaseApi {
+abstract class NobodyWhoApi extends BaseApi {
   TokenStream crateApiNobodywhoChatAsk({
     required Chat that,
     required String message,
@@ -419,8 +420,9 @@ abstract class RustLibApi extends BaseApi {
   CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_ToolPtr;
 }
 
-class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
-  RustLibApiImpl({
+class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
+    implements NobodyWhoApi {
+  NobodyWhoApiImpl({
     required super.handler,
     required super.wire,
     required super.generalizedFrbRustBinding,
@@ -4170,59 +4172,59 @@ class ChatImpl extends RustOpaque implements Chat {
 
   static final _kStaticData = RustArcStaticData(
     rustArcIncrementStrongCount:
-        RustLib.instance.api.rust_arc_increment_strong_count_Chat,
+        NobodyWho.instance.api.rust_arc_increment_strong_count_Chat,
     rustArcDecrementStrongCount:
-        RustLib.instance.api.rust_arc_decrement_strong_count_Chat,
+        NobodyWho.instance.api.rust_arc_decrement_strong_count_Chat,
     rustArcDecrementStrongCountPtr:
-        RustLib.instance.api.rust_arc_decrement_strong_count_ChatPtr,
+        NobodyWho.instance.api.rust_arc_decrement_strong_count_ChatPtr,
   );
 
-  TokenStream ask({required String message}) => RustLib.instance.api
+  TokenStream ask({required String message}) => NobodyWho.instance.api
       .crateApiNobodywhoChatAsk(that: this, message: message);
 
   Future<List<Message>> getChatHistory() =>
-      RustLib.instance.api.crateApiNobodywhoChatGetChatHistory(that: this);
+      NobodyWho.instance.api.crateApiNobodywhoChatGetChatHistory(that: this);
 
   Future<void> resetContext({
     required String systemPrompt,
     required List<Tool> tools,
-  }) => RustLib.instance.api.crateApiNobodywhoChatResetContext(
+  }) => NobodyWho.instance.api.crateApiNobodywhoChatResetContext(
     that: this,
     systemPrompt: systemPrompt,
     tools: tools,
   );
 
   Future<void> resetHistory() =>
-      RustLib.instance.api.crateApiNobodywhoChatResetHistory(that: this);
+      NobodyWho.instance.api.crateApiNobodywhoChatResetHistory(that: this);
 
   Future<void> setAllowThinking({required bool allowThinking}) =>
-      RustLib.instance.api.crateApiNobodywhoChatSetAllowThinking(
+      NobodyWho.instance.api.crateApiNobodywhoChatSetAllowThinking(
         that: this,
         allowThinking: allowThinking,
       );
 
-  Future<void> setChatHistory({required List<Message> messages}) => RustLib
+  Future<void> setChatHistory({required List<Message> messages}) => NobodyWho
       .instance
       .api
       .crateApiNobodywhoChatSetChatHistory(that: this, messages: messages);
 
   Future<void> setSamplerConfig({required SamplerConfig samplerConfig}) =>
-      RustLib.instance.api.crateApiNobodywhoChatSetSamplerConfig(
+      NobodyWho.instance.api.crateApiNobodywhoChatSetSamplerConfig(
         that: this,
         samplerConfig: samplerConfig,
       );
 
   Future<void> setSystemPrompt({required String systemPrompt}) =>
-      RustLib.instance.api.crateApiNobodywhoChatSetSystemPrompt(
+      NobodyWho.instance.api.crateApiNobodywhoChatSetSystemPrompt(
         that: this,
         systemPrompt: systemPrompt,
       );
 
-  Future<void> setTools({required List<Tool> tools}) => RustLib.instance.api
+  Future<void> setTools({required List<Tool> tools}) => NobodyWho.instance.api
       .crateApiNobodywhoChatSetTools(that: this, tools: tools);
 
   void stopGeneration() =>
-      RustLib.instance.api.crateApiNobodywhoChatStopGeneration(that: this);
+      NobodyWho.instance.api.crateApiNobodywhoChatStopGeneration(that: this);
 }
 
 @sealed
@@ -4237,11 +4239,13 @@ class CompletionErrorImpl extends RustOpaque implements CompletionError {
 
   static final _kStaticData = RustArcStaticData(
     rustArcIncrementStrongCount:
-        RustLib.instance.api.rust_arc_increment_strong_count_CompletionError,
+        NobodyWho.instance.api.rust_arc_increment_strong_count_CompletionError,
     rustArcDecrementStrongCount:
-        RustLib.instance.api.rust_arc_decrement_strong_count_CompletionError,
-    rustArcDecrementStrongCountPtr:
-        RustLib.instance.api.rust_arc_decrement_strong_count_CompletionErrorPtr,
+        NobodyWho.instance.api.rust_arc_decrement_strong_count_CompletionError,
+    rustArcDecrementStrongCountPtr: NobodyWho
+        .instance
+        .api
+        .rust_arc_decrement_strong_count_CompletionErrorPtr,
   );
 }
 
@@ -4257,17 +4261,17 @@ class CrossEncoderImpl extends RustOpaque implements CrossEncoder {
 
   static final _kStaticData = RustArcStaticData(
     rustArcIncrementStrongCount:
-        RustLib.instance.api.rust_arc_increment_strong_count_CrossEncoder,
+        NobodyWho.instance.api.rust_arc_increment_strong_count_CrossEncoder,
     rustArcDecrementStrongCount:
-        RustLib.instance.api.rust_arc_decrement_strong_count_CrossEncoder,
+        NobodyWho.instance.api.rust_arc_decrement_strong_count_CrossEncoder,
     rustArcDecrementStrongCountPtr:
-        RustLib.instance.api.rust_arc_decrement_strong_count_CrossEncoderPtr,
+        NobodyWho.instance.api.rust_arc_decrement_strong_count_CrossEncoderPtr,
   );
 
   Future<Float32List> rank({
     required String query,
     required List<String> documents,
-  }) => RustLib.instance.api.crateApiNobodywhoCrossEncoderRank(
+  }) => NobodyWho.instance.api.crateApiNobodywhoCrossEncoderRank(
     that: this,
     query: query,
     documents: documents,
@@ -4276,7 +4280,7 @@ class CrossEncoderImpl extends RustOpaque implements CrossEncoder {
   Future<List<(String, double)>> rankAndSort({
     required String query,
     required List<String> documents,
-  }) => RustLib.instance.api.crateApiNobodywhoCrossEncoderRankAndSort(
+  }) => NobodyWho.instance.api.crateApiNobodywhoCrossEncoderRankAndSort(
     that: this,
     query: query,
     documents: documents,
@@ -4297,15 +4301,15 @@ class CrossEncoderWorkerErrorImpl extends RustOpaque
   ) : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
 
   static final _kStaticData = RustArcStaticData(
-    rustArcIncrementStrongCount: RustLib
+    rustArcIncrementStrongCount: NobodyWho
         .instance
         .api
         .rust_arc_increment_strong_count_CrossEncoderWorkerError,
-    rustArcDecrementStrongCount: RustLib
+    rustArcDecrementStrongCount: NobodyWho
         .instance
         .api
         .rust_arc_decrement_strong_count_CrossEncoderWorkerError,
-    rustArcDecrementStrongCountPtr: RustLib
+    rustArcDecrementStrongCountPtr: NobodyWho
         .instance
         .api
         .rust_arc_decrement_strong_count_CrossEncoderWorkerErrorPtr,
@@ -4324,14 +4328,14 @@ class EncoderImpl extends RustOpaque implements Encoder {
 
   static final _kStaticData = RustArcStaticData(
     rustArcIncrementStrongCount:
-        RustLib.instance.api.rust_arc_increment_strong_count_Encoder,
+        NobodyWho.instance.api.rust_arc_increment_strong_count_Encoder,
     rustArcDecrementStrongCount:
-        RustLib.instance.api.rust_arc_decrement_strong_count_Encoder,
+        NobodyWho.instance.api.rust_arc_decrement_strong_count_Encoder,
     rustArcDecrementStrongCountPtr:
-        RustLib.instance.api.rust_arc_decrement_strong_count_EncoderPtr,
+        NobodyWho.instance.api.rust_arc_decrement_strong_count_EncoderPtr,
   );
 
-  Future<Float32List> encode({required String text}) => RustLib.instance.api
+  Future<Float32List> encode({required String text}) => NobodyWho.instance.api
       .crateApiNobodywhoEncoderEncode(that: this, text: text);
 }
 
@@ -4348,11 +4352,15 @@ class EncoderWorkerErrorImpl extends RustOpaque implements EncoderWorkerError {
   ) : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
 
   static final _kStaticData = RustArcStaticData(
-    rustArcIncrementStrongCount:
-        RustLib.instance.api.rust_arc_increment_strong_count_EncoderWorkerError,
-    rustArcDecrementStrongCount:
-        RustLib.instance.api.rust_arc_decrement_strong_count_EncoderWorkerError,
-    rustArcDecrementStrongCountPtr: RustLib
+    rustArcIncrementStrongCount: NobodyWho
+        .instance
+        .api
+        .rust_arc_increment_strong_count_EncoderWorkerError,
+    rustArcDecrementStrongCount: NobodyWho
+        .instance
+        .api
+        .rust_arc_decrement_strong_count_EncoderWorkerError,
+    rustArcDecrementStrongCountPtr: NobodyWho
         .instance
         .api
         .rust_arc_decrement_strong_count_EncoderWorkerErrorPtr,
@@ -4371,11 +4379,11 @@ class GetterErrorImpl extends RustOpaque implements GetterError {
 
   static final _kStaticData = RustArcStaticData(
     rustArcIncrementStrongCount:
-        RustLib.instance.api.rust_arc_increment_strong_count_GetterError,
+        NobodyWho.instance.api.rust_arc_increment_strong_count_GetterError,
     rustArcDecrementStrongCount:
-        RustLib.instance.api.rust_arc_decrement_strong_count_GetterError,
+        NobodyWho.instance.api.rust_arc_decrement_strong_count_GetterError,
     rustArcDecrementStrongCountPtr:
-        RustLib.instance.api.rust_arc_decrement_strong_count_GetterErrorPtr,
+        NobodyWho.instance.api.rust_arc_decrement_strong_count_GetterErrorPtr,
   );
 }
 
@@ -4391,11 +4399,11 @@ class MessageImpl extends RustOpaque implements Message {
 
   static final _kStaticData = RustArcStaticData(
     rustArcIncrementStrongCount:
-        RustLib.instance.api.rust_arc_increment_strong_count_Message,
+        NobodyWho.instance.api.rust_arc_increment_strong_count_Message,
     rustArcDecrementStrongCount:
-        RustLib.instance.api.rust_arc_decrement_strong_count_Message,
+        NobodyWho.instance.api.rust_arc_decrement_strong_count_Message,
     rustArcDecrementStrongCountPtr:
-        RustLib.instance.api.rust_arc_decrement_strong_count_MessagePtr,
+        NobodyWho.instance.api.rust_arc_decrement_strong_count_MessagePtr,
   );
 }
 
@@ -4411,11 +4419,11 @@ class ModelImpl extends RustOpaque implements Model {
 
   static final _kStaticData = RustArcStaticData(
     rustArcIncrementStrongCount:
-        RustLib.instance.api.rust_arc_increment_strong_count_Model,
+        NobodyWho.instance.api.rust_arc_increment_strong_count_Model,
     rustArcDecrementStrongCount:
-        RustLib.instance.api.rust_arc_decrement_strong_count_Model,
+        NobodyWho.instance.api.rust_arc_decrement_strong_count_Model,
     rustArcDecrementStrongCountPtr:
-        RustLib.instance.api.rust_arc_decrement_strong_count_ModelPtr,
+        NobodyWho.instance.api.rust_arc_decrement_strong_count_ModelPtr,
   );
 }
 
@@ -4432,11 +4440,15 @@ class Rust2DartSendErrorImpl extends RustOpaque implements Rust2DartSendError {
   ) : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
 
   static final _kStaticData = RustArcStaticData(
-    rustArcIncrementStrongCount:
-        RustLib.instance.api.rust_arc_increment_strong_count_Rust2DartSendError,
-    rustArcDecrementStrongCount:
-        RustLib.instance.api.rust_arc_decrement_strong_count_Rust2DartSendError,
-    rustArcDecrementStrongCountPtr: RustLib
+    rustArcIncrementStrongCount: NobodyWho
+        .instance
+        .api
+        .rust_arc_increment_strong_count_Rust2DartSendError,
+    rustArcDecrementStrongCount: NobodyWho
+        .instance
+        .api
+        .rust_arc_decrement_strong_count_Rust2DartSendError,
+    rustArcDecrementStrongCountPtr: NobodyWho
         .instance
         .api
         .rust_arc_decrement_strong_count_Rust2DartSendErrorPtr,
@@ -4455,11 +4467,13 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
 
   static final _kStaticData = RustArcStaticData(
     rustArcIncrementStrongCount:
-        RustLib.instance.api.rust_arc_increment_strong_count_SamplerBuilder,
+        NobodyWho.instance.api.rust_arc_increment_strong_count_SamplerBuilder,
     rustArcDecrementStrongCount:
-        RustLib.instance.api.rust_arc_decrement_strong_count_SamplerBuilder,
-    rustArcDecrementStrongCountPtr:
-        RustLib.instance.api.rust_arc_decrement_strong_count_SamplerBuilderPtr,
+        NobodyWho.instance.api.rust_arc_decrement_strong_count_SamplerBuilder,
+    rustArcDecrementStrongCountPtr: NobodyWho
+        .instance
+        .api
+        .rust_arc_decrement_strong_count_SamplerBuilderPtr,
   );
 
   /// Sample from the probability distribution (weighted random selection).
@@ -4467,7 +4481,7 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
   /// Returns:
   ///     A complete SamplerConfig ready to use
   SamplerConfig dist() =>
-      RustLib.instance.api.crateApiNobodywhoSamplerBuilderDist(that: this);
+      NobodyWho.instance.api.crateApiNobodywhoSamplerBuilderDist(that: this);
 
   /// DRY (Don't Repeat Yourself) sampler to reduce repetition.
   ///
@@ -4483,7 +4497,7 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
     required int allowedLength,
     required int penaltyLastN,
     required List<String> seqBreakers,
-  }) => RustLib.instance.api.crateApiNobodywhoSamplerBuilderDry(
+  }) => NobodyWho.instance.api.crateApiNobodywhoSamplerBuilderDry(
     that: this,
     multiplier: multiplier,
     base: base,
@@ -4503,7 +4517,7 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
     required String grammar,
     String? triggerOn,
     required String root,
-  }) => RustLib.instance.api.crateApiNobodywhoSamplerBuilderGrammar(
+  }) => NobodyWho.instance.api.crateApiNobodywhoSamplerBuilderGrammar(
     that: this,
     grammar: grammar,
     triggerOn: triggerOn,
@@ -4515,7 +4529,7 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
   /// Returns:
   ///     A complete SamplerConfig ready to use
   SamplerConfig greedy() =>
-      RustLib.instance.api.crateApiNobodywhoSamplerBuilderGreedy(that: this);
+      NobodyWho.instance.api.crateApiNobodywhoSamplerBuilderGreedy(that: this);
 
   /// Keep tokens with probability above min_p * (probability of most likely token).
   ///
@@ -4523,7 +4537,7 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
   ///     min_p: Minimum relative probability threshold (0.0 to 1.0). Typical: 0.05-0.1.
   ///     min_keep: Minimum number of tokens to always keep
   SamplerBuilder minP({required double minP, required int minKeep}) =>
-      RustLib.instance.api.crateApiNobodywhoSamplerBuilderMinP(
+      NobodyWho.instance.api.crateApiNobodywhoSamplerBuilderMinP(
         that: this,
         minP: minP,
         minKeep: minKeep,
@@ -4544,7 +4558,7 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
     required double tau,
     required double eta,
     required int m,
-  }) => RustLib.instance.api.crateApiNobodywhoSamplerBuilderMirostatV1(
+  }) => NobodyWho.instance.api.crateApiNobodywhoSamplerBuilderMirostatV1(
     that: this,
     tau: tau,
     eta: eta,
@@ -4562,7 +4576,7 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
   /// Returns:
   ///     A complete SamplerConfig ready to use
   SamplerConfig mirostatV2({required double tau, required double eta}) =>
-      RustLib.instance.api.crateApiNobodywhoSamplerBuilderMirostatV2(
+      NobodyWho.instance.api.crateApiNobodywhoSamplerBuilderMirostatV2(
         that: this,
         tau: tau,
         eta: eta,
@@ -4580,7 +4594,7 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
     required double penaltyRepeat,
     required double penaltyFreq,
     required double penaltyPresent,
-  }) => RustLib.instance.api.crateApiNobodywhoSamplerBuilderPenalties(
+  }) => NobodyWho.instance.api.crateApiNobodywhoSamplerBuilderPenalties(
     that: this,
     penaltyLastN: penaltyLastN,
     penaltyRepeat: penaltyRepeat,
@@ -4593,7 +4607,7 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
   /// Args:
   ///     temperature: Temperature value (0.0 = deterministic, 1.0 = unchanged, >1.0 = more random)
   SamplerBuilder temperature({required double temperature}) =>
-      RustLib.instance.api.crateApiNobodywhoSamplerBuilderTemperature(
+      NobodyWho.instance.api.crateApiNobodywhoSamplerBuilderTemperature(
         that: this,
         temperature: temperature,
       );
@@ -4602,7 +4616,7 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
   ///
   /// Args:
   ///     top_k: Number of top tokens to keep
-  SamplerBuilder topK({required int topK}) => RustLib.instance.api
+  SamplerBuilder topK({required int topK}) => NobodyWho.instance.api
       .crateApiNobodywhoSamplerBuilderTopK(that: this, topK: topK);
 
   /// Keep tokens whose cumulative probability is below top_p. Typical values: 0.9-0.95.
@@ -4611,7 +4625,7 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
   ///     top_p: Cumulative probability threshold (0.0 to 1.0)
   ///     min_keep: Minimum number of tokens to always keep
   SamplerBuilder topP({required double topP, required int minKeep}) =>
-      RustLib.instance.api.crateApiNobodywhoSamplerBuilderTopP(
+      NobodyWho.instance.api.crateApiNobodywhoSamplerBuilderTopP(
         that: this,
         topP: topP,
         minKeep: minKeep,
@@ -4623,7 +4637,7 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
   ///     typ_p: Typical probability mass (0.0 to 1.0). Typical: 0.9.
   ///     min_keep: Minimum number of tokens to always keep
   SamplerBuilder typicalP({required double typP, required int minKeep}) =>
-      RustLib.instance.api.crateApiNobodywhoSamplerBuilderTypicalP(
+      NobodyWho.instance.api.crateApiNobodywhoSamplerBuilderTypicalP(
         that: this,
         typP: typP,
         minKeep: minKeep,
@@ -4640,7 +4654,7 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
     required double xtcProbability,
     required double xtcThreshold,
     required int minKeep,
-  }) => RustLib.instance.api.crateApiNobodywhoSamplerBuilderXtc(
+  }) => NobodyWho.instance.api.crateApiNobodywhoSamplerBuilderXtc(
     that: this,
     xtcProbability: xtcProbability,
     xtcThreshold: xtcThreshold,
@@ -4660,11 +4674,11 @@ class SamplerConfigImpl extends RustOpaque implements SamplerConfig {
 
   static final _kStaticData = RustArcStaticData(
     rustArcIncrementStrongCount:
-        RustLib.instance.api.rust_arc_increment_strong_count_SamplerConfig,
+        NobodyWho.instance.api.rust_arc_increment_strong_count_SamplerConfig,
     rustArcDecrementStrongCount:
-        RustLib.instance.api.rust_arc_decrement_strong_count_SamplerConfig,
+        NobodyWho.instance.api.rust_arc_decrement_strong_count_SamplerConfig,
     rustArcDecrementStrongCountPtr:
-        RustLib.instance.api.rust_arc_decrement_strong_count_SamplerConfigPtr,
+        NobodyWho.instance.api.rust_arc_decrement_strong_count_SamplerConfigPtr,
   );
 }
 
@@ -4680,11 +4694,13 @@ class SamplerPresetsImpl extends RustOpaque implements SamplerPresets {
 
   static final _kStaticData = RustArcStaticData(
     rustArcIncrementStrongCount:
-        RustLib.instance.api.rust_arc_increment_strong_count_SamplerPresets,
+        NobodyWho.instance.api.rust_arc_increment_strong_count_SamplerPresets,
     rustArcDecrementStrongCount:
-        RustLib.instance.api.rust_arc_decrement_strong_count_SamplerPresets,
-    rustArcDecrementStrongCountPtr:
-        RustLib.instance.api.rust_arc_decrement_strong_count_SamplerPresetsPtr,
+        NobodyWho.instance.api.rust_arc_decrement_strong_count_SamplerPresets,
+    rustArcDecrementStrongCountPtr: NobodyWho
+        .instance
+        .api
+        .rust_arc_decrement_strong_count_SamplerPresetsPtr,
   );
 }
 
@@ -4700,11 +4716,11 @@ class SetterErrorImpl extends RustOpaque implements SetterError {
 
   static final _kStaticData = RustArcStaticData(
     rustArcIncrementStrongCount:
-        RustLib.instance.api.rust_arc_increment_strong_count_SetterError,
+        NobodyWho.instance.api.rust_arc_increment_strong_count_SetterError,
     rustArcDecrementStrongCount:
-        RustLib.instance.api.rust_arc_decrement_strong_count_SetterError,
+        NobodyWho.instance.api.rust_arc_decrement_strong_count_SetterError,
     rustArcDecrementStrongCountPtr:
-        RustLib.instance.api.rust_arc_decrement_strong_count_SetterErrorPtr,
+        NobodyWho.instance.api.rust_arc_decrement_strong_count_SetterErrorPtr,
   );
 }
 
@@ -4720,21 +4736,21 @@ class TokenStreamImpl extends RustOpaque implements TokenStream {
 
   static final _kStaticData = RustArcStaticData(
     rustArcIncrementStrongCount:
-        RustLib.instance.api.rust_arc_increment_strong_count_TokenStream,
+        NobodyWho.instance.api.rust_arc_increment_strong_count_TokenStream,
     rustArcDecrementStrongCount:
-        RustLib.instance.api.rust_arc_decrement_strong_count_TokenStream,
+        NobodyWho.instance.api.rust_arc_decrement_strong_count_TokenStream,
     rustArcDecrementStrongCountPtr:
-        RustLib.instance.api.rust_arc_decrement_strong_count_TokenStreamPtr,
+        NobodyWho.instance.api.rust_arc_decrement_strong_count_TokenStreamPtr,
   );
 
   Future<String> completed() =>
-      RustLib.instance.api.crateApiNobodywhoTokenStreamCompleted(that: this);
+      NobodyWho.instance.api.crateApiNobodywhoTokenStreamCompleted(that: this);
 
   Stream<String> iter() =>
-      RustLib.instance.api.crateApiNobodywhoTokenStreamIter(that: this);
+      NobodyWho.instance.api.crateApiNobodywhoTokenStreamIter(that: this);
 
   Future<String?> nextToken() =>
-      RustLib.instance.api.crateApiNobodywhoTokenStreamNextToken(that: this);
+      NobodyWho.instance.api.crateApiNobodywhoTokenStreamNextToken(that: this);
 }
 
 @sealed
@@ -4749,10 +4765,10 @@ class ToolImpl extends RustOpaque implements Tool {
 
   static final _kStaticData = RustArcStaticData(
     rustArcIncrementStrongCount:
-        RustLib.instance.api.rust_arc_increment_strong_count_Tool,
+        NobodyWho.instance.api.rust_arc_increment_strong_count_Tool,
     rustArcDecrementStrongCount:
-        RustLib.instance.api.rust_arc_decrement_strong_count_Tool,
+        NobodyWho.instance.api.rust_arc_decrement_strong_count_Tool,
     rustArcDecrementStrongCountPtr:
-        RustLib.instance.api.rust_arc_decrement_strong_count_ToolPtr,
+        NobodyWho.instance.api.rust_arc_decrement_strong_count_ToolPtr,
   );
 }
