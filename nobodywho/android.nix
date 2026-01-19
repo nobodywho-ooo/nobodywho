@@ -18,7 +18,7 @@ let
   );
 
   ndkVersion = "28.2.13676358"; # must be kept in sync with the ndk version mentioned above
-  coreShell = pkgs.callPackage (import ./core/shell.nix) { };
+  coreShell = pkgs.callPackage (import ./shell.nix) { };
 in
 pkgs.mkShell {
   name = "nobodywho android shell";

@@ -36,3 +36,9 @@ jobs:
       - name: "nix flake check"
         run: |
           nix --extra-experimental-features nix-command --extra-experimental-features flakes flake check -L --max-jobs 1
+
+      - name: "test nix android environment can compile flutter app"
+        run: |
+          export NOBODYWHO_FLUTTER_LIB_PATH="$(nix build '.#flutter_rust^lib' --print-out-paths)/lib/libnobodywho_flutter.so"
+          cd nobodywho/flutter/example_app
+          nix develop '.#android' --command flutter build apk
