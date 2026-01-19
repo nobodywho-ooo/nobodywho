@@ -31,9 +31,11 @@ android {
     // to bump the version in their app.
     compileSdk = 36
 
-    // NDK version must be specified explicitly for library modules with native code.
-    // This must match flutter.ndkVersion used by consuming apps.
-    ndkVersion = "28.2.13676358"
+    // NDK version: read from gradle property so downstream apps can configure it.
+    // Set in gradle.properties: android.ndkVersion=28.2.13676358
+    if (findProperty('android.ndkVersion')) {
+        ndkVersion = findProperty('android.ndkVersion')
+    }
 
     // Invoke the shared CMake build with the Android Gradle Plugin.
     externalNativeBuild {
