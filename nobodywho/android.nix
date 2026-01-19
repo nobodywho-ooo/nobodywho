@@ -9,13 +9,15 @@ let
       cmdline-tools-latest
       build-tools-35-0-0 # needed by our version of flutter
       platform-tools
-      platforms-android-33 # needed by our version of flutter
-      platforms-android-34 # needed by our version of flutter
-      ndk-27-0-12077973 # needed by our version of flutter
+      # platforms-android-33 # needed by our version of flutter
+      # platforms-android-34 # needed by our version of flutter
+      platforms-android-36 # needed by our version of flutter
+      ndk-28-2-13676358 # needed by our version of flutter
+      cmake-3-22-1 # needed for native builds
     ]
   );
 
-  ndkVersion = "27.0.12077973"; # must be kept in sync with the ndk version mentioned above
+  ndkVersion = "28.2.13676358"; # must be kept in sync with the ndk version mentioned above
   coreShell = pkgs.callPackage (import ./core/shell.nix) { };
 in
 pkgs.mkShell {
