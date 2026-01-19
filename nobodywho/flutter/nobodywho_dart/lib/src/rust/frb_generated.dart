@@ -64,7 +64,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 1249156275;
+  int get rustContentHash => 1479447481;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -162,7 +162,7 @@ abstract class RustLibApi extends BaseApi {
 
   Encoder crateApiNobodywhoEncoderNew({required Model model, int nCtx = 4096});
 
-  Model crateApiNobodywhoModelNew({
+  Future<Model> crateApiNobodywhoModelLoad({
     required String modelPath,
     bool useGpu = true,
   });
@@ -1116,32 +1116,37 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Model crateApiNobodywhoModelNew({
+  Future<Model> crateApiNobodywhoModelLoad({
     required String modelPath,
     bool useGpu = true,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(modelPath, serializer);
           sse_encode_bool(useGpu, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 18)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 18,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData:
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerModel,
           decodeErrorData: sse_decode_String,
         ),
-        constMeta: kCrateApiNobodywhoModelNewConstMeta,
+        constMeta: kCrateApiNobodywhoModelLoadConstMeta,
         argValues: [modelPath, useGpu],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoModelNewConstMeta => const TaskConstMeta(
-    debugName: "Model_new",
+  TaskConstMeta get kCrateApiNobodywhoModelLoadConstMeta => const TaskConstMeta(
+    debugName: "Model_load",
     argNames: ["modelPath", "useGpu"],
   );
 
