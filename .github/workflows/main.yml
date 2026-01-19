@@ -28,6 +28,12 @@ jobs:
     secrets:
       CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
 
+  test-android-env:
+    uses: ./.github/workflows/test-android.yml
+    needs: [build]
+    secrets:
+      CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+
   release:
     needs: [build, test, python_ci]
     uses: ./.github/workflows/release.yml
