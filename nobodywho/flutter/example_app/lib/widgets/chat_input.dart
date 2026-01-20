@@ -71,11 +71,16 @@ class ChatInput extends StatelessWidget {
                 ),
               )
             else
-              IconButton.filled(
-                icon: const Icon(Icons.send),
-                onPressed:
-                    enabled && controller.text.trim().isNotEmpty ? onSend : null,
-                tooltip: 'Send message',
+              ListenableBuilder(
+                listenable: controller,
+                builder: (context, child) {
+                  return IconButton.filled(
+                    icon: const Icon(Icons.send),
+                    onPressed:
+                        enabled && controller.text.trim().isNotEmpty ? onSend : null,
+                    tooltip: 'Send message',
+                  );
+                },
               ),
           ],
         ),

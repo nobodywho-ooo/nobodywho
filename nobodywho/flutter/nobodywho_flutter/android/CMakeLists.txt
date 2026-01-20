@@ -15,8 +15,13 @@ project(PROJECT_NAME)
 set(NOBODYWHO_FLUTTER_LOCAL_BUILD_LIB_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../../../target/aarch64-linux-android/release/libnobodywho_flutter.so")
 set(LibRoot "${CMAKE_CURRENT_SOURCE_DIR}/src/main/jniLibs")
 
+# check environment variable first
+if(DEFINED ENV{NOBODYWHO_FLUTTER_LIB_PATH})
+  message("Using NobodyWho artifact from environment variable: $ENV{NOBODYWHO_FLUTTER_LIB_PATH}")
+  set(NOBODYWHO_FLUTTER_LIB_PATH $ENV{NOBODYWHO_FLUTTER_LIB_PATH})
+
 # check local build
-if(EXISTS ${NOBODYWHO_FLUTTER_LOCAL_BUILD_LIB_PATH})
+elseif(EXISTS ${NOBODYWHO_FLUTTER_LOCAL_BUILD_LIB_PATH})
   message("Using locally built NobodyWho artifact")
   set(NOBODYWHO_FLUTTER_LIB_PATH ${NOBODYWHO_FLUTTER_LOCAL_BUILD_LIB_PATH})
 

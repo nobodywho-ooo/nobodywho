@@ -1,0 +1,33 @@
+name: "Test Android"
+on:
+  workflow_call:
+    secrets:
+      CACHIX_AUTH_TOKEN:
+        required: true
+
+jobs:
+  # this job just tests that the android.nix dev shell is actually capable of compiling a flutter app for android
+  test-android-env:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+      - uses: cachix/cachix-action@v16
+        with:
+          name: nobodywho
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+          cachixArgs: "--verbose -j8"
+
+      - name: "Download Android Flutter .so artifact"
+        uses: actions/download-artifact@v4
+        with:
+          name: nobodywho-flutter-aarch64-linux-android-release
+          path: ./android-artifacts
+
+      - name: "test nix android environment can compile flutter app"
+        run: |
+          export NOBODYWHO_FLUTTER_LIB_PATH="${GITHUB_WORKSPACE}/android-artifacts/libnobodywho-flutter-aarch64-linux-android-release.so"
+          cd nobodywho/flutter/example_app
+          nix develop '.#android' --command flutter build apk
