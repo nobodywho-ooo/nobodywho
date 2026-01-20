@@ -1492,7 +1492,6 @@ impl Worker<'_, ChatWorker> {
             // Sample next token, no need to use sampler.accept as sample already accepts the token.
             // using sampler.accept() will cause the sampler to crash when using grammar sampling.
             // https://github.com/utilityai/llama-cpp-rs/issues/604
-            trace!("Applying sampler...");
             let new_token = self.sample_and_decode_next_token(&mut sampler)?;
             tokens_written_until_now.push(new_token);
 
