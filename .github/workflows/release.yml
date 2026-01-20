@@ -142,3 +142,24 @@ jobs:
           files: ./nobodywho-python-release/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  create-github-release-flutter:
+    if: startsWith(github.ref, 'refs/tags/nobodywho-flutter-')
+    runs-on: ubuntu-24.04
+    steps:
+      - name: "Download all Flutter artifacts"
+        uses: actions/download-artifact@v4
+        with:
+          pattern: nobodywho-flutter-*
+          merge-multiple: true
+          path: ./nobodywho-flutter-release
+
+      - name: "List artifacts to include in release"
+        run: ls -la ./nobodywho-flutter-release/
+
+      - name: "Create GitHub Release"
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ./nobodywho-flutter-release/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
