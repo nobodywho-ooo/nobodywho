@@ -7,7 +7,7 @@ import 'models/app_state.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await nobodywho.RustLib.init();
+  await nobodywho.NobodyWho.init();
   runApp(
     ChangeNotifierProvider(
       create: (_) => AppState(),

@@ -24,7 +24,7 @@ void main() {
     nobodywho.Chat? chat;
 
     setUpAll(() async {
-      await nobodywho.RustLib.init();
+      await nobodywho.NobodyWho.init();
       nobodywho.initDebugLog();
     });
 

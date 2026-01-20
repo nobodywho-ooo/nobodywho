@@ -1,7 +1,7 @@
 library;
 
 export 'src/rust/api/nobodywho.dart';
-export 'src/rust/frb_generated.dart' show RustLib;
+export 'src/rust/frb_generated.dart' show NobodyWho;
 
 import 'dart:async';
 import 'dart:convert';
