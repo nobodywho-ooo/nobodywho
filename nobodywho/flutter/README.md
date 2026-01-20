@@ -19,8 +19,19 @@ This pure-dart package contains the generated dart code for binding into the rus
 
 It also contains a tiny bit of dart code to wrap tool calling functions.
 
+This also contains a bunch of unit tests to check that the bindings actually work.
+They can be run using `dart test`, but dart needs to be able to find the dynamlic library of nobodywho to run them. I usually do something like this:
+
+```rust
+LD_LIBRARY_PATH=../../target/debug/ dart test
+```
+
 ## `nobodywho_flutter/`
 
 This flutter plugin depends on and re-exports the `nobodywho_dart` package, and also contains platform-specific build scripts for including pre-built binary artifacts (so the end-user doesn't need the build-time dependencies of rust and llama.cpp).
 
+In general, the build scripts (CMakeLists.txt, Podspec, gradle/ktl files) will try these three things:
 
+1. check the environment variable `NOBODYWHO_FLUTTER_LIB_PATH`
+2. check for libnobodywho_flutter.so in a parent cargo target dir (`../../../target/release/libnobodywho_flutter.so`), useful during development
+3. figure out the verison number of the flutter package, and download the corresponding dynamlic lib from github releases (WIP)
