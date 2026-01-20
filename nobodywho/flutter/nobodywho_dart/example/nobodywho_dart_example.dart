@@ -1,7 +1,7 @@
 import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
 
 Future<void> main() async {
-  await nobodywho.RustLib.init();
+  await nobodywho.NobodyWho.init();
   // TODO: fix harcoded path
   final model = await nobodywho.Model.load(
     modelPath:

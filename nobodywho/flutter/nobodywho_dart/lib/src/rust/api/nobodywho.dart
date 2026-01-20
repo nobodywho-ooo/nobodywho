@@ -9,21 +9,21 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 // These functions are ignored because they are not marked as `pub`: `dart_function_type_to_json_schema`, `sample_step`, `shift_step`
 
 double cosineSimilarity({required List<double> a, required List<double> b}) =>
-    RustLib.instance.api.crateApiNobodywhoCosineSimilarity(a: a, b: b);
+    NobodyWho.instance.api.crateApiNobodywhoCosineSimilarity(a: a, b: b);
 
 Tool newToolImpl({
   required FutureOr<String> Function(String) function,
   required String name,
   required String description,
   required String runtimeType,
-}) => RustLib.instance.api.crateApiNobodywhoNewToolImpl(
+}) => NobodyWho.instance.api.crateApiNobodywhoNewToolImpl(
   function: function,
   name: name,
   description: description,
   runtimeType: runtimeType,
 );
 
-void initDebugLog() => RustLib.instance.api.crateApiNobodywhoInitDebugLog();
+void initDebugLog() => NobodyWho.instance.api.crateApiNobodywhoInitDebugLog();
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Chat>>
 abstract class Chat implements RustOpaqueInterface {
@@ -46,7 +46,7 @@ abstract class Chat implements RustOpaqueInterface {
     List<Tool> tools = const [],
     SamplerConfig? sampler = null,
     bool useGpu = true,
-  }) => RustLib.instance.api.crateApiNobodywhoChatFromPath(
+  }) => NobodyWho.instance.api.crateApiNobodywhoChatFromPath(
     modelPath: modelPath,
     systemPrompt: systemPrompt,
     contextSize: contextSize,
@@ -73,7 +73,7 @@ abstract class Chat implements RustOpaqueInterface {
     bool allowThinking = true,
     List<Tool> tools = const [],
     SamplerConfig? sampler = null,
-  }) => RustLib.instance.api.crateApiNobodywhoChatNew(
+  }) => NobodyWho.instance.api.crateApiNobodywhoChatNew(
     model: model,
     systemPrompt: systemPrompt,
     contextSize: contextSize,
@@ -107,7 +107,7 @@ abstract class CompletionError implements RustOpaqueInterface {}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CrossEncoder>>
 abstract class CrossEncoder implements RustOpaqueInterface {
-  factory CrossEncoder({required Model model, int nCtx = 4096}) => RustLib
+  factory CrossEncoder({required Model model, int nCtx = 4096}) => NobodyWho
       .instance
       .api
       .crateApiNobodywhoCrossEncoderNew(model: model, nCtx: nCtx);
@@ -130,7 +130,7 @@ abstract class CrossEncoderWorkerError implements RustOpaqueInterface {}
 abstract class Encoder implements RustOpaqueInterface {
   Future<Float32List> encode({required String text});
 
-  factory Encoder({required Model model, int nCtx = 4096}) => RustLib
+  factory Encoder({required Model model, int nCtx = 4096}) => NobodyWho
       .instance
       .api
       .crateApiNobodywhoEncoderNew(model: model, nCtx: nCtx);
@@ -148,7 +148,7 @@ abstract class Message implements RustOpaqueInterface {}
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Model>>
 abstract class Model implements RustOpaqueInterface {
   static Future<Model> load({required String modelPath, bool useGpu = true}) =>
-      RustLib.instance.api.crateApiNobodywhoModelLoad(
+      NobodyWho.instance.api.crateApiNobodywhoModelLoad(
         modelPath: modelPath,
         useGpu: useGpu,
       );
@@ -238,7 +238,7 @@ abstract class SamplerBuilder implements RustOpaqueInterface {
 
   /// Create a new SamplerBuilder to construct a custom sampler chain.
   factory SamplerBuilder() =>
-      RustLib.instance.api.crateApiNobodywhoSamplerBuilderNew();
+      NobodyWho.instance.api.crateApiNobodywhoSamplerBuilderNew();
 
   /// Apply repetition penalties to discourage repeated tokens.
   ///
@@ -301,35 +301,35 @@ abstract class SamplerConfig implements RustOpaqueInterface {}
 abstract class SamplerPresets implements RustOpaqueInterface {
   /// Get the default sampler configuration.
   static SamplerConfig defaultSampler() =>
-      RustLib.instance.api.crateApiNobodywhoSamplerPresetsDefaultSampler();
+      NobodyWho.instance.api.crateApiNobodywhoSamplerPresetsDefaultSampler();
 
   /// Create a DRY sampler preset to reduce repetition.
   static SamplerConfig dry() =>
-      RustLib.instance.api.crateApiNobodywhoSamplerPresetsDry();
+      NobodyWho.instance.api.crateApiNobodywhoSamplerPresetsDry();
 
   /// Create a sampler with a custom grammar constraint.
   ///
   /// Args:
   ///     grammar: Grammar specification in GBNF format (GGML BNF, a variant of BNF used by llama.cpp)
-  static SamplerConfig grammar({required String grammar}) => RustLib
+  static SamplerConfig grammar({required String grammar}) => NobodyWho
       .instance
       .api
       .crateApiNobodywhoSamplerPresetsGrammar(grammar: grammar);
 
   /// Create a greedy sampler (always picks most probable token).
   static SamplerConfig greedy() =>
-      RustLib.instance.api.crateApiNobodywhoSamplerPresetsGreedy();
+      NobodyWho.instance.api.crateApiNobodywhoSamplerPresetsGreedy();
 
   /// Create a sampler configured for JSON output generation.
   /// Uses a grammar constraint to ensure the model outputs only valid JSON.
   static SamplerConfig json() =>
-      RustLib.instance.api.crateApiNobodywhoSamplerPresetsJson();
+      NobodyWho.instance.api.crateApiNobodywhoSamplerPresetsJson();
 
   /// Create a sampler with temperature scaling.
   ///
   /// Args:
   ///     temperature: Temperature value (lower = more focused, higher = more random)
-  static SamplerConfig temperature({required double temperature}) => RustLib
+  static SamplerConfig temperature({required double temperature}) => NobodyWho
       .instance
       .api
       .crateApiNobodywhoSamplerPresetsTemperature(temperature: temperature);
@@ -339,14 +339,14 @@ abstract class SamplerPresets implements RustOpaqueInterface {
   /// Args:
   ///     top_k: Number of top tokens to keep
   static SamplerConfig topK({required int topK}) =>
-      RustLib.instance.api.crateApiNobodywhoSamplerPresetsTopK(topK: topK);
+      NobodyWho.instance.api.crateApiNobodywhoSamplerPresetsTopK(topK: topK);
 
   /// Create a sampler with nucleus (top-p) sampling.
   ///
   /// Args:
   ///     top_p: Cumulative probability threshold (0.0 to 1.0)
   static SamplerConfig topP({required double topP}) =>
-      RustLib.instance.api.crateApiNobodywhoSamplerPresetsTopP(topP: topP);
+      NobodyWho.instance.api.crateApiNobodywhoSamplerPresetsTopP(topP: topP);
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< SetterError>>
