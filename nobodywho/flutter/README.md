@@ -35,3 +35,12 @@ In general, the build scripts (CMakeLists.txt, Podspec, gradle/ktl files) will t
 1. check the environment variable `NOBODYWHO_FLUTTER_LIB_PATH`
 2. check for libnobodywho_flutter.so in a parent cargo target dir (`../../../target/release/libnobodywho_flutter.so`), useful during development
 3. figure out the verison number of the flutter package, and download the corresponding dynamlic lib from github releases (WIP)
+
+## Building for Android
+
+The nix file `android.nix` sets up a nix devshell, which has all of the required android sdks installed, and the environment variables set up to point in the right places.
+
+You can activate it by running `nix develop '.#android'`.
+
+It is tested and works on x86_64-linux, and the github actions CI environment also tests that building the flutter example application inside this devshell works.
+I assume that it will also work on MacOS, with a few tweaks (e.g. setting the correct dynamic library extension, including a few macos "Frameworks" in the build env).
