@@ -77,6 +77,7 @@ void main() {
       final messages = await chat!.getChatHistory();
       print(messages);
       expect(messages.length, equals(2));
+      // TODO: test content of messages
     });
 
     test('Tools work with custom sampler', () async {
@@ -105,13 +106,6 @@ void main() {
       final response2 = await chat!.ask(message: "Say exactly: 'Hello'").completed();
 
       expect(response1, equals(response2));  // Should be identical with greedy
-    });
-
-    test('Get history', () async {
-      final response = await chat!.ask(message: "My name is Bob!").completed();
-      final messages = await chat!.getChatHistory();
-      print(messages);
-      expect(false, equals(true));
     });
 
     test('Cosine similarity works', () {
