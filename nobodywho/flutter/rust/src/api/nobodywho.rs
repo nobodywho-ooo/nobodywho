@@ -753,7 +753,10 @@ impl SamplerPresets {
 
 #[flutter_rust_bridge::frb(init)]
 pub fn init_app() {
-    // Default utilities - feel free to customize
+    // send llamacpp logs into tracing
+    nobodywho::send_llamacpp_logs_to_tracing();
+
+    // send logs to the appropriate places for android, ios and wasm
     flutter_rust_bridge::setup_default_user_utils();
 }
 
