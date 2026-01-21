@@ -15,27 +15,56 @@ project(PROJECT_NAME)
 set(NOBODYWHO_FLUTTER_LOCAL_BUILD_LIB_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../../../target/aarch64-linux-android/release/libnobodywho_flutter.so")
 set(LibRoot "${CMAKE_CURRENT_SOURCE_DIR}/src/main/jniLibs")
 
-# check environment variable first
+# Try to find the library using multiple methods
+set(NOBODYWHO_FLUTTER_LIB_PATH "")
+
+# Method 1: check environment variable
 if(DEFINED ENV{NOBODYWHO_FLUTTER_LIB_PATH})
-  message("Using NobodyWho artifact from environment variable: $ENV{NOBODYWHO_FLUTTER_LIB_PATH}")
-  set(NOBODYWHO_FLUTTER_LIB_PATH $ENV{NOBODYWHO_FLUTTER_LIB_PATH})
+  if(EXISTS "$ENV{NOBODYWHO_FLUTTER_LIB_PATH}")
+    message("Using NobodyWho artifact from environment variable: $ENV{NOBODYWHO_FLUTTER_LIB_PATH}")
+    set(NOBODYWHO_FLUTTER_LIB_PATH "$ENV{NOBODYWHO_FLUTTER_LIB_PATH}")
+  else()
+    message(WARNING "NOBODYWHO_FLUTTER_LIB_PATH is set but file does not exist: $ENV{NOBODYWHO_FLUTTER_LIB_PATH}")
+  endif()
+endif()
 
-# check local build
-elseif(EXISTS ${NOBODYWHO_FLUTTER_LOCAL_BUILD_LIB_PATH})
-  message("Using locally built NobodyWho artifact")
+# Method 2: check local build
+if(NOT NOBODYWHO_FLUTTER_LIB_PATH AND EXISTS ${NOBODYWHO_FLUTTER_LOCAL_BUILD_LIB_PATH})
+  message("Using locally built NobodyWho artifact: ${NOBODYWHO_FLUTTER_LOCAL_BUILD_LIB_PATH}")
   set(NOBODYWHO_FLUTTER_LIB_PATH ${NOBODYWHO_FLUTTER_LOCAL_BUILD_LIB_PATH})
+endif()
 
-else()
-  # TODO: download
-  # this won't actually work until we can make real releases
-  # w/e
-  message("Downloading NobodyWho from github...")
-  set(NOBODYWHO_FLUTTER_LIB_PATH "./libnobodywho_flutter.so")
+# Method 3: try to download
+if(NOT NOBODYWHO_FLUTTER_LIB_PATH)
+  # TODO: this won't actually work until we can make real releases
+  message("Attempting to download NobodyWho from github...")
+  set(DOWNLOAD_PATH "${CMAKE_CURRENT_BINARY_DIR}/libnobodywho_flutter.so")
   file(DOWNLOAD
     "https://github.com/nobodywho-ooo/nobodywho/releases/download/${LibraryVersion}/nobodywho_flutter_bundled_libs.tar.gz"
-    ${NOBODYWHO_FLUTTER_LIB_PATH}
+    ${DOWNLOAD_PATH}
     TLS_VERIFY ON
+    STATUS DOWNLOAD_STATUS
   )
+  list(GET DOWNLOAD_STATUS 0 DOWNLOAD_STATUS_CODE)
+  if(DOWNLOAD_STATUS_CODE EQUAL 0 AND EXISTS ${DOWNLOAD_PATH})
+    message("Successfully downloaded NobodyWho artifact")
+    set(NOBODYWHO_FLUTTER_LIB_PATH ${DOWNLOAD_PATH})
+  else()
+    message(WARNING "Download failed: ${DOWNLOAD_STATUS}")
+  endif()
+endif()
+
+# If all methods failed, error out
+if(NOT NOBODYWHO_FLUTTER_LIB_PATH)
+  message(FATAL_ERROR "libnobodywho_flutter.so not found!\n"
+    "Tried:\n"
+    "  1. Environment variable NOBODYWHO_FLUTTER_LIB_PATH\n"
+    "  2. Local build at: ${NOBODYWHO_FLUTTER_LOCAL_BUILD_LIB_PATH}\n"
+    "  3. Download from GitHub releases\n"
+    "\n"
+    "Please build the Rust library first with:\n"
+    "  cargo build --release --target aarch64-linux-android\n"
+    "Or set NOBODYWHO_FLUTTER_LIB_PATH environment variable.")
 endif()
 
 # copy in the binary, overriding any already present.

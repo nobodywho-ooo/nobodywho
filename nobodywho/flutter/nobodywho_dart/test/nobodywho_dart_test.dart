@@ -75,7 +75,9 @@ void main() {
     test('Get chat history', () async {
       await chat!.ask(message: "Hello!").completed();
       final messages = await chat!.getChatHistory();
+      print(messages);
       expect(messages.length, equals(2));
+      // TODO: test content of messages
     });
 
     test('Tools work with custom sampler', () async {
