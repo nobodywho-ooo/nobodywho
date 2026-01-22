@@ -29,6 +29,7 @@ migrate_working_dir/
 **/doc/api/
 .dart_tool/
 .flutter-plugins-dependencies
+.metadata
 /build/
 /coverage/
 
