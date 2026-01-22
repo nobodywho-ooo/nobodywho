@@ -12,21 +12,35 @@ cmake_minimum_required(VERSION 3.10)
 
 project(PROJECT_NAME)
 
+if(ANDROID_ABI STREQUAL "arm64-v8a")
+  set(RUST_TARGET_TRIPLE "aarch64-linux-android")
+  set(NDK_TRIPLE "aarch64-linux-android")
+elseif(ANDROID_ABI STREQUAL "armeabi-v7a")
+  set(RUST_TARGET_TRIPLE "armv7-linux-androideabi")
+  set(NDK_TRIPLE "arm-linux-androideabi")  # Different from Rust!
+elseif(ANDROID_ABI STREQUAL "x86")
+  set(RUST_TARGET_TRIPLE "i686-linux-android")
+  set(NDK_TRIPLE "i686-linux-android")
+elseif(ANDROID_ABI STREQUAL "x86_64")
+  set(RUST_TARGET_TRIPLE "x86_64-linux-android")
+  set(NDK_TRIPLE "x86_64-linux-android")
+endif()
+
 # Read version from pubspec.yaml (single source of truth)
 set(PUBSPEC_FILE "${CMAKE_CURRENT_SOURCE_DIR}/../pubspec.yaml")
 file(READ ${PUBSPEC_FILE} PUBSPEC_CONTENT)
 # Match: MAJOR.MINOR.PATCH[-PRERELEASE][+BUILD]
 # Examples: 0.2.43, 0.0.0-rc1, 0.2.43-dev.4, 0.2.43+1, 0.2.43-alpha.12+hotfix.oopsie
 string(REGEX MATCH "version: *([0-9]+\\.[0-9]+\\.[0-9]+(-[a-zA-Z0-9._-]+)?(\\+[a-zA-Z0-9._-]+)?)" _ ${PUBSPEC_CONTENT})
-set(LibraryVersion ${CMAKE_MATCH_1})
+set(LIBRARY_VERSION ${CMAKE_MATCH_1})
 
-if(NOT LibraryVersion)
+if(NOT LIBRARY_VERSION)
     message(FATAL_ERROR "Could not parse version from ${PUBSPEC_FILE}")
 endif()
 
-message("NobodyWho Flutter Plugin version: ${LibraryVersion}")
+message("NobodyWho Flutter Plugin version: ${LIBRARY_VERSION}")
 
-set(NOBODYWHO_FLUTTER_LOCAL_BUILD_LIB_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../../../target/aarch64-linux-android/release/libnobodywho_flutter.so")
+set(NOBODYWHO_FLUTTER_LOCAL_BUILD_LIB_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../../../target/${RUST_TARGET_TRIPLE}/release/libnobodywho_flutter.so")
 set(LibRoot "${CMAKE_CURRENT_SOURCE_DIR}/src/main/jniLibs")
 
 # Try to find the library using multiple methods
@@ -52,11 +66,11 @@ endif()
 if(NOT NOBODYWHO_FLUTTER_LIB_PATH)
   # TODO: this won't actually work until we can make real releases
   set(DOWNLOAD_PATH "${CMAKE_CURRENT_BINARY_DIR}/libnobodywho_flutter.so")
-  set(DOWNLOAD_URL "https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-flutter-v${LibraryVersion}/libnobodywho-flutter-aarch64-linux-android-release.so")
+  set(DOWNLOAD_URL "https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-flutter-v${LIBRARY_VERSION}/libnobodywho-flutter-${RUST_TARGET_TRIPLE}-release.so")
   message("Attempting to download NobodyWho from github url: ${DOWNLOAD_URL}")
 
   file(DOWNLOAD
-    "https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-flutter-v${LibraryVersion}/libnobodywho-flutter-aarch64-linux-android-release.so"
+    "https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-flutter-v${LIBRARY_VERSION}/libnobodywho-flutter-aarch64-linux-android-release.so"
     ${DOWNLOAD_PATH}
     TLS_VERIFY ON
     STATUS DOWNLOAD_STATUS
