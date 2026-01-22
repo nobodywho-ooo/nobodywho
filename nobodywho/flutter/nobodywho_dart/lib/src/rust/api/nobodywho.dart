@@ -5,8 +5,10 @@
 
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
+import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
+part 'nobodywho.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `dart_function_type_to_json_schema`, `sample_step`, `shift_step`
+// These functions are ignored because they are not marked as `pub`: `dart_function_type_to_json_schema`, `flutter_message_to_rust_message`, `rust_message_to_flutter_message`, `sample_step`, `shift_step`
 
 double cosineSimilarity({required List<double> a, required List<double> b}) =>
     NobodyWho.instance.api.crateApiNobodywhoCosineSimilarity(a: a, b: b);
@@ -141,9 +143,6 @@ abstract class EncoderWorkerError implements RustOpaqueInterface {}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< GetterError>>
 abstract class GetterError implements RustOpaqueInterface {}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< Message>>
-abstract class Message implements RustOpaqueInterface {}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Model>>
 abstract class Model implements RustOpaqueInterface {
@@ -363,3 +362,36 @@ abstract class TokenStream implements RustOpaqueInterface {
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Tool>>
 abstract class Tool implements RustOpaqueInterface {}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ToolCall>>
+abstract class ToolCall implements RustOpaqueInterface {
+  Value get arguments;
+
+  String get name;
+
+  set arguments(Value arguments);
+
+  set name(String name);
+}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< Value>>
+abstract class Value implements RustOpaqueInterface {}
+
+@freezed
+sealed class Message with _$Message {
+  const Message._();
+
+  const factory Message.message({required Role role, required String content}) =
+      Message_Message;
+  const factory Message.toolCalls({
+    required Role role,
+    required List<ToolCall> toolCalls,
+  }) = Message_ToolCalls;
+  const factory Message.toolResp({
+    required Role role,
+    required String name,
+    required String content,
+  }) = Message_ToolResp;
+}
+
+enum Role { user, assistant, system, tool }
