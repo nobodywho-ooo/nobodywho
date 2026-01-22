@@ -325,7 +325,7 @@ packages:
       path: "../nobodywho_flutter"
       relative: true
     source: path
-    version: "0.0.1"
+    version: "0.0.0-rc1"
   node_preamble:
     dependency: transitive
     description:

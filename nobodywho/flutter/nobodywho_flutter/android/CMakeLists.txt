@@ -12,6 +12,20 @@ cmake_minimum_required(VERSION 3.10)
 
 project(PROJECT_NAME)
 
+# Read version from pubspec.yaml (single source of truth)
+set(PUBSPEC_FILE "${CMAKE_CURRENT_SOURCE_DIR}/../pubspec.yaml")
+file(READ ${PUBSPEC_FILE} PUBSPEC_CONTENT)
+# Match: MAJOR.MINOR.PATCH[-PRERELEASE][+BUILD]
+# Examples: 0.2.43, 0.0.0-rc1, 0.2.43-dev.4, 0.2.43+1, 0.2.43-alpha.12+hotfix.oopsie
+string(REGEX MATCH "version: *([0-9]+\\.[0-9]+\\.[0-9]+(-[a-zA-Z0-9._-]+)?(\\+[a-zA-Z0-9._-]+)?)" _ ${PUBSPEC_CONTENT})
+set(LibraryVersion ${CMAKE_MATCH_1})
+
+if(NOT LibraryVersion)
+    message(FATAL_ERROR "Could not parse version from ${PUBSPEC_FILE}")
+endif()
+
+message("NobodyWho Flutter Plugin version: ${LibraryVersion}")
+
 set(NOBODYWHO_FLUTTER_LOCAL_BUILD_LIB_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../../../target/aarch64-linux-android/release/libnobodywho_flutter.so")
 set(LibRoot "${CMAKE_CURRENT_SOURCE_DIR}/src/main/jniLibs")
 
@@ -37,10 +51,12 @@ endif()
 # Method 3: try to download
 if(NOT NOBODYWHO_FLUTTER_LIB_PATH)
   # TODO: this won't actually work until we can make real releases
-  message("Attempting to download NobodyWho from github...")
   set(DOWNLOAD_PATH "${CMAKE_CURRENT_BINARY_DIR}/libnobodywho_flutter.so")
+  set(DOWNLOAD_URL "https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-flutter-v${LibraryVersion}/libnobodywho-flutter-aarch64-linux-android-release.so")
+  message("Attempting to download NobodyWho from github url: ${DOWNLOAD_URL}")
+
   file(DOWNLOAD
-    "https://github.com/nobodywho-ooo/nobodywho/releases/download/${LibraryVersion}/nobodywho_flutter_bundled_libs.tar.gz"
+    "https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-flutter-v${LibraryVersion}/libnobodywho-flutter-aarch64-linux-android-release.so"
     ${DOWNLOAD_PATH}
     TLS_VERIFY ON
     STATUS DOWNLOAD_STATUS
