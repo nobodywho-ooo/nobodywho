@@ -1,9 +1,9 @@
 #!/bin/bash
 set -e
 
-# Build nobodywho_flutter for iOS development, heavily vibe-coded.
-# This script builds all iOS targets and creates the xcframework
-# so you can run the example_app on your iPhone or simulator
+# Build nobodywho_flutter for macOS development, heavily vibe-coded.
+# This script builds all macOS targets and creates the xcframework
+# so you can run the example_app on macOS
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FLUTTER_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -47,7 +47,7 @@ if [ "$BUILD_TYPE" = "release" ]; then
 fi
 
 echo "========================================"
-echo "Building nobodywho_flutter for iOS"
+echo "Building nobodywho_flutter for macOS"
 echo "Build type: $BUILD_TYPE"
 echo "========================================"
 
@@ -62,42 +62,33 @@ if ! command -v xcodebuild &> /dev/null; then
     exit 1
 fi
 
-# Ensure iOS targets are installed
+# Ensure macOS targets are installed
 echo ""
-echo "Checking Rust iOS targets..."
-rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios 2>/dev/null || true
-
-# Set iOS deployment target to ensure C/C++ dependencies (like llama-cpp-sys)
-# are compiled with the correct minimum iOS version. Without this, the build
-# may pick up the macOS version instead, causing linker errors.
-export IPHONEOS_DEPLOYMENT_TARGET=18.5
+echo "Checking Rust macOS targets..."
+rustup target add aarch64-apple-darwin x86_64-apple-darwin 2>/dev/null || true
 
 if [ "$SKIP_BUILD" = false ]; then
     echo ""
-    echo "Step 1/4: Building for iOS device (aarch64-apple-ios)..."
-    cargo build -p nobodywho-flutter --target aarch64-apple-ios $CARGO_PROFILE_FLAG --manifest-path "$NOBODYWHO_DIR/Cargo.toml"
+    echo "Step 1/2: Building for macOS (aarch64-apple-darwin)..."
+    cargo build -p nobodywho-flutter --target aarch64-apple-darwin $CARGO_PROFILE_FLAG --manifest-path "$NOBODYWHO_DIR/Cargo.toml"
 
     echo ""
-    echo "Step 2/4: Building for iOS simulator (aarch64-apple-ios-sim)..."
-    cargo build -p nobodywho-flutter --target aarch64-apple-ios-sim $CARGO_PROFILE_FLAG --manifest-path "$NOBODYWHO_DIR/Cargo.toml"
-
-    echo ""
-    echo "Step 3/4: Building for iOS simulator (x86_64-apple-ios)..."
-    cargo build -p nobodywho-flutter --target x86_64-apple-ios $CARGO_PROFILE_FLAG --manifest-path "$NOBODYWHO_DIR/Cargo.toml"
+    echo "Step 2/2: Building for macOS (x86_64-apple-darwin)..."
+    cargo build -p nobodywho-flutter --target x86_64-apple-darwin $CARGO_PROFILE_FLAG --manifest-path "$NOBODYWHO_DIR/Cargo.toml"
 else
     echo ""
     echo "Skipping cargo build (--skip-build flag)"
 fi
 
 echo ""
-echo "Step 4/4: Creating XCFramework..."
+echo "Step 3/3: Creating XCFramework..."
 
-# Create universal simulator library
-mkdir -p "$TARGET_DIR/universal-ios-sim/$BUILD_TYPE"
+# Create universal macOS library
+mkdir -p "$TARGET_DIR/universal-macos/$BUILD_TYPE"
 lipo -create \
-    "$TARGET_DIR/aarch64-apple-ios-sim/$BUILD_TYPE/libnobodywho_flutter.a" \
-    "$TARGET_DIR/x86_64-apple-ios/$BUILD_TYPE/libnobodywho_flutter.a" \
-    -output "$TARGET_DIR/universal-ios-sim/$BUILD_TYPE/libnobodywho_flutter.a"
+    "$TARGET_DIR/aarch64-apple-darwin/$BUILD_TYPE/libnobodywho_flutter.a" \
+    "$TARGET_DIR/x86_64-apple-darwin/$BUILD_TYPE/libnobodywho_flutter.a" \
+    -output "$TARGET_DIR/universal-macos/$BUILD_TYPE/libnobodywho_flutter.a"
 
 # Create headers directory
 HEADERS_DIR="$TARGET_DIR/xcframework/headers"
@@ -113,11 +104,9 @@ EOF
 # Clean existing xcframework
 rm -rf "$XCFRAMEWORK_OUTPUT"
 
-# Create XCFramework
+# Create XCFramework (macOS only)
 xcodebuild -create-xcframework \
-    -library "$TARGET_DIR/aarch64-apple-ios/$BUILD_TYPE/libnobodywho_flutter.a" \
-    -headers "$HEADERS_DIR" \
-    -library "$TARGET_DIR/universal-ios-sim/$BUILD_TYPE/libnobodywho_flutter.a" \
+    -library "$TARGET_DIR/universal-macos/$BUILD_TYPE/libnobodywho_flutter.a" \
     -headers "$HEADERS_DIR" \
     -output "$XCFRAMEWORK_OUTPUT"
 
@@ -128,13 +117,14 @@ echo ""
 echo "XCFramework created at:"
 echo "  $XCFRAMEWORK_OUTPUT"
 echo ""
-echo "To run the example app:"
+echo "To run the example app on macOS:"
 echo ""
 echo "  export NOBODYWHO_FLUTTER_XCFRAMEWORK=\"$XCFRAMEWORK_OUTPUT\""
 echo "  cd $FLUTTER_DIR/example_app"
-echo "  flutter run"
+echo "  flutter run -d macos"
 echo ""
 echo "Or run this one-liner:"
 echo ""
-echo "  NOBODYWHO_FLUTTER_XCFRAMEWORK=\"$XCFRAMEWORK_OUTPUT\" flutter run"
+echo "  NOBODYWHO_FLUTTER_XCFRAMEWORK=\"$XCFRAMEWORK_OUTPUT\" flutter run -d macos"
 echo "========================================"
+
