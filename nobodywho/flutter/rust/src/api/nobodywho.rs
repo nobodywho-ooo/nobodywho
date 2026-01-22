@@ -184,9 +184,7 @@ impl Chat {
         }
     }
 
-    pub async fn get_chat_history(
-        &self,
-    ) -> Result<Vec<Message>, nobodywho::errors::GetterError> {
+    pub async fn get_chat_history(&self) -> Result<Vec<Message>, nobodywho::errors::GetterError> {
         let messages = self.chat.get_chat_history().await?;
         Ok(messages
             .iter()
