@@ -1095,7 +1095,6 @@ fn select_template(
         // tools provided, but we have no tool-capable template
         return Err(SelectTemplateError::NoToolTemplate);
     };
-    trace!(template);
 
     Ok(template)
 }
@@ -1231,6 +1230,7 @@ fn render_string(
     };
 
     let text = result?;
+
     trace!(text);
 
     Ok(text)
@@ -1593,7 +1593,7 @@ impl Worker<'_, ChatWorker> {
         }
 
         // we're done!
-        debug!(%full_response, "Sending out full response:");
+        debug!(%full_response, "Sending out");
         respond(WriteOutput::Done(full_response));
         Ok(self)
     }
@@ -1602,7 +1602,7 @@ impl Worker<'_, ChatWorker> {
         &mut self,
         sampler: &mut LlamaSampler,
     ) -> Result<LlamaToken, DecodingError> {
-        trace!("Applying sampler...");
+        trace!("Applying sampler");
         let new_token: LlamaToken = sampler.sample(&self.ctx, -1);
 
         // batch of one

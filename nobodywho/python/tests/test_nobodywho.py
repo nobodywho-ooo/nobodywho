@@ -1,7 +1,11 @@
 import os
+import pytest
 
 import nobodywho
-import pytest
+
+import logging
+
+logging.addLevelName(5, "TRACE")
 
 
 @pytest.fixture(scope="module")
@@ -287,9 +291,8 @@ def test_tool_bad_parameters():
         def i_fucked_up(a: int) -> str:
             return "fuck"
 
-@nobodywho.tool(
-    description="Applies the sparklify effect to a given piece of text."
-)
+
+@nobodywho.tool(description="Applies the sparklify effect to a given piece of text.")
 async def async_sparklify(text: str) -> str:
     return f"✨{text.upper()}✨"
 
@@ -411,7 +414,7 @@ def test_set_system_prompt(model):
 
 @nobodywho.tool(
     description="Multiplies two numbers together",
-    params={"a": "The first number", "b": "The second number"}
+    params={"a": "The first number", "b": "The second number"},
 )
 def multiply(a: int, b: int) -> str:
     return str(a * b)
@@ -419,9 +422,7 @@ def multiply(a: int, b: int) -> str:
 
 def test_set_tools(model):
     """Test that set_tools changes available tools and persists after reset_history"""
-    chat = nobodywho.Chat(
-        model, tools=[sparklify], allow_thinking=False
-    )
+    chat = nobodywho.Chat(model, tools=[sparklify], allow_thinking=False)
 
     # Use initial tool
     resp1 = chat.ask("Please sparklify the word 'hello'").completed()
