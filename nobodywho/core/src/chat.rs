@@ -1870,8 +1870,14 @@ fn extract_tool_calls(input: &str) -> Option<Vec<ToolCall>> {
     let tool_calls: Vec<ToolCall> = re
         .captures_iter(input)
         .filter_map(|cap| {
-            let tool_call: Option<ToolCall> = serde_json::from_str(cap[1].trim()).ok();
-            tool_call
+            let json_str = cap[1].trim();
+            match serde_json::from_str::<ToolCall>(json_str) {
+                Ok(tool_call) => Some(tool_call),
+                Err(e) => {
+                    debug!(error = %e, json = json_str, "Failed to parse tool call JSON");
+                    None
+                }
+            }
         })
         .collect();
 
