@@ -1130,7 +1130,6 @@ fn naive_render_message_vec(
         tools => if tools.is_empty() {None} else {Some(tools)} ,
     };
 
-    // TODO: think how to do this better
     tmpl.render(ctx)
 }
 
