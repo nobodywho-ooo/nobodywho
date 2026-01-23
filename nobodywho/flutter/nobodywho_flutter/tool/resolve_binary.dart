@@ -304,7 +304,8 @@ Future<String> downloadLibrary(Config config, String version) async {
   final libName = mapping['lib'] as String;
 
   // Construct download URL
-  final fileName = 'nobodywho-flutter-$triple-${config.buildType}.${libName.split('.').last}';
+  // All artifacts have "lib" prefix for consistency
+  final fileName = 'libnobodywho-flutter-$triple-${config.buildType}.${libName.split('.').last}';
   final url = 'https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-flutter-v$version/$fileName';
 
   // Prepare cache directory
