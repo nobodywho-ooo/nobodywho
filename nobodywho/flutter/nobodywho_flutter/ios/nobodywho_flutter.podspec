@@ -20,15 +20,17 @@ unless File.exist?(xcframework_path)
 end
 
 # Copy the framework to local Frameworks directory
+frameworks_dir = File.join(__dir__, 'Frameworks')
 `
-cd Frameworks
-if [ -d #{framework_name} ]
+mkdir -p "#{frameworks_dir}"
+cd "#{frameworks_dir}"
+if [ -d "#{framework_name}" ]
 then
   echo "Found existing framework. Removing..."
-  rm -rf #{framework_name}
+  rm -rf "#{framework_name}"
 fi
 echo "Copying framework from #{xcframework_path}..."
-cp -r #{xcframework_path} ./#{framework_name}
+cp -r "#{xcframework_path}" "./#{framework_name}"
 `
 
 Pod::Spec.new do |s|
@@ -63,8 +65,7 @@ A new Flutter FFI plugin project.
   s.platform = :ios, '13.0'
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',
-    'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386',
-    'SWIFT_INCLUDE_PATHS' => '$(PODS_TARGET_SRCROOT)/Classes'
+    'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386'
   }
   s.swift_version = '5.0'
 

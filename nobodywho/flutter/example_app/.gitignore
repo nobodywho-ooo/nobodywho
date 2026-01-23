@@ -1,0 +1,20 @@
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+*.iml
+
+# IDE
+.idea/
+*.swp
+.vscode/
+
+# macOS
+.DS_Store
+
+# Podfile.lock for example apps can be ignored
+# (libraries should commit it, but example apps are less strict)
+ios/Podfile.lock
+macos/Podfile.lock

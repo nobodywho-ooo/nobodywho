@@ -234,11 +234,24 @@ jobs:
     runs-on: macos-15
     needs: [cargo-build-macos]
     steps:
+      - uses: actions/checkout@v4
+
       - name: "Download all build artifacts"
         uses: actions/download-artifact@v4
         with:
           pattern: nobodywho-flutter-*-apple-*
           merge-multiple: true
+
+      - name: Create headers
+        run: |
+          mkdir -p headers
+          cp nobodywho/flutter/nobodywho_flutter/ios/Classes/binding.h headers/
+          cat > headers/module.modulemap << 'EOF'
+          module CBinding {
+              header "binding.h"
+              export *
+          }
+          EOF
 
       - name: Build XCFramework
         # commands taken from here:
@@ -271,15 +284,18 @@ jobs:
           # -library "aarch64-macos/$LIBNAME" \
           xcodebuild -create-xcframework \
                   -library "ios-sim-lipo/$LIBNAME" \
+                  -headers "headers" \
                   -library "macos-lipo/$LIBNAME" \
+                  -headers "headers" \
                   -library "aarch64-ios/$LIBNAME" \
-                  -output NobodyWho.xcframework
+                  -headers "headers" \
+                  -output NobodyWhoFlutter.xcframework
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v4
         with:
           name: nobodywho-flutter-xcframework
-          path: ./NobodyWho.xcframework
+          path: ./NobodyWhoFlutter.xcframework
 
   cargo-build-android:
     runs-on: ubuntu-24.04

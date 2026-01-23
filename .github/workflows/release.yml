@@ -157,6 +157,14 @@ jobs:
       - name: "List artifacts to include in release"
         run: ls -la ./nobodywho-flutter-release/
 
+      - name: "Zip XCFramework for release"
+        working-directory: ./nobodywho-flutter-release
+        run: |
+          if [ -d "NobodyWhoFlutter.xcframework" ]; then
+            zip -r "NobodyWhoFlutter.xcframework.zip" NobodyWhoFlutter.xcframework
+            rm -rf NobodyWhoFlutter.xcframework
+          fi
+
       - name: "Create GitHub Release"
         uses: softprops/action-gh-release@v1
         with:
