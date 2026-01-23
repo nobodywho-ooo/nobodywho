@@ -805,7 +805,7 @@ fn process_worker_msg(
     worker_state: &mut Worker<'_, ChatWorker>,
     msg: ChatMsg,
 ) -> Result<(), ChatWorkerError> {
-    debug!("Worker processing msg: {:?}", msg);
+    debug!(msg = ?msg, "Worker processing msg");
     match msg {
         ChatMsg::Ask { text, output_tx } => {
             let callback = move |out| {
@@ -1043,13 +1043,16 @@ fn select_template(
 
     let template = if !with_tools {
         // no tools. use default template.
+        debug!("Selecting default template, no tools provided.");
         default_template
     } else if let Ok(tool_template) = tool_template {
         // tools provided, and we have a tool template, use that.
         debug_assert!(tool_template.to_string()?.contains("tools"));
+        debug!("Selecting tool template, tools provided.");
         tool_template.to_string()?
     } else if default_template.contains("tools") {
         // tools provided, but no tool template, but the default template seems to mention tools
+        debug!("Selecting default template, tools provided.");
         default_template
     } else {
         // tools provided, but we have no tool-capable template
@@ -1127,6 +1130,7 @@ fn naive_render_message_vec(
         tools => if tools.is_empty() {None} else {Some(tools)} ,
     };
 
+    // TODO: think how to do this better
     tmpl.render(ctx)
 }
 
@@ -1151,6 +1155,7 @@ fn render_string(
         Err(err) => match err.kind() {
             minijinja::ErrorKind::InvalidOperation => {
                 if err.to_string().contains("System role not supported") {
+                    debug!("Concatenating first user messages. System role not supported.");
                     // this is the error message we get when rendering the gemma2 template
                     // concat the first two messages and try again
                     naive_render_message_vec(
@@ -1168,6 +1173,7 @@ fn render_string(
                     // this is the error we get when rendering the mistral 7b v0.3 template,
                     // which, like gemma2, does not support the system role
                     // concat the first two messages and try again
+                    debug!("Concatenating first user messages. Conversation roles must alternate.");
                     naive_render_message_vec(
                         &concat_system_and_first_user_messages(messages)?,
                         chat_template,
@@ -1528,7 +1534,7 @@ impl Worker<'_, ChatWorker> {
 
             if !has_eog {
                 full_response.push_str(token_str);
-                trace!("Sending out token: {token_str}");
+                trace!(token_str = token_str, "Sending out token");
                 respond(WriteOutput::Token(token_str.to_string()));
             }
 
@@ -1541,7 +1547,7 @@ impl Worker<'_, ChatWorker> {
         }
 
         // we're done!
-        debug!("Sending out response: {full_response}");
+        debug!(full_response = full_response, "Sending out full response");
         respond(WriteOutput::Done(full_response));
         Ok(self)
     }
@@ -1603,7 +1609,7 @@ impl Worker<'_, ChatWorker> {
         )?;
 
         while let Some(tool_calls) = extract_tool_calls(&response) {
-            debug!("Got tool calls! {tool_calls:?}");
+            debug!(tool_calls = ?tool_calls, "Got tool calls!");
 
             self.add_tool_calls(tool_calls.clone());
 
@@ -1617,8 +1623,8 @@ impl Worker<'_, ChatWorker> {
                     // I *think* this should be impossible, as long as the tool calling grammar
                     // works.
                     error!(
-                        "Model triggered tool call for invalid tool name: {}",
-                        tool_call.name
+                        tool_name = tool_call.name,
+                        "Model triggered tool call for invalid tool name",
                     );
                     let errmsg = format!("ERROR - Invalid tool name: {}", tool_call.name);
                     self.add_tool_resp(tool_call.name, errmsg);
@@ -1628,7 +1634,7 @@ impl Worker<'_, ChatWorker> {
                 // call the tool
                 debug!("Calling the tool now!");
                 let response = (tool.function)(tool_call.arguments);
-                debug!(?tool_call.name, ?response);
+                debug!(?tool_call.name, ?response, "Tool call result");
 
                 // add to chat history
                 self.add_tool_resp(tool_call.name, response);
