@@ -1269,7 +1269,13 @@ impl Worker<'_, ChatWorker> {
         let eos = model.token_to_str(model.token_eos(), tokenize)?;
 
         let grammar = if !config.tools.is_empty() {
-            grammar_from_tools(&config.tools).ok()
+            match grammar_from_tools(&config.tools) {
+                Ok(g) => Some(g),
+                Err(e) => {
+                    debug!(error = %e, "Failed to generate grammar from tools");
+                    None
+                }
+            }
         } else {
             None
         };
@@ -1714,7 +1720,13 @@ impl Worker<'_, ChatWorker> {
     ) -> Result<(), SelectTemplateError> {
         self.reset_context();
         self.extra.tool_grammar = if !tools.is_empty() {
-            grammar_from_tools(&tools).ok()
+            match grammar_from_tools(&tools) {
+                Ok(g) => Some(g),
+                Err(e) => {
+                    debug!(error = %e, "Failed to generate grammar from tools");
+                    None
+                }
+            }
         } else {
             None
         };
@@ -1759,7 +1771,13 @@ impl Worker<'_, ChatWorker> {
 
     pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), SetToolsError> {
         self.extra.tool_grammar = if !tools.is_empty() {
-            grammar_from_tools(&tools).ok()
+            match grammar_from_tools(&tools) {
+                Ok(g) => Some(g),
+                Err(e) => {
+                    debug!(error = %e, "Failed to generate grammar from tools");
+                    None
+                }
+            }
         } else {
             None
         };
