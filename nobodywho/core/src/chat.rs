@@ -803,10 +803,7 @@ enum ChatMsg {
 impl std::fmt::Debug for ChatMsg {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ChatMsg::Ask { text, .. } => f
-                .debug_struct("Ask")
-                .field("text", text)
-                .finish(),
+            ChatMsg::Ask { text, .. } => f.debug_struct("Ask").field("text", text).finish(),
             ChatMsg::ResetChat {
                 system_prompt,
                 tools,
@@ -832,9 +829,7 @@ impl std::fmt::Debug for ChatMsg {
                 .debug_struct("SetSamplerConfig")
                 .field("sampler_config", sampler_config)
                 .finish(),
-            ChatMsg::GetChatHistory { .. } => f
-                .debug_struct("GetChatHistory")
-                .finish(),
+            ChatMsg::GetChatHistory { .. } => f.debug_struct("GetChatHistory").finish(),
             ChatMsg::SetChatHistory { messages, .. } => f
                 .debug_struct("SetChatHistory")
                 .field("messages", &format!("[{} messages]", messages.len()))
