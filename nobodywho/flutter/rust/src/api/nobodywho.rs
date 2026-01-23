@@ -2,7 +2,7 @@ use flutter_rust_bridge::{DartFnFuture, Rust2DartSendError};
 // ^ in general I've only done fully-qualified imports, but these things need to be imported to
 // satisfy some frb macros
 
-pub use nobodywho::chat::{Role, ToolCall};
+pub use nobodywho::chat::{Message, Role, ToolCall};
 
 #[flutter_rust_bridge::frb(mirror(ToolCall))]
 pub struct _ToolCall {
@@ -17,14 +17,15 @@ pub enum _Role {
     Tool,
 }
 
-#[derive(Clone)]
-pub enum Message {
+#[flutter_rust_bridge::frb(mirror(Message))]
+pub enum _Message {
     Message {
         role: Role,
         content: String,
     },
     ToolCalls {
         role: Role,
+        content: String,
         tool_calls: Vec<ToolCall>,
     },
     ToolResp {
@@ -32,55 +33,6 @@ pub enum Message {
         name: String,
         content: String,
     },
-}
-
-fn flutter_message_to_rust_message(message: &Message) -> nobodywho::chat::Message {
-    match message {
-        Message::Message { role, content } => nobodywho::chat::Message::Message {
-            role: role.clone(),
-            content: content.clone(),
-        },
-        Message::ToolCalls { role, tool_calls } => nobodywho::chat::Message::ToolCalls {
-            role: role.clone(),
-            content: String::new(),
-            tool_calls: tool_calls.clone(),
-        },
-        Message::ToolResp {
-            role,
-            name,
-            content,
-        } => nobodywho::chat::Message::ToolResp {
-            role: role.clone(),
-            name: name.clone(),
-            content: content.clone(),
-        },
-    }
-}
-
-fn rust_message_to_flutter_message(message: &nobodywho::chat::Message) -> Message {
-    match message {
-        nobodywho::chat::Message::Message { role, content } => Message::Message {
-            role: role.clone(),
-            content: content.clone(),
-        },
-        nobodywho::chat::Message::ToolCalls {
-            role,
-            content: _,
-            tool_calls,
-        } => Message::ToolCalls {
-            role: role.clone(),
-            tool_calls: tool_calls.clone(),
-        },
-        nobodywho::chat::Message::ToolResp {
-            role,
-            name,
-            content,
-        } => Message::ToolResp {
-            role: role.clone(),
-            name: name.clone(),
-            content: content.clone(),
-        },
-    }
 }
 
 #[flutter_rust_bridge::frb(opaque)]
@@ -185,25 +137,14 @@ impl Chat {
     }
 
     pub async fn get_chat_history(&self) -> Result<Vec<Message>, nobodywho::errors::GetterError> {
-        let messages = self.chat.get_chat_history().await?;
-        Ok(messages
-            .iter()
-            .map(|m| rust_message_to_flutter_message(m))
-            .collect())
+        self.chat.get_chat_history().await
     }
 
     pub async fn set_chat_history(
         &self,
         messages: Vec<Message>,
     ) -> Result<(), nobodywho::errors::SetterError> {
-        self.chat
-            .set_chat_history(
-                messages
-                    .iter()
-                    .map(|m| flutter_message_to_rust_message(m))
-                    .collect(),
-            )
-            .await
+        self.chat.set_chat_history(messages).await
     }
 
     pub async fn set_sampler_config(

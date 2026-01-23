@@ -18,22 +18,30 @@ final _privateConstructorUsedError = UnsupportedError(
 /// @nodoc
 mixin _$Message {
   Role get role => throw _privateConstructorUsedError;
+  String get content => throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult when<TResult extends Object?>({
     required TResult Function(Role role, String content) message,
-    required TResult Function(Role role, List<ToolCall> toolCalls) toolCalls,
+    required TResult Function(
+      Role role,
+      String content,
+      List<ToolCall> toolCalls,
+    )
+    toolCalls,
     required TResult Function(Role role, String name, String content) toolResp,
   }) => throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function(Role role, String content)? message,
-    TResult? Function(Role role, List<ToolCall> toolCalls)? toolCalls,
+    TResult? Function(Role role, String content, List<ToolCall> toolCalls)?
+    toolCalls,
     TResult? Function(Role role, String name, String content)? toolResp,
   }) => throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult maybeWhen<TResult extends Object?>({
     TResult Function(Role role, String content)? message,
-    TResult Function(Role role, List<ToolCall> toolCalls)? toolCalls,
+    TResult Function(Role role, String content, List<ToolCall> toolCalls)?
+    toolCalls,
     TResult Function(Role role, String name, String content)? toolResp,
     required TResult orElse(),
   }) => throw _privateConstructorUsedError;
@@ -68,7 +76,7 @@ abstract class $MessageCopyWith<$Res> {
   factory $MessageCopyWith(Message value, $Res Function(Message) then) =
       _$MessageCopyWithImpl<$Res, Message>;
   @useResult
-  $Res call({Role role});
+  $Res call({Role role, String content});
 }
 
 /// @nodoc
@@ -85,13 +93,17 @@ class _$MessageCopyWithImpl<$Res, $Val extends Message>
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
-  $Res call({Object? role = null}) {
+  $Res call({Object? role = null, Object? content = null}) {
     return _then(
       _value.copyWith(
             role: null == role
                 ? _value.role
                 : role // ignore: cast_nullable_to_non_nullable
                       as Role,
+            content: null == content
+                ? _value.content
+                : content // ignore: cast_nullable_to_non_nullable
+                      as String,
           )
           as $Val,
     );
@@ -182,7 +194,12 @@ class _$Message_MessageImpl extends Message_Message {
   @optionalTypeArgs
   TResult when<TResult extends Object?>({
     required TResult Function(Role role, String content) message,
-    required TResult Function(Role role, List<ToolCall> toolCalls) toolCalls,
+    required TResult Function(
+      Role role,
+      String content,
+      List<ToolCall> toolCalls,
+    )
+    toolCalls,
     required TResult Function(Role role, String name, String content) toolResp,
   }) {
     return message(role, content);
@@ -192,7 +209,8 @@ class _$Message_MessageImpl extends Message_Message {
   @optionalTypeArgs
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function(Role role, String content)? message,
-    TResult? Function(Role role, List<ToolCall> toolCalls)? toolCalls,
+    TResult? Function(Role role, String content, List<ToolCall> toolCalls)?
+    toolCalls,
     TResult? Function(Role role, String name, String content)? toolResp,
   }) {
     return message?.call(role, content);
@@ -202,7 +220,8 @@ class _$Message_MessageImpl extends Message_Message {
   @optionalTypeArgs
   TResult maybeWhen<TResult extends Object?>({
     TResult Function(Role role, String content)? message,
-    TResult Function(Role role, List<ToolCall> toolCalls)? toolCalls,
+    TResult Function(Role role, String content, List<ToolCall> toolCalls)?
+    toolCalls,
     TResult Function(Role role, String name, String content)? toolResp,
     required TResult orElse(),
   }) {
@@ -256,6 +275,7 @@ abstract class Message_Message extends Message {
 
   @override
   Role get role;
+  @override
   String get content;
 
   /// Create a copy of Message
@@ -275,7 +295,7 @@ abstract class _$$Message_ToolCallsImplCopyWith<$Res>
   ) = __$$Message_ToolCallsImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({Role role, List<ToolCall> toolCalls});
+  $Res call({Role role, String content, List<ToolCall> toolCalls});
 }
 
 /// @nodoc
@@ -291,13 +311,21 @@ class __$$Message_ToolCallsImplCopyWithImpl<$Res>
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
-  $Res call({Object? role = null, Object? toolCalls = null}) {
+  $Res call({
+    Object? role = null,
+    Object? content = null,
+    Object? toolCalls = null,
+  }) {
     return _then(
       _$Message_ToolCallsImpl(
         role: null == role
             ? _value.role
             : role // ignore: cast_nullable_to_non_nullable
                   as Role,
+        content: null == content
+            ? _value.content
+            : content // ignore: cast_nullable_to_non_nullable
+                  as String,
         toolCalls: null == toolCalls
             ? _value._toolCalls
             : toolCalls // ignore: cast_nullable_to_non_nullable
@@ -312,12 +340,15 @@ class __$$Message_ToolCallsImplCopyWithImpl<$Res>
 class _$Message_ToolCallsImpl extends Message_ToolCalls {
   const _$Message_ToolCallsImpl({
     required this.role,
+    required this.content,
     required final List<ToolCall> toolCalls,
   }) : _toolCalls = toolCalls,
        super._();
 
   @override
   final Role role;
+  @override
+  final String content;
   final List<ToolCall> _toolCalls;
   @override
   List<ToolCall> get toolCalls {
@@ -328,7 +359,7 @@ class _$Message_ToolCallsImpl extends Message_ToolCalls {
 
   @override
   String toString() {
-    return 'Message.toolCalls(role: $role, toolCalls: $toolCalls)';
+    return 'Message.toolCalls(role: $role, content: $content, toolCalls: $toolCalls)';
   }
 
   @override
@@ -337,6 +368,7 @@ class _$Message_ToolCallsImpl extends Message_ToolCalls {
         (other.runtimeType == runtimeType &&
             other is _$Message_ToolCallsImpl &&
             (identical(other.role, role) || other.role == role) &&
+            (identical(other.content, content) || other.content == content) &&
             const DeepCollectionEquality().equals(
               other._toolCalls,
               _toolCalls,
@@ -347,6 +379,7 @@ class _$Message_ToolCallsImpl extends Message_ToolCalls {
   int get hashCode => Object.hash(
     runtimeType,
     role,
+    content,
     const DeepCollectionEquality().hash(_toolCalls),
   );
 
@@ -365,32 +398,39 @@ class _$Message_ToolCallsImpl extends Message_ToolCalls {
   @optionalTypeArgs
   TResult when<TResult extends Object?>({
     required TResult Function(Role role, String content) message,
-    required TResult Function(Role role, List<ToolCall> toolCalls) toolCalls,
+    required TResult Function(
+      Role role,
+      String content,
+      List<ToolCall> toolCalls,
+    )
+    toolCalls,
     required TResult Function(Role role, String name, String content) toolResp,
   }) {
-    return toolCalls(role, this.toolCalls);
+    return toolCalls(role, content, this.toolCalls);
   }
 
   @override
   @optionalTypeArgs
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function(Role role, String content)? message,
-    TResult? Function(Role role, List<ToolCall> toolCalls)? toolCalls,
+    TResult? Function(Role role, String content, List<ToolCall> toolCalls)?
+    toolCalls,
     TResult? Function(Role role, String name, String content)? toolResp,
   }) {
-    return toolCalls?.call(role, this.toolCalls);
+    return toolCalls?.call(role, content, this.toolCalls);
   }
 
   @override
   @optionalTypeArgs
   TResult maybeWhen<TResult extends Object?>({
     TResult Function(Role role, String content)? message,
-    TResult Function(Role role, List<ToolCall> toolCalls)? toolCalls,
+    TResult Function(Role role, String content, List<ToolCall> toolCalls)?
+    toolCalls,
     TResult Function(Role role, String name, String content)? toolResp,
     required TResult orElse(),
   }) {
     if (toolCalls != null) {
-      return toolCalls(role, this.toolCalls);
+      return toolCalls(role, content, this.toolCalls);
     }
     return orElse();
   }
@@ -433,12 +473,15 @@ class _$Message_ToolCallsImpl extends Message_ToolCalls {
 abstract class Message_ToolCalls extends Message {
   const factory Message_ToolCalls({
     required final Role role,
+    required final String content,
     required final List<ToolCall> toolCalls,
   }) = _$Message_ToolCallsImpl;
   const Message_ToolCalls._() : super._();
 
   @override
   Role get role;
+  @override
+  String get content;
   List<ToolCall> get toolCalls;
 
   /// Create a copy of Message
@@ -547,7 +590,12 @@ class _$Message_ToolRespImpl extends Message_ToolResp {
   @optionalTypeArgs
   TResult when<TResult extends Object?>({
     required TResult Function(Role role, String content) message,
-    required TResult Function(Role role, List<ToolCall> toolCalls) toolCalls,
+    required TResult Function(
+      Role role,
+      String content,
+      List<ToolCall> toolCalls,
+    )
+    toolCalls,
     required TResult Function(Role role, String name, String content) toolResp,
   }) {
     return toolResp(role, name, content);
@@ -557,7 +605,8 @@ class _$Message_ToolRespImpl extends Message_ToolResp {
   @optionalTypeArgs
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function(Role role, String content)? message,
-    TResult? Function(Role role, List<ToolCall> toolCalls)? toolCalls,
+    TResult? Function(Role role, String content, List<ToolCall> toolCalls)?
+    toolCalls,
     TResult? Function(Role role, String name, String content)? toolResp,
   }) {
     return toolResp?.call(role, name, content);
@@ -567,7 +616,8 @@ class _$Message_ToolRespImpl extends Message_ToolResp {
   @optionalTypeArgs
   TResult maybeWhen<TResult extends Object?>({
     TResult Function(Role role, String content)? message,
-    TResult Function(Role role, List<ToolCall> toolCalls)? toolCalls,
+    TResult Function(Role role, String content, List<ToolCall> toolCalls)?
+    toolCalls,
     TResult Function(Role role, String name, String content)? toolResp,
     required TResult orElse(),
   }) {
@@ -623,6 +673,7 @@ abstract class Message_ToolResp extends Message {
   @override
   Role get role;
   String get name;
+  @override
   String get content;
 
   /// Create a copy of Message

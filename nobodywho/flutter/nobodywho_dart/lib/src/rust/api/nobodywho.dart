@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'nobodywho.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `dart_function_type_to_json_schema`, `flutter_message_to_rust_message`, `rust_message_to_flutter_message`, `sample_step`, `shift_step`
+// These functions are ignored because they are not marked as `pub`: `dart_function_type_to_json_schema`, `sample_step`, `shift_step`
 
 double cosineSimilarity({required List<double> a, required List<double> b}) =>
     NobodyWho.instance.api.crateApiNobodywhoCosineSimilarity(a: a, b: b);
@@ -385,6 +385,7 @@ sealed class Message with _$Message {
       Message_Message;
   const factory Message.toolCalls({
     required Role role,
+    required String content,
     required List<ToolCall> toolCalls,
   }) = Message_ToolCalls;
   const factory Message.toolResp({

@@ -2955,9 +2955,10 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       case 1:
         return Message_ToolCalls(
           role: dco_decode_role(raw[1]),
+          content: dco_decode_String(raw[2]),
           toolCalls:
               dco_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
-                raw[2],
+                raw[3],
               ),
         );
       case 2:
@@ -3707,11 +3708,16 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         return Message_Message(role: var_role, content: var_content);
       case 1:
         var var_role = sse_decode_role(deserializer);
+        var var_content = sse_decode_String(deserializer);
         var var_toolCalls =
             sse_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
               deserializer,
             );
-        return Message_ToolCalls(role: var_role, toolCalls: var_toolCalls);
+        return Message_ToolCalls(
+          role: var_role,
+          content: var_content,
+          toolCalls: var_toolCalls,
+        );
       case 2:
         var var_role = sse_decode_role(deserializer);
         var var_name = sse_decode_String(deserializer);
@@ -4535,9 +4541,14 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         sse_encode_i_32(0, serializer);
         sse_encode_role(role, serializer);
         sse_encode_String(content, serializer);
-      case Message_ToolCalls(role: final role, toolCalls: final toolCalls):
+      case Message_ToolCalls(
+        role: final role,
+        content: final content,
+        toolCalls: final toolCalls,
+      ):
         sse_encode_i_32(1, serializer);
         sse_encode_role(role, serializer);
+        sse_encode_String(content, serializer);
         sse_encode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
           toolCalls,
           serializer,

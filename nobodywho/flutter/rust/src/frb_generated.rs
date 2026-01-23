@@ -2474,6 +2474,34 @@ fn wire__crate__api__nobodywho__new_tool_impl_impl(
     )
 }
 
+// Section: static_checks
+
+#[allow(clippy::unnecessary_literal_unwrap)]
+const _: fn() = || match None::<crate::api::nobodywho::Message>.unwrap() {
+    crate::api::nobodywho::Message::Message { role, content } => {
+        let _: crate::api::nobodywho::Role = role;
+        let _: String = content;
+    }
+    crate::api::nobodywho::Message::ToolCalls {
+        role,
+        content,
+        tool_calls,
+    } => {
+        let _: crate::api::nobodywho::Role = role;
+        let _: String = content;
+        let _: Vec<ToolCall> = tool_calls;
+    }
+    crate::api::nobodywho::Message::ToolResp {
+        role,
+        name,
+        content,
+    } => {
+        let _: crate::api::nobodywho::Role = role;
+        let _: String = name;
+        let _: String = content;
+    }
+};
+
 // Section: related_funcs
 
 fn decode_DartFn_Inputs_String_Output_String_AnyhowException(
@@ -3053,9 +3081,11 @@ impl SseDecode for crate::api::nobodywho::Message {
             }
             1 => {
                 let mut var_role = <crate::api::nobodywho::Role>::sse_decode(deserializer);
+                let mut var_content = <String>::sse_decode(deserializer);
                 let mut var_toolCalls = <Vec<ToolCall>>::sse_decode(deserializer);
                 return crate::api::nobodywho::Message::ToolCalls {
                     role: var_role,
+                    content: var_content,
                     tool_calls: var_toolCalls,
                 };
             }
@@ -3578,18 +3608,23 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<Value>> for Value {
 }
 
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::nobodywho::Message {
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::nobodywho::Message> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        match self {
+        match self.0 {
             crate::api::nobodywho::Message::Message { role, content } => [
                 0.into_dart(),
                 role.into_into_dart().into_dart(),
                 content.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::api::nobodywho::Message::ToolCalls { role, tool_calls } => [
+            crate::api::nobodywho::Message::ToolCalls {
+                role,
+                content,
+                tool_calls,
+            } => [
                 1.into_dart(),
                 role.into_into_dart().into_dart(),
+                content.into_into_dart().into_dart(),
                 tool_calls.into_into_dart().into_dart(),
             ]
             .into_dart(),
@@ -3611,14 +3646,14 @@ impl flutter_rust_bridge::IntoDart for crate::api::nobodywho::Message {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::nobodywho::Message
+    for FrbWrapper<crate::api::nobodywho::Message>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::nobodywho::Message>
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::nobodywho::Message>>
     for crate::api::nobodywho::Message
 {
-    fn into_into_dart(self) -> crate::api::nobodywho::Message {
-        self
+    fn into_into_dart(self) -> FrbWrapper<crate::api::nobodywho::Message> {
+        self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
@@ -4098,9 +4133,14 @@ impl SseEncode for crate::api::nobodywho::Message {
                 <crate::api::nobodywho::Role>::sse_encode(role, serializer);
                 <String>::sse_encode(content, serializer);
             }
-            crate::api::nobodywho::Message::ToolCalls { role, tool_calls } => {
+            crate::api::nobodywho::Message::ToolCalls {
+                role,
+                content,
+                tool_calls,
+            } => {
                 <i32>::sse_encode(1, serializer);
                 <crate::api::nobodywho::Role>::sse_encode(role, serializer);
+                <String>::sse_encode(content, serializer);
                 <Vec<ToolCall>>::sse_encode(tool_calls, serializer);
             }
             crate::api::nobodywho::Message::ToolResp {
