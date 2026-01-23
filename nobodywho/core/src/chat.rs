@@ -1052,7 +1052,7 @@ fn select_template(
         tool_template.to_string()?
     } else if default_template.contains("tools") {
         // tools provided, but no tool template, but the default template seems to mention tools
-        debug!("Selecting default template, tools provided");
+        debug!("Selecting default template with tool support, tools provided");
         default_template
     } else {
         // tools provided, but we have no tool-capable template
