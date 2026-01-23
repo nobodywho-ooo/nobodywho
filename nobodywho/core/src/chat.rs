@@ -805,7 +805,7 @@ fn process_worker_msg(
     worker_state: &mut Worker<'_, ChatWorker>,
     msg: ChatMsg,
 ) -> Result<(), ChatWorkerError> {
-    debug!(msg = ?msg, "Worker processing msg");
+    debug!("Worker processing msg");
     match msg {
         ChatMsg::Ask { text, output_tx } => {
             let callback = move |out| {
@@ -1043,16 +1043,16 @@ fn select_template(
 
     let template = if !with_tools {
         // no tools. use default template.
-        debug!("Selecting default template, no tools provided.");
+        debug!("Selecting default template, no tools provided");
         default_template
     } else if let Ok(tool_template) = tool_template {
         // tools provided, and we have a tool template, use that.
         debug_assert!(tool_template.to_string()?.contains("tools"));
-        debug!("Selecting tool template, tools provided.");
+        debug!("Selecting tool template, tools provided");
         tool_template.to_string()?
     } else if default_template.contains("tools") {
         // tools provided, but no tool template, but the default template seems to mention tools
-        debug!("Selecting default template, tools provided.");
+        debug!("Selecting default template, tools provided");
         default_template
     } else {
         // tools provided, but we have no tool-capable template
@@ -1155,7 +1155,7 @@ fn render_string(
         Err(err) => match err.kind() {
             minijinja::ErrorKind::InvalidOperation => {
                 if err.to_string().contains("System role not supported") {
-                    debug!("Concatenating first user messages. System role not supported.");
+                    debug!("Concatenating first user messages. System role not supported");
                     // this is the error message we get when rendering the gemma2 template
                     // concat the first two messages and try again
                     naive_render_message_vec(
@@ -1173,7 +1173,7 @@ fn render_string(
                     // this is the error we get when rendering the mistral 7b v0.3 template,
                     // which, like gemma2, does not support the system role
                     // concat the first two messages and try again
-                    debug!("Concatenating first user messages. Conversation roles must alternate.");
+                    debug!("Concatenating first user messages. Conversation roles must alternate");
                     naive_render_message_vec(
                         &concat_system_and_first_user_messages(messages)?,
                         chat_template,
@@ -1183,10 +1183,14 @@ fn render_string(
                         tools,
                     )
                 } else {
+                    debug!(error = %err, "Template render failed with InvalidOperation error");
                     Err(err)
                 }
             }
-            _ => Err(err),
+            _ => {
+                debug!(error = %err, "Template render failed");
+                Err(err)
+            }
         },
     };
 
@@ -1547,7 +1551,7 @@ impl Worker<'_, ChatWorker> {
         }
 
         // we're done!
-        debug!(full_response = full_response, "Sending out full response");
+        debug!(full_response = %full_response, "Sending out full response");
         respond(WriteOutput::Done(full_response));
         Ok(self)
     }
