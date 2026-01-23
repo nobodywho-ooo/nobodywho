@@ -160,9 +160,9 @@ jobs:
       - name: "Zip XCFramework for release"
         working-directory: ./nobodywho-flutter-release
         run: |
-          if [ -d "NobodyWho.xcframework" ]; then
-            zip -r "NobodyWho.xcframework.zip" NobodyWho.xcframework
-            rm -rf NobodyWho.xcframework
+          if [ -d "NobodyWhoFlutter.xcframework" ]; then
+            zip -r "NobodyWhoFlutter.xcframework.zip" NobodyWhoFlutter.xcframework
+            rm -rf NobodyWhoFlutter.xcframework
           fi
 
       - name: "Create GitHub Release"

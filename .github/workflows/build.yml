@@ -289,13 +289,13 @@ jobs:
                   -headers "headers" \
                   -library "aarch64-ios/$LIBNAME" \
                   -headers "headers" \
-                  -output NobodyWho.xcframework
+                  -output NobodyWhoFlutter.xcframework
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v4
         with:
           name: nobodywho-flutter-xcframework
-          path: ./NobodyWho.xcframework
+          path: ./NobodyWhoFlutter.xcframework
 
   cargo-build-android:
     runs-on: ubuntu-24.04
