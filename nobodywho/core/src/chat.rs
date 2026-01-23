@@ -765,7 +765,6 @@ impl TokenStreamAsync {
     }
 }
 
-#[derive(Debug)]
 enum ChatMsg {
     Ask {
         text: String,
@@ -801,11 +800,54 @@ enum ChatMsg {
     },
 }
 
+impl std::fmt::Debug for ChatMsg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ChatMsg::Ask { text, .. } => f
+                .debug_struct("Ask")
+                .field("text", text)
+                .finish(),
+            ChatMsg::ResetChat {
+                system_prompt,
+                tools,
+                ..
+            } => f
+                .debug_struct("ResetChat")
+                .field("system_prompt", system_prompt)
+                .field("tools", &format!("[{} tools]", tools.len()))
+                .finish(),
+            ChatMsg::SetTools { tools, .. } => f
+                .debug_struct("SetTools")
+                .field("tools", &format!("[{} tools]", tools.len()))
+                .finish(),
+            ChatMsg::SetSystemPrompt { system_prompt, .. } => f
+                .debug_struct("SetSystemPrompt")
+                .field("system_prompt", system_prompt)
+                .finish(),
+            ChatMsg::SetThinking { allow_thinking, .. } => f
+                .debug_struct("SetThinking")
+                .field("allow_thinking", allow_thinking)
+                .finish(),
+            ChatMsg::SetSamplerConfig { sampler_config, .. } => f
+                .debug_struct("SetSamplerConfig")
+                .field("sampler_config", sampler_config)
+                .finish(),
+            ChatMsg::GetChatHistory { .. } => f
+                .debug_struct("GetChatHistory")
+                .finish(),
+            ChatMsg::SetChatHistory { messages, .. } => f
+                .debug_struct("SetChatHistory")
+                .field("messages", &format!("[{} messages]", messages.len()))
+                .finish(),
+        }
+    }
+}
+
 fn process_worker_msg(
     worker_state: &mut Worker<'_, ChatWorker>,
     msg: ChatMsg,
 ) -> Result<(), ChatWorkerError> {
-    debug!("Worker processing msg");
+    debug!(msg=?msg, "Worker processing msg");
     match msg {
         ChatMsg::Ask { text, output_tx } => {
             let callback = move |out| {
