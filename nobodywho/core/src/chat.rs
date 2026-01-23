@@ -1871,7 +1871,10 @@ fn extract_tool_calls(input: &str) -> Option<Vec<ToolCall>> {
         .filter_map(|cap| {
             let json_str = cap[1].trim();
             match serde_json::from_str::<ToolCall>(json_str) {
-                Ok(tool_call) => Some(tool_call),
+                Ok(tool_call) => {
+                    debug!(tool_name = %tool_call.name, "Successfully parsed tool call");
+                    Some(tool_call)
+                }
                 Err(e) => {
                     debug!(error = %e, json = json_str, "Failed to parse tool call JSON");
                     None
@@ -1883,6 +1886,7 @@ fn extract_tool_calls(input: &str) -> Option<Vec<ToolCall>> {
     if !tool_calls.is_empty() {
         Some(tool_calls)
     } else {
+        debug!("No tool calls detected in message");
         None
     }
 }
