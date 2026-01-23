@@ -83,6 +83,44 @@ void main() {
       // TODO: test content of messages
     });
 
+    test('Tool call message has correct structure in chat history', () async {
+      // Trigger a tool call
+      await chat!.ask(message: "Please sparklify the word 'test'").completed();
+
+      final messages = await chat!.getChatHistory();
+
+      // Find the tool calls message (assistant requesting tool call)
+      final toolCallsMessage = messages.firstWhere(
+        (m) => m is nobodywho.Message_ToolCalls,
+        orElse: () => throw Exception('No tool calls message found in history'),
+      ) as nobodywho.Message_ToolCalls;
+
+      // Check the role is assistant
+      expect(toolCallsMessage.role, equals(nobodywho.Role.assistant));
+
+      // Check there's at least one tool call
+      expect(toolCallsMessage.toolCalls, isNotEmpty);
+
+      // Get the first tool call and verify its properties
+      final toolCall = toolCallsMessage.toolCalls.first;
+      expect(toolCall.name, equals('sparklify'));
+
+      // The arguments should contain the text parameter
+      // Note: arguments is a serde_json::Value, we need to check it's not null
+      expect(toolCall.arguments, isNotNull);
+
+      // Find the tool response message
+      final toolRespMessage = messages.firstWhere(
+        (m) => m is nobodywho.Message_ToolResp,
+        orElse: () => throw Exception('No tool response message found in history'),
+      ) as nobodywho.Message_ToolResp;
+
+      // Check the tool response
+      expect(toolRespMessage.role, equals(nobodywho.Role.tool));
+      expect(toolRespMessage.name, equals('sparklify'));
+      expect(toolRespMessage.content, contains('✨test✨'));
+    });
+
     test('Tools work with custom sampler', () async {
       final sampler = nobodywho.SamplerBuilder().topP(topP: 0.9, minKeep: 20).temperature(temperature: 1.2).dist();
       await chat!.setSamplerConfig(samplerConfig: sampler);

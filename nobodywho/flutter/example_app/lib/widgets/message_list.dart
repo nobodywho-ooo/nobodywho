@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:nobodywho_flutter/nobodywho_flutter.dart' as nobodywho;
 
-import '../models/chat_message.dart';
 import 'message_bubble.dart';
 
 /// Scrollable list of chat messages with auto-scroll functionality.
 class MessageList extends StatefulWidget {
-  final List<ChatMessage> messages;
+  final List<nobodywho.Message> messages;
+  final String? streamingContent;
 
-  const MessageList({super.key, required this.messages});
+  const MessageList({
+    super.key,
+    required this.messages,
+    this.streamingContent,
+  });
 
   @override
   State<MessageList> createState() => _MessageListState();
@@ -19,11 +24,9 @@ class _MessageListState extends State<MessageList> {
   @override
   void didUpdateWidget(MessageList oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Auto-scroll when new messages arrive
+    // Auto-scroll when new messages arrive or streaming content updates
     if (widget.messages.length > oldWidget.messages.length ||
-        (widget.messages.isNotEmpty &&
-            oldWidget.messages.isNotEmpty &&
-            widget.messages.last.text != oldWidget.messages.last.text)) {
+        widget.streamingContent != oldWidget.streamingContent) {
       _scrollToBottom();
     }
   }
@@ -48,7 +51,12 @@ class _MessageListState extends State<MessageList> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.messages.isEmpty) {
+    final hasStreamingContent =
+        widget.streamingContent != null && widget.streamingContent!.isNotEmpty;
+    final totalItems =
+        widget.messages.length + (widget.streamingContent != null ? 1 : 0);
+
+    if (widget.messages.isEmpty && !hasStreamingContent) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -74,9 +82,14 @@ class _MessageListState extends State<MessageList> {
     return ListView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.all(8.0),
-      itemCount: widget.messages.length,
+      itemCount: totalItems,
       itemBuilder: (context, index) {
-        return MessageBubble(message: widget.messages[index]);
+        if (index < widget.messages.length) {
+          return MessageBubble(message: widget.messages[index]);
+        } else {
+          // This is the streaming message
+          return StreamingMessageBubble(content: widget.streamingContent ?? '');
+        }
       },
     );
   }
