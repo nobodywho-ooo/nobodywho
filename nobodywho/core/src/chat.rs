@@ -847,7 +847,7 @@ fn process_worker_msg(
     worker_state: &mut Worker<'_, ChatWorker>,
     msg: ChatMsg,
 ) -> Result<(), ChatWorkerError> {
-    debug!(msg=?msg, "Worker processing msg");
+    debug!(?msg, "Worker processing:");
     match msg {
         ChatMsg::Ask { text, output_tx } => {
             let callback = move |out| {
@@ -1224,12 +1224,12 @@ fn render_string(
                         tools,
                     )
                 } else {
-                    debug!(error = %err, "Template render failed with InvalidOperation error");
+                    debug!(error = %err, "Template render failed with InvalidOperation:");
                     Err(err)
                 }
             }
             _ => {
-                debug!(error = %err, "Template render failed");
+                debug!(error = %err, "Template render failed:");
                 Err(err)
             }
         },
@@ -1313,7 +1313,7 @@ impl Worker<'_, ChatWorker> {
             match grammar_from_tools(&config.tools) {
                 Ok(g) => Some(g),
                 Err(e) => {
-                    debug!(error = %e, "Failed to generate grammar from tools");
+                    debug!(error = %e, "Failed to generate grammar from tools:");
                     None
                 }
             }
@@ -1585,7 +1585,7 @@ impl Worker<'_, ChatWorker> {
 
             if !has_eog {
                 full_response.push_str(token_str);
-                trace!(token_str = token_str, "Sending out token");
+                trace!(?token_str, "Sending out token:");
                 respond(WriteOutput::Token(token_str.to_string()));
             }
 
@@ -1598,7 +1598,7 @@ impl Worker<'_, ChatWorker> {
         }
 
         // we're done!
-        debug!(full_response = %full_response, "Sending out full response");
+        debug!(%full_response, "Sending out full response:");
         respond(WriteOutput::Done(full_response));
         Ok(self)
     }
@@ -1660,7 +1660,7 @@ impl Worker<'_, ChatWorker> {
         )?;
 
         while let Some(tool_calls) = extract_tool_calls(&response) {
-            debug!(tool_calls = ?tool_calls, "Got tool calls!");
+            debug!(?tool_calls, "Got tool calls:");
 
             self.add_tool_calls(tool_calls.clone());
 
@@ -1675,7 +1675,7 @@ impl Worker<'_, ChatWorker> {
                     // works.
                     error!(
                         tool_name = tool_call.name,
-                        "Model triggered tool call for invalid tool name",
+                        "Model triggered tool call for invalid tool name:",
                     );
                     let errmsg = format!("ERROR - Invalid tool name: {}", tool_call.name);
                     self.add_tool_resp(tool_call.name, errmsg);
@@ -1685,7 +1685,7 @@ impl Worker<'_, ChatWorker> {
                 // call the tool
                 debug!("Calling the tool now!");
                 let response = (tool.function)(tool_call.arguments);
-                debug!(%tool_call.name, %response, "Tool call result");
+                debug!(%tool_call.name, %response, "Tool call result:");
 
                 // add to chat history
                 self.add_tool_resp(tool_call.name, response);
@@ -1764,7 +1764,7 @@ impl Worker<'_, ChatWorker> {
             match grammar_from_tools(&tools) {
                 Ok(g) => Some(g),
                 Err(e) => {
-                    debug!(error = %e, "Failed to generate grammar from tools");
+                    debug!(error = %e, "Failed to generate grammar from tools:");
                     None
                 }
             }
@@ -1815,7 +1815,7 @@ impl Worker<'_, ChatWorker> {
             match grammar_from_tools(&tools) {
                 Ok(g) => Some(g),
                 Err(e) => {
-                    debug!(error = %e, "Failed to generate grammar from tools");
+                    debug!(error = %e, "Failed to generate grammar from tools:");
                     None
                 }
             }
@@ -1914,11 +1914,11 @@ fn extract_tool_calls(input: &str) -> Option<Vec<ToolCall>> {
             let json_str = cap[1].trim();
             match serde_json::from_str::<ToolCall>(json_str) {
                 Ok(tool_call) => {
-                    debug!(tool_name = %tool_call.name, "Successfully parsed tool call");
+                    debug!(tool_name = %tool_call.name, "Successfully parsed tool call:");
                     Some(tool_call)
                 }
                 Err(e) => {
-                    debug!(error = %e, json = json_str, "Failed to parse tool call JSON");
+                    debug!(error = %e, json = json_str, "Failed to parse tool call JSON:");
                     None
                 }
             }

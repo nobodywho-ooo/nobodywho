@@ -176,7 +176,7 @@ where
         let small_batch = LlamaBatch::new(1, 1);
 
         let add_bos = read_add_bos_metadata(model)?;
-        debug!(add_bos = ?add_bos, "Read add_bos from GGUF metadata");
+        debug!(?add_bos, "Read add_bos from GGUF metadata:");
 
         let state = Worker {
             n_past: 0,
@@ -216,7 +216,7 @@ where
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<&mut Self, ReadError> {
         let n_tokens = tokens.len();
-        debug!(n_tokens = n_tokens, "Reading tokens");
+        debug!(n_tokens, "Reading tokens:");
 
         // can't read nothing
         debug_assert!(!tokens.is_empty());
