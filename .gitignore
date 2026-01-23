@@ -9,3 +9,4 @@ python_dev_envs/
 checkpoints/
 docs/site/
 docs/__pycache__
+**target/**
