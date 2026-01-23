@@ -37,13 +37,13 @@ impl EncoderAsync {
             let mut worker_state = match worker {
                 Ok(worker_state) => worker_state,
                 Err(errmsg) => {
-                    return error!("Could not set up the worker initial state: {errmsg}")
+                    return error!(error=%errmsg, "Could not set up the worker initial state")
                 }
             };
 
             while let Ok(msg) = msg_rx.recv() {
                 if let Err(e) = process_worker_msg(&mut worker_state, msg) {
-                    return error!("Encoder Worker crashed: {e}");
+                    return error!(error=%e, "Encoder Worker crashed");
                 }
             }
         });
