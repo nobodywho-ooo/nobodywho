@@ -97,7 +97,7 @@ There are scenarios where you would like to keep separate chat contexts (e.g. fo
 For this use case, instead of the path to the `.gguf` model, you can pass in `Model` object, which can be shared between multiple `Chat` instances.
 
 ```python
-from nobodywho import Model
+from nobodywho import Chat, Model
 
 model = Model('./model.gguf')
 chat1 = Chat(model)
@@ -106,6 +106,24 @@ chat2 = Chat(model)
 ```
 
 NobodyWho will then take care of the separation, such that your chat histories won't collide or interfere with each other, while having only one model loaded.
+
+## Asynchronous model loading
+
+Loading a model into memory can take a few seconds - longer if you're using a really large model.
+
+If you want to load the model without blocking execution of your application (e.g. to keep UI responsive), you can load the model asynchronously:
+
+
+```python
+import asyncio
+from nobodywho import ChatAsync, Model
+
+async def main():
+   model = await Model.load_model_async("./model.gguf")
+   chat = ChatAsync(model)
+
+asyncio.run(main())
+```
 
 ## GPU
 Instantiating `Model` is also useful, when enabling GPU acceleration. This can be done as:
