@@ -1469,7 +1469,7 @@ dependencies = [
 
 [[package]]
 name = "nobodywho-godot"
-version = "8.0.1"
+version = "8.0.2"
 dependencies = [
  "godot",
  "nobodywho",
@@ -1481,7 +1481,7 @@ dependencies = [
 
 [[package]]
 name = "nobodywho-python"
-version = "0.7.1"
+version = "0.6.2"
 dependencies = [
  "futures",
  "nobodywho",
