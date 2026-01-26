@@ -44,7 +44,7 @@ void main() {
         description: "Applies the strongify effect to a string"
       );
 
-      chat = nobodywho.Chat.fromPath(modelPath: modelPath, systemPrompt: "", contextSize: 1024, allowThinking: false, tools: [sparklify_tool, strongify_tool]);
+      chat = await nobodywho.Chat.fromPath(modelPath: modelPath, systemPrompt: "", contextSize: 1024, allowThinking: false, tools: [sparklify_tool, strongify_tool]);
     });
 
     test('Capital of Denmark test', () async {
@@ -188,7 +188,7 @@ void main() {
         description: "Applies the sparklify effect to a string"
       );
 
-      final testChat = nobodywho.Chat.fromPath(
+      final testChat = await nobodywho.Chat.fromPath(
         modelPath: modelPath,
         systemPrompt: "",
         contextSize: 1024,

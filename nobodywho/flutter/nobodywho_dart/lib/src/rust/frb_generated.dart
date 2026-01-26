@@ -83,7 +83,7 @@ abstract class NobodyWhoApi extends BaseApi {
     required String message,
   });
 
-  Chat crateApiNobodywhoChatFromPath({
+  Future<Chat> crateApiNobodywhoChatFromPath({
     required String modelPath,
     String? systemPrompt = null,
     int contextSize = 4096,
@@ -489,7 +489,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       const TaskConstMeta(debugName: "Chat_ask", argNames: ["that", "message"]);
 
   @override
-  Chat crateApiNobodywhoChatFromPath({
+  Future<Chat> crateApiNobodywhoChatFromPath({
     required String modelPath,
     String? systemPrompt = null,
     int contextSize = 4096,
@@ -498,9 +498,9 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     SamplerConfig? sampler = null,
     bool useGpu = true,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(modelPath, serializer);
           sse_encode_opt_String(systemPrompt, serializer);
@@ -515,7 +515,12 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             serializer,
           );
           sse_encode_bool(useGpu, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 2)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 2,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData:

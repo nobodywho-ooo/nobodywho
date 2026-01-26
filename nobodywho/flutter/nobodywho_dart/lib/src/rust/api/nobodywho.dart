@@ -31,7 +31,7 @@ void initDebugLog() => NobodyWho.instance.api.crateApiNobodywhoInitDebugLog();
 abstract class Chat implements RustOpaqueInterface {
   TokenStream ask({required String message});
 
-  /// Create chat directly from a model path.
+  /// Create chat directly from a model path. This is async as it loads a model
   ///
   /// Args:
   ///     model_path: Path to GGUF model file
@@ -40,7 +40,7 @@ abstract class Chat implements RustOpaqueInterface {
   ///     tools: List of Tool instances the model can call
   ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
   ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
-  static Chat fromPath({
+  static Future<Chat> fromPath({
     required String modelPath,
     String? systemPrompt = null,
     int contextSize = 4096,
