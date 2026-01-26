@@ -8,16 +8,37 @@ cmake_minimum_required(VERSION 3.14)
 set(PROJECT_NAME "nobodywho_flutter")
 project(${PROJECT_NAME} LANGUAGES CXX)
 
-# Invoke the build for native code shared with the other target platforms.
-# This can be changed to accommodate different builds.
-add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../src" "${CMAKE_CURRENT_BINARY_DIR}/shared")
+# The binary resolution is handled by a Dart script that supports multiple methods:
+# 1. Environment variable override (NOBODYWHO_FLUTTER_LIB_PATH)
+# 2. Local cargo build detection
+# 3. Cached download
+# 4. Download from GitHub releases
+
+# Windows only supports x86_64 currently
+set(WINDOWS_ARCH "x86_64")
+
+# Resolve binary using Dart script
+execute_process(
+  COMMAND dart run "${CMAKE_CURRENT_SOURCE_DIR}/../tool/resolve_binary.dart"
+          --platform=windows
+          --arch=${WINDOWS_ARCH}
+          --build-type=release
+          --cache-dir=${CMAKE_CURRENT_BINARY_DIR}
+  WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/.."
+  OUTPUT_VARIABLE NOBODYWHO_LIB_PATH
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+  ERROR_VARIABLE resolve_error
+  RESULT_VARIABLE resolve_result
+)
+
+if(NOT resolve_result EQUAL 0)
+  message(FATAL_ERROR "Failed to resolve NobodyWho binary for Windows ${WINDOWS_ARCH}:\n${resolve_error}")
+endif()
+
+message(STATUS "Using NobodyWho library for Windows ${WINDOWS_ARCH}: ${NOBODYWHO_LIB_PATH}")
 
 # List of absolute paths to libraries that should be bundled with the plugin.
-# This list could contain prebuilt libraries, or libraries created by an
-# external build triggered from this build file.
 set(nobodywho_flutter_bundled_libraries
-  # Defined in ../src/CMakeLists.txt.
-  # This can be changed to accommodate different builds.
-  $<TARGET_FILE:nobodywho_flutter>
+  ${NOBODYWHO_LIB_PATH}
   PARENT_SCOPE
 )
