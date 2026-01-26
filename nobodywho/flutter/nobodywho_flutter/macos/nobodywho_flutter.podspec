@@ -1,34 +1,43 @@
+framework_name = "NobodyWhoFlutter.xcframework"
 
+# Resolve xcframework using Dart script
+# This supports multiple resolution strategies:
+# 1. Environment variable override (NOBODYWHO_FLUTTER_XCFRAMEWORK_PATH)
+# 2. Local cargo build detection
+# 3. Cached download
+# 4. Download from GitHub releases
 
-release_tag_name = "nobodywho_flutter-v0.0.0"
-framework_name="NobodyWhoFlutter.xcframework"
+script_path = File.join(__dir__, '..', 'tool', 'resolve_binary.dart')
+cache_dir = File.join(__dir__, '..', '.dart_tool', 'nobodywho_cache')
 
+# Run the Dart script to resolve the xcframework path
+resolve_output = `dart run "#{script_path}" --platform=macos --build-type=release --cache-dir="#{cache_dir}" 2>&1`
+resolve_status = $?.exitstatus
 
-# Get the framework path from environment variable
-xcframework_path = ENV['NOBODYWHO_FLUTTER_XCFRAMEWORK']
-
-# Validate environment variable is set
-if xcframework_path.nil? || xcframework_path.empty?
-  raise "Error: NOBODYWHO_FLUTTER_XCFRAMEWORK environment variable is not set. " \
-        "Please set it to the path of your xcframework file."
+if resolve_status != 0
+  raise "Error: Failed to resolve NobodyWho xcframework for macOS:\n#{resolve_output}\n" \
+        "You can manually set NOBODYWHO_FLUTTER_XCFRAMEWORK_PATH to point to your xcframework."
 end
 
-# Validate the framework exists
+# The script outputs the path to stdout (last line), with status messages to stderr
+xcframework_path = resolve_output.strip.split("\n").last
+
 unless File.exist?(xcframework_path)
-  raise "Error: Framework not found at path: #{xcframework_path}. " \
-        "Please ensure NOBODYWHO_FLUTTER_XCFRAMEWORK points to a valid xcframework file."
+  raise "Error: Resolved xcframework path does not exist: #{xcframework_path}"
 end
 
 # Copy the framework to local Frameworks directory
+frameworks_dir = File.join(__dir__, 'Frameworks')
 `
-cd Frameworks
-if [ -d #{framework_name} ]
+mkdir -p "#{frameworks_dir}"
+cd "#{frameworks_dir}"
+if [ -d "#{framework_name}" ]
 then
   echo "Found existing framework. Removing..."
-  rm -rf #{framework_name}
+  rm -rf "#{framework_name}"
 fi
 echo "Copying framework from #{xcframework_path}..."
-cp -r #{xcframework_path} ./#{framework_name}
+cp -r "#{xcframework_path}" "./#{framework_name}"
 `
 
 Pod::Spec.new do |s|
