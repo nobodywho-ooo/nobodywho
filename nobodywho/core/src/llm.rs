@@ -196,7 +196,7 @@ where
         self
     }
 
-    #[tracing::instrument(name = "HUBBABUBBA", level = "trace", skip(self))]
+    #[tracing::instrument(level = "trace", skip(self))]
     pub fn read_string(&mut self, text: String) -> Result<&mut Self, ReadError> {
         let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
         let inference_lock_token = _gil_guard.unwrap();
