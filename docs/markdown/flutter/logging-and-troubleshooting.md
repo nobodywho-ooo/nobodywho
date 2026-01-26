@@ -27,7 +27,7 @@ Future<void> main() async {
   nobodywho.initDebugLog();
   
   // Now create your chat instances, etc.
-  final chat = nobodywho.Chat.fromPath(modelPath: './model.gguf');
+  final chat = await nobodywho.Chat.fromPath(modelPath: './model.gguf');
   // ...
 }
 ```

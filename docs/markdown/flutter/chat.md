@@ -16,7 +16,7 @@ The `Chat.ask()` function is central to NobodyWho. This function sends your mess
 import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
 
 final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
-final response = await chat.ask(message: "Is water wet?");
+final response = await chat.ask("Is water wet?");
 ```
 
 The return type of `ask` is a `TokenStream`.
@@ -38,23 +38,6 @@ final fullResponse = await response.completed();
 ```
 
 All of your messages and the model's responses are stored in the `Chat` object, so the next time you call `Chat.ask()`, it will remember the previous messages.
-
-## Streaming tokens
-
-Allowing streaming is super simple. Instead of calling the `.completed()` method, just iterate
-over the response stream using `await for`:
-```dart
-import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
-
-final chat = nobodywho.Chat.fromPath(modelPath: './model.gguf');
-final response = await chat.ask(message: 'How are you?');
-await for (final token in response.iter()) {
-  print(token);
-}
-```
-
-The `iter()` method returns a `Stream<String>` that you can consume asynchronously, allowing
-your application to remain responsive while tokens are being generated.
 
 ## Chat history
 
@@ -144,7 +127,7 @@ of more architectures is planned (for details check out our [issues](https://git
 
 To enhance cognitive performance, allowing reasoning can be a good idea:
 ```dart
-final chat = nobodywho.Chat.fromPath(
+final chat = await nobodywho.Chat.fromPath(
   modelPath: "./model.gguf",
   allowThinking: true
 );

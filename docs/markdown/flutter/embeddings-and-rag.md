@@ -201,14 +201,14 @@ Future<void> main() async {
   );
 
   // Create a chat with access to the knowledge base
-  final chat = nobodywho.Chat.fromPath(
+  final chat = await nobodywho.Chat.fromPath(
     modelPath: './model.gguf',
     systemPrompt: "You are a customer service assistant. Use the search_knowledge tool to find relevant information from our policies before answering customer questions.",
     tools: [searchKnowledgeTool]
   );
 
   // The chat will automatically search the knowledge base when needed
-  final response = await chat.ask(message: "What is your return policy?").completed();
+  final response = await chat.ask("What is your return policy?").completed();
   print(response);
 }
 ```
@@ -338,14 +338,14 @@ Future<void> main() async {
   );
 
   // Create RAG-enabled chat
-  final chat = nobodywho.Chat.fromPath(
+  final chat = await nobodywho.Chat.fromPath(
     modelPath: './model.gguf',
     systemPrompt: "You are a technical documentation assistant. Always use the search tool to find relevant information before answering programming questions.",
     tools: [searchTool]
   );
 
   // The chat automatically searches and uses retrieved documents
-  final response = await chat.ask(message: "What Python libraries are best for data analysis?").completed();
+  final response = await chat.ask("What Python libraries are best for data analysis?").completed();
   print(response);
 }
 ```

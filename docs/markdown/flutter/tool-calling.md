@@ -24,11 +24,11 @@ import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
 
 final circleAreaTool = nobodywho.describeTool(
   name: "circle_area",
-  description: "Calculates the area of a circle given its radius"
+  description: "Calculates the area of a circle given its radius",
   function: ({ required double radius }) {
     final area = math.pi * radius * radius;
     return "Circle with radius $radius has area ${area.toStringAsFixed(2)}";
-  },
+  }
 );
 ```
 
@@ -85,7 +85,7 @@ final chat = nobodywho.Chat.fromPath(
   tools: [getCurrentDirTool, listFilesTool, getFileSizeTool]
 );
 
-final response = await chat.ask(message: 'What is the biggest file in my current directory?').completed();
+final response = await chat.ask('What is the biggest file in my current directory?').completed();
 print(response); // The largest file in your current directory is `model.gguf`.
 ```
 

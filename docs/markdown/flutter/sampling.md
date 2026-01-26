@@ -15,7 +15,7 @@ For example, if you want to increase or decrease the "creativity" of your model,
 ```dart
 import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
 
-final chat = nobodywho.Chat.fromPath(
+final chat = await nobodywho.Chat.fromPath(
   modelPath: "./model.gguf",
   sampler: nobodywho.SamplerPresets.temperature(temperature: 0.2)
 );
@@ -44,7 +44,7 @@ such as JSON. This way, you dont have to rely on your model being clever enough 
 generate syntactically valid JSON, but instead you are strictly guaranteed that the
 output will be right. For plain JSON, it suffices to:
 ```dart
-final chat = nobodywho.Chat.fromPath(
+final chat = await nobodywho.Chat.fromPath(
   modelPath: './model.gguf',
   sampler: nobodywho.SamplerPresets.json()
 );
@@ -75,7 +75,7 @@ we provide `SamplerBuilder` class:
 ```dart
 import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
 
-final chat = nobodywho.Chat.fromPath(
+final chat = await nobodywho.Chat.fromPath(
   modelPath: "./model.gguf",
   sampler: nobodywho.SamplerBuilder()
       .temperature(temperature: 0.8)
