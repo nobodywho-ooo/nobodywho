@@ -32,14 +32,7 @@ const platformMappings = {
       'triple': 'aarch64-linux-android',
       'lib': 'libnobodywho_flutter.so',
     },
-    'armeabi-v7a': {
-      'triple': 'armv7-linux-androideabi',
-      'lib': 'libnobodywho_flutter.so',
-    },
-    'x86': {
-      'triple': 'i686-linux-android',
-      'lib': 'libnobodywho_flutter.so',
-    },
+    // Note: 32-bit targets (armeabi-v7a, x86) are not supported due to build issues
     'x86_64': {
       'triple': 'x86_64-linux-android',
       'lib': 'libnobodywho_flutter.so',
