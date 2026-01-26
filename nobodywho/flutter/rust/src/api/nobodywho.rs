@@ -129,7 +129,7 @@ impl Chat {
         Ok(Self { chat })
     }
 
-    #[flutter_rust_bridge::frb(sync)]
+    #[flutter_rust_bridge::frb(sync, positional)]
     pub fn ask(&self, message: String) -> TokenStream {
         TokenStream {
             stream: self.chat.ask(message),

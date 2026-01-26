@@ -15,7 +15,7 @@ Future<void> main() async {
     tools: [],
   );
 
-  final responseStream = chat.ask(message: "Hello, friend-o!");
+  final responseStream = chat.ask("Hello, friend-o!");
 
   await for (final token in responseStream.iter()) {
     print(token);

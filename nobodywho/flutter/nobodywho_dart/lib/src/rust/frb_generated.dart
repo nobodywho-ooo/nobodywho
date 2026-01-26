@@ -4651,7 +4651,7 @@ class ChatImpl extends RustOpaque implements Chat {
         NobodyWho.instance.api.rust_arc_decrement_strong_count_ChatPtr,
   );
 
-  TokenStream ask({required String message}) => NobodyWho.instance.api
+  TokenStream ask(String message) => NobodyWho.instance.api
       .crateApiNobodywhoChatAsk(that: this, message: message);
 
   Future<List<Message>> getChatHistory() =>
