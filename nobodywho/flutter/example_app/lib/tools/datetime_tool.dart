@@ -53,32 +53,32 @@ String addDaysToDate({required String date, required int days}) {
 /// Creates all date/time tools as a list.
 List<nobodywho.Tool> createDateTimeTools() {
   return [
-    nobodywho.describeTool(
+    nobodywho.Tool.create(
       function: getCurrentDateTime,
       name: 'get_current_datetime',
       description: 'Get the current date and time in ISO 8601 format. No parameters required.',
     ),
-    nobodywho.describeTool(
+    nobodywho.Tool.create(
       function: getCurrentDate,
       name: 'get_current_date',
       description: 'Get the current date in YYYY-MM-DD format. No parameters required.',
     ),
-    nobodywho.describeTool(
+    nobodywho.Tool.create(
       function: getCurrentTime,
       name: 'get_current_time',
       description: 'Get the current time in HH:MM:SS format. No parameters required.',
     ),
-    nobodywho.describeTool(
+    nobodywho.Tool.create(
       function: getDayOfWeek,
       name: 'get_day_of_week',
       description: 'Get the current day of the week (e.g., Monday, Tuesday). No parameters required.',
     ),
-    nobodywho.describeTool(
+    nobodywho.Tool.create(
       function: daysBetween,
       name: 'days_between',
       description: 'Calculate the number of days between two dates. Parameters: startDate (YYYY-MM-DD), endDate (YYYY-MM-DD). Returns the number of days.',
     ),
-    nobodywho.describeTool(
+    nobodywho.Tool.create(
       function: addDaysToDate,
       name: 'add_days_to_date',
       description: 'Add or subtract days from a date. Parameters: date (YYYY-MM-DD), days (integer, can be negative). Returns the resulting date.',
