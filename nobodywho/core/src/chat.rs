@@ -842,7 +842,7 @@ fn process_worker_msg(
     worker_state: &mut Worker<'_, ChatWorker>,
     msg: ChatMsg,
 ) -> Result<(), ChatWorkerError> {
-    debug!(?msg, "Worker processing:");
+    info!(?msg, "Worker processing:");
     match msg {
         ChatMsg::Ask { text, output_tx } => {
             let callback = move |out| {
@@ -1231,7 +1231,7 @@ fn render_string(
 
     let text = result?;
 
-    trace!(text);
+    trace!(%text, "Rendered template:\n");
 
     Ok(text)
 }
