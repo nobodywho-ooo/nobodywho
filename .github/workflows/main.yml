@@ -20,6 +20,7 @@ jobs:
     uses: ./.github/workflows/build.yml
     with:
       upload_artifacts: true
+      full_macos_build: ${{ github.ref == 'refs/heads/main' }}
     needs: [linting]
 
   test:
