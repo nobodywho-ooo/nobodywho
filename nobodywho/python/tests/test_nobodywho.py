@@ -1,7 +1,7 @@
 import os
-import pytest
 
 import nobodywho
+import pytest
 
 import logging
 
