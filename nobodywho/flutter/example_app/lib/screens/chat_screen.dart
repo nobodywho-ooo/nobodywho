@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:nobodywho_flutter/nobodywho_flutter.dart' as nobodywho;
 
 import '../models/app_state.dart';
-import '../models/chat_message.dart';
 import '../widgets/message_list.dart';
 import '../widgets/chat_input.dart';
 
@@ -15,14 +15,18 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  final List<ChatMessage> _messages = [];
+  final List<nobodywho.Message> _messages = [];
   final TextEditingController _textController = TextEditingController();
   bool _isResponding = false;
+  String? _streamingContent;
 
   @override
   void initState() {
     super.initState();
-    _messages.add(ChatMessage.system('Chat ready. Send a message to begin!'));
+    _messages.add(nobodywho.Message.message(
+      role: nobodywho.Role.system,
+      content: 'Chat ready. Send a message to begin!',
+    ));
   }
 
   Future<void> _sendMessage() async {
@@ -33,16 +37,14 @@ class _ChatScreenState extends State<ChatScreen> {
     if (text.isEmpty || chat == null || _isResponding) return;
 
     setState(() {
-      _messages.add(ChatMessage.user(text));
+      _messages.add(nobodywho.Message.message(
+        role: nobodywho.Role.user,
+        content: text,
+      ));
       _isResponding = true;
+      _streamingContent = '';
     });
     _textController.clear();
-
-    // Create assistant message to stream into
-    final assistantMessage = ChatMessage.assistant('');
-    setState(() {
-      _messages.add(assistantMessage);
-    });
 
     try {
       final responseStream = chat.ask(message: text);
@@ -50,13 +52,34 @@ class _ChatScreenState extends State<ChatScreen> {
       await for (final token in responseStream.iter()) {
         if (!mounted) return;
         setState(() {
-          assistantMessage.text += token;
+          _streamingContent = (_streamingContent ?? '') + token;
+        });
+      }
+
+      // Streaming complete - fetch the actual chat history from the backend
+      // This ensures we have the correct messages including any tool calls/responses
+      if (mounted) {
+        final history = await chat.getChatHistory();
+        setState(() {
+          // Keep the initial system message, replace the rest with actual history
+          _messages.clear();
+          _messages.add(nobodywho.Message.message(
+            role: nobodywho.Role.system,
+            content: 'Chat ready. Send a message to begin!',
+          ));
+          _messages.addAll(history);
+          _streamingContent = null;
         });
       }
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        assistantMessage.text = 'Error: ${e.toString()}';
+        // On error, add an error message
+        _messages.add(nobodywho.Message.message(
+          role: nobodywho.Role.assistant,
+          content: 'Error: ${e.toString()}',
+        ));
+        _streamingContent = null;
       });
     } finally {
       if (mounted) {
@@ -81,7 +104,10 @@ class _ChatScreenState extends State<ChatScreen> {
       await chat.resetHistory();
       setState(() {
         _messages.clear();
-        _messages.add(ChatMessage.system('Chat history cleared.'));
+        _messages.add(nobodywho.Message.message(
+          role: nobodywho.Role.system,
+          content: 'Chat history cleared.',
+        ));
       });
     } catch (e) {
       if (mounted) {
@@ -218,7 +244,10 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         // Messages
         Expanded(
-          child: MessageList(messages: _messages),
+          child: MessageList(
+            messages: _messages,
+            streamingContent: _streamingContent,
+          ),
         ),
         // Input
         ChatInput(
