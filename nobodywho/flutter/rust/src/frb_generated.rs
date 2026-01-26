@@ -102,15 +102,16 @@ fn wire__crate__api__nobodywho__Chat_ask_impl(
     )
 }
 fn wire__crate__api__nobodywho__Chat_from_path_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "Chat_from_path",
-            port: None,
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
         move || {
             let message = unsafe {
@@ -130,18 +131,20 @@ fn wire__crate__api__nobodywho__Chat_from_path_impl(
             let api_sampler = <Option<SamplerConfig>>::sse_decode(&mut deserializer);
             let api_use_gpu = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
-            transform_result_sse::<_, String>((move || {
-                let output_ok = crate::api::nobodywho::Chat::from_path(
-                    &api_model_path,
-                    api_system_prompt,
-                    api_context_size,
-                    api_allow_thinking,
-                    api_tools,
-                    api_sampler,
-                    api_use_gpu,
-                )?;
-                Ok(output_ok)
-            })())
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::api::nobodywho::Chat::from_path(
+                        &api_model_path,
+                        api_system_prompt,
+                        api_context_size,
+                        api_allow_thinking,
+                        api_tools,
+                        api_sampler,
+                        api_use_gpu,
+                    )?;
+                    Ok(output_ok)
+                })())
+            }
         },
     )
 }
@@ -3186,6 +3189,7 @@ fn pde_ffi_dispatcher_primary_impl(
 ) {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
+        2 => wire__crate__api__nobodywho__Chat_from_path_impl(port, ptr, rust_vec_len, data_len),
         3 => wire__crate__api__nobodywho__Chat_get_chat_history_impl(
             port,
             ptr,
@@ -3261,7 +3265,6 @@ fn pde_ffi_dispatcher_sync_impl(
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
         1 => wire__crate__api__nobodywho__Chat_ask_impl(ptr, rust_vec_len, data_len),
-        2 => wire__crate__api__nobodywho__Chat_from_path_impl(ptr, rust_vec_len, data_len),
         4 => wire__crate__api__nobodywho__Chat_new_impl(ptr, rust_vec_len, data_len),
         12 => wire__crate__api__nobodywho__Chat_stop_generation_impl(ptr, rust_vec_len, data_len),
         13 => wire__crate__api__nobodywho__CrossEncoder_new_impl(ptr, rust_vec_len, data_len),

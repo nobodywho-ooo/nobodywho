@@ -90,7 +90,7 @@ impl Chat {
         Self { chat }
     }
 
-    /// Create chat directly from a model path.
+    /// Create chat directly from a model path. This is async as it loads a model
     ///
     /// Args:
     ///     model_path: Path to GGUF model file
@@ -99,7 +99,7 @@ impl Chat {
     ///     tools: List of Tool instances the model can call
     ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
     ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
-    #[flutter_rust_bridge::frb(sync)]
+    #[flutter_rust_bridge::frb]
     pub fn from_path(
         model_path: &str,
         #[frb(default = "null")] system_prompt: Option<String>,
