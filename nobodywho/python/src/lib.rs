@@ -1537,12 +1537,15 @@ pub mod nobodywhopython {
         // this will send llamacpp logs into `tracing`
         nobodywho::send_llamacpp_logs_to_tracing();
 
-        // init the rust->python logging bridge
+        // init the rust->python logging bridge with no Rust-side filter
         // this will pick up logs from rust's `log`, and send those into python's `logging`
         // the "log" feature in the `tracing` crate will send tracing logs to the `log` interface
         // so: rust's `tracing` -> rust's `log` -> python's `logging`
-        // this works as long as no other tracing_subscriber is active. otherwise we'd need `"log-always"`
-        pyo3_log::init();
+        // By setting filter to Trace, we forward all logs and let Python's logging config handle filtering
+        pyo3_log::Logger::new(_m.py(), pyo3_log::Caching::LoggersAndLevels)?
+            .filter(log::LevelFilter::Trace)
+            .install()
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         Ok(())
     }
 

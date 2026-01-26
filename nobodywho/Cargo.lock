@@ -1484,6 +1484,7 @@ name = "nobodywho-python"
 version = "0.6.2"
 dependencies = [
  "futures",
+ "log",
  "nobodywho",
  "pyo3",
  "pyo3-async-runtimes",

@@ -3,6 +3,10 @@ import os
 import nobodywho
 import pytest
 
+import logging
+
+logging.addLevelName(5, "TRACE")
+
 
 @pytest.fixture(scope="module")
 def model():

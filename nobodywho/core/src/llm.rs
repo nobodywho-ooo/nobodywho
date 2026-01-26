@@ -153,7 +153,7 @@ where
         use_embeddings: bool,
         extra: T,
     ) -> Result<Worker<'_, T>, InitWorkerError> {
-        info!("Initializing Worker");
+        info!("Initializing worker");
 
         // Set up context parameters using available parallelism
         let ctx = {
@@ -176,7 +176,7 @@ where
         let small_batch = LlamaBatch::new(1, 1);
 
         let add_bos = read_add_bos_metadata(model)?;
-        debug!("Read add_bos from GGUF metadata: {add_bos:?}");
+        debug!(?add_bos, "Read add_bos from GGUF metadata:");
 
         let state = Worker {
             n_past: 0,
@@ -216,7 +216,7 @@ where
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<&mut Self, ReadError> {
         let n_tokens = tokens.len();
-        debug!("Reading {n_tokens} tokens.");
+        debug!(n_tokens, "Reading tokens:");
 
         // can't read nothing
         debug_assert!(!tokens.is_empty());
@@ -245,7 +245,7 @@ where
 
         self.n_past += tokens.len() as i32;
 
-        debug!("completed read operation");
+        debug!("Completed read operation");
 
         Ok(self)
     }
