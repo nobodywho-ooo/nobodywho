@@ -1046,7 +1046,6 @@ pub struct ToolCall {
 // TOOL CHAT WORKER
 
 /// CHAT TEMPLATE SELECTION & RENDERING
-
 /// Utility function for prefix caching
 /// Given a rendered chat template (intended for the LLM's context),
 /// it compares with the tokens currently in the LLM's context, to find a common prefix.

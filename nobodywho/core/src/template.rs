@@ -59,7 +59,7 @@ impl ChatTemplate {
         bos_token: &str,
         eos_token: &str,
     ) -> Result<Self, minijinja::Error> {
-        let template = MINIJINJA_ENV.template_from_str(&original_template)?;
+        let template = MINIJINJA_ENV.template_from_str(original_template)?;
 
         trace!("Loading chat template: {}", original_template);
 
