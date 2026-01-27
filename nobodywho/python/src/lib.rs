@@ -1531,7 +1531,6 @@ fn json_value_to_py<'py>(py: Python<'py>, value: &serde_json::Value) -> PyResult
 pub mod nobodywhopython {
     use pyo3::prelude::*;
 
-    // Minimal layer that forwards tracing events to the log crate
     struct LogForwardingLayer;
 
     impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for LogForwardingLayer {
@@ -1543,7 +1542,8 @@ pub mod nobodywhopython {
             let metadata = event.metadata();
 
             // Force all llama-cpp logs to TRACE level
-            let level = if metadata.target().contains("llama") || metadata.target().contains("ggml") {
+            let level = if metadata.target().contains("llama") || metadata.target().contains("ggml")
+            {
                 log::Level::Trace
             } else {
                 match *metadata.level() {
@@ -1562,7 +1562,11 @@ pub mod nobodywhopython {
                         self.0 = Some(value.to_string());
                     }
                 }
-                fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
+                fn record_debug(
+                    &mut self,
+                    field: &tracing::field::Field,
+                    value: &dyn std::fmt::Debug,
+                ) {
                     if field.name() == "message" && self.0.is_none() {
                         self.0 = Some(format!("{:?}", value));
                     }
