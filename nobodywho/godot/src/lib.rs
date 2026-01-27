@@ -40,11 +40,13 @@ struct NobodyWhoModel {
     use_gpu_if_available: bool,
 
     model: Option<llm::Model>,
+
+    base: Base<Node>,
 }
 
 #[godot_api]
 impl INode for NobodyWhoModel {
-    fn init(_base: Base<Node>) -> Self {
+    fn init(base: Base<Node>) -> Self {
         // default values to show in godot editor
         let model_path: GString = GString::from("model.gguf");
 
@@ -52,6 +54,7 @@ impl INode for NobodyWhoModel {
             model_path: model_path,
             use_gpu_if_available: true,
             model: None,
+            base,
         }
     }
 }
@@ -64,10 +67,7 @@ impl NobodyWhoModel {
             return Ok(model.clone());
         }
 
-        let project_settings = ProjectSettings::singleton();
-        let model_path_string: String = project_settings
-            .globalize_path(&self.model_path.clone())
-            .into();
+        let model_path_string = self.actual_model_path();
 
         match llm::get_model(model_path_string.as_str(), self.use_gpu_if_available) {
             Ok(model) => {
@@ -80,6 +80,48 @@ impl NobodyWhoModel {
             }
         }
     }
+
+    fn actual_model_path(&self) -> String {
+        let project_settings = ProjectSettings::singleton();
+        let model_path_string: String = project_settings
+            .globalize_path(&self.model_path.clone())
+            .into();
+        model_path_string
+    }
+
+    #[func]
+    /// Call this method to start loading the model in the background.
+    /// This is useful to avoid the blocking the main thread (causing a freeze).
+    /// When calling this function, you should take care to wait for the `model_loaded` signal
+    /// before calling `ask` or anything like that, (to avoid loading the model twice, which is
+    /// inefficient).
+    fn load_model_in_background(&mut self) {
+        // TODO: would be nice if you didn't have to explicitly call this,
+        //       and it just was the default behavior for all model-consuming nodes
+        //       to call this when needed and wait for the result
+        //       but this was easy to implement and I need to move on
+        let model_path_string: String = self.actual_model_path();
+        let use_gpu = self.use_gpu_if_available;
+        let mut node = self.to_gd();
+
+        godot::task::spawn(async move {
+            let model_result = nobodywho::llm::get_model_async(model_path_string, use_gpu).await;
+            match model_result {
+                Ok(model) => {
+                    node.bind_mut().model = Some(model);
+                    node.signals().model_loaded().emit();
+                }
+                Err(err) => {
+                    godot_error!("Failed loading model in background: {:?}", err.to_string())
+                }
+            }
+        });
+    }
+
+    #[signal]
+    /// Triggered when the model has completed loading. Especially useful when using
+    /// `load_model_in_background()` to avoid blocking the main thread.
+    fn model_loaded();
 
     #[func]
     /// Sets the (global) log level of NobodyWho.
