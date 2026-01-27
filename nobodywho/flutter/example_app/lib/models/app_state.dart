@@ -224,28 +224,28 @@ class AppState extends ChangeNotifier {
 
     // Calculator tools
     if (_selectedTools.contains(AvailableTool.calculatorAdd)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: add,
         name: 'calculator_add',
         description: 'Add two numbers together. Parameters: a (first number), b (second number). Returns the sum.',
       ));
     }
     if (_selectedTools.contains(AvailableTool.calculatorSubtract)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: subtract,
         name: 'calculator_subtract',
         description: 'Subtract the second number from the first. Parameters: a (first number), b (second number). Returns a - b.',
       ));
     }
     if (_selectedTools.contains(AvailableTool.calculatorMultiply)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: multiply,
         name: 'calculator_multiply',
         description: 'Multiply two numbers. Parameters: a (first number), b (second number). Returns the product.',
       ));
     }
     if (_selectedTools.contains(AvailableTool.calculatorDivide)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: divide,
         name: 'calculator_divide',
         description: 'Divide the first number by the second. Parameters: a (dividend), b (divisor). Returns a / b or an error if dividing by zero.',
@@ -254,42 +254,42 @@ class AppState extends ChangeNotifier {
 
     // Date/Time tools
     if (_selectedTools.contains(AvailableTool.getCurrentDateTime)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: getCurrentDateTime,
         name: 'get_current_datetime',
         description: 'Get the current date and time in ISO 8601 format. Optional: timezone (string, ignored).',
       ));
     }
     if (_selectedTools.contains(AvailableTool.getCurrentDate)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: getCurrentDate,
         name: 'get_current_date',
         description: 'Get the current date in YYYY-MM-DD format. Optional: timezone (string, ignored).',
       ));
     }
     if (_selectedTools.contains(AvailableTool.getCurrentTime)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: getCurrentTime,
         name: 'get_current_time',
         description: 'Get the current time in HH:MM:SS format. Optional: timezone (string, ignored).',
       ));
     }
     if (_selectedTools.contains(AvailableTool.getDayOfWeek)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: getDayOfWeek,
         name: 'get_day_of_week',
         description: 'Get the current day of the week (e.g., Monday, Tuesday). Optional: timezone (string, ignored).',
       ));
     }
     if (_selectedTools.contains(AvailableTool.daysBetween)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: daysBetween,
         name: 'days_between',
         description: 'Calculate the number of days between two dates. Parameters: startDate (YYYY-MM-DD), endDate (YYYY-MM-DD). Returns the number of days.',
       ));
     }
     if (_selectedTools.contains(AvailableTool.addDaysToDate)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: addDaysToDate,
         name: 'add_days_to_date',
         description: 'Add or subtract days from a date. Parameters: date (YYYY-MM-DD), days (integer, can be negative). Returns the resulting date.',
@@ -298,56 +298,56 @@ class AppState extends ChangeNotifier {
 
     // String tools
     if (_selectedTools.contains(AvailableTool.toUppercase)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: toUppercase,
         name: 'to_uppercase',
         description: 'Convert a string to uppercase. Parameters: text (the string to convert).',
       ));
     }
     if (_selectedTools.contains(AvailableTool.toLowercase)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: toLowercase,
         name: 'to_lowercase',
         description: 'Convert a string to lowercase. Parameters: text (the string to convert).',
       ));
     }
     if (_selectedTools.contains(AvailableTool.reverseString)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: reverseString,
         name: 'reverse_string',
         description: 'Reverse a string. Parameters: text (the string to reverse).',
       ));
     }
     if (_selectedTools.contains(AvailableTool.stringLength)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: stringLength,
         name: 'string_length',
         description: 'Get the length of a string. Parameters: text (the string to measure). Returns the number of characters.',
       ));
     }
     if (_selectedTools.contains(AvailableTool.countWords)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: countWords,
         name: 'count_words',
         description: 'Count the number of words in a string. Parameters: text (the string to count words in).',
       ));
     }
     if (_selectedTools.contains(AvailableTool.replaceText)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: replaceText,
         name: 'replace_text',
         description: 'Replace all occurrences of a substring. Parameters: text (original string), find (substring to find), replacement (string to replace with).',
       ));
     }
     if (_selectedTools.contains(AvailableTool.trimText)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: trimText,
         name: 'trim_text',
         description: 'Remove leading and trailing whitespace from a string. Parameters: text (the string to trim).',
       ));
     }
     if (_selectedTools.contains(AvailableTool.repeatString)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: repeatString,
         name: 'repeat_string',
         description: 'Repeat a string N times. Parameters: text (string to repeat), times (number of repetitions, max 100).',
@@ -356,42 +356,42 @@ class AppState extends ChangeNotifier {
 
     // Random tools
     if (_selectedTools.contains(AvailableTool.randomInt)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: randomInt,
         name: 'random_int',
         description: 'Generate a random integer between min and max (inclusive). Parameters: min (integer), max (integer).',
       ));
     }
     if (_selectedTools.contains(AvailableTool.randomDouble)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: randomDouble,
         name: 'random_double',
         description: 'Generate a random decimal number between min and max. Parameters: min (number), max (number).',
       ));
     }
     if (_selectedTools.contains(AvailableTool.randomBool)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: randomBool,
         name: 'random_bool',
         description: 'Generate a random boolean (true or false, like a coin flip). Optional: seed (string, ignored).',
       ));
     }
     if (_selectedTools.contains(AvailableTool.randomChoice)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: randomChoice,
         name: 'random_choice',
         description: 'Pick a random item from a comma-separated list. Parameters: items (comma-separated string, e.g., "apple, banana, orange").',
       ));
     }
     if (_selectedTools.contains(AvailableTool.randomUuid)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: randomUuid,
         name: 'random_uuid',
         description: 'Generate a random UUID-like identifier. Optional: version (string, ignored).',
       ));
     }
     if (_selectedTools.contains(AvailableTool.rollDice)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: rollDice,
         name: 'roll_dice',
         description: 'Roll dice in NdS format (N dice with S sides). Parameters: dice (string like "2d6" for 2 six-sided dice). Returns individual rolls and total.',
@@ -400,84 +400,84 @@ class AppState extends ChangeNotifier {
 
     // Converter tools
     if (_selectedTools.contains(AvailableTool.celsiusToFahrenheit)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: celsiusToFahrenheit,
         name: 'celsius_to_fahrenheit',
         description: 'Convert temperature from Celsius to Fahrenheit. Parameters: celsius (number).',
       ));
     }
     if (_selectedTools.contains(AvailableTool.fahrenheitToCelsius)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: fahrenheitToCelsius,
         name: 'fahrenheit_to_celsius',
         description: 'Convert temperature from Fahrenheit to Celsius. Parameters: fahrenheit (number).',
       ));
     }
     if (_selectedTools.contains(AvailableTool.kmToMiles)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: kmToMiles,
         name: 'km_to_miles',
         description: 'Convert distance from kilometers to miles. Parameters: km (number).',
       ));
     }
     if (_selectedTools.contains(AvailableTool.milesToKm)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: milesToKm,
         name: 'miles_to_km',
         description: 'Convert distance from miles to kilometers. Parameters: miles (number).',
       ));
     }
     if (_selectedTools.contains(AvailableTool.kgToLbs)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: kgToLbs,
         name: 'kg_to_lbs',
         description: 'Convert weight from kilograms to pounds. Parameters: kg (number).',
       ));
     }
     if (_selectedTools.contains(AvailableTool.lbsToKg)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: lbsToKg,
         name: 'lbs_to_kg',
         description: 'Convert weight from pounds to kilograms. Parameters: lbs (number).',
       ));
     }
     if (_selectedTools.contains(AvailableTool.metersToFeet)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: metersToFeet,
         name: 'meters_to_feet',
         description: 'Convert length from meters to feet. Parameters: meters (number).',
       ));
     }
     if (_selectedTools.contains(AvailableTool.feetToMeters)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: feetToMeters,
         name: 'feet_to_meters',
         description: 'Convert length from feet to meters. Parameters: feet (number).',
       ));
     }
     if (_selectedTools.contains(AvailableTool.litersToGallons)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: litersToGallons,
         name: 'liters_to_gallons',
         description: 'Convert volume from liters to US gallons. Parameters: liters (number).',
       ));
     }
     if (_selectedTools.contains(AvailableTool.gallonsToLiters)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: gallonsToLiters,
         name: 'gallons_to_liters',
         description: 'Convert volume from US gallons to liters. Parameters: gallons (number).',
       ));
     }
     if (_selectedTools.contains(AvailableTool.degreesToRadians)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: degreesToRadians,
         name: 'degrees_to_radians',
         description: 'Convert angle from degrees to radians. Parameters: degrees (number).',
       ));
     }
     if (_selectedTools.contains(AvailableTool.radiansToDegrees)) {
-      tools.add(nobodywho.Tool.create(
+      tools.add(nobodywho.Tool(
         function: radiansToDegrees,
         name: 'radians_to_degrees',
         description: 'Convert angle from radians to degrees. Parameters: radians (number).',

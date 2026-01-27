@@ -64,62 +64,62 @@ double radiansToDegrees({required num radians}) {
 /// Creates all converter tools as a list.
 List<nobodywho.Tool> createConverterTools() {
   return [
-    nobodywho.Tool.create(
+    nobodywho.Tool(
       function: celsiusToFahrenheit,
       name: 'celsius_to_fahrenheit',
       description: 'Convert temperature from Celsius to Fahrenheit. Parameters: celsius (number).',
     ),
-    nobodywho.Tool.create(
+    nobodywho.Tool(
       function: fahrenheitToCelsius,
       name: 'fahrenheit_to_celsius',
       description: 'Convert temperature from Fahrenheit to Celsius. Parameters: fahrenheit (number).',
     ),
-    nobodywho.Tool.create(
+    nobodywho.Tool(
       function: kmToMiles,
       name: 'km_to_miles',
       description: 'Convert distance from kilometers to miles. Parameters: km (number).',
     ),
-    nobodywho.Tool.create(
+    nobodywho.Tool(
       function: milesToKm,
       name: 'miles_to_km',
       description: 'Convert distance from miles to kilometers. Parameters: miles (number).',
     ),
-    nobodywho.Tool.create(
+    nobodywho.Tool(
       function: kgToLbs,
       name: 'kg_to_lbs',
       description: 'Convert weight from kilograms to pounds. Parameters: kg (number).',
     ),
-    nobodywho.Tool.create(
+    nobodywho.Tool(
       function: lbsToKg,
       name: 'lbs_to_kg',
       description: 'Convert weight from pounds to kilograms. Parameters: lbs (number).',
     ),
-    nobodywho.Tool.create(
+    nobodywho.Tool(
       function: metersToFeet,
       name: 'meters_to_feet',
       description: 'Convert length from meters to feet. Parameters: meters (number).',
     ),
-    nobodywho.Tool.create(
+    nobodywho.Tool(
       function: feetToMeters,
       name: 'feet_to_meters',
       description: 'Convert length from feet to meters. Parameters: feet (number).',
     ),
-    nobodywho.Tool.create(
+    nobodywho.Tool(
       function: litersToGallons,
       name: 'liters_to_gallons',
       description: 'Convert volume from liters to US gallons. Parameters: liters (number).',
     ),
-    nobodywho.Tool.create(
+    nobodywho.Tool(
       function: gallonsToLiters,
       name: 'gallons_to_liters',
       description: 'Convert volume from US gallons to liters. Parameters: gallons (number).',
     ),
-    nobodywho.Tool.create(
+    nobodywho.Tool(
       function: degreesToRadians,
       name: 'degrees_to_radians',
       description: 'Convert angle from degrees to radians. Parameters: degrees (number).',
     ),
-    nobodywho.Tool.create(
+    nobodywho.Tool(
       function: radiansToDegrees,
       name: 'radians_to_degrees',
       description: 'Convert angle from radians to degrees. Parameters: radians (number).',

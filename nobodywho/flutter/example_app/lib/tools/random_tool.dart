@@ -66,32 +66,32 @@ String rollDice({required String dice}) {
 /// Creates all random tools as a list.
 List<nobodywho.Tool> createRandomTools() {
   return [
-    nobodywho.Tool.create(
+    nobodywho.Tool(
       function: randomInt,
       name: 'random_int',
       description: 'Generate a random integer between min and max (inclusive). Parameters: min (integer), max (integer).',
     ),
-    nobodywho.Tool.create(
+    nobodywho.Tool(
       function: randomDouble,
       name: 'random_double',
       description: 'Generate a random decimal number between min and max. Parameters: min (number), max (number).',
     ),
-    nobodywho.Tool.create(
+    nobodywho.Tool(
       function: randomBool,
       name: 'random_bool',
       description: 'Generate a random boolean (true or false, like a coin flip). No parameters required.',
     ),
-    nobodywho.Tool.create(
+    nobodywho.Tool(
       function: randomChoice,
       name: 'random_choice',
       description: 'Pick a random item from a comma-separated list. Parameters: items (comma-separated string, e.g., "apple, banana, orange").',
     ),
-    nobodywho.Tool.create(
+    nobodywho.Tool(
       function: randomUuid,
       name: 'random_uuid',
       description: 'Generate a random UUID-like identifier. No parameters required.',
     ),
-    nobodywho.Tool.create(
+    nobodywho.Tool(
       function: rollDice,
       name: 'roll_dice',
       description: 'Roll dice in NdS format (N dice with S sides). Parameters: dice (string like "2d6" for 2 six-sided dice). Returns individual rolls and total.',
