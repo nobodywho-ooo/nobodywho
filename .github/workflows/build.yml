@@ -5,8 +5,26 @@ on:
       upload_artifacts:
         type: boolean
         default: true
+      full_macos_build:
+        description: "Run full macOS matrix (all targets, profiles). If false, only builds aarch64-darwin-release."
+        type: boolean
+        default: false
 
 jobs:
+  # Dynamically compute macOS matrix based on full_macos_build input
+  setup-macos-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - id: set-matrix
+        run: |
+          if [ "${{ inputs.full_macos_build }}" == "true" ]; then
+            echo 'matrix={"target":["x86_64-apple-darwin","aarch64-apple-darwin","aarch64-apple-ios","aarch64-apple-ios-sim"],"profile":["debug","release"],"integration":["godot","flutter"]}' >> $GITHUB_OUTPUT
+          else
+            echo 'matrix={"target":["aarch64-apple-darwin","aarch64-apple-ios"],"profile":["release"],"integration":["godot","flutter"]}' >> $GITHUB_OUTPUT
+          fi
+
   cargo-build-linux:
     strategy:
       fail-fast: false
@@ -169,23 +187,11 @@ jobs:
             ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
 
   cargo-build-macos:
+    needs: setup-macos-matrix
     runs-on: macos-15
     strategy:
       fail-fast: false
-      matrix:
-        target:
-          - "x86_64-apple-darwin"
-          - "aarch64-apple-darwin"
-          - "aarch64-apple-ios"
-            # these two are for running in an ios simulator
-          - "aarch64-apple-ios-sim"
-          - "x86_64-apple-ios"
-        profile:
-          - "debug"
-          - "release"
-        integration:
-          - "godot"
-          - "flutter"
+      matrix: ${{ fromJSON(needs.setup-macos-matrix.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
       - run: |
@@ -231,6 +237,7 @@ jobs:
   # builds an "xcframework"
   # which is an apple thing that contains binaries for multiple systems
   build-flutter-xcframework:
+    if: inputs.full_macos_build
     runs-on: macos-15
     needs: [cargo-build-macos]
     steps:
@@ -259,11 +266,9 @@ jobs:
         run: |
           LIBNAME=libnobodywho_flutter.a
 
-          # ios sim stuff
-          mkdir ios-sim-lipo
-          lipo -create -output ./ios-sim-lipo/$LIBNAME \
-            nobodywho-flutter-aarch64-apple-ios-sim-release.a \
-            nobodywho-flutter-x86_64-apple-ios-release.a \
+          # ios sim (aarch64 only, no lipo needed)
+          mkdir ios-sim
+          cp nobodywho-flutter-aarch64-apple-ios-sim-release.a ./ios-sim/$LIBNAME
 
           # macos universal binary
           mkdir macos-lipo
@@ -272,18 +277,12 @@ jobs:
             nobodywho-flutter-x86_64-apple-darwin-release.a
 
           # rename libs so linker can find them
-          mkdir aarch64-macos
-          cp nobodywho-flutter-aarch64-apple-darwin-release.a ./aarch64-macos/$LIBNAME
           mkdir aarch64-ios
           cp nobodywho-flutter-aarch64-apple-ios-release.a ./aarch64-ios/$LIBNAME
 
-          # both of those things, plus the actual ios build
-          # with both universal binaries and the direct ones
-          #
-          # including this *and* the universal binary makes xcodebuild sad
-          # -library "aarch64-macos/$LIBNAME" \
+          # create xcframework with ios sim, macos universal, and ios device builds
           xcodebuild -create-xcframework \
-                  -library "ios-sim-lipo/$LIBNAME" \
+                  -library "ios-sim/$LIBNAME" \
                   -headers "headers" \
                   -library "macos-lipo/$LIBNAME" \
                   -headers "headers" \
