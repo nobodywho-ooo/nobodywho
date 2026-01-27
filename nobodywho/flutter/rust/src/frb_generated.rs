@@ -43,7 +43,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -828541858;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1159746912;
 
 // Section: executor
 
@@ -2409,37 +2409,6 @@ fn wire__crate__api__nobodywho__init_app_impl(
         },
     )
 }
-fn wire__crate__api__nobodywho__init_debug_log_impl(
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "init_debug_log",
-            port: None,
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            deserializer.end();
-            transform_result_sse::<_, ()>((move || {
-                let output_ok = Result::<_, ()>::Ok({
-                    crate::api::nobodywho::init_debug_log();
-                })?;
-                Ok(output_ok)
-            })())
-        },
-    )
-}
 fn wire__crate__api__nobodywho__new_tool_impl_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -3408,9 +3377,8 @@ fn pde_ffi_dispatcher_sync_impl(
             data_len,
         ),
         48 => wire__crate__api__nobodywho__cosine_similarity_impl(ptr, rust_vec_len, data_len),
-        50 => wire__crate__api__nobodywho__init_debug_log_impl(ptr, rust_vec_len, data_len),
-        51 => wire__crate__api__nobodywho__new_tool_impl_impl(ptr, rust_vec_len, data_len),
-        52 => {
+        50 => wire__crate__api__nobodywho__new_tool_impl_impl(ptr, rust_vec_len, data_len),
+        51 => {
             wire__crate__api__nobodywho__tool_call_arguments_json_impl(ptr, rust_vec_len, data_len)
         }
         _ => unreachable!(),

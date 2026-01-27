@@ -32,8 +32,6 @@ RustTool newToolImpl({
   runtimeType: runtimeType,
 );
 
-void initDebugLog() => NobodyWho.instance.api.crateApiNobodywhoInitDebugLog();
-
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CompletionError>>
 abstract class CompletionError implements RustOpaqueInterface {}
 

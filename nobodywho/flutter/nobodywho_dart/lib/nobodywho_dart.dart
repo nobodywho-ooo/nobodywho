@@ -3,12 +3,13 @@ library;
 import 'dart:async';
 import 'dart:convert';
 
-export 'src/rust/api/nobodywho.dart' hide
-    RustChat,         // Users should use Chat
-    RustTokenStream,  // Users should use TokenStream
-    RustTool,         // Users should use Tool
-    newToolImpl,  // Internal helper
-    toolCallArgumentsJson; // Internal helper
+export 'src/rust/api/nobodywho.dart'
+    hide
+        RustChat, // Users should use Chat
+        RustTokenStream, // Users should use TokenStream
+        RustTool, // Users should use Tool
+        newToolImpl, // Internal helper
+        toolCallArgumentsJson; // Internal helper
 export 'src/rust/frb_generated.dart' show NobodyWho;
 
 import 'src/rust/api/nobodywho.dart' as nobodywho;
@@ -22,7 +23,8 @@ extension ToolCallExtension on nobodywho.ToolCall {
 
   /// Get the arguments as a parsed Map
   Map<String, dynamic> get argumentsMap =>
-      json.decode(nobodywho.toolCallArgumentsJson(toolCall: this)) as Map<String, dynamic>;
+      json.decode(nobodywho.toolCallArgumentsJson(toolCall: this))
+          as Map<String, dynamic>;
 }
 
 // Wrapper for the RustTool class. We wrap RustTool so the API for constructing a tool
@@ -48,7 +50,7 @@ class Tool {
       Map<String, dynamic> jsonMap = json.decode(jsonString);
       // Make it a map of symbols, to make Function.apply happy
       Map<Symbol, dynamic> namedParams = Map.fromEntries(
-        jsonMap.entries.map((e) => MapEntry(Symbol(e.key), e.value))
+        jsonMap.entries.map((e) => MapEntry(Symbol(e.key), e.value)),
       );
 
       // Call the function
@@ -110,9 +112,8 @@ class TokenStream extends Stream<String> {
   Future<String> completed() => _tokenStream.completed();
 }
 
-
 // Wrapper for the RustChat class. This is necessary to use the functionality
-// gained by wrapping RustTool and RustTokenStream. 
+// gained by wrapping RustTool and RustTokenStream.
 class Chat {
   final nobodywho.RustChat _chat;
 
@@ -125,13 +126,13 @@ class Chat {
     List<Tool> tools = const [],
     nobodywho.SamplerConfig? sampler,
   }) : _chat = nobodywho.RustChat(
-          model: model,
-          systemPrompt: systemPrompt,
-          contextSize: contextSize,
-          allowThinking: allowThinking,
-          tools: tools.map((t) => t._internalTool).toList(),
-          sampler: sampler,
-        );
+         model: model,
+         systemPrompt: systemPrompt,
+         contextSize: contextSize,
+         allowThinking: allowThinking,
+         tools: tools.map((t) => t._internalTool).toList(),
+         sampler: sampler,
+       );
 
   /// Private constructor for wrapping an existing Chat
   Chat._(this._chat);
@@ -177,11 +178,10 @@ class Chat {
   Future<void> resetContext({
     required String systemPrompt,
     required List<Tool> tools,
-  }) =>
-      _chat.resetContext(
-        systemPrompt: systemPrompt,
-        tools: tools.map((t) => t._internalTool).toList(),
-      );
+  }) => _chat.resetContext(
+    systemPrompt: systemPrompt,
+    tools: tools.map((t) => t._internalTool).toList(),
+  );
 
   /// Set whether thinking/reasoning is allowed.
   Future<void> setAllowThinking(bool allowThinking) =>
@@ -202,5 +202,3 @@ class Chat {
   /// Stop the current generation.
   void stopGeneration() => _chat.stopGeneration();
 }
-
-

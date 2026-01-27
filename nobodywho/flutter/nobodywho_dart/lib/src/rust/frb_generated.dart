@@ -67,7 +67,7 @@ class NobodyWho
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -828541858;
+  int get rustContentHash => -1159746912;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -306,8 +306,6 @@ abstract class NobodyWhoApi extends BaseApi {
   });
 
   Future<void> crateApiNobodywhoInitApp();
-
-  void crateApiNobodywhoInitDebugLog();
 
   RustTool crateApiNobodywhoNewToolImpl({
     required FutureOr<String> Function(String) function,
@@ -2226,28 +2224,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       const TaskConstMeta(debugName: "init_app", argNames: []);
 
   @override
-  void crateApiNobodywhoInitDebugLog() {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 50)!;
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateApiNobodywhoInitDebugLogConstMeta,
-        argValues: [],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiNobodywhoInitDebugLogConstMeta =>
-      const TaskConstMeta(debugName: "init_debug_log", argNames: []);
-
-  @override
   RustTool crateApiNobodywhoNewToolImpl({
     required FutureOr<String> Function(String) function,
     required String name,
@@ -2265,7 +2241,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_String(name, serializer);
           sse_encode_String(description, serializer);
           sse_encode_String(runtimeType, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 51)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 50)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2295,7 +2271,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             toolCall,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 52)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 51)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,

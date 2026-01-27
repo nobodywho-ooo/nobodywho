@@ -34,10 +34,10 @@ It is a bit more difficult, because for some reason, `flutter_rust_bridge` does 
 So temporary solution is to create a symlink with:
 ```bash
 cd flutter/rust
-cargo build --release
+cargo build
 cd flutter/nobodywho_dart
-mkdir -p nobodywho_flutterframework
-ln -sf ../../../target/release/libnobodywho_flutter.dylib nobodywho_flutter.framework/nobodywho_flutter
+mkdir -p nobodywho_flutter.framework
+ln -sf ../../../target/debug/libnobodywho_flutter.dylib nobodywho_flutter.framework/nobodywho_flutter
 ```
 (Opt for the release you want, it can be debug or something else.)
 
