@@ -1,5 +1,53 @@
 use pyo3::prelude::*;
 
+// Simple layer that forwards tracing events to the log crate
+struct LogForwardingLayer;
+
+impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for LogForwardingLayer {
+    fn on_event(
+        &self,
+        event: &tracing::Event<'_>,
+        _ctx: tracing_subscriber::layer::Context<'_, S>,
+    ) {
+        let metadata = event.metadata();
+        let level = match *metadata.level() {
+            tracing::Level::ERROR => log::Level::Error,
+            tracing::Level::WARN => log::Level::Warn,
+            tracing::Level::INFO => log::Level::Info,
+            tracing::Level::DEBUG => log::Level::Debug,
+            tracing::Level::TRACE => log::Level::Trace,
+        };
+
+        // Simple message extraction
+        struct MessageVisitor(Option<String>);
+        impl tracing::field::Visit for MessageVisitor {
+            fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
+                if field.name() == "message" {
+                    self.0 = Some(value.to_string());
+                }
+            }
+            fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
+                if field.name() == "message" && self.0.is_none() {
+                    self.0 = Some(format!("{:?}", value));
+                }
+            }
+        }
+
+        let mut visitor = MessageVisitor(None);
+        event.record(&mut visitor);
+
+        if let Some(message) = visitor.0 {
+            log::logger().log(
+                &log::Record::builder()
+                    .args(format_args!("{}", message))
+                    .level(level)
+                    .target(metadata.target())
+                    .build(),
+            );
+        }
+    }
+}
+
 /// `Model` objects contain a GGUF model. It is primarily useful for sharing a single model instance
 /// between multiple `Chat`, `Encoder`, or `CrossEncoder` instances.
 /// Sharing is efficient because the underlying model data is reference-counted.
@@ -1533,19 +1581,27 @@ pub mod nobodywhopython {
 
     #[pymodule_init]
     fn init(_m: &Bound<'_, PyModule>) -> PyResult<()> {
-        // collect llamacpp logs in tracing
-        // this will send llamacpp logs into `tracing`
-        nobodywho::send_llamacpp_logs_to_tracing();
+        use crate::LogForwardingLayer;
 
-        // init the rust->python logging bridge with no Rust-side filter
-        // this will pick up logs from rust's `log`, and send those into python's `logging`
-        // the "log" feature in the `tracing` crate will send tracing logs to the `log` interface
-        // so: rust's `tracing` -> rust's `log` -> python's `logging`
+        // STEP 1: Initialize rust log -> python logging bridge FIRST
         // By setting filter to Trace, we forward all logs and let Python's logging config handle filtering
         pyo3_log::Logger::new(_m.py(), pyo3_log::Caching::LoggersAndLevels)?
             .filter(log::LevelFilter::Trace)
             .install()
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+
+        // STEP 2: Initialize tracing subscriber with our custom layer
+        // LogForwardingLayer forwards tracing events directly to the log crate
+        use tracing_subscriber::layer::SubscriberExt;
+        let subscriber = tracing_subscriber::registry().with(LogForwardingLayer);
+
+        // Try to set the global subscriber, ignore if already set (e.g., in tests)
+        let _ = tracing::subscriber::set_global_default(subscriber);
+
+        // STEP 3: Route llamacpp logs to tracing dispatcher
+        // Flow: llamacpp -> tracing -> LogForwardingLayer -> log crate -> pyo3_log -> Python
+        nobodywho::send_llamacpp_logs_to_tracing();
+
         Ok(())
     }
 
