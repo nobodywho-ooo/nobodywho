@@ -18,6 +18,3 @@ extension ToolCallExtension on nobodywho.ToolCall {
   Map<String, dynamic> get argumentsMap =>
       json.decode(nobodywho.toolCallArgumentsJson(toolCall: this)) as Map<String, dynamic>;
 }
-
-
-

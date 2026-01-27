@@ -459,19 +459,6 @@ fn dart_function_type_to_json_schema(runtime_type: &str) -> Result<serde_json::V
     }))
 }
 
-#[flutter_rust_bridge::frb(sync)]
-pub fn init_debug_log() {
-    // XXX: this is just for logging during dev
-    // TODO: make something with configurable log levels
-    //       maybe something that integrates with dart's standard logging packages
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::DEBUG)
-        .with_timer(tracing_subscriber::fmt::time::uptime())
-        .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
-        .try_init()
-        .ok();
-}
-
 // TODO:
 // - blocking ask
 // - embeddings
@@ -836,6 +823,19 @@ pub fn init_app() {
 
     // send logs to the appropriate places for android, ios and wasm
     flutter_rust_bridge::setup_default_user_utils();
+
+    let log_level = if cfg!(debug_assertions) {
+        tracing::Level::DEBUG
+    } else {
+        tracing::Level::INFO
+    };
+
+    tracing_subscriber::fmt()
+        .with_max_level(log_level)
+        .with_timer(tracing_subscriber::fmt::time::uptime())
+        .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
+        .try_init()
+        .ok();
 }
 
 #[cfg(test)]

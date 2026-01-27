@@ -1,7 +1,6 @@
 @Timeout(Duration(seconds: 600))
 // TODO ^ kind a sucks that we need this high a timeout
 //      the issue is mostly that the llvmpipe stuff we're doing inside nix sandbox is slow as hell
-
 import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
 import 'package:test/test.dart';
 import 'dart:io';
@@ -28,7 +27,6 @@ void main() {
 
     setUpAll(() async {
       await nobodywho.NobodyWho.init();
-      nobodywho.initDebugLog();
     });
 
     setUp(() async {
@@ -36,15 +34,21 @@ void main() {
       final sparklify_tool = nobodywho.Tool.create(
         function: sparklify,
         name: "sparklify",
-        description: "Applies the sparklify effect to a string"
+        description: "Applies the sparklify effect to a string",
       );
       final strongify_tool = nobodywho.Tool.create(
         function: strongify,
         name: "strongify",
-        description: "Applies the strongify effect to a string"
+        description: "Applies the strongify effect to a string",
       );
 
-      chat = await nobodywho.Chat.fromPath(modelPath: modelPath, systemPrompt: "", contextSize: 1024, allowThinking: false, tools: [sparklify_tool, strongify_tool]);
+      chat = await nobodywho.Chat.fromPath(
+        modelPath: modelPath,
+        systemPrompt: "",
+        contextSize: 1024,
+        allowThinking: false,
+        tools: [sparklify_tool, strongify_tool],
+      );
     });
 
     test('Capital of Denmark test', () async {
@@ -57,7 +61,9 @@ void main() {
     });
 
     test('Tool calling test', () async {
-      final responseStream = chat!.ask("Can you please sparklify the string 'Foopdoop'?");
+      final responseStream = chat!.ask(
+        "Can you please sparklify the string 'Foopdoop'?",
+      );
       String response = "";
       await for (final token in responseStream.iter()) {
         response += token;
@@ -66,7 +72,9 @@ void main() {
     });
 
     test('Async tool calling test', () async {
-      final responseStream = chat!.ask("Can you please strongify the string 'Wrawr'?");
+      final responseStream = chat!.ask(
+        "Can you please strongify the string 'Wrawr'?",
+      );
       String response = "";
       await for (final token in responseStream.iter()) {
         response += token;
@@ -90,10 +98,13 @@ void main() {
       final messages = await chat!.getChatHistory();
 
       // Find the tool calls message (assistant requesting tool call)
-      final toolCallsMessage = messages.firstWhere(
-        (m) => m is nobodywho.Message_ToolCalls,
-        orElse: () => throw Exception('No tool calls message found in history'),
-      ) as nobodywho.Message_ToolCalls;
+      final toolCallsMessage =
+          messages.firstWhere(
+                (m) => m is nobodywho.Message_ToolCalls,
+                orElse: () =>
+                    throw Exception('No tool calls message found in history'),
+              )
+              as nobodywho.Message_ToolCalls;
 
       // Check the role is assistant
       expect(toolCallsMessage.role, equals(nobodywho.Role.assistant));
@@ -121,10 +132,14 @@ void main() {
       expect(argsMap['text'], equals('test'));
 
       // Find the tool response message
-      final toolRespMessage = messages.firstWhere(
-        (m) => m is nobodywho.Message_ToolResp,
-        orElse: () => throw Exception('No tool response message found in history'),
-      ) as nobodywho.Message_ToolResp;
+      final toolRespMessage =
+          messages.firstWhere(
+                (m) => m is nobodywho.Message_ToolResp,
+                orElse: () => throw Exception(
+                  'No tool response message found in history',
+                ),
+              )
+              as nobodywho.Message_ToolResp;
 
       // Check the tool response
       expect(toolRespMessage.role, equals(nobodywho.Role.tool));
@@ -133,9 +148,14 @@ void main() {
     });
 
     test('Tools work with custom sampler', () async {
-      final sampler = nobodywho.SamplerBuilder().topP(topP: 0.9, minKeep: 20).temperature(temperature: 1.2).dist();
+      final sampler = nobodywho.SamplerBuilder()
+          .topP(topP: 0.9, minKeep: 20)
+          .temperature(temperature: 1.2)
+          .dist();
       await chat!.setSamplerConfig(samplerConfig: sampler);
-      final response = await chat!.ask("Can you please strongify the string 'Wrawr'?").completed();
+      final response = await chat!
+          .ask("Can you please strongify the string 'Wrawr'?")
+          .completed();
 
       expect(response, contains("WOW Wrawr WOW"));
     });
@@ -143,7 +163,9 @@ void main() {
     test('Tools work with sampler presets', () async {
       final sampler = nobodywho.SamplerPresets.temperature(temperature: 1.2);
       await chat!.setSamplerConfig(samplerConfig: sampler);
-      final response = await chat!.ask("Can you please strongify the string 'Wrawr'?").completed();
+      final response = await chat!
+          .ask("Can you please strongify the string 'Wrawr'?")
+          .completed();
 
       expect(response, contains("WOW Wrawr WOW"));
     });
@@ -157,7 +179,7 @@ void main() {
       await chat!.resetHistory();
       final response2 = await chat!.ask("Say exactly: 'Hello'").completed();
 
-      expect(response1, equals(response2));  // Should be identical with greedy
+      expect(response1, equals(response2)); // Should be identical with greedy
     });
 
     test('Cosine similarity works', () {
@@ -165,7 +187,7 @@ void main() {
       final vec1 = [1.0, 2.0, 3.0];
       final vec2 = [4.0, 5.0, 6.0];
 
-      final similarity = nobodywho.cosineSimilarity(a : vec1, b : vec2);
+      final similarity = nobodywho.cosineSimilarity(a: vec1, b: vec2);
 
       // Check return type
       expect(similarity, isA<double>());
@@ -175,19 +197,25 @@ void main() {
       expect(similarity, lessThanOrEqualTo(1.0));
 
       // Test self-similarity (should be 1.0)
-      final selfSim = nobodywho.cosineSimilarity(a : vec1, b : vec1);
+      final selfSim = nobodywho.cosineSimilarity(a: vec1, b: vec1);
       expect(selfSim, closeTo(1.0, 0.001));
 
       // Test orthogonal vectors (should be close to 0)
       final orthogonal1 = [1.0, 0.0, 0.0];
       final orthogonal2 = [0.0, 1.0, 0.0];
-      final orthogonalSim = nobodywho.cosineSimilarity(a : orthogonal1, b : orthogonal2);
+      final orthogonalSim = nobodywho.cosineSimilarity(
+        a: orthogonal1,
+        b: orthogonal2,
+      );
       expect(orthogonalSim, closeTo(0.0, 0.001));
 
       // Test opposite vectors (should be close to -1)
       final opposite1 = [1.0, 2.0, 3.0];
       final opposite2 = [-1.0, -2.0, -3.0];
-      final oppositeSim = nobodywho.cosineSimilarity(a : opposite1, b : opposite2);
+      final oppositeSim = nobodywho.cosineSimilarity(
+        a: opposite1,
+        b: opposite2,
+      );
       expect(oppositeSim, closeTo(-1.0, 0.001));
     });
 
@@ -196,7 +224,7 @@ void main() {
       final sparklify_tool = nobodywho.Tool.create(
         function: sparklify,
         name: "sparklify",
-        description: "Applies the sparklify effect to a string"
+        description: "Applies the sparklify effect to a string",
       );
 
       final testChat = await nobodywho.Chat.fromPath(
@@ -204,18 +232,20 @@ void main() {
         systemPrompt: "",
         contextSize: 1024,
         allowThinking: false,
-        tools: [sparklify_tool]
+        tools: [sparklify_tool],
       );
 
       // Verify sparklify tool works
-      final response1 = await testChat.ask("Please sparklify the word 'hello'").completed();
+      final response1 = await testChat
+          .ask("Please sparklify the word 'hello'")
+          .completed();
       expect(response1, contains("✨hello✨"));
 
       // Change tools to strongify
       final strongify_tool = nobodywho.Tool.create(
         function: strongify,
         name: "strongify",
-        description: "Applies the strongify effect to a string"
+        description: "Applies the strongify effect to a string",
       );
 
       await testChat.setTools(tools: [strongify_tool]);
@@ -224,7 +254,9 @@ void main() {
       await testChat.resetHistory();
 
       // Verify strongify tool now works
-      final response2 = await testChat.ask("Please strongify the word 'test'").completed();
+      final response2 = await testChat
+          .ask("Please strongify the word 'test'")
+          .completed();
       expect(response2, contains("WOW test WOW"));
     });
   });
@@ -237,7 +269,10 @@ void main() {
       );
 
       expect(msg, isA<nobodywho.Message_Message>());
-      expect((msg as nobodywho.Message_Message).role, equals(nobodywho.Role.user));
+      expect(
+        (msg as nobodywho.Message_Message).role,
+        equals(nobodywho.Role.user),
+      );
       expect(msg.content, equals('Hello, world!'));
     });
 
@@ -255,9 +290,18 @@ void main() {
         content: 'System message',
       );
 
-      expect((userMsg as nobodywho.Message_Message).role, equals(nobodywho.Role.user));
-      expect((assistantMsg as nobodywho.Message_Message).role, equals(nobodywho.Role.assistant));
-      expect((systemMsg as nobodywho.Message_Message).role, equals(nobodywho.Role.system));
+      expect(
+        (userMsg as nobodywho.Message_Message).role,
+        equals(nobodywho.Role.user),
+      );
+      expect(
+        (assistantMsg as nobodywho.Message_Message).role,
+        equals(nobodywho.Role.assistant),
+      );
+      expect(
+        (systemMsg as nobodywho.Message_Message).role,
+        equals(nobodywho.Role.system),
+      );
     });
 
     test('Message.message with empty content', () {
@@ -297,7 +341,10 @@ void main() {
       );
 
       expect(msg, isA<nobodywho.Message_ToolResp>());
-      expect((msg as nobodywho.Message_ToolResp).role, equals(nobodywho.Role.tool));
+      expect(
+        (msg as nobodywho.Message_ToolResp).role,
+        equals(nobodywho.Role.tool),
+      );
       expect(msg.name, equals('calculator'));
       expect(msg.content, equals('42'));
     });
@@ -371,21 +418,32 @@ void main() {
 
     test('Message can be used in collections', () {
       final messages = <nobodywho.Message>[
-        nobodywho.Message.message(role: nobodywho.Role.system, content: 'You are helpful'),
+        nobodywho.Message.message(
+          role: nobodywho.Role.system,
+          content: 'You are helpful',
+        ),
         nobodywho.Message.message(role: nobodywho.Role.user, content: 'Hi'),
-        nobodywho.Message.message(role: nobodywho.Role.assistant, content: 'Hello!'),
+        nobodywho.Message.message(
+          role: nobodywho.Role.assistant,
+          content: 'Hello!',
+        ),
       ];
 
       expect(messages.length, equals(3));
       expect(messages[0], isA<nobodywho.Message_Message>());
-      expect((messages[1] as nobodywho.Message_Message).role, equals(nobodywho.Role.user));
+      expect(
+        (messages[1] as nobodywho.Message_Message).role,
+        equals(nobodywho.Role.user),
+      );
     });
 
     test('Message copyWith works for Message_Message', () {
-      final original = nobodywho.Message.message(
-        role: nobodywho.Role.user,
-        content: 'Original',
-      ) as nobodywho.Message_Message;
+      final original =
+          nobodywho.Message.message(
+                role: nobodywho.Role.user,
+                content: 'Original',
+              )
+              as nobodywho.Message_Message;
 
       final modified = original.copyWith(content: 'Modified');
 
@@ -395,11 +453,13 @@ void main() {
     });
 
     test('Message copyWith works for Message_ToolResp', () {
-      final original = nobodywho.Message.toolResp(
-        role: nobodywho.Role.tool,
-        name: 'original_tool',
-        content: 'result',
-      ) as nobodywho.Message_ToolResp;
+      final original =
+          nobodywho.Message.toolResp(
+                role: nobodywho.Role.tool,
+                name: 'original_tool',
+                content: 'result',
+              )
+              as nobodywho.Message_ToolResp;
 
       final modified = original.copyWith(name: 'new_tool');
 

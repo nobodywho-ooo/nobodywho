@@ -34,8 +34,6 @@ Tool newToolImpl({
   runtimeType: runtimeType,
 );
 
-void initDebugLog() => NobodyWho.instance.api.crateApiNobodywhoInitDebugLog();
-
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Chat>>
 abstract class Chat implements RustOpaqueInterface {
   TokenStream ask(String message);
