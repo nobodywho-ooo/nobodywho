@@ -33,12 +33,12 @@ void main() {
 
     setUp(() async {
       // Additional setup goes here.
-      final sparklify_tool = nobodywho.describeTool(
+      final sparklify_tool = nobodywho.Tool.create(
         function: sparklify,
         name: "sparklify",
         description: "Applies the sparklify effect to a string"
       );
-      final strongify_tool = nobodywho.describeTool(
+      final strongify_tool = nobodywho.Tool.create(
         function: strongify,
         name: "strongify",
         description: "Applies the strongify effect to a string"
@@ -182,7 +182,7 @@ void main() {
 
     test('set_tools changes available tools', () async {
       // Create a chat with only sparklify tool
-      final sparklify_tool = nobodywho.describeTool(
+      final sparklify_tool = nobodywho.Tool.create(
         function: sparklify,
         name: "sparklify",
         description: "Applies the sparklify effect to a string"
@@ -201,7 +201,7 @@ void main() {
       expect(response1, contains("✨hello✨"));
 
       // Change tools to strongify
-      final strongify_tool = nobodywho.describeTool(
+      final strongify_tool = nobodywho.Tool.create(
         function: strongify,
         name: "strongify",
         description: "Applies the strongify effect to a string"
