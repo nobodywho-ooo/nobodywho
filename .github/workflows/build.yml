@@ -94,13 +94,13 @@ jobs:
 
       - name: "Rename built file"
         run: |
-          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.so ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
+          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.so ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v4
         with:
           name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
-          path: ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
+          path: ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
 
   cargo-build-windows:
     runs-on: windows-latest
@@ -175,16 +175,16 @@ jobs:
 
       - name: "Rename built files"
         run: |
-          cp C:/t/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.dll ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dll
-          cp C:/t/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.pdb ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
+          cp C:/t/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.dll ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dll
+          cp C:/t/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.pdb ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
 
       - name: "Upload build artifacts"
         uses: actions/upload-artifact@v4
         with:
           name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
           path: |
-            ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dll
-            ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
+            ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dll
+            ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
 
   cargo-build-macos:
     needs: setup-macos-matrix
@@ -221,10 +221,10 @@ jobs:
       - name: "Rename built file"
         run: |
           # .dylib: dynamically linkable shared object
-          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
+          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
           if [ "${{ matrix.integration }}" == "flutter" ]; then
             # .a: statically linkable ar archive of .o objects (used to build xcframework)
-            cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.a ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.a
+            cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.a ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.a
           fi
 
       - name: "Upload build artifact"
@@ -232,7 +232,7 @@ jobs:
         with:
           name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
           # wildcard path to match both .dylib and .a
-          path: ./nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.*
+          path: ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.*
 
   # builds an "xcframework"
   # which is an apple thing that contains binaries for multiple systems
@@ -273,12 +273,12 @@ jobs:
           # macos universal binary
           mkdir macos-lipo
           lipo -create -output macos-lipo/$LIBNAME \
-            nobodywho-flutter-aarch64-apple-darwin-release.a \
-            nobodywho-flutter-x86_64-apple-darwin-release.a
+            libnobodywho-flutter-aarch64-apple-darwin-release.a \
+            libnobodywho-flutter-x86_64-apple-darwin-release.a
 
           # rename libs so linker can find them
           mkdir aarch64-ios
-          cp nobodywho-flutter-aarch64-apple-ios-release.a ./aarch64-ios/$LIBNAME
+          cp libnobodywho-flutter-aarch64-apple-ios-release.a ./aarch64-ios/$LIBNAME
 
           # create xcframework with ios sim, macos universal, and ios device builds
           xcodebuild -create-xcframework \
@@ -303,6 +303,7 @@ jobs:
       matrix:
         target:
           - "aarch64-linux-android"
+          - "x86_64-linux-android"
         profile:
           - "debug"
           - "release"
@@ -353,10 +354,16 @@ jobs:
         working-directory: ./nobodywho
         env:
           ANDROID_NDK: "${{ steps.setup-ndk.outputs.ndk-path }}"
+          # aarch64 (arm64-v8a)
           CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang"
           CARGO_TARGET_AARCH64_LINUX_ANDROID_AR: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
           CC_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang"
           AR_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+          # x86_64
+          CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android34-clang"
+          CARGO_TARGET_X86_64_LINUX_ANDROID_AR: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+          CC_x86_64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android31-clang"
+          AR_x86_64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
 
         # XXX: .so files for android in godot MUST start with "lib"
       - name: "Rename built file"

@@ -2,89 +2,76 @@ set(PROJECT_NAME "nobodywho_flutter")
 
 # Unlike the Windows & Linux CMakeLists.txt, this Android equivalent is just here
 # to download the Android binaries into src/main/jniLibs/ and does not build anything.
-# The binary download/extraction is difficult to do concisely in Groovy/Gradle,
-# at least across host platforms, so we are just reusing our Linux/Windows logic.
+# The binary resolution is handled by a Dart script that supports multiple methods:
+# 1. Environment variable override (NOBODYWHO_FLUTTER_LIB_PATH)
+# 2. Local cargo build detection
+# 3. Cached download
+# 4. Download from GitHub releases
 
 # The Flutter tooling requires that developers have CMake 3.10 or later
 # installed. You should not increase this version, as doing so will cause
 # the plugin to fail to compile for some customers of the plugin.
 cmake_minimum_required(VERSION 3.10)
 
-project(PROJECT_NAME)
+project(${PROJECT_NAME})
 
-set(NOBODYWHO_FLUTTER_LOCAL_BUILD_LIB_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../../../target/aarch64-linux-android/release/libnobodywho_flutter.so")
+# NDK triple mapping (needed for libc++_shared.so path, which differs from Rust triples)
+if(ANDROID_ABI STREQUAL "arm64-v8a")
+  set(NDK_TRIPLE "aarch64-linux-android")
+elseif(ANDROID_ABI STREQUAL "armeabi-v7a")
+  set(NDK_TRIPLE "arm-linux-androideabi")
+elseif(ANDROID_ABI STREQUAL "x86")
+  set(NDK_TRIPLE "i686-linux-android")
+elseif(ANDROID_ABI STREQUAL "x86_64")
+  set(NDK_TRIPLE "x86_64-linux-android")
+else()
+  message(FATAL_ERROR "Unsupported Android ABI: ${ANDROID_ABI}")
+endif()
+
+# Resolve binary using Dart script (per-ABI)
+execute_process(
+  COMMAND dart run "${CMAKE_CURRENT_SOURCE_DIR}/../tool/resolve_binary.dart"
+          --platform=android
+          --arch=${ANDROID_ABI}
+          --build-type=release
+          --cache-dir=${CMAKE_CURRENT_BINARY_DIR}
+  WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/.."
+  OUTPUT_VARIABLE NOBODYWHO_LIB_PATH
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+  ERROR_VARIABLE resolve_error
+  RESULT_VARIABLE resolve_result
+)
+
+if(NOT resolve_result EQUAL 0)
+  message(FATAL_ERROR "Failed to resolve NobodyWho binary for ${ANDROID_ABI}:\n${resolve_error}")
+endif()
+
+message(STATUS "Using NobodyWho library for ${ANDROID_ABI}: ${NOBODYWHO_LIB_PATH}")
+
+# Copy to jniLibs for Android packaging
 set(LibRoot "${CMAKE_CURRENT_SOURCE_DIR}/src/main/jniLibs")
-
-# Try to find the library using multiple methods
-set(NOBODYWHO_FLUTTER_LIB_PATH "")
-
-# Method 1: check environment variable
-if(DEFINED ENV{NOBODYWHO_FLUTTER_LIB_PATH})
-  if(EXISTS "$ENV{NOBODYWHO_FLUTTER_LIB_PATH}")
-    message("Using NobodyWho artifact from environment variable: $ENV{NOBODYWHO_FLUTTER_LIB_PATH}")
-    set(NOBODYWHO_FLUTTER_LIB_PATH "$ENV{NOBODYWHO_FLUTTER_LIB_PATH}")
-  else()
-    message(WARNING "NOBODYWHO_FLUTTER_LIB_PATH is set but file does not exist: $ENV{NOBODYWHO_FLUTTER_LIB_PATH}")
-  endif()
-endif()
-
-# Method 2: check local build
-if(NOT NOBODYWHO_FLUTTER_LIB_PATH AND EXISTS ${NOBODYWHO_FLUTTER_LOCAL_BUILD_LIB_PATH})
-  message("Using locally built NobodyWho artifact: ${NOBODYWHO_FLUTTER_LOCAL_BUILD_LIB_PATH}")
-  set(NOBODYWHO_FLUTTER_LIB_PATH ${NOBODYWHO_FLUTTER_LOCAL_BUILD_LIB_PATH})
-endif()
-
-# Method 3: try to download
-if(NOT NOBODYWHO_FLUTTER_LIB_PATH)
-  # TODO: this won't actually work until we can make real releases
-  message("Attempting to download NobodyWho from github...")
-  set(DOWNLOAD_PATH "${CMAKE_CURRENT_BINARY_DIR}/libnobodywho_flutter.so")
-  file(DOWNLOAD
-    "https://github.com/nobodywho-ooo/nobodywho/releases/download/${LibraryVersion}/nobodywho_flutter_bundled_libs.tar.gz"
-    ${DOWNLOAD_PATH}
-    TLS_VERIFY ON
-    STATUS DOWNLOAD_STATUS
-  )
-  list(GET DOWNLOAD_STATUS 0 DOWNLOAD_STATUS_CODE)
-  if(DOWNLOAD_STATUS_CODE EQUAL 0 AND EXISTS ${DOWNLOAD_PATH})
-    message("Successfully downloaded NobodyWho artifact")
-    set(NOBODYWHO_FLUTTER_LIB_PATH ${DOWNLOAD_PATH})
-  else()
-    message(WARNING "Download failed: ${DOWNLOAD_STATUS}")
-  endif()
-endif()
-
-# If all methods failed, error out
-if(NOT NOBODYWHO_FLUTTER_LIB_PATH)
-  message(FATAL_ERROR "libnobodywho_flutter.so not found!\n"
-    "Tried:\n"
-    "  1. Environment variable NOBODYWHO_FLUTTER_LIB_PATH\n"
-    "  2. Local build at: ${NOBODYWHO_FLUTTER_LOCAL_BUILD_LIB_PATH}\n"
-    "  3. Download from GitHub releases\n"
-    "\n"
-    "Please build the Rust library first with:\n"
-    "  cargo build --release --target aarch64-linux-android\n"
-    "Or set NOBODYWHO_FLUTTER_LIB_PATH environment variable.")
-endif()
-
-# copy in the binary, overriding any already present.
-file(REMOVE_RECURSE ${LibRoot})
-file(MAKE_DIRECTORY ${LibRoot}/arm64-v8a)
-file(COPY ${NOBODYWHO_FLUTTER_LIB_PATH} DESTINATION ${LibRoot}/arm64-v8a)
+file(REMOVE_RECURSE ${LibRoot}/${ANDROID_ABI})
+file(MAKE_DIRECTORY ${LibRoot}/${ANDROID_ABI})
+file(COPY ${NOBODYWHO_LIB_PATH} DESTINATION ${LibRoot}/${ANDROID_ABI})
 
 # Copy libc++_shared.so from NDK
 # CMAKE_ANDROID_NDK is automatically set by the Android Gradle Plugin
-set(CXX_SHARED_LIB "${CMAKE_ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so")
-if(EXISTS ${CXX_SHARED_LIB})
-  message("Copying libc++_shared.so to jniLibs")
-  file(COPY ${CXX_SHARED_LIB} DESTINATION ${LibRoot}/arm64-v8a)
-else()
-  # Try alternative location for Windows/Mac
-  set(CXX_SHARED_LIB "${CMAKE_ANDROID_NDK}/sources/cxx-stl/llvm-libc++/libs/arm64-v8a/libc++_shared.so")
+if(CMAKE_ANDROID_NDK)
+  # Try modern NDK layout first
+  set(CXX_SHARED_LIB "${CMAKE_ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/${NDK_TRIPLE}/libc++_shared.so")
   if(EXISTS ${CXX_SHARED_LIB})
-    message("Copying libc++_shared.so to jniLibs (alternative path)")
-    file(COPY ${CXX_SHARED_LIB} DESTINATION ${LibRoot}/arm64-v8a)
+    message(STATUS "Copying libc++_shared.so for ${ANDROID_ABI}")
+    file(COPY ${CXX_SHARED_LIB} DESTINATION ${LibRoot}/${ANDROID_ABI})
   else()
-    message(WARNING "libc++_shared.so not found in NDK at ${CMAKE_ANDROID_NDK}")
+    # Try alternative location for Windows/Mac or older NDK versions
+    set(CXX_SHARED_LIB "${CMAKE_ANDROID_NDK}/sources/cxx-stl/llvm-libc++/libs/${ANDROID_ABI}/libc++_shared.so")
+    if(EXISTS ${CXX_SHARED_LIB})
+      message(STATUS "Copying libc++_shared.so for ${ANDROID_ABI} (alternative path)")
+      file(COPY ${CXX_SHARED_LIB} DESTINATION ${LibRoot}/${ANDROID_ABI})
+    else()
+      message(WARNING "libc++_shared.so not found in NDK for ${ANDROID_ABI}")
+    endif()
   endif()
+else()
+  message(WARNING "CMAKE_ANDROID_NDK not set, cannot copy libc++_shared.so")
 endif()
