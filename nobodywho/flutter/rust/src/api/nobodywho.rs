@@ -9,6 +9,13 @@ pub struct _ToolCall {
     pub name: String,
     pub arguments: serde_json::Value, // Flexible structure for arbitrary arguments
 }
+
+/// Helper function to convert ToolCall arguments to a JSON string.
+/// This is needed because serde_json::Value becomes an opaque type in Dart.
+#[flutter_rust_bridge::frb(sync)]
+pub fn tool_call_arguments_json(tool_call: &ToolCall) -> Result<String, String> {
+    serde_json::to_string(&tool_call.arguments).map_err(|e| e.to_string())
+}
 #[flutter_rust_bridge::frb(mirror(Role))]
 pub enum _Role {
     User,

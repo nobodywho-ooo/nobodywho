@@ -43,7 +43,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -260554454;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -321774266;
 
 // Section: executor
 
@@ -2476,6 +2476,56 @@ fn wire__crate__api__nobodywho__new_tool_impl_impl(
         },
     )
 }
+fn wire__crate__api__nobodywho__tool_call_arguments_json_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "tool_call_arguments_json",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_tool_call = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ToolCall>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let mut api_tool_call_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_tool_call,
+                            0,
+                            false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_tool_call_guard = Some(api_tool_call.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
+                    }
+                }
+                let api_tool_call_guard = api_tool_call_guard.unwrap();
+                let output_ok = Result::<_, ()>::Ok(
+                    crate::api::nobodywho::tool_call_arguments_json(&*api_tool_call_guard),
+                )?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
 
 // Section: static_checks
 
@@ -3338,6 +3388,9 @@ fn pde_ffi_dispatcher_sync_impl(
         48 => wire__crate__api__nobodywho__cosine_similarity_impl(ptr, rust_vec_len, data_len),
         50 => wire__crate__api__nobodywho__init_debug_log_impl(ptr, rust_vec_len, data_len),
         51 => wire__crate__api__nobodywho__new_tool_impl_impl(ptr, rust_vec_len, data_len),
+        52 => {
+            wire__crate__api__nobodywho__tool_call_arguments_json_impl(ptr, rust_vec_len, data_len)
+        }
         _ => unreachable!(),
     }
 }
