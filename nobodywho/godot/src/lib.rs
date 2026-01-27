@@ -108,8 +108,9 @@ impl NobodyWhoModel {
             let mut mut_node = node.bind_mut();
 
             if mut_node.model.is_some() {
-                // model was already loaded, emit singal and do nothing
+                // model was already loaded, emit signal and return early
                 mut_node.signals().model_loaded().emit();
+                return;
             }
 
             let model_result = nobodywho::llm::get_model_async(model_path_string, use_gpu).await;
