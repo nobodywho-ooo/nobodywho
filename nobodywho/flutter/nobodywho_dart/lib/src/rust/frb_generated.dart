@@ -2283,7 +2283,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
-          decodeErrorData: null,
+          decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateApiNobodywhoToolCallArgumentsJsonConstMeta,
         argValues: [toolCall],

@@ -2501,7 +2501,7 @@ fn wire__crate__api__nobodywho__tool_call_arguments_json_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ToolCall>,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
-            transform_result_sse::<_, ()>((move || {
+            transform_result_sse::<_, String>((move || {
                 let mut api_tool_call_guard = None;
                 let decode_indices_ =
                     flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
@@ -2518,9 +2518,8 @@ fn wire__crate__api__nobodywho__tool_call_arguments_json_impl(
                     }
                 }
                 let api_tool_call_guard = api_tool_call_guard.unwrap();
-                let output_ok = Result::<_, ()>::Ok(
-                    crate::api::nobodywho::tool_call_arguments_json(&*api_tool_call_guard),
-                )?;
+                let output_ok =
+                    crate::api::nobodywho::tool_call_arguments_json(&*api_tool_call_guard)?;
                 Ok(output_ok)
             })())
         },
