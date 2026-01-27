@@ -25,7 +25,8 @@ extension ToolCallExtension on nobodywho.ToolCall {
       json.decode(nobodywho.toolCallArgumentsJson(toolCall: this)) as Map<String, dynamic>;
 }
 
-
+// Wrapper for the RustTool class. We wrap RustTool so the API for constructing a tool
+// is simply passing the arguments to a constructor.
 class Tool {
   final nobodywho.RustTool _tool;
 
@@ -109,6 +110,9 @@ class TokenStream extends Stream<String> {
   Future<String> completed() => _tokenStream.completed();
 }
 
+
+// Wrapper for the RustChat class. This is necessary to use the functionality
+// gained by wrapping RustTool and RustTokenStream. 
 class Chat {
   final nobodywho.RustChat _chat;
 
