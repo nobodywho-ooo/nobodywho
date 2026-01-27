@@ -19,7 +19,7 @@ jobs:
     uses: ./.github/workflows/build.yml
     with:
       upload_artifacts: true
-      full_macos_build: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/nobodywho-flutter-') }}
+      full_macos_build: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/nobodywho-') }}
     needs: [linting]
 
   test:
