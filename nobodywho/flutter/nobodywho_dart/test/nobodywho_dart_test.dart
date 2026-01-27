@@ -109,6 +109,17 @@ void main() {
       // Note: arguments is a serde_json::Value, we need to check it's not null
       expect(toolCall.arguments, isNotNull);
 
+      // Test the argumentsJson getter - should return valid JSON string
+      final argsJson = toolCall.argumentsJson;
+      expect(argsJson, isA<String>());
+      expect(argsJson, contains('text'));
+
+      // Test the argumentsMap getter - should return parsed Map
+      final argsMap = toolCall.argumentsMap;
+      expect(argsMap, isA<Map<String, dynamic>>());
+      expect(argsMap.containsKey('text'), isTrue);
+      expect(argsMap['text'], equals('test'));
+
       // Find the tool response message
       final toolRespMessage = messages.firstWhere(
         (m) => m is nobodywho.Message_ToolResp,

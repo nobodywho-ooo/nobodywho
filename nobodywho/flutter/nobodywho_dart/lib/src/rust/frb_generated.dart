@@ -67,7 +67,7 @@ class NobodyWho
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -260554454;
+  int get rustContentHash => -321774266;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -313,6 +313,8 @@ abstract class NobodyWhoApi extends BaseApi {
     required String description,
     required String runtimeType,
   });
+
+  String crateApiNobodywhoToolCallArgumentsJson({required ToolCall toolCall});
 
   RustArcIncrementStrongCountFnType get rust_arc_increment_strong_count_Chat;
 
@@ -2265,6 +2267,35 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       const TaskConstMeta(
         debugName: "new_tool_impl",
         argNames: ["function", "name", "description", "runtimeType"],
+      );
+
+  @override
+  String crateApiNobodywhoToolCallArgumentsJson({required ToolCall toolCall}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
+            toolCall,
+            serializer,
+          );
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 52)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiNobodywhoToolCallArgumentsJsonConstMeta,
+        argValues: [toolCall],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoToolCallArgumentsJsonConstMeta =>
+      const TaskConstMeta(
+        debugName: "tool_call_arguments_json",
+        argNames: ["toolCall"],
       );
 
   Future<void> Function(int, dynamic)

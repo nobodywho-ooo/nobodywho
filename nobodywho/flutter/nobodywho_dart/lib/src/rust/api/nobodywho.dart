@@ -12,6 +12,13 @@ part 'nobodywho.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `dart_function_type_to_json_schema`, `sample_step`, `shift_step`
 
+/// Helper function to convert ToolCall arguments to a JSON string.
+/// This is needed because serde_json::Value becomes an opaque type in Dart.
+String toolCallArgumentsJson({required ToolCall toolCall}) => NobodyWho
+    .instance
+    .api
+    .crateApiNobodywhoToolCallArgumentsJson(toolCall: toolCall);
+
 double cosineSimilarity({required List<double> a, required List<double> b}) =>
     NobodyWho.instance.api.crateApiNobodywhoCosineSimilarity(a: a, b: b);
 
