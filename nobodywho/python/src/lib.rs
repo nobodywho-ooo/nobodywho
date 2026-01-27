@@ -9,12 +9,18 @@ impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for LogForwardingLayer
         _ctx: tracing_subscriber::layer::Context<'_, S>,
     ) {
         let metadata = event.metadata();
-        let level = match *metadata.level() {
-            tracing::Level::ERROR => log::Level::Error,
-            tracing::Level::WARN => log::Level::Warn,
-            tracing::Level::INFO => log::Level::Info,
-            tracing::Level::DEBUG => log::Level::Debug,
-            tracing::Level::TRACE => log::Level::Trace,
+
+        // Force all llama-cpp logs to TRACE level
+        let level = if metadata.target().contains("llama") || metadata.target().contains("ggml") {
+            log::Level::Trace
+        } else {
+            match *metadata.level() {
+                tracing::Level::ERROR => log::Level::Error,
+                tracing::Level::WARN => log::Level::Warn,
+                tracing::Level::INFO => log::Level::Info,
+                tracing::Level::DEBUG => log::Level::Debug,
+                tracing::Level::TRACE => log::Level::Trace,
+            }
         };
 
         struct MessageVisitor(Option<String>);
