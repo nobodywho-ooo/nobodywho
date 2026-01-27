@@ -17,7 +17,6 @@ serde_json = { version = "1.0.140", features = ["preserve_order"] }
 log = "0.4"
 tracing = { version = "0.1.41", features = ["log"] }
 tracing-subscriber = "0.3.19"
-tracing-log = "0.2"
 futures = "0.3.31"
 pyo3-introspection = "0.27.2"
 pyo3-log = "0.13.2"

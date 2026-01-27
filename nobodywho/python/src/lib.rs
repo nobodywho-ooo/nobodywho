@@ -1,6 +1,5 @@
 use pyo3::prelude::*;
 
-// Simple layer that forwards tracing events to the log crate
 struct LogForwardingLayer;
 
 impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for LogForwardingLayer {
@@ -18,7 +17,6 @@ impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for LogForwardingLayer
             tracing::Level::TRACE => log::Level::Trace,
         };
 
-        // Simple message extraction
         struct MessageVisitor(Option<String>);
         impl tracing::field::Visit for MessageVisitor {
             fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
