@@ -29,7 +29,7 @@ void initDebugLog() => NobodyWho.instance.api.crateApiNobodywhoInitDebugLog();
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Chat>>
 abstract class Chat implements RustOpaqueInterface {
-  TokenStream ask({required String message});
+  TokenStream ask(String message);
 
   /// Create chat directly from a model path. This is async as it loads a model
   ///

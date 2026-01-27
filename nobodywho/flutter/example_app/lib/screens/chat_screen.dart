@@ -47,7 +47,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _textController.clear();
 
     try {
-      final responseStream = chat.ask(message: text);
+      final responseStream = chat.ask(text);
 
       await for (final token in responseStream.iter()) {
         if (!mounted) return;

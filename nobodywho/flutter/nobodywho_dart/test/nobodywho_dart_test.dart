@@ -48,7 +48,7 @@ void main() {
     });
 
     test('Capital of Denmark test', () async {
-      final responseStream = chat!.ask(message: "What is the capital of Denmark?");
+      final responseStream = chat!.ask("What is the capital of Denmark?");
       String response = "";
       await for (final token in responseStream.iter()) {
         response += token;
@@ -57,7 +57,7 @@ void main() {
     });
 
     test('Tool calling test', () async {
-      final responseStream = chat!.ask(message: "Can you please sparklify the string 'Foopdoop'?");
+      final responseStream = chat!.ask("Can you please sparklify the string 'Foopdoop'?");
       String response = "";
       await for (final token in responseStream.iter()) {
         response += token;
@@ -66,7 +66,7 @@ void main() {
     });
 
     test('Async tool calling test', () async {
-      final responseStream = chat!.ask(message: "Can you please strongify the string 'Wrawr'?");
+      final responseStream = chat!.ask("Can you please strongify the string 'Wrawr'?");
       String response = "";
       await for (final token in responseStream.iter()) {
         response += token;
@@ -76,7 +76,7 @@ void main() {
     });
 
     test('Get chat history', () async {
-      await chat!.ask(message: "Hello!").completed();
+      await chat!.ask("Hello!").completed();
       final messages = await chat!.getChatHistory();
       print(messages);
       expect(messages.length, equals(2));
@@ -85,7 +85,7 @@ void main() {
 
     test('Tool call message has correct structure in chat history', () async {
       // Trigger a tool call
-      await chat!.ask(message: "Please sparklify the word 'test'").completed();
+      await chat!.ask("Please sparklify the word 'test'").completed();
 
       final messages = await chat!.getChatHistory();
 
@@ -124,7 +124,7 @@ void main() {
     test('Tools work with custom sampler', () async {
       final sampler = nobodywho.SamplerBuilder().topP(topP: 0.9, minKeep: 20).temperature(temperature: 1.2).dist();
       await chat!.setSamplerConfig(samplerConfig: sampler);
-      final response = await chat!.ask(message: "Can you please strongify the string 'Wrawr'?").completed();
+      final response = await chat!.ask("Can you please strongify the string 'Wrawr'?").completed();
 
       expect(response, contains("WOW Wrawr WOW"));
     });
@@ -132,7 +132,7 @@ void main() {
     test('Tools work with sampler presets', () async {
       final sampler = nobodywho.SamplerPresets.temperature(temperature: 1.2);
       await chat!.setSamplerConfig(samplerConfig: sampler);
-      final response = await chat!.ask(message: "Can you please strongify the string 'Wrawr'?").completed();
+      final response = await chat!.ask("Can you please strongify the string 'Wrawr'?").completed();
 
       expect(response, contains("WOW Wrawr WOW"));
     });
@@ -142,9 +142,9 @@ void main() {
       final greedy = nobodywho.SamplerPresets.greedy();
       await chat!.setSamplerConfig(samplerConfig: greedy);
 
-      final response1 = await chat!.ask(message: "Say exactly: 'Hello'").completed();
+      final response1 = await chat!.ask("Say exactly: 'Hello'").completed();
       await chat!.resetHistory();
-      final response2 = await chat!.ask(message: "Say exactly: 'Hello'").completed();
+      final response2 = await chat!.ask("Say exactly: 'Hello'").completed();
 
       expect(response1, equals(response2));  // Should be identical with greedy
     });
@@ -197,7 +197,7 @@ void main() {
       );
 
       // Verify sparklify tool works
-      final response1 = await testChat.ask(message: "Please sparklify the word 'hello'").completed();
+      final response1 = await testChat.ask("Please sparklify the word 'hello'").completed();
       expect(response1, contains("✨hello✨"));
 
       // Change tools to strongify
@@ -213,7 +213,7 @@ void main() {
       await testChat.resetHistory();
 
       // Verify strongify tool now works
-      final response2 = await testChat.ask(message: "Please strongify the word 'test'").completed();
+      final response2 = await testChat.ask("Please strongify the word 'test'").completed();
       expect(response2, contains("WOW test WOW"));
     });
   });
