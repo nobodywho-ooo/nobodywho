@@ -49,7 +49,7 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       final responseStream = chat.ask(text);
 
-      await for (final token in responseStream.iter()) {
+      await for (final token in responseStream) {
         if (!mounted) return;
         setState(() {
           _streamingContent = (_streamingContent ?? '') + token;
