@@ -202,7 +202,7 @@ pub struct TokenStream {
 }
 
 impl TokenStream {
-    pub async fn iter(
+    pub async fn stream(
         &mut self,
         sink: crate::frb_generated::StreamSink<String>,
     ) -> Result<(), Rust2DartSendError> {

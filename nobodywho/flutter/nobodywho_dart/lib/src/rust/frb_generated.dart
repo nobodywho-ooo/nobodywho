@@ -67,7 +67,7 @@ class NobodyWho
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -260554454;
+  int get rustContentHash => 737637259;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -276,9 +276,11 @@ abstract class NobodyWhoApi extends BaseApi {
     required TokenStream that,
   });
 
-  Stream<String> crateApiNobodywhoTokenStreamIter({required TokenStream that});
-
   Future<String?> crateApiNobodywhoTokenStreamNextToken({
+    required TokenStream that,
+  });
+
+  Stream<String> crateApiNobodywhoTokenStreamStream({
     required TokenStream that,
   });
 
@@ -1944,46 +1946,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       );
 
   @override
-  Stream<String> crateApiNobodywhoTokenStreamIter({required TokenStream that}) {
-    final sink = RustStreamSink<String>();
-    unawaited(
-      handler.executeNormal(
-        NormalTask(
-          callFfi: (port_) {
-            final serializer = SseSerializer(generalizedFrbRustBinding);
-            sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTokenStream(
-              that,
-              serializer,
-            );
-            sse_encode_StreamSink_String_Sse(sink, serializer);
-            pdeCallFfi(
-              generalizedFrbRustBinding,
-              serializer,
-              funcId: 42,
-              port: port_,
-            );
-          },
-          codec: SseCodec(
-            decodeSuccessData: sse_decode_unit,
-            decodeErrorData:
-                sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRust2DartSendError,
-          ),
-          constMeta: kCrateApiNobodywhoTokenStreamIterConstMeta,
-          argValues: [that, sink],
-          apiImpl: this,
-        ),
-      ),
-    );
-    return sink.stream;
-  }
-
-  TaskConstMeta get kCrateApiNobodywhoTokenStreamIterConstMeta =>
-      const TaskConstMeta(
-        debugName: "TokenStream_iter",
-        argNames: ["that", "sink"],
-      );
-
-  @override
   Future<String?> crateApiNobodywhoTokenStreamNextToken({
     required TokenStream that,
   }) {
@@ -1998,7 +1960,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 43,
+            funcId: 42,
             port: port_,
           );
         },
@@ -2017,6 +1979,48 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       const TaskConstMeta(
         debugName: "TokenStream_next_token",
         argNames: ["that"],
+      );
+
+  @override
+  Stream<String> crateApiNobodywhoTokenStreamStream({
+    required TokenStream that,
+  }) {
+    final sink = RustStreamSink<String>();
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTokenStream(
+              that,
+              serializer,
+            );
+            sse_encode_StreamSink_String_Sse(sink, serializer);
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 43,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData:
+                sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRust2DartSendError,
+          ),
+          constMeta: kCrateApiNobodywhoTokenStreamStreamConstMeta,
+          argValues: [that, sink],
+          apiImpl: this,
+        ),
+      ),
+    );
+    return sink.stream;
+  }
+
+  TaskConstMeta get kCrateApiNobodywhoTokenStreamStreamConstMeta =>
+      const TaskConstMeta(
+        debugName: "TokenStream_stream",
+        argNames: ["that", "sink"],
       );
 
   @override
@@ -5203,11 +5207,11 @@ class TokenStreamImpl extends RustOpaque implements TokenStream {
   Future<String> completed() =>
       NobodyWho.instance.api.crateApiNobodywhoTokenStreamCompleted(that: this);
 
-  Stream<String> iter() =>
-      NobodyWho.instance.api.crateApiNobodywhoTokenStreamIter(that: this);
-
   Future<String?> nextToken() =>
       NobodyWho.instance.api.crateApiNobodywhoTokenStreamNextToken(that: this);
+
+  Stream<String> stream() =>
+      NobodyWho.instance.api.crateApiNobodywhoTokenStreamStream(that: this);
 }
 
 @sealed

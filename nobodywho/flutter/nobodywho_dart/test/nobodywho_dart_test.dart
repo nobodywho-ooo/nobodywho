@@ -50,7 +50,7 @@ void main() {
     test('Capital of Denmark test', () async {
       final responseStream = chat!.ask("What is the capital of Denmark?");
       String response = "";
-      await for (final token in responseStream.iter()) {
+      await for (final token in responseStream.stream()) {
         response += token;
       }
       expect(response, contains("Copenhagen"));
@@ -59,7 +59,7 @@ void main() {
     test('Tool calling test', () async {
       final responseStream = chat!.ask("Can you please sparklify the string 'Foopdoop'?");
       String response = "";
-      await for (final token in responseStream.iter()) {
+      await for (final token in responseStream.stream()) {
         response += token;
       }
       expect(response, contains("✨Foopdoop✨"));
@@ -68,7 +68,7 @@ void main() {
     test('Async tool calling test', () async {
       final responseStream = chat!.ask("Can you please strongify the string 'Wrawr'?");
       String response = "";
-      await for (final token in responseStream.iter()) {
+      await for (final token in responseStream.stream()) {
         response += token;
       }
 

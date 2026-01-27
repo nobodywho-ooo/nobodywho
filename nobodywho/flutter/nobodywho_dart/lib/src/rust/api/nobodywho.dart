@@ -357,9 +357,9 @@ abstract class SetterError implements RustOpaqueInterface {}
 abstract class TokenStream implements RustOpaqueInterface {
   Future<String> completed();
 
-  Stream<String> iter();
-
   Future<String?> nextToken();
+
+  Stream<String> stream();
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Tool>>
