@@ -22,9 +22,24 @@ It also contains a tiny bit of dart code to wrap tool calling functions.
 This also contains a bunch of unit tests to check that the bindings actually work.
 They can be run using `dart test`, but dart needs to be able to find the dynamlic library of nobodywho to run them. I usually do something like this:
 
+**On Linux**:
 ```rust
 LD_LIBRARY_PATH=../../target/debug/ dart test
 ```
+**On Mac**:
+It is a bit more difficult, because for some reason, `flutter_rust_bridge` does not respect the `DYLD_LIBRARY_PATH` which is made for this and rather opts for something on the path:
+```
+*.framework/library_name
+```
+So temporary solution is to create a symlink with:
+```bash
+cd flutter/rust
+cargo build --release
+cd flutter/nobodywho_dart
+mkdir -p nobodywho_flutterframework
+ln -sf ../../../target/release/libnobodywho_flutter.dylib nobodywho_flutter.framework/nobodywho_flutter
+```
+(Opt for the release you want, it can be debug or something else.)
 
 ## `nobodywho_flutter/`
 

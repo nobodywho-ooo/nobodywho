@@ -1,7 +1,7 @@
 use std::sync::LazyLock;
 
 use minijinja::{context, Environment, Template};
-use tracing::{trace, warn};
+use tracing::{debug, trace, warn};
 
 use crate::{
     chat::{Message, Role, Tool},
@@ -178,6 +178,7 @@ impl ChatTemplate {
                 minijinja::ErrorKind::InvalidOperation
                     if err.to_string().contains("System role not supported") =>
                 {
+                    debug!("Concatenating first user messages. System role not supported");
                     // this is the error message we get when rendering the gemma2 template
                     // concat the first two messages and try again
                     self.render_unhandled(
@@ -193,17 +194,21 @@ impl ChatTemplate {
                     // this is the error we get when rendering the mistral 7b v0.3 template,
                     // which, like gemma2, does not support the system role
                     // concat the first two messages and try again
+                    debug!("Concatenating first user messages. Conversation roles must alternate");
                     self.render_unhandled(
                         &self.concat_system_and_first_user_messages(messages)?,
                         ctx,
                     )
                 }
-                _ => Err(err),
+                _ => {
+                    debug!(error = %err, "Template render failed with InvalidOperation:");
+                    Err(err)
+                }
             },
         };
 
         let text = result?;
-        trace!(text);
+        trace!(%text, "Rendered template:\n");
 
         Ok(text)
     }
@@ -229,13 +234,16 @@ pub fn select_template(
 
     let template = if !with_tools {
         // no tools. use default template.
+        debug!("Selecting default template, no tools provided");
         default_template
     } else if let Ok(tool_template) = tool_template {
         // tools provided, and we have a tool template, use that.
         debug_assert!(tool_template.to_string()?.contains("tools"));
+        debug!("Selecting tool template, tools provided");
         tool_template.to_string()?
     } else if default_template.contains("tools") {
         // tools provided, but no tool template, but the default template seems to mention tools
+        debug!("Selecting default template with tool support, tools provided");
         default_template
     } else {
         // tools provided, but we have no tool-capable template

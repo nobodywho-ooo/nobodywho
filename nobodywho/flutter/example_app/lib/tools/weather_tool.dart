@@ -76,7 +76,7 @@ String getWeather({required String city}) {
 
 /// Creates the weather tool.
 nobodywho.Tool createWeatherTool() {
-  return nobodywho.describeTool(
+  return nobodywho.Tool.create(
     function: getWeather,
     name: 'get_weather',
     description:

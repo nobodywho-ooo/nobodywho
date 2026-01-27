@@ -2,6 +2,39 @@ use flutter_rust_bridge::{DartFnFuture, Rust2DartSendError};
 // ^ in general I've only done fully-qualified imports, but these things need to be imported to
 // satisfy some frb macros
 
+pub use nobodywho::chat::{Message, Role, ToolCall};
+
+#[flutter_rust_bridge::frb(mirror(ToolCall))]
+pub struct _ToolCall {
+    pub name: String,
+    pub arguments: serde_json::Value, // Flexible structure for arbitrary arguments
+}
+#[flutter_rust_bridge::frb(mirror(Role))]
+pub enum _Role {
+    User,
+    Assistant,
+    System,
+    Tool,
+}
+
+#[flutter_rust_bridge::frb(mirror(Message))]
+pub enum _Message {
+    Message {
+        role: Role,
+        content: String,
+    },
+    ToolCalls {
+        role: Role,
+        content: String,
+        tool_calls: Vec<ToolCall>,
+    },
+    ToolResp {
+        role: Role,
+        name: String,
+        content: String,
+    },
+}
+
 #[flutter_rust_bridge::frb(opaque)]
 pub struct Model {
     model: nobodywho::llm::Model,
@@ -57,7 +90,7 @@ impl Chat {
         Self { chat }
     }
 
-    /// Create chat directly from a model path.
+    /// Create chat directly from a model path. This is async as it loads a model
     ///
     /// Args:
     ///     model_path: Path to GGUF model file
@@ -66,7 +99,7 @@ impl Chat {
     ///     tools: List of Tool instances the model can call
     ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
     ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
-    #[flutter_rust_bridge::frb(sync)]
+    #[flutter_rust_bridge::frb]
     pub fn from_path(
         model_path: &str,
         #[frb(default = "null")] system_prompt: Option<String>,
@@ -96,22 +129,20 @@ impl Chat {
         Ok(Self { chat })
     }
 
-    #[flutter_rust_bridge::frb(sync)]
+    #[flutter_rust_bridge::frb(sync, positional)]
     pub fn ask(&self, message: String) -> TokenStream {
         TokenStream {
             stream: self.chat.ask(message),
         }
     }
 
-    pub async fn get_chat_history(
-        &self,
-    ) -> Result<Vec<nobodywho::chat::Message>, nobodywho::errors::GetterError> {
+    pub async fn get_chat_history(&self) -> Result<Vec<Message>, nobodywho::errors::GetterError> {
         self.chat.get_chat_history().await
     }
 
     pub async fn set_chat_history(
         &self,
-        messages: Vec<nobodywho::chat::Message>,
+        messages: Vec<Message>,
     ) -> Result<(), nobodywho::errors::SetterError> {
         self.chat.set_chat_history(messages).await
     }
@@ -245,6 +276,46 @@ pub fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> f32 {
 }
 
 #[flutter_rust_bridge::frb(opaque)]
+#[flutter_rust_bridge::frb(dart_code = "
+
+import 'dart:async';
+import 'dart:convert';
+static Tool create({
+  required Function function,
+  required String name,
+  required String description
+}) {
+  // narrow wrapper needs to be written in dart to access `function.runtimeType`
+  // and to deal with dynamic function parameters
+
+  // make it a String -> Future<String> function
+  final wrappedfunction = (String jsonString) async {
+    // decode the input string as json
+    Map<String, dynamic> jsonMap = json.decode(jsonString);
+    // make it a map of symbols, to make Function.apply happy
+    Map<Symbol, dynamic> namedParams = Map.fromEntries(
+      jsonMap.entries.map((e) => MapEntry(Symbol(e.key), e.value))
+    );
+    
+    // call the function
+    final result = Function.apply(function, [], namedParams);
+
+    // handle async tools and return
+    if (result is Future) {
+      return (await result).toString();
+    } else {
+      return result.toString();
+    }
+  };
+
+  return newToolImpl(
+    function: wrappedfunction,
+    name: name,
+    description: description,
+    runtimeType: function.runtimeType.toString()
+  );
+}
+")]
 pub struct Tool {
     tool: nobodywho::chat::Tool,
 }

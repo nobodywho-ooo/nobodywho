@@ -740,7 +740,6 @@ impl TokenStreamAsync {
     }
 }
 
-#[derive(Debug)]
 enum ChatMsg {
     Ask {
         text: String,
@@ -776,11 +775,49 @@ enum ChatMsg {
     },
 }
 
+impl std::fmt::Debug for ChatMsg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ChatMsg::Ask { text, .. } => f.debug_struct("Ask").field("text", text).finish(),
+            ChatMsg::ResetChat {
+                system_prompt,
+                tools,
+                ..
+            } => f
+                .debug_struct("ResetChat")
+                .field("system_prompt", system_prompt)
+                .field("tools", &format!("[{} tools]", tools.len()))
+                .finish(),
+            ChatMsg::SetTools { tools, .. } => f
+                .debug_struct("SetTools")
+                .field("tools", &format!("[{} tools]", tools.len()))
+                .finish(),
+            ChatMsg::SetSystemPrompt { system_prompt, .. } => f
+                .debug_struct("SetSystemPrompt")
+                .field("system_prompt", system_prompt)
+                .finish(),
+            ChatMsg::SetThinking { allow_thinking, .. } => f
+                .debug_struct("SetThinking")
+                .field("allow_thinking", allow_thinking)
+                .finish(),
+            ChatMsg::SetSamplerConfig { sampler_config, .. } => f
+                .debug_struct("SetSamplerConfig")
+                .field("sampler_config", sampler_config)
+                .finish(),
+            ChatMsg::GetChatHistory { .. } => f.debug_struct("GetChatHistory").finish(),
+            ChatMsg::SetChatHistory { messages, .. } => f
+                .debug_struct("SetChatHistory")
+                .field("messages", &format!("[{} messages]", messages.len()))
+                .finish(),
+        }
+    }
+}
+
 fn process_worker_msg(
     worker_state: &mut Worker<'_, ChatWorker>,
     msg: ChatMsg,
 ) -> Result<(), ChatWorkerError> {
-    debug!("Worker processing msg: {:?}", msg);
+    info!(?msg, "Worker processing:");
     match msg {
         ChatMsg::Ask { text, output_tx } => {
             let callback = move |out| {
@@ -1072,7 +1109,13 @@ impl Worker<'_, ChatWorker> {
     ) -> Result<Worker<'_, ChatWorker>, InitWorkerError> {
         let template = select_template(model, !config.tools.is_empty())?;
         let grammar = if !config.tools.is_empty() {
-            grammar_from_tools(&config.tools).ok()
+            match grammar_from_tools(&config.tools) {
+                Ok(g) => Some(g),
+                Err(e) => {
+                    debug!(error = %e, "Failed to generate grammar from tools:");
+                    None
+                }
+            }
         } else {
             None
         };
@@ -1338,7 +1381,7 @@ impl Worker<'_, ChatWorker> {
 
             if !has_eog {
                 full_response.push_str(token_str);
-                trace!("Sending out token: {token_str}");
+                trace!(?token_str, "Sending out token:");
                 respond(WriteOutput::Token(token_str.to_string()));
             }
 
@@ -1351,7 +1394,7 @@ impl Worker<'_, ChatWorker> {
         }
 
         // we're done!
-        debug!("Sending out response: {full_response}");
+        debug!(%full_response, "Sending out");
         respond(WriteOutput::Done(full_response));
         Ok(self)
     }
@@ -1360,7 +1403,7 @@ impl Worker<'_, ChatWorker> {
         &mut self,
         sampler: &mut LlamaSampler,
     ) -> Result<LlamaToken, DecodingError> {
-        trace!("Applying sampler...");
+        trace!("Applying sampler");
         let new_token: LlamaToken = sampler.sample(&self.ctx, -1);
 
         // batch of one
@@ -1413,7 +1456,7 @@ impl Worker<'_, ChatWorker> {
         )?;
 
         while let Some(tool_calls) = extract_tool_calls(&response) {
-            debug!("Got tool calls! {tool_calls:?}");
+            debug!(?tool_calls, "Got tool calls:");
 
             self.add_tool_calls(tool_calls.clone());
 
@@ -1427,8 +1470,8 @@ impl Worker<'_, ChatWorker> {
                     // I *think* this should be impossible, as long as the tool calling grammar
                     // works.
                     error!(
-                        "Model triggered tool call for invalid tool name: {}",
-                        tool_call.name
+                        tool_name = tool_call.name,
+                        "Model triggered tool call for invalid tool name:",
                     );
                     let errmsg = format!("ERROR - Invalid tool name: {}", tool_call.name);
                     self.add_tool_resp(tool_call.name, errmsg);
@@ -1438,7 +1481,7 @@ impl Worker<'_, ChatWorker> {
                 // call the tool
                 debug!("Calling the tool now!");
                 let response = (tool.function)(tool_call.arguments);
-                debug!(?tool_call.name, ?response);
+                debug!(%tool_call.name, %response, "Tool call result:");
 
                 // add to chat history
                 self.add_tool_resp(tool_call.name, response);
@@ -1514,7 +1557,13 @@ impl Worker<'_, ChatWorker> {
     ) -> Result<(), SelectTemplateError> {
         self.reset_context();
         self.extra.tool_grammar = if !tools.is_empty() {
-            grammar_from_tools(&tools).ok()
+            match grammar_from_tools(&tools) {
+                Ok(g) => Some(g),
+                Err(e) => {
+                    debug!(error = %e, "Failed to generate grammar from tools:");
+                    None
+                }
+            }
         } else {
             None
         };
@@ -1559,7 +1608,13 @@ impl Worker<'_, ChatWorker> {
 
     pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), SetToolsError> {
         self.extra.tool_grammar = if !tools.is_empty() {
-            grammar_from_tools(&tools).ok()
+            match grammar_from_tools(&tools) {
+                Ok(g) => Some(g),
+                Err(e) => {
+                    debug!(error = %e, "Failed to generate grammar from tools:");
+                    None
+                }
+            }
         } else {
             None
         };
@@ -1652,14 +1707,24 @@ fn extract_tool_calls(input: &str) -> Option<Vec<ToolCall>> {
     let tool_calls: Vec<ToolCall> = re
         .captures_iter(input)
         .filter_map(|cap| {
-            let tool_call: Option<ToolCall> = serde_json::from_str(cap[1].trim()).ok();
-            tool_call
+            let json_str = cap[1].trim();
+            match serde_json::from_str::<ToolCall>(json_str) {
+                Ok(tool_call) => {
+                    debug!(tool_name = %tool_call.name, "Successfully parsed tool call:");
+                    Some(tool_call)
+                }
+                Err(e) => {
+                    debug!(error = %e, json = json_str, "Failed to parse tool call JSON:");
+                    None
+                }
+            }
         })
         .collect();
 
     if !tool_calls.is_empty() {
         Some(tool_calls)
     } else {
+        debug!("No tool calls detected in message");
         None
     }
 }

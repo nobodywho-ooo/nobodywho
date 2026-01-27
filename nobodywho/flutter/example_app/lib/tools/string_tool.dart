@@ -46,42 +46,42 @@ String repeatString({required String text, required int times}) {
 /// Creates all string tools as a list.
 List<nobodywho.Tool> createStringTools() {
   return [
-    nobodywho.describeTool(
+    nobodywho.Tool.create(
       function: toUppercase,
       name: 'to_uppercase',
       description: 'Convert a string to uppercase. Parameters: text (the string to convert).',
     ),
-    nobodywho.describeTool(
+    nobodywho.Tool.create(
       function: toLowercase,
       name: 'to_lowercase',
       description: 'Convert a string to lowercase. Parameters: text (the string to convert).',
     ),
-    nobodywho.describeTool(
+    nobodywho.Tool.create(
       function: reverseString,
       name: 'reverse_string',
       description: 'Reverse a string. Parameters: text (the string to reverse).',
     ),
-    nobodywho.describeTool(
+    nobodywho.Tool.create(
       function: stringLength,
       name: 'string_length',
       description: 'Get the length of a string. Parameters: text (the string to measure). Returns the number of characters.',
     ),
-    nobodywho.describeTool(
+    nobodywho.Tool.create(
       function: countWords,
       name: 'count_words',
       description: 'Count the number of words in a string. Parameters: text (the string to count words in).',
     ),
-    nobodywho.describeTool(
+    nobodywho.Tool.create(
       function: replaceText,
       name: 'replace_text',
       description: 'Replace all occurrences of a substring. Parameters: text (original string), find (substring to find), replacement (string to replace with).',
     ),
-    nobodywho.describeTool(
+    nobodywho.Tool.create(
       function: trimText,
       name: 'trim_text',
       description: 'Remove leading and trailing whitespace from a string. Parameters: text (the string to trim).',
     ),
-    nobodywho.describeTool(
+    nobodywho.Tool.create(
       function: repeatString,
       name: 'repeat_string',
       description: 'Repeat a string N times. Parameters: text (string to repeat), times (number of repetitions, max 100).',

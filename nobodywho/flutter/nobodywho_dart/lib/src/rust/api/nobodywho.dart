@@ -4,7 +4,11 @@
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
+import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
+part 'nobodywho.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `dart_function_type_to_json_schema`, `sample_step`, `shift_step`
 
@@ -27,9 +31,9 @@ void initDebugLog() => NobodyWho.instance.api.crateApiNobodywhoInitDebugLog();
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Chat>>
 abstract class Chat implements RustOpaqueInterface {
-  TokenStream ask({required String message});
+  TokenStream ask(String message);
 
-  /// Create chat directly from a model path.
+  /// Create chat directly from a model path. This is async as it loads a model
   ///
   /// Args:
   ///     model_path: Path to GGUF model file
@@ -38,7 +42,7 @@ abstract class Chat implements RustOpaqueInterface {
   ///     tools: List of Tool instances the model can call
   ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
   ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
-  static Chat fromPath({
+  static Future<Chat> fromPath({
     required String modelPath,
     String? systemPrompt = null,
     int contextSize = 4096,
@@ -141,9 +145,6 @@ abstract class EncoderWorkerError implements RustOpaqueInterface {}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< GetterError>>
 abstract class GetterError implements RustOpaqueInterface {}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< Message>>
-abstract class Message implements RustOpaqueInterface {}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Model>>
 abstract class Model implements RustOpaqueInterface {
@@ -362,4 +363,74 @@ abstract class TokenStream implements RustOpaqueInterface {
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Tool>>
-abstract class Tool implements RustOpaqueInterface {}
+abstract class Tool implements RustOpaqueInterface {
+  static Tool create({
+    required Function function,
+    required String name,
+    required String description,
+  }) {
+    // narrow wrapper needs to be written in dart to access `function.runtimeType`
+    // and to deal with dynamic function parameters
+
+    // make it a String -> Future<String> function
+    final wrappedfunction = (String jsonString) async {
+      // decode the input string as json
+      Map<String, dynamic> jsonMap = json.decode(jsonString);
+      // make it a map of symbols, to make Function.apply happy
+      Map<Symbol, dynamic> namedParams = Map.fromEntries(
+        jsonMap.entries.map((e) => MapEntry(Symbol(e.key), e.value)),
+      );
+
+      // call the function
+      final result = Function.apply(function, [], namedParams);
+
+      // handle async tools and return
+      if (result is Future) {
+        return (await result).toString();
+      } else {
+        return result.toString();
+      }
+    };
+
+    return newToolImpl(
+      function: wrappedfunction,
+      name: name,
+      description: description,
+      runtimeType: function.runtimeType.toString(),
+    );
+  }
+}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ToolCall>>
+abstract class ToolCall implements RustOpaqueInterface {
+  Value get arguments;
+
+  String get name;
+
+  set arguments(Value arguments);
+
+  set name(String name);
+}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< Value>>
+abstract class Value implements RustOpaqueInterface {}
+
+@freezed
+sealed class Message with _$Message {
+  const Message._();
+
+  const factory Message.message({required Role role, required String content}) =
+      Message_Message;
+  const factory Message.toolCalls({
+    required Role role,
+    required String content,
+    required List<ToolCall> toolCalls,
+  }) = Message_ToolCalls;
+  const factory Message.toolResp({
+    required Role role,
+    required String name,
+    required String content,
+  }) = Message_ToolResp;
+}
+
+enum Role { user, assistant, system, tool }
