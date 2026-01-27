@@ -4,12 +4,18 @@ func run_test():
 	model_node = get_node("../ChatModel")
 	system_prompt = "You are a helpful assistant, capable of answering questions about the world."
 
+	assert(await test_async_model_loading())
 	assert(await test_say())
 	assert(await test_chat_history())
 	assert(await test_stop_generation())
 	assert(await test_tool_call())
 	assert(await test_tool_call_underscores())
 	assert(await test_tool_remove())
+	return true
+
+func test_async_model_loading():
+	self.model_node.load_model_in_background()
+	await self.model_node.model_loaded
 	return true
 
 func test_say():
