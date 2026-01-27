@@ -10,17 +10,16 @@ permissions:
 jobs:
   linting:
     uses: ./.github/workflows/linting.yml
-  
+
   python_ci:
     uses: ./.github/workflows/python_ci.yml
     needs: [linting]
-
 
   build:
     uses: ./.github/workflows/build.yml
     with:
       upload_artifacts: true
-      full_macos_build: ${{ github.ref == 'refs/heads/main' }}
+      full_macos_build: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/nobodywho-flutter-') }}
     needs: [linting]
 
   test:
@@ -38,7 +37,7 @@ jobs:
   release:
     needs: [build, test, python_ci]
     uses: ./.github/workflows/release.yml
-    secrets: 
+    secrets:
       TEST_PYPI_AUTH_TOKEN: ${{ secrets.TEST_PYPI_AUTH_TOKEN }}
       PYPI_AUTH_TOKEN: ${{ secrets.PYPI_AUTH_TOKEN }}
 
