@@ -56,11 +56,11 @@ impl Model {
 }
 
 #[flutter_rust_bridge::frb(opaque)]
-pub struct Chat {
+pub struct RustChat {
     chat: nobodywho::chat::ChatHandleAsync,
 }
 
-impl Chat {
+impl RustChat {
     /// Create chat from existing model.
     ///
     /// Args:
@@ -75,7 +75,7 @@ impl Chat {
         #[frb(default = "null")] system_prompt: Option<String>,
         #[frb(default = 4096)] context_size: u32,
         #[frb(default = true)] allow_thinking: bool,
-        #[frb(default = "const []")] tools: Vec<Tool>,
+        #[frb(default = "const []")] tools: Vec<RustTool>,
         #[frb(default = "null")] sampler: Option<SamplerConfig>,
     ) -> Self {
         let sampler_config = sampler.map(|s| s.sampler_config).unwrap_or_default();
@@ -112,7 +112,7 @@ impl Chat {
         #[frb(default = "null")] system_prompt: Option<String>,
         #[frb(default = 4096)] context_size: u32,
         #[frb(default = true)] allow_thinking: bool,
-        #[frb(default = "const []")] tools: Vec<Tool>,
+        #[frb(default = "const []")] tools: Vec<RustTool>,
         #[frb(default = "null")] sampler: Option<SamplerConfig>,
         #[frb(default = true)] use_gpu: bool,
     ) -> Result<Self, String> {
@@ -137,8 +137,8 @@ impl Chat {
     }
 
     #[flutter_rust_bridge::frb(sync, positional)]
-    pub fn ask(&self, message: String) -> TokenStream {
-        TokenStream {
+    pub fn ask(&self, message: String) -> RustTokenStream {
+        RustTokenStream {
             stream: self.chat.ask(message),
         }
     }
@@ -166,7 +166,7 @@ impl Chat {
     pub async fn reset_context(
         &self,
         system_prompt: String,
-        tools: Vec<Tool>,
+        tools: Vec<RustTool>,
     ) -> Result<(), nobodywho::errors::SetterError> {
         self.chat
             .reset_chat(system_prompt, tools.into_iter().map(|t| t.tool).collect())
@@ -191,7 +191,10 @@ impl Chat {
         self.chat.set_system_prompt(system_prompt).await
     }
 
-    pub async fn set_tools(&self, tools: Vec<Tool>) -> Result<(), nobodywho::errors::SetterError> {
+    pub async fn set_tools(
+        &self,
+        tools: Vec<RustTool>,
+    ) -> Result<(), nobodywho::errors::SetterError> {
         self.chat
             .set_tools(tools.into_iter().map(|t| t.tool).collect())
             .await
@@ -204,11 +207,11 @@ impl Chat {
 }
 
 #[flutter_rust_bridge::frb(opaque)]
-pub struct TokenStream {
+pub struct RustTokenStream {
     stream: nobodywho::chat::TokenStreamAsync,
 }
 
-impl TokenStream {
+impl RustTokenStream {
     pub async fn iter(
         &mut self,
         sink: crate::frb_generated::StreamSink<String>,
@@ -283,47 +286,7 @@ pub fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> f32 {
 }
 
 #[flutter_rust_bridge::frb(opaque)]
-#[flutter_rust_bridge::frb(dart_code = "
-
-import 'dart:async';
-import 'dart:convert';
-static Tool create({
-  required Function function,
-  required String name,
-  required String description
-}) {
-  // narrow wrapper needs to be written in dart to access `function.runtimeType`
-  // and to deal with dynamic function parameters
-
-  // make it a String -> Future<String> function
-  final wrappedfunction = (String jsonString) async {
-    // decode the input string as json
-    Map<String, dynamic> jsonMap = json.decode(jsonString);
-    // make it a map of symbols, to make Function.apply happy
-    Map<Symbol, dynamic> namedParams = Map.fromEntries(
-      jsonMap.entries.map((e) => MapEntry(Symbol(e.key), e.value))
-    );
-    
-    // call the function
-    final result = Function.apply(function, [], namedParams);
-
-    // handle async tools and return
-    if (result is Future) {
-      return (await result).toString();
-    } else {
-      return result.toString();
-    }
-  };
-
-  return newToolImpl(
-    function: wrappedfunction,
-    name: name,
-    description: description,
-    runtimeType: function.runtimeType.toString()
-  );
-}
-")]
-pub struct Tool {
+pub struct RustTool {
     tool: nobodywho::chat::Tool,
 }
 
@@ -333,7 +296,7 @@ pub fn new_tool_impl(
     name: String,
     description: String,
     runtime_type: String,
-) -> Result<Tool, String> {
+) -> Result<RustTool, String> {
     let json_schema = dart_function_type_to_json_schema(&runtime_type)?;
 
     // TODO: this seems to silently block forever if we get a type error on the dart side.
@@ -350,7 +313,7 @@ pub fn new_tool_impl(
         std::sync::Arc::new(sync_callback),
     );
 
-    Ok(Tool { tool })
+    Ok(RustTool { tool })
 }
 
 /// Converts a Dart function runtimeType string directly to a JSON schema

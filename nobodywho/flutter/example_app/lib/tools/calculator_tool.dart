@@ -25,25 +25,25 @@ String divide({required num a, required num b}) {
 /// Creates all calculator tools as a list.
 List<nobodywho.Tool> createCalculatorTools() {
   return [
-    nobodywho.Tool.create(
+    nobodywho.Tool(
       function: add,
       name: 'calculator_add',
       description:
           'Add two numbers together. Parameters: a (first number), b (second number). Returns the sum.',
     ),
-    nobodywho.Tool.create(
+    nobodywho.Tool(
       function: subtract,
       name: 'calculator_subtract',
       description:
           'Subtract the second number from the first. Parameters: a (first number), b (second number). Returns a - b.',
     ),
-    nobodywho.Tool.create(
+    nobodywho.Tool(
       function: multiply,
       name: 'calculator_multiply',
       description:
           'Multiply two numbers. Parameters: a (first number), b (second number). Returns the product.',
     ),
-    nobodywho.Tool.create(
+    nobodywho.Tool(
       function: divide,
       name: 'calculator_divide',
       description:

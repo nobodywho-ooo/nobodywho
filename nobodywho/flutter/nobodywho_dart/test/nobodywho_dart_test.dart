@@ -31,12 +31,12 @@ void main() {
 
     setUp(() async {
       // Additional setup goes here.
-      final sparklify_tool = nobodywho.Tool.create(
+      final sparklify_tool = nobodywho.Tool(
         function: sparklify,
         name: "sparklify",
         description: "Applies the sparklify effect to a string",
       );
-      final strongify_tool = nobodywho.Tool.create(
+      final strongify_tool = nobodywho.Tool(
         function: strongify,
         name: "strongify",
         description: "Applies the strongify effect to a string",
@@ -54,7 +54,7 @@ void main() {
     test('Capital of Denmark test', () async {
       final responseStream = chat!.ask("What is the capital of Denmark?");
       String response = "";
-      await for (final token in responseStream.iter()) {
+      await for (final token in responseStream) {
         response += token;
       }
       expect(response, contains("Copenhagen"));
@@ -65,7 +65,7 @@ void main() {
         "Can you please sparklify the string 'Foopdoop'?",
       );
       String response = "";
-      await for (final token in responseStream.iter()) {
+      await for (final token in responseStream) {
         response += token;
       }
       expect(response, contains("✨Foopdoop✨"));
@@ -76,7 +76,7 @@ void main() {
         "Can you please strongify the string 'Wrawr'?",
       );
       String response = "";
-      await for (final token in responseStream.iter()) {
+      await for (final token in responseStream) {
         response += token;
       }
 
@@ -152,7 +152,7 @@ void main() {
           .topP(topP: 0.9, minKeep: 20)
           .temperature(temperature: 1.2)
           .dist();
-      await chat!.setSamplerConfig(samplerConfig: sampler);
+      await chat!.setSamplerConfig(sampler);
       final response = await chat!
           .ask("Can you please strongify the string 'Wrawr'?")
           .completed();
@@ -162,7 +162,7 @@ void main() {
 
     test('Tools work with sampler presets', () async {
       final sampler = nobodywho.SamplerPresets.temperature(temperature: 1.2);
-      await chat!.setSamplerConfig(samplerConfig: sampler);
+      await chat!.setSamplerConfig(sampler);
       final response = await chat!
           .ask("Can you please strongify the string 'Wrawr'?")
           .completed();
@@ -173,7 +173,7 @@ void main() {
     test('Sampler actually affects output', () async {
       // Test that greedy sampler gives deterministic output
       final greedy = nobodywho.SamplerPresets.greedy();
-      await chat!.setSamplerConfig(samplerConfig: greedy);
+      await chat!.setSamplerConfig(greedy);
 
       final response1 = await chat!.ask("Say exactly: 'Hello'").completed();
       await chat!.resetHistory();
@@ -221,7 +221,7 @@ void main() {
 
     test('set_tools changes available tools', () async {
       // Create a chat with only sparklify tool
-      final sparklify_tool = nobodywho.Tool.create(
+      final sparklify_tool = nobodywho.Tool(
         function: sparklify,
         name: "sparklify",
         description: "Applies the sparklify effect to a string",
@@ -242,13 +242,13 @@ void main() {
       expect(response1, contains("✨hello✨"));
 
       // Change tools to strongify
-      final strongify_tool = nobodywho.Tool.create(
+      final strongify_tool = nobodywho.Tool(
         function: strongify,
         name: "strongify",
         description: "Applies the strongify effect to a string",
       );
 
-      await testChat.setTools(tools: [strongify_tool]);
+      await testChat.setTools([strongify_tool]);
 
       // Reset history but keep new tools
       await testChat.resetHistory();
