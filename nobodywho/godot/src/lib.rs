@@ -93,7 +93,7 @@ impl NobodyWhoModel {
     /// Call this method to start loading the model in the background.
     /// This is useful to avoid the blocking the main thread (causing a freeze).
     /// When calling this function, you should take care to wait for the `model_loaded` signal
-    /// before calling `ask` or anything like that, (to avoid loading the model twice, which is
+    /// before calling `ask`, `start_worker`, or anything like that, (to avoid loading the model twice, which is
     /// inefficient).
     fn load_model_in_background(&mut self) {
         // TODO: would be nice if you didn't have to explicitly call this,
@@ -105,11 +105,18 @@ impl NobodyWhoModel {
         let mut node = self.to_gd();
 
         godot::task::spawn(async move {
+            let mut mut_node = node.bind_mut();
+
+            if mut_node.model.is_some() {
+                // model was already loaded, emit singal and do nothing
+                mut_node.signals().model_loaded().emit();
+            }
+
             let model_result = nobodywho::llm::get_model_async(model_path_string, use_gpu).await;
             match model_result {
                 Ok(model) => {
-                    node.bind_mut().model = Some(model);
-                    node.signals().model_loaded().emit();
+                    mut_node.model = Some(model);
+                    mut_node.signals().model_loaded().emit();
                 }
                 Err(err) => {
                     godot_error!("Failed loading model in background: {:?}", err.to_string())
