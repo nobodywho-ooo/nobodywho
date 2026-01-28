@@ -2,7 +2,7 @@ name: nobodywho
 description: "Flutter FFI plugin for NobodyWho - local LLM inference with tool calling, embeddings, and cross-encoding"
 version: 0.1.0
 repository: https://github.com/nobodywho-ooo/nobodywho
-homepage:
+homepage: https://docs.nobodywho.ooo/
 
 environment:
   sdk: ^3.9.2
