@@ -1,8 +1,40 @@
-.codehilite .nn {
-    color: #fff;
-}
-
 /* Hide the copy button in the header */
 #page-header button {
     display: none;
+}
+
+.codehilite .kn,
+.codehilite .k,
+.codehilite .ow,
+.codehilite .o,
+.codehilite .kd,
+.codehilite .kt {
+    color: #eb9002;
+}
+
+.codehilite .n,
+.codehilite .nb,
+.codehilite .nl,
+.codehilite .nc {
+    color: #24292f;
+}
+
+.dark .codehilite .kn,
+.dark .codehilite .k,
+.dark .codehilite .ow,
+.dark .codehilite .o,
+.dark .codehilite .kd,
+.dark .codehilite .kt {
+    color: #f4d738;
+}
+
+.dark .codehilite .nn {
+    color: #fff;
+}
+
+.dark .codehilite .n,
+.dark .codehilite .nb,
+.dark .codehilite .nl,
+.dark .codehilite .nc {
+    color: #e6edf3;
 }
