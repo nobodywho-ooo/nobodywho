@@ -146,7 +146,11 @@ jobs:
   create-github-release-flutter:
     if: startsWith(github.ref, 'refs/tags/nobodywho-flutter-')
     runs-on: ubuntu-24.04
+    permissions:
+      id-token: write # Required for authentication using OIDC
     steps:
+      - uses: actions/checkout@v4
+
       - name: "Download all Flutter artifacts"
         uses: actions/download-artifact@v4
         with:
@@ -171,3 +175,13 @@ jobs:
           files: ./nobodywho-flutter-release/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Flutter SDK
+        uses: flutter-actions/setup-flutter@v4
+        with:
+          channel: stable
+          version: 3.35.5
+
+      - name: "Publish to pub.dev"
+        run: flutter pub publish --force
+        working-directory: nobodywho/flutter/nobodywho
