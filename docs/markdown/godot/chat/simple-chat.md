@@ -181,27 +181,29 @@ chat.ask("Create a fantasy character")
 
 ## Performance and Memory Tips
 
-### Start the Worker Early
+### Load model in background
 
-In a real-time application, you don't want the user's first interaction to trigger a long loading time. Starting the worker early, like during a splash screen or initial setup, pre-loads the model into memory so the first response is fast.
+By default, loading the model will block the main thread, effectively causing dropped frames in your project until the model has finished loading.
 
-```gdscript
-# In your _ready() function, set up everything before the app starts.
+The way to avoid this is to call `load_model_in_background()` on the `NobodyWhoModel` node.
+This will start a background process that loads the model, emitting the `model_loaded` signal once done.
+
+If you want to be sure to never drop frames while loading the model (e.g. to display a loading spinner), make sure that the `model_loaded` signal has been emitted before you start interacting with the model.
+
+```
 func _ready():
     # 1. Configure the chat behavior
     self.system_prompt = "You are a helpful assistant."
     self.model_node = get_node("../SharedModel")
 
-    # 2. Start the worker *before* the user can interact.
-    # This pre-loads the model so the first interaction isn't slow.
-    start_worker()
+    # 2. Wait for model to be ready
+    self.model_node.load_model_in_background()
+    await self.model_node.model_loaded
 
     # 3. Now other setup can happen
     print("Assistant chat is ready.")
 ```
 
-**Why:** Starting the worker loads the model into memory. It's slow the first time, but then all LLM operations are much faster. 
-You should definitely think about when to do this to not ruin the UX too much.
 
 ### Share Models Between Components
 
