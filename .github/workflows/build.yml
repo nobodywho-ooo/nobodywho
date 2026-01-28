@@ -268,7 +268,7 @@ jobs:
 
           # ios sim (aarch64 only, no lipo needed)
           mkdir ios-sim
-          cp nobodywho-flutter-aarch64-apple-ios-sim-release.a ./ios-sim/$LIBNAME
+          cp libnobodywho-flutter-aarch64-apple-ios-sim-release.a ./ios-sim/$LIBNAME
 
           # macos universal binary
           mkdir macos-lipo
