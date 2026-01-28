@@ -4,7 +4,7 @@
 cmake_minimum_required(VERSION 3.10)
 
 # Project-level configuration.
-set(PROJECT_NAME "nobodywho_flutter")
+set(PROJECT_NAME "nobodywho")
 project(${PROJECT_NAME} LANGUAGES CXX)
 
 # The binary resolution is handled by a Dart script that supports multiple methods:
@@ -43,7 +43,7 @@ endif()
 message(STATUS "Using NobodyWho library for Linux ${LINUX_ARCH}: ${NOBODYWHO_LIB_PATH}")
 
 # List of absolute paths to libraries that should be bundled with the plugin.
-set(nobodywho_flutter_bundled_libraries
+set(nobodywho_bundled_libraries
   ${NOBODYWHO_LIB_PATH}
   PARENT_SCOPE
 )

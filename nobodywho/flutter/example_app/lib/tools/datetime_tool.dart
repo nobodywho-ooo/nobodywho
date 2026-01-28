@@ -1,4 +1,4 @@
-import 'package:nobodywho_flutter/nobodywho_flutter.dart' as nobodywho;
+import 'package:nobodywho/nobodywho.dart' as nobodywho;
 
 /// Get the current date and time in ISO format.
 /// The timezone parameter is ignored (placeholder for required named parameter).

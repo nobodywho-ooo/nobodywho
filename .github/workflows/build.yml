@@ -252,7 +252,7 @@ jobs:
       - name: Create headers
         run: |
           mkdir -p headers
-          cp nobodywho/flutter/nobodywho_flutter/ios/Classes/binding.h headers/
+          cp nobodywho/flutter/nobodywho/ios/Classes/binding.h headers/
           cat > headers/module.modulemap << 'EOF'
           module CBinding {
               header "binding.h"

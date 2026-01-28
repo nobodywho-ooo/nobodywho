@@ -328,20 +328,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.0"
-  nobodywho_dart:
-    dependency: transitive
-    description:
-      path: "../nobodywho_dart"
-      relative: true
-    source: path
-    version: "1.0.0"
-  nobodywho_flutter:
+  nobodywho:
     dependency: "direct main"
     description:
-      path: "../nobodywho_flutter"
+      path: "../nobodywho"
       relative: true
     source: path
-    version: "0.0.0-rc4"
+    version: "0.1.0"
   node_preamble:
     dependency: transitive
     description:

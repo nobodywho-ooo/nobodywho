@@ -1,7 +1,7 @@
 
 # Nobodywho Flutter bindings
 
-Here is four folders:
+Here are three folders:
 
 ## `rust/`
 
@@ -13,13 +13,13 @@ The `NOBODYWHO_SKIP_CODEGEN` environment variable can be used to skip codegen if
 
 Whenever the `rust` crate is built, it overwrites the code-generated files in the repo.
 
-## `nobodywho_dart/`
+## `nobodywho/`
 
-This pure-dart package contains the generated dart code for binding into the rust crate.
+This Flutter plugin contains the generated Dart code for binding into the Rust crate (in `lib/src/rust/`).
 
-It also contains a tiny bit of dart code to wrap tool calling functions.
+It also contains high-level Dart wrapper classes (Chat, Tool, TokenStream) for an ergonomic API.
 
-This also contains a bunch of unit tests to check that the bindings actually work.
+This package includes unit tests to verify the bindings work correctly.
 They can be run using `dart test`, but dart needs to be able to find the dynamlic library of nobodywho to run them. I usually do something like this:
 
 **On Linux**:
@@ -35,17 +35,18 @@ So temporary solution is to create a symlink with:
 ```bash
 cd flutter/rust
 cargo build
-cd flutter/nobodywho_dart
+cd ../nobodywho
 mkdir -p nobodywho_flutter.framework
-ln -sf ../../../target/debug/libnobodywho_flutter.dylib nobodywho_flutter.framework/nobodywho_flutter
+ln -sf ../../target/debug/libnobodywho_flutter.dylib nobodywho_flutter.framework/nobodywho_flutter
+dart test
 ```
 (Opt for the release you want, it can be debug or something else.)
 
-## `nobodywho_flutter/`
+The package also contains platform-specific build scripts for including pre-built binary artifacts (so end-users don't need Rust and llama.cpp build dependencies).
 
-This flutter plugin depends on and re-exports the `nobodywho_dart` package, and also contains platform-specific build scripts for including pre-built binary artifacts (so the end-user doesn't need the build-time dependencies of rust and llama.cpp).
+### Binary Resolution
 
-In general, the build scripts (CMakeLists.txt, Podspec, gradle/ktl files) will try these three things:
+The build scripts (CMakeLists.txt, Podspec, gradle/ktl files) resolve binaries using these strategies (in order):
 
 1. check the environment variable `NOBODYWHO_FLUTTER_LIB_PATH`
 2. check for libnobodywho_flutter.so in a parent cargo target dir (`../../../target/release/libnobodywho_flutter.so`), useful during development

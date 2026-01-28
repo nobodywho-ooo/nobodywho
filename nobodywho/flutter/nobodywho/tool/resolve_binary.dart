@@ -184,7 +184,7 @@ String? checkLocalBuild(Config config) {
   // Find the script directory (tool/) and navigate to workspace root
   final scriptFile = File(Platform.script.toFilePath());
   final toolDir = scriptFile.parent;
-  final pluginDir = toolDir.parent; // nobodywho_flutter/
+  final pluginDir = toolDir.parent; // nobodywho/
   final flutterDir = pluginDir.parent; // flutter/
   final nobodywhoDir = flutterDir.parent; // nobodywho/
   final targetDir = Directory('${nobodywhoDir.path}/target');
@@ -238,7 +238,7 @@ String? checkLocalBuild(Config config) {
 
 String? checkCachedDownload(Config config) {
   final version = getVersion();
-  final cacheBasePath = '${config.cacheDir}/nobodywho_flutter/$version';
+  final cacheBasePath = '${config.cacheDir}/nobodywho/$version';
 
   if (config.isApplePlatform) {
     // Check for cached xcframework
@@ -302,7 +302,7 @@ Future<String> downloadLibrary(Config config, String version) async {
   final url = 'https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-flutter-v$version/$fileName';
 
   // Prepare cache directory
-  final cacheDir = '${config.cacheDir}/nobodywho_flutter/$version/${config.platform}-${config.arch}';
+  final cacheDir = '${config.cacheDir}/nobodywho/$version/${config.platform}-${config.arch}';
   final cacheDirObj = Directory(cacheDir);
   await cacheDirObj.create(recursive: true);
 
@@ -346,7 +346,7 @@ Future<String> downloadXCFramework(Config config, String version) async {
   final url = 'https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-flutter-v$version/$fileName';
 
   // Prepare cache directory
-  final cacheDir = '${config.cacheDir}/nobodywho_flutter/$version/xcframework';
+  final cacheDir = '${config.cacheDir}/nobodywho/$version/xcframework';
   final cacheDirObj = Directory(cacheDir);
   await cacheDirObj.create(recursive: true);
 

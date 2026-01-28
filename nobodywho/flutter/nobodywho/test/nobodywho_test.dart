@@ -1,7 +1,7 @@
 @Timeout(Duration(seconds: 600))
 // TODO ^ kind a sucks that we need this high a timeout
 //      the issue is mostly that the llvmpipe stuff we're doing inside nix sandbox is slow as hell
-import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
+import 'package:nobodywho/nobodywho.dart' as nobodywho;
 import 'package:test/test.dart';
 import 'dart:io';
 
