@@ -7,6 +7,8 @@
 // 3. Cached download
 // 4. Download from GitHub releases
 
+import java.io.ByteArrayOutputStream
+
 plugins {
     id("com.android.library")
 }
@@ -69,8 +71,8 @@ val resolveNativeLibraries by tasks.registering {
             abiOutputDir.mkdirs()
 
             // Run the Dart script to resolve the library path
-            val stdout = java.io.ByteArrayOutputStream()
-            val stderr = java.io.ByteArrayOutputStream()
+            val stdout = ByteArrayOutputStream()
+            val stderr = ByteArrayOutputStream()
 
             val execResult = project.exec {
                 commandLine(
@@ -80,7 +82,7 @@ val resolveNativeLibraries by tasks.registering {
                     "--build-type=release",
                     "--cache-dir=${cacheDir.get().asFile.absolutePath}"
                 )
-                workingDir = workingDir
+                setWorkingDir(workingDir)
                 standardOutput = stdout
                 errorOutput = stderr
                 isIgnoreExitValue = true
