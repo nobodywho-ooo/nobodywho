@@ -20,7 +20,7 @@ This Flutter plugin contains the generated Dart code for binding into the Rust c
 It also contains high-level Dart wrapper classes (Chat, Tool, TokenStream) for an ergonomic API.
 
 This package includes unit tests to verify the bindings work correctly.
-They can be run using `dart test`, but dart needs to be able to find the dynamlic library of nobodywho to run them. I usually do something like this:
+They can be run using `dart test`, but dart needs to be able to find the dynamic library of nobodywho to run them. I usually do something like this:
 
 **On Linux**:
 ```rust
@@ -50,7 +50,7 @@ The build scripts (CMakeLists.txt, Podspec, gradle/ktl files) resolve binaries u
 
 1. check the environment variable `NOBODYWHO_FLUTTER_LIB_PATH`
 2. check for libnobodywho_flutter.so in a parent cargo target dir (`../../../target/release/libnobodywho_flutter.so`), useful during development
-3. figure out the verison number of the flutter package, and download the corresponding dynamlic lib from github releases (WIP)
+3. figure out the verison number of the flutter package, and download the corresponding dynamic lib from github releases (WIP)
 
 ## Building for Android
 
