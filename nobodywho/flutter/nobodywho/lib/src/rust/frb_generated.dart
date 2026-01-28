@@ -3,12 +3,12 @@
 
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
-import 'api/nobodywho.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'frb_generated.dart';
 import 'frb_generated.io.dart'
     if (dart.library.js_interop) 'frb_generated.web.dart';
+import 'lib.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 /// Main entrypoint of the Rust API
@@ -56,7 +56,7 @@ class NobodyWho
 
   @override
   Future<void> executeRustInitializers() async {
-    await api.crateApiNobodywhoInitApp();
+    await api.crateInitApp();
   }
 
   @override
@@ -67,7 +67,7 @@ class NobodyWho
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -1159746912;
+  int get rustContentHash => -671491735;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -78,41 +78,35 @@ class NobodyWho
 }
 
 abstract class NobodyWhoApi extends BaseApi {
-  CrossEncoder crateApiNobodywhoCrossEncoderNew({
-    required Model model,
-    int nCtx = 4096,
-  });
+  CrossEncoder crateCrossEncoderNew({required Model model, int nCtx = 4096});
 
-  Future<Float32List> crateApiNobodywhoCrossEncoderRank({
+  Future<Float32List> crateCrossEncoderRank({
     required CrossEncoder that,
     required String query,
     required List<String> documents,
   });
 
-  Future<List<(String, double)>> crateApiNobodywhoCrossEncoderRankAndSort({
+  Future<List<(String, double)>> crateCrossEncoderRankAndSort({
     required CrossEncoder that,
     required String query,
     required List<String> documents,
   });
 
-  Future<Float32List> crateApiNobodywhoEncoderEncode({
+  Future<Float32List> crateEncoderEncode({
     required Encoder that,
     required String text,
   });
 
-  Encoder crateApiNobodywhoEncoderNew({required Model model, int nCtx = 4096});
+  Encoder crateEncoderNew({required Model model, int nCtx = 4096});
 
-  Future<Model> crateApiNobodywhoModelLoad({
-    required String modelPath,
-    bool useGpu = true,
-  });
+  Future<Model> crateModelLoad({required String modelPath, bool useGpu = true});
 
-  RustTokenStream crateApiNobodywhoRustChatAsk({
+  RustTokenStream crateRustChatAsk({
     required RustChat that,
     required String message,
   });
 
-  Future<RustChat> crateApiNobodywhoRustChatFromPath({
+  Future<RustChat> crateRustChatFromPath({
     required String modelPath,
     String? systemPrompt = null,
     int contextSize = 4096,
@@ -122,11 +116,9 @@ abstract class NobodyWhoApi extends BaseApi {
     bool useGpu = true,
   });
 
-  Future<List<Message>> crateApiNobodywhoRustChatGetChatHistory({
-    required RustChat that,
-  });
+  Future<List<Message>> crateRustChatGetChatHistory({required RustChat that});
 
-  RustChat crateApiNobodywhoRustChatNew({
+  RustChat crateRustChatNew({
     required Model model,
     String? systemPrompt = null,
     int contextSize = 4096,
@@ -135,58 +127,52 @@ abstract class NobodyWhoApi extends BaseApi {
     SamplerConfig? sampler = null,
   });
 
-  Future<void> crateApiNobodywhoRustChatResetContext({
+  Future<void> crateRustChatResetContext({
     required RustChat that,
     required String systemPrompt,
     required List<RustTool> tools,
   });
 
-  Future<void> crateApiNobodywhoRustChatResetHistory({required RustChat that});
+  Future<void> crateRustChatResetHistory({required RustChat that});
 
-  Future<void> crateApiNobodywhoRustChatSetAllowThinking({
+  Future<void> crateRustChatSetAllowThinking({
     required RustChat that,
     required bool allowThinking,
   });
 
-  Future<void> crateApiNobodywhoRustChatSetChatHistory({
+  Future<void> crateRustChatSetChatHistory({
     required RustChat that,
     required List<Message> messages,
   });
 
-  Future<void> crateApiNobodywhoRustChatSetSamplerConfig({
+  Future<void> crateRustChatSetSamplerConfig({
     required RustChat that,
     required SamplerConfig samplerConfig,
   });
 
-  Future<void> crateApiNobodywhoRustChatSetSystemPrompt({
+  Future<void> crateRustChatSetSystemPrompt({
     required RustChat that,
     required String systemPrompt,
   });
 
-  Future<void> crateApiNobodywhoRustChatSetTools({
+  Future<void> crateRustChatSetTools({
     required RustChat that,
     required List<RustTool> tools,
   });
 
-  void crateApiNobodywhoRustChatStopGeneration({required RustChat that});
+  void crateRustChatStopGeneration({required RustChat that});
 
-  Future<String> crateApiNobodywhoRustTokenStreamCompleted({
+  Future<String> crateRustTokenStreamCompleted({required RustTokenStream that});
+
+  Stream<String> crateRustTokenStreamIter({required RustTokenStream that});
+
+  Future<String?> crateRustTokenStreamNextToken({
     required RustTokenStream that,
   });
 
-  Stream<String> crateApiNobodywhoRustTokenStreamIter({
-    required RustTokenStream that,
-  });
+  SamplerConfig crateSamplerBuilderDist({required SamplerBuilder that});
 
-  Future<String?> crateApiNobodywhoRustTokenStreamNextToken({
-    required RustTokenStream that,
-  });
-
-  SamplerConfig crateApiNobodywhoSamplerBuilderDist({
-    required SamplerBuilder that,
-  });
-
-  SamplerBuilder crateApiNobodywhoSamplerBuilderDry({
+  SamplerBuilder crateSamplerBuilderDry({
     required SamplerBuilder that,
     required double multiplier,
     required double base,
@@ -195,39 +181,37 @@ abstract class NobodyWhoApi extends BaseApi {
     required List<String> seqBreakers,
   });
 
-  SamplerBuilder crateApiNobodywhoSamplerBuilderGrammar({
+  SamplerBuilder crateSamplerBuilderGrammar({
     required SamplerBuilder that,
     required String grammar,
     String? triggerOn,
     required String root,
   });
 
-  SamplerConfig crateApiNobodywhoSamplerBuilderGreedy({
-    required SamplerBuilder that,
-  });
+  SamplerConfig crateSamplerBuilderGreedy({required SamplerBuilder that});
 
-  SamplerBuilder crateApiNobodywhoSamplerBuilderMinP({
+  SamplerBuilder crateSamplerBuilderMinP({
     required SamplerBuilder that,
     required double minP,
     required int minKeep,
   });
 
-  SamplerConfig crateApiNobodywhoSamplerBuilderMirostatV1({
+  SamplerConfig crateSamplerBuilderMirostatV1({
     required SamplerBuilder that,
     required double tau,
     required double eta,
     required int m,
   });
 
-  SamplerConfig crateApiNobodywhoSamplerBuilderMirostatV2({
+  SamplerConfig crateSamplerBuilderMirostatV2({
     required SamplerBuilder that,
     required double tau,
     required double eta,
   });
 
-  SamplerBuilder crateApiNobodywhoSamplerBuilderNew();
+  SamplerBuilder crateSamplerBuilderNew();
 
-  SamplerBuilder crateApiNobodywhoSamplerBuilderPenalties({
+  SamplerBuilder crateSamplerBuilderPenalties({
     required SamplerBuilder that,
     required int penaltyLastN,
     required double penaltyRepeat,
@@ -235,86 +219,82 @@ abstract class NobodyWhoApi extends BaseApi {
     required double penaltyPresent,
   });
 
-  SamplerBuilder crateApiNobodywhoSamplerBuilderTemperature({
+  SamplerBuilder crateSamplerBuilderTemperature({
     required SamplerBuilder that,
     required double temperature,
   });
 
-  SamplerBuilder crateApiNobodywhoSamplerBuilderTopK({
+  SamplerBuilder crateSamplerBuilderTopK({
     required SamplerBuilder that,
     required int topK,
   });
 
-  SamplerBuilder crateApiNobodywhoSamplerBuilderTopP({
+  SamplerBuilder crateSamplerBuilderTopP({
     required SamplerBuilder that,
     required double topP,
     required int minKeep,
   });
 
-  SamplerBuilder crateApiNobodywhoSamplerBuilderTypicalP({
+  SamplerBuilder crateSamplerBuilderTypicalP({
     required SamplerBuilder that,
     required double typP,
     required int minKeep,
   });
 
-  SamplerBuilder crateApiNobodywhoSamplerBuilderXtc({
+  SamplerBuilder crateSamplerBuilderXtc({
     required SamplerBuilder that,
     required double xtcProbability,
     required double xtcThreshold,
     required int minKeep,
   });
 
-  SamplerConfig crateApiNobodywhoSamplerPresetsDefaultSampler();
+  SamplerConfig crateSamplerPresetsDefaultSampler();
 
-  SamplerConfig crateApiNobodywhoSamplerPresetsDry();
+  SamplerConfig crateSamplerPresetsDry();
 
-  SamplerConfig crateApiNobodywhoSamplerPresetsGrammar({
-    required String grammar,
-  });
+  SamplerConfig crateSamplerPresetsGrammar({required String grammar});
 
-  SamplerConfig crateApiNobodywhoSamplerPresetsGreedy();
+  SamplerConfig crateSamplerPresetsGreedy();
 
-  SamplerConfig crateApiNobodywhoSamplerPresetsJson();
+  SamplerConfig crateSamplerPresetsJson();
 
-  SamplerConfig crateApiNobodywhoSamplerPresetsTemperature({
-    required double temperature,
-  });
+  SamplerConfig crateSamplerPresetsTemperature({required double temperature});
 
-  SamplerConfig crateApiNobodywhoSamplerPresetsTopK({required int topK});
+  SamplerConfig crateSamplerPresetsTopK({required int topK});
 
-  SamplerConfig crateApiNobodywhoSamplerPresetsTopP({required double topP});
+  SamplerConfig crateSamplerPresetsTopP({required double topP});
 
-  Value crateApiNobodywhoToolCallAutoAccessorGetArguments({
-    required ToolCall that,
-  });
+  Value crateToolCallAutoAccessorGetArguments({required ToolCall that});
 
-  String crateApiNobodywhoToolCallAutoAccessorGetName({required ToolCall that});
+  String crateToolCallAutoAccessorGetName({required ToolCall that});
 
-  void crateApiNobodywhoToolCallAutoAccessorSetArguments({
+  void crateToolCallAutoAccessorSetArguments({
     required ToolCall that,
     required Value arguments,
   });
 
-  void crateApiNobodywhoToolCallAutoAccessorSetName({
+  void crateToolCallAutoAccessorSetName({
     required ToolCall that,
     required String name,
   });
 
-  double crateApiNobodywhoCosineSimilarity({
+  double crateCosineSimilarity({
     required List<double> a,
     required List<double> b,
   });
 
-  Future<void> crateApiNobodywhoInitApp();
+  Future<void> crateEnforceBinding();
 
-  RustTool crateApiNobodywhoNewToolImpl({
+  Future<void> crateInitApp();
+
+  RustTool crateNewToolImpl({
     required FutureOr<String> Function(String) function,
     required String name,
     required String description,
     required String runtimeType,
   });
 
-  String crateApiNobodywhoToolCallArgumentsJson({required ToolCall toolCall});
+  String crateToolCallArgumentsJson({required ToolCall toolCall});
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_CompletionError;
@@ -465,10 +445,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   });
 
   @override
-  CrossEncoder crateApiNobodywhoCrossEncoderNew({
-    required Model model,
-    int nCtx = 4096,
-  }) {
+  CrossEncoder crateCrossEncoderNew({required Model model, int nCtx = 4096}) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
@@ -485,21 +462,20 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoder,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoCrossEncoderNewConstMeta,
+        constMeta: kCrateCrossEncoderNewConstMeta,
         argValues: [model, nCtx],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoCrossEncoderNewConstMeta =>
-      const TaskConstMeta(
-        debugName: "CrossEncoder_new",
-        argNames: ["model", "nCtx"],
-      );
+  TaskConstMeta get kCrateCrossEncoderNewConstMeta => const TaskConstMeta(
+    debugName: "CrossEncoder_new",
+    argNames: ["model", "nCtx"],
+  );
 
   @override
-  Future<Float32List> crateApiNobodywhoCrossEncoderRank({
+  Future<Float32List> crateCrossEncoderRank({
     required CrossEncoder that,
     required String query,
     required List<String> documents,
@@ -526,21 +502,20 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeErrorData:
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderWorkerError,
         ),
-        constMeta: kCrateApiNobodywhoCrossEncoderRankConstMeta,
+        constMeta: kCrateCrossEncoderRankConstMeta,
         argValues: [that, query, documents],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoCrossEncoderRankConstMeta =>
-      const TaskConstMeta(
-        debugName: "CrossEncoder_rank",
-        argNames: ["that", "query", "documents"],
-      );
+  TaskConstMeta get kCrateCrossEncoderRankConstMeta => const TaskConstMeta(
+    debugName: "CrossEncoder_rank",
+    argNames: ["that", "query", "documents"],
+  );
 
   @override
-  Future<List<(String, double)>> crateApiNobodywhoCrossEncoderRankAndSort({
+  Future<List<(String, double)>> crateCrossEncoderRankAndSort({
     required CrossEncoder that,
     required String query,
     required List<String> documents,
@@ -567,21 +542,21 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeErrorData:
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderWorkerError,
         ),
-        constMeta: kCrateApiNobodywhoCrossEncoderRankAndSortConstMeta,
+        constMeta: kCrateCrossEncoderRankAndSortConstMeta,
         argValues: [that, query, documents],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoCrossEncoderRankAndSortConstMeta =>
+  TaskConstMeta get kCrateCrossEncoderRankAndSortConstMeta =>
       const TaskConstMeta(
         debugName: "CrossEncoder_rank_and_sort",
         argNames: ["that", "query", "documents"],
       );
 
   @override
-  Future<Float32List> crateApiNobodywhoEncoderEncode({
+  Future<Float32List> crateEncoderEncode({
     required Encoder that,
     required String text,
   }) {
@@ -606,21 +581,20 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeErrorData:
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderWorkerError,
         ),
-        constMeta: kCrateApiNobodywhoEncoderEncodeConstMeta,
+        constMeta: kCrateEncoderEncodeConstMeta,
         argValues: [that, text],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoEncoderEncodeConstMeta =>
-      const TaskConstMeta(
-        debugName: "Encoder_encode",
-        argNames: ["that", "text"],
-      );
+  TaskConstMeta get kCrateEncoderEncodeConstMeta => const TaskConstMeta(
+    debugName: "Encoder_encode",
+    argNames: ["that", "text"],
+  );
 
   @override
-  Encoder crateApiNobodywhoEncoderNew({required Model model, int nCtx = 4096}) {
+  Encoder crateEncoderNew({required Model model, int nCtx = 4096}) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
@@ -637,21 +611,20 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoder,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoEncoderNewConstMeta,
+        constMeta: kCrateEncoderNewConstMeta,
         argValues: [model, nCtx],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoEncoderNewConstMeta =>
-      const TaskConstMeta(
-        debugName: "Encoder_new",
-        argNames: ["model", "nCtx"],
-      );
+  TaskConstMeta get kCrateEncoderNewConstMeta => const TaskConstMeta(
+    debugName: "Encoder_new",
+    argNames: ["model", "nCtx"],
+  );
 
   @override
-  Future<Model> crateApiNobodywhoModelLoad({
+  Future<Model> crateModelLoad({
     required String modelPath,
     bool useGpu = true,
   }) {
@@ -673,20 +646,20 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerModel,
           decodeErrorData: sse_decode_String,
         ),
-        constMeta: kCrateApiNobodywhoModelLoadConstMeta,
+        constMeta: kCrateModelLoadConstMeta,
         argValues: [modelPath, useGpu],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoModelLoadConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateModelLoadConstMeta => const TaskConstMeta(
     debugName: "Model_load",
     argNames: ["modelPath", "useGpu"],
   );
 
   @override
-  RustTokenStream crateApiNobodywhoRustChatAsk({
+  RustTokenStream crateRustChatAsk({
     required RustChat that,
     required String message,
   }) {
@@ -706,21 +679,20 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTokenStream,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoRustChatAskConstMeta,
+        constMeta: kCrateRustChatAskConstMeta,
         argValues: [that, message],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoRustChatAskConstMeta =>
-      const TaskConstMeta(
-        debugName: "RustChat_ask",
-        argNames: ["that", "message"],
-      );
+  TaskConstMeta get kCrateRustChatAskConstMeta => const TaskConstMeta(
+    debugName: "RustChat_ask",
+    argNames: ["that", "message"],
+  );
 
   @override
-  Future<RustChat> crateApiNobodywhoRustChatFromPath({
+  Future<RustChat> crateRustChatFromPath({
     required String modelPath,
     String? systemPrompt = null,
     int contextSize = 4096,
@@ -758,7 +730,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustChat,
           decodeErrorData: sse_decode_String,
         ),
-        constMeta: kCrateApiNobodywhoRustChatFromPathConstMeta,
+        constMeta: kCrateRustChatFromPathConstMeta,
         argValues: [
           modelPath,
           systemPrompt,
@@ -773,24 +745,21 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoRustChatFromPathConstMeta =>
-      const TaskConstMeta(
-        debugName: "RustChat_from_path",
-        argNames: [
-          "modelPath",
-          "systemPrompt",
-          "contextSize",
-          "allowThinking",
-          "tools",
-          "sampler",
-          "useGpu",
-        ],
-      );
+  TaskConstMeta get kCrateRustChatFromPathConstMeta => const TaskConstMeta(
+    debugName: "RustChat_from_path",
+    argNames: [
+      "modelPath",
+      "systemPrompt",
+      "contextSize",
+      "allowThinking",
+      "tools",
+      "sampler",
+      "useGpu",
+    ],
+  );
 
   @override
-  Future<List<Message>> crateApiNobodywhoRustChatGetChatHistory({
-    required RustChat that,
-  }) {
+  Future<List<Message>> crateRustChatGetChatHistory({required RustChat that}) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -811,21 +780,21 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeErrorData:
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGetterError,
         ),
-        constMeta: kCrateApiNobodywhoRustChatGetChatHistoryConstMeta,
+        constMeta: kCrateRustChatGetChatHistoryConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoRustChatGetChatHistoryConstMeta =>
+  TaskConstMeta get kCrateRustChatGetChatHistoryConstMeta =>
       const TaskConstMeta(
         debugName: "RustChat_get_chat_history",
         argNames: ["that"],
       );
 
   @override
-  RustChat crateApiNobodywhoRustChatNew({
+  RustChat crateRustChatNew({
     required Model model,
     String? systemPrompt = null,
     int contextSize = 4096,
@@ -859,7 +828,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustChat,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoRustChatNewConstMeta,
+        constMeta: kCrateRustChatNewConstMeta,
         argValues: [
           model,
           systemPrompt,
@@ -873,21 +842,20 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoRustChatNewConstMeta =>
-      const TaskConstMeta(
-        debugName: "RustChat_new",
-        argNames: [
-          "model",
-          "systemPrompt",
-          "contextSize",
-          "allowThinking",
-          "tools",
-          "sampler",
-        ],
-      );
+  TaskConstMeta get kCrateRustChatNewConstMeta => const TaskConstMeta(
+    debugName: "RustChat_new",
+    argNames: [
+      "model",
+      "systemPrompt",
+      "contextSize",
+      "allowThinking",
+      "tools",
+      "sampler",
+    ],
+  );
 
   @override
-  Future<void> crateApiNobodywhoRustChatResetContext({
+  Future<void> crateRustChatResetContext({
     required RustChat that,
     required String systemPrompt,
     required List<RustTool> tools,
@@ -917,21 +885,20 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeErrorData:
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError,
         ),
-        constMeta: kCrateApiNobodywhoRustChatResetContextConstMeta,
+        constMeta: kCrateRustChatResetContextConstMeta,
         argValues: [that, systemPrompt, tools],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoRustChatResetContextConstMeta =>
-      const TaskConstMeta(
-        debugName: "RustChat_reset_context",
-        argNames: ["that", "systemPrompt", "tools"],
-      );
+  TaskConstMeta get kCrateRustChatResetContextConstMeta => const TaskConstMeta(
+    debugName: "RustChat_reset_context",
+    argNames: ["that", "systemPrompt", "tools"],
+  );
 
   @override
-  Future<void> crateApiNobodywhoRustChatResetHistory({required RustChat that}) {
+  Future<void> crateRustChatResetHistory({required RustChat that}) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -952,21 +919,20 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeErrorData:
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError,
         ),
-        constMeta: kCrateApiNobodywhoRustChatResetHistoryConstMeta,
+        constMeta: kCrateRustChatResetHistoryConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoRustChatResetHistoryConstMeta =>
-      const TaskConstMeta(
-        debugName: "RustChat_reset_history",
-        argNames: ["that"],
-      );
+  TaskConstMeta get kCrateRustChatResetHistoryConstMeta => const TaskConstMeta(
+    debugName: "RustChat_reset_history",
+    argNames: ["that"],
+  );
 
   @override
-  Future<void> crateApiNobodywhoRustChatSetAllowThinking({
+  Future<void> crateRustChatSetAllowThinking({
     required RustChat that,
     required bool allowThinking,
   }) {
@@ -991,21 +957,21 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeErrorData:
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError,
         ),
-        constMeta: kCrateApiNobodywhoRustChatSetAllowThinkingConstMeta,
+        constMeta: kCrateRustChatSetAllowThinkingConstMeta,
         argValues: [that, allowThinking],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoRustChatSetAllowThinkingConstMeta =>
+  TaskConstMeta get kCrateRustChatSetAllowThinkingConstMeta =>
       const TaskConstMeta(
         debugName: "RustChat_set_allow_thinking",
         argNames: ["that", "allowThinking"],
       );
 
   @override
-  Future<void> crateApiNobodywhoRustChatSetChatHistory({
+  Future<void> crateRustChatSetChatHistory({
     required RustChat that,
     required List<Message> messages,
   }) {
@@ -1030,21 +996,21 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeErrorData:
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError,
         ),
-        constMeta: kCrateApiNobodywhoRustChatSetChatHistoryConstMeta,
+        constMeta: kCrateRustChatSetChatHistoryConstMeta,
         argValues: [that, messages],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoRustChatSetChatHistoryConstMeta =>
+  TaskConstMeta get kCrateRustChatSetChatHistoryConstMeta =>
       const TaskConstMeta(
         debugName: "RustChat_set_chat_history",
         argNames: ["that", "messages"],
       );
 
   @override
-  Future<void> crateApiNobodywhoRustChatSetSamplerConfig({
+  Future<void> crateRustChatSetSamplerConfig({
     required RustChat that,
     required SamplerConfig samplerConfig,
   }) {
@@ -1072,21 +1038,21 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeErrorData:
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError,
         ),
-        constMeta: kCrateApiNobodywhoRustChatSetSamplerConfigConstMeta,
+        constMeta: kCrateRustChatSetSamplerConfigConstMeta,
         argValues: [that, samplerConfig],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoRustChatSetSamplerConfigConstMeta =>
+  TaskConstMeta get kCrateRustChatSetSamplerConfigConstMeta =>
       const TaskConstMeta(
         debugName: "RustChat_set_sampler_config",
         argNames: ["that", "samplerConfig"],
       );
 
   @override
-  Future<void> crateApiNobodywhoRustChatSetSystemPrompt({
+  Future<void> crateRustChatSetSystemPrompt({
     required RustChat that,
     required String systemPrompt,
   }) {
@@ -1111,21 +1077,21 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeErrorData:
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError,
         ),
-        constMeta: kCrateApiNobodywhoRustChatSetSystemPromptConstMeta,
+        constMeta: kCrateRustChatSetSystemPromptConstMeta,
         argValues: [that, systemPrompt],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoRustChatSetSystemPromptConstMeta =>
+  TaskConstMeta get kCrateRustChatSetSystemPromptConstMeta =>
       const TaskConstMeta(
         debugName: "RustChat_set_system_prompt",
         argNames: ["that", "systemPrompt"],
       );
 
   @override
-  Future<void> crateApiNobodywhoRustChatSetTools({
+  Future<void> crateRustChatSetTools({
     required RustChat that,
     required List<RustTool> tools,
   }) {
@@ -1153,21 +1119,20 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeErrorData:
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError,
         ),
-        constMeta: kCrateApiNobodywhoRustChatSetToolsConstMeta,
+        constMeta: kCrateRustChatSetToolsConstMeta,
         argValues: [that, tools],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoRustChatSetToolsConstMeta =>
-      const TaskConstMeta(
-        debugName: "RustChat_set_tools",
-        argNames: ["that", "tools"],
-      );
+  TaskConstMeta get kCrateRustChatSetToolsConstMeta => const TaskConstMeta(
+    debugName: "RustChat_set_tools",
+    argNames: ["that", "tools"],
+  );
 
   @override
-  void crateApiNobodywhoRustChatStopGeneration({required RustChat that}) {
+  void crateRustChatStopGeneration({required RustChat that}) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
@@ -1182,21 +1147,21 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeSuccessData: sse_decode_unit,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoRustChatStopGenerationConstMeta,
+        constMeta: kCrateRustChatStopGenerationConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoRustChatStopGenerationConstMeta =>
+  TaskConstMeta get kCrateRustChatStopGenerationConstMeta =>
       const TaskConstMeta(
         debugName: "RustChat_stop_generation",
         argNames: ["that"],
       );
 
   @override
-  Future<String> crateApiNobodywhoRustTokenStreamCompleted({
+  Future<String> crateRustTokenStreamCompleted({
     required RustTokenStream that,
   }) {
     return handler.executeNormal(
@@ -1219,23 +1184,21 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeErrorData:
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCompletionError,
         ),
-        constMeta: kCrateApiNobodywhoRustTokenStreamCompletedConstMeta,
+        constMeta: kCrateRustTokenStreamCompletedConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoRustTokenStreamCompletedConstMeta =>
+  TaskConstMeta get kCrateRustTokenStreamCompletedConstMeta =>
       const TaskConstMeta(
         debugName: "RustTokenStream_completed",
         argNames: ["that"],
       );
 
   @override
-  Stream<String> crateApiNobodywhoRustTokenStreamIter({
-    required RustTokenStream that,
-  }) {
+  Stream<String> crateRustTokenStreamIter({required RustTokenStream that}) {
     final sink = RustStreamSink<String>();
     unawaited(
       handler.executeNormal(
@@ -1259,7 +1222,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             decodeErrorData:
                 sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRust2DartSendError,
           ),
-          constMeta: kCrateApiNobodywhoRustTokenStreamIterConstMeta,
+          constMeta: kCrateRustTokenStreamIterConstMeta,
           argValues: [that, sink],
           apiImpl: this,
         ),
@@ -1268,14 +1231,13 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     return sink.stream;
   }
 
-  TaskConstMeta get kCrateApiNobodywhoRustTokenStreamIterConstMeta =>
-      const TaskConstMeta(
-        debugName: "RustTokenStream_iter",
-        argNames: ["that", "sink"],
-      );
+  TaskConstMeta get kCrateRustTokenStreamIterConstMeta => const TaskConstMeta(
+    debugName: "RustTokenStream_iter",
+    argNames: ["that", "sink"],
+  );
 
   @override
-  Future<String?> crateApiNobodywhoRustTokenStreamNextToken({
+  Future<String?> crateRustTokenStreamNextToken({
     required RustTokenStream that,
   }) {
     return handler.executeNormal(
@@ -1297,23 +1259,21 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeSuccessData: sse_decode_opt_String,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoRustTokenStreamNextTokenConstMeta,
+        constMeta: kCrateRustTokenStreamNextTokenConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoRustTokenStreamNextTokenConstMeta =>
+  TaskConstMeta get kCrateRustTokenStreamNextTokenConstMeta =>
       const TaskConstMeta(
         debugName: "RustTokenStream_next_token",
         argNames: ["that"],
       );
 
   @override
-  SamplerConfig crateApiNobodywhoSamplerBuilderDist({
-    required SamplerBuilder that,
-  }) {
+  SamplerConfig crateSamplerBuilderDist({required SamplerBuilder that}) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
@@ -1329,18 +1289,18 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoSamplerBuilderDistConstMeta,
+        constMeta: kCrateSamplerBuilderDistConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoSamplerBuilderDistConstMeta =>
+  TaskConstMeta get kCrateSamplerBuilderDistConstMeta =>
       const TaskConstMeta(debugName: "SamplerBuilder_dist", argNames: ["that"]);
 
   @override
-  SamplerBuilder crateApiNobodywhoSamplerBuilderDry({
+  SamplerBuilder crateSamplerBuilderDry({
     required SamplerBuilder that,
     required double multiplier,
     required double base,
@@ -1368,7 +1328,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoSamplerBuilderDryConstMeta,
+        constMeta: kCrateSamplerBuilderDryConstMeta,
         argValues: [
           that,
           multiplier,
@@ -1382,21 +1342,20 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoSamplerBuilderDryConstMeta =>
-      const TaskConstMeta(
-        debugName: "SamplerBuilder_dry",
-        argNames: [
-          "that",
-          "multiplier",
-          "base",
-          "allowedLength",
-          "penaltyLastN",
-          "seqBreakers",
-        ],
-      );
+  TaskConstMeta get kCrateSamplerBuilderDryConstMeta => const TaskConstMeta(
+    debugName: "SamplerBuilder_dry",
+    argNames: [
+      "that",
+      "multiplier",
+      "base",
+      "allowedLength",
+      "penaltyLastN",
+      "seqBreakers",
+    ],
+  );
 
   @override
-  SamplerBuilder crateApiNobodywhoSamplerBuilderGrammar({
+  SamplerBuilder crateSamplerBuilderGrammar({
     required SamplerBuilder that,
     required String grammar,
     String? triggerOn,
@@ -1420,23 +1379,20 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoSamplerBuilderGrammarConstMeta,
+        constMeta: kCrateSamplerBuilderGrammarConstMeta,
         argValues: [that, grammar, triggerOn, root],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoSamplerBuilderGrammarConstMeta =>
-      const TaskConstMeta(
-        debugName: "SamplerBuilder_grammar",
-        argNames: ["that", "grammar", "triggerOn", "root"],
-      );
+  TaskConstMeta get kCrateSamplerBuilderGrammarConstMeta => const TaskConstMeta(
+    debugName: "SamplerBuilder_grammar",
+    argNames: ["that", "grammar", "triggerOn", "root"],
+  );
 
   @override
-  SamplerConfig crateApiNobodywhoSamplerBuilderGreedy({
-    required SamplerBuilder that,
-  }) {
+  SamplerConfig crateSamplerBuilderGreedy({required SamplerBuilder that}) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
@@ -1452,21 +1408,20 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoSamplerBuilderGreedyConstMeta,
+        constMeta: kCrateSamplerBuilderGreedyConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoSamplerBuilderGreedyConstMeta =>
-      const TaskConstMeta(
-        debugName: "SamplerBuilder_greedy",
-        argNames: ["that"],
-      );
+  TaskConstMeta get kCrateSamplerBuilderGreedyConstMeta => const TaskConstMeta(
+    debugName: "SamplerBuilder_greedy",
+    argNames: ["that"],
+  );
 
   @override
-  SamplerBuilder crateApiNobodywhoSamplerBuilderMinP({
+  SamplerBuilder crateSamplerBuilderMinP({
     required SamplerBuilder that,
     required double minP,
     required int minKeep,
@@ -1488,21 +1443,20 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoSamplerBuilderMinPConstMeta,
+        constMeta: kCrateSamplerBuilderMinPConstMeta,
         argValues: [that, minP, minKeep],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoSamplerBuilderMinPConstMeta =>
-      const TaskConstMeta(
-        debugName: "SamplerBuilder_min_p",
-        argNames: ["that", "minP", "minKeep"],
-      );
+  TaskConstMeta get kCrateSamplerBuilderMinPConstMeta => const TaskConstMeta(
+    debugName: "SamplerBuilder_min_p",
+    argNames: ["that", "minP", "minKeep"],
+  );
 
   @override
-  SamplerConfig crateApiNobodywhoSamplerBuilderMirostatV1({
+  SamplerConfig crateSamplerBuilderMirostatV1({
     required SamplerBuilder that,
     required double tau,
     required double eta,
@@ -1526,21 +1480,21 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoSamplerBuilderMirostatV1ConstMeta,
+        constMeta: kCrateSamplerBuilderMirostatV1ConstMeta,
         argValues: [that, tau, eta, m],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoSamplerBuilderMirostatV1ConstMeta =>
+  TaskConstMeta get kCrateSamplerBuilderMirostatV1ConstMeta =>
       const TaskConstMeta(
         debugName: "SamplerBuilder_mirostat_v1",
         argNames: ["that", "tau", "eta", "m"],
       );
 
   @override
-  SamplerConfig crateApiNobodywhoSamplerBuilderMirostatV2({
+  SamplerConfig crateSamplerBuilderMirostatV2({
     required SamplerBuilder that,
     required double tau,
     required double eta,
@@ -1562,21 +1516,21 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoSamplerBuilderMirostatV2ConstMeta,
+        constMeta: kCrateSamplerBuilderMirostatV2ConstMeta,
         argValues: [that, tau, eta],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoSamplerBuilderMirostatV2ConstMeta =>
+  TaskConstMeta get kCrateSamplerBuilderMirostatV2ConstMeta =>
       const TaskConstMeta(
         debugName: "SamplerBuilder_mirostat_v2",
         argNames: ["that", "tau", "eta"],
       );
 
   @override
-  SamplerBuilder crateApiNobodywhoSamplerBuilderNew() {
+  SamplerBuilder crateSamplerBuilderNew() {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
@@ -1588,18 +1542,18 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoSamplerBuilderNewConstMeta,
+        constMeta: kCrateSamplerBuilderNewConstMeta,
         argValues: [],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoSamplerBuilderNewConstMeta =>
+  TaskConstMeta get kCrateSamplerBuilderNewConstMeta =>
       const TaskConstMeta(debugName: "SamplerBuilder_new", argNames: []);
 
   @override
-  SamplerBuilder crateApiNobodywhoSamplerBuilderPenalties({
+  SamplerBuilder crateSamplerBuilderPenalties({
     required SamplerBuilder that,
     required int penaltyLastN,
     required double penaltyRepeat,
@@ -1625,7 +1579,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoSamplerBuilderPenaltiesConstMeta,
+        constMeta: kCrateSamplerBuilderPenaltiesConstMeta,
         argValues: [
           that,
           penaltyLastN,
@@ -1638,7 +1592,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoSamplerBuilderPenaltiesConstMeta =>
+  TaskConstMeta get kCrateSamplerBuilderPenaltiesConstMeta =>
       const TaskConstMeta(
         debugName: "SamplerBuilder_penalties",
         argNames: [
@@ -1651,7 +1605,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       );
 
   @override
-  SamplerBuilder crateApiNobodywhoSamplerBuilderTemperature({
+  SamplerBuilder crateSamplerBuilderTemperature({
     required SamplerBuilder that,
     required double temperature,
   }) {
@@ -1671,21 +1625,21 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoSamplerBuilderTemperatureConstMeta,
+        constMeta: kCrateSamplerBuilderTemperatureConstMeta,
         argValues: [that, temperature],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoSamplerBuilderTemperatureConstMeta =>
+  TaskConstMeta get kCrateSamplerBuilderTemperatureConstMeta =>
       const TaskConstMeta(
         debugName: "SamplerBuilder_temperature",
         argNames: ["that", "temperature"],
       );
 
   @override
-  SamplerBuilder crateApiNobodywhoSamplerBuilderTopK({
+  SamplerBuilder crateSamplerBuilderTopK({
     required SamplerBuilder that,
     required int topK,
   }) {
@@ -1705,21 +1659,20 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoSamplerBuilderTopKConstMeta,
+        constMeta: kCrateSamplerBuilderTopKConstMeta,
         argValues: [that, topK],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoSamplerBuilderTopKConstMeta =>
-      const TaskConstMeta(
-        debugName: "SamplerBuilder_top_k",
-        argNames: ["that", "topK"],
-      );
+  TaskConstMeta get kCrateSamplerBuilderTopKConstMeta => const TaskConstMeta(
+    debugName: "SamplerBuilder_top_k",
+    argNames: ["that", "topK"],
+  );
 
   @override
-  SamplerBuilder crateApiNobodywhoSamplerBuilderTopP({
+  SamplerBuilder crateSamplerBuilderTopP({
     required SamplerBuilder that,
     required double topP,
     required int minKeep,
@@ -1741,21 +1694,20 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoSamplerBuilderTopPConstMeta,
+        constMeta: kCrateSamplerBuilderTopPConstMeta,
         argValues: [that, topP, minKeep],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoSamplerBuilderTopPConstMeta =>
-      const TaskConstMeta(
-        debugName: "SamplerBuilder_top_p",
-        argNames: ["that", "topP", "minKeep"],
-      );
+  TaskConstMeta get kCrateSamplerBuilderTopPConstMeta => const TaskConstMeta(
+    debugName: "SamplerBuilder_top_p",
+    argNames: ["that", "topP", "minKeep"],
+  );
 
   @override
-  SamplerBuilder crateApiNobodywhoSamplerBuilderTypicalP({
+  SamplerBuilder crateSamplerBuilderTypicalP({
     required SamplerBuilder that,
     required double typP,
     required int minKeep,
@@ -1777,21 +1729,21 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoSamplerBuilderTypicalPConstMeta,
+        constMeta: kCrateSamplerBuilderTypicalPConstMeta,
         argValues: [that, typP, minKeep],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoSamplerBuilderTypicalPConstMeta =>
+  TaskConstMeta get kCrateSamplerBuilderTypicalPConstMeta =>
       const TaskConstMeta(
         debugName: "SamplerBuilder_typical_p",
         argNames: ["that", "typP", "minKeep"],
       );
 
   @override
-  SamplerBuilder crateApiNobodywhoSamplerBuilderXtc({
+  SamplerBuilder crateSamplerBuilderXtc({
     required SamplerBuilder that,
     required double xtcProbability,
     required double xtcThreshold,
@@ -1815,21 +1767,20 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoSamplerBuilderXtcConstMeta,
+        constMeta: kCrateSamplerBuilderXtcConstMeta,
         argValues: [that, xtcProbability, xtcThreshold, minKeep],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoSamplerBuilderXtcConstMeta =>
-      const TaskConstMeta(
-        debugName: "SamplerBuilder_xtc",
-        argNames: ["that", "xtcProbability", "xtcThreshold", "minKeep"],
-      );
+  TaskConstMeta get kCrateSamplerBuilderXtcConstMeta => const TaskConstMeta(
+    debugName: "SamplerBuilder_xtc",
+    argNames: ["that", "xtcProbability", "xtcThreshold", "minKeep"],
+  );
 
   @override
-  SamplerConfig crateApiNobodywhoSamplerPresetsDefaultSampler() {
+  SamplerConfig crateSamplerPresetsDefaultSampler() {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
@@ -1841,21 +1792,21 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoSamplerPresetsDefaultSamplerConstMeta,
+        constMeta: kCrateSamplerPresetsDefaultSamplerConstMeta,
         argValues: [],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoSamplerPresetsDefaultSamplerConstMeta =>
+  TaskConstMeta get kCrateSamplerPresetsDefaultSamplerConstMeta =>
       const TaskConstMeta(
         debugName: "SamplerPresets_default_sampler",
         argNames: [],
       );
 
   @override
-  SamplerConfig crateApiNobodywhoSamplerPresetsDry() {
+  SamplerConfig crateSamplerPresetsDry() {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
@@ -1867,20 +1818,18 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoSamplerPresetsDryConstMeta,
+        constMeta: kCrateSamplerPresetsDryConstMeta,
         argValues: [],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoSamplerPresetsDryConstMeta =>
+  TaskConstMeta get kCrateSamplerPresetsDryConstMeta =>
       const TaskConstMeta(debugName: "SamplerPresets_dry", argNames: []);
 
   @override
-  SamplerConfig crateApiNobodywhoSamplerPresetsGrammar({
-    required String grammar,
-  }) {
+  SamplerConfig crateSamplerPresetsGrammar({required String grammar}) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
@@ -1893,21 +1842,20 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoSamplerPresetsGrammarConstMeta,
+        constMeta: kCrateSamplerPresetsGrammarConstMeta,
         argValues: [grammar],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoSamplerPresetsGrammarConstMeta =>
-      const TaskConstMeta(
-        debugName: "SamplerPresets_grammar",
-        argNames: ["grammar"],
-      );
+  TaskConstMeta get kCrateSamplerPresetsGrammarConstMeta => const TaskConstMeta(
+    debugName: "SamplerPresets_grammar",
+    argNames: ["grammar"],
+  );
 
   @override
-  SamplerConfig crateApiNobodywhoSamplerPresetsGreedy() {
+  SamplerConfig crateSamplerPresetsGreedy() {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
@@ -1919,18 +1867,18 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoSamplerPresetsGreedyConstMeta,
+        constMeta: kCrateSamplerPresetsGreedyConstMeta,
         argValues: [],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoSamplerPresetsGreedyConstMeta =>
+  TaskConstMeta get kCrateSamplerPresetsGreedyConstMeta =>
       const TaskConstMeta(debugName: "SamplerPresets_greedy", argNames: []);
 
   @override
-  SamplerConfig crateApiNobodywhoSamplerPresetsJson() {
+  SamplerConfig crateSamplerPresetsJson() {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
@@ -1942,20 +1890,18 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoSamplerPresetsJsonConstMeta,
+        constMeta: kCrateSamplerPresetsJsonConstMeta,
         argValues: [],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoSamplerPresetsJsonConstMeta =>
+  TaskConstMeta get kCrateSamplerPresetsJsonConstMeta =>
       const TaskConstMeta(debugName: "SamplerPresets_json", argNames: []);
 
   @override
-  SamplerConfig crateApiNobodywhoSamplerPresetsTemperature({
-    required double temperature,
-  }) {
+  SamplerConfig crateSamplerPresetsTemperature({required double temperature}) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
@@ -1968,21 +1914,21 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoSamplerPresetsTemperatureConstMeta,
+        constMeta: kCrateSamplerPresetsTemperatureConstMeta,
         argValues: [temperature],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoSamplerPresetsTemperatureConstMeta =>
+  TaskConstMeta get kCrateSamplerPresetsTemperatureConstMeta =>
       const TaskConstMeta(
         debugName: "SamplerPresets_temperature",
         argNames: ["temperature"],
       );
 
   @override
-  SamplerConfig crateApiNobodywhoSamplerPresetsTopK({required int topK}) {
+  SamplerConfig crateSamplerPresetsTopK({required int topK}) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
@@ -1995,21 +1941,20 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoSamplerPresetsTopKConstMeta,
+        constMeta: kCrateSamplerPresetsTopKConstMeta,
         argValues: [topK],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoSamplerPresetsTopKConstMeta =>
-      const TaskConstMeta(
-        debugName: "SamplerPresets_top_k",
-        argNames: ["topK"],
-      );
+  TaskConstMeta get kCrateSamplerPresetsTopKConstMeta => const TaskConstMeta(
+    debugName: "SamplerPresets_top_k",
+    argNames: ["topK"],
+  );
 
   @override
-  SamplerConfig crateApiNobodywhoSamplerPresetsTopP({required double topP}) {
+  SamplerConfig crateSamplerPresetsTopP({required double topP}) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
@@ -2022,23 +1967,20 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoSamplerPresetsTopPConstMeta,
+        constMeta: kCrateSamplerPresetsTopPConstMeta,
         argValues: [topP],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoSamplerPresetsTopPConstMeta =>
-      const TaskConstMeta(
-        debugName: "SamplerPresets_top_p",
-        argNames: ["topP"],
-      );
+  TaskConstMeta get kCrateSamplerPresetsTopPConstMeta => const TaskConstMeta(
+    debugName: "SamplerPresets_top_p",
+    argNames: ["topP"],
+  );
 
   @override
-  Value crateApiNobodywhoToolCallAutoAccessorGetArguments({
-    required ToolCall that,
-  }) {
+  Value crateToolCallAutoAccessorGetArguments({required ToolCall that}) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
@@ -2054,24 +1996,21 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoToolCallAutoAccessorGetArgumentsConstMeta,
+        constMeta: kCrateToolCallAutoAccessorGetArgumentsConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta
-  get kCrateApiNobodywhoToolCallAutoAccessorGetArgumentsConstMeta =>
+  TaskConstMeta get kCrateToolCallAutoAccessorGetArgumentsConstMeta =>
       const TaskConstMeta(
         debugName: "ToolCall_auto_accessor_get_arguments",
         argNames: ["that"],
       );
 
   @override
-  String crateApiNobodywhoToolCallAutoAccessorGetName({
-    required ToolCall that,
-  }) {
+  String crateToolCallAutoAccessorGetName({required ToolCall that}) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
@@ -2086,21 +2025,21 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeSuccessData: sse_decode_String,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoToolCallAutoAccessorGetNameConstMeta,
+        constMeta: kCrateToolCallAutoAccessorGetNameConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoToolCallAutoAccessorGetNameConstMeta =>
+  TaskConstMeta get kCrateToolCallAutoAccessorGetNameConstMeta =>
       const TaskConstMeta(
         debugName: "ToolCall_auto_accessor_get_name",
         argNames: ["that"],
       );
 
   @override
-  void crateApiNobodywhoToolCallAutoAccessorSetArguments({
+  void crateToolCallAutoAccessorSetArguments({
     required ToolCall that,
     required Value arguments,
   }) {
@@ -2122,22 +2061,21 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeSuccessData: sse_decode_unit,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoToolCallAutoAccessorSetArgumentsConstMeta,
+        constMeta: kCrateToolCallAutoAccessorSetArgumentsConstMeta,
         argValues: [that, arguments],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta
-  get kCrateApiNobodywhoToolCallAutoAccessorSetArgumentsConstMeta =>
+  TaskConstMeta get kCrateToolCallAutoAccessorSetArgumentsConstMeta =>
       const TaskConstMeta(
         debugName: "ToolCall_auto_accessor_set_arguments",
         argNames: ["that", "arguments"],
       );
 
   @override
-  void crateApiNobodywhoToolCallAutoAccessorSetName({
+  void crateToolCallAutoAccessorSetName({
     required ToolCall that,
     required String name,
   }) {
@@ -2156,21 +2094,21 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeSuccessData: sse_decode_unit,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoToolCallAutoAccessorSetNameConstMeta,
+        constMeta: kCrateToolCallAutoAccessorSetNameConstMeta,
         argValues: [that, name],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoToolCallAutoAccessorSetNameConstMeta =>
+  TaskConstMeta get kCrateToolCallAutoAccessorSetNameConstMeta =>
       const TaskConstMeta(
         debugName: "ToolCall_auto_accessor_set_name",
         argNames: ["that", "name"],
       );
 
   @override
-  double crateApiNobodywhoCosineSimilarity({
+  double crateCosineSimilarity({
     required List<double> a,
     required List<double> b,
   }) {
@@ -2186,18 +2124,18 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeSuccessData: sse_decode_f_32,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoCosineSimilarityConstMeta,
+        constMeta: kCrateCosineSimilarityConstMeta,
         argValues: [a, b],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoCosineSimilarityConstMeta =>
+  TaskConstMeta get kCrateCosineSimilarityConstMeta =>
       const TaskConstMeta(debugName: "cosine_similarity", argNames: ["a", "b"]);
 
   @override
-  Future<void> crateApiNobodywhoInitApp() {
+  Future<void> crateEnforceBinding() {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -2213,18 +2151,45 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeSuccessData: sse_decode_unit,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNobodywhoInitAppConstMeta,
+        constMeta: kCrateEnforceBindingConstMeta,
         argValues: [],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoInitAppConstMeta =>
+  TaskConstMeta get kCrateEnforceBindingConstMeta =>
+      const TaskConstMeta(debugName: "enforce_binding", argNames: []);
+
+  @override
+  Future<void> crateInitApp() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 50,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateInitAppConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateInitAppConstMeta =>
       const TaskConstMeta(debugName: "init_app", argNames: []);
 
   @override
-  RustTool crateApiNobodywhoNewToolImpl({
+  RustTool crateNewToolImpl({
     required FutureOr<String> Function(String) function,
     required String name,
     required String description,
@@ -2241,28 +2206,27 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_String(name, serializer);
           sse_encode_String(description, serializer);
           sse_encode_String(runtimeType, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 50)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 51)!;
         },
         codec: SseCodec(
           decodeSuccessData:
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTool,
           decodeErrorData: sse_decode_String,
         ),
-        constMeta: kCrateApiNobodywhoNewToolImplConstMeta,
+        constMeta: kCrateNewToolImplConstMeta,
         argValues: [function, name, description, runtimeType],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoNewToolImplConstMeta =>
-      const TaskConstMeta(
-        debugName: "new_tool_impl",
-        argNames: ["function", "name", "description", "runtimeType"],
-      );
+  TaskConstMeta get kCrateNewToolImplConstMeta => const TaskConstMeta(
+    debugName: "new_tool_impl",
+    argNames: ["function", "name", "description", "runtimeType"],
+  );
 
   @override
-  String crateApiNobodywhoToolCallArgumentsJson({required ToolCall toolCall}) {
+  String crateToolCallArgumentsJson({required ToolCall toolCall}) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
@@ -2271,24 +2235,23 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             toolCall,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 51)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 52)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
           decodeErrorData: sse_decode_String,
         ),
-        constMeta: kCrateApiNobodywhoToolCallArgumentsJsonConstMeta,
+        constMeta: kCrateToolCallArgumentsJsonConstMeta,
         argValues: [toolCall],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNobodywhoToolCallArgumentsJsonConstMeta =>
-      const TaskConstMeta(
-        debugName: "tool_call_arguments_json",
-        argNames: ["toolCall"],
-      );
+  TaskConstMeta get kCrateToolCallArgumentsJsonConstMeta => const TaskConstMeta(
+    debugName: "tool_call_arguments_json",
+    argNames: ["toolCall"],
+  );
 
   Future<void> Function(int, dynamic)
   encode_DartFn_Inputs_String_Output_String_AnyhowException(
@@ -4704,7 +4667,7 @@ class CrossEncoderImpl extends RustOpaque implements CrossEncoder {
   Future<Float32List> rank({
     required String query,
     required List<String> documents,
-  }) => NobodyWho.instance.api.crateApiNobodywhoCrossEncoderRank(
+  }) => NobodyWho.instance.api.crateCrossEncoderRank(
     that: this,
     query: query,
     documents: documents,
@@ -4713,7 +4676,7 @@ class CrossEncoderImpl extends RustOpaque implements CrossEncoder {
   Future<List<(String, double)>> rankAndSort({
     required String query,
     required List<String> documents,
-  }) => NobodyWho.instance.api.crateApiNobodywhoCrossEncoderRankAndSort(
+  }) => NobodyWho.instance.api.crateCrossEncoderRankAndSort(
     that: this,
     query: query,
     documents: documents,
@@ -4768,8 +4731,8 @@ class EncoderImpl extends RustOpaque implements Encoder {
         NobodyWho.instance.api.rust_arc_decrement_strong_count_EncoderPtr,
   );
 
-  Future<Float32List> encode({required String text}) => NobodyWho.instance.api
-      .crateApiNobodywhoEncoderEncode(that: this, text: text);
+  Future<Float32List> encode({required String text}) =>
+      NobodyWho.instance.api.crateEncoderEncode(that: this, text: text);
 }
 
 @sealed
@@ -4887,54 +4850,50 @@ class RustChatImpl extends RustOpaque implements RustChat {
         NobodyWho.instance.api.rust_arc_decrement_strong_count_RustChatPtr,
   );
 
-  RustTokenStream ask(String message) => NobodyWho.instance.api
-      .crateApiNobodywhoRustChatAsk(that: this, message: message);
+  RustTokenStream ask(String message) =>
+      NobodyWho.instance.api.crateRustChatAsk(that: this, message: message);
 
-  Future<List<Message>> getChatHistory() => NobodyWho.instance.api
-      .crateApiNobodywhoRustChatGetChatHistory(that: this);
+  Future<List<Message>> getChatHistory() =>
+      NobodyWho.instance.api.crateRustChatGetChatHistory(that: this);
 
   Future<void> resetContext({
     required String systemPrompt,
     required List<RustTool> tools,
-  }) => NobodyWho.instance.api.crateApiNobodywhoRustChatResetContext(
+  }) => NobodyWho.instance.api.crateRustChatResetContext(
     that: this,
     systemPrompt: systemPrompt,
     tools: tools,
   );
 
   Future<void> resetHistory() =>
-      NobodyWho.instance.api.crateApiNobodywhoRustChatResetHistory(that: this);
+      NobodyWho.instance.api.crateRustChatResetHistory(that: this);
 
-  Future<void> setAllowThinking({required bool allowThinking}) =>
-      NobodyWho.instance.api.crateApiNobodywhoRustChatSetAllowThinking(
-        that: this,
-        allowThinking: allowThinking,
-      );
+  Future<void> setAllowThinking({required bool allowThinking}) => NobodyWho
+      .instance
+      .api
+      .crateRustChatSetAllowThinking(that: this, allowThinking: allowThinking);
 
   Future<void> setChatHistory({required List<Message> messages}) => NobodyWho
       .instance
       .api
-      .crateApiNobodywhoRustChatSetChatHistory(that: this, messages: messages);
+      .crateRustChatSetChatHistory(that: this, messages: messages);
 
   Future<void> setSamplerConfig({required SamplerConfig samplerConfig}) =>
-      NobodyWho.instance.api.crateApiNobodywhoRustChatSetSamplerConfig(
+      NobodyWho.instance.api.crateRustChatSetSamplerConfig(
         that: this,
         samplerConfig: samplerConfig,
       );
 
-  Future<void> setSystemPrompt({required String systemPrompt}) =>
-      NobodyWho.instance.api.crateApiNobodywhoRustChatSetSystemPrompt(
-        that: this,
-        systemPrompt: systemPrompt,
-      );
-
-  Future<void> setTools({required List<RustTool> tools}) => NobodyWho
+  Future<void> setSystemPrompt({required String systemPrompt}) => NobodyWho
       .instance
       .api
-      .crateApiNobodywhoRustChatSetTools(that: this, tools: tools);
+      .crateRustChatSetSystemPrompt(that: this, systemPrompt: systemPrompt);
 
-  void stopGeneration() => NobodyWho.instance.api
-      .crateApiNobodywhoRustChatStopGeneration(that: this);
+  Future<void> setTools({required List<RustTool> tools}) =>
+      NobodyWho.instance.api.crateRustChatSetTools(that: this, tools: tools);
+
+  void stopGeneration() =>
+      NobodyWho.instance.api.crateRustChatStopGeneration(that: this);
 }
 
 @sealed
@@ -4958,14 +4917,14 @@ class RustTokenStreamImpl extends RustOpaque implements RustTokenStream {
         .rust_arc_decrement_strong_count_RustTokenStreamPtr,
   );
 
-  Future<String> completed() => NobodyWho.instance.api
-      .crateApiNobodywhoRustTokenStreamCompleted(that: this);
+  Future<String> completed() =>
+      NobodyWho.instance.api.crateRustTokenStreamCompleted(that: this);
 
   Stream<String> iter() =>
-      NobodyWho.instance.api.crateApiNobodywhoRustTokenStreamIter(that: this);
+      NobodyWho.instance.api.crateRustTokenStreamIter(that: this);
 
-  Future<String?> nextToken() => NobodyWho.instance.api
-      .crateApiNobodywhoRustTokenStreamNextToken(that: this);
+  Future<String?> nextToken() =>
+      NobodyWho.instance.api.crateRustTokenStreamNextToken(that: this);
 }
 
 @sealed
@@ -5014,7 +4973,7 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
   /// Returns:
   ///     A complete SamplerConfig ready to use
   SamplerConfig dist() =>
-      NobodyWho.instance.api.crateApiNobodywhoSamplerBuilderDist(that: this);
+      NobodyWho.instance.api.crateSamplerBuilderDist(that: this);
 
   /// DRY (Don't Repeat Yourself) sampler to reduce repetition.
   ///
@@ -5030,7 +4989,7 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
     required int allowedLength,
     required int penaltyLastN,
     required List<String> seqBreakers,
-  }) => NobodyWho.instance.api.crateApiNobodywhoSamplerBuilderDry(
+  }) => NobodyWho.instance.api.crateSamplerBuilderDry(
     that: this,
     multiplier: multiplier,
     base: base,
@@ -5050,7 +5009,7 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
     required String grammar,
     String? triggerOn,
     required String root,
-  }) => NobodyWho.instance.api.crateApiNobodywhoSamplerBuilderGrammar(
+  }) => NobodyWho.instance.api.crateSamplerBuilderGrammar(
     that: this,
     grammar: grammar,
     triggerOn: triggerOn,
@@ -5062,19 +5021,17 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
   /// Returns:
   ///     A complete SamplerConfig ready to use
   SamplerConfig greedy() =>
-      NobodyWho.instance.api.crateApiNobodywhoSamplerBuilderGreedy(that: this);
+      NobodyWho.instance.api.crateSamplerBuilderGreedy(that: this);
 
   /// Keep tokens with probability above min_p * (probability of most likely token).
   ///
   /// Args:
   ///     min_p: Minimum relative probability threshold (0.0 to 1.0). Typical: 0.05-0.1.
   ///     min_keep: Minimum number of tokens to always keep
-  SamplerBuilder minP({required double minP, required int minKeep}) =>
-      NobodyWho.instance.api.crateApiNobodywhoSamplerBuilderMinP(
-        that: this,
-        minP: minP,
-        minKeep: minKeep,
-      );
+  SamplerBuilder minP({required double minP, required int minKeep}) => NobodyWho
+      .instance
+      .api
+      .crateSamplerBuilderMinP(that: this, minP: minP, minKeep: minKeep);
 
   /// Use Mirostat v1 algorithm for perplexity-controlled sampling.
   /// Mirostat dynamically adjusts sampling to maintain a target "surprise" level,
@@ -5091,7 +5048,7 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
     required double tau,
     required double eta,
     required int m,
-  }) => NobodyWho.instance.api.crateApiNobodywhoSamplerBuilderMirostatV1(
+  }) => NobodyWho.instance.api.crateSamplerBuilderMirostatV1(
     that: this,
     tau: tau,
     eta: eta,
@@ -5109,7 +5066,7 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
   /// Returns:
   ///     A complete SamplerConfig ready to use
   SamplerConfig mirostatV2({required double tau, required double eta}) =>
-      NobodyWho.instance.api.crateApiNobodywhoSamplerBuilderMirostatV2(
+      NobodyWho.instance.api.crateSamplerBuilderMirostatV2(
         that: this,
         tau: tau,
         eta: eta,
@@ -5127,7 +5084,7 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
     required double penaltyRepeat,
     required double penaltyFreq,
     required double penaltyPresent,
-  }) => NobodyWho.instance.api.crateApiNobodywhoSamplerBuilderPenalties(
+  }) => NobodyWho.instance.api.crateSamplerBuilderPenalties(
     that: this,
     penaltyLastN: penaltyLastN,
     penaltyRepeat: penaltyRepeat,
@@ -5139,30 +5096,27 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
   ///
   /// Args:
   ///     temperature: Temperature value (0.0 = deterministic, 1.0 = unchanged, >1.0 = more random)
-  SamplerBuilder temperature({required double temperature}) =>
-      NobodyWho.instance.api.crateApiNobodywhoSamplerBuilderTemperature(
-        that: this,
-        temperature: temperature,
-      );
+  SamplerBuilder temperature({required double temperature}) => NobodyWho
+      .instance
+      .api
+      .crateSamplerBuilderTemperature(that: this, temperature: temperature);
 
   /// Keep only the top K most probable tokens. Typical values: 40-50.
   ///
   /// Args:
   ///     top_k: Number of top tokens to keep
-  SamplerBuilder topK({required int topK}) => NobodyWho.instance.api
-      .crateApiNobodywhoSamplerBuilderTopK(that: this, topK: topK);
+  SamplerBuilder topK({required int topK}) =>
+      NobodyWho.instance.api.crateSamplerBuilderTopK(that: this, topK: topK);
 
   /// Keep tokens whose cumulative probability is below top_p. Typical values: 0.9-0.95.
   ///
   /// Args:
   ///     top_p: Cumulative probability threshold (0.0 to 1.0)
   ///     min_keep: Minimum number of tokens to always keep
-  SamplerBuilder topP({required double topP, required int minKeep}) =>
-      NobodyWho.instance.api.crateApiNobodywhoSamplerBuilderTopP(
-        that: this,
-        topP: topP,
-        minKeep: minKeep,
-      );
+  SamplerBuilder topP({required double topP, required int minKeep}) => NobodyWho
+      .instance
+      .api
+      .crateSamplerBuilderTopP(that: this, topP: topP, minKeep: minKeep);
 
   /// Typical sampling: keeps tokens close to expected information content.
   ///
@@ -5170,7 +5124,7 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
   ///     typ_p: Typical probability mass (0.0 to 1.0). Typical: 0.9.
   ///     min_keep: Minimum number of tokens to always keep
   SamplerBuilder typicalP({required double typP, required int minKeep}) =>
-      NobodyWho.instance.api.crateApiNobodywhoSamplerBuilderTypicalP(
+      NobodyWho.instance.api.crateSamplerBuilderTypicalP(
         that: this,
         typP: typP,
         minKeep: minKeep,
@@ -5187,7 +5141,7 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
     required double xtcProbability,
     required double xtcThreshold,
     required int minKeep,
-  }) => NobodyWho.instance.api.crateApiNobodywhoSamplerBuilderXtc(
+  }) => NobodyWho.instance.api.crateSamplerBuilderXtc(
     that: this,
     xtcProbability: xtcProbability,
     xtcThreshold: xtcThreshold,
@@ -5276,20 +5230,17 @@ class ToolCallImpl extends RustOpaque implements ToolCall {
         NobodyWho.instance.api.rust_arc_decrement_strong_count_ToolCallPtr,
   );
 
-  Value get arguments => NobodyWho.instance.api
-      .crateApiNobodywhoToolCallAutoAccessorGetArguments(that: this);
+  Value get arguments =>
+      NobodyWho.instance.api.crateToolCallAutoAccessorGetArguments(that: this);
 
-  String get name => NobodyWho.instance.api
-      .crateApiNobodywhoToolCallAutoAccessorGetName(that: this);
+  String get name =>
+      NobodyWho.instance.api.crateToolCallAutoAccessorGetName(that: this);
 
-  set arguments(Value arguments) =>
-      NobodyWho.instance.api.crateApiNobodywhoToolCallAutoAccessorSetArguments(
-        that: this,
-        arguments: arguments,
-      );
+  set arguments(Value arguments) => NobodyWho.instance.api
+      .crateToolCallAutoAccessorSetArguments(that: this, arguments: arguments);
 
   set name(String name) => NobodyWho.instance.api
-      .crateApiNobodywhoToolCallAutoAccessorSetName(that: this, name: name);
+      .crateToolCallAutoAccessorSetName(that: this, name: name);
 }
 
 @sealed

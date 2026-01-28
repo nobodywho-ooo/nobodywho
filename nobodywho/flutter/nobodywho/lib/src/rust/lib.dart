@@ -3,29 +3,31 @@
 
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
-import '../frb_generated.dart';
+import 'frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
-part 'nobodywho.freezed.dart';
+part 'lib.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `dart_function_type_to_json_schema`, `sample_step`, `shift_step`
 
+/// Enforce the binding for this library (to prevent tree-shaking)
+/// https://github.com/flutter/flutter/pull/96225#issuecomment-1319080539
+Future<void> enforceBinding() => NobodyWho.instance.api.crateEnforceBinding();
+
 /// Helper function to convert ToolCall arguments to a JSON string.
 /// This is needed because serde_json::Value becomes an opaque type in Dart.
-String toolCallArgumentsJson({required ToolCall toolCall}) => NobodyWho
-    .instance
-    .api
-    .crateApiNobodywhoToolCallArgumentsJson(toolCall: toolCall);
+String toolCallArgumentsJson({required ToolCall toolCall}) =>
+    NobodyWho.instance.api.crateToolCallArgumentsJson(toolCall: toolCall);
 
 double cosineSimilarity({required List<double> a, required List<double> b}) =>
-    NobodyWho.instance.api.crateApiNobodywhoCosineSimilarity(a: a, b: b);
+    NobodyWho.instance.api.crateCosineSimilarity(a: a, b: b);
 
 RustTool newToolImpl({
   required FutureOr<String> Function(String) function,
   required String name,
   required String description,
   required String runtimeType,
-}) => NobodyWho.instance.api.crateApiNobodywhoNewToolImpl(
+}) => NobodyWho.instance.api.crateNewToolImpl(
   function: function,
   name: name,
   description: description,
@@ -37,10 +39,8 @@ abstract class CompletionError implements RustOpaqueInterface {}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CrossEncoder>>
 abstract class CrossEncoder implements RustOpaqueInterface {
-  factory CrossEncoder({required Model model, int nCtx = 4096}) => NobodyWho
-      .instance
-      .api
-      .crateApiNobodywhoCrossEncoderNew(model: model, nCtx: nCtx);
+  factory CrossEncoder({required Model model, int nCtx = 4096}) =>
+      NobodyWho.instance.api.crateCrossEncoderNew(model: model, nCtx: nCtx);
 
   Future<Float32List> rank({
     required String query,
@@ -60,10 +60,8 @@ abstract class CrossEncoderWorkerError implements RustOpaqueInterface {}
 abstract class Encoder implements RustOpaqueInterface {
   Future<Float32List> encode({required String text});
 
-  factory Encoder({required Model model, int nCtx = 4096}) => NobodyWho
-      .instance
-      .api
-      .crateApiNobodywhoEncoderNew(model: model, nCtx: nCtx);
+  factory Encoder({required Model model, int nCtx = 4096}) =>
+      NobodyWho.instance.api.crateEncoderNew(model: model, nCtx: nCtx);
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< EncoderWorkerError>>
@@ -75,7 +73,7 @@ abstract class GetterError implements RustOpaqueInterface {}
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Model>>
 abstract class Model implements RustOpaqueInterface {
   static Future<Model> load({required String modelPath, bool useGpu = true}) =>
-      NobodyWho.instance.api.crateApiNobodywhoModelLoad(
+      NobodyWho.instance.api.crateModelLoad(
         modelPath: modelPath,
         useGpu: useGpu,
       );
@@ -105,7 +103,7 @@ abstract class RustChat implements RustOpaqueInterface {
     List<RustTool> tools = const [],
     SamplerConfig? sampler = null,
     bool useGpu = true,
-  }) => NobodyWho.instance.api.crateApiNobodywhoRustChatFromPath(
+  }) => NobodyWho.instance.api.crateRustChatFromPath(
     modelPath: modelPath,
     systemPrompt: systemPrompt,
     contextSize: contextSize,
@@ -132,7 +130,7 @@ abstract class RustChat implements RustOpaqueInterface {
     bool allowThinking = true,
     List<RustTool> tools = const [],
     SamplerConfig? sampler = null,
-  }) => NobodyWho.instance.api.crateApiNobodywhoRustChatNew(
+  }) => NobodyWho.instance.api.crateRustChatNew(
     model: model,
     systemPrompt: systemPrompt,
     contextSize: contextSize,
@@ -253,8 +251,7 @@ abstract class SamplerBuilder implements RustOpaqueInterface {
   SamplerConfig mirostatV2({required double tau, required double eta});
 
   /// Create a new SamplerBuilder to construct a custom sampler chain.
-  factory SamplerBuilder() =>
-      NobodyWho.instance.api.crateApiNobodywhoSamplerBuilderNew();
+  factory SamplerBuilder() => NobodyWho.instance.api.crateSamplerBuilderNew();
 
   /// Apply repetition penalties to discourage repeated tokens.
   ///
@@ -317,29 +314,26 @@ abstract class SamplerConfig implements RustOpaqueInterface {}
 abstract class SamplerPresets implements RustOpaqueInterface {
   /// Get the default sampler configuration.
   static SamplerConfig defaultSampler() =>
-      NobodyWho.instance.api.crateApiNobodywhoSamplerPresetsDefaultSampler();
+      NobodyWho.instance.api.crateSamplerPresetsDefaultSampler();
 
   /// Create a DRY sampler preset to reduce repetition.
-  static SamplerConfig dry() =>
-      NobodyWho.instance.api.crateApiNobodywhoSamplerPresetsDry();
+  static SamplerConfig dry() => NobodyWho.instance.api.crateSamplerPresetsDry();
 
   /// Create a sampler with a custom grammar constraint.
   ///
   /// Args:
   ///     grammar: Grammar specification in GBNF format (GGML BNF, a variant of BNF used by llama.cpp)
-  static SamplerConfig grammar({required String grammar}) => NobodyWho
-      .instance
-      .api
-      .crateApiNobodywhoSamplerPresetsGrammar(grammar: grammar);
+  static SamplerConfig grammar({required String grammar}) =>
+      NobodyWho.instance.api.crateSamplerPresetsGrammar(grammar: grammar);
 
   /// Create a greedy sampler (always picks most probable token).
   static SamplerConfig greedy() =>
-      NobodyWho.instance.api.crateApiNobodywhoSamplerPresetsGreedy();
+      NobodyWho.instance.api.crateSamplerPresetsGreedy();
 
   /// Create a sampler configured for JSON output generation.
   /// Uses a grammar constraint to ensure the model outputs only valid JSON.
   static SamplerConfig json() =>
-      NobodyWho.instance.api.crateApiNobodywhoSamplerPresetsJson();
+      NobodyWho.instance.api.crateSamplerPresetsJson();
 
   /// Create a sampler with temperature scaling.
   ///
@@ -348,21 +342,21 @@ abstract class SamplerPresets implements RustOpaqueInterface {
   static SamplerConfig temperature({required double temperature}) => NobodyWho
       .instance
       .api
-      .crateApiNobodywhoSamplerPresetsTemperature(temperature: temperature);
+      .crateSamplerPresetsTemperature(temperature: temperature);
 
   /// Create a sampler with top-k filtering only.
   ///
   /// Args:
   ///     top_k: Number of top tokens to keep
   static SamplerConfig topK({required int topK}) =>
-      NobodyWho.instance.api.crateApiNobodywhoSamplerPresetsTopK(topK: topK);
+      NobodyWho.instance.api.crateSamplerPresetsTopK(topK: topK);
 
   /// Create a sampler with nucleus (top-p) sampling.
   ///
   /// Args:
   ///     top_p: Cumulative probability threshold (0.0 to 1.0)
   static SamplerConfig topP({required double topP}) =>
-      NobodyWho.instance.api.crateApiNobodywhoSamplerPresetsTopP(topP: topP);
+      NobodyWho.instance.api.crateSamplerPresetsTopP(topP: topP);
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< SetterError>>

@@ -3,7 +3,7 @@ library;
 import 'dart:async';
 import 'dart:convert';
 
-export 'src/rust/api/nobodywho.dart'
+export 'src/rust/lib.dart'
     hide
         RustChat, // Users should use Chat
         RustTokenStream, // Users should use TokenStream
@@ -12,7 +12,7 @@ export 'src/rust/api/nobodywho.dart'
         toolCallArgumentsJson; // Internal helper
 export 'src/rust/frb_generated.dart' show NobodyWho;
 
-import 'src/rust/api/nobodywho.dart' as nobodywho;
+import 'src/rust/lib.dart' as nobodywho;
 
 /// Extension to provide convenient access to ToolCall arguments.
 /// The underlying `arguments` field is an opaque serde_json::Value,

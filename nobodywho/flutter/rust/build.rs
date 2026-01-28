@@ -22,7 +22,7 @@ fn main() {
 
     // generate bot hrust and dart interop code
     let config = codegen::Config {
-        rust_input: Some("crate::api".to_string()),
+        rust_input: Some("crate".to_string()),
         rust_root: Some(".".to_string()),
         rust_preamble: Some(
             "use flutter_rust_bridge::Rust2DartSendError;\nuse nobodywho::errors::*;\nuse nobodywho::chat::Message;\nuse serde_json::Value;".to_string(),
