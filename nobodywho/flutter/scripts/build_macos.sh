@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# Build nobodywho_flutter for macOS development, heavily vibe-coded.
+# Build nobodywho for macOS development, heavily vibe-coded.
 # This script builds all macOS targets and creates the xcframework
 # so you can run the example_app on macOS
 
@@ -47,7 +47,7 @@ if [ "$BUILD_TYPE" = "release" ]; then
 fi
 
 echo "========================================"
-echo "Building nobodywho_flutter for macOS"
+echo "Building nobodywho for macOS"
 echo "Build type: $BUILD_TYPE"
 echo "========================================"
 
@@ -93,7 +93,7 @@ lipo -create \
 # Create headers directory
 HEADERS_DIR="$TARGET_DIR/xcframework/headers"
 mkdir -p "$HEADERS_DIR"
-cp "$FLUTTER_DIR/nobodywho_flutter/ios/Classes/binding.h" "$HEADERS_DIR/"
+cp "$FLUTTER_DIR/nobodywho/ios/Classes/binding.h" "$HEADERS_DIR/"
 cat > "$HEADERS_DIR/module.modulemap" << 'EOF'
 module CBinding {
     header "binding.h"

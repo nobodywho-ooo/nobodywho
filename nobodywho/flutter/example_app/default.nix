@@ -9,7 +9,7 @@ let
   models = callPackage ../../models.nix { };
 in
 flutter335.buildFlutterApplication rec {
-  pname = "nobodywho_flutter_example_app";
+  pname = "nobodywho_example_app";
   version = "0.0.1";
 
   src = lib.fileset.toSource {
@@ -31,11 +31,11 @@ flutter335.buildFlutterApplication rec {
   # Fix the plugin symlink for the Nix build environment
   preBuild = ''
     # Remove the absolute symlink if it exists
-    rm -f linux/flutter/ephemeral/.plugin_symlinks/nobodywho_flutter
+    rm -f linux/flutter/ephemeral/.plugin_symlinks/nobodywho
 
     # Create a relative symlink to the plugin
     mkdir -p linux/flutter/ephemeral/.plugin_symlinks
-    ln -sf ../../../../../nobodywho_flutter linux/flutter/ephemeral/.plugin_symlinks/nobodywho_flutter
+    ln -sf ../../../../../nobodywho linux/flutter/ephemeral/.plugin_symlinks/nobodywho
   '';
 
   # Run flutter analyze and tests during check phase
@@ -52,14 +52,14 @@ flutter335.buildFlutterApplication rec {
     echo "Testing the nobodywho dart wrapper package"
     export LD_LIBRARY_PATH="${nobodywho_flutter_rust.lib}/lib"
     export TEST_MODEL="${models.TEST_MODEL}"
-    flutter test ../nobodywho_dart/test/nobodywho_dart_test.dart
+    flutter test ../nobodywho/test/nobodywho_test.dart
 
     runHook postCheck
   '';
 
   # see: https://github.com/fzyzcjy/flutter_rust_bridge/issues/2527
   fixupPhase = ''
-    patchelf --add-rpath '$ORIGIN' $out/app/nobodywho_flutter_example_app/lib/libflutter_linux_gtk.so
+    patchelf --add-rpath '$ORIGIN' $out/app/nobodywho_example_app/lib/libflutter_linux_gtk.so
   '';
 
   # read pubspec using IFD

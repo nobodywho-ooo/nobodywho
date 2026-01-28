@@ -11,8 +11,8 @@ dependencies:
   flutter:
     sdk: flutter
 
-  nobodywho_flutter:
-    path: "../nobodywho_flutter"
+  nobodywho:
+    path: "../nobodywho"
 
   cupertino_icons: ^1.0.8
   file_picker: ^10.3.3

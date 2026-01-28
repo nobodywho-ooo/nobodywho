@@ -1,4 +1,4 @@
-import 'package:nobodywho_flutter/nobodywho_flutter.dart' as nobodywho;
+import 'package:nobodywho/nobodywho.dart' as nobodywho;
 
 /// Convert string to uppercase.
 String toUppercase({required String text}) {

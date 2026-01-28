@@ -25,7 +25,7 @@
 
 // Section: imports
 
-use crate::api::nobodywho::*;
+use crate::*;
 use flutter_rust_bridge::for_generated::byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
 use flutter_rust_bridge::for_generated::{transform_result_dco, Lifetimeable, Lockable};
 use flutter_rust_bridge::{Handler, IntoIntoDart};
@@ -43,7 +43,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1159746912;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -671491735;
 
 // Section: executor
 
@@ -51,7 +51,7 @@ flutter_rust_bridge::frb_generated_default_handler!();
 
 // Section: wire_funcs
 
-fn wire__crate__api__nobodywho__CrossEncoder_new_impl(
+fn wire__crate__CrossEncoder_new_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -76,15 +76,14 @@ fn wire__crate__api__nobodywho__CrossEncoder_new_impl(
             let api_n_ctx = <u32>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
-                let output_ok = Result::<_, ()>::Ok(crate::api::nobodywho::CrossEncoder::new(
-                    api_model, api_n_ctx,
-                ))?;
+                let output_ok =
+                    Result::<_, ()>::Ok(crate::CrossEncoder::new(api_model, api_n_ctx))?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__nobodywho__CrossEncoder_rank_impl(
+fn wire__crate__CrossEncoder_rank_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -132,12 +131,9 @@ fn wire__crate__api__nobodywho__CrossEncoder_rank_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = crate::api::nobodywho::CrossEncoder::rank(
-                            &*api_that_guard,
-                            api_query,
-                            api_documents,
-                        )
-                        .await?;
+                        let output_ok =
+                            crate::CrossEncoder::rank(&*api_that_guard, api_query, api_documents)
+                                .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -146,7 +142,7 @@ fn wire__crate__api__nobodywho__CrossEncoder_rank_impl(
         },
     )
 }
-fn wire__crate__api__nobodywho__CrossEncoder_rank_and_sort_impl(
+fn wire__crate__CrossEncoder_rank_and_sort_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -194,7 +190,7 @@ fn wire__crate__api__nobodywho__CrossEncoder_rank_and_sort_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = crate::api::nobodywho::CrossEncoder::rank_and_sort(
+                        let output_ok = crate::CrossEncoder::rank_and_sort(
                             &*api_that_guard,
                             api_query,
                             api_documents,
@@ -208,7 +204,7 @@ fn wire__crate__api__nobodywho__CrossEncoder_rank_and_sort_impl(
         },
     )
 }
-fn wire__crate__api__nobodywho__Encoder_encode_impl(
+fn wire__crate__Encoder_encode_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -255,9 +251,7 @@ fn wire__crate__api__nobodywho__Encoder_encode_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok =
-                            crate::api::nobodywho::Encoder::encode(&*api_that_guard, api_text)
-                                .await?;
+                        let output_ok = crate::Encoder::encode(&*api_that_guard, api_text).await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -266,7 +260,7 @@ fn wire__crate__api__nobodywho__Encoder_encode_impl(
         },
     )
 }
-fn wire__crate__api__nobodywho__Encoder_new_impl(
+fn wire__crate__Encoder_new_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -291,14 +285,13 @@ fn wire__crate__api__nobodywho__Encoder_new_impl(
             let api_n_ctx = <u32>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
-                let output_ok =
-                    Result::<_, ()>::Ok(crate::api::nobodywho::Encoder::new(api_model, api_n_ctx))?;
+                let output_ok = Result::<_, ()>::Ok(crate::Encoder::new(api_model, api_n_ctx))?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__nobodywho__Model_load_impl(
+fn wire__crate__Model_load_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -325,15 +318,14 @@ fn wire__crate__api__nobodywho__Model_load_impl(
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, String>((move || {
-                    let output_ok =
-                        crate::api::nobodywho::Model::load(&api_model_path, api_use_gpu)?;
+                    let output_ok = crate::Model::load(&api_model_path, api_use_gpu)?;
                     Ok(output_ok)
                 })())
             }
         },
     )
 }
-fn wire__crate__api__nobodywho__RustChat_ask_impl(
+fn wire__crate__RustChat_ask_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -374,16 +366,14 @@ fn wire__crate__api__nobodywho__RustChat_ask_impl(
                     }
                 }
                 let api_that_guard = api_that_guard.unwrap();
-                let output_ok = Result::<_, ()>::Ok(crate::api::nobodywho::RustChat::ask(
-                    &*api_that_guard,
-                    api_message,
-                ))?;
+                let output_ok =
+                    Result::<_, ()>::Ok(crate::RustChat::ask(&*api_that_guard, api_message))?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__nobodywho__RustChat_from_path_impl(
+fn wire__crate__RustChat_from_path_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -415,7 +405,7 @@ fn wire__crate__api__nobodywho__RustChat_from_path_impl(
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, String>((move || {
-                    let output_ok = crate::api::nobodywho::RustChat::from_path(
+                    let output_ok = crate::RustChat::from_path(
                         &api_model_path,
                         api_system_prompt,
                         api_context_size,
@@ -430,7 +420,7 @@ fn wire__crate__api__nobodywho__RustChat_from_path_impl(
         },
     )
 }
-fn wire__crate__api__nobodywho__RustChat_get_chat_history_impl(
+fn wire__crate__RustChat_get_chat_history_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -476,9 +466,7 @@ fn wire__crate__api__nobodywho__RustChat_get_chat_history_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok =
-                            crate::api::nobodywho::RustChat::get_chat_history(&*api_that_guard)
-                                .await?;
+                        let output_ok = crate::RustChat::get_chat_history(&*api_that_guard).await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -487,7 +475,7 @@ fn wire__crate__api__nobodywho__RustChat_get_chat_history_impl(
         },
     )
 }
-fn wire__crate__api__nobodywho__RustChat_new_impl(
+fn wire__crate__RustChat_new_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -532,7 +520,7 @@ fn wire__crate__api__nobodywho__RustChat_new_impl(
                     }
                 }
                 let api_model_guard = api_model_guard.unwrap();
-                let output_ok = Result::<_, ()>::Ok(crate::api::nobodywho::RustChat::new(
+                let output_ok = Result::<_, ()>::Ok(crate::RustChat::new(
                     &*api_model_guard,
                     api_system_prompt,
                     api_context_size,
@@ -545,7 +533,7 @@ fn wire__crate__api__nobodywho__RustChat_new_impl(
         },
     )
 }
-fn wire__crate__api__nobodywho__RustChat_reset_context_impl(
+fn wire__crate__RustChat_reset_context_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -593,7 +581,7 @@ fn wire__crate__api__nobodywho__RustChat_reset_context_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = crate::api::nobodywho::RustChat::reset_context(
+                        let output_ok = crate::RustChat::reset_context(
                             &*api_that_guard,
                             api_system_prompt,
                             api_tools,
@@ -607,7 +595,7 @@ fn wire__crate__api__nobodywho__RustChat_reset_context_impl(
         },
     )
 }
-fn wire__crate__api__nobodywho__RustChat_reset_history_impl(
+fn wire__crate__RustChat_reset_history_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -653,9 +641,7 @@ fn wire__crate__api__nobodywho__RustChat_reset_history_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok =
-                            crate::api::nobodywho::RustChat::reset_history(&*api_that_guard)
-                                .await?;
+                        let output_ok = crate::RustChat::reset_history(&*api_that_guard).await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -664,7 +650,7 @@ fn wire__crate__api__nobodywho__RustChat_reset_history_impl(
         },
     )
 }
-fn wire__crate__api__nobodywho__RustChat_set_allow_thinking_impl(
+fn wire__crate__RustChat_set_allow_thinking_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -711,7 +697,7 @@ fn wire__crate__api__nobodywho__RustChat_set_allow_thinking_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = crate::api::nobodywho::RustChat::set_allow_thinking(
+                        let output_ok = crate::RustChat::set_allow_thinking(
                             &*api_that_guard,
                             api_allow_thinking,
                         )
@@ -724,7 +710,7 @@ fn wire__crate__api__nobodywho__RustChat_set_allow_thinking_impl(
         },
     )
 }
-fn wire__crate__api__nobodywho__RustChat_set_chat_history_impl(
+fn wire__crate__RustChat_set_chat_history_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -749,7 +735,7 @@ fn wire__crate__api__nobodywho__RustChat_set_chat_history_impl(
             let api_that = <RustOpaqueMoi<
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustChat>,
             >>::sse_decode(&mut deserializer);
-            let api_messages = <Vec<crate::api::nobodywho::Message>>::sse_decode(&mut deserializer);
+            let api_messages = <Vec<crate::Message>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, SetterError>(
@@ -771,11 +757,9 @@ fn wire__crate__api__nobodywho__RustChat_set_chat_history_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = crate::api::nobodywho::RustChat::set_chat_history(
-                            &*api_that_guard,
-                            api_messages,
-                        )
-                        .await?;
+                        let output_ok =
+                            crate::RustChat::set_chat_history(&*api_that_guard, api_messages)
+                                .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -784,7 +768,7 @@ fn wire__crate__api__nobodywho__RustChat_set_chat_history_impl(
         },
     )
 }
-fn wire__crate__api__nobodywho__RustChat_set_sampler_config_impl(
+fn wire__crate__RustChat_set_sampler_config_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -831,7 +815,7 @@ fn wire__crate__api__nobodywho__RustChat_set_sampler_config_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = crate::api::nobodywho::RustChat::set_sampler_config(
+                        let output_ok = crate::RustChat::set_sampler_config(
                             &*api_that_guard,
                             api_sampler_config,
                         )
@@ -844,7 +828,7 @@ fn wire__crate__api__nobodywho__RustChat_set_sampler_config_impl(
         },
     )
 }
-fn wire__crate__api__nobodywho__RustChat_set_system_prompt_impl(
+fn wire__crate__RustChat_set_system_prompt_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -891,11 +875,9 @@ fn wire__crate__api__nobodywho__RustChat_set_system_prompt_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = crate::api::nobodywho::RustChat::set_system_prompt(
-                            &*api_that_guard,
-                            api_system_prompt,
-                        )
-                        .await?;
+                        let output_ok =
+                            crate::RustChat::set_system_prompt(&*api_that_guard, api_system_prompt)
+                                .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -904,7 +886,7 @@ fn wire__crate__api__nobodywho__RustChat_set_system_prompt_impl(
         },
     )
 }
-fn wire__crate__api__nobodywho__RustChat_set_tools_impl(
+fn wire__crate__RustChat_set_tools_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -952,8 +934,7 @@ fn wire__crate__api__nobodywho__RustChat_set_tools_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            crate::api::nobodywho::RustChat::set_tools(&*api_that_guard, api_tools)
-                                .await?;
+                            crate::RustChat::set_tools(&*api_that_guard, api_tools).await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -962,7 +943,7 @@ fn wire__crate__api__nobodywho__RustChat_set_tools_impl(
         },
     )
 }
-fn wire__crate__api__nobodywho__RustChat_stop_generation_impl(
+fn wire__crate__RustChat_stop_generation_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -1003,14 +984,14 @@ fn wire__crate__api__nobodywho__RustChat_stop_generation_impl(
                 }
                 let api_that_guard = api_that_guard.unwrap();
                 let output_ok = Result::<_, ()>::Ok({
-                    crate::api::nobodywho::RustChat::stop_generation(&*api_that_guard);
+                    crate::RustChat::stop_generation(&*api_that_guard);
                 })?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__nobodywho__RustTokenStream_completed_impl(
+fn wire__crate__RustTokenStream_completed_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1057,8 +1038,7 @@ fn wire__crate__api__nobodywho__RustTokenStream_completed_impl(
                         }
                         let mut api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            crate::api::nobodywho::RustTokenStream::completed(&mut *api_that_guard)
-                                .await?;
+                            crate::RustTokenStream::completed(&mut *api_that_guard).await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -1067,7 +1047,7 @@ fn wire__crate__api__nobodywho__RustTokenStream_completed_impl(
         },
     )
 }
-fn wire__crate__api__nobodywho__RustTokenStream_iter_impl(
+fn wire__crate__RustTokenStream_iter_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1117,11 +1097,8 @@ fn wire__crate__api__nobodywho__RustTokenStream_iter_impl(
                             }
                         }
                         let mut api_that_guard = api_that_guard.unwrap();
-                        let output_ok = crate::api::nobodywho::RustTokenStream::iter(
-                            &mut *api_that_guard,
-                            api_sink,
-                        )
-                        .await?;
+                        let output_ok =
+                            crate::RustTokenStream::iter(&mut *api_that_guard, api_sink).await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -1130,7 +1107,7 @@ fn wire__crate__api__nobodywho__RustTokenStream_iter_impl(
         },
     )
 }
-fn wire__crate__api__nobodywho__RustTokenStream_next_token_impl(
+fn wire__crate__RustTokenStream_next_token_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1177,10 +1154,7 @@ fn wire__crate__api__nobodywho__RustTokenStream_next_token_impl(
                         }
                         let mut api_that_guard = api_that_guard.unwrap();
                         let output_ok = Result::<_, ()>::Ok(
-                            crate::api::nobodywho::RustTokenStream::next_token(
-                                &mut *api_that_guard,
-                            )
-                            .await,
+                            crate::RustTokenStream::next_token(&mut *api_that_guard).await,
                         )?;
                         Ok(output_ok)
                     })()
@@ -1190,7 +1164,7 @@ fn wire__crate__api__nobodywho__RustTokenStream_next_token_impl(
         },
     )
 }
-fn wire__crate__api__nobodywho__SamplerBuilder_dist_impl(
+fn wire__crate__SamplerBuilder_dist_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -1230,15 +1204,13 @@ fn wire__crate__api__nobodywho__SamplerBuilder_dist_impl(
                     }
                 }
                 let api_that_guard = api_that_guard.unwrap();
-                let output_ok = Result::<_, ()>::Ok(crate::api::nobodywho::SamplerBuilder::dist(
-                    &*api_that_guard,
-                ))?;
+                let output_ok = Result::<_, ()>::Ok(crate::SamplerBuilder::dist(&*api_that_guard))?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__nobodywho__SamplerBuilder_dry_impl(
+fn wire__crate__SamplerBuilder_dry_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -1283,7 +1255,7 @@ fn wire__crate__api__nobodywho__SamplerBuilder_dry_impl(
                     }
                 }
                 let api_that_guard = api_that_guard.unwrap();
-                let output_ok = Result::<_, ()>::Ok(crate::api::nobodywho::SamplerBuilder::dry(
+                let output_ok = Result::<_, ()>::Ok(crate::SamplerBuilder::dry(
                     &*api_that_guard,
                     api_multiplier,
                     api_base,
@@ -1296,7 +1268,7 @@ fn wire__crate__api__nobodywho__SamplerBuilder_dry_impl(
         },
     )
 }
-fn wire__crate__api__nobodywho__SamplerBuilder_grammar_impl(
+fn wire__crate__SamplerBuilder_grammar_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -1339,19 +1311,18 @@ fn wire__crate__api__nobodywho__SamplerBuilder_grammar_impl(
                     }
                 }
                 let api_that_guard = api_that_guard.unwrap();
-                let output_ok =
-                    Result::<_, ()>::Ok(crate::api::nobodywho::SamplerBuilder::grammar(
-                        &*api_that_guard,
-                        api_grammar,
-                        api_trigger_on,
-                        api_root,
-                    ))?;
+                let output_ok = Result::<_, ()>::Ok(crate::SamplerBuilder::grammar(
+                    &*api_that_guard,
+                    api_grammar,
+                    api_trigger_on,
+                    api_root,
+                ))?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__nobodywho__SamplerBuilder_greedy_impl(
+fn wire__crate__SamplerBuilder_greedy_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -1391,15 +1362,14 @@ fn wire__crate__api__nobodywho__SamplerBuilder_greedy_impl(
                     }
                 }
                 let api_that_guard = api_that_guard.unwrap();
-                let output_ok = Result::<_, ()>::Ok(
-                    crate::api::nobodywho::SamplerBuilder::greedy(&*api_that_guard),
-                )?;
+                let output_ok =
+                    Result::<_, ()>::Ok(crate::SamplerBuilder::greedy(&*api_that_guard))?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__nobodywho__SamplerBuilder_min_p_impl(
+fn wire__crate__SamplerBuilder_min_p_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -1441,7 +1411,7 @@ fn wire__crate__api__nobodywho__SamplerBuilder_min_p_impl(
                     }
                 }
                 let api_that_guard = api_that_guard.unwrap();
-                let output_ok = Result::<_, ()>::Ok(crate::api::nobodywho::SamplerBuilder::min_p(
+                let output_ok = Result::<_, ()>::Ok(crate::SamplerBuilder::min_p(
                     &*api_that_guard,
                     api_min_p,
                     api_min_keep,
@@ -1451,7 +1421,7 @@ fn wire__crate__api__nobodywho__SamplerBuilder_min_p_impl(
         },
     )
 }
-fn wire__crate__api__nobodywho__SamplerBuilder_mirostat_v1_impl(
+fn wire__crate__SamplerBuilder_mirostat_v1_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -1494,19 +1464,18 @@ fn wire__crate__api__nobodywho__SamplerBuilder_mirostat_v1_impl(
                     }
                 }
                 let api_that_guard = api_that_guard.unwrap();
-                let output_ok =
-                    Result::<_, ()>::Ok(crate::api::nobodywho::SamplerBuilder::mirostat_v1(
-                        &*api_that_guard,
-                        api_tau,
-                        api_eta,
-                        api_m,
-                    ))?;
+                let output_ok = Result::<_, ()>::Ok(crate::SamplerBuilder::mirostat_v1(
+                    &*api_that_guard,
+                    api_tau,
+                    api_eta,
+                    api_m,
+                ))?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__nobodywho__SamplerBuilder_mirostat_v2_impl(
+fn wire__crate__SamplerBuilder_mirostat_v2_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -1548,18 +1517,17 @@ fn wire__crate__api__nobodywho__SamplerBuilder_mirostat_v2_impl(
                     }
                 }
                 let api_that_guard = api_that_guard.unwrap();
-                let output_ok =
-                    Result::<_, ()>::Ok(crate::api::nobodywho::SamplerBuilder::mirostat_v2(
-                        &*api_that_guard,
-                        api_tau,
-                        api_eta,
-                    ))?;
+                let output_ok = Result::<_, ()>::Ok(crate::SamplerBuilder::mirostat_v2(
+                    &*api_that_guard,
+                    api_tau,
+                    api_eta,
+                ))?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__nobodywho__SamplerBuilder_new_impl(
+fn wire__crate__SamplerBuilder_new_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -1582,13 +1550,13 @@ fn wire__crate__api__nobodywho__SamplerBuilder_new_impl(
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
-                let output_ok = Result::<_, ()>::Ok(crate::api::nobodywho::SamplerBuilder::new())?;
+                let output_ok = Result::<_, ()>::Ok(crate::SamplerBuilder::new())?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__nobodywho__SamplerBuilder_penalties_impl(
+fn wire__crate__SamplerBuilder_penalties_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -1632,20 +1600,19 @@ fn wire__crate__api__nobodywho__SamplerBuilder_penalties_impl(
                     }
                 }
                 let api_that_guard = api_that_guard.unwrap();
-                let output_ok =
-                    Result::<_, ()>::Ok(crate::api::nobodywho::SamplerBuilder::penalties(
-                        &*api_that_guard,
-                        api_penalty_last_n,
-                        api_penalty_repeat,
-                        api_penalty_freq,
-                        api_penalty_present,
-                    ))?;
+                let output_ok = Result::<_, ()>::Ok(crate::SamplerBuilder::penalties(
+                    &*api_that_guard,
+                    api_penalty_last_n,
+                    api_penalty_repeat,
+                    api_penalty_freq,
+                    api_penalty_present,
+                ))?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__nobodywho__SamplerBuilder_temperature_impl(
+fn wire__crate__SamplerBuilder_temperature_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -1686,17 +1653,16 @@ fn wire__crate__api__nobodywho__SamplerBuilder_temperature_impl(
                     }
                 }
                 let api_that_guard = api_that_guard.unwrap();
-                let output_ok =
-                    Result::<_, ()>::Ok(crate::api::nobodywho::SamplerBuilder::temperature(
-                        &*api_that_guard,
-                        api_temperature,
-                    ))?;
+                let output_ok = Result::<_, ()>::Ok(crate::SamplerBuilder::temperature(
+                    &*api_that_guard,
+                    api_temperature,
+                ))?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__nobodywho__SamplerBuilder_top_k_impl(
+fn wire__crate__SamplerBuilder_top_k_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -1737,16 +1703,14 @@ fn wire__crate__api__nobodywho__SamplerBuilder_top_k_impl(
                     }
                 }
                 let api_that_guard = api_that_guard.unwrap();
-                let output_ok = Result::<_, ()>::Ok(crate::api::nobodywho::SamplerBuilder::top_k(
-                    &*api_that_guard,
-                    api_top_k,
-                ))?;
+                let output_ok =
+                    Result::<_, ()>::Ok(crate::SamplerBuilder::top_k(&*api_that_guard, api_top_k))?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__nobodywho__SamplerBuilder_top_p_impl(
+fn wire__crate__SamplerBuilder_top_p_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -1788,7 +1752,7 @@ fn wire__crate__api__nobodywho__SamplerBuilder_top_p_impl(
                     }
                 }
                 let api_that_guard = api_that_guard.unwrap();
-                let output_ok = Result::<_, ()>::Ok(crate::api::nobodywho::SamplerBuilder::top_p(
+                let output_ok = Result::<_, ()>::Ok(crate::SamplerBuilder::top_p(
                     &*api_that_guard,
                     api_top_p,
                     api_min_keep,
@@ -1798,7 +1762,7 @@ fn wire__crate__api__nobodywho__SamplerBuilder_top_p_impl(
         },
     )
 }
-fn wire__crate__api__nobodywho__SamplerBuilder_typical_p_impl(
+fn wire__crate__SamplerBuilder_typical_p_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -1840,18 +1804,17 @@ fn wire__crate__api__nobodywho__SamplerBuilder_typical_p_impl(
                     }
                 }
                 let api_that_guard = api_that_guard.unwrap();
-                let output_ok =
-                    Result::<_, ()>::Ok(crate::api::nobodywho::SamplerBuilder::typical_p(
-                        &*api_that_guard,
-                        api_typ_p,
-                        api_min_keep,
-                    ))?;
+                let output_ok = Result::<_, ()>::Ok(crate::SamplerBuilder::typical_p(
+                    &*api_that_guard,
+                    api_typ_p,
+                    api_min_keep,
+                ))?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__nobodywho__SamplerBuilder_xtc_impl(
+fn wire__crate__SamplerBuilder_xtc_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -1894,7 +1857,7 @@ fn wire__crate__api__nobodywho__SamplerBuilder_xtc_impl(
                     }
                 }
                 let api_that_guard = api_that_guard.unwrap();
-                let output_ok = Result::<_, ()>::Ok(crate::api::nobodywho::SamplerBuilder::xtc(
+                let output_ok = Result::<_, ()>::Ok(crate::SamplerBuilder::xtc(
                     &*api_that_guard,
                     api_xtc_probability,
                     api_xtc_threshold,
@@ -1905,7 +1868,7 @@ fn wire__crate__api__nobodywho__SamplerBuilder_xtc_impl(
         },
     )
 }
-fn wire__crate__api__nobodywho__SamplerPresets_default_sampler_impl(
+fn wire__crate__SamplerPresets_default_sampler_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -1928,14 +1891,13 @@ fn wire__crate__api__nobodywho__SamplerPresets_default_sampler_impl(
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
-                let output_ok =
-                    Result::<_, ()>::Ok(crate::api::nobodywho::SamplerPresets::default_sampler())?;
+                let output_ok = Result::<_, ()>::Ok(crate::SamplerPresets::default_sampler())?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__nobodywho__SamplerPresets_dry_impl(
+fn wire__crate__SamplerPresets_dry_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -1958,13 +1920,13 @@ fn wire__crate__api__nobodywho__SamplerPresets_dry_impl(
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
-                let output_ok = Result::<_, ()>::Ok(crate::api::nobodywho::SamplerPresets::dry())?;
+                let output_ok = Result::<_, ()>::Ok(crate::SamplerPresets::dry())?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__nobodywho__SamplerPresets_grammar_impl(
+fn wire__crate__SamplerPresets_grammar_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -1988,15 +1950,13 @@ fn wire__crate__api__nobodywho__SamplerPresets_grammar_impl(
             let api_grammar = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
-                let output_ok = Result::<_, ()>::Ok(
-                    crate::api::nobodywho::SamplerPresets::grammar(api_grammar),
-                )?;
+                let output_ok = Result::<_, ()>::Ok(crate::SamplerPresets::grammar(api_grammar))?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__nobodywho__SamplerPresets_greedy_impl(
+fn wire__crate__SamplerPresets_greedy_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -2019,14 +1979,13 @@ fn wire__crate__api__nobodywho__SamplerPresets_greedy_impl(
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
-                let output_ok =
-                    Result::<_, ()>::Ok(crate::api::nobodywho::SamplerPresets::greedy())?;
+                let output_ok = Result::<_, ()>::Ok(crate::SamplerPresets::greedy())?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__nobodywho__SamplerPresets_json_impl(
+fn wire__crate__SamplerPresets_json_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -2049,13 +2008,13 @@ fn wire__crate__api__nobodywho__SamplerPresets_json_impl(
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
-                let output_ok = Result::<_, ()>::Ok(crate::api::nobodywho::SamplerPresets::json())?;
+                let output_ok = Result::<_, ()>::Ok(crate::SamplerPresets::json())?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__nobodywho__SamplerPresets_temperature_impl(
+fn wire__crate__SamplerPresets_temperature_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -2079,15 +2038,14 @@ fn wire__crate__api__nobodywho__SamplerPresets_temperature_impl(
             let api_temperature = <f32>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
-                let output_ok = Result::<_, ()>::Ok(
-                    crate::api::nobodywho::SamplerPresets::temperature(api_temperature),
-                )?;
+                let output_ok =
+                    Result::<_, ()>::Ok(crate::SamplerPresets::temperature(api_temperature))?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__nobodywho__SamplerPresets_top_k_impl(
+fn wire__crate__SamplerPresets_top_k_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -2111,14 +2069,13 @@ fn wire__crate__api__nobodywho__SamplerPresets_top_k_impl(
             let api_top_k = <i32>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
-                let output_ok =
-                    Result::<_, ()>::Ok(crate::api::nobodywho::SamplerPresets::top_k(api_top_k))?;
+                let output_ok = Result::<_, ()>::Ok(crate::SamplerPresets::top_k(api_top_k))?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__nobodywho__SamplerPresets_top_p_impl(
+fn wire__crate__SamplerPresets_top_p_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -2142,14 +2099,13 @@ fn wire__crate__api__nobodywho__SamplerPresets_top_p_impl(
             let api_top_p = <f32>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
-                let output_ok =
-                    Result::<_, ()>::Ok(crate::api::nobodywho::SamplerPresets::top_p(api_top_p))?;
+                let output_ok = Result::<_, ()>::Ok(crate::SamplerPresets::top_p(api_top_p))?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__nobodywho__ToolCall_auto_accessor_get_arguments_impl(
+fn wire__crate__ToolCall_auto_accessor_get_arguments_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -2195,7 +2151,7 @@ fn wire__crate__api__nobodywho__ToolCall_auto_accessor_get_arguments_impl(
         },
     )
 }
-fn wire__crate__api__nobodywho__ToolCall_auto_accessor_get_name_impl(
+fn wire__crate__ToolCall_auto_accessor_get_name_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -2241,7 +2197,7 @@ fn wire__crate__api__nobodywho__ToolCall_auto_accessor_get_name_impl(
         },
     )
 }
-fn wire__crate__api__nobodywho__ToolCall_auto_accessor_set_arguments_impl(
+fn wire__crate__ToolCall_auto_accessor_set_arguments_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -2292,7 +2248,7 @@ fn wire__crate__api__nobodywho__ToolCall_auto_accessor_set_arguments_impl(
         },
     )
 }
-fn wire__crate__api__nobodywho__ToolCall_auto_accessor_set_name_impl(
+fn wire__crate__ToolCall_auto_accessor_set_name_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -2343,7 +2299,7 @@ fn wire__crate__api__nobodywho__ToolCall_auto_accessor_set_name_impl(
         },
     )
 }
-fn wire__crate__api__nobodywho__cosine_similarity_impl(
+fn wire__crate__cosine_similarity_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -2368,14 +2324,47 @@ fn wire__crate__api__nobodywho__cosine_similarity_impl(
             let api_b = <Vec<f32>>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
-                let output_ok =
-                    Result::<_, ()>::Ok(crate::api::nobodywho::cosine_similarity(api_a, api_b))?;
+                let output_ok = Result::<_, ()>::Ok(crate::cosine_similarity(api_a, api_b))?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__nobodywho__init_app_impl(
+fn wire__crate__enforce_binding_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "enforce_binding",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok = Result::<_, ()>::Ok({
+                        crate::enforce_binding();
+                    })?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__init_app_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2401,7 +2390,7 @@ fn wire__crate__api__nobodywho__init_app_impl(
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok({
-                        crate::api::nobodywho::init_app();
+                        crate::init_app();
                     })?;
                     Ok(output_ok)
                 })())
@@ -2409,7 +2398,7 @@ fn wire__crate__api__nobodywho__init_app_impl(
         },
     )
 }
-fn wire__crate__api__nobodywho__new_tool_impl_impl(
+fn wire__crate__new_tool_impl_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -2438,7 +2427,7 @@ fn wire__crate__api__nobodywho__new_tool_impl_impl(
             let api_runtime_type = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, String>((move || {
-                let output_ok = crate::api::nobodywho::new_tool_impl(
+                let output_ok = crate::new_tool_impl(
                     api_function,
                     api_name,
                     api_description,
@@ -2449,7 +2438,7 @@ fn wire__crate__api__nobodywho__new_tool_impl_impl(
         },
     )
 }
-fn wire__crate__api__nobodywho__tool_call_arguments_json_impl(
+fn wire__crate__tool_call_arguments_json_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -2491,8 +2480,7 @@ fn wire__crate__api__nobodywho__tool_call_arguments_json_impl(
                     }
                 }
                 let api_tool_call_guard = api_tool_call_guard.unwrap();
-                let output_ok =
-                    crate::api::nobodywho::tool_call_arguments_json(&*api_tool_call_guard)?;
+                let output_ok = crate::tool_call_arguments_json(&*api_tool_call_guard)?;
                 Ok(output_ok)
             })())
         },
@@ -2502,26 +2490,26 @@ fn wire__crate__api__nobodywho__tool_call_arguments_json_impl(
 // Section: static_checks
 
 #[allow(clippy::unnecessary_literal_unwrap)]
-const _: fn() = || match None::<crate::api::nobodywho::Message>.unwrap() {
-    crate::api::nobodywho::Message::Message { role, content } => {
-        let _: crate::api::nobodywho::Role = role;
+const _: fn() = || match None::<crate::Message>.unwrap() {
+    crate::Message::Message { role, content } => {
+        let _: crate::Role = role;
         let _: String = content;
     }
-    crate::api::nobodywho::Message::ToolCalls {
+    crate::Message::ToolCalls {
         role,
         content,
         tool_calls,
     } => {
-        let _: crate::api::nobodywho::Role = role;
+        let _: crate::Role = role;
         let _: String = content;
         let _: Vec<ToolCall> = tool_calls;
     }
-    crate::api::nobodywho::Message::ToolResp {
+    crate::Message::ToolResp {
         role,
         name,
         content,
     } => {
-        let _: crate::api::nobodywho::Role = role;
+        let _: crate::Role = role;
         let _: String = name;
         let _: String = content;
     }
@@ -3047,13 +3035,13 @@ impl SseDecode for Vec<String> {
     }
 }
 
-impl SseDecode for Vec<crate::api::nobodywho::Message> {
+impl SseDecode for Vec<crate::Message> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = vec![];
         for idx_ in 0..len_ {
-            ans_.push(<crate::api::nobodywho::Message>::sse_decode(deserializer));
+            ans_.push(<crate::Message>::sse_decode(deserializer));
         }
         return ans_;
     }
@@ -3095,34 +3083,34 @@ impl SseDecode for Vec<(String, f32)> {
     }
 }
 
-impl SseDecode for crate::api::nobodywho::Message {
+impl SseDecode for crate::Message {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut tag_ = <i32>::sse_decode(deserializer);
         match tag_ {
             0 => {
-                let mut var_role = <crate::api::nobodywho::Role>::sse_decode(deserializer);
+                let mut var_role = <crate::Role>::sse_decode(deserializer);
                 let mut var_content = <String>::sse_decode(deserializer);
-                return crate::api::nobodywho::Message::Message {
+                return crate::Message::Message {
                     role: var_role,
                     content: var_content,
                 };
             }
             1 => {
-                let mut var_role = <crate::api::nobodywho::Role>::sse_decode(deserializer);
+                let mut var_role = <crate::Role>::sse_decode(deserializer);
                 let mut var_content = <String>::sse_decode(deserializer);
                 let mut var_toolCalls = <Vec<ToolCall>>::sse_decode(deserializer);
-                return crate::api::nobodywho::Message::ToolCalls {
+                return crate::Message::ToolCalls {
                     role: var_role,
                     content: var_content,
                     tool_calls: var_toolCalls,
                 };
             }
             2 => {
-                let mut var_role = <crate::api::nobodywho::Role>::sse_decode(deserializer);
+                let mut var_role = <crate::Role>::sse_decode(deserializer);
                 let mut var_name = <String>::sse_decode(deserializer);
                 let mut var_content = <String>::sse_decode(deserializer);
-                return crate::api::nobodywho::Message::ToolResp {
+                return crate::Message::ToolResp {
                     role: var_role,
                     name: var_name,
                     content: var_content,
@@ -3166,15 +3154,15 @@ impl SseDecode for (String, f32) {
     }
 }
 
-impl SseDecode for crate::api::nobodywho::Role {
+impl SseDecode for crate::Role {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <i32>::sse_decode(deserializer);
         return match inner {
-            0 => crate::api::nobodywho::Role::User,
-            1 => crate::api::nobodywho::Role::Assistant,
-            2 => crate::api::nobodywho::Role::System,
-            3 => crate::api::nobodywho::Role::Tool,
+            0 => crate::Role::User,
+            1 => crate::Role::Assistant,
+            2 => crate::Role::System,
+            3 => crate::Role::Tool,
             _ => unreachable!("Invalid variant for Role: {}", inner),
         };
     }
@@ -3215,82 +3203,24 @@ fn pde_ffi_dispatcher_primary_impl(
 ) {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
-        2 => wire__crate__api__nobodywho__CrossEncoder_rank_impl(port, ptr, rust_vec_len, data_len),
-        3 => wire__crate__api__nobodywho__CrossEncoder_rank_and_sort_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        4 => wire__crate__api__nobodywho__Encoder_encode_impl(port, ptr, rust_vec_len, data_len),
-        6 => wire__crate__api__nobodywho__Model_load_impl(port, ptr, rust_vec_len, data_len),
-        8 => {
-            wire__crate__api__nobodywho__RustChat_from_path_impl(port, ptr, rust_vec_len, data_len)
-        }
-        9 => wire__crate__api__nobodywho__RustChat_get_chat_history_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        11 => wire__crate__api__nobodywho__RustChat_reset_context_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        12 => wire__crate__api__nobodywho__RustChat_reset_history_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        13 => wire__crate__api__nobodywho__RustChat_set_allow_thinking_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        14 => wire__crate__api__nobodywho__RustChat_set_chat_history_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        15 => wire__crate__api__nobodywho__RustChat_set_sampler_config_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        16 => wire__crate__api__nobodywho__RustChat_set_system_prompt_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        17 => {
-            wire__crate__api__nobodywho__RustChat_set_tools_impl(port, ptr, rust_vec_len, data_len)
-        }
-        19 => wire__crate__api__nobodywho__RustTokenStream_completed_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        20 => wire__crate__api__nobodywho__RustTokenStream_iter_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        21 => wire__crate__api__nobodywho__RustTokenStream_next_token_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        49 => wire__crate__api__nobodywho__init_app_impl(port, ptr, rust_vec_len, data_len),
+        2 => wire__crate__CrossEncoder_rank_impl(port, ptr, rust_vec_len, data_len),
+        3 => wire__crate__CrossEncoder_rank_and_sort_impl(port, ptr, rust_vec_len, data_len),
+        4 => wire__crate__Encoder_encode_impl(port, ptr, rust_vec_len, data_len),
+        6 => wire__crate__Model_load_impl(port, ptr, rust_vec_len, data_len),
+        8 => wire__crate__RustChat_from_path_impl(port, ptr, rust_vec_len, data_len),
+        9 => wire__crate__RustChat_get_chat_history_impl(port, ptr, rust_vec_len, data_len),
+        11 => wire__crate__RustChat_reset_context_impl(port, ptr, rust_vec_len, data_len),
+        12 => wire__crate__RustChat_reset_history_impl(port, ptr, rust_vec_len, data_len),
+        13 => wire__crate__RustChat_set_allow_thinking_impl(port, ptr, rust_vec_len, data_len),
+        14 => wire__crate__RustChat_set_chat_history_impl(port, ptr, rust_vec_len, data_len),
+        15 => wire__crate__RustChat_set_sampler_config_impl(port, ptr, rust_vec_len, data_len),
+        16 => wire__crate__RustChat_set_system_prompt_impl(port, ptr, rust_vec_len, data_len),
+        17 => wire__crate__RustChat_set_tools_impl(port, ptr, rust_vec_len, data_len),
+        19 => wire__crate__RustTokenStream_completed_impl(port, ptr, rust_vec_len, data_len),
+        20 => wire__crate__RustTokenStream_iter_impl(port, ptr, rust_vec_len, data_len),
+        21 => wire__crate__RustTokenStream_next_token_impl(port, ptr, rust_vec_len, data_len),
+        49 => wire__crate__enforce_binding_impl(port, ptr, rust_vec_len, data_len),
+        50 => wire__crate__init_app_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -3303,84 +3233,40 @@ fn pde_ffi_dispatcher_sync_impl(
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
-        1 => wire__crate__api__nobodywho__CrossEncoder_new_impl(ptr, rust_vec_len, data_len),
-        5 => wire__crate__api__nobodywho__Encoder_new_impl(ptr, rust_vec_len, data_len),
-        7 => wire__crate__api__nobodywho__RustChat_ask_impl(ptr, rust_vec_len, data_len),
-        10 => wire__crate__api__nobodywho__RustChat_new_impl(ptr, rust_vec_len, data_len),
-        18 => {
-            wire__crate__api__nobodywho__RustChat_stop_generation_impl(ptr, rust_vec_len, data_len)
-        }
-        22 => wire__crate__api__nobodywho__SamplerBuilder_dist_impl(ptr, rust_vec_len, data_len),
-        23 => wire__crate__api__nobodywho__SamplerBuilder_dry_impl(ptr, rust_vec_len, data_len),
-        24 => wire__crate__api__nobodywho__SamplerBuilder_grammar_impl(ptr, rust_vec_len, data_len),
-        25 => wire__crate__api__nobodywho__SamplerBuilder_greedy_impl(ptr, rust_vec_len, data_len),
-        26 => wire__crate__api__nobodywho__SamplerBuilder_min_p_impl(ptr, rust_vec_len, data_len),
-        27 => wire__crate__api__nobodywho__SamplerBuilder_mirostat_v1_impl(
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        28 => wire__crate__api__nobodywho__SamplerBuilder_mirostat_v2_impl(
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        29 => wire__crate__api__nobodywho__SamplerBuilder_new_impl(ptr, rust_vec_len, data_len),
-        30 => {
-            wire__crate__api__nobodywho__SamplerBuilder_penalties_impl(ptr, rust_vec_len, data_len)
-        }
-        31 => wire__crate__api__nobodywho__SamplerBuilder_temperature_impl(
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        32 => wire__crate__api__nobodywho__SamplerBuilder_top_k_impl(ptr, rust_vec_len, data_len),
-        33 => wire__crate__api__nobodywho__SamplerBuilder_top_p_impl(ptr, rust_vec_len, data_len),
-        34 => {
-            wire__crate__api__nobodywho__SamplerBuilder_typical_p_impl(ptr, rust_vec_len, data_len)
-        }
-        35 => wire__crate__api__nobodywho__SamplerBuilder_xtc_impl(ptr, rust_vec_len, data_len),
-        36 => wire__crate__api__nobodywho__SamplerPresets_default_sampler_impl(
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        37 => wire__crate__api__nobodywho__SamplerPresets_dry_impl(ptr, rust_vec_len, data_len),
-        38 => wire__crate__api__nobodywho__SamplerPresets_grammar_impl(ptr, rust_vec_len, data_len),
-        39 => wire__crate__api__nobodywho__SamplerPresets_greedy_impl(ptr, rust_vec_len, data_len),
-        40 => wire__crate__api__nobodywho__SamplerPresets_json_impl(ptr, rust_vec_len, data_len),
-        41 => wire__crate__api__nobodywho__SamplerPresets_temperature_impl(
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        42 => wire__crate__api__nobodywho__SamplerPresets_top_k_impl(ptr, rust_vec_len, data_len),
-        43 => wire__crate__api__nobodywho__SamplerPresets_top_p_impl(ptr, rust_vec_len, data_len),
-        44 => wire__crate__api__nobodywho__ToolCall_auto_accessor_get_arguments_impl(
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        45 => wire__crate__api__nobodywho__ToolCall_auto_accessor_get_name_impl(
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        46 => wire__crate__api__nobodywho__ToolCall_auto_accessor_set_arguments_impl(
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        47 => wire__crate__api__nobodywho__ToolCall_auto_accessor_set_name_impl(
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        48 => wire__crate__api__nobodywho__cosine_similarity_impl(ptr, rust_vec_len, data_len),
-        50 => wire__crate__api__nobodywho__new_tool_impl_impl(ptr, rust_vec_len, data_len),
-        51 => {
-            wire__crate__api__nobodywho__tool_call_arguments_json_impl(ptr, rust_vec_len, data_len)
-        }
+        1 => wire__crate__CrossEncoder_new_impl(ptr, rust_vec_len, data_len),
+        5 => wire__crate__Encoder_new_impl(ptr, rust_vec_len, data_len),
+        7 => wire__crate__RustChat_ask_impl(ptr, rust_vec_len, data_len),
+        10 => wire__crate__RustChat_new_impl(ptr, rust_vec_len, data_len),
+        18 => wire__crate__RustChat_stop_generation_impl(ptr, rust_vec_len, data_len),
+        22 => wire__crate__SamplerBuilder_dist_impl(ptr, rust_vec_len, data_len),
+        23 => wire__crate__SamplerBuilder_dry_impl(ptr, rust_vec_len, data_len),
+        24 => wire__crate__SamplerBuilder_grammar_impl(ptr, rust_vec_len, data_len),
+        25 => wire__crate__SamplerBuilder_greedy_impl(ptr, rust_vec_len, data_len),
+        26 => wire__crate__SamplerBuilder_min_p_impl(ptr, rust_vec_len, data_len),
+        27 => wire__crate__SamplerBuilder_mirostat_v1_impl(ptr, rust_vec_len, data_len),
+        28 => wire__crate__SamplerBuilder_mirostat_v2_impl(ptr, rust_vec_len, data_len),
+        29 => wire__crate__SamplerBuilder_new_impl(ptr, rust_vec_len, data_len),
+        30 => wire__crate__SamplerBuilder_penalties_impl(ptr, rust_vec_len, data_len),
+        31 => wire__crate__SamplerBuilder_temperature_impl(ptr, rust_vec_len, data_len),
+        32 => wire__crate__SamplerBuilder_top_k_impl(ptr, rust_vec_len, data_len),
+        33 => wire__crate__SamplerBuilder_top_p_impl(ptr, rust_vec_len, data_len),
+        34 => wire__crate__SamplerBuilder_typical_p_impl(ptr, rust_vec_len, data_len),
+        35 => wire__crate__SamplerBuilder_xtc_impl(ptr, rust_vec_len, data_len),
+        36 => wire__crate__SamplerPresets_default_sampler_impl(ptr, rust_vec_len, data_len),
+        37 => wire__crate__SamplerPresets_dry_impl(ptr, rust_vec_len, data_len),
+        38 => wire__crate__SamplerPresets_grammar_impl(ptr, rust_vec_len, data_len),
+        39 => wire__crate__SamplerPresets_greedy_impl(ptr, rust_vec_len, data_len),
+        40 => wire__crate__SamplerPresets_json_impl(ptr, rust_vec_len, data_len),
+        41 => wire__crate__SamplerPresets_temperature_impl(ptr, rust_vec_len, data_len),
+        42 => wire__crate__SamplerPresets_top_k_impl(ptr, rust_vec_len, data_len),
+        43 => wire__crate__SamplerPresets_top_p_impl(ptr, rust_vec_len, data_len),
+        44 => wire__crate__ToolCall_auto_accessor_get_arguments_impl(ptr, rust_vec_len, data_len),
+        45 => wire__crate__ToolCall_auto_accessor_get_name_impl(ptr, rust_vec_len, data_len),
+        46 => wire__crate__ToolCall_auto_accessor_set_arguments_impl(ptr, rust_vec_len, data_len),
+        47 => wire__crate__ToolCall_auto_accessor_set_name_impl(ptr, rust_vec_len, data_len),
+        48 => wire__crate__cosine_similarity_impl(ptr, rust_vec_len, data_len),
+        51 => wire__crate__new_tool_impl_impl(ptr, rust_vec_len, data_len),
+        52 => wire__crate__tool_call_arguments_json_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -3654,16 +3540,16 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<Value>> for Value {
 }
 
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::nobodywho::Message> {
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::Message> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self.0 {
-            crate::api::nobodywho::Message::Message { role, content } => [
+            crate::Message::Message { role, content } => [
                 0.into_dart(),
                 role.into_into_dart().into_dart(),
                 content.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::api::nobodywho::Message::ToolCalls {
+            crate::Message::ToolCalls {
                 role,
                 content,
                 tool_calls,
@@ -3674,7 +3560,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::nobodywho::Message
                 tool_calls.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::api::nobodywho::Message::ToolResp {
+            crate::Message::ToolResp {
                 role,
                 name,
                 content,
@@ -3691,37 +3577,27 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::nobodywho::Message
         }
     }
 }
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<crate::api::nobodywho::Message>
-{
-}
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::nobodywho::Message>>
-    for crate::api::nobodywho::Message
-{
-    fn into_into_dart(self) -> FrbWrapper<crate::api::nobodywho::Message> {
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<crate::Message> {}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::Message>> for crate::Message {
+    fn into_into_dart(self) -> FrbWrapper<crate::Message> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::nobodywho::Role> {
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::Role> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self.0 {
-            crate::api::nobodywho::Role::User => 0.into_dart(),
-            crate::api::nobodywho::Role::Assistant => 1.into_dart(),
-            crate::api::nobodywho::Role::System => 2.into_dart(),
-            crate::api::nobodywho::Role::Tool => 3.into_dart(),
+            crate::Role::User => 0.into_dart(),
+            crate::Role::Assistant => 1.into_dart(),
+            crate::Role::System => 2.into_dart(),
+            crate::Role::Tool => 3.into_dart(),
             _ => unreachable!(),
         }
     }
 }
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<crate::api::nobodywho::Role>
-{
-}
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::nobodywho::Role>>
-    for crate::api::nobodywho::Role
-{
-    fn into_into_dart(self) -> FrbWrapper<crate::api::nobodywho::Role> {
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<crate::Role> {}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::Role>> for crate::Role {
+    fn into_into_dart(self) -> FrbWrapper<crate::Role> {
         self.into()
     }
 }
@@ -4128,12 +4004,12 @@ impl SseEncode for Vec<String> {
     }
 }
 
-impl SseEncode for Vec<crate::api::nobodywho::Message> {
+impl SseEncode for Vec<crate::Message> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::api::nobodywho::Message>::sse_encode(item, serializer);
+            <crate::Message>::sse_encode(item, serializer);
         }
     }
 }
@@ -4168,32 +4044,32 @@ impl SseEncode for Vec<(String, f32)> {
     }
 }
 
-impl SseEncode for crate::api::nobodywho::Message {
+impl SseEncode for crate::Message {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         match self {
-            crate::api::nobodywho::Message::Message { role, content } => {
+            crate::Message::Message { role, content } => {
                 <i32>::sse_encode(0, serializer);
-                <crate::api::nobodywho::Role>::sse_encode(role, serializer);
+                <crate::Role>::sse_encode(role, serializer);
                 <String>::sse_encode(content, serializer);
             }
-            crate::api::nobodywho::Message::ToolCalls {
+            crate::Message::ToolCalls {
                 role,
                 content,
                 tool_calls,
             } => {
                 <i32>::sse_encode(1, serializer);
-                <crate::api::nobodywho::Role>::sse_encode(role, serializer);
+                <crate::Role>::sse_encode(role, serializer);
                 <String>::sse_encode(content, serializer);
                 <Vec<ToolCall>>::sse_encode(tool_calls, serializer);
             }
-            crate::api::nobodywho::Message::ToolResp {
+            crate::Message::ToolResp {
                 role,
                 name,
                 content,
             } => {
                 <i32>::sse_encode(2, serializer);
-                <crate::api::nobodywho::Role>::sse_encode(role, serializer);
+                <crate::Role>::sse_encode(role, serializer);
                 <String>::sse_encode(name, serializer);
                 <String>::sse_encode(content, serializer);
             }
@@ -4232,15 +4108,15 @@ impl SseEncode for (String, f32) {
     }
 }
 
-impl SseEncode for crate::api::nobodywho::Role {
+impl SseEncode for crate::Role {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(
             match self {
-                crate::api::nobodywho::Role::User => 0,
-                crate::api::nobodywho::Role::Assistant => 1,
-                crate::api::nobodywho::Role::System => 2,
-                crate::api::nobodywho::Role::Tool => 3,
+                crate::Role::User => 0,
+                crate::Role::Assistant => 1,
+                crate::Role::System => 2,
+                crate::Role::Tool => 3,
                 _ => {
                     unimplemented!("");
                 }
@@ -4287,7 +4163,7 @@ mod io {
     // Section: imports
 
     use super::*;
-    use crate::api::nobodywho::*;
+    use crate::*;
     use flutter_rust_bridge::for_generated::byteorder::{
         NativeEndian, ReadBytesExt, WriteBytesExt,
     };
@@ -4304,238 +4180,238 @@ mod io {
     flutter_rust_bridge::frb_generated_boilerplate_io!();
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCompletionError(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCompletionError(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CompletionError>>::increment_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCompletionError(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCompletionError(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CompletionError>>::decrement_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoder(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoder(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CrossEncoder>>::increment_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoder(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoder(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CrossEncoder>>::decrement_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderWorkerError(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderWorkerError(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CrossEncoderWorkerError>>::increment_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderWorkerError(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderWorkerError(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CrossEncoderWorkerError>>::decrement_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoder(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoder(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Encoder>>::increment_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoder(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoder(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Encoder>>::decrement_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderWorkerError(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderWorkerError(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< EncoderWorkerError>>::increment_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderWorkerError(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderWorkerError(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< EncoderWorkerError>>::decrement_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGetterError(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGetterError(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< GetterError>>::increment_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGetterError(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGetterError(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< GetterError>>::decrement_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerModel(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerModel(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Model>>::increment_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerModel(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerModel(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Model>>::decrement_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRust2DartSendError(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRust2DartSendError(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Rust2DartSendError>>::increment_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRust2DartSendError(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRust2DartSendError(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Rust2DartSendError>>::decrement_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustChat(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustChat(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustChat>>::increment_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustChat(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustChat(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustChat>>::decrement_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTokenStream(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTokenStream(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustTokenStream>>::increment_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTokenStream(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTokenStream(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustTokenStream>>::decrement_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTool(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTool(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustTool>>::increment_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTool(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTool(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustTool>>::decrement_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerBuilder>>::increment_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerBuilder>>::decrement_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerConfig>>::increment_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerConfig>>::decrement_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerPresets(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerPresets(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerPresets>>::increment_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerPresets(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerPresets(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerPresets>>::decrement_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< SetterError>>::increment_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< SetterError>>::decrement_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ToolCall>>::increment_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ToolCall>>::decrement_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< Value>>::increment_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_dart_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< Value>>::decrement_strong_count(ptr as _);
@@ -4553,7 +4429,7 @@ mod web {
     // Section: imports
 
     use super::*;
-    use crate::api::nobodywho::*;
+    use crate::*;
     use flutter_rust_bridge::for_generated::byteorder::{
         NativeEndian, ReadBytesExt, WriteBytesExt,
     };

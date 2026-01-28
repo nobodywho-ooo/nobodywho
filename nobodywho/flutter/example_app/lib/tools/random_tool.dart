@@ -1,5 +1,5 @@
 import 'dart:math';
-import 'package:nobodywho_flutter/nobodywho_flutter.dart' as nobodywho;
+import 'package:nobodywho/nobodywho.dart' as nobodywho;
 
 final _random = Random();
 

@@ -1,4 +1,4 @@
-import 'package:nobodywho_flutter/nobodywho_flutter.dart' as nobodywho;
+import 'package:nobodywho/nobodywho.dart' as nobodywho;
 
 /// Calculator tool providing basic arithmetic operations.
 /// Uses `num` to accept both int and double from JSON.

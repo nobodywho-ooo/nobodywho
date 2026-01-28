@@ -1,4 +1,4 @@
-import 'package:nobodywho_flutter/nobodywho_flutter.dart' as nobodywho;
+import 'package:nobodywho/nobodywho.dart' as nobodywho;
 
 /// Sampler preset definitions with labels and descriptions.
 enum SamplerPreset {
