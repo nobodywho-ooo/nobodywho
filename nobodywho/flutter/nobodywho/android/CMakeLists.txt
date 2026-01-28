@@ -57,16 +57,17 @@ file(COPY ${NOBODYWHO_LIB_PATH} DESTINATION ${LibRoot}/${ANDROID_ABI})
 # Copy libc++_shared.so from NDK
 # CMAKE_ANDROID_NDK is automatically set by the Android Gradle Plugin
 if(CMAKE_ANDROID_NDK)
-  # Try modern NDK layout first
-  set(CXX_SHARED_LIB "${CMAKE_ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/${NDK_TRIPLE}/libc++_shared.so")
+  # Find the prebuilt directory (works on any host platform: linux, darwin, windows)
+  file(GLOB NDK_PREBUILT_DIR "${CMAKE_ANDROID_NDK}/toolchains/llvm/prebuilt/*")
+  set(CXX_SHARED_LIB "${NDK_PREBUILT_DIR}/sysroot/usr/lib/${NDK_TRIPLE}/libc++_shared.so")
   if(EXISTS ${CXX_SHARED_LIB})
     message(STATUS "Copying libc++_shared.so for ${ANDROID_ABI}")
     file(COPY ${CXX_SHARED_LIB} DESTINATION ${LibRoot}/${ANDROID_ABI})
   else()
-    # Try alternative location for Windows/Mac or older NDK versions
+    # Try alternative location for older NDK versions
     set(CXX_SHARED_LIB "${CMAKE_ANDROID_NDK}/sources/cxx-stl/llvm-libc++/libs/${ANDROID_ABI}/libc++_shared.so")
     if(EXISTS ${CXX_SHARED_LIB})
-      message(STATUS "Copying libc++_shared.so for ${ANDROID_ABI} (alternative path)")
+      message(STATUS "Copying libc++_shared.so for ${ANDROID_ABI} (legacy NDK path)")
       file(COPY ${CXX_SHARED_LIB} DESTINATION ${LibRoot}/${ANDROID_ABI})
     else()
       message(WARNING "libc++_shared.so not found in NDK for ${ANDROID_ABI}")
