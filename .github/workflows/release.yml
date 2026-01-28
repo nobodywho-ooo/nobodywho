@@ -171,3 +171,11 @@ jobs:
           files: ./nobodywho-flutter-release/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Publish to pub.dev"
+        uses: "dart-lang/setup-dart/.github/workflows/publish.yml@v1"
+        permissions:
+          id-token: "write" # Required for authentication using OIDC
+        with:
+          working-directory: "nobodywho/flutter/nobodywho"
+          environment: "pub.dev"
