@@ -39,6 +39,16 @@ abstract class CompletionError implements RustOpaqueInterface {}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CrossEncoder>>
 abstract class CrossEncoder implements RustOpaqueInterface {
+  static Future<CrossEncoder> fromPath({
+    required String modelPath,
+    int nCtx = 4096,
+    bool useGpu = true,
+  }) => NobodyWho.instance.api.crateCrossEncoderFromPath(
+    modelPath: modelPath,
+    nCtx: nCtx,
+    useGpu: useGpu,
+  );
+
   factory CrossEncoder({required Model model, int nCtx = 4096}) =>
       NobodyWho.instance.api.crateCrossEncoderNew(model: model, nCtx: nCtx);
 
@@ -59,6 +69,16 @@ abstract class CrossEncoderWorkerError implements RustOpaqueInterface {}
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Encoder>>
 abstract class Encoder implements RustOpaqueInterface {
   Future<Float32List> encode({required String text});
+
+  static Future<Encoder> fromPath({
+    required String modelPath,
+    int nCtx = 4096,
+    bool useGpu = true,
+  }) => NobodyWho.instance.api.crateEncoderFromPath(
+    modelPath: modelPath,
+    nCtx: nCtx,
+    useGpu: useGpu,
+  );
 
   factory Encoder({required Model model, int nCtx = 4096}) =>
       NobodyWho.instance.api.crateEncoderNew(model: model, nCtx: nCtx);
