@@ -24,7 +24,7 @@ If you want to start reading the response as soon as possible, you can just iter
 Each token is either an individual word or fragments of a word.
 
 ```{.dart continuation}
-await for (final token in response.iter()) {
+await for (final token in response) {
    print(token);
 }
 print("\n");
