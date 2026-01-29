@@ -5,7 +5,38 @@ on:
       CACHIX_AUTH_TOKEN:
         required: true
 
+
 jobs:
+
+
+  flutter-doc-tests-check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Generate doctest file
+        working-directory: flutter/nobodywho
+        run: dart run tool/doctest.dart ../../../docs/markdown/flutter --generate-only
+
+      - name: Check if generated tests are up to date
+        run: |
+          if git diff --exit-code flutter/nobodywho/test/doctest_generated_test.dart; then
+            echo "✅ Generated doctests are up to date"
+          else
+            echo "❌ Generated doctests are out of date!"
+            echo ""
+            echo "Please run the following command and commit the changes:"
+            echo "  cd flutter/nobodywho && dart run tool/doctest.dart ../../../docs/markdown/flutter --generate-only"
+            exit 1
+          fi
+
+
+
   # cachix actions as per these docs:
   # https://nix.dev/guides/recipes/continuous-integration-github-actions
   nix-flake-check:
