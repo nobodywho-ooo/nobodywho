@@ -330,8 +330,8 @@ pub fn new_tool_impl(
 #[tracing::instrument(ret, level = "debug")]
 fn dart_function_type_to_json_schema(runtime_type: &str) -> Result<serde_json::Value, String> {
     // Check for no-parameter function first: () => returnType
-    let no_params_re = regex::Regex::new(r"^\(\)\s*=>\s*(.+)$")
-        .map_err(|e| format!("Regex error: {}", e))?;
+    let no_params_re =
+        regex::Regex::new(r"^\(\)\s*=>\s*(.+)$").map_err(|e| format!("Regex error: {}", e))?;
 
     if no_params_re.is_match(runtime_type) {
         // Function has no parameters - return empty schema
