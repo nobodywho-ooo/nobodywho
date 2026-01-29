@@ -6,15 +6,32 @@ order: 1
 ---
 
 As you may have noticed in the [welcome guide](./index.md), every interaction with your LLM starts by instantiating a `Chat` object.
-In the following sections, we talk about which configuration options it has, and when to use them.
+In the following sections, we talk about which configuration options it has, and when to use them.w
+
+
+## Creating a Chat 
+
+There are two main ways of instantiating a `Chat` object and the difference lies in when the model file is loaded. 
+The simplest way is using `Chat.fromPath` like so:
+
+```dart 
+final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
+```
+This function is async since loading a model can take a bit of time, but this should not block the any of your UI.
+Another way to achieve the same thing is to load the model seperately and then use the `Chat` constructor:
+
+```dart
+final model = await nobodywho.Model.load(modelPath: "./model.gguf");
+final chat = nobodywho.Chat(model : model);
+```
+
+This allows for sharing the model between several `Chat` instances.
 
 ## Prompts and responses
 
 The `Chat.ask()` function is central to NobodyWho. This function sends your message to the LLM, which then starts generating a response.
 
 ```dart
-import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
-
 final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
 final response = await chat.ask("Is water wet?");
 ```
@@ -31,7 +48,7 @@ print("\n");
 ```
 
 If you just want to get the complete response, you can call `TokenStream.completed()`.
-This will block until the model is done generating its entire response.
+This will return the entire response string once the model is done generating its entire response.
 
 ```{.dart continuation}
 final fullResponse = await response.completed();
@@ -100,7 +117,8 @@ If you don't want to change the already set defaults (`systemPrompt`, `tools`), 
 
 ## Sharing model between contexts
 
-There are scenarios where you would like to keep separate chat contexts (e.g. for every user of your app), but have only one model loaded. With plain `Chat` this is not possible.
+There are scenarios where you would like to keep separate chat contexts (e.g. for every user of your app), but have only one model loaded. In this case you must load the model 
+seperately from creating the `Chat` instance.
 
 For this use case, instead of the path to the `.gguf` model, you can pass in `Model` object, which can be shared between multiple `Chat` instances.
 
@@ -116,10 +134,15 @@ final chat2 = nobodywho.Chat(model: model);
 NobodyWho will then take care of the separation, such that your chat histories won't collide or interfere with each other, while having only one model loaded.
 
 ## GPU
-Instantiating `Model` is also useful, when enabling GPU acceleration. This can be done as:
+When instantiating `Model` or using `Chat.fromPath` you have the option to disable/enable GPU acceleration. This can be done as:
 ```dart
-await nobodywho.Model.load(modelPath: './model.gguf', useGpu: true);
+final model = await nobodywho.Model.load(modelPath: './model.gguf', useGpu: true);
 ```
+or 
+```dart
+final chat = await nobodywho.Chat.fromPath(modelPath: './model.gguf', useGpu : false);
+```
+By defualt `useGpu` is set to true.
 So far, NobodyWho relies purely on [Vulkan](https://www.vulkan.org), however support
 of more architectures is planned (for details check out our [issues](https://github.com/nobodywho-ooo/nobodywho/issues) or join us on [Discord](https://discord.gg/qhaMc2qCYB)).
 

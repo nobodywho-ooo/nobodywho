@@ -43,16 +43,12 @@ void main() {
       }
     });
 
-    test('logging-and-troubleshooting.md:13', () async {
+    test('index.md:16', () async {
       
     });
 
-    test('index.md:19', () async {
+    test('index.md:23', () async {
       await nobodywho.NobodyWho.init();
-      
-      final chat = await nobodywho.Chat.fromPath(modelPath: './model.gguf');
-      final msg = await chat.ask('Is water wet?').completed();
-      print(msg); // Yes, indeed, water is wet!
     });
 
     test('tool-calling.md:21', () async {
@@ -98,7 +94,8 @@ void main() {
       
       final chat = await nobodywho.Chat.fromPath(
         modelPath: './model.gguf',
-        tools: [getCurrentDirTool, listFilesTool, getFileSizeTool]
+        tools: [getCurrentDirTool, listFilesTool, getFileSizeTool],
+        allowThinking : false
       );
       
       final response = await chat.ask('What is the biggest file in my current directory?').completed();
@@ -112,7 +109,7 @@ void main() {
       print("Vector with ${embedding.length} dimensions");
     });
 
-    test('embeddings-and-rag.md:38', () async {
+    test('embeddings-and-rag.md:37', () async {
       final model = await nobodywho.Model.load(modelPath: './embedding-model.gguf');
       final encoder = nobodywho.Encoder(model: model);
       
@@ -133,7 +130,7 @@ void main() {
       print("Document 2 similarity: ${similarity2.toStringAsFixed(3)}");  // Lower score
     });
 
-    test('embeddings-and-rag.md:66', () async {
+    test('embeddings-and-rag.md:65', () async {
       final model = await nobodywho.Model.load(modelPath: './embedding-model.gguf');
       final encoder = nobodywho.Encoder(model: model);
       
@@ -173,7 +170,7 @@ void main() {
       print("Similarity score: ${maxSimilarity.toStringAsFixed(3)}");
     });
 
-    test('embeddings-and-rag.md:132', () async {
+    test('embeddings-and-rag.md:131', () async {
       // Download a reranking model like bge-reranker-v2-m3-Q8_0.gguf
       final rerankerModel = await nobodywho.Model.load(modelPath: './reranker-model.gguf');
       final crossencoder = nobodywho.CrossEncoder(model: rerankerModel);
@@ -196,15 +193,15 @@ void main() {
       }
     });
 
-    test('embeddings-and-rag.md:172', () async {
+    test('embeddings-and-rag.md:171', () async {
       await _doctest_8();
     });
 
-    test('embeddings-and-rag.md:222', () async {
+    test('embeddings-and-rag.md:221', () async {
       await _doctest_9();
     });
 
-    test('embeddings-and-rag.md:271', () async {
+    test('embeddings-and-rag.md:270', () async {
       // For longer documents, increase context size
       final model = await nobodywho.Model.load(modelPath: './embedding-model.gguf');
       final encoder = nobodywho.Encoder(model: model, nCtx: 4096);
@@ -256,7 +253,16 @@ void main() {
       await chat.setSamplerConfig(sampler);
     });
 
-    test('chat.md:15', () async {
+    test('chat.md:17', () async {
+      final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
+    });
+
+    test('chat.md:23', () async {
+      final model = await nobodywho.Model.load(modelPath: "./model.gguf");
+      final chat = nobodywho.Chat(model : model);
+    });
+
+    test('chat.md:34', () async {
       final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
       final response = await chat.ask("Is water wet?");
       await for (final token in response) {
@@ -271,14 +277,14 @@ void main() {
       ]);
     });
 
-    test('chat.md:66', () async {
+    test('chat.md:83', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         systemPrompt: "You are a mischievous assistant!"
       );
     });
 
-    test('chat.md:82', () async {
+    test('chat.md:99', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         contextSize: 4096
@@ -286,11 +292,15 @@ void main() {
       await chat.resetContext(systemPrompt: "New system prompt", tools: []);
     });
 
-    test('chat.md:120', () async {
-      await nobodywho.Model.load(modelPath: './model.gguf', useGpu: true);
+    test('chat.md:138', () async {
+      final model = await nobodywho.Model.load(modelPath: './model.gguf', useGpu: true);
     });
 
-    test('chat.md:129', () async {
+    test('chat.md:142', () async {
+      final chat = await nobodywho.Chat.fromPath(modelPath: './model.gguf', useGpu : false);
+    });
+
+    test('chat.md:152', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         allowThinking: true
@@ -301,7 +311,7 @@ void main() {
   });
 }
 
-// Extracted from embeddings-and-rag.md:172
+// Extracted from embeddings-and-rag.md:171
 Future<void> _doctest_8() async {
   // Initialize the cross-encoder for document ranking
   final rerankerModel = await nobodywho.Model.load(modelPath: './reranker-model.gguf');
@@ -342,7 +352,7 @@ Future<void> _doctest_8() async {
   print(response);
 }
 
-// Extracted from embeddings-and-rag.md:222
+// Extracted from embeddings-and-rag.md:221
 Future<void> _doctest_9() async {
   final embeddingModel = await nobodywho.Model.load(modelPath: './embedding-model.gguf');
   final encoder = nobodywho.Encoder(model: embeddingModel);

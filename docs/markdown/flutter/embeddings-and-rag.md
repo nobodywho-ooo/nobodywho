@@ -21,7 +21,6 @@ We recommend you first try [bge-small-en-v1.5-q8_0.gguf](https://huggingface.co/
 
 ```dart
 import 'dart:typed_data';
-import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
 
 final model = await nobodywho.Model.load(modelPath: './embedding-model.gguf');
 final encoder = nobodywho.Encoder(model: model);
