@@ -20,6 +20,12 @@ Future<String> strongify({required String text}) async {
   return 'WOW $text WOW';
 }
 
+String noArgs() {
+  print("noArgs called!");
+  return "This function has no args!";
+}
+
+
 void main() {
   group('A group of tests', () {
     final modelPath = Platform.environment["TEST_MODEL"]!;
@@ -42,12 +48,18 @@ void main() {
         description: "Applies the strongify effect to a string",
       );
 
+      final noargs_tool = nobodywho.Tool(
+        function : noArgs,
+        name: "noArgs",
+        description: "This function does nothing and returns some string",
+      );
+
       chat = await nobodywho.Chat.fromPath(
         modelPath: modelPath,
         systemPrompt: "",
         contextSize: 1024,
         allowThinking: false,
-        tools: [sparklify_tool, strongify_tool],
+        tools: [sparklify_tool, strongify_tool, noargs_tool],
       );
     });
 
@@ -82,6 +94,15 @@ void main() {
 
       expect(response, contains("WOW Wrawr WOW"));
     });
+
+
+    test('Tool calling with no arguments test', () async{
+      final response = await chat!.ask(
+        "Please make a call to the noArgs function and show me the exact output!"
+      ).completed();
+      expect(response, contains("This function has no args!"));
+    });
+
 
     test('Get chat history', () async {
       await chat!.ask("Hello!").completed();

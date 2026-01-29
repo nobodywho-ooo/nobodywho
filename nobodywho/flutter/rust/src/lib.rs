@@ -324,19 +324,33 @@ pub fn new_tool_impl(
 }
 
 /// Converts a Dart function runtimeType string directly to a JSON schema
-/// Example input: "({String a, int b}) => String"
+/// Example input: "({String a, int b}) => String" or "() => String"
 /// Returns a JSON schema for the function parameters
 /// XXX: this whole function is vibe-coded, and hence the implementation is pretty messy...
 #[tracing::instrument(ret, level = "debug")]
 fn dart_function_type_to_json_schema(runtime_type: &str) -> Result<serde_json::Value, String> {
+    // Check for no-parameter function first: () => returnType
+    let no_params_re = regex::Regex::new(r"^\(\)\s*=>\s*(.+)$")
+        .map_err(|e| format!("Regex error: {}", e))?;
+
+    if no_params_re.is_match(runtime_type) {
+        // Function has no parameters - return empty schema
+        return Ok(serde_json::json!({
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+        }));
+    }
+
     // Match the pattern: ({params}) => returnType
     let re = regex::Regex::new(r"^\(\{([^}]*)\}\)\s*=>\s*(.+)$")
         .map_err(|e| format!("Regex error: {}", e))?;
 
     let captures = re.captures(runtime_type).ok_or_else(|| {
-        if !runtime_type.contains("({") {
+        if !runtime_type.contains("({") && !runtime_type.contains("()") {
             format!(
-                "Tool function must take only named parameters, got function type: {:?}",
+                "Tool function must take either no parameters or only named parameters, got function type: {:?}",
                 runtime_type
             )
         } else {
@@ -855,6 +869,32 @@ mod tests {
             "properties": { "text": { "type": "string" } },
             "required": [ "text" ],
             "additionalProperties": false,
+        });
+        assert_eq!(json_schema, expected);
+    }
+
+    #[test]
+    fn test_no_parameters() {
+        let dart_type = "() => String";
+        let json_schema = dart_function_type_to_json_schema(dart_type).unwrap();
+        let expected = serde_json::json!({
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+        });
+        assert_eq!(json_schema, expected);
+    }
+
+    #[test]
+    fn test_no_parameters_async() {
+        let dart_type = "() => Future<String>";
+        let json_schema = dart_function_type_to_json_schema(dart_type).unwrap();
+        let expected = serde_json::json!({
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
         });
         assert_eq!(json_schema, expected);
     }
