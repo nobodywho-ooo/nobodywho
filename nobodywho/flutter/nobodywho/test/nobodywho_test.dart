@@ -280,6 +280,55 @@ void main() {
           .completed();
       expect(response2, contains("WOW test WOW"));
     });
+
+
+    test('Encoder.fromPath creates encoder and encodes text', () async {
+      final modelPath = Platform.environment["TEST_EMBEDDINGS_MODEL"];
+      if (modelPath == null) {
+        return; // Skip test if model not provided
+      }
+
+      final encoder = await nobodywho.Encoder.fromPath(modelPath: modelPath);
+      final embeddings = await encoder.encode(text: "Test text for embedding.");
+
+      // Basic checks
+      expect(embeddings, isA<List<double>>());
+      expect(embeddings.length, greaterThan(0));
+      expect(embeddings.every((x) => x is double), isTrue);
+
+      // Verify self-similarity is close to 1.0 (embeddings make sense)
+      final selfSim = nobodywho.cosineSimilarity(a: embeddings, b: embeddings);
+      expect(selfSim, closeTo(1.0, 0.001));
+    });
+
+    test('CrossEncoder.fromPath creates cross encoder and ranks documents', () async {
+      final modelPath = Platform.environment["TEST_CROSSENCODER_MODEL"];
+      if (modelPath == null) {
+        return; // Skip test if model not provided
+      }
+
+      final crossEncoder = await nobodywho.CrossEncoder.fromPath(modelPath: modelPath);
+      final documents = [
+        "Paris is the capital of France.",
+        "Berlin is the capital of Germany.",
+        "The weather is nice today.",
+      ];
+
+      final scores = await crossEncoder.rank(
+        query: "What is the capital of France?",
+        documents: documents,
+      );
+
+      // Basic checks
+      expect(scores, isA<List<double>>());
+      expect(scores.length, equals(documents.length));
+      expect(scores.every((x) => x is double), isTrue);
+
+      // Verify most relevant document has highest score
+      expect(scores[0], greaterThan(scores[1]));
+      expect(scores[0], greaterThan(scores[2]));
+    });
+
   });
 
   group('Message struct tests', () {
@@ -490,4 +539,5 @@ void main() {
       expect(original.name, equals('original_tool')); // Original unchanged
     });
   });
+
 }
