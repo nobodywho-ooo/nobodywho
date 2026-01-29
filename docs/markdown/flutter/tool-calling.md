@@ -22,7 +22,7 @@ a good sense of how such a tool can look like, consider this geometry example:
 import 'dart:math' as math;
 import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
 
-final circleAreaTool = nobodywho.describeTool(
+final circleAreaTool = nobodywho.Tool(
   name: "circle_area",
   description: "Calculates the area of a circle given its radius",
   function: ({ required double radius }) {
@@ -32,10 +32,10 @@ final circleAreaTool = nobodywho.describeTool(
 );
 ```
 
-As you can see, every `describeTool()` call needs a function, a name, and a description
+As you can see, every `Tool()` call needs a function, a name, and a description
 of what such tool does. To let your LLM use it, simply add it when creating `Chat`:
 
-```dart
+``` {.dart continuation}
 final chat = nobodywho.Chat.fromPath(
   modelPath: './model.gguf',
   tools: [circleAreaTool]
@@ -51,13 +51,13 @@ Naturally, more tools can be defined and the model can chain the calls for them:
 import 'dart:io';
 import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
 
-final getCurrentDirTool = nobodywho.describeTool(
+final getCurrentDirTool = nobodywho.Tool(
   name: "get_current_dir",
   description: "Gets path of the current directory",
   function: () => Directory.current.path
 );
 
-final listFilesTool = nobodywho.describeTool(
+final listFilesTool = nobodywho.Tool(
   name: "list_files",
   description: "Lists files in the given directory",
   function: ({required String path}) {
@@ -70,7 +70,7 @@ final listFilesTool = nobodywho.describeTool(
   }
 );
 
-final getFileSizeTool = nobodywho.describeTool(
+final getFileSizeTool = nobodywho.Tool(
   name: "get_file_size",
   description: "Gets the size of a file in bytes",
   function: ({required String filepath}) async {
@@ -80,7 +80,7 @@ final getFileSizeTool = nobodywho.describeTool(
   }
 );
 
-final chat = nobodywho.Chat.fromPath(
+final chat = await nobodywho.Chat.fromPath(
   modelPath: './model.gguf',
   tools: [getCurrentDirTool, listFilesTool, getFileSizeTool]
 );

@@ -13,7 +13,6 @@ In short, to enable debug logs:
 ```dart
 import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
 
-nobodywho.initDebugLog();
 ```
 
 This can be useful for getting some insight into what the model is choosing to do and when.
@@ -24,7 +23,6 @@ Typically, you would call `initDebugLog()` once during your app initialization, 
 ```dart
 Future<void> main() async {
   await nobodywho.NobodyWho.init();
-  nobodywho.initDebugLog();
   
   // Now create your chat instances, etc.
   final chat = await nobodywho.Chat.fromPath(modelPath: './model.gguf');

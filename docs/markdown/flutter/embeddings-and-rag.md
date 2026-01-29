@@ -134,7 +134,7 @@ import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
 
 // Download a reranking model like bge-reranker-v2-m3-Q8_0.gguf
 final rerankerModel = await nobodywho.Model.load(modelPath: './reranker-model.gguf');
-final crossencoder = nobodywho.CrossEncoder(model: model);
+final crossencoder = nobodywho.CrossEncoder(model: rerankerModel);
 
 final query = "How do I install Python packages?";
 final documents = [
@@ -187,7 +187,7 @@ Future<void> main() async {
   ];
 
   // Create a tool that searches the knowledge base
-  final searchKnowledgeTool = nobodywho.describeTool(
+  final searchKnowledgeTool = nobodywho.Tool(
     function: ({required String query}) async {
       // Rank all documents by relevance to the query
       final ranked = await crossencoder.rankAndSort(query: query, documents: knowledge);
@@ -331,7 +331,7 @@ Future<void> main() async {
     return topResults.join("\n---\n");
   }
 
-  final searchTool = nobodywho.describeTool(
+  final searchTool = nobodywho.Tool(
     function: search,
     name: "search",
     description: "Search the knowledge base for information relevant to the query"

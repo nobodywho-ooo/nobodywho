@@ -23,7 +23,7 @@ await nobodywho.NobodyWho.init();
 
 final chat = await nobodywho.Chat.fromPath(modelPath: './model.gguf');
 final msg = await chat.ask('Is water wet?').completed();
-print(msg) // Yes, indeed, water is wet!
+print(msg); // Yes, indeed, water is wet!
 ```
 
 This is a super simple example, but we believe that examples which do simple things, should be simple!

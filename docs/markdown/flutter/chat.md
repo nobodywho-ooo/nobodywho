@@ -51,7 +51,7 @@ print(msgs[0].content); // "Is water wet?"
 Similarly, if you want to edit what messages are in the context, you can use `setChatHistory`:
 
 ```{.dart continuation}
-await chat.setChatHistory(messages: [
+await chat.setChatHistory([
   nobodywho.Message.message(role: nobodywho.Role.user, content: "What is water?")
 ]);
 ```
@@ -118,7 +118,7 @@ NobodyWho will then take care of the separation, such that your chat histories w
 ## GPU
 Instantiating `Model` is also useful, when enabling GPU acceleration. This can be done as:
 ```dart
-await nobodywho.Model.load(modelPath: './model.gguf', useGpu: true)
+await nobodywho.Model.load(modelPath: './model.gguf', useGpu: true);
 ```
 So far, NobodyWho relies purely on [Vulkan](https://www.vulkan.org), however support
 of more architectures is planned (for details check out our [issues](https://github.com/nobodywho-ooo/nobodywho/issues) or join us on [Discord](https://discord.gg/qhaMc2qCYB)).
@@ -134,7 +134,7 @@ final chat = await nobodywho.Chat.fromPath(
 ```
 Note that `Chat` has thinking set to `true` by default. You can also change the setting of an already existing chat instance:
 ```{.dart continuation}
-await chat.setAllowThinking(allowThinking: true);
+await chat.setAllowThinking(true);
 ```
 With the next message send, the setting will be propagated.
 
