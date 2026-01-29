@@ -250,6 +250,18 @@ impl Encoder {
         Self { handle }
     }
 
+    #[flutter_rust_bridge::frb]
+    pub fn from_path(
+        model_path: &str,
+        #[frb(default = 4096)] n_ctx: u32,
+        #[frb(default = true)] use_gpu: bool,
+    ) -> Result<Self, String> {
+        let model = nobodywho::llm::get_model(model_path, use_gpu).map_err(|e| e.to_string())?;
+        let handle = nobodywho::encoder::EncoderAsync::new(model.clone(), n_ctx);
+
+        Ok(Self { handle })
+    }
+
     pub async fn encode(
         &self,
         text: String,
@@ -270,6 +282,16 @@ impl CrossEncoder {
         Self { handle }
     }
 
+    #[flutter_rust_bridge::frb]
+    pub fn from_path(
+        model_path: &str,
+        #[frb(default = 4096)] n_ctx: u32,
+        #[frb(default = true)] use_gpu: bool,
+    ) -> Result<Self, String> {
+        let model = nobodywho::llm::get_model(model_path, use_gpu).map_err(|e| e.to_string())?;
+        let handle = nobodywho::crossencoder::CrossEncoderAsync::new(model.clone(), n_ctx);
+        Ok(Self { handle })
+    }
     pub async fn rank(
         &self,
         query: String,
