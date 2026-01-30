@@ -22,8 +22,7 @@ We recommend you first try [bge-small-en-v1.5-q8_0.gguf](https://huggingface.co/
 ```dart
 import 'dart:typed_data';
 
-final model = await nobodywho.Model.load(modelPath: './embedding-model.gguf');
-final encoder = nobodywho.Encoder(model: model);
+final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
 final embedding = await encoder.encode(text: "What is the weather like?");
 print("Vector with ${embedding.length} dimensions");
 ```
@@ -38,8 +37,7 @@ To measure how similar two pieces of text are, compare their embeddings using co
 import 'dart:typed_data';
 import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
 
-final model = await nobodywho.Model.load(modelPath: './embedding-model.gguf');
-final encoder = nobodywho.Encoder(model: model);
+final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
 
 final query = await encoder.encode(text: "How do I reset my password?");
 final doc1 = await encoder.encode(text: "You can reset your password in the account settings");
@@ -66,8 +64,7 @@ Cosine similarity returns a value between -1 and 1, where 1 means identical mean
 import 'dart:typed_data';
 import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
 
-final model = await nobodywho.Model.load(modelPath: './embedding-model.gguf');
-final encoder = nobodywho.Encoder(model: model);
+final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
 
 // Your knowledge base
 final documents = [
@@ -132,8 +129,7 @@ Using embeddings alone, the first document scores highest (most similar to the q
 import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
 
 // Download a reranking model like bge-reranker-v2-m3-Q8_0.gguf
-final rerankerModel = await nobodywho.Model.load(modelPath: './reranker-model.gguf');
-final crossencoder = nobodywho.CrossEncoder(model: rerankerModel);
+final crossencoder = await nobodywho.CrossEncoder.fromPath(modelPath: './reranker-model.gguf');
 
 final query = "How do I install Python packages?";
 final documents = [
@@ -173,8 +169,7 @@ import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
 
 Future<void> main() async {
   // Initialize the cross-encoder for document ranking
-  final rerankerModel = await nobodywho.Model.load(modelPath: './reranker-model.gguf');
-  final crossencoder = nobodywho.CrossEncoder(model: rerankerModel);
+  final crossencoder = await nobodywho.CrossEncoder.fromPath(modelPath: './reranker-model.gguf');
 
   // Your knowledge base
   final knowledge = [
@@ -223,11 +218,9 @@ import 'dart:typed_data';
 import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
 
 Future<void> main() async {
-  final embeddingModel = await nobodywho.Model.load(modelPath: './embedding-model.gguf');
-  final encoder = nobodywho.Encoder(model: embeddingModel);
+  final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
   
-  final rerankerModel = await nobodywho.Model.load(modelPath: './reranker-model.gguf');
-  final crossencoder = nobodywho.CrossEncoder(model: rerankerModel);
+  final crossencoder = await nobodywho.CrossEncoder.fromPath(modelPath: './reranker-model.gguf');
   
   // Generate embeddings asynchronously
   final embedding = await encoder.encode(text: "What is the weather?");
@@ -269,11 +262,9 @@ Future<void> main() async {
 
 ```dart
 // For longer documents, increase context size
-final model = await nobodywho.Model.load(modelPath: './embedding-model.gguf');
-final encoder = nobodywho.Encoder(model: model, nCtx: 4096);
+final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
 
-final rerankerModel = await nobodywho.Model.load(modelPath: './reranker-model.gguf');
-final crossencoder = nobodywho.CrossEncoder(model: rerankerModel, nCtx: 4096);
+final crossencoder = await nobodywho.CrossEncoder.fromPath(modelPath: './reranker-model.gguf');
 ```
 
 ## Complete RAG Example
@@ -286,11 +277,9 @@ import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
 
 Future<void> main() async {
   // Initialize models
-  final embeddingModel = await nobodywho.Model.load(modelPath: './embedding-model.gguf');
-  final encoder = nobodywho.Encoder(model: embeddingModel);
+  final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
   
-  final rerankerModel = await nobodywho.Model.load(modelPath: './reranker-model.gguf');
-  final crossencoder = nobodywho.CrossEncoder(model: rerankerModel);
+  final crossencoder = await nobodywho.CrossEncoder.fromPath((modelPath: './reranker-model.gguf');)
 
   // Large knowledge base
   final knowledgeBase = [

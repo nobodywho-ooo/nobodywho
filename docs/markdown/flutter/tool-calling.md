@@ -59,7 +59,7 @@ final getCurrentDirTool = nobodywho.Tool(
 
 final listFilesTool = nobodywho.Tool(
   name: "list_files",
-  description: "Lists files in the given directory",
+  description: "Lists files in the given directory. The argument must be a valid directory.",
   function: ({required String path}) {
     final dir = Directory(path);
     final files = dir.listSync()
@@ -72,7 +72,7 @@ final listFilesTool = nobodywho.Tool(
 
 final getFileSizeTool = nobodywho.Tool(
   name: "get_file_size",
-  description: "Gets the size of a file in bytes",
+  description: "Gets the size of a file in bytes. The argument must be a valid filename.",
   function: ({required String filepath}) async {
     final file = File(filepath);
     final size = await file.length();

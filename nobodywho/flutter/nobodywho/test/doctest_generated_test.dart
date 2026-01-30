@@ -71,7 +71,7 @@ void main() {
       
       final listFilesTool = nobodywho.Tool(
         name: "list_files",
-        description: "Lists files in the given directory",
+        description: "Lists files in the given directory. The argument must be a valid directory.",
         function: ({required String path}) {
           final dir = Directory(path);
           final files = dir.listSync()
@@ -84,7 +84,7 @@ void main() {
       
       final getFileSizeTool = nobodywho.Tool(
         name: "get_file_size",
-        description: "Gets the size of a file in bytes",
+        description: "Gets the size of a file in bytes. The argument must be a valid filename.",
         function: ({required String filepath}) async {
           final file = File(filepath);
           final size = await file.length();
@@ -103,15 +103,13 @@ void main() {
     });
 
     test('embeddings-and-rag.md:22', () async {
-      final model = await nobodywho.Model.load(modelPath: './embedding-model.gguf');
-      final encoder = nobodywho.Encoder(model: model);
+      final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
       final embedding = await encoder.encode(text: "What is the weather like?");
       print("Vector with ${embedding.length} dimensions");
     });
 
-    test('embeddings-and-rag.md:37', () async {
-      final model = await nobodywho.Model.load(modelPath: './embedding-model.gguf');
-      final encoder = nobodywho.Encoder(model: model);
+    test('embeddings-and-rag.md:36', () async {
+      final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
       
       final query = await encoder.encode(text: "How do I reset my password?");
       final doc1 = await encoder.encode(text: "You can reset your password in the account settings");
@@ -130,9 +128,8 @@ void main() {
       print("Document 2 similarity: ${similarity2.toStringAsFixed(3)}");  // Lower score
     });
 
-    test('embeddings-and-rag.md:65', () async {
-      final model = await nobodywho.Model.load(modelPath: './embedding-model.gguf');
-      final encoder = nobodywho.Encoder(model: model);
+    test('embeddings-and-rag.md:63', () async {
+      final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
       
       // Your knowledge base
       final documents = [
@@ -170,10 +167,9 @@ void main() {
       print("Similarity score: ${maxSimilarity.toStringAsFixed(3)}");
     });
 
-    test('embeddings-and-rag.md:131', () async {
+    test('embeddings-and-rag.md:128', () async {
       // Download a reranking model like bge-reranker-v2-m3-Q8_0.gguf
-      final rerankerModel = await nobodywho.Model.load(modelPath: './reranker-model.gguf');
-      final crossencoder = nobodywho.CrossEncoder(model: rerankerModel);
+      final crossencoder = await nobodywho.CrossEncoder.fromPath(modelPath: './reranker-model.gguf');
       
       final query = "How do I install Python packages?";
       final documents = [
@@ -193,21 +189,19 @@ void main() {
       }
     });
 
-    test('embeddings-and-rag.md:171', () async {
+    test('embeddings-and-rag.md:167', () async {
       await _doctest_8();
     });
 
-    test('embeddings-and-rag.md:221', () async {
+    test('embeddings-and-rag.md:216', () async {
       await _doctest_9();
     });
 
-    test('embeddings-and-rag.md:270', () async {
+    test('embeddings-and-rag.md:263', () async {
       // For longer documents, increase context size
-      final model = await nobodywho.Model.load(modelPath: './embedding-model.gguf');
-      final encoder = nobodywho.Encoder(model: model, nCtx: 4096);
+      final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
       
-      final rerankerModel = await nobodywho.Model.load(modelPath: './reranker-model.gguf');
-      final crossencoder = nobodywho.CrossEncoder(model: rerankerModel, nCtx: 4096);
+      final crossencoder = await nobodywho.CrossEncoder.fromPath(modelPath: './reranker-model.gguf');
     });
 
     test('sampling.md:15', () async {
@@ -311,11 +305,10 @@ void main() {
   });
 }
 
-// Extracted from embeddings-and-rag.md:171
+// Extracted from embeddings-and-rag.md:167
 Future<void> _doctest_8() async {
   // Initialize the cross-encoder for document ranking
-  final rerankerModel = await nobodywho.Model.load(modelPath: './reranker-model.gguf');
-  final crossencoder = nobodywho.CrossEncoder(model: rerankerModel);
+  final crossencoder = await nobodywho.CrossEncoder.fromPath(modelPath: './reranker-model.gguf');
 
   // Your knowledge base
   final knowledge = [
@@ -352,13 +345,11 @@ Future<void> _doctest_8() async {
   print(response);
 }
 
-// Extracted from embeddings-and-rag.md:221
+// Extracted from embeddings-and-rag.md:216
 Future<void> _doctest_9() async {
-  final embeddingModel = await nobodywho.Model.load(modelPath: './embedding-model.gguf');
-  final encoder = nobodywho.Encoder(model: embeddingModel);
+  final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
   
-  final rerankerModel = await nobodywho.Model.load(modelPath: './reranker-model.gguf');
-  final crossencoder = nobodywho.CrossEncoder(model: rerankerModel);
+  final crossencoder = await nobodywho.CrossEncoder.fromPath(modelPath: './reranker-model.gguf');
   
   // Generate embeddings asynchronously
   final embedding = await encoder.encode(text: "What is the weather?");

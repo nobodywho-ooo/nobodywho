@@ -20,7 +20,7 @@ jobs:
           channel: stable
 
       - name: Generate doctest file
-        working-directory: flutter/nobodywho
+        working-directory: nobodywho/flutter/nobodywho
         run: dart run tool/doctest.dart ../../../docs/markdown/flutter --generate-only
 
       - name: Check if generated tests are up to date
