@@ -325,8 +325,9 @@ pub fn new_tool_impl(
     name: String,
     description: String,
     runtime_type: String,
+    parameter_descriptions: &std::collections::HashMap<String, String>,
 ) -> Result<RustTool, String> {
-    let json_schema = dart_function_type_to_json_schema(&runtime_type)?;
+    let json_schema = dart_function_type_to_json_schema(&runtime_type, parameter_descriptions)?;
 
     // TODO: this seems to silently block forever if we get a type error on the dart side.
     //       it'd be *much* better to fail hard and throw a dart exception if that happens
@@ -350,7 +351,10 @@ pub fn new_tool_impl(
 /// Returns a JSON schema for the function parameters
 /// XXX: this whole function is vibe-coded, and hence the implementation is pretty messy...
 #[tracing::instrument(ret, level = "debug")]
-fn dart_function_type_to_json_schema(runtime_type: &str) -> Result<serde_json::Value, String> {
+fn dart_function_type_to_json_schema(
+    runtime_type: &str,
+    parameter_descriptions: &std::collections::HashMap<String, String>,
+) -> Result<serde_json::Value, String> {
     // Check for no-parameter function first: () => returnType
     let no_params_re =
         regex::Regex::new(r"^\(\)\s*=>\s*(.+)$").map_err(|e| format!("Regex error: {}", e))?;
@@ -386,7 +390,10 @@ fn dart_function_type_to_json_schema(runtime_type: &str) -> Result<serde_json::V
     let mut properties = serde_json::Map::new();
     let mut required = Vec::new();
 
-    // Parse parameters if any exist
+    let mut param_map = std::collections::HashMap::new();
+    let mut param_order = Vec::new(); // Track original parameter order
+
+    // Collect params in to param_map
     if !params_str.trim().is_empty() {
         for param in params_str.split(',') {
             let param = param.trim();
@@ -406,8 +413,23 @@ fn dart_function_type_to_json_schema(runtime_type: &str) -> Result<serde_json::V
             let param_type = param_without_required[..last_space].trim();
             let param_name = param_without_required[last_space + 1..].trim();
 
+            param_map.insert(param_name, param_type);
+            param_order.push(param_name); // Track order
+        }
+
+        // check that names of parameter descriptions correspond to names of actual function arguments
+        if let Some(invalid_param) = parameter_descriptions
+            .keys()
+            .find(|param| !param_map.contains_key((*param).as_str()))
+        {
+            return Err(
+                format! {"ERROR: Parameter description provided for '{invalid_param}' but function has no such parameter."},
+            );
+        }
+
+        for key in param_order.iter() {
             // Convert Dart type to JSON schema type
-            let schema_type = match param_type {
+            let mut schema_type = match *param_map.get(key).unwrap() {
                 "String" => serde_json::json!({ "type": "string" }),
                 "int" => serde_json::json!({ "type": "integer" }),
                 "double" => serde_json::json!({ "type": "number" }),
@@ -452,8 +474,17 @@ fn dart_function_type_to_json_schema(runtime_type: &str) -> Result<serde_json::V
                 _ => serde_json::json!({ "type": "object" }),
             };
 
-            properties.insert(param_name.to_string(), schema_type);
-            required.push(param_name.to_string());
+            if let Some(description) = parameter_descriptions.get(&key.to_string()) {
+                if let Some(obj) = schema_type.as_object_mut() {
+                    obj.insert(
+                        "description".to_string(),
+                        serde_json::Value::String(description.to_string()),
+                    );
+                }
+            }
+
+            properties.insert(key.to_string(), schema_type);
+            required.push(key.to_string());
         }
     }
 
@@ -852,6 +883,7 @@ mod tests {
     fn test_dart_function_to_schema() {
         let schema = dart_function_type_to_json_schema(
             "({String name, int age, List<String> tags}) => String",
+            &std::collections::HashMap::new(),
         )
         .unwrap();
         let expected = serde_json::json!({
@@ -872,7 +904,9 @@ mod tests {
 
     #[test]
     fn test_empty_params() {
-        let schema = dart_function_type_to_json_schema("({}) => String").unwrap();
+        let schema =
+            dart_function_type_to_json_schema("({}) => String", &std::collections::HashMap::new())
+                .unwrap();
         let expected = serde_json::json!({
             "type": "object",
             "properties": {},
@@ -885,7 +919,9 @@ mod tests {
     #[test]
     fn test_single_string_parameter() {
         let dart_type = "({required String text}) => Future<String>";
-        let json_schema = dart_function_type_to_json_schema(dart_type).unwrap();
+        let json_schema =
+            dart_function_type_to_json_schema(dart_type, &std::collections::HashMap::new())
+                .unwrap();
         let expected = serde_json::json!({
             "type": "object",
             "properties": { "text": { "type": "string" } },
@@ -898,7 +934,9 @@ mod tests {
     #[test]
     fn test_no_parameters() {
         let dart_type = "() => String";
-        let json_schema = dart_function_type_to_json_schema(dart_type).unwrap();
+        let json_schema =
+            dart_function_type_to_json_schema(dart_type, &std::collections::HashMap::new())
+                .unwrap();
         let expected = serde_json::json!({
             "type": "object",
             "properties": {},
@@ -911,7 +949,9 @@ mod tests {
     #[test]
     fn test_no_parameters_async() {
         let dart_type = "() => Future<String>";
-        let json_schema = dart_function_type_to_json_schema(dart_type).unwrap();
+        let json_schema =
+            dart_function_type_to_json_schema(dart_type, &std::collections::HashMap::new())
+                .unwrap();
         let expected = serde_json::json!({
             "type": "object",
             "properties": {},

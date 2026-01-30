@@ -27,11 +27,13 @@ RustTool newToolImpl({
   required String name,
   required String description,
   required String runtimeType,
+  required Map<String, String> parameterDescriptions,
 }) => NobodyWho.instance.api.crateNewToolImpl(
   function: function,
   name: name,
   description: description,
   runtimeType: runtimeType,
+  parameterDescriptions: parameterDescriptions,
 );
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CompletionError>>

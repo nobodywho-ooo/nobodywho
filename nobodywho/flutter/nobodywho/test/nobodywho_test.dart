@@ -41,6 +41,7 @@ void main() {
         function: sparklify,
         name: "sparklify",
         description: "Applies the sparklify effect to a string",
+        parameterDescriptions: {"text" : "The text to be sparklified."},
       );
       final strongify_tool = nobodywho.Tool(
         function: strongify,
