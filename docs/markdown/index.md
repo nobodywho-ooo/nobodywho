@@ -6,16 +6,17 @@ We provide a simple, efficient, offline and privacy forward way of interacting w
 In short, if you want to run a LLM, and integrate it with [tools](./python/tool-calling.md), configure its output,
 enable real-time streaming of tokens, or maybe use it for creation of embeddings, NobodyWho makes it easy.
 
-All of this is enabled by [Llama.cpp](https://github.com/ggml-org/llama.cpp), while having nice, simple Python API.
+All of this is enabled by [Llama.cpp](https://github.com/ggml-org/llama.cpp), while having nice, simple API.
 
-No need to mess around with docker containers, GPU servers, API keys, etc. We make it easy to run local LLMs in Python and Godot with more integrations coming soon!
+No need to mess around with docker containers, GPU servers, API keys, etc. We make it easy to run local LLMs in Python, Flutter and Godot with more integrations coming soon!
 
 ## Code documentation 
 
 If you are already familiar with the basics of LLMs we suggest you go straight to the documentation of your selected integration. 
 
-- [Godot](godot/index.md)
 - [Python](python/index.md)
+- [Flutter](flutter/index.md)
+- [Godot](godot/index.md)
 
 ## Basic LLM concepts
 
