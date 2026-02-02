@@ -32,6 +32,7 @@ use crate::errors::{
 use crate::llm::{self};
 use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
 use crate::llm::{Worker, WriteOutput};
+use crate::prompt::{Prompt, Promptable};
 use crate::sampler_config::{SamplerConfig, ShiftStep};
 use llama_cpp_2::model::{AddBos, Special};
 use llama_cpp_2::mtmd::{MtmdBitmap, MtmdContext, MtmdContextParams, MtmdInputText};
@@ -326,13 +327,11 @@ impl ChatHandle {
     /// Requires the ChatHandle to be built with `with_mmproj()`.
     pub fn ask_with_image_channel(
         &self,
-        text: impl Into<String>,
-        image_path: impl Into<String>,
+        promptable: impl Promptable,
     ) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
         let (output_tx, output_rx) = tokio::sync::mpsc::channel(4096);
         let _ = self.msg_tx.send(ChatMsg::AskWithImage {
-            text: text.into(),
-            image_path: image_path.into(),
+            prompt: promptable.to_prompt(),
             output_tx,
         });
         output_rx
@@ -353,12 +352,8 @@ impl ChatHandle {
     ///     print!("{}", token);
     /// }
     /// ```
-    pub fn ask_with_image(
-        &self,
-        text: impl Into<String>,
-        image_path: impl Into<String>,
-    ) -> TokenStream {
-        TokenStream::new(self.ask_with_image_channel(text, image_path))
+    pub fn ask_with_image(&self, promptable: impl Promptable) -> TokenStream {
+        TokenStream::new(self.ask_with_image_channel(promptable))
     }
 
     fn set_and_wait_blocking<F>(&self, make_msg: F) -> Option<()>
@@ -575,13 +570,11 @@ impl ChatHandleAsync {
     /// Requires the ChatHandle to be built with `with_mmproj()`.
     pub fn ask_with_image_channel(
         &self,
-        text: impl Into<String>,
-        image_path: impl Into<String>,
+        promptable: impl Promptable,
     ) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
         let (output_tx, output_rx) = tokio::sync::mpsc::channel(4096);
         let _ = self.msg_tx.send(ChatMsg::AskWithImage {
-            text: text.into(),
-            image_path: image_path.into(),
+            prompt: promptable.to_prompt(),
             output_tx,
         });
         output_rx
@@ -604,12 +597,8 @@ impl ChatHandleAsync {
     /// }
     /// # };
     /// ```
-    pub fn ask_with_image(
-        &self,
-        text: impl Into<String>,
-        image_path: impl Into<String>,
-    ) -> TokenStreamAsync {
-        TokenStreamAsync::new(self.ask_with_image_channel(text, image_path))
+    pub fn ask_with_image(&self, promptable: impl Promptable) -> TokenStreamAsync {
+        TokenStreamAsync::new(self.ask_with_image_channel(promptable))
     }
 
     // internal helper function for async setters
@@ -869,8 +858,7 @@ enum ChatMsg {
         output_tx: tokio::sync::mpsc::Sender<llm::WriteOutput>,
     },
     AskWithImage {
-        text: String,
-        image_path: String,
+        prompt: Prompt,
         output_tx: tokio::sync::mpsc::Sender<llm::WriteOutput>,
     },
     ResetChat {
@@ -907,12 +895,9 @@ impl std::fmt::Debug for ChatMsg {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ChatMsg::Ask { text, .. } => f.debug_struct("Ask").field("text", text).finish(),
-            ChatMsg::AskWithImage {
-                text, image_path, ..
-            } => f
+            ChatMsg::AskWithImage { prompt, .. } => f
                 .debug_struct("AskWithImage")
-                .field("text", text)
-                .field("image_path", image_path)
+                .field("prompt", prompt)
                 .finish(),
             ChatMsg::ResetChat {
                 system_prompt,
@@ -960,15 +945,11 @@ fn process_worker_msg(
             };
             worker_state.ask(text, callback)?;
         }
-        ChatMsg::AskWithImage {
-            text,
-            image_path,
-            output_tx,
-        } => {
+        ChatMsg::AskWithImage { prompt, output_tx } => {
             let callback = move |out| {
                 let _ = output_tx.blocking_send(out);
             };
-            worker_state.ask_with_image(text, image_path, callback)?;
+            worker_state.ask_with_image(prompt, callback)?;
         }
         ChatMsg::ResetChat {
             system_prompt,
@@ -1857,12 +1838,7 @@ impl Worker<'_, ChatWorker> {
     /// This method requires the ChatHandle to be built with `with_mmproj()`.
     /// The image is loaded, tokenized together with the text using MTMD,
     /// and then the model generates a response.
-    pub fn ask_with_image<F>(
-        &mut self,
-        text: String,
-        image_path: String,
-        respond: F,
-    ) -> Result<&mut Self, SayError>
+    pub fn ask_with_image<F>(&mut self, prompt: Prompt, respond: F) -> Result<&mut Self, SayError>
     where
         F: Fn(llm::WriteOutput) + Clone,
     {
@@ -1871,34 +1847,26 @@ impl Worker<'_, ChatWorker> {
             .should_stop
             .store(false, std::sync::atomic::Ordering::Relaxed);
 
-        // Get the media marker
-        let marker = llama_cpp_2::mtmd::mtmd_default_marker();
-
-        // Construct the full prompt with the image marker
-        // If not present, prepend the marker
-        let full_text = if text.contains(marker) {
-            text.clone()
-        } else {
-            format!("{}{}", marker, text)
-        };
+        let image_paths = prompt.extract_paths();
 
         // Load the image in a separate scope to release the borrow
-        let bitmap = {
-            let mtmd_ctx = self
-                .extra
-                .mtmd_ctx
-                .as_ref()
-                .ok_or(MtmdError::ContextNotInitialized)?;
-            MtmdBitmap::from_file(mtmd_ctx, &image_path)
-                .map_err(|e| MtmdError::LoadImage(format!("{}: {}", image_path, e)))?
-        };
+        let bitmaps = image_paths
+            .iter()
+            .map(|path| {
+                let mtmd_ctx = self
+                    .extra
+                    .mtmd_ctx
+                    .as_ref()
+                    .ok_or(MtmdError::ContextNotInitialized)?;
+                let bitmap = MtmdBitmap::from_file(mtmd_ctx, &path)
+                    .map_err(|e| MtmdError::LoadImage(format!("{}: {}", path, e)))?;
+                info!(path = %path, "Loaded image for MTMD");
+                Ok(bitmap)
+            })
+            .collect::<Result<Vec<MtmdBitmap>, MtmdError>>()?;
 
-        info!(image_path = %image_path, "Loaded image for MTMD");
+        self.add_user_message(prompt.to_string());
 
-        // Add user message to history (with marker in place of image)
-        self.add_user_message(full_text.clone());
-
-        // Render the full conversation to get the prompt
         let rendered_prompt = render_string(
             &self.extra.messages,
             &self.extra.chat_template,
@@ -1926,14 +1894,15 @@ impl Worker<'_, ChatWorker> {
 
             // Create MTMD input text
             let input_text = MtmdInputText {
-                text: rendered_prompt.clone(),
+                text: rendered_prompt,
                 add_special: matches!(self.add_bos, AddBos::Always),
                 parse_special: true,
             };
 
             // Tokenize with the image
+            let bitmap_refs: Vec<&MtmdBitmap> = bitmaps.iter().collect();
             let chunks = mtmd_ctx
-                .tokenize(input_text, &[&bitmap])
+                .tokenize(input_text, &bitmap_refs)
                 .map_err(|e| MtmdError::Tokenize(e.to_string()))?;
 
             info!(n_chunks = chunks.len(), "Tokenized prompt with image");

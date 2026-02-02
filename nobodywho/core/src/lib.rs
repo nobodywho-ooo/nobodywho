@@ -3,6 +3,7 @@ pub mod crossencoder;
 pub mod encoder;
 pub mod errors;
 pub mod llm;
+pub mod prompt;
 pub mod sampler_config;
 
 pub fn send_llamacpp_logs_to_tracing() {
