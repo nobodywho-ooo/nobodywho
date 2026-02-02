@@ -40,6 +40,7 @@ class Tool {
     required Function function,
     required String name,
     required String description,
+    Map<String, String> parameterDescriptions = const <String, String>{},
   }) {
     // Wrapper needs to be written in Dart to access `function.runtimeType`
     // and to deal with dynamic function parameters
@@ -69,6 +70,7 @@ class Tool {
       name: name,
       description: description,
       runtimeType: function.runtimeType.toString(),
+      parameterDescriptions : parameterDescriptions,
     );
 
     return Tool._(tool);

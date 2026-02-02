@@ -59,7 +59,7 @@ final getCurrentDirTool = nobodywho.Tool(
 
 final listFilesTool = nobodywho.Tool(
   name: "list_files",
-  description: "Lists files in the given directory. The argument must be a valid directory.",
+  description: "Lists files in the given directory.",
   function: ({required String path}) {
     final dir = Directory(path);
     final files = dir.listSync()
@@ -67,17 +67,19 @@ final listFilesTool = nobodywho.Tool(
         .map((file) => file.path.split('/').last)
         .toList();
     return "Files: ${files.join(', ')}";
-  }
+  },
+  parameterDescriptions : {"path" : "The path to directory you want list. Must be a valid path." }
 );
 
 final getFileSizeTool = nobodywho.Tool(
   name: "get_file_size",
-  description: "Gets the size of a file in bytes. The argument must be a valid filename.",
+  description: "Gets the size of a file in bytes.",
   function: ({required String filepath}) async {
     final file = File(filepath);
     final size = await file.length();
     return "File size: $size bytes";
-  }
+  },
+  parameterDescriptions : {"filepath" : "The path to file you wish to know the size of. Must be a valid path." }
 );
 
 final chat = await nobodywho.Chat.fromPath(
