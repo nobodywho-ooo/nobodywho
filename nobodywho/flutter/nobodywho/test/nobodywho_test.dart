@@ -101,7 +101,10 @@ void main() {
       final response = await chat!.ask(
         "Please make a call to the noArgs function and show me the exact output!"
       ).completed();
-      expect(response, contains("This function has no args!"));
+      final history = await chat!.getChatHistory();
+      final toolCall = history.firstWhere((m) => m.role == nobodywho.Role.tool);
+
+      expect(toolCall.content, contains("This function has no args!"));
     });
 
 
