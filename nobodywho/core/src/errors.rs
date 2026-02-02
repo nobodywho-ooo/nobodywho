@@ -243,6 +243,27 @@ pub enum SayError {
 
     #[error("Error creating response: {0}")]
     WrappedResponse(#[from] WrappedResponseError),
+
+    #[error("Multimodal error: {0}")]
+    Mtmd(#[from] MtmdError),
+
+    #[error("Error generating response: {0}")]
+    GenerateResponse(#[from] GenerateResponseError),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum MtmdError {
+    #[error("MTMD context not initialized. Use with_mmproj() when building ChatHandle.")]
+    ContextNotInitialized,
+
+    #[error("Failed to load image: {0}")]
+    LoadImage(String),
+
+    #[error("Failed to tokenize with image: {0}")]
+    Tokenize(String),
+
+    #[error("Failed to evaluate image chunks: {0}")]
+    EvalChunks(String),
 }
 
 #[derive(Debug, thiserror::Error)]

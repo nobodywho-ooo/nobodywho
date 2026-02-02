@@ -26,13 +26,15 @@ use std::sync::LazyLock;
 
 use crate::errors::{
     ChatWorkerError, ContextSyncError, DecodingError, GenerateResponseError, InitWorkerError,
-    RenderError, SayError, SelectTemplateError, SetToolsError, ShiftError, WrappedResponseError,
+    MtmdError, RenderError, SayError, SelectTemplateError, SetToolsError, ShiftError,
+    WrappedResponseError,
 };
 use crate::llm::{self};
 use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
 use crate::llm::{Worker, WriteOutput};
 use crate::sampler_config::{SamplerConfig, ShiftStep};
-use llama_cpp_2::model::Special;
+use llama_cpp_2::model::{AddBos, Special};
+use llama_cpp_2::mtmd::{MtmdBitmap, MtmdContext, MtmdContextParams, MtmdInputText};
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 use llama_cpp_2::{context::params::LlamaPoolingType, model::LlamaModel};
@@ -40,6 +42,7 @@ use minijinja::{context, Environment};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::cmp::min;
+use std::ffi::CString;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, MutexGuard};
 use tracing::{debug, error, info, trace, trace_span, warn};
@@ -136,6 +139,8 @@ pub struct ChatConfig {
     pub allow_thinking: bool,
     /// Sampler configuration for inference.
     pub sampler_config: SamplerConfig,
+    /// Optional path to multimodal projector file for vision models.
+    pub mmproj_path: Option<String>,
 }
 
 impl Default for ChatConfig {
@@ -146,6 +151,7 @@ impl Default for ChatConfig {
             system_prompt: String::new(),
             tools: Vec::new(),
             sampler_config: SamplerConfig::default(),
+            mmproj_path: None,
         }
     }
 }
@@ -226,6 +232,16 @@ impl ChatBuilder {
         self
     }
 
+    /// Set the multimodal projector path for vision models.
+    ///
+    /// This enables the chat handle to process images alongside text.
+    /// The mmproj file is typically distributed alongside vision models
+    /// (e.g., LLaVA, Qwen-VL).
+    pub fn with_mmproj<S: Into<String>>(mut self, path: S) -> Self {
+        self.config.mmproj_path = Some(path.into());
+        self
+    }
+
     /// Build a blocking chat handle and start the background worker.
     pub fn build(self) -> ChatHandle {
         ChatHandle::new(self.model, self.config)
@@ -303,6 +319,46 @@ impl ChatHandle {
     /// ```
     pub fn ask(&self, text: impl Into<String>) -> TokenStream {
         TokenStream::new(self.ask_channel(text))
+    }
+
+    /// Send a message with an image and get a tokio channel for streaming responses.
+    ///
+    /// Requires the ChatHandle to be built with `with_mmproj()`.
+    pub fn ask_with_image_channel(
+        &self,
+        text: impl Into<String>,
+        image_path: impl Into<String>,
+    ) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
+        let (output_tx, output_rx) = tokio::sync::mpsc::channel(4096);
+        let _ = self.msg_tx.send(ChatMsg::AskWithImage {
+            text: text.into(),
+            image_path: image_path.into(),
+            output_tx,
+        });
+        output_rx
+    }
+
+    /// Send a message with an image and collect tokens as they arrive.
+    ///
+    /// Requires the ChatHandle to be built with `with_mmproj()`.
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use nobodywho::chat::ChatBuilder;
+    /// # use nobodywho::llm::get_model;
+    /// # let model = get_model("llava-model.gguf", true).unwrap();
+    /// # let chat = ChatBuilder::new(model).with_mmproj("mmproj.gguf").build();
+    /// let mut stream = chat.ask_with_image("Describe this image", "/path/to/image.jpg");
+    /// while let Some(token) = stream.next_token() {
+    ///     print!("{}", token);
+    /// }
+    /// ```
+    pub fn ask_with_image(
+        &self,
+        text: impl Into<String>,
+        image_path: impl Into<String>,
+    ) -> TokenStream {
+        TokenStream::new(self.ask_with_image_channel(text, image_path))
     }
 
     fn set_and_wait_blocking<F>(&self, make_msg: F) -> Option<()>
@@ -512,6 +568,48 @@ impl ChatHandleAsync {
     /// ```
     pub fn ask(&self, text: impl Into<String>) -> TokenStreamAsync {
         TokenStreamAsync::new(self.ask_channel(text))
+    }
+
+    /// Send a message with an image and get a tokio channel for streaming responses.
+    ///
+    /// Requires the ChatHandle to be built with `with_mmproj()`.
+    pub fn ask_with_image_channel(
+        &self,
+        text: impl Into<String>,
+        image_path: impl Into<String>,
+    ) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
+        let (output_tx, output_rx) = tokio::sync::mpsc::channel(4096);
+        let _ = self.msg_tx.send(ChatMsg::AskWithImage {
+            text: text.into(),
+            image_path: image_path.into(),
+            output_tx,
+        });
+        output_rx
+    }
+
+    /// Send a message with an image and collect tokens as they arrive.
+    ///
+    /// Requires the ChatHandle to be built with `with_mmproj()`.
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use nobodywho::chat::ChatBuilder;
+    /// # use nobodywho::llm::get_model;
+    /// # let model = get_model("llava-model.gguf", true).unwrap();
+    /// # let chat = ChatBuilder::new(model).with_mmproj("mmproj.gguf").build_async();
+    /// # async {
+    /// let mut stream = chat.ask_with_image("Describe this image", "/path/to/image.jpg");
+    /// while let Some(token) = stream.next_token().await {
+    ///     print!("{}", token);
+    /// }
+    /// # };
+    /// ```
+    pub fn ask_with_image(
+        &self,
+        text: impl Into<String>,
+        image_path: impl Into<String>,
+    ) -> TokenStreamAsync {
+        TokenStreamAsync::new(self.ask_with_image_channel(text, image_path))
     }
 
     // internal helper function for async setters
@@ -770,6 +868,11 @@ enum ChatMsg {
         text: String,
         output_tx: tokio::sync::mpsc::Sender<llm::WriteOutput>,
     },
+    AskWithImage {
+        text: String,
+        image_path: String,
+        output_tx: tokio::sync::mpsc::Sender<llm::WriteOutput>,
+    },
     ResetChat {
         system_prompt: String,
         tools: Vec<Tool>,
@@ -804,6 +907,13 @@ impl std::fmt::Debug for ChatMsg {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ChatMsg::Ask { text, .. } => f.debug_struct("Ask").field("text", text).finish(),
+            ChatMsg::AskWithImage {
+                text, image_path, ..
+            } => f
+                .debug_struct("AskWithImage")
+                .field("text", text)
+                .field("image_path", image_path)
+                .finish(),
             ChatMsg::ResetChat {
                 system_prompt,
                 tools,
@@ -849,6 +959,16 @@ fn process_worker_msg(
                 let _ = output_tx.blocking_send(out);
             };
             worker_state.ask(text, callback)?;
+        }
+        ChatMsg::AskWithImage {
+            text,
+            image_path,
+            output_tx,
+        } => {
+            let callback = move |out| {
+                let _ = output_tx.blocking_send(out);
+            };
+            worker_state.ask_with_image(text, image_path, callback)?;
         }
         ChatMsg::ResetChat {
             system_prompt,
@@ -1284,6 +1404,7 @@ struct ChatWorker {
     allow_thinking: bool,
     bos_token: String,
     eos_token: String,
+    mtmd_ctx: Option<MtmdContext>,
 }
 
 impl llm::PoolingType for ChatWorker {
@@ -1316,6 +1437,34 @@ impl Worker<'_, ChatWorker> {
             None
         };
 
+        // Initialize MTMD context if mmproj path is provided
+        let mtmd_ctx = if let Some(ref mmproj_path) = config.mmproj_path {
+            let n_threads = std::thread::available_parallelism()
+                .map(|p| p.get() as i32)
+                .unwrap_or(4);
+            let marker = llama_cpp_2::mtmd::mtmd_default_marker();
+            let media_marker =
+                CString::new(marker.to_string()).expect("Failed to create CString for marker");
+            let mtmd_params = MtmdContextParams {
+                use_gpu: llm::has_discrete_gpu(),
+                print_timings: false,
+                n_threads,
+                media_marker,
+            };
+            match MtmdContext::init_from_file(mmproj_path, model, &mtmd_params) {
+                Ok(ctx) => {
+                    info!("MTMD context initialized successfully");
+                    Some(ctx)
+                }
+                Err(e) => {
+                    warn!(error = %e, "Failed to initialize MTMD context:");
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
         Worker::new_with_type(
             model,
             config.n_ctx,
@@ -1334,6 +1483,7 @@ impl Worker<'_, ChatWorker> {
                 allow_thinking: config.allow_thinking,
                 bos_token: bos,
                 eos_token: eos,
+                mtmd_ctx,
             },
         )
     }
@@ -1698,6 +1848,123 @@ impl Worker<'_, ChatWorker> {
 
         // Update tokens_in_context as the model already has seen this respone
         self.extra.tokens_in_context = self.get_render_as_tokens()?;
+
+        Ok(self)
+    }
+
+    /// Send a message with an image and get a streaming response.
+    ///
+    /// This method requires the ChatHandle to be built with `with_mmproj()`.
+    /// The image is loaded, tokenized together with the text using MTMD,
+    /// and then the model generates a response.
+    pub fn ask_with_image<F>(
+        &mut self,
+        text: String,
+        image_path: String,
+        respond: F,
+    ) -> Result<&mut Self, SayError>
+    where
+        F: Fn(llm::WriteOutput) + Clone,
+    {
+        // reset the stop flag
+        self.extra
+            .should_stop
+            .store(false, std::sync::atomic::Ordering::Relaxed);
+
+        // Get the media marker
+        let marker = llama_cpp_2::mtmd::mtmd_default_marker();
+
+        // Construct the full prompt with the image marker
+        // If not present, prepend the marker
+        let full_text = if text.contains(marker) {
+            text.clone()
+        } else {
+            format!("{}{}", marker, text)
+        };
+
+        // Load the image in a separate scope to release the borrow
+        let bitmap = {
+            let mtmd_ctx = self
+                .extra
+                .mtmd_ctx
+                .as_ref()
+                .ok_or(MtmdError::ContextNotInitialized)?;
+            MtmdBitmap::from_file(mtmd_ctx, &image_path)
+                .map_err(|e| MtmdError::LoadImage(format!("{}: {}", image_path, e)))?
+        };
+
+        info!(image_path = %image_path, "Loaded image for MTMD");
+
+        // Add user message to history (with marker in place of image)
+        self.add_user_message(full_text.clone());
+
+        // Render the full conversation to get the prompt
+        let rendered_prompt = render_string(
+            &self.extra.messages,
+            &self.extra.chat_template,
+            self.extra.allow_thinking,
+            &self.extra.bos_token,
+            &self.extra.eos_token,
+            &self.extra.tools,
+        )
+        .map_err(RenderError::from)?;
+
+        // Acquire global inference lock
+        let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
+        let inference_lock_token = _gil_guard.unwrap();
+
+        // Reset context for fresh evaluation with image
+        self.reset_context();
+
+        // Now tokenize and evaluate in a scope where we can borrow mtmd_ctx
+        let n_past = {
+            let mtmd_ctx = self
+                .extra
+                .mtmd_ctx
+                .as_ref()
+                .ok_or(MtmdError::ContextNotInitialized)?;
+
+            // Create MTMD input text
+            let input_text = MtmdInputText {
+                text: rendered_prompt.clone(),
+                add_special: matches!(self.add_bos, AddBos::Always),
+                parse_special: true,
+            };
+
+            // Tokenize with the image
+            let chunks = mtmd_ctx
+                .tokenize(input_text, &[&bitmap])
+                .map_err(|e| MtmdError::Tokenize(e.to_string()))?;
+
+            info!(n_chunks = chunks.len(), "Tokenized prompt with image");
+
+            // Evaluate the chunks (this processes both text and image embeddings)
+            // n_past=0 since we reset context, seq_id=0, n_batch=512 (matches n_ubatch), logits_last=true
+            chunks
+                .eval_chunks(mtmd_ctx, &mut self.ctx, 0, 0, 512, true)
+                .map_err(|e| MtmdError::EvalChunks(e.to_string()))?
+        };
+
+        // Update n_past to reflect evaluated tokens
+        self.n_past = n_past;
+
+        info!(n_past = self.n_past, "Evaluated MTMD chunks");
+
+        // Now generate the response
+        let sampler = self.extra.sampler_config.clone();
+        let (wrapped_respond, resp_receiver) =
+            wrap_respond(respond.clone(), "<tool_call>".to_string());
+
+        self.generate_response_until_done(sampler, wrapped_respond, &inference_lock_token)?;
+
+        let response = resp_receiver.recv().map_err(|e| SayError::Response(e))?;
+
+        self.add_assistant_message(response);
+
+        // Note: tokens_in_context tracking is not accurate after MTMD
+        // because the image embeddings don't map 1:1 to text tokens.
+        // Future improvement: track this properly for context reuse.
+        self.extra.tokens_in_context = Vec::new();
 
         Ok(self)
     }
