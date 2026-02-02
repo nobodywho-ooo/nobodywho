@@ -15,6 +15,13 @@ nav:
       - Streaming & Async API: python/streaming-and-async-api.md
       - Embeddings & RAG: python/embeddings-and-rag.md
       - Logging: python/logging-and-troubleshooting.md
+  - Flutter:
+      - Getting started with Flutter: flutter/index.md
+      - Chat: flutter/chat.md
+      - Tool Calling: flutter/tool-calling.md
+      - Sampling: flutter/sampling.md
+      - Embeddings & RAG: flutter/embeddings-and-rag.md
+      - Logging: flutter/logging-and-troubleshooting.md
   - Godot:
       - Godot Installation: godot/install.md
       - Getting Started: godot/getting-started.md
