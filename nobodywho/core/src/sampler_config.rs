@@ -204,7 +204,7 @@ impl SamplerConfig {
             model,
             grammar,
             root,
-            vec![trigger],
+            Vec::<&str>::new(),
             &[token],
         )?)
     }
