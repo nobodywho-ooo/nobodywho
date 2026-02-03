@@ -18,8 +18,6 @@ pub fn simple_type(input: &str) -> IResult<&str, serde_json::Value> {
         map(tag("int"), |_s| serde_json::json!({"type" : "integer"})),
         map(tag("float"), |_s| serde_json::json!({"type" : "number"})),
         map(tag("bool"), |_s| serde_json::json!({"type" : "boolean"})),
-        map(tag("list"), |_s| serde_json::json!({"type" : "array"})),
-        map(tag("dict"), |_s| serde_json::json!({"type" : "object"})),
     ))(input)
 }
 

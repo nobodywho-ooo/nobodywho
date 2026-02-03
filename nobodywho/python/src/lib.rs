@@ -1308,12 +1308,14 @@ fn tool<'a>(
 
             // wrap the passed function in a json -> String function
             let wrapped_function = move |json: serde_json::Value| {
+                println!("A tool call is happening with args!! {}", json);
                 Python::attach(|py| {
                     // construct kwargs to call the function with
                     let kwargs = match json_to_kwargs(py, json) {
                         Ok(kwargs) => kwargs,
                         Err(e) => return format!("ERROR: Failed to convert arguments: {e}"),
                     };
+                    println!("{:?}", kwargs);
 
                     let py_result = if is_async {
                         let coroutine = match fun.call(py, (), Some(&kwargs)) {
@@ -1415,49 +1417,33 @@ fn python_func_json_schema(
             continue;
         }
 
-        let type_name = if let Ok(name) = value.getattr("__name__") {
+        let type_name = if value.getattr("__args__").is_ok() {
+            // It's a GenericAlias (list[int], dict[str, int], etc.)
+            // Use str() to get the full representation
+            value.str()?.extract::<String>()?
+        } else if let Ok(name) = value.getattr("__name__") {
+            // Simple type like `int`, `str`, `bool`
             name.extract::<String>()?
         } else {
-            // Handle GenericAlias (list[int], dict[str, int], etc.)
+            // Fallback
             value.str()?.extract::<String>()?
         };
 
-        let schema_type = match type_name.as_str() {
-            "str" => "string",
-            "int" => "integer",
-            "float" => "number",
-            "bool" => "boolean",
-            "list" => "array",
-            "dict" => "object",
-            "None" | "NoneType" => "null",
-            // TODO: we could consider supporting sets like this:
-            // "set" | "frozenset" => serde_json::json!({"type": "array", "uniqueItems": true}),
-            // TODO: consider handling pydantic types?
-            //       (objects subclassing pydantic's BaseModel can readily generate json schemas)
-            // TODO: handle generic types better. at least handle list[int], dict[str,int], etc.
-            _ if type_name.starts_with("list[") => "array",
-            _ if type_name.starts_with("dict[") => "object",
-            _ if type_name == "List" => "array",
-            _ if type_name == "Dict" => "object",
-            _ => {
+        let mut property = match parse::type_parser(type_name.as_str()) {
+            Ok((_s, value)) => value,
+            Err(_) => {
                 return Err(pyo3::exceptions::PyTypeError::new_err(format!(
                     "ERROR: Tool function contains an unsupported type hint: {type_name}"
                 )));
             }
         };
 
-        let property = if let Some(description) = param_descriptions.get(&key) {
-            // add description if available
-            serde_json::json!({
-                "type": schema_type,
-                "description": description
-            })
-        } else {
-            // ...otherwise only use the type
-            serde_json::json!({
-                "type": schema_type
-            })
-        };
+        // Add description if available
+        if let Some(description) = param_descriptions.get(&key) {
+            if let serde_json::Value::Object(ref mut obj) = property {
+                obj.insert("description".to_string(), serde_json::json!(description));
+            }
+        }
 
         // add to json schema properties
         properties.insert(key.clone(), property);
@@ -1473,6 +1459,8 @@ fn python_func_json_schema(
         "properties": properties,
         "required": required
     });
+
+    println!("{}", kwargs_schema);
 
     Ok(kwargs_schema)
 }

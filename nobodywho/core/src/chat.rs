@@ -982,8 +982,6 @@ fn grammar_from_tools(tools: &[Tool]) -> Result<gbnf::Grammar, gbnf::json::JsonS
         })
         .collect();
 
-    println!("{:?}", tool_call_schemas);
-
     // a json schema that describes any of the tool calls
     let tool_call_schema = serde_json::json!(
         { "oneOf": tool_call_schemas }
@@ -1641,6 +1639,7 @@ impl Worker<'_, ChatWorker> {
         let sampler = self.extra.tool_grammar.as_ref().map_or(
             self.extra.sampler_config.clone(),
             |tool_grammar| {
+                println!("GRAMMAR:\n{}", tool_grammar.to_string());
                 self.extra.sampler_config.clone().shift(ShiftStep::Grammar {
                     trigger_on: Some(tool_call_begin.into()),
                     root: "superroot".into(),
