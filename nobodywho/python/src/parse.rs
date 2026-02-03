@@ -31,6 +31,10 @@ pub fn simple_type(input: &str) -> IResult<&str, serde_json::Value> {
             tag_no_case("bool"),
             |_s| serde_json::json!({"type" : "boolean"}),
         ),
+        map(
+            alt((tag_no_case("None"), tag_no_case("NoneType"))),
+            |_s| serde_json::json!({"type" : "null"}),
+        ),
     ))(input)
 }
 
