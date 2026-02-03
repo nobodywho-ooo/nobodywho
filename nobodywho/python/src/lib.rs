@@ -1,5 +1,7 @@
 use pyo3::prelude::*;
 
+mod parse;
+
 /// `Model` objects contain a GGUF model. It is primarily useful for sharing a single model instance
 /// between multiple `Chat`, `Encoder`, or `CrossEncoder` instances.
 /// Sharing is efficient because the underlying model data is reference-counted.
@@ -1371,7 +1373,7 @@ fn python_func_json_schema(
     let argspec = getfullargspec.call((fun,), None)?;
     let annotations = argspec
         .getattr("annotations")?
-        .extract::<std::collections::HashMap<String, Bound<pyo3::types::PyType>>>()?;
+        .extract::<std::collections::HashMap<String, Bound<pyo3::types::PyAny>>>()?;
     let args = argspec.getattr("args")?.extract::<Vec<String>>()?;
 
     // check that all arguments are annotated
@@ -1385,12 +1387,14 @@ fn python_func_json_schema(
     // the intent of this is to force people to consider how to convert to string
     if annotations
         .get("return")
-        .map(|t| t.name().map(|n| n.to_string()))
+        .map(|t| t.getattr("__name__").map(|n| n.to_string()))
         .transpose()?
         != Some("str".to_string())
     {
         tracing::warn!("Return type of this tool should be `str`. Anything else will be cast to string, which might lead to unexpected results. It's recommended that you add a return type annotation to the tool: `-> str:`");
     }
+
+    println!("{:?}", annotations);
 
     // check that names of parameter descriptions correspond to names of actual function arguments
     if let Some(invalid_param) = param_descriptions
@@ -1411,7 +1415,12 @@ fn python_func_json_schema(
             continue;
         }
 
-        let type_name = value.name()?.to_string();
+        let type_name = if let Ok(name) = value.getattr("__name__") {
+            name.extract::<String>()?
+        } else {
+            // Handle GenericAlias (list[int], dict[str, int], etc.)
+            value.str()?.extract::<String>()?
+        };
 
         let schema_type = match type_name.as_str() {
             "str" => "string",

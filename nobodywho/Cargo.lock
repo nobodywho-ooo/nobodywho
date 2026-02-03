@@ -1486,6 +1486,7 @@ dependencies = [
  "futures",
  "log",
  "nobodywho",
+ "nom",
  "pyo3",
  "pyo3-async-runtimes",
  "pyo3-introspection",

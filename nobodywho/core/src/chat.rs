@@ -982,6 +982,8 @@ fn grammar_from_tools(tools: &[Tool]) -> Result<gbnf::Grammar, gbnf::json::JsonS
         })
         .collect();
 
+    println!("{:?}", tool_call_schemas);
+
     // a json schema that describes any of the tool calls
     let tool_call_schema = serde_json::json!(
         { "oneOf": tool_call_schemas }
