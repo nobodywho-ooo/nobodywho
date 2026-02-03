@@ -858,9 +858,7 @@ dependencies = [
 
 [[package]]
 name = "gbnf"
-version = "0.2.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7bf2a65b6f5f2d9e23862487fff5f6c475ada612b2f3913ac9794015d129a9f1"
+version = "0.2.5"
 dependencies = [
  "serde",
  "serde_json",
