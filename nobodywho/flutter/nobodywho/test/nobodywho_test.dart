@@ -20,6 +20,10 @@ Future<String> strongify({required String text}) async {
   return 'WOW $text WOW';
 }
 
+Future<String> lotsOfArgs({required String text, required List<List<Map<String,Set<int>>>> setOfStuff, required int number, required List<int> listOfStuff, required  Map<String, int> mapOfStuff}) async {
+  return "Cool dude!";
+}
+
 String noArgs() {
   print("noArgs called!");
   return "This function has no args!";
@@ -53,6 +57,12 @@ void main() {
         function : noArgs,
         name: "noArgs",
         description: "This function does nothing and returns some string",
+      );
+
+      final lotsOfArgTool = nobodywho.Tool(
+        function : lotsOfArgs,
+        name : "lotsOfArgs",
+        description : "This function has a lot of arguments",
       );
 
       chat = await nobodywho.Chat.fromPath(
