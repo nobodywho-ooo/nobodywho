@@ -859,6 +859,7 @@ dependencies = [
 [[package]]
 name = "gbnf"
 version = "0.2.5"
+source = "git+https://github.com/s194042/gbnf.git?rev=877b1cc#877b1cca7efb576fd10113881570acb382964138"
 dependencies = [
  "serde",
  "serde_json",
