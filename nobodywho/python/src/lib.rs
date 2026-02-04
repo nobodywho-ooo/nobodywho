@@ -1308,14 +1308,12 @@ fn tool<'a>(
 
             // wrap the passed function in a json -> String function
             let wrapped_function = move |json: serde_json::Value| {
-                println!("A tool call is happening with args!! {}", json);
                 Python::attach(|py| {
                     // construct kwargs to call the function with
                     let kwargs = match json_to_kwargs(py, json) {
                         Ok(kwargs) => kwargs,
                         Err(e) => return format!("ERROR: Failed to convert arguments: {e}"),
                     };
-                    println!("{:?}", kwargs);
 
                     let py_result = if is_async {
                         let coroutine = match fun.call(py, (), Some(&kwargs)) {
@@ -1396,8 +1394,6 @@ fn python_func_json_schema(
         tracing::warn!("Return type of this tool should be `str`. Anything else will be cast to string, which might lead to unexpected results. It's recommended that you add a return type annotation to the tool: `-> str:`");
     }
 
-    println!("{:?}", annotations);
-
     // check that names of parameter descriptions correspond to names of actual function arguments
     if let Some(invalid_param) = param_descriptions
         .keys()
@@ -1459,8 +1455,6 @@ fn python_func_json_schema(
         "properties": properties,
         "required": required
     });
-
-    println!("{}", kwargs_schema);
 
     Ok(kwargs_schema)
 }

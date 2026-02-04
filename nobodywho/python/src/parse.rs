@@ -1,16 +1,16 @@
 // Parser module using nom
 use nom::{
     branch::alt,
-    bytes::{complete::tag, complete::tag_no_case},
+    bytes::complete::{tag, tag_no_case},
     character::streaming::multispace0,
     combinator::map,
     multi::separated_list1,
     sequence::{delimited, separated_pair},
-    IResult,
+    IResult, Parser,
 };
 
 fn comma_sep(input: &str) -> IResult<&str, &str> {
-    delimited(multispace0, tag(","), multispace0)(input)
+    delimited(multispace0, tag(","), multispace0).parse(input)
 }
 
 pub fn simple_type(input: &str) -> IResult<&str, serde_json::Value> {
@@ -35,7 +35,8 @@ pub fn simple_type(input: &str) -> IResult<&str, serde_json::Value> {
             alt((tag_no_case("None"), tag_no_case("NoneType"))),
             |_s| serde_json::json!({"type" : "null"}),
         ),
-    ))(input)
+    ))
+    .parse(input)
 }
 
 pub fn tuple_type(input: &str) -> IResult<&str, serde_json::Value> {
@@ -46,14 +47,15 @@ pub fn tuple_type(input: &str) -> IResult<&str, serde_json::Value> {
             tag("]"),
         ),
         |vec_of_values| serde_json::json!({"type" : "array", "prefixItems" : vec_of_values, "items" : "false"}),
-    )(input)
+    ).parse(input)
 }
 
 pub fn list_type(input: &str) -> IResult<&str, serde_json::Value> {
     map(
         delimited(tag_no_case("list["), type_parser, tag("]")),
         |inner| serde_json::json!({"type" : "array" , "items" : inner}),
-    )(input)
+    )
+    .parse(input)
 }
 
 /// This function parses types that can be dict keys. Currently this is only strings
@@ -62,7 +64,8 @@ pub fn dict_keys(input: &str) -> IResult<&str, serde_json::Value> {
     map(
         tag_no_case("str"),
         |_s| serde_json::json!({"type" : "string"}),
-    )(input)
+    )
+    .parse(input)
 }
 
 pub fn dict_type(input: &str) -> IResult<&str, serde_json::Value> {
@@ -73,9 +76,10 @@ pub fn dict_type(input: &str) -> IResult<&str, serde_json::Value> {
             tag("]"),
         ),
         |(_, inner)| serde_json::json!({"type" : "object", "additionalProperties" : inner}),
-    )(input)
+    )
+    .parse(input)
 }
 
 pub fn type_parser(input: &str) -> IResult<&str, serde_json::Value> {
-    alt((list_type, dict_type, tuple_type, simple_type))(input)
+    alt((list_type, dict_type, tuple_type, simple_type)).parse(input)
 }

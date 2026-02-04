@@ -1639,7 +1639,6 @@ impl Worker<'_, ChatWorker> {
         let sampler = self.extra.tool_grammar.as_ref().map_or(
             self.extra.sampler_config.clone(),
             |tool_grammar| {
-                println!("GRAMMAR:\n{}", tool_grammar.to_string());
                 self.extra.sampler_config.clone().shift(ShiftStep::Grammar {
                     trigger_on: Some(tool_call_begin.into()),
                     root: "superroot".into(),
