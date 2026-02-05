@@ -1,6 +1,6 @@
 name: nobodywho
 description: "NobodyWho - the easiest way to run local LLMs"
-version: 0.1.1
+version: 0.2.0
 repository: https://github.com/nobodywho-ooo/nobodywho
 issue_tracker: https://github.com/nobodywho-ooo/nobodywho/issues
 documentation: https://docs.nobodywho.ooo/
