@@ -297,6 +297,9 @@ pub enum SelectTemplateError {
     #[error("Could not detokenize string: {0}")]
     Detokenize(#[from] llama_cpp_2::TokenToStringError),
 
+    #[error("Could not create chat template: {0}")]
+    CreateChatTemplate(#[from] minijinja::Error),
+
     #[error("Tools were provided, but it looks like this model doesn't support tool calling.")]
     NoToolTemplate,
 }
