@@ -2,7 +2,7 @@
 use nom::{
     branch::alt,
     bytes::complete::{tag, tag_no_case},
-    character::streaming::multispace0,
+    character::complete::multispace0,
     combinator::map,
     multi::separated_list1,
     sequence::{delimited, separated_pair},
