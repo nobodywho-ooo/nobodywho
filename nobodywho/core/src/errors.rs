@@ -8,6 +8,8 @@ pub enum LoadModelError {
     ModelNotFound(String),
     #[error("Invalid or unsupported GGUF model: {0}")]
     InvalidModel(String),
+    #[error("Channel for receiving model was closed unexpectedly")]
+    ModelChannelError,
 }
 
 // Worker errors
