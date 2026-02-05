@@ -43,6 +43,7 @@ pub fn simple_type(input: &str) -> IResult<&str, serde_json::Value> {
 //       the same is true for other types where we lose information, like sets or dataclasses.
 //       if we can preserve the information about what the original python types were, when we
 //       convert back from json to python, we could add support for these fancier types.
+#[allow(dead_code)]
 pub fn tuple_type(input: &str) -> IResult<&str, serde_json::Value> {
     map(
         delimited(
