@@ -39,6 +39,10 @@ pub fn simple_type(input: &str) -> IResult<&str, serde_json::Value> {
     .parse(input)
 }
 
+// TODO: this is not used, because we can't bijectively map between most python types and json
+//       the same is true for other types where we lose information, like sets or dataclasses.
+//       if we can preserve the information about what the original python types were, when we
+//       convert back from json to python, we could add support for these fancier types.
 pub fn tuple_type(input: &str) -> IResult<&str, serde_json::Value> {
     map(
         delimited(
@@ -81,5 +85,5 @@ pub fn dict_type(input: &str) -> IResult<&str, serde_json::Value> {
 }
 
 pub fn type_parser(input: &str) -> IResult<&str, serde_json::Value> {
-    alt((list_type, dict_type, tuple_type, simple_type)).parse(input)
+    alt((list_type, dict_type, simple_type)).parse(input)
 }
