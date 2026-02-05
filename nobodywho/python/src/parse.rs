@@ -87,3 +87,51 @@ pub fn dict_type(input: &str) -> IResult<&str, serde_json::Value> {
 pub fn type_parser(input: &str) -> IResult<&str, serde_json::Value> {
     alt((list_type, dict_type, simple_type)).parse(input)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_simple_types() {
+        let (remaining, result) = type_parser("str").unwrap();
+        assert_eq!(remaining, "");
+        assert_eq!(result, serde_json::json!({"type": "string"}));
+
+        let (remaining, result) = type_parser("int").unwrap();
+        assert_eq!(remaining, "");
+        assert_eq!(result, serde_json::json!({"type": "integer"}));
+    }
+
+    #[test]
+    fn test_list_of_dicts() {
+        let (remaining, result) = type_parser("list[dict[str, int]]").unwrap();
+        assert_eq!(remaining, "");
+        assert_eq!(
+            result,
+            serde_json::json!({
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": {"type": "integer"}
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn test_dict_of_lists() {
+        let (remaining, result) = type_parser("dict[str, list[str]]").unwrap();
+        assert_eq!(remaining, "");
+        assert_eq!(
+            result,
+            serde_json::json!({
+                "type": "object",
+                "additionalProperties": {
+                    "type": "array",
+                    "items": {"type": "string"}
+                }
+            })
+        );
+    }
+}
