@@ -80,15 +80,30 @@ jobs:
 
       - name: Setup Vulkan SDK environment
         run: |
-          # Ensure Vulkan SDK is in PATH and environment variables are set
-          if [ -d "$VULKAN_SDK" ]; then
-            echo "VULKAN_SDK=$VULKAN_SDK" >> $GITHUB_ENV
-            echo "$VULKAN_SDK/bin" >> $GITHUB_PATH
-            echo "VK_LAYER_PATH=$VULKAN_SDK/etc/vulkan/explicit_layer.d" >> $GITHUB_ENV
+          # Debug: Show current VULKAN_SDK value
+          echo "Current VULKAN_SDK: ${VULKAN_SDK:-not set}"
+
+          # Search for Vulkan SDK installation
+          echo "Searching for Vulkan SDK..."
+          find /opt -name glslc 2>/dev/null || echo "glslc not found in /opt"
+          find /usr -name glslc 2>/dev/null || echo "glslc not found in /usr"
+
+          # Check if VULKAN_SDK is already set and valid
+          if [ -n "$VULKAN_SDK" ] && [ -d "$VULKAN_SDK" ]; then
+            echo "Using VULKAN_SDK from environment: $VULKAN_SDK"
+            if [ -f "$VULKAN_SDK/bin/glslc" ]; then
+              echo "glslc found at $VULKAN_SDK/bin/glslc"
+              echo "VULKAN_SDK=$VULKAN_SDK" >> $GITHUB_ENV
+              echo "$VULKAN_SDK/bin" >> $GITHUB_PATH
+              echo "VK_LAYER_PATH=$VULKAN_SDK/etc/vulkan/explicit_layer.d" >> $GITHUB_ENV
+            else
+              echo "Warning: glslc not found in VULKAN_SDK bin directory"
+            fi
           else
-            echo "Warning: VULKAN_SDK not found at expected location"
+            echo "VULKAN_SDK not set or invalid, searching common paths..."
             # Try common installation paths
-            for path in /opt/vulkan-sdk /usr/local /opt/VulkanSDK/*; do
+            for path in /opt/vulkan-sdk /usr/local /opt/VulkanSDK/* /github/home/.vulkan-sdk; do
+              echo "Checking $path"
               if [ -d "$path/bin" ] && [ -f "$path/bin/glslc" ]; then
                 echo "Found Vulkan SDK at $path"
                 echo "VULKAN_SDK=$path" >> $GITHUB_ENV
@@ -98,6 +113,10 @@ jobs:
               fi
             done
           fi
+
+          # Verify glslc is available
+          echo "Checking for glslc in PATH..."
+          which glslc || echo "WARNING: glslc not found in PATH"
 
       - name: Install build dependencies
         run: |
