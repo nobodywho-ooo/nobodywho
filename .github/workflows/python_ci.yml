@@ -152,6 +152,12 @@ jobs:
             SDK_DIR="/tmp/$(ls -d */ | grep -E '^[0-9]' | head -n1)"
             SDK_DIR="${SDK_DIR%/}"  # Remove trailing slash
 
+            # For ARM64, the SDK has an architecture-specific subdirectory
+            if [ "$ARCH" = "aarch64" ] && [ -d "$SDK_DIR/aarch64" ]; then
+              echo "Found aarch64 subdirectory, using that as VULKAN_SDK"
+              SDK_DIR="$SDK_DIR/aarch64"
+            fi
+
             # Set up environment
             export VULKAN_SDK="$SDK_DIR"
             export PATH="$VULKAN_SDK/bin:$PATH"
@@ -163,6 +169,7 @@ jobs:
             echo "LD_LIBRARY_PATH=$VULKAN_SDK/lib:${LD_LIBRARY_PATH:-}" >> $GITHUB_ENV
 
             # Verify installation
+            echo "Using VULKAN_SDK: $VULKAN_SDK"
             ls -la "$VULKAN_SDK/bin/" || echo "SDK bin directory not found"
             "$VULKAN_SDK/bin/glslc" --version || echo "glslc not working"
           else
