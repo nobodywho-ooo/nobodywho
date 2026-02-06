@@ -29,11 +29,10 @@ let
           env.LIBCLANG_PATH = "${pkgs.libclang.lib}/lib/libclang.so";
 
           # Architecture-specific CPU feature flags
+          # For ARM64: use defaults for compatibility with weaker devices (Raspberry Pi, etc.)
           env.CARGO_CFG_TARGET_FEATURE =
             if pkgs.stdenv.hostPlatform.isx86_64 then
               "sse4.2,fma,avx,avx512"
-            else if pkgs.stdenv.hostPlatform.isAarch64 then
-              "neon,fp16,crypto"
             else
               "";
 
