@@ -247,7 +247,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "ifeval", git = "https://github.com/oKatanaaa/ifeval" },
-    { name = "nobodywho", directory = "../python" },
+    { name = "nobodywho", directory = "../../python" },
     { name = "tqdm", specifier = ">=4.67.3" },
 ]
 
@@ -598,7 +598,7 @@ wheels = [
 [[package]]
 name = "nobodywho"
 version = "0.7.0"
-source = { directory = "../python" }
+source = { directory = "../../python" }
 
 [package.metadata]
 
