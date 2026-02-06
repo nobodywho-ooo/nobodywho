@@ -28,8 +28,14 @@ let
         llama-cpp-sys-2 = attrs: {
           env.LIBCLANG_PATH = "${pkgs.libclang.lib}/lib/libclang.so";
 
-          # this is a bit of a hack- should not be supplied like this
-          env.CARGO_CFG_TARGET_FEATURE = "sse4.2,fma,avx,avx512";
+          # Architecture-specific CPU feature flags
+          env.CARGO_CFG_TARGET_FEATURE =
+            if pkgs.stdenv.hostPlatform.isx86_64 then
+              "sse4.2,fma,avx,avx512"
+            else if pkgs.stdenv.hostPlatform.isAarch64 then
+              "neon,fp16,crypto"
+            else
+              "";
 
           nativeBuildInputs = [
             llvmPackages.bintools
