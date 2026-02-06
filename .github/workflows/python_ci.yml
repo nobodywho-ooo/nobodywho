@@ -138,7 +138,8 @@ jobs:
             elif [ "$ARCH" = "aarch64" ]; then
               # For ARM64, use jakoch's pre-built SDK
               SDK_VERSION="1.4.304.0"
-              SDK_URL="https://github.com/jakoch/vulkan-sdk-arm/releases/download/${SDK_VERSION}/vulkansdk-linux-${ARCH}-${SDK_VERSION}.tar.xz"
+              # Use ubuntu-22.04 build for better glibc compatibility with manylinux
+              SDK_URL="https://github.com/jakoch/vulkan-sdk-arm/releases/download/${SDK_VERSION}/vulkansdk-ubuntu-22.04-arm-${SDK_VERSION}.tar.xz"
             else
               echo "Unsupported architecture: $ARCH"
               exit 1
