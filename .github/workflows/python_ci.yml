@@ -170,15 +170,6 @@ jobs:
       - name: Build linux python wheel
         run: |
           source "$HOME/.cargo/env"
-
-          # Set CMake hints for Vulkan
-          if [ -n "$VULKAN_SDK" ]; then
-            export CMAKE_PREFIX_PATH="$VULKAN_SDK:${CMAKE_PREFIX_PATH:-}"
-            export Vulkan_INCLUDE_DIR="$VULKAN_SDK/include"
-            export Vulkan_LIBRARY="$VULKAN_SDK/lib/libvulkan.so"
-            export Vulkan_glslc_EXECUTABLE="$VULKAN_SDK/bin/glslc"
-          fi
-
           maturin build --verbose --release --locked
         working-directory: ./nobodywho/python
 
