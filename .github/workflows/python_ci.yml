@@ -83,36 +83,21 @@ jobs:
           # Install basic build tools
           yum install -y clang cmake wget tar gzip python3-pip
 
-          # Check if glslc is available
-          if ! which glslc; then
-            ARCH=$(uname -m)
-            echo "Installing Vulkan SDK for $ARCH..."
+          # ARM64 requires manual Vulkan SDK setup (jakoch action doesn't work in manylinux containers)
+          if [ "$(uname -m)" = "aarch64" ]; then
+            echo "Installing Vulkan SDK for ARM64..."
 
-            if [ "$ARCH" = "x86_64" ]; then
-              # For x86_64, use official Vulkan SDK
-              SDK_VERSION="1.4.304.0"
-              SDK_URL="https://sdk.lunarg.com/sdk/download/${SDK_VERSION}/linux/vulkansdk-linux-${ARCH}-${SDK_VERSION}.tar.xz"
-            elif [ "$ARCH" = "aarch64" ]; then
-              # For ARM64, use jakoch's pre-built SDK
-              SDK_VERSION="1.4.304.0"
-              # Use ubuntu-22.04 build for better glibc compatibility with manylinux
-              SDK_URL="https://github.com/jakoch/vulkan-sdk-arm/releases/download/${SDK_VERSION}/vulkansdk-ubuntu-22.04-arm-${SDK_VERSION}.tar.xz"
-            else
-              echo "Unsupported architecture: $ARCH"
-              exit 1
-            fi
+            SDK_VERSION="1.4.304.0"
+            SDK_URL="https://github.com/jakoch/vulkan-sdk-arm/releases/download/${SDK_VERSION}/vulkansdk-ubuntu-22.04-arm-${SDK_VERSION}.tar.xz"
 
             # Download and extract Vulkan SDK
             cd /tmp
             wget -q "$SDK_URL" -O vulkan-sdk.tar.xz
             tar -xf vulkan-sdk.tar.xz
-            SDK_DIR="/tmp/$(ls -d */ | grep -E '^[0-9]' | head -n1)"
-            SDK_DIR="${SDK_DIR%/}"  # Remove trailing slash
 
-            # For ARM64, the SDK has an architecture-specific subdirectory
-            if [ "$ARCH" = "aarch64" ] && [ -d "$SDK_DIR/aarch64" ]; then
-              SDK_DIR="$SDK_DIR/aarch64"
-            fi
+            # ARM64 SDK has architecture-specific subdirectory
+            SDK_DIR="/tmp/$(ls -d */ | grep -E '^[0-9]' | head -n1)"
+            SDK_DIR="${SDK_DIR%/}/aarch64"
 
             # Set up environment
             export VULKAN_SDK="$SDK_DIR"
