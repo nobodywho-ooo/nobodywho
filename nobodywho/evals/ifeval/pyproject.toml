@@ -12,4 +12,4 @@ dependencies = [
 
 [tool.uv.sources]
 ifeval = { git = "https://github.com/oKatanaaa/ifeval" }
-nobodywho = { path = "../python" }
+nobodywho = { path = "../../python" }
