@@ -171,7 +171,35 @@ jobs:
             # Verify installation
             echo "Using VULKAN_SDK: $VULKAN_SDK"
             ls -la "$VULKAN_SDK/bin/" || echo "SDK bin directory not found"
-            "$VULKAN_SDK/bin/glslc" --version || echo "glslc not working"
+
+            # Check if glslc exists, if not build shaderc
+            if [ ! -f "$VULKAN_SDK/bin/glslc" ]; then
+              echo "glslc not found in Vulkan SDK, building shaderc..."
+
+              # Install build dependencies for shaderc
+              yum install -y python3 git
+
+              # Build shaderc (which includes glslc)
+              cd /tmp
+              git clone --depth 1 --branch v2024.3 https://github.com/google/shaderc.git
+              cd shaderc
+              ./utils/git-sync-deps
+
+              mkdir -p build
+              cd build
+              cmake -DCMAKE_BUILD_TYPE=Release \
+                    -DCMAKE_INSTALL_PREFIX="$VULKAN_SDK" \
+                    -DSHADERC_SKIP_TESTS=ON \
+                    -DSHADERC_SKIP_EXAMPLES=ON \
+                    ..
+              make -j$(nproc) glslc
+              cp glslc/glslc "$VULKAN_SDK/bin/"
+
+              echo "glslc installed to $VULKAN_SDK/bin/glslc"
+            fi
+
+            # Verify glslc is now available
+            "$VULKAN_SDK/bin/glslc" --version || echo "ERROR: glslc still not working"
           else
             echo "glslc found: $(which glslc)"
             glslc --version
