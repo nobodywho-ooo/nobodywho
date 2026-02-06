@@ -192,8 +192,19 @@ jobs:
                     -DSHADERC_SKIP_TESTS=ON \
                     -DSHADERC_SKIP_EXAMPLES=ON \
                     ..
-              make -j$(nproc) glslc
-              cp glslc/glslc "$VULKAN_SDK/bin/"
+              make -j$(nproc)
+
+              # Find and copy glslc binary (might be in glslc/ or glslc/src/)
+              if [ -f glslc/glslc ]; then
+                cp glslc/glslc "$VULKAN_SDK/bin/"
+              elif [ -f glslc/src/glslc ]; then
+                cp glslc/src/glslc "$VULKAN_SDK/bin/"
+              else
+                echo "ERROR: glslc binary not found!"
+                echo "Searching for glslc..."
+                find . -name glslc -type f
+                exit 1
+              fi
 
               echo "glslc installed to $VULKAN_SDK/bin/glslc"
             fi
