@@ -123,6 +123,52 @@ jobs:
           # Install basic build tools
           yum install -y clang cmake wget tar gzip python3-pip
 
+          # Check if glslc is available
+          if ! which glslc; then
+            echo "glslc not found, downloading pre-built Vulkan SDK..."
+
+            # Determine architecture
+            ARCH=$(uname -m)
+            echo "Architecture: $ARCH"
+
+            if [ "$ARCH" = "x86_64" ]; then
+              # For x86_64, use official Vulkan SDK
+              SDK_VERSION="1.4.304.0"
+              SDK_URL="https://sdk.lunarg.com/sdk/download/${SDK_VERSION}/linux/vulkansdk-linux-${ARCH}-${SDK_VERSION}.tar.xz"
+            elif [ "$ARCH" = "aarch64" ]; then
+              # For ARM64, use jakoch's pre-built SDK
+              SDK_VERSION="1.4.304.0"
+              SDK_URL="https://github.com/jakoch/vulkan-sdk-arm/releases/download/${SDK_VERSION}/vulkansdk-linux-${ARCH}-${SDK_VERSION}.tar.xz"
+            else
+              echo "Unsupported architecture: $ARCH"
+              exit 1
+            fi
+
+            # Download and extract Vulkan SDK
+            cd /tmp
+            wget -q "$SDK_URL" -O vulkan-sdk.tar.xz
+            tar -xf vulkan-sdk.tar.xz
+            SDK_DIR="/tmp/$(ls -d */ | grep -E '^[0-9]' | head -n1)"
+            SDK_DIR="${SDK_DIR%/}"  # Remove trailing slash
+
+            # Set up environment
+            export VULKAN_SDK="$SDK_DIR"
+            export PATH="$VULKAN_SDK/bin:$PATH"
+            export LD_LIBRARY_PATH="$VULKAN_SDK/lib:${LD_LIBRARY_PATH:-}"
+
+            # Persist to GitHub environment
+            echo "VULKAN_SDK=$VULKAN_SDK" >> $GITHUB_ENV
+            echo "$VULKAN_SDK/bin" >> $GITHUB_PATH
+            echo "LD_LIBRARY_PATH=$VULKAN_SDK/lib:${LD_LIBRARY_PATH:-}" >> $GITHUB_ENV
+
+            # Verify installation
+            ls -la "$VULKAN_SDK/bin/" || echo "SDK bin directory not found"
+            "$VULKAN_SDK/bin/glslc" --version || echo "glslc not working"
+          else
+            echo "glslc found: $(which glslc)"
+            glslc --version
+          fi
+
           # Install Python build tools
           pip3 install maturin auditwheel
 
