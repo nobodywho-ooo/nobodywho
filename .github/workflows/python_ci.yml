@@ -161,12 +161,6 @@ jobs:
           pip3 install maturin auditwheel
 
 
-      - name: Verify Vulkan SDK
-        run: |
-          echo "Vulkan SDK: $VULKAN_SDK"
-          glslc --version
-          test -f "$VULKAN_SDK/lib/libvulkan.so" && echo "✓ Vulkan SDK ready"
-
       - name: Build linux python wheel
         run: |
           source "$HOME/.cargo/env"
