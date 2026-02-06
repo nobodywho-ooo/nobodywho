@@ -1,0 +1,13 @@
+[project]
+name = "lm-eval-scripts"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "lm-eval>=0.4.10",
+    "nobodywho",
+]
+
+[tool.uv.sources]
+nobodywho = { path = "../../python" }
