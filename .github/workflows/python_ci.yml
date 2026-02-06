@@ -80,70 +80,47 @@ jobs:
 
       - name: Install build dependencies
         run: |
-          # Install basic build tools
           yum install -y clang cmake wget tar gzip python3-pip
-
-          # ARM64 requires manual Vulkan SDK setup (jakoch action doesn't work in manylinux containers)
-          if [ "$(uname -m)" = "aarch64" ]; then
-            echo "Installing Vulkan SDK for ARM64..."
-
-            SDK_VERSION="1.4.304.0"
-            SDK_URL="https://github.com/jakoch/vulkan-sdk-arm/releases/download/${SDK_VERSION}/vulkansdk-ubuntu-22.04-arm-${SDK_VERSION}.tar.xz"
-
-            # Download and extract Vulkan SDK
-            cd /tmp
-            wget -q "$SDK_URL" -O vulkan-sdk.tar.xz
-            tar -xf vulkan-sdk.tar.xz
-
-            # ARM64 SDK has architecture-specific subdirectory
-            SDK_DIR="/tmp/$(ls -d */ | grep -E '^[0-9]' | head -n1)"
-            SDK_DIR="${SDK_DIR%/}/aarch64"
-
-            # Set up environment
-            export VULKAN_SDK="$SDK_DIR"
-            export PATH="$VULKAN_SDK/bin:$PATH"
-            export LD_LIBRARY_PATH="$VULKAN_SDK/lib:${LD_LIBRARY_PATH:-}"
-
-            # Persist to GitHub environment
-            echo "VULKAN_SDK=$VULKAN_SDK" >> $GITHUB_ENV
-            echo "$VULKAN_SDK/bin" >> $GITHUB_PATH
-            echo "LD_LIBRARY_PATH=$VULKAN_SDK/lib:${LD_LIBRARY_PATH:-}" >> $GITHUB_ENV
-
-            # Check if glslc exists, if not build shaderc
-            if [ ! -f "$VULKAN_SDK/bin/glslc" ]; then
-              echo "Building shaderc to get glslc compiler..."
-
-              # Install build dependencies for shaderc
-              yum install -y python3 git
-
-              # Build shaderc (which includes glslc)
-              cd /tmp
-              git clone --depth 1 --branch v2024.3 https://github.com/google/shaderc.git
-              cd shaderc
-              ./utils/git-sync-deps
-
-              mkdir -p build
-              cd build
-              cmake -DCMAKE_BUILD_TYPE=Release \
-                    -DCMAKE_INSTALL_PREFIX="$VULKAN_SDK" \
-                    -DSHADERC_SKIP_TESTS=ON \
-                    -DSHADERC_SKIP_EXAMPLES=ON \
-                    ..
-              make -j$(nproc)
-
-              # Find and copy glslc binary
-              if [ -f glslc/glslc ]; then
-                cp glslc/glslc "$VULKAN_SDK/bin/"
-              else
-                echo "ERROR: glslc not found after build"
-                find . -name glslc -type f
-                exit 1
-              fi
-            fi
-          fi
-
-          # Install Python build tools
           pip3 install maturin auditwheel
+
+      - name: Setup Vulkan SDK (manual for ARM64)
+        if: matrix.runner == 'ubuntu-24.04-arm'
+        run: |
+          SDK_VERSION="1.4.304.0"
+          SDK_URL="https://github.com/jakoch/vulkan-sdk-arm/releases/download/${SDK_VERSION}/vulkansdk-ubuntu-22.04-arm-${SDK_VERSION}.tar.xz"
+
+          # Download and extract Vulkan SDK
+          cd /tmp
+          wget -q "$SDK_URL" -O vulkan-sdk.tar.xz
+          tar -xf vulkan-sdk.tar.xz
+
+          # ARM64 SDK has architecture-specific subdirectory
+          SDK_DIR="/tmp/$(ls -d */ | grep -E '^[0-9]' | head -n1)"
+          VULKAN_SDK="${SDK_DIR%/}/aarch64"
+
+          # Persist to GitHub environment
+          echo "VULKAN_SDK=$VULKAN_SDK" >> $GITHUB_ENV
+          echo "$VULKAN_SDK/bin" >> $GITHUB_PATH
+          echo "LD_LIBRARY_PATH=$VULKAN_SDK/lib" >> $GITHUB_ENV
+
+          # Build shaderc to get glslc compiler (not included in ARM64 SDK)
+          yum install -y python3 git
+          cd /tmp
+          git clone --depth 1 --branch v2024.3 https://github.com/google/shaderc.git
+          cd shaderc
+          ./utils/git-sync-deps
+
+          mkdir -p build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_INSTALL_PREFIX="$VULKAN_SDK" \
+                -DSHADERC_SKIP_TESTS=ON \
+                -DSHADERC_SKIP_EXAMPLES=ON \
+                ..
+          make -j$(nproc)
+
+          # Copy glslc to SDK bin directory
+          cp glslc/glslc "$VULKAN_SDK/bin/" || { echo "ERROR: glslc not found"; exit 1; }
 
 
       - name: Build linux python wheel
