@@ -78,46 +78,6 @@ jobs:
           vulkan_version: 1.4.304.0
           cache: true
 
-      - name: Setup Vulkan SDK environment
-        run: |
-          # Debug: Show current VULKAN_SDK value
-          echo "Current VULKAN_SDK: ${VULKAN_SDK:-not set}"
-
-          # Search for Vulkan SDK installation
-          echo "Searching for Vulkan SDK..."
-          find /opt -name glslc 2>/dev/null || echo "glslc not found in /opt"
-          find /usr -name glslc 2>/dev/null || echo "glslc not found in /usr"
-
-          # Check if VULKAN_SDK is already set and valid
-          if [ -n "$VULKAN_SDK" ] && [ -d "$VULKAN_SDK" ]; then
-            echo "Using VULKAN_SDK from environment: $VULKAN_SDK"
-            if [ -f "$VULKAN_SDK/bin/glslc" ]; then
-              echo "glslc found at $VULKAN_SDK/bin/glslc"
-              echo "VULKAN_SDK=$VULKAN_SDK" >> $GITHUB_ENV
-              echo "$VULKAN_SDK/bin" >> $GITHUB_PATH
-              echo "VK_LAYER_PATH=$VULKAN_SDK/etc/vulkan/explicit_layer.d" >> $GITHUB_ENV
-            else
-              echo "Warning: glslc not found in VULKAN_SDK bin directory"
-            fi
-          else
-            echo "VULKAN_SDK not set or invalid, searching common paths..."
-            # Try common installation paths
-            for path in /opt/vulkan-sdk /usr/local /opt/VulkanSDK/* /github/home/.vulkan-sdk; do
-              echo "Checking $path"
-              if [ -d "$path/bin" ] && [ -f "$path/bin/glslc" ]; then
-                echo "Found Vulkan SDK at $path"
-                echo "VULKAN_SDK=$path" >> $GITHUB_ENV
-                echo "$path/bin" >> $GITHUB_PATH
-                echo "VK_LAYER_PATH=$path/etc/vulkan/explicit_layer.d" >> $GITHUB_ENV
-                break
-              fi
-            done
-          fi
-
-          # Verify glslc is available
-          echo "Checking for glslc in PATH..."
-          which glslc || echo "WARNING: glslc not found in PATH"
-
       - name: Install build dependencies
         run: |
           # Install basic build tools
@@ -125,11 +85,8 @@ jobs:
 
           # Check if glslc is available
           if ! which glslc; then
-            echo "glslc not found, downloading pre-built Vulkan SDK..."
-
-            # Determine architecture
             ARCH=$(uname -m)
-            echo "Architecture: $ARCH"
+            echo "Installing Vulkan SDK for $ARCH..."
 
             if [ "$ARCH" = "x86_64" ]; then
               # For x86_64, use official Vulkan SDK
@@ -154,7 +111,6 @@ jobs:
 
             # For ARM64, the SDK has an architecture-specific subdirectory
             if [ "$ARCH" = "aarch64" ] && [ -d "$SDK_DIR/aarch64" ]; then
-              echo "Found aarch64 subdirectory, using that as VULKAN_SDK"
               SDK_DIR="$SDK_DIR/aarch64"
             fi
 
@@ -168,13 +124,9 @@ jobs:
             echo "$VULKAN_SDK/bin" >> $GITHUB_PATH
             echo "LD_LIBRARY_PATH=$VULKAN_SDK/lib:${LD_LIBRARY_PATH:-}" >> $GITHUB_ENV
 
-            # Verify installation
-            echo "Using VULKAN_SDK: $VULKAN_SDK"
-            ls -la "$VULKAN_SDK/bin/" || echo "SDK bin directory not found"
-
             # Check if glslc exists, if not build shaderc
             if [ ! -f "$VULKAN_SDK/bin/glslc" ]; then
-              echo "glslc not found in Vulkan SDK, building shaderc..."
+              echo "Building shaderc to get glslc compiler..."
 
               # Install build dependencies for shaderc
               yum install -y python3 git
@@ -194,88 +146,37 @@ jobs:
                     ..
               make -j$(nproc)
 
-              # Find and copy glslc binary (might be in glslc/ or glslc/src/)
+              # Find and copy glslc binary
               if [ -f glslc/glslc ]; then
                 cp glslc/glslc "$VULKAN_SDK/bin/"
-              elif [ -f glslc/src/glslc ]; then
-                cp glslc/src/glslc "$VULKAN_SDK/bin/"
               else
-                echo "ERROR: glslc binary not found!"
-                echo "Searching for glslc..."
+                echo "ERROR: glslc not found after build"
                 find . -name glslc -type f
                 exit 1
               fi
-
-              echo "glslc installed to $VULKAN_SDK/bin/glslc"
             fi
-
-            # Verify glslc is now available
-            "$VULKAN_SDK/bin/glslc" --version || echo "ERROR: glslc still not working"
-          else
-            echo "glslc found: $(which glslc)"
-            glslc --version
           fi
 
           # Install Python build tools
           pip3 install maturin auditwheel
 
 
-      - name: Verify Vulkan SDK environment
+      - name: Verify Vulkan SDK
         run: |
-          echo "=== Vulkan SDK Environment ==="
-          echo "VULKAN_SDK: ${VULKAN_SDK:-not set}"
-          echo "PATH: $PATH"
-          echo "LD_LIBRARY_PATH: ${LD_LIBRARY_PATH:-not set}"
-
-          if [ -n "$VULKAN_SDK" ]; then
-            echo ""
-            echo "=== Vulkan SDK Contents ==="
-            ls -la "$VULKAN_SDK/" || echo "VULKAN_SDK directory not found"
-            echo ""
-            echo "=== Vulkan SDK bin ==="
-            ls -la "$VULKAN_SDK/bin/" || echo "bin directory not found"
-            echo ""
-            echo "=== Vulkan SDK lib ==="
-            ls -la "$VULKAN_SDK/lib/" || echo "lib directory not found"
-            echo ""
-            echo "=== Vulkan SDK include ==="
-            ls -la "$VULKAN_SDK/include/" || echo "include directory not found"
-
-            # Check for required files
-            echo ""
-            echo "=== Checking required files ==="
-            test -f "$VULKAN_SDK/bin/glslc" && echo "✓ glslc found" || echo "✗ glslc NOT found"
-            test -f "$VULKAN_SDK/lib/libvulkan.so" && echo "✓ libvulkan.so found" || echo "✗ libvulkan.so NOT found (checking lib64)"
-            test -f "$VULKAN_SDK/lib64/libvulkan.so" && echo "✓ libvulkan.so found in lib64" || echo "✗ libvulkan.so NOT found in lib64"
-            test -d "$VULKAN_SDK/include/vulkan" && echo "✓ vulkan headers found" || echo "✗ vulkan headers NOT found"
-          fi
-
-          # Try to run glslc
-          echo ""
-          echo "=== Testing glslc ==="
-          which glslc && glslc --version || echo "glslc not in PATH"
+          echo "Vulkan SDK: $VULKAN_SDK"
+          glslc --version
+          test -f "$VULKAN_SDK/lib/libvulkan.so" && echo "✓ Vulkan SDK ready"
 
       - name: Build linux python wheel
         run: |
           source "$HOME/.cargo/env"
 
-          # Set CMake hints for Vulkan if SDK is available
+          # Set CMake hints for Vulkan
           if [ -n "$VULKAN_SDK" ]; then
             export CMAKE_PREFIX_PATH="$VULKAN_SDK:${CMAKE_PREFIX_PATH:-}"
             export Vulkan_INCLUDE_DIR="$VULKAN_SDK/include"
-            # Check both lib and lib64
-            if [ -d "$VULKAN_SDK/lib64" ]; then
-              export Vulkan_LIBRARY="$VULKAN_SDK/lib64/libvulkan.so"
-            else
-              export Vulkan_LIBRARY="$VULKAN_SDK/lib/libvulkan.so"
-            fi
+            export Vulkan_LIBRARY="$VULKAN_SDK/lib/libvulkan.so"
             export Vulkan_glslc_EXECUTABLE="$VULKAN_SDK/bin/glslc"
-
-            echo "CMake Vulkan hints:"
-            echo "  CMAKE_PREFIX_PATH=$CMAKE_PREFIX_PATH"
-            echo "  Vulkan_INCLUDE_DIR=$Vulkan_INCLUDE_DIR"
-            echo "  Vulkan_LIBRARY=$Vulkan_LIBRARY"
-            echo "  Vulkan_glslc_EXECUTABLE=$Vulkan_glslc_EXECUTABLE"
           fi
 
           maturin build --verbose --release --locked
