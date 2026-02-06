@@ -174,9 +174,64 @@ jobs:
           pip3 install maturin auditwheel
 
 
+      - name: Verify Vulkan SDK environment
+        run: |
+          echo "=== Vulkan SDK Environment ==="
+          echo "VULKAN_SDK: ${VULKAN_SDK:-not set}"
+          echo "PATH: $PATH"
+          echo "LD_LIBRARY_PATH: ${LD_LIBRARY_PATH:-not set}"
+
+          if [ -n "$VULKAN_SDK" ]; then
+            echo ""
+            echo "=== Vulkan SDK Contents ==="
+            ls -la "$VULKAN_SDK/" || echo "VULKAN_SDK directory not found"
+            echo ""
+            echo "=== Vulkan SDK bin ==="
+            ls -la "$VULKAN_SDK/bin/" || echo "bin directory not found"
+            echo ""
+            echo "=== Vulkan SDK lib ==="
+            ls -la "$VULKAN_SDK/lib/" || echo "lib directory not found"
+            echo ""
+            echo "=== Vulkan SDK include ==="
+            ls -la "$VULKAN_SDK/include/" || echo "include directory not found"
+
+            # Check for required files
+            echo ""
+            echo "=== Checking required files ==="
+            test -f "$VULKAN_SDK/bin/glslc" && echo "✓ glslc found" || echo "✗ glslc NOT found"
+            test -f "$VULKAN_SDK/lib/libvulkan.so" && echo "✓ libvulkan.so found" || echo "✗ libvulkan.so NOT found (checking lib64)"
+            test -f "$VULKAN_SDK/lib64/libvulkan.so" && echo "✓ libvulkan.so found in lib64" || echo "✗ libvulkan.so NOT found in lib64"
+            test -d "$VULKAN_SDK/include/vulkan" && echo "✓ vulkan headers found" || echo "✗ vulkan headers NOT found"
+          fi
+
+          # Try to run glslc
+          echo ""
+          echo "=== Testing glslc ==="
+          which glslc && glslc --version || echo "glslc not in PATH"
+
       - name: Build linux python wheel
         run: |
           source "$HOME/.cargo/env"
+
+          # Set CMake hints for Vulkan if SDK is available
+          if [ -n "$VULKAN_SDK" ]; then
+            export CMAKE_PREFIX_PATH="$VULKAN_SDK:${CMAKE_PREFIX_PATH:-}"
+            export Vulkan_INCLUDE_DIR="$VULKAN_SDK/include"
+            # Check both lib and lib64
+            if [ -d "$VULKAN_SDK/lib64" ]; then
+              export Vulkan_LIBRARY="$VULKAN_SDK/lib64/libvulkan.so"
+            else
+              export Vulkan_LIBRARY="$VULKAN_SDK/lib/libvulkan.so"
+            fi
+            export Vulkan_glslc_EXECUTABLE="$VULKAN_SDK/bin/glslc"
+
+            echo "CMake Vulkan hints:"
+            echo "  CMAKE_PREFIX_PATH=$CMAKE_PREFIX_PATH"
+            echo "  Vulkan_INCLUDE_DIR=$Vulkan_INCLUDE_DIR"
+            echo "  Vulkan_LIBRARY=$Vulkan_LIBRARY"
+            echo "  Vulkan_glslc_EXECUTABLE=$Vulkan_glslc_EXECUTABLE"
+          fi
+
           maturin build --verbose --release --locked
         working-directory: ./nobodywho/python
 
