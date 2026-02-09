@@ -92,7 +92,7 @@ def test_async_tool_bad_parameters():
     params={"location": "The city or location to get weather for"}
 )
 def get_weather(location: str) -> str:
-    return f"The weather in {location} is sunny and 72°C"
+    return f"The weather in {location} is sunny and 21°C"
 
 
 def test_set_tools(model):
