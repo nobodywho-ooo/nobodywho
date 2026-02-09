@@ -1250,7 +1250,7 @@ impl SamplerPresets {
 /// `Tool`s are constructed using the `@tool` decorator.
 #[pyclass]
 pub struct Tool {
-    tool: nobodywho::chat::Tool,
+    tool: nobodywho::tool_calling::Tool,
     pyfunc: Py<PyAny>,
 }
 
@@ -1377,7 +1377,7 @@ fn tool<'a>(
                 })
             };
 
-            let tool = nobodywho::chat::Tool::new(
+            let tool = nobodywho::tool_calling::Tool::new(
                 name,
                 description.clone(),
                 json_schema,
@@ -1582,33 +1582,73 @@ pub mod nobodywhopython {
                 }
             };
 
-            struct MessageVisitor(Option<String>);
-            impl tracing::field::Visit for MessageVisitor {
+            // Visitor that captures all fields, not just the message
+            struct FieldVisitor {
+                message: Option<String>,
+                fields: Vec<(String, String)>,
+            }
+
+            impl tracing::field::Visit for FieldVisitor {
                 fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
                     if field.name() == "message" {
-                        self.0 = Some(value.to_string());
+                        self.message = Some(value.to_string());
+                    } else {
+                        self.fields.push((field.name().to_string(), value.to_string()));
                     }
                 }
+
                 fn record_debug(
                     &mut self,
                     field: &tracing::field::Field,
                     value: &dyn std::fmt::Debug,
                 ) {
-                    if field.name() == "message" && self.0.is_none() {
-                        self.0 = Some(format!("{:?}", value));
+                    let formatted = format!("{:?}", value);
+                    if field.name() == "message" && self.message.is_none() {
+                        self.message = Some(formatted);
+                    } else if field.name() != "message" {
+                        self.fields.push((field.name().to_string(), formatted));
                     }
                 }
             }
 
-            let mut visitor = MessageVisitor(None);
+            let mut visitor = FieldVisitor {
+                message: None,
+                fields: Vec::new(),
+            };
             event.record(&mut visitor);
 
-            if let Some(message) = visitor.0 {
+            // Build log message with file, line, and all structured fields
+            let mut log_msg = String::new();
+
+            // Add file and line number if available
+            if let (Some(file), Some(line)) = (metadata.file(), metadata.line()) {
+                log_msg.push_str(&format!("{}:{} ", file, line));
+            }
+
+            // Add the main message
+            if let Some(message) = visitor.message {
+                log_msg.push_str(&message);
+            }
+
+            // Add structured fields
+            if !visitor.fields.is_empty() {
+                log_msg.push_str(" ");
+                for (i, (key, value)) in visitor.fields.iter().enumerate() {
+                    if i > 0 {
+                        log_msg.push_str(", ");
+                    }
+                    log_msg.push_str(&format!("{}={}", key, value));
+                }
+            }
+
+            if !log_msg.is_empty() {
                 log::logger().log(
                     &log::Record::builder()
-                        .args(format_args!("{}", message))
+                        .args(format_args!("{}", log_msg))
                         .level(level)
                         .target(metadata.target())
+                        .file(metadata.file())
+                        .line(metadata.line())
                         .build(),
                 );
             }

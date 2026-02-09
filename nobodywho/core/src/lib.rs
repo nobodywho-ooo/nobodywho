@@ -5,6 +5,7 @@ pub mod errors;
 pub mod llm;
 pub mod sampler_config;
 pub mod template;
+pub mod tool_calling;
 
 pub fn send_llamacpp_logs_to_tracing() {
     llama_cpp_2::send_logs_to_tracing(llama_cpp_2::LogOptions::default().with_logs_enabled(true));
@@ -24,6 +25,10 @@ pub mod test_utils {
                 .with_max_level(tracing::Level::TRACE)
                 .with_timer(tracing_subscriber::fmt::time::uptime())
                 .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
+                .with_file(true)           // Show file names
+                .with_line_number(true)    // Show line numbers
+                .with_target(false)        // Hide target module path for cleaner output
+                .with_thread_ids(false)    // Hide thread IDs for cleaner output
                 .try_init()
                 .ok();
         });

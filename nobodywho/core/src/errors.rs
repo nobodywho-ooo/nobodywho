@@ -35,6 +35,9 @@ pub enum InitWorkerError {
 
     #[error("Failed parsing tokenizer.ggml.add_bos field: {0}")]
     InvalidAddBosData(String),
+
+    #[error("Failed to detect tool calling format: {0}")]
+    ToolFormatDetection(#[from] crate::tool_calling::types::ToolFormatError),
 }
 
 #[derive(Debug, thiserror::Error)]

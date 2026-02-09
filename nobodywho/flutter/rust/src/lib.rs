@@ -317,7 +317,7 @@ pub fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> f32 {
 
 #[flutter_rust_bridge::frb(opaque)]
 pub struct RustTool {
-    tool: nobodywho::chat::Tool,
+    tool: nobodywho::tool_calling::Tool,
     schema: serde_json::Value,
 }
 
@@ -346,7 +346,7 @@ pub fn new_tool_impl(
         futures::executor::block_on(async { function(json.to_string()).await })
     };
 
-    let tool = nobodywho::chat::Tool::new(
+    let tool = nobodywho::tool_calling::Tool::new(
         name,
         description,
         json_schema.clone(),
