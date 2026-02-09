@@ -1593,7 +1593,8 @@ pub mod nobodywhopython {
                     if field.name() == "message" {
                         self.message = Some(value.to_string());
                     } else {
-                        self.fields.push((field.name().to_string(), value.to_string()));
+                        self.fields
+                            .push((field.name().to_string(), value.to_string()));
                     }
                 }
 
