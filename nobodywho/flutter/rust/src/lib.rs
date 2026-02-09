@@ -353,7 +353,10 @@ pub fn new_tool_impl(
         std::sync::Arc::new(sync_callback),
     );
 
-    Ok(RustTool { tool, schema: json_schema })
+    Ok(RustTool {
+        tool,
+        schema: json_schema,
+    })
 }
 
 /// Converts a Dart function runtimeType string directly to a JSON schema
