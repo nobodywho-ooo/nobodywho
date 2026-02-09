@@ -77,13 +77,50 @@ jobs:
         with:
           vulkan_version: 1.4.304.0
           cache: true
+
       - name: Install build dependencies
         run: |
-          # Install basic build tools
-          yum install -y clang cmake wget tar gzip python3-pip 
-          
-          # Install Python build tools
+          yum install -y clang cmake wget tar gzip python3-pip
           pip3 install maturin auditwheel
+
+      - name: Setup Vulkan SDK (manual for ARM64)
+        if: matrix.runner == 'ubuntu-24.04-arm'
+        run: |
+          SDK_VERSION="1.4.304.0"
+          SDK_URL="https://github.com/jakoch/vulkan-sdk-arm/releases/download/${SDK_VERSION}/vulkansdk-ubuntu-22.04-arm-${SDK_VERSION}.tar.xz"
+
+          # Download and extract Vulkan SDK
+          cd /tmp
+          wget -q "$SDK_URL" -O vulkan-sdk.tar.xz
+          tar -xf vulkan-sdk.tar.xz
+
+          # ARM64 SDK has architecture-specific subdirectory
+          SDK_DIR="/tmp/$(ls -d */ | grep -E '^[0-9]' | head -n1)"
+          VULKAN_SDK="${SDK_DIR%/}/aarch64"
+
+          # Persist to GitHub environment
+          echo "VULKAN_SDK=$VULKAN_SDK" >> $GITHUB_ENV
+          echo "$VULKAN_SDK/bin" >> $GITHUB_PATH
+          echo "LD_LIBRARY_PATH=$VULKAN_SDK/lib" >> $GITHUB_ENV
+
+          # Build shaderc to get glslc compiler (not included in ARM64 SDK)
+          yum install -y python3 git
+          cd /tmp
+          git clone --depth 1 --branch v2024.3 https://github.com/google/shaderc.git
+          cd shaderc
+          ./utils/git-sync-deps
+
+          mkdir -p build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_INSTALL_PREFIX="$VULKAN_SDK" \
+                -DSHADERC_SKIP_TESTS=ON \
+                -DSHADERC_SKIP_EXAMPLES=ON \
+                ..
+          make -j$(nproc)
+
+          # Copy glslc to SDK bin directory
+          cp glslc/glslc "$VULKAN_SDK/bin/" || { echo "ERROR: glslc not found"; exit 1; }
 
 
       - name: Build linux python wheel
