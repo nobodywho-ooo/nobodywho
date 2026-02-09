@@ -30,11 +30,27 @@ pub trait ToolFormatHandler {
     /// Extracts tool calls from the given text.
     fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>>;
 
-    /// Transform a message for template compatibility.
-    /// Some formats (like FunctionGemma) require tool_calls to be wrapped in a 'function' object.
-    /// Default implementation returns the message unchanged (suitable for Qwen3).
-    fn transform_message_for_template(&self, message: serde_json::Value) -> serde_json::Value {
-        message
+    /// Serialize a Tool for the chat template (tool definitions in system context)
+    fn serialize_tool(&self, tool: &Tool) -> serde_json::Value;
+
+    /// Serialize a ToolCall for the chat template (within assistant messages)
+    fn serialize_tool_call(&self, tool_call: &ToolCall) -> serde_json::Value;
+
+    /// Serialize a complete ToolCalls message for the chat template
+    /// Default implementation composes from serialize_tool_call
+    fn serialize_tool_calls_message(
+        &self,
+        role: &crate::chat::Role,
+        content: &str,
+        tool_calls: &[ToolCall],
+    ) -> serde_json::Value {
+        serde_json::json!({
+            "role": role,
+            "content": content,
+            "tool_calls": tool_calls.iter()
+                .map(|tc| self.serialize_tool_call(tc))
+                .collect::<Vec<_>>()
+        })
     }
 }
 
@@ -50,7 +66,7 @@ pub enum ToolFormat {
 
 impl ToolFormat {
     /// Get the handler for this format as a trait object.
-    fn handler(&self) -> &dyn ToolFormatHandler {
+    pub fn handler(&self) -> &dyn ToolFormatHandler {
         match self {
             ToolFormat::Qwen3(h) => h,
             ToolFormat::FunctionGemma(h) => h,
@@ -75,11 +91,6 @@ impl ToolFormat {
     /// Extracts tool calls from the given text.
     pub fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>> {
         self.handler().extract_tool_calls(input)
-    }
-
-    /// Transform a message for template compatibility.
-    pub fn transform_message_for_template(&self, message: serde_json::Value) -> serde_json::Value {
-        self.handler().transform_message_for_template(message)
     }
 }
 
@@ -167,5 +178,90 @@ mod tests {
         let format = ToolFormat::FunctionGemma(FunctionGemmaHandler);
         assert_eq!(format.begin_token(), "<start_function_call>");
         assert_eq!(format.end_token(), "<end_function_call>");
+    }
+
+    #[test]
+    fn test_qwen3_serialization() {
+        use serde_json::json;
+        use std::sync::Arc;
+
+        let handler = Qwen3Handler;
+        let tool = Tool {
+            name: "test_tool".to_string(),
+            description: "A test tool".to_string(),
+            json_schema: json!({"type": "object"}),
+            function: Arc::new(|_| "result".to_string()),
+        };
+
+        let serialized = handler.serialize_tool(&tool);
+        assert_eq!(
+            serialized,
+            json!({
+                "type": "function",
+                "function": {
+                    "name": "test_tool",
+                    "description": "A test tool",
+                    "parameters": {"type": "object"}
+                }
+            })
+        );
+
+        let tool_call = ToolCall {
+            name: "test_tool".to_string(),
+            arguments: json!({"arg": "value"}),
+        };
+
+        let serialized_call = handler.serialize_tool_call(&tool_call);
+        assert_eq!(
+            serialized_call,
+            json!({
+                "name": "test_tool",
+                "arguments": {"arg": "value"}
+            })
+        );
+    }
+
+    #[test]
+    fn test_functiongemma_serialization() {
+        use serde_json::json;
+        use std::sync::Arc;
+
+        let handler = FunctionGemmaHandler;
+        let tool = Tool {
+            name: "test_tool".to_string(),
+            description: "A test tool".to_string(),
+            json_schema: json!({"type": "object"}),
+            function: Arc::new(|_| "result".to_string()),
+        };
+
+        let serialized = handler.serialize_tool(&tool);
+        assert_eq!(
+            serialized,
+            json!({
+                "type": "function",
+                "function": {
+                    "name": "test_tool",
+                    "description": "A test tool",
+                    "parameters": {"type": "object"}
+                }
+            })
+        );
+
+        let tool_call = ToolCall {
+            name: "test_tool".to_string(),
+            arguments: json!({"arg": "value"}),
+        };
+
+        let serialized_call = handler.serialize_tool_call(&tool_call);
+        // FunctionGemma wraps in "function" object
+        assert_eq!(
+            serialized_call,
+            json!({
+                "function": {
+                    "name": "test_tool",
+                    "arguments": {"arg": "value"}
+                }
+            })
+        );
     }
 }

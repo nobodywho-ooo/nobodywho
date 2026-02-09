@@ -14,6 +14,74 @@ use tracing::debug;
 #[derive(Debug, Clone, Copy)]
 pub struct FunctionGemmaHandler;
 
+/// Helper module for building GBNF grammars with less boilerplate
+mod grammar_builder {
+    use gbnf::{
+        CharacterSet, CharacterSetItem, Grammar, GrammarItem, NonTerminalSymbol, Production,
+        ProductionItem, RepetitionType, Rule, TerminalSymbol,
+    };
+
+    pub struct GrammarBuilder {
+        grammar: Grammar,
+    }
+
+    impl GrammarBuilder {
+        pub fn new() -> Self {
+            Self {
+                grammar: Grammar::default(),
+            }
+        }
+
+        /// Add a rule to the grammar
+        pub fn rule(mut self, name: &str, items: Vec<ProductionItem>) -> Self {
+            self.grammar.items.push(GrammarItem::Rule(Rule {
+                lhs: NonTerminalSymbol { name: name.into() },
+                rhs: Production { items },
+            }));
+            self
+        }
+
+        /// Add a recurring rule (stored separately in grammar.recurring_items)
+        pub fn recurring_rule(mut self, name: &str, items: Vec<ProductionItem>) -> Self {
+            self.grammar.recurring_items.insert(
+                NonTerminalSymbol { name: name.into() },
+                Production { items },
+            );
+            self
+        }
+
+        pub fn build(self) -> Grammar {
+            self.grammar
+        }
+    }
+
+    /// Create a terminal production item (exact text match)
+    pub fn t(s: &str) -> ProductionItem {
+        ProductionItem::Terminal(TerminalSymbol { value: s.into() }, RepetitionType::One)
+    }
+
+    /// Create a non-terminal reference with optional repetition
+    pub fn nt(name: &str) -> ProductionItem {
+        ProductionItem::NonTerminal(NonTerminalSymbol { name: name.into() }, RepetitionType::One)
+    }
+
+    /// Create a terminal with zero-or-more repetition
+    pub fn t_star(s: &str) -> ProductionItem {
+        ProductionItem::Terminal(TerminalSymbol { value: s.into() }, RepetitionType::ZeroOrMore)
+    }
+
+    /// Create a character set that matches anything except the given characters
+    pub fn not_chars(chars: &[char]) -> ProductionItem {
+        ProductionItem::CharacterSet(
+            CharacterSet {
+                is_complement: true,
+                items: chars.iter().map(|&c| CharacterSetItem::Character(c)).collect(),
+            },
+            RepetitionType::OneOrMore,
+        )
+    }
+}
+
 impl ToolFormatHandler for FunctionGemmaHandler {
     fn begin_token(&self) -> &str {
         "<start_function_call>"
@@ -24,192 +92,81 @@ impl ToolFormatHandler for FunctionGemmaHandler {
     }
 
     fn generate_grammar(&self, tools: &[Tool]) -> Result<gbnf::Grammar, ToolFormatError> {
+        use grammar_builder::{not_chars, nt, t, t_star, GrammarBuilder};
+
         // FunctionGemma format: call:tool_name{param1:<escape>value<escape>, param2:<escape>value<escape>}
+        let mut builder = GrammarBuilder::new()
+            .rule("ws", vec![t_star(" ")])
+            // Value content: exclude special chars that have meaning in FunctionGemma syntax
+            .recurring_rule("valuecontent", vec![not_chars(&['<', '>', '{', '}', ',', ':'])])
+            .rule("value", vec![t("<escape>"), nt("valuecontent"), t("<escape>")]);
 
-        let mut grammar = gbnf::Grammar::default();
+        // Generate a rule for each tool using the actual function name
+        let tool_rules: Vec<_> = tools
+            .iter()
+            .map(|tool| {
+                // Sanitize the tool name for GBNF (only alphanumeric allowed, no underscores)
+                // Remove all non-alphanumeric characters
+                tool.name
+                    .chars()
+                    .filter(|c| c.is_alphanumeric())
+                    .collect::<String>()
+            })
+            .collect();
 
-        // Helper to create terminal
-        let term = |s: &str| -> gbnf::ProductionItem {
-            gbnf::ProductionItem::Terminal(
-                gbnf::TerminalSymbol {
-                    value: s.to_string(),
-                },
-                gbnf::RepetitionType::One,
-            )
-        };
-
-        // Helper to create non-terminal
-        let nonterm = |s: &str, rep: gbnf::RepetitionType| -> gbnf::ProductionItem {
-            gbnf::ProductionItem::NonTerminal(
-                gbnf::NonTerminalSymbol {
-                    name: s.to_string(),
-                },
-                rep,
-            )
-        };
-
-        // Define whitespace rule (optional space)
-        grammar.items.push(gbnf::GrammarItem::Rule(gbnf::Rule {
-            lhs: gbnf::NonTerminalSymbol { name: "ws".into() },
-            rhs: gbnf::Production {
-                items: vec![gbnf::ProductionItem::Terminal(
-                    gbnf::TerminalSymbol { value: " ".into() },
-                    gbnf::RepetitionType::ZeroOrMore,
-                )],
-            },
-        }));
-
-        // Value inside <escape> tags
-        // Define a very permissive character set using complement (anything except escape tags)
-        // This is simpler and avoids character escaping issues
-
-        // Add the valuecontent rule to recurring_items so it's defined once
-        let valuecontent_rule = gbnf::Production {
-            items: vec![gbnf::ProductionItem::CharacterSet(
-                gbnf::CharacterSet {
-                    is_complement: true, // Use complement: match anything EXCEPT these characters
-                    items: vec![
-                        gbnf::CharacterSetItem::Character('<'), // Don't match < to avoid tag conflicts
-                    ],
-                },
-                gbnf::RepetitionType::OneOrMore,
-            )],
-        };
-        grammar.recurring_items.insert(
-            gbnf::NonTerminalSymbol {
-                name: "valuecontent".into(),
-            },
-            valuecontent_rule,
-        );
-
-        grammar.items.push(gbnf::GrammarItem::Rule(gbnf::Rule {
-            lhs: gbnf::NonTerminalSymbol {
-                name: "value".into(),
-            },
-            rhs: gbnf::Production {
-                items: vec![
-                    term("<escape>"),
-                    nonterm("valuecontent", gbnf::RepetitionType::One),
-                    term("<escape>"),
-                ],
-            },
-        }));
-
-        // Generate rules for each tool
-        let mut tool_rules = Vec::new();
-
-        for (idx, tool) in tools.iter().enumerate() {
-            // Use letter-based naming to avoid GBNF parsing issues with underscores and digits
-            // tool0, tool1, etc. -> toola, toolb, toolc, ...
-            let tool_letter = char::from_u32('a' as u32 + idx as u32).unwrap_or('z');
-            let tool_rule_name = format!("tool{}", tool_letter);
-            tool_rules.push(tool_rule_name.clone());
-
-            // Get parameters from JSON schema
+        for (tool_name, tool) in tool_rules.iter().zip(tools.iter()) {
             let properties = tool
                 .json_schema
                 .get("properties")
                 .and_then(|p| p.as_object());
 
-            // Build the tool call: call:toolname{params}
-            let mut tool_items = vec![term("call:"), term(&tool.name), term("{")];
+            let mut items = vec![t("call:"), t(&tool.name), t("{")];
 
             if let Some(props) = properties {
                 if !props.is_empty() {
-                    // Generate params rule for this tool (e.g., "toolaparams", "toolbparams")
-                    let params_rule_name = format!("{}params", tool_rule_name);
-                    tool_items.push(nonterm(&params_rule_name, gbnf::RepetitionType::One));
+                    let params_rule = format!("{}params", tool_name);
+                    items.push(nt(&params_rule));
 
-                    // Create parameter list rule
-                    let param_names: Vec<_> = props.keys().collect();
-
-                    if !param_names.is_empty() {
-                        // Generate rules for each parameter
-                        let mut param_items = Vec::new();
-
-                        for (i, param_name) in param_names.iter().enumerate() {
-                            // Add comma and space before all params except the first
+                    // Build parameter list: param1:<escape>val<escape>, param2:<escape>val<escape>
+                    let param_items: Vec<_> = props
+                        .keys()
+                        .enumerate()
+                        .flat_map(|(i, name)| {
+                            let mut items = vec![t(name), t(":"), nt("value")];
                             if i > 0 {
-                                param_items.push(term(", "));
+                                items.insert(0, t(", "));
                             }
+                            items
+                        })
+                        .collect();
 
-                            // param_name:<escape>value<escape>
-                            param_items.push(term(param_name));
-                            param_items.push(term(":"));
-                            param_items.push(nonterm("value", gbnf::RepetitionType::One));
-                        }
-
-                        grammar.items.push(gbnf::GrammarItem::Rule(gbnf::Rule {
-                            lhs: gbnf::NonTerminalSymbol {
-                                name: params_rule_name,
-                            },
-                            rhs: gbnf::Production { items: param_items },
-                        }));
-                    }
+                    builder = builder.rule(&params_rule, param_items);
                 }
             }
 
-            tool_items.push(term("}"));
-
-            grammar.items.push(gbnf::GrammarItem::Rule(gbnf::Rule {
-                lhs: gbnf::NonTerminalSymbol {
-                    name: tool_rule_name,
-                },
-                rhs: gbnf::Production { items: tool_items },
-            }));
+            items.push(t("}"));
+            builder = builder.rule(tool_name, items);
         }
 
-        // Create a choice rule for all tools (multiple productions with same LHS)
-        for tool_rule in tool_rules {
-            grammar.items.push(gbnf::GrammarItem::Rule(gbnf::Rule {
-                lhs: gbnf::NonTerminalSymbol {
-                    name: "functioncall".into(),
-                },
-                rhs: gbnf::Production {
-                    items: vec![nonterm(&tool_rule, gbnf::RepetitionType::One)],
-                },
-            }));
+        for tool_rule in &tool_rules {
+            builder = builder.rule("functioncall", vec![nt(tool_rule)]);
         }
 
-        // Optional whitespace
-        let ws = nonterm("ws", gbnf::RepetitionType::One);
-
-        // Single tool call wrapped in tags: <start_function_call>...function call...<end_function_call>
-        grammar.items.push(gbnf::GrammarItem::Rule(gbnf::Rule {
-            lhs: gbnf::NonTerminalSymbol {
-                name: "toolcall".into(),
-            },
-            rhs: gbnf::Production {
-                items: vec![
-                    term(self.begin_token()),
-                    ws.clone(),
-                    nonterm("functioncall", gbnf::RepetitionType::One),
-                    ws.clone(),
-                    term(self.end_token()),
-                    ws.clone(),
+        let grammar = builder
+            .rule(
+                "toolcall",
+                vec![
+                    t(self.begin_token()),
+                    nt("ws"),
+                    nt("functioncall"),
+                    nt("ws"),
+                    t(self.end_token()),
+                    nt("ws"),
                 ],
-            },
-        }));
-
-        // Superroot: exactly one tool call (model can emit EOS after completing it)
-        grammar.items.push(gbnf::GrammarItem::Rule(gbnf::Rule {
-            lhs: gbnf::NonTerminalSymbol {
-                name: "superroot".into(),
-            },
-            rhs: gbnf::Production {
-                items: vec![nonterm("toolcall", gbnf::RepetitionType::One)],
-            },
-        }));
-
-        // Add a 'root' rule that llama.cpp expects (even though we use superroot as entry point)
-        grammar.items.push(gbnf::GrammarItem::Rule(gbnf::Rule {
-            lhs: gbnf::NonTerminalSymbol {
-                name: "root".into(),
-            },
-            rhs: gbnf::Production {
-                items: vec![nonterm("superroot", gbnf::RepetitionType::One)],
-            },
-        }));
+            )
+            .rule("superroot", vec![nt("toolcall")])
+            .rule("root", vec![nt("superroot")])
+            .build();
 
         Ok(grammar)
     }
@@ -295,35 +252,26 @@ impl ToolFormatHandler for FunctionGemmaHandler {
         }
     }
 
-    fn transform_message_for_template(&self, mut message: serde_json::Value) -> serde_json::Value {
-        // FunctionGemma templates expect tool_calls to be wrapped in a 'function' object:
-        // {"function": {"name": "...", "arguments": {...}}}
-        // instead of just {"name": "...", "arguments": {...}}
-
-        if let Some(tool_calls) = message.get_mut("tool_calls") {
-            if let Some(tool_calls_array) = tool_calls.as_array_mut() {
-                for tool_call in tool_calls_array.iter_mut() {
-                    if let Some(obj) = tool_call.as_object() {
-                        // Only transform if not already wrapped
-                        if !obj.contains_key("function") {
-                            let name = obj.get("name").cloned();
-                            let arguments = obj.get("arguments").cloned();
-
-                            if let (Some(name), Some(arguments)) = (name, arguments) {
-                                *tool_call = json!({
-                                    "function": {
-                                        "name": name,
-                                        "arguments": arguments,
-                                    }
-                                });
-                            }
-                        }
-                    }
-                }
+    fn serialize_tool(&self, tool: &Tool) -> serde_json::Value {
+        // FunctionGemma uses same tool definition format as Qwen3/OpenAI
+        json!({
+            "type": "function",
+            "function": {
+                "name": &tool.name,
+                "description": &tool.description,
+                "parameters": &tool.json_schema,
             }
-        }
+        })
+    }
 
-        message
+    fn serialize_tool_call(&self, tool_call: &ToolCall) -> serde_json::Value {
+        // FunctionGemma wraps tool_calls in "function" object
+        json!({
+            "function": {
+                "name": &tool_call.name,
+                "arguments": &tool_call.arguments,
+            }
+        })
     }
 }
 

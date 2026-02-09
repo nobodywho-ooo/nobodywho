@@ -949,6 +949,45 @@ fn concat_system_and_first_user_messages(
     }
 }
 
+fn serialize_message_for_template(
+    msg: &Message,
+    format: Option<&crate::tool_calling::ToolFormat>,
+) -> serde_json::Value {
+    match msg {
+        Message::ToolCalls {
+            role,
+            content,
+            tool_calls,
+        } => {
+            if let Some(format) = format {
+                format
+                    .handler()
+                    .serialize_tool_calls_message(role, content, tool_calls)
+            } else {
+                // Fallback to default Qwen3-style format
+                serde_json::json!({
+                    "role": role,
+                    "content": content,
+                    "tool_calls": tool_calls,
+                })
+            }
+        }
+        Message::Message { role, content } => serde_json::json!({
+            "role": role,
+            "content": content,
+        }),
+        Message::ToolResp {
+            role,
+            name,
+            content,
+        } => serde_json::json!({
+            "role": role,
+            "name": name,
+            "content": content,
+        }),
+    }
+}
+
 fn naive_render_message_vec(
     messages: &[Message],
     chat_template: &str,
@@ -969,24 +1008,45 @@ fn naive_render_message_vec(
         )
     });
 
-    // Transform messages for template compatibility based on format
+    // Serialize messages for template using format-aware serialization
     let messages_for_template: Vec<serde_json::Value> = messages
         .iter()
-        .map(|msg| {
-            let json = serde_json::to_value(msg).unwrap_or(serde_json::Value::Null);
-            // Apply format-specific transformation if format is provided
-            if let Some(format) = tool_format {
-                format.transform_message_for_template(json)
-            } else {
-                json
-            }
-        })
+        .map(|msg| serialize_message_for_template(msg, tool_format))
         .collect();
 
     // Debug: serialize messages to see what the template receives
     if let Ok(json_messages) = serde_json::to_string_pretty(&messages_for_template) {
         debug!(messages_json = %json_messages, "Messages being passed to template");
     }
+
+    // Serialize tools using format-aware serialization
+    let tools_for_template = if tools.is_empty() {
+        None
+    } else if let Some(format) = tool_format {
+        Some(
+            tools
+                .iter()
+                .map(|t| format.handler().serialize_tool(t))
+                .collect::<Vec<_>>(),
+        )
+    } else {
+        // Fallback: serialize with default Qwen3/OpenAI format
+        Some(
+            tools
+                .iter()
+                .map(|t| {
+                    serde_json::json!({
+                        "type": "function",
+                        "function": {
+                            "name": &t.name,
+                            "description": &t.description,
+                            "parameters": &t.json_schema,
+                        }
+                    })
+                })
+                .collect::<Vec<_>>(),
+        )
+    };
 
     let ctx = context! {
         messages => messages_for_template,
@@ -996,7 +1056,7 @@ fn naive_render_message_vec(
         enable_thinking => allow_thinking,
         bos_token => bos_token,
         eos_token => eos_token,
-        tools => if tools.is_empty() {None} else {Some(tools)} ,
+        tools => tools_for_template,
     };
 
     tmpl.render(ctx)

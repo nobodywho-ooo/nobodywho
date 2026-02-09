@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use std::sync::Arc;
 
 /// A tool that can be called by the LLM.
@@ -36,27 +35,6 @@ impl Tool {
             json_schema,
             function,
         }
-    }
-}
-
-impl Serialize for Tool {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-
-        let mut state = serializer.serialize_struct("Tool", 2)?;
-        state.serialize_field("type", "function")?;
-        state.serialize_field(
-            "function",
-            &json!({
-                "name": self.name,
-                "description": self.description,
-                "parameters": self.json_schema,
-            }),
-        )?;
-        state.end()
     }
 }
 
