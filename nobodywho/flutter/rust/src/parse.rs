@@ -1,23 +1,15 @@
 use nom::{
     branch::alt,
-    bytes::complete::{tag, tag_no_case, take_till, take_while},
+    bytes::complete::{tag, tag_no_case, take_while},
     character::complete::{alphanumeric1, multispace0},
     combinator::{map, recognize},
-    multi::{many_till, separated_list1},
+    multi::separated_list1,
     sequence::{delimited, preceded, separated_pair},
-    Finish, IResult, Parser,
+    IResult, Parser,
 };
 
 fn comma_sep(input: &str) -> IResult<&str, &str> {
     delimited(multispace0, tag(","), multispace0).parse(input)
-}
-
-pub(crate) fn parse_unsupported_type(input: &str) -> Result<&str, String> {
-    Ok(preceded(comma_sep, many_till(|c| c == ','))
-        .parse(input)
-        .finish()
-        .map_err(|e| format!("Failed at: {}", e.input))?
-        .1)
 }
 
 fn simple_type(input: &str) -> IResult<&str, serde_json::Value> {
@@ -54,7 +46,7 @@ fn list_type(input: &str) -> IResult<&str, serde_json::Value> {
     .parse(input)
 }
 
-fn set_type(input: &str) -> IResult<&str, serde_json::Value> {
+fn _set_type(input: &str) -> IResult<&str, serde_json::Value> {
     map(
         delimited(tag_no_case("Set<"), type_parser, tag(">")),
         |inner| serde_json::json!({"type" : "array", "items" : inner, "uniqueItems" : "true"} ),
@@ -62,7 +54,7 @@ fn set_type(input: &str) -> IResult<&str, serde_json::Value> {
     .parse(input)
 }
 
-fn map_key(input: &str) -> IResult<&str, serde_json::Value> {
+fn _map_key(input: &str) -> IResult<&str, serde_json::Value> {
     map(
         tag_no_case("String"),
         |_s| serde_json::json!({"type" : "string"}),
@@ -70,11 +62,11 @@ fn map_key(input: &str) -> IResult<&str, serde_json::Value> {
     .parse(input)
 }
 
-fn map_type(input: &str) -> IResult<&str, serde_json::Value> {
+fn _map_type(input: &str) -> IResult<&str, serde_json::Value> {
     map(
         delimited(
             tag_no_case("Map<"),
-            separated_pair(map_key, comma_sep, type_parser),
+            separated_pair(_map_key, comma_sep, type_parser),
             tag(">"),
         ),
         |(_, inner)| serde_json::json!({"type" : "object", "additionalProperties" : inner}),
@@ -83,12 +75,7 @@ fn map_type(input: &str) -> IResult<&str, serde_json::Value> {
 }
 
 fn type_parser(input: &str) -> IResult<&str, serde_json::Value> {
-    delimited(
-        multispace0,
-        alt((list_type, map_type, simple_type)),
-        multispace0,
-    )
-    .parse(input)
+    delimited(multispace0, alt((list_type, simple_type)), multispace0).parse(input)
 }
 
 pub(crate) fn return_type_parser(input: &str) -> IResult<&str, &str> {

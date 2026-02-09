@@ -11,7 +11,6 @@ mod parse;
 pub extern "C" fn enforce_binding() {}
 
 pub use nobodywho::chat::{Message, Role, ToolCall};
-use nom::Finish;
 
 #[flutter_rust_bridge::frb(mirror(ToolCall))]
 pub struct _ToolCall {
@@ -319,6 +318,15 @@ pub fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> f32 {
 #[flutter_rust_bridge::frb(opaque)]
 pub struct RustTool {
     tool: nobodywho::chat::Tool,
+    schema: serde_json::Value,
+}
+
+impl RustTool {
+    /// Get the JSON schema for this tool's parameters as a string
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn get_schema_json(&self) -> String {
+        self.schema.to_string()
+    }
 }
 
 #[flutter_rust_bridge::frb(sync)]
@@ -341,11 +349,11 @@ pub fn new_tool_impl(
     let tool = nobodywho::chat::Tool::new(
         name,
         description,
-        json_schema,
+        json_schema.clone(),
         std::sync::Arc::new(sync_callback),
     );
 
-    Ok(RustTool { tool })
+    Ok(RustTool { tool, schema: json_schema })
 }
 
 /// Converts a Dart function runtimeType string directly to a JSON schema
@@ -367,8 +375,8 @@ fn dart_function_type_to_json_schema(
         // This should only happen if runtime_type contains a type which we do not support!!
         Err(nom::Err::Error(e)) => {
             return Err(format!(
-                "Tool function contains an unsupported type: {} ",
-                e.input //parse::parse_unsupported_type(e.input)?
+                "Tool function contains an unsupported type. Parsing failed at: {} ",
+                e.input
             ));
         }
         Err(nom::Err::Failure(e)) => {
@@ -400,6 +408,16 @@ fn dart_function_type_to_json_schema(
         }
         properties.insert(parameter_name.into(), parameter_type);
     }
+
+    tracing::debug!(
+        "\n\n{}\n\n",
+        serde_json::json!({
+            "type": "object",
+            "properties": properties,
+            "required": required,
+            "additionalProperties": false
+        })
+    );
 
     Ok(serde_json::json!({
         "type": "object",
