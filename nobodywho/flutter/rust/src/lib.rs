@@ -10,7 +10,8 @@ mod parse;
 #[no_mangle]
 pub extern "C" fn enforce_binding() {}
 
-pub use nobodywho::chat::{Message, Role, ToolCall};
+pub use nobodywho::chat::{Message, Role};
+pub use nobodywho::tool_calling::ToolCall;
 
 #[flutter_rust_bridge::frb(mirror(ToolCall))]
 pub struct _ToolCall {
