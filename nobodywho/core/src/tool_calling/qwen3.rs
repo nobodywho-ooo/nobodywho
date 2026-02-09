@@ -114,7 +114,11 @@ impl ToolFormatHandler for Qwen3Handler {
     }
 
     fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>> {
-        let pattern = format!(r"{}([\s\S]*?){}", regex::escape(self.begin_token()), regex::escape(self.end_token()));
+        let pattern = format!(
+            r"{}([\s\S]*?){}",
+            regex::escape(self.begin_token()),
+            regex::escape(self.end_token())
+        );
         let re = regex::Regex::new(&pattern).expect("Invalid regex");
 
         let tool_calls: Vec<ToolCall> = re
@@ -159,7 +163,10 @@ mod tests {
         let tool_calls = result.unwrap();
         assert_eq!(tool_calls.len(), 1);
         assert_eq!(tool_calls[0].name, "get_weather");
-        assert_eq!(tool_calls[0].arguments, json!({"location": "San Francisco"}));
+        assert_eq!(
+            tool_calls[0].arguments,
+            json!({"location": "San Francisco"})
+        );
     }
 
     #[test]

@@ -31,7 +31,9 @@ impl ToolFormatHandler for FunctionGemmaHandler {
         // Helper to create terminal
         let term = |s: &str| -> gbnf::ProductionItem {
             gbnf::ProductionItem::Terminal(
-                gbnf::TerminalSymbol { value: s.to_string() },
+                gbnf::TerminalSymbol {
+                    value: s.to_string(),
+                },
                 gbnf::RepetitionType::One,
             )
         };
@@ -39,7 +41,9 @@ impl ToolFormatHandler for FunctionGemmaHandler {
         // Helper to create non-terminal
         let nonterm = |s: &str, rep: gbnf::RepetitionType| -> gbnf::ProductionItem {
             gbnf::ProductionItem::NonTerminal(
-                gbnf::NonTerminalSymbol { name: s.to_string() },
+                gbnf::NonTerminalSymbol {
+                    name: s.to_string(),
+                },
                 rep,
             )
         };
@@ -48,12 +52,10 @@ impl ToolFormatHandler for FunctionGemmaHandler {
         grammar.items.push(gbnf::GrammarItem::Rule(gbnf::Rule {
             lhs: gbnf::NonTerminalSymbol { name: "ws".into() },
             rhs: gbnf::Production {
-                items: vec![
-                    gbnf::ProductionItem::Terminal(
-                        gbnf::TerminalSymbol { value: " ".into() },
-                        gbnf::RepetitionType::ZeroOrMore,
-                    ),
-                ],
+                items: vec![gbnf::ProductionItem::Terminal(
+                    gbnf::TerminalSymbol { value: " ".into() },
+                    gbnf::RepetitionType::ZeroOrMore,
+                )],
             },
         }));
 
@@ -63,25 +65,27 @@ impl ToolFormatHandler for FunctionGemmaHandler {
 
         // Add the valuecontent rule to recurring_items so it's defined once
         let valuecontent_rule = gbnf::Production {
-            items: vec![
-                gbnf::ProductionItem::CharacterSet(
-                    gbnf::CharacterSet {
-                        is_complement: true,  // Use complement: match anything EXCEPT these characters
-                        items: vec![
-                            gbnf::CharacterSetItem::Character('<'),  // Don't match < to avoid tag conflicts
-                        ],
-                    },
-                    gbnf::RepetitionType::OneOrMore,
-                ),
-            ],
+            items: vec![gbnf::ProductionItem::CharacterSet(
+                gbnf::CharacterSet {
+                    is_complement: true, // Use complement: match anything EXCEPT these characters
+                    items: vec![
+                        gbnf::CharacterSetItem::Character('<'), // Don't match < to avoid tag conflicts
+                    ],
+                },
+                gbnf::RepetitionType::OneOrMore,
+            )],
         };
         grammar.recurring_items.insert(
-            gbnf::NonTerminalSymbol { name: "valuecontent".into() },
+            gbnf::NonTerminalSymbol {
+                name: "valuecontent".into(),
+            },
             valuecontent_rule,
         );
 
         grammar.items.push(gbnf::GrammarItem::Rule(gbnf::Rule {
-            lhs: gbnf::NonTerminalSymbol { name: "value".into() },
+            lhs: gbnf::NonTerminalSymbol {
+                name: "value".into(),
+            },
             rhs: gbnf::Production {
                 items: vec![
                     term("<escape>"),
@@ -102,16 +106,13 @@ impl ToolFormatHandler for FunctionGemmaHandler {
             tool_rules.push(tool_rule_name.clone());
 
             // Get parameters from JSON schema
-            let properties = tool.json_schema
+            let properties = tool
+                .json_schema
                 .get("properties")
                 .and_then(|p| p.as_object());
 
             // Build the tool call: call:toolname{params}
-            let mut tool_items = vec![
-                term("call:"),
-                term(&tool.name),
-                term("{"),
-            ];
+            let mut tool_items = vec![term("call:"), term(&tool.name), term("{")];
 
             if let Some(props) = properties {
                 if !props.is_empty() {
@@ -139,7 +140,9 @@ impl ToolFormatHandler for FunctionGemmaHandler {
                         }
 
                         grammar.items.push(gbnf::GrammarItem::Rule(gbnf::Rule {
-                            lhs: gbnf::NonTerminalSymbol { name: params_rule_name },
+                            lhs: gbnf::NonTerminalSymbol {
+                                name: params_rule_name,
+                            },
                             rhs: gbnf::Production { items: param_items },
                         }));
                     }
@@ -149,7 +152,9 @@ impl ToolFormatHandler for FunctionGemmaHandler {
             tool_items.push(term("}"));
 
             grammar.items.push(gbnf::GrammarItem::Rule(gbnf::Rule {
-                lhs: gbnf::NonTerminalSymbol { name: tool_rule_name },
+                lhs: gbnf::NonTerminalSymbol {
+                    name: tool_rule_name,
+                },
                 rhs: gbnf::Production { items: tool_items },
             }));
         }
@@ -157,11 +162,11 @@ impl ToolFormatHandler for FunctionGemmaHandler {
         // Create a choice rule for all tools (multiple productions with same LHS)
         for tool_rule in tool_rules {
             grammar.items.push(gbnf::GrammarItem::Rule(gbnf::Rule {
-                lhs: gbnf::NonTerminalSymbol { name: "functioncall".into() },
+                lhs: gbnf::NonTerminalSymbol {
+                    name: "functioncall".into(),
+                },
                 rhs: gbnf::Production {
-                    items: vec![
-                        nonterm(&tool_rule, gbnf::RepetitionType::One),
-                    ],
+                    items: vec![nonterm(&tool_rule, gbnf::RepetitionType::One)],
                 },
             }));
         }
@@ -171,7 +176,9 @@ impl ToolFormatHandler for FunctionGemmaHandler {
 
         // Single tool call wrapped in tags: <start_function_call>...function call...<end_function_call>
         grammar.items.push(gbnf::GrammarItem::Rule(gbnf::Rule {
-            lhs: gbnf::NonTerminalSymbol { name: "toolcall".into() },
+            lhs: gbnf::NonTerminalSymbol {
+                name: "toolcall".into(),
+            },
             rhs: gbnf::Production {
                 items: vec![
                     term(self.begin_token()),
@@ -186,21 +193,21 @@ impl ToolFormatHandler for FunctionGemmaHandler {
 
         // Superroot: exactly one tool call (model can emit EOS after completing it)
         grammar.items.push(gbnf::GrammarItem::Rule(gbnf::Rule {
-            lhs: gbnf::NonTerminalSymbol { name: "superroot".into() },
+            lhs: gbnf::NonTerminalSymbol {
+                name: "superroot".into(),
+            },
             rhs: gbnf::Production {
-                items: vec![
-                    nonterm("toolcall", gbnf::RepetitionType::One),
-                ],
+                items: vec![nonterm("toolcall", gbnf::RepetitionType::One)],
             },
         }));
 
         // Add a 'root' rule that llama.cpp expects (even though we use superroot as entry point)
         grammar.items.push(gbnf::GrammarItem::Rule(gbnf::Rule {
-            lhs: gbnf::NonTerminalSymbol { name: "root".into() },
+            lhs: gbnf::NonTerminalSymbol {
+                name: "root".into(),
+            },
             rhs: gbnf::Production {
-                items: vec![
-                    nonterm("superroot", gbnf::RepetitionType::One),
-                ],
+                items: vec![nonterm("superroot", gbnf::RepetitionType::One)],
             },
         }));
 
@@ -223,7 +230,10 @@ impl ToolFormatHandler for FunctionGemmaHandler {
 
                 // Parse the FunctionGemma format
                 if !content.starts_with("call:") {
-                    debug!(content = content, "FunctionGemma content doesn't start with 'call:'");
+                    debug!(
+                        content = content,
+                        "FunctionGemma content doesn't start with 'call:'"
+                    );
                     return None;
                 }
 
@@ -363,7 +373,10 @@ mod tests {
         let tool_calls = result.unwrap();
         assert_eq!(tool_calls.len(), 1);
         assert_eq!(tool_calls[0].name, "get_weather");
-        assert_eq!(tool_calls[0].arguments, json!({"location": "San Francisco"}));
+        assert_eq!(
+            tool_calls[0].arguments,
+            json!({"location": "San Francisco"})
+        );
     }
 
     #[test]
@@ -467,20 +480,23 @@ mod tests {
         // Verify by looking for rules that reference our tool
         let has_tool_rule = grammar.items.iter().any(|item| {
             if let gbnf::GrammarItem::Rule(rule) = item {
-                rule.lhs.name.contains("tool_") ||
-                rule.rhs.items.iter().any(|prod_item| {
-                    if let gbnf::ProductionItem::Terminal(term, _) = prod_item {
-                        term.value.contains("get_weather")
-                    } else {
-                        false
-                    }
-                })
+                rule.lhs.name.contains("tool_")
+                    || rule.rhs.items.iter().any(|prod_item| {
+                        if let gbnf::ProductionItem::Terminal(term, _) = prod_item {
+                            term.value.contains("get_weather")
+                        } else {
+                            false
+                        }
+                    })
             } else {
                 false
             }
         });
 
-        assert!(has_tool_rule, "Grammar should contain rules for get_weather tool");
+        assert!(
+            has_tool_rule,
+            "Grammar should contain rules for get_weather tool"
+        );
     }
 
     #[test]
@@ -518,7 +534,10 @@ mod tests {
         );
 
         let result = handler.generate_grammar(&[tool1, tool2]);
-        assert!(result.is_ok(), "Grammar generation should succeed for multiple tools");
+        assert!(
+            result.is_ok(),
+            "Grammar generation should succeed for multiple tools"
+        );
 
         let grammar = result.unwrap();
 
@@ -623,7 +642,10 @@ mod tests {
             }
         });
 
-        assert!(has_superroot, "Grammar must have a 'superroot' rule for compatibility with chat.rs");
+        assert!(
+            has_superroot,
+            "Grammar must have a 'superroot' rule for compatibility with chat.rs"
+        );
 
         // Also verify it has a toolcall rule
         let has_toolcall = grammar.items.iter().any(|item| {
@@ -663,8 +685,17 @@ mod tests {
         println!("=== End Grammar ===");
 
         // Basic sanity checks
-        assert!(!grammar_str.is_empty(), "Grammar string should not be empty");
-        assert!(grammar_str.contains("superroot"), "Grammar should contain superroot");
-        assert!(grammar_str.contains("toolcall"), "Grammar should contain toolcall");
+        assert!(
+            !grammar_str.is_empty(),
+            "Grammar string should not be empty"
+        );
+        assert!(
+            grammar_str.contains("superroot"),
+            "Grammar should contain superroot"
+        );
+        assert!(
+            grammar_str.contains("toolcall"),
+            "Grammar should contain toolcall"
+        );
     }
 }

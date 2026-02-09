@@ -12,9 +12,9 @@ pub mod types;
 use llama_cpp_2::model::LlamaModel;
 use tracing::debug;
 
-pub use types::{Tool, ToolCall, ToolFormatError};
 pub use functiongemma::FunctionGemmaHandler;
 pub use qwen3::Qwen3Handler;
+pub use types::{Tool, ToolCall, ToolFormatError};
 
 /// Trait for handling different tool calling formats.
 pub trait ToolFormatHandler {
@@ -96,7 +96,9 @@ pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatEr
             debug!(template = %template_str, "Checking tool_use template for format markers");
 
             // Check for FunctionGemma markers
-            if template_str.contains("<start_function_call>") || template_str.contains("<end_function_call>") {
+            if template_str.contains("<start_function_call>")
+                || template_str.contains("<end_function_call>")
+            {
                 debug!("Detected FunctionGemma format from template markers");
                 return Ok(ToolFormat::FunctionGemma(FunctionGemmaHandler));
             }
@@ -114,7 +116,9 @@ pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatEr
         if let Ok(template_str) = template.to_string() {
             debug!(template = %template_str, "Checking default template for format markers");
 
-            if template_str.contains("<start_function_call>") || template_str.contains("<end_function_call>") {
+            if template_str.contains("<start_function_call>")
+                || template_str.contains("<end_function_call>")
+            {
                 debug!("Detected FunctionGemma format from default template");
                 return Ok(ToolFormat::FunctionGemma(FunctionGemmaHandler));
             }

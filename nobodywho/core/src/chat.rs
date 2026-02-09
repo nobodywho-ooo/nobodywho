@@ -1736,7 +1736,6 @@ where
     (wrapped_respond, resp_receiver)
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2577,8 +2576,16 @@ mod tests {
             role: Role::User,
             content: "Hello, world!".into(),
         }];
-        let rendered =
-            render_string(&messages, template, allow_thinking, &bos, &eos, &tools, None).unwrap();
+        let rendered = render_string(
+            &messages,
+            template,
+            allow_thinking,
+            &bos,
+            &eos,
+            &tools,
+            None,
+        )
+        .unwrap();
 
         let expected = "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nHello, world!<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n";
         assert_eq!(rendered, expected);
@@ -2588,8 +2595,16 @@ mod tests {
             role: Role::Assistant,
             content: "Hi there! How can I help?".into(),
         });
-        let rendered2 =
-            render_string(&messages, template, allow_thinking, &bos, &eos, &tools, None).unwrap();
+        let rendered2 = render_string(
+            &messages,
+            template,
+            allow_thinking,
+            &bos,
+            &eos,
+            &tools,
+            None,
+        )
+        .unwrap();
 
         let expected2 = "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nHello, world!<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\nHi there! How can I help?<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n";
         assert_eq!(rendered2, expected2);
@@ -2603,8 +2618,16 @@ mod tests {
             role: Role::Assistant,
             content: "I don't have access to weather data.".into(),
         });
-        let rendered3 =
-            render_string(&messages, template, allow_thinking, &bos, &eos, &tools, None).unwrap();
+        let rendered3 = render_string(
+            &messages,
+            template,
+            allow_thinking,
+            &bos,
+            &eos,
+            &tools,
+            None,
+        )
+        .unwrap();
 
         assert!(rendered3.starts_with(
             "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nHello, world!<|eot_id|>"
@@ -2626,8 +2649,16 @@ mod tests {
                 content: "Hi".into(),
             },
         ];
-        let rendered4 =
-            render_string(&messages, template, allow_thinking, &bos, &eos, &tools, None).unwrap();
+        let rendered4 = render_string(
+            &messages,
+            template,
+            allow_thinking,
+            &bos,
+            &eos,
+            &tools,
+            None,
+        )
+        .unwrap();
 
         println!("{:?}", rendered4);
 
