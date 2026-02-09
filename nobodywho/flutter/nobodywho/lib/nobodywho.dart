@@ -20,9 +20,6 @@ import 'src/rust/lib.dart' as nobodywho;
 /// Handles primitives, nested Lists (up to 3 levels), Sets, and Maps.
 /// Uses explicit casts at every level to ensure proper Dart types.
 dynamic jsonConversion(Map<String, dynamic> schema, dynamic json) {
-  print("\n\n\n\n\n" + json.toString() + "\n\n\n\n\n\n");
-  print("\n\n\n\n\n" + schema.toString() + "\n\n\n\n\n\n");
-
   final t1 = schema["type"] as String;
   final u1 = schema["uniqueItems"] == true || schema["uniqueItems"] == "true";
 
@@ -394,11 +391,6 @@ class Tool {
       Map<Symbol, dynamic> namedParams = Map.fromEntries(
         jsonMap.entries.map((e) => MapEntry(Symbol(e.key), jsonConversion(schema!["properties"][e.key], e.value))),
       );
-
-
-      print("\n\n\n\n\n" + jsonMap.toString() + "\n\n\n\n\n\n");
-      print("\n\n\n\n\n" + schema.toString() + "\n\n\n\n\n\n");
-
 
       // Call the function
       final result = Function.apply(function, [], namedParams);
