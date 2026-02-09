@@ -67,7 +67,10 @@ mod grammar_builder {
 
     /// Create a terminal with zero-or-more repetition
     pub fn t_star(s: &str) -> ProductionItem {
-        ProductionItem::Terminal(TerminalSymbol { value: s.into() }, RepetitionType::ZeroOrMore)
+        ProductionItem::Terminal(
+            TerminalSymbol { value: s.into() },
+            RepetitionType::ZeroOrMore,
+        )
     }
 
     /// Create a character set that matches anything except the given characters
@@ -75,7 +78,10 @@ mod grammar_builder {
         ProductionItem::CharacterSet(
             CharacterSet {
                 is_complement: true,
-                items: chars.iter().map(|&c| CharacterSetItem::Character(c)).collect(),
+                items: chars
+                    .iter()
+                    .map(|&c| CharacterSetItem::Character(c))
+                    .collect(),
             },
             RepetitionType::OneOrMore,
         )
@@ -98,8 +104,14 @@ impl ToolFormatHandler for FunctionGemmaHandler {
         let mut builder = GrammarBuilder::new()
             .rule("ws", vec![t_star(" ")])
             // Value content: exclude special chars that have meaning in FunctionGemma syntax
-            .recurring_rule("valuecontent", vec![not_chars(&['<', '>', '{', '}', ',', ':'])])
-            .rule("value", vec![t("<escape>"), nt("valuecontent"), t("<escape>")]);
+            .recurring_rule(
+                "valuecontent",
+                vec![not_chars(&['<', '>', '{', '}', ',', ':'])],
+            )
+            .rule(
+                "value",
+                vec![t("<escape>"), nt("valuecontent"), t("<escape>")],
+            );
 
         // Generate a rule for each tool using the actual function name
         let tool_rules: Vec<_> = tools
