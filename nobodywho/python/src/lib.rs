@@ -1,5 +1,7 @@
 use pyo3::prelude::*;
 
+mod parse;
+
 /// `Model` objects contain a GGUF model. It is primarily useful for sharing a single model instance
 /// between multiple `Chat`, `Encoder`, or `CrossEncoder` instances.
 /// Sharing is efficient because the underlying model data is reference-counted.
@@ -32,6 +34,42 @@ impl Model {
             ))
         })?;
         let model_result = nobodywho::llm::get_model(path_str, use_gpu_if_available);
+        match model_result {
+            Ok(model) => Ok(Self { model }),
+            Err(err) => Err(pyo3::exceptions::PyRuntimeError::new_err(err.to_string())),
+        }
+    }
+
+    /// Asynchronously load a model from a GGUF file.
+    ///
+    /// This static method loads a model asynchronously, which is useful for loading large models
+    /// without blocking the async event loop. The blocking model load operation is offloaded to
+    /// a background thread, allowing other async tasks to continue running.
+    ///
+    /// Args:
+    ///     model_path: Path to the GGUF model file
+    ///     use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
+    ///
+    /// Returns:
+    ///     A Model instance wrapped in an awaitable (async function returns a coroutine)
+    ///
+    /// Raises:
+    ///     ValueError: If the path contains invalid UTF-8
+    ///     RuntimeError: If the model file cannot be loaded
+    #[staticmethod]
+    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true) -> "typing.Awaitable[Model]")]
+    pub async fn load_model_async(
+        model_path: std::path::PathBuf,
+        use_gpu_if_available: bool,
+    ) -> PyResult<Self> {
+        let path_str = model_path.to_str().ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "Path contains invalid UTF-8: {}",
+                model_path.display()
+            ))
+        })?;
+        let model_result =
+            nobodywho::llm::get_model_async(path_str.into(), use_gpu_if_available).await;
         match model_result {
             Ok(model) => Ok(Self { model }),
             Err(err) => Err(pyo3::exceptions::PyRuntimeError::new_err(err.to_string())),
@@ -1371,7 +1409,7 @@ fn python_func_json_schema(
     let argspec = getfullargspec.call((fun,), None)?;
     let annotations = argspec
         .getattr("annotations")?
-        .extract::<std::collections::HashMap<String, Bound<pyo3::types::PyType>>>()?;
+        .extract::<std::collections::HashMap<String, Bound<pyo3::types::PyAny>>>()?;
     let args = argspec.getattr("args")?.extract::<Vec<String>>()?;
 
     // check that all arguments are annotated
@@ -1385,7 +1423,7 @@ fn python_func_json_schema(
     // the intent of this is to force people to consider how to convert to string
     if annotations
         .get("return")
-        .map(|t| t.name().map(|n| n.to_string()))
+        .map(|t| t.getattr("__name__").map(|n| n.to_string()))
         .transpose()?
         != Some("str".to_string())
     {
@@ -1411,44 +1449,33 @@ fn python_func_json_schema(
             continue;
         }
 
-        let type_name = value.name()?.to_string();
+        let type_name = if value.getattr("__args__").is_ok() {
+            // It's a GenericAlias (list[int], dict[str, int], etc.)
+            // Use str() to get the full representation
+            value.str()?.extract::<String>()?
+        } else if let Ok(name) = value.getattr("__name__") {
+            // Simple type like `int`, `str`, `bool`
+            name.extract::<String>()?
+        } else {
+            // Fallback
+            value.str()?.extract::<String>()?
+        };
 
-        let schema_type = match type_name.as_str() {
-            "str" => "string",
-            "int" => "integer",
-            "float" => "number",
-            "bool" => "boolean",
-            "list" => "array",
-            "dict" => "object",
-            "None" | "NoneType" => "null",
-            // TODO: we could consider supporting sets like this:
-            // "set" | "frozenset" => serde_json::json!({"type": "array", "uniqueItems": true}),
-            // TODO: consider handling pydantic types?
-            //       (objects subclassing pydantic's BaseModel can readily generate json schemas)
-            // TODO: handle generic types better. at least handle list[int], dict[str,int], etc.
-            _ if type_name.starts_with("list[") => "array",
-            _ if type_name.starts_with("dict[") => "object",
-            _ if type_name == "List" => "array",
-            _ if type_name == "Dict" => "object",
-            _ => {
+        let mut property = match parse::type_parser(type_name.as_str()) {
+            Ok((_s, value)) => value,
+            Err(_) => {
                 return Err(pyo3::exceptions::PyTypeError::new_err(format!(
                     "ERROR: Tool function contains an unsupported type hint: {type_name}"
                 )));
             }
         };
 
-        let property = if let Some(description) = param_descriptions.get(&key) {
-            // add description if available
-            serde_json::json!({
-                "type": schema_type,
-                "description": description
-            })
-        } else {
-            // ...otherwise only use the type
-            serde_json::json!({
-                "type": schema_type
-            })
-        };
+        // Add description if available
+        if let Some(description) = param_descriptions.get(&key) {
+            if let serde_json::Value::Object(ref mut obj) = property {
+                obj.insert("description".to_string(), serde_json::json!(description));
+            }
+        }
 
         // add to json schema properties
         properties.insert(key.clone(), property);

@@ -18,8 +18,8 @@ tracing = { version = "0.1.41", features = ["log"] }
 tracing-subscriber = "0.3.19"
 regex = "1.11.1"
 serde_json = "1.0.140"
-#gbnf = "0.2.5"
-gbnf = { path = "../../../forks/gbnf/gbnf" }
+# gbnf = { git = "https://github.com/s194042/gbnf.git", branch = "fix/comma-seperation-missing-from-array-rule", rev = "877b1cc" }
+gbnf = { git = "https://github.com/s194042/gbnf.git", rev = "877b1cc" }
 rand = "0.9.2"
 futures = "0.3.31"
 

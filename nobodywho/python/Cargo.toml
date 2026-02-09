@@ -1,6 +1,6 @@
 [package]
 name = "nobodywho-python"
-version = "0.6.2"
+version = "0.7.0"
 edition = "2021"
 
 [lib]
@@ -21,6 +21,7 @@ futures = "0.3.31"
 pyo3-introspection = "0.27.2"
 pyo3-log = "0.13.2"
 pythonize = "0.27.0"
+nom = "8.0.0"
 
 
 [dependencies.pyo3]

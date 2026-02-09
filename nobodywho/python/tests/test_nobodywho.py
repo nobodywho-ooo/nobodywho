@@ -32,6 +32,16 @@ def chat_async(model):
 
 
 @pytest.mark.asyncio
+async def test_async_model_loading():
+    """Test async model loading"""
+    model_path = os.environ.get("TEST_MODEL")
+    if not model_path:
+        raise ValueError("TEST_MODEL environment variable is not set")
+    _model = await nobodywho.Model.load_model_async(model_path)
+    assert isinstance(_model, nobodywho.Model)
+
+
+@pytest.mark.asyncio
 async def test_async_streaming(chat_async):
     """Test async streaming from demo_async.py"""
     prompt: str = "What is the capital of Denmark?"
