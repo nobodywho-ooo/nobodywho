@@ -1,5 +1,10 @@
 # Changelog
 
+## nobodywho-flutter-v0.3.0
+
+- Add support for tool parameters with composite types (e.g. List<List<int>>)
+- Fix CI/CD for targets that depend on the XCFramework files (MacOS + iOS)
+
 ## nobodywho-flutter-v0.2.0
 
 - Add option to provide descriptions for individual parameters in Tool constructor.

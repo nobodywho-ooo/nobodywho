@@ -12,6 +12,7 @@ fn comma_sep(input: &str) -> IResult<&str, &str> {
     delimited(multispace0, tag(","), multispace0).parse(input)
 }
 
+#[flutter_rust_bridge::frb(ignore)]
 fn simple_type(input: &str) -> IResult<&str, serde_json::Value> {
     alt((
         map(

@@ -87,7 +87,6 @@ dynamic jsonConversion(Map<String, dynamic> schema, dynamic json) {
       if (t3 == "array") {
         final s4 = s3["items"] as Map<String, dynamic>;
         final t4 = s4["type"] as String;
-        final u4 = s4["uniqueItems"] == true || s4["uniqueItems"] == "true";
 
         if (t4 == "integer") {
           if (!u1 && !u2 && !u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).cast<int>().toList()).toList()).toList();
