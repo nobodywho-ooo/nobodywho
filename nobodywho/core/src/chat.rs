@@ -32,8 +32,8 @@ use crate::errors::{
 use crate::llm::{self};
 use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
 use crate::llm::{Worker, WriteOutput};
-use crate::prompt::{Prompt, Promptable};
 use crate::sampler_config::{SamplerConfig, ShiftStep};
+use crate::tokenizer::{Prompt, Promptable};
 use llama_cpp_2::model::{AddBos, Special};
 use llama_cpp_2::mtmd::{MtmdBitmap, MtmdContext, MtmdContextParams, MtmdInputText};
 use llama_cpp_2::sampling::LlamaSampler;
@@ -1337,43 +1337,6 @@ fn render_string(
     Ok(text)
 }
 
-/// Utility function for prefix caching
-/// Given a rendered chat template (intended for the LLM's context),
-/// it compares with the tokens currently in the LLM's context, to find a common prefix.
-/// The return value is a tuple of:
-/// - the index of the first differing token
-///   and
-/// - the tokens that should be read into the context (starting at that index)
-fn find_prefix_index_and_difference_with_tokens_in_context(
-    tokens_in_context: &[LlamaToken],
-    tokens: &[LlamaToken],
-) -> (usize, Vec<LlamaToken>) {
-    if tokens_in_context.is_empty() {
-        return (0, tokens.to_owned());
-    }
-
-    let longest_common_prefix_index = tokens_in_context
-        .iter()
-        .zip(tokens.iter())
-        .position(|(a, b)| a != b);
-
-    let (index, difference): (usize, Vec<LlamaToken>) = match longest_common_prefix_index {
-        Some(i) => (i, tokens[i..].to_vec()),
-        None => {
-            if tokens.len() <= tokens_in_context.len() {
-                (tokens.len(), vec![])
-            } else {
-                (
-                    tokens_in_context.len(),
-                    tokens[(tokens_in_context.len())..].to_vec(),
-                )
-            }
-        }
-    };
-
-    (index, difference)
-}
-
 struct ChatWorker {
     should_stop: Arc<AtomicBool>,
     tools: Vec<Tool>,
@@ -1904,6 +1867,10 @@ impl Worker<'_, ChatWorker> {
             let chunks = mtmd_ctx
                 .tokenize(input_text, &bitmap_refs)
                 .map_err(|e| MtmdError::Tokenize(e.to_string()))?;
+
+            for i in 0..chunks.len() {
+                debug!("Chunk {}: {:?}", i, chunks.get(i));
+            }
 
             info!(n_chunks = chunks.len(), "Tokenized prompt with image");
 

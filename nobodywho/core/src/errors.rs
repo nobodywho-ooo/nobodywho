@@ -266,6 +266,12 @@ pub enum MtmdError {
     EvalChunks(String),
 }
 
+impl From<llama_cpp_2::mtmd::MtmdTokenizeError> for MtmdError {
+    fn from(e: llama_cpp_2::mtmd::MtmdTokenizeError) -> Self {
+        MtmdError::Tokenize(e.to_string())
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ShiftError {
     #[error("Missing expected message {0}")]
