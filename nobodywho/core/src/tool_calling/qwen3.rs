@@ -1,6 +1,5 @@
 use super::grammar_builder::{nt, nt_plus, t, t_star, GrammarBuilder};
-use super::types::{Tool, ToolCall, ToolFormatError};
-use super::ToolFormatHandler;
+use super::{Tool, ToolCall, ToolFormatError, ToolFormatHandler};
 use serde_json::json;
 use tracing::debug;
 
