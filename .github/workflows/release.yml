@@ -161,12 +161,14 @@ jobs:
       - name: "List artifacts to include in release"
         run: ls -la ./nobodywho-flutter-release/
 
-      - name: "Zip XCFramework for release"
+      - name: "Verify XCFramework zip is present"
         working-directory: ./nobodywho-flutter-release
         run: |
-          if [ -d "NobodyWhoFlutter.xcframework" ]; then
-            zip -r "NobodyWhoFlutter.xcframework.zip" NobodyWhoFlutter.xcframework
-            rm -rf NobodyWhoFlutter.xcframework
+          if [ ! -f "NobodyWhoFlutter.xcframework.zip" ]; then
+            echo "ERROR: NobodyWhoFlutter.xcframework.zip not found!"
+            echo "Contents of release directory:"
+            ls -la .
+            exit 1
           fi
 
       - name: "Create GitHub Release"

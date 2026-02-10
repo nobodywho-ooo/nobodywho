@@ -290,11 +290,14 @@ jobs:
                   -headers "headers" \
                   -output NobodyWhoFlutter.xcframework
 
+      - name: "Zip XCFramework"
+        run: zip -r NobodyWhoFlutter.xcframework.zip NobodyWhoFlutter.xcframework
+
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v4
         with:
           name: nobodywho-flutter-xcframework
-          path: ./NobodyWhoFlutter.xcframework
+          path: ./NobodyWhoFlutter.xcframework.zip
 
   cargo-build-android:
     runs-on: ubuntu-24.04
