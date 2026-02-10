@@ -1814,9 +1814,7 @@ where
 
     let wrapped_respond = move |x| {
         match &x {
-            llm::WriteOutput::Token(tok)
-                if tool_call_begin_token.as_ref() == Some(tok) =>
-            {
+            llm::WriteOutput::Token(tok) if tool_call_begin_token.as_ref() == Some(tok) => {
                 emitting = false;
             }
             llm::WriteOutput::Done(resp) => {
