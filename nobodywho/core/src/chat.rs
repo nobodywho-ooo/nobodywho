@@ -1156,7 +1156,7 @@ fn find_prefix_index_and_difference_with_tokens_in_context(
 struct ChatWorker {
     should_stop: Arc<AtomicBool>,
     tool_grammar: Option<gbnf::Grammar>,
-    tool_format: ToolFormat,
+    tool_format: Option<ToolFormat>,
     sampler_config: SamplerConfig,
     messages: Vec<Message>,
     tokens_in_context: Vec<LlamaToken>,
@@ -1183,21 +1183,29 @@ impl Worker<'_, ChatWorker> {
         let bos = model.token_to_str(model.token_bos(), tokenize)?;
         let eos = model.token_to_str(model.token_eos(), tokenize)?;
 
-        // Detect tool calling format for this model
-        let tool_format = detect_tool_format(model)?;
+        // Only detect tool calling format if tools are provided
+        let (tool_format, grammar) = if !config.tools.is_empty() {
+            match detect_tool_format(model) {
+                Ok(format) => {
+                    debug!(format = ?format, "Detected tool calling format");
 
-        debug!(format = ?tool_format, "Detected tool calling format");
+                    let grammar = match format.generate_grammar(&config.tools) {
+                        Ok(g) => Some(g),
+                        Err(e) => {
+                            debug!(error = %e, "Failed to generate grammar from tools");
+                            None
+                        }
+                    };
 
-        let grammar = if !config.tools.is_empty() {
-            match tool_format.generate_grammar(&config.tools) {
-                Ok(g) => Some(g),
+                    (Some(format), grammar)
+                }
                 Err(e) => {
-                    debug!(error = %e, "Failed to generate grammar from tools");
-                    None
+                    debug!(error = %e, "Failed to detect tool format, tools will not work");
+                    (None, None)
                 }
             }
         } else {
-            None
+            (None, None)
         };
 
         Worker::new_with_type(
@@ -1510,8 +1518,13 @@ impl Worker<'_, ChatWorker> {
             .should_stop
             .store(false, std::sync::atomic::Ordering::Relaxed);
 
-        // Get the tool call begin token from the format (convert to owned String to avoid borrow issues)
-        let tool_call_begin = self.extra.tool_format.begin_token().to_string();
+        // Get the tool call begin token from the format if tools are configured
+        let tool_call_begin = self
+            .extra
+            .tool_format
+            .as_ref()
+            .map(|fmt| fmt.begin_token().to_string())
+            .unwrap_or_default();
 
         self.add_user_message(text);
 
@@ -1534,10 +1547,10 @@ impl Worker<'_, ChatWorker> {
             tool_call_begin.clone(),
         )?;
 
-        // Clone the tool format to avoid borrow issues in the loop
-        let tool_format = self.extra.tool_format.clone();
-
-        while let Some(tool_calls) = tool_format.extract_tool_calls(&response) {
+        // Process tool calls if tool format is configured
+        // Clone to avoid borrow issues in the loop
+        if let Some(tool_format) = self.extra.tool_format.clone() {
+            while let Some(tool_calls) = tool_format.extract_tool_calls(&response) {
             debug!(?tool_calls, "Got tool calls:");
 
             self.add_tool_calls(tool_calls.clone());
@@ -1576,6 +1589,8 @@ impl Worker<'_, ChatWorker> {
                 tool_call_begin.clone(),
             )?;
         }
+        } // Close if let Some(tool_format)
+
         debug_assert!(!response.contains(tool_call_begin.as_str()));
         self.add_assistant_message(response);
 
@@ -1638,13 +1653,31 @@ impl Worker<'_, ChatWorker> {
         tools: Vec<Tool>,
     ) -> Result<(), SelectTemplateError> {
         self.reset_context();
-        self.extra.tool_grammar = if !tools.is_empty() {
-            match self.extra.tool_format.generate_grammar(&tools) {
-                Ok(g) => Some(g),
-                Err(e) => {
-                    debug!(error = %e, "Failed to generate grammar from tools");
-                    None
+
+        // Detect tool format if not already detected and tools are provided
+        if !tools.is_empty() && self.extra.tool_format.is_none() {
+            match detect_tool_format(&self.ctx.model) {
+                Ok(format) => {
+                    debug!(format = ?format, "Detected tool calling format");
+                    self.extra.tool_format = Some(format);
                 }
+                Err(e) => {
+                    debug!(error = %e, "Failed to detect tool format, tools will not work");
+                }
+            }
+        }
+
+        self.extra.tool_grammar = if !tools.is_empty() {
+            if let Some(ref format) = self.extra.tool_format {
+                match format.generate_grammar(&tools) {
+                    Ok(g) => Some(g),
+                    Err(e) => {
+                        debug!(error = %e, "Failed to generate grammar from tools");
+                        None
+                    }
+                }
+            } else {
+                None
             }
         } else {
             None
@@ -1689,13 +1722,30 @@ impl Worker<'_, ChatWorker> {
     }
 
     pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), SetToolsError> {
-        self.extra.tool_grammar = if !tools.is_empty() {
-            match self.extra.tool_format.generate_grammar(&tools) {
-                Ok(g) => Some(g),
-                Err(e) => {
-                    debug!(error = %e, "Failed to generate grammar from tools");
-                    None
+        // Detect tool format if not already detected and tools are provided
+        if !tools.is_empty() && self.extra.tool_format.is_none() {
+            match detect_tool_format(&self.ctx.model) {
+                Ok(format) => {
+                    debug!(format = ?format, "Detected tool calling format");
+                    self.extra.tool_format = Some(format);
                 }
+                Err(e) => {
+                    debug!(error = %e, "Failed to detect tool format, tools will not work");
+                }
+            }
+        }
+
+        self.extra.tool_grammar = if !tools.is_empty() {
+            if let Some(ref format) = self.extra.tool_format {
+                match format.generate_grammar(&tools) {
+                    Ok(g) => Some(g),
+                    Err(e) => {
+                        debug!(error = %e, "Failed to generate grammar from tools");
+                        None
+                    }
+                }
+            } else {
+                None
             }
         } else {
             None
