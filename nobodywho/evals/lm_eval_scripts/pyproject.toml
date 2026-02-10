@@ -5,8 +5,11 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "immutabledict>=4.2.2",
+    "langdetect>=1.0.9",
     "lm-eval>=0.4.10",
-    "nobodywho",
+    # "nobodywho", # < what happens if we include this from surrounding scope (built w/ nix)
+    "wandb>=0.24.2",
 ]
 
 [tool.uv.sources]
