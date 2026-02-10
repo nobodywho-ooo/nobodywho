@@ -1523,8 +1523,7 @@ impl Worker<'_, ChatWorker> {
             .extra
             .tool_format
             .as_ref()
-            .map(|fmt| fmt.begin_token().to_string())
-            .unwrap_or_default();
+            .map(|fmt| fmt.begin_token().to_string());
 
         self.add_user_message(text);
 
@@ -1533,7 +1532,7 @@ impl Worker<'_, ChatWorker> {
             self.extra.sampler_config.clone(),
             |tool_grammar| {
                 self.extra.sampler_config.clone().shift(ShiftStep::Grammar {
-                    trigger_on: Some(tool_call_begin.clone()),
+                    trigger_on: tool_call_begin.clone(),
                     root: "superroot".into(),
                     grammar: tool_grammar.to_string(),
                 })
@@ -1592,7 +1591,9 @@ impl Worker<'_, ChatWorker> {
             }
         } // Close if let Some(tool_format)
 
-        debug_assert!(!response.contains(tool_call_begin.as_str()));
+        debug_assert!(tool_call_begin
+            .as_ref()
+            .map_or(true, |t| !response.contains(t.as_str())));
         self.add_assistant_message(response);
 
         // Update tokens_in_context as the model already has seen this respone
@@ -1621,7 +1622,7 @@ impl Worker<'_, ChatWorker> {
         &mut self,
         sampler: SamplerConfig,
         respond: F,
-        tool_call_begin_token: String,
+        tool_call_begin_token: Option<String>,
     ) -> Result<String, WrappedResponseError>
     where
         F: Fn(llm::WriteOutput) + Clone,
@@ -1800,7 +1801,7 @@ impl Worker<'_, ChatWorker> {
 /// 2. skip emitting once a tool_call_begin_token has been seen
 fn wrap_respond<F>(
     respond: F,
-    tool_call_begin_token: String,
+    tool_call_begin_token: Option<String>,
 ) -> (
     impl FnMut(llm::WriteOutput),
     std::sync::mpsc::Receiver<String>,
@@ -1813,7 +1814,9 @@ where
 
     let wrapped_respond = move |x| {
         match &x {
-            llm::WriteOutput::Token(tok) if tok == &tool_call_begin_token => {
+            llm::WriteOutput::Token(tok)
+                if tool_call_begin_token.as_ref().map_or(false, |t| tok == t) =>
+            {
                 emitting = false;
             }
             llm::WriteOutput::Done(resp) => {
