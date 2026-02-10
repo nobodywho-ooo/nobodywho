@@ -1593,7 +1593,7 @@ impl Worker<'_, ChatWorker> {
 
         debug_assert!(tool_call_begin
             .as_ref()
-            .map_or(true, |t| !response.contains(t.as_str())));
+            .is_none_or(|t| !response.contains(t.as_str())));
         self.add_assistant_message(response);
 
         // Update tokens_in_context as the model already has seen this respone
@@ -1658,7 +1658,7 @@ impl Worker<'_, ChatWorker> {
 
         // Detect tool format if not already detected and tools are provided
         if !tools.is_empty() && self.extra.tool_format.is_none() {
-            match detect_tool_format(&self.ctx.model) {
+            match detect_tool_format(self.ctx.model) {
                 Ok(format) => {
                     debug!(format = ?format, "Detected tool calling format");
                     self.extra.tool_format = Some(format);
@@ -1726,7 +1726,7 @@ impl Worker<'_, ChatWorker> {
     pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), SetToolsError> {
         // Detect tool format if not already detected and tools are provided
         if !tools.is_empty() && self.extra.tool_format.is_none() {
-            match detect_tool_format(&self.ctx.model) {
+            match detect_tool_format(self.ctx.model) {
                 Ok(format) => {
                     debug!(format = ?format, "Detected tool calling format");
                     self.extra.tool_format = Some(format);
@@ -1815,7 +1815,7 @@ where
     let wrapped_respond = move |x| {
         match &x {
             llm::WriteOutput::Token(tok)
-                if tool_call_begin_token.as_ref().map_or(false, |t| tok == t) =>
+                if tool_call_begin_token.as_ref() == Some(tok) =>
             {
                 emitting = false;
             }
