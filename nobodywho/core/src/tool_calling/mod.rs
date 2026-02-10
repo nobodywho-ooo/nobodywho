@@ -58,15 +58,11 @@ pub trait ToolFormatHandler {
 /// Enum representing different tool calling formats.
 #[derive(Debug, Clone)]
 pub enum ToolFormat {
-    /// Qwen3 format: `<tool_call>{"name": "...", "arguments": {...}}</tool_call>`
     Qwen3(Qwen3Handler),
-
-    /// FunctionGemma format: `<start_function_call>call:name{param:<escape>val<escape>}<end_function_call>`
     FunctionGemma(FunctionGemmaHandler),
 }
 
 impl ToolFormat {
-    /// Get the handler for this format as a trait object.
     pub fn handler(&self) -> &dyn ToolFormatHandler {
         match self {
             ToolFormat::Qwen3(h) => h,
@@ -74,33 +70,23 @@ impl ToolFormat {
         }
     }
 
-    /// Returns the token that begins a tool call.
     pub fn begin_token(&self) -> &str {
         self.handler().begin_token()
     }
 
-    /// Returns the token that ends a tool call.
     pub fn end_token(&self) -> &str {
         self.handler().end_token()
     }
 
-    /// Generates a GBNF grammar for constrained sampling.
     pub fn generate_grammar(&self, tools: &[Tool]) -> Result<gbnf::Grammar, ToolFormatError> {
         self.handler().generate_grammar(tools)
     }
 
-    /// Extracts tool calls from the given text.
     pub fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>> {
         self.handler().extract_tool_calls(input)
     }
 }
 
-/// Detects the tool calling format for the given model.
-///
-/// Detection strategy:
-/// 1. Check chat template for format-specific markers (most reliable)
-/// 2. Fall back to model metadata/name patterns
-/// 3. Default to Qwen3 for backward compatibility
 pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatError> {
     // Try to get tool_use template
     if let Ok(template) = model.chat_template(Some("tool_use")) {
@@ -158,9 +144,9 @@ pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatEr
         }
     }
 
-    // Default to Qwen3 for backward compatibility
-    debug!("No specific format detected, defaulting to Qwen3 format");
-    Ok(ToolFormat::Qwen3(Qwen3Handler))
+    Err(ToolFormatError::UnsupportedFormat(
+        "Cannot detect tool format from template or model family".to_string(),
+    ))
 }
 
 #[cfg(test)]

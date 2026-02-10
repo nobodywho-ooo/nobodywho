@@ -34,6 +34,22 @@ impl GrammarBuilder {
         }
     }
 
+    /// Create a grammar builder from an existing grammar.
+    ///
+    /// This allows you to add more rules to an existing grammar, which is useful
+    /// when you have a base grammar (e.g., from JSON schema) and want to extend it.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let json_grammar = Grammar::from_json_schema(&schema)?;
+    /// let extended = GrammarBuilder::from_existing(json_grammar)
+    ///     .rule("wrapper", vec![t("<start>"), nt("root"), t("<end>")])
+    ///     .build();
+    /// ```
+    pub fn from_existing(grammar: Grammar) -> Self {
+        Self { grammar }
+    }
+
     /// Add a rule to the grammar.
     ///
     /// Rules define productions in the grammar and are processed in order.
@@ -91,6 +107,21 @@ pub fn t(s: &str) -> ProductionItem {
 /// ```
 pub fn nt(name: &str) -> ProductionItem {
     ProductionItem::NonTerminal(NonTerminalSymbol { name: name.into() }, RepetitionType::One)
+}
+
+/// Create a non-terminal reference with one-or-more repetition.
+///
+/// This references another rule that must occur at least once (like `+` in regex).
+///
+/// # Example
+/// ```ignore
+/// let item = nt_plus("item"); // Matches one or more "item"
+/// ```
+pub fn nt_plus(name: &str) -> ProductionItem {
+    ProductionItem::NonTerminal(
+        NonTerminalSymbol { name: name.into() },
+        RepetitionType::OneOrMore,
+    )
 }
 
 /// Create a terminal with zero-or-more repetition.

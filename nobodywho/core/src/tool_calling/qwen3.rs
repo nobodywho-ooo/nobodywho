@@ -1,14 +1,9 @@
+use super::grammar_builder::{nt, nt_plus, t, t_star, GrammarBuilder};
 use super::types::{Tool, ToolCall, ToolFormatError};
 use super::ToolFormatHandler;
 use serde_json::json;
 use tracing::debug;
 
-/// Handler for Qwen3 tool calling format.
-///
-/// Format:
-/// - Begin token: `<tool_call>`
-/// - End token: `</tool_call>`
-/// - Content: JSON with `{"name": "tool_name", "arguments": {...}}`
 #[derive(Debug, Clone, Copy)]
 pub struct Qwen3Handler;
 
@@ -22,7 +17,6 @@ impl ToolFormatHandler for Qwen3Handler {
     }
 
     fn generate_grammar(&self, tools: &[Tool]) -> Result<gbnf::Grammar, ToolFormatError> {
-        // get a json schema that describes the tool call for each tool
         let tool_call_schemas: serde_json::Value = tools
             .iter()
             .map(|tool| {
@@ -39,78 +33,30 @@ impl ToolFormatHandler for Qwen3Handler {
             })
             .collect();
 
-        // a json schema that describes any of the tool calls
         let tool_call_schema = json!(
             { "oneOf": tool_call_schemas }
         );
 
-        // a GBNF grammar for the above
-        let mut json_grammar = gbnf::Grammar::from_json_schema(&tool_call_schema.to_string())?;
+        // Generate JSON grammar from schema, then extend it with wrapping rules
+        let json_grammar = gbnf::Grammar::from_json_schema(&tool_call_schema.to_string())?;
 
-        // optional whitespace
-        let ws = gbnf::ProductionItem::NonTerminal(
-            gbnf::NonTerminalSymbol { name: "ws".into() },
-            gbnf::RepetitionType::One,
-        );
-
-        // wrap the newly generated grammar's root in tool calling tokens
-        // e.g. <tool_call> json_grammar </tool_call>
-        let tool_call_rule = gbnf::GrammarItem::Rule(gbnf::Rule {
-            lhs: gbnf::NonTerminalSymbol {
-                name: "toolcall".into(),
-            },
-            rhs: gbnf::Production {
-                items: vec![
-                    // tool call begin
-                    gbnf::ProductionItem::Terminal(
-                        gbnf::TerminalSymbol {
-                            value: self.begin_token().into(),
-                        },
-                        gbnf::RepetitionType::One,
-                    ),
-                    // optional whitespace
-                    ws.clone(),
-                    // tool call json, just refer to the grammar we made from json schema
-                    gbnf::ProductionItem::NonTerminal(
-                        gbnf::NonTerminalSymbol {
-                            name: "root".into(),
-                        },
-                        gbnf::RepetitionType::One,
-                    ),
-                    // optional whitespace
-                    ws.clone(),
-                    // </tool_call>
-                    gbnf::ProductionItem::Terminal(
-                        gbnf::TerminalSymbol {
-                            value: self.end_token().into(),
-                        },
-                        gbnf::RepetitionType::One,
-                    ),
-                    // optional whitespace
-                    ws.clone(),
+        let grammar = GrammarBuilder::from_existing(json_grammar)
+            .rule("ws", vec![t_star(" ")])
+            .rule(
+                "toolcall",
+                vec![
+                    t(self.begin_token()),
+                    nt("ws"),
+                    nt("root"),
+                    nt("ws"),
+                    t(self.end_token()),
+                    nt("ws"),
                 ],
-            },
-        });
+            )
+            .rule("superroot", vec![nt_plus("toolcall")])
+            .build();
 
-        // one or more tool calls
-        let new_root_rule = gbnf::GrammarItem::Rule(gbnf::Rule {
-            lhs: gbnf::NonTerminalSymbol {
-                name: "superroot".into(),
-            },
-            rhs: gbnf::Production {
-                items: vec![gbnf::ProductionItem::NonTerminal(
-                    gbnf::NonTerminalSymbol {
-                        name: "toolcall".into(),
-                    },
-                    gbnf::RepetitionType::OneOrMore,
-                )],
-            },
-        });
-
-        json_grammar.items.push(tool_call_rule);
-        json_grammar.items.push(new_root_rule);
-
-        Ok(json_grammar)
+        Ok(grammar)
     }
 
     fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>> {
@@ -163,7 +109,6 @@ impl ToolFormatHandler for Qwen3Handler {
             "arguments": &tool_call.arguments,
         })
     }
-    // serialize_tool_calls_message uses default implementation
 }
 
 #[cfg(test)]
