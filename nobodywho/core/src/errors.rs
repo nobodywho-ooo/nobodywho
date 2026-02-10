@@ -37,7 +37,7 @@ pub enum InitWorkerError {
     InvalidAddBosData(String),
 
     #[error("Failed to detect tool calling format: {0}")]
-    ToolFormatDetection(#[from] crate::tool_calling::types::ToolFormatError),
+    ToolFormatDetection(#[from] crate::tool_calling::ToolFormatError),
 }
 
 #[derive(Debug, thiserror::Error)]

@@ -972,19 +972,7 @@ fn serialize_message_for_template(
                 })
             }
         }
-        Message::Message { role, content } => serde_json::json!({
-            "role": role,
-            "content": content,
-        }),
-        Message::ToolResp {
-            role,
-            name,
-            content,
-        } => serde_json::json!({
-            "role": role,
-            "name": name,
-            "content": content,
-        }),
+        _ => serde_json::to_value(msg).expect("Message serialization should not fail"),
     }
 }
 
@@ -1013,11 +1001,6 @@ fn naive_render_message_vec(
         .iter()
         .map(|msg| serialize_message_for_template(msg, tool_format))
         .collect();
-
-    // Debug: serialize messages to see what the template receives
-    if let Ok(json_messages) = serde_json::to_string_pretty(&messages_for_template) {
-        debug!(messages_json = %json_messages, "Messages being passed to template");
-    }
 
     // Serialize tools using format-aware serialization
     let tools_for_template = if tools.is_empty() {

@@ -12,7 +12,7 @@ mod qwen3;
 use llama_cpp_2::model::LlamaModel;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tracing::debug;
+use tracing::{debug, trace};
 
 pub use functiongemma::FunctionGemmaHandler;
 pub use qwen3::Qwen3Handler;
@@ -180,7 +180,7 @@ pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatEr
     // Fallback: check default chat template
     if let Ok(template) = model.chat_template(None) {
         if let Ok(template_str) = template.to_string() {
-            debug!(template = %template_str, "Checking default template for format markers");
+            trace!(template = %template_str, "Checking default template for format markers");
 
             if template_str.contains("<start_function_call>")
                 || template_str.contains("<end_function_call>")
