@@ -1551,44 +1551,45 @@ impl Worker<'_, ChatWorker> {
         // Clone to avoid borrow issues in the loop
         if let Some(tool_format) = self.extra.tool_format.clone() {
             while let Some(tool_calls) = tool_format.extract_tool_calls(&response) {
-            debug!(?tool_calls, "Got tool calls:");
+                debug!(?tool_calls, "Got tool calls:");
 
-            self.add_tool_calls(tool_calls.clone());
+                self.add_tool_calls(tool_calls.clone());
 
-            for tool_call in tool_calls {
-                // find the tool
-                // this is just a stupid linear search
-                // but I think it's probably faster than something fancy as long as we have few tools
-                // /shrug I'm happy to be wrong
-                let Some(tool) = self.extra.tools.iter().find(|t| t.name == tool_call.name) else {
-                    // in case the tool isn't found.
-                    // I *think* this should be impossible, as long as the tool calling grammar
-                    // works.
-                    error!(
-                        tool_name = tool_call.name,
-                        "Model triggered tool call for invalid tool name:",
-                    );
-                    let errmsg = format!("ERROR - Invalid tool name: {}", tool_call.name);
-                    self.add_tool_resp(tool_call.name, errmsg);
-                    continue;
-                };
+                for tool_call in tool_calls {
+                    // find the tool
+                    // this is just a stupid linear search
+                    // but I think it's probably faster than something fancy as long as we have few tools
+                    // /shrug I'm happy to be wrong
+                    let Some(tool) = self.extra.tools.iter().find(|t| t.name == tool_call.name)
+                    else {
+                        // in case the tool isn't found.
+                        // I *think* this should be impossible, as long as the tool calling grammar
+                        // works.
+                        error!(
+                            tool_name = tool_call.name,
+                            "Model triggered tool call for invalid tool name:",
+                        );
+                        let errmsg = format!("ERROR - Invalid tool name: {}", tool_call.name);
+                        self.add_tool_resp(tool_call.name, errmsg);
+                        continue;
+                    };
 
-                // call the tool
-                debug!("Calling the tool now!");
-                let response = (tool.function)(tool_call.arguments);
-                debug!(%tool_call.name, %response, "Tool call result:");
+                    // call the tool
+                    debug!("Calling the tool now!");
+                    let response = (tool.function)(tool_call.arguments);
+                    debug!(%tool_call.name, %response, "Tool call result:");
 
-                // add to chat history
-                self.add_tool_resp(tool_call.name, response);
+                    // add to chat history
+                    self.add_tool_resp(tool_call.name, response);
+                }
+
+                // get the finished response
+                response = self.wrapped_update_context_and_generate_response(
+                    sampler.clone(),
+                    respond.clone(),
+                    tool_call_begin.clone(),
+                )?;
             }
-
-            // get the finished response
-            response = self.wrapped_update_context_and_generate_response(
-                sampler.clone(),
-                respond.clone(),
-                tool_call_begin.clone(),
-            )?;
-        }
         } // Close if let Some(tool_format)
 
         debug_assert!(!response.contains(tool_call_begin.as_str()));
