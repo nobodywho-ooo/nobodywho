@@ -109,7 +109,7 @@ impl ToolFormatHandler for FunctionGemmaHandler {
 
         let tool_calls: Vec<ToolCall> = tool_call_regex
             .captures_iter(input)
-            .filter_map(|cap| {
+            .map(|cap| {
                 let name = &cap[1];
                 let params_str = &cap[2];
 
@@ -125,10 +125,10 @@ impl ToolFormatHandler for FunctionGemmaHandler {
                 }
 
                 debug!(tool_name = %name, "Successfully parsed FunctionGemma tool call");
-                Some(ToolCall {
+                ToolCall {
                     name: name.to_string(),
                     arguments,
-                })
+                }
             })
             .collect();
 
