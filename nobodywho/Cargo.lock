@@ -1459,6 +1459,7 @@ dependencies = [
  "flutter_rust_bridge_codegen",
  "futures",
  "nobodywho",
+ "nom 8.0.0",
  "regex",
  "serde_json",
  "tracing",

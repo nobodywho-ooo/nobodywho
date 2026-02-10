@@ -3,6 +3,7 @@ use flutter_rust_bridge::{DartFnFuture, Rust2DartSendError};
 // satisfy some frb macros
 
 mod frb_generated;
+mod parse;
 
 /// Enforce the binding for this library (to prevent tree-shaking)
 /// https://github.com/flutter/flutter/pull/96225#issuecomment-1319080539
@@ -317,6 +318,15 @@ pub fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> f32 {
 #[flutter_rust_bridge::frb(opaque)]
 pub struct RustTool {
     tool: nobodywho::chat::Tool,
+    schema: serde_json::Value,
+}
+
+impl RustTool {
+    /// Get the JSON schema for this tool's parameters as a string
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn get_schema_json(&self) -> String {
+        self.schema.to_string()
+    }
 }
 
 #[flutter_rust_bridge::frb(sync)]
@@ -339,11 +349,14 @@ pub fn new_tool_impl(
     let tool = nobodywho::chat::Tool::new(
         name,
         description,
-        json_schema,
+        json_schema.clone(),
         std::sync::Arc::new(sync_callback),
     );
 
-    Ok(RustTool { tool })
+    Ok(RustTool {
+        tool,
+        schema: json_schema,
+    })
 }
 
 /// Converts a Dart function runtimeType string directly to a JSON schema
@@ -355,138 +368,59 @@ fn dart_function_type_to_json_schema(
     runtime_type: &str,
     parameter_descriptions: &std::collections::HashMap<String, String>,
 ) -> Result<serde_json::Value, String> {
-    // Check for no-parameter function first: () => returnType
-    let no_params_re =
-        regex::Regex::new(r"^\(\)\s*=>\s*(.+)$").map_err(|e| format!("Regex error: {}", e))?;
+    tracing::debug!(
+        "Hello!\n\n{:?}\n\n",
+        parse::runtime_type_parser("({required Set<int> testSet}) => String")
+    );
 
-    if no_params_re.is_match(runtime_type) {
-        // Function has no parameters - return empty schema
-        return Ok(serde_json::json!({
-            "type": "object",
-            "properties": {},
-            "required": [],
-            "additionalProperties": false
-        }));
-    }
-
-    // Match the pattern: ({params}) => returnType
-    let re = regex::Regex::new(r"^\(\{([^}]*)\}\)\s*=>\s*(.+)$")
-        .map_err(|e| format!("Regex error: {}", e))?;
-
-    let captures = re.captures(runtime_type).ok_or_else(|| {
-        if !runtime_type.contains("({") && !runtime_type.contains("()") {
-            format!(
-                "Tool function must take either no parameters or only named parameters, got function type: {:?}",
-                runtime_type
-            )
-        } else {
-            "Invalid function type format".to_string()
+    let (parsed_parameters, return_type) = match parse::runtime_type_parser(runtime_type) {
+        Ok((_, (pp, rt))) => (pp, rt),
+        // This should only happen if runtime_type contains a type which we do not support!!
+        Err(nom::Err::Error(e)) => {
+            return Err(format!(
+                "Tool function contains an unsupported type. Parsing failed at: {} ",
+                e.input
+            ));
         }
-    })?;
+        Err(nom::Err::Failure(e)) => {
+            return Err(format!(
+                "Error while parsing runtime_type. Input:{}",
+                e.input
+            ))
+        }
+        Err(_) => return Err("Something has gone horribly wrong while parsing!".into()),
+    };
 
-    let params_str = &captures[1];
-    let _return_type = captures[2].trim();
+    if let Err(_) = parse::return_type_parser(return_type) {
+        tracing::warn!("Return type of this tool should be `String or Future<String>`. Anything else will be cast to string, which might lead to unexpected results.")
+    }
 
     let mut properties = serde_json::Map::new();
     let mut required = Vec::new();
 
-    let mut param_map = std::collections::HashMap::new();
-    let mut param_order = Vec::new(); // Track original parameter order
+    for (parameter_name, mut parameter_type) in parsed_parameters {
+        required.push(parameter_name);
 
-    // Collect params in to param_map
-    if !params_str.trim().is_empty() {
-        for param in params_str.split(',') {
-            let param = param.trim();
-
-            // Check if parameter is required (and strip the keyword if present)
-            let param_without_required = if param.starts_with("required ") {
-                &param[9..] // Skip "required "
-            } else {
-                param
-            };
-
-            // Find the last space to split type and name
-            let last_space = param_without_required
-                .rfind(' ')
-                .ok_or_else(|| format!("Invalid parameter format: '{}'", param))?;
-
-            let param_type = param_without_required[..last_space].trim();
-            let param_name = param_without_required[last_space + 1..].trim();
-
-            param_map.insert(param_name, param_type);
-            param_order.push(param_name); // Track order
-        }
-
-        // check that names of parameter descriptions correspond to names of actual function arguments
-        if let Some(invalid_param) = parameter_descriptions
-            .keys()
-            .find(|param| !param_map.contains_key((*param).as_str()))
-        {
-            return Err(
-                format! {"ERROR: Parameter description provided for '{invalid_param}' but function has no such parameter."},
-            );
-        }
-
-        for key in param_order.iter() {
-            // Convert Dart type to JSON schema type
-            let mut schema_type = match *param_map.get(key).unwrap() {
-                "String" => serde_json::json!({ "type": "string" }),
-                "int" => serde_json::json!({ "type": "integer" }),
-                "double" => serde_json::json!({ "type": "number" }),
-                "num" => serde_json::json!({ "type": "number" }),
-                "bool" => serde_json::json!({ "type": "boolean" }),
-                "DateTime" => serde_json::json!({ "type": "string", "format": "date-time" }),
-                t if t.starts_with("List<") && t.ends_with('>') => {
-                    let inner = &t[5..t.len() - 1];
-                    let inner_schema = match inner {
-                        "String" => serde_json::json!({ "type": "string" }),
-                        "int" => serde_json::json!({ "type": "integer" }),
-                        "double" | "num" => serde_json::json!({ "type": "number" }),
-                        "bool" => serde_json::json!({ "type": "boolean" }),
-                        _ => serde_json::json!({ "type": "object" }),
-                    };
-                    serde_json::json!({
-                        "type": "array",
-                        "items": inner_schema
-                    })
-                }
-                t if t.starts_with("Map<") && t.ends_with('>') => {
-                    // For simplicity, assume string keys and try to parse value type
-                    let generics = &t[4..t.len() - 1];
-                    let parts: Vec<&str> = generics.split(',').collect();
-                    if parts.len() == 2 {
-                        let value_type = parts[1].trim();
-                        let value_schema = match value_type {
-                            "String" => serde_json::json!({ "type": "string" }),
-                            "int" => serde_json::json!({ "type": "integer" }),
-                            "double" | "num" => serde_json::json!({ "type": "number" }),
-                            "bool" => serde_json::json!({ "type": "boolean" }),
-                            _ => serde_json::json!({ "type": "object" }),
-                        };
-                        serde_json::json!({
-                            "type": "object",
-                            "additionalProperties": value_schema
-                        })
-                    } else {
-                        serde_json::json!({ "type": "object" })
-                    }
-                }
-                _ => serde_json::json!({ "type": "object" }),
-            };
-
-            if let Some(description) = parameter_descriptions.get(&key.to_string()) {
-                if let Some(obj) = schema_type.as_object_mut() {
-                    obj.insert(
-                        "description".to_string(),
-                        serde_json::Value::String(description.to_string()),
-                    );
-                }
+        if let Some(description) = parameter_descriptions.get(parameter_name.into()) {
+            if let Some(obj) = parameter_type.as_object_mut() {
+                obj.insert(
+                    "description".to_string(),
+                    serde_json::Value::String(description.to_string()),
+                );
             }
-
-            properties.insert(key.to_string(), schema_type);
-            required.push(key.to_string());
         }
+        properties.insert(parameter_name.into(), parameter_type);
     }
+
+    tracing::debug!(
+        "\n\n{}\n\n",
+        serde_json::json!({
+            "type": "object",
+            "properties": properties,
+            "required": required,
+            "additionalProperties": false
+        })
+    );
 
     Ok(serde_json::json!({
         "type": "object",

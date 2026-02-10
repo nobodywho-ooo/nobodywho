@@ -191,7 +191,10 @@ abstract class RustTokenStream implements RustOpaqueInterface {
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustTool>>
-abstract class RustTool implements RustOpaqueInterface {}
+abstract class RustTool implements RustOpaqueInterface {
+  /// Get the JSON schema for this tool's parameters as a string
+  String getSchemaJson();
+}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerBuilder>>
 abstract class SamplerBuilder implements RustOpaqueInterface {

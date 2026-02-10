@@ -4,9 +4,29 @@
 import 'package:nobodywho/nobodywho.dart' as nobodywho;
 import 'package:test/test.dart';
 import 'dart:io';
-
 // Mock ToolCall for testing - we can't easily create real ones without Rust
 // so we'll test Message construction patterns that don't require ToolCall
+
+List<List<double>> multiplyMatrices(List<List<double>> a, List<List<double>> b) {
+    final rowsA = a.length;
+    final colsA = a[0].length;
+    final colsB = b[0].length;
+
+    // Initialize result matrix with zeros
+    final result = List.generate(rowsA, (_) => List.filled(colsB, 0.0));
+
+    for (var i = 0; i < rowsA; i++) {
+      for (var j = 0; j < colsB; j++) {
+        for (var k = 0; k < colsA; k++) {
+          result[i][j] += a[i][k] * b[k][j];
+        }
+      }
+    }
+
+    return result;
+  }
+
+
 
 String sparklify({required String text}) {
   print("Sparklify called!");
@@ -20,11 +40,29 @@ Future<String> strongify({required String text}) async {
   return 'WOW $text WOW';
 }
 
+
+
+String addListOfVectors({required List<List<int>> listOfVectors}) {
+  List<int> sum = listOfVectors.reduce(
+    (acc, vec) => [for (int i = 0; i < acc.length; i++) acc[i] + vec[i]],
+  );
+  return sum.toString();
+}
+
 String noArgs() {
   print("noArgs called!");
   return "This function has no args!";
 }
 
+
+String mutliplySquareMatrices({required List<List<List<double>>> listOfMatrices}){
+  return listOfMatrices.reduce((accu, curr) => multiplyMatrices(accu,curr)).toString();
+}
+
+
+String addTwoNumbers({required double a, required double b}){
+  return (a + b).toString();
+}
 
 void main() {
   group('A group of tests', () {
@@ -55,12 +93,32 @@ void main() {
         description: "This function does nothing and returns some string",
       );
 
+      final addTwoNumbersTool = nobodywho.Tool(
+        function : addTwoNumbers,
+        name : "addTwoNumbers",
+        description : "This function adds up the two numbers.",
+      );
+
+      final addListOfVectorsTool = nobodywho.Tool(
+        function : addListOfVectors,
+        name : "addListOfVectors",
+        description : "Does vector addition on the list of vectors provided",
+        parameterDescriptions : {"listOfVectors" : "List of vectors to added. Each vector must of same length"},
+      );
+
+      final multiplySquareMatricesTool = nobodywho.Tool(
+        function : mutliplySquareMatrices,
+        name : "multiplySquareMatrices",
+        description : "Multiplies all the matrices in list together.",
+        parameterDescriptions : {"listOfMatrices" : "List of matrices to multiply. Each matrix must be a square matrix and they must all be of the same dimension."},
+      );
+
       chat = await nobodywho.Chat.fromPath(
         modelPath: modelPath,
         systemPrompt: "",
-        contextSize: 1024,
+        contextSize: 2048,
         allowThinking: false,
-        tools: [sparklify_tool, strongify_tool, noargs_tool],
+        tools: [sparklify_tool, strongify_tool, noargs_tool, addTwoNumbersTool, addListOfVectorsTool, multiplySquareMatricesTool],
       );
     });
 
@@ -105,6 +163,37 @@ void main() {
       final toolCall = history.firstWhere((m) => m.role == nobodywho.Role.tool);
 
       expect(toolCall.content, contains("This function has no args!"));
+    });
+
+    test('Tool calling for doubles', () async{
+      final response = await chat!.ask(
+        "Please use the provided tool to add the numbers 13 and 17"
+      ).completed();
+      final history = await chat!.getChatHistory();
+      final toolCall = history.firstWhere((m) => m.role == nobodywho.Role.tool);
+
+      expect(toolCall.content, contains("30"));
+    });
+
+
+    test('Tool calling with 2 layer nested list arguments', () async{
+      final response = await chat!.ask(
+        "Please use the provided tool to add the vectors [[1,2,3],[4,5,6],[7,8,9]]."
+      ).completed();
+      final history = await chat!.getChatHistory();
+      final toolCall = history.firstWhere((m) => m.role == nobodywho.Role.tool);
+
+      expect(toolCall.content, contains("[12, 15, 18]"));
+    });
+
+    test('Tool calling with 3 layer nested list arguments', () async{
+      final response = await chat!.ask(
+        "Please use the provided tool multiply the matrices [[1, 2],[3, 5]], [[1, 3],[13, 4]] and [[-5, 2],[23, 3]]."
+      ).completed();
+      final history = await chat!.getChatHistory();
+      final toolCall = history.firstWhere((m) => m.role == nobodywho.Role.tool);
+
+      expect(toolCall.content, contains("[[118.0, 87.0], [327.0, 223.0]]"));
     });
 
 
