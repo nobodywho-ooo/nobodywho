@@ -83,8 +83,16 @@ impl SamplerConfig {
         }
     }
 
+    /// Appends a shift step to the end of the sampler chain.
     pub fn shift(mut self, step: ShiftStep) -> Self {
         self.steps.push(step);
+        self
+    }
+
+    /// Prepends a shift step to the beginning of the sampler chain.
+    /// This ensures the step is applied before any other shift steps.
+    pub fn unshift(mut self, step: ShiftStep) -> Self {
+        self.steps.insert(0, step);
         self
     }
 
