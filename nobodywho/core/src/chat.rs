@@ -923,7 +923,7 @@ fn find_prefix_index_and_difference_with_tokens_in_context(
 
 struct ChatWorker {
     should_stop: Arc<AtomicBool>,
-    tool_grammar: Option<gbnf::Grammar>,
+    tool_grammar: Option<gbnf::GbnfGrammar>,
     tool_format: Option<ToolFormat>,
     sampler_config: SamplerConfig,
     messages: Vec<Message>,
@@ -1302,7 +1302,7 @@ impl Worker<'_, ChatWorker> {
                     .prepend(ShiftStep::Grammar {
                         trigger_on: tool_call_begin.clone(),
                         root: "superroot".into(),
-                        grammar: tool_grammar.to_string(),
+                        grammar: tool_grammar.as_str().into(),
                     })
             },
         );
