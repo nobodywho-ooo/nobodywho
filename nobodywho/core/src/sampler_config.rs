@@ -230,12 +230,12 @@ impl SamplerConfig {
 impl Default for SamplerConfig {
     fn default() -> SamplerConfig {
         SamplerConfig::new()
-            .shift(ShiftStep::Temperature { temperature: 0.6 })
             .shift(ShiftStep::TopK { top_k: 20 })
             .shift(ShiftStep::TopP {
                 top_p: 0.95,
                 min_keep: 1,
             })
+            .shift(ShiftStep::Temperature { temperature: 0.6 })
             .sample(SampleStep::Dist)
     }
 }
