@@ -1298,7 +1298,7 @@ impl Worker<'_, ChatWorker> {
                 self.extra
                     .sampler_config
                     .clone()
-                    .unshift(ShiftStep::Grammar {
+                    .prepend(ShiftStep::Grammar {
                         trigger_on: tool_call_begin.clone(),
                         root: "superroot".into(),
                         grammar: tool_grammar.to_string(),

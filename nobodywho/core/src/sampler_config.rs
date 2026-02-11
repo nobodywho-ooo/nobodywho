@@ -91,7 +91,7 @@ impl SamplerConfig {
 
     /// Prepends a shift step to the beginning of the sampler chain.
     /// This ensures the step is applied before any other shift steps.
-    pub fn unshift(mut self, step: ShiftStep) -> Self {
+    pub fn prepend(mut self, step: ShiftStep) -> Self {
         self.steps.insert(0, step);
         self
     }
@@ -333,19 +333,19 @@ mod tests {
     }
 
     #[test]
-    fn test_unshift_prepends_to_beginning() {
+    fn test_prepend_adds_to_beginning() {
         let config = SamplerConfig::new()
             .shift(ShiftStep::TopK { top_k: 40 })
-            .unshift(ShiftStep::Temperature { temperature: 0.8 });
+            .prepend(ShiftStep::Temperature { temperature: 0.8 });
 
         assert_eq!(config.steps.len(), 2);
-        // Verify order: Temperature first (unshifted), TopK second
+        // Verify order: Temperature first (prepended), TopK second
         assert!(matches!(config.steps[0], ShiftStep::Temperature { .. }));
         assert!(matches!(config.steps[1], ShiftStep::TopK { .. }));
     }
 
     #[test]
-    fn test_grammar_unshift_with_custom_sampler() {
+    fn test_grammar_prepend_with_custom_sampler() {
         let config = SamplerConfig::new()
             .shift(ShiftStep::TopK { top_k: 64 })
             .shift(ShiftStep::TopP {
@@ -353,7 +353,7 @@ mod tests {
                 min_keep: 2,
             })
             .shift(ShiftStep::Temperature { temperature: 0.8 })
-            .unshift(ShiftStep::Grammar {
+            .prepend(ShiftStep::Grammar {
                 trigger_on: Some("<tool_call>".into()),
                 root: "superroot".into(),
                 grammar: "...".into(),
