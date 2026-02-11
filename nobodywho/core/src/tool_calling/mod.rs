@@ -12,7 +12,7 @@ mod qwen3;
 use llama_cpp_2::model::LlamaModel;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tracing::{debug, trace};
+use tracing::debug;
 
 pub use functiongemma::FunctionGemmaHandler;
 pub use qwen3::Qwen3Handler;
