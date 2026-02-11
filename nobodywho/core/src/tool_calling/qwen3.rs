@@ -42,7 +42,6 @@ impl ToolFormatHandler for Qwen3Handler {
         let json_grammar = json_schema_to_grammar(tool_call_schema)?;
 
         let grammar = GrammarBuilder::from_existing(json_grammar)
-            .rule("ws", t_star(" "))
             .rule(
                 "toolcall",
                 seq(&[

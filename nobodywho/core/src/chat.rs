@@ -1870,6 +1870,7 @@ mod tests {
 
         let result = receiver.recv().unwrap();
         println!("{}", result);
+        println!("{}", worker.extra.tool_grammar.unwrap().as_str());
         assert!(result.contains("13.37"));
         assert!(result.contains("42.69"));
     }
