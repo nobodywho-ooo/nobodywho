@@ -315,3 +315,56 @@ pub enum SampleStep {
     MirostatV1 { tau: f32, eta: f32, m: i32 },
     MirostatV2 { tau: f32, eta: f32 },
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_shift_appends_to_end() {
+        let config = SamplerConfig::new()
+            .shift(ShiftStep::TopK { top_k: 40 })
+            .shift(ShiftStep::Temperature { temperature: 0.8 });
+
+        assert_eq!(config.steps.len(), 2);
+        // Verify order: TopK first, Temperature second
+        assert!(matches!(config.steps[0], ShiftStep::TopK { .. }));
+        assert!(matches!(config.steps[1], ShiftStep::Temperature { .. }));
+    }
+
+    #[test]
+    fn test_unshift_prepends_to_beginning() {
+        let config = SamplerConfig::new()
+            .shift(ShiftStep::TopK { top_k: 40 })
+            .unshift(ShiftStep::Temperature { temperature: 0.8 });
+
+        assert_eq!(config.steps.len(), 2);
+        // Verify order: Temperature first (unshifted), TopK second
+        assert!(matches!(config.steps[0], ShiftStep::Temperature { .. }));
+        assert!(matches!(config.steps[1], ShiftStep::TopK { .. }));
+    }
+
+    #[test]
+    fn test_grammar_unshift_with_custom_sampler() {
+        let config = SamplerConfig::new()
+            .shift(ShiftStep::TopK { top_k: 64 })
+            .shift(ShiftStep::TopP {
+                top_p: 0.95,
+                min_keep: 2,
+            })
+            .shift(ShiftStep::Temperature { temperature: 0.8 })
+            .unshift(ShiftStep::Grammar {
+                trigger_on: Some("<tool_call>".into()),
+                root: "superroot".into(),
+                grammar: "...".into(),
+            });
+
+        assert_eq!(config.steps.len(), 4);
+        // Verify grammar is at the beginning
+        assert!(matches!(config.steps[0], ShiftStep::Grammar { .. }));
+        // Verify custom sampler steps follow
+        assert!(matches!(config.steps[1], ShiftStep::TopK { .. }));
+        assert!(matches!(config.steps[2], ShiftStep::TopP { .. }));
+        assert!(matches!(config.steps[3], ShiftStep::Temperature { .. }));
+    }
+}

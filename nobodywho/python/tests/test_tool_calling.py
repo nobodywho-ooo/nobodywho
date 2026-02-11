@@ -116,3 +116,19 @@ def test_set_tools(model):
     resp2 = chat.ask("What's the weather in Copenhagen?").completed()
     assert isinstance(resp2, str)
     assert "Copenhagen" in resp2 or "sunny" in resp2.lower()
+
+
+def test_tool_calling_with_custom_sampler(model):
+    chat = nobodywho.Chat(
+        model,
+        tools=[sparklify],
+        sampler=nobodywho.SamplerBuilder()
+            .top_k(64)
+            .top_p(0.95, min_keep=2)
+            .temperature(0.8)
+            .dist(),
+        allow_thinking=False,
+    )
+
+    response = chat.ask("Please sparklify this word: 'julemand'").completed()
+    assert "✨JULEMAND✨" in response
