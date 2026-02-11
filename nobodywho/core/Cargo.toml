@@ -19,7 +19,8 @@ tracing-subscriber = "0.3.19"
 regex = "1.11.1"
 serde_json = "1.0.140"
 # gbnf = { git = "https://github.com/s194042/gbnf.git", branch = "fix/comma-seperation-missing-from-array-rule", rev = "877b1cc" }
-gbnf = { git = "https://github.com/s194042/gbnf.git", rev = "877b1cc" }
+#gbnf = { git = "https://github.com/s194042/gbnf.git", rev = "877b1cc" }
+gbnf = { git = "https://github.com/nobodywho-ooo/gbnf-macro.git" }
 rand = "0.9.2"
 futures = "0.3.31"
 
