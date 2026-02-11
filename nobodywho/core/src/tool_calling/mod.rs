@@ -79,6 +79,9 @@ pub enum ToolFormatError {
 
     #[error("JSON schema parse error: {0}")]
     JsonSchemaParseError(#[from] gbnf::json::JsonSchemaParseError),
+
+    #[error("Lama.cpp failed fetching chat template from the model file. This is likely because you're using an older GGUF file, which might not include a chat template. For example, this is the case for most LLaMA2-based GGUF files. Try using a more recent GGUF model file. {0}")]
+    ChatTemplateError(#[from] llama_cpp_2::ChatTemplateError),
 }
 
 // ============================================================================
@@ -156,44 +159,29 @@ impl ToolFormat {
 }
 
 pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatError> {
-    // Try to get tool_use template
-    if let Ok(template) = model.chat_template(Some("tool_use")) {
-        if let Ok(template_str) = template.to_string() {
-            debug!(template = %template_str, "Checking tool_use template for format markers");
+    // get a chat template from the model
+    // fails early if no utf-8 decodable chat template is found
+    let template_str = model
+        // 1. try to get the "tool_use" chat template if present
+        .chat_template(Some("tool_use"))
+        .and_then(|t| Ok(t.to_string()?))
+        // 2. try to get the default chat template if no tool_use chat template
+        .or_else(|_| model.chat_template(None).and_then(|t| Ok(t.to_string()?)))?;
 
-            // Check for FunctionGemma markers
-            if template_str.contains("<start_function_call>")
-                || template_str.contains("<end_function_call>")
-            {
-                debug!("Detected FunctionGemma format from template markers");
-                return Ok(ToolFormat::FunctionGemma(FunctionGemmaHandler));
-            }
+    debug!(template = %template_str, "Checking template for format markers");
 
-            // Check for Qwen3 markers
-            if template_str.contains("<tool_call>") || template_str.contains("</tool_call>") {
-                debug!("Detected Qwen3 format from template markers");
-                return Ok(ToolFormat::Qwen3(Qwen3Handler));
-            }
-        }
+    // Check for FunctionGemma markers
+    if template_str.contains("<start_function_call>")
+        || template_str.contains("<end_function_call>")
+    {
+        debug!("Detected FunctionGemma format from template markers");
+        return Ok(ToolFormat::FunctionGemma(FunctionGemmaHandler));
     }
 
-    // Fallback: check default chat template
-    if let Ok(template) = model.chat_template(None) {
-        if let Ok(template_str) = template.to_string() {
-            trace!(template = %template_str, "Checking default template for format markers");
-
-            if template_str.contains("<start_function_call>")
-                || template_str.contains("<end_function_call>")
-            {
-                debug!("Detected FunctionGemma format from default template");
-                return Ok(ToolFormat::FunctionGemma(FunctionGemmaHandler));
-            }
-
-            if template_str.contains("<tool_call>") || template_str.contains("</tool_call>") {
-                debug!("Detected Qwen3 format from default template");
-                return Ok(ToolFormat::Qwen3(Qwen3Handler));
-            }
-        }
+    // Check for Qwen3 markers
+    if template_str.contains("<tool_call>") || template_str.contains("</tool_call>") {
+        debug!("Detected Qwen3 format from template markers");
+        return Ok(ToolFormat::Qwen3(Qwen3Handler));
     }
 
     // Try to detect from model name/metadata
