@@ -83,7 +83,12 @@ fn map_type(input: &str) -> IResult<&str, serde_json::Value> {
 }
 
 fn type_parser(input: &str) -> IResult<&str, serde_json::Value> {
-    delimited(multispace0, alt((list_type, simple_type)), multispace0).parse(input)
+    delimited(
+        multispace0,
+        alt((map_type, set_type, list_type, simple_type)),
+        multispace0,
+    )
+    .parse(input)
 }
 
 pub(crate) fn return_type_parser(input: &str) -> IResult<&str, &str> {
