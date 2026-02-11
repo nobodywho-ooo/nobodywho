@@ -1,4 +1,4 @@
-use super::grammar_builder::{nt, nt_plus, seq, t, t_star, GrammarBuilder};
+use super::grammar_builder::{nt, nt_plus, seq, t, GrammarBuilder};
 use super::{Tool, ToolCall, ToolFormatError, ToolFormatHandler};
 use gbnf::json::json_schema_to_grammar;
 use gbnf::GbnfGrammar;

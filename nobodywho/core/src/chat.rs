@@ -129,7 +129,8 @@ impl Default for ChatConfig {
 ///
 /// # Example
 /// ```
-/// use nobodywho::chat::{ChatBuilder, Tool};
+/// use nobodywho::chat::{ChatBuilder};
+/// use nobodywho::tool_calling::Tool;
 /// use nobodywho::llm;
 /// use std::sync::Arc;
 ///
@@ -620,7 +621,7 @@ impl ChatHandleAsync {
     /// # use nobodywho::llm::get_model;
     /// # let model = get_model("model.gguf", true).unwrap();
     /// # let chat = ChatBuilder::new(model).build_async();
-    /// chat.set_system_prompt("You are a helpful coding assistant.".to_string()).await?;
+    /// # chat.set_system_prompt("You are a helpful coding assistant.".to_string()).await?;
     /// # Ok::<(), nobodywho::errors::SetterError>(())
     /// ```
     pub async fn set_system_prompt(
