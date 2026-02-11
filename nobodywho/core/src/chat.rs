@@ -1292,6 +1292,8 @@ impl Worker<'_, ChatWorker> {
 
         self.add_user_message(text);
 
+        debug!("{}", self.extra.tool_grammar.as_ref().unwrap().as_str());
+
         // Modify sampler with tool grammar if we have tools
         let sampler = self.extra.tool_grammar.as_ref().map_or(
             self.extra.sampler_config.clone(),

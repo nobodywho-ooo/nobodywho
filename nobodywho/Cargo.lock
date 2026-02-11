@@ -1022,7 +1022,7 @@ dependencies = [
 [[package]]
 name = "gbnf"
 version = "0.1.0"
-source = "git+https://github.com/nobodywho-ooo/gbnf-macro.git#9358051627cda8b69903da67fe43e358282e3071"
+source = "git+https://github.com/nobodywho-ooo/gbnf-macro.git#2ea5f46b835f62b5a50dfa71cf20c6dffd3ee870"
 dependencies = [
  "gbnf-macro",
  "gbnf-types",
@@ -1033,7 +1033,7 @@ dependencies = [
 [[package]]
 name = "gbnf-macro"
 version = "0.1.0"
-source = "git+https://github.com/nobodywho-ooo/gbnf-macro.git#9358051627cda8b69903da67fe43e358282e3071"
+source = "git+https://github.com/nobodywho-ooo/gbnf-macro.git#2ea5f46b835f62b5a50dfa71cf20c6dffd3ee870"
 dependencies = [
  "gbnf-types",
  "proc-macro2",
@@ -1044,7 +1044,7 @@ dependencies = [
 [[package]]
 name = "gbnf-types"
 version = "0.1.0"
-source = "git+https://github.com/nobodywho-ooo/gbnf-macro.git#9358051627cda8b69903da67fe43e358282e3071"
+source = "git+https://github.com/nobodywho-ooo/gbnf-macro.git#2ea5f46b835f62b5a50dfa71cf20c6dffd3ee870"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3582,7 +3582,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

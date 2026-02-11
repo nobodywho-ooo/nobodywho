@@ -188,7 +188,7 @@ void main() {
 
     test('Tool calling with 3 layer nested list arguments', () async{
       final response = await chat!.ask(
-        "Please use the provided tool multiply the matrices [[1, 2],[3, 5]], [[1, 3],[13, 4]] and [[-5, 2],[23, 3]]."
+        "Please use the provided tool multiply the three 2x2 matrices [[1, 2],[3, 5]], [[1, 3],[13, 4]] and [[-5, 2],[23, 3]]."
       ).completed();
       final history = await chat!.getChatHistory();
       final toolCall = history.firstWhere((m) => m.role == nobodywho.Role.tool);
