@@ -637,6 +637,7 @@ impl NobodyWhoChat {
     }
 
     /// Sets the sampler to use default sampling parameters.
+    /// This provides a balanced configuration suitable for most use cases.
     #[func]
     fn set_sampler_preset_default(&mut self) {
         self.set_sampler_preset_impl(SamplerConfig::default());
