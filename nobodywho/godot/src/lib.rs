@@ -139,7 +139,7 @@ struct NobodyWhoChat {
 
     // internal state
     chat_handle: Option<nobodywho::chat::ChatHandleAsync>,
-    tools: Vec<nobodywho::chat::Tool>,
+    tools: Vec<nobodywho::tool_calling::Tool>,
     signal_counter: AtomicU64,
     base: Base<Node>,
 }
@@ -554,7 +554,7 @@ impl NobodyWhoChat {
             }
             res.to_string()
         };
-        let new_tool = nobodywho::chat::Tool::new(
+        let new_tool = nobodywho::tool_calling::Tool::new(
             method_name.into(),
             description,
             json_schema.into(),

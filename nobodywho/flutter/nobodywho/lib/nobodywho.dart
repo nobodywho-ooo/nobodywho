@@ -14,6 +14,332 @@ export 'src/rust/frb_generated.dart' show NobodyWho;
 
 import 'src/rust/lib.dart' as nobodywho;
 
+
+
+/// Converts JSON-decoded data to properly typed Dart values based on a JSON schema.
+/// Handles primitives, nested Lists (up to 3 levels), Sets, and Maps.
+/// Uses explicit casts at every level to ensure proper Dart types.
+dynamic jsonConversion(Map<String, dynamic> schema, dynamic json) {
+  final t1 = schema["type"] as String;
+  final u1 = schema["uniqueItems"] == true || schema["uniqueItems"] == "true";
+
+  // Primitives
+  if (t1 == "integer") return (json as num).toInt();
+  if (t1 == "number") return (json as num).toDouble();
+  if (t1 == "string") return json as String;
+  if (t1 == "boolean") return json as bool;
+
+  // Arrays (List or Set)
+  if (t1 == "array") {
+    final s2 = schema["items"] as Map<String, dynamic>;
+    final t2 = s2["type"] as String;
+    final u2 = s2["uniqueItems"] == true || s2["uniqueItems"] == "true";
+
+    // List/Set of primitives
+    if (t2 == "integer") {
+      return u1 ? (json as List).cast<int>().toSet() : (json as List).cast<int>().toList();
+    }
+    if (t2 == "number") {
+      return u1
+          ? (json as List).map((e) => (e as num).toDouble()).toSet()
+          : (json as List).map((e) => (e as num).toDouble()).toList();
+    }
+    if (t2 == "string") {
+      return u1 ? (json as List).cast<String>().toSet() : (json as List).cast<String>().toList();
+    }
+    if (t2 == "boolean") {
+      return u1 ? (json as List).cast<bool>().toSet() : (json as List).cast<bool>().toList();
+    }
+
+    // List/Set of Arrays (level 2)
+    if (t2 == "array") {
+      final s3 = s2["items"] as Map<String, dynamic>;
+      final t3 = s3["type"] as String;
+      final u3 = s3["uniqueItems"] == true || s3["uniqueItems"] == "true";
+
+      // List/Set of List/Set of primitives
+      if (t3 == "integer") {
+        if (u1 && u2) return (json as List).map((e) => (e as List).cast<int>().toSet()).toSet();
+        if (u1 && !u2) return (json as List).map((e) => (e as List).cast<int>().toList()).toSet();
+        if (!u1 && u2) return (json as List).map((e) => (e as List).cast<int>().toSet()).toList();
+        return (json as List).map((e) => (e as List).cast<int>().toList()).toList();
+      }
+      if (t3 == "number") {
+        if (u1 && u2) return (json as List).map((e) => (e as List).map((x) => (x as num).toDouble()).toSet()).toSet();
+        if (u1 && !u2) return (json as List).map((e) => (e as List).map((x) => (x as num).toDouble()).toList()).toSet();
+        if (!u1 && u2) return (json as List).map((e) => (e as List).map((x) => (x as num).toDouble()).toSet()).toList();
+        return (json as List).map((e) => (e as List).map((x) => (x as num).toDouble()).toList()).toList();
+      }
+      if (t3 == "string") {
+        if (u1 && u2) return (json as List).map((e) => (e as List).cast<String>().toSet()).toSet();
+        if (u1 && !u2) return (json as List).map((e) => (e as List).cast<String>().toList()).toSet();
+        if (!u1 && u2) return (json as List).map((e) => (e as List).cast<String>().toSet()).toList();
+        return (json as List).map((e) => (e as List).cast<String>().toList()).toList();
+      }
+      if (t3 == "boolean") {
+        if (u1 && u2) return (json as List).map((e) => (e as List).cast<bool>().toSet()).toSet();
+        if (u1 && !u2) return (json as List).map((e) => (e as List).cast<bool>().toList()).toSet();
+        if (!u1 && u2) return (json as List).map((e) => (e as List).cast<bool>().toSet()).toList();
+        return (json as List).map((e) => (e as List).cast<bool>().toList()).toList();
+      }
+
+      // List/Set of List/Set of Arrays (level 3)
+      if (t3 == "array") {
+        final s4 = s3["items"] as Map<String, dynamic>;
+        final t4 = s4["type"] as String;
+
+        if (t4 == "integer") {
+          if (!u1 && !u2 && !u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).cast<int>().toList()).toList()).toList();
+          if (!u1 && !u2 && u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).cast<int>().toSet()).toList()).toList();
+          if (!u1 && u2 && !u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).cast<int>().toList()).toSet()).toList();
+          if (!u1 && u2 && u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).cast<int>().toSet()).toSet()).toList();
+          if (u1 && !u2 && !u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).cast<int>().toList()).toList()).toSet();
+          if (u1 && !u2 && u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).cast<int>().toSet()).toList()).toSet();
+          if (u1 && u2 && !u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).cast<int>().toList()).toSet()).toSet();
+          if (u1 && u2 && u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).cast<int>().toSet()).toSet()).toSet();
+        }
+        if (t4 == "number") {
+          if (!u1 && !u2 && !u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).map((x) => (x as num).toDouble()).toList()).toList()).toList();
+          if (!u1 && !u2 && u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).map((x) => (x as num).toDouble()).toSet()).toList()).toList();
+          if (!u1 && u2 && !u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).map((x) => (x as num).toDouble()).toList()).toSet()).toList();
+          if (!u1 && u2 && u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).map((x) => (x as num).toDouble()).toSet()).toSet()).toList();
+          if (u1 && !u2 && !u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).map((x) => (x as num).toDouble()).toList()).toList()).toSet();
+          if (u1 && !u2 && u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).map((x) => (x as num).toDouble()).toSet()).toList()).toSet();
+          if (u1 && u2 && !u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).map((x) => (x as num).toDouble()).toList()).toSet()).toSet();
+          if (u1 && u2 && u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).map((x) => (x as num).toDouble()).toSet()).toSet()).toSet();
+        }
+        if (t4 == "string") {
+          if (!u1 && !u2 && !u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).cast<String>().toList()).toList()).toList();
+          if (!u1 && !u2 && u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).cast<String>().toSet()).toList()).toList();
+          if (!u1 && u2 && !u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).cast<String>().toList()).toSet()).toList();
+          if (!u1 && u2 && u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).cast<String>().toSet()).toSet()).toList();
+          if (u1 && !u2 && !u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).cast<String>().toList()).toList()).toSet();
+          if (u1 && !u2 && u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).cast<String>().toSet()).toList()).toSet();
+          if (u1 && u2 && !u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).cast<String>().toList()).toSet()).toSet();
+          if (u1 && u2 && u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).cast<String>().toSet()).toSet()).toSet();
+        }
+        if (t4 == "boolean") {
+          if (!u1 && !u2 && !u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).cast<bool>().toList()).toList()).toList();
+          if (!u1 && !u2 && u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).cast<bool>().toSet()).toList()).toList();
+          if (!u1 && u2 && !u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).cast<bool>().toList()).toSet()).toList();
+          if (!u1 && u2 && u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).cast<bool>().toSet()).toSet()).toList();
+          if (u1 && !u2 && !u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).cast<bool>().toList()).toList()).toSet();
+          if (u1 && !u2 && u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).cast<bool>().toSet()).toList()).toSet();
+          if (u1 && u2 && !u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).cast<bool>().toList()).toSet()).toSet();
+          if (u1 && u2 && u3) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as List).cast<bool>().toSet()).toSet()).toSet();
+        }
+      }
+
+      // List/Set of List/Set of Map (level 3)
+      if (t3 == "object") {
+        final a3 = s3["additionalProperties"] as Map<String, dynamic>;
+        final t4 = a3["type"] as String;
+
+        if (t4 == "integer") {
+          if (!u1 && !u2) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as Map).cast<String, int>()).toList()).toList();
+          if (!u1 && u2) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as Map).cast<String, int>()).toSet()).toList();
+          if (u1 && !u2) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as Map).cast<String, int>()).toList()).toSet();
+          if (u1 && u2) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as Map).cast<String, int>()).toSet()).toSet();
+        }
+        if (t4 == "number") {
+          if (!u1 && !u2) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as Map).map((k, v) => MapEntry(k as String, (v as num).toDouble()))).toList()).toList();
+          if (!u1 && u2) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as Map).map((k, v) => MapEntry(k as String, (v as num).toDouble()))).toSet()).toList();
+          if (u1 && !u2) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as Map).map((k, v) => MapEntry(k as String, (v as num).toDouble()))).toList()).toSet();
+          if (u1 && u2) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as Map).map((k, v) => MapEntry(k as String, (v as num).toDouble()))).toSet()).toSet();
+        }
+        if (t4 == "string") {
+          if (!u1 && !u2) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as Map).cast<String, String>()).toList()).toList();
+          if (!u1 && u2) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as Map).cast<String, String>()).toSet()).toList();
+          if (u1 && !u2) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as Map).cast<String, String>()).toList()).toSet();
+          if (u1 && u2) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as Map).cast<String, String>()).toSet()).toSet();
+        }
+        if (t4 == "boolean") {
+          if (!u1 && !u2) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as Map).cast<String, bool>()).toList()).toList();
+          if (!u1 && u2) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as Map).cast<String, bool>()).toSet()).toList();
+          if (u1 && !u2) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as Map).cast<String, bool>()).toList()).toSet();
+          if (u1 && u2) return (json as List).map((e1) => (e1 as List).map((e2) => (e2 as Map).cast<String, bool>()).toSet()).toSet();
+        }
+      }
+    }
+
+    // List/Set of Map (level 2)
+    if (t2 == "object") {
+      final a2 = s2["additionalProperties"] as Map<String, dynamic>;
+      final t3 = a2["type"] as String;
+
+      // List/Set of Map<String, primitive>
+      if (t3 == "integer") {
+        return u1
+            ? (json as List).map((e) => (e as Map).cast<String, int>()).toSet()
+            : (json as List).map((e) => (e as Map).cast<String, int>()).toList();
+      }
+      if (t3 == "number") {
+        return u1
+            ? (json as List).map((e) => (e as Map).map((k, v) => MapEntry(k as String, (v as num).toDouble()))).toSet()
+            : (json as List).map((e) => (e as Map).map((k, v) => MapEntry(k as String, (v as num).toDouble()))).toList();
+      }
+      if (t3 == "string") {
+        return u1
+            ? (json as List).map((e) => (e as Map).cast<String, String>()).toSet()
+            : (json as List).map((e) => (e as Map).cast<String, String>()).toList();
+      }
+      if (t3 == "boolean") {
+        return u1
+            ? (json as List).map((e) => (e as Map).cast<String, bool>()).toSet()
+            : (json as List).map((e) => (e as Map).cast<String, bool>()).toList();
+      }
+
+      // List/Set of Map<String, List/Set> (level 3)
+      if (t3 == "array") {
+        final s4 = a2["items"] as Map<String, dynamic>;
+        final t4 = s4["type"] as String;
+        final u4 = s4["uniqueItems"] == true || s4["uniqueItems"] == "true";
+
+        if (t4 == "integer") {
+          if (!u1 && !u4) return (json as List).map((e1) => (e1 as Map).map((k, v) => MapEntry(k as String, (v as List).cast<int>().toList()))).toList();
+          if (!u1 && u4) return (json as List).map((e1) => (e1 as Map).map((k, v) => MapEntry(k as String, (v as List).cast<int>().toSet()))).toList();
+          if (u1 && !u4) return (json as List).map((e1) => (e1 as Map).map((k, v) => MapEntry(k as String, (v as List).cast<int>().toList()))).toSet();
+          if (u1 && u4) return (json as List).map((e1) => (e1 as Map).map((k, v) => MapEntry(k as String, (v as List).cast<int>().toSet()))).toSet();
+        }
+        if (t4 == "number") {
+          if (!u1 && !u4) return (json as List).map((e1) => (e1 as Map).map((k, v) => MapEntry(k as String, (v as List).map((x) => (x as num).toDouble()).toList()))).toList();
+          if (!u1 && u4) return (json as List).map((e1) => (e1 as Map).map((k, v) => MapEntry(k as String, (v as List).map((x) => (x as num).toDouble()).toSet()))).toList();
+          if (u1 && !u4) return (json as List).map((e1) => (e1 as Map).map((k, v) => MapEntry(k as String, (v as List).map((x) => (x as num).toDouble()).toList()))).toSet();
+          if (u1 && u4) return (json as List).map((e1) => (e1 as Map).map((k, v) => MapEntry(k as String, (v as List).map((x) => (x as num).toDouble()).toSet()))).toSet();
+        }
+        if (t4 == "string") {
+          if (!u1 && !u4) return (json as List).map((e1) => (e1 as Map).map((k, v) => MapEntry(k as String, (v as List).cast<String>().toList()))).toList();
+          if (!u1 && u4) return (json as List).map((e1) => (e1 as Map).map((k, v) => MapEntry(k as String, (v as List).cast<String>().toSet()))).toList();
+          if (u1 && !u4) return (json as List).map((e1) => (e1 as Map).map((k, v) => MapEntry(k as String, (v as List).cast<String>().toList()))).toSet();
+          if (u1 && u4) return (json as List).map((e1) => (e1 as Map).map((k, v) => MapEntry(k as String, (v as List).cast<String>().toSet()))).toSet();
+        }
+        if (t4 == "boolean") {
+          if (!u1 && !u4) return (json as List).map((e1) => (e1 as Map).map((k, v) => MapEntry(k as String, (v as List).cast<bool>().toList()))).toList();
+          if (!u1 && u4) return (json as List).map((e1) => (e1 as Map).map((k, v) => MapEntry(k as String, (v as List).cast<bool>().toSet()))).toList();
+          if (u1 && !u4) return (json as List).map((e1) => (e1 as Map).map((k, v) => MapEntry(k as String, (v as List).cast<bool>().toList()))).toSet();
+          if (u1 && u4) return (json as List).map((e1) => (e1 as Map).map((k, v) => MapEntry(k as String, (v as List).cast<bool>().toSet()))).toSet();
+        }
+      }
+    }
+  }
+
+  // Objects (Map)
+  if (t1 == "object") {
+    final a1 = schema["additionalProperties"] as Map<String, dynamic>;
+    final t2 = a1["type"] as String;
+
+    // Map<String, primitive>
+    if (t2 == "integer") return (json as Map).cast<String, int>();
+    if (t2 == "number") return (json as Map).map((k, v) => MapEntry(k as String, (v as num).toDouble()));
+    if (t2 == "string") return (json as Map).cast<String, String>();
+    if (t2 == "boolean") return (json as Map).cast<String, bool>();
+
+    // Map<String, List/Set>
+    if (t2 == "array") {
+      final s3 = a1["items"] as Map<String, dynamic>;
+      final t3 = s3["type"] as String;
+      final u3 = s3["uniqueItems"] == true || s3["uniqueItems"] == "true";
+
+      if (t3 == "integer") {
+        return u3
+            ? (json as Map).map((k, v) => MapEntry(k as String, (v as List).cast<int>().toSet()))
+            : (json as Map).map((k, v) => MapEntry(k as String, (v as List).cast<int>().toList()));
+      }
+      if (t3 == "number") {
+        return u3
+            ? (json as Map).map((k, v) => MapEntry(k as String, (v as List).map((x) => (x as num).toDouble()).toSet()))
+            : (json as Map).map((k, v) => MapEntry(k as String, (v as List).map((x) => (x as num).toDouble()).toList()));
+      }
+      if (t3 == "string") {
+        return u3
+            ? (json as Map).map((k, v) => MapEntry(k as String, (v as List).cast<String>().toSet()))
+            : (json as Map).map((k, v) => MapEntry(k as String, (v as List).cast<String>().toList()));
+      }
+      if (t3 == "boolean") {
+        return u3
+            ? (json as Map).map((k, v) => MapEntry(k as String, (v as List).cast<bool>().toSet()))
+            : (json as Map).map((k, v) => MapEntry(k as String, (v as List).cast<bool>().toList()));
+      }
+
+      // Map<String, List/Set of List/Set> (level 3)
+      if (t3 == "array") {
+        final s4 = s3["items"] as Map<String, dynamic>;
+        final t4 = s4["type"] as String;
+        final u4 = s4["uniqueItems"] == true || s4["uniqueItems"] == "true";
+
+        if (t4 == "integer") {
+          if (!u3 && !u4) return (json as Map).map((k, v) => MapEntry(k as String, (v as List).map((e) => (e as List).cast<int>().toList()).toList()));
+          if (!u3 && u4) return (json as Map).map((k, v) => MapEntry(k as String, (v as List).map((e) => (e as List).cast<int>().toSet()).toList()));
+          if (u3 && !u4) return (json as Map).map((k, v) => MapEntry(k as String, (v as List).map((e) => (e as List).cast<int>().toList()).toSet()));
+          if (u3 && u4) return (json as Map).map((k, v) => MapEntry(k as String, (v as List).map((e) => (e as List).cast<int>().toSet()).toSet()));
+        }
+        if (t4 == "number") {
+          if (!u3 && !u4) return (json as Map).map((k, v) => MapEntry(k as String, (v as List).map((e) => (e as List).map((x) => (x as num).toDouble()).toList()).toList()));
+          if (!u3 && u4) return (json as Map).map((k, v) => MapEntry(k as String, (v as List).map((e) => (e as List).map((x) => (x as num).toDouble()).toSet()).toList()));
+          if (u3 && !u4) return (json as Map).map((k, v) => MapEntry(k as String, (v as List).map((e) => (e as List).map((x) => (x as num).toDouble()).toList()).toSet()));
+          if (u3 && u4) return (json as Map).map((k, v) => MapEntry(k as String, (v as List).map((e) => (e as List).map((x) => (x as num).toDouble()).toSet()).toSet()));
+        }
+        if (t4 == "string") {
+          if (!u3 && !u4) return (json as Map).map((k, v) => MapEntry(k as String, (v as List).map((e) => (e as List).cast<String>().toList()).toList()));
+          if (!u3 && u4) return (json as Map).map((k, v) => MapEntry(k as String, (v as List).map((e) => (e as List).cast<String>().toSet()).toList()));
+          if (u3 && !u4) return (json as Map).map((k, v) => MapEntry(k as String, (v as List).map((e) => (e as List).cast<String>().toList()).toSet()));
+          if (u3 && u4) return (json as Map).map((k, v) => MapEntry(k as String, (v as List).map((e) => (e as List).cast<String>().toSet()).toSet()));
+        }
+        if (t4 == "boolean") {
+          if (!u3 && !u4) return (json as Map).map((k, v) => MapEntry(k as String, (v as List).map((e) => (e as List).cast<bool>().toList()).toList()));
+          if (!u3 && u4) return (json as Map).map((k, v) => MapEntry(k as String, (v as List).map((e) => (e as List).cast<bool>().toSet()).toList()));
+          if (u3 && !u4) return (json as Map).map((k, v) => MapEntry(k as String, (v as List).map((e) => (e as List).cast<bool>().toList()).toSet()));
+          if (u3 && u4) return (json as Map).map((k, v) => MapEntry(k as String, (v as List).map((e) => (e as List).cast<bool>().toSet()).toSet()));
+        }
+      }
+
+      // Map<String, List/Set of Map> (level 3)
+      if (t3 == "object") {
+        final a4 = s3["additionalProperties"] as Map<String, dynamic>;
+        final t4 = a4["type"] as String;
+
+        if (t4 == "integer") {
+          return u3
+              ? (json as Map).map((k, v) => MapEntry(k as String, (v as List).map((e) => (e as Map).cast<String, int>()).toSet()))
+              : (json as Map).map((k, v) => MapEntry(k as String, (v as List).map((e) => (e as Map).cast<String, int>()).toList()));
+        }
+        if (t4 == "number") {
+          return u3
+              ? (json as Map).map((k, v) => MapEntry(k as String, (v as List).map((e) => (e as Map).map((k2, v2) => MapEntry(k2 as String, (v2 as num).toDouble()))).toSet()))
+              : (json as Map).map((k, v) => MapEntry(k as String, (v as List).map((e) => (e as Map).map((k2, v2) => MapEntry(k2 as String, (v2 as num).toDouble()))).toList()));
+        }
+        if (t4 == "string") {
+          return u3
+              ? (json as Map).map((k, v) => MapEntry(k as String, (v as List).map((e) => (e as Map).cast<String, String>()).toSet()))
+              : (json as Map).map((k, v) => MapEntry(k as String, (v as List).map((e) => (e as Map).cast<String, String>()).toList()));
+        }
+        if (t4 == "boolean") {
+          return u3
+              ? (json as Map).map((k, v) => MapEntry(k as String, (v as List).map((e) => (e as Map).cast<String, bool>()).toSet()))
+              : (json as Map).map((k, v) => MapEntry(k as String, (v as List).map((e) => (e as Map).cast<String, bool>()).toList()));
+        }
+      }
+    }
+
+    // Map<String, Map>
+    if (t2 == "object") {
+      final a3 = a1["additionalProperties"] as Map<String, dynamic>;
+      final t3 = a3["type"] as String;
+
+      if (t3 == "integer") return (json as Map).map((k, v) => MapEntry(k as String, (v as Map).cast<String, int>()));
+      if (t3 == "number") return (json as Map).map((k, v) => MapEntry(k as String, (v as Map).map((k2, v2) => MapEntry(k2 as String, (v2 as num).toDouble()))));
+      if (t3 == "string") return (json as Map).map((k, v) => MapEntry(k as String, (v as Map).cast<String, String>()));
+      if (t3 == "boolean") return (json as Map).map((k, v) => MapEntry(k as String, (v as Map).cast<String, bool>()));
+    }
+  }
+
+  // Fallback
+  return json;
+}
+
+
+
+
 /// Extension to provide convenient access to ToolCall arguments.
 /// The underlying `arguments` field is an opaque serde_json::Value,
 /// so we provide these helper methods to access it as JSON string or Map.
@@ -40,17 +366,29 @@ class Tool {
     required Function function,
     required String name,
     required String description,
+    Map<String, String> parameterDescriptions = const <String, String>{},
   }) {
     // Wrapper needs to be written in Dart to access `function.runtimeType`
     // and to deal with dynamic function parameters
+
+
+    // Schema will be populated after newToolImpl returns.
+    // NOTE: Dart closures capture variables by reference, not by value.
+    // When wrappedFunction is defined below, schema is null. But wrappedFunction
+    // isn't called until later (when the LLM invokes the tool). By that time,
+    // the assignment after newToolImpl has already happened, so the closure
+    // sees the populated schema value.
+    Map<String, dynamic>? schema;
+
 
     // Make it a String -> Future<String> function
     final wrappedFunction = (String jsonString) async {
       // Decode the input string as json
       Map<String, dynamic> jsonMap = json.decode(jsonString);
       // Make it a map of symbols, to make Function.apply happy
+
       Map<Symbol, dynamic> namedParams = Map.fromEntries(
-        jsonMap.entries.map((e) => MapEntry(Symbol(e.key), e.value)),
+        jsonMap.entries.map((e) => MapEntry(Symbol(e.key), jsonConversion(schema!["properties"][e.key], e.value))),
       );
 
       // Call the function
@@ -69,7 +407,13 @@ class Tool {
       name: name,
       description: description,
       runtimeType: function.runtimeType.toString(),
+      parameterDescriptions : parameterDescriptions,
     );
+
+    // Get the schema from the tool for runtime type conversion.
+    // This assignment happens before wrappedFunction is ever called.
+    schema = json.decode(tool.getSchemaJson()) as Map<String, dynamic>;
+
 
     return Tool._(tool);
   }

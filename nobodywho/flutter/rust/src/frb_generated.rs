@@ -43,7 +43,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 24726236;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1691486690;
 
 // Section: executor
 
@@ -1233,6 +1233,53 @@ fn wire__crate__RustTokenStream_next_token_impl(
                     .await,
                 )
             }
+        },
+    )
+}
+fn wire__crate__RustTool_get_schema_json_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "RustTool_get_schema_json",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustTool>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let mut api_that_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_that, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
+                    }
+                }
+                let api_that_guard = api_that_guard.unwrap();
+                let output_ok =
+                    Result::<_, ()>::Ok(crate::RustTool::get_schema_json(&*api_that_guard))?;
+                Ok(output_ok)
+            })())
         },
     )
 }
@@ -2497,6 +2544,8 @@ fn wire__crate__new_tool_impl_impl(
             let api_name = <String>::sse_decode(&mut deserializer);
             let api_description = <String>::sse_decode(&mut deserializer);
             let api_runtime_type = <String>::sse_decode(&mut deserializer);
+            let api_parameter_descriptions =
+                <std::collections::HashMap<String, String>>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, String>((move || {
                 let output_ok = crate::new_tool_impl(
@@ -2504,6 +2553,7 @@ fn wire__crate__new_tool_impl_impl(
                     api_name,
                     api_description,
                     api_runtime_type,
+                    &api_parameter_descriptions,
                 )?;
                 Ok(output_ok)
             })())
@@ -2861,6 +2911,14 @@ impl SseDecode for flutter_rust_bridge::DartOpaque {
     }
 }
 
+impl SseDecode for std::collections::HashMap<String, String> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <Vec<(String, String)>>::sse_decode(deserializer);
+        return inner.into_iter().collect();
+    }
+}
+
 impl SseDecode
     for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CompletionError>>
 {
@@ -3155,6 +3213,18 @@ impl SseDecode for Vec<(String, f32)> {
     }
 }
 
+impl SseDecode for Vec<(String, String)> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = vec![];
+        for idx_ in 0..len_ {
+            ans_.push(<(String, String)>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for crate::Message {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -3226,6 +3296,15 @@ impl SseDecode for (String, f32) {
     }
 }
 
+impl SseDecode for (String, String) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_field0 = <String>::sse_decode(deserializer);
+        let mut var_field1 = <String>::sse_decode(deserializer);
+        return (var_field0, var_field1);
+    }
+}
+
 impl SseDecode for crate::Role {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -3293,8 +3372,8 @@ fn pde_ffi_dispatcher_primary_impl(
         21 => wire__crate__RustTokenStream_completed_impl(port, ptr, rust_vec_len, data_len),
         22 => wire__crate__RustTokenStream_iter_impl(port, ptr, rust_vec_len, data_len),
         23 => wire__crate__RustTokenStream_next_token_impl(port, ptr, rust_vec_len, data_len),
-        51 => wire__crate__enforce_binding_impl(port, ptr, rust_vec_len, data_len),
-        52 => wire__crate__init_app_impl(port, ptr, rust_vec_len, data_len),
+        52 => wire__crate__enforce_binding_impl(port, ptr, rust_vec_len, data_len),
+        53 => wire__crate__init_app_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -3312,35 +3391,36 @@ fn pde_ffi_dispatcher_sync_impl(
         9 => wire__crate__RustChat_ask_impl(ptr, rust_vec_len, data_len),
         12 => wire__crate__RustChat_new_impl(ptr, rust_vec_len, data_len),
         20 => wire__crate__RustChat_stop_generation_impl(ptr, rust_vec_len, data_len),
-        24 => wire__crate__SamplerBuilder_dist_impl(ptr, rust_vec_len, data_len),
-        25 => wire__crate__SamplerBuilder_dry_impl(ptr, rust_vec_len, data_len),
-        26 => wire__crate__SamplerBuilder_grammar_impl(ptr, rust_vec_len, data_len),
-        27 => wire__crate__SamplerBuilder_greedy_impl(ptr, rust_vec_len, data_len),
-        28 => wire__crate__SamplerBuilder_min_p_impl(ptr, rust_vec_len, data_len),
-        29 => wire__crate__SamplerBuilder_mirostat_v1_impl(ptr, rust_vec_len, data_len),
-        30 => wire__crate__SamplerBuilder_mirostat_v2_impl(ptr, rust_vec_len, data_len),
-        31 => wire__crate__SamplerBuilder_new_impl(ptr, rust_vec_len, data_len),
-        32 => wire__crate__SamplerBuilder_penalties_impl(ptr, rust_vec_len, data_len),
-        33 => wire__crate__SamplerBuilder_temperature_impl(ptr, rust_vec_len, data_len),
-        34 => wire__crate__SamplerBuilder_top_k_impl(ptr, rust_vec_len, data_len),
-        35 => wire__crate__SamplerBuilder_top_p_impl(ptr, rust_vec_len, data_len),
-        36 => wire__crate__SamplerBuilder_typical_p_impl(ptr, rust_vec_len, data_len),
-        37 => wire__crate__SamplerBuilder_xtc_impl(ptr, rust_vec_len, data_len),
-        38 => wire__crate__SamplerPresets_default_sampler_impl(ptr, rust_vec_len, data_len),
-        39 => wire__crate__SamplerPresets_dry_impl(ptr, rust_vec_len, data_len),
-        40 => wire__crate__SamplerPresets_grammar_impl(ptr, rust_vec_len, data_len),
-        41 => wire__crate__SamplerPresets_greedy_impl(ptr, rust_vec_len, data_len),
-        42 => wire__crate__SamplerPresets_json_impl(ptr, rust_vec_len, data_len),
-        43 => wire__crate__SamplerPresets_temperature_impl(ptr, rust_vec_len, data_len),
-        44 => wire__crate__SamplerPresets_top_k_impl(ptr, rust_vec_len, data_len),
-        45 => wire__crate__SamplerPresets_top_p_impl(ptr, rust_vec_len, data_len),
-        46 => wire__crate__ToolCall_auto_accessor_get_arguments_impl(ptr, rust_vec_len, data_len),
-        47 => wire__crate__ToolCall_auto_accessor_get_name_impl(ptr, rust_vec_len, data_len),
-        48 => wire__crate__ToolCall_auto_accessor_set_arguments_impl(ptr, rust_vec_len, data_len),
-        49 => wire__crate__ToolCall_auto_accessor_set_name_impl(ptr, rust_vec_len, data_len),
-        50 => wire__crate__cosine_similarity_impl(ptr, rust_vec_len, data_len),
-        53 => wire__crate__new_tool_impl_impl(ptr, rust_vec_len, data_len),
-        54 => wire__crate__tool_call_arguments_json_impl(ptr, rust_vec_len, data_len),
+        24 => wire__crate__RustTool_get_schema_json_impl(ptr, rust_vec_len, data_len),
+        25 => wire__crate__SamplerBuilder_dist_impl(ptr, rust_vec_len, data_len),
+        26 => wire__crate__SamplerBuilder_dry_impl(ptr, rust_vec_len, data_len),
+        27 => wire__crate__SamplerBuilder_grammar_impl(ptr, rust_vec_len, data_len),
+        28 => wire__crate__SamplerBuilder_greedy_impl(ptr, rust_vec_len, data_len),
+        29 => wire__crate__SamplerBuilder_min_p_impl(ptr, rust_vec_len, data_len),
+        30 => wire__crate__SamplerBuilder_mirostat_v1_impl(ptr, rust_vec_len, data_len),
+        31 => wire__crate__SamplerBuilder_mirostat_v2_impl(ptr, rust_vec_len, data_len),
+        32 => wire__crate__SamplerBuilder_new_impl(ptr, rust_vec_len, data_len),
+        33 => wire__crate__SamplerBuilder_penalties_impl(ptr, rust_vec_len, data_len),
+        34 => wire__crate__SamplerBuilder_temperature_impl(ptr, rust_vec_len, data_len),
+        35 => wire__crate__SamplerBuilder_top_k_impl(ptr, rust_vec_len, data_len),
+        36 => wire__crate__SamplerBuilder_top_p_impl(ptr, rust_vec_len, data_len),
+        37 => wire__crate__SamplerBuilder_typical_p_impl(ptr, rust_vec_len, data_len),
+        38 => wire__crate__SamplerBuilder_xtc_impl(ptr, rust_vec_len, data_len),
+        39 => wire__crate__SamplerPresets_default_sampler_impl(ptr, rust_vec_len, data_len),
+        40 => wire__crate__SamplerPresets_dry_impl(ptr, rust_vec_len, data_len),
+        41 => wire__crate__SamplerPresets_grammar_impl(ptr, rust_vec_len, data_len),
+        42 => wire__crate__SamplerPresets_greedy_impl(ptr, rust_vec_len, data_len),
+        43 => wire__crate__SamplerPresets_json_impl(ptr, rust_vec_len, data_len),
+        44 => wire__crate__SamplerPresets_temperature_impl(ptr, rust_vec_len, data_len),
+        45 => wire__crate__SamplerPresets_top_k_impl(ptr, rust_vec_len, data_len),
+        46 => wire__crate__SamplerPresets_top_p_impl(ptr, rust_vec_len, data_len),
+        47 => wire__crate__ToolCall_auto_accessor_get_arguments_impl(ptr, rust_vec_len, data_len),
+        48 => wire__crate__ToolCall_auto_accessor_get_name_impl(ptr, rust_vec_len, data_len),
+        49 => wire__crate__ToolCall_auto_accessor_set_arguments_impl(ptr, rust_vec_len, data_len),
+        50 => wire__crate__ToolCall_auto_accessor_set_name_impl(ptr, rust_vec_len, data_len),
+        51 => wire__crate__cosine_similarity_impl(ptr, rust_vec_len, data_len),
+        54 => wire__crate__new_tool_impl_impl(ptr, rust_vec_len, data_len),
+        55 => wire__crate__tool_call_arguments_json_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -3820,6 +3900,13 @@ impl SseEncode for flutter_rust_bridge::DartOpaque {
     }
 }
 
+impl SseEncode for std::collections::HashMap<String, String> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Vec<(String, String)>>::sse_encode(self.into_iter().collect(), serializer);
+    }
+}
+
 impl SseEncode
     for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CompletionError>>
 {
@@ -4118,6 +4205,16 @@ impl SseEncode for Vec<(String, f32)> {
     }
 }
 
+impl SseEncode for Vec<(String, String)> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <(String, String)>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for crate::Message {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -4179,6 +4276,14 @@ impl SseEncode for (String, f32) {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.0, serializer);
         <f32>::sse_encode(self.1, serializer);
+    }
+}
+
+impl SseEncode for (String, String) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.0, serializer);
+        <String>::sse_encode(self.1, serializer);
     }
 }
 

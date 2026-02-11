@@ -27,11 +27,13 @@ RustTool newToolImpl({
   required String name,
   required String description,
   required String runtimeType,
+  required Map<String, String> parameterDescriptions,
 }) => NobodyWho.instance.api.crateNewToolImpl(
   function: function,
   name: name,
   description: description,
   runtimeType: runtimeType,
+  parameterDescriptions: parameterDescriptions,
 );
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CompletionError>>
@@ -189,7 +191,10 @@ abstract class RustTokenStream implements RustOpaqueInterface {
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustTool>>
-abstract class RustTool implements RustOpaqueInterface {}
+abstract class RustTool implements RustOpaqueInterface {
+  /// Get the JSON schema for this tool's parameters as a string
+  String getSchemaJson();
+}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerBuilder>>
 abstract class SamplerBuilder implements RustOpaqueInterface {

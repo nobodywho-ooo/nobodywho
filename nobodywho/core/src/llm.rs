@@ -98,6 +98,43 @@ pub fn get_model(
     Ok(Arc::new(model))
 }
 
+/// Asynchronously loads a GGUF model from disk.
+///
+/// This function offloads the blocking model load operation to a background thread,
+/// allowing the async runtime to remain responsive. This is particularly useful when
+/// loading large models that can take several seconds to initialize.
+///
+/// # Arguments
+///
+/// * `model_path` - Path to the GGUF model file
+/// * `use_gpu_if_available` - Whether to attempt GPU acceleration if a discrete GPU is available
+///
+/// # Returns
+///
+/// Returns an `Arc<LlamaModel>` on success, or a `LoadModelError` on failure.
+///
+/// # Errors
+///
+/// This function will return an error if:
+/// * The model file is not found (`LoadModelError::ModelNotFound`)
+/// * The model file is invalid or unsupported (`LoadModelError::InvalidModel`)
+/// * The communication channel closes unexpectedly (`LoadModelError::ModelChannelError`)
+#[tracing::instrument(level = "info")]
+pub async fn get_model_async(
+    model_path: String,
+    use_gpu_if_available: bool,
+) -> Result<Arc<LlamaModel>, LoadModelError> {
+    let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(4096);
+    std::thread::spawn(move || {
+        output_tx.blocking_send(get_model(&model_path, use_gpu_if_available))
+    });
+
+    match output_rx.recv().await {
+        Some(model) => return model,
+        None => Err(LoadModelError::ModelChannelError),
+    }
+}
+
 fn read_add_bos_metadata(model: &Arc<LlamaModel>) -> Result<AddBos, InitWorkerError> {
     match model.meta_val_str("tokenizer.ggml.add_bos_token") {
         Ok(val) => match val.as_str() {
@@ -109,8 +146,13 @@ fn read_add_bos_metadata(model: &Arc<LlamaModel>) -> Result<AddBos, InitWorkerEr
             ))),
         },
         Err(_) => {
-            warn!("tokenizer.ggml.add_bos_token not found in GGUF metadata, defaulting to false");
-            Ok(AddBos::Never)
+            // Defaulting to true seems to be "safer" than defaulting to false
+            // the GGUF files for the gpt-oss models (at least ones that I have seen in the wild)
+            // don't have the add_bos metadata field, and have a massive aneurysm if they don't
+            // get the bos.
+            // could it be that omitting bos generally does more damage than including it?
+            warn!("tokenizer.ggml.add_bos_token not found in GGUF metadata, defaulting to true");
+            Ok(AddBos::Always)
         }
     }
 }

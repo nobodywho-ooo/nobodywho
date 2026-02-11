@@ -8,6 +8,8 @@ pub enum LoadModelError {
     ModelNotFound(String),
     #[error("Invalid or unsupported GGUF model: {0}")]
     InvalidModel(String),
+    #[error("Channel for receiving model was closed unexpectedly")]
+    ModelChannelError,
 }
 
 // Worker errors
@@ -33,6 +35,9 @@ pub enum InitWorkerError {
 
     #[error("Failed parsing tokenizer.ggml.add_bos field: {0}")]
     InvalidAddBosData(String),
+
+    #[error("Failed to detect tool calling format: {0}")]
+    ToolFormatDetection(#[from] crate::tool_calling::ToolFormatError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -321,6 +326,9 @@ pub enum SelectTemplateError {
 
     #[error("Could not detokenize string: {0}")]
     Detokenize(#[from] llama_cpp_2::TokenToStringError),
+
+    #[error("Could not create chat template: {0}")]
+    CreateChatTemplate(#[from] minijinja::Error),
 
     #[error("Tools were provided, but it looks like this model doesn't support tool calling.")]
     NoToolTemplate,

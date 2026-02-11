@@ -77,13 +77,50 @@ jobs:
         with:
           vulkan_version: 1.4.304.0
           cache: true
+
       - name: Install build dependencies
         run: |
-          # Install basic build tools
-          yum install -y clang cmake wget tar gzip python3-pip 
-          
-          # Install Python build tools
+          yum install -y clang cmake wget tar gzip python3-pip
           pip3 install maturin auditwheel
+
+      - name: Setup Vulkan SDK (manual for ARM64)
+        if: matrix.runner == 'ubuntu-24.04-arm'
+        run: |
+          SDK_VERSION="1.4.304.0"
+          SDK_URL="https://github.com/jakoch/vulkan-sdk-arm/releases/download/${SDK_VERSION}/vulkansdk-ubuntu-22.04-arm-${SDK_VERSION}.tar.xz"
+
+          # Download and extract Vulkan SDK
+          cd /tmp
+          wget -q "$SDK_URL" -O vulkan-sdk.tar.xz
+          tar -xf vulkan-sdk.tar.xz
+
+          # ARM64 SDK has architecture-specific subdirectory
+          SDK_DIR="/tmp/$(ls -d */ | grep -E '^[0-9]' | head -n1)"
+          VULKAN_SDK="${SDK_DIR%/}/aarch64"
+
+          # Persist to GitHub environment
+          echo "VULKAN_SDK=$VULKAN_SDK" >> $GITHUB_ENV
+          echo "$VULKAN_SDK/bin" >> $GITHUB_PATH
+          echo "LD_LIBRARY_PATH=$VULKAN_SDK/lib" >> $GITHUB_ENV
+
+          # Build shaderc to get glslc compiler (not included in ARM64 SDK)
+          yum install -y python3 git
+          cd /tmp
+          git clone --depth 1 --branch v2024.3 https://github.com/google/shaderc.git
+          cd shaderc
+          ./utils/git-sync-deps
+
+          mkdir -p build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_INSTALL_PREFIX="$VULKAN_SDK" \
+                -DSHADERC_SKIP_TESTS=ON \
+                -DSHADERC_SKIP_EXAMPLES=ON \
+                ..
+          make -j$(nproc)
+
+          # Copy glslc to SDK bin directory
+          cp glslc/glslc "$VULKAN_SDK/bin/" || { echo "ERROR: glslc not found"; exit 1; }
 
 
       - name: Build linux python wheel
@@ -213,6 +250,67 @@ jobs:
           # docs tests
           python3 -m pytest --markdown-docs ../../docs --markdown-docs-syntax=superfences
 
+  linux-tool-calling-tests:
+    needs: [linux-build]
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        model:
+          - name: Qwen3
+            file: Qwen_Qwen3-0.6B-Q4_K_M.gguf
+            url: https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf
+            format: Qwen3
+          - name: FunctionGemma
+            file: functiongemma-270m-it-BF16.gguf
+            url: https://huggingface.co/unsloth/functiongemma-270m-it-GGUF/resolve/main/functiongemma-270m-it-BF16.gguf
+            format: FunctionGemma
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v2
+        with:
+          version: "latest"
+
+      - name: Download wheel artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: nobodywho_python_linux_manylinux_2_34_x86_64
+          path: ./wheels
+
+      - name: Download ${{ matrix.model.name }} model
+        run: |
+          mkdir -p models
+          curl -L --fail --progress-bar \
+            ${{ matrix.model.url }} \
+            -o models/${{ matrix.model.file }}
+          echo "Model size:"
+          ls -lh models/${{ matrix.model.file }}
+
+      - name: Set up virtualenv and install dependencies
+        working-directory: ./nobodywho/python
+        run: |
+          uv venv
+          uv sync --no-install-project --group dev
+          uv pip install ../../wheels/nobodywho*manylinux*x86*.whl
+
+      - name: Run tool calling tests with ${{ matrix.model.name }}
+        working-directory: ./nobodywho/python
+        env:
+          TEST_MODEL: ${{ github.workspace }}/models/${{ matrix.model.file }}
+        run: |
+          source .venv/bin/activate
+          python3 -m pytest tests/test_tool_calling.py -v --tb=short
+
+      - name: Display test summary
+        if: always()
+        run: |
+          echo "### Tool Calling Tests: ${{ matrix.model.name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Model: ${{ matrix.model.file }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Format: ${{ matrix.model.format }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Status: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
 
 
   linux-pip-install-test:

@@ -1,5 +1,7 @@
 use pyo3::prelude::*;
 
+mod parse;
+
 /// `Model` objects contain a GGUF model. It is primarily useful for sharing a single model instance
 /// between multiple `Chat`, `Encoder`, or `CrossEncoder` instances.
 /// Sharing is efficient because the underlying model data is reference-counted.
@@ -32,6 +34,42 @@ impl Model {
             ))
         })?;
         let model_result = nobodywho::llm::get_model(path_str, use_gpu_if_available);
+        match model_result {
+            Ok(model) => Ok(Self { model }),
+            Err(err) => Err(pyo3::exceptions::PyRuntimeError::new_err(err.to_string())),
+        }
+    }
+
+    /// Asynchronously load a model from a GGUF file.
+    ///
+    /// This static method loads a model asynchronously, which is useful for loading large models
+    /// without blocking the async event loop. The blocking model load operation is offloaded to
+    /// a background thread, allowing other async tasks to continue running.
+    ///
+    /// Args:
+    ///     model_path: Path to the GGUF model file
+    ///     use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
+    ///
+    /// Returns:
+    ///     A Model instance wrapped in an awaitable (async function returns a coroutine)
+    ///
+    /// Raises:
+    ///     ValueError: If the path contains invalid UTF-8
+    ///     RuntimeError: If the model file cannot be loaded
+    #[staticmethod]
+    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true) -> "typing.Awaitable[Model]")]
+    pub async fn load_model_async(
+        model_path: std::path::PathBuf,
+        use_gpu_if_available: bool,
+    ) -> PyResult<Self> {
+        let path_str = model_path.to_str().ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "Path contains invalid UTF-8: {}",
+                model_path.display()
+            ))
+        })?;
+        let model_result =
+            nobodywho::llm::get_model_async(path_str.into(), use_gpu_if_available).await;
         match model_result {
             Ok(model) => Ok(Self { model }),
             Err(err) => Err(pyo3::exceptions::PyRuntimeError::new_err(err.to_string())),
@@ -1212,7 +1250,7 @@ impl SamplerPresets {
 /// `Tool`s are constructed using the `@tool` decorator.
 #[pyclass]
 pub struct Tool {
-    tool: nobodywho::chat::Tool,
+    tool: nobodywho::tool_calling::Tool,
     pyfunc: Py<PyAny>,
 }
 
@@ -1339,7 +1377,7 @@ fn tool<'a>(
                 })
             };
 
-            let tool = nobodywho::chat::Tool::new(
+            let tool = nobodywho::tool_calling::Tool::new(
                 name,
                 description.clone(),
                 json_schema,
@@ -1371,7 +1409,7 @@ fn python_func_json_schema(
     let argspec = getfullargspec.call((fun,), None)?;
     let annotations = argspec
         .getattr("annotations")?
-        .extract::<std::collections::HashMap<String, Bound<pyo3::types::PyType>>>()?;
+        .extract::<std::collections::HashMap<String, Bound<pyo3::types::PyAny>>>()?;
     let args = argspec.getattr("args")?.extract::<Vec<String>>()?;
 
     // check that all arguments are annotated
@@ -1385,7 +1423,7 @@ fn python_func_json_schema(
     // the intent of this is to force people to consider how to convert to string
     if annotations
         .get("return")
-        .map(|t| t.name().map(|n| n.to_string()))
+        .map(|t| t.getattr("__name__").map(|n| n.to_string()))
         .transpose()?
         != Some("str".to_string())
     {
@@ -1411,44 +1449,33 @@ fn python_func_json_schema(
             continue;
         }
 
-        let type_name = value.name()?.to_string();
+        let type_name = if value.getattr("__args__").is_ok() {
+            // It's a GenericAlias (list[int], dict[str, int], etc.)
+            // Use str() to get the full representation
+            value.str()?.extract::<String>()?
+        } else if let Ok(name) = value.getattr("__name__") {
+            // Simple type like `int`, `str`, `bool`
+            name.extract::<String>()?
+        } else {
+            // Fallback
+            value.str()?.extract::<String>()?
+        };
 
-        let schema_type = match type_name.as_str() {
-            "str" => "string",
-            "int" => "integer",
-            "float" => "number",
-            "bool" => "boolean",
-            "list" => "array",
-            "dict" => "object",
-            "None" | "NoneType" => "null",
-            // TODO: we could consider supporting sets like this:
-            // "set" | "frozenset" => serde_json::json!({"type": "array", "uniqueItems": true}),
-            // TODO: consider handling pydantic types?
-            //       (objects subclassing pydantic's BaseModel can readily generate json schemas)
-            // TODO: handle generic types better. at least handle list[int], dict[str,int], etc.
-            _ if type_name.starts_with("list[") => "array",
-            _ if type_name.starts_with("dict[") => "object",
-            _ if type_name == "List" => "array",
-            _ if type_name == "Dict" => "object",
-            _ => {
+        let mut property = match parse::type_parser(type_name.as_str()) {
+            Ok((_s, value)) => value,
+            Err(_) => {
                 return Err(pyo3::exceptions::PyTypeError::new_err(format!(
                     "ERROR: Tool function contains an unsupported type hint: {type_name}"
                 )));
             }
         };
 
-        let property = if let Some(description) = param_descriptions.get(&key) {
-            // add description if available
-            serde_json::json!({
-                "type": schema_type,
-                "description": description
-            })
-        } else {
-            // ...otherwise only use the type
-            serde_json::json!({
-                "type": schema_type
-            })
-        };
+        // Add description if available
+        if let Some(description) = param_descriptions.get(&key) {
+            if let serde_json::Value::Object(ref mut obj) = property {
+                obj.insert("description".to_string(), serde_json::json!(description));
+            }
+        }
 
         // add to json schema properties
         properties.insert(key.clone(), property);
@@ -1555,33 +1582,74 @@ pub mod nobodywhopython {
                 }
             };
 
-            struct MessageVisitor(Option<String>);
-            impl tracing::field::Visit for MessageVisitor {
+            // Visitor that captures all fields, not just the message
+            struct FieldVisitor {
+                message: Option<String>,
+                fields: Vec<(String, String)>,
+            }
+
+            impl tracing::field::Visit for FieldVisitor {
                 fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
                     if field.name() == "message" {
-                        self.0 = Some(value.to_string());
+                        self.message = Some(value.to_string());
+                    } else {
+                        self.fields
+                            .push((field.name().to_string(), value.to_string()));
                     }
                 }
+
                 fn record_debug(
                     &mut self,
                     field: &tracing::field::Field,
                     value: &dyn std::fmt::Debug,
                 ) {
-                    if field.name() == "message" && self.0.is_none() {
-                        self.0 = Some(format!("{:?}", value));
+                    let formatted = format!("{:?}", value);
+                    if field.name() == "message" && self.message.is_none() {
+                        self.message = Some(formatted);
+                    } else if field.name() != "message" {
+                        self.fields.push((field.name().to_string(), formatted));
                     }
                 }
             }
 
-            let mut visitor = MessageVisitor(None);
+            let mut visitor = FieldVisitor {
+                message: None,
+                fields: Vec::new(),
+            };
             event.record(&mut visitor);
 
-            if let Some(message) = visitor.0 {
+            // Build log message with file, line, and all structured fields
+            let mut log_msg = String::new();
+
+            // Add file and line number if available
+            if let (Some(file), Some(line)) = (metadata.file(), metadata.line()) {
+                log_msg.push_str(&format!("{}:{} ", file, line));
+            }
+
+            // Add the main message
+            if let Some(message) = visitor.message {
+                log_msg.push_str(&message);
+            }
+
+            // Add structured fields
+            if !visitor.fields.is_empty() {
+                log_msg.push_str(" ");
+                for (i, (key, value)) in visitor.fields.iter().enumerate() {
+                    if i > 0 {
+                        log_msg.push_str(", ");
+                    }
+                    log_msg.push_str(&format!("{}={}", key, value));
+                }
+            }
+
+            if !log_msg.is_empty() {
                 log::logger().log(
                     &log::Record::builder()
-                        .args(format_args!("{}", message))
+                        .args(format_args!("{}", log_msg))
                         .level(level)
                         .target(metadata.target())
+                        .file(metadata.file())
+                        .line(metadata.line())
                         .build(),
                 );
             }
