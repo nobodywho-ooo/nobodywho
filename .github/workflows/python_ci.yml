@@ -250,6 +250,67 @@ jobs:
           # docs tests
           python3 -m pytest --markdown-docs ../../docs --markdown-docs-syntax=superfences
 
+  linux-tool-calling-tests:
+    needs: [linux-build]
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        model:
+          - name: Qwen3
+            file: Qwen_Qwen3-0.6B-Q4_K_M.gguf
+            url: https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf
+            format: Qwen3
+          - name: FunctionGemma
+            file: functiongemma-270m-it-BF16.gguf
+            url: https://huggingface.co/unsloth/functiongemma-270m-it-GGUF/resolve/main/functiongemma-270m-it-BF16.gguf
+            format: FunctionGemma
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v2
+        with:
+          version: "latest"
+
+      - name: Download wheel artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: nobodywho_python_linux_manylinux_2_34_x86_64
+          path: ./wheels
+
+      - name: Download ${{ matrix.model.name }} model
+        run: |
+          mkdir -p models
+          curl -L --fail --progress-bar \
+            ${{ matrix.model.url }} \
+            -o models/${{ matrix.model.file }}
+          echo "Model size:"
+          ls -lh models/${{ matrix.model.file }}
+
+      - name: Set up virtualenv and install dependencies
+        working-directory: ./nobodywho/python
+        run: |
+          uv venv
+          uv sync --no-install-project --group dev
+          uv pip install ../../wheels/nobodywho*manylinux*x86*.whl
+
+      - name: Run tool calling tests with ${{ matrix.model.name }}
+        working-directory: ./nobodywho/python
+        env:
+          TEST_MODEL: ${{ github.workspace }}/models/${{ matrix.model.file }}
+        run: |
+          source .venv/bin/activate
+          python3 -m pytest tests/test_tool_calling.py -v --tb=short
+
+      - name: Display test summary
+        if: always()
+        run: |
+          echo "### Tool Calling Tests: ${{ matrix.model.name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Model: ${{ matrix.model.file }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Format: ${{ matrix.model.format }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Status: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
 
 
   linux-pip-install-test:

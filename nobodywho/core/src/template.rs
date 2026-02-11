@@ -4,8 +4,9 @@ use minijinja::{context, Environment, Template};
 use tracing::{debug, trace, warn};
 
 use crate::{
-    chat::{Message, Role, Tool},
+    chat::{Message, Role},
     errors::SelectTemplateError,
+    tool_calling::{Tool, ToolFormat},
 };
 
 macro_rules! struct_with_keys_getter {
@@ -101,6 +102,34 @@ impl ChatTemplate {
         MINIJINJA_ENV.template_from_str(&self.template)
     }
 
+    /// Serialize a message for the template, using format-aware serialization for tool calls
+    fn serialize_message_for_template(
+        msg: &Message,
+        format: Option<&ToolFormat>,
+    ) -> serde_json::Value {
+        match msg {
+            Message::ToolCalls {
+                role,
+                content,
+                tool_calls,
+            } => {
+                if let Some(format) = format {
+                    format
+                        .handler()
+                        .serialize_tool_calls_message(role, content, tool_calls)
+                } else {
+                    // Fallback to default Qwen3-style format
+                    serde_json::json!({
+                        "role": role,
+                        "content": content,
+                        "tool_calls": tool_calls,
+                    })
+                }
+            }
+            _ => serde_json::to_value(msg).expect("Message serialization should not fail"),
+        }
+    }
+
     pub fn render_unhandled(
         &self,
         messages: &[Message],
@@ -116,15 +145,50 @@ impl ChatTemplate {
             )
         });
 
+        // Serialize messages for template using format-aware serialization
+        let messages_for_template: Vec<serde_json::Value> = messages
+            .iter()
+            .map(|msg| Self::serialize_message_for_template(msg, ctx.tool_format.as_ref()))
+            .collect();
+
+        // Serialize tools using format-aware serialization
+        let tools_for_template = if ctx.tools.is_empty() {
+            None
+        } else if let Some(ref format) = ctx.tool_format {
+            Some(
+                ctx.tools
+                    .iter()
+                    .map(|t| format.handler().serialize_tool(t))
+                    .collect::<Vec<_>>(),
+            )
+        } else {
+            // Fallback: serialize with default Qwen3/OpenAI format
+            Some(
+                ctx.tools
+                    .iter()
+                    .map(|t| {
+                        serde_json::json!({
+                            "type": "function",
+                            "function": {
+                                "name": &t.name,
+                                "description": &t.description,
+                                "parameters": &t.json_schema,
+                            }
+                        })
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        };
+
         let template = self.get_template()?;
 
         template.render(context! {
-            messages => messages,
+            messages => messages_for_template,
             add_generation_prompt => add_generation_prompt,
             enable_thinking => ctx.enable_thinking,
             bos_token => self.bos_token,
             eos_token => self.eos_token,
-            tools => if ctx.tools.is_empty() { None } else { Some(ctx.tools.clone()) },
+            tools => tools_for_template,
         })
     }
 
@@ -220,6 +284,7 @@ struct_with_keys_getter! {
         // and 'enable' could then cause confusion
         pub enable_thinking: bool,
         pub tools: Vec<Tool>,
+        pub tool_format: Option<ToolFormat>,
     }
 }
 
@@ -282,6 +347,7 @@ mod tests {
         let ctx = ChatTemplateContext {
             enable_thinking: true,
             tools: vec![],
+            tool_format: None,
         };
 
         let chat_template = ChatTemplate::new(template, bos, eos).unwrap();
@@ -357,6 +423,7 @@ mod tests {
         let ctx = ChatTemplateContext {
             enable_thinking: true,
             tools: vec![],
+            tool_format: None,
         };
 
         let chat_template = ChatTemplate::new(template, bos, eos).unwrap();
@@ -456,6 +523,7 @@ mod tests {
         let ctx = ChatTemplateContext {
             enable_thinking: true,
             tools: vec![],
+            tool_format: None,
         };
         let chat_template = ChatTemplate::new(template, bos, eos).unwrap();
 

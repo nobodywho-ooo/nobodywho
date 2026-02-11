@@ -31,16 +31,16 @@ use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
 use crate::llm::{Worker, WriteOutput};
 use crate::sampler_config::{SamplerConfig, ShiftStep};
 use crate::template::{select_template, ChatTemplate, ChatTemplateContext};
+use crate::tool_calling::{detect_tool_format, Tool, ToolCall, ToolFormat};
 use llama_cpp_2::model::Special;
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 use llama_cpp_2::{context::params::LlamaPoolingType, model::LlamaModel};
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use std::cmp::min;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, MutexGuard};
-use tracing::{debug, error, info, trace, trace_span, warn};
+use tracing::{debug, error, info, trace, trace_span};
 
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq, Debug)]
 #[serde(rename_all = "lowercase")]
@@ -881,171 +881,8 @@ fn process_worker_msg(
 // so far it has been fine...
 // unsafe impl Send for Tool {}
 
-/// A tool that the model can call during conversation.
-#[derive(Clone)]
-pub struct Tool {
-    pub name: String,
-    description: String,
-    json_schema: serde_json::Value,
-    function: Arc<dyn Fn(serde_json::Value) -> String + Send + Sync>,
-}
-
-impl std::fmt::Debug for Tool {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Tool")
-            .field("name", &self.name)
-            .field("description", &self.description)
-            .field("json_schema", &self.json_schema)
-            .field("function", &"<function>")
-            .finish()
-    }
-}
-
-impl Tool {
-    /// Create a new tool directly. Consider using [`ToolBuilder`] for a more ergonomic API.
-    pub fn new<S: Into<String>>(
-        name: S,
-        description: S,
-        json_schema: serde_json::Value,
-        function: Arc<dyn Fn(serde_json::Value) -> String + Send + Sync>,
-    ) -> Self {
-        Self {
-            name: name.into(),
-            description: description.into(),
-            json_schema,
-            function,
-        }
-    }
-}
-
-impl Serialize for Tool {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-
-        let mut state = serializer.serialize_struct("Tool", 2)?;
-        state.serialize_field("type", "function")?;
-        state.serialize_field(
-            "function",
-            &json!({
-                "name": self.name,
-                "description": self.description,
-                "parameters": self.json_schema,
-            }),
-        )?;
-        state.end()
-    }
-}
-
-fn grammar_from_tools(tools: &[Tool]) -> Result<gbnf::Grammar, gbnf::json::JsonSchemaParseError> {
-    // get a json schema that describes the tool call for each tool
-    let tool_call_schemas: serde_json::Value = tools
-        .iter()
-        .map(|tool| {
-            serde_json::json!(
-                {
-                    "type": "object",
-                    "properties": {
-                        "name": { "const": tool.name, },
-                        "arguments": tool.json_schema
-                    },
-                    "required": ["name", "arguments"]
-                }
-            )
-        })
-        .collect();
-
-    // a json schema that describes any of the tool calls
-    let tool_call_schema = serde_json::json!(
-        { "oneOf": tool_call_schemas }
-    );
-
-    // a GBNF grammar for the above
-    let mut json_grammar = match gbnf::Grammar::from_json_schema(&tool_call_schema.to_string()) {
-        Ok(jg) => jg,
-        Err(e) => {
-            warn!("Failed generating grammar for tools. Probably because of a bad json schema: {e:?}.");
-            return Err(e);
-        }
-    };
-
-    // optional whitespace
-    let ws = gbnf::ProductionItem::NonTerminal(
-        gbnf::NonTerminalSymbol { name: "ws".into() },
-        gbnf::RepetitionType::One,
-    );
-
-    // wrap the newly generated grammar's root in tool calling tokens
-    // e.g. <tool_call> json_grammar </tool_call>
-    let tool_call_rule = gbnf::GrammarItem::Rule(gbnf::Rule {
-        lhs: gbnf::NonTerminalSymbol {
-            name: "toolcall".into(),
-        },
-        rhs: gbnf::Production {
-            items: vec![
-                // tool call begin
-                gbnf::ProductionItem::Terminal(
-                    gbnf::TerminalSymbol {
-                        value: "<tool_call>".into(),
-                    },
-                    gbnf::RepetitionType::One,
-                ),
-                // optional whitespace
-                ws.clone(),
-                // tool call json, just refer to the grammar we made from json schema
-                gbnf::ProductionItem::NonTerminal(
-                    gbnf::NonTerminalSymbol {
-                        name: "root".into(),
-                    },
-                    gbnf::RepetitionType::One,
-                ),
-                // optional whitespace
-                ws.clone(),
-                // </tool_call>
-                gbnf::ProductionItem::Terminal(
-                    gbnf::TerminalSymbol {
-                        value: "</tool_call>".into(),
-                    },
-                    gbnf::RepetitionType::One,
-                ),
-                // optional whitespace
-                ws.clone(),
-            ],
-        },
-    });
-
-    // one or more tool calls
-    let new_root_rule = gbnf::GrammarItem::Rule(gbnf::Rule {
-        lhs: gbnf::NonTerminalSymbol {
-            name: "superroot".into(),
-        },
-        rhs: gbnf::Production {
-            items: vec![gbnf::ProductionItem::NonTerminal(
-                gbnf::NonTerminalSymbol {
-                    name: "toolcall".into(),
-                },
-                gbnf::RepetitionType::OneOrMore,
-            )],
-        },
-    });
-
-    json_grammar.items.push(tool_call_rule);
-    json_grammar.items.push(new_root_rule);
-
-    Ok(json_grammar)
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
-pub struct ToolCall {
-    pub name: String,
-    pub arguments: serde_json::Value, // Flexible structure for arbitrary arguments
-}
-
 // TOOL CHAT WORKER
 
-/// CHAT TEMPLATE SELECTION & RENDERING
 /// Utility function for prefix caching
 /// Given a rendered chat template (intended for the LLM's context),
 /// it compares with the tokens currently in the LLM's context, to find a common prefix.
@@ -1086,6 +923,7 @@ fn find_prefix_index_and_difference_with_tokens_in_context(
 struct ChatWorker {
     should_stop: Arc<AtomicBool>,
     tool_grammar: Option<gbnf::Grammar>,
+    tool_format: Option<ToolFormat>,
     sampler_config: SamplerConfig,
     messages: Vec<Message>,
     tokens_in_context: Vec<LlamaToken>,
@@ -1107,16 +945,30 @@ impl Worker<'_, ChatWorker> {
         should_stop: Arc<AtomicBool>,
     ) -> Result<Worker<'_, ChatWorker>, InitWorkerError> {
         let template = select_template(model, !config.tools.is_empty())?;
-        let grammar = if !config.tools.is_empty() {
-            match grammar_from_tools(&config.tools) {
-                Ok(g) => Some(g),
+
+        // Only detect tool calling format if tools are provided
+        let (tool_format, grammar) = if !config.tools.is_empty() {
+            match detect_tool_format(model) {
+                Ok(format) => {
+                    debug!(format = ?format, "Detected tool calling format");
+
+                    let grammar = match format.generate_grammar(&config.tools) {
+                        Ok(g) => Some(g),
+                        Err(e) => {
+                            debug!(error = %e, "Failed to generate grammar from tools");
+                            None
+                        }
+                    };
+
+                    (Some(format), grammar)
+                }
                 Err(e) => {
-                    debug!(error = %e, "Failed to generate grammar from tools:");
-                    None
+                    debug!(error = %e, "Failed to detect tool format, tools will not work");
+                    (None, None)
                 }
             }
         } else {
-            None
+            (None, None)
         };
 
         Worker::new_with_type(
@@ -1126,6 +978,7 @@ impl Worker<'_, ChatWorker> {
             ChatWorker {
                 should_stop,
                 tool_grammar: grammar,
+                tool_format,
                 sampler_config: config.sampler_config,
                 messages: vec![Message::Message {
                     role: Role::System,
@@ -1246,6 +1099,7 @@ impl Worker<'_, ChatWorker> {
                             &ChatTemplateContext {
                                 enable_thinking: self.extra.allow_thinking,
                                 tools: self.extra.tools.clone(),
+                                tool_format: self.extra.tool_format.clone(),
                             },
                         )?,
                         self.add_bos,
@@ -1428,10 +1282,12 @@ impl Worker<'_, ChatWorker> {
             .should_stop
             .store(false, std::sync::atomic::Ordering::Relaxed);
 
-        // TODO: this is the token used by qwen3
-        //       but e.g. deepseek uses "<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>" instead.
-        //       we need to support multiple different tool call begin tokens
-        let tool_call_begin = "<tool_call>";
+        // Get the tool call begin token from the format if tools are configured
+        let tool_call_begin = self
+            .extra
+            .tool_format
+            .as_ref()
+            .map(|fmt| fmt.begin_token().to_string());
 
         self.add_user_message(text);
 
@@ -1440,7 +1296,7 @@ impl Worker<'_, ChatWorker> {
             self.extra.sampler_config.clone(),
             |tool_grammar| {
                 self.extra.sampler_config.clone().shift(ShiftStep::Grammar {
-                    trigger_on: Some(tool_call_begin.into()),
+                    trigger_on: tool_call_begin.clone(),
                     root: "superroot".into(),
                     grammar: tool_grammar.to_string(),
                 })
@@ -1451,49 +1307,57 @@ impl Worker<'_, ChatWorker> {
         let mut response: String = self.wrapped_update_context_and_generate_response(
             sampler.clone(),
             respond.clone(),
-            tool_call_begin.into(),
+            tool_call_begin.clone(),
         )?;
 
-        while let Some(tool_calls) = extract_tool_calls(&response) {
-            debug!(?tool_calls, "Got tool calls:");
+        // Process tool calls if tool format is configured
+        // Clone to avoid borrow issues in the loop
+        if let Some(tool_format) = self.extra.tool_format.clone() {
+            while let Some(tool_calls) = tool_format.extract_tool_calls(&response) {
+                debug!(?tool_calls, "Got tool calls:");
 
-            self.add_tool_calls(tool_calls.clone());
+                self.add_tool_calls(tool_calls.clone());
 
-            for tool_call in tool_calls {
-                // find the tool
-                // this is just a stupid linear search
-                // but I think it's probably faster than something fancy as long as we have few tools
-                // /shrug I'm happy to be wrong
-                let Some(tool) = self.extra.tools.iter().find(|t| t.name == tool_call.name) else {
-                    // in case the tool isn't found.
-                    // I *think* this should be impossible, as long as the tool calling grammar
-                    // works.
-                    error!(
-                        tool_name = tool_call.name,
-                        "Model triggered tool call for invalid tool name:",
-                    );
-                    let errmsg = format!("ERROR - Invalid tool name: {}", tool_call.name);
-                    self.add_tool_resp(tool_call.name, errmsg);
-                    continue;
-                };
+                for tool_call in tool_calls {
+                    // find the tool
+                    // this is just a stupid linear search
+                    // but I think it's probably faster than something fancy as long as we have few tools
+                    // /shrug I'm happy to be wrong
+                    let Some(tool) = self.extra.tools.iter().find(|t| t.name == tool_call.name)
+                    else {
+                        // in case the tool isn't found.
+                        // I *think* this should be impossible, as long as the tool calling grammar
+                        // works.
+                        error!(
+                            tool_name = tool_call.name,
+                            "Model triggered tool call for invalid tool name:",
+                        );
+                        let errmsg = format!("ERROR - Invalid tool name: {}", tool_call.name);
+                        self.add_tool_resp(tool_call.name, errmsg);
+                        continue;
+                    };
 
-                // call the tool
-                debug!("Calling the tool now!");
-                let response = (tool.function)(tool_call.arguments);
-                debug!(%tool_call.name, %response, "Tool call result:");
+                    // call the tool
+                    debug!("Calling the tool now!");
+                    let response = (tool.function)(tool_call.arguments);
+                    debug!(%tool_call.name, %response, "Tool call result:");
 
-                // add to chat history
-                self.add_tool_resp(tool_call.name, response);
+                    // add to chat history
+                    self.add_tool_resp(tool_call.name, response);
+                }
+
+                // get the finished response
+                response = self.wrapped_update_context_and_generate_response(
+                    sampler.clone(),
+                    respond.clone(),
+                    tool_call_begin.clone(),
+                )?;
             }
+        } // Close if let Some(tool_format)
 
-            // get the finished response
-            response = self.wrapped_update_context_and_generate_response(
-                sampler.clone(),
-                respond.clone(),
-                tool_call_begin.into(),
-            )?;
-        }
-        debug_assert!(!response.contains(tool_call_begin));
+        debug_assert!(tool_call_begin
+            .as_ref()
+            .is_none_or(|t| !response.contains(t.as_str())));
         self.add_assistant_message(response);
 
         // Update tokens_in_context as the model already has seen this respone
@@ -1508,6 +1372,7 @@ impl Worker<'_, ChatWorker> {
             &ChatTemplateContext {
                 enable_thinking: self.extra.allow_thinking,
                 tools: self.extra.tools.clone(),
+                tool_format: self.extra.tool_format.clone(),
             },
         )?;
 
@@ -1522,7 +1387,7 @@ impl Worker<'_, ChatWorker> {
         &mut self,
         sampler: SamplerConfig,
         respond: F,
-        tool_call_begin_token: String,
+        tool_call_begin_token: Option<String>,
     ) -> Result<String, WrappedResponseError>
     where
         F: Fn(llm::WriteOutput) + Clone,
@@ -1555,13 +1420,31 @@ impl Worker<'_, ChatWorker> {
         tools: Vec<Tool>,
     ) -> Result<(), SelectTemplateError> {
         self.reset_context();
-        self.extra.tool_grammar = if !tools.is_empty() {
-            match grammar_from_tools(&tools) {
-                Ok(g) => Some(g),
-                Err(e) => {
-                    debug!(error = %e, "Failed to generate grammar from tools:");
-                    None
+
+        // Detect tool format if not already detected and tools are provided
+        if !tools.is_empty() && self.extra.tool_format.is_none() {
+            match detect_tool_format(self.ctx.model) {
+                Ok(format) => {
+                    debug!(format = ?format, "Detected tool calling format");
+                    self.extra.tool_format = Some(format);
                 }
+                Err(e) => {
+                    debug!(error = %e, "Failed to detect tool format, tools will not work");
+                }
+            }
+        }
+
+        self.extra.tool_grammar = if !tools.is_empty() {
+            if let Some(ref format) = self.extra.tool_format {
+                match format.generate_grammar(&tools) {
+                    Ok(g) => Some(g),
+                    Err(e) => {
+                        debug!(error = %e, "Failed to generate grammar from tools");
+                        None
+                    }
+                }
+            } else {
+                None
             }
         } else {
             None
@@ -1606,13 +1489,30 @@ impl Worker<'_, ChatWorker> {
     }
 
     pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), SetToolsError> {
-        self.extra.tool_grammar = if !tools.is_empty() {
-            match grammar_from_tools(&tools) {
-                Ok(g) => Some(g),
-                Err(e) => {
-                    debug!(error = %e, "Failed to generate grammar from tools:");
-                    None
+        // Detect tool format if not already detected and tools are provided
+        if !tools.is_empty() && self.extra.tool_format.is_none() {
+            match detect_tool_format(self.ctx.model) {
+                Ok(format) => {
+                    debug!(format = ?format, "Detected tool calling format");
+                    self.extra.tool_format = Some(format);
                 }
+                Err(e) => {
+                    debug!(error = %e, "Failed to detect tool format, tools will not work");
+                }
+            }
+        }
+
+        self.extra.tool_grammar = if !tools.is_empty() {
+            if let Some(ref format) = self.extra.tool_format {
+                match format.generate_grammar(&tools) {
+                    Ok(g) => Some(g),
+                    Err(e) => {
+                        debug!(error = %e, "Failed to generate grammar from tools");
+                        None
+                    }
+                }
+            } else {
+                None
             }
         } else {
             None
@@ -1666,7 +1566,7 @@ impl Worker<'_, ChatWorker> {
 /// 2. skip emitting once a tool_call_begin_token has been seen
 fn wrap_respond<F>(
     respond: F,
-    tool_call_begin_token: String,
+    tool_call_begin_token: Option<String>,
 ) -> (
     impl FnMut(llm::WriteOutput),
     std::sync::mpsc::Receiver<String>,
@@ -1679,7 +1579,7 @@ where
 
     let wrapped_respond = move |x| {
         match &x {
-            llm::WriteOutput::Token(tok) if tok == &tool_call_begin_token => {
+            llm::WriteOutput::Token(tok) if tool_call_begin_token.as_ref() == Some(tok) => {
                 emitting = false;
             }
             llm::WriteOutput::Done(resp) => {
@@ -1694,38 +1594,6 @@ where
         }
     };
     (wrapped_respond, resp_receiver)
-}
-
-fn extract_tool_calls(input: &str) -> Option<Vec<ToolCall>> {
-    // Find the start and end tags
-    // TODO: these are the tokens used by qwen3
-    //       but e.g. deepseek uses "<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>" instead.
-    //       we need to support multiple different tool call begin tokens
-    let re = regex::Regex::new(r"<tool_call>([\s\S]*?)</tool_call>").expect("Invalid regex");
-
-    let tool_calls: Vec<ToolCall> = re
-        .captures_iter(input)
-        .filter_map(|cap| {
-            let json_str = cap[1].trim();
-            match serde_json::from_str::<ToolCall>(json_str) {
-                Ok(tool_call) => {
-                    debug!(tool_name = %tool_call.name, "Successfully parsed tool call:");
-                    Some(tool_call)
-                }
-                Err(e) => {
-                    debug!(error = %e, json = json_str, "Failed to parse tool call JSON:");
-                    None
-                }
-            }
-        })
-        .collect();
-
-    if !tool_calls.is_empty() {
-        Some(tool_calls)
-    } else {
-        debug!("No tool calls detected in message");
-        None
-    }
 }
 
 #[cfg(test)]
@@ -2537,4 +2405,6 @@ mod tests {
 
         Ok(())
     }
+
+    // Template rendering tests have been moved to template.rs module
 }

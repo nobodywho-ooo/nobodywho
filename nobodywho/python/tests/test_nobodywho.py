@@ -257,78 +257,6 @@ async def test_crossencoder_rank_and_sort_async(crossencoder_model):
         assert doc in documents, "Document should be from original list"
 
 
-@nobodywho.tool(description="Applies the sparklify effect to a given piece of text.")
-def sparklify(text: str) -> str:
-    return f"✨{text.upper()}✨"
-
-
-def test_tool_construction():
-    assert sparklify is not None
-    assert isinstance(sparklify, nobodywho.Tool)
-    assert sparklify("foobar") == "✨FOOBAR✨"
-
-
-def test_tool_calling(model):
-    chat = nobodywho.Chat(model, tools=[sparklify])
-    response: str = chat.ask("Please sparklify this word: 'julemand'").completed()
-    assert "✨JULEMAND✨" in response
-
-
-@nobodywho.tool(
-    description="Boop foob",
-    params={
-        "reflarb": "the clump factor for the flopar",
-        "unfloop": "activate the rotational velocidensity collider",
-    },
-)
-def reflarbicator(reflarb: int, unfloop: bool) -> str:
-    return "hahaha"
-
-
-def test_tool_parameter_description(model):
-    # XXX: maybe there is a faster/better way of testing this behavior than running a full-ass LLM
-    chat = nobodywho.Chat(model, tools=[reflarbicator, sparklify], allow_thinking=False)
-    answer = chat.ask(
-        "Please tell me the description of the 'unfloop' parameter of the reflarbicator tool"
-    ).completed()
-    assert "velocidensity" in answer
-
-
-def test_tool_bad_parameters():
-    with pytest.raises(TypeError):
-
-        @nobodywho.tool(description="foobar", params={"b": "uh-oh"})
-        def i_fucked_up(a: int) -> str:
-            return "fuck"
-
-@nobodywho.tool(
-    description="Applies the sparklify effect to a given piece of text."
-)
-async def async_sparklify(text: str) -> str:
-    return f"✨{text.upper()}✨"
-
-
-@pytest.mark.asyncio
-async def test_async_tool_construction():
-    assert async_sparklify is not None
-    assert isinstance(async_sparklify, nobodywho.Tool)
-    assert await async_sparklify("foobar") == "✨FOOBAR✨"
-
-
-def test_async_tool_calling(model):
-    chat = nobodywho.Chat(model, tools=[async_sparklify])
-    response: str = chat.ask("Please sparklify this word: 'julemand'").completed()
-    assert "✨JULEMAND✨" in response
-
-
-def test_async_tool_bad_parameters():
-    with pytest.raises(TypeError):
-
-        @nobodywho.tool(description="foobar", params={"b": "uh-oh"})
-        async def i_fucked_up(a: int) -> str:
-            return "fuck"
-
-
 def test_load_chat_from_path():
     model_path = os.environ.get("TEST_MODEL")
     assert isinstance(model_path, str)
@@ -421,37 +349,6 @@ def test_set_system_prompt(model):
     resp2 = chat.ask("Hello, how are you?").completed()
     assert isinstance(resp2, str)
     assert "BEEP" in resp2.upper()
-
-
-@nobodywho.tool(
-    description="Multiplies two numbers together",
-    params={"a": "The first number", "b": "The second number"}
-)
-def multiply(a: int, b: int) -> str:
-    return str(a * b)
-
-
-def test_set_tools(model):
-    """Test that set_tools changes available tools and persists after reset_history"""
-    chat = nobodywho.Chat(
-        model, tools=[sparklify], allow_thinking=False
-    )
-
-    # Use initial tool
-    resp1 = chat.ask("Please sparklify the word 'hello'").completed()
-    assert isinstance(resp1, str)
-    assert "✨HELLO✨" in resp1
-
-    # Change tools
-    chat.set_tools([multiply])
-
-    # Clear history but keep new tools
-    chat.reset_history()
-
-    # Try to use new tool - should work
-    resp2 = chat.ask("Please multiply 7 and 8").completed()
-    assert isinstance(resp2, str)
-    assert "56" in resp2
 
 
 def test_stop_generation(chat):
