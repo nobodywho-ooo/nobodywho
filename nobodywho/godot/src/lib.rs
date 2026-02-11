@@ -637,7 +637,7 @@ impl NobodyWhoChat {
     }
 
     /// Sets the sampler to use default sampling parameters.
-    /// This provides a balanced configuration suitable for most use cases.
+    /// This provides a Qwen3-optimized configuration (temp=0.6, top_k=20, top_p=0.95) suitable for most use cases.
     #[func]
     fn set_sampler_preset_default(&mut self) {
         self.set_sampler_preset_impl(SamplerConfig::default());
