@@ -1295,11 +1295,14 @@ impl Worker<'_, ChatWorker> {
         let sampler = self.extra.tool_grammar.as_ref().map_or(
             self.extra.sampler_config.clone(),
             |tool_grammar| {
-                self.extra.sampler_config.clone().unshift(ShiftStep::Grammar {
-                    trigger_on: tool_call_begin.clone(),
-                    root: "superroot".into(),
-                    grammar: tool_grammar.to_string(),
-                })
+                self.extra
+                    .sampler_config
+                    .clone()
+                    .unshift(ShiftStep::Grammar {
+                        trigger_on: tool_call_begin.clone(),
+                        root: "superroot".into(),
+                        grammar: tool_grammar.to_string(),
+                    })
             },
         );
 
