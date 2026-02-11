@@ -711,7 +711,6 @@ pub struct SamplerPresets {
 
 impl SamplerPresets {
     /// Get the default sampler configuration.
-    /// This provides a Qwen3-optimized configuration.
     #[flutter_rust_bridge::frb(sync)]
     pub fn default_sampler() -> SamplerConfig {
         SamplerConfig {
