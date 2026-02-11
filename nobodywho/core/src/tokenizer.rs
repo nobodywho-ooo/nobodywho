@@ -82,7 +82,31 @@ impl Promptable for Prompt {
     }
 }
 
-type ChunkId = Option<String>;
+impl Promptable for &str {
+    fn to_prompt(&self) -> Prompt {
+        Prompt {
+            parts: vec![PromptPart::Text(self.to_string())],
+        }
+    }
+}
+
+impl From<String> for Prompt {
+    fn from(s: String) -> Self {
+        Prompt {
+            parts: vec![PromptPart::Text(s)],
+        }
+    }
+}
+
+impl From<&str> for Prompt {
+    fn from(s: &str) -> Self {
+        Prompt {
+            parts: vec![PromptPart::Text(s.to_string())],
+        }
+    }
+}
+
+pub type ChunkId = String;
 
 #[derive(Clone, Debug)]
 pub enum TokenizerChunk {
@@ -95,7 +119,7 @@ impl TokenizerChunk {
         let mut hasher = AHasher::default();
         tokens.hash(&mut hasher);
         let id = hasher.finish().to_string();
-        Self::Text(tokens, Some(id))
+        Self::Text(tokens, id)
     }
 
     pub fn new_image(chunks: MtmdInputChunks) -> Self {
@@ -103,10 +127,12 @@ impl TokenizerChunk {
             chunks
                 .get(i)
                 .filter(|c| c.chunk_type() == MtmdInputChunkType::Image)
-                .and_then(|c| c.id())
+                .map(|c| c.id().unwrap_or_default())
         });
 
-        Self::Image(Arc::new(chunks), id)
+        // We use unwrap or default here, as everything should always exist
+        // & returning Result here would be the opposite of ergonomical
+        Self::Image(Arc::new(chunks), id.unwrap_or_default())
     }
 
     pub fn id(&self) -> ChunkId {
@@ -139,7 +165,7 @@ impl TokenizerChunks {
         self.chunks.len()
     }
 
-    pub fn empty() -> Self {
+    pub fn new() -> Self {
         Self { chunks: vec![] }
     }
 
@@ -147,8 +173,37 @@ impl TokenizerChunks {
         self.chunks.iter()
     }
 
+    pub fn into_iter(self) -> impl Iterator<Item = TokenizerChunk> {
+        self.chunks.into_iter()
+    }
+
     pub fn get(&self, index: usize) -> &TokenizerChunk {
         &self.chunks[index]
+    }
+
+    pub fn list_ids(&self) -> Vec<String> {
+        self.chunks.iter().map(|chunk| chunk.id()).collect()
+    }
+
+    pub fn append(&mut self, other: TokenizerChunk) -> &mut Self {
+        let next = match (self.chunks.pop(), other) {
+            (Some(TokenizerChunk::Text(tokens, _)), TokenizerChunk::Text(other_tokens, _)) => {
+                let tokens = tokens
+                    .into_iter()
+                    .chain(other_tokens.into_iter())
+                    .collect::<Vec<_>>();
+
+                TokenizerChunk::new_text(tokens)
+            }
+            (Some(last), other) => {
+                self.chunks.push(last);
+                other
+            }
+            (_, other) => other,
+        };
+
+        self.chunks.push(next);
+        self
     }
 
     /// Returns [start, end) position of the chunk at the given index.
@@ -167,7 +222,7 @@ impl TokenizerChunks {
 
     pub fn tail(&self, from_pos: usize) -> TokenizerChunks {
         if from_pos >= self.n_tokens() {
-            return TokenizerChunks::empty();
+            return TokenizerChunks::new();
         }
 
         // Find the chunk that contains from_pos
@@ -241,47 +296,83 @@ pub fn find_chunks_prefix_difference(
     return (new_start, new.tail(new_start));
 }
 
+// Here, the model is represented implicitly by the MTMD context
+#[derive(Debug)]
+pub struct ProjectionModel {
+    pub ctx: MtmdContext, // TODO: Make models abstraction layer (projection model, main model, etc.) and force encapsulation
+}
+
+impl ProjectionModel {
+    pub fn from_path(path: &str, parent_model: &LlamaModel) -> Result<Self, MtmdError> {
+        let n_threads = std::thread::available_parallelism()
+            .map(|p| p.get() as i32)
+            .unwrap_or(4);
+
+        let media_marker = llama_cpp_2::mtmd::mtmd_default_marker().to_string();
+
+        let mtmd_params = MtmdContextParams {
+            use_gpu: has_discrete_gpu(),
+            print_timings: false,
+            n_threads,
+            media_marker: CString::new(media_marker.to_string())
+                .expect("Failed to create CString for marker"),
+        };
+
+        match MtmdContext::init_from_file(path, parent_model, &mtmd_params) {
+            Ok(ctx) => {
+                info!("MTMD context initialized successfully");
+                Ok(Self { ctx })
+            }
+            Err(e) => {
+                warn!(error = %e, "Failed to initialize MTMD context:");
+
+                Err(MtmdError::ContextNotInitialized)
+            }
+        }
+    }
+
+    pub fn tokenize(
+        &self,
+        bitmap: &MtmdBitmap,
+        add_bos: AddBos,
+    ) -> Result<TokenizerChunk, MtmdError> {
+        let media_marker = llama_cpp_2::mtmd::mtmd_default_marker().to_string();
+        let mtmd_chunks = self.ctx.tokenize(
+            MtmdInputText {
+                text: media_marker,
+                add_special: matches!(add_bos, AddBos::Always),
+                parse_special: true,
+            },
+            &[bitmap],
+        )?;
+
+        Ok(TokenizerChunk::new_image(mtmd_chunks))
+    }
+
+    pub fn load_image(&self, path: &str) -> Result<MtmdBitmap, MtmdError> {
+        let bitmap = MtmdBitmap::from_file(&self.ctx, &path)
+            .map_err(|e| MtmdError::LoadImage(format!("{}: {}", path, e)))?;
+        info!(path = %path, "Loaded image for MTMD");
+
+        Ok(bitmap)
+    }
+}
+
+#[derive(Debug)]
 pub struct Tokenizer<'a> {
-    model: &'a LlamaModel,
-    mtmd_ctx: Option<MtmdContext>,
-    media_marker: String, // used for determining where the image is in the prompt
+    model: &'a Arc<LlamaModel>,
+    projection_model: Option<Arc<ProjectionModel>>,
     add_bos: AddBos,
 }
 
 impl<'a> Tokenizer<'a> {
-    pub fn new(model: &'a LlamaModel, add_bos: AddBos, mmproj_path: Option<String>) -> Self {
-        // Initialize MTMD context if mmproj path is provided
-        let media_marker = llama_cpp_2::mtmd::mtmd_default_marker().to_string();
-        let mtmd_ctx = if let Some(ref mmproj_path) = mmproj_path {
-            let n_threads = std::thread::available_parallelism()
-                .map(|p| p.get() as i32)
-                .unwrap_or(4);
-
-            let mtmd_params = MtmdContextParams {
-                use_gpu: has_discrete_gpu(),
-                print_timings: false,
-                n_threads,
-                media_marker: CString::new(media_marker.to_string())
-                    .expect("Failed to create CString for marker"),
-            };
-
-            match MtmdContext::init_from_file(mmproj_path, model, &mtmd_params) {
-                Ok(ctx) => {
-                    info!("MTMD context initialized successfully");
-                    Some(ctx)
-                }
-                Err(e) => {
-                    warn!(error = %e, "Failed to initialize MTMD context:");
-                    None
-                }
-            }
-        } else {
-            None
-        };
-
+    pub fn new(
+        model: &'a Arc<LlamaModel>,
+        projection_model: Option<Arc<ProjectionModel>>,
+        add_bos: AddBos,
+    ) -> Self {
         Self {
-            mtmd_ctx,
-            media_marker,
+            projection_model,
             add_bos,
             model,
         }
@@ -289,10 +380,10 @@ impl<'a> Tokenizer<'a> {
 
     pub fn tokenize(
         &self,
-        rendered_prompt: String,
+        rendered_chat: String,
         bitmaps: Vec<&MtmdBitmap>,
     ) -> Result<TokenizerChunks, MtmdError> {
-        let text_chunks = self.tokenize_text(&rendered_prompt)?;
+        let text_chunks = self.tokenize_text(&rendered_chat)?;
 
         let n_image_markers = text_chunks.len() - 1;
         if n_image_markers != bitmaps.len() {
@@ -310,8 +401,9 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn tokenize_text(&self, text: &str) -> Result<Vec<TokenizerChunk>, MtmdError> {
+        let media_marker = llama_cpp_2::mtmd::mtmd_default_marker().to_string();
         let splits = text
-            .split(self.media_marker.as_str())
+            .split(media_marker.as_str())
             .map(|split| {
                 self.model
                     .str_to_token(split, self.add_bos)
@@ -324,25 +416,15 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn tokenize_images(&self, bitmaps: Vec<&MtmdBitmap>) -> Result<Vec<TokenizerChunk>, MtmdError> {
-        let mtmd_ctx = self
-            .mtmd_ctx
+        let projection_model = self
+            .projection_model
             .as_ref()
             .ok_or(MtmdError::ContextNotInitialized)?;
 
         // Tokenize each image separately to get individual chunks
         bitmaps
             .iter()
-            .map(|bitmap| {
-                let mtmd_chunks = mtmd_ctx.tokenize(
-                    MtmdInputText {
-                        text: self.media_marker.clone(),
-                        add_special: matches!(self.add_bos, AddBos::Always),
-                        parse_special: true,
-                    },
-                    &[*bitmap],
-                )?;
-                Ok(TokenizerChunk::new_image(mtmd_chunks))
-            })
+            .map(|bitmap| projection_model.tokenize(*bitmap, self.add_bos))
             .collect::<Result<Vec<_>, MtmdError>>()
     }
 
@@ -400,7 +482,7 @@ mod tests {
         // Create an empty MtmdInputChunks as a placeholder
         let chunks = MtmdInputChunks::new();
         // Manually construct with an ID for testing purposes
-        TokenizerChunk::Image(Arc::new(chunks), Some(id.to_string()))
+        TokenizerChunk::Image(Arc::new(chunks), id.to_string())
     }
 
     // ===== A. Text-Only Tests =====

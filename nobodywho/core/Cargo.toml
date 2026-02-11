@@ -33,4 +33,6 @@ ahash = "0.8.12"
 
 # Enable Vulkan for x86_64, x86, and aarch64 targets (excluding macOS, iOS, Android)
 [target.'cfg(all(not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android"), any(target_arch = "x86_64", target_arch = "x86", target_arch = "aarch64")))'.dependencies]
-llama-cpp-2 = { version = "0.1.132", features = ["vulkan"] }
+llama-cpp-2 = { path = "/Users/marekhradil/Documents/nobodywho/llama-cpp-rs/llama-cpp-2", features = [
+    "mtmd",
+] }

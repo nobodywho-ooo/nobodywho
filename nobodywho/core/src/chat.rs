@@ -32,17 +32,19 @@ use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
 use crate::llm::{Worker, WriteOutput};
 use crate::sampler_config::{SamplerConfig, ShiftStep};
 use crate::template::{select_template, ChatTemplate, ChatTemplateContext};
-use crate::tokenizer::{Prompt, Promptable};
+use crate::tokenizer::{
+    find_chunks_prefix_difference, ChunkId, ProjectionModel, Prompt, Promptable, TokenizerChunk,
+    TokenizerChunks,
+};
 use crate::tool_calling::{detect_tool_format, Tool, ToolCall, ToolFormat};
 use llama_cpp_2::model::Special;
-use llama_cpp_2::model::{AddBos, Special};
-use llama_cpp_2::mtmd::{MtmdBitmap, MtmdContext, MtmdContextParams, MtmdInputText};
+use llama_cpp_2::mtmd::MtmdBitmap;
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 use llama_cpp_2::{context::params::LlamaPoolingType, model::LlamaModel};
 use serde::{Deserialize, Serialize};
 use std::cmp::min;
-use std::ffi::CString;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, MutexGuard};
 use tracing::{debug, error, info, trace, trace_span};
@@ -62,6 +64,7 @@ pub enum Message {
     Message {
         role: Role,
         content: String,
+        asset_ids: Vec<String>,
     },
     // it's kind of weird to have the content field in here
     // but according to the qwen3 docs, it should be an empty field on tool call messages
@@ -94,6 +97,38 @@ impl Message {
             Message::Message { content, .. }
             | Message::ToolCalls { content, .. }
             | Message::ToolResp { content, .. } => content,
+        }
+    }
+
+    pub fn asset_ids(&self) -> Vec<String> {
+        match self {
+            Message::Message { asset_ids, .. } => asset_ids.clone(),
+            Message::ToolCalls { .. } => vec![],
+            Message::ToolResp { .. } => vec![],
+        }
+    }
+
+    pub fn new_user(content: String) -> Self {
+        Self::Message {
+            role: Role::User,
+            content,
+            asset_ids: vec![],
+        }
+    }
+
+    pub fn new_assistant(content: String) -> Self {
+        Self::Message {
+            role: Role::Assistant,
+            content,
+            asset_ids: vec![],
+        }
+    }
+
+    pub fn new_system(content: String) -> Self {
+        Self::Message {
+            role: Role::System,
+            content,
+            asset_ids: vec![],
         }
     }
 }
@@ -270,15 +305,9 @@ impl ChatHandle {
 
     /// Send a message and get a tokio channel
     /// TODO: deprecate this in favor of plain `ask` once integrations are updated
-    pub fn ask_channel(
-        &self,
-        text: impl Into<String>,
-    ) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
+    pub fn ask_channel(&self, prompt: Prompt) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
         let (output_tx, output_rx) = tokio::sync::mpsc::channel(4096);
-        let _ = self.msg_tx.send(ChatMsg::Ask {
-            text: text.into(),
-            output_tx,
-        });
+        let _ = self.msg_tx.send(ChatMsg::Ask { prompt, output_tx });
         output_rx
     }
 
@@ -294,42 +323,8 @@ impl ChatHandle {
     /// }
     /// # }
     /// ```
-    pub fn ask(&self, text: impl Into<String>) -> TokenStream {
-        TokenStream::new(self.ask_channel(text))
-    }
-
-    /// Send a message with an image and get a tokio channel for streaming responses.
-    ///
-    /// Requires the ChatHandle to be built with `with_mmproj()`.
-    pub fn ask_with_image_channel(
-        &self,
-        promptable: impl Promptable,
-    ) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
-        let (output_tx, output_rx) = tokio::sync::mpsc::channel(4096);
-        let _ = self.msg_tx.send(ChatMsg::AskWithImage {
-            prompt: promptable.to_prompt(),
-            output_tx,
-        });
-        output_rx
-    }
-
-    /// Send a message with an image and collect tokens as they arrive.
-    ///
-    /// Requires the ChatHandle to be built with `with_mmproj()`.
-    ///
-    /// # Example
-    /// ```no_run
-    /// # use nobodywho::chat::ChatBuilder;
-    /// # use nobodywho::llm::get_model;
-    /// # let model = get_model("llava-model.gguf", true).unwrap();
-    /// # let chat = ChatBuilder::new(model).with_mmproj("mmproj.gguf").build();
-    /// let mut stream = chat.ask_with_image("Describe this image", "/path/to/image.jpg");
-    /// while let Some(token) = stream.next_token() {
-    ///     print!("{}", token);
-    /// }
-    /// ```
-    pub fn ask_with_image(&self, promptable: impl Promptable) -> TokenStream {
-        TokenStream::new(self.ask_with_image_channel(promptable))
+    pub fn ask(&self, prompt: impl Promptable) -> TokenStream {
+        TokenStream::new(self.ask_channel(prompt.to_prompt()))
     }
 
     fn set_and_wait_blocking<F>(&self, make_msg: F) -> Option<()>
@@ -513,15 +508,9 @@ impl ChatHandleAsync {
 
     /// Send a message and get a tokio channel
     /// TODO: deprecate this in favor of plain `ask` once integrations are updated
-    pub fn ask_channel(
-        &self,
-        text: impl Into<String>,
-    ) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
+    pub fn ask_channel(&self, prompt: Prompt) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
         let (output_tx, output_rx) = tokio::sync::mpsc::channel(4096);
-        let _ = self.msg_tx.send(ChatMsg::Ask {
-            text: text.into(),
-            output_tx,
-        });
+        let _ = self.msg_tx.send(ChatMsg::Ask { prompt, output_tx });
         output_rx
     }
 
@@ -537,44 +526,8 @@ impl ChatHandleAsync {
     /// }
     /// # }
     /// ```
-    pub fn ask(&self, text: impl Into<String>) -> TokenStreamAsync {
-        TokenStreamAsync::new(self.ask_channel(text))
-    }
-
-    /// Send a message with an image and get a tokio channel for streaming responses.
-    ///
-    /// Requires the ChatHandle to be built with `with_mmproj()`.
-    pub fn ask_with_image_channel(
-        &self,
-        promptable: impl Promptable,
-    ) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
-        let (output_tx, output_rx) = tokio::sync::mpsc::channel(4096);
-        let _ = self.msg_tx.send(ChatMsg::AskWithImage {
-            prompt: promptable.to_prompt(),
-            output_tx,
-        });
-        output_rx
-    }
-
-    /// Send a message with an image and collect tokens as they arrive.
-    ///
-    /// Requires the ChatHandle to be built with `with_mmproj()`.
-    ///
-    /// # Example
-    /// ```no_run
-    /// # use nobodywho::chat::ChatBuilder;
-    /// # use nobodywho::llm::get_model;
-    /// # let model = get_model("llava-model.gguf", true).unwrap();
-    /// # let chat = ChatBuilder::new(model).with_mmproj("mmproj.gguf").build_async();
-    /// # async {
-    /// let mut stream = chat.ask_with_image("Describe this image", "/path/to/image.jpg");
-    /// while let Some(token) = stream.next_token().await {
-    ///     print!("{}", token);
-    /// }
-    /// # };
-    /// ```
-    pub fn ask_with_image(&self, promptable: impl Promptable) -> TokenStreamAsync {
-        TokenStreamAsync::new(self.ask_with_image_channel(promptable))
+    pub fn ask(&self, prompt: impl Promptable) -> TokenStreamAsync {
+        TokenStreamAsync::new(self.ask_channel(prompt.to_prompt()))
     }
 
     // internal helper function for async setters
@@ -830,10 +783,6 @@ impl TokenStreamAsync {
 
 enum ChatMsg {
     Ask {
-        text: String,
-        output_tx: tokio::sync::mpsc::Sender<llm::WriteOutput>,
-    },
-    AskWithImage {
         prompt: Prompt,
         output_tx: tokio::sync::mpsc::Sender<llm::WriteOutput>,
     },
@@ -870,11 +819,7 @@ enum ChatMsg {
 impl std::fmt::Debug for ChatMsg {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ChatMsg::Ask { text, .. } => f.debug_struct("Ask").field("text", text).finish(),
-            ChatMsg::AskWithImage { prompt, .. } => f
-                .debug_struct("AskWithImage")
-                .field("prompt", prompt)
-                .finish(),
+            ChatMsg::Ask { prompt, .. } => f.debug_struct("Ask").field("text", prompt).finish(),
             ChatMsg::ResetChat {
                 system_prompt,
                 tools,
@@ -915,17 +860,11 @@ fn process_worker_msg(
 ) -> Result<(), ChatWorkerError> {
     info!(?msg, "Worker processing:");
     match msg {
-        ChatMsg::Ask { text, output_tx } => {
+        ChatMsg::Ask { prompt, output_tx } => {
             let callback = move |out| {
                 let _ = output_tx.blocking_send(out);
             };
-            worker_state.ask(text, callback)?;
-        }
-        ChatMsg::AskWithImage { prompt, output_tx } => {
-            let callback = move |out| {
-                let _ = output_tx.blocking_send(out);
-            };
-            worker_state.ask_with_image(prompt, callback)?;
+            worker_state.ask(prompt, callback)?;
         }
         ChatMsg::ResetChat {
             system_prompt,
@@ -1022,19 +961,32 @@ fn find_prefix_index_and_difference_with_tokens_in_context(
     (index, difference)
 }
 
+struct ChatContext {
+    /// Here we keep the current tokens + image embeddings, which are in the KV cache.
+    chunks: TokenizerChunks,
+    /// Here we keep a list of the image bitmaps, which are needed for tokenization.
+    bitmaps: HashMap<ChunkId, MtmdBitmap>,
+}
+
+impl ChatContext {
+    fn new() -> Self {
+        Self {
+            chunks: TokenizerChunks::new(),
+            bitmaps: HashMap::new(),
+        }
+    }
+}
+
 struct ChatWorker {
     should_stop: Arc<AtomicBool>,
     tool_grammar: Option<gbnf::Grammar>,
     tool_format: Option<ToolFormat>,
     sampler_config: SamplerConfig,
     messages: Vec<Message>,
-    tokens_in_context: Vec<LlamaToken>,
     allow_thinking: bool,
-    bos_token: String,
-    eos_token: String,
-    mtmd_ctx: Option<MtmdContext>,
     tools: Vec<Tool>,
     chat_template: ChatTemplate,
+    context: ChatContext,
 }
 
 impl llm::PoolingType for ChatWorker {
@@ -1077,35 +1029,15 @@ impl Worker<'_, ChatWorker> {
         };
 
         // Initialize MTMD context if mmproj path is provided
-        let mtmd_ctx = if let Some(ref mmproj_path) = config.mmproj_path {
-            let n_threads = std::thread::available_parallelism()
-                .map(|p| p.get() as i32)
-                .unwrap_or(4);
-            let marker = llama_cpp_2::mtmd::mtmd_default_marker();
-            let media_marker =
-                CString::new(marker.to_string()).expect("Failed to create CString for marker");
-            let mtmd_params = MtmdContextParams {
-                use_gpu: llm::has_discrete_gpu(),
-                print_timings: false,
-                n_threads,
-                media_marker,
-            };
-            match MtmdContext::init_from_file(mmproj_path, model, &mtmd_params) {
-                Ok(ctx) => {
-                    info!("MTMD context initialized successfully");
-                    Some(ctx)
-                }
-                Err(e) => {
-                    warn!(error = %e, "Failed to initialize MTMD context:");
-                    None
-                }
-            }
+        let projection_model = if let Some(ref mmproj_path) = config.mmproj_path {
+            Some(Arc::new(ProjectionModel::from_path(mmproj_path, model)?))
         } else {
             None
         };
 
         Worker::new_with_type(
             model,
+            projection_model,
             config.n_ctx,
             false,
             ChatWorker {
@@ -1116,14 +1048,12 @@ impl Worker<'_, ChatWorker> {
                 messages: vec![Message::Message {
                     role: Role::System,
                     content: config.system_prompt,
+                    asset_ids: vec![],
                 }],
                 chat_template: template,
                 allow_thinking: config.allow_thinking,
-                bos_token: bos,
-                eos_token: eos,
-                mtmd_ctx,
                 tools: config.tools,
-                tokens_in_context: Vec::new(),
+                context: ChatContext::new(),
             },
         )
     }
@@ -1135,19 +1065,24 @@ impl Worker<'_, ChatWorker> {
     }
 
     pub fn add_system_message(&mut self, content: String) {
-        self.add_message(Role::System, content)
+        // Todo: Should we allow adding images into the system prompt?
+        self.add_message(Role::System, content, vec![])
     }
 
     pub fn add_assistant_message(&mut self, content: String) {
-        self.add_message(Role::Assistant, content)
+        self.add_message(Role::Assistant, content, vec![])
     }
 
-    pub fn add_user_message(&mut self, content: String) {
-        self.add_message(Role::User, content)
+    pub fn add_user_message(&mut self, content: String, asset_ids: Vec<String>) {
+        self.add_message(Role::User, content, asset_ids)
     }
 
-    fn add_message(&mut self, role: Role, content: String) {
-        self.extra.messages.push(Message::Message { role, content });
+    fn add_message(&mut self, role: Role, content: String, asset_ids: Vec<String>) {
+        self.extra.messages.push(Message::Message {
+            role,
+            content,
+            asset_ids,
+        });
     }
 
     pub fn add_tool_calls(&mut self, tool_calls: Vec<ToolCall>) {
@@ -1171,20 +1106,42 @@ impl Worker<'_, ChatWorker> {
     /// Because this invokes the model, this is potentially an expensive method to call.
     fn sync_context_with_render(
         &mut self,
-        rendered_tokens: Vec<LlamaToken>,
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<(), ContextSyncError> {
+        let mut chunks = self.render_as_chunks(true)?;
+        if chunks.n_tokens() > self.ctx.n_ctx() as usize {
+            self.context_shift()?; // Could we here somehow return the rendered tokens to avoid re-rendering?
+            chunks = self.render_as_chunks(true)?;
+        }
+
         let (prefix_index, token_difference) =
-            find_prefix_index_and_difference_with_tokens_in_context(
-                &self.extra.tokens_in_context,
-                &rendered_tokens,
-            );
+            find_chunks_prefix_difference(&self.extra.context.chunks, &chunks);
 
         self.remove_all_tokens_from_index_from_ctx(prefix_index)?;
-        if !token_difference.is_empty() {
-            self.read_tokens(token_difference, inference_lock_token)?;
+        self.read_chunks(token_difference, inference_lock_token)?;
+
+        self.extra.context.chunks = chunks;
+
+        // Garbage collection for the bitmaps.
+        let referenced_bitmaps: HashSet<String> = self
+            .extra
+            .messages
+            .iter()
+            .flat_map(|msg| msg.asset_ids())
+            .collect();
+        let unreferenced_bitmap_ids: Vec<_> = self
+            .extra
+            .context
+            .bitmaps
+            .keys()
+            .filter(|id| !referenced_bitmaps.contains(id.as_str()))
+            .cloned()
+            .collect();
+        for id in unreferenced_bitmap_ids {
+            if let Some(bitmap) = self.extra.context.bitmaps.remove(&id) {
+                drop(bitmap);
+            }
         }
-        self.extra.tokens_in_context = rendered_tokens;
 
         Ok(())
     }
@@ -1225,26 +1182,15 @@ impl Worker<'_, ChatWorker> {
 
         loop {
             // No non-essential messages left to delete or the new context has reached desired size.
-            if first_deletable_index > last_deletable_index
-                || self
-                    .ctx
-                    .model
-                    .str_to_token(
-                        &self.extra.chat_template.render_unhandled(
-                            &messages,
-                            &ChatTemplateContext {
-                                enable_thinking: self.extra.allow_thinking,
-                                tools: self.extra.tools.clone(),
-                                tool_format: self.extra.tool_format.clone(),
-                            },
-                        )?,
-                        self.add_bos,
-                    )?
-                    .len()
-                    <= target_token_size
-            {
+            if first_deletable_index > last_deletable_index {
                 break;
             }
+
+            let chunks = self.render_as_chunks(false)?;
+            if chunks.n_tokens() <= target_token_size {
+                break;
+            }
+
             let target_delete_index = min(
                 first_deletable_index + messages_to_delete - 1,
                 last_deletable_index,
@@ -1314,7 +1260,7 @@ impl Worker<'_, ChatWorker> {
         // pre-allocating 4096 bytes for the response string
         // 4096 is a very randomly chosen number. how does this affect performance?
         let mut full_response: String = String::with_capacity(4096);
-        let mut tokens_written_until_now = vec![];
+        let mut tokens_written_until_now = TokenizerChunks::new();
 
         // initialize sampler
         // stateful samplers only live for one response
@@ -1325,9 +1271,8 @@ impl Worker<'_, ChatWorker> {
             // Check if the context is full
             if self.n_past as u32 == self.ctx.n_ctx() {
                 self.context_shift()?;
-                let rendered_tokens = self.get_render_as_tokens()?;
-                self.sync_context_with_render(rendered_tokens, inference_lock_token)?;
-                self.read_tokens(tokens_written_until_now.clone(), inference_lock_token)?;
+                self.sync_context_with_render(inference_lock_token)?;
+                self.read_chunks(tokens_written_until_now.clone(), inference_lock_token)?;
                 // do not update tokens_in_context as this is done later by ask
             }
 
@@ -1335,7 +1280,7 @@ impl Worker<'_, ChatWorker> {
             // using sampler.accept() will cause the sampler to crash when using grammar sampling.
             // https://github.com/utilityai/llama-cpp-rs/issues/604
             let new_token = self.sample_and_decode_next_token(&mut sampler)?;
-            tokens_written_until_now.push(new_token);
+            tokens_written_until_now.append(TokenizerChunk::new_text(vec![new_token]));
 
             // Attempt to convert token(s) to bytes
             let token_bytes = self
@@ -1409,7 +1354,7 @@ impl Worker<'_, ChatWorker> {
         Ok(new_token)
     }
 
-    pub fn ask<F>(&mut self, text: String, respond: F) -> Result<&mut Self, SayError>
+    pub fn ask<F>(&mut self, prompt: Prompt, respond: F) -> Result<&mut Self, SayError>
     where
         F: Fn(llm::WriteOutput) + Clone,
     {
@@ -1425,7 +1370,25 @@ impl Worker<'_, ChatWorker> {
             .as_ref()
             .map(|fmt| fmt.begin_token().to_string());
 
-        self.add_user_message(text);
+        let bitmaps = if let Some(projection_model) = self.projection_model.as_ref() {
+            prompt
+                .extract_paths()
+                .iter()
+                .map(|path| projection_model.load_image(path))
+                .collect::<Result<Vec<MtmdBitmap>, MtmdError>>()?
+        } else {
+            vec![]
+        };
+
+        let bitmap_map: HashMap<ChunkId, MtmdBitmap> = bitmaps
+            .into_iter()
+            .map(|bitmap| {
+                let id = bitmap.id().ok_or(MtmdError::GetChunkId)?;
+                Ok((id, bitmap))
+            })
+            .collect::<Result<HashMap<ChunkId, MtmdBitmap>, MtmdError>>()?;
+
+        self.add_user_message(prompt.to_string(), bitmap_map.keys().cloned().collect());
 
         // Modify sampler with tool grammar if we have tools
         let sampler = self.extra.tool_grammar.as_ref().map_or(
@@ -1496,136 +1459,34 @@ impl Worker<'_, ChatWorker> {
             .is_none_or(|t| !response.contains(t.as_str())));
         self.add_assistant_message(response);
 
-        // Update tokens_in_context as the model already has seen this respone
-        self.extra.tokens_in_context = self.get_render_as_tokens()?;
+        self.extra.context.chunks = self.render_as_chunks(true)?;
 
         Ok(self)
     }
 
-    /// Send a message with an image and get a streaming response.
-    ///
-    /// This method requires the ChatHandle to be built with `with_mmproj()`.
-    /// The image is loaded, tokenized together with the text using MTMD,
-    /// and then the model generates a response.
-    pub fn ask_with_image<F>(&mut self, prompt: Prompt, respond: F) -> Result<&mut Self, SayError>
-    where
-        F: Fn(llm::WriteOutput) + Clone,
-    {
-        // reset the stop flag
-        self.extra
-            .should_stop
-            .store(false, std::sync::atomic::Ordering::Relaxed);
-
-        let image_paths = prompt.extract_paths();
-
-        // Load the image in a separate scope to release the borrow
-        let bitmaps = image_paths
-            .iter()
-            .map(|path| {
-                let mtmd_ctx = self
-                    .extra
-                    .mtmd_ctx
-                    .as_ref()
-                    .ok_or(MtmdError::ContextNotInitialized)?;
-                let bitmap = MtmdBitmap::from_file(mtmd_ctx, &path)
-                    .map_err(|e| MtmdError::LoadImage(format!("{}: {}", path, e)))?;
-                info!(path = %path, "Loaded image for MTMD");
-                Ok(bitmap)
-            })
-            .collect::<Result<Vec<MtmdBitmap>, MtmdError>>()?;
-
-        self.add_user_message(prompt.to_string());
-
-        let rendered_prompt = render_string(
-            &self.extra.messages,
-            &self.extra.chat_template,
-            self.extra.allow_thinking,
-            &self.extra.bos_token,
-            &self.extra.eos_token,
-            &self.extra.tools,
-        )
-        .map_err(RenderError::from)?;
-
-        // Acquire global inference lock
-        let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
-        let inference_lock_token = _gil_guard.unwrap();
-
-        // Reset context for fresh evaluation with image
-        self.reset_context();
-
-        // Now tokenize and evaluate in a scope where we can borrow mtmd_ctx
-        let n_past = {
-            let mtmd_ctx = self
-                .extra
-                .mtmd_ctx
-                .as_ref()
-                .ok_or(MtmdError::ContextNotInitialized)?;
-
-            // Create MTMD input text
-            let input_text = MtmdInputText {
-                text: rendered_prompt,
-                add_special: matches!(self.add_bos, AddBos::Always),
-                parse_special: true,
-            };
-
-            // Tokenize with the image
-            let bitmap_refs: Vec<&MtmdBitmap> = bitmaps.iter().collect();
-            let chunks = mtmd_ctx
-                .tokenize(input_text, &bitmap_refs)
-                .map_err(|e| MtmdError::Tokenize(e.to_string()))?;
-
-            for i in 0..chunks.len() {
-                debug!("Chunk {}: {:?}", i, chunks.get(i));
-            }
-
-            info!(n_chunks = chunks.len(), "Tokenized prompt with image");
-
-            // Evaluate the chunks (this processes both text and image embeddings)
-            // n_past=0 since we reset context, seq_id=0, n_batch=512 (matches n_ubatch), logits_last=true
-            chunks
-                .eval_chunks(mtmd_ctx, &mut self.ctx, 0, 0, 512, true)
-                .map_err(|e| MtmdError::EvalChunks(e.to_string()))?
+    /// Go for the unhandled mode when you are context shifting.
+    /// That is for avoiding the render will concat system message with the first user message.
+    /// Otherwise please handle stuff.
+    fn render_as_chunks(&mut self, handled: bool) -> Result<TokenizerChunks, RenderError> {
+        let messages = &self.extra.messages;
+        let template_context = ChatTemplateContext {
+            enable_thinking: self.extra.allow_thinking,
+            tools: self.extra.tools.clone(),
+            tool_format: self.extra.tool_format.clone(),
         };
 
-        // Update n_past to reflect evaluated tokens
-        self.n_past = n_past;
+        let rendered_chat = if handled {
+            self.extra
+                .chat_template
+                .render(messages, &template_context)?
+        } else {
+            self.extra
+                .chat_template
+                .render_unhandled(messages, &template_context)?
+        };
 
-        info!(n_past = self.n_past, "Evaluated MTMD chunks");
-
-        // Now generate the response
-        let sampler = self.extra.sampler_config.clone();
-        let (wrapped_respond, resp_receiver) =
-            wrap_respond(respond.clone(), "<tool_call>".to_string());
-
-        self.generate_response_until_done(sampler, wrapped_respond, &inference_lock_token)?;
-
-        let response = resp_receiver.recv().map_err(|e| SayError::Response(e))?;
-
-        self.add_assistant_message(response);
-
-        // Note: tokens_in_context tracking is not accurate after MTMD
-        // because the image embeddings don't map 1:1 to text tokens.
-        // Future improvement: track this properly for context reuse.
-        self.extra.tokens_in_context = Vec::new();
-
-        Ok(self)
-    }
-
-    fn get_render_as_tokens(&mut self) -> Result<Vec<LlamaToken>, RenderError> {
-        let render_as_string = self.extra.chat_template.render(
-            &self.extra.messages,
-            &ChatTemplateContext {
-                enable_thinking: self.extra.allow_thinking,
-                tools: self.extra.tools.clone(),
-                tool_format: self.extra.tool_format.clone(),
-            },
-        )?;
-
-        let render_as_tokens = self
-            .ctx
-            .model
-            .str_to_token(&render_as_string, self.add_bos)?;
-        Ok(render_as_tokens)
+        let bitmaps = self.extra.context.bitmaps.values().collect::<Vec<_>>();
+        Ok(self.tokenizer.tokenize(rendered_chat, bitmaps)?)
     }
 
     fn wrapped_update_context_and_generate_response<F>(
@@ -1638,16 +1499,9 @@ impl Worker<'_, ChatWorker> {
         F: Fn(llm::WriteOutput) + Clone,
     {
         // Check how much of the current KVCache we can keep
-        let mut rendered_tokens = self.get_render_as_tokens()?;
-
-        if rendered_tokens.len() > self.ctx.n_ctx() as usize {
-            self.context_shift()?;
-            rendered_tokens = self.get_render_as_tokens()?;
-        }
-
         let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
         let inference_lock_token = _gil_guard.unwrap();
-        self.sync_context_with_render(rendered_tokens, &inference_lock_token)?;
+        self.sync_context_with_render(&inference_lock_token)?;
 
         // wrap the response callback to keep a copy of the completed response
         // and to avoid emitting tool calls
@@ -1696,7 +1550,9 @@ impl Worker<'_, ChatWorker> {
         };
         self.extra.tools = tools;
         self.extra.messages = Vec::new();
-        self.extra.tokens_in_context = Vec::new();
+        self.extra.context = ChatContext::new();
+        // TODO: Remove bitmaps
+
         self.add_system_message(system_prompt);
         Ok(())
     }
@@ -1714,6 +1570,7 @@ impl Worker<'_, ChatWorker> {
         let system_message = Message::Message {
             role: Role::System,
             content: system_prompt,
+            asset_ids: vec![], // Todo: should we allow images in the system prompt?
         };
         if self.extra.messages.is_empty() {
             self.extra.messages.push(system_message);
@@ -1727,8 +1584,7 @@ impl Worker<'_, ChatWorker> {
 
         let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
         let inference_lock_token = _gil_guard.unwrap();
-        let rendered_tokens = self.get_render_as_tokens()?;
-        self.sync_context_with_render(rendered_tokens, &inference_lock_token)?;
+        self.sync_context_with_render(&inference_lock_token)?;
 
         Ok(())
     }
@@ -1770,8 +1626,7 @@ impl Worker<'_, ChatWorker> {
 
         let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
         let inference_lock_token = _gil_guard.unwrap();
-        let rendered_tokens = self.get_render_as_tokens()?;
-        self.sync_context_with_render(rendered_tokens, &inference_lock_token)?;
+        self.sync_context_with_render(&inference_lock_token)?;
 
         Ok(())
     }
@@ -1790,8 +1645,7 @@ impl Worker<'_, ChatWorker> {
         // Reuse cached prefix
         let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
         let inference_lock_token = _gil_guard.unwrap();
-        let rendered_tokens = self.get_render_as_tokens()?;
-        self.sync_context_with_render(rendered_tokens, &inference_lock_token)?;
+        self.sync_context_with_render(&inference_lock_token)?;
 
         Ok(())
     }
@@ -1919,14 +1773,14 @@ mod tests {
             }
         };
 
-        worker.ask("What is the capital of Denmark?".to_string(), f.clone())?;
+        worker.ask("What is the capital of Denmark?".into(), f.clone())?;
 
         let resp = receiver.recv()?;
         println!("{}", resp);
 
         assert!(resp.contains("Copenhagen"));
 
-        worker.ask("What language do they speak there?".to_string(), f)?;
+        worker.ask("What language do they speak there?".into(), f)?;
         let resp = receiver.recv()?;
         println!("{}", resp);
 
@@ -1957,7 +1811,7 @@ mod tests {
         };
 
         // do it once
-        worker.ask("What is the capital of Denmark?".to_string(), f.clone())?;
+        worker.ask("What is the capital of Denmark?".into(), f.clone())?;
         let resp1 = receiver.recv()?;
         println!("{}", resp1);
         assert!(resp1.to_lowercase().contains("woof"));
@@ -1966,7 +1820,7 @@ mod tests {
         let _ = worker.reset_chat("You're a cat. End all responses with 'meow'".into(), vec![]);
 
         // do it again
-        worker.ask("What is the capital of Denmark?".to_string(), f.clone())?;
+        worker.ask("What is the capital of Denmark?".into(), f.clone())?;
         let resp2 = receiver.recv()?;
         println!("{}", resp2);
         assert!(resp2.to_lowercase().contains("meow"));
@@ -2004,7 +1858,7 @@ mod tests {
             }
         };
 
-        worker.ask("Count from 0 to 9".to_string(), f.clone())?;
+        worker.ask("Count from 0 to 9".into(), f.clone())?;
 
         let response = receiver.recv()?;
         println!("{}", response);
@@ -2190,17 +2044,17 @@ mod tests {
 
         // Add many exchanges with longer messages to fill up the context
         for i in 1..=n_messages {
-            worker.add_user_message(format!(
-                "This is user message number {}. What is {} * {}?",
-                i, i, i
-            ));
+            worker.add_user_message(
+                format!("This is user message number {}. What is {} * {}?", i, i, i),
+                vec![],
+            );
             worker.add_assistant_message(format!(
                 "<think> </think> The answer is {}. Do you have any further questions?",
                 i * i
             ));
         }
 
-        worker.add_user_message("Hello!".into());
+        worker.add_user_message("Hello!".into(), vec![]);
 
         // Check that we have many messages before shift
         let messages_before = worker.extra.messages.len();
@@ -2262,7 +2116,7 @@ mod tests {
         }
 
         // 5. Verify token count is within target
-        let token_count = worker.get_render_as_tokens()?.len();
+        let token_count = worker.render_as_chunks(true)?.len();
 
         let target_size = (n_ctx / 2) as usize;
         assert!(
@@ -2310,7 +2164,10 @@ mod tests {
 
         // Add exchanges with tool calls mixed in
         for i in 1..=n_messages {
-            worker.add_user_message(format!("User message {}. What is {} * {}?", i, i, i));
+            worker.add_user_message(
+                format!("User message {}. What is {} * {}?", i, i, i),
+                vec![],
+            );
 
             // Add a tool call every other message
             // Pattern: User -> Assistant (with tool call) -> Tool response -> Assistant
@@ -2331,7 +2188,7 @@ mod tests {
             }
         }
 
-        worker.add_user_message("Final question!".into());
+        worker.add_user_message("Final question!".into(), vec![]);
 
         // Check that we have many messages before shift
         let messages_before = worker.extra.messages.len();
@@ -2379,7 +2236,7 @@ mod tests {
         }
 
         // 5. Verify token count is within target
-        let token_count = worker.get_render_as_tokens()?.len();
+        let token_count = worker.render_as_chunks(true)?.len();
 
         let target_size = (n_ctx / 2) as usize;
         assert!(
@@ -2426,10 +2283,10 @@ mod tests {
 
         // Fill up the context until it's almost full
         for i in 1..=n_messages {
-            worker.add_user_message(format!(
-                "This is user message number {}. What is {} * {}?",
-                i, i, i
-            ));
+            worker.add_user_message(
+                format!("This is user message number {}. What is {} * {}?", i, i, i),
+                vec![],
+            );
             worker.add_assistant_message(format!("The answer is {}.", i * i));
         }
 
@@ -2445,7 +2302,7 @@ mod tests {
 
         // This should trigger context shift internally because there's not enough space
         worker.ask(
-            "This is a new question that will not fit in the context! What is 10 * 10?".to_string(),
+            "This is a new question that will not fit in the context! What is 10 * 10?".into(),
             f,
         )?;
 
@@ -2512,10 +2369,10 @@ mod tests {
 
         // Fill up the context until it's almost full
         for i in 1..=n_messages {
-            worker.add_user_message(format!(
-                "This is user message number {}. What is {} * {}?",
-                i, i, i
-            ));
+            worker.add_user_message(
+                format!("This is user message number {}. What is {} * {}?", i, i, i),
+                vec![],
+            );
             worker.add_assistant_message(format!("The answer is {}.", i * i));
         }
 
@@ -2530,7 +2387,7 @@ mod tests {
         };
 
         // This should trigger context shift internally because there's not enough space
-        worker.ask("What is 10 * 10?".to_string(), f)?;
+        worker.ask("What is 10 * 10?".into(), f)?;
 
         let _response = receiver.recv()?;
         let messages_after = worker.extra.messages.clone();

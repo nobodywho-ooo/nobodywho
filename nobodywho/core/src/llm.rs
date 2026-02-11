@@ -1,4 +1,5 @@
 use crate::errors::{InitWorkerError, LoadModelError, ReadError};
+use crate::tokenizer::{ProjectionModel, Tokenizer, TokenizerChunk, TokenizerChunks};
 use lazy_static::lazy_static;
 use llama_cpp_2::context::kv_cache::KvCacheConversionError;
 use llama_cpp_2::context::params::{LlamaContextParams, LlamaPoolingType};
@@ -8,6 +9,7 @@ use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::AddBos;
 use llama_cpp_2::model::LlamaModel;
+use llama_cpp_2::mtmd::MtmdInputChunks;
 use llama_cpp_2::token::LlamaToken;
 use std::pin::pin;
 use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
@@ -163,7 +165,8 @@ pub(crate) struct Worker<'a, S> {
     pub(crate) ctx: LlamaContext<'a>,
     pub(crate) big_batch: LlamaBatch<'a>,
     pub(crate) small_batch: LlamaBatch<'a>,
-    pub(crate) add_bos: AddBos,
+    pub(crate) projection_model: Option<Arc<ProjectionModel>>,
+    pub(crate) tokenizer: Tokenizer<'a>,
 
     pub(crate) extra: S,
 }
@@ -190,11 +193,12 @@ where
     T: PoolingType,
 {
     pub(crate) fn new_with_type(
-        model: &Arc<LlamaModel>,
+        model: &'a Arc<LlamaModel>,
+        projection_model: Option<Arc<ProjectionModel>>,
         n_ctx: u32,
         use_embeddings: bool,
         extra: T,
-    ) -> Result<Worker<'_, T>, InitWorkerError> {
+    ) -> Result<Worker<'a, T>, InitWorkerError> {
         info!("Initializing worker");
 
         // Set up context parameters using available parallelism
@@ -220,13 +224,21 @@ where
         let add_bos = read_add_bos_metadata(model)?;
         debug!(?add_bos, "Read add_bos from GGUF metadata:");
 
+        // Clone the Arc for the tokenizer so we can still move the original into Worker
+        let tokenizer = Tokenizer::new(
+            model,
+            projection_model.as_ref().map(|arc| Arc::clone(arc)),
+            add_bos,
+        );
+
         let state = Worker {
             n_past: 0,
             ctx,
             big_batch,
             small_batch,
+            projection_model,
             extra,
-            add_bos,
+            tokenizer,
         };
         Ok(state)
     }
@@ -242,8 +254,58 @@ where
     pub fn read_string(&mut self, text: String) -> Result<&mut Self, ReadError> {
         let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
         let inference_lock_token = _gil_guard.unwrap();
-        let tokens = self.ctx.model.str_to_token(&text, self.add_bos)?;
-        self.read_tokens(tokens, &inference_lock_token)
+        let chunks = self.tokenizer.tokenize(text, vec![])?;
+        self.read_chunks(chunks, &inference_lock_token)
+    }
+
+    pub fn read_chunks(
+        &mut self,
+        chunks: TokenizerChunks,
+        inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
+    ) -> Result<&mut Self, ReadError> {
+        for chunk in chunks.into_iter() {
+            match chunk {
+                TokenizerChunk::Text(tokens, _) => {
+                    self.read_text_tokens(tokens, inference_lock_token)?;
+                }
+                TokenizerChunk::Image(embeddings, _) => {
+                    self.read_image_embeddings(embeddings, inference_lock_token)?;
+                }
+            }
+        }
+
+        Ok(self)
+    }
+
+    #[tracing::instrument(level = "trace", skip(self))]
+    fn read_image_embeddings(
+        &mut self,
+        embeddings: Arc<MtmdInputChunks>,
+        inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
+    ) -> Result<&mut Self, ReadError> {
+        let projection_model = self
+            .projection_model
+            .as_ref()
+            .ok_or(ReadError::ProjectionModelNotInitialized)?;
+
+        let n_tokens = embeddings.as_ref().total_tokens();
+        debug!(n_tokens, "Reading image embeddings:");
+
+        let decode_span = debug_span!("read image embeddings", n_tokens = n_tokens);
+        let decode_guard = decode_span.enter();
+        self.n_past = embeddings.eval_chunks(
+            &projection_model.ctx,
+            &mut self.ctx,
+            self.n_past,
+            0,
+            self.big_batch.n_tokens(),
+            true,
+        )?;
+        drop(decode_guard);
+
+        debug!("Completed read image embeddings operation");
+
+        Ok(self)
     }
 
     // ---------- IMPORTANT ----------
@@ -252,7 +314,7 @@ where
     // contexts with the same model. It might not be necessary
     // but assume it is.
     #[tracing::instrument(level = "trace", skip(self))]
-    pub fn read_tokens(
+    fn read_text_tokens(
         &mut self,
         tokens: Vec<LlamaToken>,
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
@@ -287,7 +349,7 @@ where
 
         self.n_past += tokens.len() as i32;
 
-        debug!("Completed read operation");
+        debug!("Completed read tokens operation");
 
         Ok(self)
     }

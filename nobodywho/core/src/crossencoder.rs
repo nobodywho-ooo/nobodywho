@@ -137,7 +137,7 @@ impl<'a> Worker<'a, CrossEncoderWorker> {
         model: &Arc<LlamaModel>,
         n_ctx: u32,
     ) -> Result<Worker<'_, CrossEncoderWorker>, InitWorkerError> {
-        Worker::new_with_type(model, n_ctx, true, CrossEncoderWorker {})
+        Worker::new_with_type(model, None, n_ctx, true, CrossEncoderWorker {})
     }
 
     pub fn get_classification_score(&self) -> Result<f32, CrossEncoderWorkerError> {
