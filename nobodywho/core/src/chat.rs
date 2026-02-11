@@ -946,10 +946,6 @@ impl Worker<'_, ChatWorker> {
     ) -> Result<Worker<'_, ChatWorker>, InitWorkerError> {
         let template = select_template(model, !config.tools.is_empty())?;
 
-        let tokenize = llama_cpp_2::model::Special::Tokenize;
-        let _bos = model.token_to_str(model.token_bos(), tokenize)?;
-        let _eos = model.token_to_str(model.token_eos(), tokenize)?;
-
         // Only detect tool calling format if tools are provided
         let (tool_format, grammar) = if !config.tools.is_empty() {
             match detect_tool_format(model) {
