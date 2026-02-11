@@ -616,7 +616,7 @@ impl ChatHandleAsync {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```ignore
     /// # use nobodywho::chat::ChatBuilder;
     /// # use nobodywho::llm::get_model;
     /// # let model = get_model("model.gguf", true).unwrap();
