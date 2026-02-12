@@ -1,5 +1,7 @@
-use super::grammar_builder::{nt, nt_plus, t, t_star, GrammarBuilder};
+use super::grammar_builder::{nt, nt_plus, seq, t, GrammarBuilder};
 use super::{Tool, ToolCall, ToolFormatError, ToolFormatHandler};
+use gbnf::json::json_schema_to_grammar;
+use gbnf::GbnfGrammar;
 use serde_json::json;
 use tracing::debug;
 
@@ -15,7 +17,7 @@ impl ToolFormatHandler for Qwen3Handler {
         "</tool_call>"
     }
 
-    fn generate_grammar(&self, tools: &[Tool]) -> Result<gbnf::Grammar, ToolFormatError> {
+    fn generate_grammar(&self, tools: &[Tool]) -> Result<GbnfGrammar, ToolFormatError> {
         let tool_call_schemas: serde_json::Value = tools
             .iter()
             .map(|tool| {
@@ -37,22 +39,21 @@ impl ToolFormatHandler for Qwen3Handler {
         );
 
         // Generate JSON grammar from schema, then extend it with wrapping rules
-        let json_grammar = gbnf::Grammar::from_json_schema(&tool_call_schema.to_string())?;
+        let json_grammar = json_schema_to_grammar(tool_call_schema)?;
 
         let grammar = GrammarBuilder::from_existing(json_grammar)
-            .rule("ws", vec![t_star(" ")])
             .rule(
                 "toolcall",
-                vec![
+                seq(&[
                     t(self.begin_token()),
                     nt("ws"),
                     nt("root"),
                     nt("ws"),
                     t(self.end_token()),
                     nt("ws"),
-                ],
+                ]),
             )
-            .rule("superroot", vec![nt_plus("toolcall")])
+            .rule("superroot", nt_plus("toolcall"))
             .build();
 
         Ok(grammar)

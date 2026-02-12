@@ -77,8 +77,8 @@ pub enum ToolFormatError {
     #[error("Failed to generate grammar: {0}")]
     GrammarGenerationFailed(String),
 
-    #[error("JSON schema parse error: {0}")]
-    JsonSchemaParseError(#[from] gbnf::json::JsonSchemaParseError),
+    #[error("JSON schema error: {0}")]
+    JsonSchemaError(#[from] gbnf::json::JsonSchemaError),
 
     #[error("Lama.cpp failed fetching chat template from the model file. This is likely because you're using an older GGUF file, which might not include a chat template. For example, this is the case for most LLaMA2-based GGUF files. Try using a more recent GGUF model file. {0}")]
     ChatTemplateError(#[from] llama_cpp_2::ChatTemplateError),
@@ -97,7 +97,7 @@ pub trait ToolFormatHandler {
     fn end_token(&self) -> &str;
 
     /// Generates a GBNF grammar for constrained sampling of tool calls.
-    fn generate_grammar(&self, tools: &[Tool]) -> Result<gbnf::Grammar, ToolFormatError>;
+    fn generate_grammar(&self, tools: &[Tool]) -> Result<gbnf::GbnfGrammar, ToolFormatError>;
 
     /// Extracts tool calls from the given text.
     fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>>;
@@ -149,7 +149,7 @@ impl ToolFormat {
         self.handler().end_token()
     }
 
-    pub fn generate_grammar(&self, tools: &[Tool]) -> Result<gbnf::Grammar, ToolFormatError> {
+    pub fn generate_grammar(&self, tools: &[Tool]) -> Result<gbnf::GbnfGrammar, ToolFormatError> {
         self.handler().generate_grammar(tools)
     }
 

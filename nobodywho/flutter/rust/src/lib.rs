@@ -402,7 +402,7 @@ fn dart_function_type_to_json_schema(
     for (parameter_name, mut parameter_type) in parsed_parameters {
         required.push(parameter_name);
 
-        if let Some(description) = parameter_descriptions.get(parameter_name.into()) {
+        if let Some(description) = parameter_descriptions.get(parameter_name) {
             if let Some(obj) = parameter_type.as_object_mut() {
                 obj.insert(
                     "description".to_string(),

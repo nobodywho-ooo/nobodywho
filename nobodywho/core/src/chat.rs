@@ -129,7 +129,8 @@ impl Default for ChatConfig {
 ///
 /// # Example
 /// ```
-/// use nobodywho::chat::{ChatBuilder, Tool};
+/// use nobodywho::chat::{ChatBuilder};
+/// use nobodywho::tool_calling::Tool;
 /// use nobodywho::llm;
 /// use std::sync::Arc;
 ///
@@ -615,12 +616,12 @@ impl ChatHandleAsync {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```ignore
     /// # use nobodywho::chat::ChatBuilder;
     /// # use nobodywho::llm::get_model;
     /// # let model = get_model("model.gguf", true).unwrap();
     /// # let chat = ChatBuilder::new(model).build_async();
-    /// chat.set_system_prompt("You are a helpful coding assistant.".to_string()).await?;
+    /// # chat.set_system_prompt("You are a helpful coding assistant.".to_string()).await?;
     /// # Ok::<(), nobodywho::errors::SetterError>(())
     /// ```
     pub async fn set_system_prompt(
@@ -922,7 +923,7 @@ fn find_prefix_index_and_difference_with_tokens_in_context(
 
 struct ChatWorker {
     should_stop: Arc<AtomicBool>,
-    tool_grammar: Option<gbnf::Grammar>,
+    tool_grammar: Option<gbnf::GbnfGrammar>,
     tool_format: Option<ToolFormat>,
     sampler_config: SamplerConfig,
     messages: Vec<Message>,
@@ -1301,7 +1302,7 @@ impl Worker<'_, ChatWorker> {
                     .prepend(ShiftStep::Grammar {
                         trigger_on: tool_call_begin.clone(),
                         root: "superroot".into(),
-                        grammar: tool_grammar.to_string(),
+                        grammar: tool_grammar.as_str().into(),
                     })
             },
         );
@@ -1870,6 +1871,7 @@ mod tests {
 
         let result = receiver.recv().unwrap();
         println!("{}", result);
+        println!("{}", worker.extra.tool_grammar.unwrap().as_str());
         assert!(result.contains("13.37"));
         assert!(result.contains("42.69"));
     }

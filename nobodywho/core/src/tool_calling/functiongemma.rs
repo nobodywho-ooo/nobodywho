@@ -1,5 +1,6 @@
-use super::grammar_builder::{not_chars, nt, t, t_star, GrammarBuilder};
+use super::grammar_builder::{not_chars, nt, seq, t, t_star, GrammarBuilder};
 use super::{Tool, ToolCall, ToolFormatError, ToolFormatHandler};
+use gbnf::GbnfGrammar;
 use serde_json::json;
 use tracing::debug;
 
@@ -15,15 +16,15 @@ impl ToolFormatHandler for FunctionGemmaHandler {
         "<end_function_call>"
     }
 
-    fn generate_grammar(&self, tools: &[Tool]) -> Result<gbnf::Grammar, ToolFormatError> {
+    fn generate_grammar(&self, tools: &[Tool]) -> Result<GbnfGrammar, ToolFormatError> {
         // FunctionGemma format: call:tool_name{param1:<escape>value<escape>, param2:<escape>value<escape>}
-        let mut builder = GrammarBuilder::new().rule("ws", vec![t_star(" ")]).rule(
+        let mut builder = GrammarBuilder::new().rule("ws", t_star(" ")).rule(
             "value",
-            vec![
+            seq(&[
                 t("<escape>"),
                 not_chars(&['<', '>', '{', '}', ',', ':']),
                 t("<escape>"),
-            ],
+            ]),
         );
 
         let tool_rules: Vec<_> = tools
@@ -64,35 +65,35 @@ impl ToolFormatHandler for FunctionGemmaHandler {
                         param_items.extend_from_slice(param);
                     }
 
-                    builder = builder.rule(&params_rule, param_items);
+                    builder = builder.rule(&params_rule, seq(&param_items));
                 }
             }
 
             items.push(t("}"));
-            builder = builder.rule(tool_name, items);
+            builder = builder.rule(tool_name, seq(&items));
         }
 
         for tool_rule in &tool_rules {
-            builder = builder.rule("functioncall", vec![nt(tool_rule)]);
+            builder = builder.rule("functioncall", nt(tool_rule));
         }
 
         let grammar = builder
             .rule(
                 "toolcall",
-                vec![
+                seq(&[
                     t(self.begin_token()),
                     nt("ws"),
                     nt("functioncall"),
                     nt("ws"),
                     t(self.end_token()),
                     nt("ws"),
-                ],
+                ]),
             )
-            .rule("superroot", vec![nt("toolcall")])
-            .rule("root", vec![nt("superroot")])
+            .rule("superroot", nt("toolcall"))
+            .rule("root", nt("superroot"))
             .build();
 
-        debug!(%grammar, "Grammar:\n");
+        debug!("Grammar:\n{}", grammar.as_str());
 
         Ok(grammar)
     }
