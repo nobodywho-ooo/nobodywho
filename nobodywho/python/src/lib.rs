@@ -1339,6 +1339,7 @@ fn tool<'a>(
 
             // generate json schema from function type annotations
             let json_schema = python_func_json_schema(py, &fun, &params)?;
+            let decode_schema = json_schema.clone();
 
             let fun_clone = fun.clone_ref(py);
 
@@ -1346,7 +1347,7 @@ fn tool<'a>(
             let wrapped_function = move |json: serde_json::Value| {
                 Python::attach(|py| {
                     // construct kwargs to call the function with
-                    let kwargs = match json_to_kwargs(py, json) {
+                    let kwargs = match json_to_kwargs(py, json, decode_schema.to_owned()) {
                         Ok(kwargs) => kwargs,
                         Err(e) => return format!("ERROR: Failed to convert arguments: {e}"),
                     };
@@ -1496,13 +1497,34 @@ fn python_func_json_schema(
 }
 
 // takes a sede_json::value, assumed to be an object, and returns a PyDict
-fn json_to_kwargs(py: Python, json: serde_json::Value) -> PyResult<Bound<pyo3::types::PyDict>> {
+fn json_to_kwargs(
+    py: Python,
+    json: serde_json::Value,
+    json_schema: serde_json::Value,
+) -> PyResult<Bound<pyo3::types::PyDict>> {
     let py_dict = pyo3::types::PyDict::new(py);
 
     match json {
         serde_json::Value::Object(obj) => {
             for (k, v) in obj {
-                let value_py = json_value_to_py(py, &v)?;
+                let obj_schema = match json_schema.get("properties") {
+                    Some(props) => match props.get(k.clone()) {
+                        Some(obj_schema) => obj_schema,
+                        None => {
+                            return Err(pyo3::exceptions::PyTypeError::new_err(format!(
+                                "jsonschema does not contain schema for parameter: {}",
+                                k.clone()
+                            )))
+                        }
+                    },
+                    None => {
+                        return Err(pyo3::exceptions::PyTypeError::new_err(format!(
+                            "jsonschema is constructed incorrectly :{}",
+                            json_schema
+                        )))
+                    }
+                };
+                let value_py = json_value_to_py(py, &v, obj_schema)?;
                 py_dict.set_item(k, value_py)?;
             }
             Ok(py_dict)
@@ -1519,34 +1541,99 @@ fn json_to_kwargs(py: Python, json: serde_json::Value) -> PyResult<Bound<pyo3::t
 }
 
 // Helper function to convert serde_json::Value to PyObject
-fn json_value_to_py<'py>(py: Python<'py>, value: &serde_json::Value) -> PyResult<Py<PyAny>> {
+fn json_value_to_py<'py>(
+    py: Python<'py>,
+    value: &serde_json::Value,
+    obj_schema: &serde_json::Value,
+) -> PyResult<Py<PyAny>> {
+    let obj_type = match obj_schema.get("type") {
+        Some(serde_json::Value::String(obj_type)) => obj_type,
+        _ => {
+            return Err(pyo3::exceptions::PyTypeError::new_err(format!(
+                "jsonschema does not contain type:{}",
+                obj_schema
+            )))
+        }
+    };
+
     match value {
         serde_json::Value::Null => Ok(py.None()),
         serde_json::Value::Bool(b) => Ok(pyo3::types::PyBool::new(py, *b).to_owned().into()),
         serde_json::Value::Number(n) => {
-            if let Some(i) = n.as_i128() {
-                Ok(pyo3::types::PyInt::new(py, i).into())
-            } else if let Some(i) = n.as_u128() {
-                Ok(pyo3::types::PyInt::new(py, i).into())
-            } else if let Some(f) = n.as_f64() {
-                Ok(pyo3::types::PyFloat::new(py, f).into())
+            if obj_type == "number" {
+                if let Some(f) = n.as_f64() {
+                    Ok(pyo3::types::PyFloat::new(py, f).into())
+                } else {
+                    Err(pyo3::exceptions::PyValueError::new_err("Invalid number"))
+                }
             } else {
-                Err(pyo3::exceptions::PyValueError::new_err("Invalid number"))
+                if let Some(i) = n.as_i128() {
+                    Ok(pyo3::types::PyInt::new(py, i).into())
+                } else if let Some(i) = n.as_u128() {
+                    Ok(pyo3::types::PyInt::new(py, i).into())
+                } else {
+                    Err(pyo3::exceptions::PyValueError::new_err("Invalid number"))
+                }
             }
         }
         serde_json::Value::String(s) => Ok(pyo3::types::PyString::new(py, s).into()),
         serde_json::Value::Array(arr) => {
-            let py_items: PyResult<Vec<_>> = arr.iter().map(|v| json_value_to_py(py, v)).collect();
-            let pylist = pyo3::types::PyList::new(py, py_items?);
-            match pylist {
-                Ok(list) => Ok(list.into()),
-                Err(_) => Err(pyo3::exceptions::PyValueError::new_err("Invalid number")),
+            let item_schema = match obj_schema.get("item") {
+                Some(item_schema) => item_schema,
+                _ => {
+                    return Err(pyo3::exceptions::PyTypeError::new_err(format!(
+                        "jsonschema does not contain items schema for array:{}",
+                        obj_schema
+                    )))
+                }
+            };
+            let py_items: PyResult<Vec<_>> = arr
+                .iter()
+                .map(|v| json_value_to_py(py, v, item_schema))
+                .collect();
+            // Array is actually tuple
+            if let Some(serde_json::Value::Array(prefix_items)) = obj_schema.get("prefixItems") {
+                let py_items: PyResult<Vec<_>> = arr
+                    .iter()
+                    .zip(prefix_items.iter())
+                    .map(|(v, schema)| json_value_to_py(py, v, schema))
+                    .collect();
+                let pytuple = pyo3::types::PyTuple::new(py, py_items?);
+                match pytuple {
+                    Ok(tuple) => Ok(tuple.into()),
+                    Err(_) => Err(pyo3::exceptions::PyValueError::new_err(
+                        "Could not convert tuple",
+                    )),
+                }
+            // Array is actually a set
+            } else if let Some(_) = obj_schema.get("uniqueItems") {
+                let pyset = pyo3::types::PySet::new(py, py_items?);
+                match pyset {
+                    Ok(set) => Ok(set.into()),
+                    Err(_) => Err(pyo3::exceptions::PyValueError::new_err("Invalid number")),
+                }
+            // Array is a list
+            } else {
+                let pylist = pyo3::types::PyList::new(py, py_items?);
+                match pylist {
+                    Ok(list) => Ok(list.into()),
+                    Err(_) => Err(pyo3::exceptions::PyValueError::new_err("Invalid number")),
+                }
             }
         }
         serde_json::Value::Object(obj) => {
             let py_dict = pyo3::types::PyDict::new(py);
+            let additional_prop_schema = match obj_schema.get("additionalProperties") {
+                Some(item_schema) => item_schema,
+                _ => {
+                    return Err(pyo3::exceptions::PyTypeError::new_err(format!(
+                        "jsonschema does not contain additionalProperties schema for map:{}",
+                        obj_schema
+                    )))
+                }
+            };
             for (k, v) in obj {
-                let value_py = json_value_to_py(py, v)?;
+                let value_py = json_value_to_py(py, v, additional_prop_schema)?;
                 py_dict.set_item(k, value_py)?;
             }
             Ok(py_dict.into())
