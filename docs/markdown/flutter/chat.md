@@ -32,6 +32,7 @@ This allows for sharing the model between several `Chat` instances.
 The `Chat.ask()` function is central to NobodyWho. This function sends your message to the LLM, which then starts generating a response.
 
 ```dart
+import "dart:io"
 final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
 final response = await chat.ask("Is water wet?");
 ```
@@ -42,7 +43,8 @@ Each token is either an individual word or fragments of a word.
 
 ```{.dart continuation}
 await for (final token in response) {
-   print(token);
+   stdout.write(token);
+   await stdout.flush();
 }
 print("\n");
 ```

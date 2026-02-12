@@ -7,6 +7,7 @@
 @Timeout(Duration(seconds: 600))
 library;
 
+import "dart:io";
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -262,7 +263,8 @@ void main() {
       final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
       final response = await chat.ask("Is water wet?");
       await for (final token in response) {
-         print(token);
+         stdout.write(token);
+         await stdout.flush();
       }
       print("\n");
       final fullResponse = await response.completed();
@@ -273,14 +275,14 @@ void main() {
       ]);
     });
 
-    test('chat.md:83', () async {
+    test('chat.md:85', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         systemPrompt: "You are a mischievous assistant!"
       );
     });
 
-    test('chat.md:99', () async {
+    test('chat.md:101', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         contextSize: 4096
@@ -288,15 +290,15 @@ void main() {
       await chat.resetContext(systemPrompt: "New system prompt", tools: []);
     });
 
-    test('chat.md:138', () async {
+    test('chat.md:140', () async {
       final model = await nobodywho.Model.load(modelPath: './model.gguf', useGpu: true);
     });
 
-    test('chat.md:142', () async {
+    test('chat.md:144', () async {
       final chat = await nobodywho.Chat.fromPath(modelPath: './model.gguf', useGpu : false);
     });
 
-    test('chat.md:152', () async {
+    test('chat.md:154', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         allowThinking: true
