@@ -46,10 +46,6 @@ fn list_type(input: &str) -> IResult<&str, serde_json::Value> {
     .parse(input)
 }
 
-// TODO: this is not used, because we can't bijectively map between most flutter types and json.
-//       If we can preserve the information about what the original python types were, when we
-//       convert back from json to python, we could add support for these fancier types.
-#[allow(dead_code)]
 fn set_type(input: &str) -> IResult<&str, serde_json::Value> {
     map(
         delimited(tag_no_case("Set<"), type_parser, tag(">")),
@@ -58,9 +54,6 @@ fn set_type(input: &str) -> IResult<&str, serde_json::Value> {
     .parse(input)
 }
 
-// TODO: This should be doable but the gbnf crate is shit, and does not support the use of additionalProperties
-//       in this jsonschemas. This is well within what is possible with gbnf, so when we fix this it should be easy.
-#[allow(dead_code)]
 fn map_key(input: &str) -> IResult<&str, serde_json::Value> {
     map(
         tag_no_case("String"),
@@ -69,7 +62,6 @@ fn map_key(input: &str) -> IResult<&str, serde_json::Value> {
     .parse(input)
 }
 
-#[allow(dead_code)]
 fn map_type(input: &str) -> IResult<&str, serde_json::Value> {
     map(
         delimited(
