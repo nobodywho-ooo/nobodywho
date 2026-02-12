@@ -25,7 +25,7 @@ python3Packages.buildPythonPackage {
   cargoDeps = rustPlatform.importCargoLock {
     lockFile = ../Cargo.lock;
     outputHashes = {
-      "gbnf-0.1.0" = "sha256-7vcKOZ/Ji79qA+OwehiDwmTvOsdWOIM361g2afQtND8=";
+      "gbnf-0.1.0" = "sha256-+9hJcYDbzHBq4iwsNV+PjAN2haLxyqvy+SqOQmWc/+8=";
     };
   };
 
