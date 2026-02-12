@@ -9,6 +9,7 @@ dependencies = [
     "langdetect>=1.0.9",
     "lm-eval>=0.4.10",
     # "nobodywho", # < what happens if we include this from surrounding scope (built w/ nix)
+    "mlflow>=3.9.0",
     "wandb>=0.24.2",
 ]
 
