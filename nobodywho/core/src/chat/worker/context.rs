@@ -6,7 +6,7 @@ use std::cmp::min;
 use std::sync::MutexGuard;
 use tracing::info;
 
-use super::super::types::{Message, Role};
+use super::super::{Message, Role};
 use super::ChatWorker;
 
 /// Utility function for prefix caching

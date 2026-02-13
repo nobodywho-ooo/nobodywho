@@ -7,9 +7,9 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tracing::{error, info};
 
-use super::config::ChatConfig;
 use super::super::stream::{TokenStream, TokenStreamAsync};
 use super::super::worker::ChatWorker;
+use super::config::ChatConfig;
 
 // Messaging types and functions
 
@@ -244,8 +244,11 @@ impl ChatHandle {
 
     /// Update the available tools for the model to use.
     pub fn set_tools(&self, tools: Vec<Tool>) -> Result<(), crate::errors::SetterError> {
-        set_and_wait_blocking(&self.msg_tx, |output_tx| ChatMsg::SetTools { tools, output_tx })
-            .ok_or(crate::errors::SetterError::SetterError("set_tools".into()))
+        set_and_wait_blocking(&self.msg_tx, |output_tx| ChatMsg::SetTools {
+            tools,
+            output_tx,
+        })
+        .ok_or(crate::errors::SetterError::SetterError("set_tools".into()))
     }
 
     /// Update whether the model should use thinking mode during inference.
@@ -283,7 +286,9 @@ impl ChatHandle {
     }
 
     /// Get the chat history without the system prompt (lower-level API).
-    pub fn get_chat_history(&self) -> Result<Vec<crate::chat::Message>, crate::errors::GetterError> {
+    pub fn get_chat_history(
+        &self,
+    ) -> Result<Vec<crate::chat::Message>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         let _ = self.msg_tx.send(ChatMsg::GetChatHistory { output_tx });
         output_rx
@@ -444,9 +449,12 @@ impl ChatHandleAsync {
 
     /// Update the available tools for the model to use.
     pub async fn set_tools(&self, tools: Vec<Tool>) -> Result<(), crate::errors::SetterError> {
-        set_and_wait_async(&self.msg_tx, |output_tx| ChatMsg::SetTools { tools, output_tx })
-            .await
-            .ok_or(crate::errors::SetterError::SetterError("set_tools".into()))
+        set_and_wait_async(&self.msg_tx, |output_tx| ChatMsg::SetTools {
+            tools,
+            output_tx,
+        })
+        .await
+        .ok_or(crate::errors::SetterError::SetterError("set_tools".into()))
     }
 
     /// Update whether the model should use thinking mode during inference.

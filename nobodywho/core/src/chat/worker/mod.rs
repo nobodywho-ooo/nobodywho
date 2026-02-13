@@ -1,6 +1,5 @@
 pub(crate) mod context;
 pub(crate) mod generation;
-pub(crate) mod messaging;
 
 use crate::errors::{
     ChatWorkerError, ContextSyncError, InitWorkerError, SayError, SelectTemplateError,
@@ -17,7 +16,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tracing::{debug, error};
 
-use super::types::{Message, Role};
+use super::{Message, Role};
 
 pub(crate) struct ChatWorker {
     pub(crate) should_stop: Arc<AtomicBool>,
@@ -40,7 +39,7 @@ impl llm::PoolingType for ChatWorker {
 impl Worker<'_, ChatWorker> {
     pub(crate) fn new_chat_worker(
         model: &Arc<LlamaModel>,
-        config: super::config::ChatConfig,
+        config: super::api::config::ChatConfig,
         should_stop: Arc<AtomicBool>,
     ) -> Result<Worker<'_, ChatWorker>, InitWorkerError> {
         let template = select_template(model, !config.tools.is_empty())?;
