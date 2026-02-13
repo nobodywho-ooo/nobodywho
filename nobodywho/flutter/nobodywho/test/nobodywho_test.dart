@@ -4,28 +4,34 @@
 import 'package:nobodywho/nobodywho.dart' as nobodywho;
 import 'package:test/test.dart';
 import 'dart:io';
-// Mock ToolCall for testing - we can't easily create real ones without Rust
-// so we'll test Message construction patterns that don't require ToolCall
 
 List<List<double>> multiplyMatrices(List<List<double>> a, List<List<double>> b) {
-    final rowsA = a.length;
-    final colsA = a[0].length;
-    final colsB = b[0].length;
+  final rowsA = a.length;
+  final colsA = a[0].length;
+  final colsB = b[0].length;
 
-    // Initialize result matrix with zeros
-    final result = List.generate(rowsA, (_) => List.filled(colsB, 0.0));
+  // Initialize result matrix with zeros
+  final result = List.generate(rowsA, (_) => List.filled(colsB, 0.0));
 
-    for (var i = 0; i < rowsA; i++) {
-      for (var j = 0; j < colsB; j++) {
-        for (var k = 0; k < colsA; k++) {
-          result[i][j] += a[i][k] * b[k][j];
-        }
+  for (var i = 0; i < rowsA; i++) {
+    for (var j = 0; j < colsB; j++) {
+      for (var k = 0; k < colsA; k++) {
+        result[i][j] += a[i][k] * b[k][j];
       }
     }
-
-    return result;
   }
 
+  return result;
+}
+
+
+String multiplyStrings({required Map<String,int> mapOfStrings}){
+  return mapOfStrings.entries.map((e) => e.key * e.value).reduce((acc, curr) => acc + curr);
+}
+
+String setIntersection({required Set<int> set1, required Set<int> set2}) {
+  return set1.intersection(set2).toString();
+}
 
 
 String sparklify({required String text}) {
@@ -75,12 +81,26 @@ void main() {
 
     setUp(() async {
       // Additional setup goes here.
+
+      final multiplyStringsTool = nobodywho.Tool(
+        function: multiplyStrings,
+        name: "multiplyStrings",
+        description: "Takes each String in the map and multiplies (concatenates it to itself) by its value.",
+      );
+
+      final setIntersectionTool = nobodywho.Tool(
+        function: setIntersection,
+        name: "setIntersection",
+        description: "Returns the intersection between set1 and set2.",
+      );
+
       final sparklify_tool = nobodywho.Tool(
         function: sparklify,
         name: "sparklify",
         description: "Applies the sparklify effect to a string",
         parameterDescriptions: {"text" : "The text to be sparklified."},
       );
+
       final strongify_tool = nobodywho.Tool(
         function: strongify,
         name: "strongify",
@@ -118,7 +138,7 @@ void main() {
         systemPrompt: "",
         contextSize: 2048,
         allowThinking: false,
-        tools: [sparklify_tool, strongify_tool, noargs_tool, addTwoNumbersTool, addListOfVectorsTool, multiplySquareMatricesTool],
+        tools: [sparklify_tool, strongify_tool, noargs_tool, addTwoNumbersTool, addListOfVectorsTool, multiplySquareMatricesTool, multiplyStringsTool, setIntersectionTool],
       );
     });
 
@@ -194,6 +214,27 @@ void main() {
       final toolCall = history.firstWhere((m) => m.role == nobodywho.Role.tool);
 
       expect(toolCall.content, contains("[[118.0, 87.0], [327.0, 223.0]]"));
+    });
+
+    test('Tool calling for maps', () async{
+      final response = await chat!.ask(
+        "Please use the provided tool to multiply the strings Hello and BingBong by 2 and 3 respectively."
+      ).completed();
+      final history = await chat!.getChatHistory();
+      final toolCall = history.firstWhere((m) => m.role == nobodywho.Role.tool);
+
+      expect(toolCall.content, contains("BingBongBingBongBingBong"));
+    });
+
+
+    test('Tool calling for sets', () async{
+      final response = await chat!.ask(
+        "Please use the provided tool to find the intersection between the sets {12,4,6,7,8} and {12,5,7,3,4}."
+      ).completed();
+      final history = await chat!.getChatHistory();
+      final toolCall = history.firstWhere((m) => m.role == nobodywho.Role.tool);
+
+      expect(toolCall.content, contains("{12, 4, 7}"));
     });
 
 

@@ -391,14 +391,18 @@ class Tool {
         jsonMap.entries.map((e) => MapEntry(Symbol(e.key), jsonConversion(schema!["properties"][e.key], e.value))),
       );
 
-      // Call the function
-      final result = Function.apply(function, [], namedParams);
+      // Call the function and catch any errors
+      try {
+        final result = Function.apply(function, [], namedParams);
 
-      // Handle async tools and return
-      if (result is Future) {
-        return (await result).toString();
-      } else {
-        return result.toString();
+        // Handle async tools and return
+        if (result is Future) {
+          return (await result).toString();
+        } else {
+          return result.toString();
+        }
+      } catch (e) {
+        return "Error: $e";
       }
     };
 
