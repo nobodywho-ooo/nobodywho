@@ -1,3 +1,5 @@
+use crate::tool_calling::grammar_builder::nt_plus;
+
 use super::grammar_builder::{not_chars, nt, seq, t, t_star, GrammarBuilder};
 use super::{Tool, ToolCall, ToolFormatError, ToolFormatHandler};
 use gbnf::GbnfGrammar;
@@ -89,7 +91,7 @@ impl ToolFormatHandler for FunctionGemmaHandler {
                     nt("ws"),
                 ]),
             )
-            .rule("superroot", nt("toolcall"))
+            .rule("superroot", nt_plus("toolcall"))
             .rule("root", nt("superroot"))
             .build();
 
