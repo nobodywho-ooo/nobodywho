@@ -37,6 +37,7 @@ use crate::tokenizer::{
     TokenizerChunks,
 };
 use crate::tool_calling::{detect_tool_format, Tool, ToolCall, ToolFormat};
+use ahash::AHasher;
 use llama_cpp_2::model::Special;
 use llama_cpp_2::mtmd::MtmdBitmap;
 use llama_cpp_2::sampling::LlamaSampler;
@@ -45,6 +46,7 @@ use llama_cpp_2::{context::params::LlamaPoolingType, model::LlamaModel};
 use serde::{Deserialize, Serialize};
 use std::cmp::min;
 use std::collections::{HashMap, HashSet};
+use std::hash::Hasher;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, MutexGuard};
 use tracing::{debug, error, info, trace, trace_span};
@@ -938,6 +940,62 @@ impl ChatContext {
             bitmaps: HashMap::new(),
         }
     }
+
+    pub fn add_bitmaps(
+        &mut self,
+        bitmaps: Vec<MtmdBitmap>,
+    ) -> Result<Vec<String>, MultimodalError> {
+        let bitmap_map: HashMap<ChunkId, MtmdBitmap> = bitmaps
+            .into_iter()
+            .map(|bitmap| {
+                let id = self.create_bitmap_id(&bitmap);
+                bitmap.set_id(&id)?;
+
+                Ok((id, bitmap))
+            })
+            .collect::<Result<HashMap<ChunkId, MtmdBitmap>, MultimodalError>>()?;
+
+        let bitmap_ids = bitmap_map.keys().cloned().collect::<Vec<_>>();
+        let existing_bitmap_ids = self
+            .bitmaps
+            .keys()
+            .cloned()
+            .filter(|id| bitmap_ids.contains(id))
+            .collect::<Vec<_>>();
+
+        self.remove_bitmaps(existing_bitmap_ids);
+        self.bitmaps.extend(bitmap_map);
+
+        Ok(bitmap_ids)
+    }
+
+    pub fn garbage_collect_bitmaps(&mut self, messages: &[Message]) {
+        // Garbage collection for the bitmaps.
+        let referenced_bitmaps: HashSet<String> =
+            messages.iter().flat_map(|msg| msg.asset_ids()).collect();
+        let unreferenced_bitmap_ids: Vec<_> = self
+            .bitmaps
+            .keys()
+            .filter(|id| !referenced_bitmaps.contains(id.as_str()))
+            .cloned()
+            .collect();
+
+        self.remove_bitmaps(unreferenced_bitmap_ids);
+    }
+
+    fn create_bitmap_id(&self, bitmap: &MtmdBitmap) -> String {
+        let mut hasher = AHasher::default();
+        hasher.write(bitmap.data());
+        hasher.finish().to_string()
+    }
+
+    fn remove_bitmaps(&mut self, bitmap_ids: Vec<String>) {
+        for id in bitmap_ids {
+            if let Some(bitmap) = self.bitmaps.remove(&id) {
+                drop(bitmap);
+            }
+        }
+    }
 }
 
 struct ChatWorker {
@@ -1084,27 +1142,9 @@ impl Worker<'_, ChatWorker> {
         self.read_chunks(token_difference, inference_lock_token)?;
 
         self.extra.context.chunks = chunks;
-
-        // Garbage collection for the bitmaps.
-        let referenced_bitmaps: HashSet<String> = self
-            .extra
-            .messages
-            .iter()
-            .flat_map(|msg| msg.asset_ids())
-            .collect();
-        let unreferenced_bitmap_ids: Vec<_> = self
-            .extra
+        self.extra
             .context
-            .bitmaps
-            .keys()
-            .filter(|id| !referenced_bitmaps.contains(id.as_str()))
-            .cloned()
-            .collect();
-        for id in unreferenced_bitmap_ids {
-            if let Some(bitmap) = self.extra.context.bitmaps.remove(&id) {
-                drop(bitmap);
-            }
-        }
+            .garbage_collect_bitmaps(&self.extra.messages);
 
         Ok(())
     }
@@ -1343,26 +1383,8 @@ impl Worker<'_, ChatWorker> {
             vec![]
         };
 
-        let paths = prompt.extract_paths();
-        let total_bitmaps = bitmaps.len();
-        let bitmap_map: HashMap<ChunkId, MtmdBitmap> = bitmaps
-            .into_iter()
-            .enumerate()
-            .map(|(idx, bitmap)| {
-                let path = paths
-                    .get(idx)
-                    .cloned()
-                    .unwrap_or_else(|| "<unknown>".to_string());
-                let id = bitmap.id().ok_or(MultimodalError::FailedToGetBitmapId {
-                    bitmap_index: idx,
-                    total_bitmaps,
-                    image_path: path,
-                })?;
-                Ok((id, bitmap))
-            })
-            .collect::<Result<HashMap<ChunkId, MtmdBitmap>, MultimodalError>>()?;
-
-        self.add_user_message(prompt.to_string(), bitmap_map.keys().cloned().collect());
+        let bitmap_ids = self.extra.context.add_bitmaps(bitmaps)?;
+        self.add_user_message(prompt.to_string(), bitmap_ids);
 
         // Modify sampler with tool grammar if we have tools
         let sampler = self.extra.tool_grammar.as_ref().map_or(

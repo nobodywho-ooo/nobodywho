@@ -26,7 +26,12 @@ impl Prompt {
     }
 
     pub fn with_text(mut self, text: impl Into<String>) -> Self {
-        self.parts.push(PromptPart::Text(text.into()));
+        if let Some(PromptPart::Text(last_text)) = self.parts.last_mut() {
+            last_text.push_str(&text.into());
+        } else {
+            self.parts.push(PromptPart::Text(text.into()));
+        }
+
         self
     }
 
@@ -331,18 +336,14 @@ impl ProjectionModel {
         }
     }
 
-    pub fn tokenize(
-        &self,
-        bitmap: &MtmdBitmap,
-        add_bos: AddBos,
-    ) -> Result<TokenizerChunk, TokenizationError> {
+    pub fn tokenize(&self, bitmap: &MtmdBitmap) -> Result<TokenizerChunk, TokenizationError> {
         let media_marker = llama_cpp_2::mtmd::mtmd_default_marker().to_string();
         let mtmd_chunks = self
             .ctx
             .tokenize(
                 MtmdInputText {
                     text: media_marker,
-                    add_special: matches!(add_bos, AddBos::Always),
+                    add_special: false,
                     parse_special: true,
                 },
                 &[bitmap],
@@ -418,7 +419,7 @@ impl<'a> Tokenizer<'a> {
             .enumerate()
             .map(|(idx, split)| {
                 self.model
-                    .str_to_token(split, self.add_bos)
+                    .str_to_token(split, AddBos::Never)
                     .map(|tokens| TokenizerChunk::new_text(tokens))
                     .map_err(|e| TokenizationError::TextTokenizationFailed {
                         position: idx,
@@ -442,7 +443,7 @@ impl<'a> Tokenizer<'a> {
         // Tokenize each image separately to get individual chunks
         bitmaps
             .iter()
-            .map(|bitmap| projection_model.tokenize(*bitmap, self.add_bos))
+            .map(|bitmap| projection_model.tokenize(*bitmap))
             .collect::<Result<Vec<_>, TokenizationError>>()
     }
 

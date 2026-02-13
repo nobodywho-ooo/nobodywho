@@ -276,12 +276,8 @@ pub enum MultimodalError {
     #[error("Multimodal context not initialized. Use with_mmproj() when building ChatHandle.")]
     ContextNotInitialized,
 
-    #[error("Failed to get chunk ID for bitmap {bitmap_index} of {total_bitmaps}. Image path: {image_path}")]
-    FailedToGetBitmapId {
-        bitmap_index: usize,
-        total_bitmaps: usize,
-        image_path: String,
-    },
+    #[error("Failed to set chunk ID for bitmap: {0}")]
+    FailedToSetBitmapId(#[from] std::ffi::NulError),
 }
 
 #[derive(Debug, thiserror::Error)]
