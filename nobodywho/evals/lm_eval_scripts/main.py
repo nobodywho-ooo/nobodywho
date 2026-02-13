@@ -21,9 +21,7 @@ logger = logging.getLogger(__name__)
 def get_gpu_info() -> str:
     """Get GPU name via lspci"""
     try:
-        result = subprocess.run(
-            ["lspci"], capture_output=True, text=True, timeout=5
-        )
+        result = subprocess.run(["lspci"], capture_output=True, text=True, timeout=5)
         for line in result.stdout.split("\n"):
             if "VGA" in line or "3D controller" in line:
                 # Extract GPU model (everything after ": ")
@@ -48,18 +46,28 @@ def get_system_info() -> dict:
 @register_model("nobodywho")
 class NobodyWhoLM(LM):
     chat: nobodywho.Chat
+    allow_thinking: bool
+    model_path: Path
     timing_data: list[dict]
 
     def __init__(self, model_path: str, allow_thinking: str, *args, **kwargs):
         super().__init__()
+
+        # model path
         assert isinstance(model_path, str)
-        assert Path(model_path).exists()
-        allow_thinking_bool: bool = True if allow_thinking.lower() == "true" else False
         self.model_path = Path(model_path)
-        self.chat = nobodywho.Chat(
-            model_path, allow_thinking=allow_thinking_bool, n_ctx=16384 * 2
-        )
+        assert self.model_path.exists()
+
+        self.allow_thinking = True if allow_thinking.lower() == "true" else False
+
         self.timing_data = []
+
+        self._init_chat()
+
+    def _init_chat(self):
+        self.chat = nobodywho.Chat(
+            self.model_path, allow_thinking=self.allow_thinking, n_ctx=16384 * 2
+        )
 
     def generate_until(self, requests: list[Instance], disable_tqdm=False):
         result: list[str | None] = []
@@ -93,6 +101,7 @@ class NobodyWhoLM(LM):
             except RuntimeError as e:
                 logger.error(f"Exception during generation: {e}")
                 result.append(None)
+                self._init_chat()
                 continue
 
             # remove think block from response
@@ -260,7 +269,6 @@ if __name__ == "__main__":
         tasks=tasks,
         log_samples=True,
         evaluation_tracker=tracker,
-        limit=5,
     )
     assert results is not None
 
