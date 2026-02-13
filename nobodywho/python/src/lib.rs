@@ -1578,7 +1578,7 @@ fn json_value_to_py<'py>(
         }
         serde_json::Value::String(s) => Ok(pyo3::types::PyString::new(py, s).into()),
         serde_json::Value::Array(arr) => {
-            let item_schema = match obj_schema.get("item") {
+            let item_schema = match obj_schema.get("items") {
                 Some(item_schema) => item_schema,
                 _ => {
                     return Err(pyo3::exceptions::PyTypeError::new_err(format!(
