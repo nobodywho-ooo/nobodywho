@@ -50,7 +50,9 @@ class NobodyWhoLM(LM):
     model_path: Path
     timing_data: list[dict]
 
-    def __init__(self, model_path: str, allow_thinking: str, *args, **kwargs):
+    def __init__(
+        self, model_path: str, allow_thinking: str, n_ctx: int, *args, **kwargs
+    ):
         super().__init__()
 
         # model path
@@ -58,15 +60,20 @@ class NobodyWhoLM(LM):
         self.model_path = Path(model_path)
         assert self.model_path.exists()
 
+        # allow thinking
         self.allow_thinking = True if allow_thinking.lower() == "true" else False
 
-        self.timing_data = []
+        # n_ctx
+        assert n_ctx > 0
+        assert isinstance(n_ctx, int)
+        self.n_ctx = n_ctx
 
+        self.timing_data = []
         self._init_chat()
 
     def _init_chat(self):
         self.chat = nobodywho.Chat(
-            self.model_path, allow_thinking=self.allow_thinking, n_ctx=16384 * 2
+            self.model_path, allow_thinking=self.allow_thinking, n_ctx=self.n_ctx
         )
 
     def generate_until(self, requests: list[Instance], disable_tqdm=False):
@@ -265,7 +272,11 @@ if __name__ == "__main__":
     print("Starting evals suite...")
     results = lm_eval.simple_evaluate(
         model="nobodywho",
-        model_args={"model_path": str(model_path.resolve()), "allow_thinking": "true"},
+        model_args={
+            "model_path": str(model_path.resolve()),
+            "allow_thinking": "true",
+            "n_ctx": 32768,
+        },
         tasks=tasks,
         log_samples=True,
         evaluation_tracker=tracker,
