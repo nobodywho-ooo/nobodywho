@@ -10,6 +10,8 @@ dependencies = [
     "lm-eval>=0.4.10",
     # "nobodywho", # < what happens if we include this from surrounding scope (built w/ nix)
     "mlflow>=3.9.0",
+    "psutil>=7.2.2",
+    "torch>=2.10.0",
     "wandb>=0.24.2",
 ]
 
