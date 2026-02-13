@@ -24,7 +24,7 @@
 
 use crate::errors::{
     ChatWorkerError, ContextSyncError, DecodingError, GenerateResponseError, InitWorkerError,
-    MtmdError, RenderError, SayError, SelectTemplateError, SetToolsError, ShiftError,
+    MultimodalError, RenderError, SayError, SelectTemplateError, SetToolsError, ShiftError,
     WrappedResponseError,
 };
 use crate::llm::{self};
@@ -924,43 +924,6 @@ fn process_worker_msg(
 
 // TOOL CHAT WORKER
 
-/// Utility function for prefix caching
-/// Given a rendered chat template (intended for the LLM's context),
-/// it compares with the tokens currently in the LLM's context, to find a common prefix.
-/// The return value is a tuple of:
-/// - the index of the first differing token
-///   and
-/// - the tokens that should be read into the context (starting at that index)
-fn find_prefix_index_and_difference_with_tokens_in_context(
-    tokens_in_context: &[LlamaToken],
-    tokens: &[LlamaToken],
-) -> (usize, Vec<LlamaToken>) {
-    if tokens_in_context.is_empty() {
-        return (0, tokens.to_owned());
-    }
-
-    let longest_common_prefix_index = tokens_in_context
-        .iter()
-        .zip(tokens.iter())
-        .position(|(a, b)| a != b);
-
-    let (index, difference): (usize, Vec<LlamaToken>) = match longest_common_prefix_index {
-        Some(i) => (i, tokens[i..].to_vec()),
-        None => {
-            if tokens.len() <= tokens_in_context.len() {
-                (tokens.len(), vec![])
-            } else {
-                (
-                    tokens_in_context.len(),
-                    tokens[(tokens_in_context.len())..].to_vec(),
-                )
-            }
-        }
-    };
-
-    (index, difference)
-}
-
 struct ChatContext {
     /// Here we keep the current tokens + image embeddings, which are in the KV cache.
     chunks: TokenizerChunks,
@@ -1375,18 +1338,29 @@ impl Worker<'_, ChatWorker> {
                 .extract_paths()
                 .iter()
                 .map(|path| projection_model.load_image(path))
-                .collect::<Result<Vec<MtmdBitmap>, MtmdError>>()?
+                .collect::<Result<Vec<MtmdBitmap>, MultimodalError>>()?
         } else {
             vec![]
         };
 
+        let paths = prompt.extract_paths();
+        let total_bitmaps = bitmaps.len();
         let bitmap_map: HashMap<ChunkId, MtmdBitmap> = bitmaps
             .into_iter()
-            .map(|bitmap| {
-                let id = bitmap.id().ok_or(MtmdError::GetChunkId)?;
+            .enumerate()
+            .map(|(idx, bitmap)| {
+                let path = paths
+                    .get(idx)
+                    .cloned()
+                    .unwrap_or_else(|| "<unknown>".to_string());
+                let id = bitmap.id().ok_or(MultimodalError::FailedToGetBitmapId {
+                    bitmap_index: idx,
+                    total_bitmaps,
+                    image_path: path,
+                })?;
                 Ok((id, bitmap))
             })
-            .collect::<Result<HashMap<ChunkId, MtmdBitmap>, MtmdError>>()?;
+            .collect::<Result<HashMap<ChunkId, MtmdBitmap>, MultimodalError>>()?;
 
         self.add_user_message(prompt.to_string(), bitmap_map.keys().cloned().collect());
 

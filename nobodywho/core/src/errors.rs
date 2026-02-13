@@ -40,7 +40,7 @@ pub enum InitWorkerError {
     ToolFormatDetection(#[from] crate::tool_calling::ToolFormatError),
 
     #[error("Could not initialize projection model: {0}")]
-    ProjectionModel(#[from] MtmdError),
+    ProjectionModel(#[from] MultimodalError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -81,9 +81,6 @@ pub enum GetterError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ReadError {
-    #[error("Could not tokenize string: {0}")]
-    Tokenizer(#[from] llama_cpp_2::StringToTokenError),
-
     #[error("Could not add to batch: {0}")]
     BatchAdd(#[from] llama_cpp_2::llama_batch::BatchAddError),
 
@@ -97,7 +94,7 @@ pub enum ReadError {
     FailedReadingImageEmbeddings(#[from] llama_cpp_2::mtmd::MtmdEvalError),
 
     #[error("Could not tokenize string: {0}")]
-    FailedToTokenize(#[from] MtmdError), // Todo: fix this, once we throw nicer errors from tokenizer
+    FailedToTokenize(#[from] TokenizationError),
 }
 
 // CrossEncoderWorker errors
@@ -261,35 +258,59 @@ pub enum SayError {
     #[error("Error creating response: {0}")]
     WrappedResponse(#[from] WrappedResponseError),
 
+    #[error("Tokenization error: {0}")]
+    Tokenization(#[from] TokenizationError),
+
     #[error("Multimodal error: {0}")]
-    Mtmd(#[from] MtmdError),
+    Multimodal(#[from] MultimodalError),
 
     #[error("Error generating response: {0}")]
     GenerateResponse(#[from] GenerateResponseError),
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum MtmdError {
-    #[error("MTMD context not initialized. Use with_mmproj() when building ChatHandle.")]
+pub enum MultimodalError {
+    #[error("Failed to load image from '{path}': {error}")]
+    LoadImage { path: String, error: String },
+
+    #[error("Multimodal context not initialized. Use with_mmproj() when building ChatHandle.")]
     ContextNotInitialized,
 
-    #[error("Failed to load image: {0}")]
-    LoadImage(String),
-
-    #[error("Failed to tokenize with image: {0}")]
-    Tokenize(String),
-
-    #[error("Failed to evaluate image chunks: {0}")]
-    EvalChunks(String),
-
-    #[error("Failed to get chunk id")]
-    GetChunkId,
+    #[error("Failed to get chunk ID for bitmap {bitmap_index} of {total_bitmaps}. Image path: {image_path}")]
+    FailedToGetBitmapId {
+        bitmap_index: usize,
+        total_bitmaps: usize,
+        image_path: String,
+    },
 }
 
-impl From<llama_cpp_2::mtmd::MtmdTokenizeError> for MtmdError {
-    fn from(e: llama_cpp_2::mtmd::MtmdTokenizeError) -> Self {
-        MtmdError::Tokenize(e.to_string())
-    }
+#[derive(Debug, thiserror::Error)]
+pub enum TokenizationError {
+    #[error("Failed to tokenize image {image_index} of {total_images}: {error}")]
+    ImageTokenizationFailed {
+        image_index: usize,
+        total_images: usize,
+        error: String,
+    },
+
+    #[error(
+        "Failed to tokenize text segment at position {position} (preview: {text_preview}): {error}"
+    )]
+    TextTokenizationFailed {
+        position: usize,
+        text_preview: String,
+        error: String,
+    },
+
+    #[error("Projection model failed to tokenize image bitmap: {0}")]
+    ProjectionTokenizationError(String),
+
+    #[error("Image marker mismatch: found {n_markers} image markers in template but received {n_bitmaps} images. Each image placeholder in the prompt must have a corresponding image.\n\nTemplate preview: {template_preview}")]
+    ImageMarkerMismatch {
+        n_markers: usize,
+        n_bitmaps: usize,
+        template_preview: String,
+    },
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -307,7 +328,7 @@ pub enum ShiftError {
     KVCacheUpdate(#[from] ReadError),
 
     #[error("Could not tokenize string: {0}")]
-    Tokenize(#[from] MtmdError), // Todo: fix this, once we throw nicer errors from tokenizer
+    Tokenize(#[from] TokenizationError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -325,10 +346,10 @@ pub enum ContextSyncError {
     KVCacheUpdate(#[from] ReadError),
 
     #[error("Error tokenizing chunks: {0}")]
-    Tokenize(#[from] MtmdError), // Todo: fix this, once we throw nicer errors from tokenizer
+    Tokenize(#[from] TokenizationError),
 
     #[error("Error shifting context: {0}")]
-    Shift(#[from] ShiftError), // Todo: fix this, once we throw nicer errors from tokenizer
+    Shift(#[from] ShiftError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -340,8 +361,7 @@ pub enum RenderError {
     CreateContext(#[from] llama_cpp_2::StringToTokenError),
 
     #[error("Could not tokenize string: {0}")]
-    // Todo: fix this, once we throw nicer errors from tokenizer
-    Tokenize(#[from] MtmdError),
+    Tokenize(#[from] TokenizationError),
 }
 
 #[derive(Debug, thiserror::Error)]

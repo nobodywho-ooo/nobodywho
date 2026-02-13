@@ -13,7 +13,7 @@ use llama_cpp_2::{
 use std::hash::{Hash, Hasher};
 use tracing::{info, warn};
 
-use crate::{errors::MtmdError, llm::has_discrete_gpu};
+use crate::{errors::MultimodalError, errors::TokenizationError, llm::has_discrete_gpu};
 
 #[derive(Clone, Debug)]
 pub struct Prompt {
@@ -303,7 +303,7 @@ pub struct ProjectionModel {
 }
 
 impl ProjectionModel {
-    pub fn from_path(path: &str, parent_model: &LlamaModel) -> Result<Self, MtmdError> {
+    pub fn from_path(path: &str, parent_model: &LlamaModel) -> Result<Self, MultimodalError> {
         let n_threads = std::thread::available_parallelism()
             .map(|p| p.get() as i32)
             .unwrap_or(4);
@@ -326,7 +326,7 @@ impl ProjectionModel {
             Err(e) => {
                 warn!(error = %e, "Failed to initialize MTMD context:");
 
-                Err(MtmdError::ContextNotInitialized)
+                Err(MultimodalError::ContextNotInitialized)
             }
         }
     }
@@ -335,23 +335,29 @@ impl ProjectionModel {
         &self,
         bitmap: &MtmdBitmap,
         add_bos: AddBos,
-    ) -> Result<TokenizerChunk, MtmdError> {
+    ) -> Result<TokenizerChunk, TokenizationError> {
         let media_marker = llama_cpp_2::mtmd::mtmd_default_marker().to_string();
-        let mtmd_chunks = self.ctx.tokenize(
-            MtmdInputText {
-                text: media_marker,
-                add_special: matches!(add_bos, AddBos::Always),
-                parse_special: true,
-            },
-            &[bitmap],
-        )?;
+        let mtmd_chunks = self
+            .ctx
+            .tokenize(
+                MtmdInputText {
+                    text: media_marker,
+                    add_special: matches!(add_bos, AddBos::Always),
+                    parse_special: true,
+                },
+                &[bitmap],
+            )
+            .map_err(|e| TokenizationError::ProjectionTokenizationError(e.to_string()))?;
 
         Ok(TokenizerChunk::new_image(mtmd_chunks))
     }
 
-    pub fn load_image(&self, path: &str) -> Result<MtmdBitmap, MtmdError> {
-        let bitmap = MtmdBitmap::from_file(&self.ctx, &path)
-            .map_err(|e| MtmdError::LoadImage(format!("{}: {}", path, e)))?;
+    pub fn load_image(&self, path: &str) -> Result<MtmdBitmap, MultimodalError> {
+        let bitmap =
+            MtmdBitmap::from_file(&self.ctx, &path).map_err(|e| MultimodalError::LoadImage {
+                path: path.to_string(),
+                error: e.to_string(),
+            })?;
         info!(path = %path, "Loaded image for MTMD");
 
         Ok(bitmap)
@@ -382,12 +388,17 @@ impl<'a> Tokenizer<'a> {
         &self,
         rendered_chat: String,
         bitmaps: Vec<&MtmdBitmap>,
-    ) -> Result<TokenizerChunks, MtmdError> {
+    ) -> Result<TokenizerChunks, TokenizationError> {
         let text_chunks = self.tokenize_text(&rendered_chat)?;
 
         let n_image_markers = text_chunks.len() - 1;
         if n_image_markers != bitmaps.len() {
-            return Err(MtmdError::Tokenize("".into()));
+            let preview = rendered_chat.chars().take(200).collect::<String>();
+            return Err(TokenizationError::ImageMarkerMismatch {
+                n_markers: n_image_markers,
+                n_bitmaps: bitmaps.len(),
+                template_preview: preview,
+            });
         }
 
         let image_chunks = self.tokenize_images(bitmaps)?;
@@ -400,32 +411,39 @@ impl<'a> Tokenizer<'a> {
         Ok(TokenizerChunks { chunks })
     }
 
-    fn tokenize_text(&self, text: &str) -> Result<Vec<TokenizerChunk>, MtmdError> {
+    fn tokenize_text(&self, text: &str) -> Result<Vec<TokenizerChunk>, TokenizationError> {
         let media_marker = llama_cpp_2::mtmd::mtmd_default_marker().to_string();
         let splits = text
             .split(media_marker.as_str())
-            .map(|split| {
+            .enumerate()
+            .map(|(idx, split)| {
                 self.model
                     .str_to_token(split, self.add_bos)
                     .map(|tokens| TokenizerChunk::new_text(tokens))
-                    .map_err(|e| MtmdError::Tokenize(e.to_string()))
+                    .map_err(|e| TokenizationError::TextTokenizationFailed {
+                        position: idx,
+                        text_preview: split.chars().take(100).collect(),
+                        error: e.to_string(),
+                    })
             })
-            .collect::<Result<Vec<TokenizerChunk>, MtmdError>>()?;
+            .collect::<Result<Vec<TokenizerChunk>, TokenizationError>>()?;
 
         Ok(splits)
     }
 
-    fn tokenize_images(&self, bitmaps: Vec<&MtmdBitmap>) -> Result<Vec<TokenizerChunk>, MtmdError> {
-        let projection_model = self
-            .projection_model
-            .as_ref()
-            .ok_or(MtmdError::ContextNotInitialized)?;
+    fn tokenize_images(
+        &self,
+        bitmaps: Vec<&MtmdBitmap>,
+    ) -> Result<Vec<TokenizerChunk>, TokenizationError> {
+        let projection_model = self.projection_model.as_ref().ok_or(
+            TokenizationError::ProjectionTokenizationError("Context not initialized".to_string()),
+        )?;
 
         // Tokenize each image separately to get individual chunks
         bitmaps
             .iter()
             .map(|bitmap| projection_model.tokenize(*bitmap, self.add_bos))
-            .collect::<Result<Vec<_>, MtmdError>>()
+            .collect::<Result<Vec<_>, TokenizationError>>()
     }
 
     fn interleave<T>(&self, v1: Vec<T>, v2: Vec<T>) -> Vec<T> {
