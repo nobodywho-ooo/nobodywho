@@ -39,7 +39,7 @@ impl llm::PoolingType for ChatWorker {
 impl Worker<'_, ChatWorker> {
     pub(crate) fn new_chat_worker(
         model: &Arc<LlamaModel>,
-        config: super::api::config::ChatConfig,
+        config: super::api::handle::ChatConfig,
         should_stop: Arc<AtomicBool>,
     ) -> Result<Worker<'_, ChatWorker>, InitWorkerError> {
         let template = select_template(model, !config.tools.is_empty())?;
