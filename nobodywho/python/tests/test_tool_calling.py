@@ -68,14 +68,14 @@ def model():
     if not model_path:
         raise ValueError("TEST_MODEL environment variable is not set")
 
-    return nobodywho.Model("/home/hanshh/work/model_dir/functiongemma-270m-it-BF16.gguf", use_gpu_if_available=False)
+    return nobodywho.Model(model_path)
 
 @pytest.fixture
 def chat(model):
-    # if "qwen" in os.environ.get("TEST_MODEL", "").lower():
-    #     return nobodywho.Chat(
-    #         model, system_prompt="You are a helpful assistant", allow_thinking=False, tools=[set_intersection, multiply_strings, sparklify, reflarbicator, add_list_of_vectors, calculate_volume]
-    #     )
+    if "qwen" in os.environ.get("TEST_MODEL", "").lower():
+        return nobodywho.Chat(
+            model, system_prompt="You are a helpful assistant", allow_thinking=False, tools=[set_intersection, multiply_strings, sparklify, reflarbicator, add_list_of_vectors, calculate_volume]
+        )
     return nobodywho.Chat(
             model, system_prompt="You are a helpful assistant", allow_thinking=False, tools=[sparklify]
         )
@@ -164,22 +164,22 @@ def test_tool_calling_with_custom_sampler(model):
     assert "✨JULEMAND✨" in response
 
 
-# def test_tool_with_sets(chat):
-#     if "qwen" in os.environ.get("TEST_MODEL", "").lower():
-#         response = chat.ask("Please use the provided tool to find the intersection between the sets {12,5,7,3,4} and {12,9,5,3}").completed()
-#         assert "12" in response and "5" in response and "3" in response 
+def test_tool_with_sets(chat):
+    if "qwen" in os.environ.get("TEST_MODEL", "").lower():
+        response = chat.ask("Please use the provided tool to find the intersection between the sets {12,5,7,3,4} and {12,9,5,3}").completed()
+        assert "12" in response and "5" in response and "3" in response 
 
-# def test_tool_with_tuple(chat):
-#     if "qwen" in os.environ.get("TEST_MODEL", "").lower():
-#         response = chat.ask("Please use the provided tool to multiply the string BingBong by 3").completed()
-#         assert "BingBongBingBongBingBong" in response
+def test_tool_with_tuple(chat):
+    if "qwen" in os.environ.get("TEST_MODEL", "").lower():
+        response = chat.ask("Please use the provided tool to multiply the string BingBong by 3").completed()
+        assert "BingBongBingBongBingBong" in response
 
-# def test_tool_with_nested_list(chat):
-#     if "qwen" in os.environ.get("TEST_MODEL", "").lower():
-#         response = chat.ask("Please use the provided tool to add the vectors [[1,2,3],[4,5,6],[7,8,9]].").completed()
-#         assert "[12, 15, 18]" in response
+def test_tool_with_nested_list(chat):
+    if "qwen" in os.environ.get("TEST_MODEL", "").lower():
+        response = chat.ask("Please use the provided tool to add the vectors [[1,2,3],[4,5,6],[7,8,9]].").completed()
+        assert "[12, 15, 18]" in response
 
-# def test_tool_with_dict(chat):
-#     if "qwen" in os.environ.get("TEST_MODEL", "").lower():
-#         response = chat.ask("Please use the provided tool to find the volume of a cube with dimensions 30 x 20 x 10.").completed()
-#         assert "6000" in response
+def test_tool_with_dict(chat):
+    if "qwen" in os.environ.get("TEST_MODEL", "").lower():
+        response = chat.ask("Please use the provided tool to find the volume of a cube with dimensions 30 x 20 x 10.").completed()
+        assert "6000" in response
