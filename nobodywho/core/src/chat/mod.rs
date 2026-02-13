@@ -23,12 +23,13 @@
 //!
 
 pub mod api;
-mod stream;
 pub(crate) mod worker;
 
 // Re-export public types
-pub use api::{ChatBuilder, ChatConfig, ChatHandle, ChatHandleAsync, Message, Role};
-pub use stream::{TokenStream, TokenStreamAsync};
+pub use api::{
+    ChatBuilder, ChatConfig, ChatHandle, ChatHandleAsync, Message, Role, TokenStream,
+    TokenStreamAsync,
+};
 
 #[cfg(test)]
 mod tests {

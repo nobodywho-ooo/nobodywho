@@ -7,8 +7,8 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tracing::{error, info};
 
-use super::super::stream::{TokenStream, TokenStreamAsync};
 use super::super::worker::ChatWorker;
+use super::stream::{TokenStream, TokenStreamAsync};
 
 // Configuration types
 
