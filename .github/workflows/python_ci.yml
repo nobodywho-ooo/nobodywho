@@ -265,6 +265,10 @@ jobs:
             file: functiongemma-270m-it-BF16.gguf
             url: https://huggingface.co/unsloth/functiongemma-270m-it-GGUF/resolve/main/functiongemma-270m-it-BF16.gguf
             format: FunctionGemma
+          - name: Ministral3
+            file: mistralai_Ministral-3-3B-Instruct-2512-Q6_K_L.gguf
+            url: https://huggingface.co/bartowski/mistralai_Ministral-3-3B-Instruct-2512-GGUF/resolve/main/mistralai_Ministral-3-3B-Instruct-2512-Q6_K_L.gguf
+            format: Ministral3
 
     steps:
       - uses: actions/checkout@v4
