@@ -218,7 +218,7 @@ void main() {
 
     test('Tool calling for maps', () async{
       final response = await chat!.ask(
-        "Please use the provided tool to multiply the strings Hello, World and BingBong by 7, 13, and 3 respectively."
+        "Please use the provided tool to multiply the strings Hello and BingBong by 2 and 3 respectively."
       ).completed();
       final history = await chat!.getChatHistory();
       final toolCall = history.firstWhere((m) => m.role == nobodywho.Role.tool);
