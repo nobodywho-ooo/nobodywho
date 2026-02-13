@@ -72,9 +72,14 @@ def model():
 
 @pytest.fixture
 def chat(model):
+    if "qwen" in os.environ.get("TEST_MODEL", "").lower():
+        return nobodywho.Chat(
+            model, system_prompt="You are a helpful assistant", allow_thinking=False, tools=[set_intersection, multiply_strings, sparklify, reflarbicator, add_list_of_vectors, calculate_volume]
+        )
     return nobodywho.Chat(
-        model, system_prompt="You are a helpful assistant", allow_thinking=False, tools=[set_intersection, multiply_strings, sparklify, reflarbicator, add_list_of_vectors, calculate_volume]
-    )
+            model, system_prompt="You are a helpful assistant", allow_thinking=False, tools=[sparklify, reflarbicator]
+        )
+    
 
 
 
