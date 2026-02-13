@@ -1,11 +1,14 @@
 import logging
 import os
+import platform
+import subprocess
 import time
 from pathlib import Path
 
 import lm_eval
 import mlflow
 import nobodywho
+import psutil
 from lm_eval.api.instance import Instance
 from lm_eval.api.model import LM
 from lm_eval.api.registry import register_model
@@ -13,6 +16,33 @@ from lm_eval.loggers import EvaluationTracker, WandbLogger
 from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
+
+
+def get_gpu_info() -> str:
+    """Get GPU name via lspci"""
+    try:
+        result = subprocess.run(
+            ["lspci"], capture_output=True, text=True, timeout=5
+        )
+        for line in result.stdout.split("\n"):
+            if "VGA" in line or "3D controller" in line:
+                # Extract GPU model (everything after ": ")
+                return line.split(": ", 1)[-1]
+        return "unknown"
+    except Exception as e:
+        return f"unavailable: {e}"
+
+
+def get_system_info() -> dict:
+    """Gather system information for logging"""
+    mem = psutil.virtual_memory()
+    return {
+        "cpu_model": platform.processor() or "unknown",
+        "cpu_count": psutil.cpu_count(logical=False),
+        "memory_total_gb": round(mem.total / (1024**3), 2),
+        "gpu_device": get_gpu_info(),
+        "os": platform.system(),
+    }
 
 
 @register_model("nobodywho")
@@ -25,9 +55,11 @@ class NobodyWhoLM(LM):
         assert isinstance(model_path, str)
         assert Path(model_path).exists()
         allow_thinking_bool: bool = True if allow_thinking.lower() == "true" else False
+        self.model_path = Path(model_path)
         self.chat = nobodywho.Chat(
             model_path, allow_thinking=allow_thinking_bool, n_ctx=16384 * 2
         )
+        self.timing_data = []
 
     def generate_until(self, requests: list[Instance], disable_tqdm=False):
         result: list[str | None] = []
@@ -79,7 +111,15 @@ class NobodyWhoLM(LM):
         total_tokens = sum(d["num_tokens"] for d in self.timing_data)
         total_time = sum(d["elapsed_time"] for d in self.timing_data)
         avg_tokens_per_second = total_tokens / total_time
-        return {"avg_tokens_per_second": avg_tokens_per_second}
+
+        # Get model file size in GB
+        model_size_gb = round(self.model_path.stat().st_size / (1024**3), 2)
+
+        return {
+            "avg_tokens_per_second": avg_tokens_per_second,
+            "model_size_gb": model_size_gb,
+            **get_system_info(),
+        }
 
     def loglikelihood(self, *args, **kwargs):
         raise NotImplementedError
@@ -123,13 +163,21 @@ def make_wandb_logger(run_name: str, model_path: Path) -> WandbLogger:
     )
 
 
-def make_mlflow_run(run_name: str, model_path: Path, tracking_uri: str):
+def make_mlflow_run(
+    run_name: str, model_path: Path, tracking_uri: str, expriment_name: str
+):
     print("Making MLFlow run...")
     mlflow.set_tracking_uri(tracking_uri)
-    mlflow.set_experiment("nobodywho-evals")
+    mlflow.set_experiment(expriment_name)
     run = mlflow.start_run(run_name=run_name)
-    mlflow.log_param("model_path", str(model_path))
-    mlflow.log_param("tasks", ",".join(tasks))
+
+    # Log critical identifying info early (survives crashes)
+    mlflow.log_param("model_path_input", str(model_path))
+    mlflow.log_param("tasks_input", ",".join(tasks))
+
+    # Set tag for model name (may populate "model" column in MLflow UI)
+    mlflow.set_tag("model_name", model_path.name)
+
     return run
 
 
@@ -145,10 +193,33 @@ def log_to_wandb(logger: WandbLogger, results: dict):
 
 
 def log_to_mlflow(results: dict):
+    # Log per-task metrics
     for task_name, metrics in results["results"].items():
         for metric_name, value in metrics.items():
             if isinstance(value, (int, float)):
                 mlflow.log_metric(f"{task_name}/{metric_name}", value)
+
+    # Log model/system metrics from config (includes get_model_info data)
+    if "config" in results:
+        for key, value in results["config"].items():
+            if isinstance(value, (int, float)):
+                mlflow.log_metric(f"model/{key}", value)
+            elif isinstance(value, str):
+                # Special handling for "model" field - log as both param and tag
+                if key == "model":
+                    mlflow.set_tag("model", value)
+                mlflow.log_param(key, value)
+            elif isinstance(value, dict) and key == "model_args":
+                # Flatten and log model_args
+                for arg_name, arg_value in value.items():
+                    mlflow.log_param(f"model_args.{arg_name}", arg_value)
+
+    # Log environment info (added by lm_eval's add_env_info)
+    env_fields = ["pretty_env_info", "lm_eval_version", "git_hash"]
+    for field in env_fields:
+        if field in results and results[field]:
+            mlflow.log_param(f"env.{field}", str(results[field]))
+
     mlflow.end_run()
 
 
@@ -161,6 +232,9 @@ def print_results(results: dict):
 
 
 if __name__ == "__main__":
+    # Configure logging
+    logging.basicConfig(level=logging.WARNING)
+
     model_path = os.getenv("TEST_MODEL")
     assert isinstance(model_path, str)
     model_path = Path(model_path)
@@ -172,7 +246,9 @@ if __name__ == "__main__":
         make_wandb_logger(run_name, model_path) if os.getenv("WANDB_API_KEY") else None
     )
     mlflow_run = (
-        make_mlflow_run(run_name, model_path, mlflow_uri)
+        make_mlflow_run(
+            run_name, model_path, mlflow_uri, os.environ["MLFLOW_EXPERIMENT_NAME"]
+        )
         if (mlflow_uri := os.getenv("MLFLOW_TRACKING_URI"))
         else None
     )
