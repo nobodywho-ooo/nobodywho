@@ -1,0 +1,94 @@
+---
+source: gbnf/tests/test_gbnf.rs
+expression: grammar
+---
+GbnfGrammar {
+    declarations: [
+        GbnfDeclaration {
+            name: "root",
+            expr: Quantified {
+                expr: NonTerminal(
+                    "chessmove",
+                ),
+                quantifier: OneOrMore,
+            },
+        },
+        GbnfDeclaration {
+            name: "chessmove",
+            expr: Sequence(
+                [
+                    Group(
+                        Alternation(
+                            [
+                                NonTerminal(
+                                    "pawn",
+                                ),
+                                NonTerminal(
+                                    "nonpawn",
+                                ),
+                                NonTerminal(
+                                    "castle",
+                                ),
+                            ],
+                        ),
+                    ),
+                    Quantified {
+                        expr: CharacterRange(
+                            Range {
+                                begin: 'a',
+                                end: 'h',
+                                negated: false,
+                            },
+                        ),
+                        quantifier: Optional,
+                    },
+                ],
+            ),
+        },
+        GbnfDeclaration {
+            name: "pawn",
+            expr: Sequence(
+                [
+                    CharacterRange(
+                        Range {
+                            begin: 'a',
+                            end: 'h',
+                            negated: false,
+                        },
+                    ),
+                    CharacterRange(
+                        Range {
+                            begin: '1',
+                            end: '8',
+                            negated: false,
+                        },
+                    ),
+                ],
+            ),
+        },
+        GbnfDeclaration {
+            name: "nonpawn",
+            expr: CharacterRange(
+                Range {
+                    begin: 'N',
+                    end: 'R',
+                    negated: false,
+                },
+            ),
+        },
+        GbnfDeclaration {
+            name: "castle",
+            expr: Alternation(
+                [
+                    Characters(
+                        "O-O",
+                    ),
+                    Characters(
+                        "O-O-O",
+                    ),
+                ],
+            ),
+        },
+    ],
+    gbnf_string: "root ::= chessmove+\nchessmove ::= (pawn | nonpawn | castle) [a-h]?\npawn ::= [a-h] [1-8]\nnonpawn ::= [N-R]\ncastle ::= \"O-O\" | \"O-O-O\"",
+}

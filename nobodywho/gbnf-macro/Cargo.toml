@@ -1,0 +1,3 @@
+[workspace]
+members = ["gbnf", "gbnf-macro", "gbnf-types"]
+resolver = "2"
