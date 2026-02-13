@@ -49,7 +49,7 @@ fn list_type(input: &str) -> IResult<&str, serde_json::Value> {
 fn set_type(input: &str) -> IResult<&str, serde_json::Value> {
     map(
         delimited(tag_no_case("Set<"), type_parser, tag(">")),
-        |inner| serde_json::json!({"type" : "array", "items" : inner, "uniqueItems" : "true"} ),
+        |inner| serde_json::json!({"type" : "array", "items" : inner, "uniqueItems" : true} ),
     )
     .parse(input)
 }

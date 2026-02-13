@@ -347,10 +347,16 @@ extension ToolCallExtension on nobodywho.ToolCall {
   /// Get the arguments as a JSON string
   String get argumentsJson => nobodywho.toolCallArgumentsJson(toolCall: this);
 
-  /// Get the arguments as a parsed Map
-  Map<String, dynamic> get argumentsMap =>
-      json.decode(nobodywho.toolCallArgumentsJson(toolCall: this))
-          as Map<String, dynamic>;
+  /// Get the arguments as a parsed Map with proper type conversions based on schema.
+  /// The schema should be the JSON schema for this tool's parameters.
+  Map<Symbol, dynamic> getArgumentsMap(Map<String, dynamic> schema) {
+    final jsonMap = json.decode(nobodywho.toolCallArgumentsJson(toolCall: this))
+        as Map<String, dynamic>;
+    return Map.fromEntries(
+      jsonMap.entries.map((e) => MapEntry(
+          Symbol(e.key), jsonConversion(schema["properties"][e.key], e.value))),
+    );
+  }
 }
 
 // Wrapper for the RustTool class. We wrap RustTool so the API for constructing a tool
@@ -391,14 +397,18 @@ class Tool {
         jsonMap.entries.map((e) => MapEntry(Symbol(e.key), jsonConversion(schema!["properties"][e.key], e.value))),
       );
 
-      // Call the function
-      final result = Function.apply(function, [], namedParams);
+      // Call the function and catch any errors
+      try {
+        final result = Function.apply(function, [], namedParams);
 
-      // Handle async tools and return
-      if (result is Future) {
-        return (await result).toString();
-      } else {
-        return result.toString();
+        // Handle async tools and return
+        if (result is Future) {
+          return (await result).toString();
+        } else {
+          return result.toString();
+        }
+      } catch (e) {
+        return "Error: $e";
       }
     };
 

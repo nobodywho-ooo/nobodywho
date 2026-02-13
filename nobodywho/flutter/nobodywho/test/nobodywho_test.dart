@@ -223,7 +223,7 @@ void main() {
       final history = await chat!.getChatHistory();
       final toolCall = history.firstWhere((m) => m.role == nobodywho.Role.tool);
 
-      expect(toolCall.content, contains("BingBongBingBong"));
+      expect(toolCall.content, contains("BingBongBingBongBingBong"));
     });
 
 
@@ -234,7 +234,7 @@ void main() {
       final history = await chat!.getChatHistory();
       final toolCall = history.firstWhere((m) => m.role == nobodywho.Role.tool);
 
-      expect(toolCall.content, contains("30"));
+      expect(toolCall.content, contains("{12, 4, 7}"));
     });
 
 
