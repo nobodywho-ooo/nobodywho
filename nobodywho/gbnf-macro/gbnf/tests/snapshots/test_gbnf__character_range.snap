@@ -1,0 +1,29 @@
+---
+source: gbnf/tests/test_gbnf.rs
+expression: grammar
+---
+GbnfGrammar {
+    declarations: [
+        GbnfDeclaration {
+            name: "digit",
+            expr: CharacterRange(
+                Range {
+                    begin: '0',
+                    end: '9',
+                    negated: false,
+                },
+            ),
+        },
+        GbnfDeclaration {
+            name: "letter",
+            expr: CharacterRange(
+                Range {
+                    begin: 'a',
+                    end: 'z',
+                    negated: false,
+                },
+            ),
+        },
+    ],
+    gbnf_string: "digit ::= [0-9]\nletter ::= [a-z]",
+}

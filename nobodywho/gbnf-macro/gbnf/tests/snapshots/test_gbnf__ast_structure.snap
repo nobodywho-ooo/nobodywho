@@ -1,0 +1,15 @@
+---
+source: gbnf/tests/test_gbnf.rs
+expression: grammar
+---
+GbnfGrammar {
+    declarations: [
+        GbnfDeclaration {
+            name: "greeting",
+            expr: Characters(
+                "hello",
+            ),
+        },
+    ],
+    gbnf_string: "greeting ::= \"hello\"",
+}
