@@ -1,4 +1,5 @@
 import typing
+import sys
 
 import nobodywho as nw
 from pydantic import dataclasses
@@ -164,7 +165,7 @@ def check_word(col: int, row: int, dir: str, word: str) -> str:
 
 sampler = nw.SamplerBuilder().temperature(0.6).top_k(20).top_p(0.95, min_keep=20).dist()
 
-model_path = "./Qwen_Qwen3-4B-Q4_K_M.gguf"
+model_path = sys.argv[1]
 
 chat = nw.Chat(
     model_path,
