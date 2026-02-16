@@ -51,6 +51,39 @@ if [ ! -f "$SCRIPT_PATH" ]; then
     exit 1
 fi
 
+# Setup core dump capture
+CORE_DIR="/tmp/cores_${SCRIPT_PATH##*/}_$$"
+mkdir -p "$CORE_DIR"
+ulimit -c unlimited
+
+# Set core pattern (try both methods for compatibility)
+if [ -w /proc/sys/kernel/core_pattern ]; then
+    echo "$CORE_DIR/core.%e.%p.%t" | sudo tee /proc/sys/kernel/core_pattern > /dev/null 2>&1
+    CORE_PATTERN_SET="system-wide"
+elif sudo -n true 2>/dev/null && [ -w /proc/sys/kernel/core_pattern ] 2>/dev/null; then
+    echo "$CORE_DIR/core.%e.%p.%t" | sudo tee /proc/sys/kernel/core_pattern > /dev/null 2>&1
+    CORE_PATTERN_SET="system-wide"
+else
+    # Fallback: cores will appear in current directory or system default location
+    CORE_PATTERN_SET="default ($(cat /proc/sys/kernel/core_pattern 2>/dev/null || echo 'unknown'))"
+fi
+
+echo "Core dumps enabled: $CORE_PATTERN_SET"
+echo "Core dump directory: $CORE_DIR"
+echo ""
+
+# Create timestamp file for tracking when test started
+touch /tmp/test_reliability_start_$$
+
+# Cleanup handler to preserve core dump info
+cleanup() {
+    if [ -d "$CORE_DIR" ] && [ "$(ls -A $CORE_DIR 2>/dev/null)" ]; then
+        echo ""
+        echo "Core dumps preserved in: $CORE_DIR"
+    fi
+}
+trap cleanup EXIT
+
 # Initialize counters
 SUCCESS_COUNT=0
 FAILURE_COUNT=0
@@ -74,22 +107,44 @@ progress_bar() {
     printf "] %d%% (%d/%d)" $percentage $current $total
 }
 
-# Run the script 100 times
+# Run the script N times
 for i in $(seq 1 $TOTAL_RUNS); do
     progress_bar $i $TOTAL_RUNS
-    
-    # Run the Python script and capture exit code
-    # python "$SCRIPT_PATH" "$@" # > /dev/null 2>&1
-    ulimit -c unlimited
-    python -X faulthandler "$SCRIPT_PATH" "$@" 2>&1 | tee -a /tmp/crash_log_$i.txt
 
-    EXIT_CODE=$?
-    
+    # Count cores before this run
+    CORES_BEFORE=$(find "$CORE_DIR" -name "core.*" 2>/dev/null | wc -l)
+
+    # Run the Python script in a subshell to ensure core dumps are captured
+    (
+        ulimit -c unlimited
+        cd "$CORE_DIR"  # Run from core directory so dumps appear here
+        exec python -X faulthandler "$SCRIPT_PATH" "$@" 2>&1
+    ) | tee -a /tmp/crash_log_$i.txt
+
+    EXIT_CODE=${PIPESTATUS[0]}
+
+    # Check if a new core dump was created
+    CORES_AFTER=$(find "$CORE_DIR" -name "core.*" 2>/dev/null | wc -l)
+    LATEST_CORE=""
+
+    if [ $CORES_AFTER -gt $CORES_BEFORE ]; then
+        LATEST_CORE=$(find "$CORE_DIR" -name "core.*" -type f -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -1 | cut -d' ' -f2-)
+        if [ -z "$LATEST_CORE" ]; then
+            # Fallback for systems without -printf
+            LATEST_CORE=$(ls -t "$CORE_DIR"/core.* 2>/dev/null | head -1)
+        fi
+    fi
+
     if [ $EXIT_CODE -eq 0 ]; then
         SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
     else
         FAILURE_COUNT=$((FAILURE_COUNT + 1))
-        FAILURES+=("Run $i: exit code $EXIT_CODE")
+        if [ -n "$LATEST_CORE" ]; then
+            echo "  [CORE DUMP: $(basename $LATEST_CORE)]" >&2
+            FAILURES+=("Run $i: exit code $EXIT_CODE [CORE: $LATEST_CORE]")
+        else
+            FAILURES+=("Run $i: exit code $EXIT_CODE")
+        fi
     fi
 done
 
@@ -108,6 +163,40 @@ if [ $FAILURE_COUNT -gt 0 ]; then
     for failure in "${FAILURES[@]}"; do
         echo "$failure"
     done
+fi
+
+# Check for any core dumps
+CORE_COUNT=$(find "$CORE_DIR" -name "core.*" -type f 2>/dev/null | wc -l)
+
+if [ $CORE_COUNT -gt 0 ]; then
+    echo ""
+    echo "=== CORE DUMPS CAPTURED ==="
+    echo "Core dumps saved in: $CORE_DIR"
+    echo "Count: $CORE_COUNT"
+    echo ""
+    echo "To analyze a core dump, run:"
+    echo "  gdb python $CORE_DIR/core.* -batch -ex 'bt full' -ex 'thread apply all bt'"
+    echo ""
+    echo "To see frames with the std::out_of_range exception:"
+    echo "  gdb python $CORE_DIR/core.* -batch -ex 'bt full' 2>&1 | grep -C 20 'unordered_map'"
+    echo ""
+    echo "Core dump files:"
+    ls -lh "$CORE_DIR"/core.* 2>/dev/null
+else
+    echo ""
+    echo "No core dumps were captured."
+    if [ $FAILURE_COUNT -gt 0 ]; then
+        echo "Note: Failures occurred but no cores were generated."
+        echo "This might happen if:"
+        echo "  - Core pattern couldn't be set (try running with sudo)"
+        echo "  - Python caught the signal before core dump"
+        echo "  - System core dumps are disabled"
+        echo ""
+        echo "Try running a single instance under GDB:"
+        echo "  gdb --args python -X faulthandler $SCRIPT_PATH $@"
+        echo "  (gdb) catch throw std::out_of_range"
+        echo "  (gdb) run"
+    fi
 fi
 
 # Exit with failure count as exit code (capped at 255)
