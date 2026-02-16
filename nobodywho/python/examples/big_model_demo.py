@@ -1,3 +1,10 @@
+import typing
+
+import nobodywho as nw
+from pydantic import dataclasses
+
+
+
 cw1 = """
 The following is a mini crossword.
 
@@ -64,12 +71,6 @@ giving each blank square a coordinate.
 For each clue, a starting coordinate, a direction, and a number of letters is given.
 The coordinates are (x,y), aka (column, row).
 """
-
-import typing
-
-import nobodywho as nw
-from pydantic import dataclasses
-
 
 @dataclasses.dataclass
 class Clue:
