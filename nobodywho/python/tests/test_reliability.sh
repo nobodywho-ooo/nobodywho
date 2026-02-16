@@ -79,7 +79,7 @@ for i in $(seq 1 $TOTAL_RUNS); do
     progress_bar $i $TOTAL_RUNS
     
     # Run the Python script and capture exit code
-    python "$SCRIPT_PATH" "$@" > /dev/null 2>&1
+    python "$SCRIPT_PATH" "$@" # > /dev/null 2>&1
     EXIT_CODE=$?
     
     if [ $EXIT_CODE -eq 0 ]; then
