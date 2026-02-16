@@ -32,7 +32,6 @@ use crate::llm::{Worker, WriteOutput};
 use crate::sampler_config::{SamplerConfig, ShiftStep};
 use crate::template::{select_template, ChatTemplate, ChatTemplateContext};
 use crate::tool_calling::{detect_tool_format, Tool, ToolCall, ToolFormat};
-use llama_cpp_2::model::Special;
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 use llama_cpp_2::{context::params::LlamaPoolingType, model::LlamaModel};
@@ -1184,7 +1183,9 @@ impl Worker<'_, ChatWorker> {
         // initialize sampler
         // stateful samplers only live for one response
         let mut sampler = sampler_config.to_stateful(self.ctx.model)?;
-        let mut token_bytes_vec = Vec::new();
+
+        // init statefull decoder for split up tokens like emojis
+        let mut decoder = encoding_rs::UTF_8.new_decoder();
 
         while !self.should_stop() {
             // Check if the context is full
@@ -1200,47 +1201,44 @@ impl Worker<'_, ChatWorker> {
             // using sampler.accept() will cause the sampler to crash when using grammar sampling.
             // https://github.com/utilityai/llama-cpp-rs/issues/604
             let new_token = self.sample_and_decode_next_token(&mut sampler)?;
+            tracing::debug!("{}", new_token);
+
             tokens_written_until_now.push(new_token);
 
             // Attempt to convert token(s) to bytes
-            let token_bytes = self
+            let token_bytes = match self
                 .ctx
                 .model
-                .token_to_bytes(new_token, Special::Tokenize)?;
-
-            token_bytes_vec.extend(token_bytes);
+                .token_to_piece_bytes(new_token, 8, true, None)
+            {
+                Err(llama_cpp_2::TokenToStringError::InsufficientBufferSpace(i)) => {
+                    self.ctx.model.token_to_piece_bytes(
+                        new_token,
+                        (-i).try_into().expect("Error buffer size is positive"),
+                        true,
+                        None,
+                    )
+                }
+                x => x,
+            }?;
 
             // Attempt to convert bytes to utf8 string.
+            let max_len = decoder
+                .max_utf8_buffer_length(token_bytes.len())
+                .unwrap_or(32);
+            let mut token_str = String::with_capacity(max_len);
 
-            let token_str = match std::str::from_utf8(&token_bytes_vec) {
-                Ok(str) => str,
-                Err(_) => {
-                    if token_bytes_vec.len() > 4 {
-                        "�"
-                    } else {
-                        continue;
-                    }
-                }
-            };
-
-            // Basic solution to split up graphemes. If the current token bytes cannot
-            // be converted into a string then we try to read more tokens till we have
-            // at least four bytes. If these still cannot be converted into a string,
-            // we assume that the model/sampler has produced a useless token somewhere.
-            // This we currently handle by discarding all of the current bytes, but more
-            // intelligent solutions could be a good idea.
+            let (_result, _bytes_read, _had_errors) =
+                decoder.decode_to_string(&token_bytes, &mut token_str, false);
 
             trace!(?new_token, ?token_str);
             let has_eog = self.ctx.model.is_eog_token(new_token);
 
             if !has_eog {
-                full_response.push_str(token_str);
+                full_response.push_str(&token_str);
                 trace!(?token_str, "Sending out token:");
                 respond(WriteOutput::Token(token_str.to_string()));
             }
-
-            // done using token_str, so now we can clear token_bytes_vec
-            token_bytes_vec.clear();
 
             if has_eog {
                 break;
