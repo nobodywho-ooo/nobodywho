@@ -12,6 +12,9 @@ urls = {Homepage = "https://nobodywho.ooo/", Documentation = "https://docs.nobod
 license = { text = "EUPL-1.2" }
 keywords = ["AI", "LLM", "Large Language Models", "Inference", "Tool calling", "Local LLM", "Local Inference", 
 "On-device AI", "SLM", "Edge AI","Realtime LLM", "Sustainable AI", "Inference engine", "Inference library", "Local AI"]
+dependencies = [
+    "pydantic>=2.12.5",
+]
 
 
 [tool.maturin]
