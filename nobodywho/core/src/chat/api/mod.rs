@@ -1,3 +1,8 @@
+//! Public-facing API types for chat interactions.
+//!
+//! This module contains all user-facing types including message structures, configuration,
+//! handles for chat interaction, and streaming response types.
+
 pub mod handle;
 pub mod message;
 pub mod stream;

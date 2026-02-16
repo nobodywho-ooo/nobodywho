@@ -1,3 +1,8 @@
+//! Core message types for chat conversations.
+//!
+//! Defines `Role` (User, Assistant, System, Tool) and `Message` variants for representing
+//! chat history including regular messages, tool calls, and tool responses.
+
 use crate::tool_calling::ToolCall;
 use serde::{Deserialize, Serialize};
 

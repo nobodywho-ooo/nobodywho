@@ -1,3 +1,9 @@
+//! Context management for ChatWorker.
+//!
+//! Implements methods for syncing the LLM context with rendered chat templates, performing
+//! context shifts when the context window fills up, and managing the token cache for efficient
+//! prefix reuse.
+
 use crate::errors::{ContextSyncError, RenderError, ShiftError};
 use crate::llm::{GlobalInferenceLockToken, Worker};
 use crate::template::ChatTemplateContext;

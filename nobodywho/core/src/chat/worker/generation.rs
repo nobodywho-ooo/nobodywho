@@ -1,3 +1,8 @@
+//! Token generation and response handling for ChatWorker.
+//!
+//! Implements methods for generating model responses including token sampling, decoding,
+//! context updates, and streaming output through callback functions.
+
 use crate::errors::{DecodingError, GenerateResponseError, WrappedResponseError};
 use crate::llm::{GlobalInferenceLockToken, Worker, WriteOutput};
 use crate::sampler_config::SamplerConfig;

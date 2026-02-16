@@ -1,3 +1,9 @@
+//! ChatWorker struct and core implementation.
+//!
+//! Defines the `ChatWorker` state (messages, tools, sampler config, etc.) and implements
+//! the main chat operations including initialization, message handling, tool calling, and
+//! configuration updates.
+
 use crate::errors::{
     ChatWorkerError, ContextSyncError, InitWorkerError, SayError, SelectTemplateError,
     SetToolsError,

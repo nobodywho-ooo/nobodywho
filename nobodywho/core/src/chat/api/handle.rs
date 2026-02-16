@@ -1,3 +1,9 @@
+//! Chat configuration, builder, and handle types.
+//!
+//! Provides `ChatConfig` and `ChatBuilder` for configuring chat sessions, `ChatHandle` and
+//! `ChatHandleAsync` for interacting with chat workers, and internal messaging infrastructure
+//! for coordinating between the API layer and worker threads.
+
 use crate::errors::ChatWorkerError;
 use crate::llm::{self, Worker};
 use crate::sampler_config::SamplerConfig;

@@ -1,3 +1,8 @@
+//! Streaming response types for token-by-token output.
+//!
+//! Provides `TokenStream` and `TokenStreamAsync` wrappers that allow users to consume
+//! model responses incrementally as tokens are generated.
+
 use crate::llm;
 
 /// A stream of tokens from the model.
