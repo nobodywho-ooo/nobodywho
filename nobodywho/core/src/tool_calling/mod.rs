@@ -42,7 +42,6 @@ impl std::fmt::Debug for Tool {
 }
 
 impl Tool {
-    /// Create a new tool directly. Consider using [`ToolBuilder`] for a more ergonomic API.
     pub fn new<S: Into<String>>(
         name: S,
         description: S,
@@ -246,7 +245,7 @@ mod tests {
 
         let serialized = match serde_json::to_value(&tool) {
             Ok(s) => s,
-            Err(e) => panic!("Serilization of tool failed: {}", e),
+            Err(e) => panic!("Serialization of tool failed: {}", e),
         };
         assert_eq!(
             serialized,
