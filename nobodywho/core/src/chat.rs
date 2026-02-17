@@ -1227,6 +1227,9 @@ impl Worker<'_, ChatWorker> {
                 .unwrap_or(32);
             let mut token_str = String::with_capacity(max_len);
 
+            // this is where the utf-8 decoder handles partial unicode
+            // it'll write whatever printable chars it can into `token_str`
+            // and retain partial codepoints for next decoding attempt
             let (_result, _bytes_read, _had_errors) =
                 decoder.decode_to_string(&token_bytes, &mut token_str, false);
 
