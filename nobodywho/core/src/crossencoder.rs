@@ -13,7 +13,7 @@ pub struct CrossEncoder {
 
 #[derive(Clone)]
 pub struct CrossEncoderAsync {
-    msg_tx: std::sync::mpsc::Sender<CrossEncoderMsg>,
+    msg_tx: Arc<Mutex<Option<std::sync::mpsc::Sender<CrossEncoderMsg>>>>,
     join_handle: Arc<Mutex<Option<std::thread::JoinHandle<()>>>>,
 }
 
@@ -63,7 +63,7 @@ impl CrossEncoderAsync {
         });
 
         Self {
-            msg_tx,
+            msg_tx: Arc::new(Mutex::new(Some(msg_tx))),
             join_handle: Arc::new(Mutex::new(Some(join_handle))),
         }
     }
@@ -74,9 +74,11 @@ impl CrossEncoderAsync {
         documents: Vec<String>,
     ) -> Result<Vec<f32>, CrossEncoderWorkerError> {
         let (scores_tx, mut scores_rx) = tokio::sync::mpsc::channel(1);
-        let _ = self
-            .msg_tx
-            .send(CrossEncoderMsg::Rank(query, documents, scores_tx));
+        if let Ok(guard) = self.msg_tx.lock() {
+            if let Some(ref msg_tx) = *guard {
+                let _ = msg_tx.send(CrossEncoderMsg::Rank(query, documents, scores_tx));
+            }
+        }
         scores_rx
             .recv()
             .await
@@ -110,11 +112,17 @@ impl Drop for CrossEncoderAsync {
     fn drop(&mut self) {
         // Only join on the last reference
         if Arc::strong_count(&self.join_handle) == 1 {
+            // Drop the sender to close the channel
+            if let Ok(mut tx_guard) = self.msg_tx.lock() {
+                drop(tx_guard.take());
+            }
+
+            // Give thread time to exit (ranking operations can't be interrupted, so we wait longer)
+            std::thread::sleep(std::time::Duration::from_millis(1000));
+
+            // Join the thread
             if let Ok(mut guard) = self.join_handle.lock() {
                 if let Some(handle) = guard.take() {
-                    drop(self.msg_tx.clone());
-                    std::thread::sleep(std::time::Duration::from_millis(100));
-
                     match handle.join() {
                         Ok(()) => {}
                         Err(e) => error!("CrossEncoder worker panicked: {:?}", e),
