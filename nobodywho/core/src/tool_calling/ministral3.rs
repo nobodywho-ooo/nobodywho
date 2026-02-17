@@ -47,7 +47,6 @@ impl ToolFormatHandler for Ministral3Handler {
             )
             .rule("superroot", nt_plus("toolcall"))
             .build();
-        tracing::debug!("{}", grammar.as_str());
         Ok(grammar)
     }
 
