@@ -271,31 +271,31 @@ jobs:
           EOF
 
           # iOS simulator (aarch64 only, no lipo needed in CI)
-          mkdir -p ios-sim-framework.framework
-          cp libnobodywho-flutter-aarch64-apple-ios-sim-release.dylib ios-sim-framework.framework/nobodywho_flutter
-          install_name_tool -id @rpath/nobodywho_flutter.framework/nobodywho_flutter ios-sim-framework.framework/nobodywho_flutter
-          cp Info.plist ios-sim-framework.framework/
+          mkdir -p ios-sim/nobodywho_flutter.framework
+          cp libnobodywho-flutter-aarch64-apple-ios-sim-release.dylib ios-sim/nobodywho_flutter.framework/nobodywho_flutter
+          install_name_tool -id @rpath/nobodywho_flutter.framework/nobodywho_flutter ios-sim/nobodywho_flutter.framework/nobodywho_flutter
+          cp Info.plist ios-sim/nobodywho_flutter.framework/
 
           # macOS universal binary
           lipo -create -output macos-universal.dylib \
             libnobodywho-flutter-aarch64-apple-darwin-release.dylib \
             libnobodywho-flutter-x86_64-apple-darwin-release.dylib
-          mkdir -p macos-framework.framework
-          cp macos-universal.dylib macos-framework.framework/nobodywho_flutter
-          install_name_tool -id @rpath/nobodywho_flutter.framework/nobodywho_flutter macos-framework.framework/nobodywho_flutter
-          cp Info.plist macos-framework.framework/
+          mkdir -p macos/nobodywho_flutter.framework
+          cp macos-universal.dylib macos/nobodywho_flutter.framework/nobodywho_flutter
+          install_name_tool -id @rpath/nobodywho_flutter.framework/nobodywho_flutter macos/nobodywho_flutter.framework/nobodywho_flutter
+          cp Info.plist macos/nobodywho_flutter.framework/
 
           # iOS device (arm64)
-          mkdir -p ios-device-framework.framework
-          cp libnobodywho-flutter-aarch64-apple-ios-release.dylib ios-device-framework.framework/nobodywho_flutter
-          install_name_tool -id @rpath/nobodywho_flutter.framework/nobodywho_flutter ios-device-framework.framework/nobodywho_flutter
-          cp Info.plist ios-device-framework.framework/
+          mkdir -p ios-device/nobodywho_flutter.framework
+          cp libnobodywho-flutter-aarch64-apple-ios-release.dylib ios-device/nobodywho_flutter.framework/nobodywho_flutter
+          install_name_tool -id @rpath/nobodywho_flutter.framework/nobodywho_flutter ios-device/nobodywho_flutter.framework/nobodywho_flutter
+          cp Info.plist ios-device/nobodywho_flutter.framework/
 
           # Create xcframework with dynamic frameworks
           xcodebuild -create-xcframework \
-                  -framework ios-sim-framework.framework \
-                  -framework macos-framework.framework \
-                  -framework ios-device-framework.framework \
+                  -framework ios-sim/nobodywho_flutter.framework \
+                  -framework macos/nobodywho_flutter.framework \
+                  -framework ios-device/nobodywho_flutter.framework \
                   -output NobodyWhoFlutter.xcframework
 
       - name: "Zip XCFramework"
