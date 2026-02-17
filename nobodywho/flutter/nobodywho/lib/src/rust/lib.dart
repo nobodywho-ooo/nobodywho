@@ -10,10 +10,6 @@ part 'lib.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `dart_function_type_to_json_schema`, `sample_step`, `shift_step`
 
-/// Enforce the binding for this library (to prevent tree-shaking)
-/// https://github.com/flutter/flutter/pull/96225#issuecomment-1319080539
-Future<void> enforceBinding() => NobodyWho.instance.api.crateEnforceBinding();
-
 /// Helper function to convert ToolCall arguments to a JSON string.
 /// This is needed because serde_json::Value becomes an opaque type in Dart.
 String toolCallArgumentsJson({required ToolCall toolCall}) =>
