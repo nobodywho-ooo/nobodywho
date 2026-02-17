@@ -117,8 +117,7 @@ impl Drop for CrossEncoderAsync {
                 drop(tx_guard.take());
             }
 
-            // Give thread time to exit (ranking operations can't be interrupted, so we wait longer)
-            std::thread::sleep(std::time::Duration::from_millis(1000));
+            // Note: No sleep needed, join() will wait for thread to finish
 
             // Join the thread
             if let Ok(mut guard) = self.join_handle.lock() {
