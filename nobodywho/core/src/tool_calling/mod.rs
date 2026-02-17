@@ -57,6 +57,7 @@ impl Tool {
     }
 }
 
+// Serialize tools according to https://huggingface.co/blog/unified-tool-use
 impl Serialize for Tool {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -81,12 +82,14 @@ pub struct ToolCall {
     pub arguments: serde_json::Value,
 }
 
+// Serialize tools according to https://huggingface.co/blog/unified-tool-use
 impl Serialize for ToolCall {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
         serde_json::json!({
+            "type" : "function",
             "function": {
                 "name": &self.name,
                 "arguments": &self.arguments,
@@ -273,6 +276,7 @@ mod tests {
         assert_eq!(
             serialized,
             json!({
+                "type" : "function",
                 "function": {
                     "name": "test_tool",
                     "arguments": {"arg": "value"}
