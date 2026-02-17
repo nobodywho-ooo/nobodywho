@@ -5,11 +5,6 @@ use flutter_rust_bridge::{DartFnFuture, Rust2DartSendError};
 mod frb_generated;
 mod parse;
 
-/// Enforce the binding for this library (to prevent tree-shaking)
-/// https://github.com/flutter/flutter/pull/96225#issuecomment-1319080539
-#[no_mangle]
-pub extern "C" fn enforce_binding() {}
-
 pub use nobodywho::chat::{Message, Role};
 pub use nobodywho::tool_calling::ToolCall;
 
