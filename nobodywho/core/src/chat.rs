@@ -431,15 +431,13 @@ impl ChatHandle {
 impl Drop for ChatHandle {
     fn drop(&mut self) {
         // Signal any ongoing generation to stop
-        self.should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        self.should_stop
+            .store(true, std::sync::atomic::Ordering::Relaxed);
 
         // Drop the sender to close the channel
         drop(self.msg_tx.take());
 
-        // Give thread a chance to exit naturally (increased to 500ms to allow generation to stop)
-        std::thread::sleep(std::time::Duration::from_millis(500));
-
-        // Join the thread
+        // Join the thread (will block until thread exits)
         if let Some(handle) = self.join_handle.take() {
             match handle.join() {
                 Ok(()) => {}
@@ -686,17 +684,15 @@ impl Drop for ChatHandleAsync {
         // Only join on the last reference
         if Arc::strong_count(&self.join_handle) == 1 {
             // Signal any ongoing generation to stop
-            self.should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
+            self.should_stop
+                .store(true, std::sync::atomic::Ordering::Relaxed);
 
             // Drop the sender to close the channel
             if let Ok(mut tx_guard) = self.msg_tx.lock() {
                 drop(tx_guard.take());
             }
 
-            // Give thread time to exit (increased to 500ms to allow generation to stop)
-            std::thread::sleep(std::time::Duration::from_millis(500));
-
-            // Join the thread
+            // Join the thread (will block until thread exits)
             if let Ok(mut guard) = self.join_handle.lock() {
                 if let Some(handle) = guard.take() {
                     match handle.join() {
