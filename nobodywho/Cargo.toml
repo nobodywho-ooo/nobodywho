@@ -11,3 +11,9 @@ members = [
 
 # edition = "2021" implies resolver = "2".
 resolver = "2"
+
+[profile.release]
+debug = 2           # Maximum debug info (line tables, variable names, etc.)
+strip = "none"      # Don't strip symbols from the binary
+lto = false         # Disable Link Time Optimization (easier debugging)
+codegen-units = 1   # Single codegen unit (better backtraces, slower compile)
