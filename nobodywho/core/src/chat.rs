@@ -216,7 +216,7 @@ impl ChatBuilder {
 ///
 /// Use [`ChatBuilder`] to create a new instance with a fluent API.
 pub struct ChatHandle {
-    msg_tx: std::sync::mpsc::Sender<ChatMsg>,
+    msg_tx: Option<std::sync::mpsc::Sender<ChatMsg>>,
     should_stop: Arc<AtomicBool>,
     join_handle: Option<std::thread::JoinHandle<()>>,
 }
@@ -246,7 +246,7 @@ impl ChatHandle {
         });
 
         Self {
-            msg_tx,
+            msg_tx: Some(msg_tx),
             should_stop,
             join_handle: Some(join_handle),
         }
@@ -259,10 +259,12 @@ impl ChatHandle {
         text: impl Into<String>,
     ) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
         let (output_tx, output_rx) = tokio::sync::mpsc::channel(4096);
-        let _ = self.msg_tx.send(ChatMsg::Ask {
-            text: text.into(),
-            output_tx,
-        });
+        if let Some(ref msg_tx) = self.msg_tx {
+            let _ = msg_tx.send(ChatMsg::Ask {
+                text: text.into(),
+                output_tx,
+            });
+        }
         output_rx
     }
 
@@ -288,7 +290,9 @@ impl ChatHandle {
     {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         let msg = make_msg(output_tx);
-        let _ = self.msg_tx.send(msg);
+        if let Some(ref msg_tx) = self.msg_tx {
+            let _ = msg_tx.send(msg);
+        }
         // block until processed
         output_rx.blocking_recv()
     }
@@ -361,7 +365,9 @@ impl ChatHandle {
     /// Get the chat history without the system prompt (lower-level API).
     pub fn get_chat_history(&self) -> Result<Vec<Message>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        let _ = self.msg_tx.send(ChatMsg::GetChatHistory { output_tx });
+        if let Some(ref msg_tx) = self.msg_tx {
+            let _ = msg_tx.send(ChatMsg::GetChatHistory { output_tx });
+        }
         output_rx
             .blocking_recv()
             .ok_or(crate::errors::GetterError::GetterError(
@@ -424,11 +430,17 @@ impl ChatHandle {
 
 impl Drop for ChatHandle {
     fn drop(&mut self) {
-        if let Some(handle) = self.join_handle.take() {
-            // Give thread a chance to exit naturally
-            std::thread::sleep(std::time::Duration::from_millis(100));
+        // Signal any ongoing generation to stop
+        self.should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
 
-            // Try join - will block if thread is still running
+        // Drop the sender to close the channel
+        drop(self.msg_tx.take());
+
+        // Give thread a chance to exit naturally (increased to 500ms to allow generation to stop)
+        std::thread::sleep(std::time::Duration::from_millis(500));
+
+        // Join the thread
+        if let Some(handle) = self.join_handle.take() {
             match handle.join() {
                 Ok(()) => {}
                 Err(e) => error!("Chat worker panicked: {:?}", e),
@@ -442,7 +454,7 @@ impl Drop for ChatHandle {
 /// Use [`ChatBuilder`] to create a new instance with a fluent API.
 #[derive(Clone)]
 pub struct ChatHandleAsync {
-    msg_tx: std::sync::mpsc::Sender<ChatMsg>,
+    msg_tx: Arc<Mutex<Option<std::sync::mpsc::Sender<ChatMsg>>>>,
     should_stop: Arc<AtomicBool>,
     join_handle: Arc<Mutex<Option<std::thread::JoinHandle<()>>>>,
 }
@@ -472,7 +484,7 @@ impl ChatHandleAsync {
         });
 
         Self {
-            msg_tx,
+            msg_tx: Arc::new(Mutex::new(Some(msg_tx))),
             should_stop,
             join_handle: Arc::new(Mutex::new(Some(join_handle))),
         }
@@ -485,10 +497,14 @@ impl ChatHandleAsync {
         text: impl Into<String>,
     ) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
         let (output_tx, output_rx) = tokio::sync::mpsc::channel(4096);
-        let _ = self.msg_tx.send(ChatMsg::Ask {
-            text: text.into(),
-            output_tx,
-        });
+        if let Ok(guard) = self.msg_tx.lock() {
+            if let Some(ref msg_tx) = *guard {
+                let _ = msg_tx.send(ChatMsg::Ask {
+                    text: text.into(),
+                    output_tx,
+                });
+            }
+        }
         output_rx
     }
 
@@ -515,7 +531,11 @@ impl ChatHandleAsync {
     {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         let msg = make_msg(output_tx);
-        let _ = self.msg_tx.send(msg);
+        if let Ok(guard) = self.msg_tx.lock() {
+            if let Some(ref msg_tx) = *guard {
+                let _ = msg_tx.send(msg);
+            }
+        }
         // wait until processed
         output_rx.recv().await
     }
@@ -593,7 +613,11 @@ impl ChatHandleAsync {
     /// Get the chat history without the system prompt (lower-level API).
     pub async fn get_chat_history(&self) -> Result<Vec<Message>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        let _ = self.msg_tx.send(ChatMsg::GetChatHistory { output_tx });
+        if let Ok(guard) = self.msg_tx.lock() {
+            if let Some(ref msg_tx) = *guard {
+                let _ = msg_tx.send(ChatMsg::GetChatHistory { output_tx });
+            }
+        }
         output_rx
             .recv()
             .await
@@ -661,14 +685,20 @@ impl Drop for ChatHandleAsync {
     fn drop(&mut self) {
         // Only join on the last reference
         if Arc::strong_count(&self.join_handle) == 1 {
-            // Try to lock and take the handle
+            // Signal any ongoing generation to stop
+            self.should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
+
+            // Drop the sender to close the channel
+            if let Ok(mut tx_guard) = self.msg_tx.lock() {
+                drop(tx_guard.take());
+            }
+
+            // Give thread time to exit (increased to 500ms to allow generation to stop)
+            std::thread::sleep(std::time::Duration::from_millis(500));
+
+            // Join the thread
             if let Ok(mut guard) = self.join_handle.lock() {
                 if let Some(handle) = guard.take() {
-                    // Give thread time to exit
-                    drop(self.msg_tx.clone());
-                    std::thread::sleep(std::time::Duration::from_millis(100));
-
-                    // Join with short timeout check
                     match handle.join() {
                         Ok(()) => {}
                         Err(e) => error!("Async chat worker panicked: {:?}", e),
