@@ -70,6 +70,9 @@ impl EncoderAsync {
 
 impl Drop for EncoderAsync {
     fn drop(&mut self) {
+        use std::sync::mpsc;
+        use std::time::Duration;
+
         // Only join on the last reference
         if Arc::strong_count(&self.join_handle) == 1 {
             // Drop the sender to close the channel
@@ -77,14 +80,20 @@ impl Drop for EncoderAsync {
                 drop(tx_guard.take());
             }
 
-            // Note: No sleep needed, join() will wait for thread to finish
-
-            // Join the thread
+            // Join the thread with timeout
             if let Ok(mut guard) = self.join_handle.lock() {
                 if let Some(handle) = guard.take() {
-                    match handle.join() {
-                        Ok(()) => {}
-                        Err(e) => error!("Encoder worker panicked: {:?}", e),
+                    let (tx, rx) = mpsc::channel();
+
+                    std::thread::spawn(move || {
+                        let result = handle.join();
+                        let _ = tx.send(result);
+                    });
+
+                    match rx.recv_timeout(Duration::from_secs(5)) {
+                        Ok(Ok(())) => {}
+                        Ok(Err(e)) => error!("Encoder worker panicked: {:?}", e),
+                        Err(_) => error!("Encoder worker thread did not exit within 100ms"),
                     }
                 }
             }
