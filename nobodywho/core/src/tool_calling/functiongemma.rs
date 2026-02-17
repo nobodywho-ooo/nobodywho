@@ -93,8 +93,6 @@ impl ToolFormatHandler for FunctionGemmaHandler {
             .rule("root", nt("superroot"))
             .build();
 
-        debug!("Grammar:\n{}", grammar.as_str());
-
         Ok(grammar)
     }
 

@@ -1745,6 +1745,10 @@ pub mod nobodywhopython {
 
     #[pymodule_init]
     fn init(_m: &Bound<'_, PyModule>) -> PyResult<()> {
+        // Ensure Python threading is properly set up for background threads
+        // This is safe to call even when Python is already initialized
+        pyo3::Python::initialize();
+
         // STEP 1: Initialize rust log -> python logging bridge FIRST
         // By setting filter to Trace, we forward all logs and let Python's logging config handle filtering
         pyo3_log::Logger::new(_m.py(), pyo3_log::Caching::LoggersAndLevels)?
