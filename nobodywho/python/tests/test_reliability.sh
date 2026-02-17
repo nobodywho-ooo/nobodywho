@@ -51,6 +51,19 @@ if [ ! -f "$SCRIPT_PATH" ]; then
     exit 1
 fi
 
+# Convert script path to absolute path (needed for cd to core dir)
+SCRIPT_PATH=$(realpath "$SCRIPT_PATH")
+
+# Convert remaining arguments to absolute paths (in case they're file paths)
+SCRIPT_ARGS=()
+for arg in "$@"; do
+    if [ -f "$arg" ] || [ -d "$arg" ]; then
+        SCRIPT_ARGS+=("$(realpath "$arg")")
+    else
+        SCRIPT_ARGS+=("$arg")
+    fi
+done
+
 # Setup core dump capture
 CORE_DIR="/tmp/cores_${SCRIPT_PATH##*/}_$$"
 mkdir -p "$CORE_DIR"
@@ -90,7 +103,7 @@ FAILURE_COUNT=0
 FAILURES=()
 
 echo "Running '$SCRIPT_PATH' $TOTAL_RUNS times..."
-echo "Arguments: $@"
+echo "Arguments: ${SCRIPT_ARGS[@]}"
 echo ""
 
 # Progress bar function
@@ -118,7 +131,7 @@ for i in $(seq 1 $TOTAL_RUNS); do
     (
         ulimit -c unlimited
         cd "$CORE_DIR"  # Run from core directory so dumps appear here
-        exec python -X faulthandler "$SCRIPT_PATH" "$@" 2>&1
+        exec python -X faulthandler "$SCRIPT_PATH" "${SCRIPT_ARGS[@]}" 2>&1
     ) | tee -a /tmp/crash_log_$i.txt
 
     EXIT_CODE=${PIPESTATUS[0]}
@@ -193,7 +206,7 @@ else
         echo "  - System core dumps are disabled"
         echo ""
         echo "Try running a single instance under GDB:"
-        echo "  gdb --args python -X faulthandler $SCRIPT_PATH $@"
+        echo "  gdb --args python -X faulthandler $SCRIPT_PATH ${SCRIPT_ARGS[@]}"
         echo "  (gdb) catch throw std::out_of_range"
         echo "  (gdb) run"
     fi
