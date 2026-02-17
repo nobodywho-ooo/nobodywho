@@ -10,7 +10,7 @@ pub mod grammar_builder;
 mod qwen3;
 
 use llama_cpp_2::model::LlamaModel;
-use serde::{Deserialize, Serialize};
+use serde::{ser::Serializer, Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::debug;
 
@@ -58,11 +58,43 @@ impl Tool {
     }
 }
 
+impl Serialize for Tool {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": &self.name,
+                "description": &self.description,
+                "parameters": &self.json_schema,
+            }
+        })
+        .serialize(serializer)
+    }
+}
+
 /// A tool call extracted from LLM output.
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct ToolCall {
     pub name: String,
     pub arguments: serde_json::Value,
+}
+
+impl Serialize for ToolCall {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serde_json::json!({
+            "function": {
+                "name": &self.name,
+                "arguments": &self.arguments,
+            }
+        })
+        .serialize(serializer)
+    }
 }
 
 /// Errors that can occur during tool calling operations.
@@ -101,29 +133,6 @@ pub trait ToolFormatHandler {
 
     /// Extracts tool calls from the given text.
     fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>>;
-
-    /// Serialize a Tool for the chat template (tool definitions in system context)
-    fn serialize_tool(&self, tool: &Tool) -> serde_json::Value;
-
-    /// Serialize a ToolCall for the chat template (within assistant messages)
-    fn serialize_tool_call(&self, tool_call: &ToolCall) -> serde_json::Value;
-
-    /// Serialize a complete ToolCalls message for the chat template
-    /// Default implementation composes from serialize_tool_call
-    fn serialize_tool_calls_message(
-        &self,
-        role: &crate::chat::Role,
-        content: &str,
-        tool_calls: &[ToolCall],
-    ) -> serde_json::Value {
-        serde_json::json!({
-            "role": role,
-            "content": content,
-            "tool_calls": tool_calls.iter()
-                .map(|tc| self.serialize_tool_call(tc))
-                .collect::<Vec<_>>()
-        })
-    }
 }
 
 /// Enum representing different tool calling formats.
@@ -224,11 +233,10 @@ mod tests {
     }
 
     #[test]
-    fn test_qwen3_serialization() {
+    fn test_tool_serialization() {
         use serde_json::json;
         use std::sync::Arc;
 
-        let handler = Qwen3Handler;
         let tool = Tool {
             name: "test_tool".to_string(),
             description: "A test tool".to_string(),
@@ -236,7 +244,10 @@ mod tests {
             function: Arc::new(|_| "result".to_string()),
         };
 
-        let serialized = handler.serialize_tool(&tool);
+        let serialized = match serde_json::to_value(&tool) {
+            Ok(s) => s,
+            Err(e) => panic!("Serilization of tool failed: {}", e),
+        };
         assert_eq!(
             serialized,
             json!({
@@ -246,59 +257,22 @@ mod tests {
                     "description": "A test tool",
                     "parameters": {"type": "object"}
                 }
-            })
-        );
-
-        let tool_call = ToolCall {
-            name: "test_tool".to_string(),
-            arguments: json!({"arg": "value"}),
-        };
-
-        let serialized_call = handler.serialize_tool_call(&tool_call);
-        assert_eq!(
-            serialized_call,
-            json!({
-                "name": "test_tool",
-                "arguments": {"arg": "value"}
             })
         );
     }
 
     #[test]
-    fn test_functiongemma_serialization() {
+    fn test_tool_call_serialization() {
         use serde_json::json;
-        use std::sync::Arc;
-
-        let handler = FunctionGemmaHandler;
-        let tool = Tool {
-            name: "test_tool".to_string(),
-            description: "A test tool".to_string(),
-            json_schema: json!({"type": "object"}),
-            function: Arc::new(|_| "result".to_string()),
-        };
-
-        let serialized = handler.serialize_tool(&tool);
-        assert_eq!(
-            serialized,
-            json!({
-                "type": "function",
-                "function": {
-                    "name": "test_tool",
-                    "description": "A test tool",
-                    "parameters": {"type": "object"}
-                }
-            })
-        );
 
         let tool_call = ToolCall {
             name: "test_tool".to_string(),
             arguments: json!({"arg": "value"}),
         };
 
-        let serialized_call = handler.serialize_tool_call(&tool_call);
-        // FunctionGemma wraps in "function" object
+        let serialized = serde_json::to_value(&tool_call).unwrap();
         assert_eq!(
-            serialized_call,
+            serialized,
             json!({
                 "function": {
                     "name": "test_tool",

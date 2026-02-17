@@ -140,27 +140,6 @@ impl ToolFormatHandler for FunctionGemmaHandler {
             None
         }
     }
-
-    fn serialize_tool(&self, tool: &Tool) -> serde_json::Value {
-        json!({
-            "type": "function",
-            "function": {
-                "name": &tool.name,
-                "description": &tool.description,
-                "parameters": &tool.json_schema,
-            }
-        })
-    }
-
-    fn serialize_tool_call(&self, tool_call: &ToolCall) -> serde_json::Value {
-        // FunctionGemma wraps tool_calls in "function" object
-        json!({
-            "function": {
-                "name": &tool_call.name,
-                "arguments": &tool_call.arguments,
-            }
-        })
-    }
 }
 
 #[cfg(test)]
