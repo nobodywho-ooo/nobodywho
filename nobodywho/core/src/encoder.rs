@@ -5,7 +5,7 @@ use llama_cpp_2::context::params::LlamaPoolingType;
 use llama_cpp_2::model::LlamaModel;
 use tracing::error;
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 #[derive(Clone)]
 pub struct Encoder {
@@ -15,6 +15,7 @@ pub struct Encoder {
 #[derive(Clone)]
 pub struct EncoderAsync {
     msg_tx: std::sync::mpsc::Sender<EncoderMsg>,
+    join_handle: Arc<Mutex<Option<std::thread::JoinHandle<()>>>>,
 }
 
 impl Encoder {
@@ -32,7 +33,7 @@ impl EncoderAsync {
     pub fn new(model: Arc<LlamaModel>, n_ctx: u32) -> Self {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
 
-        std::thread::spawn(move || {
+        let join_handle = std::thread::spawn(move || {
             let worker = Worker::new_encoder_worker(&model, n_ctx);
             let mut worker_state = match worker {
                 Ok(worker_state) => worker_state,
@@ -48,7 +49,10 @@ impl EncoderAsync {
             }
         });
 
-        Self { msg_tx }
+        Self {
+            msg_tx,
+            join_handle: Arc::new(Mutex::new(Some(join_handle))),
+        }
     }
 
     pub async fn encode(&self, text: String) -> Result<Vec<f32>, EncoderWorkerError> {
@@ -57,6 +61,25 @@ impl EncoderAsync {
         embedding_rx.recv().await.ok_or(EncoderWorkerError::Encode(
             "Could not encode the text. Worker never responded.".into(),
         ))
+    }
+}
+
+impl Drop for EncoderAsync {
+    fn drop(&mut self) {
+        // Only join on the last reference
+        if Arc::strong_count(&self.join_handle) == 1 {
+            if let Ok(mut guard) = self.join_handle.lock() {
+                if let Some(handle) = guard.take() {
+                    drop(self.msg_tx.clone());
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+
+                    match handle.join() {
+                        Ok(()) => {}
+                        Err(e) => error!("Encoder worker panicked: {:?}", e),
+                    }
+                }
+            }
+        }
     }
 }
 

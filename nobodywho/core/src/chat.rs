@@ -38,7 +38,7 @@ use llama_cpp_2::{context::params::LlamaPoolingType, model::LlamaModel};
 use serde::{Deserialize, Serialize};
 use std::cmp::min;
 use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard};
 use tracing::{debug, error, info, trace, trace_span};
 
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq, Debug)]
@@ -218,6 +218,7 @@ impl ChatBuilder {
 pub struct ChatHandle {
     msg_tx: std::sync::mpsc::Sender<ChatMsg>,
     should_stop: Arc<AtomicBool>,
+    join_handle: Option<std::thread::JoinHandle<()>>,
 }
 
 impl ChatHandle {
@@ -228,7 +229,7 @@ impl ChatHandle {
         let should_stop = Arc::new(AtomicBool::new(false));
         let should_stop_clone = Arc::clone(&should_stop);
 
-        std::thread::spawn(move || {
+        let join_handle = std::thread::spawn(move || {
             let worker = Worker::new_chat_worker(&model, config, should_stop_clone);
             let mut worker_state = match worker {
                 Ok(worker_state) => worker_state,
@@ -247,6 +248,7 @@ impl ChatHandle {
         Self {
             msg_tx,
             should_stop,
+            join_handle: Some(join_handle),
         }
     }
 
@@ -420,6 +422,21 @@ impl ChatHandle {
     }
 }
 
+impl Drop for ChatHandle {
+    fn drop(&mut self) {
+        if let Some(handle) = self.join_handle.take() {
+            // Give thread a chance to exit naturally
+            std::thread::sleep(std::time::Duration::from_millis(100));
+
+            // Try join - will block if thread is still running
+            match handle.join() {
+                Ok(()) => {}
+                Err(e) => error!("Chat worker panicked: {:?}", e),
+            }
+        }
+    }
+}
+
 /// Interact with a ChatWorker in an asynchronous manner.
 ///
 /// Use [`ChatBuilder`] to create a new instance with a fluent API.
@@ -427,6 +444,7 @@ impl ChatHandle {
 pub struct ChatHandleAsync {
     msg_tx: std::sync::mpsc::Sender<ChatMsg>,
     should_stop: Arc<AtomicBool>,
+    join_handle: Arc<Mutex<Option<std::thread::JoinHandle<()>>>>,
 }
 
 impl ChatHandleAsync {
@@ -437,7 +455,7 @@ impl ChatHandleAsync {
         let should_stop = Arc::new(AtomicBool::new(false));
         let should_stop_clone = Arc::clone(&should_stop);
 
-        std::thread::spawn(move || {
+        let join_handle = std::thread::spawn(move || {
             let worker = Worker::new_chat_worker(&model, config, should_stop_clone);
             let mut worker_state = match worker {
                 Ok(worker_state) => worker_state,
@@ -456,6 +474,7 @@ impl ChatHandleAsync {
         Self {
             msg_tx,
             should_stop,
+            join_handle: Arc::new(Mutex::new(Some(join_handle))),
         }
     }
 
@@ -635,6 +654,28 @@ impl ChatHandleAsync {
         .ok_or(crate::errors::SetterError::SetterError(
             "set_system_prompt".into(),
         ))
+    }
+}
+
+impl Drop for ChatHandleAsync {
+    fn drop(&mut self) {
+        // Only join on the last reference
+        if Arc::strong_count(&self.join_handle) == 1 {
+            // Try to lock and take the handle
+            if let Ok(mut guard) = self.join_handle.lock() {
+                if let Some(handle) = guard.take() {
+                    // Give thread time to exit
+                    drop(self.msg_tx.clone());
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+
+                    // Join with short timeout check
+                    match handle.join() {
+                        Ok(()) => {}
+                        Err(e) => error!("Async chat worker panicked: {:?}", e),
+                    }
+                }
+            }
+        }
     }
 }
 

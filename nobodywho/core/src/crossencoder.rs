@@ -3,7 +3,7 @@ use crate::llm;
 use crate::llm::Worker;
 use llama_cpp_2::context::params::LlamaPoolingType;
 use llama_cpp_2::model::LlamaModel;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tracing::{error, warn};
 
 #[derive(Clone)]
@@ -14,6 +14,7 @@ pub struct CrossEncoder {
 #[derive(Clone)]
 pub struct CrossEncoderAsync {
     msg_tx: std::sync::mpsc::Sender<CrossEncoderMsg>,
+    join_handle: Arc<Mutex<Option<std::thread::JoinHandle<()>>>>,
 }
 
 impl CrossEncoder {
@@ -45,7 +46,7 @@ impl CrossEncoderAsync {
     pub fn new(model: Arc<LlamaModel>, n_ctx: u32) -> Self {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
 
-        std::thread::spawn(move || {
+        let join_handle = std::thread::spawn(move || {
             let worker = Worker::new_crossencoder_worker(&model, n_ctx);
             let mut worker_state = match worker {
                 Ok(worker_state) => worker_state,
@@ -61,7 +62,10 @@ impl CrossEncoderAsync {
             }
         });
 
-        Self { msg_tx }
+        Self {
+            msg_tx,
+            join_handle: Arc::new(Mutex::new(Some(join_handle))),
+        }
     }
 
     pub async fn rank(
@@ -99,6 +103,25 @@ impl CrossEncoderAsync {
             })
         });
         Ok(docs_with_scores)
+    }
+}
+
+impl Drop for CrossEncoderAsync {
+    fn drop(&mut self) {
+        // Only join on the last reference
+        if Arc::strong_count(&self.join_handle) == 1 {
+            if let Ok(mut guard) = self.join_handle.lock() {
+                if let Some(handle) = guard.take() {
+                    drop(self.msg_tx.clone());
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+
+                    match handle.join() {
+                        Ok(()) => {}
+                        Err(e) => error!("CrossEncoder worker panicked: {:?}", e),
+                    }
+                }
+            }
+        }
     }
 }
 
