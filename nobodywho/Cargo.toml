@@ -11,7 +11,3 @@ members = [
 
 # edition = "2021" implies resolver = "2".
 resolver = "2"
-
-[profile.release]
-debug = true        # Include debug symbols
-strip = "none"      # Don't strip symbols from the binary
