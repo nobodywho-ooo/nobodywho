@@ -1,6 +1,6 @@
 # Changelog
 
-## nobodywho-flutter-v0.3.1-rc4
+## nobodywho-flutter-v0.3.1
 
 - Change MacOS and iOS releases to use dynamic linking
 
