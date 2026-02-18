@@ -164,8 +164,8 @@ jobs:
       - name: "Verify XCFramework zip is present"
         working-directory: ./nobodywho-flutter-release
         run: |
-          if [ ! -f "NobodyWhoFlutter.xcframework.zip" ]; then
-            echo "ERROR: NobodyWhoFlutter.xcframework.zip not found!"
+          if [ ! -f "nobodywho_flutter.xcframework.zip" ]; then
+            echo "ERROR: nobodywho_flutter.xcframework.zip not found!"
             echo "Contents of release directory:"
             ls -la .
             exit 1

@@ -1,5 +1,9 @@
 # Changelog
 
+## nobodywho-flutter-v0.3.1-rc4
+
+- Change MacOS and iOS releases to use dynamic linking
+
 ## nobodywho-flutter-v0.3.0
 
 - Add support for tool parameters with composite types (e.g. List<List<int>>)
