@@ -28,7 +28,7 @@ use crate::errors::{
 };
 use crate::llm::{self};
 use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
-use crate::llm::{Worker, WriteOutput};
+use crate::llm::{Worker, WorkerGuard, WriteOutput};
 use crate::sampler_config::{SamplerConfig, ShiftStep};
 use crate::template::{select_template, ChatTemplate, ChatTemplateContext};
 use crate::tool_calling::{detect_tool_format, Tool, ToolCall, ToolFormat};
@@ -216,9 +216,8 @@ impl ChatBuilder {
 ///
 /// Use [`ChatBuilder`] to create a new instance with a fluent API.
 pub struct ChatHandle {
-    msg_tx: Option<std::sync::mpsc::Sender<ChatMsg>>,
+    guard: WorkerGuard<ChatMsg>,
     should_stop: Arc<AtomicBool>,
-    join_handle: Option<std::thread::JoinHandle<()>>,
 }
 
 impl ChatHandle {
@@ -246,9 +245,8 @@ impl ChatHandle {
         });
 
         Self {
-            msg_tx: Some(msg_tx),
+            guard: WorkerGuard::new(msg_tx, join_handle, Some(Arc::clone(&should_stop))),
             should_stop,
-            join_handle: Some(join_handle),
         }
     }
 
@@ -259,7 +257,7 @@ impl ChatHandle {
         text: impl Into<String>,
     ) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
         let (output_tx, output_rx) = tokio::sync::mpsc::channel(4096);
-        if let Some(ref msg_tx) = self.msg_tx {
+        if let Some(ref msg_tx) = self.guard.msg_tx {
             let _ = msg_tx.send(ChatMsg::Ask {
                 text: text.into(),
                 output_tx,
@@ -290,7 +288,7 @@ impl ChatHandle {
     {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         let msg = make_msg(output_tx);
-        if let Some(ref msg_tx) = self.msg_tx {
+        if let Some(ref msg_tx) = self.guard.msg_tx {
             let _ = msg_tx.send(msg);
         }
         // block until processed
@@ -365,7 +363,7 @@ impl ChatHandle {
     /// Get the chat history without the system prompt (lower-level API).
     pub fn get_chat_history(&self) -> Result<Vec<Message>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        if let Some(ref msg_tx) = self.msg_tx {
+        if let Some(ref msg_tx) = self.guard.msg_tx {
             let _ = msg_tx.send(ChatMsg::GetChatHistory { output_tx });
         }
         output_rx
@@ -428,47 +426,12 @@ impl ChatHandle {
     }
 }
 
-impl Drop for ChatHandle {
-    fn drop(&mut self) {
-        self.should_stop
-            .store(true, std::sync::atomic::Ordering::Relaxed);
-        drop(self.msg_tx.take());
-        if let Some(handle) = self.join_handle.take() {
-            if let Err(e) = handle.join() {
-                error!("Chat worker panicked: {:?}", e);
-            }
-        }
-    }
-}
-
-// Guard struct that owns the worker thread's resources.
-// Its Drop impl ensures the channel is closed and the thread is joined
-// before the static LLAMA_BACKEND can be destroyed.
-struct ChatWorkerGuard {
-    msg_tx: Option<std::sync::mpsc::Sender<ChatMsg>>,
-    join_handle: Option<std::thread::JoinHandle<()>>,
-    should_stop: Arc<AtomicBool>,
-}
-
-impl Drop for ChatWorkerGuard {
-    fn drop(&mut self) {
-        self.should_stop
-            .store(true, std::sync::atomic::Ordering::Relaxed);
-        drop(self.msg_tx.take()); // close channel → worker's recv() returns Err → loop exits
-        if let Some(handle) = self.join_handle.take() {
-            if let Err(e) = handle.join() {
-                error!("Async chat worker panicked: {:?}", e);
-            }
-        }
-    }
-}
-
 /// Interact with a ChatWorker in an asynchronous manner.
 ///
 /// Use [`ChatBuilder`] to create a new instance with a fluent API.
 #[derive(Clone)]
 pub struct ChatHandleAsync {
-    guard: Arc<Mutex<ChatWorkerGuard>>,
+    guard: Arc<Mutex<WorkerGuard<ChatMsg>>>,
     should_stop: Arc<AtomicBool>,
 }
 
@@ -496,14 +459,12 @@ impl ChatHandleAsync {
             }
         });
 
-        let guard = ChatWorkerGuard {
-            msg_tx: Some(msg_tx),
-            join_handle: Some(join_handle),
-            should_stop: Arc::clone(&should_stop),
-        };
-
         Self {
-            guard: Arc::new(Mutex::new(guard)),
+            guard: Arc::new(Mutex::new(WorkerGuard::new(
+                msg_tx,
+                join_handle,
+                Some(Arc::clone(&should_stop)),
+            ))),
             should_stop,
         }
     }

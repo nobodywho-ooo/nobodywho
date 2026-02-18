@@ -1,6 +1,6 @@
 use crate::errors::{EncoderWorkerError, InitWorkerError};
 use crate::llm;
-use crate::llm::Worker;
+use crate::llm::{Worker, WorkerGuard};
 use llama_cpp_2::context::params::LlamaPoolingType;
 use llama_cpp_2::model::LlamaModel;
 use tracing::error;
@@ -12,25 +12,9 @@ pub struct Encoder {
     async_handle: EncoderAsync,
 }
 
-struct EncoderWorkerGuard {
-    msg_tx: Option<std::sync::mpsc::Sender<EncoderMsg>>,
-    join_handle: Option<std::thread::JoinHandle<()>>,
-}
-
-impl Drop for EncoderWorkerGuard {
-    fn drop(&mut self) {
-        drop(self.msg_tx.take());
-        if let Some(handle) = self.join_handle.take() {
-            if let Err(e) = handle.join() {
-                error!("Encoder worker panicked: {:?}", e);
-            }
-        }
-    }
-}
-
 #[derive(Clone)]
 pub struct EncoderAsync {
-    guard: Arc<Mutex<EncoderWorkerGuard>>,
+    guard: Arc<Mutex<WorkerGuard<EncoderMsg>>>,
 }
 
 impl Encoder {
@@ -64,13 +48,8 @@ impl EncoderAsync {
             }
         });
 
-        let guard = EncoderWorkerGuard {
-            msg_tx: Some(msg_tx),
-            join_handle: Some(join_handle),
-        };
-
         Self {
-            guard: Arc::new(Mutex::new(guard)),
+            guard: Arc::new(Mutex::new(WorkerGuard::new(msg_tx, join_handle, None))),
         }
     }
 

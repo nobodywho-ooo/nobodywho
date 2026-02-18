@@ -1,6 +1,6 @@
 use crate::errors::{CrossEncoderWorkerError, InitWorkerError};
 use crate::llm;
-use crate::llm::Worker;
+use crate::llm::{Worker, WorkerGuard};
 use llama_cpp_2::context::params::LlamaPoolingType;
 use llama_cpp_2::model::LlamaModel;
 use std::sync::{Arc, Mutex};
@@ -11,25 +11,9 @@ pub struct CrossEncoder {
     async_handle: CrossEncoderAsync,
 }
 
-struct CrossEncoderWorkerGuard {
-    msg_tx: Option<std::sync::mpsc::Sender<CrossEncoderMsg>>,
-    join_handle: Option<std::thread::JoinHandle<()>>,
-}
-
-impl Drop for CrossEncoderWorkerGuard {
-    fn drop(&mut self) {
-        drop(self.msg_tx.take());
-        if let Some(handle) = self.join_handle.take() {
-            if let Err(e) = handle.join() {
-                error!("CrossEncoder worker panicked: {:?}", e);
-            }
-        }
-    }
-}
-
 #[derive(Clone)]
 pub struct CrossEncoderAsync {
-    guard: Arc<Mutex<CrossEncoderWorkerGuard>>,
+    guard: Arc<Mutex<WorkerGuard<CrossEncoderMsg>>>,
 }
 
 impl CrossEncoder {
@@ -77,13 +61,8 @@ impl CrossEncoderAsync {
             }
         });
 
-        let guard = CrossEncoderWorkerGuard {
-            msg_tx: Some(msg_tx),
-            join_handle: Some(join_handle),
-        };
-
         Self {
-            guard: Arc::new(Mutex::new(guard)),
+            guard: Arc::new(Mutex::new(WorkerGuard::new(msg_tx, join_handle, None))),
         }
     }
 
