@@ -422,7 +422,7 @@ impl<'a> Tokenizer<'a> {
                     .str_to_token(
                         split,
                         if idx == 0 {
-                            AddBos::Always
+                            self.add_bos
                         } else {
                             AddBos::Never
                         },

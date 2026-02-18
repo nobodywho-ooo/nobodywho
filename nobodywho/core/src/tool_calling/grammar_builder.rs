@@ -4,33 +4,30 @@
 //! GBNF grammars programmatically, making it easier to create custom grammar rules
 //! for constrained LLM output generation.
 
-use gbnf::{
-    CharacterSet, CharacterSetItem, Grammar, GrammarItem, NonTerminalSymbol, Production,
-    ProductionItem, RepetitionType, Rule, TerminalSymbol,
-};
+use gbnf::{CharacterRange, Expr, GbnfDeclaration, GbnfGrammar, Quantifier};
 
 /// Builder for constructing GBNF grammars.
 ///
-/// Provides a fluent interface for adding rules and recurring rules to a grammar.
+/// Provides a fluent interface for adding rules to a grammar.
 ///
 /// # Example
 /// ```ignore
-/// use crate::tool_calling::grammar_builder::{GrammarBuilder, t, nt};
+/// use crate::tool_calling::grammar_builder::{GrammarBuilder, t, nt, seq};
 ///
 /// let grammar = GrammarBuilder::new()
-///     .rule("greeting", vec![t("Hello"), t(" "), nt("name")])
-///     .rule("name", vec![t("World")])
+///     .rule("greeting", seq(&[t("Hello"), t(" "), nt("name")]))
+///     .rule("name", t("World"))
 ///     .build();
 /// ```
 pub struct GrammarBuilder {
-    grammar: Grammar,
+    declarations: Vec<GbnfDeclaration>,
 }
 
 impl GrammarBuilder {
     /// Create a new grammar builder with an empty grammar.
     pub fn new() -> Self {
         Self {
-            grammar: Grammar::default(),
+            declarations: Vec::new(),
         }
     }
 
@@ -41,41 +38,29 @@ impl GrammarBuilder {
     ///
     /// # Example
     /// ```ignore
-    /// let json_grammar = Grammar::from_json_schema(&schema)?;
+    /// let json_grammar = json_schema_to_grammar(&schema)?;
     /// let extended = GrammarBuilder::from_existing(json_grammar)
-    ///     .rule("wrapper", vec![t("<start>"), nt("root"), t("<end>")])
+    ///     .rule("wrapper", seq(&[t("<start>"), nt("root"), t("<end>")]))
     ///     .build();
     /// ```
-    pub fn from_existing(grammar: Grammar) -> Self {
-        Self { grammar }
+    pub fn from_existing(grammar: GbnfGrammar) -> Self {
+        Self {
+            declarations: grammar.declarations,
+        }
     }
 
     /// Add a rule to the grammar.
     ///
     /// Rules define productions in the grammar and are processed in order.
-    pub fn rule(mut self, name: &str, items: Vec<ProductionItem>) -> Self {
-        self.grammar.items.push(GrammarItem::Rule(Rule {
-            lhs: NonTerminalSymbol { name: name.into() },
-            rhs: Production { items },
-        }));
-        self
-    }
-
-    /// Add a recurring rule to the grammar.
-    ///
-    /// Recurring rules are stored separately in `grammar.recurring_items` and can be
-    /// referenced multiple times without duplication.
-    pub fn recurring_rule(mut self, name: &str, items: Vec<ProductionItem>) -> Self {
-        self.grammar.recurring_items.insert(
-            NonTerminalSymbol { name: name.into() },
-            Production { items },
-        );
+    pub fn rule(mut self, name: &str, expr: Expr) -> Self {
+        self.declarations
+            .push(GbnfDeclaration::new(name.to_string(), expr));
         self
     }
 
     /// Build and return the final grammar.
-    pub fn build(self) -> Grammar {
-        self.grammar
+    pub fn build(self) -> GbnfGrammar {
+        GbnfGrammar::new(self.declarations)
     }
 }
 
@@ -85,28 +70,26 @@ impl Default for GrammarBuilder {
     }
 }
 
-/// Create a terminal production item (exact text match).
-///
-/// This matches the exact string provided with no repetition.
+/// Create a terminal expression (exact text match).
 ///
 /// # Example
 /// ```ignore
-/// let item = t("hello"); // Matches exactly "hello"
+/// let expr = t("hello"); // Matches exactly "hello"
 /// ```
-pub fn t(s: &str) -> ProductionItem {
-    ProductionItem::Terminal(TerminalSymbol { value: s.into() }, RepetitionType::One)
+pub fn t(s: &str) -> Expr {
+    Expr::Characters(s.to_string())
 }
 
 /// Create a non-terminal reference.
 ///
-/// This references another rule in the grammar with no repetition (exactly once).
+/// This references another rule in the grammar (exactly once).
 ///
 /// # Example
 /// ```ignore
-/// let item = nt("my_rule"); // References the rule named "my_rule"
+/// let expr = nt("my_rule"); // References the rule named "my_rule"
 /// ```
-pub fn nt(name: &str) -> ProductionItem {
-    ProductionItem::NonTerminal(NonTerminalSymbol { name: name.into() }, RepetitionType::One)
+pub fn nt(name: &str) -> Expr {
+    Expr::NonTerminal(name.to_string())
 }
 
 /// Create a non-terminal reference with one-or-more repetition.
@@ -115,13 +98,28 @@ pub fn nt(name: &str) -> ProductionItem {
 ///
 /// # Example
 /// ```ignore
-/// let item = nt_plus("item"); // Matches one or more "item"
+/// let expr = nt_plus("item"); // Matches one or more "item"
 /// ```
-pub fn nt_plus(name: &str) -> ProductionItem {
-    ProductionItem::NonTerminal(
-        NonTerminalSymbol { name: name.into() },
-        RepetitionType::OneOrMore,
-    )
+pub fn nt_plus(name: &str) -> Expr {
+    Expr::Quantified {
+        expr: Box::new(Expr::NonTerminal(name.to_string())),
+        quantifier: Quantifier::OneOrMore,
+    }
+}
+
+/// Create a non-terminal reference with zero-or-more repetition.
+///
+/// This references another rule that can occur zero or more times (like `*` in regex).
+///
+/// # Example
+/// ```ignore
+/// let expr = nt_star("item"); // Matches zero or more "item"
+/// ```
+pub fn nt_star(name: &str) -> Expr {
+    Expr::Quantified {
+        expr: Box::new(Expr::NonTerminal(name.to_string())),
+        quantifier: Quantifier::ZeroOrMore,
+    }
 }
 
 /// Create a terminal with zero-or-more repetition.
@@ -130,13 +128,27 @@ pub fn nt_plus(name: &str) -> ProductionItem {
 ///
 /// # Example
 /// ```ignore
-/// let item = t_star(" "); // Matches zero or more spaces
+/// let expr = t_star(" "); // Matches zero or more spaces
 /// ```
-pub fn t_star(s: &str) -> ProductionItem {
-    ProductionItem::Terminal(
-        TerminalSymbol { value: s.into() },
-        RepetitionType::ZeroOrMore,
-    )
+pub fn t_star(s: &str) -> Expr {
+    Expr::Quantified {
+        expr: Box::new(Expr::Characters(s.to_string())),
+        quantifier: Quantifier::ZeroOrMore,
+    }
+}
+
+/// Create a sequence from multiple expressions.
+///
+/// # Example
+/// ```ignore
+/// let expr = seq(&[t("hello"), t(" "), nt("name")]);
+/// ```
+pub fn seq(items: &[Expr]) -> Expr {
+    if items.len() == 1 {
+        items[0].clone()
+    } else {
+        Expr::Sequence(items.to_vec())
+    }
 }
 
 /// Create a character set that matches anything except the given characters.
@@ -145,19 +157,16 @@ pub fn t_star(s: &str) -> ProductionItem {
 ///
 /// # Example
 /// ```ignore
-/// let item = not_chars(&['<', '>', '{', '}']); // Matches any char except < > { }
+/// let expr = not_chars(&['<', '>', '{', '}']); // Matches any char except < > { }
 /// ```
-pub fn not_chars(chars: &[char]) -> ProductionItem {
-    ProductionItem::CharacterSet(
-        CharacterSet {
-            is_complement: true,
-            items: chars
-                .iter()
-                .map(|&c| CharacterSetItem::Character(c))
-                .collect(),
-        },
-        RepetitionType::OneOrMore,
-    )
+pub fn not_chars(chars: &[char]) -> Expr {
+    Expr::Quantified {
+        expr: Box::new(Expr::CharacterRange(CharacterRange::Set {
+            chars: chars.to_vec(),
+            negated: true,
+        })),
+        quantifier: Quantifier::OneOrMore,
+    }
 }
 
 #[cfg(test)]
@@ -167,33 +176,71 @@ mod tests {
     #[test]
     fn test_grammar_builder() {
         let grammar = GrammarBuilder::new()
-            .rule("root", vec![t("hello"), t(" "), nt("name")])
-            .rule("name", vec![t("world")])
+            .rule("root", seq(&[t("hello"), t(" "), nt("name")]))
+            .rule("name", t("world"))
             .build();
 
-        assert_eq!(grammar.items.len(), 2);
+        assert_eq!(grammar.declarations.len(), 2);
     }
 
     #[test]
-    fn test_recurring_rule() {
-        let grammar = GrammarBuilder::new()
-            .recurring_rule("ws", vec![t_star(" ")])
-            .rule("root", vec![nt("ws"), t("hello")])
-            .build();
+    fn test_helpers() {
+        // Test t()
+        assert!(matches!(t("hello"), Expr::Characters(s) if s == "hello"));
 
-        assert_eq!(grammar.items.len(), 1);
-        assert_eq!(grammar.recurring_items.len(), 1);
+        // Test nt()
+        assert!(matches!(nt("rule"), Expr::NonTerminal(s) if s == "rule"));
+
+        // Test nt_plus()
+        assert!(matches!(
+            nt_plus("item"),
+            Expr::Quantified {
+                quantifier: Quantifier::OneOrMore,
+                ..
+            }
+        ));
+
+        // Test t_star()
+        assert!(matches!(
+            t_star(" "),
+            Expr::Quantified {
+                quantifier: Quantifier::ZeroOrMore,
+                ..
+            }
+        ));
     }
 
     #[test]
     fn test_not_chars() {
-        let item = not_chars(&['<', '>']);
-        match item {
-            ProductionItem::CharacterSet(charset, RepetitionType::OneOrMore) => {
-                assert!(charset.is_complement);
-                assert_eq!(charset.items.len(), 2);
-            }
-            _ => panic!("Expected CharacterSet with OneOrMore"),
+        let expr = not_chars(&['<', '>']);
+        match expr {
+            Expr::Quantified {
+                expr: inner,
+                quantifier: Quantifier::OneOrMore,
+            } => match *inner {
+                Expr::CharacterRange(CharacterRange::Set { chars, negated }) => {
+                    assert!(negated);
+                    assert_eq!(chars.len(), 2);
+                    assert!(chars.contains(&'<'));
+                    assert!(chars.contains(&'>'));
+                }
+                _ => panic!("Expected CharacterRange::Set"),
+            },
+            _ => panic!("Expected Quantified with OneOrMore"),
         }
+    }
+
+    #[test]
+    fn test_grammar_output() {
+        let grammar = GrammarBuilder::new()
+            .rule("root", seq(&[t("hello"), t(" "), nt("name")]))
+            .rule("name", t("world"))
+            .build();
+
+        let output = grammar.as_str();
+        assert!(output.contains("root ::="));
+        assert!(output.contains("name ::="));
+        assert!(output.contains("\"hello\""));
+        assert!(output.contains("\"world\""));
     }
 }

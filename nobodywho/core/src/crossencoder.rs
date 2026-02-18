@@ -2,7 +2,7 @@ use crate::errors::{CrossEncoderWorkerError, InitWorkerError};
 use crate::llm;
 use crate::llm::Worker;
 use llama_cpp_2::context::params::LlamaPoolingType;
-use llama_cpp_2::model::{LlamaModel, Special};
+use llama_cpp_2::model::LlamaModel;
 use std::sync::Arc;
 use tracing::{error, warn};
 
@@ -160,10 +160,11 @@ impl<'a> Worker<'a, CrossEncoderWorker> {
         documents: Vec<String>,
     ) -> Result<Vec<f32>, CrossEncoderWorkerError> {
         // Get CLS and SEP tokens from the model (CLS = BOS per llama.cpp, the current CLS token is deprecated.)
+        let mut decoder = encoding_rs::UTF_8.new_decoder();
         let cls = self
             .ctx
             .model
-            .token_to_str(self.ctx.model.token_bos(), Special::Tokenize)
+            .token_to_piece(self.ctx.model.token_bos(), &mut decoder, true, None)
             .unwrap_or_else(|_| {
                 warn!("Failed to convert BOS/CLS token to string, using fallback");
                 "<s>".to_string()
@@ -172,7 +173,7 @@ impl<'a> Worker<'a, CrossEncoderWorker> {
         let sep = self
             .ctx
             .model
-            .token_to_str(self.ctx.model.token_sep(), Special::Tokenize)
+            .token_to_piece(self.ctx.model.token_sep(), &mut decoder, true, None)
             .unwrap_or_else(|_| {
                 warn!("Failed to convert SEP token to string, using fallback");
                 "</s>".to_string()

@@ -38,7 +38,6 @@ use crate::tokenizer::{
 };
 use crate::tool_calling::{detect_tool_format, Tool, ToolCall, ToolFormat};
 use ahash::AHasher;
-use llama_cpp_2::model::Special;
 use llama_cpp_2::mtmd::MtmdBitmap;
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
@@ -174,7 +173,8 @@ impl Default for ChatConfig {
 ///
 /// # Example
 /// ```
-/// use nobodywho::chat::{ChatBuilder, Tool};
+/// use nobodywho::chat::{ChatBuilder};
+/// use nobodywho::tool_calling::Tool;
 /// use nobodywho::llm;
 /// use std::sync::Arc;
 ///
@@ -251,8 +251,8 @@ impl ChatBuilder {
     /// This enables the chat handle to process images alongside text.
     /// The mmproj file is typically distributed alongside vision models
     /// (e.g., LLaVA, Qwen-VL).
-    pub fn with_mmproj<S: Into<String>>(mut self, path: S) -> Self {
-        self.config.mmproj_path = Some(path.into());
+    pub fn with_image_ingestion<S: Into<String>>(mut self, model_path: S) -> Self {
+        self.config.mmproj_path = Some(model_path.into());
         self
     }
 
@@ -658,12 +658,12 @@ impl ChatHandleAsync {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```ignore
     /// # use nobodywho::chat::ChatBuilder;
     /// # use nobodywho::llm::get_model;
     /// # let model = get_model("model.gguf", true).unwrap();
     /// # let chat = ChatBuilder::new(model).build_async();
-    /// chat.set_system_prompt("You are a helpful coding assistant.".to_string()).await?;
+    /// # chat.set_system_prompt("You are a helpful coding assistant.".to_string()).await?;
     /// # Ok::<(), nobodywho::errors::SetterError>(())
     /// ```
     pub async fn set_system_prompt(
@@ -1000,7 +1000,7 @@ impl ChatContext {
 
 struct ChatWorker {
     should_stop: Arc<AtomicBool>,
-    tool_grammar: Option<gbnf::Grammar>,
+    tool_grammar: Option<gbnf::GbnfGrammar>,
     tool_format: Option<ToolFormat>,
     sampler_config: SamplerConfig,
     messages: Vec<Message>,
@@ -1268,7 +1268,9 @@ impl Worker<'_, ChatWorker> {
         // initialize sampler
         // stateful samplers only live for one response
         let mut sampler = sampler_config.to_stateful(self.ctx.model)?;
-        let mut token_bytes_vec = Vec::new();
+
+        // init statefull decoder for split up tokens like emojis
+        let mut decoder = encoding_rs::UTF_8.new_decoder();
 
         while !self.should_stop() {
             // Check if the context is full
@@ -1283,47 +1285,46 @@ impl Worker<'_, ChatWorker> {
             // using sampler.accept() will cause the sampler to crash when using grammar sampling.
             // https://github.com/utilityai/llama-cpp-rs/issues/604
             let new_token = self.sample_and_decode_next_token(&mut sampler)?;
+
             tokens_written_until_now.append(TokenizerChunk::new_text(vec![new_token]));
 
             // Attempt to convert token(s) to bytes
-            let token_bytes = self
+            let token_bytes = match self
                 .ctx
                 .model
-                .token_to_bytes(new_token, Special::Tokenize)?;
-
-            token_bytes_vec.extend(token_bytes);
+                .token_to_piece_bytes(new_token, 8, true, None)
+            {
+                Err(llama_cpp_2::TokenToStringError::InsufficientBufferSpace(i)) => {
+                    self.ctx.model.token_to_piece_bytes(
+                        new_token,
+                        (-i).try_into().expect("Error buffer size is positive"),
+                        true,
+                        None,
+                    )
+                }
+                x => x,
+            }?;
 
             // Attempt to convert bytes to utf8 string.
+            let max_len = decoder
+                .max_utf8_buffer_length(token_bytes.len())
+                .unwrap_or(32);
+            let mut token_str = String::with_capacity(max_len);
 
-            let token_str = match std::str::from_utf8(&token_bytes_vec) {
-                Ok(str) => str,
-                Err(_) => {
-                    if token_bytes_vec.len() > 4 {
-                        "�"
-                    } else {
-                        continue;
-                    }
-                }
-            };
-
-            // Basic solution to split up graphemes. If the current token bytes cannot
-            // be converted into a string then we try to read more tokens till we have
-            // at least four bytes. If these still cannot be converted into a string,
-            // we assume that the model/sampler has produced a useless token somewhere.
-            // This we currently handle by discarding all of the current bytes, but more
-            // intelligent solutions could be a good idea.
+            // this is where the utf-8 decoder handles partial unicode
+            // it'll write whatever printable chars it can into `token_str`
+            // and retain partial codepoints for next decoding attempt
+            let (_result, _bytes_read, _had_errors) =
+                decoder.decode_to_string(&token_bytes, &mut token_str, false);
 
             trace!(?new_token, ?token_str);
             let has_eog = self.ctx.model.is_eog_token(new_token);
 
             if !has_eog {
-                full_response.push_str(token_str);
+                full_response.push_str(&token_str);
                 trace!(?token_str, "Sending out token:");
                 respond(WriteOutput::Token(token_str.to_string()));
             }
-
-            // done using token_str, so now we can clear token_bytes_vec
-            token_bytes_vec.clear();
 
             if has_eog {
                 break;
@@ -1390,11 +1391,14 @@ impl Worker<'_, ChatWorker> {
         let sampler = self.extra.tool_grammar.as_ref().map_or(
             self.extra.sampler_config.clone(),
             |tool_grammar| {
-                self.extra.sampler_config.clone().shift(ShiftStep::Grammar {
-                    trigger_on: tool_call_begin.clone(),
-                    root: "superroot".into(),
-                    grammar: tool_grammar.to_string(),
-                })
+                self.extra
+                    .sampler_config
+                    .clone()
+                    .prepend(ShiftStep::Grammar {
+                        trigger_on: tool_call_begin.clone(),
+                        root: "superroot".into(),
+                        grammar: tool_grammar.as_str().into(),
+                    })
             },
         );
 
@@ -1962,6 +1966,7 @@ mod tests {
 
         let result = receiver.recv().unwrap();
         println!("{}", result);
+        println!("{}", worker.extra.tool_grammar.unwrap().as_str());
         assert!(result.contains("13.37"));
         assert!(result.contains("42.69"));
     }

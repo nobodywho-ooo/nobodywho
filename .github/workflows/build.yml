@@ -361,11 +361,13 @@ jobs:
           CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang"
           CARGO_TARGET_AARCH64_LINUX_ANDROID_AR: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
           CC_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang"
+          CXX_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang++"
           AR_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
           # x86_64
           CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android34-clang"
           CARGO_TARGET_X86_64_LINUX_ANDROID_AR: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
           CC_x86_64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android31-clang"
+          CXX_x86_64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android31-clang++"
           AR_x86_64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
 
         # XXX: .so files for android in godot MUST start with "lib"

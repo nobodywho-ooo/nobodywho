@@ -1,0 +1,31 @@
+---
+source: gbnf/tests/test_gbnf.rs
+expression: grammar
+---
+GbnfGrammar {
+    declarations: [
+        GbnfDeclaration {
+            name: "rule",
+            expr: Sequence(
+                [
+                    Group(
+                        Alternation(
+                            [
+                                NonTerminal(
+                                    "foo",
+                                ),
+                                NonTerminal(
+                                    "bar",
+                                ),
+                            ],
+                        ),
+                    ),
+                    NonTerminal(
+                        "baz",
+                    ),
+                ],
+            ),
+        },
+    ],
+    gbnf_string: "rule ::= (foo | bar) baz",
+}
