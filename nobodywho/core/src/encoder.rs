@@ -12,10 +12,25 @@ pub struct Encoder {
     async_handle: EncoderAsync,
 }
 
+struct EncoderWorkerGuard {
+    msg_tx: Option<std::sync::mpsc::Sender<EncoderMsg>>,
+    join_handle: Option<std::thread::JoinHandle<()>>,
+}
+
+impl Drop for EncoderWorkerGuard {
+    fn drop(&mut self) {
+        drop(self.msg_tx.take());
+        if let Some(handle) = self.join_handle.take() {
+            if let Err(e) = handle.join() {
+                error!("Encoder worker panicked: {:?}", e);
+            }
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct EncoderAsync {
-    msg_tx: Arc<Mutex<Option<std::sync::mpsc::Sender<EncoderMsg>>>>,
-    join_handle: Arc<Mutex<Option<std::thread::JoinHandle<()>>>>,
+    guard: Arc<Mutex<EncoderWorkerGuard>>,
 }
 
 impl Encoder {
@@ -49,55 +64,26 @@ impl EncoderAsync {
             }
         });
 
+        let guard = EncoderWorkerGuard {
+            msg_tx: Some(msg_tx),
+            join_handle: Some(join_handle),
+        };
+
         Self {
-            msg_tx: Arc::new(Mutex::new(Some(msg_tx))),
-            join_handle: Arc::new(Mutex::new(Some(join_handle))),
+            guard: Arc::new(Mutex::new(guard)),
         }
     }
 
     pub async fn encode(&self, text: String) -> Result<Vec<f32>, EncoderWorkerError> {
         let (embedding_tx, mut embedding_rx) = tokio::sync::mpsc::channel(1);
-        if let Ok(guard) = self.msg_tx.lock() {
-            if let Some(ref msg_tx) = *guard {
+        if let Ok(guard) = self.guard.lock() {
+            if let Some(ref msg_tx) = guard.msg_tx {
                 let _ = msg_tx.send(EncoderMsg::Encode(text, embedding_tx));
             }
         }
         embedding_rx.recv().await.ok_or(EncoderWorkerError::Encode(
             "Could not encode the text. Worker never responded.".into(),
         ))
-    }
-}
-
-impl Drop for EncoderAsync {
-    fn drop(&mut self) {
-        use std::sync::mpsc;
-        use std::time::Duration;
-
-        // Only join on the last reference
-        if Arc::strong_count(&self.join_handle) == 1 {
-            // Drop the sender to close the channel
-            if let Ok(mut tx_guard) = self.msg_tx.lock() {
-                drop(tx_guard.take());
-            }
-
-            // Join the thread with timeout
-            if let Ok(mut guard) = self.join_handle.lock() {
-                if let Some(handle) = guard.take() {
-                    let (tx, rx) = mpsc::channel();
-
-                    std::thread::spawn(move || {
-                        let result = handle.join();
-                        let _ = tx.send(result);
-                    });
-
-                    match rx.recv_timeout(Duration::from_secs(5)) {
-                        Ok(Ok(())) => {}
-                        Ok(Err(e)) => error!("Encoder worker panicked: {:?}", e),
-                        Err(_) => error!("Encoder worker thread did not exit within 100ms"),
-                    }
-                }
-            }
-        }
     }
 }
 
