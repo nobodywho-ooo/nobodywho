@@ -242,7 +242,7 @@ String? checkCachedDownload(Config config) {
 
   if (config.isApplePlatform) {
     // Check for cached xcframework
-    final xcframeworkPath = '$cacheBasePath/xcframework/NobodyWhoFlutter.xcframework';
+    final xcframeworkPath = '$cacheBasePath/xcframework/nobodywho_flutter.xcframework';
     final xcframeworkDir = Directory(xcframeworkPath);
     if (xcframeworkDir.existsSync()) {
       stderr.writeln('Using cached xcframework: $xcframeworkPath');
@@ -342,7 +342,7 @@ Future<String> downloadLibrary(Config config, String version) async {
 
 Future<String> downloadXCFramework(Config config, String version) async {
   // Download URL for xcframework
-  final fileName = 'NobodyWhoFlutter.xcframework.zip';
+  final fileName = 'nobodywho_flutter.xcframework.zip';
   final url = 'https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-flutter-v$version/$fileName';
 
   // Prepare cache directory
@@ -352,7 +352,7 @@ Future<String> downloadXCFramework(Config config, String version) async {
 
   final zipPath = '$cacheDir/$fileName';
   final zipFile = File(zipPath);
-  final xcframeworkPath = '$cacheDir/NobodyWhoFlutter.xcframework';
+  final xcframeworkPath = '$cacheDir/nobodywho_flutter.xcframework';
 
   stderr.writeln('Downloading: $url');
 

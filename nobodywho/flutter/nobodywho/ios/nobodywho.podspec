@@ -1,4 +1,4 @@
-framework_name = "NobodyWhoFlutter.xcframework"
+framework_name = "nobodywho_flutter.xcframework"
 
 # Resolve xcframework using Dart script
 # This supports multiple resolution strategies:

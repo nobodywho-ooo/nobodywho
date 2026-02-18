@@ -276,14 +276,17 @@ jobs:
           install_name_tool -id @rpath/nobodywho_flutter.framework/nobodywho_flutter ios-sim/nobodywho_flutter.framework/nobodywho_flutter
           cp Info.plist ios-sim/nobodywho_flutter.framework/
 
-          # macOS universal binary
+          # macOS universal binary (versioned framework structure required for macOS deep bundles)
           lipo -create -output macos-universal.dylib \
             libnobodywho-flutter-aarch64-apple-darwin-release.dylib \
             libnobodywho-flutter-x86_64-apple-darwin-release.dylib
-          mkdir -p macos/nobodywho_flutter.framework
-          cp macos-universal.dylib macos/nobodywho_flutter.framework/nobodywho_flutter
-          install_name_tool -id @rpath/nobodywho_flutter.framework/nobodywho_flutter macos/nobodywho_flutter.framework/nobodywho_flutter
-          cp Info.plist macos/nobodywho_flutter.framework/
+          mkdir -p macos/nobodywho_flutter.framework/Versions/A/Resources
+          cp macos-universal.dylib macos/nobodywho_flutter.framework/Versions/A/nobodywho_flutter
+          install_name_tool -id @rpath/nobodywho_flutter.framework/nobodywho_flutter macos/nobodywho_flutter.framework/Versions/A/nobodywho_flutter
+          cp Info.plist macos/nobodywho_flutter.framework/Versions/A/Resources/
+          ln -sf A macos/nobodywho_flutter.framework/Versions/Current
+          ln -sf Versions/Current/nobodywho_flutter macos/nobodywho_flutter.framework/nobodywho_flutter
+          ln -sf Versions/Current/Resources macos/nobodywho_flutter.framework/Resources
 
           # iOS device (arm64)
           mkdir -p ios-device/nobodywho_flutter.framework
@@ -296,16 +299,16 @@ jobs:
                   -framework ios-sim/nobodywho_flutter.framework \
                   -framework macos/nobodywho_flutter.framework \
                   -framework ios-device/nobodywho_flutter.framework \
-                  -output NobodyWhoFlutter.xcframework
+                  -output nobodywho_flutter.xcframework
 
       - name: "Zip XCFramework"
-        run: zip -r NobodyWhoFlutter.xcframework.zip NobodyWhoFlutter.xcframework
+        run: zip -y -r nobodywho_flutter.xcframework.zip nobodywho_flutter.xcframework
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v4
         with:
           name: nobodywho-flutter-xcframework
-          path: ./NobodyWhoFlutter.xcframework.zip
+          path: ./nobodywho_flutter.xcframework.zip
 
   cargo-build-android:
     runs-on: ubuntu-24.04

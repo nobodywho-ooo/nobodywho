@@ -9,7 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FLUTTER_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 NOBODYWHO_DIR="$(cd "$FLUTTER_DIR/.." && pwd)"
 TARGET_DIR="$NOBODYWHO_DIR/target"
-XCFRAMEWORK_OUTPUT="$TARGET_DIR/xcframework/NobodyWhoFlutter.xcframework"
+XCFRAMEWORK_OUTPUT="$TARGET_DIR/xcframework/nobodywho_flutter.xcframework"
 
 # Parse arguments
 BUILD_TYPE="release"

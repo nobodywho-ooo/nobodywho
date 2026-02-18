@@ -9,7 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FLUTTER_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 NOBODYWHO_DIR="$(cd "$FLUTTER_DIR/.." && pwd)"
 TARGET_DIR="$NOBODYWHO_DIR/target"
-XCFRAMEWORK_OUTPUT="$TARGET_DIR/xcframework/NobodyWhoFlutter.xcframework"
+XCFRAMEWORK_OUTPUT="$TARGET_DIR/xcframework/nobodywho_flutter.xcframework"
 
 # Parse arguments
 BUILD_TYPE="release"
@@ -94,14 +94,14 @@ lipo -create \
 install_name_tool -id @rpath/nobodywho_flutter.framework/nobodywho_flutter \
     "$TARGET_DIR/universal-macos/$BUILD_TYPE/libnobodywho_flutter.dylib"
 
-# Create framework structure
+# Create versioned framework structure (required for macOS deep bundles)
 FRAMEWORK_DIR="$TARGET_DIR/universal-macos/$BUILD_TYPE/nobodywho_flutter.framework"
-mkdir -p "$FRAMEWORK_DIR"
+mkdir -p "$FRAMEWORK_DIR/Versions/A/Resources"
 cp "$TARGET_DIR/universal-macos/$BUILD_TYPE/libnobodywho_flutter.dylib" \
-    "$FRAMEWORK_DIR/nobodywho_flutter"
+    "$FRAMEWORK_DIR/Versions/A/nobodywho_flutter"
 
 # Create Info.plist
-cat > "$FRAMEWORK_DIR/Info.plist" << 'EOF'
+cat > "$FRAMEWORK_DIR/Versions/A/Resources/Info.plist" << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -122,6 +122,11 @@ cat > "$FRAMEWORK_DIR/Info.plist" << 'EOF'
 </dict>
 </plist>
 EOF
+
+# Create symlinks for versioned framework
+ln -sf A "$FRAMEWORK_DIR/Versions/Current"
+ln -sf Versions/Current/nobodywho_flutter "$FRAMEWORK_DIR/nobodywho_flutter"
+ln -sf Versions/Current/Resources "$FRAMEWORK_DIR/Resources"
 
 # Clean existing xcframework
 rm -rf "$XCFRAMEWORK_OUTPUT"
