@@ -342,8 +342,23 @@ impl<T> Drop for WorkerGuard<T> {
         }
         drop(self.msg_tx.take());
         if let Some(handle) = self.join_handle.take() {
-            if let Err(e) = handle.join() {
-                error!("Worker panicked: {:?}", e);
+            // Poll until the thread exits or the timeout expires.
+            // Workers should exit almost immediately: closing the channel unblocks
+            // their recv() loop, and should_stop exits the write loop after one token.
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            while !handle.is_finished() && std::time::Instant::now() < deadline {
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+            if handle.is_finished() {
+                if let Err(e) = handle.join() {
+                    error!("Worker panicked: {:?}", e);
+                }
+            } else {
+                // Detach the thread. Theoretically UB if LLAMA_BACKEND is destroyed
+                // before the thread finishes, but in practice LLAMA_BACKEND lives for
+                // the entire process lifetime so this is safe.
+                warn!("Worker thread did not exit within 5s, detaching");
+                drop(handle);
             }
         }
     }
