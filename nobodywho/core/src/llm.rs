@@ -293,17 +293,21 @@ where
 
         let decode_span = debug_span!("read image embeddings", n_tokens = n_tokens);
         let decode_guard = decode_span.enter();
+        let n_ctx = self.ctx.n_ctx() as i32;
         self.n_past = embeddings.eval_chunks(
             &projection_model.ctx,
             &mut self.ctx,
             self.n_past,
             0,
-            self.big_batch.n_tokens(),
+            n_ctx,
             true,
         )?;
-        drop(decode_guard);
 
-        debug!("Completed read image embeddings operation");
+        drop(decode_guard);
+        debug!(
+            "Completed read image embeddings operation, n_past: {}",
+            self.n_past
+        );
 
         Ok(self)
     }
@@ -349,7 +353,7 @@ where
 
         self.n_past += tokens.len() as i32;
 
-        debug!("Completed read tokens operation");
+        debug!("Completed read tokens operation, n_past: {}", self.n_past);
 
         Ok(self)
     }

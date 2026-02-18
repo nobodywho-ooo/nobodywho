@@ -419,7 +419,14 @@ impl<'a> Tokenizer<'a> {
             .enumerate()
             .map(|(idx, split)| {
                 self.model
-                    .str_to_token(split, AddBos::Never)
+                    .str_to_token(
+                        split,
+                        if idx == 0 {
+                            AddBos::Always
+                        } else {
+                            AddBos::Never
+                        },
+                    )
                     .map(|tokens| TokenizerChunk::new_text(tokens))
                     .map_err(|e| TokenizationError::TextTokenizationFailed {
                         position: idx,
