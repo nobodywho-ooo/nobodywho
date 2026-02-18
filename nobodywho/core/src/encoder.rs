@@ -5,7 +5,7 @@ use llama_cpp_2::context::params::LlamaPoolingType;
 use llama_cpp_2::model::LlamaModel;
 use tracing::error;
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct Encoder {
@@ -14,7 +14,7 @@ pub struct Encoder {
 
 #[derive(Clone)]
 pub struct EncoderAsync {
-    guard: Arc<Mutex<WorkerGuard<EncoderMsg>>>,
+    guard: Arc<WorkerGuard<EncoderMsg>>,
 }
 
 impl Encoder {
@@ -49,16 +49,14 @@ impl EncoderAsync {
         });
 
         Self {
-            guard: Arc::new(Mutex::new(WorkerGuard::new(msg_tx, join_handle, None))),
+            guard: Arc::new(WorkerGuard::new(msg_tx, join_handle, None)),
         }
     }
 
     pub async fn encode(&self, text: String) -> Result<Vec<f32>, EncoderWorkerError> {
         let (embedding_tx, mut embedding_rx) = tokio::sync::mpsc::channel(1);
-        if let Ok(guard) = self.guard.lock() {
-            if let Some(ref msg_tx) = guard.msg_tx {
-                let _ = msg_tx.send(EncoderMsg::Encode(text, embedding_tx));
-            }
+        if let Some(ref msg_tx) = self.guard.msg_tx {
+            let _ = msg_tx.send(EncoderMsg::Encode(text, embedding_tx));
         }
         embedding_rx.recv().await.ok_or(EncoderWorkerError::Encode(
             "Could not encode the text. Worker never responded.".into(),
