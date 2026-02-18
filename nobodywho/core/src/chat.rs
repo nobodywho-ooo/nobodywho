@@ -38,7 +38,7 @@ use llama_cpp_2::{context::params::LlamaPoolingType, model::LlamaModel};
 use serde::{Deserialize, Serialize};
 use std::cmp::min;
 use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, MutexGuard};
 use tracing::{debug, error, info, trace, trace_span};
 
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq, Debug)]
@@ -431,7 +431,7 @@ impl ChatHandle {
 /// Use [`ChatBuilder`] to create a new instance with a fluent API.
 #[derive(Clone)]
 pub struct ChatHandleAsync {
-    guard: Arc<Mutex<WorkerGuard<ChatMsg>>>,
+    guard: Arc<WorkerGuard<ChatMsg>>,
     should_stop: Arc<AtomicBool>,
 }
 
@@ -460,11 +460,11 @@ impl ChatHandleAsync {
         });
 
         Self {
-            guard: Arc::new(Mutex::new(WorkerGuard::new(
+            guard: Arc::new(WorkerGuard::new(
                 msg_tx,
                 join_handle,
                 Some(Arc::clone(&should_stop)),
-            ))),
+            )),
             should_stop,
         }
     }
@@ -476,13 +476,11 @@ impl ChatHandleAsync {
         text: impl Into<String>,
     ) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
         let (output_tx, output_rx) = tokio::sync::mpsc::channel(4096);
-        if let Ok(guard) = self.guard.lock() {
-            if let Some(ref msg_tx) = guard.msg_tx {
-                let _ = msg_tx.send(ChatMsg::Ask {
-                    text: text.into(),
-                    output_tx,
-                });
-            }
+        if let Some(ref msg_tx) = self.guard.msg_tx {
+            let _ = msg_tx.send(ChatMsg::Ask {
+                text: text.into(),
+                output_tx,
+            });
         }
         output_rx
     }
@@ -510,10 +508,8 @@ impl ChatHandleAsync {
     {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         let msg = make_msg(output_tx);
-        if let Ok(guard) = self.guard.lock() {
-            if let Some(ref msg_tx) = guard.msg_tx {
-                let _ = msg_tx.send(msg);
-            }
+        if let Some(ref msg_tx) = self.guard.msg_tx {
+            let _ = msg_tx.send(msg);
         }
         // wait until processed
         output_rx.recv().await
@@ -592,10 +588,8 @@ impl ChatHandleAsync {
     /// Get the chat history without the system prompt (lower-level API).
     pub async fn get_chat_history(&self) -> Result<Vec<Message>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        if let Ok(guard) = self.guard.lock() {
-            if let Some(ref msg_tx) = guard.msg_tx {
-                let _ = msg_tx.send(ChatMsg::GetChatHistory { output_tx });
-            }
+        if let Some(ref msg_tx) = self.guard.msg_tx {
+            let _ = msg_tx.send(ChatMsg::GetChatHistory { output_tx });
         }
         output_rx
             .recv()

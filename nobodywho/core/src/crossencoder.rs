@@ -3,7 +3,7 @@ use crate::llm;
 use crate::llm::{Worker, WorkerGuard};
 use llama_cpp_2::context::params::LlamaPoolingType;
 use llama_cpp_2::model::LlamaModel;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tracing::{error, warn};
 
 #[derive(Clone)]
@@ -13,7 +13,7 @@ pub struct CrossEncoder {
 
 #[derive(Clone)]
 pub struct CrossEncoderAsync {
-    guard: Arc<Mutex<WorkerGuard<CrossEncoderMsg>>>,
+    guard: Arc<WorkerGuard<CrossEncoderMsg>>,
 }
 
 impl CrossEncoder {
@@ -62,7 +62,7 @@ impl CrossEncoderAsync {
         });
 
         Self {
-            guard: Arc::new(Mutex::new(WorkerGuard::new(msg_tx, join_handle, None))),
+            guard: Arc::new(WorkerGuard::new(msg_tx, join_handle, None)),
         }
     }
 
@@ -72,10 +72,8 @@ impl CrossEncoderAsync {
         documents: Vec<String>,
     ) -> Result<Vec<f32>, CrossEncoderWorkerError> {
         let (scores_tx, mut scores_rx) = tokio::sync::mpsc::channel(1);
-        if let Ok(guard) = self.guard.lock() {
-            if let Some(ref msg_tx) = guard.msg_tx {
-                let _ = msg_tx.send(CrossEncoderMsg::Rank(query, documents, scores_tx));
-            }
+        if let Some(ref msg_tx) = self.guard.msg_tx {
+            let _ = msg_tx.send(CrossEncoderMsg::Rank(query, documents, scores_tx));
         }
         scores_rx
             .recv()
