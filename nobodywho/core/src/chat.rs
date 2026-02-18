@@ -430,38 +430,34 @@ impl ChatHandle {
 
 impl Drop for ChatHandle {
     fn drop(&mut self) {
-        use std::sync::mpsc;
-        use std::time::Duration;
-
-        // Signal any ongoing generation to stop
         self.should_stop
             .store(true, std::sync::atomic::Ordering::Relaxed);
-
-        // Drop the sender to close the channel
         drop(self.msg_tx.take());
-
-        // Join the thread with a timeout to prevent hanging
         if let Some(handle) = self.join_handle.take() {
-            let (tx, rx) = mpsc::channel();
+            if let Err(e) = handle.join() {
+                error!("Chat worker panicked: {:?}", e);
+            }
+        }
+    }
+}
 
-            // Spawn a thread to do the join
-            std::thread::spawn(move || {
-                let result = handle.join();
-                let _ = tx.send(result);
-            });
+// Guard struct that owns the worker thread's resources.
+// Its Drop impl ensures the channel is closed and the thread is joined
+// before the static LLAMA_BACKEND can be destroyed.
+struct ChatWorkerGuard {
+    msg_tx: Option<std::sync::mpsc::Sender<ChatMsg>>,
+    join_handle: Option<std::thread::JoinHandle<()>>,
+    should_stop: Arc<AtomicBool>,
+}
 
-            // Wait for join with timeout
-            match rx.recv_timeout(Duration::from_secs(5)) {
-                Ok(Ok(())) => {
-                    // Thread exited cleanly
-                }
-                Ok(Err(e)) => {
-                    error!("Chat worker panicked: {:?}", e);
-                }
-                Err(_) => {
-                    // Timeout - thread didn't exit in time
-                    error!("Chat worker thread did not exit within 100ms, abandoning join");
-                }
+impl Drop for ChatWorkerGuard {
+    fn drop(&mut self) {
+        self.should_stop
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+        drop(self.msg_tx.take()); // close channel → worker's recv() returns Err → loop exits
+        if let Some(handle) = self.join_handle.take() {
+            if let Err(e) = handle.join() {
+                error!("Async chat worker panicked: {:?}", e);
             }
         }
     }
@@ -472,9 +468,8 @@ impl Drop for ChatHandle {
 /// Use [`ChatBuilder`] to create a new instance with a fluent API.
 #[derive(Clone)]
 pub struct ChatHandleAsync {
-    msg_tx: Arc<Mutex<Option<std::sync::mpsc::Sender<ChatMsg>>>>,
+    guard: Arc<Mutex<ChatWorkerGuard>>,
     should_stop: Arc<AtomicBool>,
-    join_handle: Arc<Mutex<Option<std::thread::JoinHandle<()>>>>,
 }
 
 impl ChatHandleAsync {
@@ -501,10 +496,15 @@ impl ChatHandleAsync {
             }
         });
 
+        let guard = ChatWorkerGuard {
+            msg_tx: Some(msg_tx),
+            join_handle: Some(join_handle),
+            should_stop: Arc::clone(&should_stop),
+        };
+
         Self {
-            msg_tx: Arc::new(Mutex::new(Some(msg_tx))),
+            guard: Arc::new(Mutex::new(guard)),
             should_stop,
-            join_handle: Arc::new(Mutex::new(Some(join_handle))),
         }
     }
 
@@ -515,8 +515,8 @@ impl ChatHandleAsync {
         text: impl Into<String>,
     ) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
         let (output_tx, output_rx) = tokio::sync::mpsc::channel(4096);
-        if let Ok(guard) = self.msg_tx.lock() {
-            if let Some(ref msg_tx) = *guard {
+        if let Ok(guard) = self.guard.lock() {
+            if let Some(ref msg_tx) = guard.msg_tx {
                 let _ = msg_tx.send(ChatMsg::Ask {
                     text: text.into(),
                     output_tx,
@@ -549,8 +549,8 @@ impl ChatHandleAsync {
     {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         let msg = make_msg(output_tx);
-        if let Ok(guard) = self.msg_tx.lock() {
-            if let Some(ref msg_tx) = *guard {
+        if let Ok(guard) = self.guard.lock() {
+            if let Some(ref msg_tx) = guard.msg_tx {
                 let _ = msg_tx.send(msg);
             }
         }
@@ -631,8 +631,8 @@ impl ChatHandleAsync {
     /// Get the chat history without the system prompt (lower-level API).
     pub async fn get_chat_history(&self) -> Result<Vec<Message>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        if let Ok(guard) = self.msg_tx.lock() {
-            if let Some(ref msg_tx) = *guard {
+        if let Ok(guard) = self.guard.lock() {
+            if let Some(ref msg_tx) = guard.msg_tx {
                 let _ = msg_tx.send(ChatMsg::GetChatHistory { output_tx });
             }
         }
@@ -696,52 +696,6 @@ impl ChatHandleAsync {
         .ok_or(crate::errors::SetterError::SetterError(
             "set_system_prompt".into(),
         ))
-    }
-}
-
-impl Drop for ChatHandleAsync {
-    fn drop(&mut self) {
-        use std::sync::mpsc;
-        use std::time::Duration;
-
-        // Only join on the last reference
-        if Arc::strong_count(&self.join_handle) == 1 {
-            // Signal any ongoing generation to stop
-            self.should_stop
-                .store(true, std::sync::atomic::Ordering::Relaxed);
-
-            // Drop the sender to close the channel
-            if let Ok(mut tx_guard) = self.msg_tx.lock() {
-                drop(tx_guard.take());
-            }
-
-            // Join the thread with a timeout to prevent hanging
-            if let Ok(mut guard) = self.join_handle.lock() {
-                if let Some(handle) = guard.take() {
-                    let (tx, rx) = mpsc::channel();
-
-                    // Spawn a thread to do the join
-                    std::thread::spawn(move || {
-                        let result = handle.join();
-                        let _ = tx.send(result);
-                    });
-
-                    // Wait for join with timeout
-                    match rx.recv_timeout(Duration::from_millis(100)) {
-                        Ok(Ok(())) => {
-                            // Thread exited cleanly
-                        }
-                        Ok(Err(e)) => {
-                            error!("Async chat worker panicked: {:?}", e);
-                        }
-                        Err(_) => {
-                            // Timeout - thread didn't exit in time
-                            error!("Async chat worker thread did not exit within 100ms, abandoning join");
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 
