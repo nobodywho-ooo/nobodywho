@@ -683,7 +683,16 @@ impl Chat {
 /// See the docs for the `Chat` class for more information.
 #[pyclass]
 pub struct ChatAsync {
-    chat_handle: nobodywho::chat::ChatHandleAsync,
+    // Option so we can take it in __del__ to drop it with the GIL released.
+    chat_handle: Option<nobodywho::chat::ChatHandleAsync>,
+}
+
+impl ChatAsync {
+    fn handle(&self) -> &nobodywho::chat::ChatHandleAsync {
+        self.chat_handle
+            .as_ref()
+            .expect("ChatAsync used after __del__")
+    }
 }
 
 #[pymethods]
@@ -722,7 +731,19 @@ impl ChatAsync {
             .with_system_prompt(system_prompt)
             .with_sampler(sampler.sampler_config)
             .build_async();
-        Ok(Self { chat_handle })
+        Ok(Self {
+            chat_handle: Some(chat_handle),
+        })
+    }
+
+    /// Release the GIL while dropping the handle so tokio tasks that hold Python references
+    /// can acquire it for their own cleanup, preventing a deadlock between join() and GIL.
+    pub fn __del__(&mut self) {
+        let handle = self.chat_handle.take();
+        // Python calls __del__ while holding the GIL. We release it here so that any
+        // pyo3-async-runtimes tokio task that captured a Py<T> reference can acquire
+        // the GIL to drop it, preventing a deadlock with join() below.
+        Python::attach(|py| py.detach(|| drop(handle)));
     }
 
     /// Send a message to the model and get a streaming response asynchronously.
@@ -734,7 +755,7 @@ impl ChatAsync {
     ///     A TokenStreamAsync that yields tokens as they are generated
     pub fn ask(&self, text: String) -> TokenStreamAsync {
         TokenStreamAsync {
-            stream: std::sync::Arc::new(tokio::sync::Mutex::new(self.chat_handle.ask(text))),
+            stream: std::sync::Arc::new(tokio::sync::Mutex::new(self.handle().ask(text))),
         }
     }
 
@@ -748,7 +769,7 @@ impl ChatAsync {
     ///     RuntimeError: If reset fails
     #[pyo3(signature = (system_prompt: "str", tools: "list[Tool]") -> "None")]
     pub async fn reset(&self, system_prompt: String, tools: Vec<Tool>) -> PyResult<()> {
-        self.chat_handle
+        self.handle()
             .reset_chat(system_prompt, tools.into_iter().map(|t| t.tool).collect())
             .await
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
@@ -760,7 +781,7 @@ impl ChatAsync {
     ///     RuntimeError: If reset fails
     #[pyo3(signature = () -> "None")]
     pub async fn reset_history(&self) -> PyResult<()> {
-        self.chat_handle
+        self.handle()
             .reset_history()
             .await
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
@@ -775,7 +796,7 @@ impl ChatAsync {
     ///     ValueError: If the setting cannot be changed
     #[pyo3(signature = (allow_thinking: "bool") -> "None")]
     pub async fn set_allow_thinking(&self, allow_thinking: bool) -> PyResult<()> {
-        self.chat_handle
+        self.handle()
             .set_allow_thinking(allow_thinking)
             .await
             .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
@@ -792,7 +813,7 @@ impl ChatAsync {
     #[pyo3(signature = () -> "list[dict]")]
     pub async fn get_chat_history(&self) -> PyResult<Py<PyAny>> {
         let msgs = self
-            .chat_handle
+            .handle()
             .get_chat_history()
             .await
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
@@ -821,7 +842,7 @@ impl ChatAsync {
                 .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
         })?;
 
-        self.chat_handle
+        self.handle()
             .set_chat_history(msgs)
             .await
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
@@ -833,7 +854,7 @@ impl ChatAsync {
     /// or is no longer needed.
     #[pyo3(signature = () -> "None")]
     pub async fn stop_generation(&self) {
-        self.chat_handle.stop_generation()
+        self.handle().stop_generation()
     }
 
     /// Update the list of tools available to the model without resetting chat history.
@@ -845,7 +866,7 @@ impl ChatAsync {
     ///     RuntimeError: If updating tools fails
     #[pyo3(signature = (tools : "list[Tool]") -> "None")]
     pub async fn set_tools(&self, tools: Vec<Tool>) -> PyResult<()> {
-        self.chat_handle
+        self.handle()
             .set_tools(tools.into_iter().map(|t| t.tool).collect())
             .await
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
@@ -860,7 +881,7 @@ impl ChatAsync {
     ///     RuntimeError: If the system prompt cannot be changed
     #[pyo3(signature = (system_prompt : "str") -> "None")]
     pub async fn set_system_prompt(&self, system_prompt: String) -> PyResult<()> {
-        self.chat_handle
+        self.handle()
             .set_system_prompt(system_prompt)
             .await
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
@@ -875,7 +896,7 @@ impl ChatAsync {
     ///     RuntimeError: If the sampler config cannot be changed
     #[pyo3(signature = (sampler : "SamplerConfig") -> "None")]
     pub async fn set_sampler_config(&self, sampler: SamplerConfig) -> PyResult<()> {
-        self.chat_handle
+        self.handle()
             .set_sampler_config(sampler.sampler_config)
             .await
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
