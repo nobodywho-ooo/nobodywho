@@ -145,9 +145,38 @@ class NobodyWhoLM(LM):
 
 
 tasks = [
-    "ifeval",
+    "ifeval",  # instruction following: mostly text formatting tasks
+    "gsm8k",  # high-school level math reasoning problems
+    "truthfulqa_gen",  # facts!
+    # python coding
+    "humaneval",  # this one requires evaluation of machine-generated python code
+    "mbpp",  # more pythoncode
+    # Reading comprehension (context provided):
+    "drop",  # ✅ Reading + arithmetic reasoning
+    # "race",  # ✅ Reading comprehension - requires loglikelihood
+    # Commonsense reasoning:
+    # "piqa",  # ✅ Physical commonsense - requires loglikelihood
+    # "winogrande",  # ✅ Pronoun resolution (reasoning) - requires loglikelihood
+    # "arc_challenge",  # ✅ Science reasoning (not pure facts) - requires loglikelihood
+    # these are all the mmlu tasks that are "elementary" and "high school" level
+    # "mmlu_elementary_mathematics",
+    # "mmlu_high_school_biology",
+    # "mmlu_high_school_chemistry",
+    # "mmlu_high_school_computer_science",
+    # "mmlu_high_school_european_history",
+    # "mmlu_high_school_geography",
+    # "mmlu_high_school_government_and_politics",
+    # "mmlu_high_school_macroeconomics",
+    # "mmlu_high_school_mathematics",
+    # "mmlu_high_school_microeconomics",
+    # "mmlu_high_school_physics",
+    # "mmlu_high_school_psychology",
+    # "mmlu_high_school_statistics",
+    # "mmlu_high_school_us_history",
+    # "mmlu_high_school_world_history",
+    # "bbh", # these are huge and have a lot of subtasks.
+    # "mmlu_generative", # these are huge and have a lot of subtasks.
     # "truthfulqa_gen",
-    # "humaneval", # this one requires evaluation machine-generated python code
     #  "hellaswag" # this requires loglikelyhood data
 ]
 
@@ -248,6 +277,9 @@ def print_results(results: dict):
 
 
 if __name__ == "__main__":
+    # allow code eval: this lets the model run code. yolo.
+    os.environ["HF_ALLOW_CODE_EVAL"] = "1"
+
     # Configure logging
     logging.basicConfig(level=logging.WARNING)
 
@@ -277,9 +309,11 @@ if __name__ == "__main__":
             "allow_thinking": "true",
             "n_ctx": 32768,
         },
+        confirm_run_unsafe_code=True,  # run ml-generated code
         tasks=tasks,
         log_samples=True,
         evaluation_tracker=tracker,
+        limit=500,
     )
     assert results is not None
 
