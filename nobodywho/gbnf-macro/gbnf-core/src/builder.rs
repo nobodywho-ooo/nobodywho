@@ -2,14 +2,24 @@
 //!
 //! Provides a fluent interface and convenience functions for building grammars,
 //! including safe composition of multiple grammars via [`GrammarBuilder::include_grammar_as`].
+//!
+//! Uses the typestate pattern to ensure at compile time that a root rule is
+//! specified before building.
+
+use std::marker::PhantomData;
 
 use crate::compose::uniquify;
 use crate::{CharacterRange, Expr, GbnfDeclaration, GbnfGrammar, Quantifier};
 
+/// Typestate: no root has been specified yet. `build()` is not available.
+pub struct NoRoot;
+/// Typestate: a root has been specified. `build()` is available.
+pub struct HasRoot;
+
 /// Builder for constructing GBNF grammars.
 ///
-/// Provides a fluent interface for adding rules to a grammar, and for
-/// safely composing multiple grammars together.
+/// Uses the typestate pattern: you must call `.root("name")` before `.build()`.
+/// Calling `.build()` without `.root()` is a compile-time error.
 ///
 /// # Example
 /// ```ignore
@@ -18,17 +28,22 @@ use crate::{CharacterRange, Expr, GbnfDeclaration, GbnfGrammar, Quantifier};
 /// let grammar = GrammarBuilder::new()
 ///     .rule("greeting", seq(&[t("Hello"), t(" "), nt("name")]))
 ///     .rule("name", t("World"))
+///     .root("greeting")
 ///     .build();
 /// ```
-pub struct GrammarBuilder {
+pub struct GrammarBuilder<State = NoRoot> {
     declarations: Vec<GbnfDeclaration>,
+    root_name: String,
+    _state: PhantomData<State>,
 }
 
-impl GrammarBuilder {
+impl GrammarBuilder<NoRoot> {
     /// Create a new grammar builder with an empty grammar.
     pub fn new() -> Self {
         Self {
             declarations: Vec::new(),
+            root_name: String::new(),
+            _state: PhantomData,
         }
     }
 
@@ -36,23 +51,35 @@ impl GrammarBuilder {
     ///
     /// This allows you to add more rules to an existing grammar, which is useful
     /// when you have a base grammar (e.g., from JSON schema) and want to extend it.
-    ///
-    /// # Example
-    /// ```ignore
-    /// let json_grammar = json_schema_to_grammar(&schema)?;
-    /// let extended = GrammarBuilder::from_existing(json_grammar)
-    ///     .rule("wrapper", seq(&[t("<start>"), nt("root"), t("<end>")]))
-    ///     .build();
-    /// ```
     pub fn from_existing(grammar: GbnfGrammar) -> Self {
         Self {
             declarations: grammar.declarations,
+            root_name: String::new(),
+            _state: PhantomData,
         }
     }
 
-    /// Add a rule to the grammar.
+    /// Set the root rule name, transitioning to the `HasRoot` state.
     ///
-    /// Rules define productions in the grammar and are processed in order.
+    /// The named rule must exist in the grammar when `build()` is called.
+    pub fn root(self, name: &str) -> GrammarBuilder<HasRoot> {
+        GrammarBuilder {
+            declarations: self.declarations,
+            root_name: name.to_string(),
+            _state: PhantomData,
+        }
+    }
+}
+
+impl Default for GrammarBuilder<NoRoot> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// Methods available in both states.
+impl<S> GrammarBuilder<S> {
+    /// Add a rule to the grammar.
     pub fn rule(mut self, name: &str, expr: Expr) -> Self {
         self.declarations
             .push(GbnfDeclaration::new(name.to_string(), expr));
@@ -71,16 +98,6 @@ impl GrammarBuilder {
     /// # Panics
     ///
     /// Panics if the grammar has no declarations.
-    ///
-    /// # Example
-    /// ```ignore
-    /// let json_grammar = json_schema_to_grammar(&schema, "root")?;
-    ///
-    /// let grammar = GrammarBuilder::new()
-    ///     .include_grammar_as(&json_grammar, "json-args")
-    ///     .rule("root", seq(&[t("<tool>"), nt("json-args"), t("</tool>")]))
-    ///     .build();
-    /// ```
     pub fn include_grammar_as(mut self, grammar: &GbnfGrammar, alias: &str) -> Self {
         assert!(
             !grammar.declarations.is_empty(),
@@ -100,23 +117,14 @@ impl GrammarBuilder {
 
         self
     }
-
-    /// Build and return the final grammar.
-    ///
-    /// If a rule named `"root"` exists, it is moved to position 0 to serve
-    /// as the GBNF start symbol (llama.cpp convention).
-    pub fn build(mut self) -> GbnfGrammar {
-        if let Some(pos) = self.declarations.iter().position(|d| d.name == "root") {
-            let root_decl = self.declarations.remove(pos);
-            self.declarations.insert(0, root_decl);
-        }
-        GbnfGrammar::new(self.declarations)
-    }
 }
 
-impl Default for GrammarBuilder {
-    fn default() -> Self {
-        Self::new()
+impl GrammarBuilder<HasRoot> {
+    /// Build and return the final grammar.
+    ///
+    /// The root rule is placed first in the output (llama.cpp convention).
+    pub fn build(self) -> GbnfGrammar {
+        GbnfGrammar::new(self.declarations, self.root_name)
     }
 }
 
@@ -192,12 +200,13 @@ mod tests {
     #[test]
     fn test_grammar_builder() {
         let grammar = GrammarBuilder::new()
-            .rule("root", seq(&[t("hello"), t(" "), nt("name")]))
+            .rule("greeting", seq(&[t("hello"), t(" "), nt("name")]))
             .rule("name", t("world"))
+            .root("greeting")
             .build();
 
         assert_eq!(grammar.declarations.len(), 2);
-        assert_eq!(grammar.root_name, "root");
+        assert_eq!(grammar.root_name, "greeting");
     }
 
     #[test]
@@ -243,45 +252,47 @@ mod tests {
     #[test]
     fn test_grammar_output() {
         let grammar = GrammarBuilder::new()
-            .rule("root", seq(&[t("hello"), t(" "), nt("name")]))
+            .rule("greeting", seq(&[t("hello"), t(" "), nt("name")]))
             .rule("name", t("world"))
+            .root("greeting")
             .build();
 
         let output = grammar.as_str();
-        assert!(output.contains("root ::="));
+        assert!(output.contains("greeting ::="));
         assert!(output.contains("name ::="));
         assert!(output.contains("\"hello\""));
         assert!(output.contains("\"world\""));
     }
 
     #[test]
-    fn test_build_reorders_root() {
+    fn test_root_name_is_set() {
         let grammar = GrammarBuilder::new()
             .rule("helper", t("x"))
-            .rule("root", nt("helper"))
+            .rule("myroot", nt("helper"))
+            .root("myroot")
             .build();
 
-        assert_eq!(grammar.declarations[0].name, "root");
-        assert_eq!(grammar.declarations[1].name, "helper");
-        assert_eq!(grammar.root_name, "root");
+        assert_eq!(grammar.root_name, "myroot");
     }
 
     #[test]
     fn test_include_grammar_as() {
         reset_counter();
 
-        let inner = GbnfGrammar::new(vec![
-            GbnfDeclaration::new("root".to_string(), Expr::NonTerminal("value".to_string())),
-            GbnfDeclaration::new("value".to_string(), Expr::Characters("hello".to_string())),
-        ]);
+        let inner = GbnfGrammar::new(
+            vec![
+                GbnfDeclaration::new("root".to_string(), Expr::NonTerminal("value".to_string())),
+                GbnfDeclaration::new("value".to_string(), Expr::Characters("hello".to_string())),
+            ],
+            "root".to_string(),
+        );
 
         let grammar = GrammarBuilder::new()
             .include_grammar_as(&inner, "greeting")
             .rule("root", seq(&[nt("greeting"), t(" world")]))
+            .root("root")
             .build();
 
-        // root should be first (reordered by build)
-        assert_eq!(grammar.declarations[0].name, "root");
         assert_eq!(grammar.root_name, "root");
 
         // The uniquified inner rules and alias should be present
@@ -295,15 +306,19 @@ mod tests {
     fn test_include_same_grammar_twice() {
         reset_counter();
 
-        let inner = GbnfGrammar::new(vec![GbnfDeclaration::new(
+        let inner = GbnfGrammar::new(
+            vec![GbnfDeclaration::new(
+                "root".to_string(),
+                Expr::Characters("hello".to_string()),
+            )],
             "root".to_string(),
-            Expr::Characters("hello".to_string()),
-        )]);
+        );
 
         let grammar = GrammarBuilder::new()
             .include_grammar_as(&inner, "first")
             .include_grammar_as(&inner, "second")
             .rule("root", seq(&[nt("first"), t(" "), nt("second")]))
+            .root("root")
             .build();
 
         let names: Vec<&str> = grammar.declarations.iter().map(|d| d.name.as_str()).collect();

@@ -78,7 +78,7 @@ pub fn uniquify(grammar: &GbnfGrammar) -> GbnfGrammar {
         })
         .clone();
 
-    GbnfGrammar::new_with_root(new_declarations, new_root)
+    GbnfGrammar::new(new_declarations, new_root)
 }
 
 /// Reset the grammar counter (for testing only).
@@ -162,16 +162,19 @@ mod tests {
     fn test_uniquify() {
         reset_counter();
 
-        let grammar = GbnfGrammar::new(vec![
-            GbnfDeclaration::new(
-                "root".to_string(),
-                Expr::NonTerminal("value".to_string()),
-            ),
-            GbnfDeclaration::new(
-                "value".to_string(),
-                Expr::Characters("hello".to_string()),
-            ),
-        ]);
+        let grammar = GbnfGrammar::new(
+            vec![
+                GbnfDeclaration::new(
+                    "root".to_string(),
+                    Expr::NonTerminal("value".to_string()),
+                ),
+                GbnfDeclaration::new(
+                    "value".to_string(),
+                    Expr::Characters("hello".to_string()),
+                ),
+            ],
+            "root".to_string(),
+        );
 
         let uniquified = uniquify(&grammar);
 
@@ -191,10 +194,13 @@ mod tests {
     fn test_uniquify_increments_counter() {
         reset_counter();
 
-        let grammar = GbnfGrammar::new(vec![GbnfDeclaration::new(
+        let grammar = GbnfGrammar::new(
+            vec![GbnfDeclaration::new(
+                "root".to_string(),
+                Expr::Characters("a".to_string()),
+            )],
             "root".to_string(),
-            Expr::Characters("a".to_string()),
-        )]);
+        );
 
         let u1 = uniquify(&grammar);
         let u2 = uniquify(&grammar);
