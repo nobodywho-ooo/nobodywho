@@ -12,4 +12,5 @@ GbnfGrammar {
         },
     ],
     gbnf_string: "single ::= value",
+    root_name: "single",
 }

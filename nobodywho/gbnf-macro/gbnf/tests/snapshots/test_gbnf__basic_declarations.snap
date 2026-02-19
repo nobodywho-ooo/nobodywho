@@ -24,4 +24,5 @@ GbnfGrammar {
         },
     ],
     gbnf_string: "root ::= foobar\nfoobar ::= \"Abekat\"\nokabob ::= other",
+    root_name: "root",
 }

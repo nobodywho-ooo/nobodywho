@@ -11,3 +11,7 @@ pub use gbnf_macro::gbnf;
 
 // JSON Schema to GBNF conversion
 pub mod json;
+
+// Grammar builder and composition utilities
+pub mod builder;
+pub mod compose;

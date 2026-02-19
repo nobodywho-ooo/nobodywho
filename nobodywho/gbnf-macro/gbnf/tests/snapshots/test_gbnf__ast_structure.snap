@@ -12,4 +12,5 @@ GbnfGrammar {
         },
     ],
     gbnf_string: "greeting ::= \"hello\"",
+    root_name: "greeting",
 }

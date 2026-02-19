@@ -15,11 +15,23 @@ pub struct GbnfGrammar {
     pub declarations: Vec<GbnfDeclaration>,
     /// The GBNF string representation
     pub gbnf_string: String,
+    /// The name of the root rule (start symbol)
+    pub root_name: String,
 }
 
 impl GbnfGrammar {
-    /// Create a new GBNF grammar from declarations
+    /// Create a new GBNF grammar from declarations.
+    /// The root rule is the first declaration's name.
     pub fn new(declarations: Vec<GbnfDeclaration>) -> Self {
+        let root_name = declarations
+            .first()
+            .map(|d| d.name.clone())
+            .unwrap_or_default();
+        Self::new_with_root(declarations, root_name)
+    }
+
+    /// Create a new GBNF grammar with an explicit root rule name.
+    pub fn new_with_root(declarations: Vec<GbnfDeclaration>, root_name: String) -> Self {
         let gbnf_string = declarations
             .iter()
             .map(|d| d.to_gbnf())
@@ -28,6 +40,7 @@ impl GbnfGrammar {
         Self {
             declarations,
             gbnf_string,
+            root_name,
         }
     }
 
@@ -511,22 +524,69 @@ impl Parse for Expr {
     }
 }
 
-/// Input for the gbnf! macro - a list of declarations
+/// A single statement in the gbnf! macro input.
+///
+/// Either a normal GBNF declaration (`name ::= expr`) or a grammar inclusion
+/// (`name ::= {rust_expr}`) that references an existing `GbnfGrammar` value.
+pub enum GbnfStatement {
+    /// A normal GBNF declaration: `name ::= expr`
+    Declaration(GbnfDeclaration),
+    /// A grammar inclusion: `name ::= {rust_expr}`
+    Inclusion {
+        name: String,
+        grammar_expr: syn::Expr,
+    },
+}
+
+/// Input for the gbnf! macro - a list of statements
 pub struct GbnfInput {
-    pub declarations: Vec<GbnfDeclaration>,
+    pub statements: Vec<GbnfStatement>,
+}
+
+impl GbnfInput {
+    /// Returns true if any statement is an inclusion.
+    pub fn has_inclusions(&self) -> bool {
+        self.statements
+            .iter()
+            .any(|s| matches!(s, GbnfStatement::Inclusion { .. }))
+    }
 }
 
 impl Parse for GbnfInput {
     fn parse(input: ParseStream) -> Result<Self> {
-        let mut declarations = Vec::new();
+        let mut statements = Vec::new();
 
         while !input.is_empty() {
-            declarations.push(input.parse()?);
+            // Parse the LHS name and ::=
+            let lhs = parse_non_terminal(input)?;
+            input.parse::<Token![:]>()?;
+            input.parse::<Token![:]>()?;
+            input.parse::<Token![=]>()?;
+
+            // Check if the RHS is a grammar inclusion: {rust_expr}
+            // Right after ::=, a bare {expr} can only be an inclusion.
+            // Quantifiers like {3} require a preceding atom expression.
+            if input.peek(syn::token::Brace) {
+                let content;
+                syn::braced!(content in input);
+                let grammar_expr: syn::Expr = content.parse()?;
+                statements.push(GbnfStatement::Inclusion {
+                    name: lhs,
+                    grammar_expr,
+                });
+            } else {
+                let rhs: Expr = input.parse()?;
+                statements.push(GbnfStatement::Declaration(GbnfDeclaration {
+                    name: lhs,
+                    expr: rhs,
+                }));
+            }
         }
 
-        Ok(GbnfInput { declarations })
+        Ok(GbnfInput { statements })
     }
 }
+
 
 // Helper functions for parsing
 

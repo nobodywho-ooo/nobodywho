@@ -6,7 +6,6 @@
 //! - FunctionGemma: `<start_function_call>call:name{param:<escape>val<escape>}<end_function_call>`
 
 mod functiongemma;
-pub mod grammar_builder;
 mod ministral3;
 mod qwen3;
 

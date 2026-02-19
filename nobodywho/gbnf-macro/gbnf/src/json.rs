@@ -57,7 +57,7 @@ impl JsonSchemaConverter {
     }
 
     /// Convert a JSON Schema value to a GBNF Grammar
-    pub fn convert(&mut self, schema: &Value) -> Result<GbnfGrammar, JsonSchemaError> {
+    pub fn convert(&mut self, schema: &Value, root: &str) -> Result<GbnfGrammar, JsonSchemaError> {
         // Reset state
         self.declarations.clear();
         self.rule_counter = 0;
@@ -72,7 +72,7 @@ impl JsonSchemaConverter {
         // Convert the root schema
         let root_expr = self.convert_schema(schema)?;
         self.declarations
-            .insert(0, GbnfDeclaration::new("root".to_string(), root_expr));
+            .insert(0, GbnfDeclaration::new(root.to_string(), root_expr));
 
         Ok(GbnfGrammar::new(std::mem::take(&mut self.declarations)))
     }
@@ -930,18 +930,21 @@ impl IntoJsonSchema for &Value {
 /// use gbnf::json::json_schema_to_grammar;
 ///
 /// // From string
-/// let grammar = json_schema_to_grammar(r#"{"type": "string"}"#).unwrap();
+/// let grammar = json_schema_to_grammar(r#"{"type": "string"}"#, "root").unwrap();
 ///
 /// // From serde_json::Value
-/// let value = serde_json::json!({"type": "integer"});
+/// let value = serde_json::json!({"type": "integer"}, "root");
 /// let grammar = json_schema_to_grammar(value).unwrap();
 ///  
 ///  // From serde::json::Value back into String
-/// let value = serde_json::json!({"type": "integer"});
+/// let value = serde_json::json!({"type": "integer"}, "root");
 /// let grammar = json_schema_to_grammar(value.to_string()).unwrap();
 ///
 /// ```
-pub fn json_schema_to_grammar(schema: impl IntoJsonSchema) -> Result<GbnfGrammar, JsonSchemaError> {
+pub fn json_schema_to_grammar(
+    schema: impl IntoJsonSchema,
+    root: &str,
+) -> Result<GbnfGrammar, JsonSchemaError> {
     let value = schema.into_schema()?;
     if !jsonschema::meta::is_valid(&value) {
         return Err(JsonSchemaError::InvalidSchema(format!(
@@ -950,7 +953,7 @@ pub fn json_schema_to_grammar(schema: impl IntoJsonSchema) -> Result<GbnfGrammar
         )));
     };
     let mut converter = JsonSchemaConverter::new();
-    converter.convert(&value)
+    converter.convert(&value, root)
 }
 
 #[cfg(test)]
@@ -960,21 +963,21 @@ mod tests {
     #[test]
     fn test_simple_string() {
         let schema = r#"{"type": "string"}"#;
-        let grammar = json_schema_to_grammar(schema).unwrap();
+        let grammar = json_schema_to_grammar(schema, "root").unwrap();
         assert!(grammar.as_str().contains("root ::= json-string"));
     }
 
     #[test]
     fn test_simple_integer() {
         let schema = r#"{"type": "integer"}"#;
-        let grammar = json_schema_to_grammar(schema).unwrap();
+        let grammar = json_schema_to_grammar(schema, "root").unwrap();
         assert!(grammar.as_str().contains("root ::= json-integer"));
     }
 
     #[test]
     fn test_enum() {
         let schema = r#"{"enum": ["red", "green", "blue"]}"#;
-        let grammar = json_schema_to_grammar(schema).unwrap();
+        let grammar = json_schema_to_grammar(schema, "root").unwrap();
         let gbnf = grammar.as_str();
         // The grammar escapes quotes inside strings, so "red" becomes \"red\"
         assert!(gbnf.contains(r#"\"red\""#));
@@ -992,11 +995,35 @@ mod tests {
             },
             "required": ["name"]
         }"#;
-        let grammar = json_schema_to_grammar(schema).unwrap();
+        let grammar = json_schema_to_grammar(schema, "root").unwrap();
         let gbnf = grammar.as_str();
         // Property names are escaped in the grammar
         assert!(gbnf.contains(r#"\"name\""#));
         assert!(gbnf.contains(r#"\"age\""#));
+    }
+
+    #[test]
+    fn test_nested_objects() {
+        let schema = r#"{
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "age": {"type": "integer"},
+                "inner_object": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "integer"},
+                        "age": {"type": "string"}
+                    },
+                    "required": ["name", "age"]
+                }
+            },
+            "required": ["name", "age", "inner_object"]
+        }"#;
+        let grammar = json_schema_to_grammar(schema, "root").unwrap();
+        let gbnf = grammar.as_str();
+        println!("{gbnf}");
+        todo!();
     }
 
     #[test]
@@ -1005,7 +1032,7 @@ mod tests {
             "type": "array",
             "items": {"type": "string"}
         }"#;
-        let grammar = json_schema_to_grammar(schema).unwrap();
+        let grammar = json_schema_to_grammar(schema, "root").unwrap();
         let gbnf = grammar.as_str();
         assert!(gbnf.contains("["));
         assert!(gbnf.contains("]"));
@@ -1014,7 +1041,7 @@ mod tests {
     #[test]
     fn test_nested_arrays_matrix() {
         let schema = r#"{"type":"object","properties":{"listOfMatrices":{"type":"array","items":{"type":"array","items":{"type":"array","items":{"type":"number"}}}}},"required":["listOfMatrices"],"additionalProperties":false}"#;
-        let grammar = json_schema_to_grammar(schema).unwrap();
+        let grammar = json_schema_to_grammar(schema, "root").unwrap();
         let gbnf = grammar.as_str();
 
         // Should have the listOfMatrices property
@@ -1037,7 +1064,7 @@ mod tests {
             "required": ["name"],
             "additionalProperties": {"type": "integer"}
         }"#;
-        let grammar = json_schema_to_grammar(schema).unwrap();
+        let grammar = json_schema_to_grammar(schema, "root").unwrap();
         let gbnf = grammar.as_str();
         eprintln!("Generated grammar:\n{}", gbnf);
 
@@ -1055,7 +1082,7 @@ mod tests {
             "type": "object",
             "additionalProperties": {"type": "boolean"}
         }"#;
-        let grammar = json_schema_to_grammar(schema).unwrap();
+        let grammar = json_schema_to_grammar(schema, "root").unwrap();
         let gbnf = grammar.as_str();
         eprintln!("Generated grammar:\n{}", gbnf);
 
@@ -1075,7 +1102,7 @@ mod tests {
                 {"type": "boolean"}
             ]
         }"#;
-        let grammar = json_schema_to_grammar(schema).unwrap();
+        let grammar = json_schema_to_grammar(schema, "root").unwrap();
         let gbnf = grammar.as_str();
         eprintln!("Generated grammar:\n{}", gbnf);
 
@@ -1100,7 +1127,7 @@ mod tests {
             ],
             "items": {"type": "number"}
         }"#;
-        let grammar = json_schema_to_grammar(schema).unwrap();
+        let grammar = json_schema_to_grammar(schema, "root").unwrap();
         let gbnf = grammar.as_str();
         eprintln!("Generated grammar:\n{}", gbnf);
 
@@ -1124,7 +1151,7 @@ mod tests {
             ],
             "items": false
         }"#;
-        let grammar = json_schema_to_grammar(schema).unwrap();
+        let grammar = json_schema_to_grammar(schema, "root").unwrap();
         let gbnf = grammar.as_str();
         eprintln!("Generated grammar:\n{}", gbnf);
 
@@ -1141,7 +1168,7 @@ mod tests {
         { "type" : "string", "items" : "integer", "text" : "hello"}
         "#;
 
-        let grammar = json_schema_to_grammar(schema);
+        let grammar = json_schema_to_grammar(schema, "root");
 
         assert!(matches!(grammar, Err(JsonSchemaError::InvalidSchema(_))));
     }
@@ -1201,7 +1228,7 @@ mod tests {
           "type": "object"
         }"##;
 
-        let grammar = json_schema_to_grammar(schema).unwrap();
+        let grammar = json_schema_to_grammar(schema, "root").unwrap();
         let gbnf = grammar.as_str();
         eprintln!("Generated grammar:\n{}", gbnf);
 
