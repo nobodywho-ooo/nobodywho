@@ -1,6 +1,6 @@
 use crate::errors::{EncoderWorkerError, InitWorkerError};
 use crate::llm;
-use crate::llm::Worker;
+use crate::llm::{Worker, WorkerGuard};
 use llama_cpp_2::context::params::LlamaPoolingType;
 use llama_cpp_2::model::LlamaModel;
 use tracing::error;
@@ -14,7 +14,7 @@ pub struct Encoder {
 
 #[derive(Clone)]
 pub struct EncoderAsync {
-    msg_tx: std::sync::mpsc::Sender<EncoderMsg>,
+    guard: Arc<WorkerGuard<EncoderMsg>>,
 }
 
 impl Encoder {
@@ -32,7 +32,7 @@ impl EncoderAsync {
     pub fn new(model: Arc<LlamaModel>, n_ctx: u32) -> Self {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
 
-        std::thread::spawn(move || {
+        let join_handle = std::thread::spawn(move || {
             let worker = Worker::new_encoder_worker(&model, n_ctx);
             let mut worker_state = match worker {
                 Ok(worker_state) => worker_state,
@@ -48,12 +48,14 @@ impl EncoderAsync {
             }
         });
 
-        Self { msg_tx }
+        Self {
+            guard: Arc::new(WorkerGuard::new(msg_tx, join_handle, None)),
+        }
     }
 
     pub async fn encode(&self, text: String) -> Result<Vec<f32>, EncoderWorkerError> {
         let (embedding_tx, mut embedding_rx) = tokio::sync::mpsc::channel(1);
-        let _ = self.msg_tx.send(EncoderMsg::Encode(text, embedding_tx));
+        self.guard.send(EncoderMsg::Encode(text, embedding_tx));
         embedding_rx.recv().await.ok_or(EncoderWorkerError::Encode(
             "Could not encode the text. Worker never responded.".into(),
         ))
