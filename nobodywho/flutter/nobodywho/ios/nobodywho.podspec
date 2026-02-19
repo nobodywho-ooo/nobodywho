@@ -37,7 +37,9 @@ then
   rm -rf "#{framework_name}"
 fi
 echo "Copying framework from #{xcframework_path}..."
-cp -r "#{xcframework_path}" "./#{framework_name}"
+# IMPORTANT: Use -R not -r. On macOS, cp -r follows/dereferences symlinks,
+# which breaks the versioned framework bundle structure required for code signing.
+cp -R "#{xcframework_path}" "./#{framework_name}"
 `
 
 Pod::Spec.new do |s|
