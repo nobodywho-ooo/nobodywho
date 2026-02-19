@@ -296,7 +296,11 @@ mod tests {
         assert_eq!(grammar.root_name, "root");
 
         // The uniquified inner rules and alias should be present
-        let names: Vec<&str> = grammar.declarations.iter().map(|d| d.name.as_str()).collect();
+        let names: Vec<&str> = grammar
+            .declarations
+            .iter()
+            .map(|d| d.name.as_str())
+            .collect();
         assert!(names.contains(&"root-g0"));
         assert!(names.contains(&"value-g0"));
         assert!(names.contains(&"greeting"));
@@ -321,7 +325,11 @@ mod tests {
             .root("root")
             .build();
 
-        let names: Vec<&str> = grammar.declarations.iter().map(|d| d.name.as_str()).collect();
+        let names: Vec<&str> = grammar
+            .declarations
+            .iter()
+            .map(|d| d.name.as_str())
+            .collect();
         // Each inclusion gets a unique suffix
         assert!(names.contains(&"root-g0"));
         assert!(names.contains(&"root-g1"));

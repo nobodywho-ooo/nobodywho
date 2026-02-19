@@ -199,13 +199,13 @@ fn test_composition_nested() {
     assert!(gbnf_str.contains("middle-part"));
 
     // All declaration names should be unique
-    let names: Vec<&str> = outer
-        .declarations
-        .iter()
-        .map(|d| d.name.as_str())
-        .collect();
+    let names: Vec<&str> = outer.declarations.iter().map(|d| d.name.as_str()).collect();
     let unique_names: std::collections::HashSet<&str> = names.iter().copied().collect();
-    assert_eq!(names.len(), unique_names.len(), "all names should be unique");
+    assert_eq!(
+        names.len(),
+        unique_names.len(),
+        "all names should be unique"
+    );
 }
 
 #[test]
@@ -230,7 +230,11 @@ fn test_composition_multi_rule_grammar() {
         .map(|d| d.name.as_str())
         .collect();
     let unique_names: std::collections::HashSet<&str> = names.iter().copied().collect();
-    assert_eq!(names.len(), unique_names.len(), "all names should be unique");
+    assert_eq!(
+        names.len(),
+        unique_names.len(),
+        "all names should be unique"
+    );
 }
 
 #[test]
