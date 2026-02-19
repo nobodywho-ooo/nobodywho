@@ -22,4 +22,5 @@ GbnfGrammar {
         },
     ],
     gbnf_string: "root ::= \"hello\" \" \" \"world\"",
+    root_name: "root",
 }

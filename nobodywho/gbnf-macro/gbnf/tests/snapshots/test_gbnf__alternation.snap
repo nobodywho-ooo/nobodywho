@@ -22,4 +22,5 @@ GbnfGrammar {
         },
     ],
     gbnf_string: "rule ::= foo | bar | baz",
+    root_name: "rule",
 }

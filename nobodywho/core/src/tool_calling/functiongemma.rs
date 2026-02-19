@@ -1,4 +1,4 @@
-use super::grammar_builder::{not_chars, nt, seq, t, t_star, GrammarBuilder};
+use gbnf::builder::{not_chars, nt, seq, t, t_star, GrammarBuilder};
 use super::{Tool, ToolCall, ToolFormatError, ToolFormatHandler};
 use gbnf::GbnfGrammar;
 use serde_json::json;

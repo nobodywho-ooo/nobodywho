@@ -22,4 +22,5 @@ GbnfGrammar {
         },
     ],
     gbnf_string: "rule ::= \"hello\" \" \" \"world\"",
+    root_name: "rule",
 }

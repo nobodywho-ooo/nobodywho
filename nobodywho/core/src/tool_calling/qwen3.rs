@@ -1,4 +1,4 @@
-use super::grammar_builder::{nt, nt_plus, seq, t, GrammarBuilder};
+use gbnf::builder::{nt, nt_plus, seq, t, GrammarBuilder};
 use super::{Tool, ToolCall, ToolFormatError, ToolFormatHandler};
 use gbnf::json::json_schema_to_grammar;
 use gbnf::GbnfGrammar;
@@ -39,7 +39,7 @@ impl ToolFormatHandler for Qwen3Handler {
         );
 
         // Generate JSON grammar from schema, then extend it with wrapping rules
-        let json_grammar = json_schema_to_grammar(tool_call_schema)?;
+        let json_grammar = json_schema_to_grammar(tool_call_schema, "root")?;
 
         let grammar = GrammarBuilder::from_existing(json_grammar)
             .rule(
