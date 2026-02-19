@@ -321,27 +321,27 @@ dependencies = [
 name = "gbnf"
 version = "0.1.0"
 dependencies = [
+ "gbnf-core",
  "gbnf-macro",
- "gbnf-types",
  "insta",
  "jsonschema",
  "serde_json",
 ]
 
 [[package]]
-name = "gbnf-macro"
+name = "gbnf-core"
 version = "0.1.0"
 dependencies = [
- "gbnf-types",
  "proc-macro2",
  "quote",
  "syn",
 ]
 
 [[package]]
-name = "gbnf-types"
+name = "gbnf-macro"
 version = "0.1.0"
 dependencies = [
+ "gbnf-core",
  "proc-macro2",
  "quote",
  "syn",

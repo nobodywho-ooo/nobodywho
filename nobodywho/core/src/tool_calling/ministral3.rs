@@ -1,7 +1,6 @@
-use gbnf::builder::{nt, nt_plus, seq, t, GrammarBuilder};
 use super::{Tool, ToolCall, ToolFormatError, ToolFormatHandler};
+use gbnf::builder::{alt, nt, nt_plus, GrammarBuilder};
 use gbnf::json::json_schema_to_grammar;
-use serde_json::json;
 use tracing::debug;
 
 #[derive(Debug, Clone, Copy)]
@@ -17,40 +16,34 @@ impl ToolFormatHandler for Ministral3Handler {
     }
 
     fn generate_grammar(&self, tools: &[Tool]) -> Result<gbnf::GbnfGrammar, ToolFormatError> {
-        let tool_call_schemas: Vec<gbnf::GbnfGrammar> = tools
+        // Build a per-tool grammar: "[TOOL_CALLS]" "toolname" "[ARGS]" {json-args}
+        let tool_grammars: Vec<gbnf::GbnfGrammar> = tools
             .iter()
             .map(|tool| {
-                let args_json_schema = tool.json_schema;
-                let args_nonterminal = format!("{}-args", tool.name);
-                // sparklify-args ::= <args-grammar-from-json-schema>
-                let json_schema_grammar =
-                    json_schema_to_grammar(args_json_schema, &args_nonterminal);
-                // sparklify ::= "[TOOL_CALLS]" "sparklify" "[ARGS]" sparklify-args
-                GrammarBuilder::new()
-                    .rule(
-                        &tool.name,
-                        seq(&[t(self.begin_token()), t(&tool.name), t("[ARGS]")]),
-                    )
-                    .build()
+                let args_grammar = json_schema_to_grammar(&tool.json_schema, "root")?;
+                let tool_call_grammar = gbnf::gbnf! {
+                    root ::= "[TOOL_CALLS]" {&tool.name} "[ARGS]" @{args_grammar}
+                };
+                Ok(tool_call_grammar)
             })
-            .collect();
+            .collect::<Result<_, gbnf::json::JsonSchemaError>>()?;
 
-        // let tool_call_schema = json!(
-        //     { "oneOf": tool_call_schemas }
-        // );
+        // Combine: each tool grammar is an alternative, allow one or more calls
+        let mut builder = GrammarBuilder::new();
+        let mut tool_refs = Vec::new();
+        for (i, grammar) in tool_grammars.iter().enumerate() {
+            let alias = format!("tool-{}", i);
+            builder = builder.include_grammar_as(grammar, &alias);
+            tool_refs.push(nt(&alias));
+        }
 
-        todo!()
-        // Generate JSON grammar from schema, then extend it with wrapping rules
-        // let json_grammar = json_schema_to_grammar(tool_call_schema)?;
+        builder = builder
+            .rule("toolcall", alt(&tool_refs))
+            .rule("root", nt_plus("toolcall"));
 
-        // let grammar = GrammarBuilder::from_existing(json_grammar)
-        //     .rule(
-        //         "toolcall",
-        //         seq(&[t(self.begin_token()), nt("root"), t(self.end_token())]),
-        //     )
-        //     .rule("superroot", nt_plus("toolcall"))
-        //     .build();
-        // Ok(grammar)
+        let grammar = builder.build();
+
+        Ok(grammar)
     }
 
     fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>> {

@@ -1,4 +1,4 @@
-//! GBNF Grammar types with parsing and code generation support
+//! GBNF Grammar types, builder, and composition utilities.
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
@@ -7,6 +7,9 @@ use syn::{Ident, Result, Token};
 
 // GBNF docs reference:
 // https://github.com/ggml-org/llama.cpp/blob/e9fd8dcab45d6cd147874e32565923bdfd0efbdb/grammars/README.md
+
+pub mod builder;
+pub mod compose;
 
 /// A complete GBNF grammar containing multiple declarations
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -75,7 +78,7 @@ impl GbnfDeclaration {
         let name = &self.name;
         let expr_tokens = self.expr.to_tokens();
         quote! {
-            ::gbnf_types::GbnfDeclaration::new(#name.to_string(), #expr_tokens)
+            ::gbnf_core::GbnfDeclaration::new(#name.to_string(), #expr_tokens)
         }
     }
 }
@@ -149,7 +152,7 @@ impl CharacterRange {
                 negated,
             } => {
                 quote! {
-                    ::gbnf_types::CharacterRange::Range {
+                    ::gbnf_core::CharacterRange::Range {
                         begin: #begin,
                         end: #end,
                         negated: #negated,
@@ -158,7 +161,7 @@ impl CharacterRange {
             }
             CharacterRange::Set { chars, negated } => {
                 quote! {
-                    ::gbnf_types::CharacterRange::Set {
+                    ::gbnf_core::CharacterRange::Set {
                         chars: vec![#(#chars),*],
                         negated: #negated,
                     }
@@ -243,12 +246,12 @@ impl Quantifier {
     /// Generate tokens for constructing this quantifier at compile time
     pub fn to_tokens(&self) -> TokenStream2 {
         match self {
-            Quantifier::Optional => quote! { ::gbnf_types::Quantifier::Optional },
-            Quantifier::OneOrMore => quote! { ::gbnf_types::Quantifier::OneOrMore },
-            Quantifier::ZeroOrMore => quote! { ::gbnf_types::Quantifier::ZeroOrMore },
-            Quantifier::Exact(n) => quote! { ::gbnf_types::Quantifier::Exact(#n) },
-            Quantifier::AtLeast(n) => quote! { ::gbnf_types::Quantifier::AtLeast(#n) },
-            Quantifier::Range(n, m) => quote! { ::gbnf_types::Quantifier::Range(#n, #m) },
+            Quantifier::Optional => quote! { ::gbnf_core::Quantifier::Optional },
+            Quantifier::OneOrMore => quote! { ::gbnf_core::Quantifier::OneOrMore },
+            Quantifier::ZeroOrMore => quote! { ::gbnf_core::Quantifier::ZeroOrMore },
+            Quantifier::Exact(n) => quote! { ::gbnf_core::Quantifier::Exact(#n) },
+            Quantifier::AtLeast(n) => quote! { ::gbnf_core::Quantifier::AtLeast(#n) },
+            Quantifier::Range(n, m) => quote! { ::gbnf_core::Quantifier::Range(#n, #m) },
         }
     }
 }
@@ -320,12 +323,12 @@ impl TokenRef {
         match self {
             TokenRef::ById { id, negated } => {
                 quote! {
-                    ::gbnf_types::TokenRef::ById { id: #id, negated: #negated }
+                    ::gbnf_core::TokenRef::ById { id: #id, negated: #negated }
                 }
             }
             TokenRef::ByString { name, negated } => {
                 quote! {
-                    ::gbnf_types::TokenRef::ByString { name: #name.to_string(), negated: #negated }
+                    ::gbnf_core::TokenRef::ByString { name: #name.to_string(), negated: #negated }
                 }
             }
         }
@@ -391,36 +394,36 @@ impl Expr {
     pub fn to_tokens(&self) -> TokenStream2 {
         match self {
             Expr::Characters(s) => {
-                quote! { ::gbnf_types::Expr::Characters(#s.to_string()) }
+                quote! { ::gbnf_core::Expr::Characters(#s.to_string()) }
             }
             Expr::CharacterRange(r) => {
                 let range_tokens = r.to_tokens();
-                quote! { ::gbnf_types::Expr::CharacterRange(#range_tokens) }
+                quote! { ::gbnf_core::Expr::CharacterRange(#range_tokens) }
             }
             Expr::Token(t) => {
                 let token_tokens = t.to_tokens();
-                quote! { ::gbnf_types::Expr::Token(#token_tokens) }
+                quote! { ::gbnf_core::Expr::Token(#token_tokens) }
             }
             Expr::NonTerminal(name) => {
-                quote! { ::gbnf_types::Expr::NonTerminal(#name.to_string()) }
+                quote! { ::gbnf_core::Expr::NonTerminal(#name.to_string()) }
             }
             Expr::Group(inner) => {
                 let inner_tokens = inner.to_tokens();
-                quote! { ::gbnf_types::Expr::Group(Box::new(#inner_tokens)) }
+                quote! { ::gbnf_core::Expr::Group(Box::new(#inner_tokens)) }
             }
             Expr::Sequence(items) => {
                 let item_tokens: Vec<_> = items.iter().map(|e| e.to_tokens()).collect();
-                quote! { ::gbnf_types::Expr::Sequence(vec![#(#item_tokens),*]) }
+                quote! { ::gbnf_core::Expr::Sequence(vec![#(#item_tokens),*]) }
             }
             Expr::Alternation(alts) => {
                 let alt_tokens: Vec<_> = alts.iter().map(|e| e.to_tokens()).collect();
-                quote! { ::gbnf_types::Expr::Alternation(vec![#(#alt_tokens),*]) }
+                quote! { ::gbnf_core::Expr::Alternation(vec![#(#alt_tokens),*]) }
             }
             Expr::Quantified { expr, quantifier } => {
                 let expr_tokens = expr.to_tokens();
                 let quant_tokens = quantifier.to_tokens();
                 quote! {
-                    ::gbnf_types::Expr::Quantified {
+                    ::gbnf_core::Expr::Quantified {
                         expr: Box::new(#expr_tokens),
                         quantifier: #quant_tokens,
                     }
@@ -524,75 +527,11 @@ impl Parse for Expr {
     }
 }
 
-/// A single statement in the gbnf! macro input.
-///
-/// Either a normal GBNF declaration (`name ::= expr`) or a grammar inclusion
-/// (`name ::= {rust_expr}`) that references an existing `GbnfGrammar` value.
-pub enum GbnfStatement {
-    /// A normal GBNF declaration: `name ::= expr`
-    Declaration(GbnfDeclaration),
-    /// A grammar inclusion: `name ::= {rust_expr}`
-    Inclusion {
-        name: String,
-        grammar_expr: syn::Expr,
-    },
-}
-
-/// Input for the gbnf! macro - a list of statements
-pub struct GbnfInput {
-    pub statements: Vec<GbnfStatement>,
-}
-
-impl GbnfInput {
-    /// Returns true if any statement is an inclusion.
-    pub fn has_inclusions(&self) -> bool {
-        self.statements
-            .iter()
-            .any(|s| matches!(s, GbnfStatement::Inclusion { .. }))
-    }
-}
-
-impl Parse for GbnfInput {
-    fn parse(input: ParseStream) -> Result<Self> {
-        let mut statements = Vec::new();
-
-        while !input.is_empty() {
-            // Parse the LHS name and ::=
-            let lhs = parse_non_terminal(input)?;
-            input.parse::<Token![:]>()?;
-            input.parse::<Token![:]>()?;
-            input.parse::<Token![=]>()?;
-
-            // Check if the RHS is a grammar inclusion: {rust_expr}
-            // Right after ::=, a bare {expr} can only be an inclusion.
-            // Quantifiers like {3} require a preceding atom expression.
-            if input.peek(syn::token::Brace) {
-                let content;
-                syn::braced!(content in input);
-                let grammar_expr: syn::Expr = content.parse()?;
-                statements.push(GbnfStatement::Inclusion {
-                    name: lhs,
-                    grammar_expr,
-                });
-            } else {
-                let rhs: Expr = input.parse()?;
-                statements.push(GbnfStatement::Declaration(GbnfDeclaration {
-                    name: lhs,
-                    expr: rhs,
-                }));
-            }
-        }
-
-        Ok(GbnfInput { statements })
-    }
-}
-
-
 // Helper functions for parsing
 
 /// Parse and validate a non-terminal symbol (must be lowercase with dashes)
 /// Handles hyphenated names like `json-string` by consuming ident-dash-ident sequences
-fn parse_non_terminal(input: ParseStream) -> Result<String> {
+pub fn parse_non_terminal(input: ParseStream) -> Result<String> {
     let first_ident: Ident = input.parse()?;
     let first_name = first_ident.to_string();
 
@@ -627,7 +566,7 @@ fn parse_non_terminal(input: ParseStream) -> Result<String> {
 }
 
 /// Parse a single character from various token forms
-fn parse_char(input: ParseStream) -> Result<char> {
+pub fn parse_char(input: ParseStream) -> Result<char> {
     // Try to parse as a character literal (like '\t', ' ', 'a')
     if input.peek(syn::LitChar) {
         let lit: syn::LitChar = input.parse()?;
@@ -659,7 +598,7 @@ fn parse_char(input: ParseStream) -> Result<char> {
 }
 
 /// Parse token references: <[1000]> or <think>
-fn parse_token_ref(input: ParseStream, negated: bool) -> Result<TokenRef> {
+pub fn parse_token_ref(input: ParseStream, negated: bool) -> Result<TokenRef> {
     input.parse::<Token![<]>()?;
 
     let token_ref = if input.peek(syn::token::Bracket) {
@@ -687,7 +626,7 @@ fn parse_token_ref(input: ParseStream, negated: bool) -> Result<TokenRef> {
 
 /// Check if we're at the start of a new declaration
 /// Handles hyphenated names like `json-string ::= ...`
-fn is_at_new_declaration(input: ParseStream) -> bool {
+pub fn is_at_new_declaration(input: ParseStream) -> bool {
     let fork = input.fork();
 
     // Parse the first identifier
