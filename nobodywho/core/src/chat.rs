@@ -217,7 +217,6 @@ impl ChatBuilder {
 /// Use [`ChatBuilder`] to create a new instance with a fluent API.
 pub struct ChatHandle {
     guard: WorkerGuard<ChatMsg>,
-    should_stop: Arc<AtomicBool>,
 }
 
 impl ChatHandle {
@@ -245,8 +244,7 @@ impl ChatHandle {
         });
 
         Self {
-            guard: WorkerGuard::new(msg_tx, join_handle, Some(Arc::clone(&should_stop))),
-            should_stop,
+            guard: WorkerGuard::new(msg_tx, join_handle, Some(should_stop)),
         }
     }
 
@@ -257,12 +255,10 @@ impl ChatHandle {
         text: impl Into<String>,
     ) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
         let (output_tx, output_rx) = tokio::sync::mpsc::channel(4096);
-        if let Some(ref msg_tx) = self.guard.msg_tx {
-            let _ = msg_tx.send(ChatMsg::Ask {
-                text: text.into(),
-                output_tx,
-            });
-        }
+        self.guard.send(ChatMsg::Ask {
+            text: text.into(),
+            output_tx,
+        });
         output_rx
     }
 
@@ -288,9 +284,7 @@ impl ChatHandle {
     {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         let msg = make_msg(output_tx);
-        if let Some(ref msg_tx) = self.guard.msg_tx {
-            let _ = msg_tx.send(msg);
-        }
+        self.guard.send(msg);
         // block until processed
         output_rx.blocking_recv()
     }
@@ -356,16 +350,13 @@ impl ChatHandle {
 
     /// Stop the current generation if one is in progress.
     pub fn stop_generation(&self) {
-        self.should_stop
-            .store(true, std::sync::atomic::Ordering::Relaxed);
+        self.guard.stop();
     }
 
     /// Get the chat history without the system prompt (lower-level API).
     pub fn get_chat_history(&self) -> Result<Vec<Message>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        if let Some(ref msg_tx) = self.guard.msg_tx {
-            let _ = msg_tx.send(ChatMsg::GetChatHistory { output_tx });
-        }
+        self.guard.send(ChatMsg::GetChatHistory { output_tx });
         output_rx
             .blocking_recv()
             .ok_or(crate::errors::GetterError::GetterError(
@@ -432,7 +423,6 @@ impl ChatHandle {
 #[derive(Clone)]
 pub struct ChatHandleAsync {
     guard: Arc<WorkerGuard<ChatMsg>>,
-    should_stop: Arc<AtomicBool>,
 }
 
 impl ChatHandleAsync {
@@ -460,12 +450,7 @@ impl ChatHandleAsync {
         });
 
         Self {
-            guard: Arc::new(WorkerGuard::new(
-                msg_tx,
-                join_handle,
-                Some(Arc::clone(&should_stop)),
-            )),
-            should_stop,
+            guard: Arc::new(WorkerGuard::new(msg_tx, join_handle, Some(should_stop))),
         }
     }
 
@@ -476,12 +461,10 @@ impl ChatHandleAsync {
         text: impl Into<String>,
     ) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
         let (output_tx, output_rx) = tokio::sync::mpsc::channel(4096);
-        if let Some(ref msg_tx) = self.guard.msg_tx {
-            let _ = msg_tx.send(ChatMsg::Ask {
-                text: text.into(),
-                output_tx,
-            });
-        }
+        self.guard.send(ChatMsg::Ask {
+            text: text.into(),
+            output_tx,
+        });
         output_rx
     }
 
@@ -508,9 +491,7 @@ impl ChatHandleAsync {
     {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         let msg = make_msg(output_tx);
-        if let Some(ref msg_tx) = self.guard.msg_tx {
-            let _ = msg_tx.send(msg);
-        }
+        self.guard.send(msg);
         // wait until processed
         output_rx.recv().await
     }
@@ -581,16 +562,13 @@ impl ChatHandleAsync {
 
     /// Stop the current generation if one is in progress.
     pub fn stop_generation(&self) {
-        self.should_stop
-            .store(true, std::sync::atomic::Ordering::Relaxed);
+        self.guard.stop();
     }
 
     /// Get the chat history without the system prompt (lower-level API).
     pub async fn get_chat_history(&self) -> Result<Vec<Message>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        if let Some(ref msg_tx) = self.guard.msg_tx {
-            let _ = msg_tx.send(ChatMsg::GetChatHistory { output_tx });
-        }
+        self.guard.send(ChatMsg::GetChatHistory { output_tx });
         output_rx
             .recv()
             .await

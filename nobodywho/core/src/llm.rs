@@ -333,6 +333,20 @@ impl<T> WorkerGuard<T> {
             should_stop,
         }
     }
+
+    /// Send a message to the worker. Returns false if the worker is gone.
+    pub(crate) fn send(&self, msg: T) -> bool {
+        self.msg_tx
+            .as_ref()
+            .map_or(false, |tx| tx.send(msg).is_ok())
+    }
+
+    /// Signal the worker to stop mid-generation (no-op if no stop flag).
+    pub(crate) fn stop(&self) {
+        if let Some(ref flag) = self.should_stop {
+            flag.store(true, Ordering::Relaxed);
+        }
+    }
 }
 
 impl<T> Drop for WorkerGuard<T> {
