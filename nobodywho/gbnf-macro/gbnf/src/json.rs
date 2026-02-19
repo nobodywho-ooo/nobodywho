@@ -74,7 +74,10 @@ impl JsonSchemaConverter {
         self.declarations
             .insert(0, GbnfDeclaration::new(root.to_string(), root_expr));
 
-        Ok(GbnfGrammar::new(std::mem::take(&mut self.declarations)))
+        Ok(GbnfGrammar::new(
+            std::mem::take(&mut self.declarations),
+            root.to_string(),
+        ))
     }
 
     /// Extract $defs or definitions from the schema

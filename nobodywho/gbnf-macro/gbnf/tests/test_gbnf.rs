@@ -108,9 +108,7 @@ fn test_grammar_composition() {
         root ::= hello-grammar " " "world"
     };
 
-    // Root should be first and named "root"
     assert_eq!(bigger_grammar.root_name, "root");
-    assert_eq!(bigger_grammar.declarations[0].name, "root");
 
     // hello-grammar should resolve through to a uniquified root containing "hello"
     let alias = bigger_grammar
@@ -194,7 +192,6 @@ fn test_composition_nested() {
     };
 
     assert_eq!(outer.root_name, "root");
-    assert_eq!(outer.declarations[0].name, "root");
 
     // The GBNF string should be valid (no empty names, no duplicates)
     let gbnf_str = outer.as_str();

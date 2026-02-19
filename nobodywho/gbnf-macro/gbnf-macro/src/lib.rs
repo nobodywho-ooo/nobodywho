@@ -2,11 +2,269 @@ use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::parse::{Parse, ParseStream};
-use syn::{Result, Token};
+use syn::{Ident, Result, Token};
 
-use gbnf_core::{
-    is_at_new_declaration, parse_non_terminal, parse_token_ref, CharacterRange, Expr, Quantifier,
-};
+use gbnf_core::{CharacterRange, Expr, Quantifier, TokenRef};
+
+// ---------------------------------------------------------------------------
+// Parsing helpers (moved from gbnf-core)
+// ---------------------------------------------------------------------------
+
+/// Parse and validate a non-terminal symbol (must be lowercase with dashes).
+/// Handles hyphenated names like `json-string` by consuming ident-dash-ident sequences.
+fn parse_non_terminal(input: ParseStream) -> Result<String> {
+    let first_ident: Ident = input.parse()?;
+    let first_name = first_ident.to_string();
+
+    if !first_name.chars().all(|c| c.is_lowercase()) {
+        return Err(syn::Error::new_spanned(
+            first_ident,
+            "non-terminal symbols must be lowercase words (e.g., 'move', 'castle', 'json-string')",
+        ));
+    }
+
+    let mut name = first_name;
+
+    while input.peek(Token![-]) && input.peek2(Ident) {
+        input.parse::<Token![-]>()?;
+        let next_ident: Ident = input.parse()?;
+        let next_name = next_ident.to_string();
+
+        if !next_name.chars().all(|c| c.is_lowercase()) {
+            return Err(syn::Error::new_spanned(
+                next_ident,
+                "non-terminal symbols must be lowercase words",
+            ));
+        }
+
+        name.push('-');
+        name.push_str(&next_name);
+    }
+
+    Ok(name)
+}
+
+/// Parse a single character from various token forms.
+fn parse_char(input: ParseStream) -> Result<char> {
+    if input.peek(syn::LitChar) {
+        let lit: syn::LitChar = input.parse()?;
+        return Ok(lit.value());
+    }
+
+    if let Ok(ident) = input.parse::<Ident>() {
+        let s = ident.to_string();
+        if s.len() == 1 {
+            return Ok(s.chars().next().unwrap());
+        }
+        return Err(syn::Error::new_spanned(
+            ident,
+            "expected a single character",
+        ));
+    }
+
+    if let Ok(lit) = input.parse::<syn::LitInt>() {
+        let s = lit.to_string();
+        if s.len() == 1 {
+            return Ok(s.chars().next().unwrap());
+        }
+        return Err(syn::Error::new_spanned(lit, "expected a single digit"));
+    }
+
+    Err(input.error("expected a character (e.g., a, 0, or '\\t')"))
+}
+
+/// Parse a token reference: `<[1000]>` or `<think>`.
+fn parse_token_ref(input: ParseStream, negated: bool) -> Result<TokenRef> {
+    input.parse::<Token![<]>()?;
+
+    let token_ref = if input.peek(syn::token::Bracket) {
+        use syn::bracketed;
+        let content;
+        bracketed!(content in input);
+        let id: syn::LitInt = content.parse()?;
+        TokenRef::ById {
+            id: id.base10_parse()?,
+            negated,
+        }
+    } else {
+        let ident: Ident = input.parse()?;
+        TokenRef::ByString {
+            name: ident.to_string(),
+            negated,
+        }
+    };
+
+    input.parse::<Token![>]>()?;
+    Ok(token_ref)
+}
+
+/// Parse a character range: `[a-z]`, `[^a-z]`, `[abc]`, etc.
+fn parse_character_range(input: ParseStream) -> Result<CharacterRange> {
+    use syn::bracketed;
+
+    let content;
+    bracketed!(content in input);
+
+    let negated = if content.peek(Token![^]) {
+        content.parse::<Token![^]>()?;
+        true
+    } else {
+        false
+    };
+
+    let first_char = parse_char(&content)?;
+
+    if content.peek(Token![-]) {
+        content.parse::<Token![-]>()?;
+        let end_char = parse_char(&content)?;
+
+        Ok(CharacterRange::Range {
+            begin: first_char,
+            end: end_char,
+            negated,
+        })
+    } else {
+        let mut chars = vec![first_char];
+
+        while !content.is_empty() {
+            chars.push(parse_char(&content)?);
+        }
+
+        Ok(CharacterRange::Set { chars, negated })
+    }
+}
+
+/// Parse a quantifier: `?`, `+`, `*`.
+fn parse_quantifier(input: ParseStream) -> Result<Quantifier> {
+    if input.peek(Token![?]) {
+        input.parse::<Token![?]>()?;
+        Ok(Quantifier::Optional)
+    } else if input.peek(Token![+]) {
+        input.parse::<Token![+]>()?;
+        Ok(Quantifier::OneOrMore)
+    } else if input.peek(Token![*]) {
+        input.parse::<Token![*]>()?;
+        Ok(Quantifier::ZeroOrMore)
+    } else {
+        Err(input.error("expected quantifier: ?, +, or *"))
+    }
+}
+
+/// Check if we're at the start of a new declaration.
+/// Handles hyphenated names like `json-string ::= ...`.
+fn is_at_new_declaration(input: ParseStream) -> bool {
+    let fork = input.fork();
+
+    if fork.parse::<Ident>().is_err() {
+        return false;
+    }
+
+    while fork.peek(Token![-]) && fork.peek2(Ident) {
+        if fork.parse::<Token![-]>().is_err() {
+            return false;
+        }
+        if fork.parse::<Ident>().is_err() {
+            return false;
+        }
+    }
+
+    fork.parse::<Token![:]>().is_ok()
+        && fork.parse::<Token![:]>().is_ok()
+        && fork.parse::<Token![=]>().is_ok()
+}
+
+// ---------------------------------------------------------------------------
+// Code generation: convert AST types to token streams
+// ---------------------------------------------------------------------------
+
+fn expr_to_tokens(expr: &Expr) -> TokenStream2 {
+    match expr {
+        Expr::Characters(s) => {
+            quote! { ::gbnf_core::Expr::Characters(#s.to_string()) }
+        }
+        Expr::CharacterRange(r) => {
+            let range_tokens = character_range_to_tokens(r);
+            quote! { ::gbnf_core::Expr::CharacterRange(#range_tokens) }
+        }
+        Expr::Token(t) => {
+            let token_tokens = token_ref_to_tokens(t);
+            quote! { ::gbnf_core::Expr::Token(#token_tokens) }
+        }
+        Expr::NonTerminal(name) => {
+            quote! { ::gbnf_core::Expr::NonTerminal(#name.to_string()) }
+        }
+        Expr::Group(inner) => {
+            let inner_tokens = expr_to_tokens(inner);
+            quote! { ::gbnf_core::Expr::Group(Box::new(#inner_tokens)) }
+        }
+        Expr::Sequence(items) => {
+            let item_tokens: Vec<_> = items.iter().map(|e| expr_to_tokens(e)).collect();
+            quote! { ::gbnf_core::Expr::Sequence(vec![#(#item_tokens),*]) }
+        }
+        Expr::Alternation(alts) => {
+            let alt_tokens: Vec<_> = alts.iter().map(|e| expr_to_tokens(e)).collect();
+            quote! { ::gbnf_core::Expr::Alternation(vec![#(#alt_tokens),*]) }
+        }
+        Expr::Quantified { expr, quantifier } => {
+            let expr_tokens = expr_to_tokens(expr);
+            let quant_tokens = quantifier_to_tokens(quantifier);
+            quote! {
+                ::gbnf_core::Expr::Quantified {
+                    expr: Box::new(#expr_tokens),
+                    quantifier: #quant_tokens,
+                }
+            }
+        }
+    }
+}
+
+fn character_range_to_tokens(range: &CharacterRange) -> TokenStream2 {
+    match range {
+        CharacterRange::Range {
+            begin,
+            end,
+            negated,
+        } => {
+            quote! {
+                ::gbnf_core::CharacterRange::Range {
+                    begin: #begin,
+                    end: #end,
+                    negated: #negated,
+                }
+            }
+        }
+        CharacterRange::Set { chars, negated } => {
+            quote! {
+                ::gbnf_core::CharacterRange::Set {
+                    chars: vec![#(#chars),*],
+                    negated: #negated,
+                }
+            }
+        }
+    }
+}
+
+fn token_ref_to_tokens(token_ref: &TokenRef) -> TokenStream2 {
+    match token_ref {
+        TokenRef::ById { id, negated } => {
+            quote! { ::gbnf_core::TokenRef::ById { id: #id, negated: #negated } }
+        }
+        TokenRef::ByString { name, negated } => {
+            quote! { ::gbnf_core::TokenRef::ByString { name: #name.to_string(), negated: #negated } }
+        }
+    }
+}
+
+fn quantifier_to_tokens(quantifier: &Quantifier) -> TokenStream2 {
+    match quantifier {
+        Quantifier::Optional => quote! { ::gbnf_core::Quantifier::Optional },
+        Quantifier::OneOrMore => quote! { ::gbnf_core::Quantifier::OneOrMore },
+        Quantifier::ZeroOrMore => quote! { ::gbnf_core::Quantifier::ZeroOrMore },
+        Quantifier::Exact(n) => quote! { ::gbnf_core::Quantifier::Exact(#n) },
+        Quantifier::AtLeast(n) => quote! { ::gbnf_core::Quantifier::AtLeast(#n) },
+        Quantifier::Range(n, m) => quote! { ::gbnf_core::Quantifier::Range(#n, #m) },
+    }
+}
 
 // ---------------------------------------------------------------------------
 // MacroExpr: expression tree that supports interpolation
@@ -84,7 +342,7 @@ impl MacroExpr {
 
         // Character range [...]
         if input.peek(syn::token::Bracket) {
-            let range: CharacterRange = input.parse()?;
+            let range = parse_character_range(input)?;
             return Ok(MacroExpr::Plain(Expr::CharacterRange(range)));
         }
 
@@ -98,7 +356,7 @@ impl MacroExpr {
         let atom = Self::parse_atom(input)?;
 
         if input.peek(Token![?]) || input.peek(Token![+]) || input.peek(Token![*]) {
-            let quantifier: Quantifier = input.parse()?;
+            let quantifier = parse_quantifier(input)?;
             Ok(MacroExpr::Quantified {
                 expr: Box::new(atom),
                 quantifier,
@@ -140,12 +398,9 @@ impl MacroExpr {
     }
 
     /// Generate tokens for constructing the runtime `Expr`.
-    ///
-    /// `StringInterpolation` becomes `Expr::Characters(expr.to_string())`.
-    /// `GrammarInclusion` should have been extracted before this is called.
     fn to_tokens(&self) -> TokenStream2 {
         match self {
-            MacroExpr::Plain(expr) => expr.to_tokens(),
+            MacroExpr::Plain(expr) => expr_to_tokens(expr),
             MacroExpr::Sequence(items) => {
                 let item_tokens: Vec<_> = items.iter().map(|e| e.to_tokens()).collect();
                 quote! { ::gbnf_core::Expr::Sequence(vec![#(#item_tokens),*]) }
@@ -160,7 +415,7 @@ impl MacroExpr {
             }
             MacroExpr::Quantified { expr, quantifier } => {
                 let expr_tokens = expr.to_tokens();
-                let quant_tokens = quantifier.to_tokens();
+                let quant_tokens = quantifier_to_tokens(quantifier);
                 quote! {
                     ::gbnf_core::Expr::Quantified {
                         expr: Box::new(#expr_tokens),
@@ -298,8 +553,16 @@ pub fn gbnf(input: TokenStream) -> TokenStream {
         };
     }
 
+    // Root rule: use "root" if a declaration with that name exists, otherwise first declaration.
+    let root_name = declarations
+        .iter()
+        .find(|d| d.name == "root")
+        .or(declarations.first())
+        .map(|d| d.name.as_str())
+        .unwrap_or("root");
+
     let expanded = quote! {
-        { #builder_calls.build() }
+        { #builder_calls.root(#root_name).build() }
     };
 
     TokenStream::from(expanded)

@@ -54,6 +54,7 @@ impl ToolFormatHandler for Qwen3Handler {
                 ]),
             )
             .rule("superroot", nt_plus("toolcall"))
+            .root("superroot")
             .build();
 
         Ok(grammar)

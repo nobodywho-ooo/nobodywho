@@ -331,11 +331,6 @@ dependencies = [
 [[package]]
 name = "gbnf-core"
 version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
 
 [[package]]
 name = "gbnf-macro"
