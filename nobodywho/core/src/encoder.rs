@@ -55,9 +55,7 @@ impl EncoderAsync {
 
     pub async fn encode(&self, text: String) -> Result<Vec<f32>, EncoderWorkerError> {
         let (embedding_tx, mut embedding_rx) = tokio::sync::mpsc::channel(1);
-        if let Some(ref msg_tx) = self.guard.msg_tx {
-            let _ = msg_tx.send(EncoderMsg::Encode(text, embedding_tx));
-        }
+        self.guard.send(EncoderMsg::Encode(text, embedding_tx));
         embedding_rx.recv().await.ok_or(EncoderWorkerError::Encode(
             "Could not encode the text. Worker never responded.".into(),
         ))
