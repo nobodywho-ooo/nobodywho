@@ -6,7 +6,7 @@ use tracing::{debug, trace, warn};
 use crate::{
     chat::{Message, Role},
     errors::SelectTemplateError,
-    tool_calling::{Tool, ToolFormat},
+    tool_calling::Tool,
 };
 
 macro_rules! struct_with_keys_getter {
@@ -117,12 +117,6 @@ impl ChatTemplate {
             )
         });
 
-        let tools_for_template = if ctx.tools.is_empty() {
-            None
-        } else {
-            Some(&ctx.tools)
-        };
-
         let template = self.get_template()?;
 
         template.render(context! {
@@ -131,7 +125,7 @@ impl ChatTemplate {
             enable_thinking => ctx.enable_thinking,
             bos_token => self.bos_token,
             eos_token => self.eos_token,
-            tools => tools_for_template,
+            tools => ctx.tools,
         })
     }
 
@@ -226,8 +220,7 @@ struct_with_keys_getter! {
         // we call it allow thinking, because not every model has thinking mode,
         // and 'enable' could then cause confusion
         pub enable_thinking: bool,
-        pub tools: Vec<Tool>,
-        pub tool_format: Option<ToolFormat>,
+        pub tools: Option<Vec<Tool>>,
     }
 }
 
@@ -299,8 +292,7 @@ mod tests {
         let eos = "<|end_of_text|>";
         let ctx = ChatTemplateContext {
             enable_thinking: true,
-            tools: vec![],
-            tool_format: None,
+            tools: None,
         };
 
         let chat_template = ChatTemplate::new(template, bos, eos).unwrap();
@@ -375,8 +367,7 @@ mod tests {
 
         let ctx = ChatTemplateContext {
             enable_thinking: true,
-            tools: vec![],
-            tool_format: None,
+            tools: None,
         };
 
         let chat_template = ChatTemplate::new(template, bos, eos).unwrap();
@@ -475,8 +466,7 @@ mod tests {
 
         let ctx = ChatTemplateContext {
             enable_thinking: true,
-            tools: vec![],
-            tool_format: None,
+            tools: None,
         };
         let chat_template = ChatTemplate::new(template, bos, eos).unwrap();
 

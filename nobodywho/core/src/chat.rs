@@ -1097,8 +1097,7 @@ impl Worker<'_, ChatWorker> {
                             &messages,
                             &ChatTemplateContext {
                                 enable_thinking: self.extra.allow_thinking,
-                                tools: self.extra.tools.clone(),
-                                tool_format: self.extra.tool_format.clone(),
+                                tools: Some(self.extra.tools.clone()).filter(|t| !t.is_empty()),
                             },
                         )?,
                         self.add_bos,
@@ -1374,8 +1373,7 @@ impl Worker<'_, ChatWorker> {
             &self.extra.messages,
             &ChatTemplateContext {
                 enable_thinking: self.extra.allow_thinking,
-                tools: self.extra.tools.clone(),
-                tool_format: self.extra.tool_format.clone(),
+                tools: Some(self.extra.tools.clone()).filter(|t| !t.is_empty()),
             },
         )?;
 
