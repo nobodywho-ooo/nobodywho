@@ -164,14 +164,8 @@ mod tests {
 
         let grammar = GbnfGrammar::new(
             vec![
-                GbnfDeclaration::new(
-                    "root".to_string(),
-                    Expr::NonTerminal("value".to_string()),
-                ),
-                GbnfDeclaration::new(
-                    "value".to_string(),
-                    Expr::Characters("hello".to_string()),
-                ),
+                GbnfDeclaration::new("root".to_string(), Expr::NonTerminal("value".to_string())),
+                GbnfDeclaration::new("value".to_string(), Expr::Characters("hello".to_string())),
             ],
             "root".to_string(),
         );

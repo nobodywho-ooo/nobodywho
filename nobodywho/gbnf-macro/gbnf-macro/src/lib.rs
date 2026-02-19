@@ -489,11 +489,7 @@ fn extract_grammar_inclusions(decls: &mut [MacroDeclaration]) -> Vec<Inclusion> 
     inclusions
 }
 
-fn extract_from_expr(
-    expr: &mut MacroExpr,
-    inclusions: &mut Vec<Inclusion>,
-    counter: &mut usize,
-) {
+fn extract_from_expr(expr: &mut MacroExpr, inclusions: &mut Vec<Inclusion>, counter: &mut usize) {
     match expr {
         MacroExpr::GrammarInclusion(grammar_expr) => {
             let alias = format!("_included-{}", *counter);

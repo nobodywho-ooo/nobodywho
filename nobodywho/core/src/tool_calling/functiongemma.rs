@@ -1,5 +1,5 @@
-use gbnf::builder::{not_chars, nt, seq, t, t_star, GrammarBuilder};
 use super::{Tool, ToolCall, ToolFormatError, ToolFormatHandler};
+use gbnf::builder::{not_chars, nt, seq, t, t_star, GrammarBuilder};
 use gbnf::GbnfGrammar;
 use serde_json::json;
 use tracing::debug;

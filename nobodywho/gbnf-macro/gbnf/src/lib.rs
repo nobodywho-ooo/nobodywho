@@ -5,7 +5,7 @@
 
 // Re-export all types from gbnf-core
 pub use gbnf_core::{
-    builder, compose, CharacterRange, Expr, GbnfDeclaration, GbnfGrammar, Quantifier, TokenRef,
+    CharacterRange, Expr, GbnfDeclaration, GbnfGrammar, Quantifier, TokenRef, builder, compose,
 };
 
 // Re-export the macro
