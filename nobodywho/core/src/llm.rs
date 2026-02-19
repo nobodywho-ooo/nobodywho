@@ -336,9 +336,7 @@ impl<T> WorkerGuard<T> {
 
     /// Send a message to the worker. Returns false if the worker is gone.
     pub(crate) fn send(&self, msg: T) -> bool {
-        self.msg_tx
-            .as_ref()
-            .is_some_and(|tx| tx.send(msg).is_ok())
+        self.msg_tx.as_ref().is_some_and(|tx| tx.send(msg).is_ok())
     }
 
     /// Signal the worker to stop mid-generation (no-op if no stop flag).
