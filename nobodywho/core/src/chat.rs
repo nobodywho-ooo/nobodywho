@@ -107,7 +107,7 @@ pub struct ChatConfig {
     /// System prompt for the chat session.
     pub system_prompt: String,
     /// Whether to allow thinking mode during inference.
-    pub allow_thinking: bool,
+    pub allow_thinking: Option<bool>,
     /// Sampler configuration for inference.
     pub sampler_config: SamplerConfig,
 }
@@ -116,7 +116,7 @@ impl Default for ChatConfig {
     fn default() -> Self {
         Self {
             n_ctx: 4096,
-            allow_thinking: true,
+            allow_thinking: None,
             system_prompt: String::new(),
             tools: Vec::new(),
             sampler_config: SamplerConfig::default(),
@@ -191,7 +191,7 @@ impl ChatBuilder {
 
     /// Allow thinking mode during inference.
     pub fn with_allow_thinking(mut self, allow_thinking: bool) -> Self {
-        self.config.allow_thinking = allow_thinking;
+        self.config.allow_thinking = Some(allow_thinking);
         self
     }
 
@@ -328,7 +328,7 @@ impl ChatHandle {
         allow_thinking: bool,
     ) -> Result<(), crate::errors::SetterError> {
         self.set_and_wait_blocking(|output_tx| ChatMsg::SetThinking {
-            allow_thinking,
+            allow_thinking: Some(allow_thinking),
             output_tx,
         })
         .ok_or(crate::errors::SetterError::SetterError(
@@ -541,7 +541,7 @@ impl ChatHandleAsync {
         allow_thinking: bool,
     ) -> Result<(), crate::errors::SetterError> {
         self.set_and_wait_async(|output_tx| ChatMsg::SetThinking {
-            allow_thinking,
+            allow_thinking: Some(allow_thinking),
             output_tx,
         })
         .await
@@ -759,7 +759,7 @@ enum ChatMsg {
         output_tx: tokio::sync::mpsc::Sender<()>,
     },
     SetThinking {
-        allow_thinking: bool,
+        allow_thinking: Option<bool>,
         output_tx: tokio::sync::mpsc::Sender<()>,
     },
     SetSamplerConfig {
@@ -927,7 +927,7 @@ struct ChatWorker {
     sampler_config: SamplerConfig,
     messages: Vec<Message>,
     tokens_in_context: Vec<LlamaToken>,
-    allow_thinking: bool,
+    allow_thinking: Option<bool>,
     tools: Vec<Tool>,
     chat_template: ChatTemplate,
 }
@@ -1466,7 +1466,7 @@ impl Worker<'_, ChatWorker> {
         Ok(())
     }
 
-    pub fn set_allow_thinking(&mut self, allow_thinking: bool) -> Result<(), ChatWorkerError> {
+    pub fn set_allow_thinking(&mut self, allow_thinking: Option<bool>) -> Result<(), ChatWorkerError> {
         self.extra.allow_thinking = allow_thinking;
         Ok(())
     }
