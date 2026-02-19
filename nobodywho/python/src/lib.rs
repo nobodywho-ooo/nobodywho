@@ -542,7 +542,7 @@ impl Chat {
     ///
     /// Raises:
     ///     RuntimeError: If reset fails
-    #[pyo3(signature = (system_prompt: "str", tools: "list[Tool]") -> "None")]
+    #[pyo3(signature = (system_prompt: "str | None", tools: "list[Tool]") -> "None")]
     pub fn reset(
         &self,
         system_prompt: Option<String>,
@@ -658,7 +658,7 @@ impl Chat {
     ///
     /// Raises:
     ///     RuntimeError: If the system prompt cannot be changed
-    #[pyo3(signature = (system_prompt : "str") -> "None")]
+    #[pyo3(signature = (system_prompt : "str | None") -> "None")]
     pub fn set_system_prompt(&self, system_prompt: Option<String>, py: Python) -> PyResult<()> {
         py.detach(|| {
             self.chat_handle

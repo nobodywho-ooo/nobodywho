@@ -173,10 +173,7 @@ impl ChatBuilder {
 
     /// Set the system prompt for the chat session.
     pub fn with_system_prompt<S: Into<String>>(mut self, prompt: Option<S>) -> Self {
-        self.config.system_prompt = match prompt {
-            Some(s) => Some(s.into()),
-            None => None,
-        };
+        self.config.system_prompt = prompt.map(|s| s.into());
         self
     }
 
