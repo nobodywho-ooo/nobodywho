@@ -933,13 +933,12 @@ impl IntoJsonSchema for &Value {
 /// let grammar = json_schema_to_grammar(r#"{"type": "string"}"#, "root").unwrap();
 ///
 /// // From serde_json::Value
-/// let value = serde_json::json!({"type": "integer"}, "root");
-/// let grammar = json_schema_to_grammar(value).unwrap();
-///  
-///  // From serde::json::Value back into String
-/// let value = serde_json::json!({"type": "integer"}, "root");
-/// let grammar = json_schema_to_grammar(value.to_string()).unwrap();
+/// let value = serde_json::json!({"type": "integer"});
+/// let grammar = json_schema_to_grammar(value, "root").unwrap();
 ///
+/// // From serde_json::Value converted to String
+/// let value = serde_json::json!({"type": "integer"});
+/// let grammar = json_schema_to_grammar(value.to_string(), "root").unwrap();
 /// ```
 pub fn json_schema_to_grammar(
     schema: impl IntoJsonSchema,
@@ -1022,8 +1021,25 @@ mod tests {
         }"#;
         let grammar = json_schema_to_grammar(schema, "root").unwrap();
         let gbnf = grammar.as_str();
-        println!("{gbnf}");
-        todo!();
+
+        // Should have the outer object with all three properties
+        assert!(gbnf.contains(r#"\"name\""#));
+        assert!(gbnf.contains(r#"\"age\""#));
+        assert!(gbnf.contains(r#"\"inner_object\""#));
+
+        // Inner object should have its own property rules with different types
+        // (inner "name" is integer, inner "age" is string — reversed from outer)
+        assert!(gbnf.contains("prop-name-"));
+        assert!(gbnf.contains("prop-age-"));
+
+        // Should have two object rules (outer and inner)
+        assert!(gbnf.contains("object-"));
+
+        // The inner object's property types should differ from outer
+        // outer: name=string, age=integer; inner: name=integer, age=string
+        // So we should see both json-string and json-integer referenced
+        assert!(gbnf.contains("json-string"));
+        assert!(gbnf.contains("json-integer"));
     }
 
     #[test]
