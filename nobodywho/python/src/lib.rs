@@ -688,7 +688,7 @@ impl Chat {
 /// See the docs for the `Chat` class for more information.
 #[pyclass]
 pub struct ChatAsync {
-    // Option so we can take it in __del__ to drop it with the GIL released.
+    // Option so we can take it in Drop to release it with the GIL temporarily dropped.
     chat_handle: Option<nobodywho::chat::ChatHandleAsync>,
 }
 
@@ -696,7 +696,17 @@ impl ChatAsync {
     fn handle(&self) -> &nobodywho::chat::ChatHandleAsync {
         self.chat_handle
             .as_ref()
-            .expect("ChatAsync used after __del__")
+            .expect("ChatAsync used after drop")
+    }
+}
+
+impl Drop for ChatAsync {
+    fn drop(&mut self) {
+        let handle = self.chat_handle.take();
+        // Rust's Drop runs while the GIL is held (Python is freeing the object).
+        // Release the GIL so that pyo3-async-runtimes tokio tasks that captured
+        // Py<T> references can acquire it for their own cleanup, unblocking join().
+        Python::attach(|py| py.detach(|| drop(handle)));
     }
 }
 
@@ -739,16 +749,6 @@ impl ChatAsync {
         Ok(Self {
             chat_handle: Some(chat_handle),
         })
-    }
-
-    /// Release the GIL while dropping the handle so tokio tasks that hold Python references
-    /// can acquire it for their own cleanup, preventing a deadlock between join() and GIL.
-    pub fn __del__(&mut self) {
-        let handle = self.chat_handle.take();
-        // Python calls __del__ while holding the GIL. We release it here so that any
-        // pyo3-async-runtimes tokio task that captured a Py<T> reference can acquire
-        // the GIL to drop it, preventing a deadlock with join() below.
-        Python::attach(|py| py.detach(|| drop(handle)));
     }
 
     /// Send a message to the model and get a streaming response asynchronously.
