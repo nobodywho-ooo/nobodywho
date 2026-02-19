@@ -72,9 +72,8 @@ impl CrossEncoderAsync {
         documents: Vec<String>,
     ) -> Result<Vec<f32>, CrossEncoderWorkerError> {
         let (scores_tx, mut scores_rx) = tokio::sync::mpsc::channel(1);
-        if let Some(ref msg_tx) = self.guard.msg_tx {
-            let _ = msg_tx.send(CrossEncoderMsg::Rank(query, documents, scores_tx));
-        }
+        self.guard
+            .send(CrossEncoderMsg::Rank(query, documents, scores_tx));
         scores_rx
             .recv()
             .await
