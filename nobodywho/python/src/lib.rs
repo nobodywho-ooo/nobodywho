@@ -501,11 +501,11 @@ impl Chat {
     ///     RuntimeError: If the model cannot be loaded
     ///     ValueError: If the path contains invalid UTF-8
     #[new]
-    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = "", allow_thinking = true, tools: "list[Tool]" = Vec::<Tool>::new(), sampler=SamplerConfig::default()) -> "Chat")]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, allow_thinking = true, tools: "list[Tool]" = Vec::<Tool>::new(), sampler=SamplerConfig::default()) -> "Chat")]
     pub fn new(
         model: ModelOrPath,
         n_ctx: u32,
-        system_prompt: &str,
+        system_prompt: Option<&str>,
         allow_thinking: bool,
         tools: Vec<Tool>,
         sampler: SamplerConfig,
@@ -542,8 +542,13 @@ impl Chat {
     ///
     /// Raises:
     ///     RuntimeError: If reset fails
-    #[pyo3(signature = (system_prompt: "str", tools: "list[Tool]") -> "None")]
-    pub fn reset(&self, system_prompt: String, tools: Vec<Tool>, py: Python) -> PyResult<()> {
+    #[pyo3(signature = (system_prompt: "str | None", tools: "list[Tool]") -> "None")]
+    pub fn reset(
+        &self,
+        system_prompt: Option<String>,
+        tools: Vec<Tool>,
+        py: Python,
+    ) -> PyResult<()> {
         py.detach(|| {
             self.chat_handle
                 .reset_chat(system_prompt, tools.into_iter().map(|t| t.tool).collect())
@@ -653,8 +658,8 @@ impl Chat {
     ///
     /// Raises:
     ///     RuntimeError: If the system prompt cannot be changed
-    #[pyo3(signature = (system_prompt : "str") -> "None")]
-    pub fn set_system_prompt(&self, system_prompt: String, py: Python) -> PyResult<()> {
+    #[pyo3(signature = (system_prompt : "str | None") -> "None")]
+    pub fn set_system_prompt(&self, system_prompt: Option<String>, py: Python) -> PyResult<()> {
         py.detach(|| {
             self.chat_handle
                 .set_system_prompt(system_prompt)
@@ -705,11 +710,11 @@ impl ChatAsync {
     ///     RuntimeError: If the model cannot be loaded
     ///     ValueError: If the path contains invalid UTF-8
     #[new]
-    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = "", allow_thinking = true, tools: "list[Tool]" = vec![], sampler = SamplerConfig::default()) -> "ChatAsync")]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, allow_thinking = true, tools: "list[Tool]" = vec![], sampler = SamplerConfig::default()) -> "ChatAsync")]
     pub fn new(
         model: ModelOrPath,
         n_ctx: u32,
-        system_prompt: &str,
+        system_prompt: Option<&str>,
         allow_thinking: bool,
         tools: Vec<Tool>,
         sampler: SamplerConfig,
@@ -746,8 +751,8 @@ impl ChatAsync {
     ///
     /// Raises:
     ///     RuntimeError: If reset fails
-    #[pyo3(signature = (system_prompt: "str", tools: "list[Tool]") -> "None")]
-    pub async fn reset(&self, system_prompt: String, tools: Vec<Tool>) -> PyResult<()> {
+    #[pyo3(signature = (system_prompt: "str | None", tools: "list[Tool]") -> "None")]
+    pub async fn reset(&self, system_prompt: Option<String>, tools: Vec<Tool>) -> PyResult<()> {
         self.chat_handle
             .reset_chat(system_prompt, tools.into_iter().map(|t| t.tool).collect())
             .await
@@ -858,8 +863,8 @@ impl ChatAsync {
     ///
     /// Raises:
     ///     RuntimeError: If the system prompt cannot be changed
-    #[pyo3(signature = (system_prompt : "str") -> "None")]
-    pub async fn set_system_prompt(&self, system_prompt: String) -> PyResult<()> {
+    #[pyo3(signature = (system_prompt : "str | None") -> "None")]
+    pub async fn set_system_prompt(&self, system_prompt: Option<String>) -> PyResult<()> {
         self.chat_handle
             .set_system_prompt(system_prompt)
             .await

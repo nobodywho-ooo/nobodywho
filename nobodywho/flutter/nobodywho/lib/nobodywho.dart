@@ -524,7 +524,7 @@ class Chat {
 
   /// Reset the context with a new system prompt and tools.
   Future<void> resetContext({
-    required String systemPrompt,
+    required String? systemPrompt,
     required List<Tool> tools,
   }) => _chat.resetContext(
     systemPrompt: systemPrompt,
@@ -540,7 +540,7 @@ class Chat {
       _chat.setSamplerConfig(samplerConfig: samplerConfig);
 
   /// Set the system prompt.
-  Future<void> setSystemPrompt(String systemPrompt) =>
+  Future<void> setSystemPrompt(String? systemPrompt) =>
       _chat.setSystemPrompt(systemPrompt: systemPrompt);
 
   /// Set the available tools.
