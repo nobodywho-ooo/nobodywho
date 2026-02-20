@@ -109,16 +109,13 @@ jobs:
       matrix:
         target:
           - "x86_64-pc-windows-msvc"
+          - "aarch64-pc-windows-msvc"
         profile:
           - "debug"
           - "release"
         integration:
           - "godot"
           - "flutter"
-    env:
-      RUSTFLAGS: >-
-        -l Advapi32
-        -C target-cpu=x86-64-v3
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -149,6 +146,10 @@ jobs:
       - name: Install Ninja
         run: choco install ninja
 
+      - name: Install LLVM (for ARM64 cross-compilation)
+        if: matrix.target == 'aarch64-pc-windows-msvc'
+        run: choco install llvm
+
       - name: Setup Flutter SDK
         if: matrix.integration == 'flutter'
         uses: flutter-actions/setup-flutter@v4
@@ -156,7 +157,27 @@ jobs:
           channel: stable
           version: 3.35.5
 
-      - name: Build with Cargo
+      - name: Build with Cargo (x86_64)
+        if: matrix.target == 'x86_64-pc-windows-msvc'
+        # move things into a shortly-named dir in the root, because windows is made by fuckwits who think limiting paths to 260 chars is ok
+        run: |
+          mv ./nobodywho/* C:/
+          cd C:/
+          # Use an even shorter target directory to avoid path length issues with git dependencies
+          cargo build -p nobodywho-${{ matrix.integration }} --target ${{ matrix.target }} --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked --target-dir C:/t
+        env:
+          RUSTFLAGS: >-
+            -l Advapi32
+            -C debuginfo=0
+            -C target-cpu=x86-64-v3
+          # Use Ninja generator instead of Visual Studio generator.
+          # This fixes a CMake ExternalProject issue where vulkan-shaders-gen's
+          # install step fails to find cmake_install.cmake with the VS generator.
+          # Ninja's simpler build structure avoids this problem entirely.
+          CMAKE_GENERATOR: "Ninja"
+
+      - name: Build with Cargo (ARM64)
+        if: matrix.target == 'aarch64-pc-windows-msvc'
         # move things into a shortly-named dir in the root, because windows is made by fuckwits who think limiting paths to 260 chars is ok
         run: |
           mv ./nobodywho/* C:/
@@ -172,6 +193,17 @@ jobs:
           # install step fails to find cmake_install.cmake with the VS generator.
           # Ninja's simpler build structure avoids this problem entirely.
           CMAKE_GENERATOR: "Ninja"
+          # For ARM64 cross-compilation, use clang-cl instead of MSVC cl.exe
+          # llama.cpp's CMake configuration requires clang for ARM64 builds
+          CMAKE_C_COMPILER: "clang-cl"
+          CMAKE_CXX_COMPILER: "clang-cl"
+          # Tell CMake we're cross-compiling for ARM64
+          CMAKE_SYSTEM_NAME: "Windows"
+          CMAKE_SYSTEM_PROCESSOR: "ARM64"
+          # Set compiler flags for ARM64 target
+          # Note: We need to append to existing flags that cmake-rs sets
+          CFLAGS: "--target=arm64-pc-windows-msvc"
+          CXXFLAGS: "--target=arm64-pc-windows-msvc"
 
       - name: "Rename built files"
         run: |
