@@ -1,27 +1,23 @@
 import 'package:nobodywho/nobodywho.dart' as nobodywho;
 
 /// Get the current date and time in ISO format.
-/// The timezone parameter is ignored (placeholder for required named parameter).
 String getCurrentDateTime() {
   return DateTime.now().toIso8601String();
 }
 
 /// Get the current date in YYYY-MM-DD format.
-/// The timezone parameter is ignored (placeholder for required named parameter).
 String getCurrentDate() {
   final now = DateTime.now();
   return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 }
 
 /// Get the current time in HH:MM:SS format.
-/// The timezone parameter is ignored (placeholder for required named parameter).
 String getCurrentTime() {
   final now = DateTime.now();
   return '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}';
 }
 
 /// Get the day of the week.
-/// The timezone parameter is ignored (placeholder for required named parameter).
 String getDayOfWeek() {
   final weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   return weekdays[DateTime.now().weekday - 1];
