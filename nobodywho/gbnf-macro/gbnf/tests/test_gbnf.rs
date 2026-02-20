@@ -5,16 +5,6 @@ fn test_basic_declarations() {
     let grammar: GbnfGrammar = gbnf! {
         root ::= foobar
         foobar ::= "Abekat"
-        okabob ::= other
-    };
-
-    insta::assert_debug_snapshot!(grammar);
-}
-
-#[test]
-fn test_single_declaration() {
-    let grammar = gbnf! {
-        single ::= value
     };
 
     insta::assert_debug_snapshot!(grammar);
@@ -23,7 +13,7 @@ fn test_single_declaration() {
 #[test]
 fn test_alternation() {
     let grammar = gbnf! {
-        rule ::= foo | bar | baz
+        rule ::= "foo" | "bar" | "baz"
     };
 
     insta::assert_debug_snapshot!(grammar);
@@ -41,7 +31,10 @@ fn test_sequence() {
 #[test]
 fn test_quantifiers() {
     let grammar = gbnf! {
-        rule ::= foo? bar+ baz*
+        foo ::= "foo"
+        bar ::= "bar"
+        baz ::= "baz"
+        root ::= foo? bar+ baz*
     };
 
     insta::assert_debug_snapshot!(grammar);
@@ -50,7 +43,10 @@ fn test_quantifiers() {
 #[test]
 fn test_grouping() {
     let grammar = gbnf! {
-        rule ::= (foo | bar) baz
+        foo ::= "foo"
+        bar ::= "bar"
+        baz ::= "baz"
+        root ::= (foo | bar) baz
     };
 
     insta::assert_debug_snapshot!(grammar);
@@ -302,4 +298,24 @@ fn test_inline_grammar_inclusion() {
     let gbnf_str = grammar.as_str();
     assert!(gbnf_str.contains("\"prefix-\""));
     assert!(gbnf_str.contains("\"-suffix\""));
+}
+
+#[test]
+fn test_brace_quantifier() {
+    let grammar = gbnf! {
+        root ::= [0-9]{4} "-" [0-9]{2} "-" [0-9]{2}
+    };
+
+    let gbnf_str = grammar.as_str();
+    // Should contain {4} and {2} as quantifiers, not the literals "4" and "2"
+    assert!(
+        gbnf_str.contains("{4}"),
+        "expected {{4}} quantifier, got: {}",
+        gbnf_str
+    );
+    assert!(
+        gbnf_str.contains("{2}"),
+        "expected {{2}} quantifier, got: {}",
+        gbnf_str
+    );
 }
