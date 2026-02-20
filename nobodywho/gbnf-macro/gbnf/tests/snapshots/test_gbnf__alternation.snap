@@ -8,19 +8,19 @@ GbnfGrammar {
             name: "rule",
             expr: Alternation(
                 [
-                    NonTerminal(
+                    Characters(
                         "foo",
                     ),
-                    NonTerminal(
+                    Characters(
                         "bar",
                     ),
-                    NonTerminal(
+                    Characters(
                         "baz",
                     ),
                 ],
             ),
         },
     ],
-    gbnf_string: "rule ::= foo | bar | baz",
+    gbnf_string: "rule ::= \"foo\" | \"bar\" | \"baz\"",
     root_name: "rule",
 }

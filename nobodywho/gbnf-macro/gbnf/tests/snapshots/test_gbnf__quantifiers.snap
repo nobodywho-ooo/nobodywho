@@ -5,7 +5,25 @@ expression: grammar
 GbnfGrammar {
     declarations: [
         GbnfDeclaration {
-            name: "rule",
+            name: "foo",
+            expr: Characters(
+                "foo",
+            ),
+        },
+        GbnfDeclaration {
+            name: "bar",
+            expr: Characters(
+                "bar",
+            ),
+        },
+        GbnfDeclaration {
+            name: "baz",
+            expr: Characters(
+                "baz",
+            ),
+        },
+        GbnfDeclaration {
+            name: "root",
             expr: Sequence(
                 [
                     Quantified {
@@ -30,6 +48,6 @@ GbnfGrammar {
             ),
         },
     ],
-    gbnf_string: "rule ::= foo? bar+ baz*",
-    root_name: "rule",
+    gbnf_string: "foo ::= \"foo\"\nbar ::= \"bar\"\nbaz ::= \"baz\"\nroot ::= foo? bar+ baz*",
+    root_name: "root",
 }
