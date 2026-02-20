@@ -93,7 +93,7 @@ impl<'a> Worker<'a, EncoderWorker> {
         model: &Arc<LlamaModel>,
         n_ctx: u32,
     ) -> Result<Worker<'_, EncoderWorker>, InitWorkerError> {
-        Worker::new_with_type(model, n_ctx, true, EncoderWorker {})
+        Worker::new_with_type(model, None, n_ctx, true, EncoderWorker {})
     }
 
     pub fn get_embedding(&self) -> Result<Vec<f32>, llama_cpp_2::EmbeddingsError> {

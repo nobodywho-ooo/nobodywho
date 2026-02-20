@@ -1,12 +1,13 @@
 use std::sync::LazyLock;
 
+use llama_cpp_2::mtmd::MtmdBitmap;
 use minijinja::{context, Environment, Template};
 use tracing::{debug, trace, warn};
 
 use crate::{
     chat::{Message, Role},
     errors::SelectTemplateError,
-    tool_calling::Tool,
+    tool_calling::{Tool, ToolFormat},
 };
 
 macro_rules! struct_with_keys_getter {
@@ -47,6 +48,20 @@ static MINIJINJA_ENV: LazyLock<Environment> = LazyLock::new(|| {
     env.set_unknown_method_callback(minijinja_contrib::pycompat::unknown_method_callback);
     env
 });
+
+pub struct RenderedChat {
+    pub text: String,
+    pub bitmaps: Vec<MtmdBitmap>,
+}
+
+impl RenderedChat {
+    pub fn from_text(text: String) -> Self {
+        Self {
+            text,
+            bitmaps: vec![],
+        }
+    }
+}
 
 pub struct ChatTemplate {
     template: String,
@@ -102,6 +117,34 @@ impl ChatTemplate {
         MINIJINJA_ENV.template_from_str(&self.template)
     }
 
+    /// Serialize a message for the template, using format-aware serialization for tool calls
+    fn serialize_message_for_template(
+        msg: &Message,
+        format: Option<&ToolFormat>,
+    ) -> serde_json::Value {
+        match msg {
+            Message::ToolCalls {
+                role,
+                content,
+                tool_calls,
+            } => {
+                if let Some(format) = format {
+                    format
+                        .handler()
+                        .serialize_tool_calls_message(role, content, tool_calls)
+                } else {
+                    // Fallback to default Qwen3-style format
+                    serde_json::json!({
+                        "role": role,
+                        "content": content,
+                        "tool_calls": tool_calls,
+                    })
+                }
+            }
+            _ => serde_json::to_value(msg).expect("Message serialization should not fail"),
+        }
+    }
+
     pub fn render_unhandled(
         &self,
         messages: &[Message],
@@ -117,16 +160,53 @@ impl ChatTemplate {
             )
         });
 
+        // Serialize messages for template using format-aware serialization
+        let messages_for_template: Vec<serde_json::Value> = messages
+            .iter()
+            .map(|msg| Self::serialize_message_for_template(msg, ctx.tool_format.as_ref()))
+            .collect();
+
+        // Serialize tools using format-aware serialization
+        let tools_for_template = if ctx.tools.is_empty() {
+            None
+        } else if let Some(ref format) = ctx.tool_format {
+            Some(
+                ctx.tools
+                    .iter()
+                    .map(|t| format.handler().serialize_tool(t))
+                    .collect::<Vec<_>>(),
+            )
+        } else {
+            // Fallback: serialize with default Qwen3/OpenAI format
+            Some(
+                ctx.tools
+                    .iter()
+                    .map(|t| {
+                        serde_json::json!({
+                            "type": "function",
+                            "function": {
+                                "name": &t.name,
+                                "description": &t.description,
+                                "parameters": &t.json_schema,
+                            }
+                        })
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        };
+
         let template = self.get_template()?;
 
-        template.render(context! {
-            messages => messages,
+        let rendered_messages = template.render(context! {
+            messages => messages_for_template,
             add_generation_prompt => add_generation_prompt,
             enable_thinking => ctx.enable_thinking,
             bos_token => self.bos_token,
             eos_token => self.eos_token,
-            tools => ctx.tools,
-        })
+            tools => tools_for_template,
+        })?;
+
+        Ok(rendered_messages)
     }
 
     /// given a chat history where the first two messages are from system and user
@@ -141,13 +221,20 @@ impl ChatTemplate {
             [Message::Message {
                 role: Role::System,
                 content: first_content,
+                asset_ids: first_asset_ids,
             }, Message::Message {
                 role: Role::User,
                 content: second_content,
+                asset_ids: second_asset_ids,
             }, rest @ ..] => {
                 let new_first_message = Message::Message {
                     role: Role::User,
                     content: format!("{}\n\n{}", first_content, second_content),
+                    asset_ids: first_asset_ids
+                        .iter()
+                        .chain(second_asset_ids.iter())
+                        .cloned()
+                        .collect(),
                 };
                 let new_messages = vec![new_first_message]
                     .into_iter()
@@ -206,12 +293,11 @@ impl ChatTemplate {
                     Err(err)
                 }
             },
-        };
+        }?;
 
-        let text = result?;
-        trace!(%text, "Rendered template:\n");
+        trace!(%result, "Rendered template:\n");
 
-        Ok(text)
+        Ok(result)
     }
 }
 
@@ -220,7 +306,8 @@ struct_with_keys_getter! {
         // we call it allow thinking, because not every model has thinking mode,
         // and 'enable' could then cause confusion
         pub enable_thinking: bool,
-        pub tools: Option<Vec<Tool>>,
+        pub tools: Vec<Tool>,
+        pub tool_format: Option<ToolFormat>,
     }
 }
 
@@ -292,40 +379,31 @@ mod tests {
         let eos = "<|end_of_text|>";
         let ctx = ChatTemplateContext {
             enable_thinking: true,
-            tools: None,
+            tools: vec![],
+            tool_format: None,
         };
 
         let chat_template = ChatTemplate::new(template, bos, eos).unwrap();
 
         // Test 1: Single user message
-        let mut messages = vec![Message::Message {
-            role: Role::User,
-            content: "Hello, world!".into(),
-        }];
+        let mut messages = vec![Message::new_user("Hello, world!".into())];
         let rendered = chat_template.render(&messages, &ctx).unwrap();
 
         let expected = "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nHello, world!<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n";
         assert_eq!(rendered, expected);
 
         // Test 2: Add assistant response
-        messages.push(Message::Message {
-            role: Role::Assistant,
-            content: "Hi there! How can I help?".into(),
-        });
+        messages.push(Message::new_assistant("Hi there! How can I help?".into()));
         let rendered2 = chat_template.render(&messages, &ctx).unwrap();
 
         let expected2 = "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nHello, world!<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\nHi there! How can I help?<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n";
         assert_eq!(rendered2, expected2);
 
         // Test 3: Multi-turn conversation
-        messages.push(Message::Message {
-            role: Role::User,
-            content: "What's the weather like?".into(),
-        });
-        messages.push(Message::Message {
-            role: Role::Assistant,
-            content: "I don't have access to weather data.".into(),
-        });
+        messages.push(Message::new_user("What's the weather like?".into()));
+        messages.push(Message::new_assistant(
+            "I don't have access to weather data.".into(),
+        ));
         let rendered3 = chat_template.render(&messages, &ctx).unwrap();
 
         assert!(rendered3.starts_with(
@@ -339,14 +417,8 @@ mod tests {
 
         // Test 4: System message (if added first)
         let messages = vec![
-            Message::Message {
-                role: Role::System,
-                content: "You are a helpful assistant.".into(),
-            },
-            Message::Message {
-                role: Role::User,
-                content: "Hi".into(),
-            },
+            Message::new_system("You are a helpful assistant.".into()),
+            Message::new_user("Hi".into()),
         ];
         let rendered4 = chat_template.render(&messages, &ctx).unwrap();
 
@@ -367,16 +439,14 @@ mod tests {
 
         let ctx = ChatTemplateContext {
             enable_thinking: true,
-            tools: None,
+            tools: vec![],
+            tool_format: None,
         };
 
         let chat_template = ChatTemplate::new(template, bos, eos).unwrap();
 
         // Test 1: Single user message
-        let mut messages = vec![Message::Message {
-            role: Role::User,
-            content: "Hello, world!".into(),
-        }];
+        let mut messages = vec![Message::new_user("Hello, world!".into())];
         let rendered = chat_template.render(&messages, &ctx).unwrap();
 
         // render_string sets add_generation_prompt to true for user messages, so <｜Assistant｜> is added
@@ -384,24 +454,17 @@ mod tests {
         assert_eq!(rendered, expected);
 
         // Test 2: Add assistant response
-        messages.push(Message::Message {
-            role: Role::Assistant,
-            content: "Hi there! How can I help?".into(),
-        });
+        messages.push(Message::new_assistant("Hi there! How can I help?".into()));
         let rendered2 = chat_template.render(&messages, &ctx).unwrap();
 
         let expected2 = "<|bos|><｜User｜>Hello, world!<｜Assistant｜>Hi there! How can I help?<｜end▁of▁sentence｜>";
         assert_eq!(rendered2, expected2);
 
         // Test 3: Assistant message with thinking block
-        messages.push(Message::Message {
-            role: Role::User,
-            content: "Can you help me?".into(),
-        });
-        messages.push(Message::Message {
-            role: Role::Assistant,
-            content: "<think>The user is asking for help</think>I'd be happy to assist you!".into(),
-        });
+        messages.push(Message::new_user("Can you help me?".into()));
+        messages.push(Message::new_assistant(
+            "<think>The user is asking for help</think>I'd be happy to assist you!".into(),
+        ));
         let rendered3 = chat_template.render(&messages, &ctx).unwrap();
 
         // The thinking block should be stripped out, only the content after </think> should remain
@@ -413,34 +476,20 @@ mod tests {
 
         // Test 4: System message
         let messages = vec![
-            Message::Message {
-                role: Role::System,
-                content: "You are a helpful assistant.".into(),
-            },
-            Message::Message {
-                role: Role::User,
-                content: "Hi".into(),
-            },
+            Message::new_system("You are a helpful assistant.".into()),
+            Message::new_user("Hi".into()),
         ];
         let rendered4 = chat_template.render(&messages, &ctx).unwrap();
 
-        let expected4 = "<|bos|>You are a helpful assistant.<｜User｜>Hi<｜Assistant｜>";
+        let expected4 =
+            "<|bos|>You are a helpful assistant.<｜User｜>Hi<｜Assistant｜>".to_string();
         assert_eq!(rendered4, expected4);
 
         // Test 5: Multi-turn conversation
         let messages = vec![
-            Message::Message {
-                role: Role::User,
-                content: "What's 2+2?".into(),
-            },
-            Message::Message {
-                role: Role::Assistant,
-                content: "4".into(),
-            },
-            Message::Message {
-                role: Role::User,
-                content: "Thanks!".into(),
-            },
+            Message::new_user("What's 2+2?".into()),
+            Message::new_assistant("4".into()),
+            Message::new_user("Thanks!".into()),
         ];
         let rendered5 = chat_template.render(&messages, &ctx).unwrap();
 
@@ -466,25 +515,20 @@ mod tests {
 
         let ctx = ChatTemplateContext {
             enable_thinking: true,
-            tools: None,
+            tools: vec![],
+            tool_format: None,
         };
         let chat_template = ChatTemplate::new(template, bos, eos).unwrap();
 
         // Test 1: Single user message
-        let mut messages = vec![Message::Message {
-            role: Role::User,
-            content: "Hi, robot!".into(),
-        }];
+        let mut messages = vec![Message::new_user("Hi, robot!".into())];
         let rendered = chat_template.render(&messages, &ctx).unwrap();
 
         let expected = "<|im_start|>user\nHi, robot!<|im_end|>\n<|im_start|>assistant\n";
         assert_eq!(rendered, expected);
 
         // Test 2: Add assistant response with thinking
-        messages.push(Message::Message {
-            role: Role::Assistant,
-            content: "<think>\nHm... That's a tough cookie. I think the answer is probably 42.\nCould it be something else?\nNah... It's 42!\n</think>\nThe answer is 42!".into(),
-        });
+        messages.push(Message::new_assistant("<think>\nHm... That's a tough cookie. I think the answer is probably 42.\nCould it be something else?\nNah... It's 42!\n</think>\nThe answer is 42!".into()));
         let rendered2 = chat_template.render(&messages, &ctx).unwrap();
 
         // The thinking block should be included in the output for Qwen3
@@ -493,14 +537,8 @@ mod tests {
 
         // Test 3: System message
         let messages = vec![
-            Message::Message {
-                role: Role::System,
-                content: "You are a helpful assistant.".into(),
-            },
-            Message::Message {
-                role: Role::User,
-                content: "Hello".into(),
-            },
+            Message::new_system("You are a helpful assistant.".into()),
+            Message::new_user("Hello".into()),
         ];
         let rendered3 = chat_template.render(&messages, &ctx).unwrap();
 
@@ -509,18 +547,9 @@ mod tests {
 
         // Test 4: Multi-turn conversation
         let messages = vec![
-            Message::Message {
-                role: Role::User,
-                content: "What's 2+2?".into(),
-            },
-            Message::Message {
-                role: Role::Assistant,
-                content: "4".into(),
-            },
-            Message::Message {
-                role: Role::User,
-                content: "Thanks!".into(),
-            },
+            Message::new_user("What's 2+2?".into()),
+            Message::new_assistant("4".into()),
+            Message::new_user("Thanks!".into()),
         ];
         let rendered4 = chat_template.render(&messages, &ctx).unwrap();
 
@@ -529,14 +558,8 @@ mod tests {
 
         // Test 5: Assistant message without thinking
         let messages = vec![
-            Message::Message {
-                role: Role::User,
-                content: "Hello".into(),
-            },
-            Message::Message {
-                role: Role::Assistant,
-                content: "Hi there!".into(),
-            },
+            Message::new_user("Hello".into()),
+            Message::new_assistant("Hi there!".into()),
         ];
         let rendered5 = chat_template.render(&messages, &ctx).unwrap();
 

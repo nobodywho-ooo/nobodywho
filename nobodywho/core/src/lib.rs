@@ -5,6 +5,7 @@ pub mod errors;
 pub mod llm;
 pub mod sampler_config;
 pub mod template;
+pub mod tokenizer;
 pub mod tool_calling;
 
 pub fn send_llamacpp_logs_to_tracing() {
@@ -43,6 +44,16 @@ pub mod test_utils {
     /// Get path to test crossencoder model from TEST_CROSSENCODER_MODEL env var
     pub fn test_crossencoder_model_path() -> String {
         std::env::var("TEST_CROSSENCODER_MODEL").unwrap_or_else(|_| "crossencoder.gguf".to_string())
+    }
+
+    /// Get path to test multimodal projector from TEST_MMPROJ env var
+    pub fn test_mmproj_path() -> String {
+        std::env::var("TEST_MMPROJ").unwrap_or_else(|_| "mmproj.gguf".to_string())
+    }
+
+    /// Get path to test vision model from TEST_VISION_MODEL env var
+    pub fn test_vision_model_path() -> String {
+        std::env::var("TEST_VISION_MODEL").unwrap_or_else(|_| "vision-model.gguf".to_string())
     }
 
     /// Load the test model with GPU acceleration if available
