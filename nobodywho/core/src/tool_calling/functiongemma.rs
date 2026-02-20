@@ -89,8 +89,8 @@ impl ToolFormatHandler for FunctionGemmaHandler {
                     nt("ws"),
                 ]),
             )
-            .rule("superroot", nt("toolcall"))
-            .root("superroot")
+            .rule("root", nt("toolcall"))
+            .root("root")
             .build();
 
         Ok(grammar)
