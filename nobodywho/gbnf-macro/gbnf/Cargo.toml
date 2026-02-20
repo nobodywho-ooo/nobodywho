@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-gbnf-types = { path = "../gbnf-types" }
+gbnf-core = { path = "../gbnf-core" }
 gbnf-macro = { path = "../gbnf-macro" }
 serde_json = "1"
 jsonschema = "0.41.0"

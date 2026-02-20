@@ -91,4 +91,5 @@ GbnfGrammar {
         },
     ],
     gbnf_string: "root ::= chessmove+\nchessmove ::= (pawn | nonpawn | castle) [a-h]?\npawn ::= [a-h] [1-8]\nnonpawn ::= [N-R]\ncastle ::= \"O-O\" | \"O-O-O\"",
+    root_name: "root",
 }

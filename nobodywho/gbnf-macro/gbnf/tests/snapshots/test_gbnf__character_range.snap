@@ -26,4 +26,5 @@ GbnfGrammar {
         },
     ],
     gbnf_string: "digit ::= [0-9]\nletter ::= [a-z]",
+    root_name: "digit",
 }

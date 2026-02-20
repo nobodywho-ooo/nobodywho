@@ -16,12 +16,7 @@ GbnfGrammar {
                 "Abekat",
             ),
         },
-        GbnfDeclaration {
-            name: "okabob",
-            expr: NonTerminal(
-                "other",
-            ),
-        },
     ],
-    gbnf_string: "root ::= foobar\nfoobar ::= \"Abekat\"\nokabob ::= other",
+    gbnf_string: "root ::= foobar\nfoobar ::= \"Abekat\"",
+    root_name: "root",
 }
