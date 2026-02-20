@@ -470,14 +470,14 @@ class Chat {
     required nobodywho.Model model,
     String? systemPrompt,
     int contextSize = 4096,
-    bool allowThinking = true,
+    Map<String, bool> templateVariables = const {},
     List<Tool> tools = const [],
     nobodywho.SamplerConfig? sampler,
   }) : _chat = nobodywho.RustChat(
          model: model,
          systemPrompt: systemPrompt,
          contextSize: contextSize,
-         allowThinking: allowThinking,
+         templateVariables: templateVariables,
          tools: tools.map((t) => t._internalTool).toList(),
          sampler: sampler,
        );
@@ -490,7 +490,7 @@ class Chat {
     required String modelPath,
     String? systemPrompt,
     int contextSize = 4096,
-    bool allowThinking = true,
+    Map<String, bool> templateVariables = const {},
     List<Tool> tools = const [],
     nobodywho.SamplerConfig? sampler,
     bool useGpu = true,
@@ -499,7 +499,7 @@ class Chat {
       modelPath: modelPath,
       systemPrompt: systemPrompt,
       contextSize: contextSize,
-      allowThinking: allowThinking,
+      templateVariables: templateVariables,
       tools: tools.map((t) => t._internalTool).toList(),
       sampler: sampler,
       useGpu: useGpu,
@@ -531,9 +531,13 @@ class Chat {
     tools: tools.map((t) => t._internalTool).toList(),
   );
 
-  /// Set whether thinking/reasoning is allowed.
-  Future<void> setAllowThinking(bool allowThinking) =>
-      _chat.setAllowThinking(allowThinking: allowThinking);
+  /// Set a single template variable (e.g., "enable_thinking").
+  Future<void> setTemplateVariable(String key, bool value) =>
+      _chat.setTemplateVariable(key: key, value: value);
+
+  /// Set all template variables, replacing any previously set.
+  Future<void> setTemplateVariables(Map<String, bool> variables) =>
+      _chat.setTemplateVariables(variables: variables);
 
   /// Set the sampler configuration.
   Future<void> setSamplerConfig(nobodywho.SamplerConfig samplerConfig) =>

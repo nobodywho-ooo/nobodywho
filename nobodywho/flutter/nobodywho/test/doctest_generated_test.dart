@@ -98,7 +98,7 @@ void main() {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: './model.gguf',
         tools: [getCurrentDirTool, listFilesTool, getFileSizeTool],
-        allowThinking : false
+        templateVariables: {"enable_thinking": false}
       );
       
       final response = await chat.ask('What is the biggest file in my current directory?').completed();
@@ -301,9 +301,9 @@ void main() {
     test('chat.md:154', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
-        allowThinking: true
+        templateVariables: {"enable_thinking": true}
       );
-      await chat.setAllowThinking(true);
+      await chat.setTemplateVariable("enable_thinking", true);
     });
 
   });

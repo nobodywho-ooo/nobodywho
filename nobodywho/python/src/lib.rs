@@ -475,7 +475,7 @@ impl CrossEncoderAsync {
 /// `Chat` also supports calling tools.
 /// When initializing a `Chat`, you can also specify additional generation configuration, like
 /// what tools to provide, what sampling strategy to use for choosing tokens, what system prompt
-/// to use, whether to allow extended thinking, etc.
+/// to use, and template variables (e.g., {"enable_thinking": False}).
 /// See `ChatAsync` for the async version of this class.
 #[pyclass]
 pub struct Chat {
@@ -490,7 +490,7 @@ impl Chat {
     ///     model: A chat model (Model instance or path to GGUF file)
     ///     n_ctx: Context size (maximum conversation length in tokens). Defaults to 4096.
     ///     system_prompt: System message to guide the model's behavior. Defaults to empty string.
-    ///     allow_thinking: If True, allows extended reasoning tokens for supported models. Defaults to True.
+    ///     template_variables: Dict of template variables (e.g., {"enable_thinking": False}). Defaults to empty dict.
     ///     tools: List of Tool instances the model can call. Defaults to empty list.
     ///     sampler: SamplerConfig for token selection. Defaults to SamplerConfig.default().
     ///
@@ -501,12 +501,12 @@ impl Chat {
     ///     RuntimeError: If the model cannot be loaded
     ///     ValueError: If the path contains invalid UTF-8
     #[new]
-    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, allow_thinking = true, tools: "list[Tool]" = Vec::<Tool>::new(), sampler=SamplerConfig::default()) -> "Chat")]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::new(), tools: "list[Tool]" = Vec::<Tool>::new(), sampler=SamplerConfig::default()) -> "Chat")]
     pub fn new(
         model: ModelOrPath,
         n_ctx: u32,
         system_prompt: Option<&str>,
-        allow_thinking: bool,
+        template_variables: std::collections::HashMap<String, bool>,
         tools: Vec<Tool>,
         sampler: SamplerConfig,
     ) -> PyResult<Self> {
@@ -514,7 +514,7 @@ impl Chat {
         let chat_handle = nobodywho::chat::ChatBuilder::new(nw_model)
             .with_context_size(n_ctx)
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
-            .with_allow_thinking(allow_thinking)
+            .with_template_variables(template_variables)
             .with_system_prompt(system_prompt)
             .with_sampler(sampler.sampler_config)
             .build();
@@ -569,18 +569,39 @@ impl Chat {
         })
     }
 
-    /// Enable or disable extended reasoning tokens for supported models.
+    /// Set a single template variable (e.g., "enable_thinking").
     ///
     /// Args:
-    ///     allow_thinking: If True, allows extended reasoning tokens
+    ///     key: The template variable name
+    ///     value: The boolean value to set
     ///
     /// Raises:
     ///     ValueError: If the setting cannot be changed
-    #[pyo3(signature = (allow_thinking: "bool") -> "None")]
-    pub fn set_allow_thinking(&self, allow_thinking: bool, py: Python) -> PyResult<()> {
+    #[pyo3(signature = (key: "str", value: "bool") -> "None")]
+    pub fn set_template_variable(&self, key: String, value: bool, py: Python) -> PyResult<()> {
         py.detach(|| {
             self.chat_handle
-                .set_allow_thinking(allow_thinking)
+                .set_template_variable(key, value)
+                .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+        })
+    }
+
+    /// Set all template variables, replacing any previously set.
+    ///
+    /// Args:
+    ///     variables: Dict of template variable names to boolean values
+    ///
+    /// Raises:
+    ///     ValueError: If the settings cannot be changed
+    #[pyo3(signature = (variables: "dict[str, bool]") -> "None")]
+    pub fn set_template_variables(
+        &self,
+        variables: std::collections::HashMap<String, bool>,
+        py: Python,
+    ) -> PyResult<()> {
+        py.detach(|| {
+            self.chat_handle
+                .set_template_variables(variables)
                 .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
         })
     }
@@ -699,7 +720,7 @@ impl ChatAsync {
     ///     model: A chat model (Model instance or path to GGUF file)
     ///     n_ctx: Context size (maximum conversation length in tokens). Defaults to 4096.
     ///     system_prompt: System message to guide the model's behavior. Defaults to empty string.
-    ///     allow_thinking: If True, allows extended reasoning tokens for supported models. Defaults to True.
+    ///     template_variables: Dict of template variables (e.g., {"enable_thinking": False}). Defaults to empty dict.
     ///     tools: List of Tool instances the model can call. Defaults to empty list.
     ///     sampler: SamplerConfig for token selection. Defaults to SamplerConfig.default().
     ///
@@ -710,12 +731,12 @@ impl ChatAsync {
     ///     RuntimeError: If the model cannot be loaded
     ///     ValueError: If the path contains invalid UTF-8
     #[new]
-    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, allow_thinking = true, tools: "list[Tool]" = vec![], sampler = SamplerConfig::default()) -> "ChatAsync")]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::new(), tools: "list[Tool]" = vec![], sampler = SamplerConfig::default()) -> "ChatAsync")]
     pub fn new(
         model: ModelOrPath,
         n_ctx: u32,
         system_prompt: Option<&str>,
-        allow_thinking: bool,
+        template_variables: std::collections::HashMap<String, bool>,
         tools: Vec<Tool>,
         sampler: SamplerConfig,
     ) -> PyResult<Self> {
@@ -723,7 +744,7 @@ impl ChatAsync {
         let chat_handle = nobodywho::chat::ChatBuilder::new(nw_model)
             .with_context_size(n_ctx)
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
-            .with_allow_thinking(allow_thinking)
+            .with_template_variables(template_variables)
             .with_system_prompt(system_prompt)
             .with_sampler(sampler.sampler_config)
             .build_async();
@@ -771,17 +792,36 @@ impl ChatAsync {
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
-    /// Enable or disable extended reasoning tokens for supported models.
+    /// Set a single template variable (e.g., "enable_thinking").
     ///
     /// Args:
-    ///     allow_thinking: If True, allows extended reasoning tokens
+    ///     key: The template variable name
+    ///     value: The boolean value to set
     ///
     /// Raises:
     ///     ValueError: If the setting cannot be changed
-    #[pyo3(signature = (allow_thinking: "bool") -> "None")]
-    pub async fn set_allow_thinking(&self, allow_thinking: bool) -> PyResult<()> {
+    #[pyo3(signature = (key: "str", value: "bool") -> "typing.Awaitable[None]")]
+    pub async fn set_template_variable(&self, key: String, value: bool) -> PyResult<()> {
         self.chat_handle
-            .set_allow_thinking(allow_thinking)
+            .set_template_variable(key, value)
+            .await
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+    }
+
+    /// Set all template variables, replacing any previously set.
+    ///
+    /// Args:
+    ///     variables: Dict of template variable names to boolean values
+    ///
+    /// Raises:
+    ///     ValueError: If the settings cannot be changed
+    #[pyo3(signature = (variables: "dict[str, bool]") -> "typing.Awaitable[None]")]
+    pub async fn set_template_variables(
+        &self,
+        variables: std::collections::HashMap<String, bool>,
+    ) -> PyResult<()> {
+        self.chat_handle
+            .set_template_variables(variables)
             .await
             .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
     }

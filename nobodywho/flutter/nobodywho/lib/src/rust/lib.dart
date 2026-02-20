@@ -110,6 +110,7 @@ abstract class RustChat implements RustOpaqueInterface {
   ///     model_path: Path to GGUF model file
   ///     system_prompt: System message to guide the model's behavior
   ///     context_size: Context size (maximum conversation length in tokens)
+  ///     template_variables: Template variables (e.g., {"enable_thinking": false})
   ///     tools: List of Tool instances the model can call
   ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
   ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
@@ -117,7 +118,7 @@ abstract class RustChat implements RustOpaqueInterface {
     required String modelPath,
     String? systemPrompt = null,
     int contextSize = 4096,
-    bool allowThinking = true,
+    Map<String, bool> templateVariables = const {},
     List<RustTool> tools = const [],
     SamplerConfig? sampler = null,
     bool useGpu = true,
@@ -125,7 +126,7 @@ abstract class RustChat implements RustOpaqueInterface {
     modelPath: modelPath,
     systemPrompt: systemPrompt,
     contextSize: contextSize,
-    allowThinking: allowThinking,
+    templateVariables: templateVariables,
     tools: tools,
     sampler: sampler,
     useGpu: useGpu,
@@ -139,20 +140,21 @@ abstract class RustChat implements RustOpaqueInterface {
   ///     model: A Model instance
   ///     system_prompt: System message to guide the model's behavior
   ///     context_size: Context size (maximum conversation length in tokens)
+  ///     template_variables: Template variables (e.g., {"enable_thinking": false})
   ///     tools: List of Tool instances the model can call
   ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
   factory RustChat({
     required Model model,
     String? systemPrompt = null,
     int contextSize = 4096,
-    bool allowThinking = true,
+    Map<String, bool> templateVariables = const {},
     List<RustTool> tools = const [],
     SamplerConfig? sampler = null,
   }) => NobodyWho.instance.api.crateRustChatNew(
     model: model,
     systemPrompt: systemPrompt,
     contextSize: contextSize,
-    allowThinking: allowThinking,
+    templateVariables: templateVariables,
     tools: tools,
     sampler: sampler,
   );
@@ -164,13 +166,15 @@ abstract class RustChat implements RustOpaqueInterface {
 
   Future<void> resetHistory();
 
-  Future<void> setAllowThinking({required bool allowThinking});
-
   Future<void> setChatHistory({required List<Message> messages});
 
   Future<void> setSamplerConfig({required SamplerConfig samplerConfig});
 
   Future<void> setSystemPrompt({String? systemPrompt});
+
+  Future<void> setTemplateVariable({required String key, required bool value});
+
+  Future<void> setTemplateVariables({required Map<String, bool> variables});
 
   Future<void> setTools({required List<RustTool> tools});
 

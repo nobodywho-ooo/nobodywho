@@ -515,7 +515,7 @@ class AppState extends ChangeNotifier {
         model: _model!,
         systemPrompt: _systemPrompt,
         contextSize: _contextSize,
-        allowThinking: _allowThinking,
+        templateVariables: {"enable_thinking": _allowThinking},
         tools: tools,
         sampler: _samplerConfig,
       );

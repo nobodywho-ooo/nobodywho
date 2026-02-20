@@ -37,6 +37,7 @@ use llama_cpp_2::token::LlamaToken;
 use llama_cpp_2::{context::params::LlamaPoolingType, model::LlamaModel};
 use serde::{Deserialize, Serialize};
 use std::cmp::min;
+use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, MutexGuard};
 use tracing::{debug, error, info, trace, trace_span};
@@ -106,8 +107,8 @@ pub struct ChatConfig {
     pub n_ctx: u32,
     /// System prompt for the chat session.
     pub system_prompt: Option<String>,
-    /// Whether to allow thinking mode during inference.
-    pub allow_thinking: bool,
+    /// Template variables to pass to the chat template (e.g., {"enable_thinking": false}).
+    pub template_variables: HashMap<String, bool>,
     /// Sampler configuration for inference.
     pub sampler_config: SamplerConfig,
 }
@@ -116,7 +117,7 @@ impl Default for ChatConfig {
     fn default() -> Self {
         Self {
             n_ctx: 4096,
-            allow_thinking: true,
+            template_variables: HashMap::new(),
             system_prompt: None,
             tools: Vec::new(),
             sampler_config: SamplerConfig::default(),
@@ -189,9 +190,15 @@ impl ChatBuilder {
         self
     }
 
-    /// Allow thinking mode during inference.
-    pub fn with_allow_thinking(mut self, allow_thinking: bool) -> Self {
-        self.config.allow_thinking = allow_thinking;
+    /// Set a template variable (e.g., "enable_thinking").
+    pub fn with_template_variable<K: Into<String>>(mut self, key: K, value: bool) -> Self {
+        self.config.template_variables.insert(key.into(), value);
+        self
+    }
+
+    /// Set all template variables, replacing any previously set.
+    pub fn with_template_variables(mut self, variables: HashMap<String, bool>) -> Self {
+        self.config.template_variables = variables;
         self
     }
 
@@ -322,17 +329,33 @@ impl ChatHandle {
             .ok_or(crate::errors::SetterError::SetterError("set_tools".into()))
     }
 
-    /// Update whether the model should use thinking mode during inference.
-    pub fn set_allow_thinking(
+    /// Set a template variable (e.g., "enable_thinking").
+    pub fn set_template_variable<K: Into<String>>(
         &self,
-        allow_thinking: bool,
+        key: K,
+        value: bool,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(|output_tx| ChatMsg::SetThinking {
-            allow_thinking,
+        self.set_and_wait_blocking(|output_tx| ChatMsg::SetTemplateVariable {
+            key: key.into(),
+            value,
             output_tx,
         })
         .ok_or(crate::errors::SetterError::SetterError(
-            "set_allow_thinking".into(),
+            "set_template_variable".into(),
+        ))
+    }
+
+    /// Set all template variables, replacing any previously set.
+    pub fn set_template_variables(
+        &self,
+        variables: HashMap<String, bool>,
+    ) -> Result<(), crate::errors::SetterError> {
+        self.set_and_wait_blocking(|output_tx| ChatMsg::SetTemplateVariables {
+            variables,
+            output_tx,
+        })
+        .ok_or(crate::errors::SetterError::SetterError(
+            "set_template_variables".into(),
         ))
     }
 
@@ -535,18 +558,35 @@ impl ChatHandleAsync {
             .ok_or(crate::errors::SetterError::SetterError("set_tools".into()))
     }
 
-    /// Update whether the model should use thinking mode during inference.
-    pub async fn set_allow_thinking(
+    /// Set a template variable (e.g., "enable_thinking").
+    pub async fn set_template_variable<K: Into<String>>(
         &self,
-        allow_thinking: bool,
+        key: K,
+        value: bool,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_async(|output_tx| ChatMsg::SetThinking {
-            allow_thinking,
+        self.set_and_wait_async(|output_tx| ChatMsg::SetTemplateVariable {
+            key: key.into(),
+            value,
             output_tx,
         })
         .await
         .ok_or(crate::errors::SetterError::SetterError(
-            "set_allow_thinking".into(),
+            "set_template_variable".into(),
+        ))
+    }
+
+    /// Set all template variables, replacing any previously set.
+    pub async fn set_template_variables(
+        &self,
+        variables: HashMap<String, bool>,
+    ) -> Result<(), crate::errors::SetterError> {
+        self.set_and_wait_async(|output_tx| ChatMsg::SetTemplateVariables {
+            variables,
+            output_tx,
+        })
+        .await
+        .ok_or(crate::errors::SetterError::SetterError(
+            "set_template_variables".into(),
         ))
     }
 
@@ -758,8 +798,13 @@ enum ChatMsg {
         system_prompt: Option<String>,
         output_tx: tokio::sync::mpsc::Sender<()>,
     },
-    SetThinking {
-        allow_thinking: bool,
+    SetTemplateVariable {
+        key: String,
+        value: bool,
+        output_tx: tokio::sync::mpsc::Sender<()>,
+    },
+    SetTemplateVariables {
+        variables: HashMap<String, bool>,
         output_tx: tokio::sync::mpsc::Sender<()>,
     },
     SetSamplerConfig {
@@ -796,9 +841,14 @@ impl std::fmt::Debug for ChatMsg {
                 .debug_struct("SetSystemPrompt")
                 .field("system_prompt", system_prompt)
                 .finish(),
-            ChatMsg::SetThinking { allow_thinking, .. } => f
-                .debug_struct("SetThinking")
-                .field("allow_thinking", allow_thinking)
+            ChatMsg::SetTemplateVariable { key, value, .. } => f
+                .debug_struct("SetTemplateVariable")
+                .field("key", key)
+                .field("value", value)
+                .finish(),
+            ChatMsg::SetTemplateVariables { variables, .. } => f
+                .debug_struct("SetTemplateVariables")
+                .field("variables", variables)
                 .finish(),
             ChatMsg::SetSamplerConfig { sampler_config, .. } => f
                 .debug_struct("SetSamplerConfig")
@@ -844,11 +894,19 @@ fn process_worker_msg(
             worker_state.set_system_prompt(system_prompt)?;
             let _ = output_tx.blocking_send(());
         }
-        ChatMsg::SetThinking {
-            allow_thinking,
+        ChatMsg::SetTemplateVariable {
+            key,
+            value,
             output_tx,
         } => {
-            worker_state.set_allow_thinking(allow_thinking)?;
+            worker_state.set_template_variable(key, value)?;
+            let _ = output_tx.blocking_send(());
+        }
+        ChatMsg::SetTemplateVariables {
+            variables,
+            output_tx,
+        } => {
+            worker_state.set_template_variables(variables)?;
             let _ = output_tx.blocking_send(());
         }
         ChatMsg::SetSamplerConfig {
@@ -927,7 +985,7 @@ struct ChatWorker {
     sampler_config: SamplerConfig,
     messages: Vec<Message>,
     tokens_in_context: Vec<LlamaToken>,
-    allow_thinking: bool,
+    template_variables: HashMap<String, bool>,
     tools: Vec<Tool>,
     chat_template: ChatTemplate,
 }
@@ -988,7 +1046,7 @@ impl Worker<'_, ChatWorker> {
                     None => vec![],
                 },
                 chat_template: template,
-                allow_thinking: config.allow_thinking,
+                template_variables: config.template_variables,
                 tools: config.tools,
                 tokens_in_context: Vec::new(),
             },
@@ -1100,7 +1158,7 @@ impl Worker<'_, ChatWorker> {
                         &self.extra.chat_template.render_unhandled(
                             &messages,
                             &ChatTemplateContext {
-                                enable_thinking: self.extra.allow_thinking,
+                                template_variables: self.extra.template_variables.clone(),
                                 tools: if self.extra.tools.is_empty() {
                                     None
                                 } else {
@@ -1380,7 +1438,7 @@ impl Worker<'_, ChatWorker> {
         let render_as_string = self.extra.chat_template.render(
             &self.extra.messages,
             &ChatTemplateContext {
-                enable_thinking: self.extra.allow_thinking,
+                template_variables: self.extra.template_variables.clone(),
                 tools: if self.extra.tools.is_empty() {
                     None
                 } else {
@@ -1471,8 +1529,20 @@ impl Worker<'_, ChatWorker> {
         Ok(())
     }
 
-    pub fn set_allow_thinking(&mut self, allow_thinking: bool) -> Result<(), ChatWorkerError> {
-        self.extra.allow_thinking = allow_thinking;
+    pub fn set_template_variable(
+        &mut self,
+        key: String,
+        value: bool,
+    ) -> Result<(), ChatWorkerError> {
+        self.extra.template_variables.insert(key, value);
+        Ok(())
+    }
+
+    pub fn set_template_variables(
+        &mut self,
+        variables: HashMap<String, bool>,
+    ) -> Result<(), ChatWorkerError> {
+        self.extra.template_variables = variables;
         Ok(())
     }
 
@@ -2372,7 +2442,7 @@ mod tests {
         let dk_handle = std::thread::spawn(move || {
             let chat = ChatBuilder::new(model_clone)
                 .with_context_size(4096)
-                .with_allow_thinking(false)
+                .with_template_variable("enable_thinking", false)
                 .build();
 
             chat.ask("What is the capital of Denmark?").completed()
@@ -2382,7 +2452,7 @@ mod tests {
         let de_handle = std::thread::spawn(move || {
             let chat = ChatBuilder::new(model)
                 .with_context_size(4096)
-                .with_allow_thinking(false)
+                .with_template_variable("enable_thinking", false)
                 .build();
 
             chat.ask("What is the capital of Germany?").completed()
@@ -2408,7 +2478,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_allow_thinking() -> Result<(), Box<dyn std::error::Error>> {
+    async fn test_template_variable_enable_thinking() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let chat = ChatBuilder::new(model).build_async();
@@ -2423,7 +2493,7 @@ mod tests {
             "Expected the model to initialize with thinking mode, but it did not"
         );
 
-        chat.set_allow_thinking(false).await?;
+        chat.set_template_variable("enable_thinking", false).await?;
 
         let res2: String = chat
             .ask("What is the capital of the Czech Republic?".to_string())

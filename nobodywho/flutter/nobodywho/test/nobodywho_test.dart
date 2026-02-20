@@ -137,7 +137,7 @@ void main() {
         modelPath: modelPath,
         systemPrompt: "",
         contextSize: 2048,
-        allowThinking: false,
+        templateVariables: {"enable_thinking": false},
         tools: [sparklify_tool, strongify_tool, noargs_tool, addTwoNumbersTool, addListOfVectorsTool, multiplySquareMatricesTool, multiplyStringsTool, setIntersectionTool],
       );
     });
@@ -386,7 +386,7 @@ void main() {
         modelPath: modelPath,
         systemPrompt: "",
         contextSize: 1024,
-        allowThinking: false,
+        templateVariables: {"enable_thinking": false},
         tools: [sparklify_tool],
       );
 

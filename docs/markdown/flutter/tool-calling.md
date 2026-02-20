@@ -85,7 +85,7 @@ final getFileSizeTool = nobodywho.Tool(
 final chat = await nobodywho.Chat.fromPath(
   modelPath: './model.gguf',
   tools: [getCurrentDirTool, listFilesTool, getFileSizeTool],
-  allowThinking : false
+  templateVariables: {"enable_thinking": false}
 );
 
 final response = await chat.ask('What is the biggest file in my current directory?').completed();

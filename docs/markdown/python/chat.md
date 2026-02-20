@@ -137,15 +137,15 @@ of more architectures is planned (for details check out our [issues](https://git
 
 To enhance cognitive performance, allowing reasoning can be a good idea:
 ```python
-chat = Chat("./model.gguf", allow_thinking=True)
+chat = Chat("./model.gguf", template_variables={"enable_thinking": True})
 ```
-Note that `Chat` has thinking set to `True` by default. You can also change the setting
+Note that `Chat` has thinking enabled by default (when the template supports it). You can also change the setting
 of an already existing chat instance:
 ```{.python continuation}
-chat.set_allow_thinking(True)
+chat.set_template_variable("enable_thinking", True)
 ```
 With the next message send, the setting will be propagated.
 
 !!! info ""
     Note that **not every model** supports reasoning. If the model does not have
-    such an option, the `allow_thinking` setting will be ignored.
+    such an option, the `enable_thinking` setting will be ignored.

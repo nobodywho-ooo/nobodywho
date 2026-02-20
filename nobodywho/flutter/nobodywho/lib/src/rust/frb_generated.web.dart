@@ -256,6 +256,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   Map<String, String> dco_decode_Map_String_String_None(dynamic raw);
 
   @protected
+  Map<String, bool> dco_decode_Map_String_bool_None(dynamic raw);
+
+  @protected
   CompletionError
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCompletionError(
     dynamic raw,
@@ -409,6 +412,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
 
   @protected
+  List<(String, bool)> dco_decode_list_record_string_bool(dynamic raw);
+
+  @protected
   List<(String, double)> dco_decode_list_record_string_f_32(dynamic raw);
 
   @protected
@@ -425,6 +431,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
     dynamic raw,
   );
+
+  @protected
+  (String, bool) dco_decode_record_string_bool(dynamic raw);
 
   @protected
   (String, double) dco_decode_record_string_f_32(dynamic raw);
@@ -615,6 +624,11 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
+  Map<String, bool> sse_decode_Map_String_bool_None(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   CompletionError
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCompletionError(
     SseDeserializer deserializer,
@@ -770,6 +784,11 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
+  List<(String, bool)> sse_decode_list_record_string_bool(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<(String, double)> sse_decode_list_record_string_f_32(
     SseDeserializer deserializer,
   );
@@ -790,6 +809,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
     SseDeserializer deserializer,
   );
+
+  @protected
+  (String, bool) sse_decode_record_string_bool(SseDeserializer deserializer);
 
   @protected
   (String, double) sse_decode_record_string_f_32(SseDeserializer deserializer);
@@ -1018,6 +1040,12 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
+  void sse_encode_Map_String_bool_None(
+    Map<String, bool> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCompletionError(
     CompletionError self,
@@ -1203,6 +1231,12 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
+  void sse_encode_list_record_string_bool(
+    List<(String, bool)> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_record_string_f_32(
     List<(String, double)> self,
     SseSerializer serializer,
@@ -1224,6 +1258,12 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   void
   sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
     SamplerConfig? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_record_string_bool(
+    (String, bool) self,
     SseSerializer serializer,
   );
 
