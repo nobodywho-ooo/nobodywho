@@ -840,10 +840,11 @@ impl JsonSchemaConverter {
             }
             None => {
                 // Empty object only: { ws }
-                let grammar = gbnf! {
-                    empty ::= "{" ws "}"
-                };
-                Ok(grammar.declarations.into_iter().next().unwrap().expr)
+                Ok(Expr::Sequence(vec![
+                    Expr::Characters("{".to_string()),
+                    Expr::NonTerminal("ws".to_string()),
+                    Expr::Characters("}".to_string()),
+                ]))
             }
         }
     }

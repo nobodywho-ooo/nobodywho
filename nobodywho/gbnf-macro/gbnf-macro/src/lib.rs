@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
@@ -147,6 +149,25 @@ fn parse_quantifier(input: ParseStream) -> Result<Quantifier> {
         Ok(Quantifier::ZeroOrMore)
     } else {
         Err(input.error("expected quantifier: ?, +, or *"))
+    }
+}
+
+/// Parse a brace quantifier from already-opened brace content: `{n}`, `{n,}`, `{n,m}`.
+fn parse_brace_quantifier(content: ParseStream) -> Result<Quantifier> {
+    let first: syn::LitInt = content.parse()?;
+    let first_val: usize = first.base10_parse()?;
+
+    if content.is_empty() {
+        Ok(Quantifier::Exact(first_val))
+    } else {
+        content.parse::<Token![,]>()?;
+        if content.is_empty() {
+            Ok(Quantifier::AtLeast(first_val))
+        } else {
+            let second: syn::LitInt = content.parse()?;
+            let second_val: usize = second.base10_parse()?;
+            Ok(Quantifier::Range(first_val, second_val))
+        }
     }
 }
 
@@ -361,6 +382,25 @@ impl MacroExpr {
                 expr: Box::new(atom),
                 quantifier,
             })
+        } else if input.peek(syn::token::Brace) {
+            // Disambiguate {n}/{n,}/{n,m} quantifier vs {expr} interpolation.
+            // Peek inside: if it starts with an integer, it's a quantifier.
+            let fork = input.fork();
+            let inner;
+            syn::braced!(inner in fork);
+            if inner.peek(syn::LitInt) {
+                // It's a quantifier — parse from the real input.
+                let content;
+                syn::braced!(content in input);
+                let quantifier = parse_brace_quantifier(&content)?;
+                Ok(MacroExpr::Quantified {
+                    expr: Box::new(atom),
+                    quantifier,
+                })
+            } else {
+                // Not a quantifier — leave {expr} for the next parse_atom call.
+                Ok(atom)
+            }
         } else {
             Ok(atom)
         }
@@ -522,6 +562,31 @@ fn extract_from_expr(expr: &mut MacroExpr, inclusions: &mut Vec<Inclusion>, coun
 }
 
 // ---------------------------------------------------------------------------
+// Validation
+// ---------------------------------------------------------------------------
+
+/// Collect all nonterminal references from a MacroExpr tree.
+fn collect_nonterminal_refs(expr: &MacroExpr, refs: &mut Vec<String>) {
+    match expr {
+        MacroExpr::Plain(Expr::NonTerminal(name)) => refs.push(name.clone()),
+        MacroExpr::Plain(_) | MacroExpr::StringInterpolation(_) => {}
+        MacroExpr::Sequence(items) => {
+            for item in items {
+                collect_nonterminal_refs(item, refs);
+            }
+        }
+        MacroExpr::Alternation(alts) => {
+            for alt in alts {
+                collect_nonterminal_refs(alt, refs);
+            }
+        }
+        MacroExpr::Group(inner) => collect_nonterminal_refs(inner, refs),
+        MacroExpr::Quantified { expr, .. } => collect_nonterminal_refs(expr, refs),
+        MacroExpr::GrammarInclusion(_) => {} // already extracted
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Proc macro entry point
 // ---------------------------------------------------------------------------
 
@@ -530,6 +595,31 @@ pub fn gbnf(input: TokenStream) -> TokenStream {
     let parsed = syn::parse_macro_input!(input as MacroInput);
     let mut declarations = parsed.declarations;
     let inclusions = extract_grammar_inclusions(&mut declarations);
+
+    // Validate: all nonterminal references must resolve to a declared rule or inclusion alias.
+    let known_names: HashSet<String> = declarations
+        .iter()
+        .map(|d| d.name.clone())
+        .chain(inclusions.iter().map(|i| i.alias.clone()))
+        .collect();
+
+    let mut all_refs = Vec::new();
+    for decl in &declarations {
+        collect_nonterminal_refs(&decl.expr, &mut all_refs);
+    }
+
+    let undefined: Vec<&String> = all_refs
+        .iter()
+        .filter(|r| !known_names.contains(r.as_str()))
+        .collect();
+
+    if !undefined.is_empty() {
+        let names: Vec<&str> = undefined.iter().map(|s| s.as_str()).collect();
+        let msg = format!("undefined nonterminal(s): {}", names.join(", "));
+        return syn::Error::new(proc_macro2::Span::call_site(), msg)
+            .to_compile_error()
+            .into();
+    }
 
     let mut builder_calls = quote! { ::gbnf_core::builder::GrammarBuilder::new() };
 
