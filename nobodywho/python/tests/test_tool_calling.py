@@ -88,10 +88,10 @@ def model():
 def chat(model):
     if "qwen" in os.environ.get("TEST_MODEL", "").lower():
         return nobodywho.Chat(
-            model, system_prompt="You are a helpful assistant", allow_thinking=False, tools=[set_intersection, multiply_strings, sparklify, reflarbicator, add_list_of_vectors, calculate_volume]
+            model, system_prompt="You are a helpful assistant", template_variables={"enable_thinking": False}, tools=[set_intersection, multiply_strings, sparklify, reflarbicator, add_list_of_vectors, calculate_volume]
         )
     return nobodywho.Chat(
-            model, system_prompt="You are a helpful assistant", allow_thinking=False, tools=[sparklify]
+            model, system_prompt="You are a helpful assistant", template_variables={"enable_thinking": False}, tools=[sparklify]
         )
     
 
@@ -165,7 +165,7 @@ def test_async_tool_bad_parameters():
 def test_set_tools(model):
     """Test that set_tools changes available tools and persists after reset_history"""
     chat = nobodywho.Chat(
-            model, system_prompt="You are a helpful assistant", allow_thinking=False, tools=[sparklify]
+            model, system_prompt="You are a helpful assistant", template_variables={"enable_thinking": False}, tools=[sparklify]
         )
     # Use initial tool
     chat.ask("Please sparklify this word: 'julemand' and show me the result").completed()
@@ -212,7 +212,7 @@ def test_tool_calling_with_custom_sampler(model):
             .top_p(0.95, min_keep=2)
             .temperature(0.8)
             .dist(),
-        allow_thinking=False,
+        template_variables={"enable_thinking": False},
     )
 
     chat.ask("Please sparklify this word: 'julemand' and show me the result").completed()
