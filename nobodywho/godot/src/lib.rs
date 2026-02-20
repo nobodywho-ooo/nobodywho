@@ -155,7 +155,7 @@ impl INode for NobodyWhoChat {
         Self {
             // defaults
             tools: default_config.tools,
-            system_prompt: GString::from(default_config.system_prompt.as_str()),
+            system_prompt: GString::from(""),
             context_length: default_config.n_ctx,
             allow_thinking: true, // default to true for backwards compatibility
             template_variables: default_config.template_variables,
@@ -202,7 +202,7 @@ impl NobodyWhoChat {
         let chat_handle = nobodywho::chat::ChatHandleAsync::new(
             model,
             nobodywho::chat::ChatConfig {
-                system_prompt: self.system_prompt.to_string(),
+                system_prompt: Some(self.system_prompt.to_string()),
                 tools: self.tools.clone(),
                 n_ctx: self.context_length,
                 template_variables: self.template_variables.clone(),
@@ -278,7 +278,7 @@ impl NobodyWhoChat {
         let tools = self.tools.clone();
 
         godot::task::spawn(async move {
-            match chat_handle.reset_chat(system_prompt, tools).await {
+            match chat_handle.reset_chat(Some(system_prompt), tools).await {
                 Ok(()) => (),
                 Err(errmsg) => {
                     godot_error!("Error: {}", errmsg.to_string());

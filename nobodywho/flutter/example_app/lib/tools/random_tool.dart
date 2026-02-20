@@ -24,8 +24,7 @@ double randomDouble({required num min, required num max}) {
 }
 
 /// Generate a random boolean (coin flip).
-/// The seed parameter is ignored (placeholder for required named parameter).
-bool randomBool({String? seed}) {
+bool randomBool() {
   return _random.nextBool();
 }
 
@@ -37,8 +36,7 @@ String randomChoice({required String items}) {
 }
 
 /// Generate a random UUID-like string.
-/// The version parameter is ignored (placeholder for required named parameter).
-String randomUuid({String? version}) {
+String randomUuid() {
   const chars = '0123456789abcdef';
   String gen(int len) => List.generate(len, (_) => chars[_random.nextInt(16)]).join();
   return '${gen(8)}-${gen(4)}-${gen(4)}-${gen(4)}-${gen(12)}';

@@ -141,7 +141,7 @@ abstract class NobodyWhoApi extends BaseApi {
 
   Future<void> crateRustChatResetContext({
     required RustChat that,
-    required String systemPrompt,
+    String? systemPrompt,
     required List<RustTool> tools,
   });
 
@@ -159,7 +159,7 @@ abstract class NobodyWhoApi extends BaseApi {
 
   Future<void> crateRustChatSetSystemPrompt({
     required RustChat that,
-    required String systemPrompt,
+    String? systemPrompt,
   });
 
   Future<void> crateRustChatSetTemplateVariable({
@@ -950,7 +950,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   @override
   Future<void> crateRustChatResetContext({
     required RustChat that,
-    required String systemPrompt,
+    String? systemPrompt,
     required List<RustTool> tools,
   }) {
     return handler.executeNormal(
@@ -961,7 +961,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             that,
             serializer,
           );
-          sse_encode_String(systemPrompt, serializer);
+          sse_encode_opt_String(systemPrompt, serializer);
           sse_encode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTool(
             tools,
             serializer,
@@ -1108,7 +1108,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   @override
   Future<void> crateRustChatSetSystemPrompt({
     required RustChat that,
-    required String systemPrompt,
+    String? systemPrompt,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -1118,7 +1118,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             that,
             serializer,
           );
-          sse_encode_String(systemPrompt, serializer);
+          sse_encode_opt_String(systemPrompt, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -5222,7 +5222,7 @@ class RustChatImpl extends RustOpaque implements RustChat {
       NobodyWho.instance.api.crateRustChatGetChatHistory(that: this);
 
   Future<void> resetContext({
-    required String systemPrompt,
+    String? systemPrompt,
     required List<RustTool> tools,
   }) => NobodyWho.instance.api.crateRustChatResetContext(
     that: this,
@@ -5244,9 +5244,7 @@ class RustChatImpl extends RustOpaque implements RustChat {
         samplerConfig: samplerConfig,
       );
 
-  Future<void> setSystemPrompt({required String systemPrompt}) => NobodyWho
-      .instance
-      .api
+  Future<void> setSystemPrompt({String? systemPrompt}) => NobodyWho.instance.api
       .crateRustChatSetSystemPrompt(that: this, systemPrompt: systemPrompt);
 
   Future<void> setTemplateVariable({

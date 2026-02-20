@@ -13,7 +13,7 @@
 //! let model = llm::get_model("model.gguf", true)?;
 //!
 //! let chat = ChatBuilder::new(model)
-//!     .with_system_prompt("You are a helpful assistant")
+//!     .with_system_prompt(Some("You are a helpful assistant"))
 //!     .build();
 //!
 //! let response = chat.ask("Hello!").completed()?;
@@ -106,7 +106,7 @@ pub struct ChatConfig {
     /// Context window size.
     pub n_ctx: u32,
     /// System prompt for the chat session.
-    pub system_prompt: String,
+    pub system_prompt: Option<String>,
     /// Template variables to pass to the chat template (e.g., {"enable_thinking": false}).
     pub template_variables: HashMap<String, bool>,
     /// Sampler configuration for inference.
@@ -118,7 +118,7 @@ impl Default for ChatConfig {
         Self {
             n_ctx: 4096,
             template_variables: HashMap::new(),
-            system_prompt: String::new(),
+            system_prompt: None,
             tools: Vec::new(),
             sampler_config: SamplerConfig::default(),
         }
@@ -146,7 +146,7 @@ impl Default for ChatConfig {
 ///
 /// let chat = ChatBuilder::new(model)
 ///     .with_context_size(4096)
-///     .with_system_prompt("You're a helpful assistant")
+///     .with_system_prompt(Some("You're a helpful assistant"))
 ///     .with_tool(my_tool)
 ///     .build();
 /// # Ok(())
@@ -173,8 +173,8 @@ impl ChatBuilder {
     }
 
     /// Set the system prompt for the chat session.
-    pub fn with_system_prompt<S: Into<String>>(mut self, prompt: S) -> Self {
-        self.config.system_prompt = prompt.into();
+    pub fn with_system_prompt<S: Into<String>>(mut self, prompt: Option<S>) -> Self {
+        self.config.system_prompt = prompt.map(|s| s.into());
         self
     }
 
@@ -301,7 +301,7 @@ impl ChatHandle {
     /// Reset the chat conversation with a new system prompt and tools.
     pub fn reset_chat(
         &self,
-        system_prompt: String,
+        system_prompt: Option<String>,
         tools: Vec<Tool>,
     ) -> Result<(), crate::errors::SetterError> {
         self.set_and_wait_blocking(|output_tx| ChatMsg::ResetChat {
@@ -426,12 +426,12 @@ impl ChatHandle {
     /// # use nobodywho::llm::get_model;
     /// # let model = get_model("model.gguf", true).unwrap();
     /// # let chat = ChatBuilder::new(model).build();
-    /// chat.set_system_prompt("You are a helpful coding assistant.".to_string())?;
+    /// chat.set_system_prompt(Some("You are a helpful coding assistant.".to_string()))?;
     /// # Ok::<(), nobodywho::errors::SetterError>(())
     /// ```
     pub fn set_system_prompt(
         &self,
-        system_prompt: String,
+        system_prompt: Option<String>,
     ) -> Result<(), crate::errors::SetterError> {
         self.set_and_wait_blocking(|output_tx| ChatMsg::SetSystemPrompt {
             system_prompt,
@@ -527,7 +527,7 @@ impl ChatHandleAsync {
     /// Reset the chat conversation with a new system prompt and tools.
     pub async fn reset_chat(
         &self,
-        system_prompt: String,
+        system_prompt: Option<String>,
         tools: Vec<Tool>,
     ) -> Result<(), crate::errors::SetterError> {
         self.set_and_wait_async(|output_tx| ChatMsg::ResetChat {
@@ -660,12 +660,12 @@ impl ChatHandleAsync {
     /// # use nobodywho::llm::get_model;
     /// # let model = get_model("model.gguf", true).unwrap();
     /// # let chat = ChatBuilder::new(model).build_async();
-    /// # chat.set_system_prompt("You are a helpful coding assistant.".to_string()).await?;
+    /// # chat.set_system_prompt(Some("You are a helpful coding assistant.".to_string())).await?;
     /// # Ok::<(), nobodywho::errors::SetterError>(())
     /// ```
     pub async fn set_system_prompt(
         &self,
-        system_prompt: String,
+        system_prompt: Option<String>,
     ) -> Result<(), crate::errors::SetterError> {
         self.set_and_wait_async(|output_tx| ChatMsg::SetSystemPrompt {
             system_prompt,
@@ -786,7 +786,7 @@ enum ChatMsg {
         output_tx: tokio::sync::mpsc::Sender<llm::WriteOutput>,
     },
     ResetChat {
-        system_prompt: String,
+        system_prompt: Option<String>,
         tools: Vec<Tool>,
         output_tx: tokio::sync::mpsc::Sender<()>,
     },
@@ -795,7 +795,7 @@ enum ChatMsg {
         output_tx: tokio::sync::mpsc::Sender<()>,
     },
     SetSystemPrompt {
-        system_prompt: String,
+        system_prompt: Option<String>,
         output_tx: tokio::sync::mpsc::Sender<()>,
     },
     SetTemplateVariable {
@@ -1038,10 +1038,13 @@ impl Worker<'_, ChatWorker> {
                 tool_grammar: grammar,
                 tool_format,
                 sampler_config: config.sampler_config,
-                messages: vec![Message::Message {
-                    role: Role::System,
-                    content: config.system_prompt,
-                }],
+                messages: match config.system_prompt {
+                    Some(msg) => vec![Message::Message {
+                        role: Role::System,
+                        content: msg,
+                    }],
+                    None => vec![],
+                },
                 chat_template: template,
                 template_variables: config.template_variables,
                 tools: config.tools,
@@ -1484,7 +1487,7 @@ impl Worker<'_, ChatWorker> {
 
     pub fn reset_chat(
         &mut self,
-        system_prompt: String,
+        system_prompt: Option<String>,
         tools: Vec<Tool>,
     ) -> Result<(), SelectTemplateError> {
         self.reset_context();
@@ -1520,7 +1523,9 @@ impl Worker<'_, ChatWorker> {
         self.extra.tools = tools;
         self.extra.messages = Vec::new();
         self.extra.tokens_in_context = Vec::new();
-        self.add_system_message(system_prompt);
+        if let Some(sys_msg) = system_prompt {
+            self.add_system_message(sys_msg);
+        }
         Ok(())
     }
 
@@ -1545,17 +1550,30 @@ impl Worker<'_, ChatWorker> {
         self.extra.sampler_config = sampler_config;
     }
 
-    pub fn set_system_prompt(&mut self, system_prompt: String) -> Result<(), ContextSyncError> {
-        let system_message = Message::Message {
-            role: Role::System,
-            content: system_prompt,
-        };
-        if self.extra.messages.is_empty() {
-            self.extra.messages.push(system_message);
-        } else if *self.extra.messages[0].role() == Role::System {
-            self.extra.messages[0] = system_message;
-        } else {
-            self.extra.messages.insert(0, system_message);
+    pub fn set_system_prompt(
+        &mut self,
+        system_prompt: Option<String>,
+    ) -> Result<(), ContextSyncError> {
+        match system_prompt {
+            Some(sys_msg) => {
+                let system_message = Message::Message {
+                    role: Role::System,
+                    content: sys_msg,
+                };
+                if self.extra.messages.is_empty() {
+                    self.extra.messages.push(system_message);
+                } else if *self.extra.messages[0].role() == Role::System {
+                    self.extra.messages[0] = system_message;
+                } else {
+                    self.extra.messages.insert(0, system_message);
+                }
+            }
+            None => {
+                if !self.extra.messages.is_empty() && *self.extra.messages[0].role() == Role::System
+                {
+                    self.extra.messages.remove(0);
+                }
+            }
         }
 
         // Reuse cached prefix
@@ -1777,7 +1795,7 @@ mod tests {
         let mut worker = Worker::new_chat_worker(
             &model,
             ChatConfig {
-                system_prompt: "You're a dog. End all responses with 'woof'".into(),
+                system_prompt: Some("You're a dog. End all responses with 'woof'".into()),
                 ..ChatConfig::default()
             },
             Arc::new(AtomicBool::new(false)),
@@ -1798,7 +1816,10 @@ mod tests {
         assert!(resp1.to_lowercase().contains("woof"));
 
         // reset
-        let _ = worker.reset_chat("You're a cat. End all responses with 'meow'".into(), vec![]);
+        let _ = worker.reset_chat(
+            Some("You're a cat. End all responses with 'meow'".into()),
+            vec![],
+        );
 
         // do it again
         worker.ask("What is the capital of Denmark?".to_string(), f.clone())?;
@@ -1816,7 +1837,7 @@ mod tests {
         let mut worker = Worker::new_chat_worker(
             &model,
             ChatConfig {
-                system_prompt: "You are a counter, only outputting numbers".into(),
+                system_prompt: Some("You are a counter, only outputting numbers".into()),
                 n_ctx: 1024,
                 ..ChatConfig::default()
             },
@@ -1921,7 +1942,7 @@ mod tests {
         let mut worker = Worker::new_chat_worker(
             &model,
             ChatConfig {
-                system_prompt: "You're a helpful assistant.".into(),
+                system_prompt: Some("You're a helpful assistant.".into()),
                 n_ctx: 4096,
                 tools: vec![test_tool()],
                 ..Default::default()
@@ -1992,14 +2013,14 @@ mod tests {
 
         let chat = ChatBuilder::new(model)
             .with_context_size(2048)
-            .with_system_prompt("You are a dog. End all responses with woof.")
+            .with_system_prompt(Some("You are a dog. End all responses with woof."))
             .build();
 
         let dog_response = chat.ask("Hello!").completed().unwrap();
 
         assert!(dog_response.contains("woof"));
 
-        chat.set_system_prompt("You are a cat. End all responses with meow.".into())
+        chat.set_system_prompt(Some("You are a cat. End all responses with meow.".into()))
             .unwrap();
         let cat_response = chat.ask("Hello again!").completed().unwrap();
 
@@ -2018,7 +2039,7 @@ mod tests {
             &model,
             ChatConfig {
                 n_ctx,
-                system_prompt: "You are a helpful assistant that provides informative and detailed responses. End every response with \"Do you have any further questions?\"".into(),
+                system_prompt: Some("You are a helpful assistant that provides informative and detailed responses. End every response with \"Do you have any further questions?\"".into()),
                 ..Default::default()
             },
             Arc::new(AtomicBool::new(false)),
@@ -2137,7 +2158,7 @@ mod tests {
             &model,
             ChatConfig {
                 n_ctx,
-                system_prompt: "You are a helpful assistant.".into(),
+                system_prompt: Some("You are a helpful assistant.".into()),
                 tools: vec![test_tool()],
                 ..Default::default()
             },
@@ -2253,7 +2274,7 @@ mod tests {
         let mut worker = Worker::new_chat_worker(
             &model,
             ChatConfig {
-                system_prompt: "You are a helpful assistant.".into(),
+                system_prompt: Some("You are a helpful assistant.".into()),
                 n_ctx: 512, // Use a small context size to force shifting
                 ..Default::default()
             },
@@ -2340,7 +2361,7 @@ mod tests {
             &model,
             ChatConfig {
                 n_ctx: 768, // Use a small context size to force shifting
-                system_prompt: "You are a helpful assistant.".into(),
+                system_prompt: Some("You are a helpful assistant.".into()),
                 ..Default::default()
             },
             Arc::new(AtomicBool::new(false)),

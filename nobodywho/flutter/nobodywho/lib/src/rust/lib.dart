@@ -160,7 +160,7 @@ abstract class RustChat implements RustOpaqueInterface {
   );
 
   Future<void> resetContext({
-    required String systemPrompt,
+    String? systemPrompt,
     required List<RustTool> tools,
   });
 
@@ -170,7 +170,7 @@ abstract class RustChat implements RustOpaqueInterface {
 
   Future<void> setSamplerConfig({required SamplerConfig samplerConfig});
 
-  Future<void> setSystemPrompt({required String systemPrompt});
+  Future<void> setSystemPrompt({String? systemPrompt});
 
   Future<void> setTemplateVariable({required String key, required bool value});
 

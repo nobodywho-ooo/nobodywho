@@ -632,7 +632,7 @@ fn wire__crate__RustChat_reset_context_impl(
             let api_that = <RustOpaqueMoi<
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustChat>,
             >>::sse_decode(&mut deserializer);
-            let api_system_prompt = <String>::sse_decode(&mut deserializer);
+            let api_system_prompt = <Option<String>>::sse_decode(&mut deserializer);
             let api_tools = <Vec<RustTool>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
@@ -867,7 +867,7 @@ fn wire__crate__RustChat_set_system_prompt_impl(
             let api_that = <RustOpaqueMoi<
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustChat>,
             >>::sse_decode(&mut deserializer);
-            let api_system_prompt = <String>::sse_decode(&mut deserializer);
+            let api_system_prompt = <Option<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, SetterError>(
