@@ -35,7 +35,7 @@ To measure how similar two pieces of text are, compare their embeddings using co
 
 ```dart
 import 'dart:typed_data';
-import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
+import 'package:nobodywho/nobodywho.dart' as nobodywho;
 
 final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
 
@@ -62,7 +62,7 @@ Cosine similarity returns a value between -1 and 1, where 1 means identical mean
 
 ```dart
 import 'dart:typed_data';
-import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
+import 'package:nobodywho/nobodywho.dart' as nobodywho;
 
 final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
 
@@ -126,7 +126,7 @@ Using embeddings alone, the first document scores highest (most similar to the q
 ### Using CrossEncoder
 
 ```dart
-import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
+import 'package:nobodywho/nobodywho.dart' as nobodywho;
 
 // Download a reranking model like bge-reranker-v2-m3-Q8_0.gguf
 final crossencoder = await nobodywho.CrossEncoder.fromPath(modelPath: './reranker-model.gguf');
@@ -165,7 +165,7 @@ Retrieval-Augmented Generation (RAG) combines document search with LLM generatio
 Here's a complete example building a customer service assistant with access to company policies:
 
 ```dart
-import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
+import 'package:nobodywho/nobodywho.dart' as nobodywho;
 
 Future<void> main() async {
   // Initialize the cross-encoder for document ranking
@@ -215,7 +215,7 @@ In Flutter/Dart, all operations are asynchronous by default. There are no separa
 
 ```dart
 import 'dart:typed_data';
-import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
+import 'package:nobodywho/nobodywho.dart' as nobodywho;
 
 Future<void> main() async {
   final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
@@ -273,7 +273,7 @@ Here's a full example showing a two-stage retrieval system:
 
 ```dart
 import 'dart:typed_data';
-import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
+import 'package:nobodywho/nobodywho.dart' as nobodywho;
 
 Future<void> main() async {
   // Initialize models

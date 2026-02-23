@@ -20,7 +20,7 @@ a good sense of how such a tool can look like, consider this geometry example:
 
 ```dart
 import 'dart:math' as math;
-import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
+import 'package:nobodywho/nobodywho.dart' as nobodywho;
 
 final circleAreaTool = nobodywho.Tool(
   name: "circle_area",
@@ -49,7 +49,7 @@ Naturally, more tools can be defined and the model can chain the calls for them:
 
 ```dart
 import 'dart:io';
-import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
+import 'package:nobodywho/nobodywho.dart' as nobodywho;
 
 final getCurrentDirTool = nobodywho.Tool(
   name: "get_current_dir",
