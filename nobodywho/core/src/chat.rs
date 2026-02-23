@@ -253,8 +253,8 @@ impl ChatHandle {
     pub fn ask_channel(
         &self,
         text: impl Into<String>,
-    ) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
-        let (output_tx, output_rx) = tokio::sync::mpsc::channel(4096);
+    ) -> tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput> {
+        let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
         self.guard.send(ChatMsg::Ask {
             text: text.into(),
             output_tx,
@@ -459,8 +459,8 @@ impl ChatHandleAsync {
     pub fn ask_channel(
         &self,
         text: impl Into<String>,
-    ) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
-        let (output_tx, output_rx) = tokio::sync::mpsc::channel(4096);
+    ) -> tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput> {
+        let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
         self.guard.send(ChatMsg::Ask {
             text: text.into(),
             output_tx,
@@ -634,12 +634,12 @@ impl ChatHandleAsync {
 
 /// A stream of tokens from the model.
 pub struct TokenStream {
-    rx: tokio::sync::mpsc::Receiver<llm::WriteOutput>,
+    rx: tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>,
     completed_response: Option<String>,
 }
 
 impl TokenStream {
-    fn new(rx: tokio::sync::mpsc::Receiver<llm::WriteOutput>) -> Self {
+    fn new(rx: tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>) -> Self {
         Self {
             rx,
             completed_response: None,
@@ -685,12 +685,12 @@ impl TokenStream {
 
 /// A stream of tokens from the model, async version.
 pub struct TokenStreamAsync {
-    rx: tokio::sync::mpsc::Receiver<llm::WriteOutput>,
+    rx: tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>,
     completed_response: Option<String>,
 }
 
 impl TokenStreamAsync {
-    pub fn new(rx: tokio::sync::mpsc::Receiver<llm::WriteOutput>) -> Self {
+    pub fn new(rx: tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>) -> Self {
         Self {
             rx,
             completed_response: None,
@@ -737,7 +737,7 @@ impl TokenStreamAsync {
 enum ChatMsg {
     Ask {
         text: String,
-        output_tx: tokio::sync::mpsc::Sender<llm::WriteOutput>,
+        output_tx: tokio::sync::mpsc::UnboundedSender<llm::WriteOutput>,
     },
     ResetChat {
         system_prompt: Option<String>,
@@ -816,7 +816,7 @@ fn process_worker_msg(
         ChatMsg::Ask { text, output_tx } => {
             let should_stop = Arc::clone(&worker_state.extra.should_stop);
             let callback = move |out| {
-                if output_tx.try_send(out).is_err() {
+                if output_tx.send(out).is_err() {
                     // Receiver was dropped or the buffer is full with nobody consuming.
                     // Either way, stop generating immediately.
                     should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
