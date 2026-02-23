@@ -3,7 +3,7 @@
 //! This module provides functionality to convert JSON Schema definitions
 //! into GBNF (GGML BNF) grammars that can be used for constrained generation.
 
-use crate::{Expr, GbnfDeclaration, GbnfGrammar, Quantifier, gbnf};
+use crate::{CharacterRange, Expr, GbnfDeclaration, GbnfGrammar, Quantifier};
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -100,31 +100,61 @@ impl JsonSchemaConverter {
         }
     }
 
-    /// Add common JSON primitive rules using the gbnf! macro for cleaner definitions
+    /// Add common JSON primitive rules
     fn add_json_primitives(&mut self) {
-        use crate::CharacterRange;
+        // ws ::= [' ' '\t' '\n' '\r']*
+        self.declarations.push(GbnfDeclaration::new(
+            "ws".to_string(),
+            star(cset(&[' ', '\t', '\n', '\r'])),
+        ));
 
-        let primitives = gbnf! {
-            // Whitespace (optional)
-            ws ::= [' ' '\t' '\n' '\r']*
+        // json-number ::= "-"? json-int json-frac? json-exp?
+        self.declarations.push(GbnfDeclaration::new(
+            "json-number".to_string(),
+            seq(&[opt(t("-")), nt("json-int"), opt(nt("json-frac")), opt(nt("json-exp"))]),
+        ));
 
-            // JSON number: -?int(.frac)?(e[+-]?int)?
-            json-number ::= "-"? json-int json-frac? json-exp?
-            json-int ::= "0" | [1-9] [0-9]*
-            json-frac ::= "." [0-9]+
-            json-exp ::= [e E] ['+' '-']? [0-9]+
+        // json-int ::= "0" | [1-9] [0-9]*
+        self.declarations.push(GbnfDeclaration::new(
+            "json-int".to_string(),
+            alt(&[t("0"), seq(&[crange('1', '9'), star(crange('0', '9'))])]),
+        ));
 
-            // JSON integer (no fractional part)
-            json-integer ::= "-"? ("0" | [1-9] [0-9]*)
+        // json-frac ::= "." [0-9]+
+        self.declarations.push(GbnfDeclaration::new(
+            "json-frac".to_string(),
+            seq(&[t("."), plus(crange('0', '9'))]),
+        ));
 
-            // JSON boolean
-            json-boolean ::= "true" | "false"
+        // json-exp ::= [e E] ['+' '-']? [0-9]+
+        self.declarations.push(GbnfDeclaration::new(
+            "json-exp".to_string(),
+            seq(&[cset(&['e', 'E']), opt(cset(&['+', '-'])), plus(crange('0', '9'))]),
+        ));
 
-            // JSON null
-            json-null ::= "null"
-        };
+        // json-integer ::= "-"? ("0" | [1-9] [0-9]*)
+        self.declarations.push(GbnfDeclaration::new(
+            "json-integer".to_string(),
+            seq(&[
+                opt(t("-")),
+                Expr::Group(Box::new(alt(&[
+                    t("0"),
+                    seq(&[crange('1', '9'), star(crange('0', '9'))]),
+                ]))),
+            ]),
+        ));
 
-        self.declarations.extend(primitives.declarations);
+        // json-boolean ::= "true" | "false"
+        self.declarations.push(GbnfDeclaration::new(
+            "json-boolean".to_string(),
+            alt(&[t("true"), t("false")]),
+        ));
+
+        // json-null ::= "null"
+        self.declarations.push(GbnfDeclaration::new(
+            "json-null".to_string(),
+            t("null"),
+        ));
 
         // JSON string rules from llama.cpp docs:
         // json-char ::= [^"\\\x7F\x00-\x1F] | [\\] (["\\bfnrt] | "u" [0-9a-fA-F]{4})
@@ -474,11 +504,10 @@ impl JsonSchemaConverter {
             "date" => {
                 // YYYY-MM-DD
                 let rule_name = self.next_rule_name("date");
-                let grammar = gbnf! {
-                    date ::= "\"" [0-9]{4} "-" [0-9]{2} "-" [0-9]{2} "\""
-                };
-                // Get the expression from the first declaration
-                let expr = grammar.declarations.into_iter().next().unwrap().expr;
+                // date ::= "\"" [0-9]{4} "-" [0-9]{2} "-" [0-9]{2} "\""
+                let expr = seq(&[
+                    t("\""), digits(4), t("-"), digits(2), t("-"), digits(2), t("\""),
+                ]);
                 self.declarations
                     .push(GbnfDeclaration::new(rule_name.clone(), expr));
                 Ok(Expr::NonTerminal(rule_name))
@@ -486,10 +515,10 @@ impl JsonSchemaConverter {
             "time" => {
                 // HH:MM:SS
                 let rule_name = self.next_rule_name("time");
-                let grammar = gbnf! {
-                    time ::= "\"" [0-9]{2} ":" [0-9]{2} ":" [0-9]{2} "\""
-                };
-                let expr = grammar.declarations.into_iter().next().unwrap().expr;
+                // time ::= "\"" [0-9]{2} ":" [0-9]{2} ":" [0-9]{2} "\""
+                let expr = seq(&[
+                    t("\""), digits(2), t(":"), digits(2), t(":"), digits(2), t("\""),
+                ]);
                 self.declarations
                     .push(GbnfDeclaration::new(rule_name.clone(), expr));
                 Ok(Expr::NonTerminal(rule_name))
@@ -498,15 +527,22 @@ impl JsonSchemaConverter {
                 // ISO 8601: YYYY-MM-DDTHH:MM:SS with optional timezone
                 let rule_name = self.next_rule_name("datetime");
                 let tz_rule_name = self.next_rule_name("tz");
-                let grammar = gbnf! {
-                    datetime ::= "\"" [0-9]{4} "-" [0-9]{2} "-" [0-9]{2} "T" [0-9]{2} ":" [0-9]{2} ":" [0-9]{2} tz? "\""
-                    tz ::= "Z" | ['+' '-'] [0-9]{2} ":" [0-9]{2}
-                };
-                let mut decls = grammar.declarations.into_iter();
-                let datetime_expr = decls.next().unwrap().expr;
-                let tz_expr = decls.next().unwrap().expr;
+                // tz ::= "Z" | ['+' '-'] [0-9]{2} ":" [0-9]{2}
+                let tz_expr = alt(&[
+                    t("Z"),
+                    seq(&[cset(&['+', '-']), digits(2), t(":"), digits(2)]),
+                ]);
                 self.declarations
-                    .push(GbnfDeclaration::new(tz_rule_name, tz_expr));
+                    .push(GbnfDeclaration::new(tz_rule_name.clone(), tz_expr));
+                // datetime ::= "\"" [0-9]{4} "-" ... tz? "\""
+                let datetime_expr = seq(&[
+                    t("\""),
+                    digits(4), t("-"), digits(2), t("-"), digits(2),
+                    t("T"),
+                    digits(2), t(":"), digits(2), t(":"), digits(2),
+                    opt(nt(&tz_rule_name)),
+                    t("\""),
+                ]);
                 self.declarations
                     .push(GbnfDeclaration::new(rule_name.clone(), datetime_expr));
                 Ok(Expr::NonTerminal(rule_name))
@@ -893,6 +929,56 @@ fn escape_json_string(s: &str) -> String {
         }
     }
     result
+}
+
+// ---------------------------------------------------------------------------
+// Expression-building helpers (used in place of the gbnf! macro)
+// ---------------------------------------------------------------------------
+
+use crate::builder::{alt, nt, seq, t};
+
+fn opt(e: Expr) -> Expr {
+    Expr::Quantified {
+        expr: Box::new(e),
+        quantifier: Quantifier::Optional,
+    }
+}
+
+fn star(e: Expr) -> Expr {
+    Expr::Quantified {
+        expr: Box::new(e),
+        quantifier: Quantifier::ZeroOrMore,
+    }
+}
+
+fn plus(e: Expr) -> Expr {
+    Expr::Quantified {
+        expr: Box::new(e),
+        quantifier: Quantifier::OneOrMore,
+    }
+}
+
+fn cset(chars: &[char]) -> Expr {
+    Expr::CharacterRange(CharacterRange::Set {
+        chars: chars.to_vec(),
+        negated: false,
+    })
+}
+
+fn crange(begin: char, end: char) -> Expr {
+    Expr::CharacterRange(CharacterRange::Range {
+        begin,
+        end,
+        negated: false,
+    })
+}
+
+/// `[0-9]{n}` — exactly `n` digits.
+fn digits(n: usize) -> Expr {
+    Expr::Quantified {
+        expr: Box::new(crange('0', '9')),
+        quantifier: Quantifier::Exact(n),
+    }
 }
 
 /// Trait for types that can be converted to a JSON Schema value

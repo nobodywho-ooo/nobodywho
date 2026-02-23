@@ -6,7 +6,7 @@ use quote::quote;
 use syn::parse::{Parse, ParseStream};
 use syn::{Ident, Result, Token};
 
-use gbnf_core::{CharacterRange, Expr, Quantifier, TokenRef};
+use gbnf::{CharacterRange, Expr, Quantifier, TokenRef};
 
 // ---------------------------------------------------------------------------
 // Parsing helpers (moved from gbnf-core)
@@ -201,36 +201,36 @@ fn is_at_new_declaration(input: ParseStream) -> bool {
 fn expr_to_tokens(expr: &Expr) -> TokenStream2 {
     match expr {
         Expr::Characters(s) => {
-            quote! { ::gbnf_core::Expr::Characters(#s.to_string()) }
+            quote! { ::gbnf::Expr::Characters(#s.to_string()) }
         }
         Expr::CharacterRange(r) => {
             let range_tokens = character_range_to_tokens(r);
-            quote! { ::gbnf_core::Expr::CharacterRange(#range_tokens) }
+            quote! { ::gbnf::Expr::CharacterRange(#range_tokens) }
         }
         Expr::Token(t) => {
             let token_tokens = token_ref_to_tokens(t);
-            quote! { ::gbnf_core::Expr::Token(#token_tokens) }
+            quote! { ::gbnf::Expr::Token(#token_tokens) }
         }
         Expr::NonTerminal(name) => {
-            quote! { ::gbnf_core::Expr::NonTerminal(#name.to_string()) }
+            quote! { ::gbnf::Expr::NonTerminal(#name.to_string()) }
         }
         Expr::Group(inner) => {
             let inner_tokens = expr_to_tokens(inner);
-            quote! { ::gbnf_core::Expr::Group(Box::new(#inner_tokens)) }
+            quote! { ::gbnf::Expr::Group(Box::new(#inner_tokens)) }
         }
         Expr::Sequence(items) => {
             let item_tokens: Vec<_> = items.iter().map(|e| expr_to_tokens(e)).collect();
-            quote! { ::gbnf_core::Expr::Sequence(vec![#(#item_tokens),*]) }
+            quote! { ::gbnf::Expr::Sequence(vec![#(#item_tokens),*]) }
         }
         Expr::Alternation(alts) => {
             let alt_tokens: Vec<_> = alts.iter().map(|e| expr_to_tokens(e)).collect();
-            quote! { ::gbnf_core::Expr::Alternation(vec![#(#alt_tokens),*]) }
+            quote! { ::gbnf::Expr::Alternation(vec![#(#alt_tokens),*]) }
         }
         Expr::Quantified { expr, quantifier } => {
             let expr_tokens = expr_to_tokens(expr);
             let quant_tokens = quantifier_to_tokens(quantifier);
             quote! {
-                ::gbnf_core::Expr::Quantified {
+                ::gbnf::Expr::Quantified {
                     expr: Box::new(#expr_tokens),
                     quantifier: #quant_tokens,
                 }
@@ -247,7 +247,7 @@ fn character_range_to_tokens(range: &CharacterRange) -> TokenStream2 {
             negated,
         } => {
             quote! {
-                ::gbnf_core::CharacterRange::Range {
+                ::gbnf::CharacterRange::Range {
                     begin: #begin,
                     end: #end,
                     negated: #negated,
@@ -256,7 +256,7 @@ fn character_range_to_tokens(range: &CharacterRange) -> TokenStream2 {
         }
         CharacterRange::Set { chars, negated } => {
             quote! {
-                ::gbnf_core::CharacterRange::Set {
+                ::gbnf::CharacterRange::Set {
                     chars: vec![#(#chars),*],
                     negated: #negated,
                 }
@@ -268,22 +268,22 @@ fn character_range_to_tokens(range: &CharacterRange) -> TokenStream2 {
 fn token_ref_to_tokens(token_ref: &TokenRef) -> TokenStream2 {
     match token_ref {
         TokenRef::ById { id, negated } => {
-            quote! { ::gbnf_core::TokenRef::ById { id: #id, negated: #negated } }
+            quote! { ::gbnf::TokenRef::ById { id: #id, negated: #negated } }
         }
         TokenRef::ByString { name, negated } => {
-            quote! { ::gbnf_core::TokenRef::ByString { name: #name.to_string(), negated: #negated } }
+            quote! { ::gbnf::TokenRef::ByString { name: #name.to_string(), negated: #negated } }
         }
     }
 }
 
 fn quantifier_to_tokens(quantifier: &Quantifier) -> TokenStream2 {
     match quantifier {
-        Quantifier::Optional => quote! { ::gbnf_core::Quantifier::Optional },
-        Quantifier::OneOrMore => quote! { ::gbnf_core::Quantifier::OneOrMore },
-        Quantifier::ZeroOrMore => quote! { ::gbnf_core::Quantifier::ZeroOrMore },
-        Quantifier::Exact(n) => quote! { ::gbnf_core::Quantifier::Exact(#n) },
-        Quantifier::AtLeast(n) => quote! { ::gbnf_core::Quantifier::AtLeast(#n) },
-        Quantifier::Range(n, m) => quote! { ::gbnf_core::Quantifier::Range(#n, #m) },
+        Quantifier::Optional => quote! { ::gbnf::Quantifier::Optional },
+        Quantifier::OneOrMore => quote! { ::gbnf::Quantifier::OneOrMore },
+        Quantifier::ZeroOrMore => quote! { ::gbnf::Quantifier::ZeroOrMore },
+        Quantifier::Exact(n) => quote! { ::gbnf::Quantifier::Exact(#n) },
+        Quantifier::AtLeast(n) => quote! { ::gbnf::Quantifier::AtLeast(#n) },
+        Quantifier::Range(n, m) => quote! { ::gbnf::Quantifier::Range(#n, #m) },
     }
 }
 
@@ -443,28 +443,28 @@ impl MacroExpr {
             MacroExpr::Plain(expr) => expr_to_tokens(expr),
             MacroExpr::Sequence(items) => {
                 let item_tokens: Vec<_> = items.iter().map(|e| e.to_tokens()).collect();
-                quote! { ::gbnf_core::Expr::Sequence(vec![#(#item_tokens),*]) }
+                quote! { ::gbnf::Expr::Sequence(vec![#(#item_tokens),*]) }
             }
             MacroExpr::Alternation(alts) => {
                 let alt_tokens: Vec<_> = alts.iter().map(|e| e.to_tokens()).collect();
-                quote! { ::gbnf_core::Expr::Alternation(vec![#(#alt_tokens),*]) }
+                quote! { ::gbnf::Expr::Alternation(vec![#(#alt_tokens),*]) }
             }
             MacroExpr::Group(inner) => {
                 let inner_tokens = inner.to_tokens();
-                quote! { ::gbnf_core::Expr::Group(Box::new(#inner_tokens)) }
+                quote! { ::gbnf::Expr::Group(Box::new(#inner_tokens)) }
             }
             MacroExpr::Quantified { expr, quantifier } => {
                 let expr_tokens = expr.to_tokens();
                 let quant_tokens = quantifier_to_tokens(quantifier);
                 quote! {
-                    ::gbnf_core::Expr::Quantified {
+                    ::gbnf::Expr::Quantified {
                         expr: Box::new(#expr_tokens),
                         quantifier: #quant_tokens,
                     }
                 }
             }
             MacroExpr::StringInterpolation(e) => {
-                quote! { ::gbnf_core::Expr::Characters((#e).to_string()) }
+                quote! { ::gbnf::Expr::Characters((#e).to_string()) }
             }
             MacroExpr::GrammarInclusion(_) => {
                 panic!("GrammarInclusion should have been extracted before codegen")
@@ -621,7 +621,7 @@ pub fn gbnf(input: TokenStream) -> TokenStream {
             .into();
     }
 
-    let mut builder_calls = quote! { ::gbnf_core::builder::GrammarBuilder::new() };
+    let mut builder_calls = quote! { ::gbnf::builder::GrammarBuilder::new() };
 
     for inc in &inclusions {
         let alias = &inc.alias;
