@@ -1,3 +1,0 @@
-[workspace]
-members = ["gbnf", "gbnf-macro"]
-resolver = "2"

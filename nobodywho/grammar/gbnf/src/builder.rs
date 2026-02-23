@@ -195,7 +195,6 @@ pub fn not_chars(chars: &[char]) -> Expr {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::compose::reset_counter;
 
     #[test]
     fn test_grammar_builder() {
@@ -277,8 +276,6 @@ mod tests {
 
     #[test]
     fn test_include_grammar_as() {
-        reset_counter();
-
         let inner = GbnfGrammar::new(
             vec![
                 GbnfDeclaration::new("root".to_string(), Expr::NonTerminal("value".to_string())),
@@ -295,21 +292,19 @@ mod tests {
 
         assert_eq!(grammar.root_name, "root");
 
-        // The uniquified inner rules and alias should be present
         let names: Vec<&str> = grammar
             .declarations
             .iter()
             .map(|d| d.name.as_str())
             .collect();
-        assert!(names.contains(&"root-g0"));
-        assert!(names.contains(&"value-g0"));
+        // Uniquified inner rules should have a -gN suffix
+        assert!(names.iter().any(|n| n.starts_with("root-g")));
+        assert!(names.iter().any(|n| n.starts_with("value-g")));
         assert!(names.contains(&"greeting"));
     }
 
     #[test]
     fn test_include_same_grammar_twice() {
-        reset_counter();
-
         let inner = GbnfGrammar::new(
             vec![GbnfDeclaration::new(
                 "root".to_string(),
@@ -330,9 +325,10 @@ mod tests {
             .iter()
             .map(|d| d.name.as_str())
             .collect();
-        // Each inclusion gets a unique suffix
-        assert!(names.contains(&"root-g0"));
-        assert!(names.contains(&"root-g1"));
+        // Each inclusion gets a unique suffix — find the two root-gN names
+        let root_variants: Vec<&&str> = names.iter().filter(|n| n.starts_with("root-g")).collect();
+        assert_eq!(root_variants.len(), 2, "expected two uniquified root rules");
+        assert_ne!(root_variants[0], root_variants[1]);
         assert!(names.contains(&"first"));
         assert!(names.contains(&"second"));
     }
