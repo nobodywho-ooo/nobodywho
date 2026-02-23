@@ -220,7 +220,20 @@ impl TokenStreamAsync {
 /// See `EncoderAsync` for the async version of this class.
 #[pyclass]
 pub struct Encoder {
-    encoder: nobodywho::encoder::Encoder,
+    encoder: Option<nobodywho::encoder::Encoder>,
+}
+
+impl Encoder {
+    fn inner(&self) -> &nobodywho::encoder::Encoder {
+        self.encoder.as_ref().expect("Encoder used after drop")
+    }
+}
+
+impl Drop for Encoder {
+    fn drop(&mut self) {
+        let encoder = self.encoder.take();
+        Python::attach(|py| py.detach(|| drop(encoder)));
+    }
 }
 
 #[pymethods]
@@ -242,7 +255,9 @@ impl Encoder {
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
         let encoder = nobodywho::encoder::Encoder::new(nw_model, n_ctx);
-        Ok(Self { encoder })
+        Ok(Self {
+            encoder: Some(encoder),
+        })
     }
 
     /// Generate an embedding vector for the given text. This method blocks until complete.
@@ -258,7 +273,7 @@ impl Encoder {
     #[pyo3(signature = (text: "str") -> "list[float]")]
     pub fn encode(&self, text: String, py: Python) -> PyResult<Vec<f32>> {
         py.detach(|| {
-            self.encoder
+            self.inner()
                 .encode(text)
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))
         })
@@ -268,7 +283,22 @@ impl Encoder {
 /// This is the async version of the `Encoder` class. See the docs on `Encoder` for more detail.
 #[pyclass]
 pub struct EncoderAsync {
-    encoder_handle: nobodywho::encoder::EncoderAsync,
+    encoder_handle: Option<nobodywho::encoder::EncoderAsync>,
+}
+
+impl EncoderAsync {
+    fn inner(&self) -> &nobodywho::encoder::EncoderAsync {
+        self.encoder_handle
+            .as_ref()
+            .expect("EncoderAsync used after drop")
+    }
+}
+
+impl Drop for EncoderAsync {
+    fn drop(&mut self) {
+        let handle = self.encoder_handle.take();
+        Python::attach(|py| py.detach(|| drop(handle)));
+    }
 }
 
 #[pymethods]
@@ -290,7 +320,9 @@ impl EncoderAsync {
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
         let encoder_handle = nobodywho::encoder::EncoderAsync::new(nw_model, n_ctx);
-        Ok(Self { encoder_handle })
+        Ok(Self {
+            encoder_handle: Some(encoder_handle),
+        })
     }
 
     /// Generate an embedding vector for the given text asynchronously.
@@ -305,7 +337,7 @@ impl EncoderAsync {
     ///     RuntimeError: If encoding fails
     #[pyo3(signature = (text: "str") -> "typing.Awaitable[list[float]]")]
     async fn encode(&self, text: String) -> PyResult<Vec<f32>> {
-        self.encoder_handle.encode(text).await.map_err(|e| {
+        self.inner().encode(text).await.map_err(|e| {
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
                 "Failed to receive embedding: {e}"
             ))
@@ -319,7 +351,22 @@ impl EncoderAsync {
 /// See `CrossEncoderAsync` for the async version of this class.
 #[pyclass]
 pub struct CrossEncoder {
-    crossencoder: nobodywho::crossencoder::CrossEncoder,
+    crossencoder: Option<nobodywho::crossencoder::CrossEncoder>,
+}
+
+impl CrossEncoder {
+    fn inner(&self) -> &nobodywho::crossencoder::CrossEncoder {
+        self.crossencoder
+            .as_ref()
+            .expect("CrossEncoder used after drop")
+    }
+}
+
+impl Drop for CrossEncoder {
+    fn drop(&mut self) {
+        let crossencoder = self.crossencoder.take();
+        Python::attach(|py| py.detach(|| drop(crossencoder)));
+    }
 }
 
 #[pymethods]
@@ -341,7 +388,9 @@ impl CrossEncoder {
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
         let crossencoder = nobodywho::crossencoder::CrossEncoder::new(nw_model, n_ctx);
-        Ok(Self { crossencoder })
+        Ok(Self {
+            crossencoder: Some(crossencoder),
+        })
     }
 
     /// Compute similarity scores between a query and multiple documents. This method blocks.
@@ -358,7 +407,7 @@ impl CrossEncoder {
     #[pyo3(signature = (query: "str", documents: "list[str]") -> "list[float]")]
     pub fn rank(&self, query: String, documents: Vec<String>, py: Python) -> PyResult<Vec<f32>> {
         py.detach(|| {
-            self.crossencoder
+            self.inner()
                 .rank(query, documents)
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))
         })
@@ -383,7 +432,7 @@ impl CrossEncoder {
         py: Python,
     ) -> PyResult<Vec<(String, f32)>> {
         py.detach(|| {
-            self.crossencoder
+            self.inner()
                 .rank_and_sort(query, documents)
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))
         })
@@ -394,7 +443,22 @@ impl CrossEncoder {
 /// See the docs for `CrossEncoder` for more details.
 #[pyclass]
 pub struct CrossEncoderAsync {
-    crossencoder_handle: nobodywho::crossencoder::CrossEncoderAsync,
+    crossencoder_handle: Option<nobodywho::crossencoder::CrossEncoderAsync>,
+}
+
+impl CrossEncoderAsync {
+    fn inner(&self) -> &nobodywho::crossencoder::CrossEncoderAsync {
+        self.crossencoder_handle
+            .as_ref()
+            .expect("CrossEncoderAsync used after drop")
+    }
+}
+
+impl Drop for CrossEncoderAsync {
+    fn drop(&mut self) {
+        let handle = self.crossencoder_handle.take();
+        Python::attach(|py| py.detach(|| drop(handle)));
+    }
 }
 
 #[pymethods]
@@ -417,7 +481,7 @@ impl CrossEncoderAsync {
         let nw_model = model.get_inner_model()?;
         let crossencoder_handle = nobodywho::crossencoder::CrossEncoderAsync::new(nw_model, n_ctx);
         Ok(Self {
-            crossencoder_handle,
+            crossencoder_handle: Some(crossencoder_handle),
         })
     }
 
@@ -434,14 +498,11 @@ impl CrossEncoderAsync {
     ///     RuntimeError: If ranking fails
     #[pyo3(signature = (query: "str", documents: "list[str]") -> "typing.Awaitable[list[float]]")]
     async fn rank(&self, query: String, documents: Vec<String>) -> PyResult<Vec<f32>> {
-        self.crossencoder_handle
-            .rank(query, documents)
-            .await
-            .map_err(|e| {
-                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-                    "Failed to receive ranking scores: {e}"
-                ))
-            })
+        self.inner().rank(query, documents).await.map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                "Failed to receive ranking scores: {e}"
+            ))
+        })
     }
 
     /// Rank documents by similarity to query and return them sorted asynchronously.
@@ -461,7 +522,7 @@ impl CrossEncoderAsync {
         query: String,
         documents: Vec<String>,
     ) -> PyResult<Vec<(String, f32)>> {
-        self.crossencoder_handle
+        self.inner()
             .rank_and_sort(query, documents)
             .await
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))
