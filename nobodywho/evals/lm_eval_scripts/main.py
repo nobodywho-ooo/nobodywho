@@ -49,6 +49,8 @@ class NobodyWhoLM(LM):
     allow_thinking: bool
     model_path: Path
     timing_data: list[dict]
+    failed_samples: list[dict]
+    max_retries: int
 
     def __init__(
         self, model_path: str, allow_thinking: str, n_ctx: int, *args, **kwargs
@@ -69,6 +71,8 @@ class NobodyWhoLM(LM):
         self.n_ctx = n_ctx
 
         self.timing_data = []
+        self.failed_samples = []
+        self.max_retries = 2
         self._init_chat()
 
     def _init_chat(self):
@@ -77,7 +81,7 @@ class NobodyWhoLM(LM):
         )
 
     def generate_until(self, requests: list[Instance], disable_tqdm=False):
-        result: list[str | None] = []
+        result: list[str] = []
         for request in tqdm([req.args for req in requests], disable=disable_tqdm):
             self.chat.reset_history()
             text = request[0]
@@ -86,29 +90,47 @@ class NobodyWhoLM(LM):
             # these provide additional generation args like stopwords or max_tokens
             # request_args = request[1]
 
-            # do the generation
-            try:
-                # kick of generation
-                response_stream = self.chat.ask(text)
+            # do the generation with retry logic
+            response_text: str | None = None
+            last_error: Exception | None = None
 
-                # measure time as we go through
-                total_tokens = 0
-                start_time = time.time()
-                for _ in response_stream:
-                    total_tokens += 1
-                stop_time = time.time()
-                elapsed_time = stop_time - start_time
+            for attempt in range(self.max_retries):
+                try:
+                    # kick off generation
+                    response_stream = self.chat.ask(text)
 
-                self.timing_data.append(
-                    {"num_tokens": total_tokens, "elapsed_time": elapsed_time}
+                    # measure time as we go through
+                    total_tokens = 0
+                    start_time = time.time()
+                    for _ in response_stream:
+                        total_tokens += 1
+                    stop_time = time.time()
+                    elapsed_time = stop_time - start_time
+
+                    self.timing_data.append(
+                        {"num_tokens": total_tokens, "elapsed_time": elapsed_time}
+                    )
+
+                    response_text = response_stream.completed()
+                    break  # success, exit retry loop
+
+                except RuntimeError as e:
+                    last_error = e
+                    logger.warning(
+                        f"Generation attempt {attempt + 1}/{self.max_retries} failed: {e}"
+                    )
+                    self._init_chat()
+
+            # if all retries failed, track the failure and return empty string
+            if response_text is None:
+                logger.error(
+                    f"All {self.max_retries} generation attempts failed: {last_error}"
                 )
-
-                response_text: str = response_stream.completed()
-
-            except RuntimeError as e:
-                logger.error(f"Exception during generation: {e}")
-                result.append(None)
-                self._init_chat()
+                self.failed_samples.append({
+                    "prompt": text[:500],  # truncate for logging
+                    "error": str(last_error),
+                })
+                result.append("")
                 continue
 
             # remove think block from response
@@ -126,14 +148,21 @@ class NobodyWhoLM(LM):
         """
         total_tokens = sum(d["num_tokens"] for d in self.timing_data)
         total_time = sum(d["elapsed_time"] for d in self.timing_data)
-        avg_tokens_per_second = total_tokens / total_time
+        avg_tokens_per_second = total_tokens / total_time if total_time > 0 else 0
 
         # Get model file size in GB
         model_size_gb = round(self.model_path.stat().st_size / (1024**3), 2)
 
+        # Calculate failure stats
+        total_samples = len(self.timing_data) + len(self.failed_samples)
+        failed_count = len(self.failed_samples)
+        failure_rate = failed_count / total_samples if total_samples > 0 else 0
+
         return {
             "avg_tokens_per_second": avg_tokens_per_second,
             "model_size_gb": model_size_gb,
+            "failed_sample_count": failed_count,
+            "failure_rate": round(failure_rate, 4),
             **get_system_info(),
         }
 
@@ -302,18 +331,21 @@ if __name__ == "__main__":
     )
 
     print("Starting evals suite...")
+
+    # Create model instance ourselves so we can access failure stats after
+    model_instance = NobodyWhoLM(
+        model_path=str(model_path.resolve()),
+        allow_thinking="true",
+        n_ctx=32768,
+    )
+
     results = lm_eval.simple_evaluate(
-        model="nobodywho",
-        model_args={
-            "model_path": str(model_path.resolve()),
-            "allow_thinking": "true",
-            "n_ctx": 32768,
-        },
+        model=model_instance,
         confirm_run_unsafe_code=True,  # run ml-generated code
         tasks=tasks,
         log_samples=True,
         evaluation_tracker=tracker,
-        limit=500,
+        limit=20,
     )
     assert results is not None
 
@@ -322,3 +354,12 @@ if __name__ == "__main__":
     if mlflow_run:
         log_to_mlflow(results)
     print_results(results)
+
+    # Print failure summary
+    if model_instance.failed_samples:
+        print(f"\n--- Generation Failures ({len(model_instance.failed_samples)} total) ---")
+        for i, failure in enumerate(model_instance.failed_samples[:10]):  # show first 10
+            print(f"\n[{i+1}] Error: {failure['error']}")
+            print(f"    Prompt: {failure['prompt'][:100]}...")
+        if len(model_instance.failed_samples) > 10:
+            print(f"\n... and {len(model_instance.failed_samples) - 10} more failures")
