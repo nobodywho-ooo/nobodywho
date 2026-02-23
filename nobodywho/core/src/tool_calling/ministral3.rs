@@ -1,5 +1,5 @@
 use super::{Tool, ToolCall, ToolFormatError, ToolFormatHandler};
-use gbnf::builder::{alt, nt, GrammarBuilder};
+use gbnf::builder::{alt, nt, nt_plus, GrammarBuilder};
 use gbnf::json::json_schema_to_grammar;
 use nom::{
     bytes::complete::{tag, take_till, take_until},
@@ -57,7 +57,11 @@ impl ToolFormatHandler for Ministral3Handler {
             tool_refs.push(nt(&alias));
         }
 
-        let grammar = builder.rule("root", alt(&tool_refs)).root("root").build();
+        let grammar = builder
+            .rule("toolcall", alt(&tool_refs))
+            .rule("root", nt_plus("toolcall"))
+            .root("root")
+            .build();
 
         Ok(grammar)
     }
