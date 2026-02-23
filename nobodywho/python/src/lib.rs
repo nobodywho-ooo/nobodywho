@@ -727,7 +727,7 @@ impl ChatAsync {
     ///     RuntimeError: If reset fails
     #[pyo3(signature = (system_prompt: "str | None", tools: "list[Tool]") -> "None")]
     pub async fn reset(&self, system_prompt: Option<String>, tools: Vec<Tool>) -> PyResult<()> {
-        self.chat_handle
+        self.handle()
             .reset_chat(system_prompt, tools.into_iter().map(|t| t.tool).collect())
             .await
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
