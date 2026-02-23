@@ -4,7 +4,7 @@ NobodyWho is a flutter plugin for running large language models locally and offl
 
 Free to use in commercial projects under EUPL-1.2 license, no API key needed.
 
-- [Documentation](https://docs.nobodywho.ooo) - Flutter & other frameworks documentation
+- [Documentation](https://docs.nobodywho.ooo) — Flutter & other frameworks documentation
 - [Discord](https://discord.gg/qhaMc2qCYB) — Get help, share ideas, connect with other developers
 - [GitHub Issues](https://github.com/nobodywho-ooo/nobodywho/issues) — Report bugs
 - [GitHub Discussions](https://github.com/nobodywho-ooo/nobodywho/discussions) — Ask questions, request features
