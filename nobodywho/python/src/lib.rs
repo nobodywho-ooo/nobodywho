@@ -479,27 +479,29 @@ impl CrossEncoderAsync {
 /// See `ChatAsync` for the async version of this class.
 #[pyclass]
 pub struct Chat {
-    chat_handle: nobodywho::chat::ChatHandle,
+    // Wrap in Option so we can take it in Drop to release the handle
+    // while the GIL is temporarily dropped.
+    chat_handle: Option<nobodywho::chat::ChatHandle>,
+}
+
+impl Chat {
+    fn handle(&self) -> &nobodywho::chat::ChatHandle {
+        self.chat_handle.as_ref().expect("Chat used after drop")
+    }
+}
+
+impl Drop for Chat {
+    fn drop(&mut self) {
+        let handle = self.chat_handle.take();
+        // Release the GIL before joining the background thread.
+        // This prevents deadlocks if the background thread needs the GIL
+        // to log messages (via pyo3_log) or execute Python tools during its shutdown.
+        Python::attach(|py| py.detach(|| drop(handle)));
+    }
 }
 
 #[pymethods]
 impl Chat {
-    /// Create a new Chat instance for conversational text generation.
-    ///
-    /// Args:
-    ///     model: A chat model (Model instance or path to GGUF file)
-    ///     n_ctx: Context size (maximum conversation length in tokens). Defaults to 4096.
-    ///     system_prompt: System message to guide the model's behavior. Defaults to empty string.
-    ///     allow_thinking: If True, allows extended reasoning tokens for supported models. Defaults to True.
-    ///     tools: List of Tool instances the model can call. Defaults to empty list.
-    ///     sampler: SamplerConfig for token selection. Defaults to SamplerConfig.default().
-    ///
-    /// Returns:
-    ///     A Chat instance
-    ///
-    /// Raises:
-    ///     RuntimeError: If the model cannot be loaded
-    ///     ValueError: If the path contains invalid UTF-8
     #[new]
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, allow_thinking = true, tools: "list[Tool]" = Vec::<Tool>::new(), sampler=SamplerConfig::default()) -> "Chat")]
     pub fn new(
@@ -518,19 +520,15 @@ impl Chat {
             .with_system_prompt(system_prompt)
             .with_sampler(sampler.sampler_config)
             .build();
-        Ok(Self { chat_handle })
+
+        Ok(Self {
+            chat_handle: Some(chat_handle),
+        })
     }
 
-    /// Send a message to the model and get a streaming response.
-    ///
-    /// Args:
-    ///     text: The user message to send
-    ///
-    /// Returns:
-    ///     A TokenStream that yields tokens as they are generated
     pub fn ask(&self, text: String) -> TokenStream {
         TokenStream {
-            stream: self.chat_handle.ask(text),
+            stream: self.handle().ask(text),
         }
     }
 
@@ -550,53 +548,34 @@ impl Chat {
         py: Python,
     ) -> PyResult<()> {
         py.detach(|| {
-            self.chat_handle
+            self.handle()
                 .reset_chat(system_prompt, tools.into_iter().map(|t| t.tool).collect())
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         })
     }
 
-    /// Clear the chat history while keeping the system prompt and tools unchanged.
-    ///
-    /// Raises:
-    ///     RuntimeError: If reset fails
     #[pyo3(signature = () -> "None")]
     pub fn reset_history(&self, py: Python) -> PyResult<()> {
         py.detach(|| {
-            self.chat_handle
+            self.handle()
                 .reset_history()
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         })
     }
 
-    /// Enable or disable extended reasoning tokens for supported models.
-    ///
-    /// Args:
-    ///     allow_thinking: If True, allows extended reasoning tokens
-    ///
-    /// Raises:
-    ///     ValueError: If the setting cannot be changed
     #[pyo3(signature = (allow_thinking: "bool") -> "None")]
     pub fn set_allow_thinking(&self, allow_thinking: bool, py: Python) -> PyResult<()> {
         py.detach(|| {
-            self.chat_handle
+            self.handle()
                 .set_allow_thinking(allow_thinking)
                 .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
         })
     }
 
-    /// Get the current chat history as a list of message dictionaries.
-    ///
-    /// Returns:
-    ///     List of message dicts, each with 'role' (str) and 'content' (str) keys.
-    ///     Example: [{"role": "user", "content": "Hello"}, {"role": "assistant", "content": "Hi!"}]
-    ///
-    /// Raises:
-    ///     RuntimeError: If retrieval fails
     #[pyo3(signature = () -> "list[dict]")]
     pub fn get_chat_history(&self, py: Python) -> PyResult<Py<PyAny>> {
         let msgs = py.detach(|| {
-            self.chat_handle
+            self.handle()
                 .get_chat_history()
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         })?;
@@ -606,46 +585,27 @@ impl Chat {
             .map(|bound| bound.unbind())
     }
 
-    /// Replace the chat history with a new list of messages.
-    ///
-    /// Args:
-    ///     msgs: List of message dicts, each with 'role' (str) and 'content' (str) keys.
-    ///           Example: [{"role": "user", "content": "Hello"}, {"role": "assistant", "content": "Hi!"}]
-    ///
-    /// Raises:
-    ///     ValueError: If message format is invalid
-    ///     RuntimeError: If setting history fails
     #[pyo3(signature = (msgs: "list[dict]") -> "None")]
     pub fn set_chat_history(&self, msgs: Bound<'_, PyAny>, py: Python) -> PyResult<()> {
         let msgs = pythonize::depythonize(&msgs)
             .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
 
         py.detach(|| {
-            self.chat_handle
+            self.handle()
                 .set_chat_history(msgs)
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         })
     }
-    /// Stop the current text generation immediately.
-    ///
-    /// This can be used to cancel an in-progress generation if the response is taking too long
-    /// or is no longer needed.
+
     #[pyo3(signature = () -> "None")]
     pub fn stop_generation(&self, py: Python) {
-        py.detach(|| self.chat_handle.stop_generation())
+        py.detach(|| self.handle().stop_generation())
     }
 
-    /// Update the list of tools available to the model without resetting chat history.
-    ///
-    /// Args:
-    ///     tools: New list of Tool instances the model can call
-    ///
-    /// Raises:
-    ///     RuntimeError: If updating tools fails
     #[pyo3(signature = (tools : "list[Tool]") -> "None")]
     pub fn set_tools(&self, tools: Vec<Tool>, py: Python) -> PyResult<()> {
         py.detach(|| {
-            self.chat_handle
+            self.handle()
                 .set_tools(tools.into_iter().map(|t| t.tool).collect())
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         })
@@ -661,23 +621,16 @@ impl Chat {
     #[pyo3(signature = (system_prompt : "str | None") -> "None")]
     pub fn set_system_prompt(&self, system_prompt: Option<String>, py: Python) -> PyResult<()> {
         py.detach(|| {
-            self.chat_handle
+            self.handle()
                 .set_system_prompt(system_prompt)
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         })
     }
 
-    /// Update the sampler configuration without resetting chat history.
-    ///
-    /// Args:
-    ///     sampler: New SamplerConfig for token selection
-    ///
-    /// Raises:
-    ///     RuntimeError: If the sampler config cannot be changed
     #[pyo3(signature = (sampler : "SamplerConfig") -> "None")]
     pub fn set_sampler_config(&self, sampler: SamplerConfig, py: Python) -> PyResult<()> {
         py.detach(|| {
-            self.chat_handle
+            self.handle()
                 .set_sampler_config(sampler.sampler_config)
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         })
