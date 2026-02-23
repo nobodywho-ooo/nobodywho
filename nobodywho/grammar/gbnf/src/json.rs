@@ -111,7 +111,12 @@ impl JsonSchemaConverter {
         // json-number ::= "-"? json-int json-frac? json-exp?
         self.declarations.push(GbnfDeclaration::new(
             "json-number".to_string(),
-            seq(&[opt(t("-")), nt("json-int"), opt(nt("json-frac")), opt(nt("json-exp"))]),
+            seq(&[
+                opt(t("-")),
+                nt("json-int"),
+                opt(nt("json-frac")),
+                opt(nt("json-exp")),
+            ]),
         ));
 
         // json-int ::= "0" | [1-9] [0-9]*
@@ -129,7 +134,11 @@ impl JsonSchemaConverter {
         // json-exp ::= [e E] ['+' '-']? [0-9]+
         self.declarations.push(GbnfDeclaration::new(
             "json-exp".to_string(),
-            seq(&[cset(&['e', 'E']), opt(cset(&['+', '-'])), plus(crange('0', '9'))]),
+            seq(&[
+                cset(&['e', 'E']),
+                opt(cset(&['+', '-'])),
+                plus(crange('0', '9')),
+            ]),
         ));
 
         // json-integer ::= "-"? ("0" | [1-9] [0-9]*)
@@ -151,10 +160,8 @@ impl JsonSchemaConverter {
         ));
 
         // json-null ::= "null"
-        self.declarations.push(GbnfDeclaration::new(
-            "json-null".to_string(),
-            t("null"),
-        ));
+        self.declarations
+            .push(GbnfDeclaration::new("json-null".to_string(), t("null")));
 
         // JSON string rules from llama.cpp docs:
         // json-char ::= [^"\\\x7F\x00-\x1F] | [\\] (["\\bfnrt] | "u" [0-9a-fA-F]{4})
@@ -506,7 +513,13 @@ impl JsonSchemaConverter {
                 let rule_name = self.next_rule_name("date");
                 // date ::= "\"" [0-9]{4} "-" [0-9]{2} "-" [0-9]{2} "\""
                 let expr = seq(&[
-                    t("\""), digits(4), t("-"), digits(2), t("-"), digits(2), t("\""),
+                    t("\""),
+                    digits(4),
+                    t("-"),
+                    digits(2),
+                    t("-"),
+                    digits(2),
+                    t("\""),
                 ]);
                 self.declarations
                     .push(GbnfDeclaration::new(rule_name.clone(), expr));
@@ -517,7 +530,13 @@ impl JsonSchemaConverter {
                 let rule_name = self.next_rule_name("time");
                 // time ::= "\"" [0-9]{2} ":" [0-9]{2} ":" [0-9]{2} "\""
                 let expr = seq(&[
-                    t("\""), digits(2), t(":"), digits(2), t(":"), digits(2), t("\""),
+                    t("\""),
+                    digits(2),
+                    t(":"),
+                    digits(2),
+                    t(":"),
+                    digits(2),
+                    t("\""),
                 ]);
                 self.declarations
                     .push(GbnfDeclaration::new(rule_name.clone(), expr));
@@ -537,9 +556,17 @@ impl JsonSchemaConverter {
                 // datetime ::= "\"" [0-9]{4} "-" ... tz? "\""
                 let datetime_expr = seq(&[
                     t("\""),
-                    digits(4), t("-"), digits(2), t("-"), digits(2),
+                    digits(4),
+                    t("-"),
+                    digits(2),
+                    t("-"),
+                    digits(2),
                     t("T"),
-                    digits(2), t(":"), digits(2), t(":"), digits(2),
+                    digits(2),
+                    t(":"),
+                    digits(2),
+                    t(":"),
+                    digits(2),
                     opt(nt(&tz_rule_name)),
                     t("\""),
                 ]);
