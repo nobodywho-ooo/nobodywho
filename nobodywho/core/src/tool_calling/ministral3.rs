@@ -1,5 +1,5 @@
 use super::{Tool, ToolCall, ToolFormatError, ToolFormatHandler};
-use gbnf::builder::{nt, GrammarBuilder};
+use gbnf::builder::{alt, nt, GrammarBuilder};
 use gbnf::json::json_schema_to_grammar;
 use nom::{
     bytes::complete::{tag, take_till, take_until},
@@ -70,8 +70,8 @@ impl ToolFormatHandler for Ministral3Handler {
 
         let calls: Vec<ToolCall> = parsed
             .into_iter()
-            .filter_map(|(name, args_str)| {
-                match serde_json::from_str(args_str.trim()) {
+            .filter_map(
+                |(name, args_str)| match serde_json::from_str(args_str.trim()) {
                     Ok(arguments) => {
                         debug!(tool_name = %name.trim(), "Parsed tool call");
                         Some(ToolCall {
@@ -83,8 +83,8 @@ impl ToolFormatHandler for Ministral3Handler {
                         debug!(error = %e, "Failed to parse tool call arguments");
                         None
                     }
-                }
-            })
+                },
+            )
             .collect();
 
         if calls.is_empty() {
@@ -158,7 +158,8 @@ mod tests {
     #[test]
     fn test_nested_json_arguments() {
         let handler = Ministral3Handler;
-        let input = r#"[TOOL_CALLS]query[ARGS]{"filter": {"age": 30}, "fields": ["name", "email"]}"#;
+        let input =
+            r#"[TOOL_CALLS]query[ARGS]{"filter": {"age": 30}, "fields": ["name", "email"]}"#;
 
         let result = handler.extract_tool_calls(input);
         assert!(result.is_some());
