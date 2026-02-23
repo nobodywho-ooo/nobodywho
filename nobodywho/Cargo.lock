@@ -1956,6 +1956,7 @@ dependencies = [
  "llama-cpp-2",
  "minijinja",
  "minijinja-contrib",
+ "nom 8.0.0",
  "rand",
  "regex",
  "serde",
