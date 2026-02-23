@@ -59,7 +59,7 @@ pub mod test_utils {
     /// Load the test model with GPU acceleration if available
     pub fn load_test_model() -> Model {
         let path = test_model_path();
-        get_model(&path, true)
+        get_model(&path, true, None)
             .unwrap_or_else(|e| panic!("Failed to load test model from {}: {:?}", path, e))
     }
 
@@ -72,7 +72,7 @@ pub mod test_utils {
         //      llvmpipe is very rare in the wild, so it shouldn't cause any problems in general
         //      this segfault doesn't happen on nobodywho commit 94d51c5.
         //      it's most likely related to an upstream change in llama.cpp
-        get_model(&path, false)
+        get_model(&path, false, None)
             .unwrap_or_else(|e| panic!("Failed to load embeddings model from {}: {:?}", path, e))
     }
 
@@ -80,7 +80,7 @@ pub mod test_utils {
     pub fn load_crossencoder_model() -> Model {
         let path = test_crossencoder_model_path();
         // Same GPU offloading note as embeddings model
-        get_model(&path, false)
+        get_model(&path, false, None)
             .unwrap_or_else(|e| panic!("Failed to load crossencoder model from {}: {:?}", path, e))
     }
 }

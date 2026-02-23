@@ -33,15 +33,14 @@ use crate::llm::{Worker, WriteOutput};
 use crate::sampler_config::{SamplerConfig, ShiftStep};
 use crate::template::{select_template, ChatTemplate, ChatTemplateContext};
 use crate::tokenizer::{
-    find_chunks_prefix_difference, ChunkId, ProjectionModel, Prompt, Promptable, TokenizerChunk,
-    TokenizerChunks,
+    find_chunks_prefix_difference, ChunkId, Prompt, Promptable, TokenizerChunk, TokenizerChunks,
 };
 use crate::tool_calling::{detect_tool_format, Tool, ToolCall, ToolFormat};
 use ahash::AHasher;
 use llama_cpp_2::mtmd::MtmdBitmap;
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
-use llama_cpp_2::{context::params::LlamaPoolingType, model::LlamaModel};
+use llama_cpp_2::context::params::LlamaPoolingType;
 use serde::{Deserialize, Serialize};
 use std::cmp::min;
 use std::collections::{HashMap, HashSet};
@@ -152,8 +151,6 @@ pub struct ChatConfig {
     pub allow_thinking: bool,
     /// Sampler configuration for inference.
     pub sampler_config: SamplerConfig,
-    /// Optional path to multimodal projector file for vision models.
-    pub mmproj_path: Option<String>,
 }
 
 impl Default for ChatConfig {
@@ -164,7 +161,6 @@ impl Default for ChatConfig {
             system_prompt: String::new(),
             tools: Vec::new(),
             sampler_config: SamplerConfig::default(),
-            mmproj_path: None,
         }
     }
 }
@@ -197,13 +193,13 @@ impl Default for ChatConfig {
 /// # }
 /// ```
 pub struct ChatBuilder {
-    model: Arc<LlamaModel>,
+    model: llm::Model,
     config: ChatConfig,
 }
 
 impl ChatBuilder {
     /// Create a new chat builder with a model.
-    pub fn new(model: Arc<LlamaModel>) -> Self {
+    pub fn new(model: llm::Model) -> Self {
         Self {
             model,
             config: ChatConfig::default(),
@@ -246,16 +242,6 @@ impl ChatBuilder {
         self
     }
 
-    /// Set the multimodal projector path for vision models.
-    ///
-    /// This enables the chat handle to process images alongside text.
-    /// The mmproj file is typically distributed alongside vision models
-    /// (e.g., LLaVA, Qwen-VL).
-    pub fn with_image_ingestion<S: Into<String>>(mut self, model_path: S) -> Self {
-        self.config.mmproj_path = Some(model_path.into());
-        self
-    }
-
     /// Build a blocking chat handle and start the background worker.
     pub fn build(self) -> ChatHandle {
         ChatHandle::new(self.model, self.config)
@@ -277,7 +263,7 @@ pub struct ChatHandle {
 
 impl ChatHandle {
     /// Create a new chat handle directly. Consider using [`ChatBuilder`] for a more ergonomic API.
-    pub fn new(model: Arc<LlamaModel>, config: ChatConfig) -> Self {
+    pub fn new(model: llm::Model, config: ChatConfig) -> Self {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
 
         let should_stop = Arc::new(AtomicBool::new(false));
@@ -480,7 +466,7 @@ pub struct ChatHandleAsync {
 
 impl ChatHandleAsync {
     /// Create a new chat handle directly. Consider using [`ChatBuilder`] for a more ergonomic API.
-    pub fn new(model: Arc<LlamaModel>, config: ChatConfig) -> Self {
+    pub fn new(model: llm::Model, config: ChatConfig) -> Self {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
 
         let should_stop = Arc::new(AtomicBool::new(false));
@@ -1018,15 +1004,15 @@ impl llm::PoolingType for ChatWorker {
 
 impl Worker<'_, ChatWorker> {
     fn new_chat_worker(
-        model: &Arc<LlamaModel>,
+        model: &llm::Model,
         config: ChatConfig,
         should_stop: Arc<AtomicBool>,
     ) -> Result<Worker<'_, ChatWorker>, InitWorkerError> {
-        let template = select_template(model, !config.tools.is_empty())?;
+        let template = select_template(&model.language_model, !config.tools.is_empty())?;
 
         // Only detect tool calling format if tools are provided
         let (tool_format, grammar) = if !config.tools.is_empty() {
-            match detect_tool_format(model) {
+            match detect_tool_format(&model.language_model) {
                 Ok(format) => {
                     debug!(format = ?format, "Detected tool calling format");
 
@@ -1049,16 +1035,8 @@ impl Worker<'_, ChatWorker> {
             (None, None)
         };
 
-        // Initialize MTMD context if mmproj path is provided
-        let projection_model = if let Some(ref mmproj_path) = config.mmproj_path {
-            Some(Arc::new(ProjectionModel::from_path(mmproj_path, model)?))
-        } else {
-            None
-        };
-
         Worker::new_with_type(
             model,
-            projection_model,
             config.n_ctx,
             false,
             ChatWorker {
@@ -1383,6 +1361,8 @@ impl Worker<'_, ChatWorker> {
         } else {
             vec![]
         };
+
+        debug!("Detected bitmaps: {:?}", bitmaps);
 
         let bitmap_ids = self.extra.context.add_bitmaps(bitmaps)?;
         self.add_user_message(prompt.to_string(), bitmap_ids);

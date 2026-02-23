@@ -8,6 +8,8 @@ pub enum LoadModelError {
     ModelNotFound(String),
     #[error("Invalid or unsupported GGUF model: {0}")]
     InvalidModel(String),
+    #[error("Multimodal error: {0}")]
+    Multimodal(#[from] MultimodalError),
     #[error("Channel for receiving model was closed unexpectedly")]
     ModelChannelError,
 }
@@ -41,6 +43,24 @@ pub enum InitWorkerError {
 
     #[error("Could not initialize projection model: {0}")]
     ProjectionModel(#[from] MultimodalError),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum InitContextError {
+    #[error("Could not determine number of threads available: {0}")]
+    ThreadCount(#[from] std::io::Error),
+
+    #[error("Could not create context: {0}")]
+    CreateContext(#[from] llama_cpp_2::LlamaContextLoadError),
+}
+
+impl From<InitContextError> for InitWorkerError {
+    fn from(value: InitContextError) -> Self {
+        match value {
+            InitContextError::ThreadCount(e) => InitWorkerError::ThreadCount(e),
+            InitContextError::CreateContext(e) => InitWorkerError::CreateContext(e),
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -282,6 +302,9 @@ pub enum MultimodalError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum TokenizationError {
+    #[error("Could not tokenize string: {0}")]
+    StringToToken(#[from] llama_cpp_2::StringToTokenError),
+
     #[error("Failed to tokenize image {image_index} of {total_images}: {error}")]
     ImageTokenizationFailed {
         image_index: usize,

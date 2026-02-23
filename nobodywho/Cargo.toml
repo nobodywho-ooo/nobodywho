@@ -11,3 +11,7 @@ members = [
 
 # edition = "2021" implies resolver = "2".
 resolver = "2"
+
+[patch.crates-io]
+llama-cpp-2 = { path = "../../llama-cpp-rs/llama-cpp-2" }
+llama-cpp-sys-2 = { path = "../../llama-cpp-rs/llama-cpp-sys-2" }

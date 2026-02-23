@@ -25,7 +25,11 @@ lazy_static! {
 static LLAMA_BACKEND: LazyLock<LlamaBackend> =
     LazyLock::new(|| LlamaBackend::init().expect("Failed to initialize llama backend"));
 
-pub type Model = Arc<LlamaModel>;
+#[derive(Debug, Clone)]
+pub struct Model {
+    pub(crate) language_model: Arc<LlamaModel>,
+    pub(crate) projection_model: Option<Arc<ProjectionModel>>,
+}
 
 pub fn has_discrete_gpu() -> bool {
     #[cfg(any(
@@ -70,7 +74,8 @@ pub fn has_discrete_gpu() -> bool {
 pub fn get_model(
     model_path: &str,
     use_gpu_if_available: bool,
-) -> Result<Arc<LlamaModel>, LoadModelError> {
+    mmproj_path: Option<&str>,
+) -> Result<Model, LoadModelError> {
     if !std::path::Path::new(model_path).exists() {
         let e = LoadModelError::ModelNotFound(model_path.into());
         error!(error = %e, "Model file not found");
@@ -89,7 +94,7 @@ pub fn get_model(
     let load_span = info_span!("model_load", path = model_path);
     let _guard = load_span.enter();
 
-    let model =
+    let language_model =
         LlamaModel::load_from_file(&LLAMA_BACKEND, model_path, &model_params).map_err(|e| {
             let error_msg = format!("Bad model path: {} - Llama.cpp error: {}", model_path, e);
             error!(error = %error_msg, "Failed to load model");
@@ -97,7 +102,16 @@ pub fn get_model(
         })?;
 
     info!("Model loaded successfully");
-    Ok(Arc::new(model))
+    let language_model = Arc::new(language_model);
+
+    let projection_model = mmproj_path
+        .map(|path| ProjectionModel::from_path(path, &language_model).map(Arc::new))
+        .transpose()?;
+
+    Ok(Model {
+        language_model,
+        projection_model,
+    })
 }
 
 /// Asynchronously loads a GGUF model from disk.
@@ -113,7 +127,7 @@ pub fn get_model(
 ///
 /// # Returns
 ///
-/// Returns an `Arc<LlamaModel>` on success, or a `LoadModelError` on failure.
+/// Returns a `Model` on success, or a `LoadModelError` on failure.
 ///
 /// # Errors
 ///
@@ -125,10 +139,11 @@ pub fn get_model(
 pub async fn get_model_async(
     model_path: String,
     use_gpu_if_available: bool,
-) -> Result<Arc<LlamaModel>, LoadModelError> {
+    mmproj_path: Option<String>,
+) -> Result<Model, LoadModelError> {
     let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(4096);
     std::thread::spawn(move || {
-        output_tx.blocking_send(get_model(&model_path, use_gpu_if_available))
+        output_tx.blocking_send(get_model(&model_path, use_gpu_if_available, mmproj_path.as_deref()))
     });
 
     match output_rx.recv().await {
@@ -137,7 +152,7 @@ pub async fn get_model_async(
     }
 }
 
-fn read_add_bos_metadata(model: &Arc<LlamaModel>) -> Result<AddBos, InitWorkerError> {
+fn read_add_bos_metadata(model: &LlamaModel) -> Result<AddBos, InitWorkerError> {
     match model.meta_val_str("tokenizer.ggml.add_bos_token") {
         Ok(val) => match val.as_str() {
             "true" => Ok(AddBos::Always),
@@ -193,40 +208,52 @@ where
     T: PoolingType,
 {
     pub(crate) fn new_with_type(
-        model: &'a Arc<LlamaModel>,
-        projection_model: Option<Arc<ProjectionModel>>,
+        model: &'a Model,
         n_ctx: u32,
         use_embeddings: bool,
         extra: T,
     ) -> Result<Worker<'a, T>, InitWorkerError> {
         info!("Initializing worker");
 
+        let projection_model = model.projection_model.clone();
+
         // Set up context parameters using available parallelism
         let ctx = {
             let n_threads = std::thread::available_parallelism()?.get() as i32;
-            let n_ctx = std::cmp::min(n_ctx, model.n_ctx_train());
+            let n_ctx = std::cmp::min(n_ctx, model.language_model.n_ctx_train());
+
+            if projection_model.is_some() && n_ctx < 2048 {
+                warn!("Context size is less than 2048, which is the default minimum for ingesting images. This can cause issues.");
+            }
+
+            let n_ubatch = if projection_model.is_some() {
+                std::cmp::min(2048, n_ctx)
+            } else {
+                std::cmp::min(512, n_ctx)
+            };
+
             let ctx_params = LlamaContextParams::default()
                 .with_n_ctx(std::num::NonZero::new(n_ctx))
                 .with_n_batch(n_ctx) // n_batch sets the max size of a batch (i.e. max prompt size)
-                .with_n_ubatch(512) // TODO: This is just the default value decided by llama cpp. A smarter choice definitely exists
+                .with_n_ubatch(n_ubatch) // TODO: This is just the default value decided by llama cpp. A smarter choice definitely exists
                 .with_n_threads(n_threads)
                 .with_n_threads_batch(n_threads)
                 .with_embeddings(use_embeddings)
                 .with_pooling_type(extra.pooling_type());
 
             // Create inference context and sampler
-            model.new_context(&LLAMA_BACKEND, ctx_params)?
+            model.language_model.new_context(&LLAMA_BACKEND, ctx_params)?
         };
 
         let big_batch = LlamaBatch::new(ctx.n_ctx() as usize, 1);
         let small_batch = LlamaBatch::new(1, 1);
 
-        let add_bos = read_add_bos_metadata(model)?;
+        let add_bos = read_add_bos_metadata(&model.language_model)?;
         debug!(?add_bos, "Read add_bos from GGUF metadata:");
 
         // Clone the Arc for the tokenizer so we can still move the original into Worker
         let tokenizer = Tokenizer::new(
-            model,
+            &model.language_model,
             projection_model.as_ref().map(|arc| Arc::clone(arc)),
             add_bos,
         );

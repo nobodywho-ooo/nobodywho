@@ -9,12 +9,49 @@ export 'src/rust/lib.dart'
         RustTokenStream, // Users should use TokenStream
         RustTool, // Users should use Tool
         newToolImpl, // Internal helper
-        toolCallArgumentsJson; // Internal helper
+        toolCallArgumentsJson, // Internal helper
+        PromptPart; // Users should use the hand-written PromptPart sealed class
 export 'src/rust/frb_generated.dart' show NobodyWho;
 
 import 'src/rust/lib.dart' as nobodywho;
 
+/// A part of a multimodal prompt.
+sealed class PromptPart {}
 
+/// A text part of a prompt.
+final class TextPart extends PromptPart {
+  final String text;
+  const TextPart(this.text);
+}
+
+/// An image part of a prompt, identified by file path.
+final class ImagePart extends PromptPart {
+  final String path;
+  const ImagePart(this.path);
+}
+
+/// A multimodal prompt consisting of one or more [PromptPart]s (text and/or images).
+///
+/// Example:
+/// ```dart
+/// final prompt = Prompt([TextPart("Describe this image:"), ImagePart("/path/to/img.jpg")]);
+/// final stream = chat.ask(prompt);
+/// ```
+class Prompt {
+  final List<PromptPart> parts;
+
+  const Prompt(this.parts);
+
+  /// Convenience factory for text-only prompts.
+  factory Prompt.text(String text) => Prompt([TextPart(text)]);
+}
+
+List<nobodywho.PromptPart> _convertPromptParts(List<PromptPart> parts) {
+  return parts.map((p) => switch (p) {
+    TextPart(:final text) => nobodywho.PromptPart.text(content: text),
+    ImagePart(:final path) => nobodywho.PromptPart.image(path: path),
+  }).toList();
+}
 
 /// Converts JSON-decoded data to properly typed Dart values based on a JSON schema.
 /// Handles primitives, nested Lists (up to 3 levels), Sets, and Maps.
@@ -465,29 +502,42 @@ class TokenStream extends Stream<String> {
 class Chat {
   final nobodywho.RustChat _chat;
 
+  /// Private constructor for wrapping an existing Chat
+  Chat._(this._chat);
+
   /// Create chat from existing model.
-  Chat({
+  ///
+  /// For vision/multimodal models, the model should be loaded with image ingestion enabled:
+  /// ```dart
+  /// final model = Model.load("model.gguf", imageIngestion: "mmproj.gguf");
+  /// final chat = Chat(model: model);
+  /// ```
+  factory Chat({
     required nobodywho.Model model,
     String? systemPrompt,
     int contextSize = 4096,
     bool allowThinking = true,
     List<Tool> tools = const [],
     nobodywho.SamplerConfig? sampler,
-  }) : _chat = nobodywho.RustChat(
-         model: model,
-         systemPrompt: systemPrompt,
-         contextSize: contextSize,
-         allowThinking: allowThinking,
-         tools: tools.map((t) => t._internalTool).toList(),
-         sampler: sampler,
-       );
-
-  /// Private constructor for wrapping an existing Chat
-  Chat._(this._chat);
+  }) {
+    final chat = nobodywho.RustChat(
+      model: model,
+      systemPrompt: systemPrompt,
+      contextSize: contextSize,
+      allowThinking: allowThinking,
+      tools: tools.map((t) => t._internalTool).toList(),
+      sampler: sampler,
+    );
+    return Chat._(chat);
+  }
 
   /// Create chat directly from a model path.
+  ///
+  /// [imageIngestion] is an optional path to a `.mmproj` projection model file,
+  /// required for vision/multimodal models (e.g. LLaVA, Qwen-VL).
   static Future<Chat> fromPath({
     required String modelPath,
+    String? imageIngestion,
     String? systemPrompt,
     int contextSize = 4096,
     bool allowThinking = true,
@@ -497,6 +547,7 @@ class Chat {
   }) async {
     final chat = await nobodywho.RustChat.fromPath(
       modelPath: modelPath,
+      imageIngestion: imageIngestion,
       systemPrompt: systemPrompt,
       contextSize: contextSize,
       allowThinking: allowThinking,
@@ -507,9 +558,17 @@ class Chat {
     return Chat._(chat);
   }
 
-  /// Send a message and get a stream of response tokens.
-  TokenStream ask(String message) {
-    return TokenStream._(_chat.ask(message));
+  /// Send a prompt and get a stream of response tokens.
+  ///
+  /// Accepts a [Prompt] which may contain text and/or image parts.
+  /// Use [Prompt.text] for text-only prompts:
+  /// ```dart
+  /// chat.ask(Prompt.text("Hello!"))
+  /// ```
+  TokenStream ask(Prompt prompt) {
+    return TokenStream._(
+      _chat.askWithPrompt(parts: _convertPromptParts(prompt.parts)),
+    );
   }
 
   /// Get the chat history.

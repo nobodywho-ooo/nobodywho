@@ -69,7 +69,7 @@ impl NobodyWhoModel {
             .globalize_path(&self.model_path.clone())
             .into();
 
-        match llm::get_model(model_path_string.as_str(), self.use_gpu_if_available) {
+        match llm::get_model(model_path_string.as_str(), self.use_gpu_if_available, None) {
             Ok(model) => {
                 self.model = Some(model.clone());
                 Ok(model.clone())

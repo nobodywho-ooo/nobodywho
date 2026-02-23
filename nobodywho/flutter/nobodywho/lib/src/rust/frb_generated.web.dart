@@ -409,6 +409,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
 
   @protected
+  List<PromptPart> dco_decode_list_prompt_part(dynamic raw);
+
+  @protected
   List<(String, double)> dco_decode_list_record_string_f_32(dynamic raw);
 
   @protected
@@ -425,6 +428,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
     dynamic raw,
   );
+
+  @protected
+  PromptPart dco_decode_prompt_part(dynamic raw);
 
   @protected
   (String, double) dco_decode_record_string_f_32(dynamic raw);
@@ -770,6 +776,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
+  List<PromptPart> sse_decode_list_prompt_part(SseDeserializer deserializer);
+
+  @protected
   List<(String, double)> sse_decode_list_record_string_f_32(
     SseDeserializer deserializer,
   );
@@ -790,6 +799,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
     SseDeserializer deserializer,
   );
+
+  @protected
+  PromptPart sse_decode_prompt_part(SseDeserializer deserializer);
 
   @protected
   (String, double) sse_decode_record_string_f_32(SseDeserializer deserializer);
@@ -1203,6 +1215,12 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
+  void sse_encode_list_prompt_part(
+    List<PromptPart> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_record_string_f_32(
     List<(String, double)> self,
     SseSerializer serializer,
@@ -1226,6 +1244,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
     SamplerConfig? self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_prompt_part(PromptPart self, SseSerializer serializer);
 
   @protected
   void sse_encode_record_string_f_32(
