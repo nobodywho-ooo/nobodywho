@@ -353,7 +353,11 @@ impl<T> Drop for WorkerGuard<T> {
             stop.store(true, Ordering::Relaxed);
         }
         drop(self.msg_tx.take());
-        drop(self.join_handle.take());
+        if let Some(handle) = self.join_handle.take() {
+            if let Err(e) = handle.join() {
+                error!("Worker panicked: {:?}", e);
+            }
+        }
     }
 }
 

@@ -816,9 +816,9 @@ fn process_worker_msg(
         ChatMsg::Ask { text, output_tx } => {
             let should_stop = Arc::clone(&worker_state.extra.should_stop);
             let callback = move |out| {
-                if output_tx.blocking_send(out).is_err() {
-                    // Receiver was dropped (e.g. test cancelled, stream discarded).
-                    // Signal the write loop to stop generating immediately.
+                if output_tx.try_send(out).is_err() {
+                    // Receiver was dropped or the buffer is full with nobody consuming.
+                    // Either way, stop generating immediately.
                     should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
                 }
             };
