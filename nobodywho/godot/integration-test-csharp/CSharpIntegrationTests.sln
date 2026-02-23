@@ -1,0 +1,19 @@
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2012
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CSharpIntegrationTests", "CSharpIntegrationTests.csproj", "{13CA1397-B87C-462D-8C0F-EA9A4D270B6E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+	Debug|Any CPU = Debug|Any CPU
+	ExportDebug|Any CPU = ExportDebug|Any CPU
+	ExportRelease|Any CPU = ExportRelease|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{13CA1397-B87C-462D-8C0F-EA9A4D270B6E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{13CA1397-B87C-462D-8C0F-EA9A4D270B6E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{13CA1397-B87C-462D-8C0F-EA9A4D270B6E}.ExportDebug|Any CPU.ActiveCfg = ExportDebug|Any CPU
+		{13CA1397-B87C-462D-8C0F-EA9A4D270B6E}.ExportDebug|Any CPU.Build.0 = ExportDebug|Any CPU
+		{13CA1397-B87C-462D-8C0F-EA9A4D270B6E}.ExportRelease|Any CPU.ActiveCfg = ExportRelease|Any CPU
+		{13CA1397-B87C-462D-8C0F-EA9A4D270B6E}.ExportRelease|Any CPU.Build.0 = ExportRelease|Any CPU
+	EndGlobalSection
+EndGlobal

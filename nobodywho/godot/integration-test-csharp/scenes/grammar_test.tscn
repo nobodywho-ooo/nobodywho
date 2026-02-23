@@ -1,0 +1,8 @@
+[gd_scene format=3 uid="uid://riqfmggkqpfd"]
+
+[node name="GrammarTest" type="Node"]
+
+[node name="Model" type="NobodyWhoModel" parent="."]
+model_path = "res://Qwen_Qwen3-0.6B-Q4_0.gguf"
+
+[node name="Chat" type="NobodyWhoChat" parent="."]

@@ -1,0 +1,14 @@
+[configuration]
+entry_symbol = "gdext_rust_init"
+compatibility_minimum = 4.3
+reloadable = true
+
+[libraries]
+linux.debug.x86_64 =     "res://../../target/debug/libnobodywho_godot.so"
+linux.release.x86_64 =   "res://../../target/release/libnobodywho_godot.so"
+windows.debug.x86_64 =   "res://../../target/debug/nobodywho_godot.dll"
+windows.release.x86_64 = "res://../../target/release/nobodywho_godot.dll"
+macos.debug =            "res://../../target/debug/libnobodywho_godot.dylib"
+macos.release =          "res://../../target/release/libnobodywho_godot.dylib"
+macos.debug.arm64 =      "res://../../target/debug/libnobodywho_godot.dylib"
+macos.release.arm64 =    "res://../../target/release/libnobodywho_godot.dylib"
