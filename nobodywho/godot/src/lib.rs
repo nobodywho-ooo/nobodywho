@@ -3,6 +3,7 @@ use godot::prelude::*;
 use nobodywho::chat::{ChatConfig, Message, Role};
 use nobodywho::sampler_config::{SamplerConfig, SamplerPresets};
 use nobodywho::{errors, llm};
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tracing::{debug, error, info, trace, warn};
 use tracing_subscriber::filter::{LevelFilter, Targets};
@@ -130,6 +131,7 @@ struct NobodyWhoChat {
 
     #[export]
     #[var(get = get_allow_thinking, set = set_allow_thinking)]
+    /// Whether to allow thinking/reasoning mode (for models that support it).
     allow_thinking: bool,
 
     #[export]
@@ -140,6 +142,7 @@ struct NobodyWhoChat {
     // internal state
     chat_handle: Option<nobodywho::chat::ChatHandleAsync>,
     tools: Vec<nobodywho::tool_calling::Tool>,
+    template_variables: HashMap<String, bool>,
     signal_counter: AtomicU64,
     base: Base<Node>,
 }
@@ -154,7 +157,8 @@ impl INode for NobodyWhoChat {
             tools: default_config.tools,
             system_prompt: GString::from(""),
             context_length: default_config.n_ctx,
-            allow_thinking: default_config.allow_thinking,
+            allow_thinking: true, // default to true for backwards compatibility
+            template_variables: default_config.template_variables,
 
             // config
             model_node: None,
@@ -190,13 +194,18 @@ impl NobodyWhoChat {
 
     fn start_worker_impl(&mut self) -> Result<(), String> {
         let model = self.get_model()?;
+
+        // Sync allow_thinking property to template_variables
+        self.template_variables
+            .insert("enable_thinking".to_string(), self.allow_thinking);
+
         let chat_handle = nobodywho::chat::ChatHandleAsync::new(
             model,
             nobodywho::chat::ChatConfig {
                 system_prompt: Some(self.system_prompt.to_string()),
                 tools: self.tools.clone(),
                 n_ctx: self.context_length,
-                allow_thinking: self.allow_thinking,
+                template_variables: self.template_variables.clone(),
                 sampler_config: SamplerConfig::default(),
             },
         );
@@ -287,12 +296,16 @@ impl NobodyWhoChat {
     fn set_allow_thinking(&mut self, allow_thinking: bool) {
         // always mutate local state
         self.allow_thinking = allow_thinking;
+        self.template_variables
+            .insert("enable_thinking".to_string(), allow_thinking);
 
         // if worker is running, also inform that
         if let Some(chat_handle) = self.chat_handle.as_ref() {
             let handle_clone = chat_handle.clone();
             godot::task::spawn(async move {
-                let result = handle_clone.set_allow_thinking(allow_thinking).await;
+                let result = handle_clone
+                    .set_template_variable("enable_thinking".to_string(), allow_thinking)
+                    .await;
                 if let Err(msg) = result {
                     godot_warn!("Error setting allow_thinking: {}", msg);
                 }

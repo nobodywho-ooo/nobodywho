@@ -154,16 +154,16 @@ To enhance cognitive performance, allowing reasoning can be a good idea:
 ```dart
 final chat = await nobodywho.Chat.fromPath(
   modelPath: "./model.gguf",
-  allowThinking: true
+  templateVariables: {"enable_thinking": true}
 );
 ```
-Note that `Chat` has thinking set to `true` by default. You can also change the setting of an already existing chat instance:
+Note that `Chat` has thinking enabled by default (when the template supports it). You can also change the setting of an already existing chat instance:
 ```{.dart continuation}
-await chat.setAllowThinking(true);
+await chat.setTemplateVariable("enable_thinking", true);
 ```
 With the next message send, the setting will be propagated.
 
 !!! info ""
     Note that **not every model** supports reasoning. If the model does not have
-    such an option, the `allowThinking` setting will be ignored.
+    such an option, the `enable_thinking` setting will be ignored.
 

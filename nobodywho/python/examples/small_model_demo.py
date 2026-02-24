@@ -7,7 +7,7 @@ if sys.platform == "win32":
 
 model = nobodywho.Model(sys.argv[1])
 chat = nobodywho.Chat(
-    model, system_prompt="You are a helpful assistant", allow_thinking=False
+    model, system_prompt="You are a helpful assistant", template_variables = {"enable_thinking" : False}
 )
 
 

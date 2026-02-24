@@ -1,6 +1,7 @@
+use std::collections::HashMap;
 use std::sync::LazyLock;
 
-use minijinja::{context, Environment, Template};
+use minijinja::{Environment, Template, Value};
 use tracing::{debug, trace, warn};
 
 use crate::{
@@ -8,22 +9,6 @@ use crate::{
     errors::SelectTemplateError,
     tool_calling::Tool,
 };
-
-macro_rules! struct_with_keys_getter {
-    (pub struct $name:ident {
-        $(pub $field_name:ident: $field_type:ty,)*
-    }) => {
-        pub struct $name {
-            $(pub $field_name: $field_type,)*
-        }
-
-        impl $name {
-            fn get_field_names() -> Vec<String> {
-                vec![$(stringify!($field_name).to_string()),*]
-            }
-        }
-    }
-}
 
 fn strftime_now(format_str: &str) -> String {
     chrono::Local::now().format(format_str).to_string()
@@ -52,6 +37,8 @@ pub struct ChatTemplate {
     template: String,
     bos_token: String,
     eos_token: String,
+    /// Variables that the template references (detected at load time)
+    undeclared_variables: Vec<String>,
 }
 
 impl ChatTemplate {
@@ -64,38 +51,29 @@ impl ChatTemplate {
 
         trace!("Loading chat template: {}", original_template);
 
-        for missing_variable in Self::detect_missing_variables(&template) {
-            warn!("Missing required variable in the template: {}. This might affect functionality of the model.", missing_variable);
-        }
+        let undeclared_variables = template
+            .undeclared_variables(true)
+            .into_iter()
+            .collect::<Vec<String>>();
 
         Ok(Self {
             template: original_template.to_string(),
             bos_token: bos_token.to_string(),
             eos_token: eos_token.to_string(),
+            undeclared_variables,
         })
     }
 
-    fn detect_missing_variables(template: &Template<'_, '_>) -> Vec<String> {
-        let template_variables = template
-            .undeclared_variables(true)
-            .into_iter()
-            .collect::<Vec<String>>();
-        let required_variables = ChatTemplate::get_required_variables();
-
-        required_variables
-            .into_iter()
-            .filter(|v| !template_variables.contains(v))
-            .collect()
-    }
-
-    fn get_required_variables() -> Vec<String> {
-        let mut required_variables = ChatTemplateContext::get_field_names();
-        required_variables.extend(vec![
-            "bos_token".into(),
-            "eos_token".into(),
-            "add_generation_prompt".into(),
-        ]);
-        required_variables
+    /// Warn if any template variables are set but not used by the template.
+    fn warn_unused_template_variables(&self, ctx: &ChatTemplateContext) {
+        for key in ctx.template_variables.keys() {
+            if !self.undeclared_variables.contains(key) {
+                warn!(
+                    "Template variable '{}' is set but the template does not use it. This setting will have no effect.",
+                    key
+                );
+            }
+        }
     }
 
     fn get_template(&self) -> Result<Template<'_, '_>, minijinja::Error> {
@@ -107,6 +85,9 @@ impl ChatTemplate {
         messages: &[Message],
         ctx: &ChatTemplateContext,
     ) -> Result<String, minijinja::Error> {
+        // Warn about any template variables that won't have effect
+        self.warn_unused_template_variables(ctx);
+
         let add_generation_prompt = messages.last().is_some_and(|msg| {
             matches!(
                 msg,
@@ -119,14 +100,23 @@ impl ChatTemplate {
 
         let template = self.get_template()?;
 
-        template.render(context! {
-            messages => messages,
-            add_generation_prompt => add_generation_prompt,
-            enable_thinking => ctx.enable_thinking,
-            bos_token => self.bos_token,
-            eos_token => self.eos_token,
-            tools => ctx.tools,
-        })
+        // Build context with base variables
+        let mut context_map: HashMap<&str, Value> = [
+            ("messages", Value::from_serialize(messages)),
+            ("add_generation_prompt", Value::from(add_generation_prompt)),
+            ("bos_token", Value::from(&self.bos_token)),
+            ("eos_token", Value::from(&self.eos_token)),
+            ("tools", Value::from_serialize(&ctx.tools)),
+        ]
+        .into_iter()
+        .collect();
+
+        // Merge user-provided template variables
+        for (key, value) in &ctx.template_variables {
+            context_map.insert(key.as_str(), Value::from(*value));
+        }
+
+        template.render(Value::from_iter(context_map))
     }
 
     /// given a chat history where the first two messages are from system and user
@@ -215,13 +205,10 @@ impl ChatTemplate {
     }
 }
 
-struct_with_keys_getter! {
-    pub struct ChatTemplateContext {
-        // we call it allow thinking, because not every model has thinking mode,
-        // and 'enable' could then cause confusion
-        pub enable_thinking: bool,
-        pub tools: Option<Vec<Tool>>,
-    }
+pub struct ChatTemplateContext {
+    /// Custom template variables (e.g., {"enable_thinking": false})
+    pub template_variables: HashMap<String, bool>,
+    pub tools: Option<Vec<Tool>>,
 }
 
 pub fn select_template(
@@ -291,7 +278,7 @@ mod tests {
         let bos = "<|begin_of_text|>";
         let eos = "<|end_of_text|>";
         let ctx = ChatTemplateContext {
-            enable_thinking: true,
+            template_variables: HashMap::new(),
             tools: None,
         };
 
@@ -366,7 +353,7 @@ mod tests {
         let eos = "<|eos|>";
 
         let ctx = ChatTemplateContext {
-            enable_thinking: true,
+            template_variables: HashMap::new(),
             tools: None,
         };
 
@@ -465,7 +452,7 @@ mod tests {
         let eos = "";
 
         let ctx = ChatTemplateContext {
-            enable_thinking: true,
+            template_variables: HashMap::new(),
             tools: None,
         };
         let chat_template = ChatTemplate::new(template, bos, eos).unwrap();

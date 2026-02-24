@@ -71,6 +71,7 @@ impl RustChat {
     ///     model: A Model instance
     ///     system_prompt: System message to guide the model's behavior
     ///     context_size: Context size (maximum conversation length in tokens)
+    ///     template_variables: Template variables (e.g., {"enable_thinking": false})
     ///     tools: List of Tool instances the model can call
     ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
     #[flutter_rust_bridge::frb(sync)]
@@ -78,7 +79,7 @@ impl RustChat {
         model: &Model,
         #[frb(default = "null")] system_prompt: Option<String>,
         #[frb(default = 4096)] context_size: u32,
-        #[frb(default = true)] allow_thinking: bool,
+        #[frb(default = "const {}")] template_variables: std::collections::HashMap<String, bool>,
         #[frb(default = "const []")] tools: Vec<RustTool>,
         #[frb(default = "null")] sampler: Option<SamplerConfig>,
     ) -> Self {
@@ -86,7 +87,7 @@ impl RustChat {
 
         let chat = nobodywho::chat::ChatBuilder::new(model.model.clone())
             .with_context_size(context_size)
-            .with_allow_thinking(allow_thinking)
+            .with_template_variables(template_variables)
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
             .with_system_prompt(system_prompt)
             .with_sampler(sampler_config)
@@ -101,6 +102,7 @@ impl RustChat {
     ///     model_path: Path to GGUF model file
     ///     system_prompt: System message to guide the model's behavior
     ///     context_size: Context size (maximum conversation length in tokens)
+    ///     template_variables: Template variables (e.g., {"enable_thinking": false})
     ///     tools: List of Tool instances the model can call
     ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
     ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
@@ -109,7 +111,7 @@ impl RustChat {
         model_path: &str,
         #[frb(default = "null")] system_prompt: Option<String>,
         #[frb(default = 4096)] context_size: u32,
-        #[frb(default = true)] allow_thinking: bool,
+        #[frb(default = "const {}")] template_variables: std::collections::HashMap<String, bool>,
         #[frb(default = "const []")] tools: Vec<RustTool>,
         #[frb(default = "null")] sampler: Option<SamplerConfig>,
         #[frb(default = true)] use_gpu: bool,
@@ -119,11 +121,12 @@ impl RustChat {
 
         let chat = nobodywho::chat::ChatBuilder::new(model)
             .with_context_size(context_size)
-            .with_allow_thinking(allow_thinking)
+            .with_template_variables(template_variables)
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
             .with_system_prompt(system_prompt)
             .with_sampler(sampler_config)
             .build_async();
+
         Ok(Self { chat })
     }
 
@@ -168,11 +171,19 @@ impl RustChat {
         self.chat.reset_history().await
     }
 
-    pub async fn set_allow_thinking(
+    pub async fn set_template_variable(
         &self,
-        allow_thinking: bool,
+        key: String,
+        value: bool,
     ) -> Result<(), nobodywho::errors::SetterError> {
-        self.chat.set_allow_thinking(allow_thinking).await
+        self.chat.set_template_variable(key, value).await
+    }
+
+    pub async fn set_template_variables(
+        &self,
+        variables: std::collections::HashMap<String, bool>,
+    ) -> Result<(), nobodywho::errors::SetterError> {
+        self.chat.set_template_variables(variables).await
     }
 
     pub async fn set_system_prompt(
