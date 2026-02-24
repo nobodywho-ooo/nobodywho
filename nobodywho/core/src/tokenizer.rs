@@ -402,7 +402,11 @@ impl<'a> Tokenizer<'a> {
             });
         }
 
-        let image_chunks = self.tokenize_images(bitmaps)?;
+        let image_chunks = if bitmaps.len() > 0 {
+            self.tokenize_images(bitmaps)?
+        } else {
+            vec![]
+        };
         let chunks = self
             .interleave(text_chunks, image_chunks)
             .into_iter()
