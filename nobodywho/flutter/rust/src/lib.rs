@@ -126,6 +126,7 @@ impl RustChat {
     ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
     ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
     #[flutter_rust_bridge::frb]
+    #[allow(clippy::too_many_arguments)]
     pub fn from_path(
         model_path: &str,
         #[frb(default = "null")] image_ingestion: Option<String>,
@@ -418,7 +419,7 @@ fn dart_function_type_to_json_schema(
         Err(_) => return Err("Something has gone horribly wrong while parsing!".into()),
     };
 
-    if let Err(_) = parse::return_type_parser(return_type) {
+    if parse::return_type_parser(return_type).is_err() {
         tracing::warn!("Return type of this tool should be `String or Future<String>`. Anything else will be cast to string, which might lead to unexpected results.")
     }
 

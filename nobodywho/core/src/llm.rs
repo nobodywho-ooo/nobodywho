@@ -12,6 +12,7 @@ use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::mtmd::MtmdInputChunks;
 use llama_cpp_2::token::LlamaToken;
 use std::pin::pin;
+use std::rc::Rc;
 use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
 use tracing::{debug, debug_span, error, info, info_span, warn};
 
@@ -260,7 +261,7 @@ where
         // Clone the Arc for the tokenizer so we can still move the original into Worker
         let tokenizer = Tokenizer::new(
             &model.language_model,
-            projection_model.as_ref().map(|arc| Arc::clone(arc)),
+            projection_model.as_ref().map(Arc::clone),
             add_bos,
         );
 
@@ -313,7 +314,7 @@ where
     #[tracing::instrument(level = "trace", skip(self))]
     fn read_image_embeddings(
         &mut self,
-        embeddings: Arc<MtmdInputChunks>,
+        embeddings: Rc<MtmdInputChunks>,
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<&mut Self, ReadError> {
         let projection_model = self
@@ -329,7 +330,7 @@ where
         let n_ctx = self.ctx.n_ctx() as i32;
         self.n_past = embeddings.eval_chunks(
             &projection_model.ctx,
-            &mut self.ctx,
+            &self.ctx,
             self.n_past,
             0,
             n_ctx,

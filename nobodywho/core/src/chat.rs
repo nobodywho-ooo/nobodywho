@@ -947,8 +947,8 @@ impl ChatContext {
         let existing_bitmap_ids = self
             .bitmaps
             .keys()
+            .filter(|&id| bitmap_ids.contains(id))
             .cloned()
-            .filter(|id| bitmap_ids.contains(id))
             .collect::<Vec<_>>();
 
         self.remove_bitmaps(existing_bitmap_ids);

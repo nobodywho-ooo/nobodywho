@@ -374,10 +374,10 @@ impl JsonSchemaConverter {
                 }
                 if let Some(req) = obj.get("required").and_then(|r| r.as_array()) {
                     for r in req {
-                        if let Some(s) = r.as_str() {
-                            if !merged_required.contains(&s.to_string()) {
-                                merged_required.push(s.to_string());
-                            }
+                        if let Some(s) = r.as_str()
+                            && !merged_required.contains(&s.to_string())
+                        {
+                            merged_required.push(s.to_string());
                         }
                     }
                 }

@@ -984,6 +984,12 @@ pub struct SamplerBuilder {
     sampler_config: nobodywho::sampler_config::SamplerConfig,
 }
 
+impl Default for SamplerBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[pymethods]
 impl SamplerBuilder {
     /// Create a new SamplerBuilder to construct a custom sampler chain.
@@ -1223,6 +1229,7 @@ pub struct SamplerPresets {}
 impl SamplerPresets {
     /// Get the default sampler configuration.
     #[staticmethod]
+    #[allow(clippy::should_implement_trait)]
     pub fn default() -> SamplerConfig {
         SamplerConfig {
             sampler_config: nobodywho::sampler_config::SamplerConfig::default(),
@@ -1729,14 +1736,12 @@ fn json_value_to_py<'py>(
                 } else {
                     Err(pyo3::exceptions::PyValueError::new_err("Invalid number"))
                 }
+            } else if let Some(i) = n.as_i128() {
+                Ok(pyo3::types::PyInt::new(py, i).into())
+            } else if let Some(i) = n.as_u128() {
+                Ok(pyo3::types::PyInt::new(py, i).into())
             } else {
-                if let Some(i) = n.as_i128() {
-                    Ok(pyo3::types::PyInt::new(py, i).into())
-                } else if let Some(i) = n.as_u128() {
-                    Ok(pyo3::types::PyInt::new(py, i).into())
-                } else {
-                    Err(pyo3::exceptions::PyValueError::new_err("Invalid number"))
-                }
+                Err(pyo3::exceptions::PyValueError::new_err("Invalid number"))
             }
         }
         serde_json::Value::String(s) => Ok(pyo3::types::PyString::new(py, s).into()),
@@ -1769,7 +1774,7 @@ fn json_value_to_py<'py>(
                     )),
                 }
             // Array is actually a set
-            } else if let Some(_) = obj_schema.get("uniqueItems") {
+            } else if obj_schema.get("uniqueItems").is_some() {
                 let pyset = pyo3::types::PySet::new(py, py_items?);
                 match pyset {
                     Ok(set) => Ok(set.into()),
@@ -1883,7 +1888,7 @@ pub mod nobodywhopython {
 
             // Add structured fields
             if !visitor.fields.is_empty() {
-                log_msg.push_str(" ");
+                log_msg.push(' ');
                 for (i, (key, value)) in visitor.fields.iter().enumerate() {
                     if i > 0 {
                         log_msg.push_str(", ");

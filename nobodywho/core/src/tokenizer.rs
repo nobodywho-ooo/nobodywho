@@ -1,5 +1,8 @@
-use std::ffi::CString;
+use core::fmt;
+use std::fmt::Formatter;
+use std::rc::Rc;
 use std::sync::Arc;
+use std::{ffi::CString, fmt::Display};
 
 use ahash::AHasher;
 use llama_cpp_2::{
@@ -20,6 +23,29 @@ pub struct Prompt {
     parts: Vec<PromptPart>,
 }
 
+impl Display for Prompt {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let marker = llama_cpp_2::mtmd::mtmd_default_marker();
+        let result = self
+            .parts
+            .iter()
+            .map(|part| match part {
+                PromptPart::Text(text) => text.clone(),
+                PromptPart::Image(_) => marker.to_string(),
+            })
+            .collect::<Vec<String>>()
+            .join("");
+
+        write!(f, "{}", result)
+    }
+}
+
+impl Default for Prompt {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Prompt {
     pub fn new() -> Self {
         Self { parts: vec![] }
@@ -38,18 +64,6 @@ impl Prompt {
     pub fn with_image(mut self, image_path: impl Into<String>) -> Self {
         self.parts.push(PromptPart::Image(image_path.into()));
         self
-    }
-
-    pub fn to_string(&self) -> String {
-        let marker = llama_cpp_2::mtmd::mtmd_default_marker();
-        self.parts
-            .iter()
-            .map(|part| match part {
-                PromptPart::Text(text) => text.clone(),
-                PromptPart::Image(_) => marker.to_string(),
-            })
-            .collect::<Vec<String>>()
-            .join("")
     }
 
     pub fn extract_paths(&self) -> Vec<String> {
@@ -116,7 +130,7 @@ pub type ChunkId = String;
 #[derive(Clone, Debug)]
 pub enum TokenizerChunk {
     Text(Vec<LlamaToken>, ChunkId),
-    Image(Arc<MtmdInputChunks>, ChunkId),
+    Image(Rc<MtmdInputChunks>, ChunkId),
 }
 
 impl TokenizerChunk {
@@ -137,7 +151,7 @@ impl TokenizerChunk {
 
         // We use unwrap or default here, as everything should always exist
         // & returning Result here would be the opposite of ergonomical
-        Self::Image(Arc::new(chunks), id.unwrap_or_default())
+        Self::Image(Rc::new(chunks), id.unwrap_or_default())
     }
 
     pub fn id(&self) -> ChunkId {
@@ -149,8 +163,8 @@ impl TokenizerChunk {
     pub fn n_tokens(&self) -> usize {
         match self {
             TokenizerChunk::Text(tokens, _) => tokens.len(),
-            TokenizerChunk::Image(chunks_arc, _) => (0..chunks_arc.len())
-                .map(|i| chunks_arc.get(i).map(|c| c.n_tokens()).unwrap_or(0))
+            TokenizerChunk::Image(chunks_rc, _) => (0..chunks_rc.len())
+                .map(|i| chunks_rc.get(i).map(|c| c.n_tokens()).unwrap_or(0))
                 .sum(),
         }
     }
@@ -159,6 +173,20 @@ impl TokenizerChunk {
 #[derive(Clone, Debug)]
 pub struct TokenizerChunks {
     chunks: Vec<TokenizerChunk>,
+}
+
+impl Default for TokenizerChunks {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl std::iter::IntoIterator for TokenizerChunks {
+    type Item = TokenizerChunk;
+    type IntoIter = std::vec::IntoIter<TokenizerChunk>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.chunks.into_iter()
+    }
 }
 
 impl TokenizerChunks {
@@ -170,16 +198,16 @@ impl TokenizerChunks {
         self.chunks.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.chunks.is_empty()
+    }
+
     pub fn new() -> Self {
         Self { chunks: vec![] }
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &TokenizerChunk> {
         self.chunks.iter()
-    }
-
-    pub fn into_iter(self) -> impl Iterator<Item = TokenizerChunk> {
-        self.chunks.into_iter()
     }
 
     pub fn get(&self, index: usize) -> &TokenizerChunk {
@@ -193,10 +221,7 @@ impl TokenizerChunks {
     pub fn append(&mut self, other: TokenizerChunk) -> &mut Self {
         let next = match (self.chunks.pop(), other) {
             (Some(TokenizerChunk::Text(tokens, _)), TokenizerChunk::Text(other_tokens, _)) => {
-                let tokens = tokens
-                    .into_iter()
-                    .chain(other_tokens.into_iter())
-                    .collect::<Vec<_>>();
+                let tokens = tokens.into_iter().chain(other_tokens).collect::<Vec<_>>();
 
                 TokenizerChunk::new_text(tokens)
             }
@@ -298,7 +323,7 @@ pub fn find_chunks_prefix_difference(
     }
 
     // image and image, or image and text are colliding
-    return (new_start, new.tail(new_start));
+    (new_start, new.tail(new_start))
 }
 
 // Here, the model is represented implicitly by the MTMD context
@@ -355,7 +380,7 @@ impl ProjectionModel {
 
     pub fn load_image(&self, path: &str) -> Result<MtmdBitmap, MultimodalError> {
         let bitmap =
-            MtmdBitmap::from_file(&self.ctx, &path).map_err(|e| MultimodalError::LoadImage {
+            MtmdBitmap::from_file(&self.ctx, path).map_err(|e| MultimodalError::LoadImage {
                 path: path.to_string(),
                 error: e.to_string(),
             })?;
@@ -402,7 +427,7 @@ impl<'a> Tokenizer<'a> {
             });
         }
 
-        let image_chunks = if bitmaps.len() > 0 {
+        let image_chunks = if !bitmaps.is_empty() {
             self.tokenize_images(bitmaps)?
         } else {
             vec![]
@@ -431,7 +456,7 @@ impl<'a> Tokenizer<'a> {
                             AddBos::Never
                         },
                     )
-                    .map(|tokens| TokenizerChunk::new_text(tokens))
+                    .map(TokenizerChunk::new_text)
                     .map_err(|e| TokenizationError::TextTokenizationFailed {
                         position: idx,
                         text_preview: split.chars().take(100).collect(),
@@ -454,7 +479,7 @@ impl<'a> Tokenizer<'a> {
         // Tokenize each image separately to get individual chunks
         bitmaps
             .iter()
-            .map(|bitmap| projection_model.tokenize(*bitmap))
+            .map(|bitmap| projection_model.tokenize(bitmap))
             .collect::<Result<Vec<_>, TokenizationError>>()
     }
 
@@ -512,7 +537,7 @@ mod tests {
         // Create an empty MtmdInputChunks as a placeholder
         let chunks = MtmdInputChunks::new();
         // Manually construct with an ID for testing purposes
-        TokenizerChunk::Image(Arc::new(chunks), id.to_string())
+        TokenizerChunk::Image(Rc::new(chunks), id.to_string())
     }
 
     // ===== A. Text-Only Tests =====
