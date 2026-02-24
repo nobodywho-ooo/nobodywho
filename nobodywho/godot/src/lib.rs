@@ -2,7 +2,7 @@ use godot::classes::{INode, ProjectSettings};
 use godot::prelude::*;
 use nobodywho::chat::{ChatConfig, Message, Role};
 use nobodywho::sampler_config::{SamplerConfig, SamplerPresets};
-use nobodywho::{errors, llm};
+use nobodywho::{errors, llm, tokenizer};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tracing::{debug, error, info, trace, warn};
@@ -37,6 +37,10 @@ struct NobodyWhoModel {
     #[export(file = "*.gguf")]
     model_path: GString,
 
+    #[export(file = "*.gguf")]
+    /// Optional multimodal projection model path for vision/image support.
+    mmproj_path: GString,
+
     #[export]
     use_gpu_if_available: bool,
 
@@ -50,7 +54,8 @@ impl INode for NobodyWhoModel {
         let model_path: GString = GString::from("model.gguf");
 
         Self {
-            model_path: model_path,
+            model_path,
+            mmproj_path: GString::from(""),
             use_gpu_if_available: true,
             model: None,
         }
@@ -70,7 +75,20 @@ impl NobodyWhoModel {
             .globalize_path(&self.model_path.clone())
             .into();
 
-        match llm::get_model(model_path_string.as_str(), self.use_gpu_if_available, None) {
+        let mmproj_str_owned: Option<String> = {
+            let s = self.mmproj_path.to_string();
+            if s.is_empty() {
+                None
+            } else {
+                Some(project_settings.globalize_path(&self.mmproj_path.clone()).into())
+            }
+        };
+
+        match llm::get_model(
+            model_path_string.as_str(),
+            self.use_gpu_if_available,
+            mmproj_str_owned.as_deref(),
+        ) {
             Ok(model) => {
                 self.model = Some(model.clone());
                 Ok(model.clone())
@@ -87,6 +105,53 @@ impl NobodyWhoModel {
     /// Valid arguments are "TRACE", "DEBUG", "INFO", "WARN", and "ERROR".
     fn set_log_level(level: String) {
         set_log_level(&level);
+    }
+}
+
+#[derive(GodotClass)]
+#[class(base=RefCounted)]
+/// A multimodal prompt consisting of interleaved text and image parts.
+///
+/// Example:
+/// ```
+/// var prompt = NobodyWhoPrompt.new()
+/// prompt.add_text("What is in this image?")
+/// prompt.add_image("res://images/photo.jpg")
+/// chat.ask(prompt)
+/// ```
+struct NobodyWhoPrompt {
+    prompt: tokenizer::Prompt,
+    base: Base<RefCounted>,
+}
+
+#[godot_api]
+impl IRefCounted for NobodyWhoPrompt {
+    fn init(base: Base<RefCounted>) -> Self {
+        Self {
+            prompt: tokenizer::Prompt::new(),
+            base,
+        }
+    }
+}
+
+#[godot_api]
+impl NobodyWhoPrompt {
+    #[func]
+    /// Appends a text segment to this prompt.
+    fn add_text(&mut self, text: String) {
+        let p = std::mem::replace(&mut self.prompt, tokenizer::Prompt::new());
+        self.prompt = p.with_text(text);
+    }
+
+    #[func]
+    /// Appends an image to this prompt. Accepts res:// paths or absolute paths.
+    fn add_image(&mut self, path: String) {
+        let project_settings = ProjectSettings::singleton();
+        let globalized: String = project_settings
+            .globalize_path(&GString::from(path.as_str()))
+            .into();
+        let p = std::mem::replace(&mut self.prompt, tokenizer::Prompt::new());
+        self.prompt = p.with_image(globalized);
     }
 }
 
@@ -208,13 +273,13 @@ impl NobodyWhoChat {
     #[func]
     fn say(&mut self, message: String) {
         godot_warn!("DEPRECATED: the `say` function has been renamed to `ask`, to indicate that it generates a response. `say` will be removed in the future.");
-        self.ask(message)
+        self.ask(message.to_variant())
     }
 
     #[func]
-    /// Sends a message to the LLM.
+    /// Sends a message to the LLM. Accepts a String or a NobodyWhoPrompt.
     /// This will start the inference process. meaning you can also listen on the `response_updated` and `response_finished` signals to get the response.
-    fn ask(&mut self, message: String) {
+    fn ask(&mut self, message: Variant) {
         let Some(chat_handle) = self.chat_handle.as_ref() else {
             godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
             match self.start_worker_impl() {
@@ -226,8 +291,17 @@ impl NobodyWhoChat {
             };
         };
 
+        let prompt: tokenizer::Prompt = if let Ok(text) = message.try_to::<GString>() {
+            tokenizer::Prompt::new().with_text(text.to_string())
+        } else if let Ok(prompt_node) = message.try_to::<Gd<NobodyWhoPrompt>>() {
+            prompt_node.bind().prompt.clone()
+        } else {
+            godot_error!("ask() requires a String or NobodyWhoPrompt, got {:?}", message.get_type());
+            return;
+        };
+
         let emit_node = self.to_gd();
-        let mut generation_channel = chat_handle.ask_channel(message.into());
+        let mut generation_channel = chat_handle.ask_channel(prompt);
         godot::task::spawn(async move {
             while let Some(out) = generation_channel.recv().await {
                 match out {
