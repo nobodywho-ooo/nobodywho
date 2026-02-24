@@ -59,13 +59,19 @@ pub enum Role {
     Tool,
 }
 
+#[derive(Deserialize, Serialize, Clone, PartialEq, Eq, Debug, Hash)]
+pub struct Asset {
+    id: String,
+    path: String,
+}
+
 #[derive(Deserialize, Serialize, Clone, Debug)]
 #[serde(untagged)]
 pub enum Message {
     Message {
         role: Role,
         content: String,
-        asset_ids: Vec<String>,
+        assets: Vec<Asset>,
     },
     // it's kind of weird to have the content field in here
     // but according to the qwen3 docs, it should be an empty field on tool call messages
@@ -101,9 +107,9 @@ impl Message {
         }
     }
 
-    pub fn asset_ids(&self) -> Vec<String> {
+    pub fn assets(&self) -> Vec<Asset> {
         match self {
-            Message::Message { asset_ids, .. } => asset_ids.clone(),
+            Message::Message { assets, .. } => assets.clone(),
             Message::ToolCalls { .. } => vec![],
             Message::ToolResp { .. } => vec![],
         }
@@ -113,7 +119,7 @@ impl Message {
         Self::Message {
             role: Role::User,
             content,
-            asset_ids: vec![],
+            assets: vec![],
         }
     }
 
@@ -121,7 +127,7 @@ impl Message {
         Self::Message {
             role: Role::Assistant,
             content,
-            asset_ids: vec![],
+            assets: vec![],
         }
     }
 
@@ -129,7 +135,7 @@ impl Message {
         Self::Message {
             role: Role::System,
             content,
-            asset_ids: vec![],
+            assets: vec![],
         }
     }
 }
@@ -959,8 +965,12 @@ impl ChatContext {
 
     pub fn garbage_collect_bitmaps(&mut self, messages: &[Message]) {
         // Garbage collection for the bitmaps.
-        let referenced_bitmaps: HashSet<String> =
-            messages.iter().flat_map(|msg| msg.asset_ids()).collect();
+        let referenced_bitmaps: HashSet<String> = messages
+            .iter()
+            .flat_map(|msg| msg.assets())
+            .map(|asset| asset.id)
+            .collect();
+
         let unreferenced_bitmap_ids: Vec<_> = self
             .bitmaps
             .keys()
@@ -1050,7 +1060,7 @@ impl Worker<'_, ChatWorker> {
                     Some(msg) => vec![Message::Message {
                         role: Role::System,
                         content: msg,
-                        asset_ids: vec![],
+                        assets: vec![],
                     }],
                     None => vec![],
                 },
@@ -1077,15 +1087,15 @@ impl Worker<'_, ChatWorker> {
         self.add_message(Role::Assistant, content, vec![])
     }
 
-    pub fn add_user_message(&mut self, content: String, asset_ids: Vec<String>) {
-        self.add_message(Role::User, content, asset_ids)
+    pub fn add_user_message(&mut self, content: String, assets: Vec<Asset>) {
+        self.add_message(Role::User, content, assets)
     }
 
-    fn add_message(&mut self, role: Role, content: String, asset_ids: Vec<String>) {
+    fn add_message(&mut self, role: Role, content: String, assets: Vec<Asset>) {
         self.extra.messages.push(Message::Message {
             role,
             content,
-            asset_ids,
+            assets,
         });
     }
 
@@ -1357,9 +1367,9 @@ impl Worker<'_, ChatWorker> {
             .as_ref()
             .map(|fmt| fmt.begin_token().to_string());
 
+        let asset_paths = prompt.extract_asset_paths();
         let bitmaps = if let Some(projection_model) = self.projection_model.as_ref() {
-            prompt
-                .extract_paths()
+            asset_paths
                 .iter()
                 .map(|path| projection_model.load_image(path))
                 .collect::<Result<Vec<MtmdBitmap>, MultimodalError>>()?
@@ -1370,7 +1380,16 @@ impl Worker<'_, ChatWorker> {
         debug!("Detected bitmaps: {:?}", bitmaps);
 
         let bitmap_ids = self.extra.context.add_bitmaps(bitmaps)?;
-        self.add_user_message(prompt.to_string(), bitmap_ids);
+        let assets = bitmap_ids
+            .iter()
+            .zip(asset_paths)
+            .map(|(id, path)| Asset {
+                id: id.clone(),
+                path: path.clone(),
+            })
+            .collect::<Vec<_>>();
+
+        self.add_user_message(prompt.to_string(), assets);
 
         // Modify sampler with tool grammar if we have tools
         let sampler = self.extra.tool_grammar.as_ref().map_or(
@@ -1560,7 +1579,7 @@ impl Worker<'_, ChatWorker> {
                 let system_message = Message::Message {
                     role: Role::System,
                     content: sys_msg,
-                    asset_ids: vec![],
+                    assets: vec![],
                 };
                 if self.extra.messages.is_empty() {
                     self.extra.messages.push(system_message);

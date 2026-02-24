@@ -41,7 +41,7 @@ pub enum _Message {
     Message {
         role: Role,
         content: String,
-        asset_ids: Vec<String>,
+        assets: Vec<Asset>,
     },
     ToolCalls {
         role: Role,

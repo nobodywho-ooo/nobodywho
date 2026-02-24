@@ -221,18 +221,18 @@ impl ChatTemplate {
             [Message::Message {
                 role: Role::System,
                 content: first_content,
-                asset_ids: first_asset_ids,
+                assets: first_assets,
             }, Message::Message {
                 role: Role::User,
                 content: second_content,
-                asset_ids: second_asset_ids,
+                assets: second_assets,
             }, rest @ ..] => {
                 let new_first_message = Message::Message {
                     role: Role::User,
                     content: format!("{}\n\n{}", first_content, second_content),
-                    asset_ids: first_asset_ids
+                    assets: first_assets
                         .iter()
-                        .chain(second_asset_ids.iter())
+                        .chain(second_assets.iter())
                         .cloned()
                         .collect(),
                 };

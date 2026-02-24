@@ -66,7 +66,7 @@ impl Prompt {
         self
     }
 
-    pub fn extract_paths(&self) -> Vec<String> {
+    pub fn extract_asset_paths(&self) -> Vec<String> {
         self.parts
             .iter()
             .filter_map(|part| match part {

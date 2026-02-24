@@ -154,10 +154,10 @@ return toolResp(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( Role role,  String content,  List<String> assetIds)?  message,TResult Function( Role role,  String content,  List<ToolCall> toolCalls)?  toolCalls,TResult Function( Role role,  String name,  String content)?  toolResp,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( Role role,  String content,  List<Asset> assets)?  message,TResult Function( Role role,  String content,  List<ToolCall> toolCalls)?  toolCalls,TResult Function( Role role,  String name,  String content)?  toolResp,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case Message_Message() when message != null:
-return message(_that.role,_that.content,_that.assetIds);case Message_ToolCalls() when toolCalls != null:
+return message(_that.role,_that.content,_that.assets);case Message_ToolCalls() when toolCalls != null:
 return toolCalls(_that.role,_that.content,_that.toolCalls);case Message_ToolResp() when toolResp != null:
 return toolResp(_that.role,_that.name,_that.content);case _:
   return orElse();
@@ -177,10 +177,10 @@ return toolResp(_that.role,_that.name,_that.content);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( Role role,  String content,  List<String> assetIds)  message,required TResult Function( Role role,  String content,  List<ToolCall> toolCalls)  toolCalls,required TResult Function( Role role,  String name,  String content)  toolResp,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( Role role,  String content,  List<Asset> assets)  message,required TResult Function( Role role,  String content,  List<ToolCall> toolCalls)  toolCalls,required TResult Function( Role role,  String name,  String content)  toolResp,}) {final _that = this;
 switch (_that) {
 case Message_Message():
-return message(_that.role,_that.content,_that.assetIds);case Message_ToolCalls():
+return message(_that.role,_that.content,_that.assets);case Message_ToolCalls():
 return toolCalls(_that.role,_that.content,_that.toolCalls);case Message_ToolResp():
 return toolResp(_that.role,_that.name,_that.content);}
 }
@@ -196,10 +196,10 @@ return toolResp(_that.role,_that.name,_that.content);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( Role role,  String content,  List<String> assetIds)?  message,TResult? Function( Role role,  String content,  List<ToolCall> toolCalls)?  toolCalls,TResult? Function( Role role,  String name,  String content)?  toolResp,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( Role role,  String content,  List<Asset> assets)?  message,TResult? Function( Role role,  String content,  List<ToolCall> toolCalls)?  toolCalls,TResult? Function( Role role,  String name,  String content)?  toolResp,}) {final _that = this;
 switch (_that) {
 case Message_Message() when message != null:
-return message(_that.role,_that.content,_that.assetIds);case Message_ToolCalls() when toolCalls != null:
+return message(_that.role,_that.content,_that.assets);case Message_ToolCalls() when toolCalls != null:
 return toolCalls(_that.role,_that.content,_that.toolCalls);case Message_ToolResp() when toolResp != null:
 return toolResp(_that.role,_that.name,_that.content);case _:
   return null;
@@ -213,16 +213,16 @@ return toolResp(_that.role,_that.name,_that.content);case _:
 
 
 class Message_Message extends Message {
-  const Message_Message({required this.role, required this.content, required final  List<String> assetIds}): _assetIds = assetIds,super._();
+  const Message_Message({required this.role, required this.content, required final  List<Asset> assets}): _assets = assets,super._();
   
 
 @override final  Role role;
 @override final  String content;
- final  List<String> _assetIds;
- List<String> get assetIds {
-  if (_assetIds is EqualUnmodifiableListView) return _assetIds;
+ final  List<Asset> _assets;
+ List<Asset> get assets {
+  if (_assets is EqualUnmodifiableListView) return _assets;
   // ignore: implicit_dynamic_type
-  return EqualUnmodifiableListView(_assetIds);
+  return EqualUnmodifiableListView(_assets);
 }
 
 
@@ -236,16 +236,16 @@ $Message_MessageCopyWith<Message_Message> get copyWith => _$Message_MessageCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Message_Message&&(identical(other.role, role) || other.role == role)&&(identical(other.content, content) || other.content == content)&&const DeepCollectionEquality().equals(other._assetIds, _assetIds));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Message_Message&&(identical(other.role, role) || other.role == role)&&(identical(other.content, content) || other.content == content)&&const DeepCollectionEquality().equals(other._assets, _assets));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,role,content,const DeepCollectionEquality().hash(_assetIds));
+int get hashCode => Object.hash(runtimeType,role,content,const DeepCollectionEquality().hash(_assets));
 
 @override
 String toString() {
-  return 'Message.message(role: $role, content: $content, assetIds: $assetIds)';
+  return 'Message.message(role: $role, content: $content, assets: $assets)';
 }
 
 
@@ -256,7 +256,7 @@ abstract mixin class $Message_MessageCopyWith<$Res> implements $MessageCopyWith<
   factory $Message_MessageCopyWith(Message_Message value, $Res Function(Message_Message) _then) = _$Message_MessageCopyWithImpl;
 @override @useResult
 $Res call({
- Role role, String content, List<String> assetIds
+ Role role, String content, List<Asset> assets
 });
 
 
@@ -273,12 +273,12 @@ class _$Message_MessageCopyWithImpl<$Res>
 
 /// Create a copy of Message
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? role = null,Object? content = null,Object? assetIds = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? role = null,Object? content = null,Object? assets = null,}) {
   return _then(Message_Message(
 role: null == role ? _self.role : role // ignore: cast_nullable_to_non_nullable
 as Role,content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
-as String,assetIds: null == assetIds ? _self._assetIds : assetIds // ignore: cast_nullable_to_non_nullable
-as List<String>,
+as String,assets: null == assets ? _self._assets : assets // ignore: cast_nullable_to_non_nullable
+as List<Asset>,
   ));
 }
 

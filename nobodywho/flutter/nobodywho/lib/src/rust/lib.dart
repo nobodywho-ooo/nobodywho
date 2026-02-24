@@ -32,6 +32,9 @@ RustTool newToolImpl({
   parameterDescriptions: parameterDescriptions,
 );
 
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Asset>>
+abstract class Asset implements RustOpaqueInterface {}
+
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CompletionError>>
 abstract class CompletionError implements RustOpaqueInterface {}
 
@@ -423,7 +426,7 @@ sealed class Message with _$Message {
   const factory Message.message({
     required Role role,
     required String content,
-    required List<String> assetIds,
+    required List<Asset> assets,
   }) = Message_Message;
   const factory Message.toolCalls({
     required Role role,
