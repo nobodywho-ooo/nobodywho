@@ -1,5 +1,9 @@
 # Changelog
 
+## nobodywho-flutter-v0.3.2-rc1
+
+- Change MacOS and iOS podspec files to copy .xcframework with -R, to preserve symlinks
+
 ## nobodywho-flutter-v0.3.1
 
 - Change MacOS and iOS releases to use dynamic linking
