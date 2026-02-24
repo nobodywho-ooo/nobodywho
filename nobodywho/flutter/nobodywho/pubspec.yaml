@@ -1,6 +1,6 @@
 name: nobodywho
 description: "NobodyWho - the easiest way to run local LLMs"
-version: 0.3.0
+version: 0.3.1
 repository: https://github.com/nobodywho-ooo/nobodywho
 issue_tracker: https://github.com/nobodywho-ooo/nobodywho/issues
 documentation: https://docs.nobodywho.ooo/
@@ -23,7 +23,7 @@ dependencies:
   plugin_platform_interface: ^2.0.2
   flutter_rust_bridge: ^2.11.1
   ffi: ^2.1.4
-  freezed_annotation: ^2.4.4
+  freezed_annotation: ^3.1.0
 
 dev_dependencies:
   ffigen: ^19.1.0
@@ -33,7 +33,7 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^5.0.0
   test: ^1.25.6
-  freezed: ^2.5.7
+  freezed: ^3.2.3
   build_runner: ^2.4.13
 
 # For information on the generic Dart part of this file, see the

@@ -4,7 +4,7 @@ version = "0.3.0"
 edition = "2021"
 
 [lib]
-crate-type = ["cdylib", "staticlib"]
+crate-type = ["cdylib"]
 
 [dependencies]
 nobodywho = { path = "../../core" }

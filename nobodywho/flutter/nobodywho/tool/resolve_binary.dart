@@ -196,7 +196,7 @@ String? checkLocalBuild(Config config) {
   if (config.isApplePlatform) {
     // For iOS/macOS, we can't easily construct xcframework from local builds
     // User should use environment variable for local development
-    // Check if any .a files exist to give a helpful error
+    // Check if any .dylib files exist to give a helpful error
     final triples = [
       'aarch64-apple-darwin',
       'x86_64-apple-darwin',
@@ -206,12 +206,12 @@ String? checkLocalBuild(Config config) {
     ];
 
     for (final triple in triples) {
-      final archiveFile = File('${targetDir.path}/$triple/${config.buildType}/libnobodywho_flutter.a');
-      if (archiveFile.existsSync()) {
+      final dylibFile = File('${targetDir.path}/$triple/${config.buildType}/libnobodywho_flutter.dylib');
+      if (dylibFile.existsSync()) {
         throw Exception(
-          'Found local .a files but xcframework is not built.\n'
-          'For local development, set NOBODYWHO_FLUTTER_XCFRAMEWORK_PATH to point to your xcframework.\n'
-          'You can build it manually from the .a files using xcodebuild -create-xcframework.'
+          'Found local .dylib files but xcframework is not built.\n'
+          'Run scripts/build_macos.sh or scripts/build_ios.sh to create the xcframework.\n'
+          'Or set NOBODYWHO_FLUTTER_XCFRAMEWORK_PATH to point to your xcframework.'
         );
       }
     }
@@ -242,7 +242,7 @@ String? checkCachedDownload(Config config) {
 
   if (config.isApplePlatform) {
     // Check for cached xcframework
-    final xcframeworkPath = '$cacheBasePath/xcframework/NobodyWhoFlutter.xcframework';
+    final xcframeworkPath = '$cacheBasePath/xcframework/nobodywho_flutter.xcframework';
     final xcframeworkDir = Directory(xcframeworkPath);
     if (xcframeworkDir.existsSync()) {
       stderr.writeln('Using cached xcframework: $xcframeworkPath');
@@ -342,7 +342,7 @@ Future<String> downloadLibrary(Config config, String version) async {
 
 Future<String> downloadXCFramework(Config config, String version) async {
   // Download URL for xcframework
-  final fileName = 'NobodyWhoFlutter.xcframework.zip';
+  final fileName = 'nobodywho_flutter.xcframework.zip';
   final url = 'https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-flutter-v$version/$fileName';
 
   // Prepare cache directory
@@ -352,7 +352,7 @@ Future<String> downloadXCFramework(Config config, String version) async {
 
   final zipPath = '$cacheDir/$fileName';
   final zipFile = File(zipPath);
-  final xcframeworkPath = '$cacheDir/NobodyWhoFlutter.xcframework';
+  final xcframeworkPath = '$cacheDir/nobodywho_flutter.xcframework';
 
   stderr.writeln('Downloading: $url');
 

@@ -4,6 +4,7 @@ use nobodywho::chat::{ChatConfig, Message, Role};
 use nobodywho::sampler_config::{SamplerConfig, SamplerPresets};
 use nobodywho::{errors, llm};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use tracing::{debug, error, info, trace, warn};
 use tracing_subscriber::filter::{LevelFilter, Targets};
 use tracing_subscriber::prelude::*;
@@ -152,7 +153,7 @@ impl INode for NobodyWhoChat {
         Self {
             // defaults
             tools: default_config.tools,
-            system_prompt: GString::from(default_config.system_prompt.as_str()),
+            system_prompt: GString::from(""),
             context_length: default_config.n_ctx,
             allow_thinking: default_config.allow_thinking,
 
@@ -189,11 +190,11 @@ impl NobodyWhoChat {
     }
 
     fn start_worker_impl(&mut self) -> Result<(), String> {
-        let model = self.get_model()?;
+        let model = Arc::new(self.get_model()?);
         let chat_handle = nobodywho::chat::ChatHandleAsync::new(
             model,
             nobodywho::chat::ChatConfig {
-                system_prompt: self.system_prompt.to_string(),
+                system_prompt: Some(self.system_prompt.to_string()),
                 tools: self.tools.clone(),
                 n_ctx: self.context_length,
                 allow_thinking: self.allow_thinking,
@@ -226,7 +227,7 @@ impl NobodyWhoChat {
         };
 
         let emit_node = self.to_gd();
-        let mut generation_channel = chat_handle.ask_channel(message);
+        let mut generation_channel = chat_handle.ask_channel(message.into());
         godot::task::spawn(async move {
             while let Some(out) = generation_channel.recv().await {
                 match out {
@@ -269,7 +270,7 @@ impl NobodyWhoChat {
         let tools = self.tools.clone();
 
         godot::task::spawn(async move {
-            match chat_handle.reset_chat(system_prompt, tools).await {
+            match chat_handle.reset_chat(Some(system_prompt), tools).await {
                 Ok(()) => (),
                 Err(errmsg) => {
                     godot_error!("Error: {}", errmsg.to_string());
