@@ -67,12 +67,8 @@ impl Model {
         #[frb(default = true)] use_gpu: bool,
         #[frb(default = "null")] image_ingestion: Option<String>,
     ) -> Result<Self, String> {
-        let model = nobodywho::llm::get_model(
-            model_path,
-            use_gpu,
-            image_ingestion.as_deref(),
-        )
-        .map_err(|e| e.to_string())?;
+        let model = nobodywho::llm::get_model(model_path, use_gpu, image_ingestion.as_deref())
+            .map_err(|e| e.to_string())?;
         Ok(Self { model })
     }
 }
@@ -286,7 +282,8 @@ impl Encoder {
         #[frb(default = 4096)] n_ctx: u32,
         #[frb(default = true)] use_gpu: bool,
     ) -> Result<Self, String> {
-        let model = nobodywho::llm::get_model(model_path, use_gpu, None).map_err(|e| e.to_string())?;
+        let model =
+            nobodywho::llm::get_model(model_path, use_gpu, None).map_err(|e| e.to_string())?;
         let handle = nobodywho::encoder::EncoderAsync::new(model.clone(), n_ctx);
 
         Ok(Self { handle })
@@ -318,7 +315,8 @@ impl CrossEncoder {
         #[frb(default = 4096)] n_ctx: u32,
         #[frb(default = true)] use_gpu: bool,
     ) -> Result<Self, String> {
-        let model = nobodywho::llm::get_model(model_path, use_gpu, None).map_err(|e| e.to_string())?;
+        let model =
+            nobodywho::llm::get_model(model_path, use_gpu, None).map_err(|e| e.to_string())?;
         let handle = nobodywho::crossencoder::CrossEncoderAsync::new(model.clone(), n_ctx);
         Ok(Self { handle })
     }

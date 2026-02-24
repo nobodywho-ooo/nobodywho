@@ -80,7 +80,11 @@ impl NobodyWhoModel {
             if s.is_empty() {
                 None
             } else {
-                Some(project_settings.globalize_path(&self.mmproj_path.clone()).into())
+                Some(
+                    project_settings
+                        .globalize_path(&self.mmproj_path.clone())
+                        .into(),
+                )
             }
         };
 
@@ -296,7 +300,10 @@ impl NobodyWhoChat {
         } else if let Ok(prompt_node) = message.try_to::<Gd<NobodyWhoPrompt>>() {
             prompt_node.bind().prompt.clone()
         } else {
-            godot_error!("ask() requires a String or NobodyWhoPrompt, got {:?}", message.get_type());
+            godot_error!(
+                "ask() requires a String or NobodyWhoPrompt, got {:?}",
+                message.get_type()
+            );
             return;
         };
 

@@ -94,8 +94,8 @@ pub fn get_model(
     let load_span = info_span!("model_load", path = model_path);
     let _guard = load_span.enter();
 
-    let language_model =
-        LlamaModel::load_from_file(&LLAMA_BACKEND, model_path, &model_params).map_err(|e| {
+    let language_model = LlamaModel::load_from_file(&LLAMA_BACKEND, model_path, &model_params)
+        .map_err(|e| {
             let error_msg = format!("Bad model path: {} - Llama.cpp error: {}", model_path, e);
             error!(error = %error_msg, "Failed to load model");
             LoadModelError::InvalidModel(error_msg)
@@ -143,7 +143,11 @@ pub async fn get_model_async(
 ) -> Result<Model, LoadModelError> {
     let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(4096);
     std::thread::spawn(move || {
-        output_tx.blocking_send(get_model(&model_path, use_gpu_if_available, mmproj_path.as_deref()))
+        output_tx.blocking_send(get_model(
+            &model_path,
+            use_gpu_if_available,
+            mmproj_path.as_deref(),
+        ))
     });
 
     match output_rx.recv().await {
@@ -242,7 +246,9 @@ where
                 .with_pooling_type(extra.pooling_type());
 
             // Create inference context and sampler
-            model.language_model.new_context(&LLAMA_BACKEND, ctx_params)?
+            model
+                .language_model
+                .new_context(&LLAMA_BACKEND, ctx_params)?
         };
 
         let big_batch = LlamaBatch::new(ctx.n_ctx() as usize, 1);
