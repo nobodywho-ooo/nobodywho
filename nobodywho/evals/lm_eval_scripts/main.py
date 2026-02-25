@@ -2,6 +2,7 @@ import argparse
 import logging
 import os
 import platform
+import random
 import subprocess
 from pathlib import Path
 
@@ -445,6 +446,17 @@ if __name__ == "__main__":
         action="store_true",
         help="Print sample prompts and responses after evaluation",
     )
+    parser.add_argument(
+        "--shuffle",
+        action="store_true",
+        help="Randomly sample instead of taking first N (recommended for DROP)",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed for shuffled sampling (default: 42)",
+    )
     args = parser.parse_args()
 
     # allow code eval: this lets the model run code. yolo.
@@ -465,6 +477,8 @@ if __name__ == "__main__":
 
     print(f"Tasks: {', '.join(run_tasks)}")
     print(f"Limit: {limit if limit else 'none'}")
+    if args.shuffle and limit:
+        print(f"Shuffle: enabled (seed={args.seed})")
 
     tracker = make_hf_tracker(hf_token) if (hf_token := os.getenv("HF_TOKEN")) else None
     wandb_logger = (
@@ -489,13 +503,32 @@ if __name__ == "__main__":
         n_ctx=32768,
     )
 
+    # Build samples dict for random sampling, or use limit for first-N
+    samples_dict = None
+    eval_limit = limit
+
+    if args.shuffle and limit:
+        # Get task objects to find dataset sizes
+        random.seed(args.seed)
+        task_dict = lm_eval.tasks.get_task_dict(run_tasks)
+        samples_dict = {}
+
+        for task_name, task_obj in task_dict.items():
+            dataset_size = len(task_obj.eval_docs)
+            n_samples = min(limit, dataset_size)
+            samples_dict[task_name] = random.sample(range(dataset_size), n_samples)
+            print(f"  {task_name}: {n_samples}/{dataset_size} samples (random)")
+
+        eval_limit = None  # Use samples instead of limit
+
     results = lm_eval.simple_evaluate(
         model=model_instance,
         confirm_run_unsafe_code=True,  # run ml-generated code
         tasks=run_tasks,
         log_samples=True,
         evaluation_tracker=tracker,
-        limit=limit,
+        limit=eval_limit,
+        samples=samples_dict,
     )
     assert results is not None
 
