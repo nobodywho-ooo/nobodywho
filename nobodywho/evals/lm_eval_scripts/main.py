@@ -1,8 +1,8 @@
+import argparse
 import logging
 import os
 import platform
 import subprocess
-import time
 from pathlib import Path
 
 import lm_eval
@@ -48,9 +48,9 @@ class NobodyWhoLM(LM):
     chat: nobodywho.Chat
     allow_thinking: bool
     model_path: Path
-    timing_data: list[dict]
     failed_samples: list[dict]
     max_retries: int
+    total_samples: int
 
     def __init__(
         self, model_path: str, allow_thinking: str, n_ctx: int, *args, **kwargs
@@ -70,9 +70,9 @@ class NobodyWhoLM(LM):
         assert isinstance(n_ctx, int)
         self.n_ctx = n_ctx
 
-        self.timing_data = []
         self.failed_samples = []
         self.max_retries = 2
+        self.total_samples = 0
         self._init_chat()
 
     def _init_chat(self):
@@ -87,8 +87,14 @@ class NobodyWhoLM(LM):
             text = request[0]
             assert isinstance(text, str)
 
-            # these provide additional generation args like stopwords or max_tokens
-            # request_args = request[1]
+            # extract generation args (stop sequences, max tokens)
+            request_args = request[1] if len(request) > 1 else {}
+            max_gen_toks = request_args.get("max_gen_toks")  # None if not specified
+            until = request_args.get("until", [])
+
+            # calculate how many chunks to check for stop sequences
+            # (each token is at least 1 char, so we need at least max_stop_len chunks)
+            max_stop_len = max((len(s) for s in until), default=0)
 
             # do the generation with retry logic
             response_text: str | None = None
@@ -96,22 +102,55 @@ class NobodyWhoLM(LM):
 
             for attempt in range(self.max_retries):
                 try:
-                    # kick off generation
                     response_stream = self.chat.ask(text)
 
-                    # measure time as we go through
-                    total_tokens = 0
-                    start_time = time.time()
-                    for _ in response_stream:
-                        total_tokens += 1
-                    stop_time = time.time()
-                    elapsed_time = stop_time - start_time
+                    # collect chunks, checking stop conditions
+                    chunks: list[str] = []
 
-                    self.timing_data.append(
-                        {"num_tokens": total_tokens, "elapsed_time": elapsed_time}
-                    )
+                    # Track thinking state - only enforce limits after think block ends
+                    # If thinking is disabled, enforce limits from the start
+                    think_ended = not self.allow_thinking
+                    response_tokens = 0
 
-                    response_text = response_stream.completed()
+                    for chunk in response_stream:
+                        chunks.append(chunk)
+
+                        # Detect when thinking block ends (check last 5 chunks only)
+                        if self.allow_thinking and not think_ended:
+                            recent = "".join(chunks[-5:])
+                            if "</think>" in recent:
+                                think_ended = True
+                                response_tokens = 0
+
+                        # Only enforce limits after think block
+                        if think_ended:
+                            response_tokens += 1
+
+                            # check max token limit (only if specified by task)
+                            if max_gen_toks is not None and response_tokens >= max_gen_toks:
+                                self.chat.stop_generation()
+                                break
+
+                            # check stop sequences in recent chunks
+                            if until:
+                                recent_text = "".join(chunks[-max_stop_len:])
+                                if any(stop_seq in recent_text for stop_seq in until):
+                                    self.chat.stop_generation()
+                                    break
+
+                    # Get completed text and extract response part (strip think block)
+                    full_response = response_stream.completed()
+                    if self.allow_thinking and "</think>" in full_response:
+                        response_text = full_response.split("</think>", 1)[1]
+                    else:
+                        response_text = full_response
+
+                    # truncate at stop sequence if present
+                    for stop_seq in until:
+                        if stop_seq in response_text:
+                            response_text = response_text.split(stop_seq)[0]
+                            break
+
                     break  # success, exit retry loop
 
                 except RuntimeError as e:
@@ -131,35 +170,39 @@ class NobodyWhoLM(LM):
                     "error": str(last_error),
                 })
                 result.append("")
+                self.total_samples += 1
                 continue
 
-            # remove think block from response
-            # XXX: this is model/token-specific can we do this in an agnostic way?
-            #      it will require changes to nobodywho "upstream"
-            if "</think>" in response_text:
-                response_text = response_text.split("</think>")[1]
+            # strip markdown code block markers if present
+            # (fixes MBPP code extraction which expects raw code)
+            response_text = response_text.strip()
+            if response_text.startswith("```"):
+                # remove the opening ``` and optional language identifier
+                lines = response_text.split("\n", 1)
+                if len(lines) > 1:
+                    response_text = lines[1]  # skip the ```python line
+                else:
+                    response_text = response_text[3:]  # just remove ```
+            # also strip trailing ```
+            if response_text.rstrip().endswith("```"):
+                response_text = response_text.rstrip()[:-3].rstrip()
 
             result.append(response_text)
+            self.total_samples += 1
         return result
 
     def get_model_info(self):
         """We're using this method to add additional metrics
         This is contingent on get_model_info being called *after* running the evals
         """
-        total_tokens = sum(d["num_tokens"] for d in self.timing_data)
-        total_time = sum(d["elapsed_time"] for d in self.timing_data)
-        avg_tokens_per_second = total_tokens / total_time if total_time > 0 else 0
-
         # Get model file size in GB
         model_size_gb = round(self.model_path.stat().st_size / (1024**3), 2)
 
         # Calculate failure stats
-        total_samples = len(self.timing_data) + len(self.failed_samples)
         failed_count = len(self.failed_samples)
-        failure_rate = failed_count / total_samples if total_samples > 0 else 0
+        failure_rate = failed_count / self.total_samples if self.total_samples > 0 else 0
 
         return {
-            "avg_tokens_per_second": avg_tokens_per_second,
             "model_size_gb": model_size_gb,
             "failed_sample_count": failed_count,
             "failure_rate": round(failure_rate, 4),
@@ -173,7 +216,7 @@ class NobodyWhoLM(LM):
         raise NotImplementedError
 
 
-tasks = [
+DEFAULT_TASKS = [
     "ifeval",  # instruction following: mostly text formatting tasks
     "gsm8k",  # high-school level math reasoning problems
     "truthfulqa_gen",  # facts!
@@ -225,7 +268,7 @@ def make_hf_tracker(hf_token) -> EvaluationTracker:
     )
 
 
-def make_wandb_logger(run_name: str, model_path: Path) -> WandbLogger:
+def make_wandb_logger(run_name: str, model_path: Path, tasks: list[str]) -> WandbLogger:
     print("Making WandbLogger...")
     return WandbLogger(
         init_args={
@@ -238,11 +281,15 @@ def make_wandb_logger(run_name: str, model_path: Path) -> WandbLogger:
 
 
 def make_mlflow_run(
-    run_name: str, model_path: Path, tracking_uri: str, expriment_name: str
+    run_name: str,
+    model_path: Path,
+    tracking_uri: str,
+    experiment_name: str,
+    tasks: list[str],
 ):
     print("Making MLFlow run...")
     mlflow.set_tracking_uri(tracking_uri)
-    mlflow.set_experiment(expriment_name)
+    mlflow.set_experiment(experiment_name)
     run = mlflow.start_run(run_name=run_name)
 
     # Log critical identifying info early (survives crashes)
@@ -297,6 +344,72 @@ def log_to_mlflow(results: dict):
     mlflow.end_run()
 
 
+def print_samples(results: dict, max_samples: int = 5):
+    """Print sample prompts and responses for debugging."""
+    if "samples" not in results:
+        print("No samples found in results (was log_samples=True?)")
+        return
+
+    for task_name, samples in results["samples"].items():
+        print(f"\n{'='*60}")
+        print(f"TASK: {task_name}")
+        print(f"{'='*60}")
+
+        for i, sample in enumerate(samples[:max_samples]):
+            print(f"\n--- Sample {i+1} ---")
+
+            # Print the prompt (doc)
+            if "doc" in sample:
+                doc = sample["doc"]
+                if isinstance(doc, dict):
+                    # Print relevant fields from the doc
+                    for key in ["question", "prompt", "passage", "text"]:
+                        if key in doc:
+                            content = doc[key]
+                            if len(content) > 500:
+                                print(f"INPUT ({key}):\n{content[:500]}...")
+                            else:
+                                print(f"INPUT ({key}):\n{content}")
+                            break
+                else:
+                    print(f"INPUT:\n{str(doc)[:500]}...")
+
+            # Print the model's response
+            if "resps" in sample:
+                resps = sample["resps"]
+                if resps and len(resps) > 0:
+                    resp = resps[0]  # first response
+                    if isinstance(resp, (list, tuple)) and len(resp) > 0:
+                        resp = resp[0]
+                    print(f"\nMODEL OUTPUT:\n{str(resp)[:1000]}")
+
+            # Print the expected answer - try multiple sources
+            if "doc" in sample and isinstance(sample["doc"], dict):
+                doc = sample["doc"]
+                # Task-specific answer extraction
+                if "answers" in doc:
+                    # DROP format: list of answer tuples
+                    print(f"\nEXPECTED ANSWERS: {doc['answers']}")
+                elif "answer" in doc:
+                    # GSM8K and others
+                    print(f"\nEXPECTED ANSWER: {doc['answer']}")
+                elif "correct_answers" in doc:
+                    # TruthfulQA format
+                    print(f"\nCORRECT ANSWERS: {doc['correct_answers'][:3]}...")
+
+            # Also show raw target if different
+            if "target" in sample:
+                target = str(sample["target"])
+                if len(target) < 200:  # Only show if concise
+                    print(f"TARGET: {target}")
+
+            # Print filtered result if available
+            if "filtered_resps" in sample:
+                print(f"\nFILTERED: {sample['filtered_resps']}")
+
+            print()
+
+
 def print_results(results: dict):
     for task_name, metrics in results["results"].items():
         print(f"\n{task_name}:")
@@ -306,25 +419,62 @@ def print_results(results: dict):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Run lm-eval benchmarks with nobodywho inference backend"
+    )
+    parser.add_argument(
+        "--model", "-m",
+        type=str,
+        default=os.getenv("TEST_MODEL"),
+        help="Path to GGUF model file (or set TEST_MODEL env var)",
+    )
+    parser.add_argument(
+        "--tasks", "-t",
+        type=str,
+        default=None,
+        help=f"Comma-separated list of tasks (default: {','.join(DEFAULT_TASKS)})",
+    )
+    parser.add_argument(
+        "--limit", "-l",
+        type=int,
+        default=None,
+        help="Number of samples per task (default: no limit)",
+    )
+    parser.add_argument(
+        "--print-samples",
+        action="store_true",
+        help="Print sample prompts and responses after evaluation",
+    )
+    args = parser.parse_args()
+
     # allow code eval: this lets the model run code. yolo.
     os.environ["HF_ALLOW_CODE_EVAL"] = "1"
 
     # Configure logging
     logging.basicConfig(level=logging.WARNING)
 
-    model_path = os.getenv("TEST_MODEL")
-    assert isinstance(model_path, str)
-    model_path = Path(model_path)
-    assert model_path.exists()
+    # Model path (required)
+    assert args.model is not None, "Model path required: use --model or set TEST_MODEL"
+    model_path = Path(args.model)
+    assert model_path.exists(), f"Model not found: {model_path}"
     run_name = f"eval-{model_path.name}"
+
+    # Tasks and limit
+    run_tasks = args.tasks.split(",") if args.tasks else DEFAULT_TASKS
+    limit = args.limit  # None means no limit
+
+    print(f"Tasks: {', '.join(run_tasks)}")
+    print(f"Limit: {limit if limit else 'none'}")
 
     tracker = make_hf_tracker(hf_token) if (hf_token := os.getenv("HF_TOKEN")) else None
     wandb_logger = (
-        make_wandb_logger(run_name, model_path) if os.getenv("WANDB_API_KEY") else None
+        make_wandb_logger(run_name, model_path, run_tasks)
+        if os.getenv("WANDB_API_KEY")
+        else None
     )
     mlflow_run = (
         make_mlflow_run(
-            run_name, model_path, mlflow_uri, os.environ["MLFLOW_EXPERIMENT_NAME"]
+            run_name, model_path, mlflow_uri, os.environ["MLFLOW_EXPERIMENT_NAME"], run_tasks
         )
         if (mlflow_uri := os.getenv("MLFLOW_TRACKING_URI"))
         else None
@@ -342,10 +492,10 @@ if __name__ == "__main__":
     results = lm_eval.simple_evaluate(
         model=model_instance,
         confirm_run_unsafe_code=True,  # run ml-generated code
-        tasks=tasks,
+        tasks=run_tasks,
         log_samples=True,
         evaluation_tracker=tracker,
-        limit=20,
+        limit=limit,
     )
     assert results is not None
 
@@ -354,6 +504,10 @@ if __name__ == "__main__":
     if mlflow_run:
         log_to_mlflow(results)
     print_results(results)
+
+    # Print sample outputs if requested
+    if args.print_samples:
+        print_samples(results, max_samples=limit or 5)
 
     # Print failure summary
     if model_instance.failed_samples:
