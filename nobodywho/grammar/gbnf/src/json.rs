@@ -3,7 +3,7 @@
 //! This module provides functionality to convert JSON Schema definitions
 //! into GBNF (GGML BNF) grammars that can be used for constrained generation.
 
-use crate::{Expr, GbnfDeclaration, GbnfGrammar, Quantifier, gbnf};
+use crate::{CharacterRange, Expr, GbnfDeclaration, GbnfGrammar, Quantifier};
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -57,7 +57,7 @@ impl JsonSchemaConverter {
     }
 
     /// Convert a JSON Schema value to a GBNF Grammar
-    pub fn convert(&mut self, schema: &Value) -> Result<GbnfGrammar, JsonSchemaError> {
+    pub fn convert(&mut self, schema: &Value, root: &str) -> Result<GbnfGrammar, JsonSchemaError> {
         // Reset state
         self.declarations.clear();
         self.rule_counter = 0;
@@ -72,9 +72,12 @@ impl JsonSchemaConverter {
         // Convert the root schema
         let root_expr = self.convert_schema(schema)?;
         self.declarations
-            .insert(0, GbnfDeclaration::new("root".to_string(), root_expr));
+            .insert(0, GbnfDeclaration::new(root.to_string(), root_expr));
 
-        Ok(GbnfGrammar::new(std::mem::take(&mut self.declarations)))
+        Ok(GbnfGrammar::new(
+            std::mem::take(&mut self.declarations),
+            root.to_string(),
+        ))
     }
 
     /// Extract $defs or definitions from the schema
@@ -97,31 +100,68 @@ impl JsonSchemaConverter {
         }
     }
 
-    /// Add common JSON primitive rules using the gbnf! macro for cleaner definitions
+    /// Add common JSON primitive rules
     fn add_json_primitives(&mut self) {
-        use crate::CharacterRange;
+        // ws ::= [' ' '\t' '\n' '\r']*
+        self.declarations.push(GbnfDeclaration::new(
+            "ws".to_string(),
+            star(cset(&[' ', '\t', '\n', '\r'])),
+        ));
 
-        let primitives = gbnf! {
-            // Whitespace (optional)
-            ws ::= [' ' '\t' '\n' '\r']*
+        // json-number ::= "-"? json-int json-frac? json-exp?
+        self.declarations.push(GbnfDeclaration::new(
+            "json-number".to_string(),
+            seq(&[
+                opt(t("-")),
+                nt("json-int"),
+                opt(nt("json-frac")),
+                opt(nt("json-exp")),
+            ]),
+        ));
 
-            // JSON number: -?int(.frac)?(e[+-]?int)?
-            json-number ::= "-"? json-int json-frac? json-exp?
-            json-int ::= "0" | [1-9] [0-9]*
-            json-frac ::= "." [0-9]+
-            json-exp ::= [e E] ['+' '-']? [0-9]+
+        // json-int ::= "0" | [1-9] [0-9]*
+        self.declarations.push(GbnfDeclaration::new(
+            "json-int".to_string(),
+            alt(&[t("0"), seq(&[crange('1', '9'), star(crange('0', '9'))])]),
+        ));
 
-            // JSON integer (no fractional part)
-            json-integer ::= "-"? ("0" | [1-9] [0-9]*)
+        // json-frac ::= "." [0-9]+
+        self.declarations.push(GbnfDeclaration::new(
+            "json-frac".to_string(),
+            seq(&[t("."), plus(crange('0', '9'))]),
+        ));
 
-            // JSON boolean
-            json-boolean ::= "true" | "false"
+        // json-exp ::= [e E] ['+' '-']? [0-9]+
+        self.declarations.push(GbnfDeclaration::new(
+            "json-exp".to_string(),
+            seq(&[
+                cset(&['e', 'E']),
+                opt(cset(&['+', '-'])),
+                plus(crange('0', '9')),
+            ]),
+        ));
 
-            // JSON null
-            json-null ::= "null"
-        };
+        // json-integer ::= "-"? ("0" | [1-9] [0-9]*)
+        self.declarations.push(GbnfDeclaration::new(
+            "json-integer".to_string(),
+            seq(&[
+                opt(t("-")),
+                Expr::Group(Box::new(alt(&[
+                    t("0"),
+                    seq(&[crange('1', '9'), star(crange('0', '9'))]),
+                ]))),
+            ]),
+        ));
 
-        self.declarations.extend(primitives.declarations);
+        // json-boolean ::= "true" | "false"
+        self.declarations.push(GbnfDeclaration::new(
+            "json-boolean".to_string(),
+            alt(&[t("true"), t("false")]),
+        ));
+
+        // json-null ::= "null"
+        self.declarations
+            .push(GbnfDeclaration::new("json-null".to_string(), t("null")));
 
         // JSON string rules from llama.cpp docs:
         // json-char ::= [^"\\\x7F\x00-\x1F] | [\\] (["\\bfnrt] | "u" [0-9a-fA-F]{4})
@@ -471,11 +511,16 @@ impl JsonSchemaConverter {
             "date" => {
                 // YYYY-MM-DD
                 let rule_name = self.next_rule_name("date");
-                let grammar = gbnf! {
-                    date ::= "\"" [0-9]{4} "-" [0-9]{2} "-" [0-9]{2} "\""
-                };
-                // Get the expression from the first declaration
-                let expr = grammar.declarations.into_iter().next().unwrap().expr;
+                // date ::= "\"" [0-9]{4} "-" [0-9]{2} "-" [0-9]{2} "\""
+                let expr = seq(&[
+                    t("\""),
+                    digits(4),
+                    t("-"),
+                    digits(2),
+                    t("-"),
+                    digits(2),
+                    t("\""),
+                ]);
                 self.declarations
                     .push(GbnfDeclaration::new(rule_name.clone(), expr));
                 Ok(Expr::NonTerminal(rule_name))
@@ -483,10 +528,16 @@ impl JsonSchemaConverter {
             "time" => {
                 // HH:MM:SS
                 let rule_name = self.next_rule_name("time");
-                let grammar = gbnf! {
-                    time ::= "\"" [0-9]{2} ":" [0-9]{2} ":" [0-9]{2} "\""
-                };
-                let expr = grammar.declarations.into_iter().next().unwrap().expr;
+                // time ::= "\"" [0-9]{2} ":" [0-9]{2} ":" [0-9]{2} "\""
+                let expr = seq(&[
+                    t("\""),
+                    digits(2),
+                    t(":"),
+                    digits(2),
+                    t(":"),
+                    digits(2),
+                    t("\""),
+                ]);
                 self.declarations
                     .push(GbnfDeclaration::new(rule_name.clone(), expr));
                 Ok(Expr::NonTerminal(rule_name))
@@ -495,15 +546,30 @@ impl JsonSchemaConverter {
                 // ISO 8601: YYYY-MM-DDTHH:MM:SS with optional timezone
                 let rule_name = self.next_rule_name("datetime");
                 let tz_rule_name = self.next_rule_name("tz");
-                let grammar = gbnf! {
-                    datetime ::= "\"" [0-9]{4} "-" [0-9]{2} "-" [0-9]{2} "T" [0-9]{2} ":" [0-9]{2} ":" [0-9]{2} tz? "\""
-                    tz ::= "Z" | ['+' '-'] [0-9]{2} ":" [0-9]{2}
-                };
-                let mut decls = grammar.declarations.into_iter();
-                let datetime_expr = decls.next().unwrap().expr;
-                let tz_expr = decls.next().unwrap().expr;
+                // tz ::= "Z" | ['+' '-'] [0-9]{2} ":" [0-9]{2}
+                let tz_expr = alt(&[
+                    t("Z"),
+                    seq(&[cset(&['+', '-']), digits(2), t(":"), digits(2)]),
+                ]);
                 self.declarations
-                    .push(GbnfDeclaration::new(tz_rule_name, tz_expr));
+                    .push(GbnfDeclaration::new(tz_rule_name.clone(), tz_expr));
+                // datetime ::= "\"" [0-9]{4} "-" ... tz? "\""
+                let datetime_expr = seq(&[
+                    t("\""),
+                    digits(4),
+                    t("-"),
+                    digits(2),
+                    t("-"),
+                    digits(2),
+                    t("T"),
+                    digits(2),
+                    t(":"),
+                    digits(2),
+                    t(":"),
+                    digits(2),
+                    opt(nt(&tz_rule_name)),
+                    t("\""),
+                ]);
                 self.declarations
                     .push(GbnfDeclaration::new(rule_name.clone(), datetime_expr));
                 Ok(Expr::NonTerminal(rule_name))
@@ -837,10 +903,11 @@ impl JsonSchemaConverter {
             }
             None => {
                 // Empty object only: { ws }
-                let grammar = gbnf! {
-                    empty ::= "{" ws "}"
-                };
-                Ok(grammar.declarations.into_iter().next().unwrap().expr)
+                Ok(Expr::Sequence(vec![
+                    Expr::Characters("{".to_string()),
+                    Expr::NonTerminal("ws".to_string()),
+                    Expr::Characters("}".to_string()),
+                ]))
             }
         }
     }
@@ -891,6 +958,56 @@ fn escape_json_string(s: &str) -> String {
     result
 }
 
+// ---------------------------------------------------------------------------
+// Expression-building helpers (used in place of the gbnf! macro)
+// ---------------------------------------------------------------------------
+
+use crate::builder::{alt, nt, seq, t};
+
+fn opt(e: Expr) -> Expr {
+    Expr::Quantified {
+        expr: Box::new(e),
+        quantifier: Quantifier::Optional,
+    }
+}
+
+fn star(e: Expr) -> Expr {
+    Expr::Quantified {
+        expr: Box::new(e),
+        quantifier: Quantifier::ZeroOrMore,
+    }
+}
+
+fn plus(e: Expr) -> Expr {
+    Expr::Quantified {
+        expr: Box::new(e),
+        quantifier: Quantifier::OneOrMore,
+    }
+}
+
+fn cset(chars: &[char]) -> Expr {
+    Expr::CharacterRange(CharacterRange::Set {
+        chars: chars.to_vec(),
+        negated: false,
+    })
+}
+
+fn crange(begin: char, end: char) -> Expr {
+    Expr::CharacterRange(CharacterRange::Range {
+        begin,
+        end,
+        negated: false,
+    })
+}
+
+/// `[0-9]{n}` — exactly `n` digits.
+fn digits(n: usize) -> Expr {
+    Expr::Quantified {
+        expr: Box::new(crange('0', '9')),
+        quantifier: Quantifier::Exact(n),
+    }
+}
+
 /// Trait for types that can be converted to a JSON Schema value
 pub trait IntoJsonSchema {
     fn into_schema(self) -> Result<Value, JsonSchemaError>;
@@ -930,18 +1047,20 @@ impl IntoJsonSchema for &Value {
 /// use gbnf::json::json_schema_to_grammar;
 ///
 /// // From string
-/// let grammar = json_schema_to_grammar(r#"{"type": "string"}"#).unwrap();
+/// let grammar = json_schema_to_grammar(r#"{"type": "string"}"#, "root").unwrap();
 ///
 /// // From serde_json::Value
 /// let value = serde_json::json!({"type": "integer"});
-/// let grammar = json_schema_to_grammar(value).unwrap();
-///  
-///  // From serde::json::Value back into String
-/// let value = serde_json::json!({"type": "integer"});
-/// let grammar = json_schema_to_grammar(value.to_string()).unwrap();
+/// let grammar = json_schema_to_grammar(value, "root").unwrap();
 ///
+/// // From serde_json::Value converted to String
+/// let value = serde_json::json!({"type": "integer"});
+/// let grammar = json_schema_to_grammar(value.to_string(), "root").unwrap();
 /// ```
-pub fn json_schema_to_grammar(schema: impl IntoJsonSchema) -> Result<GbnfGrammar, JsonSchemaError> {
+pub fn json_schema_to_grammar(
+    schema: impl IntoJsonSchema,
+    root: &str,
+) -> Result<GbnfGrammar, JsonSchemaError> {
     let value = schema.into_schema()?;
     if !jsonschema::meta::is_valid(&value) {
         return Err(JsonSchemaError::InvalidSchema(format!(
@@ -950,7 +1069,7 @@ pub fn json_schema_to_grammar(schema: impl IntoJsonSchema) -> Result<GbnfGrammar
         )));
     };
     let mut converter = JsonSchemaConverter::new();
-    converter.convert(&value)
+    converter.convert(&value, root)
 }
 
 #[cfg(test)]
@@ -960,21 +1079,21 @@ mod tests {
     #[test]
     fn test_simple_string() {
         let schema = r#"{"type": "string"}"#;
-        let grammar = json_schema_to_grammar(schema).unwrap();
+        let grammar = json_schema_to_grammar(schema, "root").unwrap();
         assert!(grammar.as_str().contains("root ::= json-string"));
     }
 
     #[test]
     fn test_simple_integer() {
         let schema = r#"{"type": "integer"}"#;
-        let grammar = json_schema_to_grammar(schema).unwrap();
+        let grammar = json_schema_to_grammar(schema, "root").unwrap();
         assert!(grammar.as_str().contains("root ::= json-integer"));
     }
 
     #[test]
     fn test_enum() {
         let schema = r#"{"enum": ["red", "green", "blue"]}"#;
-        let grammar = json_schema_to_grammar(schema).unwrap();
+        let grammar = json_schema_to_grammar(schema, "root").unwrap();
         let gbnf = grammar.as_str();
         // The grammar escapes quotes inside strings, so "red" becomes \"red\"
         assert!(gbnf.contains(r#"\"red\""#));
@@ -992,11 +1111,52 @@ mod tests {
             },
             "required": ["name"]
         }"#;
-        let grammar = json_schema_to_grammar(schema).unwrap();
+        let grammar = json_schema_to_grammar(schema, "root").unwrap();
         let gbnf = grammar.as_str();
         // Property names are escaped in the grammar
         assert!(gbnf.contains(r#"\"name\""#));
         assert!(gbnf.contains(r#"\"age\""#));
+    }
+
+    #[test]
+    fn test_nested_objects() {
+        let schema = r#"{
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "age": {"type": "integer"},
+                "inner_object": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "integer"},
+                        "age": {"type": "string"}
+                    },
+                    "required": ["name", "age"]
+                }
+            },
+            "required": ["name", "age", "inner_object"]
+        }"#;
+        let grammar = json_schema_to_grammar(schema, "root").unwrap();
+        let gbnf = grammar.as_str();
+
+        // Should have the outer object with all three properties
+        assert!(gbnf.contains(r#"\"name\""#));
+        assert!(gbnf.contains(r#"\"age\""#));
+        assert!(gbnf.contains(r#"\"inner_object\""#));
+
+        // Inner object should have its own property rules with different types
+        // (inner "name" is integer, inner "age" is string — reversed from outer)
+        assert!(gbnf.contains("prop-name-"));
+        assert!(gbnf.contains("prop-age-"));
+
+        // Should have two object rules (outer and inner)
+        assert!(gbnf.contains("object-"));
+
+        // The inner object's property types should differ from outer
+        // outer: name=string, age=integer; inner: name=integer, age=string
+        // So we should see both json-string and json-integer referenced
+        assert!(gbnf.contains("json-string"));
+        assert!(gbnf.contains("json-integer"));
     }
 
     #[test]
@@ -1005,7 +1165,7 @@ mod tests {
             "type": "array",
             "items": {"type": "string"}
         }"#;
-        let grammar = json_schema_to_grammar(schema).unwrap();
+        let grammar = json_schema_to_grammar(schema, "root").unwrap();
         let gbnf = grammar.as_str();
         assert!(gbnf.contains("["));
         assert!(gbnf.contains("]"));
@@ -1014,7 +1174,7 @@ mod tests {
     #[test]
     fn test_nested_arrays_matrix() {
         let schema = r#"{"type":"object","properties":{"listOfMatrices":{"type":"array","items":{"type":"array","items":{"type":"array","items":{"type":"number"}}}}},"required":["listOfMatrices"],"additionalProperties":false}"#;
-        let grammar = json_schema_to_grammar(schema).unwrap();
+        let grammar = json_schema_to_grammar(schema, "root").unwrap();
         let gbnf = grammar.as_str();
 
         // Should have the listOfMatrices property
@@ -1037,7 +1197,7 @@ mod tests {
             "required": ["name"],
             "additionalProperties": {"type": "integer"}
         }"#;
-        let grammar = json_schema_to_grammar(schema).unwrap();
+        let grammar = json_schema_to_grammar(schema, "root").unwrap();
         let gbnf = grammar.as_str();
         eprintln!("Generated grammar:\n{}", gbnf);
 
@@ -1055,7 +1215,7 @@ mod tests {
             "type": "object",
             "additionalProperties": {"type": "boolean"}
         }"#;
-        let grammar = json_schema_to_grammar(schema).unwrap();
+        let grammar = json_schema_to_grammar(schema, "root").unwrap();
         let gbnf = grammar.as_str();
         eprintln!("Generated grammar:\n{}", gbnf);
 
@@ -1075,7 +1235,7 @@ mod tests {
                 {"type": "boolean"}
             ]
         }"#;
-        let grammar = json_schema_to_grammar(schema).unwrap();
+        let grammar = json_schema_to_grammar(schema, "root").unwrap();
         let gbnf = grammar.as_str();
         eprintln!("Generated grammar:\n{}", gbnf);
 
@@ -1100,7 +1260,7 @@ mod tests {
             ],
             "items": {"type": "number"}
         }"#;
-        let grammar = json_schema_to_grammar(schema).unwrap();
+        let grammar = json_schema_to_grammar(schema, "root").unwrap();
         let gbnf = grammar.as_str();
         eprintln!("Generated grammar:\n{}", gbnf);
 
@@ -1124,7 +1284,7 @@ mod tests {
             ],
             "items": false
         }"#;
-        let grammar = json_schema_to_grammar(schema).unwrap();
+        let grammar = json_schema_to_grammar(schema, "root").unwrap();
         let gbnf = grammar.as_str();
         eprintln!("Generated grammar:\n{}", gbnf);
 
@@ -1141,7 +1301,7 @@ mod tests {
         { "type" : "string", "items" : "integer", "text" : "hello"}
         "#;
 
-        let grammar = json_schema_to_grammar(schema);
+        let grammar = json_schema_to_grammar(schema, "root");
 
         assert!(matches!(grammar, Err(JsonSchemaError::InvalidSchema(_))));
     }
@@ -1201,7 +1361,7 @@ mod tests {
           "type": "object"
         }"##;
 
-        let grammar = json_schema_to_grammar(schema).unwrap();
+        let grammar = json_schema_to_grammar(schema, "root").unwrap();
         let gbnf = grammar.as_str();
         eprintln!("Generated grammar:\n{}", gbnf);
 

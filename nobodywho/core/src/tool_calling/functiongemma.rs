@@ -1,5 +1,5 @@
-use super::grammar_builder::{not_chars, nt, seq, t, t_star, GrammarBuilder};
 use super::{Tool, ToolCall, ToolFormatError, ToolFormatHandler};
+use gbnf::builder::{not_chars, nt, seq, t, t_star, GrammarBuilder};
 use gbnf::GbnfGrammar;
 use serde_json::json;
 use tracing::debug;
@@ -89,8 +89,8 @@ impl ToolFormatHandler for FunctionGemmaHandler {
                     nt("ws"),
                 ]),
             )
-            .rule("superroot", nt("toolcall"))
-            .rule("root", nt("superroot"))
+            .rule("root", nt("toolcall"))
+            .root("root")
             .build();
 
         Ok(grammar)

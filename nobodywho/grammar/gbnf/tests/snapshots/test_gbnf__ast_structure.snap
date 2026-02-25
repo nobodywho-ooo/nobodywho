@@ -5,11 +5,12 @@ expression: grammar
 GbnfGrammar {
     declarations: [
         GbnfDeclaration {
-            name: "single",
-            expr: NonTerminal(
-                "value",
+            name: "greeting",
+            expr: Characters(
+                "hello",
             ),
         },
     ],
-    gbnf_string: "single ::= value",
+    gbnf_string: "greeting ::= \"hello\"",
+    root_name: "greeting",
 }
