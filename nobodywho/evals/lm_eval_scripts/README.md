@@ -19,6 +19,8 @@ python main.py --model /path/to/model.gguf --tasks gsm8k,mbpp --limit 100
 | `--model` | `-m` | Path to GGUF model file (or set `TEST_MODEL` env var) |
 | `--tasks` | `-t` | Comma-separated list of tasks (default: all) |
 | `--limit` | `-l` | Number of samples per task (default: no limit) |
+| `--shuffle` | | Randomly sample instead of first N (recommended for DROP) |
+| `--seed` | | Random seed for shuffled sampling (default: 42) |
 | `--print-samples` | | Print prompts and responses after evaluation |
 
 ## Environment Variables
@@ -42,7 +44,17 @@ python main.py -m ./model.gguf -t humaneval,mbpp
 
 # Run full suite with 500 samples each
 python main.py -m ./model.gguf -l 500
+
+# Run DROP with random sampling (recommended - avoids passage grouping bias)
+python main.py -m ./model.gguf -t drop -l 500 --shuffle
+
+# Reproducible random sampling with custom seed
+python main.py -m ./model.gguf -l 100 --shuffle --seed 123
 ```
+
+### Why use `--shuffle`?
+
+Some datasets like DROP group multiple questions per passage (~15 questions each). Without shuffling, `--limit 500` would only cover ~35 passages. With `--shuffle`, samples are spread across the full dataset for better coverage.
 
 ## Tasks
 
