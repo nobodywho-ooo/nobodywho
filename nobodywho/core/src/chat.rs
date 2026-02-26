@@ -1475,8 +1475,11 @@ impl Worker<'_, ChatWorker> {
         let messages = &self.extra.messages;
         let template_context = ChatTemplateContext {
             enable_thinking: self.extra.allow_thinking,
-            tools: self.extra.tools.clone(),
-            tool_format: self.extra.tool_format.clone(),
+            tools: if self.extra.tools.is_empty() {
+                None
+            } else {
+                Some(self.extra.tools.clone())
+            },
         };
 
         let rendered_chat = if handled {
