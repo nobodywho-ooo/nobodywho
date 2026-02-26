@@ -1,4 +1,5 @@
 use flutter_rust_bridge::{DartFnFuture, Rust2DartSendError};
+use nobodywho::chat::Asset;
 use std::sync::Arc;
 // ^ in general I've only done fully-qualified imports, but these things need to be imported to
 // satisfy some frb macros
