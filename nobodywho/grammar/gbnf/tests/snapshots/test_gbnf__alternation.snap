@@ -5,21 +5,22 @@ expression: grammar
 GbnfGrammar {
     declarations: [
         GbnfDeclaration {
-            name: "root",
-            expr: Sequence(
+            name: "rule",
+            expr: Alternation(
                 [
                     Characters(
-                        "hello",
+                        "foo",
                     ),
                     Characters(
-                        " ",
+                        "bar",
                     ),
                     Characters(
-                        "world",
+                        "baz",
                     ),
                 ],
             ),
         },
     ],
-    gbnf_string: "root ::= \"hello\" \" \" \"world\"",
+    gbnf_string: "rule ::= \"foo\" | \"bar\" | \"baz\"",
+    root_name: "rule",
 }

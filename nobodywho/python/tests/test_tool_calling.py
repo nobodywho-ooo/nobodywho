@@ -84,14 +84,17 @@ def model():
 
     return nobodywho.Model(model_path)
 
+def is_functiongemma():
+    return "functiongemma" in os.environ.get("TEST_MODEL", "").lower()
+
 @pytest.fixture
 def chat(model):
-    if "qwen" in os.environ.get("TEST_MODEL", "").lower():
+    if is_functiongemma():
         return nobodywho.Chat(
-            model, system_prompt="You are a helpful assistant", allow_thinking=False, tools=[set_intersection, multiply_strings, sparklify, reflarbicator, add_list_of_vectors, calculate_volume]
+            model, system_prompt="You are a helpful assistant", allow_thinking=False, tools=[sparklify]
         )
     return nobodywho.Chat(
-            model, system_prompt="You are a helpful assistant", allow_thinking=False, tools=[sparklify]
+            model, system_prompt="You are a helpful assistant", allow_thinking=False, tools=[set_intersection, multiply_strings, sparklify, reflarbicator, add_list_of_vectors, calculate_volume]
         )
     
 
@@ -231,8 +234,8 @@ def test_tool_calling_with_custom_sampler(model):
 
 
 def test_tool_with_sets(chat):
-    if "qwen" not in os.environ.get("TEST_MODEL", "").lower():
-        pytest.skip("Test only runs with Qwen models")
+    if is_functiongemma():
+        pytest.skip("Test not supported with FunctionGemma models")
 
     chat.ask("Please use the provided tool to find the intersection between the sets {12,5,7,3,4} and {12,9,5,3}").completed()
 
@@ -252,8 +255,8 @@ def test_tool_with_sets(chat):
     assert "12" in response_content and "5" in response_content and "3" in response_content 
 
 def test_tool_with_tuple(chat):
-    if "qwen" not in os.environ.get("TEST_MODEL", "").lower():
-        pytest.skip("Test only runs with Qwen models")
+    if is_functiongemma():
+        pytest.skip("Test not supported with FunctionGemma models")
 
     chat.ask("Please use the provided tool to multiply the string BingBong by 3").completed()
 
@@ -270,8 +273,8 @@ def test_tool_with_tuple(chat):
     assert tool_responses[0]["content"] == "BingBongBingBongBingBong"
 
 def test_tool_with_nested_list(chat):
-    if "qwen" not in os.environ.get("TEST_MODEL", "").lower():
-        pytest.skip("Test only runs with Qwen models")
+    if is_functiongemma():
+        pytest.skip("Test not supported with FunctionGemma models")
 
     chat.ask("Please use the provided tool to add the vectors [[1,2,3],[4,5,6],[7,8,9]].").completed()
 
@@ -288,8 +291,8 @@ def test_tool_with_nested_list(chat):
     assert tool_responses[0]["content"] == "[12, 15, 18]"
 
 def test_tool_with_dict(chat):
-    if "qwen" not in os.environ.get("TEST_MODEL", "").lower():
-        pytest.skip("Test only runs with Qwen models")
+    if is_functiongemma():
+        pytest.skip("Test not supported with FunctionGemma models")
 
     chat.ask("Please use the provided tool to find the volume of a cube with dimensions 30 x 20 x 10.").completed()
 

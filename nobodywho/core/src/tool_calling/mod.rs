@@ -6,7 +6,7 @@
 //! - FunctionGemma: `<start_function_call>call:name{param:<escape>val<escape>}<end_function_call>`
 
 mod functiongemma;
-pub mod grammar_builder;
+mod ministral3;
 mod qwen3;
 
 use llama_cpp_2::model::LlamaModel;
@@ -15,6 +15,7 @@ use std::sync::Arc;
 use tracing::debug;
 
 pub use functiongemma::FunctionGemmaHandler;
+pub use ministral3::Ministral3Handler;
 pub use qwen3::Qwen3Handler;
 
 // ============================================================================
@@ -131,6 +132,7 @@ pub trait ToolFormatHandler {
 pub enum ToolFormat {
     Qwen3(Qwen3Handler),
     FunctionGemma(FunctionGemmaHandler),
+    Ministral3(Ministral3Handler),
 }
 
 impl ToolFormat {
@@ -138,6 +140,7 @@ impl ToolFormat {
         match self {
             ToolFormat::Qwen3(h) => h,
             ToolFormat::FunctionGemma(h) => h,
+            ToolFormat::Ministral3(h) => h,
         }
     }
 
@@ -182,6 +185,12 @@ pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatEr
     if template_str.contains("<tool_call>") || template_str.contains("</tool_call>") {
         debug!("Detected Qwen3 format from template markers");
         return Ok(ToolFormat::Qwen3(Qwen3Handler));
+    }
+
+    // Check for Ministral3 markers
+    if template_str.contains("[TOOL_CALLS]") {
+        debug!("Detected Ministral3 format from template markers");
+        return Ok(ToolFormat::Ministral3(Ministral3Handler));
     }
 
     // Try to detect from model name/metadata

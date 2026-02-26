@@ -1036,7 +1036,6 @@ name = "gbnf"
 version = "0.1.0"
 dependencies = [
  "gbnf-macro",
- "gbnf-types",
  "insta",
  "jsonschema",
  "serde_json",
@@ -1046,16 +1045,7 @@ dependencies = [
 name = "gbnf-macro"
 version = "0.1.0"
 dependencies = [
- "gbnf-types",
- "proc-macro2",
- "quote",
- "syn 2.0.114",
-]
-
-[[package]]
-name = "gbnf-types"
-version = "0.1.0"
-dependencies = [
+ "gbnf",
  "proc-macro2",
  "quote",
  "syn 2.0.114",
@@ -1957,10 +1947,12 @@ dependencies = [
  "encoding_rs",
  "futures",
  "gbnf",
+ "gbnf-macro",
  "lazy_static",
  "llama-cpp-2",
  "minijinja",
  "minijinja-contrib",
+ "nom 8.0.0",
  "rand",
  "regex",
  "serde",

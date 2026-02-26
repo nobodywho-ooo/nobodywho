@@ -5,7 +5,7 @@ expression: grammar
 GbnfGrammar {
     declarations: [
         GbnfDeclaration {
-            name: "rule",
+            name: "root",
             expr: Sequence(
                 [
                     Characters(
@@ -21,5 +21,6 @@ GbnfGrammar {
             ),
         },
     ],
-    gbnf_string: "rule ::= \"hello\" \" \" \"world\"",
+    gbnf_string: "root ::= \"hello\" \" \" \"world\"",
+    root_name: "root",
 }

@@ -1400,7 +1400,7 @@ impl Worker<'_, ChatWorker> {
                     .clone()
                     .prepend(ShiftStep::Grammar {
                         trigger_on: tool_call_begin.clone(),
-                        root: "superroot".into(),
+                        root: tool_grammar.root_name.to_string(),
                         grammar: tool_grammar.as_str().into(),
                     })
             },
