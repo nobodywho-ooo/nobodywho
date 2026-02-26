@@ -4,9 +4,11 @@
 //! Currently supported formats:
 //! - Qwen3: `<tool_call>{"name": "...", "arguments": {...}}</tool_call>`
 //! - FunctionGemma: `<start_function_call>call:name{param:<escape>val<escape>}<end_function_call>`
+//! - Phi4Mini: `<|tool_calls|>[{"name": "...", "arguments": {...}}]<|/tool_calls|>`
 
 mod functiongemma;
 pub mod grammar_builder;
+mod phi4mini;
 mod qwen3;
 
 use llama_cpp_2::model::LlamaModel;
@@ -15,6 +17,7 @@ use std::sync::Arc;
 use tracing::debug;
 
 pub use functiongemma::FunctionGemmaHandler;
+pub use phi4mini::Phi4MiniHandler;
 pub use qwen3::Qwen3Handler;
 
 // ============================================================================
@@ -135,6 +138,19 @@ pub trait ToolFormatHandler {
 
     /// Extracts tool calls from the given text.
     fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>>;
+
+    /// Returns true if the chat template renders tool definitions (default).
+    /// Returns false for formats that inject tools into the system prompt manually.
+    fn uses_template_for_tools(&self) -> bool {
+        true
+    }
+
+    /// For formats that inject tools directly into the system message content (e.g., Phi-4-mini),
+    /// returns the string to append to the system message content (e.g., `<|tool|>...<|/tool|>`).
+    /// Returns None if the chat template handles tool rendering via its own context variable.
+    fn system_message_tool_injection(&self, _tools: &[Tool]) -> Option<String> {
+        None
+    }
 }
 
 /// Enum representing different tool calling formats.
@@ -142,6 +158,7 @@ pub trait ToolFormatHandler {
 pub enum ToolFormat {
     Qwen3(Qwen3Handler),
     FunctionGemma(FunctionGemmaHandler),
+    Phi4Mini(Phi4MiniHandler),
 }
 
 impl ToolFormat {
@@ -149,6 +166,7 @@ impl ToolFormat {
         match self {
             ToolFormat::Qwen3(h) => h,
             ToolFormat::FunctionGemma(h) => h,
+            ToolFormat::Phi4Mini(h) => h,
         }
     }
 
@@ -167,32 +185,70 @@ impl ToolFormat {
     pub fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>> {
         self.handler().extract_tool_calls(input)
     }
+
+    pub fn uses_template_for_tools(&self) -> bool {
+        self.handler().uses_template_for_tools()
+    }
+
+    pub fn system_message_tool_injection(&self, tools: &[Tool]) -> Option<String> {
+        self.handler().system_message_tool_injection(tools)
+    }
 }
 
 pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatError> {
-    // get a chat template from the model
-    // fails early if no utf-8 decodable chat template is found
-    let template_str = model
-        // 1. try to get the "tool_use" chat template if present
+    // Fetch both the tool_use template (if any) and the default template.
+    // We need them separately because Phi-4-mini's markers live in the *default* template
+    // while a tool_use template (if present) may not contain them.
+    let tool_use_str = model
         .chat_template(Some("tool_use"))
         .and_then(|t| Ok(t.to_string()?))
-        // 2. try to get the default chat template if no tool_use chat template
-        .or_else(|_| model.chat_template(None).and_then(|t| Ok(t.to_string()?)))?;
+        .ok();
 
-    debug!(template = %template_str, "Checking template for format markers");
+    let default_str = model
+        .chat_template(None)
+        .and_then(|t| Ok(t.to_string()?))
+        .ok();
+
+    // Require at least one template to be present.
+    if tool_use_str.is_none() && default_str.is_none() {
+        return Err(ToolFormatError::ChatTemplateError(
+            model.chat_template(None).unwrap_err(),
+        ));
+    }
+
+    // Primary template for marker checks: prefer tool_use, fall back to default.
+    let primary = tool_use_str.as_deref().or(default_str.as_deref()).unwrap();
+    debug!(template = %primary, "Checking primary template for format markers");
 
     // Check for FunctionGemma markers
-    if template_str.contains("<start_function_call>")
-        || template_str.contains("<end_function_call>")
-    {
+    if primary.contains("<start_function_call>") || primary.contains("<end_function_call>") {
         debug!("Detected FunctionGemma format from template markers");
         return Ok(ToolFormat::FunctionGemma(FunctionGemmaHandler));
     }
 
     // Check for Qwen3 markers
-    if template_str.contains("<tool_call>") || template_str.contains("</tool_call>") {
+    if primary.contains("<tool_call>") || primary.contains("</tool_call>") {
         debug!("Detected Qwen3 format from template markers");
         return Ok(ToolFormat::Qwen3(Qwen3Handler));
+    }
+
+    // Check for Phi-4-mini markers.
+    // The *default* template contains '<|tool|>' / '<|/tool|>' literals (for the system message
+    // tool injection path).  A separate tool_use template (if present in the GGUF) may not
+    // contain them, so we always check the default template here.
+    let phi4_check = tool_use_str
+        .as_deref()
+        .into_iter()
+        .chain(default_str.as_deref())
+        .any(|t| {
+            t.contains("<|tool|>")
+                || t.contains("<|/tool|>")
+                || t.contains("<|tool_call|>")
+                || t.contains("<|/tool_call|>")
+        });
+    if phi4_check {
+        debug!("Detected Phi-4-mini format from template markers");
+        return Ok(ToolFormat::Phi4Mini(Phi4MiniHandler));
     }
 
     // Try to detect from model name/metadata
@@ -208,6 +264,11 @@ pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatEr
         if name_lower.contains("qwen") {
             debug!("Detected Qwen3 format from model name");
             return Ok(ToolFormat::Qwen3(Qwen3Handler));
+        }
+
+        if name_lower.contains("phi-4") || name_lower.contains("phi4") {
+            debug!("Detected Phi-4-mini format from model name");
+            return Ok(ToolFormat::Phi4Mini(Phi4MiniHandler));
         }
     }
 
@@ -232,6 +293,41 @@ mod tests {
         let format = ToolFormat::FunctionGemma(FunctionGemmaHandler);
         assert_eq!(format.begin_token(), "<start_function_call>");
         assert_eq!(format.end_token(), "<end_function_call>");
+    }
+
+    #[test]
+    fn test_phi4mini_format() {
+        let format = ToolFormat::Phi4Mini(Phi4MiniHandler);
+        assert_eq!(format.begin_token(), "<|tool_call|>");
+        assert_eq!(format.end_token(), "<|/tool_call|>");
+        assert!(!format.uses_template_for_tools());
+    }
+
+    #[test]
+    fn test_phi4mini_system_message_tools_json() {
+        use serde_json::json;
+        use std::sync::Arc;
+
+        let tool = Tool {
+            name: "get_weather".to_string(),
+            description: "Gets weather".to_string(),
+            json_schema: json!({"type": "object", "properties": {"city": {"type": "string"}}}),
+            function: Arc::new(|_| "sunny".to_string()),
+        };
+
+        let format = ToolFormat::Phi4Mini(Phi4MiniHandler);
+        let result = format.system_message_tool_injection(&[tool]);
+        assert!(result.is_some());
+        let injection = result.unwrap();
+        // Should be wrapped in <|tool|>...<|/tool|>
+        assert!(injection.starts_with("<|tool|>"));
+        assert!(injection.ends_with("<|/tool|>"));
+        let json_str = injection
+            .trim_start_matches("<|tool|>")
+            .trim_end_matches("<|/tool|>");
+        let parsed: serde_json::Value = serde_json::from_str(json_str).unwrap();
+        assert!(parsed.is_array());
+        assert_eq!(parsed[0]["name"], "get_weather");
     }
 
     #[test]
