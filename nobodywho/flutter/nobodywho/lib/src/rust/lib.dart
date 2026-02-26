@@ -32,6 +32,9 @@ RustTool newToolImpl({
   parameterDescriptions: parameterDescriptions,
 );
 
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Asset>>
+abstract class Asset implements RustOpaqueInterface {}
+
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CompletionError>>
 abstract class CompletionError implements RustOpaqueInterface {}
 
@@ -90,11 +93,15 @@ abstract class GetterError implements RustOpaqueInterface {}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Model>>
 abstract class Model implements RustOpaqueInterface {
-  static Future<Model> load({required String modelPath, bool useGpu = true}) =>
-      NobodyWho.instance.api.crateModelLoad(
-        modelPath: modelPath,
-        useGpu: useGpu,
-      );
+  static Future<Model> load({
+    required String modelPath,
+    bool useGpu = true,
+    String? imageIngestion = null,
+  }) => NobodyWho.instance.api.crateModelLoad(
+    modelPath: modelPath,
+    useGpu: useGpu,
+    imageIngestion: imageIngestion,
+  );
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Rust2DartSendError>>
@@ -104,10 +111,17 @@ abstract class Rust2DartSendError implements RustOpaqueInterface {}
 abstract class RustChat implements RustOpaqueInterface {
   RustTokenStream ask(String message);
 
+  /// Send a multimodal prompt (text + images) and get a stream of response tokens.
+  ///
+  /// Args:
+  ///     parts: List of PromptPart (text or image) making up the prompt
+  RustTokenStream askWithPrompt({required List<PromptPart> parts});
+
   /// Create chat directly from a model path. This is async as it loads a model
   ///
   /// Args:
   ///     model_path: Path to GGUF model file
+  ///     image_ingestion: Path to a .mmproj file for vision/multimodal models
   ///     system_prompt: System message to guide the model's behavior
   ///     context_size: Context size (maximum conversation length in tokens)
   ///     tools: List of Tool instances the model can call
@@ -115,6 +129,7 @@ abstract class RustChat implements RustOpaqueInterface {
   ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
   static Future<RustChat> fromPath({
     required String modelPath,
+    String? imageIngestion = null,
     String? systemPrompt = null,
     int contextSize = 4096,
     bool allowThinking = true,
@@ -123,6 +138,7 @@ abstract class RustChat implements RustOpaqueInterface {
     bool useGpu = true,
   }) => NobodyWho.instance.api.crateRustChatFromPath(
     modelPath: modelPath,
+    imageIngestion: imageIngestion,
     systemPrompt: systemPrompt,
     contextSize: contextSize,
     allowThinking: allowThinking,
@@ -135,8 +151,14 @@ abstract class RustChat implements RustOpaqueInterface {
 
   /// Create chat from existing model.
   ///
+  /// For vision/multimodal models, load the model with image ingestion enabled first:
+  /// ```dart
+  /// final model = Model.load("model.gguf", imageIngestion: "mmproj.gguf");
+  /// final chat = Chat(model: model);
+  /// ```
+  ///
   /// Args:
-  ///     model: A Model instance
+  ///     model: A Model instance (may include a projection model for vision)
   ///     system_prompt: System message to guide the model's behavior
   ///     context_size: Context size (maximum conversation length in tokens)
   ///     tools: List of Tool instances the model can call
@@ -401,8 +423,11 @@ abstract class Value implements RustOpaqueInterface {}
 sealed class Message with _$Message {
   const Message._();
 
-  const factory Message.message({required Role role, required String content}) =
-      Message_Message;
+  const factory Message.message({
+    required Role role,
+    required String content,
+    required List<Asset> assets,
+  }) = Message_Message;
   const factory Message.toolCalls({
     required Role role,
     required String content,
@@ -413,6 +438,14 @@ sealed class Message with _$Message {
     required String name,
     required String content,
   }) = Message_ToolResp;
+}
+
+@freezed
+sealed class PromptPart with _$PromptPart {
+  const PromptPart._();
+
+  const factory PromptPart.text({required String content}) = PromptPart_Text;
+  const factory PromptPart.image({required String path}) = PromptPart_Image;
 }
 
 enum Role { user, assistant, system, tool }

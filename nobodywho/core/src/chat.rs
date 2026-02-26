@@ -8,9 +8,10 @@
 //! ```
 //! use nobodywho::chat::ChatBuilder;
 //! use nobodywho::llm;
+//! use std::sync::Arc;
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! let model = llm::get_model("model.gguf", true)?;
+//! let model = Arc::new(llm::get_model("model.gguf", true)?);
 //!
 //! let chat = ChatBuilder::new(model)
 //!     .with_system_prompt(Some("You are a helpful assistant"))
@@ -24,19 +25,27 @@
 
 use crate::errors::{
     ChatWorkerError, ContextSyncError, DecodingError, GenerateResponseError, InitWorkerError,
-    RenderError, SayError, SelectTemplateError, SetToolsError, ShiftError, WrappedResponseError,
+    MultimodalError, RenderError, SayError, SelectTemplateError, SetToolsError, ShiftError,
+    WrappedResponseError,
 };
 use crate::llm::{self};
 use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
 use crate::llm::{Worker, WriteOutput};
 use crate::sampler_config::{SamplerConfig, ShiftStep};
 use crate::template::{select_template, ChatTemplate, ChatTemplateContext};
+use crate::tokenizer::{
+    find_chunks_prefix_difference, ChunkId, Prompt, Promptable, TokenizerChunk, TokenizerChunks,
+};
 use crate::tool_calling::{detect_tool_format, Tool, ToolCall, ToolFormat};
+use ahash::AHasher;
+use llama_cpp_2::context::params::LlamaPoolingType;
+use llama_cpp_2::mtmd::MtmdBitmap;
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
-use llama_cpp_2::{context::params::LlamaPoolingType, model::LlamaModel};
 use serde::{Deserialize, Serialize};
 use std::cmp::min;
+use std::collections::{HashMap, HashSet};
+use std::hash::Hasher;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, MutexGuard};
 use tracing::{debug, error, info, trace, trace_span};
@@ -50,12 +59,19 @@ pub enum Role {
     Tool,
 }
 
+#[derive(Deserialize, Serialize, Clone, PartialEq, Eq, Debug, Hash)]
+pub struct Asset {
+    id: String,
+    path: String,
+}
+
 #[derive(Deserialize, Serialize, Clone, Debug)]
 #[serde(untagged)]
 pub enum Message {
     Message {
         role: Role,
         content: String,
+        assets: Vec<Asset>,
     },
     // it's kind of weird to have the content field in here
     // but according to the qwen3 docs, it should be an empty field on tool call messages
@@ -88,6 +104,38 @@ impl Message {
             Message::Message { content, .. }
             | Message::ToolCalls { content, .. }
             | Message::ToolResp { content, .. } => content,
+        }
+    }
+
+    pub fn assets(&self) -> Vec<Asset> {
+        match self {
+            Message::Message { assets, .. } => assets.clone(),
+            Message::ToolCalls { .. } => vec![],
+            Message::ToolResp { .. } => vec![],
+        }
+    }
+
+    pub fn new_user(content: String) -> Self {
+        Self::Message {
+            role: Role::User,
+            content,
+            assets: vec![],
+        }
+    }
+
+    pub fn new_assistant(content: String) -> Self {
+        Self::Message {
+            role: Role::Assistant,
+            content,
+            assets: vec![],
+        }
+    }
+
+    pub fn new_system(content: String) -> Self {
+        Self::Message {
+            role: Role::System,
+            content,
+            assets: vec![],
         }
     }
 }
@@ -134,7 +182,7 @@ impl Default for ChatConfig {
 /// use std::sync::Arc;
 ///
 /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// let model = llm::get_model("model.gguf", true)?;
+/// let model = Arc::new(llm::get_model("model.gguf", true)?);
 ///
 /// let my_tool = Tool::new(
 ///     "example".to_string(),
@@ -152,13 +200,13 @@ impl Default for ChatConfig {
 /// # }
 /// ```
 pub struct ChatBuilder {
-    model: Arc<LlamaModel>,
+    model: Arc<llm::Model>,
     config: ChatConfig,
 }
 
 impl ChatBuilder {
     /// Create a new chat builder with a model.
-    pub fn new(model: Arc<LlamaModel>) -> Self {
+    pub fn new(model: Arc<llm::Model>) -> Self {
         Self {
             model,
             config: ChatConfig::default(),
@@ -222,7 +270,7 @@ pub struct ChatHandle {
 
 impl ChatHandle {
     /// Create a new chat handle directly. Consider using [`ChatBuilder`] for a more ergonomic API.
-    pub fn new(model: Arc<LlamaModel>, config: ChatConfig) -> Self {
+    pub fn new(model: Arc<llm::Model>, config: ChatConfig) -> Self {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
 
         let should_stop = Arc::new(AtomicBool::new(false));
@@ -252,15 +300,9 @@ impl ChatHandle {
 
     /// Send a message and get a tokio channel
     /// TODO: deprecate this in favor of plain `ask` once integrations are updated
-    pub fn ask_channel(
-        &self,
-        text: impl Into<String>,
-    ) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
+    pub fn ask_channel(&self, prompt: Prompt) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
         let (output_tx, output_rx) = tokio::sync::mpsc::channel(4096);
-        let _ = self.msg_tx.send(ChatMsg::Ask {
-            text: text.into(),
-            output_tx,
-        });
+        let _ = self.msg_tx.send(ChatMsg::Ask { prompt, output_tx });
         output_rx
     }
 
@@ -276,8 +318,8 @@ impl ChatHandle {
     /// }
     /// # }
     /// ```
-    pub fn ask(&self, text: impl Into<String>) -> TokenStream {
-        TokenStream::new(self.ask_channel(text))
+    pub fn ask(&self, prompt: impl Promptable) -> TokenStream {
+        TokenStream::new(self.ask_channel(prompt.to_prompt()))
     }
 
     fn set_and_wait_blocking<F>(&self, make_msg: F) -> Option<()>
@@ -401,7 +443,8 @@ impl ChatHandle {
     /// ```no_run
     /// # use nobodywho::chat::ChatBuilder;
     /// # use nobodywho::llm::get_model;
-    /// # let model = get_model("model.gguf", true).unwrap();
+    /// # use std::sync::Arc;
+    /// # let model = Arc::new(get_model("model.gguf", true).unwrap());
     /// # let chat = ChatBuilder::new(model).build();
     /// chat.set_system_prompt(Some("You are a helpful coding assistant.".to_string()))?;
     /// # Ok::<(), nobodywho::errors::SetterError>(())
@@ -431,7 +474,7 @@ pub struct ChatHandleAsync {
 
 impl ChatHandleAsync {
     /// Create a new chat handle directly. Consider using [`ChatBuilder`] for a more ergonomic API.
-    pub fn new(model: Arc<LlamaModel>, config: ChatConfig) -> Self {
+    pub fn new(model: Arc<llm::Model>, config: ChatConfig) -> Self {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
 
         let should_stop = Arc::new(AtomicBool::new(false));
@@ -461,15 +504,9 @@ impl ChatHandleAsync {
 
     /// Send a message and get a tokio channel
     /// TODO: deprecate this in favor of plain `ask` once integrations are updated
-    pub fn ask_channel(
-        &self,
-        text: impl Into<String>,
-    ) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
+    pub fn ask_channel(&self, prompt: Prompt) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
         let (output_tx, output_rx) = tokio::sync::mpsc::channel(4096);
-        let _ = self.msg_tx.send(ChatMsg::Ask {
-            text: text.into(),
-            output_tx,
-        });
+        let _ = self.msg_tx.send(ChatMsg::Ask { prompt, output_tx });
         output_rx
     }
 
@@ -485,8 +522,8 @@ impl ChatHandleAsync {
     /// }
     /// # }
     /// ```
-    pub fn ask(&self, text: impl Into<String>) -> TokenStreamAsync {
-        TokenStreamAsync::new(self.ask_channel(text))
+    pub fn ask(&self, prompt: impl Promptable) -> TokenStreamAsync {
+        TokenStreamAsync::new(self.ask_channel(prompt.to_prompt()))
     }
 
     // internal helper function for async setters
@@ -742,7 +779,7 @@ impl TokenStreamAsync {
 
 enum ChatMsg {
     Ask {
-        text: String,
+        prompt: Prompt,
         output_tx: tokio::sync::mpsc::Sender<llm::WriteOutput>,
     },
     ResetChat {
@@ -778,7 +815,7 @@ enum ChatMsg {
 impl std::fmt::Debug for ChatMsg {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ChatMsg::Ask { text, .. } => f.debug_struct("Ask").field("text", text).finish(),
+            ChatMsg::Ask { prompt, .. } => f.debug_struct("Ask").field("text", prompt).finish(),
             ChatMsg::ResetChat {
                 system_prompt,
                 tools,
@@ -819,11 +856,11 @@ fn process_worker_msg(
 ) -> Result<(), ChatWorkerError> {
     info!(?msg, "Worker processing:");
     match msg {
-        ChatMsg::Ask { text, output_tx } => {
+        ChatMsg::Ask { prompt, output_tx } => {
             let callback = move |out| {
                 let _ = output_tx.blocking_send(out);
             };
-            worker_state.ask(text, callback)?;
+            worker_state.ask(prompt, callback)?;
         }
         ChatMsg::ResetChat {
             system_prompt,
@@ -883,41 +920,80 @@ fn process_worker_msg(
 
 // TOOL CHAT WORKER
 
-/// Utility function for prefix caching
-/// Given a rendered chat template (intended for the LLM's context),
-/// it compares with the tokens currently in the LLM's context, to find a common prefix.
-/// The return value is a tuple of:
-/// - the index of the first differing token
-///   and
-/// - the tokens that should be read into the context (starting at that index)
-fn find_prefix_index_and_difference_with_tokens_in_context(
-    tokens_in_context: &[LlamaToken],
-    tokens: &[LlamaToken],
-) -> (usize, Vec<LlamaToken>) {
-    if tokens_in_context.is_empty() {
-        return (0, tokens.to_owned());
+struct ChatContext {
+    /// Here we keep the current tokens + image embeddings, which are in the KV cache.
+    chunks: TokenizerChunks,
+    /// Here we keep a list of the image bitmaps, which are needed for tokenization.
+    bitmaps: HashMap<ChunkId, MtmdBitmap>,
+}
+
+impl ChatContext {
+    fn new() -> Self {
+        Self {
+            chunks: TokenizerChunks::new(),
+            bitmaps: HashMap::new(),
+        }
     }
 
-    let longest_common_prefix_index = tokens_in_context
-        .iter()
-        .zip(tokens.iter())
-        .position(|(a, b)| a != b);
+    pub fn add_bitmaps(
+        &mut self,
+        bitmaps: Vec<MtmdBitmap>,
+    ) -> Result<Vec<String>, MultimodalError> {
+        let bitmap_map: HashMap<ChunkId, MtmdBitmap> = bitmaps
+            .into_iter()
+            .map(|bitmap| {
+                let id = self.create_bitmap_id(&bitmap);
+                bitmap.set_id(&id)?;
 
-    let (index, difference): (usize, Vec<LlamaToken>) = match longest_common_prefix_index {
-        Some(i) => (i, tokens[i..].to_vec()),
-        None => {
-            if tokens.len() <= tokens_in_context.len() {
-                (tokens.len(), vec![])
-            } else {
-                (
-                    tokens_in_context.len(),
-                    tokens[(tokens_in_context.len())..].to_vec(),
-                )
+                Ok((id, bitmap))
+            })
+            .collect::<Result<HashMap<ChunkId, MtmdBitmap>, MultimodalError>>()?;
+
+        let bitmap_ids = bitmap_map.keys().cloned().collect::<Vec<_>>();
+        let existing_bitmap_ids = self
+            .bitmaps
+            .keys()
+            .filter(|&id| bitmap_ids.contains(id))
+            .cloned()
+            .collect::<Vec<_>>();
+
+        self.remove_bitmaps(existing_bitmap_ids);
+        self.bitmaps.extend(bitmap_map);
+
+        Ok(bitmap_ids)
+    }
+
+    pub fn garbage_collect_bitmaps(&mut self, messages: &[Message]) {
+        // Garbage collection for the bitmaps.
+        let referenced_bitmaps: HashSet<String> = messages
+            .iter()
+            .flat_map(|msg| msg.assets())
+            .map(|asset| asset.id)
+            .collect();
+
+        let unreferenced_bitmap_ids: Vec<_> = self
+            .bitmaps
+            .keys()
+            .filter(|id| !referenced_bitmaps.contains(id.as_str()))
+            .cloned()
+            .collect();
+
+        self.remove_bitmaps(unreferenced_bitmap_ids);
+    }
+
+    fn create_bitmap_id(&self, bitmap: &MtmdBitmap) -> String {
+        let mut hasher = AHasher::default();
+        hasher.write(bitmap.data());
+        hasher.finish().to_string()
+    }
+
+    fn remove_bitmaps(&mut self, bitmap_ids: Vec<String>) {
+        for id in bitmap_ids {
+            if let Some(bitmap) = self.bitmaps.remove(&id) {
+                drop(bitmap);
             }
         }
-    };
-
-    (index, difference)
+    }
 }
 
 struct ChatWorker {
@@ -926,10 +1002,10 @@ struct ChatWorker {
     tool_format: Option<ToolFormat>,
     sampler_config: SamplerConfig,
     messages: Vec<Message>,
-    tokens_in_context: Vec<LlamaToken>,
     allow_thinking: bool,
     tools: Vec<Tool>,
     chat_template: ChatTemplate,
+    context: ChatContext,
 }
 
 impl llm::PoolingType for ChatWorker {
@@ -940,15 +1016,15 @@ impl llm::PoolingType for ChatWorker {
 
 impl Worker<'_, ChatWorker> {
     fn new_chat_worker(
-        model: &Arc<LlamaModel>,
+        model: &llm::Model,
         config: ChatConfig,
         should_stop: Arc<AtomicBool>,
     ) -> Result<Worker<'_, ChatWorker>, InitWorkerError> {
-        let template = select_template(model, !config.tools.is_empty())?;
+        let template = select_template(&model.language_model, !config.tools.is_empty())?;
 
         // Only detect tool calling format if tools are provided
         let (tool_format, grammar) = if !config.tools.is_empty() {
-            match detect_tool_format(model) {
+            match detect_tool_format(&model.language_model) {
                 Ok(format) => {
                     debug!(format = ?format, "Detected tool calling format");
 
@@ -984,13 +1060,14 @@ impl Worker<'_, ChatWorker> {
                     Some(msg) => vec![Message::Message {
                         role: Role::System,
                         content: msg,
+                        assets: vec![],
                     }],
                     None => vec![],
                 },
                 chat_template: template,
                 allow_thinking: config.allow_thinking,
                 tools: config.tools,
-                tokens_in_context: Vec::new(),
+                context: ChatContext::new(),
             },
         )
     }
@@ -1002,19 +1079,24 @@ impl Worker<'_, ChatWorker> {
     }
 
     pub fn add_system_message(&mut self, content: String) {
-        self.add_message(Role::System, content)
+        // Todo: Should we allow adding images into the system prompt?
+        self.add_message(Role::System, content, vec![])
     }
 
     pub fn add_assistant_message(&mut self, content: String) {
-        self.add_message(Role::Assistant, content)
+        self.add_message(Role::Assistant, content, vec![])
     }
 
-    pub fn add_user_message(&mut self, content: String) {
-        self.add_message(Role::User, content)
+    pub fn add_user_message(&mut self, content: String, assets: Vec<Asset>) {
+        self.add_message(Role::User, content, assets)
     }
 
-    fn add_message(&mut self, role: Role, content: String) {
-        self.extra.messages.push(Message::Message { role, content });
+    fn add_message(&mut self, role: Role, content: String, assets: Vec<Asset>) {
+        self.extra.messages.push(Message::Message {
+            role,
+            content,
+            assets,
+        });
     }
 
     pub fn add_tool_calls(&mut self, tool_calls: Vec<ToolCall>) {
@@ -1038,20 +1120,24 @@ impl Worker<'_, ChatWorker> {
     /// Because this invokes the model, this is potentially an expensive method to call.
     fn sync_context_with_render(
         &mut self,
-        rendered_tokens: Vec<LlamaToken>,
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<(), ContextSyncError> {
+        let mut chunks = self.render_as_chunks(true)?;
+        if chunks.n_tokens() > self.ctx.n_ctx() as usize {
+            self.context_shift()?; // Could we here somehow return the rendered tokens to avoid re-rendering?
+            chunks = self.render_as_chunks(true)?;
+        }
+
         let (prefix_index, token_difference) =
-            find_prefix_index_and_difference_with_tokens_in_context(
-                &self.extra.tokens_in_context,
-                &rendered_tokens,
-            );
+            find_chunks_prefix_difference(&self.extra.context.chunks, &chunks);
 
         self.remove_all_tokens_from_index_from_ctx(prefix_index)?;
-        if !token_difference.is_empty() {
-            self.read_tokens(token_difference, inference_lock_token)?;
-        }
-        self.extra.tokens_in_context = rendered_tokens;
+        self.read_chunks(token_difference, inference_lock_token)?;
+
+        self.extra.context.chunks = chunks;
+        self.extra
+            .context
+            .garbage_collect_bitmaps(&self.extra.messages);
 
         Ok(())
     }
@@ -1092,29 +1178,15 @@ impl Worker<'_, ChatWorker> {
 
         loop {
             // No non-essential messages left to delete or the new context has reached desired size.
-            if first_deletable_index > last_deletable_index
-                || self
-                    .ctx
-                    .model
-                    .str_to_token(
-                        &self.extra.chat_template.render_unhandled(
-                            &messages,
-                            &ChatTemplateContext {
-                                enable_thinking: self.extra.allow_thinking,
-                                tools: if self.extra.tools.is_empty() {
-                                    None
-                                } else {
-                                    Some(self.extra.tools.clone())
-                                },
-                            },
-                        )?,
-                        self.add_bos,
-                    )?
-                    .len()
-                    <= target_token_size
-            {
+            if first_deletable_index > last_deletable_index {
                 break;
             }
+
+            let chunks = self.render_as_chunks(false)?;
+            if chunks.n_tokens() <= target_token_size {
+                break;
+            }
+
             let target_delete_index = min(
                 first_deletable_index + messages_to_delete - 1,
                 last_deletable_index,
@@ -1184,7 +1256,7 @@ impl Worker<'_, ChatWorker> {
         // pre-allocating 4096 bytes for the response string
         // 4096 is a very randomly chosen number. how does this affect performance?
         let mut full_response: String = String::with_capacity(4096);
-        let mut tokens_written_until_now = vec![];
+        let mut tokens_written_until_now = TokenizerChunks::new();
 
         // initialize sampler
         // stateful samplers only live for one response
@@ -1197,9 +1269,8 @@ impl Worker<'_, ChatWorker> {
             // Check if the context is full
             if self.n_past as u32 == self.ctx.n_ctx() {
                 self.context_shift()?;
-                let rendered_tokens = self.get_render_as_tokens()?;
-                self.sync_context_with_render(rendered_tokens, inference_lock_token)?;
-                self.read_tokens(tokens_written_until_now.clone(), inference_lock_token)?;
+                self.sync_context_with_render(inference_lock_token)?;
+                self.read_chunks(tokens_written_until_now.clone(), inference_lock_token)?;
                 // do not update tokens_in_context as this is done later by ask
             }
 
@@ -1208,7 +1279,7 @@ impl Worker<'_, ChatWorker> {
             // https://github.com/utilityai/llama-cpp-rs/issues/604
             let new_token = self.sample_and_decode_next_token(&mut sampler)?;
 
-            tokens_written_until_now.push(new_token);
+            tokens_written_until_now.append(TokenizerChunk::new_text(vec![new_token]));
 
             // Attempt to convert token(s) to bytes
             let token_bytes = match self
@@ -1280,7 +1351,7 @@ impl Worker<'_, ChatWorker> {
         Ok(new_token)
     }
 
-    pub fn ask<F>(&mut self, text: String, respond: F) -> Result<&mut Self, SayError>
+    pub fn ask<F>(&mut self, prompt: Prompt, respond: F) -> Result<&mut Self, SayError>
     where
         F: Fn(llm::WriteOutput) + Clone,
     {
@@ -1296,7 +1367,29 @@ impl Worker<'_, ChatWorker> {
             .as_ref()
             .map(|fmt| fmt.begin_token().to_string());
 
-        self.add_user_message(text);
+        let asset_paths = prompt.extract_asset_paths();
+        let bitmaps = if let Some(projection_model) = self.projection_model.as_ref() {
+            asset_paths
+                .iter()
+                .map(|path| projection_model.load_image(path))
+                .collect::<Result<Vec<MtmdBitmap>, MultimodalError>>()?
+        } else {
+            vec![]
+        };
+
+        debug!("Detected bitmaps: {:?}", bitmaps);
+
+        let bitmap_ids = self.extra.context.add_bitmaps(bitmaps)?;
+        let assets = bitmap_ids
+            .iter()
+            .zip(asset_paths)
+            .map(|(id, path)| Asset {
+                id: id.clone(),
+                path: path.clone(),
+            })
+            .collect::<Vec<_>>();
+
+        self.add_user_message(prompt.to_string(), assets);
 
         // Modify sampler with tool grammar if we have tools
         let sampler = self.extra.tool_grammar.as_ref().map_or(
@@ -1370,30 +1463,37 @@ impl Worker<'_, ChatWorker> {
             .is_none_or(|t| !response.contains(t.as_str())));
         self.add_assistant_message(response);
 
-        // Update tokens_in_context as the model already has seen this respone
-        self.extra.tokens_in_context = self.get_render_as_tokens()?;
+        self.extra.context.chunks = self.render_as_chunks(true)?;
 
         Ok(self)
     }
 
-    fn get_render_as_tokens(&mut self) -> Result<Vec<LlamaToken>, RenderError> {
-        let render_as_string = self.extra.chat_template.render(
-            &self.extra.messages,
-            &ChatTemplateContext {
-                enable_thinking: self.extra.allow_thinking,
-                tools: if self.extra.tools.is_empty() {
-                    None
-                } else {
-                    Some(self.extra.tools.clone())
-                },
+    /// Go for the unhandled mode when you are context shifting.
+    /// That is for avoiding the render will concat system message with the first user message.
+    /// Otherwise please handle stuff.
+    fn render_as_chunks(&mut self, handled: bool) -> Result<TokenizerChunks, RenderError> {
+        let messages = &self.extra.messages;
+        let template_context = ChatTemplateContext {
+            enable_thinking: self.extra.allow_thinking,
+            tools: if self.extra.tools.is_empty() {
+                None
+            } else {
+                Some(self.extra.tools.clone())
             },
-        )?;
+        };
 
-        let render_as_tokens = self
-            .ctx
-            .model
-            .str_to_token(&render_as_string, self.add_bos)?;
-        Ok(render_as_tokens)
+        let rendered_chat = if handled {
+            self.extra
+                .chat_template
+                .render(messages, &template_context)?
+        } else {
+            self.extra
+                .chat_template
+                .render_unhandled(messages, &template_context)?
+        };
+
+        let bitmaps = self.extra.context.bitmaps.values().collect::<Vec<_>>();
+        Ok(self.tokenizer.tokenize(rendered_chat, bitmaps)?)
     }
 
     fn wrapped_update_context_and_generate_response<F>(
@@ -1406,16 +1506,9 @@ impl Worker<'_, ChatWorker> {
         F: Fn(llm::WriteOutput) + Clone,
     {
         // Check how much of the current KVCache we can keep
-        let mut rendered_tokens = self.get_render_as_tokens()?;
-
-        if rendered_tokens.len() > self.ctx.n_ctx() as usize {
-            self.context_shift()?;
-            rendered_tokens = self.get_render_as_tokens()?;
-        }
-
         let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
         let inference_lock_token = _gil_guard.unwrap();
-        self.sync_context_with_render(rendered_tokens, &inference_lock_token)?;
+        self.sync_context_with_render(&inference_lock_token)?;
 
         // wrap the response callback to keep a copy of the completed response
         // and to avoid emitting tool calls
@@ -1464,7 +1557,7 @@ impl Worker<'_, ChatWorker> {
         };
         self.extra.tools = tools;
         self.extra.messages = Vec::new();
-        self.extra.tokens_in_context = Vec::new();
+        self.extra.context = ChatContext::new();
         if let Some(sys_msg) = system_prompt {
             self.add_system_message(sys_msg);
         }
@@ -1489,6 +1582,7 @@ impl Worker<'_, ChatWorker> {
                 let system_message = Message::Message {
                     role: Role::System,
                     content: sys_msg,
+                    assets: vec![],
                 };
                 if self.extra.messages.is_empty() {
                     self.extra.messages.push(system_message);
@@ -1510,8 +1604,7 @@ impl Worker<'_, ChatWorker> {
 
         let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
         let inference_lock_token = _gil_guard.unwrap();
-        let rendered_tokens = self.get_render_as_tokens()?;
-        self.sync_context_with_render(rendered_tokens, &inference_lock_token)?;
+        self.sync_context_with_render(&inference_lock_token)?;
 
         Ok(())
     }
@@ -1553,8 +1646,7 @@ impl Worker<'_, ChatWorker> {
 
         let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
         let inference_lock_token = _gil_guard.unwrap();
-        let rendered_tokens = self.get_render_as_tokens()?;
-        self.sync_context_with_render(rendered_tokens, &inference_lock_token)?;
+        self.sync_context_with_render(&inference_lock_token)?;
 
         Ok(())
     }
@@ -1573,8 +1665,7 @@ impl Worker<'_, ChatWorker> {
         // Reuse cached prefix
         let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
         let inference_lock_token = _gil_guard.unwrap();
-        let rendered_tokens = self.get_render_as_tokens()?;
-        self.sync_context_with_render(rendered_tokens, &inference_lock_token)?;
+        self.sync_context_with_render(&inference_lock_token)?;
 
         Ok(())
     }
@@ -1702,14 +1793,14 @@ mod tests {
             }
         };
 
-        worker.ask("What is the capital of Denmark?".to_string(), f.clone())?;
+        worker.ask("What is the capital of Denmark?".into(), f.clone())?;
 
         let resp = receiver.recv()?;
         println!("{}", resp);
 
         assert!(resp.contains("Copenhagen"));
 
-        worker.ask("What language do they speak there?".to_string(), f)?;
+        worker.ask("What language do they speak there?".into(), f)?;
         let resp = receiver.recv()?;
         println!("{}", resp);
 
@@ -1740,7 +1831,7 @@ mod tests {
         };
 
         // do it once
-        worker.ask("What is the capital of Denmark?".to_string(), f.clone())?;
+        worker.ask("What is the capital of Denmark?".into(), f.clone())?;
         let resp1 = receiver.recv()?;
         println!("{}", resp1);
         assert!(resp1.to_lowercase().contains("woof"));
@@ -1752,7 +1843,7 @@ mod tests {
         );
 
         // do it again
-        worker.ask("What is the capital of Denmark?".to_string(), f.clone())?;
+        worker.ask("What is the capital of Denmark?".into(), f.clone())?;
         let resp2 = receiver.recv()?;
         println!("{}", resp2);
         assert!(resp2.to_lowercase().contains("meow"));
@@ -1790,7 +1881,7 @@ mod tests {
             }
         };
 
-        worker.ask("Count from 0 to 9".to_string(), f.clone())?;
+        worker.ask("Count from 0 to 9".into(), f.clone())?;
 
         let response = receiver.recv()?;
         println!("{}", response);
@@ -1939,7 +2030,7 @@ mod tests {
 
     #[test]
     fn test_set_system_prompt() {
-        let model = test_utils::load_test_model();
+        let model = Arc::new(test_utils::load_test_model());
 
         let chat = ChatBuilder::new(model)
             .with_context_size(2048)
@@ -1977,17 +2068,17 @@ mod tests {
 
         // Add many exchanges with longer messages to fill up the context
         for i in 1..=n_messages {
-            worker.add_user_message(format!(
-                "This is user message number {}. What is {} * {}?",
-                i, i, i
-            ));
+            worker.add_user_message(
+                format!("This is user message number {}. What is {} * {}?", i, i, i),
+                vec![],
+            );
             worker.add_assistant_message(format!(
                 "<think> </think> The answer is {}. Do you have any further questions?",
                 i * i
             ));
         }
 
-        worker.add_user_message("Hello!".into());
+        worker.add_user_message("Hello!".into(), vec![]);
 
         // Check that we have many messages before shift
         let messages_before = worker.extra.messages.len();
@@ -2049,7 +2140,7 @@ mod tests {
         }
 
         // 5. Verify token count is within target
-        let token_count = worker.get_render_as_tokens()?.len();
+        let token_count = worker.render_as_chunks(true)?.len();
 
         let target_size = (n_ctx / 2) as usize;
         assert!(
@@ -2097,7 +2188,10 @@ mod tests {
 
         // Add exchanges with tool calls mixed in
         for i in 1..=n_messages {
-            worker.add_user_message(format!("User message {}. What is {} * {}?", i, i, i));
+            worker.add_user_message(
+                format!("User message {}. What is {} * {}?", i, i, i),
+                vec![],
+            );
 
             // Add a tool call every other message
             // Pattern: User -> Assistant (with tool call) -> Tool response -> Assistant
@@ -2118,7 +2212,7 @@ mod tests {
             }
         }
 
-        worker.add_user_message("Final question!".into());
+        worker.add_user_message("Final question!".into(), vec![]);
 
         // Check that we have many messages before shift
         let messages_before = worker.extra.messages.len();
@@ -2166,7 +2260,7 @@ mod tests {
         }
 
         // 5. Verify token count is within target
-        let token_count = worker.get_render_as_tokens()?.len();
+        let token_count = worker.render_as_chunks(true)?.len();
 
         let target_size = (n_ctx / 2) as usize;
         assert!(
@@ -2213,10 +2307,10 @@ mod tests {
 
         // Fill up the context until it's almost full
         for i in 1..=n_messages {
-            worker.add_user_message(format!(
-                "This is user message number {}. What is {} * {}?",
-                i, i, i
-            ));
+            worker.add_user_message(
+                format!("This is user message number {}. What is {} * {}?", i, i, i),
+                vec![],
+            );
             worker.add_assistant_message(format!("The answer is {}.", i * i));
         }
 
@@ -2232,7 +2326,7 @@ mod tests {
 
         // This should trigger context shift internally because there's not enough space
         worker.ask(
-            "This is a new question that will not fit in the context! What is 10 * 10?".to_string(),
+            "This is a new question that will not fit in the context! What is 10 * 10?".into(),
             f,
         )?;
 
@@ -2299,10 +2393,10 @@ mod tests {
 
         // Fill up the context until it's almost full
         for i in 1..=n_messages {
-            worker.add_user_message(format!(
-                "This is user message number {}. What is {} * {}?",
-                i, i, i
-            ));
+            worker.add_user_message(
+                format!("This is user message number {}. What is {} * {}?", i, i, i),
+                vec![],
+            );
             worker.add_assistant_message(format!("The answer is {}.", i * i));
         }
 
@@ -2317,7 +2411,7 @@ mod tests {
         };
 
         // This should trigger context shift internally because there's not enough space
-        worker.ask("What is 10 * 10?".to_string(), f)?;
+        worker.ask("What is 10 * 10?".into(), f)?;
 
         let _response = receiver.recv()?;
         let messages_after = worker.extra.messages.clone();
@@ -2363,7 +2457,7 @@ mod tests {
     #[test]
     fn test_chat_worker_multiple_contexts() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
-        let model = test_utils::load_test_model();
+        let model = Arc::new(test_utils::load_test_model());
 
         // Create two separate chat handles that will run in parallel
         let model_clone = Arc::clone(&model);
@@ -2410,7 +2504,7 @@ mod tests {
     #[tokio::test]
     async fn test_allow_thinking() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
-        let model = test_utils::load_test_model();
+        let model = Arc::new(test_utils::load_test_model());
         let chat = ChatBuilder::new(model).build_async();
 
         let res1: String = chat

@@ -8,6 +8,8 @@ pub enum LoadModelError {
     ModelNotFound(String),
     #[error("Invalid or unsupported GGUF model: {0}")]
     InvalidModel(String),
+    #[error("Multimodal error: {0}")]
+    Multimodal(#[from] MultimodalError),
     #[error("Channel for receiving model was closed unexpectedly")]
     ModelChannelError,
 }
@@ -38,6 +40,27 @@ pub enum InitWorkerError {
 
     #[error("Failed to detect tool calling format: {0}")]
     ToolFormatDetection(#[from] crate::tool_calling::ToolFormatError),
+
+    #[error("Could not initialize projection model: {0}")]
+    ProjectionModel(#[from] MultimodalError),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum InitContextError {
+    #[error("Could not determine number of threads available: {0}")]
+    ThreadCount(#[from] std::io::Error),
+
+    #[error("Could not create context: {0}")]
+    CreateContext(#[from] llama_cpp_2::LlamaContextLoadError),
+}
+
+impl From<InitContextError> for InitWorkerError {
+    fn from(value: InitContextError) -> Self {
+        match value {
+            InitContextError::ThreadCount(e) => InitWorkerError::ThreadCount(e),
+            InitContextError::CreateContext(e) => InitWorkerError::CreateContext(e),
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -78,14 +101,20 @@ pub enum GetterError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ReadError {
-    #[error("Could not tokenize string: {0}")]
-    Tokenizer(#[from] llama_cpp_2::StringToTokenError),
-
     #[error("Could not add to batch: {0}")]
     BatchAdd(#[from] llama_cpp_2::llama_batch::BatchAddError),
 
     #[error("Llama.cpp failed decoding: {0}")]
     Decode(#[from] llama_cpp_2::DecodeError),
+
+    #[error("Projection model not initialized")]
+    ProjectionModelNotInitialized,
+
+    #[error("Llama.cpp failed reading image embeddings: {0}")]
+    FailedReadingImageEmbeddings(#[from] llama_cpp_2::mtmd::MtmdEvalError),
+
+    #[error("Could not tokenize string: {0}")]
+    FailedToTokenize(#[from] TokenizationError),
 }
 
 // CrossEncoderWorker errors
@@ -248,6 +277,59 @@ pub enum SayError {
 
     #[error("Error creating response: {0}")]
     WrappedResponse(#[from] WrappedResponseError),
+
+    #[error("Tokenization error: {0}")]
+    Tokenization(#[from] TokenizationError),
+
+    #[error("Multimodal error: {0}")]
+    Multimodal(#[from] MultimodalError),
+
+    #[error("Error generating response: {0}")]
+    GenerateResponse(#[from] GenerateResponseError),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum MultimodalError {
+    #[error("Failed to load image from '{path}': {error}")]
+    LoadImage { path: String, error: String },
+
+    #[error("Multimodal context not initialized. Use with_mmproj() when building ChatHandle.")]
+    ContextNotInitialized,
+
+    #[error("Failed to set chunk ID for bitmap: {0}")]
+    FailedToSetBitmapId(#[from] std::ffi::NulError),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum TokenizationError {
+    #[error("Could not tokenize string: {0}")]
+    StringToToken(#[from] llama_cpp_2::StringToTokenError),
+
+    #[error("Failed to tokenize image {image_index} of {total_images}: {error}")]
+    ImageTokenizationFailed {
+        image_index: usize,
+        total_images: usize,
+        error: String,
+    },
+
+    #[error(
+        "Failed to tokenize text segment at position {position} (preview: {text_preview}): {error}"
+    )]
+    TextTokenizationFailed {
+        position: usize,
+        text_preview: String,
+        error: String,
+    },
+
+    #[error("Projection model failed to tokenize image bitmap: {0}")]
+    ProjectionTokenizationError(String),
+
+    #[error("Image marker mismatch: found {n_markers} image markers in template but received {n_bitmaps} images. Each image placeholder in the prompt must have a corresponding image.\n\nTemplate preview: {template_preview}")]
+    ImageMarkerMismatch {
+        n_markers: usize,
+        n_bitmaps: usize,
+        template_preview: String,
+    },
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -259,10 +341,13 @@ pub enum ShiftError {
     StringToToken(#[from] llama_cpp_2::StringToTokenError),
 
     #[error("Could not render messages with template {0}")]
-    TemplateRender(#[from] minijinja::Error),
+    TemplateRender(#[from] RenderError),
 
     #[error("Error reading token render into model {0}")]
     KVCacheUpdate(#[from] ReadError),
+
+    #[error("Could not tokenize string: {0}")]
+    Tokenize(#[from] TokenizationError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -278,6 +363,12 @@ pub enum ContextSyncError {
 
     #[error("Error reading token render into model {0}")]
     KVCacheUpdate(#[from] ReadError),
+
+    #[error("Error tokenizing chunks: {0}")]
+    Tokenize(#[from] TokenizationError),
+
+    #[error("Error shifting context: {0}")]
+    Shift(#[from] ShiftError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -287,6 +378,9 @@ pub enum RenderError {
 
     #[error("Could not tokenize string: {0}")]
     CreateContext(#[from] llama_cpp_2::StringToTokenError),
+
+    #[error("Could not tokenize string: {0}")]
+    Tokenize(#[from] TokenizationError),
 }
 
 #[derive(Debug, thiserror::Error)]

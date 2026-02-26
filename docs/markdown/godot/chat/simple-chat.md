@@ -151,9 +151,9 @@ for message in messages:
 
 # Set a custom context (useful for templates or saved states)
 var task_context = [
-    {"role": "user", "content": "Analyze the following data:"},
-    {"role": "assistant", "content": "I'm ready to analyze data. Please provide it."},
-    {"role": "user", "content": "Here's the data: " + data_to_analyze}
+    {"role": "user", "content": "Analyze the following data:", "assets": []},
+    {"role": "assistant", "content": "I'm ready to analyze data. Please provide it.", "assets": []},
+    {"role": "user", "content": "Here's the data: " + data_to_analyze, "assets": []}
 ]
 await set_chat_history(task_context)
 ```

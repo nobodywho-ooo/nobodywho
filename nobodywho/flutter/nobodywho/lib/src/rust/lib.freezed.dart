@@ -154,10 +154,10 @@ return toolResp(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( Role role,  String content)?  message,TResult Function( Role role,  String content,  List<ToolCall> toolCalls)?  toolCalls,TResult Function( Role role,  String name,  String content)?  toolResp,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( Role role,  String content,  List<Asset> assets)?  message,TResult Function( Role role,  String content,  List<ToolCall> toolCalls)?  toolCalls,TResult Function( Role role,  String name,  String content)?  toolResp,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case Message_Message() when message != null:
-return message(_that.role,_that.content);case Message_ToolCalls() when toolCalls != null:
+return message(_that.role,_that.content,_that.assets);case Message_ToolCalls() when toolCalls != null:
 return toolCalls(_that.role,_that.content,_that.toolCalls);case Message_ToolResp() when toolResp != null:
 return toolResp(_that.role,_that.name,_that.content);case _:
   return orElse();
@@ -177,10 +177,10 @@ return toolResp(_that.role,_that.name,_that.content);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( Role role,  String content)  message,required TResult Function( Role role,  String content,  List<ToolCall> toolCalls)  toolCalls,required TResult Function( Role role,  String name,  String content)  toolResp,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( Role role,  String content,  List<Asset> assets)  message,required TResult Function( Role role,  String content,  List<ToolCall> toolCalls)  toolCalls,required TResult Function( Role role,  String name,  String content)  toolResp,}) {final _that = this;
 switch (_that) {
 case Message_Message():
-return message(_that.role,_that.content);case Message_ToolCalls():
+return message(_that.role,_that.content,_that.assets);case Message_ToolCalls():
 return toolCalls(_that.role,_that.content,_that.toolCalls);case Message_ToolResp():
 return toolResp(_that.role,_that.name,_that.content);}
 }
@@ -196,10 +196,10 @@ return toolResp(_that.role,_that.name,_that.content);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( Role role,  String content)?  message,TResult? Function( Role role,  String content,  List<ToolCall> toolCalls)?  toolCalls,TResult? Function( Role role,  String name,  String content)?  toolResp,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( Role role,  String content,  List<Asset> assets)?  message,TResult? Function( Role role,  String content,  List<ToolCall> toolCalls)?  toolCalls,TResult? Function( Role role,  String name,  String content)?  toolResp,}) {final _that = this;
 switch (_that) {
 case Message_Message() when message != null:
-return message(_that.role,_that.content);case Message_ToolCalls() when toolCalls != null:
+return message(_that.role,_that.content,_that.assets);case Message_ToolCalls() when toolCalls != null:
 return toolCalls(_that.role,_that.content,_that.toolCalls);case Message_ToolResp() when toolResp != null:
 return toolResp(_that.role,_that.name,_that.content);case _:
   return null;
@@ -213,11 +213,18 @@ return toolResp(_that.role,_that.name,_that.content);case _:
 
 
 class Message_Message extends Message {
-  const Message_Message({required this.role, required this.content}): super._();
+  const Message_Message({required this.role, required this.content, required final  List<Asset> assets}): _assets = assets,super._();
   
 
 @override final  Role role;
 @override final  String content;
+ final  List<Asset> _assets;
+ List<Asset> get assets {
+  if (_assets is EqualUnmodifiableListView) return _assets;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_assets);
+}
+
 
 /// Create a copy of Message
 /// with the given fields replaced by the non-null parameter values.
@@ -229,16 +236,16 @@ $Message_MessageCopyWith<Message_Message> get copyWith => _$Message_MessageCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Message_Message&&(identical(other.role, role) || other.role == role)&&(identical(other.content, content) || other.content == content));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Message_Message&&(identical(other.role, role) || other.role == role)&&(identical(other.content, content) || other.content == content)&&const DeepCollectionEquality().equals(other._assets, _assets));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,role,content);
+int get hashCode => Object.hash(runtimeType,role,content,const DeepCollectionEquality().hash(_assets));
 
 @override
 String toString() {
-  return 'Message.message(role: $role, content: $content)';
+  return 'Message.message(role: $role, content: $content, assets: $assets)';
 }
 
 
@@ -249,7 +256,7 @@ abstract mixin class $Message_MessageCopyWith<$Res> implements $MessageCopyWith<
   factory $Message_MessageCopyWith(Message_Message value, $Res Function(Message_Message) _then) = _$Message_MessageCopyWithImpl;
 @override @useResult
 $Res call({
- Role role, String content
+ Role role, String content, List<Asset> assets
 });
 
 
@@ -266,11 +273,12 @@ class _$Message_MessageCopyWithImpl<$Res>
 
 /// Create a copy of Message
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? role = null,Object? content = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? role = null,Object? content = null,Object? assets = null,}) {
   return _then(Message_Message(
 role: null == role ? _self.role : role // ignore: cast_nullable_to_non_nullable
 as Role,content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
-as String,
+as String,assets: null == assets ? _self._assets : assets // ignore: cast_nullable_to_non_nullable
+as List<Asset>,
   ));
 }
 
@@ -416,6 +424,298 @@ class _$Message_ToolRespCopyWithImpl<$Res>
 role: null == role ? _self.role : role // ignore: cast_nullable_to_non_nullable
 as Role,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+mixin _$PromptPart {
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PromptPart);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'PromptPart()';
+}
+
+
+}
+
+/// @nodoc
+class $PromptPartCopyWith<$Res>  {
+$PromptPartCopyWith(PromptPart _, $Res Function(PromptPart) __);
+}
+
+
+/// Adds pattern-matching-related methods to [PromptPart].
+extension PromptPartPatterns on PromptPart {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( PromptPart_Text value)?  text,TResult Function( PromptPart_Image value)?  image,required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case PromptPart_Text() when text != null:
+return text(_that);case PromptPart_Image() when image != null:
+return image(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( PromptPart_Text value)  text,required TResult Function( PromptPart_Image value)  image,}){
+final _that = this;
+switch (_that) {
+case PromptPart_Text():
+return text(_that);case PromptPart_Image():
+return image(_that);}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( PromptPart_Text value)?  text,TResult? Function( PromptPart_Image value)?  image,}){
+final _that = this;
+switch (_that) {
+case PromptPart_Text() when text != null:
+return text(_that);case PromptPart_Image() when image != null:
+return image(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String content)?  text,TResult Function( String path)?  image,required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case PromptPart_Text() when text != null:
+return text(_that.content);case PromptPart_Image() when image != null:
+return image(_that.path);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String content)  text,required TResult Function( String path)  image,}) {final _that = this;
+switch (_that) {
+case PromptPart_Text():
+return text(_that.content);case PromptPart_Image():
+return image(_that.path);}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String content)?  text,TResult? Function( String path)?  image,}) {final _that = this;
+switch (_that) {
+case PromptPart_Text() when text != null:
+return text(_that.content);case PromptPart_Image() when image != null:
+return image(_that.path);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+
+
+class PromptPart_Text extends PromptPart {
+  const PromptPart_Text({required this.content}): super._();
+  
+
+ final  String content;
+
+/// Create a copy of PromptPart
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$PromptPart_TextCopyWith<PromptPart_Text> get copyWith => _$PromptPart_TextCopyWithImpl<PromptPart_Text>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PromptPart_Text&&(identical(other.content, content) || other.content == content));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,content);
+
+@override
+String toString() {
+  return 'PromptPart.text(content: $content)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $PromptPart_TextCopyWith<$Res> implements $PromptPartCopyWith<$Res> {
+  factory $PromptPart_TextCopyWith(PromptPart_Text value, $Res Function(PromptPart_Text) _then) = _$PromptPart_TextCopyWithImpl;
+@useResult
+$Res call({
+ String content
+});
+
+
+
+
+}
+/// @nodoc
+class _$PromptPart_TextCopyWithImpl<$Res>
+    implements $PromptPart_TextCopyWith<$Res> {
+  _$PromptPart_TextCopyWithImpl(this._self, this._then);
+
+  final PromptPart_Text _self;
+  final $Res Function(PromptPart_Text) _then;
+
+/// Create a copy of PromptPart
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? content = null,}) {
+  return _then(PromptPart_Text(
+content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class PromptPart_Image extends PromptPart {
+  const PromptPart_Image({required this.path}): super._();
+  
+
+ final  String path;
+
+/// Create a copy of PromptPart
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$PromptPart_ImageCopyWith<PromptPart_Image> get copyWith => _$PromptPart_ImageCopyWithImpl<PromptPart_Image>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PromptPart_Image&&(identical(other.path, path) || other.path == path));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,path);
+
+@override
+String toString() {
+  return 'PromptPart.image(path: $path)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $PromptPart_ImageCopyWith<$Res> implements $PromptPartCopyWith<$Res> {
+  factory $PromptPart_ImageCopyWith(PromptPart_Image value, $Res Function(PromptPart_Image) _then) = _$PromptPart_ImageCopyWithImpl;
+@useResult
+$Res call({
+ String path
+});
+
+
+
+
+}
+/// @nodoc
+class _$PromptPart_ImageCopyWithImpl<$Res>
+    implements $PromptPart_ImageCopyWith<$Res> {
+  _$PromptPart_ImageCopyWithImpl(this._self, this._then);
+
+  final PromptPart_Image _self;
+  final $Res Function(PromptPart_Image) _then;
+
+/// Create a copy of PromptPart
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? path = null,}) {
+  return _then(PromptPart_Image(
+path: null == path ? _self.path : path // ignore: cast_nullable_to_non_nullable
 as String,
   ));
 }

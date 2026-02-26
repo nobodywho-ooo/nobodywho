@@ -1,4 +1,6 @@
 use flutter_rust_bridge::{DartFnFuture, Rust2DartSendError};
+use nobodywho::chat::Asset;
+use std::sync::Arc;
 // ^ in general I've only done fully-qualified imports, but these things need to be imported to
 // satisfy some frb macros
 
@@ -7,6 +9,13 @@ mod parse;
 
 pub use nobodywho::chat::{Message, Role};
 pub use nobodywho::tool_calling::ToolCall;
+
+/// A part of a multimodal prompt. Use [`PromptPart::Text`] for text and
+/// [`PromptPart::Image`] for images.
+pub enum PromptPart {
+    Text { content: String },
+    Image { path: String },
+}
 
 #[flutter_rust_bridge::frb(mirror(ToolCall))]
 pub struct _ToolCall {
@@ -33,6 +42,7 @@ pub enum _Message {
     Message {
         role: Role,
         content: String,
+        assets: Vec<Asset>,
     },
     ToolCalls {
         role: Role,
@@ -53,8 +63,13 @@ pub struct Model {
 
 impl Model {
     #[flutter_rust_bridge::frb]
-    pub fn load(model_path: &str, #[frb(default = true)] use_gpu: bool) -> Result<Self, String> {
-        let model = nobodywho::llm::get_model(model_path, use_gpu).map_err(|e| e.to_string())?;
+    pub fn load(
+        model_path: &str,
+        #[frb(default = true)] use_gpu: bool,
+        #[frb(default = "null")] image_ingestion: Option<String>,
+    ) -> Result<Self, String> {
+        let model = nobodywho::llm::get_model(model_path, use_gpu, image_ingestion.as_deref())
+            .map_err(|e| e.to_string())?;
         Ok(Self { model })
     }
 }
@@ -67,8 +82,14 @@ pub struct RustChat {
 impl RustChat {
     /// Create chat from existing model.
     ///
+    /// For vision/multimodal models, load the model with image ingestion enabled first:
+    /// ```dart
+    /// final model = Model.load("model.gguf", imageIngestion: "mmproj.gguf");
+    /// final chat = Chat(model: model);
+    /// ```
+    ///
     /// Args:
-    ///     model: A Model instance
+    ///     model: A Model instance (may include a projection model for vision)
     ///     system_prompt: System message to guide the model's behavior
     ///     context_size: Context size (maximum conversation length in tokens)
     ///     tools: List of Tool instances the model can call
@@ -84,7 +105,7 @@ impl RustChat {
     ) -> Self {
         let sampler_config = sampler.map(|s| s.sampler_config).unwrap_or_default();
 
-        let chat = nobodywho::chat::ChatBuilder::new(model.model.clone())
+        let chat = nobodywho::chat::ChatBuilder::new(Arc::new(model.model.clone()))
             .with_context_size(context_size)
             .with_allow_thinking(allow_thinking)
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
@@ -99,14 +120,17 @@ impl RustChat {
     ///
     /// Args:
     ///     model_path: Path to GGUF model file
+    ///     image_ingestion: Path to a .mmproj file for vision/multimodal models
     ///     system_prompt: System message to guide the model's behavior
     ///     context_size: Context size (maximum conversation length in tokens)
     ///     tools: List of Tool instances the model can call
     ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
     ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
     #[flutter_rust_bridge::frb]
+    #[allow(clippy::too_many_arguments)]
     pub fn from_path(
         model_path: &str,
+        #[frb(default = "null")] image_ingestion: Option<String>,
         #[frb(default = "null")] system_prompt: Option<String>,
         #[frb(default = 4096)] context_size: u32,
         #[frb(default = true)] allow_thinking: bool,
@@ -114,10 +138,11 @@ impl RustChat {
         #[frb(default = "null")] sampler: Option<SamplerConfig>,
         #[frb(default = true)] use_gpu: bool,
     ) -> Result<Self, String> {
-        let model = nobodywho::llm::get_model(model_path, use_gpu).map_err(|e| e.to_string())?;
+        let model = nobodywho::llm::get_model(model_path, use_gpu, image_ingestion.as_deref())
+            .map_err(|e| e.to_string())?;
         let sampler_config = sampler.map(|s| s.sampler_config).unwrap_or_default();
 
-        let chat = nobodywho::chat::ChatBuilder::new(model)
+        let chat = nobodywho::chat::ChatBuilder::new(Arc::new(model))
             .with_context_size(context_size)
             .with_allow_thinking(allow_thinking)
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
@@ -131,6 +156,25 @@ impl RustChat {
     pub fn ask(&self, message: String) -> RustTokenStream {
         RustTokenStream {
             stream: self.chat.ask(message),
+        }
+    }
+
+    /// Send a multimodal prompt (text + images) and get a stream of response tokens.
+    ///
+    /// Args:
+    ///     parts: List of PromptPart (text or image) making up the prompt
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn ask_with_prompt(&self, parts: Vec<PromptPart>) -> RustTokenStream {
+        let prompt =
+            parts.into_iter().fold(
+                nobodywho::tokenizer::Prompt::new(),
+                |acc, part| match part {
+                    PromptPart::Text { content } => acc.with_text(content),
+                    PromptPart::Image { path } => acc.with_image(path),
+                },
+            );
+        RustTokenStream {
+            stream: self.chat.ask(prompt),
         }
     }
 
@@ -240,7 +284,8 @@ impl Encoder {
         #[frb(default = 4096)] n_ctx: u32,
         #[frb(default = true)] use_gpu: bool,
     ) -> Result<Self, String> {
-        let model = nobodywho::llm::get_model(model_path, use_gpu).map_err(|e| e.to_string())?;
+        let model =
+            nobodywho::llm::get_model(model_path, use_gpu, None).map_err(|e| e.to_string())?;
         let handle = nobodywho::encoder::EncoderAsync::new(model.clone(), n_ctx);
 
         Ok(Self { handle })
@@ -272,7 +317,8 @@ impl CrossEncoder {
         #[frb(default = 4096)] n_ctx: u32,
         #[frb(default = true)] use_gpu: bool,
     ) -> Result<Self, String> {
-        let model = nobodywho::llm::get_model(model_path, use_gpu).map_err(|e| e.to_string())?;
+        let model =
+            nobodywho::llm::get_model(model_path, use_gpu, None).map_err(|e| e.to_string())?;
         let handle = nobodywho::crossencoder::CrossEncoderAsync::new(model.clone(), n_ctx);
         Ok(Self { handle })
     }
@@ -374,7 +420,7 @@ fn dart_function_type_to_json_schema(
         Err(_) => return Err("Something has gone horribly wrong while parsing!".into()),
     };
 
-    if let Err(_) = parse::return_type_parser(return_type) {
+    if parse::return_type_parser(return_type).is_err() {
         tracing::warn!("Return type of this tool should be `String or Future<String>`. Anything else will be cast to string, which might lead to unexpected results.")
     }
 

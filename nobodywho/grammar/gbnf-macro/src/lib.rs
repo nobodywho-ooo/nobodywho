@@ -219,11 +219,11 @@ fn expr_to_tokens(expr: &Expr) -> TokenStream2 {
             quote! { ::gbnf::Expr::Group(Box::new(#inner_tokens)) }
         }
         Expr::Sequence(items) => {
-            let item_tokens: Vec<_> = items.iter().map(|e| expr_to_tokens(e)).collect();
+            let item_tokens: Vec<_> = items.iter().map(expr_to_tokens).collect();
             quote! { ::gbnf::Expr::Sequence(vec![#(#item_tokens),*]) }
         }
         Expr::Alternation(alts) => {
-            let alt_tokens: Vec<_> = alts.iter().map(|e| expr_to_tokens(e)).collect();
+            let alt_tokens: Vec<_> = alts.iter().map(expr_to_tokens).collect();
             quote! { ::gbnf::Expr::Alternation(vec![#(#alt_tokens),*]) }
         }
         Expr::Quantified { expr, quantifier } => {

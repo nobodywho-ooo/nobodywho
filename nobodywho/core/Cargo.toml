@@ -10,9 +10,14 @@ minijinja = { version = "2.11.0", features = ["builtins", "json", "loader"] }
 minijinja-contrib = { version = "2.11.0", features = ["pycompat"] }
 serde = { version = "1.0.215", features = ["derive"] }
 chrono = "0.4.39"
-llama-cpp-2 = "0.1.133"
+llama-cpp-2 = { version = "0.1.136", features = ["mtmd"] }
 lazy_static = "1.5.0"
-tokio = { version = "1.43.0", features = ["sync", "rt", "rt-multi-thread", "macros"] }
+tokio = { version = "1.43.0", features = [
+    "sync",
+    "rt",
+    "rt-multi-thread",
+    "macros",
+] }
 tokio-stream = "0.1.17"
 tracing = { version = "0.1.41", features = ["log"] }
 tracing-subscriber = "0.3.19"
@@ -23,7 +28,8 @@ gbnf-macro = { path = "../grammar/gbnf-macro" }
 nom = "8.0.0"
 rand = "0.9.2"
 futures = "0.3.31"
+ahash = "0.8.12"
 
 # Enable Vulkan for x86_64, x86, and aarch64 targets (excluding macOS, iOS, Android)
 [target.'cfg(all(not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android"), any(target_arch = "x86_64", target_arch = "x86", target_arch = "aarch64")))'.dependencies]
-llama-cpp-2 = { version = "0.1.133", features = ["vulkan"] }
+llama-cpp-2 = { version = "0.1.136", features = ["vulkan", "mtmd"] }
