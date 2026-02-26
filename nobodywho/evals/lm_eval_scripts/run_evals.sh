@@ -4,20 +4,18 @@ set -e
 # Default values
 LIMIT=""
 MODEL="${TEST_MODEL:-}"
-SHUFFLE=""
-SEED="42"
 RESULTS_FILE="results.txt"
 
 usage() {
-    echo "Usage: $0 -m <model_path> [-l <limit>] [--shuffle] [--seed <seed>] [-o <output>]"
+    echo "Usage: $0 -m <model_path> [-l <limit>] [-o <output>]"
     echo ""
     echo "Options:"
     echo "  -m, --model    Path to GGUF model file (or set TEST_MODEL env var)"
     echo "  -l, --limit    Number of samples per task (default: no limit)"
-    echo "  --shuffle      Randomly sample instead of first N"
-    echo "  --seed         Random seed for shuffled sampling (default: 42)"
     echo "  -o, --output   Results output file (default: results.txt)"
     echo "  -h, --help     Show this help message"
+    echo ""
+    echo "Note: DROP automatically uses random sampling (seed=42) due to passage grouping."
     exit 1
 }
 
@@ -30,14 +28,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         -l|--limit)
             LIMIT="$2"
-            shift 2
-            ;;
-        --shuffle)
-            SHUFFLE="--shuffle"
-            shift
-            ;;
-        --seed)
-            SEED="$2"
             shift 2
             ;;
         -o|--output)
@@ -65,13 +55,10 @@ if [[ ! -f "$MODEL" ]]; then
     exit 1
 fi
 
-# Build common args
+# Build common args (without shuffle - that's task-specific)
 COMMON_ARGS="-m $MODEL"
 if [[ -n "$LIMIT" ]]; then
     COMMON_ARGS="$COMMON_ARGS -l $LIMIT"
-fi
-if [[ -n "$SHUFFLE" ]]; then
-    COMMON_ARGS="$COMMON_ARGS --shuffle --seed $SEED"
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -94,7 +81,6 @@ NobodyWho Eval Suite Results
 ==============================================
 Model: $MODEL
 Limit: ${LIMIT:-none}
-Shuffle: ${SHUFFLE:-no}
 Date: $(date)
 ==============================================
 
@@ -105,7 +91,6 @@ echo "NobodyWho Eval Suite"
 echo "=============================================="
 echo "Model: $MODEL"
 echo "Limit: ${LIMIT:-none}"
-echo "Shuffle: ${SHUFFLE:-no}"
 echo "Results: $RESULTS_FILE"
 echo "=============================================="
 echo ""
@@ -118,22 +103,30 @@ for task in ifeval gsm8k truthfulqa_gen humaneval mbpp drop; do
 
     PROMPT_FILE="${TASK_PROMPTS[$task]}"
     PROMPT_ARG=""
+    TASK_ARGS=""
 
     if [[ -n "$PROMPT_FILE" && -f "$PROMPTS_DIR/$PROMPT_FILE" ]]; then
         PROMPT_ARG="--system-prompt-file $PROMPTS_DIR/$PROMPT_FILE"
         echo "Using prompt: $PROMPT_FILE"
     else
+        PROMPT_ARG="--system-prompt ''"
         echo "No system prompt"
     fi
 
+    # DROP uses random sampling due to passage grouping bias
+    if [[ "$task" == "drop" ]]; then
+        TASK_ARGS="--shuffle --seed 42"
+        echo "Using random sampling (seed=42)"
+    fi
+
     # Run eval and capture output
-    OUTPUT=$(uv run python "$SCRIPT_DIR/main.py" -t "$task" $COMMON_ARGS $PROMPT_ARG 2>&1)
+    OUTPUT=$(uv run python "$SCRIPT_DIR/main.py" -t "$task" $COMMON_ARGS $PROMPT_ARG $TASK_ARGS 2>&1)
 
     echo "$OUTPUT"
 
     # Extract and save results to file
     echo "--- $task ---" >> "$RESULTS_FILE"
-    echo "$OUTPUT" | grep -E "^  (alias|pass|exact|bleu|f1|prompt)" >> "$RESULTS_FILE" || true
+    echo "$OUTPUT" | grep -E "^  (alias|pass|exact|bleu|f1|prompt|inst)" >> "$RESULTS_FILE" || true
     echo "" >> "$RESULTS_FILE"
 
     echo ""

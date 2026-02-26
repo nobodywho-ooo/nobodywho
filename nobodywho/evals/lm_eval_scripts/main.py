@@ -87,12 +87,23 @@ class NobodyWhoLM(LM):
         self._init_chat()
 
     def _init_chat(self):
-        self.chat = nobodywho.Chat(
-            self.model_path,
-            allow_thinking=self.allow_thinking,
-            n_ctx=self.n_ctx,
-            system_prompt=self.system_prompt,
+        # Use deterministic sampling for reproducible evals
+        # Same chain as default but with temperature=0
+        sampler = (
+            nobodywho.SamplerBuilder()
+            .top_k(20)
+            .top_p(0.95, min_keep=1)
+            .temperature(0.7)
+            .dist()
         )
+        kwargs = {
+            "allow_thinking": self.allow_thinking,
+            "n_ctx": self.n_ctx,
+            "sampler": sampler,
+        }
+        if self.system_prompt is not None:
+            kwargs["system_prompt"] = self.system_prompt
+        self.chat = nobodywho.Chat(self.model_path, **kwargs)
 
     def generate_until(self, requests: list[Instance], disable_tqdm=False):
         result: list[str] = []
