@@ -49,12 +49,19 @@ class NobodyWhoLM(LM):
     chat: nobodywho.Chat
     allow_thinking: bool
     model_path: Path
+    system_prompt: str | None
     failed_samples: list[dict]
     max_retries: int
     total_samples: int
 
     def __init__(
-        self, model_path: str, allow_thinking: str, n_ctx: int, *args, **kwargs
+        self,
+        model_path: str,
+        allow_thinking: str,
+        n_ctx: int,
+        system_prompt: str | None = None,
+        *args,
+        **kwargs,
     ):
         super().__init__()
 
@@ -71,6 +78,9 @@ class NobodyWhoLM(LM):
         assert isinstance(n_ctx, int)
         self.n_ctx = n_ctx
 
+        # system prompt
+        self.system_prompt = system_prompt
+
         self.failed_samples = []
         self.max_retries = 2
         self.total_samples = 0
@@ -78,7 +88,10 @@ class NobodyWhoLM(LM):
 
     def _init_chat(self):
         self.chat = nobodywho.Chat(
-            self.model_path, allow_thinking=self.allow_thinking, n_ctx=self.n_ctx
+            self.model_path,
+            allow_thinking=self.allow_thinking,
+            n_ctx=self.n_ctx,
+            system_prompt=self.system_prompt,
         )
 
     def generate_until(self, requests: list[Instance], disable_tqdm=False):
@@ -457,7 +470,26 @@ if __name__ == "__main__":
         default=42,
         help="Random seed for shuffled sampling (default: 42)",
     )
+    parser.add_argument(
+        "--system-prompt",
+        type=str,
+        default=None,
+        help="System prompt to use for generation",
+    )
+    parser.add_argument(
+        "--system-prompt-file",
+        type=str,
+        default=None,
+        help="Path to file containing system prompt",
+    )
     args = parser.parse_args()
+
+    # Handle system prompt from file
+    if args.system_prompt_file:
+        if args.system_prompt:
+            parser.error("Cannot use both --system-prompt and --system-prompt-file")
+        with open(args.system_prompt_file) as f:
+            args.system_prompt = f.read().strip()
 
     # allow code eval: this lets the model run code. yolo.
     os.environ["HF_ALLOW_CODE_EVAL"] = "1"
@@ -494,6 +526,9 @@ if __name__ == "__main__":
         else None
     )
 
+    if args.system_prompt:
+        print(f"System prompt: {args.system_prompt}")
+
     print("Starting evals suite...")
 
     # Create model instance ourselves so we can access failure stats after
@@ -501,6 +536,7 @@ if __name__ == "__main__":
         model_path=str(model_path.resolve()),
         allow_thinking="true",
         n_ctx=32768,
+        system_prompt=args.system_prompt,
     )
 
     # Build samples dict for random sampling, or use limit for first-N

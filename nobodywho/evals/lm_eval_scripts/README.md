@@ -12,6 +12,31 @@ python main.py --model /path/to/model.gguf
 python main.py --model /path/to/model.gguf --tasks gsm8k,mbpp --limit 100
 ```
 
+## Full Suite Script
+
+The `run_evals.sh` script runs all tasks sequentially with their task-specific system prompts and collects results:
+
+```bash
+# Run all evals with 100 samples each
+./run_evals.sh -m /path/to/model.gguf -l 100
+
+# With random sampling
+./run_evals.sh -m /path/to/model.gguf -l 100 --shuffle
+
+# Custom output file
+./run_evals.sh -m /path/to/model.gguf -l 100 -o my_results.txt
+```
+
+| Argument | Description |
+|----------|-------------|
+| `-m, --model` | Path to GGUF model file (or set `TEST_MODEL` env var) |
+| `-l, --limit` | Number of samples per task |
+| `--shuffle` | Randomly sample instead of first N |
+| `--seed` | Random seed for shuffled sampling (default: 42) |
+| `-o, --output` | Results output file (default: results.txt) |
+
+Results are saved to `results.txt` (or custom path) with metrics for each task.
+
 ## CLI Arguments
 
 | Argument | Short | Description |
@@ -22,6 +47,8 @@ python main.py --model /path/to/model.gguf --tasks gsm8k,mbpp --limit 100
 | `--shuffle` | | Randomly sample instead of first N (recommended for DROP) |
 | `--seed` | | Random seed for shuffled sampling (default: 42) |
 | `--print-samples` | | Print prompts and responses after evaluation |
+| `--system-prompt` | | System prompt for generation |
+| `--system-prompt-file` | | Path to file containing system prompt |
 
 ## Environment Variables
 
@@ -50,6 +77,9 @@ python main.py -m ./model.gguf -t drop -l 500 --shuffle
 
 # Reproducible random sampling with custom seed
 python main.py -m ./model.gguf -l 100 --shuffle --seed 123
+
+# Use task-specific system prompt from file
+python main.py -m ./model.gguf -t drop --system-prompt-file prompts/drop.txt
 ```
 
 ### Why use `--shuffle`?
