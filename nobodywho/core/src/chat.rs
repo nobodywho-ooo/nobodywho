@@ -929,6 +929,7 @@ struct ChatWorker {
     allow_thinking: bool,
     tools: Vec<Tool>,
     chat_template: ChatTemplate,
+    system_prompt: Option<String>, // raw prompt, without tool injection
 }
 
 impl llm::PoolingType for ChatWorker {
@@ -943,16 +944,18 @@ impl Worker<'_, ChatWorker> {
         config: ChatConfig,
         should_stop: Arc<AtomicBool>,
     ) -> Result<Worker<'_, ChatWorker>, InitWorkerError> {
-        let template = select_template(model, !config.tools.is_empty())?;
-
-        // Only detect tool calling format if tools are provided
+        // Detect tool format first — needed to decide whether the chat template handles tools
+        // (Phi-4-mini injects tools into the system prompt, not via the template)
         let (tool_format, grammar) = if !config.tools.is_empty() {
             match detect_tool_format(model) {
                 Ok(format) => {
                     debug!(format = ?format, "Detected tool calling format");
 
                     let grammar = match format.generate_grammar(&config.tools) {
-                        Ok(g) => Some(g),
+                        Ok(g) => {
+                            debug!(grammar = %g.as_str(), "Generated tool call grammar");
+                            Some(g)
+                        }
                         Err(e) => {
                             debug!(error = %e, "Failed to generate grammar from tools");
                             None
@@ -970,7 +973,14 @@ impl Worker<'_, ChatWorker> {
             (None, None)
         };
 
-        Worker::new_with_type(
+        let uses_template_for_tools = tool_format
+            .as_ref()
+            .map(|f| f.uses_template_for_tools())
+            .unwrap_or(true);
+        let template = select_template(model, !config.tools.is_empty() && uses_template_for_tools)?;
+
+        let system_prompt = config.system_prompt;
+        let mut worker = Worker::new_with_type(
             model,
             config.n_ctx,
             false,
@@ -979,29 +989,22 @@ impl Worker<'_, ChatWorker> {
                 tool_grammar: grammar,
                 tool_format,
                 sampler_config: config.sampler_config,
-                messages: match config.system_prompt {
-                    Some(msg) => vec![Message::Message {
-                        role: Role::System,
-                        content: msg,
-                    }],
-                    None => vec![],
-                },
+                messages: vec![],
                 chat_template: template,
                 allow_thinking: config.allow_thinking,
                 tools: config.tools,
                 tokens_in_context: Vec::new(),
+                system_prompt: None, // set_system_message fills this
             },
-        )
+        )?;
+        worker.set_system_message(system_prompt);
+        Ok(worker)
     }
 
     fn should_stop(&self) -> bool {
         self.extra
             .should_stop
             .load(std::sync::atomic::Ordering::Relaxed)
-    }
-
-    pub fn add_system_message(&mut self, content: String) {
-        self.add_message(Role::System, content)
     }
 
     pub fn add_assistant_message(&mut self, content: String) {
@@ -1014,6 +1017,42 @@ impl Worker<'_, ChatWorker> {
 
     fn add_message(&mut self, role: Role, content: String) {
         self.extra.messages.push(Message::Message { role, content });
+    }
+
+    fn set_system_message(&mut self, prompt: Option<String>) {
+        self.extra.system_prompt = prompt.clone();
+
+        let injection = self
+            .extra
+            .tool_format
+            .as_ref()
+            .and_then(|fmt| fmt.system_message_tool_injection(&self.extra.tools))
+            .unwrap_or_default();
+
+        let content = match (prompt.as_deref(), injection.as_str()) {
+            (None, "") => None,
+            (p, inj) => Some(format!("{}{}", p.unwrap_or(""), inj)),
+        };
+
+        // Replace or remove the system message at position 0
+        if matches!(
+            self.extra.messages.first(),
+            Some(Message::Message {
+                role: Role::System,
+                ..
+            })
+        ) {
+            self.extra.messages.remove(0);
+        }
+        if let Some(c) = content {
+            self.extra.messages.insert(
+                0,
+                Message::Message {
+                    role: Role::System,
+                    content: c,
+                },
+            );
+        }
     }
 
     pub fn add_tool_calls(&mut self, tool_calls: Vec<ToolCall>) {
@@ -1376,15 +1415,20 @@ impl Worker<'_, ChatWorker> {
     }
 
     fn get_render_as_tokens(&mut self) -> Result<Vec<LlamaToken>, RenderError> {
+        // Pass tools to the template context only for formats that render them via the template.
+        // For formats like Phi-4-mini, the injection is already baked into the system message.
+        let ctx_tools = self
+            .extra
+            .tool_format
+            .as_ref()
+            .filter(|fmt| fmt.uses_template_for_tools())
+            .and_then(|_| (!self.extra.tools.is_empty()).then(|| self.extra.tools.clone()));
+
         let render_as_string = self.extra.chat_template.render(
             &self.extra.messages,
             &ChatTemplateContext {
                 enable_thinking: self.extra.allow_thinking,
-                tools: if self.extra.tools.is_empty() {
-                    None
-                } else {
-                    Some(self.extra.tools.clone())
-                },
+                tools: ctx_tools,
             },
         )?;
 
@@ -1449,7 +1493,10 @@ impl Worker<'_, ChatWorker> {
         self.extra.tool_grammar = if !tools.is_empty() {
             if let Some(ref format) = self.extra.tool_format {
                 match format.generate_grammar(&tools) {
-                    Ok(g) => Some(g),
+                    Ok(g) => {
+                        debug!(grammar = %g.as_str(), "Generated tool call grammar");
+                        Some(g)
+                    }
                     Err(e) => {
                         debug!(error = %e, "Failed to generate grammar from tools");
                         None
@@ -1464,9 +1511,7 @@ impl Worker<'_, ChatWorker> {
         self.extra.tools = tools;
         self.extra.messages = Vec::new();
         self.extra.tokens_in_context = Vec::new();
-        if let Some(sys_msg) = system_prompt {
-            self.add_system_message(sys_msg);
-        }
+        self.set_system_message(system_prompt);
         Ok(())
     }
 
@@ -1483,30 +1528,9 @@ impl Worker<'_, ChatWorker> {
         &mut self,
         system_prompt: Option<String>,
     ) -> Result<(), ContextSyncError> {
-        match system_prompt {
-            Some(sys_msg) => {
-                let system_message = Message::Message {
-                    role: Role::System,
-                    content: sys_msg,
-                };
-                if self.extra.messages.is_empty() {
-                    self.extra.messages.push(system_message);
-                } else if *self.extra.messages[0].role() == Role::System {
-                    self.extra.messages[0] = system_message;
-                } else {
-                    self.extra.messages.insert(0, system_message);
-                }
-            }
-            None => {
-                if !self.extra.messages.is_empty() && *self.extra.messages[0].role() == Role::System
-                {
-                    self.extra.messages.remove(0);
-                }
-            }
-        }
+        self.set_system_message(system_prompt);
 
         // Reuse cached prefix
-
         let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
         let inference_lock_token = _gil_guard.unwrap();
         let rendered_tokens = self.get_render_as_tokens()?;
@@ -1516,7 +1540,7 @@ impl Worker<'_, ChatWorker> {
     }
 
     pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), SetToolsError> {
-        // Detect tool format if not already detected and tools are provided
+        // Detect tool format first — needed to decide whether the chat template handles tools
         if !tools.is_empty() && self.extra.tool_format.is_none() {
             match detect_tool_format(self.ctx.model) {
                 Ok(format) => {
@@ -1532,7 +1556,10 @@ impl Worker<'_, ChatWorker> {
         self.extra.tool_grammar = if !tools.is_empty() {
             if let Some(ref format) = self.extra.tool_format {
                 match format.generate_grammar(&tools) {
-                    Ok(g) => Some(g),
+                    Ok(g) => {
+                        debug!(grammar = %g.as_str(), "Generated tool call grammar");
+                        Some(g)
+                    }
                     Err(e) => {
                         debug!(error = %e, "Failed to generate grammar from tools");
                         None
@@ -1545,8 +1572,18 @@ impl Worker<'_, ChatWorker> {
             None
         };
         self.extra.tools = tools;
+        self.set_system_message(self.extra.system_prompt.clone());
 
-        self.extra.chat_template = select_template(self.ctx.model, !self.extra.tools.is_empty())?;
+        let uses_template_for_tools = self
+            .extra
+            .tool_format
+            .as_ref()
+            .map(|f| f.uses_template_for_tools())
+            .unwrap_or(true);
+        self.extra.chat_template = select_template(
+            self.ctx.model,
+            !self.extra.tools.is_empty() && uses_template_for_tools,
+        )?;
 
         // Reuse cached prefix
 
@@ -1589,6 +1626,7 @@ impl Worker<'_, ChatWorker> {
 }
 
 /// wraps a response function in a closure to do two things:
+
 /// 1. save a copy of the response (using a channel) before sending it out
 /// 2. skip emitting once a tool_call_begin_token has been seen
 fn wrap_respond<F>(
