@@ -1,0 +1,9 @@
+==============================================
+NobodyWho Eval Suite Results
+==============================================
+Model: /home/hanshh/work/model_dir/gemma-3-4b-it-Q6_K.gguf
+Limit: 5
+Shuffle: no
+Date: tor 26 feb 10:08:49 CET 2026
+==============================================
+
