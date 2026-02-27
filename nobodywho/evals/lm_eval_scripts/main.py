@@ -19,28 +19,115 @@ from tqdm import tqdm
 logger = logging.getLogger(__name__)
 
 
+def get_nobodywho_version() -> dict:
+    """Get nobodywho version info: git commit if editable install, else package version."""
+    result = {"version": "unknown", "git_commit": None}
+
+    # Try to get package version first
+    try:
+        import importlib.metadata
+        result["version"] = importlib.metadata.version("nobodywho")
+    except Exception:
+        pass
+
+    # Try to get git commit if installed from local repo (editable install)
+    try:
+        pkg_path = os.path.dirname(nobodywho.__file__)
+        # Walk up to find .git directory
+        repo_path = pkg_path
+        while repo_path != "/" and not os.path.exists(os.path.join(repo_path, ".git")):
+            repo_path = os.path.dirname(repo_path)
+
+        if os.path.exists(os.path.join(repo_path, ".git")):
+            commit = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            ).stdout.strip()
+            if commit:
+                result["git_commit"] = commit
+
+            # Also check if there are uncommitted changes
+            status = subprocess.run(
+                ["git", "status", "--porcelain"],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            ).stdout.strip()
+            if status:
+                result["git_dirty"] = True
+    except Exception:
+        pass
+
+    return result
+
+
 def get_gpu_info() -> str:
-    """Get GPU name via lspci"""
+    """Get GPU info via lspci, with sysfs fallback for NixOS"""
+    # Try lspci first
     try:
         result = subprocess.run(["lspci"], capture_output=True, text=True, timeout=5)
         for line in result.stdout.split("\n"):
             if "VGA" in line or "3D controller" in line:
-                # Extract GPU model (everything after ": ")
                 return line.split(": ", 1)[-1]
-        return "unknown"
-    except Exception as e:
-        return f"unavailable: {e}"
+    except Exception:
+        pass
+
+    # Fallback to sysfs (works without lspci on NixOS)
+    try:
+        import glob
+
+        for card_path in glob.glob("/sys/class/drm/card*/device/uevent"):
+            with open(card_path) as f:
+                uevent = f.read()
+            driver = None
+            pci_id = None
+            for line in uevent.strip().split("\n"):
+                if line.startswith("DRIVER="):
+                    driver = line.split("=")[1]
+                elif line.startswith("PCI_ID="):
+                    pci_id = line.split("=")[1]
+            if driver and pci_id:
+                return f"{driver} ({pci_id})"
+    except Exception:
+        pass
+
+    return "unknown"
+
+
+def get_cpu_model() -> str:
+    """Get CPU model name, with fallback for Linux systems."""
+    # Try platform.processor() first
+    cpu = platform.processor()
+    if cpu:
+        return cpu
+    # On Linux, read from /proc/cpuinfo
+    try:
+        with open("/proc/cpuinfo") as f:
+            for line in f:
+                if "model name" in line:
+                    return line.split(":")[1].strip()
+    except Exception:
+        pass
+    return "unknown"
 
 
 def get_system_info() -> dict:
     """Gather system information for logging"""
     mem = psutil.virtual_memory()
+    nobodywho_info = get_nobodywho_version()
     return {
-        "cpu_model": platform.processor() or "unknown",
+        "cpu_model": get_cpu_model(),
         "cpu_count": psutil.cpu_count(logical=False),
         "memory_total_gb": round(mem.total / (1024**3), 2),
         "gpu_device": get_gpu_info(),
         "os": platform.system(),
+        "nobodywho_version": nobodywho_info["version"],
+        "nobodywho_commit": nobodywho_info.get("git_commit", ""),
+        "nobodywho_dirty": nobodywho_info.get("git_dirty", False),
     }
 
 
@@ -338,17 +425,48 @@ def log_to_wandb(logger: WandbLogger, results: dict):
     logger.run.finish()
 
 
-def log_to_mlflow(results: dict):
+def sanitize_metric_name(name: str) -> str:
+    """Sanitize metric name for MLflow (no commas allowed)."""
+    # Replace commas with underscores, strip ',none' suffix
+    # MLflow only allows: alphanumerics, underscores, dashes, periods, spaces, colons, slashes
+    name = name.replace(",none", "").replace(",", "_").replace("@", "_at_")
+    return name
+
+
+def log_to_mlflow(
+    results: dict,
+    system_prompt: str | None = None,
+    sampler_config: str | None = None,
+):
     # Log per-task metrics
     for task_name, metrics in results["results"].items():
         for metric_name, value in metrics.items():
             if isinstance(value, (int, float)):
-                mlflow.log_metric(f"{task_name}/{metric_name}", value)
+                clean_name = sanitize_metric_name(f"{task_name}/{metric_name}")
+                mlflow.log_metric(clean_name, value)
+
+    # Log system prompt
+    if system_prompt is not None:
+        # Truncate if too long for param (MLflow has 500 char limit for params)
+        if len(system_prompt) <= 500:
+            mlflow.log_param("system_prompt", system_prompt)
+        else:
+            mlflow.log_param("system_prompt", system_prompt[:497] + "...")
+            # Log full prompt as artifact
+            mlflow.log_text(system_prompt, "system_prompt.txt")
+    else:
+        mlflow.log_param("system_prompt", "")
+
+    # Log sampler config
+    if sampler_config:
+        mlflow.log_param("sampler_config", sampler_config)
 
     # Log model/system metrics from config (includes get_model_info data)
     if "config" in results:
         for key, value in results["config"].items():
-            if isinstance(value, (int, float)):
+            if isinstance(value, bool):
+                mlflow.log_param(key, str(value))
+            elif isinstance(value, (int, float)):
                 mlflow.log_metric(f"model/{key}", value)
             elif isinstance(value, str):
                 # Special handling for "model" field - log as both param and tag
@@ -556,8 +674,11 @@ if __name__ == "__main__":
 
     if args.shuffle and limit:
         # Get task objects to find dataset sizes
+        from lm_eval.tasks import TaskManager
+
         random.seed(args.seed)
-        task_dict = lm_eval.tasks.get_task_dict(run_tasks)
+        tm = TaskManager()
+        task_dict = tm.load_task_or_group(run_tasks)
         samples_dict = {}
 
         for task_name, task_obj in task_dict.items():
@@ -582,7 +703,11 @@ if __name__ == "__main__":
     if wandb_logger:
         log_to_wandb(wandb_logger, results)
     if mlflow_run:
-        log_to_mlflow(results)
+        log_to_mlflow(
+            results,
+            system_prompt=args.system_prompt,
+            sampler_config="top_k=20, top_p=0.95, temperature=0.0, dist",
+        )
     print_results(results)
 
     # Print sample outputs if requested
