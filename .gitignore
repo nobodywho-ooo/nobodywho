@@ -11,4 +11,6 @@ docs/site/
 docs/__pycache__
 result
 target/
+mlruns/
+mlflow.db
 
