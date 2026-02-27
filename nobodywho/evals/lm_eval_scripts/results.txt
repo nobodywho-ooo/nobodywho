@@ -1,9 +1,51 @@
 ==============================================
 NobodyWho Eval Suite Results
 ==============================================
-Model: /home/hanshh/work/model_dir/gemma-3-4b-it-Q6_K.gguf
-Limit: 5
-Shuffle: no
-Date: tor 26 feb 10:08:49 CET 2026
+Model: /home/hanshh/work/model_uploading/chat_template_fix/gemma/google_gemma-3-1b-it-Q6_K.gguf
+Limit: 20
+MLflow: 1
+Date: fre 27 feb 11:42:38 CET 2026
 ==============================================
+
+--- ifeval (00:01:22) ---
+  alias: ifeval
+  prompt_level_strict_acc,none: 0.6
+  prompt_level_strict_acc_stderr,none: 0.11239029738980327
+  inst_level_strict_acc,none: 0.7333333333333333
+  inst_level_strict_acc_stderr,none: N/A
+  prompt_level_loose_acc,none: 0.6
+  prompt_level_loose_acc_stderr,none: 0.11239029738980327
+  inst_level_loose_acc,none: 0.7333333333333333
+  inst_level_loose_acc_stderr,none: N/A
+
+--- gsm8k (00:00:52) ---
+  alias: gsm8k
+  exact_match,strict-match: 0.25
+  exact_match_stderr,strict-match: 0.09933992677987828
+  exact_match,flexible-extract: 0.25
+  exact_match_stderr,flexible-extract: 0.09933992677987828
+
+--- truthfulqa_gen (00:00:22) ---
+  alias: truthfulqa_gen
+  bleu_max,none: 47.3972039508693
+  bleu_max_stderr,none: 9.384279126042289
+  bleu_acc,none: 0.65
+  bleu_acc_stderr,none: 0.1094243309804831
+  bleu_diff,none: 30.812733100043317
+  bleu_diff_stderr,none: 11.159212167182154
+
+--- humaneval (00:00:40) ---
+  alias: humaneval
+  pass@1,create_test: 0.3
+  pass@1_stderr,create_test: 0.10513149660756933
+
+--- mbpp (00:00:31) ---
+  alias: mbpp
+  pass_at_1,none: 0.25
+  pass_at_1_stderr,none: 0.09933992677987828
+
+--- drop (00:00:31) ---
+  alias: drop
+  f1,none: 0.1545
+  f1_stderr,none: 0.08160713010644674
 
