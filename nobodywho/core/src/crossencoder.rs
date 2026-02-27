@@ -1,6 +1,6 @@
 use crate::errors::{CrossEncoderWorkerError, InitWorkerError};
 use crate::llm;
-use crate::llm::Worker;
+use crate::llm::{Worker, WorkerGuard};
 use llama_cpp_2::context::params::LlamaPoolingType;
 use llama_cpp_2::model::LlamaModel;
 use std::sync::Arc;
@@ -13,7 +13,7 @@ pub struct CrossEncoder {
 
 #[derive(Clone)]
 pub struct CrossEncoderAsync {
-    msg_tx: std::sync::mpsc::Sender<CrossEncoderMsg>,
+    guard: Arc<WorkerGuard<CrossEncoderMsg>>,
 }
 
 impl CrossEncoder {
@@ -45,7 +45,7 @@ impl CrossEncoderAsync {
     pub fn new(model: Arc<LlamaModel>, n_ctx: u32) -> Self {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
 
-        std::thread::spawn(move || {
+        let join_handle = std::thread::spawn(move || {
             let worker = Worker::new_crossencoder_worker(&model, n_ctx);
             let mut worker_state = match worker {
                 Ok(worker_state) => worker_state,
@@ -61,7 +61,9 @@ impl CrossEncoderAsync {
             }
         });
 
-        Self { msg_tx }
+        Self {
+            guard: Arc::new(WorkerGuard::new(msg_tx, join_handle, None)),
+        }
     }
 
     pub async fn rank(
@@ -70,8 +72,7 @@ impl CrossEncoderAsync {
         documents: Vec<String>,
     ) -> Result<Vec<f32>, CrossEncoderWorkerError> {
         let (scores_tx, mut scores_rx) = tokio::sync::mpsc::channel(1);
-        let _ = self
-            .msg_tx
+        self.guard
             .send(CrossEncoderMsg::Rank(query, documents, scores_tx));
         scores_rx
             .recv()
