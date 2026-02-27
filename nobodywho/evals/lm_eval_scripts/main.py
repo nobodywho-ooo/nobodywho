@@ -174,19 +174,10 @@ class NobodyWhoLM(LM):
         self._init_chat()
 
     def _init_chat(self):
-        # Use deterministic sampling for reproducible evals
-        # Same chain as default but with temperature=0
-        sampler = (
-            nobodywho.SamplerBuilder()
-            .top_k(20)
-            .top_p(0.95, min_keep=1)
-            .temperature(0.7)
-            .dist()
-        )
+        # Use default sampler (nobodywho defaults)
         kwargs = {
             "allow_thinking": self.allow_thinking,
             "n_ctx": self.n_ctx,
-            "sampler": sampler,
         }
         if self.system_prompt is not None:
             kwargs["system_prompt"] = self.system_prompt
@@ -706,7 +697,7 @@ if __name__ == "__main__":
         log_to_mlflow(
             results,
             system_prompt=args.system_prompt,
-            sampler_config="top_k=20, top_p=0.95, temperature=0.0, dist",
+            sampler_config="default (top_k=20, top_p=0.95, min_keep=1, temperature=0.6, dist)",
         )
     print_results(results)
 
