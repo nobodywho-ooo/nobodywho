@@ -37,9 +37,9 @@ pkgs.mkShell {
     # pkgs.openjdk11-bootstrap
 
     # for mkdocs
-    pkgs.mkdocs
-    pkgs.python312Packages.regex
-    pkgs.python312Packages.mkdocs-material
+    pkgs.python3Packages.mkdocs
+    pkgs.python3Packages.regex
+    pkgs.python3Packages.mkdocs-material
 
     # flutter
     pkgs.flutter
