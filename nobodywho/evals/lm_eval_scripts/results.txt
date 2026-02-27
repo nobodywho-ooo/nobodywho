@@ -1,51 +1,51 @@
 ==============================================
 NobodyWho Eval Suite Results
 ==============================================
-Model: /home/hanshh/work/model_uploading/chat_template_fix/gemma/google_gemma-3-1b-it-Q6_K.gguf
-Limit: 20
-MLflow: 1
-Date: fre 27 feb 11:42:38 CET 2026
+Model: /home/hanshh/work/model_uploading/chat_template_fix/qwen/4BInstruct/Qwen_Qwen3-4B-Instruct-2507-Q6_K.gguf
+Limit: 10
+MLflow: disabled
+Date: fre 27 feb 14:28:47 CET 2026
 ==============================================
 
---- ifeval (00:01:22) ---
+--- ifeval (00:01:52) ---
   alias: ifeval
-  prompt_level_strict_acc,none: 0.6
-  prompt_level_strict_acc_stderr,none: 0.11239029738980327
-  inst_level_strict_acc,none: 0.7333333333333333
+  prompt_level_strict_acc,none: 0.9
+  prompt_level_strict_acc_stderr,none: 0.09999999999999999
+  inst_level_strict_acc,none: 0.9444444444444444
   inst_level_strict_acc_stderr,none: N/A
-  prompt_level_loose_acc,none: 0.6
-  prompt_level_loose_acc_stderr,none: 0.11239029738980327
-  inst_level_loose_acc,none: 0.7333333333333333
+  prompt_level_loose_acc,none: 0.9
+  prompt_level_loose_acc_stderr,none: 0.09999999999999999
+  inst_level_loose_acc,none: 0.9444444444444444
   inst_level_loose_acc_stderr,none: N/A
 
---- gsm8k (00:00:52) ---
+--- gsm8k (00:01:26) ---
   alias: gsm8k
-  exact_match,strict-match: 0.25
-  exact_match_stderr,strict-match: 0.09933992677987828
-  exact_match,flexible-extract: 0.25
-  exact_match_stderr,flexible-extract: 0.09933992677987828
+  exact_match,strict-match: 1.0
+  exact_match_stderr,strict-match: 0.0
+  exact_match,flexible-extract: 1.0
+  exact_match_stderr,flexible-extract: 0.0
 
---- truthfulqa_gen (00:00:22) ---
+--- truthfulqa_gen (00:00:46) ---
   alias: truthfulqa_gen
-  bleu_max,none: 47.3972039508693
-  bleu_max_stderr,none: 9.384279126042289
-  bleu_acc,none: 0.65
-  bleu_acc_stderr,none: 0.1094243309804831
-  bleu_diff,none: 30.812733100043317
-  bleu_diff_stderr,none: 11.159212167182154
+  bleu_max,none: 8.574160838848616
+  bleu_max_stderr,none: 3.2162759405803367
+  bleu_acc,none: 0.6
+  bleu_acc_stderr,none: 0.16329931618554522
+  bleu_diff,none: 0.06996950966878637
+  bleu_diff_stderr,none: 0.44095304694760823
 
---- humaneval (00:00:40) ---
+--- humaneval (00:00:48) ---
   alias: humaneval
-  pass@1,create_test: 0.3
-  pass@1_stderr,create_test: 0.10513149660756933
+  pass@1,create_test: 1.0
+  pass@1_stderr,create_test: 0.0
 
---- mbpp (00:00:31) ---
+--- mbpp (00:00:39) ---
   alias: mbpp
-  pass_at_1,none: 0.25
-  pass_at_1_stderr,none: 0.09933992677987828
+  pass_at_1,none: 0.8
+  pass_at_1_stderr,none: 0.13333333333333333
 
---- drop (00:00:31) ---
+--- drop (00:00:55) ---
   alias: drop
-  f1,none: 0.1545
-  f1_stderr,none: 0.08160713010644674
+  f1,none: 0.32199999999999995
+  f1_stderr,none: 0.12396953030662188
 
