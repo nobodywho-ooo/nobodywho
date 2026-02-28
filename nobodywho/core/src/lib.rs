@@ -7,6 +7,21 @@ pub mod sampler_config;
 pub mod template;
 pub mod tool_calling;
 
+// UniFFI bindings for Swift/Kotlin
+#[cfg(feature = "uniffi")]
+pub mod uniffi_api;
+
+// Re-export UniFFI types at crate root
+#[cfg(feature = "uniffi")]
+pub use uniffi_api::{
+    Chat, ChatConfig, Message, Model, NobodyWhoError, Role,
+    init_logging, load_model,
+};
+
+// Include UniFFI scaffolding at crate root
+#[cfg(feature = "uniffi")]
+uniffi::include_scaffolding!("nobodywho");
+
 pub fn send_llamacpp_logs_to_tracing() {
     llama_cpp_2::send_logs_to_tracing(llama_cpp_2::LogOptions::default().with_logs_enabled(true));
 }

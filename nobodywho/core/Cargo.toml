@@ -3,7 +3,16 @@ name = "nobodywho"
 version = "2.1.1"
 edition = "2021"
 
+[lib]
+crate-type = ["lib", "staticlib", "cdylib"]
+name = "nobodywho"
+
+[features]
+default = []
+uniffi = ["dep:uniffi"]
+
 [dependencies]
+uniffi = { version = "0.30.0", features = ["cli"], optional = true }
 encoding_rs = "0.8.34"
 thiserror = "2.0.3"
 minijinja = { version = "2.11.0", features = ["builtins", "json", "loader"] }
@@ -27,3 +36,6 @@ futures = "0.3.31"
 # Enable Vulkan for x86_64, x86, and aarch64 targets (excluding macOS, iOS, Android)
 [target.'cfg(all(not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android"), any(target_arch = "x86_64", target_arch = "x86", target_arch = "aarch64")))'.dependencies]
 llama-cpp-2 = { version = "0.1.133", features = ["vulkan"] }
+
+[build-dependencies]
+uniffi = { version = "0.30.0", features = ["build"] }

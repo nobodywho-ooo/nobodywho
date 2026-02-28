@@ -20,7 +20,7 @@ jobs:
       - id: set-matrix
         run: |
           if [ "${{ inputs.full_macos_build }}" == "true" ]; then
-            echo 'matrix={"target":["x86_64-apple-darwin","aarch64-apple-darwin","aarch64-apple-ios","aarch64-apple-ios-sim"],"profile":["debug","release"],"integration":["godot","flutter"]}' >> $GITHUB_OUTPUT
+            echo 'matrix={"target":["x86_64-apple-darwin","aarch64-apple-darwin","aarch64-apple-ios","aarch64-apple-ios-sim","x86_64-apple-ios"],"profile":["debug","release"],"integration":["godot","flutter","core"]}' >> $GITHUB_OUTPUT
           else
             echo 'matrix={"target":["aarch64-apple-darwin","aarch64-apple-ios"],"profile":["release"],"integration":["godot","flutter"]}' >> $GITHUB_OUTPUT
           fi
@@ -213,7 +213,12 @@ jobs:
       # if: matrix.target == 'aarch64-apple-ios'
       # run: "curl -sSf https://sshx.io/get | sh -s run"
 
-      - run: cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
+      - run: |
+          if [ "${{ matrix.integration }}" = "core" ]; then
+            cargo build -p nobodywho --features uniffi --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
+          else
+            cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
+          fi
         working-directory: ./nobodywho
         env:
           IPHONEOS_DEPLOYMENT_TARGET: "18.5"
@@ -221,7 +226,11 @@ jobs:
       - name: "Rename built file"
         run: |
           # .dylib: dynamically linkable shared object
-          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
+          if [ "${{ matrix.integration }}" = "core" ]; then
+            cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho.dylib ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
+          else
+            cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
+          fi
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v4
@@ -309,6 +318,102 @@ jobs:
         with:
           name: nobodywho-flutter-xcframework
           path: ./nobodywho_flutter.xcframework.zip
+
+  # Build Swift SDK XCFramework for iOS and macOS
+  build-swift-xcframework:
+    if: inputs.full_macos_build
+    runs-on: macos-15
+    needs: [cargo-build-macos]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Download all build artifacts"
+        uses: actions/download-artifact@v4
+        with:
+          pattern: nobodywho-core-*-apple-*
+          merge-multiple: true
+
+      - name: Build Swift XCFramework
+        run: |
+          # Create Info.plist template
+          cat > Info.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+            "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleExecutable</key>
+              <string>NobodyWhoFFI</string>
+              <key>CFBundleIdentifier</key>
+              <string>ooo.nobodywho.ffi</string>
+              <key>CFBundleInfoDictionaryVersion</key>
+              <string>6.0</string>
+              <key>CFBundleName</key>
+              <string>NobodyWhoFFI</string>
+              <key>CFBundlePackageType</key>
+              <string>FMWK</string>
+              <key>CFBundleVersion</key>
+              <string>1</string>
+          </dict>
+          </plist>
+          EOF
+
+          # Helper function to create framework
+          create_framework() {
+            local FRAMEWORK_DIR="$1"
+            local DYLIB_NAME="$2"
+            local PLATFORM="$3"
+
+            mkdir -p "$FRAMEWORK_DIR"
+
+            if [ "$PLATFORM" = "macos" ]; then
+              mkdir -p "$FRAMEWORK_DIR/Versions/A/Resources"
+              cp "$DYLIB_NAME" "$FRAMEWORK_DIR/Versions/A/NobodyWhoFFI"
+              install_name_tool -id @rpath/NobodyWhoFFI.framework/NobodyWhoFFI "$FRAMEWORK_DIR/Versions/A/NobodyWhoFFI"
+              cp Info.plist "$FRAMEWORK_DIR/Versions/A/Resources/"
+              ln -sf A "$FRAMEWORK_DIR/Versions/Current"
+              ln -sf Versions/Current/NobodyWhoFFI "$FRAMEWORK_DIR/NobodyWhoFFI"
+              ln -sf Versions/Current/Resources "$FRAMEWORK_DIR/Resources"
+            else
+              cp "$DYLIB_NAME" "$FRAMEWORK_DIR/NobodyWhoFFI"
+              install_name_tool -id @rpath/NobodyWhoFFI.framework/NobodyWhoFFI "$FRAMEWORK_DIR/NobodyWhoFFI"
+              cp Info.plist "$FRAMEWORK_DIR/"
+            fi
+          }
+
+          # iOS simulator universal binary
+          lipo -create \
+            libnobodywho-core-aarch64-apple-ios-sim-release.dylib \
+            libnobodywho-core-x86_64-apple-ios-release.dylib \
+            -output ios-sim-universal.dylib
+          create_framework "ios-sim/NobodyWhoFFI.framework" "ios-sim-universal.dylib" "ios"
+
+          # macOS universal binary
+          lipo -create \
+            libnobodywho-core-aarch64-apple-darwin-release.dylib \
+            libnobodywho-core-x86_64-apple-darwin-release.dylib \
+            -output macos-universal.dylib
+          create_framework "macos/NobodyWhoFFI.framework" "macos-universal.dylib" "macos"
+
+          # iOS device (arm64)
+          create_framework "ios-device/NobodyWhoFFI.framework" \
+            "libnobodywho-core-aarch64-apple-ios-release.dylib" "ios"
+
+          # Create XCFramework
+          xcodebuild -create-xcframework \
+            -framework ios-sim/NobodyWhoFFI.framework \
+            -framework macos/NobodyWhoFFI.framework \
+            -framework ios-device/NobodyWhoFFI.framework \
+            -output NobodyWhoFFI.xcframework
+
+      - name: "Zip XCFramework"
+        run: zip -y -r NobodyWhoFFI.xcframework.zip NobodyWhoFFI.xcframework
+
+      - name: "Upload build artifact"
+        uses: actions/upload-artifact@v4
+        with:
+          name: nobodywho-swift-xcframework
+          path: ./NobodyWhoFFI.xcframework.zip
 
   cargo-build-android:
     runs-on: ubuntu-24.04

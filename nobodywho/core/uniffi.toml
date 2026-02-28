@@ -1,0 +1,3 @@
+[bindings.swift]
+module_name = "NobodyWhoFFI"
+generate_module_map = true

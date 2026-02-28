@@ -1,0 +1,21 @@
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Xcode
+xcuserdata/
+*.xcworkspace
+*.xcodeproj
+!*.xcworkspace/contents.xcworkspacedata
+!*.xcworkspace/xcshareddata/
+!*.xcodeproj/project.pbxproj
+!*.xcodeproj/xcshareddata/
+
+# XCFramework (generated - downloaded on demand or built locally)
+*.xcframework/
+
+# Generated bindings
+Sources/NobodyWho/Generated/
+
+# macOS
+.DS_Store
