@@ -25,14 +25,11 @@
 /// }
 /// ```
 
-// The generated UniFFI bindings (NobodyWhoFFI.swift) are automatically
-// included in this module and provide the following public API:
-//
-// - Chat: Main chat interface
-// - Model: Loaded GGUF model
-// - ChatConfig: Configuration for chat sessions
-// - Message: Chat message type
-// - Role: Message role (user, assistant, system, tool)
-// - NobodyWhoError: Error types
-// - loadModel(path:useGpu:): Load a GGUF model
-// - initLogging(): Initialize logging
+// Re-export all public types from the generated UniFFI bindings
+@_exported import struct Foundation.Date
+@_exported import struct Foundation.Data
+@_exported import class Foundation.NSObject
+
+// The generated UniFFI bindings are in Generated/NobodyWhoFFI.swift
+// and are automatically compiled as part of this module.
+// All public types (Chat, Model, ChatConfig, etc.) are available when you import NobodyWho.

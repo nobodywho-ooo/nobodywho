@@ -12,3 +12,4 @@ docs/__pycache__
 result
 target/
 
+/.build
