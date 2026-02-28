@@ -1627,7 +1627,6 @@ impl Worker<'_, ChatWorker> {
 }
 
 /// wraps a response function in a closure to do two things:
-
 /// 1. save a copy of the response (using a channel) before sending it out
 /// 2. skip emitting once a tool_call_begin_token has been seen
 fn wrap_respond<F>(
