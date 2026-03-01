@@ -13,3 +13,5 @@ result
 target/
 
 /.build
+.swiftpm/
+*.xcuserdata*
