@@ -1,6 +1,6 @@
 # NobodyWho Flutter
 
-NobodyWho is a flutter plugin for running large language models locally and offline on iOS, Android, macOS, Linux & Windows.
+NobodyWho is a flutter library for running large language models locally and offline on iOS, Android, macOS, Linux & Windows.
 
 Free to use in commercial projects under EUPL-1.2 license, no API key needed.
 
@@ -8,6 +8,7 @@ Free to use in commercial projects under EUPL-1.2 license, no API key needed.
 - [Discord](https://discord.gg/qhaMc2qCYB) — Get help, share ideas, connect with other developers
 - [GitHub Issues](https://github.com/nobodywho-ooo/nobodywho/issues) — Report bugs
 - [GitHub Discussions](https://github.com/nobodywho-ooo/nobodywho/discussions) — Ask questions, request features
+- [Starter example app](https://github.com/nobodywho-ooo/flutter-starter-example) - Test this library in 2 minutes
 
 ## Quick Start
 
@@ -29,17 +30,27 @@ void main() async {
 }
 ```
 
-### Model
+### Supported Model Format
 
-NobodyWho engine supports the GGUF format, which is a binary file designed for fast loading and efficient inference of LLMs. You can find many models on [Hugging Face](https://huggingface.co/models) to download, but let's keep that for later.
+This library supports the **GGUF format**, a binary format optimized for fast loading and efficient inference of LLMs. You can find a wide selection of GGUF models on [Hugging Face](https://huggingface.co/models).
 
-**Note**: Not all GGUF models will work. Some won't work because they are incorrectly formatted. Also make sure that the model size is compatible with the device that will run the model. On mobile, any model under 1 GB should run perfectly. As a rule of thumb, ensure the device has at least twice the RAM of the model file size.
+#### Compatibility Notes
+- Not all GGUF models are guaranteed to work. Some may fail due to incorrect formatting.
+- Ensure the model size is compatible with your target device. For mobile devices, models under 1 GB typically run smoothly. As a general guideline, the device should have at least twice the RAMas the model file size.
 
-Then you need a model. Either you let your users decide which model they wants to use and provide a list of models he can download using [background_downloader](https://pub.dev/packages/background_downloader) for example or you can add a model in the `assets` folder.
+### Model Integration
 
-Having a large model in your `assets` folder isn't ideal to keep the size of your app small, but to keep this tutorial short or for you to quickly play around with NobodyWho library, we will have a small model in the `assets` folder. You can go to the next section if you don't want a model in the asset folder.
+You can integrate models in two ways:
 
-First, make sure that flutter can access your files in the `assets` folder in the `pubspec.yaml` file:
+1. On-demand download: Download a model when needed, using a library like **[background_downloader](https://pub.dev/packages/background_downloader)**. This approach keeps your app size small but requires additional implementation for model management.
+
+2. Include a model in the `assets` folder for simplicity, especially useful for development and debugging. However, this approach increases the app size and is not recommended for production.
+
+If you choose not to bundle a model, proceed to the next section.
+
+First, create the `assets` folder at the root of your flutter project if it doesn't exist already.
+
+Make sure that flutter can access your files in the `assets` folder in the `pubspec.yaml` file:
 
 ```yaml
 flutter:

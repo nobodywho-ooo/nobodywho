@@ -45,4 +45,11 @@ print(msg); // Yes, indeed, water is wet!
 
 This is a super simple example, but we believe that examples which do simple things, should be simple!
 
-To get a full overview of the functionality provided by NobodyWho, simply keep reading.
+To get a full overview of the functionality provided by NobodyWho, simply keep reading. You can also have a look at our [flutter starter app repository](https://github.com/nobodywho-ooo/flutter-starter-example).
+
+## Feedback & Contributions
+
+We welcome your feedback and ideas!
+
+- Bug Reports & Improvements: If you encounter a bug or have suggestions, please open an issue on our [Issues](https://github.com/nobodywho-ooo/nobodywho/issues) page.
+- Feature Requests & Question: For new feature requests or general questions, join the discussion on our [Discussions](https://github.com/nobodywho-ooo/nobodywho/discussions) page.
