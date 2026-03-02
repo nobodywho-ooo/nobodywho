@@ -27,6 +27,7 @@ pkgs.mkShell {
     LIBCLANG_PATH = "${coreShell.LIBCLANG_PATH}";
     ANDROID_NDK = "${androidEnv}/share/android-sdk/ndk/${ndkVersion}";
     CC_aarch64_linux_android = "${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang";
+    CXX_aarch64_linux_android = "${CC_aarch64_linux_android}++";
     AR_aarch64_linux_android = "${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar";
     CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER = "${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang";
     CARGO_TARGET_AARCH64_LINUX_ANDROID_AR = "${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar";
