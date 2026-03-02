@@ -12,5 +12,5 @@ members = [
 resolver = "2"
 
 [patch.crates-io]
-llama-cpp-2 = { path = "/home/asbjorn/Development/llama-cpp-rs/llama-cpp-2" }
-llama-cpp-sys-2 = { path = "/home/asbjorn/Development/llama-cpp-rs/llama-cpp-sys-2" }
+llama-cpp-2 = { git = "https://github.com/utilityai/llama-cpp-rs.git", branch = "android-static-stdcxx" }
+llama-cpp-sys-2 = { git = "https://github.com/utilityai/llama-cpp-rs.git", branch = "android-static-stdcxx" }
