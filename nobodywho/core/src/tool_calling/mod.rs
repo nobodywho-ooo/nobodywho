@@ -180,80 +180,50 @@ impl ToolFormat {
 }
 
 pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatError> {
-    // Fetch both the tool_use template (if any) and the default template.
-    // We need them separately because Phi-4-mini's markers live in the *default* template
-    // while a tool_use template (if present) may not contain them.
-    let tool_use_str = model
-        .chat_template(Some("tool_use"))
-        .and_then(|t| Ok(t.to_string()?))
-        .ok();
+    let templates: Vec<String> = [
+        model.chat_template(Some("tool_use")).and_then(|t| Ok(t.to_string()?)).ok(),
+        model.chat_template(None).and_then(|t| Ok(t.to_string()?)).ok(),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
 
-    let default_str = model
-        .chat_template(None)
-        .and_then(|t| Ok(t.to_string()?))
-        .ok();
-
-    // Require at least one template to be present.
-    if tool_use_str.is_none() && default_str.is_none() {
+    if templates.is_empty() {
         return Err(ToolFormatError::ChatTemplateError(
             model.chat_template(None).unwrap_err(),
         ));
     }
 
-    // Primary template for marker checks: prefer tool_use, fall back to default.
-    let primary = tool_use_str.as_deref().or(default_str.as_deref()).unwrap();
-    debug!(template = %primary, "Checking primary template for format markers");
+    let any = |marker: &str| templates.iter().any(|t| t.contains(marker));
 
-    // Check for FunctionGemma markers
-    if primary.contains("<start_function_call>") || primary.contains("<end_function_call>") {
+    if any("<start_function_call>") || any("<end_function_call>") {
         debug!("Detected FunctionGemma format from template markers");
         return Ok(ToolFormat::FunctionGemma(FunctionGemmaHandler));
     }
-
-    // Check for Qwen3 markers
-    if primary.contains("<tool_call>") || primary.contains("</tool_call>") {
+    if any("<tool_call>") || any("</tool_call>") {
         debug!("Detected Qwen3 format from template markers");
         return Ok(ToolFormat::Qwen3(Qwen3Handler));
     }
-
-    // Check for Ministral3 markers
-    if primary.contains("[TOOL_CALLS]") {
+    if any("[TOOL_CALLS]") {
         debug!("Detected Ministral3 format from template markers");
         return Ok(ToolFormat::Ministral3(Ministral3Handler));
     }
-
-    // Check for Phi-4-mini markers.
-    // Check both templates since a tool_use variant (if present) may not contain these markers.
-    let phi4_check = tool_use_str
-        .as_deref()
-        .into_iter()
-        .chain(default_str.as_deref())
-        .any(|t| {
-            t.contains("<|tool|>")
-                || t.contains("<|/tool|>")
-                || t.contains("<|tool_call|>")
-                || t.contains("<|/tool_call|>")
-        });
-    if phi4_check {
+    if any("<|tool_call|>") || any("<|/tool_call|>") || any("<|tool|>") || any("<|/tool|>") {
         debug!("Detected Phi-4-mini format from template markers");
         return Ok(ToolFormat::Phi4Mini(Phi4MiniHandler));
     }
 
-    // Try to detect from model name/metadata
+    // Fall back to model name
     if let Ok(name) = model.meta_val_str("general.name") {
-        debug!(model_name = %name, "Checking model name for format hints");
-
         let name_lower = name.to_lowercase();
         if name_lower.contains("functiongemma") || name_lower.contains("function-gemma") {
             debug!("Detected FunctionGemma format from model name");
             return Ok(ToolFormat::FunctionGemma(FunctionGemmaHandler));
         }
-
         if name_lower.contains("qwen") {
             debug!("Detected Qwen3 format from model name");
             return Ok(ToolFormat::Qwen3(Qwen3Handler));
         }
-
         if name_lower.contains("phi-4") || name_lower.contains("phi4") {
             debug!("Detected Phi-4-mini format from model name");
             return Ok(ToolFormat::Phi4Mini(Phi4MiniHandler));
