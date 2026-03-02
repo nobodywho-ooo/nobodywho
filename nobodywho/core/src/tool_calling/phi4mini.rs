@@ -17,10 +17,6 @@ impl ToolFormatHandler for Phi4MiniHandler {
         "<|/tool_call|>"
     }
 
-    fn uses_template_for_tools(&self) -> bool {
-        true
-    }
-
     fn generate_grammar(&self, tools: &[Tool]) -> Result<GbnfGrammar, ToolFormatError> {
         let tool_call_schemas: serde_json::Value = tools
             .iter()
@@ -97,33 +93,12 @@ impl ToolFormatHandler for Phi4MiniHandler {
 mod tests {
     use super::*;
     use serde_json::json;
-    use std::sync::Arc;
-
-    fn make_tool(name: &str) -> Tool {
-        Tool::new(
-            name,
-            "A test tool",
-            json!({"type": "object", "properties": {"arg": {"type": "string"}}, "required": ["arg"]}),
-            Arc::new(|_| "result".to_string()),
-        )
-    }
 
     #[test]
     fn test_begin_end_tokens() {
         let h = Phi4MiniHandler;
         assert_eq!(h.begin_token(), "<|tool_call|>");
         assert_eq!(h.end_token(), "<|/tool_call|>");
-    }
-
-    #[test]
-    fn test_uses_template_for_tools() {
-        assert!(Phi4MiniHandler.uses_template_for_tools());
-    }
-
-    #[test]
-    fn test_system_message_tool_injection_returns_none() {
-        let tools = vec![make_tool("get_weather")];
-        assert!(Phi4MiniHandler.system_message_tool_injection(&tools).is_none());
     }
 
     #[test]

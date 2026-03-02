@@ -4,7 +4,7 @@
 //! Currently supported formats:
 //! - Qwen3: `<tool_call>{"name": "...", "arguments": {...}}</tool_call>`
 //! - FunctionGemma: `<start_function_call>call:name{param:<escape>val<escape>}<end_function_call>`
-//! - Phi4Mini: `<|tool_calls|>[{"name": "...", "arguments": {...}}]<|/tool_calls|>`
+//! - Phi4Mini: `<|tool_call|>{"name": "...", "arguments": {...}}<|/tool_call|>`
 
 mod functiongemma;
 mod ministral3;
@@ -140,18 +140,6 @@ pub trait ToolFormatHandler {
     /// Extracts tool calls from the given text.
     fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>>;
 
-    /// Returns true if the chat template renders tool definitions (default).
-    /// Returns false for formats that inject tools into the system prompt manually.
-    fn uses_template_for_tools(&self) -> bool {
-        true
-    }
-
-    /// For formats that inject tools directly into the system message content (e.g., Phi-4-mini),
-    /// returns the string to append to the system message content (e.g., `<|tool|>...<|/tool|>`).
-    /// Returns None if the chat template handles tool rendering via its own context variable.
-    fn system_message_tool_injection(&self, _tools: &[Tool]) -> Option<String> {
-        None
-    }
 }
 
 /// Enum representing different tool calling formats.
@@ -189,13 +177,6 @@ impl ToolFormat {
         self.handler().extract_tool_calls(input)
     }
 
-    pub fn uses_template_for_tools(&self) -> bool {
-        self.handler().uses_template_for_tools()
-    }
-
-    pub fn system_message_tool_injection(&self, tools: &[Tool]) -> Option<String> {
-        self.handler().system_message_tool_injection(tools)
-    }
 }
 
 pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatError> {
@@ -242,9 +223,7 @@ pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatEr
     }
 
     // Check for Phi-4-mini markers.
-    // The *default* template contains '<|tool|>' / '<|/tool|>' literals (for the system message
-    // tool injection path).  A separate tool_use template (if present in the GGUF) may not
-    // contain them, so we always check the default template here.
+    // Check both templates since a tool_use variant (if present) may not contain these markers.
     let phi4_check = tool_use_str
         .as_deref()
         .into_iter()
@@ -309,34 +288,6 @@ mod tests {
         let format = ToolFormat::Phi4Mini(Phi4MiniHandler);
         assert_eq!(format.begin_token(), "<|tool_call|>");
         assert_eq!(format.end_token(), "<|/tool_call|>");
-        assert!(!format.uses_template_for_tools());
-    }
-
-    #[test]
-    fn test_phi4mini_system_message_tools_json() {
-        use serde_json::json;
-        use std::sync::Arc;
-
-        let tool = Tool {
-            name: "get_weather".to_string(),
-            description: "Gets weather".to_string(),
-            json_schema: json!({"type": "object", "properties": {"city": {"type": "string"}}}),
-            function: Arc::new(|_| "sunny".to_string()),
-        };
-
-        let format = ToolFormat::Phi4Mini(Phi4MiniHandler);
-        let result = format.system_message_tool_injection(&[tool]);
-        assert!(result.is_some());
-        let injection = result.unwrap();
-        // Should be wrapped in <|tool|>...<|/tool|>
-        assert!(injection.starts_with("<|tool|>"));
-        assert!(injection.ends_with("<|/tool|>"));
-        let json_str = injection
-            .trim_start_matches("<|tool|>")
-            .trim_end_matches("<|/tool|>");
-        let parsed: serde_json::Value = serde_json::from_str(json_str).unwrap();
-        assert!(parsed.is_array());
-        assert_eq!(parsed[0]["name"], "get_weather");
     }
 
     #[test]
