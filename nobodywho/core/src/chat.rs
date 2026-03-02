@@ -1432,6 +1432,8 @@ impl Worker<'_, ChatWorker> {
             },
         )?;
 
+        debug!(rendered_template = %render_as_string, "Rendered chat template");
+
         let render_as_tokens = self
             .ctx
             .model

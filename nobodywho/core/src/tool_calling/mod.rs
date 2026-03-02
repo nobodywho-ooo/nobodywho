@@ -236,7 +236,7 @@ pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatEr
     }
 
     // Check for Ministral3 markers
-    if template_str.contains("[TOOL_CALLS]") {
+    if primary.contains("[TOOL_CALLS]") {
         debug!("Detected Ministral3 format from template markers");
         return Ok(ToolFormat::Ministral3(Ministral3Handler));
     }
