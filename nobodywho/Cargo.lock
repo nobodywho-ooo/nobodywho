@@ -1774,6 +1774,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-2"
 version = "0.1.137"
+source = "git+https://github.com/AsbjornOlling/llama-cpp-rs.git?branch=android-static-stdcxx#729c82f1a8c703ca2bcbd2cad34a107634822abc"
 dependencies = [
  "encoding_rs",
  "enumflags2",
@@ -1786,6 +1787,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-sys-2"
 version = "0.1.137"
+source = "git+https://github.com/AsbjornOlling/llama-cpp-rs.git?branch=android-static-stdcxx#729c82f1a8c703ca2bcbd2cad34a107634822abc"
 dependencies = [
  "bindgen",
  "cc",
