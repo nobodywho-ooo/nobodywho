@@ -139,7 +139,6 @@ pub trait ToolFormatHandler {
 
     /// Extracts tool calls from the given text.
     fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>>;
-
 }
 
 /// Enum representing different tool calling formats.
@@ -176,7 +175,6 @@ impl ToolFormat {
     pub fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>> {
         self.handler().extract_tool_calls(input)
     }
-
 }
 
 pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatError> {
@@ -199,8 +197,10 @@ pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatEr
         debug!("Detected Ministral3 format from template markers");
         return Ok(ToolFormat::Ministral3(Ministral3Handler));
     }
-    if template.contains("<|tool_call|>") || template.contains("<|/tool_call|>")
-        || template.contains("<|tool|>") || template.contains("<|/tool|>")
+    if template.contains("<|tool_call|>")
+        || template.contains("<|/tool_call|>")
+        || template.contains("<|tool|>")
+        || template.contains("<|/tool|>")
     {
         debug!("Detected Phi-4-mini format from template markers");
         return Ok(ToolFormat::Phi4Mini(Phi4MiniHandler));
