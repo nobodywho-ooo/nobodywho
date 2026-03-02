@@ -180,35 +180,28 @@ impl ToolFormat {
 }
 
 pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatError> {
-    let templates: Vec<String> = [
-        model.chat_template(Some("tool_use")).and_then(|t| Ok(t.to_string()?)).ok(),
-        model.chat_template(None).and_then(|t| Ok(t.to_string()?)).ok(),
-    ]
-    .into_iter()
-    .flatten()
-    .collect();
+    let template = model
+        .chat_template(Some("tool_use"))
+        .or_else(|_| model.chat_template(None))
+        .and_then(|t| Ok(t.to_string()?))?;
 
-    if templates.is_empty() {
-        return Err(ToolFormatError::ChatTemplateError(
-            model.chat_template(None).unwrap_err(),
-        ));
-    }
+    debug!(template = %template, "Checking template for format markers");
 
-    let any = |marker: &str| templates.iter().any(|t| t.contains(marker));
-
-    if any("<start_function_call>") || any("<end_function_call>") {
+    if template.contains("<start_function_call>") || template.contains("<end_function_call>") {
         debug!("Detected FunctionGemma format from template markers");
         return Ok(ToolFormat::FunctionGemma(FunctionGemmaHandler));
     }
-    if any("<tool_call>") || any("</tool_call>") {
+    if template.contains("<tool_call>") || template.contains("</tool_call>") {
         debug!("Detected Qwen3 format from template markers");
         return Ok(ToolFormat::Qwen3(Qwen3Handler));
     }
-    if any("[TOOL_CALLS]") {
+    if template.contains("[TOOL_CALLS]") {
         debug!("Detected Ministral3 format from template markers");
         return Ok(ToolFormat::Ministral3(Ministral3Handler));
     }
-    if any("<|tool_call|>") || any("<|/tool_call|>") || any("<|tool|>") || any("<|/tool|>") {
+    if template.contains("<|tool_call|>") || template.contains("<|/tool_call|>")
+        || template.contains("<|tool|>") || template.contains("<|/tool|>")
+    {
         debug!("Detected Phi-4-mini format from template markers");
         return Ok(ToolFormat::Phi4Mini(Phi4MiniHandler));
     }
