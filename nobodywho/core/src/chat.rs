@@ -1574,12 +1574,6 @@ impl Worker<'_, ChatWorker> {
 
         self.extra.messages = system_msg.into_iter().chain(messages).collect();
 
-        // Reuse cached prefix
-        let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
-        let inference_lock_token = _gil_guard.unwrap();
-        let rendered_tokens = self.get_render_as_tokens()?;
-        self.sync_context_with_render(rendered_tokens, &inference_lock_token)?;
-
         Ok(())
     }
 
