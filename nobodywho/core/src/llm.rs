@@ -302,7 +302,8 @@ where
             return Ok(());
         }
 
-        let seq_rm_success = self.ctx
+        let seq_rm_success = self
+            .ctx
             .clear_kv_cache_seq(Some(0), Some(index as u32), None)?;
 
         if seq_rm_success {

@@ -1040,11 +1040,10 @@ impl Worker<'_, ChatWorker> {
         rendered_tokens: Vec<LlamaToken>,
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<(), ContextSyncError> {
-        let (prefix_index, _) =
-            find_prefix_index_and_difference_with_tokens_in_context(
-                &self.extra.tokens_in_context,
-                &rendered_tokens,
-            );
+        let (prefix_index, _) = find_prefix_index_and_difference_with_tokens_in_context(
+            &self.extra.tokens_in_context,
+            &rendered_tokens,
+        );
 
         self.remove_all_tokens_from_index_from_ctx(prefix_index)?;
         // Use n_past as the actual preserved prefix — may be 0 if a full reset was
