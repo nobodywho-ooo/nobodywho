@@ -20,9 +20,6 @@ The `run_evals.sh` script runs all tasks sequentially with their task-specific s
 # Run all evals with 100 samples each
 ./run_evals.sh -m /path/to/model.gguf -l 100
 
-# With MLflow logging
-./run_evals.sh -m /path/to/model.gguf -l 100 --mlflow
-
 # Custom output file
 ./run_evals.sh -m /path/to/model.gguf -l 100 -o my_results.txt
 ```
@@ -32,7 +29,6 @@ The `run_evals.sh` script runs all tasks sequentially with their task-specific s
 | `-m, --model` | Path to GGUF model file (or set `TEST_MODEL` env var) |
 | `-l, --limit` | Number of samples per task |
 | `-o, --output` | Results output file (default: results.txt) |
-| `--mlflow` | Enable MLflow logging (stores in ./mlflow.db) |
 
 Note: DROP automatically uses random sampling (seed=42) due to passage grouping bias.
 
@@ -45,16 +41,12 @@ The `run_all_models.sh` script runs the full eval suite on all GGUF models in a 
 ```bash
 # Run evals on all models in a directory
 ./run_all_models.sh -d /path/to/models -l 100
-
-# With MLflow logging
-./run_all_models.sh -d /path/to/models -l 100 --mlflow
 ```
 
 | Argument | Description |
 |----------|-------------|
 | `-d, --dir` | Directory containing .gguf model files (required) |
 | `-l, --limit` | Number of samples per task |
-| `--mlflow` | Enable MLflow logging |
 
 Results are saved to `results_<model_name>.txt` for each model.
 
@@ -78,8 +70,6 @@ Results are saved to `results_<model_name>.txt` for each model.
 | `TEST_MODEL` | Fallback for `--model` if not provided |
 | `HF_TOKEN` | HuggingFace token for uploading results |
 | `WANDB_API_KEY` | Weights & Biases API key for logging |
-| `MLFLOW_TRACKING_URI` | MLflow server URI |
-| `MLFLOW_EXPERIMENT_NAME` | MLflow experiment name (required if using MLflow) |
 
 ## Examples
 
@@ -125,46 +115,12 @@ The default eval suite runs these benchmarks:
 The `NobodyWhoLM` class adapts `nobodywho.Chat` to the lm-eval interface:
 
 - **Thinking support**: Limits (max tokens, stop sequences) only enforced after `</think>` block
-- **Retry logic**: Retries failed generations up to 2 times
 - **Stop sequences**: Uses `chat.stop_generation()` for early termination
-- **Code block cleanup**: Removes markdown fences for code tasks
 - **Failure tracking**: Logs failed samples with error details
 
 ## Logging Backends
 
-Results can be logged to multiple backends simultaneously:
-
-### MLflow
-
-Enable MLflow logging with the `--mlflow` flag in `run_evals.sh`:
-
-```bash
-# Run evals with MLflow logging
-./run_evals.sh -m ./model.gguf -l 100 --mlflow
-
-# Or manually with environment variables
-export MLFLOW_TRACKING_URI="sqlite:///mlflow.db"
-export MLFLOW_EXPERIMENT_NAME=nobodywho-evals
-python main.py -m ./model.gguf
-```
-
-**View results in MLflow UI:**
-
-```bash
-# Use the provided script (handles NixOS compatibility)
-./mlflow_ui.sh
-
-# Or with custom port
-./mlflow_ui.sh 8080
-```
-
-Then open http://127.0.0.1:5000 in your browser.
-
-**What gets logged:**
-- Task metrics (accuracy, pass@1, F1, etc.)
-- System prompt used
-- Sampler configuration
-- Model path and system info
+Results can be logged to external backends:
 
 ### Weights & Biases
 ```bash
@@ -185,4 +141,4 @@ The script prints:
 2. Failure summary if any generations failed
 3. Sample outputs (with `--print-samples`)
 
-System info (CPU, GPU, memory) is logged to MLflow/W&B for reproducibility.
+System info (CPU, GPU, memory) is logged to W&B for reproducibility.

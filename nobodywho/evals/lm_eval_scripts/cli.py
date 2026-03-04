@@ -2,7 +2,6 @@ import dataclasses
 import logging
 import os
 import random
-import subprocess
 import time
 from pathlib import Path
 from typing import Annotated, Optional
@@ -12,8 +11,6 @@ import typer
 
 from eval import (
     NobodyWhoLM,
-    log_to_mlflow,
-    make_mlflow_run,
     print_results,
     print_samples,
 )
@@ -115,7 +112,6 @@ def run(
     tasks: Annotated[Optional[str], typer.Option("-t", "--tasks", help=f"Comma-separated task list (default: {','.join(DEFAULT_TASKS)})")] = None,
     limit: Annotated[Optional[int], typer.Option("-l", "--limit", help="Samples per task")] = None,
     output: Annotated[str, typer.Option("-o", "--output", help="Results file template ({model} = model stem)")] = "results_{model}.txt",
-    enable_mlflow: Annotated[bool, typer.Option("--mlflow/--no-mlflow", help="Enable MLflow logging")] = False,
     system_prompt: Annotated[Optional[str], typer.Option("--system-prompt", help="Override system prompt for ALL tasks")] = None,
     no_system_prompts: Annotated[bool, typer.Option("--no-system-prompts", help="Disable all built-in per-task prompts")] = False,
     print_samples_flag: Annotated[bool, typer.Option("--print-samples", help="Print sample outputs after each task")] = False,
@@ -137,15 +133,6 @@ def run(
     total_tasks = len(run_tasks)
     total_models = len(models)
 
-    # Setup MLflow env if enabled via flag
-    script_dir = Path(__file__).resolve().parent
-    if enable_mlflow:
-        os.environ["MLFLOW_TRACKING_URI"] = f"sqlite:///{script_dir}/mlflow.db"
-        os.environ.setdefault("MLFLOW_EXPERIMENT_NAME", "nobodywho-evals")
-
-    mlflow_uri = os.environ.get("MLFLOW_TRACKING_URI") if enable_mlflow else None
-    mlflow_experiment = os.environ.get("MLFLOW_EXPERIMENT_NAME", "nobodywho-evals")
-
     # Print header
     print("==============================================")
     print("nw-eval -- NobodyWho Eval Suite")
@@ -153,7 +140,6 @@ def run(
     print(f"Models: {total_models}")
     print(f"Tasks:  {', '.join(run_tasks)}")
     print(f"Limit:  {limit or 'none'}")
-    print(f"MLflow: {'enabled' if enable_mlflow else 'disabled'}")
     print(f"Seed:   {seed}")
     if system_prompt is not None:
         print(f"System prompt override: {system_prompt[:80]}...")
@@ -187,7 +173,6 @@ def run(
             f.write("==============================================\n")
             f.write(f"Model: {model_path}\n")
             f.write(f"Limit: {limit or 'none'}\n")
-            f.write(f"MLflow: {'enabled' if enable_mlflow else 'disabled'}\n")
             f.write(f"Date: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write("==============================================\n\n")
 
@@ -248,14 +233,6 @@ def run(
 
                 eval_limit = None  # Use samples instead of limit
 
-            # Setup MLflow for this task
-            run_name = f"eval-{model_name}-{task}"
-            mlflow_run = None
-            if mlflow_uri:
-                mlflow_run = make_mlflow_run(
-                    run_name, model_path, mlflow_uri, mlflow_experiment, [task]
-                )
-
             # Run evaluation
             results = lm_eval.simple_evaluate(
                 model=model_instance,
@@ -266,14 +243,6 @@ def run(
                 samples=samples_dict,
             )
             assert results is not None
-
-            # Log results to MLflow
-            if mlflow_run:
-                log_to_mlflow(
-                    results,
-                    system_prompt=task_prompt,
-                    sampler_config="top_k=20, top_p=0.8, min_p=0.0, temperature=0.7, dist",
-                )
 
             # Print results
             print_results(results)
@@ -335,40 +304,3 @@ def run(
         print("Results files:")
         for rf in all_results_files:
             print(f"  - {rf}")
-
-    if enable_mlflow:
-        print()
-        print("View MLflow results:")
-        print("  uv run python main.py mlflow-ui")
-
-
-@app.command("mlflow-ui")
-def mlflow_ui(
-    port: Annotated[int, typer.Option("--port", "-p", help="Port to run on")] = 5000,
-):
-    """Launch the MLflow UI to view eval results."""
-    script_dir = Path(__file__).resolve().parent
-    db_uri = f"sqlite:///{script_dir}/mlflow.db"
-
-    # Check if we're on NixOS and need the library path fix
-    if Path("/etc/NIXOS").exists():
-        print("NixOS detected, setting up LD_LIBRARY_PATH...")
-        try:
-            result = subprocess.run(
-                ["nix-build", "<nixpkgs>", "-A", "stdenv.cc.cc.lib", "--no-out-link"],
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
-            if result.returncode == 0:
-                lib_path = result.stdout.strip() + "/lib"
-                existing = os.environ.get("LD_LIBRARY_PATH", "")
-                os.environ["LD_LIBRARY_PATH"] = f"{lib_path}:{existing}" if existing else lib_path
-        except Exception as e:
-            print(f"Warning: NixOS lib path setup failed: {e}")
-
-    print(f"Starting MLflow UI on http://127.0.0.1:{port}")
-    print("Press Ctrl+C to stop")
-    print()
-
-    subprocess.run(["uv", "run", "mlflow", "ui", "--backend-store-uri", db_uri, "--port", str(port)])
