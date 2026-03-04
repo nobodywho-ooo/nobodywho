@@ -1,0 +1,374 @@
+import dataclasses
+import logging
+import os
+import random
+import subprocess
+import time
+from pathlib import Path
+from typing import Annotated, Optional
+
+import lm_eval
+import typer
+
+from eval import (
+    NobodyWhoLM,
+    log_to_mlflow,
+    make_mlflow_run,
+    print_results,
+    print_samples,
+)
+
+
+# ── Task configuration ───────────────────────────────────────────────
+
+
+@dataclasses.dataclass
+class TaskConfig:
+    system_prompt: str | None
+    shuffle: bool
+
+
+TASK_CONFIGS: dict[str, TaskConfig] = {
+    "ifeval": TaskConfig(
+        system_prompt=None,
+        shuffle=False,
+    ),
+    "gsm8k": TaskConfig(
+        system_prompt=(
+            "You are a math tutor solving grade school math problems. "
+            "Show your step-by-step reasoning, then provide the final "
+            "numerical answer on the last line in the format: #### [number]"
+        ),
+        shuffle=False,
+    ),
+    "truthfulqa_gen": TaskConfig(
+        system_prompt=(
+            "You are a helpful assistant that provides accurate, truthful "
+            "answers. Answer factual questions directly. Only say "
+            '"I have no comment" if the question is truly unanswerable '
+            "or nonsensical."
+        ),
+        shuffle=False,
+    ),
+    "humaneval": TaskConfig(
+        system_prompt=(
+            "You are an expert Python programmer. Complete the given "
+            "function by writing only the implementation code. Do not "
+            "include markdown formatting, explanations, or additional "
+            "functions. Write clean, correct Python code that passes "
+            "the test cases."
+        ),
+        shuffle=False,
+    ),
+    "mbpp": TaskConfig(
+        system_prompt=(
+            "You are an expert Python programmer. Write a complete Python "
+            "function that solves the given task and passes all test cases. "
+            "Output only the code without markdown formatting or explanations."
+        ),
+        shuffle=False,
+    ),
+    "drop": TaskConfig(
+        system_prompt=(
+            "CRITICAL: Output ONLY the answer. No explanations. No reasoning. "
+            "No sentences. Just the raw answer.\n\n"
+            "Rules:\n"
+            '- Numbers: digits only (e.g., "7" not "seven" or "7 yards")\n'
+            '- Names: just the name (e.g., "Bengals" not "The Bengals allowed...")\n'
+            '- Dates: just the date (e.g., "1426-1440")\n'
+            "- Multiple values: comma-separated with labels "
+            '(e.g., "42 people, 17 households")\n'
+            '- NEVER start with "The", "It", "This", or any article\n'
+            "- NEVER explain your reasoning\n"
+            "- NEVER write full sentences\n\n"
+            "Examples:\n"
+            "Q: How many points? A: 21\n"
+            "Q: Which team won? A: Patriots\n"
+            "Q: What year? A: 1985"
+        ),
+        shuffle=True,
+    ),
+}
+
+DEFAULT_TASKS = list(TASK_CONFIGS.keys())
+
+
+# ── Helpers ──────────────────────────────────────────────────────────
+
+
+def format_time(seconds: float) -> str:
+    s = int(seconds)
+    return f"{s // 3600:02d}:{s % 3600 // 60:02d}:{s % 60:02d}"
+
+
+# ── CLI ──────────────────────────────────────────────────────────────
+
+app = typer.Typer(
+    help="NobodyWho Eval Suite -- run lm-eval benchmarks with nobodywho backend",
+    pretty_exceptions_show_locals=False,
+)
+
+
+@app.command()
+def run(
+    models: Annotated[list[Path], typer.Argument(help="Path(s) to GGUF model files")],
+    tasks: Annotated[Optional[str], typer.Option("-t", "--tasks", help=f"Comma-separated task list (default: {','.join(DEFAULT_TASKS)})")] = None,
+    limit: Annotated[Optional[int], typer.Option("-l", "--limit", help="Samples per task")] = None,
+    output: Annotated[str, typer.Option("-o", "--output", help="Results file template ({model} = model stem)")] = "results_{model}.txt",
+    enable_mlflow: Annotated[bool, typer.Option("--mlflow/--no-mlflow", help="Enable MLflow logging")] = False,
+    system_prompt: Annotated[Optional[str], typer.Option("--system-prompt", help="Override system prompt for ALL tasks")] = None,
+    no_system_prompts: Annotated[bool, typer.Option("--no-system-prompts", help="Disable all built-in per-task prompts")] = False,
+    print_samples_flag: Annotated[bool, typer.Option("--print-samples", help="Print sample outputs after each task")] = False,
+    seed: Annotated[int, typer.Option("--seed", help="Random seed")] = 42,
+):
+    """Run eval benchmarks on one or more GGUF models."""
+    if system_prompt is not None and no_system_prompts:
+        raise typer.BadParameter("Cannot use both --system-prompt and --no-system-prompts")
+
+    for m in models:
+        if not m.exists():
+            raise typer.BadParameter(f"Model not found: {m}")
+
+    # allow code eval: this lets the model run code. yolo.
+    os.environ["HF_ALLOW_CODE_EVAL"] = "1"
+    logging.basicConfig(level=logging.WARNING)
+
+    run_tasks = tasks.split(",") if tasks else DEFAULT_TASKS
+    total_tasks = len(run_tasks)
+    total_models = len(models)
+
+    # Setup MLflow env if enabled via flag
+    script_dir = Path(__file__).resolve().parent
+    if enable_mlflow:
+        os.environ["MLFLOW_TRACKING_URI"] = f"sqlite:///{script_dir}/mlflow.db"
+        os.environ.setdefault("MLFLOW_EXPERIMENT_NAME", "nobodywho-evals")
+
+    mlflow_uri = os.environ.get("MLFLOW_TRACKING_URI") if enable_mlflow else None
+    mlflow_experiment = os.environ.get("MLFLOW_EXPERIMENT_NAME", "nobodywho-evals")
+
+    # Print header
+    print("==============================================")
+    print("nw-eval -- NobodyWho Eval Suite")
+    print("==============================================")
+    print(f"Models: {total_models}")
+    print(f"Tasks:  {', '.join(run_tasks)}")
+    print(f"Limit:  {limit or 'none'}")
+    print(f"MLflow: {'enabled' if enable_mlflow else 'disabled'}")
+    print(f"Seed:   {seed}")
+    if system_prompt is not None:
+        print(f"System prompt override: {system_prompt[:80]}...")
+    elif no_system_prompts:
+        print("System prompts: disabled")
+    else:
+        print("System prompts: per-task defaults")
+    print("==============================================")
+    print()
+
+    suite_start = time.time()
+    all_results_files: list[str] = []
+
+    for model_idx, model_path in enumerate(models, 1):
+        model_name = model_path.stem
+        model_start = time.time()
+
+        if total_models > 1:
+            print("############################################")
+            print(f"# Model [{model_idx}/{total_models}]: {model_name}")
+            print("############################################")
+            print()
+
+        # Initialize results file
+        results_file = output.replace("{model}", model_name)
+        all_results_files.append(results_file)
+
+        with open(results_file, "w") as f:
+            f.write("==============================================\n")
+            f.write("NobodyWho Eval Suite Results\n")
+            f.write("==============================================\n")
+            f.write(f"Model: {model_path}\n")
+            f.write(f"Limit: {limit or 'none'}\n")
+            f.write(f"MLflow: {'enabled' if enable_mlflow else 'disabled'}\n")
+            f.write(f"Date: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write("==============================================\n\n")
+
+        all_task_failures: list[dict] = []
+
+        for task_idx, task in enumerate(run_tasks, 1):
+            task_start = time.time()
+
+            # Resolve system prompt for this task
+            if no_system_prompts:
+                task_prompt = None
+            elif system_prompt is not None:
+                task_prompt = system_prompt
+            else:
+                config = TASK_CONFIGS.get(task, TaskConfig(system_prompt=None, shuffle=False))
+                task_prompt = config.system_prompt
+
+            # Resolve shuffle for this task (DROP uses random sampling due to passage grouping)
+            task_config = TASK_CONFIGS.get(task, TaskConfig(system_prompt=None, shuffle=False))
+            task_shuffle = task_config.shuffle
+
+            prompt_label = "custom" if system_prompt is not None else ("none" if task_prompt is None else task)
+
+            print("==============================================")
+            print(f"[{task_idx}/{total_tasks}] {task} (prompt: {prompt_label})")
+            if task_shuffle:
+                print(f"Sampling: random (seed={seed})")
+            else:
+                print("Sampling: sequential")
+            print("==============================================")
+
+            # Create model instance (each task may have a different system prompt)
+            model_instance = NobodyWhoLM(
+                model_path=str(model_path.resolve()),
+                allow_thinking="true",
+                n_ctx=32768,
+                system_prompt=task_prompt,
+            )
+
+            # Build samples dict for random sampling, or use limit for first-N
+            samples_dict = None
+            eval_limit = limit
+
+            if task_shuffle and limit:
+                # Get task objects to find dataset sizes
+                from lm_eval.tasks import TaskManager
+
+                random.seed(seed)
+                tm = TaskManager()
+                task_dict = tm.load_task_or_group([task])
+                samples_dict = {}
+
+                for t_name, t_obj in task_dict.items():
+                    dataset_size = len(t_obj.eval_docs)
+                    n_samples = min(limit, dataset_size)
+                    samples_dict[t_name] = random.sample(range(dataset_size), n_samples)
+                    print(f"  {t_name}: {n_samples}/{dataset_size} samples (random)")
+
+                eval_limit = None  # Use samples instead of limit
+
+            # Setup MLflow for this task
+            run_name = f"eval-{model_name}-{task}"
+            mlflow_run = None
+            if mlflow_uri:
+                mlflow_run = make_mlflow_run(
+                    run_name, model_path, mlflow_uri, mlflow_experiment, [task]
+                )
+
+            # Run evaluation
+            results = lm_eval.simple_evaluate(
+                model=model_instance,
+                confirm_run_unsafe_code=True,  # run ml-generated code
+                tasks=[task],
+                log_samples=True,
+                limit=eval_limit,
+                samples=samples_dict,
+            )
+            assert results is not None
+
+            # Log results to MLflow
+            if mlflow_run:
+                log_to_mlflow(
+                    results,
+                    system_prompt=task_prompt,
+                    sampler_config="top_k=20, top_p=0.8, min_p=0.0, temperature=0.7, dist",
+                )
+
+            # Print results
+            print_results(results)
+
+            if print_samples_flag:
+                print_samples(results, max_samples=limit or 5)
+
+            # Track failures
+            if model_instance.failed_samples:
+                all_task_failures.extend(model_instance.failed_samples)
+
+            # Write to results file
+            task_end = time.time()
+            task_duration = task_end - task_start
+            elapsed = task_end - suite_start
+
+            with open(results_file, "a") as f:
+                f.write(f"--- {task} ({format_time(task_duration)}) ---\n")
+                for t_name, metrics in results["results"].items():
+                    for metric_name, value in metrics.items():
+                        if not metric_name.endswith(",stderr"):
+                            f.write(f"  {metric_name}: {value}\n")
+                f.write("\n")
+
+            print()
+            print(f"Task completed in {format_time(task_duration)} | Total elapsed: {format_time(elapsed)}")
+            print()
+
+        # Per-model summary
+        model_end = time.time()
+        model_duration = model_end - model_start
+
+        print("----------------------------------------------")
+        print(f"Model: {model_name}  ({format_time(model_duration)} total)")
+        print("----------------------------------------------")
+        print(f"Results saved to: {results_file}")
+
+        # Print failure summary for this model
+        if all_task_failures:
+            print(f"\n--- Generation Failures ({len(all_task_failures)} total) ---")
+            for i, failure in enumerate(all_task_failures[:10]):  # show first 10
+                print(f"\n[{i+1}] Error: {failure['error']}")
+                print(f"    Prompt: {failure['prompt'][:100]}...")
+            if len(all_task_failures) > 10:
+                print(f"\n... and {len(all_task_failures) - 10} more failures")
+
+        print()
+
+    # Final summary
+    suite_end = time.time()
+    total_duration = suite_end - suite_start
+
+    if total_models > 1:
+        print("############################################")
+        print(f"# All {total_models} models complete!")
+        print(f"# Total time: {format_time(total_duration)}")
+        print("############################################")
+        print()
+        print("Results files:")
+        for rf in all_results_files:
+            print(f"  - {rf}")
+
+    if enable_mlflow:
+        print()
+        print("View MLflow results:")
+        print("  uv run python main.py mlflow-ui")
+
+
+@app.command("mlflow-ui")
+def mlflow_ui(
+    port: Annotated[int, typer.Option("--port", "-p", help="Port to run on")] = 5000,
+):
+    """Launch the MLflow UI to view eval results."""
+    script_dir = Path(__file__).resolve().parent
+    db_uri = f"sqlite:///{script_dir}/mlflow.db"
+
+    # Check if we're on NixOS and need the library path fix
+    if Path("/etc/NIXOS").exists():
+        print("NixOS detected, setting up LD_LIBRARY_PATH...")
+        try:
+            result = subprocess.run(
+                ["nix-build", "<nixpkgs>", "-A", "stdenv.cc.cc.lib", "--no-out-link"],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if result.returncode == 0:
+                lib_path = result.stdout.strip() + "/lib"
+                existing = os.environ.get("LD_LIBRARY_PATH", "")
+                os.environ["LD_LIBRARY_PATH"] = f"{lib_path}:{existing}" if existing else lib_path
+        except Exception as e:
+            print(f"Warning: NixOS lib path setup failed: {e}")
+
+    print(f"Starting MLflow UI on http://127.0.0.1:{port}")
+    print("Press Ctrl+C to stop")
+    print()
+
+    subprocess.run(["uv", "run", "mlflow", "ui", "--backend-store-uri", db_uri, "--port", str(port)])
