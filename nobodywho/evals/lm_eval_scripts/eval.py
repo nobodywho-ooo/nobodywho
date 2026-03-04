@@ -5,7 +5,6 @@ import subprocess
 from pathlib import Path
 
 import lm_eval
-import mlflow
 import nobodywho
 import psutil
 from lm_eval.api.instance import Instance
@@ -141,7 +140,6 @@ class NobodyWhoLM(LM):
     model_path: Path
     system_prompt: str | None
     failed_samples: list[dict]
-    max_retries: int
     total_samples: int
 
     def __init__(
@@ -172,7 +170,6 @@ class NobodyWhoLM(LM):
         self.system_prompt = system_prompt
 
         self.failed_samples = []
-        self.max_retries = 2
         self.total_samples = 0
         self._init_chat()
 
@@ -207,102 +204,69 @@ class NobodyWhoLM(LM):
             max_gen_toks = request_args.get("max_gen_toks")  # None if not specified
             until = request_args.get("until", [])
 
-            # calculate how many chunks to check for stop sequences
-            # (each token is at least 1 char, so we need at least max_stop_len chunks)
+            # calculate how many tokens to check for stop sequences
+            # (each token is at least 1 char, so we need at most max_stop_len tokens)
             max_stop_len = max((len(s) for s in until), default=0)
 
-            # do the generation with retry logic
-            response_text: str | None = None
-            last_error: Exception | None = None
+            try:
+                response_stream = self.chat.ask(text)
 
-            for attempt in range(self.max_retries):
-                try:
-                    response_stream = self.chat.ask(text)
+                # collect tokens, checking stop conditions
+                tokens: list[str] = []
 
-                    # collect chunks, checking stop conditions
-                    chunks: list[str] = []
+                # Track thinking state - only enforce limits after think block ends
+                # If thinking is disabled, enforce limits from the start
+                think_ended = not self.allow_thinking
+                response_tokens = 0
 
-                    # Track thinking state - only enforce limits after think block ends
-                    # If thinking is disabled, enforce limits from the start
-                    think_ended = not self.allow_thinking
-                    response_tokens = 0
+                for token in response_stream:
+                    tokens.append(token)
 
-                    for chunk in response_stream:
-                        chunks.append(chunk)
+                    # Detect when thinking block ends (check last 5 chunks only)
+                    if self.allow_thinking and not think_ended:
+                        recent = "".join(tokens[-5:])
+                        if "</think>" in recent:
+                            think_ended = True
+                            response_tokens = 0
 
-                        # Detect when thinking block ends (check last 5 chunks only)
-                        if self.allow_thinking and not think_ended:
-                            recent = "".join(chunks[-5:])
-                            if "</think>" in recent:
-                                think_ended = True
-                                response_tokens = 0
+                    # Only enforce limits after think block
+                    if think_ended:
+                        response_tokens += 1
 
-                        # Only enforce limits after think block
-                        if think_ended:
-                            response_tokens += 1
-
-                            # check max token limit (only if specified by task)
-                            if max_gen_toks is not None and response_tokens >= max_gen_toks:
-                                self.chat.stop_generation()
-                                break
-
-                            # check stop sequences in recent chunks
-                            if until:
-                                recent_text = "".join(chunks[-max_stop_len:])
-                                if any(stop_seq in recent_text for stop_seq in until):
-                                    self.chat.stop_generation()
-                                    break
-
-                    # Get completed text and extract response part (strip think block)
-                    full_response = response_stream.completed()
-                    if self.allow_thinking and "</think>" in full_response:
-                        response_text = full_response.split("</think>", 1)[1]
-                    else:
-                        response_text = full_response
-
-                    # truncate at stop sequence if present
-                    for stop_seq in until:
-                        if stop_seq in response_text:
-                            response_text = response_text.split(stop_seq)[0]
+                        # check max token limit (only if specified by task)
+                        if max_gen_toks is not None and response_tokens >= max_gen_toks:
+                            self.chat.stop_generation()
                             break
 
-                    break  # success, exit retry loop
+                        # check stop sequences in recent tokens
+                        if until and any(stop_seq in "".join(tokens[-max_stop_len:]) for stop_seq in until):
+                            self.chat.stop_generation()
+                            break
 
-                except RuntimeError as e:
-                    last_error = e
-                    logger.warning(
-                        f"Generation attempt {attempt + 1}/{self.max_retries} failed: {e}"
-                    )
-                    self._init_chat()
+                # Get completed text and extract response part (strip think block)
+                full_response = response_stream.completed()
+                if self.allow_thinking and "</think>" in full_response:
+                    response_text = full_response.split("</think>", 1)[1]
+                else:
+                    response_text = full_response
 
-            # if all retries failed, track the failure and return empty string
-            if response_text is None:
-                logger.error(
-                    f"All {self.max_retries} generation attempts failed: {last_error}"
-                )
+                # truncate at stop sequence if present
+                for stop_seq in until:
+                    if stop_seq in response_text:
+                        response_text = response_text.split(stop_seq)[0]
+                        break
+
+            except RuntimeError as e:
+                logger.error(f"Generation failed: {e}")
                 self.failed_samples.append({
                     "prompt": text[:500],  # truncate for logging
-                    "error": str(last_error),
+                    "error": str(e),
                 })
                 result.append("")
                 self.total_samples += 1
                 continue
 
-            # strip markdown code block markers if present
-            # (fixes MBPP code extraction which expects raw code)
-            response_text = response_text.strip()
-            if response_text.startswith("```"):
-                # remove the opening ``` and optional language identifier
-                lines = response_text.split("\n", 1)
-                if len(lines) > 1:
-                    response_text = lines[1]  # skip the ```python line
-                else:
-                    response_text = response_text[3:]  # just remove ```
-            # also strip trailing ```
-            if response_text.rstrip().endswith("```"):
-                response_text = response_text.rstrip()[:-3].rstrip()
-
-            result.append(response_text)
+            result.append(response_text.strip())
             self.total_samples += 1
         return result
 
@@ -329,93 +293,6 @@ class NobodyWhoLM(LM):
 
     def loglikelihood_rolling(self, *args, **kwargs):
         raise NotImplementedError
-
-
-# ── MLflow logging ───────────────────────────────────────────────────
-
-
-def make_mlflow_run(
-    run_name: str,
-    model_path: Path,
-    tracking_uri: str,
-    experiment_name: str,
-    tasks: list[str],
-):
-    mlflow.set_tracking_uri(tracking_uri)
-    mlflow.set_experiment(experiment_name)
-    run = mlflow.start_run(run_name=run_name)
-
-    # Log critical identifying info early (survives crashes)
-    mlflow.log_param("model_path_input", str(model_path))
-    mlflow.log_param("tasks_input", ",".join(tasks))
-
-    # Set tag for model name (may populate "model" column in MLflow UI)
-    mlflow.set_tag("model_name", model_path.name)
-
-    return run
-
-
-def sanitize_metric_name(name: str) -> str:
-    """Sanitize metric name for MLflow (no commas allowed)."""
-    # Replace commas with underscores, strip ',none' suffix
-    # MLflow only allows: alphanumerics, underscores, dashes, periods, spaces, colons, slashes
-    name = name.replace(",none", "").replace(",", "_").replace("@", "_at_")
-    return name
-
-
-def log_to_mlflow(
-    results: dict,
-    system_prompt: str | None = None,
-    sampler_config: str | None = None,
-):
-    # Log per-task metrics
-    for task_name, metrics in results["results"].items():
-        for metric_name, value in metrics.items():
-            if isinstance(value, (int, float)):
-                clean_name = sanitize_metric_name(f"{task_name}/{metric_name}")
-                mlflow.log_metric(clean_name, value)
-
-    # Log system prompt
-    if system_prompt is not None:
-        # Truncate if too long for param (MLflow has 500 char limit for params)
-        if len(system_prompt) <= 500:
-            mlflow.log_param("system_prompt", system_prompt)
-        else:
-            mlflow.log_param("system_prompt", system_prompt[:497] + "...")
-            # Log full prompt as artifact
-            mlflow.log_text(system_prompt, "system_prompt.txt")
-    else:
-        mlflow.log_param("system_prompt", "")
-
-    # Log sampler config
-    if sampler_config:
-        mlflow.log_param("sampler_config", sampler_config)
-
-    # Log model/system metrics from config (includes get_model_info data)
-    if "config" in results:
-        for key, value in results["config"].items():
-            if isinstance(value, bool):
-                mlflow.log_param(key, str(value))
-            elif isinstance(value, (int, float)):
-                mlflow.log_metric(f"model/{key}", value)
-            elif isinstance(value, str):
-                # Special handling for "model" field - log as both param and tag
-                if key == "model":
-                    mlflow.set_tag("model", value)
-                mlflow.log_param(key, value)
-            elif isinstance(value, dict) and key == "model_args":
-                # Flatten and log model_args
-                for arg_name, arg_value in value.items():
-                    mlflow.log_param(f"model_args.{arg_name}", arg_value)
-
-    # Log environment info (added by lm_eval's add_env_info)
-    env_fields = ["pretty_env_info", "lm_eval_version", "git_hash"]
-    for field in env_fields:
-        if field in results and results[field]:
-            mlflow.log_param(f"env.{field}", str(results[field]))
-
-    mlflow.end_run()
-
 
 # ── Output helpers ───────────────────────────────────────────────────
 
