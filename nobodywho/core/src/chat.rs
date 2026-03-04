@@ -1045,7 +1045,10 @@ impl Worker<'_, ChatWorker> {
             &rendered_tokens,
         );
 
+        // this call may remove more than just the tokens from prefix_index
+        // it updates self.n_past to indicate num of tokens in context
         self.remove_all_tokens_from_index_from_ctx(prefix_index)?;
+
         // Use n_past as the actual preserved prefix — may be 0 if a full reset was
         // required (e.g. hybrid/recurrent models that don't support partial seq_rm).
         let tokens_to_read = rendered_tokens[self.n_past as usize..].to_vec();
