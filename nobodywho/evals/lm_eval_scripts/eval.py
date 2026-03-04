@@ -222,7 +222,7 @@ class NobodyWhoLM(LM):
                 for token in response_stream:
                     tokens.append(token)
 
-                    # Hard limit to prevent context exhaustion (including thinking)
+                    # !! HARD LIMIT: 16384 tokens max to prevent context exhaustion !!
                     if len(tokens) >= 16384:
                         self.chat.stop_generation()
                         break

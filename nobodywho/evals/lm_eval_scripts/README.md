@@ -104,7 +104,8 @@ Tasks not run in a given row have empty values for their metrics.
 
 The `NobodyWhoLM` class adapts `nobodywho.Chat` to the lm-eval interface:
 
-- **Thinking support**: Limits (max tokens, stop sequences) only enforced after `</think>` block
+- **Thinking support**: Task-specific limits (max tokens, stop sequences) only enforced after `</think>` block
+- **Hard token limit**: 16384 tokens max per generation (including thinking) to prevent context exhaustion
 - **Stop sequences**: Uses `chat.stop_generation()` for early termination
 - **Failure tracking**: Logs failed samples with error details
 
