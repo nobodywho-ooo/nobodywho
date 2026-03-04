@@ -1040,15 +1040,20 @@ impl Worker<'_, ChatWorker> {
         rendered_tokens: Vec<LlamaToken>,
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<(), ContextSyncError> {
-        let (prefix_index, token_difference) =
-            find_prefix_index_and_difference_with_tokens_in_context(
-                &self.extra.tokens_in_context,
-                &rendered_tokens,
-            );
+        let (prefix_index, _) = find_prefix_index_and_difference_with_tokens_in_context(
+            &self.extra.tokens_in_context,
+            &rendered_tokens,
+        );
 
+        // this call may remove more than just the tokens from prefix_index
+        // it updates self.n_past to indicate num of tokens in context
         self.remove_all_tokens_from_index_from_ctx(prefix_index)?;
-        if !token_difference.is_empty() {
-            self.read_tokens(token_difference, inference_lock_token)?;
+
+        // Use n_past as the actual preserved prefix — may be 0 if a full reset was
+        // required (e.g. hybrid/recurrent models that don't support partial seq_rm).
+        let tokens_to_read = rendered_tokens[self.n_past as usize..].to_vec();
+        if !tokens_to_read.is_empty() {
+            self.read_tokens(tokens_to_read, inference_lock_token)?;
         }
         self.extra.tokens_in_context = rendered_tokens;
 
