@@ -75,10 +75,9 @@ pub mod test_utils {
         //      this segfault doesn't happen on nobodywho commit 94d51c5.
         //      it's most likely related to an upstream change in llama.cpp
         Arc::new(
-            get_model(&path, false, None)
-                .unwrap_or_else(|e| {
-                    panic!("Failed to load embeddings model from {}: {:?}", path, e)
-                }),
+            get_model(&path, false, None).unwrap_or_else(|e| {
+                panic!("Failed to load embeddings model from {}: {:?}", path, e)
+            }),
         )
     }
 
@@ -87,10 +86,9 @@ pub mod test_utils {
         let path = test_crossencoder_model_path();
         // Same GPU offloading note as embeddings model
         Arc::new(
-            get_model(&path, false, None)
-                .unwrap_or_else(|e| {
-                    panic!("Failed to load crossencoder model from {}: {:?}", path, e)
-                }),
+            get_model(&path, false, None).unwrap_or_else(|e| {
+                panic!("Failed to load crossencoder model from {}: {:?}", path, e)
+            }),
         )
     }
 }

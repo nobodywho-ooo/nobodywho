@@ -71,7 +71,9 @@ impl Model {
     ) -> Result<Self, String> {
         let model = nobodywho::llm::get_model(model_path, use_gpu, image_ingestion.as_deref())
             .map_err(|e| e.to_string())?;
-        Ok(Self { model: Arc::new(model) })
+        Ok(Self {
+            model: Arc::new(model),
+        })
     }
 }
 
@@ -308,7 +310,8 @@ pub struct CrossEncoder {
 impl CrossEncoder {
     #[flutter_rust_bridge::frb(sync)]
     pub fn new(model: &Model, #[frb(default = 4096)] n_ctx: u32) -> Self {
-        let handle = nobodywho::crossencoder::CrossEncoderAsync::new(Arc::clone(&model.model), n_ctx);
+        let handle =
+            nobodywho::crossencoder::CrossEncoderAsync::new(Arc::clone(&model.model), n_ctx);
         Self { handle }
     }
 
