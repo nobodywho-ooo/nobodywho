@@ -222,6 +222,11 @@ class NobodyWhoLM(LM):
                 for token in response_stream:
                     tokens.append(token)
 
+                    # Hard limit to prevent context exhaustion (including thinking)
+                    if len(tokens) >= 16384:
+                        self.chat.stop_generation()
+                        break
+
                     # Detect when thinking block ends (check last 5 chunks only)
                     if self.allow_thinking and not think_ended:
                         recent = "".join(tokens[-5:])
