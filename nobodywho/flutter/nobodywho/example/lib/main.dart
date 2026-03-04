@@ -18,10 +18,16 @@ class MainApp extends StatelessWidget {
   Future<void> _onPressed() async {
     try {
       final dir = await getApplicationDocumentsDirectory();
-      final model = File('${dir.path}/qwen3.gguf');
+      // Put this mode in assets folder : https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf
+      // Rename it model.gguf
+      final model = File('${dir.path}/model.gguf');
+      // Remember to register assets folder in pubspec.yaml like so :
+      // flutter:
+      //   assets:
+      //     - assets/
 
       if (!await model.exists()) {
-        final data = await rootBundle.load('assets/qwen3.gguf');
+        final data = await rootBundle.load('assets/model.gguf');
         await model.writeAsBytes(data.buffer.asUint8List(), flush: true);
       }
 
