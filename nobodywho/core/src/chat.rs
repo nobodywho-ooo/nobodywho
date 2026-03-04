@@ -1035,6 +1035,7 @@ impl Worker<'_, ChatWorker> {
     /// Compare tokens from a template-rendered chat history with the tokens in the LLM's context,
     /// and perform the LLM 'reading' to make the LLM's context match the rendered tokens exactly.
     /// Because this invokes the model, this is potentially an expensive method to call.
+    #[tracing::instrument(level="debug", skip_all)]
     fn sync_context_with_render(
         &mut self,
         rendered_tokens: Vec<LlamaToken>,
@@ -2457,6 +2458,19 @@ mod tests {
             response1, response2,
             "Greedy sampler should produce identical output for the same prompt"
         );
+    }
+
+    #[test]
+    fn test_reset_chat_with_no_system_prompt() {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let chat = ChatBuilder::new(model)
+            .with_context_size(2048)
+            .with_allow_thinking(false)
+            .build();
+        chat.reset_history();
+        let resp = chat.ask("What is the capital of Denmark?").completed().unwrap();
+        assert!(resp.contains("Copenhagen"), "Model failed to answer after reset");
     }
 
     // Template rendering tests have been moved to template.rs module
