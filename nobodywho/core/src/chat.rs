@@ -1048,6 +1048,7 @@ impl Worker<'_, ChatWorker> {
 
         // this call may remove more than just the tokens from prefix_index
         // it updates self.n_past to indicate num of tokens in context
+        let old_n_past = self.n_past;
         self.remove_all_tokens_from_index_from_ctx(prefix_index)?;
 
         // Use n_past as the actual preserved prefix — may be 0 if a full reset was
@@ -1055,6 +1056,19 @@ impl Worker<'_, ChatWorker> {
         let tokens_to_read = rendered_tokens[self.n_past as usize..].to_vec();
         if !tokens_to_read.is_empty() {
             self.read_tokens(tokens_to_read, inference_lock_token)?;
+        } else if self.n_past > 0 && self.n_past < old_n_past {
+            // Truncate-only path: the KV cache was trimmed but no new tokens
+            // need to be appended. Re-decode the last remaining token to
+            // refresh the logits buffer, which would otherwise contain stale
+            // values from whatever the previous decode() call happened to be.
+            // llama.cpp requires strictly consecutive positions (Y = X + 1),
+            // so we must remove the last token from the KV cache before we
+            // can re-decode it.
+            self.remove_all_tokens_from_index_from_ctx(self.n_past as usize - 1)?;
+            let refresh_tokens = rendered_tokens[self.n_past as usize..].to_vec();
+            if !refresh_tokens.is_empty() {
+                self.read_tokens(refresh_tokens, inference_lock_token)?;
+            }
         }
         self.extra.tokens_in_context = rendered_tokens;
 
