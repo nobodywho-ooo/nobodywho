@@ -30,7 +30,8 @@ class TaskConfig:
 
 TASK_CONFIGS: dict[str, TaskConfig] = {
     "ifeval": TaskConfig(
-        system_prompt=None,
+        system_prompt="You are a helpful assistent. " 
+        "Follow any instructions given as closely as possible.",
         shuffle=False,
     ),
     "gsm8k": TaskConfig(
