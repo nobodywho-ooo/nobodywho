@@ -2436,5 +2436,27 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn test_greedy_sampler_produces_deterministic_output() {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+
+        let chat = ChatBuilder::new(model)
+            .with_context_size(2048)
+            .with_allow_thinking(false)
+            .build();
+
+        chat.set_sampler_config(SamplerPresets::greedy()).unwrap();
+
+        let response1 = chat.ask("Say exactly: 'Hello'").completed().unwrap();
+        chat.reset_history().unwrap();
+        let response2 = chat.ask("Say exactly: 'Hello'").completed().unwrap();
+
+        assert_eq!(
+            response1, response2,
+            "Greedy sampler should produce identical output for the same prompt"
+        );
+    }
+
     // Template rendering tests have been moved to template.rs module
 }
