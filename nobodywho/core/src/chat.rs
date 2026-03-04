@@ -30,7 +30,7 @@ use crate::errors::{
 };
 use crate::llm::{self};
 use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
-use crate::llm::{Worker, WriteOutput};
+use crate::llm::{Worker, WorkerGuard, WriteOutput};
 use crate::sampler_config::{SamplerConfig, ShiftStep};
 use crate::template::{select_template, ChatTemplate, ChatTemplateContext};
 use crate::tokenizer::{
@@ -265,8 +265,7 @@ impl ChatBuilder {
 ///
 /// Use [`ChatBuilder`] to create a new instance with a fluent API.
 pub struct ChatHandle {
-    msg_tx: std::sync::mpsc::Sender<ChatMsg>,
-    should_stop: Arc<AtomicBool>,
+    guard: WorkerGuard<ChatMsg>,
 }
 
 impl ChatHandle {
@@ -277,7 +276,7 @@ impl ChatHandle {
         let should_stop = Arc::new(AtomicBool::new(false));
         let should_stop_clone = Arc::clone(&should_stop);
 
-        std::thread::spawn(move || {
+        let join_handle = std::thread::spawn(move || {
             let worker = Worker::new_chat_worker(&model, config, should_stop_clone);
             let mut worker_state = match worker {
                 Ok(worker_state) => worker_state,
@@ -294,16 +293,18 @@ impl ChatHandle {
         });
 
         Self {
-            msg_tx,
-            should_stop,
+            guard: WorkerGuard::new(msg_tx, join_handle, Some(should_stop)),
         }
     }
 
     /// Send a message and get a tokio channel
     /// TODO: deprecate this in favor of plain `ask` once integrations are updated
-    pub fn ask_channel(&self, prompt: Prompt) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
-        let (output_tx, output_rx) = tokio::sync::mpsc::channel(4096);
-        let _ = self.msg_tx.send(ChatMsg::Ask { prompt, output_tx });
+    pub fn ask_channel(
+        &self,
+        prompt: Prompt,
+    ) -> tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput> {
+        let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
+        self.guard.send(ChatMsg::Ask { prompt, output_tx });
         output_rx
     }
 
@@ -329,7 +330,7 @@ impl ChatHandle {
     {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         let msg = make_msg(output_tx);
-        let _ = self.msg_tx.send(msg);
+        self.guard.send(msg);
         // block until processed
         output_rx.blocking_recv()
     }
@@ -395,14 +396,13 @@ impl ChatHandle {
 
     /// Stop the current generation if one is in progress.
     pub fn stop_generation(&self) {
-        self.should_stop
-            .store(true, std::sync::atomic::Ordering::Relaxed);
+        self.guard.stop();
     }
 
     /// Get the chat history without the system prompt (lower-level API).
     pub fn get_chat_history(&self) -> Result<Vec<Message>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        let _ = self.msg_tx.send(ChatMsg::GetChatHistory { output_tx });
+        self.guard.send(ChatMsg::GetChatHistory { output_tx });
         output_rx
             .blocking_recv()
             .ok_or(crate::errors::GetterError::GetterError(
@@ -469,8 +469,7 @@ impl ChatHandle {
 /// Use [`ChatBuilder`] to create a new instance with a fluent API.
 #[derive(Clone)]
 pub struct ChatHandleAsync {
-    msg_tx: std::sync::mpsc::Sender<ChatMsg>,
-    should_stop: Arc<AtomicBool>,
+    guard: Arc<WorkerGuard<ChatMsg>>,
 }
 
 impl ChatHandleAsync {
@@ -481,7 +480,7 @@ impl ChatHandleAsync {
         let should_stop = Arc::new(AtomicBool::new(false));
         let should_stop_clone = Arc::clone(&should_stop);
 
-        std::thread::spawn(move || {
+        let join_handle = std::thread::spawn(move || {
             let worker = Worker::new_chat_worker(&model, config, should_stop_clone);
             let mut worker_state = match worker {
                 Ok(worker_state) => worker_state,
@@ -498,16 +497,18 @@ impl ChatHandleAsync {
         });
 
         Self {
-            msg_tx,
-            should_stop,
+            guard: Arc::new(WorkerGuard::new(msg_tx, join_handle, Some(should_stop))),
         }
     }
 
     /// Send a message and get a tokio channel
     /// TODO: deprecate this in favor of plain `ask` once integrations are updated
-    pub fn ask_channel(&self, prompt: Prompt) -> tokio::sync::mpsc::Receiver<llm::WriteOutput> {
-        let (output_tx, output_rx) = tokio::sync::mpsc::channel(4096);
-        let _ = self.msg_tx.send(ChatMsg::Ask { prompt, output_tx });
+    pub fn ask_channel(
+        &self,
+        prompt: Prompt,
+    ) -> tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput> {
+        let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
+        self.guard.send(ChatMsg::Ask { prompt, output_tx });
         output_rx
     }
 
@@ -534,7 +535,7 @@ impl ChatHandleAsync {
     {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         let msg = make_msg(output_tx);
-        let _ = self.msg_tx.send(msg);
+        self.guard.send(msg);
         // wait until processed
         output_rx.recv().await
     }
@@ -605,14 +606,13 @@ impl ChatHandleAsync {
 
     /// Stop the current generation if one is in progress.
     pub fn stop_generation(&self) {
-        self.should_stop
-            .store(true, std::sync::atomic::Ordering::Relaxed);
+        self.guard.stop();
     }
 
     /// Get the chat history without the system prompt (lower-level API).
     pub async fn get_chat_history(&self) -> Result<Vec<Message>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        let _ = self.msg_tx.send(ChatMsg::GetChatHistory { output_tx });
+        self.guard.send(ChatMsg::GetChatHistory { output_tx });
         output_rx
             .recv()
             .await
@@ -679,12 +679,12 @@ impl ChatHandleAsync {
 
 /// A stream of tokens from the model.
 pub struct TokenStream {
-    rx: tokio::sync::mpsc::Receiver<llm::WriteOutput>,
+    rx: tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>,
     completed_response: Option<String>,
 }
 
 impl TokenStream {
-    fn new(rx: tokio::sync::mpsc::Receiver<llm::WriteOutput>) -> Self {
+    fn new(rx: tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>) -> Self {
         Self {
             rx,
             completed_response: None,
@@ -730,12 +730,12 @@ impl TokenStream {
 
 /// A stream of tokens from the model, async version.
 pub struct TokenStreamAsync {
-    rx: tokio::sync::mpsc::Receiver<llm::WriteOutput>,
+    rx: tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>,
     completed_response: Option<String>,
 }
 
 impl TokenStreamAsync {
-    pub fn new(rx: tokio::sync::mpsc::Receiver<llm::WriteOutput>) -> Self {
+    pub fn new(rx: tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>) -> Self {
         Self {
             rx,
             completed_response: None,
@@ -782,7 +782,7 @@ impl TokenStreamAsync {
 enum ChatMsg {
     Ask {
         prompt: Prompt,
-        output_tx: tokio::sync::mpsc::Sender<llm::WriteOutput>,
+        output_tx: tokio::sync::mpsc::UnboundedSender<llm::WriteOutput>,
     },
     ResetChat {
         system_prompt: Option<String>,
@@ -859,8 +859,13 @@ fn process_worker_msg(
     info!(?msg, "Worker processing:");
     match msg {
         ChatMsg::Ask { prompt, output_tx } => {
+            let should_stop = Arc::clone(&worker_state.extra.should_stop);
             let callback = move |out| {
-                let _ = output_tx.blocking_send(out);
+                if output_tx.send(out).is_err() {
+                    // Receiver was dropped or the buffer is full with nobody consuming.
+                    // Either way, stop generating immediately.
+                    should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
+                }
             };
             worker_state.ask(prompt, callback)?;
         }
@@ -1126,15 +1131,22 @@ impl Worker<'_, ChatWorker> {
     ) -> Result<(), ContextSyncError> {
         let mut chunks = self.render_as_chunks(true)?;
         if chunks.n_tokens() > self.ctx.n_ctx() as usize {
-            self.context_shift()?; // Could we here somehow return the rendered tokens to avoid re-rendering?
+            self.context_shift()?;
             chunks = self.render_as_chunks(true)?;
         }
 
-        let (prefix_index, token_difference) =
-            find_chunks_prefix_difference(&self.extra.context.chunks, &chunks);
+        let prefix_index = find_chunks_prefix_difference(&self.extra.context.chunks, &chunks);
 
+        // this call may remove more than just the tokens from prefix_index
+        // it updates self.n_past to indicate num of tokens in context
         self.remove_all_tokens_from_index_from_ctx(prefix_index)?;
-        self.read_chunks(token_difference, inference_lock_token)?;
+
+        // Use n_past as the actual preserved prefix — may be 0 if a full reset was
+        // required (e.g. hybrid/recurrent models that don't support partial seq_rm).
+        let chunks_to_read = chunks.tail(self.n_past as usize);
+        if chunks_to_read.n_tokens() > 0 {
+            self.read_chunks(chunks_to_read, inference_lock_token)?;
+        }
 
         self.extra.context.chunks = chunks;
         self.extra

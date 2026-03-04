@@ -283,10 +283,7 @@ impl TokenizerChunks {
     }
 }
 
-pub fn find_chunks_prefix_difference(
-    old: &TokenizerChunks,
-    new: &TokenizerChunks,
-) -> (usize, TokenizerChunks) {
+pub fn find_chunks_prefix_difference(old: &TokenizerChunks, new: &TokenizerChunks) -> usize {
     let longest_common_chunk_prefix_index = new
         .iter()
         .zip(old.iter())
@@ -295,11 +292,12 @@ pub fn find_chunks_prefix_difference(
     // common prefix found, we just need to find if the new is longer or shorter than the old
     let Some(chunk_prefix_index) = longest_common_chunk_prefix_index else {
         if old.len() >= new.len() {
-            return (new.n_tokens(), new.tail(new.n_tokens()));
+            return new.n_tokens();
         } else {
-            return (old.n_tokens(), new.tail(old.n_tokens()));
+            return old.n_tokens();
         }
     };
+
     let (new_start, _) = new.chunk_bounds(chunk_prefix_index);
 
     // text and text are colliding, we are going into the tokens
@@ -312,15 +310,12 @@ pub fn find_chunks_prefix_difference(
             .position(|(a, b)| a != b);
 
         if let Some(token_prefix_index) = longest_common_prefix_index {
-            return (
-                new_start + token_prefix_index,
-                new.tail(new_start + token_prefix_index),
-            );
+            return new_start + token_prefix_index;
         }
     }
 
     // image and image, or image and text are colliding
-    (new_start, new.tail(new_start))
+    new_start
 }
 
 // Here, the model is represented implicitly by the MTMD context
@@ -556,10 +551,10 @@ mod tests {
             create_text_chunk(vec![4, 5, 6]), // " world"
         ]);
 
-        let (prefix_index, tail) = find_chunks_prefix_difference(&old, &new);
+        let prefix_index = find_chunks_prefix_difference(&old, &new);
 
         assert_eq!(prefix_index, 6); // All 6 tokens match
-        assert_eq!(tail.n_tokens(), 0); // Nothing to reload
+        assert_eq!(new.tail(prefix_index).n_tokens(), 0); // Nothing to reload
     }
 
     #[test]
@@ -573,10 +568,10 @@ mod tests {
             create_text_chunk(vec![4, 5, 6]), // " world"
         ]);
 
-        let (prefix_index, tail) = find_chunks_prefix_difference(&old, &new);
+        let prefix_index = find_chunks_prefix_difference(&old, &new);
 
         assert_eq!(prefix_index, 3); // First 3 tokens match
-        assert_eq!(tail.n_tokens(), 3); // Need to load " world"
+        assert_eq!(new.tail(prefix_index).n_tokens(), 3); // Need to load " world"
     }
 
     #[test]
@@ -590,10 +585,10 @@ mod tests {
         ]);
         let new = create_chunks(vec![create_text_chunk(vec![1, 2, 3])]);
 
-        let (prefix_index, tail) = find_chunks_prefix_difference(&old, &new);
+        let prefix_index = find_chunks_prefix_difference(&old, &new);
 
         assert_eq!(prefix_index, 3); // First 3 tokens match
-        assert_eq!(tail.n_tokens(), 0); // Nothing to reload
+        assert_eq!(new.tail(prefix_index).n_tokens(), 0); // Nothing to reload
     }
 
     #[test]
@@ -605,10 +600,10 @@ mod tests {
         let old = create_chunks(vec![create_text_chunk(vec![1, 2, 3, 4, 5])]);
         let new = create_chunks(vec![create_text_chunk(vec![1, 2, 3, 6, 7])]);
 
-        let (prefix_index, tail) = find_chunks_prefix_difference(&old, &new);
+        let prefix_index = find_chunks_prefix_difference(&old, &new);
 
         assert_eq!(prefix_index, 3); // First 3 tokens match
-        assert_eq!(tail.n_tokens(), 2); // Need to load tokens [6, 7]
+        assert_eq!(new.tail(prefix_index).n_tokens(), 2); // Need to load tokens [6, 7]
     }
 
     #[test]
@@ -619,10 +614,10 @@ mod tests {
         let old = create_chunks(vec![create_text_chunk(vec![1, 2, 3])]);
         let new = create_chunks(vec![create_text_chunk(vec![4, 5, 6])]);
 
-        let (prefix_index, tail) = find_chunks_prefix_difference(&old, &new);
+        let prefix_index = find_chunks_prefix_difference(&old, &new);
 
         assert_eq!(prefix_index, 0); // No common prefix
-        assert_eq!(tail.n_tokens(), 3); // All new tokens
+        assert_eq!(new.tail(prefix_index).n_tokens(), 3); // All new tokens
     }
 
     #[test]
@@ -633,10 +628,10 @@ mod tests {
         let old = create_chunks(vec![]);
         let new = create_chunks(vec![create_text_chunk(vec![1, 2, 3])]);
 
-        let (prefix_index, tail) = find_chunks_prefix_difference(&old, &new);
+        let prefix_index = find_chunks_prefix_difference(&old, &new);
 
         assert_eq!(prefix_index, 0); // No common prefix
-        assert_eq!(tail.n_tokens(), 3); // All new tokens
+        assert_eq!(new.tail(prefix_index).n_tokens(), 3); // All new tokens
     }
 
     #[test]
@@ -647,10 +642,10 @@ mod tests {
         let old = create_chunks(vec![create_text_chunk(vec![1, 2, 3])]);
         let new = create_chunks(vec![]);
 
-        let (prefix_index, tail) = find_chunks_prefix_difference(&old, &new);
+        let prefix_index = find_chunks_prefix_difference(&old, &new);
 
         assert_eq!(prefix_index, 0); // No common prefix
-        assert_eq!(tail.n_tokens(), 0); // Nothing to reload
+        assert_eq!(new.tail(prefix_index).n_tokens(), 0); // Nothing to reload
     }
 
     #[test]
@@ -669,10 +664,10 @@ mod tests {
             create_text_chunk(vec![9, 10, 11]), // "there"
         ]);
 
-        let (prefix_index, tail) = find_chunks_prefix_difference(&old, &new);
+        let prefix_index = find_chunks_prefix_difference(&old, &new);
 
         assert_eq!(prefix_index, 4); // "Hello" (3) + " " (1) = 4 tokens match
-        assert_eq!(tail.n_tokens(), 3); // Need to load "there"
+        assert_eq!(new.tail(prefix_index).n_tokens(), 3); // Need to load "there"
     }
 
     // ===== B. Image Tests =====
@@ -685,10 +680,10 @@ mod tests {
         let old = create_chunks(vec![create_image_chunk("image_1")]);
         let new = create_chunks(vec![create_image_chunk("image_1")]);
 
-        let (prefix_index, tail) = find_chunks_prefix_difference(&old, &new);
+        let prefix_index = find_chunks_prefix_difference(&old, &new);
 
         assert_eq!(prefix_index, 0); // Images match (0 tokens in empty MtmdInputChunks)
-        assert_eq!(tail.n_tokens(), 0); // Nothing to reload
+        assert_eq!(new.tail(prefix_index).n_tokens(), 0); // Nothing to reload
     }
 
     #[test]
@@ -700,10 +695,10 @@ mod tests {
         let old = create_chunks(vec![create_image_chunk("image_1")]);
         let new = create_chunks(vec![create_image_chunk("image_2")]);
 
-        let (prefix_index, tail) = find_chunks_prefix_difference(&old, &new);
+        let prefix_index = find_chunks_prefix_difference(&old, &new);
 
         assert_eq!(prefix_index, 0); // Images differ, restart from beginning
-        assert_eq!(tail.n_tokens(), 0); // Empty MtmdInputChunks has 0 tokens
+        assert_eq!(new.tail(prefix_index).n_tokens(), 0); // Empty MtmdInputChunks has 0 tokens
     }
 
     #[test]
@@ -717,10 +712,10 @@ mod tests {
             create_image_chunk("image_2"),
         ]);
 
-        let (prefix_index, tail) = find_chunks_prefix_difference(&old, &new);
+        let prefix_index = find_chunks_prefix_difference(&old, &new);
 
         assert_eq!(prefix_index, 0); // img1 matches (0 tokens)
-        assert_eq!(tail.n_tokens(), 0); // img2 to load (0 tokens in empty chunk)
+        assert_eq!(new.tail(prefix_index).n_tokens(), 0); // img2 to load (0 tokens in empty chunk)
     }
 
     #[test]
@@ -734,10 +729,10 @@ mod tests {
         ]);
         let new = create_chunks(vec![create_image_chunk("image_1")]);
 
-        let (prefix_index, tail) = find_chunks_prefix_difference(&old, &new);
+        let prefix_index = find_chunks_prefix_difference(&old, &new);
 
         assert_eq!(prefix_index, 0); // img1 matches (0 tokens)
-        assert_eq!(tail.n_tokens(), 0); // Nothing to reload
+        assert_eq!(new.tail(prefix_index).n_tokens(), 0); // Nothing to reload
     }
 
     // ===== C. Mixed Text and Image Tests =====
@@ -756,10 +751,10 @@ mod tests {
             create_image_chunk("image_1"),
         ]);
 
-        let (prefix_index, tail) = find_chunks_prefix_difference(&old, &new);
+        let prefix_index = find_chunks_prefix_difference(&old, &new);
 
         assert_eq!(prefix_index, 3); // All tokens match
-        assert_eq!(tail.n_tokens(), 0); // Nothing to reload
+        assert_eq!(new.tail(prefix_index).n_tokens(), 0); // Nothing to reload
     }
 
     #[test]
@@ -777,10 +772,10 @@ mod tests {
             create_image_chunk("image_2"),
         ]);
 
-        let (prefix_index, tail) = find_chunks_prefix_difference(&old, &new);
+        let prefix_index = find_chunks_prefix_difference(&old, &new);
 
         assert_eq!(prefix_index, 3); // Text matches
-        assert_eq!(tail.n_tokens(), 0); // Image to reload (0 tokens in empty chunk)
+        assert_eq!(new.tail(prefix_index).n_tokens(), 0); // Image to reload (0 tokens in empty chunk)
     }
 
     #[test]
@@ -798,10 +793,10 @@ mod tests {
             create_image_chunk("image_1"),
         ]);
 
-        let (prefix_index, tail) = find_chunks_prefix_difference(&old, &new);
+        let prefix_index = find_chunks_prefix_difference(&old, &new);
 
         assert_eq!(prefix_index, 0); // Text differs immediately
-        assert_eq!(tail.n_tokens(), 3); // All new tokens (text only, image has 0)
+        assert_eq!(new.tail(prefix_index).n_tokens(), 3); // All new tokens (text only, image has 0)
     }
 
     #[test]
@@ -819,10 +814,10 @@ mod tests {
             create_image_chunk("image_1"),
         ]);
 
-        let (prefix_index, tail) = find_chunks_prefix_difference(&old, &new);
+        let prefix_index = find_chunks_prefix_difference(&old, &new);
 
         assert_eq!(prefix_index, 3); // First 3 tokens match
-        assert_eq!(tail.n_tokens(), 2); // tokens [6, 7] (image part gets cut off in tail)
+        assert_eq!(new.tail(prefix_index).n_tokens(), 2); // tokens [6, 7] (image part gets cut off in tail)
     }
 
     #[test]
@@ -839,10 +834,10 @@ mod tests {
             create_text_chunk(vec![1, 2, 3]),
         ]);
 
-        let (prefix_index, tail) = find_chunks_prefix_difference(&old, &new);
+        let prefix_index = find_chunks_prefix_difference(&old, &new);
 
         assert_eq!(prefix_index, 3); // All tokens match (0 from image + 3 from text)
-        assert_eq!(tail.n_tokens(), 0); // Nothing to reload
+        assert_eq!(new.tail(prefix_index).n_tokens(), 0); // Nothing to reload
     }
 
     #[test]
@@ -859,10 +854,10 @@ mod tests {
             create_text_chunk(vec![4, 5, 6]),
         ]);
 
-        let (prefix_index, tail) = find_chunks_prefix_difference(&old, &new);
+        let prefix_index = find_chunks_prefix_difference(&old, &new);
 
         assert_eq!(prefix_index, 0); // Image matches (0 tokens)
-        assert_eq!(tail.n_tokens(), 3); // New text tokens
+        assert_eq!(new.tail(prefix_index).n_tokens(), 3); // New text tokens
     }
 
     #[test]
@@ -883,10 +878,10 @@ mod tests {
             create_image_chunk("image_3"),
         ]);
 
-        let (prefix_index, tail) = find_chunks_prefix_difference(&old, &new);
+        let prefix_index = find_chunks_prefix_difference(&old, &new);
 
         assert_eq!(prefix_index, 2); // Text("A") + Image(img1) + Text("B") = 2 tokens
-        assert_eq!(tail.n_tokens(), 0); // Image(img3) to reload (0 tokens)
+        assert_eq!(new.tail(prefix_index).n_tokens(), 0); // Image(img3) to reload (0 tokens)
     }
 
     #[test]
@@ -904,10 +899,10 @@ mod tests {
             create_image_chunk("image_1"),
         ]);
 
-        let (prefix_index, tail) = find_chunks_prefix_difference(&old, &new);
+        let prefix_index = find_chunks_prefix_difference(&old, &new);
 
         assert_eq!(prefix_index, 3); // First text chunk matches
-        assert_eq!(tail.n_tokens(), 0); // Image to reload (0 tokens)
+        assert_eq!(new.tail(prefix_index).n_tokens(), 0); // Image to reload (0 tokens)
     }
 
     #[test]
@@ -924,10 +919,10 @@ mod tests {
             create_text_chunk(vec![4, 5, 6]),
         ]);
 
-        let (prefix_index, tail) = find_chunks_prefix_difference(&old, &new);
+        let prefix_index = find_chunks_prefix_difference(&old, &new);
 
         assert_eq!(prefix_index, 0); // Type collision at position 0
-        assert_eq!(tail.n_tokens(), 6); // All new tokens
+        assert_eq!(new.tail(prefix_index).n_tokens(), 6); // All new tokens
     }
 
     // ===== D. Edge Cases =====
@@ -940,10 +935,10 @@ mod tests {
         let old = create_chunks(vec![]);
         let new = create_chunks(vec![]);
 
-        let (prefix_index, tail) = find_chunks_prefix_difference(&old, &new);
+        let prefix_index = find_chunks_prefix_difference(&old, &new);
 
         assert_eq!(prefix_index, 0);
-        assert_eq!(tail.n_tokens(), 0);
+        assert_eq!(new.tail(prefix_index).n_tokens(), 0);
     }
 
     #[test]
@@ -967,9 +962,9 @@ mod tests {
         let old = create_chunks(old_chunks);
         let new = create_chunks(new_chunks);
 
-        let (prefix_index, tail) = find_chunks_prefix_difference(&old, &new);
+        let prefix_index = find_chunks_prefix_difference(&old, &new);
 
         assert_eq!(prefix_index, 300); // 100 chunks * 3 tokens each
-        assert_eq!(tail.n_tokens(), 2); // Final different chunk
+        assert_eq!(new.tail(prefix_index).n_tokens(), 2); // Final different chunk
     }
 }
