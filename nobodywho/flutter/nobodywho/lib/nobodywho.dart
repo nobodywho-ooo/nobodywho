@@ -16,7 +16,9 @@ export 'src/rust/frb_generated.dart' show NobodyWho;
 import 'src/rust/lib.dart' as nobodywho;
 
 /// A part of a multimodal prompt.
-sealed class PromptPart {}
+sealed class PromptPart {
+  const PromptPart();
+}
 
 /// A text part of a prompt.
 final class TextPart extends PromptPart {
