@@ -58,7 +58,7 @@ pub enum _Message {
 
 #[flutter_rust_bridge::frb(opaque)]
 pub struct Model {
-    model: nobodywho::llm::Model,
+    model: Arc<nobodywho::llm::Model>,
 }
 
 impl Model {
@@ -70,7 +70,7 @@ impl Model {
     ) -> Result<Self, String> {
         let model = nobodywho::llm::get_model(model_path, use_gpu, image_ingestion.as_deref())
             .map_err(|e| e.to_string())?;
-        Ok(Self { model })
+        Ok(Self { model: Arc::new(model) })
     }
 }
 
@@ -105,7 +105,7 @@ impl RustChat {
     ) -> Self {
         let sampler_config = sampler.map(|s| s.sampler_config).unwrap_or_default();
 
-        let chat = nobodywho::chat::ChatBuilder::new(Arc::new(model.model.clone()))
+        let chat = nobodywho::chat::ChatBuilder::new(Arc::clone(&model.model))
             .with_context_size(context_size)
             .with_allow_thinking(allow_thinking)
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
@@ -165,14 +165,14 @@ impl RustChat {
     ///     parts: List of PromptPart (text or image) making up the prompt
     #[flutter_rust_bridge::frb(sync)]
     pub fn ask_with_prompt(&self, parts: Vec<PromptPart>) -> RustTokenStream {
-        let prompt =
-            parts.into_iter().fold(
-                nobodywho::tokenizer::Prompt::new(),
-                |acc, part| match part {
-                    PromptPart::Text { content } => acc.with_text(content),
-                    PromptPart::Image { path } => acc.with_image(path),
-                },
-            );
+        let mut prompt = nobodywho::tokenizer::Prompt::new();
+        for part in parts {
+            match part {
+                PromptPart::Text { content } => prompt.push_text(content),
+                PromptPart::Image { path } => prompt.push_image(path.as_ref()),
+            }
+        }
+
         RustTokenStream {
             stream: self.chat.ask(prompt),
         }
@@ -273,8 +273,8 @@ pub struct Encoder {
 
 impl Encoder {
     #[flutter_rust_bridge::frb(sync)]
-    pub fn new(model: Model, #[frb(default = 4096)] n_ctx: u32) -> Self {
-        let handle = nobodywho::encoder::EncoderAsync::new(model.model.clone(), n_ctx);
+    pub fn new(model: &Model, #[frb(default = 4096)] n_ctx: u32) -> Self {
+        let handle = nobodywho::encoder::EncoderAsync::new(Arc::clone(&model.model), n_ctx);
         Self { handle }
     }
 
@@ -286,7 +286,7 @@ impl Encoder {
     ) -> Result<Self, String> {
         let model =
             nobodywho::llm::get_model(model_path, use_gpu, None).map_err(|e| e.to_string())?;
-        let handle = nobodywho::encoder::EncoderAsync::new(model.clone(), n_ctx);
+        let handle = nobodywho::encoder::EncoderAsync::new(Arc::new(model), n_ctx);
 
         Ok(Self { handle })
     }
@@ -306,8 +306,8 @@ pub struct CrossEncoder {
 
 impl CrossEncoder {
     #[flutter_rust_bridge::frb(sync)]
-    pub fn new(model: Model, #[frb(default = 4096)] n_ctx: u32) -> Self {
-        let handle = nobodywho::crossencoder::CrossEncoderAsync::new(model.model.clone(), n_ctx);
+    pub fn new(model: &Model, #[frb(default = 4096)] n_ctx: u32) -> Self {
+        let handle = nobodywho::crossencoder::CrossEncoderAsync::new(Arc::clone(&model.model), n_ctx);
         Self { handle }
     }
 
@@ -319,7 +319,7 @@ impl CrossEncoder {
     ) -> Result<Self, String> {
         let model =
             nobodywho::llm::get_model(model_path, use_gpu, None).map_err(|e| e.to_string())?;
-        let handle = nobodywho::crossencoder::CrossEncoderAsync::new(model.clone(), n_ctx);
+        let handle = nobodywho::crossencoder::CrossEncoderAsync::new(Arc::new(model), n_ctx);
         Ok(Self { handle })
     }
     pub async fn rank(

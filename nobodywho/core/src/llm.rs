@@ -13,7 +13,7 @@ use llama_cpp_2::mtmd::MtmdInputChunks;
 use llama_cpp_2::token::LlamaToken;
 use std::pin::pin;
 use std::rc::Rc;
-use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
+use std::sync::{LazyLock, Mutex, MutexGuard};
 use tracing::{debug, debug_span, error, info, info_span, warn};
 
 #[derive(Debug)]
@@ -26,10 +26,10 @@ lazy_static! {
 static LLAMA_BACKEND: LazyLock<LlamaBackend> =
     LazyLock::new(|| LlamaBackend::init().expect("Failed to initialize llama backend"));
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Model {
-    pub(crate) language_model: Arc<LlamaModel>,
-    pub(crate) projection_model: Option<Arc<ProjectionModel>>,
+    pub(crate) language_model: LlamaModel,
+    pub(crate) projection_model: Option<ProjectionModel>,
 }
 
 pub fn has_discrete_gpu() -> bool {
@@ -103,10 +103,8 @@ pub fn get_model(
         })?;
 
     info!("Model loaded successfully");
-    let language_model = Arc::new(language_model);
-
     let projection_model = mmproj_path
-        .map(|path| ProjectionModel::from_path(path, &language_model).map(Arc::new))
+        .map(|path| ProjectionModel::from_path(path, &language_model))
         .transpose()?;
 
     Ok(Model {
@@ -185,7 +183,7 @@ pub(crate) struct Worker<'a, S> {
     pub(crate) ctx: LlamaContext<'a>,
     pub(crate) big_batch: LlamaBatch<'a>,
     pub(crate) small_batch: LlamaBatch<'a>,
-    pub(crate) projection_model: Option<Arc<ProjectionModel>>,
+    pub(crate) projection_model: Option<&'a ProjectionModel>,
     pub(crate) tokenizer: Tokenizer<'a>,
 
     pub(crate) extra: S,
@@ -220,7 +218,7 @@ where
     ) -> Result<Worker<'a, T>, InitWorkerError> {
         info!("Initializing worker");
 
-        let projection_model = model.projection_model.clone();
+        let projection_model = model.projection_model.as_ref();
 
         // Set up context parameters using available parallelism
         let ctx = {
@@ -231,6 +229,8 @@ where
                 warn!("Context size is less than 2048, which is the default minimum for ingesting images. This can cause issues.");
             }
 
+            // Still, better n_ubatch defaults could be possible, but with multimodality it is good to go for atleast 2048,
+            // as the images are often encoded to many tokens by some projection models.
             let n_ubatch = if projection_model.is_some() {
                 std::cmp::min(2048, n_ctx)
             } else {
@@ -240,7 +240,7 @@ where
             let ctx_params = LlamaContextParams::default()
                 .with_n_ctx(std::num::NonZero::new(n_ctx))
                 .with_n_batch(n_ctx) // n_batch sets the max size of a batch (i.e. max prompt size)
-                .with_n_ubatch(n_ubatch) // TODO: This is just the default value decided by llama cpp. A smarter choice definitely exists
+                .with_n_ubatch(n_ubatch)
                 .with_n_threads(n_threads)
                 .with_n_threads_batch(n_threads)
                 .with_embeddings(use_embeddings)
@@ -258,12 +258,7 @@ where
         let add_bos = read_add_bos_metadata(&model.language_model)?;
         debug!(?add_bos, "Read add_bos from GGUF metadata:");
 
-        // Clone the Arc for the tokenizer so we can still move the original into Worker
-        let tokenizer = Tokenizer::new(
-            &model.language_model,
-            projection_model.as_ref().map(Arc::clone),
-            add_bos,
-        );
+        let tokenizer = Tokenizer::new(&model.language_model, projection_model, add_bos);
 
         let state = Worker {
             n_past: 0,

@@ -5,6 +5,7 @@ use nobodywho::sampler_config::{SamplerConfig, SamplerPresets};
 use nobodywho::{errors, llm, tokenizer};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use tokenizer::Promptable;
 use tracing::{debug, error, info, trace, warn};
 use tracing_subscriber::filter::{LevelFilter, Targets};
 use tracing_subscriber::prelude::*;
@@ -44,7 +45,7 @@ struct NobodyWhoModel {
     #[export]
     use_gpu_if_available: bool,
 
-    model: Option<llm::Model>,
+    model: Option<Arc<llm::Model>>,
 }
 
 #[godot_api]
@@ -65,9 +66,9 @@ impl INode for NobodyWhoModel {
 #[godot_api]
 impl NobodyWhoModel {
     // memoized model loader
-    fn get_model(&mut self) -> Result<llm::Model, errors::LoadModelError> {
+    fn get_model(&mut self) -> Result<Arc<llm::Model>, errors::LoadModelError> {
         if let Some(model) = &self.model {
-            return Ok(model.clone());
+            return Ok(Arc::clone(model));
         }
 
         let project_settings = ProjectSettings::singleton();
@@ -94,8 +95,9 @@ impl NobodyWhoModel {
             mmproj_str_owned.as_deref(),
         ) {
             Ok(model) => {
-                self.model = Some(model.clone());
-                Ok(model.clone())
+                let model = Arc::new(model);
+                self.model = Some(Arc::clone(&model));
+                Ok(model)
             }
             Err(err) => {
                 godot_error!("Could not load model: {:?}", err.to_string());
@@ -143,8 +145,7 @@ impl NobodyWhoPrompt {
     #[func]
     /// Appends a text segment to this prompt.
     fn add_text(&mut self, text: String) {
-        let p = std::mem::replace(&mut self.prompt, tokenizer::Prompt::new());
-        self.prompt = p.with_text(text);
+        self.prompt.push_text(text);
     }
 
     #[func]
@@ -154,8 +155,7 @@ impl NobodyWhoPrompt {
         let globalized: String = project_settings
             .globalize_path(&GString::from(path.as_str()))
             .into();
-        let p = std::mem::replace(&mut self.prompt, tokenizer::Prompt::new());
-        self.prompt = p.with_image(globalized);
+        self.prompt.push_image(globalized.as_ref());
     }
 }
 
@@ -237,10 +237,10 @@ impl INode for NobodyWhoChat {
 
 #[godot_api]
 impl NobodyWhoChat {
-    fn get_model(&mut self) -> Result<llm::Model, GString> {
+    fn get_model(&mut self) -> Result<Arc<llm::Model>, GString> {
         let gd_model_node = self.model_node.as_mut().ok_or("Model node was not set")?;
         let mut nobody_model = gd_model_node.bind_mut();
-        let model: llm::Model = nobody_model
+        let model = nobody_model
             .get_model()
             .map_err(|e| GString::from(e.to_string().as_str()))?;
 
@@ -259,7 +259,7 @@ impl NobodyWhoChat {
     }
 
     fn start_worker_impl(&mut self) -> Result<(), String> {
-        let model = Arc::new(self.get_model()?);
+        let model = self.get_model()?;
         let chat_handle = nobodywho::chat::ChatHandleAsync::new(
             model,
             nobodywho::chat::ChatConfig {
@@ -296,7 +296,7 @@ impl NobodyWhoChat {
         };
 
         let prompt: tokenizer::Prompt = if let Ok(text) = message.try_to::<GString>() {
-            tokenizer::Prompt::new().with_text(text.to_string())
+            text.to_string().to_prompt()
         } else if let Ok(prompt_node) = message.try_to::<Gd<NobodyWhoPrompt>>() {
             prompt_node.bind().prompt.clone()
         } else {
@@ -996,12 +996,10 @@ impl NobodyWhoEncoder {
     /// Triggered when the encoding has finished. Returns the encoding as a PackedFloat32Array.
     fn encoding_finished(encoding: PackedFloat32Array);
 
-    fn get_model(&mut self) -> Result<llm::Model, String> {
+    fn get_model(&mut self) -> Result<Arc<llm::Model>, String> {
         let gd_model_node = self.model_node.as_mut().ok_or("Model node was not set")?;
         let mut nobody_model = gd_model_node.bind_mut();
-        let model: llm::Model = nobody_model.get_model().map_err(|e| e.to_string())?;
-
-        Ok(model)
+        nobody_model.get_model().map_err(|e| e.to_string())
     }
 
     #[func]
@@ -1114,12 +1112,10 @@ impl NobodyWhoCrossEncoder {
     /// Triggered when the ranking has finished. Returns the ranked documents as a PackedStringArray.
     fn ranking_finished(ranked_documents: PackedStringArray);
 
-    fn get_model(&mut self) -> Result<llm::Model, String> {
+    fn get_model(&mut self) -> Result<Arc<llm::Model>, String> {
         let gd_model_node = self.model_node.as_mut().ok_or("Model node was not set")?;
         let mut nobody_model = gd_model_node.bind_mut();
-        let model: llm::Model = nobody_model.get_model().map_err(|e| e.to_string())?;
-
-        Ok(model)
+        nobody_model.get_model().map_err(|e| e.to_string())
     }
 
     #[func]

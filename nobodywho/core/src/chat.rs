@@ -11,7 +11,7 @@
 //! use std::sync::Arc;
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! let model = Arc::new(llm::get_model("model.gguf", true)?);
+//! let model = Arc::new(llm::get_model("model.gguf", true, None)?);
 //!
 //! let chat = ChatBuilder::new(model)
 //!     .with_system_prompt(Some("You are a helpful assistant"))
@@ -46,6 +46,7 @@ use serde::{Deserialize, Serialize};
 use std::cmp::min;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hasher;
+use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, MutexGuard};
 use tracing::{debug, error, info, trace, trace_span};
@@ -62,7 +63,7 @@ pub enum Role {
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Asset {
     id: String,
-    path: String,
+    path: PathBuf,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
@@ -182,7 +183,7 @@ impl Default for ChatConfig {
 /// use std::sync::Arc;
 ///
 /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// let model = Arc::new(llm::get_model("model.gguf", true)?);
+/// let model = Arc::new(llm::get_model("model.gguf", true, None)?);
 ///
 /// let my_tool = Tool::new(
 ///     "example".to_string(),
@@ -444,7 +445,7 @@ impl ChatHandle {
     /// # use nobodywho::chat::ChatBuilder;
     /// # use nobodywho::llm::get_model;
     /// # use std::sync::Arc;
-    /// # let model = Arc::new(get_model("model.gguf", true).unwrap());
+    /// # let model = Arc::new(get_model("model.gguf", true, None).unwrap());
     /// # let chat = ChatBuilder::new(model).build();
     /// chat.set_system_prompt(Some("You are a helpful coding assistant.".to_string()))?;
     /// # Ok::<(), nobodywho::errors::SetterError>(())
@@ -655,7 +656,8 @@ impl ChatHandleAsync {
     /// ```ignore
     /// # use nobodywho::chat::ChatBuilder;
     /// # use nobodywho::llm::get_model;
-    /// # let model = get_model("model.gguf", true).unwrap();
+    /// # use std::sync::Arc;
+    /// # let model = Arc::new(get_model("model.gguf", true, None).unwrap());
     /// # let chat = ChatBuilder::new(model).build_async();
     /// # chat.set_system_prompt(Some("You are a helpful coding assistant.".to_string())).await?;
     /// # Ok::<(), nobodywho::errors::SetterError>(())
@@ -1385,7 +1387,7 @@ impl Worker<'_, ChatWorker> {
             .zip(asset_paths)
             .map(|(id, path)| Asset {
                 id: id.clone(),
-                path: path.clone(),
+                path: path.to_path_buf(),
             })
             .collect::<Vec<_>>();
 
@@ -2030,7 +2032,7 @@ mod tests {
 
     #[test]
     fn test_set_system_prompt() {
-        let model = Arc::new(test_utils::load_test_model());
+        let model = test_utils::load_test_model();
 
         let chat = ChatBuilder::new(model)
             .with_context_size(2048)
@@ -2457,7 +2459,7 @@ mod tests {
     #[test]
     fn test_chat_worker_multiple_contexts() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
-        let model = Arc::new(test_utils::load_test_model());
+        let model = test_utils::load_test_model();
 
         // Create two separate chat handles that will run in parallel
         let model_clone = Arc::clone(&model);
@@ -2504,7 +2506,7 @@ mod tests {
     #[tokio::test]
     async fn test_allow_thinking() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
-        let model = Arc::new(test_utils::load_test_model());
+        let model = test_utils::load_test_model();
         let chat = ChatBuilder::new(model).build_async();
 
         let res1: String = chat

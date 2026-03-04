@@ -108,12 +108,28 @@ fn wire__crate__CrossEncoder_new_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_model = <Model>::sse_decode(&mut deserializer);
+            let api_model = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Model>,
+            >>::sse_decode(&mut deserializer);
             let api_n_ctx = <u32>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
+                let mut api_model_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_model, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_model_guard = Some(api_model.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
+                    }
+                }
+                let api_model_guard = api_model_guard.unwrap();
                 let output_ok =
-                    Result::<_, ()>::Ok(crate::CrossEncoder::new(api_model, api_n_ctx))?;
+                    Result::<_, ()>::Ok(crate::CrossEncoder::new(&*api_model_guard, api_n_ctx))?;
                 Ok(output_ok)
             })())
         },
@@ -353,11 +369,28 @@ fn wire__crate__Encoder_new_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_model = <Model>::sse_decode(&mut deserializer);
+            let api_model = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Model>,
+            >>::sse_decode(&mut deserializer);
             let api_n_ctx = <u32>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
-                let output_ok = Result::<_, ()>::Ok(crate::Encoder::new(api_model, api_n_ctx))?;
+                let mut api_model_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_model, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_model_guard = Some(api_model.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
+                    }
+                }
+                let api_model_guard = api_model_guard.unwrap();
+                let output_ok =
+                    Result::<_, ()>::Ok(crate::Encoder::new(&*api_model_guard, api_n_ctx))?;
                 Ok(output_ok)
             })())
         },

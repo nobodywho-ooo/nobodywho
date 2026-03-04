@@ -9,7 +9,7 @@ mod parse;
 /// There is no `ModelAsync` variant. A regular `Model` can be used with both `Chat` and `ChatAsync`.
 #[pyclass]
 pub struct Model {
-    model: nobodywho::llm::Model,
+    model: Arc<nobodywho::llm::Model>,
 }
 
 #[pymethods]
@@ -52,7 +52,7 @@ impl Model {
             .transpose()?;
         let model_result = nobodywho::llm::get_model(path_str, use_gpu_if_available, mmproj_str);
         match model_result {
-            Ok(model) => Ok(Self { model }),
+            Ok(model) => Ok(Self { model: Arc::new(model) }),
             Err(err) => Err(pyo3::exceptions::PyRuntimeError::new_err(err.to_string())),
         }
     }
@@ -105,7 +105,7 @@ impl Model {
         )
         .await;
         match model_result {
-            Ok(model) => Ok(Self { model }),
+            Ok(model) => Ok(Self { model: Arc::new(model) }),
             Err(err) => Err(pyo3::exceptions::PyRuntimeError::new_err(err.to_string())),
         }
     }
@@ -123,10 +123,9 @@ pub enum ModelOrPath<'py> {
 
 impl<'py> ModelOrPath<'py> {
     /// returns nobodywho core's internal model struct from a python `str | Model`
-    fn get_inner_model(&self) -> PyResult<nobodywho::llm::Model> {
+    fn get_inner_model(&self) -> PyResult<Arc<nobodywho::llm::Model>> {
         match self {
-            // the inner model is Arc<...>, so clone is cheap.
-            ModelOrPath::ModelObj(model_obj) => Ok(model_obj.borrow().model.clone()),
+            ModelOrPath::ModelObj(model_obj) => Ok(Arc::clone(&model_obj.borrow().model)),
             // default to (trying to) use GPU if a string is passed
             ModelOrPath::Path(path) => {
                 let path_str = path.to_str().ok_or_else(|| {
@@ -136,6 +135,7 @@ impl<'py> ModelOrPath<'py> {
                     ))
                 })?;
                 nobodywho::llm::get_model(path_str, true, None)
+                    .map(Arc::new)
                     .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
             }
         }
@@ -544,7 +544,7 @@ impl Chat {
         tools: Vec<Tool>,
         sampler: SamplerConfig,
     ) -> PyResult<Self> {
-        let nw_model = Arc::new(model.get_inner_model()?);
+        let nw_model = model.get_inner_model()?;
         let chat_handle = nobodywho::chat::ChatBuilder::new(nw_model)
             .with_context_size(n_ctx)
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
@@ -759,7 +759,7 @@ impl ChatAsync {
         tools: Vec<Tool>,
         sampler: SamplerConfig,
     ) -> PyResult<Self> {
-        let nw_model = Arc::new(model.get_inner_model()?);
+        let nw_model = model.get_inner_model()?;
         let chat_handle = nobodywho::chat::ChatBuilder::new(nw_model)
             .with_context_size(n_ctx)
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
@@ -1421,12 +1421,13 @@ impl Prompt {
             let part = part.bind(py);
 
             if let Ok(text_part) = part.extract::<Bound<Text>>() {
-                prompt = prompt.with_text(text_part.borrow().text.clone());
+                prompt.push_text(text_part.borrow().text.clone());
                 continue;
             }
 
             if let Ok(image_part) = part.extract::<Bound<Image>>() {
-                prompt = prompt.with_image(image_part.borrow().path.clone());
+                let image_ref = image_part.borrow();
+                prompt.push_image(image_ref.path.as_ref());
                 continue;
             }
 

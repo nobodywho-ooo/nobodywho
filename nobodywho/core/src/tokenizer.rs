@@ -1,7 +1,7 @@
 use core::fmt;
 use std::fmt::Formatter;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::sync::Arc;
 use std::{ffi::CString, fmt::Display};
 
 use ahash::AHasher;
@@ -51,26 +51,23 @@ impl Prompt {
         Self { parts: vec![] }
     }
 
-    pub fn with_text(mut self, text: impl Into<String>) -> Self {
+    pub fn push_text(&mut self, text: impl Into<String>) {
         if let Some(PromptPart::Text(last_text)) = self.parts.last_mut() {
             last_text.push_str(&text.into());
         } else {
             self.parts.push(PromptPart::Text(text.into()));
         }
-
-        self
     }
 
-    pub fn with_image(mut self, image_path: impl Into<String>) -> Self {
+    pub fn push_image(&mut self, image_path: &Path) {
         self.parts.push(PromptPart::Image(image_path.into()));
-        self
     }
 
-    pub fn extract_asset_paths(&self) -> Vec<String> {
+    pub fn extract_asset_paths(&self) -> Vec<&Path> {
         self.parts
             .iter()
             .filter_map(|part| match part {
-                PromptPart::Image(path) => Some(path.clone()),
+                PromptPart::Image(path) => Some(path.as_path()),
                 PromptPart::Text(_) => None,
             })
             .collect()
@@ -80,7 +77,7 @@ impl Prompt {
 #[derive(Clone, Debug)]
 enum PromptPart {
     Text(String),
-    Image(String),
+    Image(PathBuf),
 }
 
 pub trait Promptable {
@@ -154,9 +151,9 @@ impl TokenizerChunk {
         Self::Image(Rc::new(chunks), id.unwrap_or_default())
     }
 
-    pub fn id(&self) -> ChunkId {
+    pub fn id(&self) -> &str {
         match self {
-            Self::Text(_, id) | Self::Image(_, id) => id.clone(),
+            Self::Text(_, id) | Self::Image(_, id) => id,
         }
     }
 
@@ -210,11 +207,11 @@ impl TokenizerChunks {
         self.chunks.iter()
     }
 
-    pub fn get(&self, index: usize) -> &TokenizerChunk {
-        &self.chunks[index]
+    pub fn get(&self, index: usize) -> Option<&TokenizerChunk> {
+        self.chunks.get(index)
     }
 
-    pub fn list_ids(&self) -> Vec<String> {
+    pub fn list_ids(&self) -> Vec<&str> {
         self.chunks.iter().map(|chunk| chunk.id()).collect()
     }
 
@@ -306,7 +303,7 @@ pub fn find_chunks_prefix_difference(
     let (new_start, _) = new.chunk_bounds(chunk_prefix_index);
 
     // text and text are colliding, we are going into the tokens
-    if let (TokenizerChunk::Text(new_tokens, _), TokenizerChunk::Text(old_tokens, _)) =
+    if let (Some(TokenizerChunk::Text(new_tokens, _)), Some(TokenizerChunk::Text(old_tokens, _))) =
         (new.get(chunk_prefix_index), old.get(chunk_prefix_index))
     {
         let longest_common_prefix_index = new_tokens
@@ -378,13 +375,16 @@ impl ProjectionModel {
         Ok(TokenizerChunk::new_image(mtmd_chunks))
     }
 
-    pub fn load_image(&self, path: &str) -> Result<MtmdBitmap, MultimodalError> {
-        let bitmap =
-            MtmdBitmap::from_file(&self.ctx, path).map_err(|e| MultimodalError::LoadImage {
-                path: path.to_string(),
+    pub fn load_image(&self, path: &Path) -> Result<MtmdBitmap, MultimodalError> {
+        let p = path.to_string_lossy().into_owned();
+        let bitmap = MtmdBitmap::from_file(&self.ctx, p.as_str()).map_err(|e| {
+            MultimodalError::LoadImage {
+                path: p.clone(),
                 error: e.to_string(),
-            })?;
-        info!(path = %path, "Loaded image for MTMD");
+            }
+        })?;
+
+        info!(path = %p, "Loading image for MTMD");
 
         Ok(bitmap)
     }
@@ -392,15 +392,15 @@ impl ProjectionModel {
 
 #[derive(Debug)]
 pub struct Tokenizer<'a> {
-    model: &'a Arc<LlamaModel>,
-    projection_model: Option<Arc<ProjectionModel>>,
+    model: &'a LlamaModel,
+    projection_model: Option<&'a ProjectionModel>,
     add_bos: AddBos,
 }
 
 impl<'a> Tokenizer<'a> {
     pub fn new(
-        model: &'a Arc<LlamaModel>,
-        projection_model: Option<Arc<ProjectionModel>>,
+        model: &'a LlamaModel,
+        projection_model: Option<&'a ProjectionModel>,
         add_bos: AddBos,
     ) -> Self {
         Self {
