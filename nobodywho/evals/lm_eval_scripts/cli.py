@@ -11,6 +11,9 @@ import typer
 
 from eval import (
     NobodyWhoLM,
+    append_run_to_csv,
+    build_run_row,
+    get_system_info,
     print_results,
     print_samples,
 )
@@ -111,7 +114,7 @@ def run(
     models: Annotated[list[Path], typer.Argument(help="Path(s) to GGUF model files")],
     tasks: Annotated[Optional[str], typer.Option("-t", "--tasks", help=f"Comma-separated task list (default: {','.join(DEFAULT_TASKS)})")] = None,
     limit: Annotated[Optional[int], typer.Option("-l", "--limit", help="Samples per task")] = None,
-    output: Annotated[str, typer.Option("-o", "--output", help="Results file template ({model} = model stem)")] = "results_{model}.txt",
+    output: Annotated[str, typer.Option("-o", "--output", help="CSV results file template ({model} = model stem)")] = "results_{model}.csv",
     system_prompt: Annotated[Optional[str], typer.Option("--system-prompt", help="Override system prompt for ALL tasks")] = None,
     no_system_prompts: Annotated[bool, typer.Option("--no-system-prompts", help="Disable all built-in per-task prompts")] = False,
     print_samples_flag: Annotated[bool, typer.Option("--print-samples", help="Print sample outputs after each task")] = False,
@@ -163,20 +166,12 @@ def run(
             print("############################################")
             print()
 
-        # Initialize results file
-        results_file = output.replace("{model}", model_name)
-        all_results_files.append(results_file)
-
-        with open(results_file, "w") as f:
-            f.write("==============================================\n")
-            f.write("NobodyWho Eval Suite Results\n")
-            f.write("==============================================\n")
-            f.write(f"Model: {model_path}\n")
-            f.write(f"Limit: {limit or 'none'}\n")
-            f.write(f"Date: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
-            f.write("==============================================\n\n")
-
+        # Initialize results collection
+        csv_file = Path(output.replace("{model}", model_name))
+        all_results_files.append(str(csv_file))
+        all_task_results: dict[str, dict] = {}  # task_name -> results
         all_task_failures: list[dict] = []
+        total_samples_count: int = 0
 
         for task_idx, task in enumerate(run_tasks, 1):
             task_start = time.time()
@@ -250,35 +245,44 @@ def run(
             if print_samples_flag:
                 print_samples(results, max_samples=limit or 5)
 
-            # Track failures
+            # Track failures and sample counts
             if model_instance.failed_samples:
                 all_task_failures.extend(model_instance.failed_samples)
+            total_samples_count += model_instance.total_samples
 
-            # Write to results file
+            # Store results for CSV
+            all_task_results[task] = results
+
             task_end = time.time()
             task_duration = task_end - task_start
             elapsed = task_end - suite_start
-
-            with open(results_file, "a") as f:
-                f.write(f"--- {task} ({format_time(task_duration)}) ---\n")
-                for t_name, metrics in results["results"].items():
-                    for metric_name, value in metrics.items():
-                        if not metric_name.endswith(",stderr"):
-                            f.write(f"  {metric_name}: {value}\n")
-                f.write("\n")
 
             print()
             print(f"Task completed in {format_time(task_duration)} | Total elapsed: {format_time(elapsed)}")
             print()
 
-        # Per-model summary
+        # Write results to CSV
         model_end = time.time()
         model_duration = model_end - model_start
 
+        system_info = get_system_info()
+        row = build_run_row(
+            model_path=model_path,
+            task_results=all_task_results,
+            limit=limit,
+            seed=seed,
+            total_duration=model_duration,
+            system_info=system_info,
+            failed_count=len(all_task_failures),
+            total_samples=total_samples_count,
+        )
+        append_run_to_csv(csv_file, row, list(system_info.keys()))
+
+        # Per-model summary
         print("----------------------------------------------")
         print(f"Model: {model_name}  ({format_time(model_duration)} total)")
         print("----------------------------------------------")
-        print(f"Results saved to: {results_file}")
+        print(f"Results saved to: {csv_file}")
 
         # Print failure summary for this model
         if all_task_failures:
