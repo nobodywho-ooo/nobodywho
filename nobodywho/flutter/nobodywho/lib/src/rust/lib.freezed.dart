@@ -213,13 +213,13 @@ return toolResp(_that.role,_that.name,_that.content);case _:
 
 
 class Message_Message extends Message {
-  const Message_Message({required this.role, required this.content, required final  List<Asset> assets}): _assets = assets,super._();
+  const Message_Message({required this.role, required this.content, final  List<Asset> assets = const []}): _assets = assets,super._();
   
 
 @override final  Role role;
 @override final  String content;
  final  List<Asset> _assets;
- List<Asset> get assets {
+@JsonKey() List<Asset> get assets {
   if (_assets is EqualUnmodifiableListView) return _assets;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_assets);

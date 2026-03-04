@@ -42,6 +42,7 @@ pub enum _Message {
     Message {
         role: Role,
         content: String,
+        #[frb(default = "const []")]
         assets: Vec<Asset>,
     },
     ToolCalls {

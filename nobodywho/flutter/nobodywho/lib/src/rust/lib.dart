@@ -426,7 +426,7 @@ sealed class Message with _$Message {
   const factory Message.message({
     required Role role,
     required String content,
-    required List<Asset> assets,
+    @Default(const []) List<Asset> assets,
   }) = Message_Message;
   const factory Message.toolCalls({
     required Role role,
