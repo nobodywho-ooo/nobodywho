@@ -294,6 +294,135 @@ class NobodyWhoLM(LM):
     def loglikelihood_rolling(self, *args, **kwargs):
         raise NotImplementedError
 
+# ── CSV logging ──────────────────────────────────────────────────────
+
+# All known metric columns per task (as returned by lm-eval)
+TASK_METRICS: dict[str, list[str]] = {
+    "ifeval": [
+        "prompt_level_strict_acc,none",
+        "inst_level_strict_acc,none",
+        "prompt_level_loose_acc,none",
+        "inst_level_loose_acc,none",
+    ],
+    "gsm8k": [
+        "exact_match,strict-match",
+        "exact_match,flexible-extract",
+    ],
+    "truthfulqa_gen": [
+        "bleu_max,none",
+        "bleu_acc,none",
+        "bleu_diff,none",
+    ],
+    "humaneval": [
+        "pass@1,create_test",
+    ],
+    "mbpp": [
+        "pass_at_1,none",
+    ],
+    "drop": [
+        "f1,none",
+        "em,none",
+    ],
+}
+
+
+def sanitize_metric_name(metric: str) -> str:
+    """Convert lm-eval metric name to valid CSV column name.
+
+    - Replace @ with _at_
+    - Drop ',none' filter suffix (it's the default)
+    - Replace ',' with '__' for other filters
+    """
+    metric = metric.replace("@", "_at_")
+    if metric.endswith(",none"):
+        return metric[:-5]  # drop ',none'
+    return metric.replace(",", "__")
+
+
+def get_all_metric_columns() -> list[str]:
+    """Return all metric column names in consistent order, prefixed by task."""
+    columns = []
+    for task, metrics in TASK_METRICS.items():
+        for metric in metrics:
+            col_name = f"{task}_{sanitize_metric_name(metric)}"
+            columns.append(col_name)
+    return columns
+
+
+def build_run_row(
+    model_path: Path,
+    task_results: dict[str, dict],  # task_name -> results dict from lm-eval
+    limit: int | None,
+    seed: int,
+    total_duration: float,
+    system_info: dict,
+    failed_count: int = 0,
+    total_samples: int = 0,
+) -> dict:
+    """Build a flat dict for one CSV row from a complete run."""
+    import time
+
+    model_size_gb = round(model_path.stat().st_size / (1024**3), 2)
+    failure_rate = failed_count / total_samples if total_samples > 0 else 0.0
+
+    row = {
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "model_path": str(model_path),
+        "model_name": model_path.stem,
+        "model_size_gb": model_size_gb,
+        "limit": limit if limit is not None else "",
+        "seed": seed,
+        "duration_seconds": round(total_duration, 2),
+        "total_samples": total_samples,
+        "failed_samples": failed_count,
+        "failure_rate": round(failure_rate, 4),
+    }
+
+    # Initialize all metric columns with empty string (not run)
+    for col in get_all_metric_columns():
+        row[col] = ""
+
+    # Fill in metrics from completed tasks
+    for task_name, task_data in task_results.items():
+        metrics = task_data.get("results", {}).get(task_name, {})
+        for metric_name, value in metrics.items():
+            if metric_name.endswith(",stderr"):
+                continue
+            col_name = f"{task_name}_{sanitize_metric_name(metric_name)}"
+            if col_name in row:
+                row[col_name] = value
+
+    # Add system info at the end
+    row.update(system_info)
+
+    return row
+
+
+def get_csv_fieldnames(system_info_keys: list[str]) -> list[str]:
+    """Return ordered list of all CSV column names."""
+    base = [
+        "timestamp", "model_path", "model_name", "model_size_gb",
+        "limit", "seed", "duration_seconds",
+        "total_samples", "failed_samples", "failure_rate",
+    ]
+    metrics = get_all_metric_columns()
+    return base + metrics + system_info_keys
+
+
+def append_run_to_csv(csv_path: Path, row: dict, system_info_keys: list[str]):
+    """Append a run row to CSV, creating file with headers if needed."""
+    import csv
+
+    fieldnames = get_csv_fieldnames(system_info_keys)
+    file_exists = csv_path.exists()
+
+    with open(csv_path, "a", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+        if not file_exists:
+            writer.writeheader()
+        writer.writerow(row)
+
+
 # ── Output helpers ───────────────────────────────────────────────────
 
 
