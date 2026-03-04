@@ -29,7 +29,7 @@ use crate::errors::{
 use crate::llm::{self};
 use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
 use crate::llm::{Worker, WorkerGuard, WriteOutput};
-use crate::sampler_config::{SamplerConfig, ShiftStep};
+use crate::sampler_config::{SamplerConfig, SamplerPresets, ShiftStep};
 use crate::template::{select_template, ChatTemplate, ChatTemplateContext};
 use crate::tool_calling::{detect_tool_format, Tool, ToolCall, ToolFormat};
 use llama_cpp_2::sampling::LlamaSampler;
