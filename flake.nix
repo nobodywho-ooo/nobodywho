@@ -79,7 +79,6 @@
         packages.nobodywho-godot = nobodywho-godot;
 
         # flutter stuff
-        packages.flutter_example_app = flutter_example_app;
         packages.flutter_rust = nobodywho-flutter;
 
         # python stuff
