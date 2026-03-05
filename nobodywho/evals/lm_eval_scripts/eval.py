@@ -2,6 +2,7 @@ import logging
 import os
 import platform
 import subprocess
+import time
 from pathlib import Path
 
 import lm_eval
@@ -141,6 +142,9 @@ class NobodyWhoLM(LM):
     system_prompt: str | None
     failed_samples: list[dict]
     total_samples: int
+    total_tokens_generated: int
+    total_generation_time: float
+    sampler_config: dict
 
     def __init__(
         self,
@@ -171,18 +175,26 @@ class NobodyWhoLM(LM):
 
         self.failed_samples = []
         self.total_samples = 0
+        self.total_tokens_generated = 0
+        self.total_generation_time = 0.0
         self._init_chat()
 
     def _init_chat(self):
-        # Custom sampler: Temperature=0.7, TopP=0.8, TopK=20, MinP=0
+        # Sampler config
         sampler = (
             nobodywho.SamplerBuilder()
-            .top_k(20)
-            .top_p(0.8, min_keep=1)
+            .top_k(64)
+            .top_p(0.95, min_keep=1)
             .min_p(0.0, min_keep=1)
-            .temperature(0.7)
+            .temperature(1.0)
             .dist()
         )
+        self.sampler_config = {
+            "temperature": 1.0,
+            "top_k": 64,
+            "top_p": 0.95,
+            "min_p": 0.0,
+        }
         kwargs = {
             "allow_thinking": self.allow_thinking,
             "n_ctx": self.n_ctx,
@@ -219,7 +231,12 @@ class NobodyWhoLM(LM):
                 think_ended = not self.allow_thinking
                 response_tokens = 0
 
+                # Timing starts from first token (excludes prompt processing)
+                gen_start_time: float | None = None
+
                 for token in response_stream:
+                    if gen_start_time is None:
+                        gen_start_time = time.perf_counter()
                     tokens.append(token)
 
                     # !! HARD LIMIT: 16384 tokens max to prevent context exhaustion !!
@@ -247,6 +264,12 @@ class NobodyWhoLM(LM):
                         if until and any(stop_seq in "".join(tokens[-max_stop_len:]) for stop_seq in until):
                             self.chat.stop_generation()
                             break
+
+                # Record throughput stats
+                if gen_start_time is not None and len(tokens) > 0:
+                    gen_elapsed = time.perf_counter() - gen_start_time
+                    self.total_tokens_generated += len(tokens)
+                    self.total_generation_time += gen_elapsed
 
                 # Get completed text and extract response part (strip think block)
                 full_response = response_stream.completed()
@@ -286,10 +309,20 @@ class NobodyWhoLM(LM):
         failed_count = len(self.failed_samples)
         failure_rate = failed_count / self.total_samples if self.total_samples > 0 else 0
 
+        # Calculate throughput (tokens per second)
+        tokens_per_second = (
+            self.total_tokens_generated / self.total_generation_time
+            if self.total_generation_time > 0
+            else 0.0
+        )
+
         return {
             "model_size_gb": model_size_gb,
             "failed_sample_count": failed_count,
             "failure_rate": round(failure_rate, 4),
+            "total_tokens_generated": self.total_tokens_generated,
+            "total_generation_time_sec": round(self.total_generation_time, 2),
+            "tokens_per_second": round(tokens_per_second, 2),
             **get_system_info(),
         }
 
@@ -363,12 +396,20 @@ def build_run_row(
     system_info: dict,
     failed_count: int = 0,
     total_samples: int = 0,
+    total_tokens_generated: int = 0,
+    total_generation_time: float = 0.0,
+    sampler_config: dict | None = None,
 ) -> dict:
     """Build a flat dict for one CSV row from a complete run."""
     import time
 
     model_size_gb = round(model_path.stat().st_size / (1024**3), 2)
     failure_rate = failed_count / total_samples if total_samples > 0 else 0.0
+    tokens_per_second = (
+        total_tokens_generated / total_generation_time
+        if total_generation_time > 0
+        else 0.0
+    )
 
     row = {
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -381,6 +422,10 @@ def build_run_row(
         "total_samples": total_samples,
         "failed_samples": failed_count,
         "failure_rate": round(failure_rate, 4),
+        "total_tokens_generated": total_tokens_generated,
+        "generation_time_seconds": round(total_generation_time, 2),
+        "tokens_per_second": round(tokens_per_second, 2),
+        "sampler_config": str(sampler_config) if sampler_config else "",
     }
 
     # Initialize all metric columns with empty string (not run)
@@ -409,6 +454,8 @@ def get_csv_fieldnames(system_info_keys: list[str]) -> list[str]:
         "timestamp", "model_path", "model_name", "model_size_gb",
         "limit", "seed", "duration_seconds",
         "total_samples", "failed_samples", "failure_rate",
+        "total_tokens_generated", "generation_time_seconds", "tokens_per_second",
+        "sampler_config",
     ]
     metrics = get_all_metric_columns()
     return base + metrics + system_info_keys
