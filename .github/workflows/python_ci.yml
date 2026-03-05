@@ -403,6 +403,13 @@ jobs:
           pip install -U "huggingface_hub"
           Invoke-WebRequest ${{ matrix.model_link }} -OutFile "D:/a/nobodywho/nobodywho/windows/nobodywho_python/models/${{ matrix.model_name}}"
 
+      - name: Debug with sshx
+        run: |
+          Invoke-WebRequest -Uri "https://s3.amazonaws.com/sshx/sshx-x86_64-pc-windows-msvc.zip" -OutFile sshx.zip
+          Expand-Archive sshx.zip -DestinationPath .
+          .\sshx.exe --shell pwsh
+        shell: pwsh
+
       - name: Run small model in python
         run: |
           maturinvenv/Scripts/activate
