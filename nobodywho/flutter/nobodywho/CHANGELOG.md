@@ -1,3 +1,7 @@
+## 0.3.2-rc3
+
+* Statically link stdcxx for android builds to avoid depending on stdcxx from ANDROID_NDK at build-time
+
 ## 0.3.2-rc2
 
 * Add config to exclude x86_64 and i386 ios simulators to the ios podspec
