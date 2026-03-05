@@ -1046,6 +1046,9 @@ impl Worker<'_, ChatWorker> {
             &rendered_tokens,
         );
 
+        // We should never try to sync with an empty render
+        debug_assert!(!rendered_tokens.is_empty());
+
         // this call may remove more than just the tokens from prefix_index
         // it updates self.n_past to indicate num of tokens in context
         let old_n_past = self.n_past;
@@ -1056,7 +1059,7 @@ impl Worker<'_, ChatWorker> {
         let tokens_to_read = rendered_tokens[self.n_past as usize..].to_vec();
         if !tokens_to_read.is_empty() {
             self.read_tokens(tokens_to_read, inference_lock_token)?;
-        } else if self.n_past > 0 && self.n_past < old_n_past {
+        } else if self.n_past < old_n_past {
             // Truncate-only path: the KV cache was trimmed but no new tokens
             // need to be appended. Re-decode the last remaining token to
             // refresh the logits buffer, which would otherwise contain stale
@@ -1066,9 +1069,7 @@ impl Worker<'_, ChatWorker> {
             // can re-decode it.
             self.remove_all_tokens_from_index_from_ctx(self.n_past as usize - 1)?;
             let refresh_tokens = rendered_tokens[self.n_past as usize..].to_vec();
-            if !refresh_tokens.is_empty() {
-                self.read_tokens(refresh_tokens, inference_lock_token)?;
-            }
+            self.read_tokens(refresh_tokens, inference_lock_token)?;
         }
         self.extra.tokens_in_context = rendered_tokens;
 
@@ -1588,6 +1589,12 @@ impl Worker<'_, ChatWorker> {
         };
 
         self.extra.messages = system_msg.into_iter().chain(messages).collect();
+
+        // We used to call sync_context_with_render here but this can
+        // crash as some chat templates will attempt to access fields on
+        // messages[0], which will result in an error. So now we never
+        // sync with an empty render and we only render when there are
+        // messages present in the history.
 
         Ok(())
     }
