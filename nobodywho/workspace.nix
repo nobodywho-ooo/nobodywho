@@ -31,10 +31,7 @@ let
           # Architecture-specific CPU feature flags
           # For ARM64: use defaults for compatibility with weaker devices (Raspberry Pi, etc.)
           env.CARGO_CFG_TARGET_FEATURE =
-            if pkgs.stdenv.hostPlatform.isx86_64 then
-              "sse4.2,fma,avx,avx512"
-            else
-              "";
+            if pkgs.stdenv.hostPlatform.isx86_64 then "sse4.2,fma,avx,avx512" else "";
 
           nativeBuildInputs = [
             llvmPackages.bintools
@@ -56,6 +53,13 @@ let
             shaderc
             vulkan-tools
             mesa
+          ];
+        };
+
+        nobodywho = attrs: {
+          nativeBuildInputs = [
+            # this needs to be available at link-time
+            vulkan-loader
           ];
         };
 
