@@ -173,6 +173,8 @@ def run(
         all_task_results: dict[str, dict] = {}  # task_name -> results
         all_task_failures: list[dict] = []
         total_samples_count: int = 0
+        total_tokens_generated: int = 0
+        total_generation_time: float = 0.0
 
         for task_idx, task in enumerate(run_tasks, 1):
             task_start = time.time()
@@ -246,10 +248,12 @@ def run(
             if print_samples_flag:
                 print_samples(results, max_samples=limit or 5)
 
-            # Track failures and sample counts
+            # Track failures, sample counts, and throughput
             if model_instance.failed_samples:
                 all_task_failures.extend(model_instance.failed_samples)
             total_samples_count += model_instance.total_samples
+            total_tokens_generated += model_instance.total_tokens_generated
+            total_generation_time += model_instance.total_generation_time
 
             # Store results for CSV
             all_task_results[task] = results
@@ -276,6 +280,9 @@ def run(
             system_info=system_info,
             failed_count=len(all_task_failures),
             total_samples=total_samples_count,
+            total_tokens_generated=total_tokens_generated,
+            total_generation_time=total_generation_time,
+            sampler_config={"temperature": 1.0, "top_k": 64, "top_p": 0.95, "min_p": 0.0},
         )
         append_run_to_csv(csv_file, row, list(system_info.keys()))
 
