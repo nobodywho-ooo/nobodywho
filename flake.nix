@@ -39,7 +39,7 @@
 
         # flutter stuff
         nobodywho-flutter = workspace.workspaceMembers.nobodywho-flutter.build;
-        flutter_example_app = pkgs.callPackage ./nobodywho/flutter/example_app {
+        flutter_tests = pkgs.callPackage ./nobodywho/flutter/nobodywho {
           nobodywho_flutter_rust = nobodywho-flutter;
         };
 
@@ -65,8 +65,8 @@
         packages.default = nobodywho-godot;
 
         # checks
-        checks.default = flutter_example_app;
-        checks.flutter_example_app = flutter_example_app;
+        checks.default = flutter_tests;
+        checks.flutter_tests = flutter_tests;
         checks.build-godot = nobodywho-godot;
         checks.godot-integration-test = run-godot-integration-test;
 
