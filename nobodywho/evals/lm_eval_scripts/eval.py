@@ -400,11 +400,19 @@ def build_run_row(
     total_tokens_generated: int = 0,
     total_generation_time: float = 0.0,
     sampler_config: dict | None = None,
+    model_name_override: str | None = None,
+    model_size_override: float | None = None,
 ) -> dict:
     """Build a flat dict for one CSV row from a complete run."""
     import time
 
-    model_size_gb = round(model_path.stat().st_size / (1024**3), 2)
+    # Get model size - use override or calculate from file
+    if model_size_override is not None:
+        model_size_gb = model_size_override
+    elif model_path.exists():
+        model_size_gb = round(model_path.stat().st_size / (1024**3), 2)
+    else:
+        model_size_gb = ""  # Unknown (e.g., gguf server)
     failure_rate = failed_count / total_samples if total_samples > 0 else 0.0
     tokens_per_second = (
         total_tokens_generated / total_generation_time
@@ -412,10 +420,13 @@ def build_run_row(
         else 0.0
     )
 
+    # Use override for model name or get from path
+    resolved_model_name = model_name_override if model_name_override else model_path.stem
+
     row = {
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
         "model_path": str(model_path),
-        "model_name": model_path.stem,
+        "model_name": resolved_model_name,
         "model_size_gb": model_size_gb,
         "limit": limit if limit is not None else "",
         "seed": seed,
