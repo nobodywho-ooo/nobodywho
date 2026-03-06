@@ -275,7 +275,11 @@ impl Encoder {
 impl Drop for Encoder {
     fn drop(&mut self) {
         let encoder = self.encoder.take();
-        Python::attach(|py| py.detach(|| drop(encoder)));
+        if PYTHON_FINALIZING.load(std::sync::atomic::Ordering::Relaxed) {
+            drop(encoder);
+        } else {
+            Python::attach(|py| py.detach(|| drop(encoder)));
+        }
     }
 }
 
@@ -340,7 +344,11 @@ impl EncoderAsync {
 impl Drop for EncoderAsync {
     fn drop(&mut self) {
         let handle = self.encoder_handle.take();
-        Python::attach(|py| py.detach(|| drop(handle)));
+        if PYTHON_FINALIZING.load(std::sync::atomic::Ordering::Relaxed) {
+            drop(handle);
+        } else {
+            Python::attach(|py| py.detach(|| drop(handle)));
+        }
     }
 }
 
@@ -408,7 +416,11 @@ impl CrossEncoder {
 impl Drop for CrossEncoder {
     fn drop(&mut self) {
         let crossencoder = self.crossencoder.take();
-        Python::attach(|py| py.detach(|| drop(crossencoder)));
+        if PYTHON_FINALIZING.load(std::sync::atomic::Ordering::Relaxed) {
+            drop(crossencoder);
+        } else {
+            Python::attach(|py| py.detach(|| drop(crossencoder)));
+        }
     }
 }
 
@@ -500,7 +512,11 @@ impl CrossEncoderAsync {
 impl Drop for CrossEncoderAsync {
     fn drop(&mut self) {
         let handle = self.crossencoder_handle.take();
-        Python::attach(|py| py.detach(|| drop(handle)));
+        if PYTHON_FINALIZING.load(std::sync::atomic::Ordering::Relaxed) {
+            drop(handle);
+        } else {
+            Python::attach(|py| py.detach(|| drop(handle)));
+        }
     }
 }
 
@@ -597,10 +613,16 @@ impl Chat {
 impl Drop for Chat {
     fn drop(&mut self) {
         let handle = self.chat_handle.take();
-        // Release the GIL before joining the background thread.
-        // This prevents deadlocks if the background thread needs the GIL
-        // to log messages (via pyo3_log) or execute Python tools during its shutdown.
-        Python::attach(|py| py.detach(|| drop(handle)));
+        if PYTHON_FINALIZING.load(std::sync::atomic::Ordering::Relaxed) {
+            // During finalization, logging is disabled so worker threads won't
+            // need the GIL. Just drop directly.
+            drop(handle);
+        } else {
+            // Release the GIL before joining the background thread.
+            // This prevents deadlocks if the background thread needs the GIL
+            // to log messages (via pyo3_log) or execute Python tools during its shutdown.
+            Python::attach(|py| py.detach(|| drop(handle)));
+        }
     }
 }
 
@@ -835,10 +857,14 @@ impl ChatAsync {
 impl Drop for ChatAsync {
     fn drop(&mut self) {
         let handle = self.chat_handle.take();
-        // Rust's Drop runs while the GIL is held (Python is freeing the object).
-        // Release the GIL so that pyo3-async-runtimes tokio tasks that captured
-        // Py<T> references can acquire it for their own cleanup, unblocking join().
-        Python::attach(|py| py.detach(|| drop(handle)));
+        if PYTHON_FINALIZING.load(std::sync::atomic::Ordering::Relaxed) {
+            drop(handle);
+        } else {
+            // Rust's Drop runs while the GIL is held (Python is freeing the object).
+            // Release the GIL so that pyo3-async-runtimes tokio tasks that captured
+            // Py<T> references can acquire it for their own cleanup, unblocking join().
+            Python::attach(|py| py.detach(|| drop(handle)));
+        }
     }
 }
 
@@ -1072,9 +1098,13 @@ fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> PyResult<f32> {
 }
 
 /// Internal: called by atexit to signal that Python is shutting down.
+/// Disables all logging to prevent pyo3_log from calling into a finalizing interpreter.
 #[pyfunction]
 fn _set_finalizing() {
     PYTHON_FINALIZING.store(true, std::sync::atomic::Ordering::Relaxed);
+    // Disable the global log level so that pyo3_log (the global log backend) never
+    // receives events and never calls PyGILState_Ensure after this point.
+    log::set_max_level(log::LevelFilter::Off);
 }
 
 /// `SamplerConfig` contains the configuration for a token sampler. The mechanism by which
