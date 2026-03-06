@@ -105,4 +105,5 @@ jobs:
         env:
           TEST_MULTIMODAL_MODEL: ${{ github.workspace }}/models/gemma-3-4b-it-Q4_K_M.gguf
           TEST_MULTIMODAL_MMPROJ: ${{ github.workspace }}/models/mmproj-gemma-3-f16.gguf
+          LD_LIBRARY_PATH: ${{ github.workspace }}/nobodywho/target/debug
         run: flutter test test/nobodywho_multimodal_test.dart --reporter expanded

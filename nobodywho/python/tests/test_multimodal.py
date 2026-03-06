@@ -6,9 +6,9 @@ import pytest
 
 @pytest.fixture(scope="module")
 def vision_model():
-    model_path = os.environ.get("TEST_MODEL")
+    model_path = os.environ.get("TEST_VISION_MODEL")
     if not model_path:
-        raise ValueError("TEST_MODEL environment variable is not set")
+        raise ValueError("TEST_VISION_MODEL environment variable is not set")
 
     image_model_path = os.environ.get("TEST_MMPROJ_MODEL")
     if not image_model_path:

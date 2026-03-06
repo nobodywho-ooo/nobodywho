@@ -229,6 +229,8 @@ jobs:
           curl -L --fail --progress-bar https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf -o models/Qwen_Qwen3-0.6B-Q4_K_M.gguf
           curl -L --fail --progress-bar https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf -o models/bge-small-en-v1.5-q8_0.gguf
           curl -L --fail --progress-bar https://huggingface.co/gpustack/bge-reranker-v2-m3-GGUF/resolve/main/bge-reranker-v2-m3-Q8_0.gguf -o models/bge-reranker-v2-m3-Q8_0.gguf
+          curl -L --fail --progress-bar https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q4_K_M.gguf -o models/gemma-3-4b-it-Q4_K_M.gguf
+          curl -L --fail --progress-bar https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/mmproj-F16.gguf -o models/mmproj-gemma-3-f16.gguf
       - name: Set up virtualenv and install dependencies
         working-directory: ./nobodywho/python
         run: |
@@ -243,6 +245,8 @@ jobs:
           TEST_MODEL: ${{ github.workspace }}/models/Qwen_Qwen3-0.6B-Q4_K_M.gguf
           TEST_EMBEDDINGS_MODEL: ${{ github.workspace }}/models/bge-small-en-v1.5-q8_0.gguf
           TEST_CROSSENCODER_MODEL: ${{ github.workspace }}/models/bge-reranker-v2-m3-Q8_0.gguf
+          TEST_VISION_MODEL: ${{ github.workspace }}/models/gemma-3-4b-it-Q4_K_M.gguf
+          TEST_MMPROJ_MODEL: ${{ github.workspace }}/models/mmproj-gemma-3-f16.gguf
         run: |
           source .venv/bin/activate
           # python bindings tests
@@ -278,7 +282,7 @@ jobs:
       - name: Run multimodal tests
         working-directory: ./nobodywho/python
         env:
-          TEST_MODEL: ${{ github.workspace }}/models/gemma-3-4b-it-Q4_K_M.gguf
+          TEST_VISION_MODEL: ${{ github.workspace }}/models/gemma-3-4b-it-Q4_K_M.gguf
           TEST_MMPROJ_MODEL: ${{ github.workspace }}/models/mmproj-gemma-3-f16.gguf
         run: |
           source .venv/bin/activate
