@@ -183,16 +183,16 @@ class NobodyWhoLM(LM):
         # Sampler config
         sampler = (
             nobodywho.SamplerBuilder()
-            .top_k(64)
-            .top_p(0.95, min_keep=1)
+            .temperature(0.7)
+            .top_p(0.8, min_keep=1)
+            .top_k(20)
             .min_p(0.0, min_keep=1)
-            .temperature(1.0)
             .dist()
         )
         self.sampler_config = {
-            "temperature": 1.0,
-            "top_k": 64,
-            "top_p": 0.95,
+            "temperature": 0.7,
+            "top_p": 0.20,
+            "top_k": 20,
             "min_p": 0.0,
         }
         kwargs = {
