@@ -1,8 +1,6 @@
----
-title: Vision
-description:  Enabling models to see images
-sidebar_title: Vision
-order: 3
+# Vision
+_Enabling models to see images._
+
 ---
 
 A picture is worth a thousand words (or at least a thousand tokens).
