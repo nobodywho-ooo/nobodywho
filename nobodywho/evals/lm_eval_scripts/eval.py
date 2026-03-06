@@ -265,10 +265,11 @@ class NobodyWhoLM(LM):
                             self.chat.stop_generation()
                             break
 
-                # Record throughput stats
-                if gen_start_time is not None and len(tokens) > 0:
+                # Record throughput stats (only if >= 2 tokens, counting N-1 intervals)
+                if gen_start_time is not None and len(tokens) >= 2:
                     gen_elapsed = time.perf_counter() - gen_start_time
-                    self.total_tokens_generated += len(tokens)
+                    # We measure time from first token, so we have N-1 token intervals
+                    self.total_tokens_generated += len(tokens) - 1
                     self.total_generation_time += gen_elapsed
 
                 # Get completed text and extract response part (strip think block)
