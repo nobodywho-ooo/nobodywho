@@ -2007,6 +2007,18 @@ pub mod nobodywhopython {
             }
 
             if !log_msg.is_empty() {
+                // Guard: skip logging if Python is no longer initialized.
+                // The llama.cpp log callback installed by send_llamacpp_logs_to_tracing()
+                // persists for the entire process lifetime and may fire during C++ atexit
+                // cleanup (after Py_Finalize). On Python < 3.13, pyo3's Python::attach()
+                // does not check Py_IsFinalizing() and calls PyGILState_Ensure(), which
+                // crashes CPython after finalization with "FATAL: exception not rethrown".
+                if unsafe { pyo3::ffi::Py_IsInitialized() } == 0 {
+                    // Hypothesis test: print to stderr to confirm this path is reached.
+                    // If this message appears in test output, the hypothesis is confirmed.
+                    eprintln!("[nobodywho] suppressed post-Py_Finalize log: {}", log_msg);
+                    return;
+                }
                 log::logger().log(
                     &log::Record::builder()
                         .args(format_args!("{}", log_msg))

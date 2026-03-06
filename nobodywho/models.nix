@@ -15,4 +15,14 @@
     url = "https://huggingface.co/gpustack/bge-reranker-v2-m3-GGUF/resolve/main/bge-reranker-v2-m3-Q8_0.gguf";
     sha256 = "sha256-pDx8mxGkwVF+W/lRUZYOFiHRty96STNksB44bPGqodM=";
   };
+  TEST_VISION_MODEL = fetchurl {
+    name = "gemma-3-4b-it-Q4_K_M.gguf";
+    url = "https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q4_K_M.gguf";
+    sha256 = "sha256-iC6NLbRNxVT7DqUHfLfkvEnnNCofDaV5AcCALqIaCGM=";
+  };
+  TEST_MMPROJ_MODEL = fetchurl {
+    name = "mmproj-gemma-3-f16.gguf";
+    url = "https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/mmproj-F16.gguf";
+    sha256 = "sha256-jA+wZLAZppcoVqquLH5HkoWK88pFYb4tv2SRI7psQMs=";
+  };
 }

@@ -2594,7 +2594,7 @@ mod tests {
             .with_context_size(2048)
             .with_allow_thinking(false)
             .build();
-        chat.reset_history();
+        let _ = chat.reset_history();
         let resp = chat
             .ask("What is the capital of Denmark?")
             .completed()
