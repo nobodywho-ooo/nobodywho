@@ -1,7 +1,7 @@
 ---
 title: Logging and Troubleshooting
 sidebar_title: Logging
-order: 6
+order: 7
 ---
 
 # Logging and troubleshooting

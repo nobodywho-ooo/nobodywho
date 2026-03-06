@@ -40,7 +40,7 @@ struct NobodyWhoModel {
 
     #[export(file = "*.gguf")]
     /// Optional multimodal projection model path for vision/image support.
-    mmproj_path: GString,
+    image_model_path: GString,
 
     #[export]
     use_gpu_if_available: bool,
@@ -56,7 +56,7 @@ impl INode for NobodyWhoModel {
 
         Self {
             model_path,
-            mmproj_path: GString::from(""),
+            image_model_path: GString::from(""),
             use_gpu_if_available: true,
             model: None,
         }
@@ -77,13 +77,13 @@ impl NobodyWhoModel {
             .into();
 
         let mmproj_str_owned: Option<String> = {
-            let s = self.mmproj_path.to_string();
+            let s = self.image_model_path.to_string();
             if s.is_empty() {
                 None
             } else {
                 Some(
                     project_settings
-                        .globalize_path(&self.mmproj_path.clone())
+                        .globalize_path(&self.image_model_path.clone())
                         .into(),
                 )
             }

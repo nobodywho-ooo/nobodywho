@@ -19,7 +19,7 @@ impl Model {
     /// Args:
     ///     model_path: Path to the GGUF model file
     ///     use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
-    ///     mmproj_path: Path to a multimodal projector file for vision models. Defaults to None.
+    ///     image_model_path: Path to a multimodal projector file for vision models. Defaults to None.
     ///
     /// Returns:
     ///     A Model instance
@@ -27,11 +27,11 @@ impl Model {
     /// Raises:
     ///     RuntimeError: If the model file cannot be loaded
     #[new]
-    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, mmproj_path: "os.PathLike | str | None" = None) -> "Model")]
+    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, image_model_path: "os.PathLike | str | None" = None) -> "Model")]
     pub fn new(
         model_path: std::path::PathBuf,
         use_gpu_if_available: bool,
-        mmproj_path: Option<std::path::PathBuf>,
+        image_model_path: Option<std::path::PathBuf>,
     ) -> PyResult<Self> {
         let path_str = model_path.to_str().ok_or_else(|| {
             pyo3::exceptions::PyValueError::new_err(format!(
@@ -39,7 +39,7 @@ impl Model {
                 model_path.display()
             ))
         })?;
-        let mmproj_str = mmproj_path
+        let mmproj_str = image_model_path
             .as_ref()
             .map(|p| {
                 p.to_str().ok_or_else(|| {
@@ -68,7 +68,7 @@ impl Model {
     /// Args:
     ///     model_path: Path to the GGUF model file
     ///     use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
-    ///     mmproj_path: Path to a multimodal projector file for vision models. Defaults to None.
+    ///     image_model_path: Path to a multimodal projector file for vision models. Defaults to None.
     ///
     /// Returns:
     ///     A Model instance wrapped in an awaitable (async function returns a coroutine)
@@ -77,11 +77,11 @@ impl Model {
     ///     ValueError: If the path contains invalid UTF-8
     ///     RuntimeError: If the model file cannot be loaded
     #[staticmethod]
-    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, mmproj_path: "os.PathLike | str | None" = None) -> "typing.Awaitable[Model]")]
+    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, image_model_path: "os.PathLike | str | None" = None) -> "typing.Awaitable[Model]")]
     pub async fn load_model_async(
         model_path: std::path::PathBuf,
         use_gpu_if_available: bool,
-        mmproj_path: Option<std::path::PathBuf>,
+        image_model_path: Option<std::path::PathBuf>,
     ) -> PyResult<Self> {
         let path_str = model_path.to_str().ok_or_else(|| {
             pyo3::exceptions::PyValueError::new_err(format!(
@@ -89,7 +89,7 @@ impl Model {
                 model_path.display()
             ))
         })?;
-        let mmproj_str = mmproj_path
+        let mmproj_str = image_model_path
             .as_ref()
             .map(|p| {
                 p.to_str().ok_or_else(|| {

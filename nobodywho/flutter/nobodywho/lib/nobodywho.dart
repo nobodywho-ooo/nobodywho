@@ -560,18 +560,27 @@ class Chat {
     return Chat._(chat);
   }
 
-  /// Send a prompt and get a stream of response tokens.
+  /// Ask with a text and get a stream of response tokens.
   ///
-  /// Accepts a [Prompt] which may contain text and/or image parts.
-  /// Use [Prompt.text] for text-only prompts:
   /// ```dart
-  /// chat.ask(Prompt.text("Hello!"))
+  /// chat.ask("Hello!")
   /// ```
-  TokenStream ask(Prompt prompt) {
+  TokenStream ask(String message) {
+    return TokenStream._(_chat.ask(message));
+  }
+
+  /// Ask with a text or a multimodal prompt (text and/or images) and get a stream of
+  /// response tokens.
+  ///
+  /// ```dart
+  /// chat.askWithPrompt(Prompt([TextPart("Describe this image"), ImagePart("photo.jpg")]))
+  /// ```
+  TokenStream askWithPrompt(Prompt prompt) {
     return TokenStream._(
       _chat.askWithPrompt(parts: _convertPromptParts(prompt.parts)),
     );
   }
+
 
   /// Get the chat history.
   Future<List<nobodywho.Message>> getChatHistory() => _chat.getChatHistory();
