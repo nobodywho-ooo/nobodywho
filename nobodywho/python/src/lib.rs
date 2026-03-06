@@ -1,7 +1,12 @@
 use pyo3::prelude::*;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 mod parse;
+
+/// Flag set by a Python `atexit` handler to indicate the interpreter is shutting down.
+/// Checked before forwarding tracing events to the Python logging bridge.
+static PYTHON_FINALIZING: AtomicBool = AtomicBool::new(false);
 
 /// `Model` objects contain a GGUF model. It is primarily useful for sharing a single model instance
 /// between multiple `Chat`, `Encoder`, or `CrossEncoder` instances.
@@ -1066,6 +1071,12 @@ fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> PyResult<f32> {
     Ok(nobodywho::encoder::cosine_similarity(&a, &b))
 }
 
+/// Internal: called by atexit to signal that Python is shutting down.
+#[pyfunction]
+fn _set_finalizing() {
+    PYTHON_FINALIZING.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
 /// `SamplerConfig` contains the configuration for a token sampler. The mechanism by which
 /// NobodyWho will sample a token from the probability distribution, to include in the
 /// generation result.
@@ -1920,7 +1931,9 @@ fn json_value_to_py<'py>(
 
 #[pymodule(name = "nobodywho")]
 pub mod nobodywhopython {
+    use super::PYTHON_FINALIZING;
     use pyo3::prelude::*;
+    use std::sync::atomic::Ordering;
 
     struct LogForwardingLayer;
 
@@ -2007,16 +2020,18 @@ pub mod nobodywhopython {
             }
 
             if !log_msg.is_empty() {
-                // Guard: skip logging if Python is no longer initialized.
+                // Guard: skip logging if Python is finalizing or already finalized.
                 // The llama.cpp log callback installed by send_llamacpp_logs_to_tracing()
                 // persists for the entire process lifetime and may fire during C++ atexit
-                // cleanup (after Py_Finalize). On Python < 3.13, pyo3's Python::attach()
-                // does not check Py_IsFinalizing() and calls PyGILState_Ensure(), which
-                // crashes CPython after finalization with "FATAL: exception not rethrown".
-                if unsafe { pyo3::ffi::Py_IsInitialized() } == 0 {
-                    // Hypothesis test: print to stderr to confirm this path is reached.
-                    // If this message appears in test output, the hypothesis is confirmed.
-                    eprintln!("[nobodywho] suppressed post-Py_Finalize log: {}", log_msg);
+                // cleanup (during or after Py_Finalize). Calling PyGILState_Ensure() in
+                // that state crashes CPython with "FATAL: exception not rethrown".
+                //
+                // We check both:
+                // 1. Our atexit flag (catches the "during finalization" window, works on all Python versions)
+                // 2. Py_IsInitialized (catches the "after finalization" state)
+                if PYTHON_FINALIZING.load(Ordering::Relaxed)
+                    || unsafe { pyo3::ffi::Py_IsInitialized() } == 0
+                {
                     return;
                 }
                 log::logger().log(
@@ -2057,9 +2072,18 @@ pub mod nobodywhopython {
         // Flow: llamacpp -> tracing -> LogForwardingLayer -> log crate -> pyo3_log -> Python
         nobodywho::send_llamacpp_logs_to_tracing();
 
+        // STEP 4: Register atexit handler so we know when Python is finalizing.
+        // This runs before Py_Finalize tears down the interpreter, letting us
+        // suppress log callbacks that would otherwise crash.
+        let atexit = _m.py().import("atexit")?;
+        let set_finalizing = _m.getattr("_set_finalizing")?;
+        atexit.call_method1("register", (set_finalizing,))?;
+
         Ok(())
     }
 
+    #[pymodule_export]
+    use super::_set_finalizing;
     #[pymodule_export]
     use super::cosine_similarity;
     #[pymodule_export]
