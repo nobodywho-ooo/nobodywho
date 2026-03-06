@@ -30,7 +30,7 @@ def test_image_description(vision_chat):
     prompt = nobodywho.Prompt(
         [
             nobodywho.Text(
-                "What animal is in this image? Short answer. Focus on the species, not the age."
+                "What animal is in this image? Short answer. Focus on the species, not the age or the breed."
             ),
             nobodywho.Image(image_path),
         ]
@@ -54,7 +54,7 @@ def test_multiple_images(vision_chat):
             nobodywho.Image(image_paths[0]),
             nobodywho.Image(image_paths[1]),
             nobodywho.Text(
-                "What animals are in these images? Short answer. Focus on the species, not the age."
+                "What animals are in these images? Short answer. Focus on the species, not the age or the breed."
             ),
         ]
     )
@@ -77,7 +77,9 @@ def test_multiple_images_interleaved(vision_chat):
             nobodywho.Image(image_paths[0]),
             nobodywho.Text("What animal is in the second image?"),
             nobodywho.Image(image_paths[1]),
-            nobodywho.Text("Short answer. Focus on the species, not the age."),
+            nobodywho.Text(
+                "Short answer. Focus on the species, not the age or the breed."
+            ),
         ]
     )
 
@@ -94,7 +96,7 @@ def test_image_recollection(vision_chat):
     prompt = nobodywho.Prompt(
         [
             nobodywho.Text(
-                "What animal is in this image? Short answer. Focus on the species, not the age."
+                "What animal is in this image? Short answer. Focus on the species, not the age or the breed."
             ),
             nobodywho.Image(image_path),
         ]
