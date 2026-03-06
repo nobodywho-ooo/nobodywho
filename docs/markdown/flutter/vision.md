@@ -20,30 +20,33 @@ Usually, the projection model then includes `mmproj` in its name.
 
 If you are unsure which ones to pick, or just want a reasonable default, you can try [Gemma 3 4b](https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/blob/main/gemma-3-4b-it-Q4_K_M.gguf) with its [F16 projection model](https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/blob/main/mmproj-F16.gguf).
 
-With the downloaded GGUFs, you can simply add the projection model as:
+With the downloaded GGUFs, you can simply add the projection model when loading the model:
 
-```python
-from nobodywho import Model, Chat
+```dart
+import 'package:nobodywho/nobodywho.dart' as nobodywho;
 
-model = Model("./model.gguf", image_model_path="./projection_model.gguf")
-chat = Chat(
-    model, system_prompt="You are a helpful assistant."
-)
+final model = await nobodywho.Model.load(
+  modelPath: "./model.gguf",
+  imageIngestion: "./mmproj.gguf",
+);
+final chat = nobodywho.Chat(
+  model: model,
+  systemPrompt: "You are a helpful assistant.",
+);
 ```
 
 ## Composing a prompt object
 With the model configured, all that is left is to compose the prompt and send it to the model.
-That is done through the `Prompt` object.
-```python
-from nobodywho import Text, Image, Prompt
+That is done through `askWithPrompt`, which accepts a list of `PromptPart` values.
 
-prompt = Prompt([
-    Text("Tell me what you see in the images."),
-    Image("./dog.png"),
-    Image("./penguin.png")
-])
+```dart
+import 'package:nobodywho/nobodywho.dart' as nobodywho;
 
-chat.ask(prompt).completed() # It's a dog and a penguin!
+final response = await chat.askWithPrompt([
+  nobodywho.PromptPart.text(content: "Tell me what you see in the images."),
+  nobodywho.PromptPart.image(path: "./dog.png"),
+  nobodywho.PromptPart.image(path: "./penguin.png"),
+]).completed(); // It's a dog and a penguin!
 ```
 
 ## Tips for multimodality
@@ -51,22 +54,26 @@ As with textual prompts, the format in which you supply the multimodal prompt ca
 scenarios. If the model performs poorly, try to mess around with the order of supplying the text
 and the images, or the descriptions you supply. For example, the following prompt may perform better than the previously presented one.
 
-```python
-prompt = Prompt([
-    Text("Tell me what you see in the first image."),
-    Image("./dog.png"),
-    Text("Also tell me what you see in the second image."),
-    Image("./penguin.png")
-])
+```dart
+final response = await chat.askWithPrompt([
+  nobodywho.PromptPart.text(content: "Tell me what you see in the first image."),
+  nobodywho.PromptPart.image(path: "./dog.png"),
+  nobodywho.PromptPart.text(content: "Also tell me what you see in the second image."),
+  nobodywho.PromptPart.image(path: "./penguin.png"),
+]).completed();
 ```
 
 Also, there is still a lot of variance between how the models internally process the images.
 This, for example, causes differences in how quickly the model consumes context - for some models like Gemma 3, the number of tokens per image is constant; for others like Qwen 3, they scale with the size of the image. In that case, you can increase the context size if the resources allow:
-```python
-chat = Chat(
-    model, system_prompt="You are a helpful assistant.", n_ctx=4096
-)
+
+```dart
+final chat = nobodywho.Chat(
+  model: model,
+  systemPrompt: "You are a helpful assistant.",
+  contextSize: 8192,
+);
 ```
+
 Or, for example, preprocess your images with some kind of compression (sometimes even changing the image type helps).
 
 Nevertheless, with more niche models you can find bugs. If you stumble upon some of them, please be sure to [report them](https://github.com/nobodywho-ooo/nobodywho/issues), so we can fix the functionality.

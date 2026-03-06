@@ -230,7 +230,7 @@ where
                 warn!("Context size is less than 2048, which is the default minimum for ingesting images. This can cause issues.");
             }
 
-            // Still, better n_ubatch defaults could be possible, but with multimodality it is good to go for atleast 2048,
+            // Still, better n_ubatch defaults could be possible, but with multimodality it is good to go for at least 2048,
             // as the images are often encoded to many tokens by some projection models.
             let n_ubatch = if projection_model.is_some() {
                 std::cmp::min(2048, n_ctx)

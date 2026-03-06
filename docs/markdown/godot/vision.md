@@ -20,30 +20,32 @@ Usually, the projection model then includes `mmproj` in its name.
 
 If you are unsure which ones to pick, or just want a reasonable default, you can try [Gemma 3 4b](https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/blob/main/gemma-3-4b-it-Q4_K_M.gguf) with its [F16 projection model](https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/blob/main/mmproj-F16.gguf).
 
-With the downloaded GGUFs, you can simply add the projection model as:
+With the downloaded GGUFs, you can set the projection model on your `NobodyWhoModel` node.
+In the editor, set the `image_model_path` property to point to your projection model file.
+Alternatively, you can set it in GDScript:
 
-```python
-from nobodywho import Model, Chat
-
-model = Model("./model.gguf", image_model_path="./projection_model.gguf")
-chat = Chat(
-    model, system_prompt="You are a helpful assistant."
-)
+```gdscript
+$ChatModel.image_model_path = "res://mmproj.gguf"
 ```
 
 ## Composing a prompt object
 With the model configured, all that is left is to compose the prompt and send it to the model.
-That is done through the `Prompt` object.
-```python
-from nobodywho import Text, Image, Prompt
+That is done through the `NobodyWhoPrompt` object.
 
-prompt = Prompt([
-    Text("Tell me what you see in the images."),
-    Image("./dog.png"),
-    Image("./penguin.png")
-])
+```gdscript
+extends NobodyWhoChat
 
-chat.ask(prompt).completed() # It's a dog and a penguin!
+func _ready():
+    self.model_node = get_node("../ChatModel")
+    self.system_prompt = "You are a helpful assistant."
+
+    var prompt = NobodyWhoPrompt.new()
+    prompt.add_text("Tell me what you see in the images.")
+    prompt.add_image("res://dog.png")
+    prompt.add_image("res://penguin.png")
+
+    ask(prompt)
+    var response = await response_finished  # It's a dog and a penguin!
 ```
 
 ## Tips for multimodality
@@ -51,22 +53,21 @@ As with textual prompts, the format in which you supply the multimodal prompt ca
 scenarios. If the model performs poorly, try to mess around with the order of supplying the text
 and the images, or the descriptions you supply. For example, the following prompt may perform better than the previously presented one.
 
-```python
-prompt = Prompt([
-    Text("Tell me what you see in the first image."),
-    Image("./dog.png"),
-    Text("Also tell me what you see in the second image."),
-    Image("./penguin.png")
-])
+```gdscript
+var prompt = NobodyWhoPrompt.new()
+prompt.add_text("Tell me what you see in the first image.")
+prompt.add_image("res://dog.png")
+prompt.add_text("Also tell me what you see in the second image.")
+prompt.add_image("res://penguin.png")
 ```
 
 Also, there is still a lot of variance between how the models internally process the images.
 This, for example, causes differences in how quickly the model consumes context - for some models like Gemma 3, the number of tokens per image is constant; for others like Qwen 3, they scale with the size of the image. In that case, you can increase the context size if the resources allow:
-```python
-chat = Chat(
-    model, system_prompt="You are a helpful assistant.", n_ctx=4096
-)
+
+```gdscript
+self.context_length = 8192
 ```
+
 Or, for example, preprocess your images with some kind of compression (sometimes even changing the image type helps).
 
 Nevertheless, with more niche models you can find bugs. If you stumble upon some of them, please be sure to [report them](https://github.com/nobodywho-ooo/nobodywho/issues), so we can fix the functionality.
