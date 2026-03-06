@@ -44,7 +44,9 @@ void main() {
       );
 
       final prompt = nobodywho.Prompt([
-        nobodywho.TextPart("Describe what animal is in this image in one word."),
+        nobodywho.TextPart(
+          "Describe what animal is in this image in one word. Focus on the species, not the age.",
+        ),
         nobodywho.ImagePart(imagePath),
       ]);
 
