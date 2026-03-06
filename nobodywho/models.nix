@@ -18,7 +18,7 @@
   TEST_VISION_MODEL = fetchurl {
     name = "gemma-3-4b-it-Q4_K_M.gguf";
     url = "https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q4_K_M.gguf";
-    sha256 = "sha256-iC6NLbRNxVT7DqUHfLfkvEnnNCofDaV5AcCALqIaCGM=";
+    sha256 = "sha256-BKQ6IujSAD3tpazCYvaOwQBfp2xzWpliqMdwQqdKfRk=";
   };
   TEST_MMPROJ_MODEL = fetchurl {
     name = "mmproj-gemma-3-f16.gguf";
