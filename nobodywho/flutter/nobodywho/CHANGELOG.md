@@ -1,3 +1,36 @@
+## 0.4.0
+
+### New Features
+
+- Add support for `Set` and `Map` types in Flutter tool calling arguments
+- Add support for `num` type in tool argument parsing
+- Add FunctionGemma tool calling support
+- Add Ministral 3 tool calling support
+- Add composable GBNF grammar system for more robust constrained generation (via core)
+- System prompt is now optional — omitting it preserves the model's built-in default instead of overwriting with an empty string
+- Add Qwen3-style sampling configuration as the new default, replacing mirostat.
+
+### Bug Fixes
+
+- Fix crash when chat history is cleared/reset to empty messages
+- Fix stale logits bug after resetting context
+- Fix Qwen grammar bug that prevented models from making multiple tool calls in a sequence
+- Preserve symlinks when copying xcframework, fixing broken iOS/macOS builds
+- Move x86 architecture exclusion into podspec so consumers don't need to add it manually
+- Fix context pruning for hybrid transformer/RNN models
+- Static link libstdc++ for Android builds, removing NDK runtime dependency
+
+### Improvements
+
+- Switch from static `.a` files to dynamic `.dylib` files in xcframework for iOS/macOS
+- Remove minimum macOS version constraint from podspec
+- Add worker guard to properly drop child threads on exit, preventing resource leaks
+- Prepend grammar step to the sampling chain for correct constraint ordering
+- Unified Tool and ToolCall serialization following the HuggingFace standard
+- Bump llama.cpp and migrate to new token decoding API
+- Improved pub.dev README and documentation
+- Removed bundled example app (available separately)
+
 ## 0.3.2-rc3
 
 * Statically link stdcxx for android builds to avoid depending on stdcxx from ANDROID_NDK at build-time
