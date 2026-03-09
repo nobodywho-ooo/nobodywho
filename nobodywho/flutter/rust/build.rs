@@ -34,4 +34,14 @@ fn main() {
     };
 
     codegen::generate(config, codegen::MetaConfig::default()).expect("Failed generating dart code");
+
+    // Run build_runner to generate .freezed.dart files from the @freezed annotations
+    // that flutter_rust_bridge emits in lib.dart
+    let status = std::process::Command::new("dart")
+        .args(["run", "build_runner", "build", "--delete-conflicting-outputs"])
+        .current_dir("../nobodywho")
+        .status()
+        .expect("Failed to run dart build_runner");
+
+    assert!(status.success(), "dart run build_runner build failed");
 }
