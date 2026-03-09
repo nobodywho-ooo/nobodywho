@@ -199,7 +199,7 @@ dependencies = [
  "bitflags 2.10.0",
  "cexpr",
  "clang-sys",
- "itertools 0.13.0",
+ "itertools",
  "log",
  "prettyplease",
  "proc-macro2",
@@ -866,7 +866,7 @@ dependencies = [
  "include_dir",
  "indicatif",
  "indicatif-log-bridge",
- "itertools 0.10.5",
+ "itertools",
  "lazy_static",
  "log",
  "notify",
@@ -1621,15 +1621,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "itertools"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
-dependencies = [
- "either",
-]
-
-[[package]]
 name = "itoa"
 version = "1.0.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1782,9 +1773,8 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-2"
-version = "0.1.136"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a6347a802381f3953cd871d42572463a11b888ca2878065390d12f3339025e88"
+version = "0.1.139"
+source = "git+https://github.com/utilityai/llama-cpp-rs?branch=update-llama-cpp-2026-03-06#3076f76a286b166f1b2b1d444e32adeca7b28e81"
 dependencies = [
  "encoding_rs",
  "enumflags2",
@@ -1796,9 +1786,8 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-sys-2"
-version = "0.1.136"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c8536707545e27a8a889cb089fd5064a3a22fe0b7b9a71b23bf91e84b1a7a90d"
+version = "0.1.139"
+source = "git+https://github.com/utilityai/llama-cpp-rs?branch=update-llama-cpp-2026-03-06#3076f76a286b166f1b2b1d444e32adeca7b28e81"
 dependencies = [
  "bindgen",
  "cc",
