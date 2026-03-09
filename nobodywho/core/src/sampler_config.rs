@@ -1,3 +1,5 @@
+use gbnf::grammars::json::JSON_GRAMMAR;
+use gbnf::grammars::python::PYTHON_GRAMMAR;
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::sampling::LlamaSampler;
 
@@ -54,6 +56,14 @@ impl SamplerPresets {
             trigger_on: None,
             root: "root".into(),
             grammar: JSON_GRAMMAR.into(),
+        })
+    }
+
+    pub fn python() -> SamplerConfig {
+        SamplerConfig::default().shift(ShiftStep::Grammar {
+            trigger_on: None,
+            root: "root".into(),
+            grammar: PYTHON_GRAMMAR.into(),
         })
     }
 
@@ -239,33 +249,6 @@ impl Default for SamplerConfig {
             .sample(SampleStep::Dist)
     }
 }
-
-const JSON_GRAMMAR: &str = r#"# this default gbnf grammar forces valid json output
-root   ::= object
-value  ::= object | array | string | number | ("true" | "false" | "null") ws
-
-object ::=
-"{" ws (
-            string ":" ws value
-    ("," ws string ":" ws value)*
-)? "}" ws
-
-array  ::=
-"[" ws (
-            value
-    ("," ws value)*
-)? "]" ws
-
-string ::=
-"\"" (
-    [^"\\\x7F\x00-\x1F] |
-    "\\" (["\\bfnrt] | "u" [0-9a-fA-F]{4}) # escapes
-)* "\"" ws
-
-number ::= ("-"? ([0-9] | [1-9] [0-9]{0,15})) ("." [0-9]+)? ([eE] [-+]? [0-9] [1-9]{0,15})? ws
-
-# Optional space: by convention, applied in this grammar after literal chars when allowed
-ws ::= | " " | "\n" [ \t]{0,20}"#;
 
 /// ----- Sampler Methods -----
 

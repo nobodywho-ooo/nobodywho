@@ -43,7 +43,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1131916528;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1872778298;
 
 // Section: executor
 
@@ -2220,6 +2220,35 @@ fn wire__crate__SamplerPresets_json_impl(
         },
     )
 }
+fn wire__crate__SamplerPresets_python_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "SamplerPresets_python",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Result::<_, ()>::Ok(crate::SamplerPresets::python())?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__SamplerPresets_temperature_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -3499,7 +3528,7 @@ fn pde_ffi_dispatcher_primary_impl(
         22 => wire__crate__RustTokenStream_completed_impl(port, ptr, rust_vec_len, data_len),
         23 => wire__crate__RustTokenStream_iter_impl(port, ptr, rust_vec_len, data_len),
         24 => wire__crate__RustTokenStream_next_token_impl(port, ptr, rust_vec_len, data_len),
-        53 => wire__crate__init_app_impl(port, ptr, rust_vec_len, data_len),
+        54 => wire__crate__init_app_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -3538,16 +3567,17 @@ fn pde_ffi_dispatcher_sync_impl(
         42 => wire__crate__SamplerPresets_grammar_impl(ptr, rust_vec_len, data_len),
         43 => wire__crate__SamplerPresets_greedy_impl(ptr, rust_vec_len, data_len),
         44 => wire__crate__SamplerPresets_json_impl(ptr, rust_vec_len, data_len),
-        45 => wire__crate__SamplerPresets_temperature_impl(ptr, rust_vec_len, data_len),
-        46 => wire__crate__SamplerPresets_top_k_impl(ptr, rust_vec_len, data_len),
-        47 => wire__crate__SamplerPresets_top_p_impl(ptr, rust_vec_len, data_len),
-        48 => wire__crate__ToolCall_auto_accessor_get_arguments_impl(ptr, rust_vec_len, data_len),
-        49 => wire__crate__ToolCall_auto_accessor_get_name_impl(ptr, rust_vec_len, data_len),
-        50 => wire__crate__ToolCall_auto_accessor_set_arguments_impl(ptr, rust_vec_len, data_len),
-        51 => wire__crate__ToolCall_auto_accessor_set_name_impl(ptr, rust_vec_len, data_len),
-        52 => wire__crate__cosine_similarity_impl(ptr, rust_vec_len, data_len),
-        54 => wire__crate__new_tool_impl_impl(ptr, rust_vec_len, data_len),
-        55 => wire__crate__tool_call_arguments_json_impl(ptr, rust_vec_len, data_len),
+        45 => wire__crate__SamplerPresets_python_impl(ptr, rust_vec_len, data_len),
+        46 => wire__crate__SamplerPresets_temperature_impl(ptr, rust_vec_len, data_len),
+        47 => wire__crate__SamplerPresets_top_k_impl(ptr, rust_vec_len, data_len),
+        48 => wire__crate__SamplerPresets_top_p_impl(ptr, rust_vec_len, data_len),
+        49 => wire__crate__ToolCall_auto_accessor_get_arguments_impl(ptr, rust_vec_len, data_len),
+        50 => wire__crate__ToolCall_auto_accessor_get_name_impl(ptr, rust_vec_len, data_len),
+        51 => wire__crate__ToolCall_auto_accessor_set_arguments_impl(ptr, rust_vec_len, data_len),
+        52 => wire__crate__ToolCall_auto_accessor_set_name_impl(ptr, rust_vec_len, data_len),
+        53 => wire__crate__cosine_similarity_impl(ptr, rust_vec_len, data_len),
+        55 => wire__crate__new_tool_impl_impl(ptr, rust_vec_len, data_len),
+        56 => wire__crate__tool_call_arguments_json_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }

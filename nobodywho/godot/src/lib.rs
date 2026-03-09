@@ -773,6 +773,15 @@ impl NobodyWhoChat {
         self.set_sampler_preset_impl(SamplerPresets::json());
     }
 
+    /// Sets the sampler to enforce Python code output format.
+    /// Constrains the model to generate valid Python.
+    /// Note: The underlying GBNF grammar is more permissive than the actual Python grammar,
+    /// so the generated code may still contain minor syntax errors.
+    #[func]
+    fn set_sampler_preset_python(&mut self) {
+        self.set_sampler_preset_impl(SamplerPresets::python());
+    }
+
     /// Sets the sampler to use a custom GBNF grammar.
     /// Constrains the model output to match the provided grammar specification.
     /// Use GBNF format (similar to EBNF) to define the structure of valid output.

@@ -378,6 +378,13 @@ abstract class SamplerPresets implements RustOpaqueInterface {
   static SamplerConfig json() =>
       NobodyWho.instance.api.crateSamplerPresetsJson();
 
+  /// Create a sampler configured for Python code output generation.
+  /// Uses a grammar constraint to guide the model towards valid Python.
+  /// Note: The underlying GBNF grammar is more permissive than the actual Python grammar,
+  /// so the generated code may still contain minor syntax errors.
+  static SamplerConfig python() =>
+      NobodyWho.instance.api.crateSamplerPresetsPython();
+
   /// Create a sampler with temperature scaling.
   ///
   /// Args:

@@ -808,6 +808,17 @@ impl SamplerPresets {
         }
     }
 
+    /// Create a sampler configured for Python code output generation.
+    /// Uses a grammar constraint to guide the model towards valid Python.
+    /// Note: The underlying GBNF grammar is more permissive than the actual Python grammar,
+    /// so the generated code may still contain minor syntax errors.
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn python() -> SamplerConfig {
+        SamplerConfig {
+            sampler_config: nobodywho::sampler_config::SamplerPresets::python(),
+        }
+    }
+
     /// Create a sampler with a custom grammar constraint.
     ///
     /// Args:
