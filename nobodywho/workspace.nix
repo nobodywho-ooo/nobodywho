@@ -15,7 +15,7 @@
   # flutter stuff
   flutter335,
 
-  # extra args
+  # extra args — unused while using pre-generated Cargo.nix, but kept for easy switch-back
   crate2nix,
   stdenv,
 }:
@@ -82,12 +82,16 @@ let
       };
     };
 
-  generatedCargoNix = crate2nix.tools.${stdenv.hostPlatform.system}.generatedCargoNix {
-    name = "nobodywho";
-    src = ./.;
-  };
+  # IFD-based generation — broken with git workspace deps using inheritance (crate2nix#207).
+  # To switch back, uncomment crate2nix/stdenv args above and use this instead of Cargo.nix import.
+  # generatedCargoNix = crate2nix.tools.${stdenv.hostPlatform.system}.generatedCargoNix {
+  #   name = "nobodywho";
+  #   src = ./.;
+  # };
 
-  cargoNix = import generatedCargoNix {
+  # Pre-generated with: nix run github:nix-community/crate2nix -- generate -h crate-hashes.json
+  # Re-run when Cargo.toml or Cargo.lock changes.
+  cargoNix = import ./Cargo.nix {
     inherit pkgs buildRustCrateForPkgs;
   };
 in
