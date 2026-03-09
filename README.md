@@ -3,6 +3,8 @@
 [![Discord](https://img.shields.io/discord/1308812521456799765?logo=discord&style=flat-square)](https://discord.gg/qhaMc2qCYB)
 [![Matrix](https://img.shields.io/badge/Matrix-000?logo=matrix&logoColor=fff)](https://matrix.to/#/#nobodywho:matrix.org)
 [![Mastodon](https://img.shields.io/badge/Mastodon-6364FF?logo=mastodon&logoColor=fff&style=flat-square)](https://mastodon.gamedev.place/@nobodywho)
+[![Pub.dev Version](https://img.shields.io/pub/v/nobodywho?include_prereleases&style=flat-square&label=pub.dev)](https://pub.dev/packages/nobodywho)
+[![PyPI Version](https://img.shields.io/pypi/v/nobodywho?style=flat-square&labelColor=%233775A9&color=%23FFD242)](https://pypi.org/project/nobodywho/)
 [![Godot Engine](https://img.shields.io/badge/Godot-%23FFFFFF.svg?logo=godot-engine&style=flat-square)](https://godotengine.org/asset-library/asset/2886)
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg?style=flat-square)](CODE_OF_CONDUCT.md) 
 [![Docs](https://img.shields.io/badge/Docs-lightblue?style=flat-square)](https://docs.nobodywho.ooo)
@@ -23,6 +25,36 @@ We currently support Python, Flutter and Godot, with more integrations on the wa
 * ⚡ Super fast inference on GPU powered by Vulkan or Metal
 * 🤖 Compatible with thousands of pre-trained LLMs - use any LLM in the GGUF format
 * 🦙 Powered by the wonderful [llama.cpp](https://github.com/ggml-org/llama.cpp)
+
+
+## Flutter
+
+### Quick Start
+
+Install the library:
+
+```
+flutter pub add nobodywho
+```
+
+Download a model, for example: [this fast one]().
+
+Then start chatting with the model:
+
+```dart
+import 'package:nobodywho/nobodywho.dart' as nobodywho;
+
+void main() async {
+  await nobodywho.NobodyWho.init();
+  final chat = await nobodywho.Chat.fromPath(modelPath: './model.gguf');
+  final msg = await chat.ask('Is water wet?').completed();
+  print(msg); // Yes, indeed, water is wet!
+}
+```
+
+Check out the [starter example app](https://github.com/nobodywho-ooo/flutter-starter-example) to test the library in 2 minutes and explore advanced features like embeddings, tool calling, and RAG.
+
+See our [Flutter documentation](https://docs.nobodywho.ooo/flutter/) and [pub.dev](https://pub.dev/packages/nobodywho) for more.
 
 
 ## Python
@@ -95,40 +127,6 @@ You can install it from inside the Godot editor: In Godot 4.5+, go to AssetLib a
 Make sure that the ignore asset root option is set in the import dialogue.
 
 For further instructions on how to setup NobodyWho in Godot please refer to our docs.
-
-## Flutter
-
-### Quick Start
-
-Install the library:
-
-```
-flutter pub add nobodywho
-```
-
-In your `main.dart`, initialize the engine before launching your app:
-
-```dart
-import 'package:nobodywho/nobodywho.dart' as nobodywho;
-
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await nobodywho.NobodyWho.init();
-  runApp(const MyApp());
-}
-```
-
-Then start chatting with the model:
-
-```dart
-final chat = await nobodywho.Chat.fromPath(modelPath: './model.gguf');
-final msg = await chat.ask('Is water wet?').completed();
-print(msg); // Yes, indeed, water is wet!
-```
-
-Check out the [starter example app](https://github.com/nobodywho-ooo/flutter-starter-example) to test the library in 2 minutes and explore advanced features like embeddings, tool calling, and RAG.
-
-See our [Flutter documentation](https://docs.nobodywho.ooo/flutter/) and [pub.dev](https://pub.dev/packages/nobodywho) for more.
 
 ## Documentation
 
