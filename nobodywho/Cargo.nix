@@ -5560,7 +5560,7 @@ rec {
           "system-ggml" = [ "llama-cpp-sys-2/system-ggml" ];
           "vulkan" = [ "llama-cpp-sys-2/vulkan" ];
         };
-        resolvedDefaultFeatures = [ "android-static-stdcxx" "openmp" "vulkan" ];
+        resolvedDefaultFeatures = [ "android-static-stdcxx" "mtmd" "openmp" "vulkan" ];
       };
       "llama-cpp-sys-2" = rec {
         crateName = "llama-cpp-sys-2";
@@ -5604,7 +5604,7 @@ rec {
         features = {
           "cuda-no-vmm" = [ "cuda" ];
         };
-        resolvedDefaultFeatures = [ "metal" "openmp" "static-stdcxx" "vulkan" ];
+        resolvedDefaultFeatures = [ "metal" "mtmd" "openmp" "static-stdcxx" "vulkan" ];
       };
       "lock_api" = rec {
         crateName = "lock_api";
@@ -6062,17 +6062,21 @@ rec {
             packageId = "lazy_static";
           }
           {
+            name = "ahash";
+            packageId = "ahash";
+          }
+          {
             name = "llama-cpp-2";
             packageId = "llama-cpp-2";
             usesDefaultFeatures = false;
-            features = [ "openmp" "android-static-stdcxx" ];
+            features = [ "openmp" "android-static-stdcxx" "mtmd" ];
           }
           {
             name = "llama-cpp-2";
             packageId = "llama-cpp-2";
             usesDefaultFeatures = false;
             target = { target, features }: ((!("macos" == target."os" or null)) && (!("ios" == target."os" or null)) && (!("android" == target."os" or null)) && (("x86_64" == target."arch" or null) || ("x86" == target."arch" or null) || ("aarch64" == target."arch" or null)));
-            features = [ "openmp" "vulkan" "android-static-stdcxx" ];
+            features = [ "openmp" "vulkan" "android-static-stdcxx" "mtmd" ];
           }
           {
             name = "minijinja";
