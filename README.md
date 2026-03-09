@@ -37,7 +37,7 @@ Install the library:
 flutter pub add nobodywho
 ```
 
-Download a model, for example: [this fast one]().
+Download a model file, for example: [Qwen3 0.6B](https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf).
 
 Then start chatting with the model:
 
@@ -67,7 +67,7 @@ Start by installing NobodyWho. This is simply
 pip install nobodywho
 ```
 
-Next download a model. For a quick start we recommend [this one](https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf). It is quite small, but will get the job done.
+Next download a model. For a quick start we recommend [this one](https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf). It is quite small, but will get the job done.
 
 Then you start generating a response from the model with the following code snippet:
 
