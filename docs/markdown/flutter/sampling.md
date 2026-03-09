@@ -30,6 +30,7 @@ class SamplerPresets {
   static SamplerConfig grammar({required String grammar});
   static SamplerConfig greedy();
   static SamplerConfig json();
+  static SamplerConfig python();
   static SamplerConfig temperature({required double temperature});
   static SamplerConfig topK({required int topK});
   static SamplerConfig topP({required double topP});
