@@ -164,6 +164,7 @@ jobs:
           # Use an even shorter target directory to avoid path length issues with git dependencies
           cargo build -p nobodywho-${{ matrix.integration }} --target ${{ matrix.target }} --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked --target-dir C:/t
         env:
+          NOBODYWHO_SKIP_CODEGEN: "1"
           RUSTFLAGS: >-
             -l Advapi32
             -C debuginfo=0
