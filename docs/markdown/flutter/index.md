@@ -31,7 +31,7 @@ We suggest you make it as early and as close to the root of your app as possible
 With that setup done we can move on to the exiting stuff! We will in the rest of the docs that 
 you have imported NobodyWho using namespacing and that `.init()` has been called. 
 
-Now you are ready to download a GGUF model you like - if you don't have a specific model in mind, try [this one](https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf). Read more about [model selection](../model-selection.md).
+Now you are ready to download a GGUF model you like - if you don't have a specific model in mind, try [this one](https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf). Read more about [model selection](../model-selection.md).
 
 Once you have the `.gguf` file, the next step is to create a `Chat` object and call `.ask`!
 

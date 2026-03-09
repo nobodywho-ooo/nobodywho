@@ -14,7 +14,7 @@ First, install `nobodywho`.
 pip install nobodywho
 ```
 
-Next, download a GGUF model you like - if you don't have a specific model in mind, try [this one](https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf). Read more about [model selection](../model-selection.md).
+Next, download a GGUF model you like - if you don't have a specific model in mind, try [this one](https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf). Read more about [model selection](../model-selection.md).
 
 Once you have the `.gguf` file, make a `Chat` object and call `.ask()`!
 
