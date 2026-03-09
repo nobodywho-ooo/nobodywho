@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use pyo3::prelude::*;
 
 mod parse;
@@ -1395,6 +1397,71 @@ fn tool<'a>(
     pyo3::types::PyCFunction::new_closure(py, None, None, function_to_tool)
 }
 
+/// Create a built-in tool that lets the LLM run sandboxed Python code.
+///
+/// The model can call this tool to execute self-contained Python snippets via the Monty
+/// interpreter. No filesystem, network, or environment variable access is allowed unless
+/// explicitly passed as a hardcoded value.
+///
+/// Args:
+///     max_duration: Maximum wall-clock seconds the snippet may run. Defaults to no limit.
+///     max_memory:   Maximum bytes of memory the snippet may allocate. Defaults to no limit.
+///     max_recursion_depth: Maximum call-stack depth. Defaults to no limit.
+///
+/// Returns:
+///     A Tool instance ready to pass to Chat or ChatAsync.
+#[pyfunction]
+#[pyo3(signature = (max_duration: "int | None" = None, max_memory: "int | None" = None, max_recursion_depth: "int | None" = None) -> "Tool")]
+fn python_tool(
+    max_duration: Option<u64>,
+    max_memory: Option<usize>,
+    max_recursion_depth: Option<usize>,
+    py: Python,
+) -> PyResult<Tool> {
+    let core_tool = nobodywho::tool_calling::Tool::python(
+        max_duration.map(Duration::from_secs),
+        max_memory,
+        max_recursion_depth,
+    );
+
+    // Build a Python-callable wrapper so Tool.__call__(code="...") works too.
+    let tool_fn = core_tool.function.clone();
+    let pyfunc = pyo3::types::PyCFunction::new_closure(
+        py,
+        None,
+        None,
+        move |args: &Bound<pyo3::types::PyTuple>,
+              kwargs: Option<&Bound<pyo3::types::PyDict>>|
+              -> PyResult<String> {
+            // Accept code as a positional or keyword argument.
+            let code: String = if let Some(kw) = &kwargs {
+                if let Ok(Some(val)) = kw.get_item("code") {
+                    val.extract()?
+                } else if !args.is_empty() {
+                    args.get_item(0)?.extract()?
+                } else {
+                    return Err(pyo3::exceptions::PyTypeError::new_err(
+                        "python_tool requires a 'code' argument",
+                    ));
+                }
+            } else if !args.is_empty() {
+                args.get_item(0)?.extract()?
+            } else {
+                return Err(pyo3::exceptions::PyTypeError::new_err(
+                    "python_tool requires a 'code' argument",
+                ));
+            };
+
+            Ok(tool_fn(serde_json::json!({ "code": code })))
+        },
+    )?;
+
+    Ok(Tool {
+        tool: core_tool,
+        pyfunc: pyfunc.into(),
+    })
+}
+
 // takes a python function (assumes static types), and returns a json schema for that function
 fn python_func_json_schema(
     py: Python,
@@ -1773,6 +1840,8 @@ pub mod nobodywhopython {
 
     #[pymodule_export]
     use super::cosine_similarity;
+    #[pymodule_export]
+    use super::python_tool;
     #[pymodule_export]
     use super::tool;
     #[pymodule_export]

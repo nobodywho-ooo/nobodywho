@@ -10,8 +10,9 @@ pub mod grammar_builder;
 mod qwen3;
 
 use llama_cpp_2::model::LlamaModel;
+use monty::{LimitedTracker, MontyRun, PrintWriter, ResourceLimits};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 use tracing::debug;
 
 pub use functiongemma::FunctionGemmaHandler;
@@ -55,6 +56,62 @@ impl Tool {
             json_schema,
             function,
         }
+    }
+
+    pub fn python(max_duration: Option<Duration>, max_memory: Option<usize>, max_recursion_depth: Option<usize>) -> Self {
+        let tool = Tool::new(
+            "run_python",
+            "Run a Python snippet and return its printed output. All values must be hardcoded in the code.",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "description": "
+                        Self-contained Python code with all values hardcoded. Use print() to produce output.
+                        Limitations of the Python interpreter:
+                        - No class definitions (use dicts or plain variables instead)
+                        - No match statements (use if/elif chains instead)
+                        - No third-party libraries (no numpy, requests, etc.)
+                        - Standard library is limited to: sys, os, typing, asyncio, re
+                        - No direct filesystem, network, or environment variable access
+                        "
+                    }
+                },
+                "required": ["code"]
+            }),
+            Arc::new({
+                let max_duration = max_duration;
+                let max_memory = max_memory;
+                let max_recursion_depth = max_recursion_depth;
+                move |args: serde_json::Value| -> String {
+                    let Some(code) = args.get("code").map(|c| c.as_str()).flatten() else {
+                        return "ERROR: Code parameter could not be extracted".to_string();
+                    };
+
+                    let runner = match MontyRun::new(code.to_string(), "script.py", vec![], vec![]) {
+                        Ok(runner) => runner,
+                        Err(e) => return format!("ERROR: Failed to create Python runner: {e}"),
+                    };
+                
+                    let mut output = PrintWriter::Collect(String::new());
+                    let limits = ResourceLimits {
+                        max_duration,
+                        max_memory,
+                        gc_interval: None, // we dont let the user configure this
+                        max_allocations: None, // we dont let the user configure this
+                        max_recursion_depth,
+                    };
+
+                    match runner.run(vec![], LimitedTracker::new(limits), &mut output) {
+                        Ok(_) => output.collected_output().unwrap_or_default().to_string(),
+                        Err(e) => return format!("ERROR: Failed to run Python code: {e}"),
+                    }
+                }
+            }),
+        );
+
+        return tool;
     }
 }
 
