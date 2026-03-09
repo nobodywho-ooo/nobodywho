@@ -125,6 +125,23 @@ pub enum EncoderWorkerError {
     Encode(String),
 }
 
+// EmbedderWorker errors
+
+#[derive(Debug, thiserror::Error)]
+pub enum EmbedderWorkerError {
+    #[error("Error reading string: {0}")]
+    Read(#[from] ReadError),
+
+    #[error("No response from embedder worker")]
+    NoResponse,
+
+    #[error("Empty embedding returned")]
+    EmptyEmbedding,
+
+    #[error("Llama.cpp failed getting embeddings: {0}")]
+    GettingEmbeddings(#[from] llama_cpp_2::EmbeddingsError),
+}
+
 // ChatWorker errors
 
 #[derive(thiserror::Error, Debug)]

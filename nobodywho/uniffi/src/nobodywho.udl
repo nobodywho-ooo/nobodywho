@@ -1,0 +1,110 @@
+namespace nobodywho {
+    void init_logging();
+
+    [Throws=NobodyWhoError]
+    Model load_model(string path, boolean use_gpu);
+
+    [Throws=NobodyWhoError]
+    Encoder load_encoder(string path, boolean use_gpu, u32 context_size);
+
+    [Throws=NobodyWhoError]
+    Embedder load_embedder(string path, boolean use_gpu, u32 context_size);
+
+    [Throws=NobodyWhoError]
+    CrossEncoder load_cross_encoder(string path, boolean use_gpu, u32 context_size);
+};
+
+// Error variants wrap the relevant thiserror error types from core.
+// The message is the full Display chain from the wrapped error.
+[Error]
+enum NobodyWhoError {
+    "LoadModel",
+    "Completion",
+    "CrossEncoder",
+    "Embedder",
+    "Encoder",
+    "Worker",
+};
+
+// Role is redefined here rather than re-exported from core because UniFFI
+// requires types to be defined in the crate that generates the scaffolding.
+// Adding uniffi derives to core would defeat the purpose of this crate.
+// Conversions to/from core::chat::Role are implemented in lib.rs.
+enum Role {
+    "User",
+    "Assistant",
+    "System",
+    "Tool",
+};
+
+// ToolCall arguments are kept as a JSON string to avoid pulling serde_json
+// types across the FFI boundary. Callers are expected to deserialise as needed.
+dictionary ToolCall {
+    string name;
+    string arguments_json;
+};
+
+// Mirrors core::chat::Message faithfully, including tool call variants.
+[Enum]
+interface Message {
+    Plain(Role role, string content);
+    ToolCalls(Role role, string content, sequence<ToolCall> tool_calls);
+    ToolResponse(Role role, string name, string content);
+};
+
+// Opaque handle to a loaded model. Cheap to clone (Arc<LlamaModel> inside).
+interface Model {};
+
+dictionary ChatConfig {
+    u32 context_size;
+    string? system_prompt;
+    boolean allow_thinking;
+};
+
+// Streaming response from Chat.ask(). Call next_token() to consume tokens one
+// by one, or completed() to block until the full response is available.
+interface TokenStream {
+    string? next_token();
+    [Throws=NobodyWhoError]
+    string completed();
+};
+
+interface Chat {
+    [Throws=NobodyWhoError]
+    constructor(Model model, ChatConfig config);
+
+    TokenStream ask(string prompt);
+
+    [Throws=NobodyWhoError]
+    sequence<Message> history();
+};
+
+dictionary RankedDocument {
+    string content;
+    float score;
+};
+
+// Cross-encoder for reranking. Uses Rank pooling (BERT-style CLS+SEP format).
+interface CrossEncoder {
+    [Throws=NobodyWhoError]
+    sequence<float> rank(string query, sequence<string> documents);
+
+    [Throws=NobodyWhoError]
+    sequence<RankedDocument> rank_and_sort(string query, sequence<string> documents);
+};
+
+// Encoder for dense retrieval. Uses CLS pooling, suited to BERT-family models.
+interface Encoder {
+    [Throws=NobodyWhoError]
+    sequence<float> encode(string text);
+};
+
+// Embedder for dense retrieval. Uses Mean pooling, suited to models like
+// Nomic or Gecko that expect mean-pooled representations.
+interface Embedder {
+    [Throws=NobodyWhoError]
+    sequence<float> embed(string text);
+
+    [Throws=NobodyWhoError]
+    sequence<sequence<float>> embed_batch(sequence<string> texts);
+};
