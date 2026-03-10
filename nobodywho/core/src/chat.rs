@@ -38,13 +38,14 @@ use crate::tokenizer::{
 };
 use crate::tool_calling::{detect_tool_format, Tool, ToolCall, ToolFormat};
 use ahash::AHasher;
+use indexmap::IndexMap;
 use llama_cpp_2::context::params::LlamaPoolingType;
 use llama_cpp_2::mtmd::MtmdBitmap;
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 use serde::{Deserialize, Serialize};
 use std::cmp::min;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::hash::Hasher;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
@@ -931,14 +932,14 @@ struct ChatContext {
     /// Here we keep the current tokens + image embeddings, which are in the KV cache.
     chunks: TokenizerChunks,
     /// Here we keep a list of the image bitmaps, which are needed for tokenization.
-    bitmaps: HashMap<ChunkId, MtmdBitmap>,
+    bitmaps: IndexMap<ChunkId, MtmdBitmap>,
 }
 
 impl ChatContext {
     fn new() -> Self {
         Self {
             chunks: TokenizerChunks::new(),
-            bitmaps: HashMap::new(),
+            bitmaps: IndexMap::new(),
         }
     }
 
@@ -946,7 +947,7 @@ impl ChatContext {
         &mut self,
         bitmaps: Vec<MtmdBitmap>,
     ) -> Result<Vec<String>, MultimodalError> {
-        let bitmap_map: HashMap<ChunkId, MtmdBitmap> = bitmaps
+        let bitmap_map: IndexMap<ChunkId, MtmdBitmap> = bitmaps
             .into_iter()
             .map(|bitmap| {
                 let id = self.create_bitmap_id(&bitmap);
@@ -954,7 +955,7 @@ impl ChatContext {
 
                 Ok((id, bitmap))
             })
-            .collect::<Result<HashMap<ChunkId, MtmdBitmap>, MultimodalError>>()?;
+            .collect::<Result<IndexMap<ChunkId, MtmdBitmap>, MultimodalError>>()?;
 
         let bitmap_ids = bitmap_map.keys().cloned().collect::<Vec<_>>();
         let existing_bitmap_ids = self
@@ -996,7 +997,7 @@ impl ChatContext {
 
     fn remove_bitmaps(&mut self, bitmap_ids: Vec<String>) {
         for id in bitmap_ids {
-            if let Some(bitmap) = self.bitmaps.remove(&id) {
+            if let Some(bitmap) = self.bitmaps.shift_remove(&id) {
                 drop(bitmap);
             }
         }
