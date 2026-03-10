@@ -9,6 +9,7 @@ use nom::{
     sequence::{preceded, separated_pair},
     IResult, Parser,
 };
+use serde_json::json;
 use tracing::debug;
 
 #[derive(Debug, Clone, Copy)]
@@ -97,6 +98,24 @@ impl ToolFormatHandler for Ministral3Handler {
         } else {
             Some(calls)
         }
+    }
+
+    fn serialize_tool(&self, tool: &Tool) -> serde_json::Value {
+        json!({
+            "type": "function",
+            "function": {
+                "name": &tool.name,
+                "description": &tool.description,
+                "parameters": &tool.json_schema,
+            }
+        })
+    }
+
+    fn serialize_tool_call(&self, tool_call: &ToolCall) -> serde_json::Value {
+        json!({
+            "name": &tool_call.name,
+            "arguments": &tool_call.arguments,
+        })
     }
 }
 

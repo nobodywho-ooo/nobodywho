@@ -21,6 +21,7 @@ def get_tool_responses(chat_history):
     """Extract all tool responses from chat history."""
     return [msg for msg in chat_history if msg.get("role") == "tool"]
 
+
 @nobodywho.tool(
     description="Boop foob",
     params={
@@ -34,18 +35,15 @@ def reflarbicator(reflarb: int, unfloop: bool) -> str:
 
 @nobodywho.tool(
     description="Gets the weather for a given location",
-    params={"location": "The city or location to get weather for"}
+    params={"location": "The city or location to get weather for"},
 )
 def get_weather(location: str) -> str:
     return f"The weather in {location} is sunny and 21°C"
 
 
-@nobodywho.tool(
-    description="Applies the sparklify effect to a given piece of text."
-)
+@nobodywho.tool(description="Applies the sparklify effect to a given piece of text.")
 async def async_sparklify(text: str) -> str:
     return f"✨{text.upper()}✨"
-
 
 
 @nobodywho.tool(description="Applies the sparklify effect to a given piece of text.")
@@ -54,26 +52,41 @@ def sparklify(text: str) -> str:
 
 
 @nobodywho.tool(description="Returns the intersection of set1 and set2")
-def set_intersection(set1 : set[int], set2 : set[int]) -> str:
+def set_intersection(set1: set[int], set2: set[int]) -> str:
     return str(set1.intersection(set2))
 
-@nobodywho.tool(description="Returns the string in the tuple string_int_pair concatenated with itself a number of times equal to the integer in string_int_pair")
-def multiply_strings(string_int_pair : tuple[str,int]) -> str:
+
+@nobodywho.tool(
+    description="Returns the string in the tuple string_int_pair concatenated with itself a number of times equal to the integer in string_int_pair"
+)
+def multiply_strings(string_int_pair: tuple[str, int]) -> str:
     assert isinstance(string_int_pair, tuple)
     return string_int_pair[0] * string_int_pair[1]
 
-@nobodywho.tool(description="Does vector addition on the list of vectors provided", params={"list_of_vectors" : "List of vectors to added. Each vector must of same length"})
-def add_list_of_vectors(list_of_vectors : list[list[int]]) -> str:
+
+@nobodywho.tool(
+    description="Does vector addition on the list of vectors provided",
+    params={
+        "list_of_vectors": "List of vectors to added. Each vector must of same length"
+    },
+)
+def add_list_of_vectors(list_of_vectors: list[list[int]]) -> str:
     res = list_of_vectors[0].copy()
     for v in list_of_vectors[1:]:
-        for i,coord in enumerate(v):
+        for i, coord in enumerate(v):
             res[i] += coord
     return str(res)
 
-@nobodywho.tool(description="Returns the volume of a cube with the input dimenensions", params={"dimensions" : "A map containing the numeric values for the width, heigth and depth of a cube."})
-def calculate_volume(dimensions: dict[str,float]) -> str:
-      # dimensions: {"width": float, "height": float, "depth": float}
-      return str(dimensions["width"] * dimensions["height"] * dimensions["depth"])
+
+@nobodywho.tool(
+    description="Returns the volume of a cube with the input dimenensions",
+    params={
+        "dimensions": "A map containing the numeric values for the width, heigth and depth of a cube."
+    },
+)
+def calculate_volume(dimensions: dict[str, float]) -> str:
+    # dimensions: {"width": float, "height": float, "depth": float}
+    return str(dimensions["width"] * dimensions["height"] * dimensions["depth"])
 
 
 @pytest.fixture(scope="module")
@@ -84,20 +97,33 @@ def model():
 
     return nobodywho.Model(model_path)
 
+
 def is_functiongemma():
     return "functiongemma" in os.environ.get("TEST_MODEL", "").lower()
+
 
 @pytest.fixture
 def chat(model):
     if is_functiongemma():
         return nobodywho.Chat(
-            model, system_prompt="You are a helpful assistant", allow_thinking=False, tools=[sparklify]
+            model,
+            system_prompt="You are a helpful assistant",
+            allow_thinking=False,
+            tools=[sparklify],
         )
     return nobodywho.Chat(
-            model, system_prompt="You are a helpful assistant", allow_thinking=False, tools=[set_intersection, multiply_strings, sparklify, reflarbicator, add_list_of_vectors, calculate_volume]
-        )
-    
-
+        model,
+        system_prompt="You are a helpful assistant",
+        allow_thinking=False,
+        tools=[
+            set_intersection,
+            multiply_strings,
+            sparklify,
+            reflarbicator,
+            add_list_of_vectors,
+            calculate_volume,
+        ],
+    )
 
 
 def test_tool_construction():
@@ -107,21 +133,21 @@ def test_tool_construction():
 
 
 def test_tool_calling(chat):
-    chat.ask("Please sparklify this word: 'julemand' and show me the result").completed()
+    chat.ask(
+        "Please sparklify this word: 'julemand' and show me the result"
+    ).completed()
 
     history = chat.get_chat_history()
     tool_calls = get_tool_calls(history)
     tool_responses = get_tool_responses(history)
 
     assert len(tool_calls) == 1
-    assert tool_calls[0]["function"]["name"] == "sparklify"
-    assert tool_calls[0]["function"]["arguments"]["text"] == "julemand"
+    assert tool_calls[0]["name"] == "sparklify"
+    assert tool_calls[0]["arguments"]["text"] == "julemand"
 
     assert len(tool_responses) == 1
     assert tool_responses[0]["name"] == "sparklify"
     assert tool_responses[0]["content"] == "✨JULEMAND✨"
-
-
 
 
 def test_tool_bad_parameters():
@@ -141,15 +167,17 @@ async def test_async_tool_construction():
 
 def test_async_tool_calling(model):
     chat = nobodywho.Chat(model, tools=[async_sparklify])
-    chat.ask("Please sparklify this word: 'julemand' and show me the result").completed()
+    chat.ask(
+        "Please sparklify this word: 'julemand' and show me the result"
+    ).completed()
 
     history = chat.get_chat_history()
     tool_calls = get_tool_calls(history)
     tool_responses = get_tool_responses(history)
 
     assert len(tool_calls) == 1
-    assert tool_calls[0]["function"]["name"] == "async_sparklify"
-    assert tool_calls[0]["function"]["arguments"]["text"] == "julemand"
+    assert tool_calls[0]["name"] == "async_sparklify"
+    assert tool_calls[0]["arguments"]["text"] == "julemand"
 
     assert len(tool_responses) == 1
     assert tool_responses[0]["name"] == "async_sparklify"
@@ -164,22 +192,26 @@ def test_async_tool_bad_parameters():
             return "fuck"
 
 
-
 def test_set_tools(model):
     """Test that set_tools changes available tools and persists after reset_history"""
     chat = nobodywho.Chat(
-            model, system_prompt="You are a helpful assistant", allow_thinking=False, tools=[sparklify]
-        )
+        model,
+        system_prompt="You are a helpful assistant",
+        allow_thinking=False,
+        tools=[sparklify],
+    )
     # Use initial tool
-    chat.ask("Please sparklify this word: 'julemand' and show me the result").completed()
+    chat.ask(
+        "Please sparklify this word: 'julemand' and show me the result"
+    ).completed()
 
     history = chat.get_chat_history()
     tool_calls = get_tool_calls(history)
     tool_responses = get_tool_responses(history)
 
     assert len(tool_calls) == 1
-    assert tool_calls[0]["function"]["name"] == "sparklify"
-    assert tool_calls[0]["function"]["arguments"]["text"] == "julemand"
+    assert tool_calls[0]["name"] == "sparklify"
+    assert tool_calls[0]["arguments"]["text"] == "julemand"
 
     assert len(tool_responses) == 1
     assert tool_responses[0]["content"] == "✨JULEMAND✨"
@@ -198,8 +230,8 @@ def test_set_tools(model):
     tool_responses = get_tool_responses(history)
 
     assert len(tool_calls) == 1
-    assert tool_calls[0]["function"]["name"] == "get_weather"
-    assert tool_calls[0]["function"]["arguments"]["location"] == "Copenhagen"
+    assert tool_calls[0]["name"] == "get_weather"
+    assert tool_calls[0]["arguments"]["location"] == "Copenhagen"
 
     assert len(tool_responses) == 1
     assert tool_responses[0]["name"] == "get_weather"
@@ -211,22 +243,24 @@ def test_tool_calling_with_custom_sampler(model):
         model,
         tools=[sparklify],
         sampler=nobodywho.SamplerBuilder()
-            .top_k(64)
-            .top_p(0.95, min_keep=2)
-            .temperature(0.8)
-            .dist(),
+        .top_k(64)
+        .top_p(0.95, min_keep=2)
+        .temperature(0.8)
+        .dist(),
         allow_thinking=False,
     )
 
-    chat.ask("Please sparklify this word: 'julemand' and show me the result").completed()
+    chat.ask(
+        "Please sparklify this word: 'julemand' and show me the result"
+    ).completed()
 
     history = chat.get_chat_history()
     tool_calls = get_tool_calls(history)
     tool_responses = get_tool_responses(history)
 
     assert len(tool_calls) == 1
-    assert tool_calls[0]["function"]["name"] == "sparklify"
-    assert tool_calls[0]["function"]["arguments"]["text"] == "julemand"
+    assert tool_calls[0]["name"] == "sparklify"
+    assert tool_calls[0]["arguments"]["text"] == "julemand"
 
     assert len(tool_responses) == 1
     assert tool_responses[0]["name"] == "sparklify"
@@ -237,72 +271,89 @@ def test_tool_with_sets(chat):
     if is_functiongemma():
         pytest.skip("Test not supported with FunctionGemma models")
 
-    chat.ask("Please use the provided tool to find the intersection between the sets {12,5,7,3,4} and {12,9,5,3}").completed()
+    chat.ask(
+        "Please use the provided tool to find the intersection between the sets {12,5,7,3,4} and {12,9,5,3}"
+    ).completed()
 
     history = chat.get_chat_history()
     tool_calls = get_tool_calls(history)
     tool_responses = get_tool_responses(history)
 
     assert len(tool_calls) == 1
-    assert tool_calls[0]["function"]["name"] == "set_intersection"
-    assert set(tool_calls[0]["function"]["arguments"]["set1"]) == {12, 5, 7, 3, 4}
-    assert set(tool_calls[0]["function"]["arguments"]["set2"]) == {12, 9, 5, 3}
+    assert tool_calls[0]["name"] == "set_intersection"
+    assert set(tool_calls[0]["arguments"]["set1"]) == {12, 5, 7, 3, 4}
+    assert set(tool_calls[0]["arguments"]["set2"]) == {12, 9, 5, 3}
 
     assert len(tool_responses) == 1
     assert tool_responses[0]["name"] == "set_intersection"
     # The response is a string representation of a set, check all expected elements are present
     response_content = tool_responses[0]["content"]
-    assert "12" in response_content and "5" in response_content and "3" in response_content 
+    assert (
+        "12" in response_content and "5" in response_content and "3" in response_content
+    )
+
 
 def test_tool_with_tuple(chat):
     if is_functiongemma():
         pytest.skip("Test not supported with FunctionGemma models")
 
-    chat.ask("Please use the provided tool to multiply the string BingBong by 3").completed()
+    chat.ask(
+        "Please use the provided tool to multiply the string BingBong by 3"
+    ).completed()
 
     history = chat.get_chat_history()
     tool_calls = get_tool_calls(history)
     tool_responses = get_tool_responses(history)
 
     assert len(tool_calls) == 1
-    assert tool_calls[0]["function"]["name"] == "multiply_strings"
-    assert tool_calls[0]["function"]["arguments"]["string_int_pair"] == ["BingBong", 3]
+    assert tool_calls[0]["name"] == "multiply_strings"
+    assert tool_calls[0]["arguments"]["string_int_pair"] == ["BingBong", 3]
 
     assert len(tool_responses) == 1
     assert tool_responses[0]["name"] == "multiply_strings"
     assert tool_responses[0]["content"] == "BingBongBingBongBingBong"
 
+
 def test_tool_with_nested_list(chat):
     if is_functiongemma():
         pytest.skip("Test not supported with FunctionGemma models")
 
-    chat.ask("Please use the provided tool to add the vectors [[1,2,3],[4,5,6],[7,8,9]].").completed()
+    chat.ask(
+        "Please use the provided tool to add the vectors [[1,2,3],[4,5,6],[7,8,9]]."
+    ).completed()
 
     history = chat.get_chat_history()
     tool_calls = get_tool_calls(history)
     tool_responses = get_tool_responses(history)
 
     assert len(tool_calls) == 1
-    assert tool_calls[0]["function"]["name"] == "add_list_of_vectors"
-    assert tool_calls[0]["function"]["arguments"]["list_of_vectors"] == [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+    assert tool_calls[0]["name"] == "add_list_of_vectors"
+    assert tool_calls[0]["arguments"]["list_of_vectors"] == [
+        [1, 2, 3],
+        [4, 5, 6],
+        [7, 8, 9],
+    ]
 
     assert len(tool_responses) == 1
     assert tool_responses[0]["name"] == "add_list_of_vectors"
     assert tool_responses[0]["content"] == "[12, 15, 18]"
 
+
 def test_tool_with_dict(chat):
     if is_functiongemma():
         pytest.skip("Test not supported with FunctionGemma models")
 
-    chat.ask("Please use the provided tool to find the volume of a cube with dimensions 30 x 20 x 10.").completed()
+    chat.ask(
+        "Please use the provided tool to find the volume of a cube with dimensions 30 x 20 x 10."
+    ).completed()
 
     history = chat.get_chat_history()
     tool_calls = get_tool_calls(history)
     tool_responses = get_tool_responses(history)
 
     assert len(tool_calls) == 1
-    assert tool_calls[0]["function"]["name"] == "calculate_volume"
-    dimensions = tool_calls[0]["function"]["arguments"]["dimensions"]
+    assert tool_calls[0]["name"] == "calculate_volume"
+    dimensions = tool_calls[0]["arguments"]["dimensions"]
     assert dimensions["width"] == 30
     assert dimensions["height"] == 20
     assert dimensions["depth"] == 10
@@ -310,3 +361,31 @@ def test_tool_with_dict(chat):
     assert len(tool_responses) == 1
     assert tool_responses[0]["name"] == "calculate_volume"
     assert tool_responses[0]["content"] == "6000.0"
+
+
+def test_python_tool(model):
+    if is_functiongemma():
+        pytest.skip(
+            "Test not supported with FunctionGemma models; the model is too dumb to code."
+        )
+
+    chat = nobodywho.Chat(
+        model,
+        tools=[nobodywho.python_tool()],
+        allow_thinking=False,
+    )
+
+    chat.ask(
+        "Write me a fibonacci function in Python. Then run it in with the python tool and compute what the 30th Fibonacci number is."
+    ).completed()
+
+    history = chat.get_chat_history()
+    tool_calls = get_tool_calls(history)
+    tool_responses = get_tool_responses(history)
+
+    assert len(tool_calls) == 1
+    assert tool_calls[0]["name"] == "run_python"
+
+    assert len(tool_responses) == 1
+    assert tool_responses[0]["name"] == "run_python"
+    assert "832040" in tool_responses[0]["content"]

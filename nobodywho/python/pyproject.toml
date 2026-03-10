@@ -31,5 +31,6 @@ dev = [
 testpaths = ["tests", "../../docs"]
 python_files = ["test_*.py", "*.md"]
 pythonpath = ["."]
-# Allow conftest.py discovery up to the repository root
-confcutdir = "../.."
+# Don't capture stdout/stderr so IO (prints, logs, progress bars) shows in real time
+# confcutdir via addopts (not valid in ini_options) - limits conftest discovery to repo root
+addopts = "-s --confcutdir=../.."
