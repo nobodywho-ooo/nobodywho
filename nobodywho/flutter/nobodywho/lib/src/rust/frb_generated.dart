@@ -67,7 +67,7 @@ class NobodyWho
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 1691486690;
+  int get rustContentHash => -928902859;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -141,7 +141,7 @@ abstract class NobodyWhoApi extends BaseApi {
 
   Future<void> crateRustChatResetContext({
     required RustChat that,
-    required String systemPrompt,
+    String? systemPrompt,
     required List<RustTool> tools,
   });
 
@@ -164,7 +164,7 @@ abstract class NobodyWhoApi extends BaseApi {
 
   Future<void> crateRustChatSetSystemPrompt({
     required RustChat that,
-    required String systemPrompt,
+    String? systemPrompt,
   });
 
   Future<void> crateRustChatSetTools({
@@ -296,8 +296,6 @@ abstract class NobodyWhoApi extends BaseApi {
     required List<double> a,
     required List<double> b,
   });
-
-  Future<void> crateEnforceBinding();
 
   Future<void> crateInitApp();
 
@@ -946,7 +944,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   @override
   Future<void> crateRustChatResetContext({
     required RustChat that,
-    required String systemPrompt,
+    String? systemPrompt,
     required List<RustTool> tools,
   }) {
     return handler.executeNormal(
@@ -957,7 +955,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             that,
             serializer,
           );
-          sse_encode_String(systemPrompt, serializer);
+          sse_encode_opt_String(systemPrompt, serializer);
           sse_encode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTool(
             tools,
             serializer,
@@ -1143,7 +1141,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   @override
   Future<void> crateRustChatSetSystemPrompt({
     required RustChat that,
-    required String systemPrompt,
+    String? systemPrompt,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -1153,7 +1151,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             that,
             serializer,
           );
-          sse_encode_String(systemPrompt, serializer);
+          sse_encode_opt_String(systemPrompt, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -2252,33 +2250,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       const TaskConstMeta(debugName: "cosine_similarity", argNames: ["a", "b"]);
 
   @override
-  Future<void> crateEnforceBinding() {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 52,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateEnforceBindingConstMeta,
-        argValues: [],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateEnforceBindingConstMeta =>
-      const TaskConstMeta(debugName: "enforce_binding", argNames: []);
-
-  @override
   Future<void> crateInitApp() {
     return handler.executeNormal(
       NormalTask(
@@ -2287,7 +2258,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 53,
+            funcId: 52,
             port: port_,
           );
         },
@@ -2325,7 +2296,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_String(description, serializer);
           sse_encode_String(runtimeType, serializer);
           sse_encode_Map_String_String_None(parameterDescriptions, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 54)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 53)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2366,7 +2337,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             toolCall,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 55)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 54)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -5115,7 +5086,7 @@ class RustChatImpl extends RustOpaque implements RustChat {
       NobodyWho.instance.api.crateRustChatGetChatHistory(that: this);
 
   Future<void> resetContext({
-    required String systemPrompt,
+    String? systemPrompt,
     required List<RustTool> tools,
   }) => NobodyWho.instance.api.crateRustChatResetContext(
     that: this,
@@ -5142,9 +5113,7 @@ class RustChatImpl extends RustOpaque implements RustChat {
         samplerConfig: samplerConfig,
       );
 
-  Future<void> setSystemPrompt({required String systemPrompt}) => NobodyWho
-      .instance
-      .api
+  Future<void> setSystemPrompt({String? systemPrompt}) => NobodyWho.instance.api
       .crateRustChatSetSystemPrompt(that: this, systemPrompt: systemPrompt);
 
   Future<void> setTools({required List<RustTool> tools}) =>

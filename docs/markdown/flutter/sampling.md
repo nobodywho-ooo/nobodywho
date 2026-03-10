@@ -13,7 +13,7 @@ to achieve better quality outputs or constrain the outputs to some known format 
 To get a quick start, NobodyWho offers a couple of well-known presets, which you can quickly utilize.
 For example, if you want to increase or decrease the "creativity" of your model, select our `temperature` preset:
 ```dart
-import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
+import 'package:nobodywho/nobodywho.dart' as nobodywho;
 
 final chat = await nobodywho.Chat.fromPath(
   modelPath: "./model.gguf",
@@ -73,7 +73,7 @@ Sampler presets abstract away some control, that you might want - for example, i
 want to chain samplers, change more "advanced" parameters, etc. For that use case,
 we provide `SamplerBuilder` class:
 ```dart
-import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
+import 'package:nobodywho/nobodywho.dart' as nobodywho;
 
 final chat = await nobodywho.Chat.fromPath(
   modelPath: "./model.gguf",

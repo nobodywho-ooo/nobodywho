@@ -222,7 +222,20 @@ impl TokenStreamAsync {
 /// See `EncoderAsync` for the async version of this class.
 #[pyclass]
 pub struct Encoder {
-    encoder: nobodywho::encoder::Encoder,
+    encoder: Option<nobodywho::encoder::Encoder>,
+}
+
+impl Encoder {
+    fn inner(&self) -> &nobodywho::encoder::Encoder {
+        self.encoder.as_ref().expect("Encoder used after drop")
+    }
+}
+
+impl Drop for Encoder {
+    fn drop(&mut self) {
+        let encoder = self.encoder.take();
+        Python::attach(|py| py.detach(|| drop(encoder)));
+    }
 }
 
 #[pymethods]
@@ -244,7 +257,9 @@ impl Encoder {
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
         let encoder = nobodywho::encoder::Encoder::new(nw_model, n_ctx);
-        Ok(Self { encoder })
+        Ok(Self {
+            encoder: Some(encoder),
+        })
     }
 
     /// Generate an embedding vector for the given text. This method blocks until complete.
@@ -260,7 +275,7 @@ impl Encoder {
     #[pyo3(signature = (text: "str") -> "list[float]")]
     pub fn encode(&self, text: String, py: Python) -> PyResult<Vec<f32>> {
         py.detach(|| {
-            self.encoder
+            self.inner()
                 .encode(text)
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))
         })
@@ -270,7 +285,22 @@ impl Encoder {
 /// This is the async version of the `Encoder` class. See the docs on `Encoder` for more detail.
 #[pyclass]
 pub struct EncoderAsync {
-    encoder_handle: nobodywho::encoder::EncoderAsync,
+    encoder_handle: Option<nobodywho::encoder::EncoderAsync>,
+}
+
+impl EncoderAsync {
+    fn inner(&self) -> &nobodywho::encoder::EncoderAsync {
+        self.encoder_handle
+            .as_ref()
+            .expect("EncoderAsync used after drop")
+    }
+}
+
+impl Drop for EncoderAsync {
+    fn drop(&mut self) {
+        let handle = self.encoder_handle.take();
+        Python::attach(|py| py.detach(|| drop(handle)));
+    }
 }
 
 #[pymethods]
@@ -292,7 +322,9 @@ impl EncoderAsync {
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
         let encoder_handle = nobodywho::encoder::EncoderAsync::new(nw_model, n_ctx);
-        Ok(Self { encoder_handle })
+        Ok(Self {
+            encoder_handle: Some(encoder_handle),
+        })
     }
 
     /// Generate an embedding vector for the given text asynchronously.
@@ -307,7 +339,7 @@ impl EncoderAsync {
     ///     RuntimeError: If encoding fails
     #[pyo3(signature = (text: "str") -> "typing.Awaitable[list[float]]")]
     async fn encode(&self, text: String) -> PyResult<Vec<f32>> {
-        self.encoder_handle.encode(text).await.map_err(|e| {
+        self.inner().encode(text).await.map_err(|e| {
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
                 "Failed to receive embedding: {e}"
             ))
@@ -321,7 +353,22 @@ impl EncoderAsync {
 /// See `CrossEncoderAsync` for the async version of this class.
 #[pyclass]
 pub struct CrossEncoder {
-    crossencoder: nobodywho::crossencoder::CrossEncoder,
+    crossencoder: Option<nobodywho::crossencoder::CrossEncoder>,
+}
+
+impl CrossEncoder {
+    fn inner(&self) -> &nobodywho::crossencoder::CrossEncoder {
+        self.crossencoder
+            .as_ref()
+            .expect("CrossEncoder used after drop")
+    }
+}
+
+impl Drop for CrossEncoder {
+    fn drop(&mut self) {
+        let crossencoder = self.crossencoder.take();
+        Python::attach(|py| py.detach(|| drop(crossencoder)));
+    }
 }
 
 #[pymethods]
@@ -343,7 +390,9 @@ impl CrossEncoder {
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
         let crossencoder = nobodywho::crossencoder::CrossEncoder::new(nw_model, n_ctx);
-        Ok(Self { crossencoder })
+        Ok(Self {
+            crossencoder: Some(crossencoder),
+        })
     }
 
     /// Compute similarity scores between a query and multiple documents. This method blocks.
@@ -360,7 +409,7 @@ impl CrossEncoder {
     #[pyo3(signature = (query: "str", documents: "list[str]") -> "list[float]")]
     pub fn rank(&self, query: String, documents: Vec<String>, py: Python) -> PyResult<Vec<f32>> {
         py.detach(|| {
-            self.crossencoder
+            self.inner()
                 .rank(query, documents)
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))
         })
@@ -385,7 +434,7 @@ impl CrossEncoder {
         py: Python,
     ) -> PyResult<Vec<(String, f32)>> {
         py.detach(|| {
-            self.crossencoder
+            self.inner()
                 .rank_and_sort(query, documents)
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))
         })
@@ -396,7 +445,22 @@ impl CrossEncoder {
 /// See the docs for `CrossEncoder` for more details.
 #[pyclass]
 pub struct CrossEncoderAsync {
-    crossencoder_handle: nobodywho::crossencoder::CrossEncoderAsync,
+    crossencoder_handle: Option<nobodywho::crossencoder::CrossEncoderAsync>,
+}
+
+impl CrossEncoderAsync {
+    fn inner(&self) -> &nobodywho::crossencoder::CrossEncoderAsync {
+        self.crossencoder_handle
+            .as_ref()
+            .expect("CrossEncoderAsync used after drop")
+    }
+}
+
+impl Drop for CrossEncoderAsync {
+    fn drop(&mut self) {
+        let handle = self.crossencoder_handle.take();
+        Python::attach(|py| py.detach(|| drop(handle)));
+    }
 }
 
 #[pymethods]
@@ -419,7 +483,7 @@ impl CrossEncoderAsync {
         let nw_model = model.get_inner_model()?;
         let crossencoder_handle = nobodywho::crossencoder::CrossEncoderAsync::new(nw_model, n_ctx);
         Ok(Self {
-            crossencoder_handle,
+            crossencoder_handle: Some(crossencoder_handle),
         })
     }
 
@@ -436,14 +500,11 @@ impl CrossEncoderAsync {
     ///     RuntimeError: If ranking fails
     #[pyo3(signature = (query: "str", documents: "list[str]") -> "typing.Awaitable[list[float]]")]
     async fn rank(&self, query: String, documents: Vec<String>) -> PyResult<Vec<f32>> {
-        self.crossencoder_handle
-            .rank(query, documents)
-            .await
-            .map_err(|e| {
-                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-                    "Failed to receive ranking scores: {e}"
-                ))
-            })
+        self.inner().rank(query, documents).await.map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                "Failed to receive ranking scores: {e}"
+            ))
+        })
     }
 
     /// Rank documents by similarity to query and return them sorted asynchronously.
@@ -463,7 +524,7 @@ impl CrossEncoderAsync {
         query: String,
         documents: Vec<String>,
     ) -> PyResult<Vec<(String, f32)>> {
-        self.crossencoder_handle
+        self.inner()
             .rank_and_sort(query, documents)
             .await
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))
@@ -481,7 +542,25 @@ impl CrossEncoderAsync {
 /// See `ChatAsync` for the async version of this class.
 #[pyclass]
 pub struct Chat {
-    chat_handle: nobodywho::chat::ChatHandle,
+    // Wrap in Option so we can take it in Drop to release the handle
+    // while the GIL is temporarily dropped.
+    chat_handle: Option<nobodywho::chat::ChatHandle>,
+}
+
+impl Chat {
+    fn handle(&self) -> &nobodywho::chat::ChatHandle {
+        self.chat_handle.as_ref().expect("Chat used after drop")
+    }
+}
+
+impl Drop for Chat {
+    fn drop(&mut self) {
+        let handle = self.chat_handle.take();
+        // Release the GIL before joining the background thread.
+        // This prevents deadlocks if the background thread needs the GIL
+        // to log messages (via pyo3_log) or execute Python tools during its shutdown.
+        Python::attach(|py| py.detach(|| drop(handle)));
+    }
 }
 
 #[pymethods]
@@ -503,11 +582,11 @@ impl Chat {
     ///     RuntimeError: If the model cannot be loaded
     ///     ValueError: If the path contains invalid UTF-8
     #[new]
-    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = "", allow_thinking = true, tools: "list[Tool]" = Vec::<Tool>::new(), sampler=SamplerConfig::default()) -> "Chat")]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, allow_thinking = true, tools: "list[Tool]" = Vec::<Tool>::new(), sampler=SamplerConfig::default()) -> "Chat")]
     pub fn new(
         model: ModelOrPath,
         n_ctx: u32,
-        system_prompt: &str,
+        system_prompt: Option<&str>,
         allow_thinking: bool,
         tools: Vec<Tool>,
         sampler: SamplerConfig,
@@ -520,7 +599,10 @@ impl Chat {
             .with_system_prompt(system_prompt)
             .with_sampler(sampler.sampler_config)
             .build();
-        Ok(Self { chat_handle })
+
+        Ok(Self {
+            chat_handle: Some(chat_handle),
+        })
     }
 
     /// Send a message to the model and get a streaming response.
@@ -532,7 +614,7 @@ impl Chat {
     ///     A TokenStream that yields tokens as they are generated
     pub fn ask(&self, text: String) -> TokenStream {
         TokenStream {
-            stream: self.chat_handle.ask(text),
+            stream: self.handle().ask(text),
         }
     }
 
@@ -544,10 +626,15 @@ impl Chat {
     ///
     /// Raises:
     ///     RuntimeError: If reset fails
-    #[pyo3(signature = (system_prompt: "str", tools: "list[Tool]") -> "None")]
-    pub fn reset(&self, system_prompt: String, tools: Vec<Tool>, py: Python) -> PyResult<()> {
+    #[pyo3(signature = (system_prompt: "str | None", tools: "list[Tool]") -> "None")]
+    pub fn reset(
+        &self,
+        system_prompt: Option<String>,
+        tools: Vec<Tool>,
+        py: Python,
+    ) -> PyResult<()> {
         py.detach(|| {
-            self.chat_handle
+            self.handle()
                 .reset_chat(system_prompt, tools.into_iter().map(|t| t.tool).collect())
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         })
@@ -560,7 +647,7 @@ impl Chat {
     #[pyo3(signature = () -> "None")]
     pub fn reset_history(&self, py: Python) -> PyResult<()> {
         py.detach(|| {
-            self.chat_handle
+            self.handle()
                 .reset_history()
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         })
@@ -576,7 +663,7 @@ impl Chat {
     #[pyo3(signature = (allow_thinking: "bool") -> "None")]
     pub fn set_allow_thinking(&self, allow_thinking: bool, py: Python) -> PyResult<()> {
         py.detach(|| {
-            self.chat_handle
+            self.handle()
                 .set_allow_thinking(allow_thinking)
                 .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
         })
@@ -593,7 +680,7 @@ impl Chat {
     #[pyo3(signature = () -> "list[dict]")]
     pub fn get_chat_history(&self, py: Python) -> PyResult<Py<PyAny>> {
         let msgs = py.detach(|| {
-            self.chat_handle
+            self.handle()
                 .get_chat_history()
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         })?;
@@ -618,18 +705,19 @@ impl Chat {
             .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
 
         py.detach(|| {
-            self.chat_handle
+            self.handle()
                 .set_chat_history(msgs)
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         })
     }
+
     /// Stop the current text generation immediately.
     ///
     /// This can be used to cancel an in-progress generation if the response is taking too long
     /// or is no longer needed.
     #[pyo3(signature = () -> "None")]
     pub fn stop_generation(&self, py: Python) {
-        py.detach(|| self.chat_handle.stop_generation())
+        py.detach(|| self.handle().stop_generation())
     }
 
     /// Update the list of tools available to the model without resetting chat history.
@@ -642,7 +730,7 @@ impl Chat {
     #[pyo3(signature = (tools : "list[Tool]") -> "None")]
     pub fn set_tools(&self, tools: Vec<Tool>, py: Python) -> PyResult<()> {
         py.detach(|| {
-            self.chat_handle
+            self.handle()
                 .set_tools(tools.into_iter().map(|t| t.tool).collect())
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         })
@@ -655,10 +743,10 @@ impl Chat {
     ///
     /// Raises:
     ///     RuntimeError: If the system prompt cannot be changed
-    #[pyo3(signature = (system_prompt : "str") -> "None")]
-    pub fn set_system_prompt(&self, system_prompt: String, py: Python) -> PyResult<()> {
+    #[pyo3(signature = (system_prompt : "str | None") -> "None")]
+    pub fn set_system_prompt(&self, system_prompt: Option<String>, py: Python) -> PyResult<()> {
         py.detach(|| {
-            self.chat_handle
+            self.handle()
                 .set_system_prompt(system_prompt)
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         })
@@ -674,7 +762,7 @@ impl Chat {
     #[pyo3(signature = (sampler : "SamplerConfig") -> "None")]
     pub fn set_sampler_config(&self, sampler: SamplerConfig, py: Python) -> PyResult<()> {
         py.detach(|| {
-            self.chat_handle
+            self.handle()
                 .set_sampler_config(sampler.sampler_config)
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         })
@@ -685,7 +773,26 @@ impl Chat {
 /// See the docs for the `Chat` class for more information.
 #[pyclass]
 pub struct ChatAsync {
-    chat_handle: nobodywho::chat::ChatHandleAsync,
+    // Option so we can take it in Drop to release it with the GIL temporarily dropped.
+    chat_handle: Option<nobodywho::chat::ChatHandleAsync>,
+}
+
+impl ChatAsync {
+    fn handle(&self) -> &nobodywho::chat::ChatHandleAsync {
+        self.chat_handle
+            .as_ref()
+            .expect("ChatAsync used after drop")
+    }
+}
+
+impl Drop for ChatAsync {
+    fn drop(&mut self) {
+        let handle = self.chat_handle.take();
+        // Rust's Drop runs while the GIL is held (Python is freeing the object).
+        // Release the GIL so that pyo3-async-runtimes tokio tasks that captured
+        // Py<T> references can acquire it for their own cleanup, unblocking join().
+        Python::attach(|py| py.detach(|| drop(handle)));
+    }
 }
 
 #[pymethods]
@@ -707,11 +814,11 @@ impl ChatAsync {
     ///     RuntimeError: If the model cannot be loaded
     ///     ValueError: If the path contains invalid UTF-8
     #[new]
-    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = "", allow_thinking = true, tools: "list[Tool]" = vec![], sampler = SamplerConfig::default()) -> "ChatAsync")]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, allow_thinking = true, tools: "list[Tool]" = vec![], sampler = SamplerConfig::default()) -> "ChatAsync")]
     pub fn new(
         model: ModelOrPath,
         n_ctx: u32,
-        system_prompt: &str,
+        system_prompt: Option<&str>,
         allow_thinking: bool,
         tools: Vec<Tool>,
         sampler: SamplerConfig,
@@ -724,7 +831,9 @@ impl ChatAsync {
             .with_system_prompt(system_prompt)
             .with_sampler(sampler.sampler_config)
             .build_async();
-        Ok(Self { chat_handle })
+        Ok(Self {
+            chat_handle: Some(chat_handle),
+        })
     }
 
     /// Send a message to the model and get a streaming response asynchronously.
@@ -736,7 +845,7 @@ impl ChatAsync {
     ///     A TokenStreamAsync that yields tokens as they are generated
     pub fn ask(&self, text: String) -> TokenStreamAsync {
         TokenStreamAsync {
-            stream: std::sync::Arc::new(tokio::sync::Mutex::new(self.chat_handle.ask(text))),
+            stream: std::sync::Arc::new(tokio::sync::Mutex::new(self.handle().ask(text))),
         }
     }
 
@@ -748,9 +857,9 @@ impl ChatAsync {
     ///
     /// Raises:
     ///     RuntimeError: If reset fails
-    #[pyo3(signature = (system_prompt: "str", tools: "list[Tool]") -> "None")]
-    pub async fn reset(&self, system_prompt: String, tools: Vec<Tool>) -> PyResult<()> {
-        self.chat_handle
+    #[pyo3(signature = (system_prompt: "str | None", tools: "list[Tool]") -> "None")]
+    pub async fn reset(&self, system_prompt: Option<String>, tools: Vec<Tool>) -> PyResult<()> {
+        self.handle()
             .reset_chat(system_prompt, tools.into_iter().map(|t| t.tool).collect())
             .await
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
@@ -762,7 +871,7 @@ impl ChatAsync {
     ///     RuntimeError: If reset fails
     #[pyo3(signature = () -> "None")]
     pub async fn reset_history(&self) -> PyResult<()> {
-        self.chat_handle
+        self.handle()
             .reset_history()
             .await
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
@@ -777,7 +886,7 @@ impl ChatAsync {
     ///     ValueError: If the setting cannot be changed
     #[pyo3(signature = (allow_thinking: "bool") -> "None")]
     pub async fn set_allow_thinking(&self, allow_thinking: bool) -> PyResult<()> {
-        self.chat_handle
+        self.handle()
             .set_allow_thinking(allow_thinking)
             .await
             .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
@@ -794,7 +903,7 @@ impl ChatAsync {
     #[pyo3(signature = () -> "list[dict]")]
     pub async fn get_chat_history(&self) -> PyResult<Py<PyAny>> {
         let msgs = self
-            .chat_handle
+            .handle()
             .get_chat_history()
             .await
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
@@ -823,7 +932,7 @@ impl ChatAsync {
                 .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
         })?;
 
-        self.chat_handle
+        self.handle()
             .set_chat_history(msgs)
             .await
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
@@ -835,7 +944,7 @@ impl ChatAsync {
     /// or is no longer needed.
     #[pyo3(signature = () -> "None")]
     pub async fn stop_generation(&self) {
-        self.chat_handle.stop_generation()
+        self.handle().stop_generation()
     }
 
     /// Update the list of tools available to the model without resetting chat history.
@@ -847,7 +956,7 @@ impl ChatAsync {
     ///     RuntimeError: If updating tools fails
     #[pyo3(signature = (tools : "list[Tool]") -> "None")]
     pub async fn set_tools(&self, tools: Vec<Tool>) -> PyResult<()> {
-        self.chat_handle
+        self.handle()
             .set_tools(tools.into_iter().map(|t| t.tool).collect())
             .await
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
@@ -860,9 +969,9 @@ impl ChatAsync {
     ///
     /// Raises:
     ///     RuntimeError: If the system prompt cannot be changed
-    #[pyo3(signature = (system_prompt : "str") -> "None")]
-    pub async fn set_system_prompt(&self, system_prompt: String) -> PyResult<()> {
-        self.chat_handle
+    #[pyo3(signature = (system_prompt : "str | None") -> "None")]
+    pub async fn set_system_prompt(&self, system_prompt: Option<String>) -> PyResult<()> {
+        self.handle()
             .set_system_prompt(system_prompt)
             .await
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
@@ -877,7 +986,7 @@ impl ChatAsync {
     ///     RuntimeError: If the sampler config cannot be changed
     #[pyo3(signature = (sampler : "SamplerConfig") -> "None")]
     pub async fn set_sampler_config(&self, sampler: SamplerConfig) -> PyResult<()> {
-        self.chat_handle
+        self.handle()
             .set_sampler_config(sampler.sampler_config)
             .await
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))

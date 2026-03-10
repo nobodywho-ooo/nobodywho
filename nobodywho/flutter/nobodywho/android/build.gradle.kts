@@ -19,18 +19,9 @@ version = "1.0"
 // Supported ABIs (32-bit not supported due to llama.cpp build issues)
 val targetAbis = listOf("arm64-v8a", "x86_64")
 
-// Map Android ABI to NDK triple (for finding libc++_shared.so)
-val abiToNdkTriple = mapOf(
-    "arm64-v8a" to "aarch64-linux-android",
-    "x86_64" to "x86_64-linux-android"
-)
-
 android {
     namespace = "ooo.nobodywho.nobodywho"
     compileSdk = 36
-
-    // NDK version can be configured by downstream apps via gradle.properties
-    findProperty("android.ndkVersion")?.let { ndkVersion = it.toString() }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -106,29 +97,6 @@ val resolveNativeLibraries by tasks.registering {
                 from(resolvedLibPath)
                 into(abiOutputDir)
                 rename { "libnobodywho_flutter.so" }
-            }
-
-            // Copy libc++_shared.so from NDK
-            val ndkDir = android.ndkDirectory
-            val ndkTriple = abiToNdkTriple[abi]
-                ?: throw GradleException("Unknown ABI: $abi")
-
-            // Find the prebuilt directory (works on any host platform)
-            val prebuiltDir = file("${ndkDir}/toolchains/llvm/prebuilt")
-                .listFiles()
-                ?.firstOrNull { it.isDirectory }
-                ?: throw GradleException("Could not find NDK prebuilt directory")
-
-            val libcxxShared = file("${prebuiltDir}/sysroot/usr/lib/${ndkTriple}/libc++_shared.so")
-
-            if (libcxxShared.exists()) {
-                logger.lifecycle("[$abi] Copying libc++_shared.so")
-                copy {
-                    from(libcxxShared)
-                    into(abiOutputDir)
-                }
-            } else {
-                logger.warn("[$abi] libc++_shared.so not found at: ${libcxxShared.absolutePath}")
             }
         }
     }

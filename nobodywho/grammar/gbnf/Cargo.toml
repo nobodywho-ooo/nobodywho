@@ -1,0 +1,12 @@
+[package]
+name = "gbnf"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+serde_json = "1"
+jsonschema = "0.41.0"
+
+[dev-dependencies]
+insta = "1.46.1"
+gbnf-macro = { path = "../gbnf-macro" }

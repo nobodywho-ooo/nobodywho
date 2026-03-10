@@ -5,11 +5,6 @@ use flutter_rust_bridge::{DartFnFuture, Rust2DartSendError};
 mod frb_generated;
 mod parse;
 
-/// Enforce the binding for this library (to prevent tree-shaking)
-/// https://github.com/flutter/flutter/pull/96225#issuecomment-1319080539
-#[no_mangle]
-pub extern "C" fn enforce_binding() {}
-
 pub use nobodywho::chat::{Message, Role};
 pub use nobodywho::tool_calling::ToolCall;
 
@@ -89,19 +84,13 @@ impl RustChat {
     ) -> Self {
         let sampler_config = sampler.map(|s| s.sampler_config).unwrap_or_default();
 
-        let chat = {
-            let mut chat_builder = nobodywho::chat::ChatBuilder::new(model.model.clone())
-                .with_context_size(context_size)
-                .with_allow_thinking(allow_thinking)
-                .with_tools(tools.into_iter().map(|t| t.tool).collect())
-                .with_sampler(sampler_config);
-
-            if let Some(system_prompt) = system_prompt {
-                chat_builder = chat_builder.with_system_prompt(system_prompt);
-            }
-
-            chat_builder.build_async()
-        };
+        let chat = nobodywho::chat::ChatBuilder::new(model.model.clone())
+            .with_context_size(context_size)
+            .with_allow_thinking(allow_thinking)
+            .with_tools(tools.into_iter().map(|t| t.tool).collect())
+            .with_system_prompt(system_prompt)
+            .with_sampler(sampler_config)
+            .build_async();
 
         Self { chat }
     }
@@ -128,20 +117,13 @@ impl RustChat {
         let model = nobodywho::llm::get_model(model_path, use_gpu).map_err(|e| e.to_string())?;
         let sampler_config = sampler.map(|s| s.sampler_config).unwrap_or_default();
 
-        let chat = {
-            let mut chat_builder = nobodywho::chat::ChatBuilder::new(model)
-                .with_context_size(context_size)
-                .with_allow_thinking(allow_thinking)
-                .with_tools(tools.into_iter().map(|t| t.tool).collect())
-                .with_sampler(sampler_config);
-
-            if let Some(system_prompt) = system_prompt {
-                chat_builder = chat_builder.with_system_prompt(system_prompt);
-            }
-
-            chat_builder.build_async()
-        };
-
+        let chat = nobodywho::chat::ChatBuilder::new(model)
+            .with_context_size(context_size)
+            .with_allow_thinking(allow_thinking)
+            .with_tools(tools.into_iter().map(|t| t.tool).collect())
+            .with_system_prompt(system_prompt)
+            .with_sampler(sampler_config)
+            .build_async();
         Ok(Self { chat })
     }
 
@@ -174,7 +156,7 @@ impl RustChat {
 
     pub async fn reset_context(
         &self,
-        system_prompt: String,
+        system_prompt: Option<String>,
         tools: Vec<RustTool>,
     ) -> Result<(), nobodywho::errors::SetterError> {
         self.chat
@@ -195,7 +177,7 @@ impl RustChat {
 
     pub async fn set_system_prompt(
         &self,
-        system_prompt: String,
+        system_prompt: Option<String>,
     ) -> Result<(), nobodywho::errors::SetterError> {
         self.chat.set_system_prompt(system_prompt).await
     }

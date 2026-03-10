@@ -1,0 +1,22 @@
+---
+source: gbnf/tests/test_gbnf.rs
+expression: grammar
+---
+GbnfGrammar {
+    declarations: [
+        GbnfDeclaration {
+            name: "root",
+            expr: NonTerminal(
+                "foobar",
+            ),
+        },
+        GbnfDeclaration {
+            name: "foobar",
+            expr: Characters(
+                "Abekat",
+            ),
+        },
+    ],
+    gbnf_string: "root ::= foobar\nfoobar ::= \"Abekat\"",
+    root_name: "root",
+}

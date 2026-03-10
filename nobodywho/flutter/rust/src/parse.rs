@@ -23,6 +23,10 @@ fn simple_type(input: &str) -> IResult<&str, serde_json::Value> {
             |_s| serde_json::json!({"type" : "number"}),
         ),
         map(
+            tag_no_case("num"),
+            |_s| serde_json::json!({"type" : "number"}),
+        ),
+        map(
             tag_no_case("String"),
             |_s| serde_json::json!({"type" : "string"}),
         ),

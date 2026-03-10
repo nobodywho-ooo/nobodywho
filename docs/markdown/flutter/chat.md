@@ -83,7 +83,7 @@ Some models ship with a built-in system prompt. If you don't specify a system pr
 You can specify a system prompt when initializing a `Chat`:
 
 ```dart
-import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
+import 'package:nobodywho/nobodywho.dart' as nobodywho;
 
 final chat = await nobodywho.Chat.fromPath(
   modelPath: "./model.gguf",
@@ -125,7 +125,7 @@ seperately from creating the `Chat` instance.
 For this use case, instead of the path to the `.gguf` model, you can pass in `Model` object, which can be shared between multiple `Chat` instances.
 
 ```dart
-import 'package:nobodywho_dart/nobodywho_dart.dart' as nobodywho;
+import 'package:nobodywho/nobodywho.dart' as nobodywho;
 
 final model = await nobodywho.Model.load(modelPath: './model.gguf');
 final chat1 = nobodywho.Chat(model: model);

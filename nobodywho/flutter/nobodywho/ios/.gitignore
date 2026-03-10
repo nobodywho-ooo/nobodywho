@@ -5,4 +5,4 @@ Runner.xcworkspace/
 RunnerTests/
 Frameworks/*
 !Frameworks/.gitkeep
-NobodyWhoFlutter.xcframework/
+nobodywho_flutter.xcframework/

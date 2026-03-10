@@ -265,6 +265,10 @@ jobs:
             file: functiongemma-270m-it-BF16.gguf
             url: https://huggingface.co/unsloth/functiongemma-270m-it-GGUF/resolve/main/functiongemma-270m-it-BF16.gguf
             format: FunctionGemma
+          - name: Ministral3
+            file: mistralai_Ministral-3-3B-Instruct-2512-Q6_K_L.gguf
+            url: https://huggingface.co/bartowski/mistralai_Ministral-3-3B-Instruct-2512-GGUF/resolve/main/mistralai_Ministral-3-3B-Instruct-2512-Q6_K_L.gguf
+            format: Ministral3
 
     steps:
       - uses: actions/checkout@v4
@@ -398,6 +402,14 @@ jobs:
           mkdir -p D:/a/nobodywho/nobodywho/windows/nobodywho_python/models
           pip install -U "huggingface_hub"
           Invoke-WebRequest ${{ matrix.model_link }} -OutFile "D:/a/nobodywho/nobodywho/windows/nobodywho_python/models/${{ matrix.model_name}}"
+
+      # uncomment this to get an interactive shell on the github runner
+      # - name: Debug with sshx
+      #   run: |
+      #     Invoke-WebRequest -Uri "https://s3.amazonaws.com/sshx/sshx-x86_64-pc-windows-msvc.zip" -OutFile sshx.zip
+      #     Expand-Archive sshx.zip -DestinationPath .
+      #     .\sshx.exe --shell pwsh
+      #   shell: pwsh
 
       - name: Run small model in python
         run: |

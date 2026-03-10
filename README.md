@@ -10,7 +10,7 @@
 
 NobodyWho is a library that lets you run LLMs locally and efficiently on any device.
 
-We currently support Python and Godot, with more integrations on the way.
+We currently support Python, Flutter and Godot, with more integrations on the way.
 
 
 ## At a Glance
@@ -95,6 +95,40 @@ You can install it from inside the Godot editor: In Godot 4.5+, go to AssetLib a
 Make sure that the ignore asset root option is set in the import dialogue.
 
 For further instructions on how to setup NobodyWho in Godot please refer to our docs.
+
+## Flutter
+
+### Quick Start
+
+Install the library:
+
+```
+flutter pub add nobodywho
+```
+
+In your `main.dart`, initialize the engine before launching your app:
+
+```dart
+import 'package:nobodywho/nobodywho.dart' as nobodywho;
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await nobodywho.NobodyWho.init();
+  runApp(const MyApp());
+}
+```
+
+Then start chatting with the model:
+
+```dart
+final chat = await nobodywho.Chat.fromPath(modelPath: './model.gguf');
+final msg = await chat.ask('Is water wet?').completed();
+print(msg); // Yes, indeed, water is wet!
+```
+
+Check out the [starter example app](https://github.com/nobodywho-ooo/flutter-starter-example) to test the library in 2 minutes and explore advanced features like embeddings, tool calling, and RAG.
+
+See our [Flutter documentation](https://docs.nobodywho.ooo/flutter/) and [pub.dev](https://pub.dev/packages/nobodywho) for more.
 
 ## Documentation
 

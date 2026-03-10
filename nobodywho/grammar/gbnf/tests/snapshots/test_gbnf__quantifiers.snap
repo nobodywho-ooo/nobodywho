@@ -1,0 +1,53 @@
+---
+source: gbnf/tests/test_gbnf.rs
+expression: grammar
+---
+GbnfGrammar {
+    declarations: [
+        GbnfDeclaration {
+            name: "foo",
+            expr: Characters(
+                "foo",
+            ),
+        },
+        GbnfDeclaration {
+            name: "bar",
+            expr: Characters(
+                "bar",
+            ),
+        },
+        GbnfDeclaration {
+            name: "baz",
+            expr: Characters(
+                "baz",
+            ),
+        },
+        GbnfDeclaration {
+            name: "root",
+            expr: Sequence(
+                [
+                    Quantified {
+                        expr: NonTerminal(
+                            "foo",
+                        ),
+                        quantifier: Optional,
+                    },
+                    Quantified {
+                        expr: NonTerminal(
+                            "bar",
+                        ),
+                        quantifier: OneOrMore,
+                    },
+                    Quantified {
+                        expr: NonTerminal(
+                            "baz",
+                        ),
+                        quantifier: ZeroOrMore,
+                    },
+                ],
+            ),
+        },
+    ],
+    gbnf_string: "foo ::= \"foo\"\nbar ::= \"bar\"\nbaz ::= \"baz\"\nroot ::= foo? bar+ baz*",
+    root_name: "root",
+}

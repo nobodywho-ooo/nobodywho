@@ -3,13 +3,9 @@ use lib_flutter_rust_bridge_codegen::codegen;
 fn main() {
     println!("cargo:rerun-if-changed=.");
 
-    // do a special little dance for the androids
+    // link c++ standard library on macOS
     let target = std::env::var("CARGO_CFG_TARGET_OS").unwrap();
-    if target.contains("android") {
-        println!("cargo:rustc-link-lib=c++_shared");
-
-    // ...and another dance for macos
-    } else if target.contains("macos") || target.contains("darwin") {
+    if target.contains("macos") || target.contains("darwin") {
         println!("cargo:rustc-link-lib=c++");
     }
 

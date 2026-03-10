@@ -9,19 +9,20 @@ Choosing the right language model can make or break your project. In general you
 
 ## TL;DR
 
-If you just want a ~2GB chat model that works well, try [Qwen3 4B Q4_K_M](https://huggingface.co/Qwen/Qwen3-4B-GGUF/blob/main/Qwen3-4B-Q4_K_M.gguf).
+If you just want a ~2GB chat model that works well, try [Qwen3 4B Q4_K_M](https://huggingface.co/NobodyWho/Qwen_Qwen3-4B-GGUF/resolve/main/Qwen_Qwen3-4B-Q4_K_M.gguf).
 
-If you want something smaller and faster, try [Qwen3 0.6B Q4_K_M](https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf).
+If you want something smaller and faster, try [Qwen3 0.6B Q4_K_M](https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf).
 
 
 ## Which models are compatible with NobodyWho?
-
+If in doubt: All models on our HuggingFace (<https://huggingface.co/NobodyWho>) are known to work well NobodyWho.
 Broadly: almost anything in the `.gguf` file format.
 
 For chatting, it should be an instruction-tuned GGUF file that includes a jinja2 chat template in the metadata.
 This description fits the vast majority of GGUF files out there. If in doubt, try it. NobodyWho will throw you a descriptive error message if something is wrong.
 
 For embeddings or cross-encoding, you need to use models specific for embedding or cross-encoding. They will be named as such. Although notice that cross-encoding models are sometimes called "reranking" models.
+
 
 
 ## Understanding model names
@@ -43,7 +44,7 @@ Quantization refers to the practice of reducing the number of bits per weight.
 This can make the model faster and smaller, with a relatively small loss in response quality.
 
 Generally speaking, you can used models quantized down the Q4 or Q5 levels (4 or 5 bits per weight respectively),
-without losing *too much* accuracy.
+while loosing barely any accuracy.
 
 Look at the plot below to get a feel for how quantization levels differ.
 It shows the models' ability to predict text on the y-axis versus the number of bits per weight on the x-axis.

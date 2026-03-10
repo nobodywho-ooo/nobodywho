@@ -4,9 +4,8 @@ members = [
     "godot",
     "flutter/rust",
     "python",
-    "gbnf-macro/gbnf",
-    "gbnf-macro/gbnf-macro",
-    "gbnf-macro/gbnf-types",
+    "grammar/gbnf",
+    "grammar/gbnf-macro",
 ]
 
 # edition = "2021" implies resolver = "2".

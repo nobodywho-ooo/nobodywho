@@ -1,0 +1,26 @@
+---
+source: gbnf/tests/test_gbnf.rs
+expression: grammar
+---
+GbnfGrammar {
+    declarations: [
+        GbnfDeclaration {
+            name: "rule",
+            expr: Sequence(
+                [
+                    Characters(
+                        "hello",
+                    ),
+                    Characters(
+                        " ",
+                    ),
+                    Characters(
+                        "world",
+                    ),
+                ],
+            ),
+        },
+    ],
+    gbnf_string: "rule ::= \"hello\" \" \" \"world\"",
+    root_name: "rule",
+}

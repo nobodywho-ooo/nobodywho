@@ -1,4 +1,4 @@
-framework_name = "NobodyWhoFlutter.xcframework"
+framework_name = "nobodywho_flutter.xcframework"
 
 # Resolve xcframework using Dart script
 # This supports multiple resolution strategies:
@@ -37,7 +37,9 @@ then
   rm -rf "#{framework_name}"
 fi
 echo "Copying framework from #{xcframework_path}..."
-cp -r "#{xcframework_path}" "./#{framework_name}"
+# IMPORTANT: Use -R not -r. On macOS, cp -r follows/dereferences symlinks,
+# which breaks the versioned framework bundle structure required for code signing.
+cp -R "#{xcframework_path}" "./#{framework_name}"
 `
 
 Pod::Spec.new do |s|
@@ -51,13 +53,7 @@ Flutter FFI plugin for NobodyWho - local LLM inference with tool calling, embedd
   s.license          = { :file => '../LICENSE' }
   s.author           = { 'Your Company' => 'email@example.com' }
 
-  # This will ensure the source files in Classes/ are included in the native
-  # builds of apps using this FFI plugin. Podspec does not support relative
-  # paths, so Classes contains a forwarder C file that relatively imports
-  # `../src/*` so that the C sources can be shared among all target platforms.
   s.source           = { :path => '.' }
-  s.source_files = 'Classes/**/*'
-  s.public_header_files = 'Classes/**/*.h'
   s.libraries = 'c++'
   s.frameworks = 'Accelerate'
 
@@ -69,9 +65,8 @@ Flutter FFI plugin for NobodyWho - local LLM inference with tool calling, embedd
 
   s.dependency 'FlutterMacOS'
 
-  s.platform = :osx, '15.5'
+  s.platform = :osx
   s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES' }
-  s.swift_version = '5.0'
 
   # this is where we include the pre-compiled nobodywho code
   s.vendored_frameworks = "Frameworks/#{framework_name}"

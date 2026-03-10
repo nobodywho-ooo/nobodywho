@@ -222,10 +222,6 @@ jobs:
         run: |
           # .dylib: dynamically linkable shared object
           cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
-          if [ "${{ matrix.integration }}" == "flutter" ]; then
-            # .a: statically linkable ar archive of .o objects (used to build xcframework)
-            cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.a ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.a
-          fi
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v4
@@ -249,55 +245,70 @@ jobs:
           pattern: nobodywho-flutter-*-apple-*
           merge-multiple: true
 
-      - name: Create headers
+      - name: Build XCFramework
         run: |
-          mkdir -p headers
-          cp nobodywho/flutter/nobodywho/ios/Classes/binding.h headers/
-          cat > headers/module.modulemap << 'EOF'
-          module CBinding {
-              header "binding.h"
-              export *
-          }
+          # Create Info.plist template (will be copied to each framework)
+          cat > Info.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+            "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleExecutable</key>
+              <string>nobodywho_flutter</string>
+              <key>CFBundleIdentifier</key>
+              <string>ooo.nobodywho.flutter</string>
+              <key>CFBundleInfoDictionaryVersion</key>
+              <string>6.0</string>
+              <key>CFBundleName</key>
+              <string>nobodywho_flutter</string>
+              <key>CFBundlePackageType</key>
+              <string>FMWK</string>
+              <key>CFBundleVersion</key>
+              <string>1</string>
+          </dict>
+          </plist>
           EOF
 
-      - name: Build XCFramework
-        # commands taken from here:
-        # https://cjycode.com/flutter_rust_bridge/manual/integrate/library/platform-setup/ios-and-macos
-        run: |
-          LIBNAME=libnobodywho_flutter.a
+          # iOS simulator (aarch64 only, no lipo needed in CI)
+          mkdir -p ios-sim/nobodywho_flutter.framework
+          cp libnobodywho-flutter-aarch64-apple-ios-sim-release.dylib ios-sim/nobodywho_flutter.framework/nobodywho_flutter
+          install_name_tool -id @rpath/nobodywho_flutter.framework/nobodywho_flutter ios-sim/nobodywho_flutter.framework/nobodywho_flutter
+          cp Info.plist ios-sim/nobodywho_flutter.framework/
 
-          # ios sim (aarch64 only, no lipo needed)
-          mkdir ios-sim
-          cp libnobodywho-flutter-aarch64-apple-ios-sim-release.a ./ios-sim/$LIBNAME
+          # macOS universal binary (versioned framework structure required for macOS deep bundles)
+          lipo -create -output macos-universal.dylib \
+            libnobodywho-flutter-aarch64-apple-darwin-release.dylib \
+            libnobodywho-flutter-x86_64-apple-darwin-release.dylib
+          mkdir -p macos/nobodywho_flutter.framework/Versions/A/Resources
+          cp macos-universal.dylib macos/nobodywho_flutter.framework/Versions/A/nobodywho_flutter
+          install_name_tool -id @rpath/nobodywho_flutter.framework/nobodywho_flutter macos/nobodywho_flutter.framework/Versions/A/nobodywho_flutter
+          cp Info.plist macos/nobodywho_flutter.framework/Versions/A/Resources/
+          ln -sf A macos/nobodywho_flutter.framework/Versions/Current
+          ln -sf Versions/Current/nobodywho_flutter macos/nobodywho_flutter.framework/nobodywho_flutter
+          ln -sf Versions/Current/Resources macos/nobodywho_flutter.framework/Resources
 
-          # macos universal binary
-          mkdir macos-lipo
-          lipo -create -output macos-lipo/$LIBNAME \
-            libnobodywho-flutter-aarch64-apple-darwin-release.a \
-            libnobodywho-flutter-x86_64-apple-darwin-release.a
+          # iOS device (arm64)
+          mkdir -p ios-device/nobodywho_flutter.framework
+          cp libnobodywho-flutter-aarch64-apple-ios-release.dylib ios-device/nobodywho_flutter.framework/nobodywho_flutter
+          install_name_tool -id @rpath/nobodywho_flutter.framework/nobodywho_flutter ios-device/nobodywho_flutter.framework/nobodywho_flutter
+          cp Info.plist ios-device/nobodywho_flutter.framework/
 
-          # rename libs so linker can find them
-          mkdir aarch64-ios
-          cp libnobodywho-flutter-aarch64-apple-ios-release.a ./aarch64-ios/$LIBNAME
-
-          # create xcframework with ios sim, macos universal, and ios device builds
+          # Create xcframework with dynamic frameworks
           xcodebuild -create-xcframework \
-                  -library "ios-sim/$LIBNAME" \
-                  -headers "headers" \
-                  -library "macos-lipo/$LIBNAME" \
-                  -headers "headers" \
-                  -library "aarch64-ios/$LIBNAME" \
-                  -headers "headers" \
-                  -output NobodyWhoFlutter.xcframework
+                  -framework ios-sim/nobodywho_flutter.framework \
+                  -framework macos/nobodywho_flutter.framework \
+                  -framework ios-device/nobodywho_flutter.framework \
+                  -output nobodywho_flutter.xcframework
 
       - name: "Zip XCFramework"
-        run: zip -r NobodyWhoFlutter.xcframework.zip NobodyWhoFlutter.xcframework
+        run: zip -y -r nobodywho_flutter.xcframework.zip nobodywho_flutter.xcframework
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v4
         with:
           name: nobodywho-flutter-xcframework
-          path: ./NobodyWhoFlutter.xcframework.zip
+          path: ./nobodywho_flutter.xcframework.zip
 
   cargo-build-android:
     runs-on: ubuntu-24.04

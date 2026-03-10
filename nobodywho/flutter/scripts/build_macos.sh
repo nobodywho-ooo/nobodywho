@@ -9,7 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FLUTTER_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 NOBODYWHO_DIR="$(cd "$FLUTTER_DIR/.." && pwd)"
 TARGET_DIR="$NOBODYWHO_DIR/target"
-XCFRAMEWORK_OUTPUT="$TARGET_DIR/xcframework/NobodyWhoFlutter.xcframework"
+XCFRAMEWORK_OUTPUT="$TARGET_DIR/xcframework/nobodywho_flutter.xcframework"
 
 # Parse arguments
 BUILD_TYPE="release"
@@ -83,31 +83,57 @@ fi
 echo ""
 echo "Step 3/3: Creating XCFramework..."
 
-# Create universal macOS library
+# Create universal macOS dynamic library
 mkdir -p "$TARGET_DIR/universal-macos/$BUILD_TYPE"
 lipo -create \
-    "$TARGET_DIR/aarch64-apple-darwin/$BUILD_TYPE/libnobodywho_flutter.a" \
-    "$TARGET_DIR/x86_64-apple-darwin/$BUILD_TYPE/libnobodywho_flutter.a" \
-    -output "$TARGET_DIR/universal-macos/$BUILD_TYPE/libnobodywho_flutter.a"
+    "$TARGET_DIR/aarch64-apple-darwin/$BUILD_TYPE/libnobodywho_flutter.dylib" \
+    "$TARGET_DIR/x86_64-apple-darwin/$BUILD_TYPE/libnobodywho_flutter.dylib" \
+    -output "$TARGET_DIR/universal-macos/$BUILD_TYPE/libnobodywho_flutter.dylib"
 
-# Create headers directory
-HEADERS_DIR="$TARGET_DIR/xcframework/headers"
-mkdir -p "$HEADERS_DIR"
-cp "$FLUTTER_DIR/nobodywho/ios/Classes/binding.h" "$HEADERS_DIR/"
-cat > "$HEADERS_DIR/module.modulemap" << 'EOF'
-module CBinding {
-    header "binding.h"
-    export *
-}
+# Set install name for dynamic linking
+install_name_tool -id @rpath/nobodywho_flutter.framework/nobodywho_flutter \
+    "$TARGET_DIR/universal-macos/$BUILD_TYPE/libnobodywho_flutter.dylib"
+
+# Create versioned framework structure (required for macOS deep bundles)
+FRAMEWORK_DIR="$TARGET_DIR/universal-macos/$BUILD_TYPE/nobodywho_flutter.framework"
+mkdir -p "$FRAMEWORK_DIR/Versions/A/Resources"
+cp "$TARGET_DIR/universal-macos/$BUILD_TYPE/libnobodywho_flutter.dylib" \
+    "$FRAMEWORK_DIR/Versions/A/nobodywho_flutter"
+
+# Create Info.plist
+cat > "$FRAMEWORK_DIR/Versions/A/Resources/Info.plist" << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleExecutable</key>
+    <string>nobodywho_flutter</string>
+    <key>CFBundleIdentifier</key>
+    <string>ooo.nobodywho.flutter</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>nobodywho_flutter</string>
+    <key>CFBundlePackageType</key>
+    <string>FMWK</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+</dict>
+</plist>
 EOF
+
+# Create symlinks for versioned framework
+ln -sf A "$FRAMEWORK_DIR/Versions/Current"
+ln -sf Versions/Current/nobodywho_flutter "$FRAMEWORK_DIR/nobodywho_flutter"
+ln -sf Versions/Current/Resources "$FRAMEWORK_DIR/Resources"
 
 # Clean existing xcframework
 rm -rf "$XCFRAMEWORK_OUTPUT"
 
 # Create XCFramework (macOS only)
 xcodebuild -create-xcframework \
-    -library "$TARGET_DIR/universal-macos/$BUILD_TYPE/libnobodywho_flutter.a" \
-    -headers "$HEADERS_DIR" \
+    -framework "$FRAMEWORK_DIR" \
     -output "$XCFRAMEWORK_OUTPUT"
 
 echo ""
