@@ -49,7 +49,7 @@ impl INode for NobodyWhoModel {
         let model_path: GString = GString::from("model.gguf");
 
         Self {
-            model_path: model_path,
+            model_path,
             use_gpu_if_available: true,
             model: None,
         }
