@@ -6058,6 +6058,10 @@ rec {
             packageId = "gbnf-macro";
           }
           {
+            name = "indexmap";
+            packageId = "indexmap";
+          }
+          {
             name = "lazy_static";
             packageId = "lazy_static";
           }
