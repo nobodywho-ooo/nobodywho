@@ -1,3 +1,7 @@
+## 0.4.1-rc1
+
+- Try to reduce target iOS version to 16.0
+
 ## 0.4.0
 
 ### New Features

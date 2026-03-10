@@ -216,7 +216,7 @@ jobs:
       - run: cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: ./nobodywho
         env:
-          IPHONEOS_DEPLOYMENT_TARGET: "18.5"
+          IPHONEOS_DEPLOYMENT_TARGET: "16.0"
 
       - name: "Rename built file"
         run: |
