@@ -344,11 +344,6 @@ jobs:
         run: |
           source .venv/bin/activate
           python3 -m pytest tests/test_tool_calling.py -v --tb=short
-
-      - name: Setup sshx session on failure
-        if: failure()
-        run: curl -sSf https://sshx.io/get | sh -s run
-
       - name: Display test summary
         if: always()
         run: |

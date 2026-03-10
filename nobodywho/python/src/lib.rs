@@ -1,12 +1,7 @@
 use pyo3::prelude::*;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 mod parse;
-
-/// Flag set by a Python `atexit` handler to indicate the interpreter is shutting down.
-/// Checked before forwarding tracing events to the Python logging bridge.
-static PYTHON_FINALIZING: AtomicBool = AtomicBool::new(false);
 
 /// `Model` objects contain a GGUF model. It is primarily useful for sharing a single model instance
 /// between multiple `Chat`, `Encoder`, or `CrossEncoder` instances.
@@ -275,11 +270,7 @@ impl Encoder {
 impl Drop for Encoder {
     fn drop(&mut self) {
         let encoder = self.encoder.take();
-        if PYTHON_FINALIZING.load(std::sync::atomic::Ordering::Relaxed) {
-            drop(encoder);
-        } else {
-            Python::attach(|py| py.detach(|| drop(encoder)));
-        }
+        Python::attach(|py| py.detach(|| drop(encoder)));
     }
 }
 
@@ -344,11 +335,7 @@ impl EncoderAsync {
 impl Drop for EncoderAsync {
     fn drop(&mut self) {
         let handle = self.encoder_handle.take();
-        if PYTHON_FINALIZING.load(std::sync::atomic::Ordering::Relaxed) {
-            drop(handle);
-        } else {
-            Python::attach(|py| py.detach(|| drop(handle)));
-        }
+        Python::attach(|py| py.detach(|| drop(handle)));
     }
 }
 
@@ -416,11 +403,7 @@ impl CrossEncoder {
 impl Drop for CrossEncoder {
     fn drop(&mut self) {
         let crossencoder = self.crossencoder.take();
-        if PYTHON_FINALIZING.load(std::sync::atomic::Ordering::Relaxed) {
-            drop(crossencoder);
-        } else {
-            Python::attach(|py| py.detach(|| drop(crossencoder)));
-        }
+        Python::attach(|py| py.detach(|| drop(crossencoder)));
     }
 }
 
@@ -512,11 +495,7 @@ impl CrossEncoderAsync {
 impl Drop for CrossEncoderAsync {
     fn drop(&mut self) {
         let handle = self.crossencoder_handle.take();
-        if PYTHON_FINALIZING.load(std::sync::atomic::Ordering::Relaxed) {
-            drop(handle);
-        } else {
-            Python::attach(|py| py.detach(|| drop(handle)));
-        }
+        Python::attach(|py| py.detach(|| drop(handle)));
     }
 }
 
@@ -613,16 +592,7 @@ impl Chat {
 impl Drop for Chat {
     fn drop(&mut self) {
         let handle = self.chat_handle.take();
-        if PYTHON_FINALIZING.load(std::sync::atomic::Ordering::Relaxed) {
-            // During finalization, logging is disabled so worker threads won't
-            // need the GIL. Just drop directly.
-            drop(handle);
-        } else {
-            // Release the GIL before joining the background thread.
-            // This prevents deadlocks if the background thread needs the GIL
-            // to log messages (via pyo3_log) or execute Python tools during its shutdown.
-            Python::attach(|py| py.detach(|| drop(handle)));
-        }
+        Python::attach(|py| py.detach(|| drop(handle)));
     }
 }
 
@@ -857,14 +827,7 @@ impl ChatAsync {
 impl Drop for ChatAsync {
     fn drop(&mut self) {
         let handle = self.chat_handle.take();
-        if PYTHON_FINALIZING.load(std::sync::atomic::Ordering::Relaxed) {
-            drop(handle);
-        } else {
-            // Rust's Drop runs while the GIL is held (Python is freeing the object).
-            // Release the GIL so that pyo3-async-runtimes tokio tasks that captured
-            // Py<T> references can acquire it for their own cleanup, unblocking join().
-            Python::attach(|py| py.detach(|| drop(handle)));
-        }
+        Python::attach(|py| py.detach(|| drop(handle)));
     }
 }
 
@@ -1095,16 +1058,6 @@ fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> PyResult<f32> {
         ));
     }
     Ok(nobodywho::encoder::cosine_similarity(&a, &b))
-}
-
-/// Internal: called by atexit to signal that Python is shutting down.
-/// Disables all logging to prevent pyo3_log from calling into a finalizing interpreter.
-#[pyfunction]
-fn _set_finalizing() {
-    PYTHON_FINALIZING.store(true, std::sync::atomic::Ordering::Relaxed);
-    // Disable the global log level so that pyo3_log (the global log backend) never
-    // receives events and never calls PyGILState_Ensure after this point.
-    log::set_max_level(log::LevelFilter::Off);
 }
 
 /// `SamplerConfig` contains the configuration for a token sampler. The mechanism by which
@@ -1961,9 +1914,7 @@ fn json_value_to_py<'py>(
 
 #[pymodule(name = "nobodywho")]
 pub mod nobodywhopython {
-    use super::PYTHON_FINALIZING;
     use pyo3::prelude::*;
-    use std::sync::atomic::Ordering;
 
     struct LogForwardingLayer;
 
@@ -2050,20 +2001,6 @@ pub mod nobodywhopython {
             }
 
             if !log_msg.is_empty() {
-                // Guard: skip logging if Python is finalizing or already finalized.
-                // The llama.cpp log callback installed by send_llamacpp_logs_to_tracing()
-                // persists for the entire process lifetime and may fire during C++ atexit
-                // cleanup (during or after Py_Finalize). Calling PyGILState_Ensure() in
-                // that state crashes CPython with "FATAL: exception not rethrown".
-                //
-                // We check both:
-                // 1. Our atexit flag (catches the "during finalization" window, works on all Python versions)
-                // 2. Py_IsInitialized (catches the "after finalization" state)
-                if PYTHON_FINALIZING.load(Ordering::Relaxed)
-                    || unsafe { pyo3::ffi::Py_IsInitialized() } == 0
-                {
-                    return;
-                }
                 log::logger().log(
                     &log::Record::builder()
                         .args(format_args!("{}", log_msg))
@@ -2102,18 +2039,9 @@ pub mod nobodywhopython {
         // Flow: llamacpp -> tracing -> LogForwardingLayer -> log crate -> pyo3_log -> Python
         nobodywho::send_llamacpp_logs_to_tracing();
 
-        // STEP 4: Register atexit handler so we know when Python is finalizing.
-        // This runs before Py_Finalize tears down the interpreter, letting us
-        // suppress log callbacks that would otherwise crash.
-        let atexit = _m.py().import("atexit")?;
-        let set_finalizing = _m.getattr("_set_finalizing")?;
-        atexit.call_method1("register", (set_finalizing,))?;
-
         Ok(())
     }
 
-    #[pymodule_export]
-    use super::_set_finalizing;
     #[pymodule_export]
     use super::cosine_similarity;
     #[pymodule_export]
