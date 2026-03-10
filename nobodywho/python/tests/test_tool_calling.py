@@ -371,12 +371,17 @@ def test_python_tool(model):
 
     chat = nobodywho.Chat(
         model,
-        tools=[nobodywho.python_tool()],
+        tools=[
+            nobodywho.python_tool(
+                max_duration=60,
+                max_recursion_depth=1000,
+            )
+        ],
         allow_thinking=False,
     )
 
     chat.ask(
-        "Write me a fibonacci function in Python. Then run it in with the python tool and compute what the 30th Fibonacci number is."
+        "Write me a fibonacci function in Python. Prefer the recursive version. Then run it in with the python tool and compute what the 30th Fibonacci number is."
     ).completed()
 
     history = chat.get_chat_history()
