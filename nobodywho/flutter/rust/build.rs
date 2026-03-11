@@ -33,8 +33,9 @@ fn main() {
 
     // Run build_runner to generate .freezed.dart files from the @freezed annotations
     // that flutter_rust_bridge emits in lib.dart
-    let status = std::process::Command::new("dart")
+    let status = std::process::Command::new("flutter")
         .args([
+            "pub",
             "run",
             "build_runner",
             "build",
