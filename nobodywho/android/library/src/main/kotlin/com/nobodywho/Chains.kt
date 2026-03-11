@@ -76,7 +76,7 @@ class PromptTemplate(private val builder: (String, List<ScoredDocument>) -> Stri
                     append("[${index + 1}] ${doc.text}\n\n")
                 }
                 append("Question: $query\n")
-                append("Answer based on the context above:")
+                append("Answer based on the context above: /no_think")
             }
         }
 

@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.nobodywho.Chat
+import com.nobodywho.ChatConfig
 import com.nobodywho.HybridSemanticMemory
 import com.nobodywho.LlamaCppEmbedder
 import com.nobodywho.LlamaCppReranker
@@ -61,7 +62,15 @@ class RAGViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val (c, m) = withContext(Dispatchers.IO) {
                     // Reuse the already-loaded model weights — no second file load.
-                    val c = Chat(model = chatModel)
+                    // Disable Qwen3 thinking mode — thinking tokens silently consume
+                    // the context window and stall generation.
+                    val c = Chat(
+                        model = chatModel,
+                        config = ChatConfig(
+                            systemPrompt = "You are a helpful assistant. Answer directly and concisely based on the provided context.",
+                            allowThinking = false
+                        )
+                    )
 
                     val embedder = LlamaCppEmbedder(
                         modelPath = embedderModelPath,

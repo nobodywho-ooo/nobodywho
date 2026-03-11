@@ -47,7 +47,7 @@ fun RAGScreen(
         if (sharedModel != null && !isReady && !isInitializing) {
             viewModel.initialize(
                 chatModel = sharedModel,
-                embedderModelPath = "/data/local/tmp/embedder.gguf"
+                embedderModelPath = ModelManager.EMBEDDER_MODEL_PATH
             )
         }
     }

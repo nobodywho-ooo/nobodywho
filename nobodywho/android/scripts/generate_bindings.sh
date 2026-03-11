@@ -13,11 +13,7 @@ echo "Generating Kotlin bindings..."
 echo "  UDL:    $UNIFFI_DIR/src/nobodywho.udl"
 echo "  Output: $OUTPUT_DIR"
 
-# Build the uniffi library first so the bindgen can introspect it.
-echo "Building Rust library..."
-cargo build -p nobodywho-uniffi --manifest-path "$ROOT_DIR/Cargo.toml"
-
-# Run the bindgen.
+# Run the bindgen (UDL-based generation — no compiled library needed).
 cargo run \
     --manifest-path "$ANDROID_DIR/bindgen/Cargo.toml" \
     -- \

@@ -16,7 +16,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -35,7 +34,7 @@ class MainActivity : ComponentActivity() {
 
         // Start loading the model as early as possible.
         sharedModelViewModel.loadIfNeeded(
-            path = "/data/local/tmp/model.gguf",
+            path = ModelManager.CHAT_MODEL_PATH,
             useGpu = true
         )
 
@@ -78,8 +77,6 @@ private fun MainScreen(sharedModelViewModel: SharedModelViewModel) {
             }
         }
     ) { padding ->
-        // sharedModel is the single NobodyWhoModel instance. Both screens receive it
-        // and will not initialize until it is non-null, preventing duplicate loads.
         when (selectedTab) {
             0 -> ChatScreen(paddingValues = padding, sharedModel = sharedModel)
             1 -> RAGScreen(paddingValues = padding, sharedModel = sharedModel)
