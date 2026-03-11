@@ -609,6 +609,10 @@ class Chat {
   Future<void> setSamplerConfig(nobodywho.SamplerConfig samplerConfig) =>
       _chat.setSamplerConfig(samplerConfig: samplerConfig);
 
+  /// Get the current sampler configuration.
+  Future<nobodywho.SamplerConfig> getSamplerConfig() =>
+      _chat.getSamplerConfig();
+
   /// Set the system prompt.
   Future<void> setSystemPrompt(String? systemPrompt) =>
       _chat.setSystemPrompt(systemPrompt: systemPrompt);

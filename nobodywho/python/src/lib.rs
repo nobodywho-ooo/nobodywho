@@ -806,6 +806,23 @@ impl Chat {
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         })
     }
+
+    /// Get the current sampler configuration.
+    ///
+    /// Returns:
+    ///     The current SamplerConfig used for token selection
+    ///
+    /// Raises:
+    ///     RuntimeError: If the sampler config cannot be retrieved
+    #[pyo3(signature = () -> "SamplerConfig")]
+    pub fn get_sampler_config(&self, py: Python) -> PyResult<SamplerConfig> {
+        py.detach(|| {
+            self.handle()
+                .get_sampler_config()
+                .map(|sampler_config| SamplerConfig { sampler_config })
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        })
+    }
 }
 
 /// This is the async version of the `Chat` class.
@@ -1033,6 +1050,22 @@ impl ChatAsync {
         self.handle()
             .set_sampler_config(sampler.sampler_config)
             .await
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Get the current sampler configuration.
+    ///
+    /// Returns:
+    ///     The current SamplerConfig used for token selection
+    ///
+    /// Raises:
+    ///     RuntimeError: If the sampler config cannot be retrieved
+    #[pyo3(signature = () -> "typing.Awaitable[SamplerConfig]")]
+    pub async fn get_sampler_config(&self) -> PyResult<SamplerConfig> {
+        self.handle()
+            .get_sampler_config()
+            .await
+            .map(|sampler_config| SamplerConfig { sampler_config })
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 }
