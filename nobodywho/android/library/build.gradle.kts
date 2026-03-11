@@ -35,6 +35,31 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 }
 
+// MARK: - Native library download
+
+val soVersion = project.findProperty("VERSION_NAME")?.toString() ?: "1.0.0"
+val nativeLibDir = layout.projectDirectory.dir("src/main/jniLibs/arm64-v8a")
+val nativeSo = nativeLibDir.file("libuniffi_nobodywho.so")
+
+val downloadNativeLibs by tasks.registering {
+    description = "Downloads pre-built libuniffi_nobodywho.so from GitHub Releases if not already present."
+    outputs.file(nativeSo)
+    onlyIf { !nativeSo.asFile.exists() }
+    doLast {
+        nativeLibDir.asFile.mkdirs()
+        val url = "https://github.com/nobodywho-ooo/nobodywho/releases/download/" +
+                  "nobodywho-android-v$soVersion/libuniffi_nobodywho-arm64-v8a.so"
+        logger.lifecycle("Downloading native library v$soVersion...")
+        logger.lifecycle("  $url")
+        uri(url).toURL().openStream().use { input ->
+            nativeSo.asFile.outputStream().use { output -> input.copyTo(output) }
+        }
+        logger.lifecycle("  ✓ ${nativeSo.asFile.name}")
+    }
+}
+
+tasks.named("preBuild") { dependsOn(downloadNativeLibs) }
+
 afterEvaluate {
     publishing {
         publications {

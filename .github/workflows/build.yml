@@ -310,6 +310,67 @@ jobs:
           name: nobodywho-flutter-xcframework
           path: ./nobodywho_flutter.xcframework.zip
 
+  cargo-build-android-sdk:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Cache Cargo Home"
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo
+            nobodywho/target
+          key: ${{ runner.os }}-cargo-home-android-sdk-aarch64-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-home-android-sdk-aarch64-
+
+      - name: "Setup Rust"
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          . "$HOME/.cargo/env"
+          rustup update stable
+          rustup target add aarch64-linux-android
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: "Install distro dependencies"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
+
+      - name: "Install Android NDK"
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r28
+          add-to-path: false
+
+      - name: "Install cargo-ndk"
+        run: cargo install cargo-ndk
+
+      - name: "Build libuniffi_nobodywho.so (arm64-v8a)"
+        working-directory: ./nobodywho
+        env:
+          ANDROID_NDK: "${{ steps.setup-ndk.outputs.ndk-path }}"
+        run: |
+          cargo ndk \
+            --target aarch64-linux-android \
+            --platform 24 \
+            --manifest-path Cargo.toml \
+            -- build --release -p nobodywho-uniffi
+
+      - name: "Rename built file"
+        run: |
+          cp ./nobodywho/target/aarch64-linux-android/release/libnobodywho_uniffi.so \
+             ./libuniffi_nobodywho-arm64-v8a.so
+
+      - name: "Upload build artifact"
+        if: inputs.upload_artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nobodywho-android-sdk-aarch64-linux-android-release
+          path: ./libuniffi_nobodywho-arm64-v8a.so
+
   cargo-build-android:
     runs-on: ubuntu-24.04
     strategy:
