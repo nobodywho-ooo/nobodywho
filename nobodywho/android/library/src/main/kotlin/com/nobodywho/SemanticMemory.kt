@@ -1,7 +1,5 @@
 package com.nobodywho
 
-import java.util.UUID
-
 /** Coordinates an embedder and a vector store to provide semantic search over documents. */
 class SemanticMemory(
     private val embedder: EmbedderAgent,
@@ -14,10 +12,14 @@ class SemanticMemory(
         vectorStore.add(id = id, vector = vector, metadata = fullMetadata)
     }
 
-    /** Embeds and stores multiple documents. */
+    /** Embeds and stores multiple documents using a single batch embed call. */
     fun saveDocuments(documents: List<Triple<String, String, Map<String, String>>>) {
-        for ((id, text, metadata) in documents) {
-            saveDocument(id = id, text = text, metadata = metadata)
+        if (documents.isEmpty()) return
+        val texts = documents.map { it.second }
+        val vectors = embedder.embedBatch(texts)
+        documents.forEachIndexed { i, (id, text, metadata) ->
+            val fullMetadata = metadata.toMutableMap().also { it["text"] = text }
+            vectorStore.add(id = id, vector = vectors[i], metadata = fullMetadata)
         }
     }
 
@@ -66,13 +68,17 @@ class HybridSemanticMemory(
         val candidates = semanticMemory.search(query = query, topK = rerankCandidates)
         val reranked = reranker.rankAndSort(query = query, documents = candidates.map { it.text })
 
-        return reranked.take(topK).map { ranked ->
-            val original = candidates.firstOrNull { it.text == ranked.content }
+        // Index by text for O(1) lookup; putIfAbsent keeps the first occurrence when texts collide.
+        val candidateByText = LinkedHashMap<String, ScoredDocument>()
+        candidates.forEach { candidateByText.putIfAbsent(it.text, it) }
+
+        return reranked.take(topK).mapNotNull { ranked ->
+            val original = candidateByText[ranked.content] ?: return@mapNotNull null
             ScoredDocument(
-                id = original?.id ?: UUID.randomUUID().toString(),
+                id = original.id,
                 text = ranked.content,
                 score = ranked.score,
-                metadata = original?.metadata ?: emptyMap()
+                metadata = original.metadata
             )
         }
     }

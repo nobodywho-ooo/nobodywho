@@ -4,6 +4,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import android.util.Log
 import org.json.JSONObject
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -60,9 +61,14 @@ class InMemoryVectorStore : VectorStore {
 class SQLiteVectorStore(context: Context, databaseName: String = "nobodywho_vectors.db") : VectorStore, AutoCloseable {
     private val db: SQLiteDatabase
     private val lock = ReentrantLock()
+    @Volatile private var isClosed = false
+
+    private fun checkOpen() = check(!isClosed) { "SQLiteVectorStore has been closed" }
 
     init {
-        val helper = object : SQLiteOpenHelper(context, databaseName, null, 1) {
+        // Use applicationContext to avoid retaining an Activity beyond its lifecycle.
+        val appContext = context.applicationContext
+        val helper = object : SQLiteOpenHelper(appContext, databaseName, null, 1) {
             override fun onCreate(db: SQLiteDatabase) {
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS vectors (
@@ -76,12 +82,16 @@ class SQLiteVectorStore(context: Context, databaseName: String = "nobodywho_vect
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_created_at ON vectors(created_at)")
             }
 
-            override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+            override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+                // Future schema migrations go here.
+                // e.g.: if (oldVersion < 2) db.execSQL("ALTER TABLE vectors ADD COLUMN ...")
+            }
         }
         db = helper.writableDatabase
     }
 
     override fun add(id: String, vector: FloatArray, metadata: Map<String, String>) {
+        checkOpen()
         val text = metadata["text"] ?: ""
         val metadataJson = JSONObject(metadata).toString()
         val vectorBytes = floatsToBytes(vector)
@@ -99,6 +109,7 @@ class SQLiteVectorStore(context: Context, databaseName: String = "nobodywho_vect
     }
 
     override fun search(query: FloatArray, topK: Int): List<ScoredDocument> {
+        checkOpen()
         val results = mutableListOf<ScoredDocument>()
 
         lock.withLock {
@@ -128,25 +139,31 @@ class SQLiteVectorStore(context: Context, databaseName: String = "nobodywho_vect
     }
 
     override fun remove(id: String) {
+        checkOpen()
         lock.withLock {
             db.delete("vectors", "id = ?", arrayOf(id))
         }
     }
 
     override fun clear() {
+        checkOpen()
         lock.withLock {
             db.delete("vectors", null, null)
         }
     }
 
     override val count: Int
-        get() = lock.withLock {
-            db.rawQuery("SELECT COUNT(*) FROM vectors", null).use { cursor ->
-                if (cursor.moveToFirst()) cursor.getInt(0) else 0
+        get() {
+            checkOpen()
+            return lock.withLock {
+                db.rawQuery("SELECT COUNT(*) FROM vectors", null).use { cursor ->
+                    if (cursor.moveToFirst()) cursor.getInt(0) else 0
+                }
             }
         }
 
     override fun close() {
+        isClosed = true
         lock.withLock { db.close() }
     }
 
@@ -168,6 +185,7 @@ class SQLiteVectorStore(context: Context, databaseName: String = "nobodywho_vect
             val obj = JSONObject(json)
             obj.keys().asSequence().associateWith { obj.optString(it) }
         } catch (e: Exception) {
+            Log.w("NobodyWho", "Failed to parse metadata JSON, returning empty map: $json", e)
             emptyMap()
         }
     }

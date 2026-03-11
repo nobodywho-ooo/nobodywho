@@ -1,6 +1,7 @@
 package com.nobodywho.example
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.nobodywho.Chat
@@ -134,7 +135,7 @@ class RAGViewModel(application: Application) : AndroidViewModel(application) {
                             )
                             indexed++
                         } catch (e: Exception) {
-                            // Skip chunks that fail to embed.
+                            Log.w("NobodyWho", "Failed to embed chunk $i of ${chunks.size}, skipping", e)
                         }
                     }
                 }

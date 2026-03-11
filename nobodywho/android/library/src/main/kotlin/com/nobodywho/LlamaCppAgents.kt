@@ -1,6 +1,9 @@
+@file:JvmName("NobodyWho")
+
 package com.nobodywho
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
@@ -19,19 +22,29 @@ import uniffi.nobodywho.loadCrossEncoder
  * Load once via [loadNobodyWhoModel] and share between [Chat] instances so the weights
  * are not duplicated in memory. Each [Chat] created from the same model gets its own
  * independent context and conversation history.
+ *
+ * Must be closed when no longer needed to release native memory:
+ * ```kotlin
+ * val model = loadNobodyWhoModel("/data/local/tmp/model.gguf")
+ * model.use {
+ *     val chat = Chat(model = it)
+ *     chat.ask("Hello")
+ * }
+ * ```
  */
 class NobodyWhoModel internal constructor(internal val ffi: uniffi.nobodywho.Model) : AutoCloseable {
     override fun close() = ffi.close()
 }
 
 /** Loads model weights from a `.gguf` file. Call this once and share the result. */
+@JvmOverloads
 fun loadNobodyWhoModel(path: String, useGpu: Boolean = true): NobodyWhoModel =
     NobodyWhoModel(ffiLoadModel(path = path, useGpu = useGpu))
 
 // MARK: - Chat
 
 /** Configuration for a chat session. */
-data class ChatConfig(
+data class ChatConfig @JvmOverloads constructor(
     val contextSize: Int = 4096,
     val systemPrompt: String? = null,
     val allowThinking: Boolean = true,
@@ -48,9 +61,13 @@ private fun ChatConfig.toFFI() = FFIChatConfig(
 /**
  * On-device LLM chat backed by a llama.cpp model.
  *
+ * Must be closed when no longer needed to release native memory.
+ *
  * ```kotlin
  * // Option A — load model and create chat in one step:
- * val chat = Chat(modelPath = "/data/local/tmp/model.gguf")
+ * Chat(modelPath = "/data/local/tmp/model.gguf").use { chat ->
+ *     val response = chat.ask("Hello")
+ * }
  *
  * // Option B — share pre-loaded weights across multiple Chat instances:
  * val model = loadNobodyWhoModel("/data/local/tmp/model.gguf")
@@ -61,6 +78,7 @@ private fun ChatConfig.toFFI() = FFIChatConfig(
 class Chat private constructor(private val inner: FFIChat, private val config: ChatConfig) : AutoCloseable {
 
     /** Loads model weights from [modelPath] and creates a chat session. */
+    @JvmOverloads
     constructor(
         modelPath: String,
         useGpu: Boolean = true,
@@ -68,6 +86,7 @@ class Chat private constructor(private val inner: FFIChat, private val config: C
     ) : this(FFIChat(model = ffiLoadModel(path = modelPath, useGpu = useGpu), config = config.toFFI()), config)
 
     /** Creates a chat session from already-loaded [model] weights. No file I/O occurs. */
+    @JvmOverloads
     constructor(
         model: NobodyWhoModel,
         config: ChatConfig = ChatConfig()
@@ -87,12 +106,19 @@ class Chat private constructor(private val inner: FFIChat, private val config: C
         }
     }
 
-    /** Emits tokens as they are generated. */
+    /**
+     * Emits tokens as they are generated.
+     * The token stream is always closed — even if the Flow is cancelled mid-generation.
+     */
     fun askFlow(prompt: String): Flow<String> = flow {
-        val stream = inner.ask(prompt = prompt)
-        while (true) {
-            val token = withContext(Dispatchers.IO) { stream.nextToken() } ?: break
-            emit(token)
+        val stream = withContext(Dispatchers.IO) { inner.ask(prompt = prompt) }
+        try {
+            while (true) {
+                val token = withContext(Dispatchers.IO) { stream.nextToken() } ?: break
+                emit(token)
+            }
+        } finally {
+            withContext(NonCancellable + Dispatchers.IO) { stream.close() }
         }
     }
 
@@ -102,7 +128,7 @@ class Chat private constructor(private val inner: FFIChat, private val config: C
 // MARK: - LlamaCppEmbedder
 
 /** `EmbedderAgent` backed by a llama.cpp embedding model. */
-class LlamaCppEmbedder(
+class LlamaCppEmbedder @JvmOverloads constructor(
     modelPath: String,
     useGpu: Boolean = true,
     contextSize: Int = 512
@@ -125,7 +151,7 @@ class LlamaCppEmbedder(
 // MARK: - LlamaCppReranker
 
 /** `Reranker` backed by a llama.cpp cross-encoder model. */
-class LlamaCppReranker(
+class LlamaCppReranker @JvmOverloads constructor(
     modelPath: String,
     useGpu: Boolean = true,
     contextSize: Int = 4096
@@ -149,7 +175,7 @@ class LlamaCppReranker(
 // MARK: - LlamaCppLanguageModel
 
 /** `LanguageModel` backed by a llama.cpp chat model. */
-class LlamaCppLanguageModel(
+class LlamaCppLanguageModel @JvmOverloads constructor(
     modelPath: String,
     useGpu: Boolean = true,
     config: ChatConfig = ChatConfig()
