@@ -2,7 +2,7 @@
 title: Sampling
 description: A description of how samplers can be configured in NobodyWho
 sidebar_title: Sampling
-order: 3
+order: 4
 ---
 
 The model does not produce tokens but rather a probability distribution over all possible tokens. We must then choose how to pick the next token from the distribution. This is the job of a **sampler**, which using NobodyWho you can freely modify,

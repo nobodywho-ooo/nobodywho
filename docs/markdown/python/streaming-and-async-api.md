@@ -2,7 +2,7 @@
 title: Streaming & Async API
 description: Illustrating the differences between Sync & Async in NobodyWho
 sidebar_title: Streaming & Async API
-order: 4
+order: 5
 ---
 
 Synchronously waiting for the full response to arrive can be costly. If your application

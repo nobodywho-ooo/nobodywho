@@ -110,7 +110,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for (file_path, contents) in stub_files.clone().iter() {
         let contents = replace_exceptions(contents.clone());
         let contents = inject_typevars(contents);
-        let full_path = PathBuf::from(&output_dir).join(&file_path);
+        let full_path = PathBuf::from(&output_dir).join(file_path);
 
         if contents.contains(" typing.Any") {
             println!("--- type stubs content: ---");

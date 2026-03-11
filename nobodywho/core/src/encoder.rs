@@ -2,10 +2,8 @@ use crate::errors::{EncoderWorkerError, InitWorkerError};
 use crate::llm;
 use crate::llm::{Worker, WorkerGuard};
 use llama_cpp_2::context::params::LlamaPoolingType;
-use llama_cpp_2::model::LlamaModel;
-use tracing::error;
-
 use std::sync::Arc;
+use tracing::error;
 
 #[derive(Clone)]
 pub struct Encoder {
@@ -18,7 +16,7 @@ pub struct EncoderAsync {
 }
 
 impl Encoder {
-    pub fn new(model: Arc<LlamaModel>, n_ctx: u32) -> Self {
+    pub fn new(model: Arc<llm::Model>, n_ctx: u32) -> Self {
         let async_handle = EncoderAsync::new(model, n_ctx);
         Self { async_handle }
     }
@@ -29,7 +27,7 @@ impl Encoder {
 }
 
 impl EncoderAsync {
-    pub fn new(model: Arc<LlamaModel>, n_ctx: u32) -> Self {
+    pub fn new(model: Arc<llm::Model>, n_ctx: u32) -> Self {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
 
         let join_handle = std::thread::spawn(move || {
@@ -92,7 +90,7 @@ impl llm::PoolingType for EncoderWorker {
 
 impl<'a> Worker<'a, EncoderWorker> {
     pub fn new_encoder_worker(
-        model: &Arc<LlamaModel>,
+        model: &llm::Model,
         n_ctx: u32,
     ) -> Result<Worker<'_, EncoderWorker>, InitWorkerError> {
         Worker::new_with_type(model, n_ctx, true, EncoderWorker {})
