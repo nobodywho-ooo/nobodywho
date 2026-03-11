@@ -1,6 +1,6 @@
 {
   lib,
-  flutter335,
+  flutter,
   callPackage,
   nobodywho_flutter_rust,
 }:
@@ -8,7 +8,7 @@
 let
   models = callPackage ../../models.nix { };
 in
-flutter335.buildFlutterApplication {
+flutter.buildFlutterApplication {
   pname = "nobodywho-flutter-tests";
   version = "0.0.1";
 
