@@ -38,23 +38,37 @@ dependencies {
 // MARK: - Native library download
 
 val soVersion = project.findProperty("VERSION_NAME")?.toString() ?: "1.0.0"
-val nativeLibDir = layout.projectDirectory.dir("src/main/jniLibs/arm64-v8a")
-val nativeSo = nativeLibDir.file("libuniffi_nobodywho.so")
+val githubRepo = project.findProperty("NOBODYWHO_GITHUB_REPO")?.toString()
+    ?: "nobodywho-ooo/nobodywho"
+
+// ABI → release asset filename
+val abiAssets = mapOf(
+    "arm64-v8a" to "libuniffi_nobodywho-arm64-v8a.so",
+    "x86_64"    to "libuniffi_nobodywho-x86_64.so"
+)
 
 val downloadNativeLibs by tasks.registering {
-    description = "Downloads pre-built libuniffi_nobodywho.so from GitHub Releases if not already present."
-    outputs.file(nativeSo)
-    onlyIf { !nativeSo.asFile.exists() }
+    description = "Downloads pre-built native libraries from GitHub Releases if not already present."
+
+    val missingAbis = abiAssets.filter { (abi, _) ->
+        !layout.projectDirectory.file("src/main/jniLibs/$abi/libuniffi_nobodywho.so").asFile.exists()
+    }
+    onlyIf { missingAbis.isNotEmpty() }
+
     doLast {
-        nativeLibDir.asFile.mkdirs()
-        val url = "https://github.com/nobodywho-ooo/nobodywho/releases/download/" +
-                  "nobodywho-android-v$soVersion/libuniffi_nobodywho-arm64-v8a.so"
-        logger.lifecycle("Downloading native library v$soVersion...")
-        logger.lifecycle("  $url")
-        uri(url).toURL().openStream().use { input ->
-            nativeSo.asFile.outputStream().use { output -> input.copyTo(output) }
+        missingAbis.forEach { (abi, assetName) ->
+            val destDir = layout.projectDirectory.dir("src/main/jniLibs/$abi").asFile
+            destDir.mkdirs()
+            val url = "https://github.com/$githubRepo/releases/download/" +
+                      "nobodywho-android-v$soVersion/$assetName"
+            logger.lifecycle("Downloading $abi native library v$soVersion...")
+            logger.lifecycle("  $url")
+            uri(url).toURL().openStream().use { input ->
+                File(destDir, "libuniffi_nobodywho.so").outputStream()
+                    .use { output -> input.copyTo(output) }
+            }
+            logger.lifecycle("  ✓ libuniffi_nobodywho.so ($abi)")
         }
-        logger.lifecycle("  ✓ ${nativeSo.asFile.name}")
     }
 }
 

@@ -184,16 +184,17 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: "Download Android SDK native library"
+      - name: "Download Android SDK native libraries"
         uses: actions/download-artifact@v4
         with:
-          name: nobodywho-android-sdk-aarch64-linux-android-release
+          pattern: nobodywho-android-sdk-*-release
+          merge-multiple: true
           path: ./nobodywho-android-release
 
       - name: "Create GitHub Release"
         uses: softprops/action-gh-release@v1
         with:
-          files: ./nobodywho-android-release/libuniffi_nobodywho-arm64-v8a.so
+          files: ./nobodywho-android-release/*.so
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
