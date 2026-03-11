@@ -28,10 +28,10 @@ use crate::errors::{
     MultimodalError, RenderError, SayError, SelectTemplateError, SetToolsError, ShiftError,
     WrappedResponseError,
 };
-use crate::llm::{self};
+use crate::llm::{self, read_sampler_metadata};
 use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
 use crate::llm::{Worker, WorkerGuard, WriteOutput};
-use crate::sampler_config::{SamplerConfig, ShiftStep};
+use crate::sampler_config::{self, SamplerConfig, ShiftStep};
 use crate::template::{select_template, ChatTemplate, ChatTemplateContext};
 use crate::tokenizer::{
     find_chunks_prefix_difference, ChunkId, Prompt, Promptable, TokenizerChunk, TokenizerChunks,
@@ -159,7 +159,7 @@ pub struct ChatConfig {
     /// Whether to allow thinking mode during inference.
     pub allow_thinking: bool,
     /// Sampler configuration for inference.
-    pub sampler_config: SamplerConfig,
+    pub sampler_config: Option<SamplerConfig>,
 }
 
 impl Default for ChatConfig {
@@ -169,7 +169,7 @@ impl Default for ChatConfig {
             allow_thinking: true,
             system_prompt: None,
             tools: Vec::new(),
-            sampler_config: SamplerConfig::default(),
+            sampler_config: None,
         }
     }
 }
@@ -247,7 +247,7 @@ impl ChatBuilder {
 
     /// Set a custom sampler configuration
     pub fn with_sampler(mut self, sampler: SamplerConfig) -> Self {
-        self.config.sampler_config = sampler;
+        self.config.sampler_config = Some(sampler);
         self
     }
 
@@ -423,6 +423,16 @@ impl ChatHandle {
         .ok_or(crate::errors::SetterError::SetterError(
             "set_chat_history".into(),
         ))
+    }
+    /// Get the sampler config
+    pub fn get_sampler_config(&self) -> Result<SamplerConfig, crate::errors::GetterError> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        self.guard.send(ChatMsg::GetSamplerConfig { output_tx });
+        output_rx
+            .blocking_recv()
+            .ok_or(crate::errors::GetterError::GetterError(
+                "get_sampler_config".into(),
+            ))
     }
 
     /// Update the system prompt without resetting chat history.
@@ -637,6 +647,18 @@ impl ChatHandleAsync {
         ))
     }
 
+    /// Get the sampler config.
+    pub async fn get_sampler_config(&self) -> Result<SamplerConfig, crate::errors::GetterError> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        self.guard.send(ChatMsg::GetSamplerConfig { output_tx });
+        output_rx
+            .recv()
+            .await
+            .ok_or(crate::errors::GetterError::GetterError(
+                "get_sampler_config".into(),
+            ))
+    }
+
     /// Update the system prompt without resetting chat history.
     ///
     /// This modifies the system message while preserving the conversation history.
@@ -809,6 +831,9 @@ enum ChatMsg {
     GetChatHistory {
         output_tx: tokio::sync::mpsc::Sender<Vec<Message>>,
     },
+    GetSamplerConfig {
+        output_tx: tokio::sync::mpsc::Sender<SamplerConfig>,
+    },
     SetChatHistory {
         messages: Vec<Message>,
         output_tx: tokio::sync::mpsc::Sender<()>,
@@ -849,6 +874,7 @@ impl std::fmt::Debug for ChatMsg {
                 .debug_struct("SetChatHistory")
                 .field("messages", &format!("[{} messages]", messages.len()))
                 .finish(),
+            ChatMsg::GetSamplerConfig { .. } => f.debug_struct("GetSamplerConfig").finish(),
         }
     }
 }
@@ -913,6 +939,10 @@ fn process_worker_msg(
         } => {
             worker_state.set_chat_history(messages)?;
             let _ = output_tx.blocking_send(());
+        }
+        ChatMsg::GetSamplerConfig { output_tx } => {
+            let sampler_config = worker_state.get_sampler_config();
+            let _ = output_tx.blocking_send(sampler_config);
         }
     };
 
@@ -1055,6 +1085,14 @@ impl Worker<'_, ChatWorker> {
             (None, None)
         };
 
+        let sampler_config = match config.sampler_config {
+            Some(sc) => sc,
+            None => match read_sampler_metadata(&model.language_model) {
+                Some(sc) => sc,
+                None => SamplerConfig::default(),
+            },
+        };
+
         Worker::new_with_type(
             model,
             config.n_ctx,
@@ -1063,7 +1101,7 @@ impl Worker<'_, ChatWorker> {
                 should_stop,
                 tool_grammar: grammar,
                 tool_format,
-                sampler_config: config.sampler_config,
+                sampler_config: sampler_config,
                 messages: match config.system_prompt {
                     Some(msg) => vec![Message::Message {
                         role: Role::System,
@@ -1709,6 +1747,10 @@ impl Worker<'_, ChatWorker> {
             }, rest @ ..] => rest.to_vec(),
             _ => self.extra.messages.clone(),
         }
+    }
+
+    pub fn get_sampler_config(&self) -> SamplerConfig {
+        return self.extra.sampler_config.clone();
     }
 }
 
@@ -2576,6 +2618,10 @@ mod tests {
             .build();
 
         chat.set_sampler_config(SamplerPresets::greedy()).unwrap();
+
+        // Also test if get_sampler followed by set_sampler is no op
+        chat.set_sampler_config(chat.get_sampler_config().unwrap())
+            .unwrap();
 
         let response1 = chat.ask("Say exactly: 'Hello'").completed().unwrap();
         chat.reset_history().unwrap();
