@@ -71,13 +71,13 @@ impl EmbedderAsync {
 }
 
 enum EmbedderMsg {
-    Embed(String, tokio::sync::mpsc::Sender<Result<Vec<f32>, EmbedderWorkerError>>),
+    Embed(
+        String,
+        tokio::sync::mpsc::Sender<Result<Vec<f32>, EmbedderWorkerError>>,
+    ),
 }
 
-fn process_worker_msg(
-    worker_state: &mut Worker<'_, EmbedderWorker>,
-    msg: EmbedderMsg,
-) {
+fn process_worker_msg(worker_state: &mut Worker<'_, EmbedderWorker>, msg: EmbedderMsg) {
     match msg {
         EmbedderMsg::Embed(text, respond) => {
             worker_state.reset_context();
@@ -92,7 +92,7 @@ struct EmbedderWorker {}
 
 impl llm::PoolingType for EmbedderWorker {
     fn pooling_type(&self) -> LlamaPoolingType {
-        LlamaPoolingType::Mean  // Mean pooling for embeddings
+        LlamaPoolingType::Mean // Mean pooling for embeddings
     }
 }
 
@@ -131,8 +131,8 @@ mod tests {
 
         // These are just compile-time checks
         fn _check_embedder_api() {
-            use std::sync::Arc;
             use llama_cpp_2::model::LlamaModel;
+            use std::sync::Arc;
 
             // Check that we can create an embedder (doesn't execute)
             let _create = |model: Arc<LlamaModel>| {
@@ -162,7 +162,10 @@ mod tests {
         assert!(!embedding.is_empty(), "Embedding should not be empty");
 
         // Check that embedding values are reasonable
-        assert!(embedding.iter().all(|&x| x.is_finite()), "All values should be finite");
+        assert!(
+            embedding.iter().all(|&x| x.is_finite()),
+            "All values should be finite"
+        );
 
         println!("✓ Embedding dimension: {}", embedding.len());
         println!("✓ Sample values: {:?}", &embedding[0..5]);
@@ -194,10 +197,15 @@ mod tests {
         println!("📚 Embedding {} documents...", documents.len());
 
         // Embed all documents
-        let embeddings = embedder.embed_batch(documents.iter().map(|s| s.to_string()).collect())
+        let embeddings = embedder
+            .embed_batch(documents.iter().map(|s| s.to_string()).collect())
             .expect("Batch embedding should succeed");
 
-        println!("✅ Created {} embeddings ({}D each)\n", embeddings.len(), embeddings[0].len());
+        println!(
+            "✅ Created {} embeddings ({}D each)\n",
+            embeddings.len(),
+            embeddings[0].len()
+        );
 
         // Test queries
         let queries = vec![
@@ -210,11 +218,13 @@ mod tests {
             println!("🔍 Query: \"{}\"", query);
 
             // Embed query
-            let query_embedding = embedder.embed(query.to_string())
+            let query_embedding = embedder
+                .embed(query.to_string())
                 .expect("Query embedding should succeed");
 
             // Calculate cosine similarity with all documents
-            let mut scored_docs: Vec<(usize, f32)> = embeddings.iter()
+            let mut scored_docs: Vec<(usize, f32)> = embeddings
+                .iter()
                 .enumerate()
                 .map(|(idx, doc_emb)| {
                     let similarity = cosine_similarity(&query_embedding, doc_emb);
@@ -228,7 +238,12 @@ mod tests {
             // Show top 3 results
             println!("   Top 3 Results:");
             for (rank, (idx, score)) in scored_docs.iter().take(3).enumerate() {
-                println!("   {}. [Score: {:.3}] {}", rank + 1, score, &documents[*idx][..80.min(documents[*idx].len())]);
+                println!(
+                    "   {}. [Score: {:.3}] {}",
+                    rank + 1,
+                    score,
+                    &documents[*idx][..80.min(documents[*idx].len())]
+                );
             }
             println!();
         }

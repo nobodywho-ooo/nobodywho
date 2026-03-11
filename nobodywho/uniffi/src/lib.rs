@@ -3,8 +3,8 @@ use nobodywho::crossencoder::CrossEncoder as CoreCrossEncoder;
 use nobodywho::embedder::Embedder as CoreEmbedder;
 use nobodywho::encoder::Encoder as CoreEncoder;
 use nobodywho::errors::{
-    CompletionError, CrossEncoderWorkerError, EmbedderWorkerError, EncoderWorkerError,
-    GetterError, LoadModelError,
+    CompletionError, CrossEncoderWorkerError, EmbedderWorkerError, EncoderWorkerError, GetterError,
+    LoadModelError,
 };
 use nobodywho::llm;
 use std::sync::{Arc, Mutex};
@@ -140,7 +140,11 @@ impl From<CoreMessage> for Message {
                     })
                     .collect(),
             },
-            CoreMessage::ToolResp { role, name, content } => Message::ToolResponse {
+            CoreMessage::ToolResp {
+                role,
+                name,
+                content,
+            } => Message::ToolResponse {
                 role: role.into(),
                 name,
                 content,
@@ -259,11 +263,7 @@ pub struct CrossEncoder {
 }
 
 impl CrossEncoder {
-    pub fn rank(
-        &self,
-        query: String,
-        documents: Vec<String>,
-    ) -> Result<Vec<f32>, NobodyWhoError> {
+    pub fn rank(&self, query: String, documents: Vec<String>) -> Result<Vec<f32>, NobodyWhoError> {
         self.inner
             .rank(query, documents)
             .map_err(NobodyWhoError::CrossEncoder)
