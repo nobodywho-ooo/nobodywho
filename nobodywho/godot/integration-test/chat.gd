@@ -29,8 +29,8 @@ func test_chat_history():
 	
 	# Set up a simple chat history
 	var messages = [
-		{"role": "user", "content": "What is 2 + 2?"},
-		{"role": "assistant", "content": "2 + 2 equals 4."}
+		{"role": "user", "content": "What is 2 + 2?", "assets": []},
+		{"role": "assistant", "content": "2 + 2 equals 4.", "assets": []}
 	]
 	
 	await set_chat_history(messages)

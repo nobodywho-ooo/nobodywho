@@ -105,25 +105,28 @@ def is_functiongemma():
 @pytest.fixture
 def chat(model):
     if is_functiongemma():
-        return nobodywho.Chat(
+        c = nobodywho.Chat(
             model,
             system_prompt="You are a helpful assistant",
             allow_thinking=False,
             tools=[sparklify],
         )
-    return nobodywho.Chat(
-        model,
-        system_prompt="You are a helpful assistant",
-        allow_thinking=False,
-        tools=[
-            set_intersection,
-            multiply_strings,
-            sparklify,
-            reflarbicator,
-            add_list_of_vectors,
-            calculate_volume,
-        ],
-    )
+    else:
+        c = nobodywho.Chat(
+            model,
+            system_prompt="You are a helpful assistant",
+            allow_thinking=False,
+            tools=[
+                set_intersection,
+                multiply_strings,
+                sparklify,
+                reflarbicator,
+                add_list_of_vectors,
+                calculate_volume,
+            ],
+        )
+    yield c
+    del c
 
 
 def test_tool_construction():
@@ -182,6 +185,7 @@ def test_async_tool_calling(model):
     assert len(tool_responses) == 1
     assert tool_responses[0]["name"] == "async_sparklify"
     assert tool_responses[0]["content"] == "✨JULEMAND✨"
+    del chat
 
 
 def test_async_tool_bad_parameters():
@@ -236,6 +240,7 @@ def test_set_tools(model):
     assert len(tool_responses) == 1
     assert tool_responses[0]["name"] == "get_weather"
     assert tool_responses[0]["content"] == "The weather in Copenhagen is sunny and 21°C"
+    del chat
 
 
 def test_tool_calling_with_custom_sampler(model):
@@ -265,6 +270,7 @@ def test_tool_calling_with_custom_sampler(model):
     assert len(tool_responses) == 1
     assert tool_responses[0]["name"] == "sparklify"
     assert tool_responses[0]["content"] == "✨JULEMAND✨"
+    del chat
 
 
 def test_tool_with_sets(chat):

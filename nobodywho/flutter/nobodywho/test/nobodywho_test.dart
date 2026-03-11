@@ -5,7 +5,10 @@ import 'package:nobodywho/nobodywho.dart' as nobodywho;
 import 'package:test/test.dart';
 import 'dart:io';
 
-List<List<double>> multiplyMatrices(List<List<double>> a, List<List<double>> b) {
+List<List<double>> multiplyMatrices(
+  List<List<double>> a,
+  List<List<double>> b,
+) {
   final rowsA = a.length;
   final colsA = a[0].length;
   final colsB = b[0].length;
@@ -24,15 +27,15 @@ List<List<double>> multiplyMatrices(List<List<double>> a, List<List<double>> b) 
   return result;
 }
 
-
-String multiplyStrings({required Map<String,int> mapOfStrings}){
-  return mapOfStrings.entries.map((e) => e.key * e.value).reduce((acc, curr) => acc + curr);
+String multiplyStrings({required Map<String, int> mapOfStrings}) {
+  return mapOfStrings.entries
+      .map((e) => e.key * e.value)
+      .reduce((acc, curr) => acc + curr);
 }
 
 String setIntersection({required Set<int> set1, required Set<int> set2}) {
   return set1.intersection(set2).toString();
 }
-
 
 String sparklify({required String text}) {
   print("Sparklify called!");
@@ -46,8 +49,6 @@ Future<String> strongify({required String text}) async {
   return 'WOW $text WOW';
 }
 
-
-
 String addListOfVectors({required List<List<int>> listOfVectors}) {
   List<int> sum = listOfVectors.reduce(
     (acc, vec) => [for (int i = 0; i < acc.length; i++) acc[i] + vec[i]],
@@ -60,13 +61,15 @@ String noArgs() {
   return "This function has no args!";
 }
 
-
-String mutliplySquareMatrices({required List<List<List<double>>> listOfMatrices}){
-  return listOfMatrices.reduce((accu, curr) => multiplyMatrices(accu,curr)).toString();
+String mutliplySquareMatrices({
+  required List<List<List<double>>> listOfMatrices,
+}) {
+  return listOfMatrices
+      .reduce((accu, curr) => multiplyMatrices(accu, curr))
+      .toString();
 }
 
-
-String addTwoNumbers({required double a, required double b}){
+String addTwoNumbers({required double a, required double b}) {
   return (a + b).toString();
 }
 
@@ -85,7 +88,8 @@ void main() {
       final multiplyStringsTool = nobodywho.Tool(
         function: multiplyStrings,
         name: "multiplyStrings",
-        description: "Takes each String in the map and multiplies (concatenates it to itself) by its value.",
+        description:
+            "Takes each String in the map and multiplies (concatenates it to itself) by its value.",
       );
 
       final setIntersectionTool = nobodywho.Tool(
@@ -98,7 +102,7 @@ void main() {
         function: sparklify,
         name: "sparklify",
         description: "Applies the sparklify effect to a string",
-        parameterDescriptions: {"text" : "The text to be sparklified."},
+        parameterDescriptions: {"text": "The text to be sparklified."},
       );
 
       final strongify_tool = nobodywho.Tool(
@@ -108,29 +112,35 @@ void main() {
       );
 
       final noargs_tool = nobodywho.Tool(
-        function : noArgs,
+        function: noArgs,
         name: "noArgs",
         description: "This function does nothing and returns some string",
       );
 
       final addTwoNumbersTool = nobodywho.Tool(
-        function : addTwoNumbers,
-        name : "addTwoNumbers",
-        description : "This function adds up the two numbers.",
+        function: addTwoNumbers,
+        name: "addTwoNumbers",
+        description: "This function adds up the two numbers.",
       );
 
       final addListOfVectorsTool = nobodywho.Tool(
-        function : addListOfVectors,
-        name : "addListOfVectors",
-        description : "Does vector addition on the list of vectors provided",
-        parameterDescriptions : {"listOfVectors" : "List of vectors to added. Each vector must of same length"},
+        function: addListOfVectors,
+        name: "addListOfVectors",
+        description: "Does vector addition on the list of vectors provided",
+        parameterDescriptions: {
+          "listOfVectors":
+              "List of vectors to added. Each vector must of same length",
+        },
       );
 
       final multiplySquareMatricesTool = nobodywho.Tool(
-        function : mutliplySquareMatrices,
-        name : "multiplySquareMatrices",
-        description : "Multiplies all the matrices in list together.",
-        parameterDescriptions : {"listOfMatrices" : "List of matrices to multiply. Each matrix must be a square matrix and they must all be of the same dimension."},
+        function: mutliplySquareMatrices,
+        name: "multiplySquareMatrices",
+        description: "Multiplies all the matrices in list together.",
+        parameterDescriptions: {
+          "listOfMatrices":
+              "List of matrices to multiply. Each matrix must be a square matrix and they must all be of the same dimension.",
+        },
       );
 
       chat = await nobodywho.Chat.fromPath(
@@ -138,7 +148,16 @@ void main() {
         systemPrompt: "",
         contextSize: 2048,
         allowThinking: false,
-        tools: [sparklify_tool, strongify_tool, noargs_tool, addTwoNumbersTool, addListOfVectorsTool, multiplySquareMatricesTool, multiplyStringsTool, setIntersectionTool],
+        tools: [
+          sparklify_tool,
+          strongify_tool,
+          noargs_tool,
+          addTwoNumbersTool,
+          addListOfVectorsTool,
+          multiplySquareMatricesTool,
+          multiplyStringsTool,
+          setIntersectionTool,
+        ],
       );
     });
 
@@ -174,69 +193,75 @@ void main() {
       expect(response, contains("WOW Wrawr WOW"));
     });
 
-
-    test('Tool calling with no arguments test', () async{
-      final response = await chat!.ask(
-        "Please make a call to the noArgs function and show me the exact output!"
-      ).completed();
+    test('Tool calling with no arguments test', () async {
+      final response = await chat!
+          .ask(
+            "Please make a call to the noArgs function and show me the exact output!",
+          )
+          .completed();
       final history = await chat!.getChatHistory();
       final toolCall = history.firstWhere((m) => m.role == nobodywho.Role.tool);
 
       expect(toolCall.content, contains("This function has no args!"));
     });
 
-    test('Tool calling for doubles', () async{
-      final response = await chat!.ask(
-        "Please use the provided tool to add the numbers 13 and 17"
-      ).completed();
+    test('Tool calling for doubles', () async {
+      final response = await chat!
+          .ask("Please use the provided tool to add the numbers 13 and 17")
+          .completed();
       final history = await chat!.getChatHistory();
       final toolCall = history.firstWhere((m) => m.role == nobodywho.Role.tool);
 
       expect(toolCall.content, contains("30"));
     });
 
-
-    test('Tool calling with 2 layer nested list arguments', () async{
-      final response = await chat!.ask(
-        "Please use the provided tool to add the vectors [[1,2,3],[4,5,6],[7,8,9]]."
-      ).completed();
+    test('Tool calling with 2 layer nested list arguments', () async {
+      final response = await chat!
+          .ask(
+            "Please use the provided tool to add the vectors [[1,2,3],[4,5,6],[7,8,9]].",
+          )
+          .completed();
       final history = await chat!.getChatHistory();
       final toolCall = history.firstWhere((m) => m.role == nobodywho.Role.tool);
 
       expect(toolCall.content, contains("[12, 15, 18]"));
     });
 
-    test('Tool calling with 3 layer nested list arguments', () async{
-      final response = await chat!.ask(
-        "Please use the provided tool multiply the three 2x2 matrices [[1, 2],[3, 5]], [[1, 3],[13, 4]] and [[-5, 2],[23, 3]]."
-      ).completed();
+    test('Tool calling with 3 layer nested list arguments', () async {
+      final response = await chat!
+          .ask(
+            "Please use the provided tool multiply the three 2x2 matrices [[1, 2],[3, 5]], [[1, 3],[13, 4]] and [[-5, 2],[23, 3]].",
+          )
+          .completed();
       final history = await chat!.getChatHistory();
       final toolCall = history.firstWhere((m) => m.role == nobodywho.Role.tool);
 
       expect(toolCall.content, contains("[[118.0, 87.0], [327.0, 223.0]]"));
     });
 
-    test('Tool calling for maps', () async{
-      final response = await chat!.ask(
-        "Please use the provided tool to multiply the strings Hello and BingBong by 2 and 3 respectively."
-      ).completed();
+    test('Tool calling for maps', () async {
+      final response = await chat!
+          .ask(
+            "Please use the provided tool to multiply the strings Hello and BingBong by 2 and 3 respectively.",
+          )
+          .completed();
       final history = await chat!.getChatHistory();
       final toolCall = history.firstWhere((m) => m.role == nobodywho.Role.tool);
 
       expect(toolCall.content, contains("BingBongBingBongBingBong"));
     });
 
-
-    test('Tool calling for sets', () async{
-      final response = await chat!.ask(
-        "Please use the provided tool to find the intersection between the sets {12,4,6,7,8} and {12,5,7,3,4}."
-      ).completed();
+    test('Tool calling for sets', () async {
+      final response = await chat!
+          .ask(
+            "Please use the provided tool to find the intersection between the sets {12,4,6,7,8} and {12,5,7,3,4}.",
+          )
+          .completed();
       final history = await chat!.getChatHistory();
       final toolCall = history.firstWhere((m) => m.role == nobodywho.Role.tool);
 
       expect(toolCall.content, contains("{12, 4, 7}"));
     });
-
 
     test('Get chat history', () async {
       await chat!.ask("Hello!").completed();
@@ -415,7 +440,6 @@ void main() {
       expect(response2, contains("WOW test WOW"));
     });
 
-
     test('Python tool fibonacci', () async {
       final pythonChat = await nobodywho.Chat.fromPath(
         modelPath: modelPath,
@@ -424,7 +448,9 @@ void main() {
       );
 
       await pythonChat
-          .ask('Write a fibonacci function in Python and use the python tool to compute the 30th Fibonacci number.')
+          .ask(
+            'Write a fibonacci function in Python and use the python tool to compute the 30th Fibonacci number.',
+          )
           .completed();
 
       final history = await pythonChat.getChatHistory();
@@ -461,34 +487,38 @@ void main() {
       expect(selfSim, closeTo(1.0, 0.001));
     });
 
-    test('CrossEncoder.fromPath creates cross encoder and ranks documents', () async {
-      final modelPath = Platform.environment["TEST_CROSSENCODER_MODEL"];
-      if (modelPath == null) {
-        return; // Skip test if model not provided
-      }
+    test(
+      'CrossEncoder.fromPath creates cross encoder and ranks documents',
+      () async {
+        final modelPath = Platform.environment["TEST_CROSSENCODER_MODEL"];
+        if (modelPath == null) {
+          return; // Skip test if model not provided
+        }
 
-      final crossEncoder = await nobodywho.CrossEncoder.fromPath(modelPath: modelPath);
-      final documents = [
-        "Paris is the capital of France.",
-        "Berlin is the capital of Germany.",
-        "The weather is nice today.",
-      ];
+        final crossEncoder = await nobodywho.CrossEncoder.fromPath(
+          modelPath: modelPath,
+        );
+        final documents = [
+          "Paris is the capital of France.",
+          "Berlin is the capital of Germany.",
+          "The weather is nice today.",
+        ];
 
-      final scores = await crossEncoder.rank(
-        query: "What is the capital of France?",
-        documents: documents,
-      );
+        final scores = await crossEncoder.rank(
+          query: "What is the capital of France?",
+          documents: documents,
+        );
 
-      // Basic checks
-      expect(scores, isA<List<double>>());
-      expect(scores.length, equals(documents.length));
-      expect(scores.every((x) => x is double), isTrue);
+        // Basic checks
+        expect(scores, isA<List<double>>());
+        expect(scores.length, equals(documents.length));
+        expect(scores.every((x) => x is double), isTrue);
 
-      // Verify most relevant document has highest score
-      expect(scores[0], greaterThan(scores[1]));
-      expect(scores[0], greaterThan(scores[2]));
-    });
-
+        // Verify most relevant document has highest score
+        expect(scores[0], greaterThan(scores[1]));
+        expect(scores[0], greaterThan(scores[2]));
+      },
+    );
   });
 
   group('Message struct tests', () {
@@ -699,5 +729,4 @@ void main() {
       expect(original.name, equals('original_tool')); // Original unchanged
     });
   });
-
 }
