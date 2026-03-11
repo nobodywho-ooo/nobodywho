@@ -26,6 +26,7 @@ python3Packages.buildPythonPackage {
     lockFile = ../Cargo.lock;
     outputHashes = {
       "llama-cpp-2-0.1.139" = "sha256-pkHwpYxwdVM7H6gtrh0gKz6p4WBKoj0kC9SipNaiSHg=";
+      "monty-0.0.7" = "sha256-6iYQ5OyjJhArZ3rxM6z0l/qgxTY3ja+rMODA6/EN6kw=";
     };
   };
 

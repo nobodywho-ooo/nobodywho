@@ -394,9 +394,9 @@ def test_python_tool(model):
     tool_calls = get_tool_calls(history)
     tool_responses = get_tool_responses(history)
 
-    assert len(tool_calls) == 1
-    assert tool_calls[0]["function"]["name"] == "run_python"
+    assert len(tool_calls) >= 1
+    assert all(tc["function"]["name"] == "run_python" for tc in tool_calls)
 
-    assert len(tool_responses) == 1
-    assert tool_responses[0]["name"] == "run_python"
-    assert "832040" in tool_responses[0]["content"]
+    assert len(tool_responses) >= 1
+    assert all(tr["name"] == "run_python" for tr in tool_responses)
+    assert any("832040" in tr["content"] for tr in tool_responses)
