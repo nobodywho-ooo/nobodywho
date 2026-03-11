@@ -367,3 +367,36 @@ def test_tool_with_dict(chat):
     assert len(tool_responses) == 1
     assert tool_responses[0]["name"] == "calculate_volume"
     assert tool_responses[0]["content"] == "6000.0"
+
+
+def test_python_tool(model):
+    if is_functiongemma():
+        pytest.skip(
+            "Test not supported with FunctionGemma models; the model is too dumb to code."
+        )
+
+    chat = nobodywho.Chat(
+        model,
+        tools=[
+            nobodywho.python_tool(
+                max_duration=60,
+                max_recursion_depth=1000,
+            )
+        ],
+        allow_thinking=False,
+    )
+
+    chat.ask(
+        "Write me a fibonacci function in Python. Prefer the recursive version. Then run it in with the python tool and compute what the 30th Fibonacci number is."
+    ).completed()
+
+    history = chat.get_chat_history()
+    tool_calls = get_tool_calls(history)
+    tool_responses = get_tool_responses(history)
+
+    assert len(tool_calls) >= 1
+    assert all(tc["function"]["name"] == "run_python" for tc in tool_calls)
+
+    assert len(tool_responses) >= 1
+    assert all(tr["name"] == "run_python" for tr in tool_responses)
+    assert any("832040" in tr["content"] for tr in tool_responses)

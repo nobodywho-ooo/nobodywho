@@ -461,6 +461,28 @@ class Tool {
     return Tool._(tool);
   }
 
+  /// Creates a built-in tool that lets the LLM run sandboxed Python code.
+  ///
+  /// The model can call this tool to execute self-contained Python snippets via
+  /// the Monty interpreter. No filesystem, network, or environment variable
+  /// access is permitted.
+  ///
+  /// - [maxDuration]: Maximum wall-clock time a snippet may run.
+  /// - [maxMemoryBytes]: Maximum bytes of memory a snippet may allocate.
+  /// - [maxRecursionDepth]: Maximum call-stack depth.
+  factory Tool.python({
+    Duration? maxDuration,
+    int? maxMemoryBytes,
+    int? maxRecursionDepth,
+  }) {
+    final rustTool = nobodywho.newPythonTool(
+      maxDurationSecs: maxDuration != null ? BigInt.from(maxDuration.inSeconds) : null,
+      maxMemoryBytes: maxMemoryBytes != null ? BigInt.from(maxMemoryBytes) : null,
+      maxRecursionDepth: maxRecursionDepth != null ? BigInt.from(maxRecursionDepth) : null,
+    );
+    return Tool._(rustTool);
+  }
+
   /// Internal getter for Chat to access the underlying tool
   nobodywho.RustTool get _internalTool => _tool;
 }

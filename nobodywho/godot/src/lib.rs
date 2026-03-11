@@ -530,6 +530,50 @@ impl NobodyWhoChat {
     }
 
     #[func]
+    /// Add the built-in Python interpreter tool.
+    /// The tool lets the LLM run sandboxed Python code to answer questions that require computation.
+    ///
+    /// All parameters are optional and default to 0 (unlimited).
+    ///
+    /// Example:
+    ///
+    /// ```
+    /// func _ready():
+    ///     add_python_tool()              # no limits
+    ///     add_python_tool(10)            # 10-second timeout
+    ///     add_python_tool(10, 67108864)  # timeout + 64 MB memory cap
+    /// ```
+    fn add_python_tool(
+        &mut self,
+        #[opt(default = 0i64)] max_duration_secs: i64,
+        #[opt(default = 0i64)] max_memory_bytes: i64,
+        #[opt(default = 0i64)] max_recursion_depth: i64,
+    ) {
+        if self.chat_handle.is_some() {
+            godot_warn!("Worker already running. Tools won't be available until restart or reset");
+        }
+
+        let duration = if max_duration_secs <= 0 {
+            None
+        } else {
+            Some(std::time::Duration::from_secs(max_duration_secs as u64))
+        };
+        let memory = if max_memory_bytes <= 0 {
+            None
+        } else {
+            Some(max_memory_bytes as usize)
+        };
+        let recursion = if max_recursion_depth <= 0 {
+            None
+        } else {
+            Some(max_recursion_depth as usize)
+        };
+
+        let tool = nobodywho::tool_calling::Tool::python(duration, memory, recursion);
+        self.tools.push(tool);
+    }
+
+    #[func]
     /// Add a tool for the LLM to use, along with a json schema to constrain the parameters.
     /// The order of parameters in the json schema must be preserved.
     /// The json schema keyword "description" may be used here, to help guide the LLM.
@@ -676,6 +720,35 @@ impl NobodyWhoChat {
 
         let new_tools = self.tools.clone();
 
+        godot::task::spawn(async move {
+            if let Err(err) = chat_handle.set_tools(new_tools).await {
+                godot_error!("Error: {}", err.to_string());
+            }
+        });
+    }
+
+    #[func]
+    /// Remove the built-in Python interpreter tool that was previously added with `add_python_tool`.
+    fn remove_python_tool(&mut self) {
+        let tool_name = "run_python";
+
+        let tool_found = self.tools.iter().any(|tool| tool.name == tool_name);
+        if !tool_found {
+            godot_error!("remove_python_tool: python tool is not registered");
+            return;
+        }
+
+        self.tools.retain(|tool| tool.name != tool_name);
+
+        let chat_handle = match self.chat_handle.as_ref() {
+            Some(handle) => handle.clone(),
+            None => {
+                godot_error!("Attempted remove_python_tool, but no worker is running.");
+                return;
+            }
+        };
+
+        let new_tools = self.tools.clone();
         godot::task::spawn(async move {
             if let Err(err) = chat_handle.set_tools(new_tools).await {
                 godot_error!("Error: {}", err.to_string());
