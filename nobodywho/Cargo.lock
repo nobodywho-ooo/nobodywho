@@ -1977,7 +1977,7 @@ checksum = "a846cbc04412cf509efcd8f3694b114fc700a035fb5a37f21517f9fb019f1ebc"
 
 [[package]]
 name = "nobodywho"
-version = "2.1.1"
+version = "2.2.0"
 dependencies = [
  "ahash",
  "chrono",
@@ -2004,7 +2004,7 @@ dependencies = [
 
 [[package]]
 name = "nobodywho-flutter"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "flutter_rust_bridge",
  "flutter_rust_bridge_codegen",
@@ -2019,7 +2019,7 @@ dependencies = [
 
 [[package]]
 name = "nobodywho-godot"
-version = "8.1.0"
+version = "8.2.0"
 dependencies = [
  "godot",
  "nobodywho",
@@ -2031,7 +2031,7 @@ dependencies = [
 
 [[package]]
 name = "nobodywho-python"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "futures",
  "log",

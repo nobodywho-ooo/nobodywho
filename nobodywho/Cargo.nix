@@ -6239,10 +6239,14 @@ rec {
       };
       "nobodywho" = rec {
         crateName = "nobodywho";
-        version = "2.1.1";
+        version = "2.2.0";
         edition = "2021";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./core; };
         dependencies = [
+          {
+            name = "ahash";
+            packageId = "ahash";
+          }
           {
             name = "chrono";
             packageId = "chrono";
@@ -6272,10 +6276,6 @@ rec {
             packageId = "lazy_static";
           }
           {
-            name = "ahash";
-            packageId = "ahash";
-          }
-          {
             name = "llama-cpp-2";
             packageId = "llama-cpp-2";
             usesDefaultFeatures = false;
@@ -6286,7 +6286,7 @@ rec {
             packageId = "llama-cpp-2";
             usesDefaultFeatures = false;
             target = { target, features }: ((!("macos" == target."os" or null)) && (!("ios" == target."os" or null)) && (!("android" == target."os" or null)) && (("x86_64" == target."arch" or null) || ("x86" == target."arch" or null) || ("aarch64" == target."arch" or null)));
-            features = [ "openmp" "vulkan" "android-static-stdcxx" "mtmd" ];
+            features = [ "openmp" "vulkan" "mtmd" "android-static-stdcxx" ];
           }
           {
             name = "minijinja";
@@ -6346,7 +6346,7 @@ rec {
       };
       "nobodywho-flutter" = rec {
         crateName = "nobodywho-flutter";
-        version = "0.4.0";
+        version = "0.5.0";
         edition = "2021";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./flutter/rust; };
         libName = "nobodywho_flutter";type = [ "cdylib" ];
@@ -6394,7 +6394,7 @@ rec {
       };
       "nobodywho-godot" = rec {
         crateName = "nobodywho-godot";
-        version = "8.1.0";
+        version = "8.2.0";
         edition = "2021";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./godot; };
         libName = "nobodywho_godot";type = [ "cdylib" ];
@@ -6430,7 +6430,7 @@ rec {
       };
       "nobodywho-python" = rec {
         crateName = "nobodywho-python";
-        version = "0.8.0";
+        version = "0.9.0";
         edition = "2021";
         crateBin = [
           {
