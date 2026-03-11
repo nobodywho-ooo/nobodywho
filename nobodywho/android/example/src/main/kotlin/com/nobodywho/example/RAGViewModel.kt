@@ -151,6 +151,7 @@ class RAGViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun sendMessage(query: String, topK: Int = 3, useReranker: Boolean = false) {
+        if (_isProcessing.value) return
         val chat = chat ?: return
         val memory = hybridMemory ?: return
         if (query.isBlank()) return

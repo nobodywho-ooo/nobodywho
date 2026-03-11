@@ -57,7 +57,7 @@ class InMemoryVectorStore : VectorStore {
 // MARK: - SQLiteVectorStore
 
 /** A persistent vector store backed by Android's SQLite. */
-class SQLiteVectorStore(context: Context, databaseName: String = "nobodywho_vectors.db") : VectorStore {
+class SQLiteVectorStore(context: Context, databaseName: String = "nobodywho_vectors.db") : VectorStore, AutoCloseable {
     private val db: SQLiteDatabase
     private val lock = ReentrantLock()
 
@@ -145,6 +145,10 @@ class SQLiteVectorStore(context: Context, databaseName: String = "nobodywho_vect
                 if (cursor.moveToFirst()) cursor.getInt(0) else 0
             }
         }
+
+    override fun close() {
+        lock.withLock { db.close() }
+    }
 
     // MARK: - Helpers
 

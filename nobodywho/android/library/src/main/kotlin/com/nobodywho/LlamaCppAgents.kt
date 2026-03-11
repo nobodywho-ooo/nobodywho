@@ -4,6 +4,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import uniffi.nobodywho.ChatConfig as FFIChatConfig
 import uniffi.nobodywho.Chat as FFIChat
 import uniffi.nobodywho.loadModel as ffiLoadModel
@@ -19,7 +20,9 @@ import uniffi.nobodywho.loadCrossEncoder
  * are not duplicated in memory. Each [Chat] created from the same model gets its own
  * independent context and conversation history.
  */
-class NobodyWhoModel internal constructor(internal val ffi: uniffi.nobodywho.Model)
+class NobodyWhoModel internal constructor(internal val ffi: uniffi.nobodywho.Model) : AutoCloseable {
+    override fun close() = ffi.close()
+}
 
 /** Loads model weights from a `.gguf` file. Call this once and share the result. */
 fun loadNobodyWhoModel(path: String, useGpu: Boolean = true): NobodyWhoModel =
@@ -31,7 +34,9 @@ fun loadNobodyWhoModel(path: String, useGpu: Boolean = true): NobodyWhoModel =
 data class ChatConfig(
     val contextSize: Int = 4096,
     val systemPrompt: String? = null,
-    val allowThinking: Boolean = true
+    val allowThinking: Boolean = true,
+    /** Maximum ms to wait for a response. Null means no timeout. */
+    val timeoutMs: Long? = null
 )
 
 private fun ChatConfig.toFFI() = FFIChatConfig(
@@ -53,24 +58,33 @@ private fun ChatConfig.toFFI() = FFIChatConfig(
  * val chatB = Chat(model = model)
  * ```
  */
-class Chat private constructor(private val inner: FFIChat) {
+class Chat private constructor(private val inner: FFIChat, private val config: ChatConfig) : AutoCloseable {
 
     /** Loads model weights from [modelPath] and creates a chat session. */
     constructor(
         modelPath: String,
         useGpu: Boolean = true,
         config: ChatConfig = ChatConfig()
-    ) : this(FFIChat(model = ffiLoadModel(path = modelPath, useGpu = useGpu), config = config.toFFI()))
+    ) : this(FFIChat(model = ffiLoadModel(path = modelPath, useGpu = useGpu), config = config.toFFI()), config)
 
     /** Creates a chat session from already-loaded [model] weights. No file I/O occurs. */
     constructor(
         model: NobodyWhoModel,
         config: ChatConfig = ChatConfig()
-    ) : this(FFIChat(model = model.ffi, config = config.toFFI()))
+    ) : this(FFIChat(model = model.ffi, config = config.toFFI()), config)
 
-    /** Generates a response and returns the full text when complete. */
+    /**
+     * Generates a response and returns the full text when complete.
+     * Throws [kotlinx.coroutines.TimeoutCancellationException] if [ChatConfig.timeoutMs] is set and exceeded.
+     */
     suspend fun ask(prompt: String): String = withContext(Dispatchers.IO) {
-        inner.ask(prompt = prompt).completed()
+        val timeoutMs = config.timeoutMs
+        if (timeoutMs != null) {
+            withTimeoutOrNull(timeoutMs) { inner.ask(prompt = prompt).completed() }
+                ?: error("Inference timed out after ${timeoutMs}ms")
+        } else {
+            inner.ask(prompt = prompt).completed()
+        }
     }
 
     /** Emits tokens as they are generated. */
@@ -81,6 +95,8 @@ class Chat private constructor(private val inner: FFIChat) {
             emit(token)
         }
     }
+
+    override fun close() = inner.close()
 }
 
 // MARK: - LlamaCppEmbedder
@@ -90,7 +106,7 @@ class LlamaCppEmbedder(
     modelPath: String,
     useGpu: Boolean = true,
     contextSize: Int = 512
-) : EmbedderAgent {
+) : EmbedderAgent, AutoCloseable {
     private val embedder = loadEmbedder(
         path = modelPath,
         useGpu = useGpu,
@@ -102,6 +118,8 @@ class LlamaCppEmbedder(
 
     override fun embedBatch(texts: List<String>): List<FloatArray> =
         embedder.embedBatch(texts = texts).map { it.toFloatArray() }
+
+    override fun close() = embedder.close()
 }
 
 // MARK: - LlamaCppReranker
@@ -111,7 +129,7 @@ class LlamaCppReranker(
     modelPath: String,
     useGpu: Boolean = true,
     contextSize: Int = 4096
-) : Reranker {
+) : Reranker, AutoCloseable {
     private val crossEncoder = loadCrossEncoder(
         path = modelPath,
         useGpu = useGpu,
@@ -124,6 +142,8 @@ class LlamaCppReranker(
     override fun rankAndSort(query: String, documents: List<String>): List<RankedResult> =
         crossEncoder.rankAndSort(query = query, documents = documents)
             .map { RankedResult(content = it.content, score = it.score) }
+
+    override fun close() = crossEncoder.close()
 }
 
 // MARK: - LlamaCppLanguageModel
@@ -133,10 +153,12 @@ class LlamaCppLanguageModel(
     modelPath: String,
     useGpu: Boolean = true,
     config: ChatConfig = ChatConfig()
-) : LanguageModel {
+) : LanguageModel, AutoCloseable {
     private val chat = Chat(modelPath = modelPath, useGpu = useGpu, config = config)
 
     override suspend fun generate(prompt: String): String = chat.ask(prompt)
 
     override fun generateFlow(prompt: String): Flow<String> = chat.askFlow(prompt)
+
+    override fun close() = chat.close()
 }
