@@ -1,6 +1,6 @@
+use std::collections::HashMap;
 use std::sync::LazyLock;
 
-use ahash::HashMap;
 use llama_cpp_2::mtmd::MtmdBitmap;
 use minijinja::{Environment, Template, Value};
 use tracing::{debug, trace, warn};
