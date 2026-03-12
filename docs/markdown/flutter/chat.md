@@ -34,7 +34,7 @@ The `Chat.ask()` function is central to NobodyWho. This function sends your mess
 ```dart
 import "dart:io"
 final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
-final response = await chat.ask("Is water wet?");
+final response = chat.ask("Is water wet?");
 ```
 
 The return type of `ask` is a `TokenStream`.
@@ -43,10 +43,8 @@ Each token is either an individual word or fragments of a word.
 
 ```{.dart continuation}
 await for (final token in response) {
-   stdout.write(token);
-   await stdout.flush();
+   print(token);
 }
-print("\n");
 ```
 
 If you just want to get the complete response, you can call `TokenStream.completed()`.
