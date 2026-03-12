@@ -1,8 +1,7 @@
 use crate::errors::EmbedderWorkerError;
 use crate::llm;
-use crate::llm::{Worker, WorkerGuard};
+use crate::llm::{Model, Worker, WorkerGuard};
 use llama_cpp_2::context::params::LlamaPoolingType;
-use llama_cpp_2::model::LlamaModel;
 use std::sync::Arc;
 
 /// Embedder for converting text to vectors for semantic search
@@ -17,7 +16,7 @@ pub struct EmbedderAsync {
 }
 
 impl Embedder {
-    pub fn new(model: Arc<LlamaModel>, n_ctx: u32) -> Self {
+    pub fn new(model: Arc<Model>, n_ctx: u32) -> Self {
         let async_handle = EmbedderAsync::new(model, n_ctx);
         Self { async_handle }
     }
@@ -38,11 +37,11 @@ impl Embedder {
 }
 
 impl EmbedderAsync {
-    pub fn new(model: Arc<LlamaModel>, n_ctx: u32) -> Self {
+    pub fn new(model: Arc<Model>, n_ctx: u32) -> Self {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
 
         let join_handle = std::thread::spawn(move || {
-            let worker = Worker::new_embedder_worker(&model, n_ctx);
+            let worker = Worker::new_embedder_worker(&*model, n_ctx);
             let mut worker_state = match worker {
                 Ok(worker_state) => worker_state,
                 Err(errmsg) => {
@@ -98,9 +97,9 @@ impl llm::PoolingType for EmbedderWorker {
 
 impl<'a> Worker<'a, EmbedderWorker> {
     pub fn new_embedder_worker(
-        model: &Arc<LlamaModel>,
+        model: &'a Model,
         n_ctx: u32,
-    ) -> Result<Worker<'_, EmbedderWorker>, crate::errors::InitWorkerError> {
+    ) -> Result<Worker<'a, EmbedderWorker>, crate::errors::InitWorkerError> {
         Worker::new_with_type(model, n_ctx, true, EmbedderWorker {})
     }
 
@@ -131,11 +130,11 @@ mod tests {
 
         // These are just compile-time checks
         fn _check_embedder_api() {
-            use llama_cpp_2::model::LlamaModel;
+            use crate::llm::Model;
             use std::sync::Arc;
 
             // Check that we can create an embedder (doesn't execute)
-            let _create = |model: Arc<LlamaModel>| {
+            let _create = |model: Arc<Model>| {
                 let embedder = Embedder::new(model, 512);
                 let _: Result<Vec<f32>, _> = embedder.embed("test".to_string());
                 let _: Result<Vec<Vec<f32>>, _> = embedder.embed_batch(vec!["test".to_string()]);

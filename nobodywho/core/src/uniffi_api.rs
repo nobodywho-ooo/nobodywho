@@ -8,7 +8,6 @@ use crate::crossencoder::CrossEncoder as CoreCrossEncoder;
 use crate::encoder::Encoder as CoreEncoder;
 use crate::errors::LoadModelError;
 use crate::llm;
-use llama_cpp_2::model::LlamaModel;
 use std::sync::Arc;
 
 // Re-export for UDL
@@ -96,7 +95,7 @@ impl From<CoreMessage> for Message {
 
 /// Model wrapper for UniFFI
 pub struct Model {
-    inner: Arc<LlamaModel>,
+    inner: Arc<llm::Model>,
     path: String,
 }
 
@@ -109,8 +108,11 @@ impl Model {
 
 /// Load a model from a GGUF file
 pub fn load_model(path: String, use_gpu: bool) -> Result<Arc<Model>, NobodyWhoError> {
-    let model = llm::get_model(&path, use_gpu)?;
-    Ok(Arc::new(Model { inner: model, path }))
+    let model = llm::get_model(&path, use_gpu, None)?;
+    Ok(Arc::new(Model {
+        inner: Arc::new(model),
+        path,
+    }))
 }
 
 /// Chat configuration
@@ -204,9 +206,9 @@ pub fn load_embedder(
     use_gpu: bool,
     context_size: u32,
 ) -> Result<Arc<Embedder>, NobodyWhoError> {
-    let model = llm::get_model(&path, use_gpu)?;
+    let model = llm::get_model(&path, use_gpu, None)?;
     Ok(Arc::new(Embedder {
-        inner: CoreEncoder::new(model, context_size),
+        inner: CoreEncoder::new(Arc::new(model), context_size),
     }))
 }
 
@@ -245,8 +247,8 @@ pub fn load_cross_encoder(
     use_gpu: bool,
     context_size: u32,
 ) -> Result<Arc<CrossEncoder>, NobodyWhoError> {
-    let model = llm::get_model(&path, use_gpu)?;
+    let model = llm::get_model(&path, use_gpu, None)?;
     Ok(Arc::new(CrossEncoder {
-        inner: CoreCrossEncoder::new(model, context_size),
+        inner: CoreCrossEncoder::new(Arc::new(model), context_size),
     }))
 }
