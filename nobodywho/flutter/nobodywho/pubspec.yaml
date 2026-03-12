@@ -1,6 +1,6 @@
 name: nobodywho
 description: "On-device AI for mobile & desktop — text, embeddings, RAG & function calling. Run GGUF models with Metal/Vulkan acceleration. Free for commercial use."
-version: 0.4.0
+version: 0.5.0
 repository: https://github.com/nobodywho-ooo/nobodywho
 issue_tracker: https://github.com/nobodywho-ooo/nobodywho/issues
 documentation: https://docs.nobodywho.ooo/

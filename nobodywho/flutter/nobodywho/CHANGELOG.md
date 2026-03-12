@@ -1,3 +1,8 @@
+## 0.5.0
+
+- Support image ingestion for multimodal vision models
+- Fix windows dart executable path resolution (thanks to @leonludwig)
+
 ## 0.4.0
 
 ### New Features

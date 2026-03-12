@@ -46,7 +46,7 @@ jobs:
 
     runs-on: ${{ matrix.runner }}
     env:
-      RUSTFLAGS:  ${{ matrix.runner == 'ubuntu-24.04' && '-C target-cpu=x86-64-v3' || '' }}
+      RUSTFLAGS: ${{ matrix.runner == 'ubuntu-24.04' && '-C target-cpu=x86-64-v3' || '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -80,7 +80,7 @@ jobs:
           git clone https://github.com/flutter/flutter.git -b 3.35.5 --depth 1
           echo "$PWD/flutter/bin" >> $GITHUB_PATH
           ./flutter/bin/flutter doctor
-      
+
       - name: "Setup Flutter SDK (action for x64)"
         if: matrix.integration == 'flutter' && matrix.target == 'x86_64-unknown-linux-gnu'
         uses: flutter-actions/setup-flutter@v4
@@ -164,6 +164,7 @@ jobs:
           # Use an even shorter target directory to avoid path length issues with git dependencies
           cargo build -p nobodywho-${{ matrix.integration }} --target ${{ matrix.target }} --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked --target-dir C:/t
         env:
+          NOBODYWHO_SKIP_CODEGEN: "1"
           RUSTFLAGS: >-
             -l Advapi32
             -C debuginfo=0
@@ -333,9 +334,9 @@ jobs:
           path: |
             ~/.cargo
             nobodywho/target
-          key: ${{ runner.os }}-cargo-home-${{ matrix.target }}-${{ matrix.profile }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-home-${{ matrix.target }}-${{ matrix.profile }}-
+            ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}-
       - name: "Setup rust toolchain"
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
@@ -364,7 +365,7 @@ jobs:
           version: 3.35.5
 
       - name: "Compile for android"
-        run: cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }}
+        run: cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: ./nobodywho
         env:
           ANDROID_NDK: "${{ steps.setup-ndk.outputs.ndk-path }}"

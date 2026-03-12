@@ -111,9 +111,9 @@ fn parameter_parser(input: &str) -> IResult<&str, (&str, serde_json::Value)> {
     .parse(input)
 }
 
-pub(crate) fn runtime_type_parser(
-    input: &str,
-) -> IResult<&str, (Vec<(&str, serde_json::Value)>, &str)> {
+type RuntimeTypeParts<'a> = (Vec<(&'a str, serde_json::Value)>, &'a str);
+
+pub(crate) fn runtime_type_parser(input: &str) -> IResult<&str, RuntimeTypeParts<'_>> {
     alt((
         map(tag("()"), |_s| Vec::new()),
         delimited(
