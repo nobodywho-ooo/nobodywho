@@ -167,7 +167,7 @@ abstract class RustChat implements RustOpaqueInterface {
     required Model model,
     String? systemPrompt = null,
     int contextSize = 4096,
-    bool allowThinking = true,
+    bool? allowThinking = null,
     List<RustTool> tools = const [],
     SamplerConfig? sampler = null,
   }) => NobodyWho.instance.api.crateRustChatNew(

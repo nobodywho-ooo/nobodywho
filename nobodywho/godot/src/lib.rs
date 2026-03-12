@@ -3,6 +3,7 @@ use godot::prelude::*;
 use nobodywho::chat::{ChatConfig, Message, Role};
 use nobodywho::sampler_config::{SamplerConfig, SamplerPresets};
 use nobodywho::{errors, llm, tokenizer};
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tokenizer::Promptable;
@@ -224,7 +225,7 @@ impl INode for NobodyWhoChat {
             tools: default_config.tools,
             system_prompt: GString::from(""),
             context_length: default_config.n_ctx,
-            allow_thinking: default_config.allow_thinking,
+            allow_thinking: true,
 
             // config
             model_node: None,
@@ -260,13 +261,15 @@ impl NobodyWhoChat {
 
     fn start_worker_impl(&mut self) -> Result<(), String> {
         let model = self.get_model()?;
+        let mut temp_vars = HashMap::new();
+        temp_vars.insert("enable_thinking".to_string(), self.allow_thinking);
         let chat_handle = nobodywho::chat::ChatHandleAsync::new(
             model,
             nobodywho::chat::ChatConfig {
                 system_prompt: Some(self.system_prompt.to_string()),
                 tools: self.tools.clone(),
                 n_ctx: self.context_length,
-                allow_thinking: self.allow_thinking,
+                template_variables: temp_vars,
                 sampler_config: SamplerConfig::default(),
             },
         );

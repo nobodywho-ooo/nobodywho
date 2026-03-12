@@ -144,7 +144,7 @@ abstract class NobodyWhoApi extends BaseApi {
     required Model model,
     String? systemPrompt = null,
     int contextSize = 4096,
-    bool allowThinking = true,
+    bool? allowThinking = null,
     List<RustTool> tools = const [],
     SamplerConfig? sampler = null,
   });
@@ -940,7 +940,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     required Model model,
     String? systemPrompt = null,
     int contextSize = 4096,
-    bool allowThinking = true,
+    bool? allowThinking = null,
     List<RustTool> tools = const [],
     SamplerConfig? sampler = null,
   }) {
@@ -954,7 +954,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           );
           sse_encode_opt_String(systemPrompt, serializer);
           sse_encode_u_32(contextSize, serializer);
-          sse_encode_bool(allowThinking, serializer);
+          sse_encode_opt_box_autoadd_bool(allowThinking, serializer);
           sse_encode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTool(
             tools,
             serializer,
@@ -3057,6 +3057,12 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  bool dco_decode_box_autoadd_bool(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as bool;
+  }
+
+  @protected
   double dco_decode_f_32(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as double;
@@ -3211,6 +3217,12 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         : dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
             raw,
           );
+  }
+
+  @protected
+  bool? dco_decode_opt_box_autoadd_bool(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_bool(raw);
   }
 
   @protected
@@ -3872,6 +3884,12 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  bool sse_decode_box_autoadd_bool(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_bool(deserializer));
+  }
+
+  @protected
   double sse_decode_f_32(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getFloat32();
@@ -4097,6 +4115,17 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       return (sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
         deserializer,
       ));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  bool? sse_decode_opt_box_autoadd_bool(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_bool(deserializer));
     } else {
       return null;
     }
@@ -4843,6 +4872,12 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  void sse_encode_box_autoadd_bool(bool self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self, serializer);
+  }
+
+  @protected
   void sse_encode_f_32(double self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putFloat32(self);
@@ -5058,6 +5093,16 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         self,
         serializer,
       );
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_bool(bool? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_bool(self, serializer);
     }
   }
 

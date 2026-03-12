@@ -388,6 +388,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
+  bool dco_decode_box_autoadd_bool(dynamic raw);
+
+  @protected
   double dco_decode_f_32(dynamic raw);
 
   @protected
@@ -449,6 +452,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
     dynamic raw,
   );
+
+  @protected
+  bool? dco_decode_opt_box_autoadd_bool(dynamic raw);
 
   @protected
   PromptPart dco_decode_prompt_part(dynamic raw);
@@ -773,6 +779,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
+  bool sse_decode_box_autoadd_bool(SseDeserializer deserializer);
+
+  @protected
   double sse_decode_f_32(SseDeserializer deserializer);
 
   @protected
@@ -838,6 +847,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
     SseDeserializer deserializer,
   );
+
+  @protected
+  bool? sse_decode_opt_box_autoadd_bool(SseDeserializer deserializer);
 
   @protected
   PromptPart sse_decode_prompt_part(SseDeserializer deserializer);
@@ -1221,6 +1233,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_bool(bool self, SseSerializer serializer);
+
+  @protected
   void sse_encode_f_32(double self, SseSerializer serializer);
 
   @protected
@@ -1304,6 +1319,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
     SamplerConfig? self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_opt_box_autoadd_bool(bool? self, SseSerializer serializer);
 
   @protected
   void sse_encode_prompt_part(PromptPart self, SseSerializer serializer);
