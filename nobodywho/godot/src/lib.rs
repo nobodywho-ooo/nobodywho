@@ -2,8 +2,10 @@ use godot::classes::{INode, ProjectSettings};
 use godot::prelude::*;
 use nobodywho::chat::{ChatConfig, Message, Role};
 use nobodywho::sampler_config::{SamplerConfig, SamplerPresets};
-use nobodywho::{errors, llm};
+use nobodywho::{errors, llm, tokenizer};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+use tokenizer::Promptable;
 use tracing::{debug, error, info, trace, warn};
 use tracing_subscriber::filter::{LevelFilter, Targets};
 use tracing_subscriber::prelude::*;
@@ -36,10 +38,14 @@ struct NobodyWhoModel {
     #[export(file = "*.gguf")]
     model_path: GString,
 
+    #[export(file = "*.gguf")]
+    /// Optional multimodal projection model path for vision/image support.
+    image_model_path: GString,
+
     #[export]
     use_gpu_if_available: bool,
 
-    model: Option<llm::Model>,
+    model: Option<Arc<llm::Model>>,
 }
 
 #[godot_api]
@@ -49,7 +55,8 @@ impl INode for NobodyWhoModel {
         let model_path: GString = GString::from("model.gguf");
 
         Self {
-            model_path: model_path,
+            model_path,
+            image_model_path: GString::from(""),
             use_gpu_if_available: true,
             model: None,
         }
@@ -59,9 +66,9 @@ impl INode for NobodyWhoModel {
 #[godot_api]
 impl NobodyWhoModel {
     // memoized model loader
-    fn get_model(&mut self) -> Result<llm::Model, errors::LoadModelError> {
+    fn get_model(&mut self) -> Result<Arc<llm::Model>, errors::LoadModelError> {
         if let Some(model) = &self.model {
-            return Ok(model.clone());
+            return Ok(Arc::clone(model));
         }
 
         let project_settings = ProjectSettings::singleton();
@@ -69,10 +76,28 @@ impl NobodyWhoModel {
             .globalize_path(&self.model_path.clone())
             .into();
 
-        match llm::get_model(model_path_string.as_str(), self.use_gpu_if_available) {
+        let mmproj_str_owned: Option<String> = {
+            let s = self.image_model_path.to_string();
+            if s.is_empty() {
+                None
+            } else {
+                Some(
+                    project_settings
+                        .globalize_path(&self.image_model_path.clone())
+                        .into(),
+                )
+            }
+        };
+
+        match llm::get_model(
+            model_path_string.as_str(),
+            self.use_gpu_if_available,
+            mmproj_str_owned.as_deref(),
+        ) {
             Ok(model) => {
-                self.model = Some(model.clone());
-                Ok(model.clone())
+                let model = Arc::new(model);
+                self.model = Some(Arc::clone(&model));
+                Ok(model)
             }
             Err(err) => {
                 godot_error!("Could not load model: {:?}", err.to_string());
@@ -86,6 +111,51 @@ impl NobodyWhoModel {
     /// Valid arguments are "TRACE", "DEBUG", "INFO", "WARN", and "ERROR".
     fn set_log_level(level: String) {
         set_log_level(&level);
+    }
+}
+
+#[derive(GodotClass)]
+#[class(base=RefCounted)]
+/// A multimodal prompt consisting of interleaved text and image parts.
+///
+/// Example:
+/// ```
+/// var prompt = NobodyWhoPrompt.new()
+/// prompt.add_text("What is in this image?")
+/// prompt.add_image("res://images/photo.jpg")
+/// chat.ask(prompt)
+/// ```
+struct NobodyWhoPrompt {
+    prompt: tokenizer::Prompt,
+    base: Base<RefCounted>,
+}
+
+#[godot_api]
+impl IRefCounted for NobodyWhoPrompt {
+    fn init(base: Base<RefCounted>) -> Self {
+        Self {
+            prompt: tokenizer::Prompt::new(),
+            base,
+        }
+    }
+}
+
+#[godot_api]
+impl NobodyWhoPrompt {
+    #[func]
+    /// Appends a text segment to this prompt.
+    fn add_text(&mut self, text: String) {
+        self.prompt.push_text(text);
+    }
+
+    #[func]
+    /// Appends an image to this prompt. Accepts res:// paths or absolute paths.
+    fn add_image(&mut self, path: String) {
+        let project_settings = ProjectSettings::singleton();
+        let globalized: String = project_settings
+            .globalize_path(&GString::from(path.as_str()))
+            .into();
+        self.prompt.push_image(globalized.as_ref());
     }
 }
 
@@ -167,10 +237,10 @@ impl INode for NobodyWhoChat {
 
 #[godot_api]
 impl NobodyWhoChat {
-    fn get_model(&mut self) -> Result<llm::Model, GString> {
+    fn get_model(&mut self) -> Result<Arc<llm::Model>, GString> {
         let gd_model_node = self.model_node.as_mut().ok_or("Model node was not set")?;
         let mut nobody_model = gd_model_node.bind_mut();
-        let model: llm::Model = nobody_model
+        let model = nobody_model
             .get_model()
             .map_err(|e| GString::from(e.to_string().as_str()))?;
 
@@ -207,13 +277,13 @@ impl NobodyWhoChat {
     #[func]
     fn say(&mut self, message: String) {
         godot_warn!("DEPRECATED: the `say` function has been renamed to `ask`, to indicate that it generates a response. `say` will be removed in the future.");
-        self.ask(message)
+        self.ask(message.to_variant())
     }
 
     #[func]
-    /// Sends a message to the LLM.
+    /// Sends a message to the LLM. Accepts a String or a NobodyWhoPrompt.
     /// This will start the inference process. meaning you can also listen on the `response_updated` and `response_finished` signals to get the response.
-    fn ask(&mut self, message: String) {
+    fn ask(&mut self, message: Variant) {
         let Some(chat_handle) = self.chat_handle.as_ref() else {
             godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
             match self.start_worker_impl() {
@@ -225,8 +295,20 @@ impl NobodyWhoChat {
             };
         };
 
+        let prompt: tokenizer::Prompt = if let Ok(text) = message.try_to::<GString>() {
+            text.to_string().to_prompt()
+        } else if let Ok(prompt_node) = message.try_to::<Gd<NobodyWhoPrompt>>() {
+            prompt_node.bind().prompt.clone()
+        } else {
+            godot_error!(
+                "ask() requires a String or NobodyWhoPrompt, got {:?}",
+                message.get_type()
+            );
+            return;
+        };
+
         let emit_node = self.to_gd();
-        let mut generation_channel = chat_handle.ask_channel(message);
+        let mut generation_channel = chat_handle.ask_channel(prompt);
         godot::task::spawn(async move {
             while let Some(out) = generation_channel.recv().await {
                 match out {
@@ -914,12 +996,10 @@ impl NobodyWhoEncoder {
     /// Triggered when the encoding has finished. Returns the encoding as a PackedFloat32Array.
     fn encoding_finished(encoding: PackedFloat32Array);
 
-    fn get_model(&mut self) -> Result<llm::Model, String> {
+    fn get_model(&mut self) -> Result<Arc<llm::Model>, String> {
         let gd_model_node = self.model_node.as_mut().ok_or("Model node was not set")?;
         let mut nobody_model = gd_model_node.bind_mut();
-        let model: llm::Model = nobody_model.get_model().map_err(|e| e.to_string())?;
-
-        Ok(model)
+        nobody_model.get_model().map_err(|e| e.to_string())
     }
 
     #[func]
@@ -1032,12 +1112,10 @@ impl NobodyWhoCrossEncoder {
     /// Triggered when the ranking has finished. Returns the ranked documents as a PackedStringArray.
     fn ranking_finished(ranked_documents: PackedStringArray);
 
-    fn get_model(&mut self) -> Result<llm::Model, String> {
+    fn get_model(&mut self) -> Result<Arc<llm::Model>, String> {
         let gd_model_node = self.model_node.as_mut().ok_or("Model node was not set")?;
         let mut nobody_model = gd_model_node.bind_mut();
-        let model: llm::Model = nobody_model.get_model().map_err(|e| e.to_string())?;
-
-        Ok(model)
+        nobody_model.get_model().map_err(|e| e.to_string())
     }
 
     #[func]

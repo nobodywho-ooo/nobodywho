@@ -16,3 +16,4 @@ target/
 /.build
 .swiftpm/
 *.xcuserdata*
+.env

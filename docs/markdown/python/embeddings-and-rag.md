@@ -2,7 +2,7 @@
 title: Embeddings & RAG
 description: Learn how to use embeddings and cross-encoders to build retrieval-augmented generation (RAG) systems with NobodyWho.
 sidebar_title: Embeddings & RAG
-order: 5
+order: 6
 ---
 
 When you want your LLM to search through documents, understand semantic similarity, or build retrieval-augmented generation (RAG) systems, you'll need embeddings and cross-encoders.

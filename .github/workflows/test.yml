@@ -71,3 +71,43 @@ jobs:
       - name: "nix flake check"
         run: |
           nix --extra-experimental-features nix-command --extra-experimental-features flakes flake check -L --max-jobs 1
+
+
+  flutter-multimodal-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install Vulkan dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
+
+      - name: Setup Flutter SDK
+        uses: flutter-actions/setup-flutter@v4
+        with:
+          channel: stable
+          version: 3.35.5
+
+      - name: Build Flutter library
+        working-directory: ./nobodywho
+        run: cargo build -p nobodywho-flutter --locked
+
+      - name: Download vision models
+        run: |
+          mkdir -p models
+          curl -L --fail --progress-bar https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q4_K_M.gguf -o models/gemma-3-4b-it-Q4_K_M.gguf
+          curl -L --fail --progress-bar https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/mmproj-F16.gguf -o models/mmproj-gemma-3-f16.gguf
+
+      - name: Run Flutter multimodal tests
+        working-directory: ./nobodywho/flutter/nobodywho
+        env:
+          TEST_MULTIMODAL_MODEL: ${{ github.workspace }}/models/gemma-3-4b-it-Q4_K_M.gguf
+          TEST_MULTIMODAL_MMPROJ: ${{ github.workspace }}/models/mmproj-gemma-3-f16.gguf
+          LD_LIBRARY_PATH: ${{ github.workspace }}/nobodywho/target/debug
+        run: flutter test test/nobodywho_multimodal_test.dart --reporter expanded

@@ -2,7 +2,6 @@ use crate::errors::{CrossEncoderWorkerError, InitWorkerError};
 use crate::llm;
 use crate::llm::{Worker, WorkerGuard};
 use llama_cpp_2::context::params::LlamaPoolingType;
-use llama_cpp_2::model::LlamaModel;
 use std::sync::Arc;
 use tracing::{error, warn};
 
@@ -17,7 +16,7 @@ pub struct CrossEncoderAsync {
 }
 
 impl CrossEncoder {
-    pub fn new(model: Arc<LlamaModel>, n_ctx: u32) -> Self {
+    pub fn new(model: Arc<llm::Model>, n_ctx: u32) -> Self {
         let async_handle = CrossEncoderAsync::new(model, n_ctx);
         Self { async_handle }
     }
@@ -42,7 +41,7 @@ impl CrossEncoder {
 }
 
 impl CrossEncoderAsync {
-    pub fn new(model: Arc<LlamaModel>, n_ctx: u32) -> Self {
+    pub fn new(model: Arc<llm::Model>, n_ctx: u32) -> Self {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
 
         let join_handle = std::thread::spawn(move || {
@@ -135,7 +134,7 @@ impl llm::PoolingType for CrossEncoderWorker {
 
 impl<'a> Worker<'a, CrossEncoderWorker> {
     pub fn new_crossencoder_worker(
-        model: &Arc<LlamaModel>,
+        model: &llm::Model,
         n_ctx: u32,
     ) -> Result<Worker<'_, CrossEncoderWorker>, InitWorkerError> {
         Worker::new_with_type(model, n_ctx, true, CrossEncoderWorker {})

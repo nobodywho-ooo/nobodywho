@@ -16,7 +16,7 @@ If you are already familiar with the basics of LLMs we suggest you go straight t
 
 - [Python](python/index.md)
 - [Flutter](flutter/index.md)
-- [Godot](godot/index.md)
+- [Godot](godot/install.md)
 
 ## Basic LLM concepts
 

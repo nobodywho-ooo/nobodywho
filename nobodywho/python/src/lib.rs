@@ -1,4 +1,5 @@
 use pyo3::prelude::*;
+use std::sync::Arc;
 
 mod parse;
 
@@ -8,7 +9,7 @@ mod parse;
 /// There is no `ModelAsync` variant. A regular `Model` can be used with both `Chat` and `ChatAsync`.
 #[pyclass]
 pub struct Model {
-    model: nobodywho::llm::Model,
+    model: Arc<nobodywho::llm::Model>,
 }
 
 #[pymethods]
@@ -18,6 +19,7 @@ impl Model {
     /// Args:
     ///     model_path: Path to the GGUF model file
     ///     use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
+    ///     image_model_path: Path to a multimodal projector file for vision models. Defaults to None.
     ///
     /// Returns:
     ///     A Model instance
@@ -25,17 +27,34 @@ impl Model {
     /// Raises:
     ///     RuntimeError: If the model file cannot be loaded
     #[new]
-    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true) -> "Model")]
-    pub fn new(model_path: std::path::PathBuf, use_gpu_if_available: bool) -> PyResult<Self> {
+    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, image_model_path: "os.PathLike | str | None" = None) -> "Model")]
+    pub fn new(
+        model_path: std::path::PathBuf,
+        use_gpu_if_available: bool,
+        image_model_path: Option<std::path::PathBuf>,
+    ) -> PyResult<Self> {
         let path_str = model_path.to_str().ok_or_else(|| {
             pyo3::exceptions::PyValueError::new_err(format!(
                 "Path contains invalid UTF-8: {}",
                 model_path.display()
             ))
         })?;
-        let model_result = nobodywho::llm::get_model(path_str, use_gpu_if_available);
+        let mmproj_str = image_model_path
+            .as_ref()
+            .map(|p| {
+                p.to_str().ok_or_else(|| {
+                    pyo3::exceptions::PyValueError::new_err(format!(
+                        "Path contains invalid UTF-8: {}",
+                        p.display()
+                    ))
+                })
+            })
+            .transpose()?;
+        let model_result = nobodywho::llm::get_model(path_str, use_gpu_if_available, mmproj_str);
         match model_result {
-            Ok(model) => Ok(Self { model }),
+            Ok(model) => Ok(Self {
+                model: Arc::new(model),
+            }),
             Err(err) => Err(pyo3::exceptions::PyRuntimeError::new_err(err.to_string())),
         }
     }
@@ -49,6 +68,7 @@ impl Model {
     /// Args:
     ///     model_path: Path to the GGUF model file
     ///     use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
+    ///     image_model_path: Path to a multimodal projector file for vision models. Defaults to None.
     ///
     /// Returns:
     ///     A Model instance wrapped in an awaitable (async function returns a coroutine)
@@ -57,10 +77,11 @@ impl Model {
     ///     ValueError: If the path contains invalid UTF-8
     ///     RuntimeError: If the model file cannot be loaded
     #[staticmethod]
-    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true) -> "typing.Awaitable[Model]")]
+    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, image_model_path: "os.PathLike | str | None" = None) -> "typing.Awaitable[Model]")]
     pub async fn load_model_async(
         model_path: std::path::PathBuf,
         use_gpu_if_available: bool,
+        image_model_path: Option<std::path::PathBuf>,
     ) -> PyResult<Self> {
         let path_str = model_path.to_str().ok_or_else(|| {
             pyo3::exceptions::PyValueError::new_err(format!(
@@ -68,10 +89,27 @@ impl Model {
                 model_path.display()
             ))
         })?;
-        let model_result =
-            nobodywho::llm::get_model_async(path_str.into(), use_gpu_if_available).await;
+        let mmproj_str = image_model_path
+            .as_ref()
+            .map(|p| {
+                p.to_str().ok_or_else(|| {
+                    pyo3::exceptions::PyValueError::new_err(format!(
+                        "Path contains invalid UTF-8: {}",
+                        p.display()
+                    ))
+                })
+            })
+            .transpose()?;
+        let model_result = nobodywho::llm::get_model_async(
+            path_str.into(),
+            use_gpu_if_available,
+            mmproj_str.map(str::to_owned),
+        )
+        .await;
         match model_result {
-            Ok(model) => Ok(Self { model }),
+            Ok(model) => Ok(Self {
+                model: Arc::new(model),
+            }),
             Err(err) => Err(pyo3::exceptions::PyRuntimeError::new_err(err.to_string())),
         }
     }
@@ -89,10 +127,9 @@ pub enum ModelOrPath<'py> {
 
 impl<'py> ModelOrPath<'py> {
     /// returns nobodywho core's internal model struct from a python `str | Model`
-    fn get_inner_model(&self) -> PyResult<nobodywho::llm::Model> {
+    fn get_inner_model(&self) -> PyResult<Arc<nobodywho::llm::Model>> {
         match self {
-            // the inner model is Arc<...>, so clone is cheap.
-            ModelOrPath::ModelObj(model_obj) => Ok(model_obj.borrow().model.clone()),
+            ModelOrPath::ModelObj(model_obj) => Ok(Arc::clone(&model_obj.borrow().model)),
             // default to (trying to) use GPU if a string is passed
             ModelOrPath::Path(path) => {
                 let path_str = path.to_str().ok_or_else(|| {
@@ -101,7 +138,8 @@ impl<'py> ModelOrPath<'py> {
                         path.display()
                     ))
                 })?;
-                nobodywho::llm::get_model(path_str, true)
+                nobodywho::llm::get_model(path_str, true, None)
+                    .map(Arc::new)
                     .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
             }
         }
@@ -554,9 +592,6 @@ impl Chat {
 impl Drop for Chat {
     fn drop(&mut self) {
         let handle = self.chat_handle.take();
-        // Release the GIL before joining the background thread.
-        // This prevents deadlocks if the background thread needs the GIL
-        // to log messages (via pyo3_log) or execute Python tools during its shutdown.
         Python::attach(|py| py.detach(|| drop(handle)));
     }
 }
@@ -606,14 +641,20 @@ impl Chat {
     /// Send a message to the model and get a streaming response.
     ///
     /// Args:
-    ///     text: The user message to send
+    ///     prompt: The user prompt to send (plain text or a multimodal Prompt)
     ///
     /// Returns:
     ///     A TokenStream that yields tokens as they are generated
-    pub fn ask(&self, text: String) -> TokenStream {
-        TokenStream {
-            stream: self.handle().ask(text),
-        }
+    #[pyo3(signature = (prompt: "str | Prompt") -> "TokenStream")]
+    pub fn ask(&self, prompt: PromptOrText) -> TokenStream {
+        let stream = match prompt {
+            PromptOrText::Text(text) => self.handle().ask(text),
+            PromptOrText::PromptObj(prompt_obj) => {
+                self.handle().ask(prompt_obj.borrow().prompt.clone())
+            }
+        };
+
+        TokenStream { stream }
     }
 
     /// Reset the conversation with a new system prompt and tools. Clears all chat history.
@@ -786,9 +827,6 @@ impl ChatAsync {
 impl Drop for ChatAsync {
     fn drop(&mut self) {
         let handle = self.chat_handle.take();
-        // Rust's Drop runs while the GIL is held (Python is freeing the object).
-        // Release the GIL so that pyo3-async-runtimes tokio tasks that captured
-        // Py<T> references can acquire it for their own cleanup, unblocking join().
         Python::attach(|py| py.detach(|| drop(handle)));
     }
 }
@@ -837,13 +875,21 @@ impl ChatAsync {
     /// Send a message to the model and get a streaming response asynchronously.
     ///
     /// Args:
-    ///     text: The user message to send
+    ///     prompt: The user prompt to send (plain text or a multimodal Prompt)
     ///
     /// Returns:
     ///     A TokenStreamAsync that yields tokens as they are generated
-    pub fn ask(&self, text: String) -> TokenStreamAsync {
+    #[pyo3(signature = (prompt: "str | Prompt") -> "TokenStreamAsync")]
+    pub fn ask(&self, prompt: PromptOrText) -> TokenStreamAsync {
+        let stream = match prompt {
+            PromptOrText::Text(text) => self.handle().ask(text),
+            PromptOrText::PromptObj(prompt_obj) => {
+                self.handle().ask(prompt_obj.borrow().prompt.clone())
+            }
+        };
+
         TokenStreamAsync {
-            stream: std::sync::Arc::new(tokio::sync::Mutex::new(self.handle().ask(text))),
+            stream: std::sync::Arc::new(tokio::sync::Mutex::new(stream)),
         }
     }
 
@@ -1038,6 +1084,12 @@ pub struct SamplerConfig {
 #[derive(Clone)]
 pub struct SamplerBuilder {
     sampler_config: nobodywho::sampler_config::SamplerConfig,
+}
+
+impl Default for SamplerBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[pymethods]
@@ -1279,6 +1331,7 @@ pub struct SamplerPresets {}
 impl SamplerPresets {
     /// Get the default sampler configuration.
     #[staticmethod]
+    #[allow(clippy::should_implement_trait)]
     pub fn default() -> SamplerConfig {
         SamplerConfig {
             sampler_config: nobodywho::sampler_config::SamplerConfig::default(),
@@ -1383,6 +1436,117 @@ impl Tool {
     ) -> PyResult<Py<PyAny>> {
         self.pyfunc.call(py, args, kwargs)
     }
+}
+
+/// A `Text` prompt part, used to build multimodal `Prompt`s.
+///
+/// Example:
+///     prompt = Prompt([Text("Describe this"), Image("./img.jpg")])
+#[pyclass]
+#[derive(Clone)]
+pub struct Text {
+    text: String,
+}
+
+#[pymethods]
+impl Text {
+    #[new]
+    #[pyo3(signature = (text: "str") -> "Text")]
+    pub fn new(text: String) -> Self {
+        Self { text }
+    }
+
+    #[getter]
+    pub fn text(&self) -> String {
+        self.text.clone()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("Text({:?})", self.text)
+    }
+}
+
+/// An `Image` prompt part, used to build multimodal `Prompt`s.
+///
+/// Example:
+///     prompt = Prompt([Text("Describe this"), Image("./img.jpg")])
+#[pyclass]
+#[derive(Clone)]
+pub struct Image {
+    path: String,
+}
+
+#[pymethods]
+impl Image {
+    #[new]
+    #[pyo3(signature = (path: "os.PathLike | str") -> "Image")]
+    pub fn new(path: std::path::PathBuf) -> PyResult<Self> {
+        let path_str = path.to_str().ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "Path contains invalid UTF-8: {}",
+                path.display()
+            ))
+        })?;
+        Ok(Self {
+            path: path_str.to_string(),
+        })
+    }
+
+    #[getter]
+    pub fn path(&self) -> String {
+        self.path.clone()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("Image({:?})", self.path)
+    }
+}
+
+/// A multimodal prompt consisting of interleaved `Text` and `Image` parts.
+///
+/// Example:
+///     prompt = Prompt([Text("Tell me what's in the image"), Image("./img.jpg")])
+#[pyclass]
+#[derive(Clone)]
+pub struct Prompt {
+    prompt: nobodywho::tokenizer::Prompt,
+}
+
+#[pymethods]
+impl Prompt {
+    #[new]
+    #[pyo3(signature = (parts: "list[Text | Image]" = Vec::<Py<PyAny>>::new()) -> "Prompt")]
+    pub fn new(parts: Vec<Py<PyAny>>, py: Python) -> PyResult<Self> {
+        let mut prompt = nobodywho::tokenizer::Prompt::new();
+
+        for part in parts {
+            let part = part.bind(py);
+
+            if let Ok(text_part) = part.extract::<Bound<Text>>() {
+                prompt.push_text(text_part.borrow().text.clone());
+                continue;
+            }
+
+            if let Ok(image_part) = part.extract::<Bound<Image>>() {
+                let image_ref = image_part.borrow();
+                prompt.push_image(image_ref.path.as_ref());
+                continue;
+            }
+
+            return Err(pyo3::exceptions::PyTypeError::new_err(
+                "Prompt parts must be Text(...) or Image(...)",
+            ));
+        }
+
+        Ok(Self { prompt })
+    }
+}
+
+/// Internal helper: accept either plain text or a `Prompt`.
+#[derive(FromPyObject)]
+pub enum PromptOrText<'py> {
+    PromptObj(Bound<'py, Prompt>),
+    Text(String),
 }
 
 /// Decorator to convert a Python function into a Chat-compatible Tool instance.
@@ -1675,14 +1839,12 @@ fn json_value_to_py<'py>(
                 } else {
                     Err(pyo3::exceptions::PyValueError::new_err("Invalid number"))
                 }
+            } else if let Some(i) = n.as_i128() {
+                Ok(pyo3::types::PyInt::new(py, i).into())
+            } else if let Some(i) = n.as_u128() {
+                Ok(pyo3::types::PyInt::new(py, i).into())
             } else {
-                if let Some(i) = n.as_i128() {
-                    Ok(pyo3::types::PyInt::new(py, i).into())
-                } else if let Some(i) = n.as_u128() {
-                    Ok(pyo3::types::PyInt::new(py, i).into())
-                } else {
-                    Err(pyo3::exceptions::PyValueError::new_err("Invalid number"))
-                }
+                Err(pyo3::exceptions::PyValueError::new_err("Invalid number"))
             }
         }
         serde_json::Value::String(s) => Ok(pyo3::types::PyString::new(py, s).into()),
@@ -1715,7 +1877,7 @@ fn json_value_to_py<'py>(
                     )),
                 }
             // Array is actually a set
-            } else if let Some(_) = obj_schema.get("uniqueItems") {
+            } else if obj_schema.get("uniqueItems").is_some() {
                 let pyset = pyo3::types::PySet::new(py, py_items?);
                 match pyset {
                     Ok(set) => Ok(set.into()),
@@ -1829,7 +1991,7 @@ pub mod nobodywhopython {
 
             // Add structured fields
             if !visitor.fields.is_empty() {
-                log_msg.push_str(" ");
+                log_msg.push(' ');
                 for (i, (key, value)) in visitor.fields.iter().enumerate() {
                     if i > 0 {
                         log_msg.push_str(", ");
@@ -1897,13 +2059,19 @@ pub mod nobodywhopython {
     #[pymodule_export]
     use super::EncoderAsync;
     #[pymodule_export]
+    use super::Image;
+    #[pymodule_export]
     use super::Model;
+    #[pymodule_export]
+    use super::Prompt;
     #[pymodule_export]
     use super::SamplerBuilder;
     #[pymodule_export]
     use super::SamplerConfig;
     #[pymodule_export]
     use super::SamplerPresets;
+    #[pymodule_export]
+    use super::Text;
     #[pymodule_export]
     use super::TokenStream;
     #[pymodule_export]
