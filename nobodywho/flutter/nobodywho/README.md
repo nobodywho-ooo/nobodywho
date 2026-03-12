@@ -35,8 +35,13 @@ void main() async {
 This library uses the **GGUF format** — a binary format optimized for fast loading and efficient LLM inference. A wide selection of GGUF models is available on [Hugging Face](https://huggingface.co/models).
 
 **Compatibility notes:**
-- Not all GGUF models are guaranteed to work. Some may fail due to formatting issues.
-- For mobile devices, models under 1 GB typically run smoothly. As a general rule, the device should have at least twice the RAM of the model file size.
+- Most GGUF models will work, but some may fail due to formatting issues.
+- For mobile devices, models under 1 GB tend to run smoothly. As a general rule, the device should have at least twice the available RAM as the model file size. Note that available RAM differs from total RAM — iOS typically reserves around 1–2 GB for the kernel and system processes, while Android overhead varies by manufacturer: roughly 2 GB on stock Android (e.g. Pixel devices), and between 2–4 GB on Samsung, Xiaomi, and Oppo devices due to additional services.
+
+**Minimum recommended specs:**
+
+- iOS: iPhone 11 or newer with at least 4 GB of RAM. We tested a Qwen3 0.6B (332 MB) on an iPhone X (iOS 16) and while it ran, performance was too slow to be practical.
+- Android: Snapdragon 855 / Adreno 640 / 6 GB RAM or better. The same Qwen3 0.6B model performed notably better on a OnePlus 7 Pro (Android 12) than on the iPhone X tested above.
 
 ### Model Integration
 
