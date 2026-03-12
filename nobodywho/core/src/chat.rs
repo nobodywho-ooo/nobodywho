@@ -1035,20 +1035,41 @@ impl Worker<'_, ChatWorker> {
     /// Compare tokens from a template-rendered chat history with the tokens in the LLM's context,
     /// and perform the LLM 'reading' to make the LLM's context match the rendered tokens exactly.
     /// Because this invokes the model, this is potentially an expensive method to call.
+    #[tracing::instrument(level = "debug", skip_all)]
     fn sync_context_with_render(
         &mut self,
         rendered_tokens: Vec<LlamaToken>,
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<(), ContextSyncError> {
-        let (prefix_index, token_difference) =
-            find_prefix_index_and_difference_with_tokens_in_context(
-                &self.extra.tokens_in_context,
-                &rendered_tokens,
-            );
+        let (prefix_index, _) = find_prefix_index_and_difference_with_tokens_in_context(
+            &self.extra.tokens_in_context,
+            &rendered_tokens,
+        );
 
+        // We should never try to sync with an empty render
+        debug_assert!(!rendered_tokens.is_empty());
+
+        // this call may remove more than just the tokens from prefix_index
+        // it updates self.n_past to indicate num of tokens in context
+        let old_n_past = self.n_past;
         self.remove_all_tokens_from_index_from_ctx(prefix_index)?;
-        if !token_difference.is_empty() {
-            self.read_tokens(token_difference, inference_lock_token)?;
+
+        // Use n_past as the actual preserved prefix — may be 0 if a full reset was
+        // required (e.g. hybrid/recurrent models that don't support partial seq_rm).
+        let tokens_to_read = rendered_tokens[self.n_past as usize..].to_vec();
+        if !tokens_to_read.is_empty() {
+            self.read_tokens(tokens_to_read, inference_lock_token)?;
+        } else if self.n_past < old_n_past {
+            // Truncate-only path: the KV cache was trimmed but no new tokens
+            // need to be appended. Re-decode the last remaining token to
+            // refresh the logits buffer, which would otherwise contain stale
+            // values from whatever the previous decode() call happened to be.
+            // llama.cpp requires strictly consecutive positions (Y = X + 1),
+            // so we must remove the last token from the KV cache before we
+            // can re-decode it.
+            self.remove_all_tokens_from_index_from_ctx(self.n_past as usize - 1)?;
+            let refresh_tokens = rendered_tokens[self.n_past as usize..].to_vec();
+            self.read_tokens(refresh_tokens, inference_lock_token)?;
         }
         self.extra.tokens_in_context = rendered_tokens;
 
@@ -1569,11 +1590,11 @@ impl Worker<'_, ChatWorker> {
 
         self.extra.messages = system_msg.into_iter().chain(messages).collect();
 
-        // Reuse cached prefix
-        let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
-        let inference_lock_token = _gil_guard.unwrap();
-        let rendered_tokens = self.get_render_as_tokens()?;
-        self.sync_context_with_render(rendered_tokens, &inference_lock_token)?;
+        // We used to call sync_context_with_render here but this can
+        // crash as some chat templates will attempt to access fields on
+        // messages[0], which will result in an error. So now we never
+        // sync with an empty render and we only render when there are
+        // messages present in the history.
 
         Ok(())
     }
@@ -1626,6 +1647,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sampler_config::SamplerPresets;
     use crate::test_utils;
 
     // Helper function to verify message structure is valid
@@ -2435,6 +2457,47 @@ mod tests {
         );
 
         Ok(())
+    }
+
+    #[test]
+    fn test_greedy_sampler_produces_deterministic_output() {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+
+        let chat = ChatBuilder::new(model)
+            .with_context_size(2048)
+            .with_allow_thinking(false)
+            .build();
+
+        chat.set_sampler_config(SamplerPresets::greedy()).unwrap();
+
+        let response1 = chat.ask("Say exactly: 'Hello'").completed().unwrap();
+        chat.reset_history().unwrap();
+        let response2 = chat.ask("Say exactly: 'Hello'").completed().unwrap();
+
+        assert_eq!(
+            response1, response2,
+            "Greedy sampler should produce identical output for the same prompt"
+        );
+    }
+
+    #[test]
+    fn test_reset_chat_with_no_system_prompt() {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let chat = ChatBuilder::new(model)
+            .with_context_size(2048)
+            .with_allow_thinking(false)
+            .build();
+        chat.reset_history();
+        let resp = chat
+            .ask("What is the capital of Denmark?")
+            .completed()
+            .unwrap();
+        assert!(
+            resp.contains("Copenhagen"),
+            "Model failed to answer after reset"
+        );
     }
 
     // Template rendering tests have been moved to template.rs module

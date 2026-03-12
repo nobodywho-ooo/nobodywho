@@ -1,0 +1,36 @@
+{
+  "name": "file_picker",
+  "version": "0.0.1",
+  "summary": "A flutter plugin to show native file picker dialogs",
+  "description": "A flutter plugin to show native file picker dialogs.",
+  "homepage": "https://github.com/miguelpruivo/plugins_flutter_file_picker",
+  "license": {
+    "file": "../LICENSE"
+  },
+  "authors": "Miguel Ruivo",
+  "source": {
+    "path": "."
+  },
+  "source_files": "file_picker/Sources/**/*.{m,h}",
+  "public_header_files": "file_picker/Sources/file_picker/include/**/*.h",
+  "module_map": "file_picker/Sources/file_picker/include/file_picker.modulemap",
+  "platforms": {
+    "ios": "12.0"
+  },
+  "dependencies": {
+    "Flutter": [
+
+    ],
+    "DKImagePickerController/PhotoGallery": [
+
+    ]
+  },
+  "pod_target_xcconfig": {
+    "GCC_PREPROCESSOR_DEFINITIONS": "PICKER_MEDIA=1 PICKER_AUDIO=1 PICKER_DOCUMENT=1"
+  },
+  "resource_bundles": {
+    "file_picker_ios_privacy": [
+      "file_picker/Sources/file_picker/PrivacyInfo.xcprivacy"
+    ]
+  }
+}

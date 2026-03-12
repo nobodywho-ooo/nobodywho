@@ -163,7 +163,7 @@ jobs:
       - name: Build with Cargo
         # move things into a shortly-named dir in the root, because windows is made by fuckwits who think limiting paths to 260 chars is ok
         run: |
-          mv ./nobodywho/* C:/
+          Get-ChildItem ./nobodywho -Exclude swift | Move-Item -Destination C:/
           cd C:/
           # Use an even shorter target directory to avoid path length issues with git dependencies
           cargo build -p nobodywho-${{ matrix.integration }} --target ${{ matrix.target }} --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked --target-dir C:/t
@@ -437,6 +437,78 @@ jobs:
         with:
           name: nobodywho-swift-xcframework
           path: ./NobodyWhoFFI.xcframework.zip
+
+  cargo-build-android-sdk:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - aarch64-linux-android   # arm64-v8a  — physical devices
+          - x86_64-linux-android    # x86_64     — emulators
+        include:
+          - target: aarch64-linux-android
+            abi: arm64-v8a
+          - target: x86_64-linux-android
+            abi: x86_64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Cache Cargo Home"
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo
+            nobodywho/target
+          key: ${{ runner.os }}-cargo-home-android-sdk-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-home-android-sdk-${{ matrix.target }}-
+
+      - name: "Setup Rust"
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          . "$HOME/.cargo/env"
+          rustup update stable
+          rustup target add ${{ matrix.target }}
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: "Install distro dependencies"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
+
+      - name: "Install Android NDK"
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r28
+          add-to-path: false
+
+      - name: "Install cargo-ndk"
+        run: cargo install cargo-ndk
+
+      - name: "Build libuniffi_nobodywho.so (${{ matrix.abi }})"
+        working-directory: ./nobodywho
+        env:
+          ANDROID_NDK: "${{ steps.setup-ndk.outputs.ndk-path }}"
+        run: |
+          cargo ndk \
+            --target ${{ matrix.target }} \
+            --platform 24 \
+            --manifest-path Cargo.toml \
+            -- build --release -p nobodywho-uniffi
+
+      - name: "Rename built file"
+        run: |
+          cp ./nobodywho/target/${{ matrix.target }}/release/libnobodywho_uniffi.so \
+             ./libuniffi_nobodywho-${{ matrix.abi }}.so
+
+      - name: "Upload build artifact"
+        if: inputs.upload_artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nobodywho-android-sdk-${{ matrix.target }}-release
+          path: ./libuniffi_nobodywho-${{ matrix.abi }}.so
 
   cargo-build-android:
     runs-on: ubuntu-24.04

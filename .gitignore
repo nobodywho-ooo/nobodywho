@@ -11,6 +11,7 @@ docs/site/
 docs/__pycache__
 result
 target/
+.build/
 
 /.build
 .swiftpm/

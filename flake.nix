@@ -39,8 +39,19 @@
 
         # flutter stuff
         nobodywho-flutter = workspace.workspaceMembers.nobodywho-flutter.build;
-        flutter_example_app = pkgs.callPackage ./nobodywho/flutter/example_app {
+        flutter_tests = pkgs.callPackage ./nobodywho/flutter/nobodywho {
           nobodywho_flutter_rust = nobodywho-flutter;
+        };
+
+        # cargo tests
+        test-models = pkgs.callPackage ./nobodywho/models.nix { };
+        nobodywho-tested = workspace.workspaceMembers.nobodywho.build.override {
+          runTests = true;
+          testPreRun = ''
+            export TEST_MODEL=${test-models.TEST_MODEL}
+            export TEST_EMBEDDINGS_MODEL=${test-models.TEST_EMBEDDINGS_MODEL}
+            export TEST_CROSSENCODER_MODEL=${test-models.TEST_CROSSENCODER_MODEL}
+          '';
         };
 
         # godot stuff
@@ -65,11 +76,12 @@
         packages.default = nobodywho-godot;
 
         # checks
-        checks.default = flutter_example_app;
-        checks.flutter_example_app = flutter_example_app;
+        checks.default = flutter_tests;
+        checks.flutter_tests = flutter_tests;
         checks.build-godot = nobodywho-godot;
         checks.godot-integration-test = run-godot-integration-test;
 
+        checks.cargo-test = nobodywho-tested;
         checks.nobodywho-python = nobodywho-python;
 
         # the Everything devshell
@@ -79,7 +91,6 @@
         packages.nobodywho-godot = nobodywho-godot;
 
         # flutter stuff
-        packages.flutter_example_app = flutter_example_app;
         packages.flutter_rust = nobodywho-flutter;
 
         # python stuff

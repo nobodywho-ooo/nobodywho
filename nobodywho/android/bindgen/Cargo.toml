@@ -1,0 +1,12 @@
+[package]
+name = "nobodywho-android-bindgen"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"
+
+[dependencies]
+uniffi = { version = "0.30.0", features = ["cli"] }

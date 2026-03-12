@@ -68,7 +68,10 @@ Flutter FFI plugin for NobodyWho - local LLM inference with tool calling, embedd
   s.platform = :ios, '13.0'
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',
-    'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386'
+    'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386 x86_64'
+  }
+  s.user_target_xcconfig = {
+    'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386 x86_64'
   }
   s.swift_version = '5.0'
 

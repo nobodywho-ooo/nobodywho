@@ -302,9 +302,22 @@ where
             return Ok(());
         }
 
-        self.ctx
+        let seq_rm_success = self
+            .ctx
             .clear_kv_cache_seq(Some(0), Some(index as u32), None)?;
-        self.n_past = index as i32;
+
+        if seq_rm_success {
+            self.n_past = index as i32;
+        } else {
+            // Partial sequence removal is not supported by this model's memory type
+            // (e.g. hybrid models with recurrent components). Fall back to full reset.
+            warn!(
+                index,
+                n_past = self.n_past,
+                "Partial KV cache removal not supported, falling back to full context reset"
+            );
+            self.reset_context();
+        }
 
         Ok(())
     }

@@ -1,0 +1,5 @@
+jdk:
+  - openjdk17
+
+install:
+  - cd nobodywho/android && ./gradlew :library:assembleRelease :library:publishToMavenLocal

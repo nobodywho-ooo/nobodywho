@@ -1,5 +1,6 @@
 pub mod chat;
 pub mod crossencoder;
+pub mod embedder;
 pub mod encoder;
 pub mod errors;
 pub mod llm;
