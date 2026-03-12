@@ -16,11 +16,11 @@ If you want something smaller and faster, try [Qwen3 0.6B Q4_K_M](https://huggin
 
 ## Download a model
 
-We recommend starting with our own [models](https://huggingface.co/NobodyWho) since they are known to work well with NobodyWho.
+We recommend starting with the models on our [Hugging Face page](https://huggingface.co/NobodyWho) since they are known to work well with NobodyWho.
 
 Once you're more familiar, you can also try models from [Bartowski](https://huggingface.co/bartowski) and [Unsloth](https://huggingface.co/unsloth/models).
 
-Broadly, almost any model in the `.gguf` format on [Hugging Face](https://huggingface.co) will work.
+Broadly, almost any `.gguf` model on [Hugging Face](https://huggingface.co) should work, though some may fail due to formatting issues.
 
 
 ## Understanding model file names
