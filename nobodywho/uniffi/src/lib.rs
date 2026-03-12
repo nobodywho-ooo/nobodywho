@@ -158,12 +158,14 @@ impl From<CoreMessage> for Message {
 // ---
 
 pub struct Model {
-    pub(crate) inner: nobodywho::llm::Model,
+    pub(crate) inner: Arc<nobodywho::llm::Model>,
 }
 
 pub fn load_model(path: String, use_gpu: bool) -> Result<Arc<Model>, NobodyWhoError> {
-    let inner = llm::get_model(&path, use_gpu)?;
-    Ok(Arc::new(Model { inner }))
+    let inner = llm::get_model(&path, use_gpu, None)?;
+    Ok(Arc::new(Model {
+        inner: Arc::new(inner),
+    }))
 }
 
 // ---
@@ -291,9 +293,9 @@ pub fn load_cross_encoder(
     use_gpu: bool,
     context_size: u32,
 ) -> Result<Arc<CrossEncoder>, NobodyWhoError> {
-    let model = llm::get_model(&path, use_gpu)?;
+    let model = llm::get_model(&path, use_gpu, None)?;
     Ok(Arc::new(CrossEncoder {
-        inner: CoreCrossEncoder::new(model, context_size),
+        inner: CoreCrossEncoder::new(Arc::new(model), context_size),
     }))
 }
 
@@ -326,9 +328,9 @@ pub fn load_encoder(
     use_gpu: bool,
     context_size: u32,
 ) -> Result<Arc<Encoder>, NobodyWhoError> {
-    let model = llm::get_model(&path, use_gpu)?;
+    let model = llm::get_model(&path, use_gpu, None)?;
     Ok(Arc::new(Encoder {
-        inner: CoreEncoder::new(model, context_size),
+        inner: CoreEncoder::new(Arc::new(model), context_size),
     }))
 }
 
@@ -357,8 +359,8 @@ pub fn load_embedder(
     use_gpu: bool,
     context_size: u32,
 ) -> Result<Arc<Embedder>, NobodyWhoError> {
-    let model = llm::get_model(&path, use_gpu)?;
+    let model = llm::get_model(&path, use_gpu, None)?;
     Ok(Arc::new(Embedder {
-        inner: CoreEmbedder::new(model, context_size),
+        inner: CoreEmbedder::new(Arc::new(model), context_size),
     }))
 }
