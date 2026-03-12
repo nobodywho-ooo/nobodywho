@@ -454,6 +454,8 @@ jobs:
             abi: x86_64
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - name: "Cache Cargo Home"
         uses: actions/cache@v4
