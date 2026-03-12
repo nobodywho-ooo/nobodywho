@@ -14,8 +14,8 @@ pub mod uniffi_api;
 // Re-export UniFFI types at crate root
 #[cfg(feature = "uniffi")]
 pub use uniffi_api::{
-    Chat, ChatConfig, Message, Model, NobodyWhoError, Role,
-    init_logging, load_model,
+    Chat, ChatConfig, CrossEncoder, Embedder, Message, Model, NobodyWhoError, RankedDocument, Role,
+    init_logging, load_cross_encoder, load_embedder, load_model,
 };
 
 // Include UniFFI scaffolding at crate root

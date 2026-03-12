@@ -4,6 +4,8 @@
 //! bindings for Swift and Kotlin.
 
 use crate::chat::{ChatBuilder, ChatHandle, Message as CoreMessage, Role as CoreRole};
+use crate::crossencoder::CrossEncoder as CoreCrossEncoder;
+use crate::encoder::Encoder as CoreEncoder;
 use crate::errors::LoadModelError;
 use crate::llm;
 use std::sync::Arc;
@@ -166,4 +168,92 @@ impl Chat {
 
         Ok(messages.into_iter().map(Message::from).collect())
     }
+}
+
+/// A document scored by a cross-encoder reranker
+#[derive(Debug, Clone)]
+pub struct RankedDocument {
+    pub content: String,
+    pub score: f32,
+}
+
+/// Embedder for generating text embeddings
+pub struct Embedder {
+    inner: CoreEncoder,
+}
+
+impl Embedder {
+    pub fn embed(&self, text: String) -> Result<Vec<f32>, NobodyWhoError> {
+        self.inner
+            .encode(text)
+            .map_err(|e| NobodyWhoError::InferenceError(e.to_string()))
+    }
+
+    pub fn embed_batch(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, NobodyWhoError> {
+        texts
+            .into_iter()
+            .map(|t| {
+                self.inner
+                    .encode(t)
+                    .map_err(|e| NobodyWhoError::InferenceError(e.to_string()))
+            })
+            .collect()
+    }
+}
+
+/// Load an embedder model from a GGUF file
+pub fn load_embedder(
+    path: String,
+    use_gpu: bool,
+    context_size: u32,
+) -> Result<Arc<Embedder>, NobodyWhoError> {
+    let model = llm::get_model(&path, use_gpu)?;
+    Ok(Arc::new(Embedder {
+        inner: CoreEncoder::new(model, context_size),
+    }))
+}
+
+/// Cross-encoder reranker for scoring document relevance
+pub struct CrossEncoder {
+    inner: CoreCrossEncoder,
+}
+
+impl CrossEncoder {
+    pub fn rank(
+        &self,
+        query: String,
+        documents: Vec<String>,
+    ) -> Result<Vec<f32>, NobodyWhoError> {
+        self.inner
+            .rank(query, documents)
+            .map_err(|e| NobodyWhoError::InferenceError(e.to_string()))
+    }
+
+    pub fn rank_and_sort(
+        &self,
+        query: String,
+        documents: Vec<String>,
+    ) -> Result<Vec<RankedDocument>, NobodyWhoError> {
+        self.inner
+            .rank_and_sort(query, documents)
+            .map(|results| {
+                results
+                    .into_iter()
+                    .map(|(content, score)| RankedDocument { content, score })
+                    .collect()
+            })
+            .map_err(|e| NobodyWhoError::InferenceError(e.to_string()))
+    }
+}
+
+/// Load a cross-encoder reranker model from a GGUF file
+pub fn load_cross_encoder(
+    path: String,
+    use_gpu: bool,
+    context_size: u32,
+) -> Result<Arc<CrossEncoder>, NobodyWhoError> {
+    let model = llm::get_model(&path, use_gpu)?;
+    Ok(Arc::new(CrossEncoder {
+        inner: CoreCrossEncoder::new(model, context_size),
+    }))
 }
