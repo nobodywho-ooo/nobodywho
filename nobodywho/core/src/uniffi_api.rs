@@ -153,7 +153,7 @@ impl Chat {
     /// Ask a question and block until we get the complete response
     pub fn ask_blocking(&self, prompt: String) -> Result<String, NobodyWhoError> {
         self.handle
-            .ask(&prompt)
+            .ask(prompt)
             .completed()
             .map_err(|e| NobodyWhoError::InferenceError(e.to_string()))
     }

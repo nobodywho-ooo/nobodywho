@@ -121,7 +121,7 @@ pub enum Message {
 impl From<CoreMessage> for Message {
     fn from(msg: CoreMessage) -> Self {
         match msg {
-            CoreMessage::Message { role, content } => Message::Plain {
+            CoreMessage::Message { role, content, .. } => Message::Plain {
                 role: role.into(),
                 content,
             },
@@ -240,7 +240,7 @@ impl Chat {
     }
 
     pub fn ask(&self, prompt: String) -> Arc<TokenStream> {
-        let stream = self.handle.lock().unwrap().ask(&prompt);
+        let stream = self.handle.lock().unwrap().ask(prompt);
         Arc::new(TokenStream {
             inner: Mutex::new(stream),
         })
