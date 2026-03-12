@@ -609,9 +609,16 @@ class Chat {
   Future<void> setSamplerConfig(nobodywho.SamplerConfig samplerConfig) =>
       _chat.setSamplerConfig(samplerConfig: samplerConfig);
 
+  /// Get the current sampler configuration.
+  Future<nobodywho.SamplerConfig> getSamplerConfig() =>
+      _chat.getSamplerConfig();
+
   /// Set the system prompt.
   Future<void> setSystemPrompt(String? systemPrompt) =>
       _chat.setSystemPrompt(systemPrompt: systemPrompt);
+
+  /// Get the current system prompt.
+  Future<String?> getSystemPrompt() => _chat.getSystemPrompt();
 
   /// Set the available tools.
   Future<void> setTools(List<Tool> tools) =>
