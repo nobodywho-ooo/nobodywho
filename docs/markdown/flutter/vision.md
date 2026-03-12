@@ -42,11 +42,12 @@ That is done through `askWithPrompt`, which accepts a list of `PromptPart` value
 ```dart
 import 'package:nobodywho/nobodywho.dart' as nobodywho;
 
-final response = await chat.askWithPrompt([
-  nobodywho.PromptPart.text(content: "Tell me what you see in the images."),
-  nobodywho.PromptPart.image(path: "./dog.png"),
-  nobodywho.PromptPart.image(path: "./penguin.png"),
-]).completed(); // It's a dog and a penguin!
+final prompt = nobodywho.Prompt([
+  nobodywho.TextPart("Tell me what you see in the images."),
+  nobodywho.ImagePart("./dog.png"),
+  nobodywho.ImagePart("./penguin.png"),
+]);
+final response = await chat.askWithPrompt(prompt).completed();  // It's a dog and a penguin!
 ```
 
 ## Tips for multimodality
@@ -55,12 +56,14 @@ scenarios. If the model performs poorly, try to mess around with the order of su
 and the images, or the descriptions you supply. For example, the following prompt may perform better than the previously presented one.
 
 ```dart
-final response = await chat.askWithPrompt([
-  nobodywho.PromptPart.text(content: "Tell me what you see in the first image."),
-  nobodywho.PromptPart.image(path: "./dog.png"),
-  nobodywho.PromptPart.text(content: "Also tell me what you see in the second image."),
-  nobodywho.PromptPart.image(path: "./penguin.png"),
-]).completed();
+final prompt = nobodywho.Prompt([
+  nobodywho.TextPart("Tell me what you see in the first image."),
+  nobodywho.ImagePart("./dog.png"),
+  nobodywho.TextPart("Also tell me what you see in the second image."),
+  nobodywho.ImagePart("./penguin.png"),
+]);
+
+final response = await chat.askWithPrompt(prompt).completed
 ```
 
 Also, there is still a lot of variance between how the models internally process the images.
