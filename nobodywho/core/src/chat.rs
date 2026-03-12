@@ -1254,13 +1254,9 @@ impl Worker<'_, ChatWorker> {
         } else {
             (None, None)
         };
-
         let sampler_config = match config.sampler_config {
             Some(sc) => sc,
-            None => match read_sampler_metadata(&model.language_model) {
-                Some(sc) => sc,
-                None => SamplerConfig::default(),
-            },
+            None => read_sampler_metadata(&model.language_model).unwrap_or_default(),
         };
 
         Worker::new_with_type(
@@ -1271,7 +1267,7 @@ impl Worker<'_, ChatWorker> {
                 should_stop,
                 tool_grammar: grammar,
                 tool_format,
-                sampler_config: sampler_config,
+                sampler_config,
                 messages: match config.system_prompt {
                     Some(msg) => vec![Message::Message {
                         role: Role::System,
@@ -1963,7 +1959,7 @@ impl Worker<'_, ChatWorker> {
     }
 
     pub fn get_sampler_config(&self) -> SamplerConfig {
-        return self.extra.sampler_config.clone();
+        self.extra.sampler_config.clone()
     }
 }
 
