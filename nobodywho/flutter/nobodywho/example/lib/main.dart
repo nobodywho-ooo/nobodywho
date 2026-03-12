@@ -18,8 +18,9 @@ class MainApp extends StatelessWidget {
   Future<void> _onPressed() async {
     try {
       final dir = await getApplicationDocumentsDirectory();
-      // Put this mode in assets folder : https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf
-      // Rename it model.gguf
+      // Download this model : https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf
+      // Create an `assets` folder if not already existing at the root of your flutter project and put the model in it
+      // Rename it the model `model.gguf`
       final model = File('${dir.path}/model.gguf');
       // Remember to register assets folder in pubspec.yaml like so :
       // flutter:

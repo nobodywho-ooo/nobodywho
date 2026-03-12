@@ -61,7 +61,7 @@ flutter:
     - assets/
 ```
 
-Download a compatible GGUF model — for example, [this one](https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf) — rename it `model.gguf`, and place it in the `assets` folder.
+Download a compatible GGUF model — for example, [this one](https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf) — rename it `model.gguf`, and place it in the `assets` folder.
 
 To access assets at runtime, add `path_provider`:
 
