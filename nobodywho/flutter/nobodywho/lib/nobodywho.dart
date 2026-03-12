@@ -617,6 +617,9 @@ class Chat {
   Future<void> setSystemPrompt(String? systemPrompt) =>
       _chat.setSystemPrompt(systemPrompt: systemPrompt);
 
+  /// Get the current system prompt.
+  Future<String?> getSystemPrompt() => _chat.getSystemPrompt();
+
   /// Set the available tools.
   Future<void> setTools(List<Tool> tools) =>
       _chat.setTools(tools: tools.map((t) => t._internalTool).toList());

@@ -823,6 +823,22 @@ impl Chat {
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         })
     }
+
+    /// Get the current system prompt.
+    ///
+    /// Returns:
+    ///     The current system prompt, or None if not set
+    ///
+    /// Raises:
+    ///     RuntimeError: If the system prompt cannot be retrieved
+    #[pyo3(signature = () -> "str | None")]
+    pub fn get_system_prompt(&self, py: Python) -> PyResult<Option<String>> {
+        py.detach(|| {
+            self.handle()
+                .get_system_prompt()
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        })
+    }
 }
 
 /// This is the async version of the `Chat` class.
@@ -1066,6 +1082,21 @@ impl ChatAsync {
             .get_sampler_config()
             .await
             .map(|sampler_config| SamplerConfig { sampler_config })
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Get the current system prompt.
+    ///
+    /// Returns:
+    ///     The current system prompt, or None if not set
+    ///
+    /// Raises:
+    ///     RuntimeError: If the system prompt cannot be retrieved
+    #[pyo3(signature = () -> "typing.Awaitable[str | None]")]
+    pub async fn get_system_prompt(&self) -> PyResult<Option<String>> {
+        self.handle()
+            .get_system_prompt()
+            .await
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 }

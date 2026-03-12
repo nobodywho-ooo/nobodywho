@@ -151,6 +151,8 @@ abstract class RustChat implements RustOpaqueInterface {
 
   Future<SamplerConfig> getSamplerConfig();
 
+  Future<String?> getSystemPrompt();
+
   /// Create chat from existing model.
   ///
   /// For vision/multimodal models, load the model with image ingestion enabled first:
