@@ -21,7 +21,7 @@ void main() {
         imageIngestion: mmprojPath,
         systemPrompt: "",
         contextSize: 2048,
-        allowThinking: false,
+        templateVariables: {"enable_thinking" : false},
       );
 
       final prompt = nobodywho.Prompt([
@@ -40,7 +40,7 @@ void main() {
         imageIngestion: mmprojPath,
         systemPrompt: "",
         contextSize: 4096,
-        allowThinking: false,
+        templateVariables: {"enable_thinking" : false},
       );
 
       final prompt = nobodywho.Prompt([
