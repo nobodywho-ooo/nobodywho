@@ -8,8 +8,8 @@ use crate::crossencoder::CrossEncoder as CoreCrossEncoder;
 use crate::encoder::Encoder as CoreEncoder;
 use crate::errors::LoadModelError;
 use crate::llm;
-use std::sync::Arc;
 use llama_cpp_2::model::LlamaModel;
+use std::sync::Arc;
 
 // Re-export for UDL
 pub use crate::send_llamacpp_logs_to_tracing as init_logging;
@@ -110,10 +110,7 @@ impl Model {
 /// Load a model from a GGUF file
 pub fn load_model(path: String, use_gpu: bool) -> Result<Arc<Model>, NobodyWhoError> {
     let model = llm::get_model(&path, use_gpu)?;
-    Ok(Arc::new(Model {
-        inner: model,
-        path,
-    }))
+    Ok(Arc::new(Model { inner: model, path }))
 }
 
 /// Chat configuration
@@ -140,8 +137,8 @@ pub struct Chat {
 impl Chat {
     /// Create a new chat session
     pub fn new(model: Arc<Model>, config: ChatConfig) -> Result<Self, NobodyWhoError> {
-        let mut builder = ChatBuilder::new(Arc::clone(&model.inner))
-            .with_context_size(config.context_size);
+        let mut builder =
+            ChatBuilder::new(Arc::clone(&model.inner)).with_context_size(config.context_size);
 
         if let Some(prompt) = config.system_prompt {
             builder = builder.with_system_prompt(Some(&prompt));
@@ -219,11 +216,7 @@ pub struct CrossEncoder {
 }
 
 impl CrossEncoder {
-    pub fn rank(
-        &self,
-        query: String,
-        documents: Vec<String>,
-    ) -> Result<Vec<f32>, NobodyWhoError> {
+    pub fn rank(&self, query: String, documents: Vec<String>) -> Result<Vec<f32>, NobodyWhoError> {
         self.inner
             .rank(query, documents)
             .map_err(|e| NobodyWhoError::InferenceError(e.to_string()))
