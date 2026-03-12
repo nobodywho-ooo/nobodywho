@@ -728,7 +728,7 @@ impl Chat {
         })
     }
 
-    /// Set a single template variable.
+    /// Set a single template variable
     ///
     /// Args:
     ///     name: The name of the template variable (e.g., "enable_thinking")
