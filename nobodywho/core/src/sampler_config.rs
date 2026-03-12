@@ -358,6 +358,14 @@ mod tests {
     }
 
     #[test]
+    fn test_serialize_deserialize_round_trip() {
+        let config = SamplerConfig::default();
+        let json = serde_json::to_string(&config).unwrap();
+        let deserialized: SamplerConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(format!("{:?}", config), format!("{:?}", deserialized));
+    }
+
+    #[test]
     fn test_grammar_prepend_with_custom_sampler() {
         let config = SamplerConfig::new()
             .shift(ShiftStep::TopK { top_k: 64 })
