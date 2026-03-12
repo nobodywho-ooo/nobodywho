@@ -326,6 +326,8 @@ jobs:
     needs: [cargo-build-macos]
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - name: "Download all build artifacts"
         uses: actions/download-artifact@v4
@@ -335,6 +337,9 @@ jobs:
 
       - name: Build Swift XCFramework
         run: |
+          HEADER="nobodywho/swift/Sources/NobodyWhoFFIFFI/include/NobodyWhoFFIFFI.h"
+          MODULEMAP="nobodywho/swift/Sources/NobodyWho/Generated/NobodyWhoFFIFFI.modulemap"
+
           # Create Info.plist template
           cat > Info.plist << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
@@ -358,7 +363,7 @@ jobs:
           </plist>
           EOF
 
-          # Helper function to create framework
+          # Helper function to create framework with headers and modulemap
           create_framework() {
             local FRAMEWORK_DIR="$1"
             local DYLIB_NAME="$2"
@@ -368,16 +373,26 @@ jobs:
 
             if [ "$PLATFORM" = "macos" ]; then
               mkdir -p "$FRAMEWORK_DIR/Versions/A/Resources"
+              mkdir -p "$FRAMEWORK_DIR/Versions/A/Headers"
+              mkdir -p "$FRAMEWORK_DIR/Versions/A/Modules"
               cp "$DYLIB_NAME" "$FRAMEWORK_DIR/Versions/A/NobodyWhoFFI"
               install_name_tool -id @rpath/NobodyWhoFFI.framework/NobodyWhoFFI "$FRAMEWORK_DIR/Versions/A/NobodyWhoFFI"
               cp Info.plist "$FRAMEWORK_DIR/Versions/A/Resources/"
+              cp "$HEADER" "$FRAMEWORK_DIR/Versions/A/Headers/NobodyWhoFFIFFI.h"
+              cp "$MODULEMAP" "$FRAMEWORK_DIR/Versions/A/Modules/module.modulemap"
               ln -sf A "$FRAMEWORK_DIR/Versions/Current"
               ln -sf Versions/Current/NobodyWhoFFI "$FRAMEWORK_DIR/NobodyWhoFFI"
               ln -sf Versions/Current/Resources "$FRAMEWORK_DIR/Resources"
+              ln -sf Versions/Current/Headers "$FRAMEWORK_DIR/Headers"
+              ln -sf Versions/Current/Modules "$FRAMEWORK_DIR/Modules"
             else
+              mkdir -p "$FRAMEWORK_DIR/Headers"
+              mkdir -p "$FRAMEWORK_DIR/Modules"
               cp "$DYLIB_NAME" "$FRAMEWORK_DIR/NobodyWhoFFI"
               install_name_tool -id @rpath/NobodyWhoFFI.framework/NobodyWhoFFI "$FRAMEWORK_DIR/NobodyWhoFFI"
               cp Info.plist "$FRAMEWORK_DIR/"
+              cp "$HEADER" "$FRAMEWORK_DIR/Headers/NobodyWhoFFIFFI.h"
+              cp "$MODULEMAP" "$FRAMEWORK_DIR/Modules/module.modulemap"
             fi
           }
 
