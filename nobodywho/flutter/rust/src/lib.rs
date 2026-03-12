@@ -104,7 +104,7 @@ impl RustChat {
         #[frb(default = "null")] system_prompt: Option<String>,
         #[frb(default = 4096)] context_size: u32,
         #[frb(default = "null")] allow_thinking: Option<bool>,
-        #[frb(defualt = "const {}")] template_variables: HashMap<String, bool>,
+        #[frb(default = "const {}")] template_variables: HashMap<String, bool>,
         #[frb(default = "const []")] tools: Vec<RustTool>,
         #[frb(default = "null")] sampler: Option<SamplerConfig>,
     ) -> Self {
@@ -149,7 +149,7 @@ impl RustChat {
         #[frb(default = "null")] system_prompt: Option<String>,
         #[frb(default = 4096)] context_size: u32,
         #[frb(default = "null")] allow_thinking: Option<bool>,
-        #[frb(defualt = "const {}")] template_variables: HashMap<String, bool>,
+        #[frb(default = "const {}")] template_variables: HashMap<String, bool>,
         #[frb(default = "const []")] tools: Vec<RustTool>,
         #[frb(default = "null")] sampler: Option<SamplerConfig>,
         #[frb(default = true)] use_gpu: bool,
@@ -269,14 +269,20 @@ impl RustChat {
         name: String,
         value: bool,
     ) -> Result<(), nobodywho::errors::SetterError> {
-        self.set_template_variable(name, value).await
+        self.chat.set_template_variable(name, value).await
     }
 
     pub async fn set_template_variables(
         &self,
         variables: HashMap<String, bool>,
     ) -> Result<(), nobodywho::errors::SetterError> {
-        self.set_template_variables(variables)
+        self.chat.set_template_variables(variables).await
+    }
+
+    pub async fn get_template_variables(
+        &self,
+    ) -> Result<HashMap<String, bool>, nobodywho::errors::GetterError> {
+        self.chat.get_template_variables().await
     }
 
     #[flutter_rust_bridge::frb(sync)]
