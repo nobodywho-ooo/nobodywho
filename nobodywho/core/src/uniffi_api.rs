@@ -36,6 +36,7 @@ impl From<LoadModelError> for NobodyWhoError {
             LoadModelError::ModelChannelError => {
                 NobodyWhoError::Other("Model channel error".to_string())
             }
+            LoadModelError::Multimodal(e) => NobodyWhoError::Other(e.to_string()),
         }
     }
 }
