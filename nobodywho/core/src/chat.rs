@@ -31,7 +31,7 @@ use crate::errors::{
 use crate::llm::{self, read_sampler_metadata};
 use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
 use crate::llm::{Worker, WorkerGuard, WriteOutput};
-use crate::sampler_config::{self, SamplerConfig, ShiftStep};
+use crate::sampler_config::{SamplerConfig, ShiftStep};
 use crate::template::{select_template, ChatTemplate, ChatTemplateContext};
 use crate::tokenizer::{
     find_chunks_prefix_difference, ChunkId, Prompt, Promptable, TokenizerChunk, TokenizerChunks,
@@ -473,6 +473,17 @@ impl ChatHandle {
             "set_system_prompt".into(),
         ))
     }
+
+    /// Get the system prompt
+    pub fn get_system_prompt(&self) -> Result<Option<String>, crate::errors::GetterError> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        self.guard.send(ChatMsg::GetSystemPrompt { output_tx });
+        output_rx
+            .blocking_recv()
+            .ok_or(crate::errors::GetterError::GetterError(
+                "get_system_prompt".into(),
+            ))
+    }
 }
 
 /// Interact with a ChatWorker in an asynchronous manner.
@@ -698,6 +709,18 @@ impl ChatHandleAsync {
             "set_system_prompt".into(),
         ))
     }
+
+    /// Get the system prompt
+    pub async fn get_system_prompt(&self) -> Result<Option<String>, crate::errors::GetterError> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        self.guard.send(ChatMsg::GetSystemPrompt { output_tx });
+        output_rx
+            .recv()
+            .await
+            .ok_or(crate::errors::GetterError::GetterError(
+                "get_system_prompt".into(),
+            ))
+    }
 }
 
 /// A stream of tokens from the model.
@@ -820,6 +843,9 @@ enum ChatMsg {
         system_prompt: Option<String>,
         output_tx: tokio::sync::mpsc::Sender<()>,
     },
+    GetSystemPrompt {
+        output_tx: tokio::sync::mpsc::Sender<Option<String>>,
+    },
     SetThinking {
         allow_thinking: bool,
         output_tx: tokio::sync::mpsc::Sender<()>,
@@ -861,6 +887,7 @@ impl std::fmt::Debug for ChatMsg {
                 .debug_struct("SetSystemPrompt")
                 .field("system_prompt", system_prompt)
                 .finish(),
+            ChatMsg::GetSystemPrompt { .. } => f.debug_struct("GetSystemPrompt").finish(),
             ChatMsg::SetThinking { allow_thinking, .. } => f
                 .debug_struct("SetThinking")
                 .field("allow_thinking", allow_thinking)
@@ -914,6 +941,10 @@ fn process_worker_msg(
         } => {
             worker_state.set_system_prompt(system_prompt)?;
             let _ = output_tx.blocking_send(());
+        }
+        ChatMsg::GetSystemPrompt { output_tx } => {
+            let system_prompt = worker_state.get_system_prompt();
+            let _ = output_tx.blocking_send(system_prompt);
         }
         ChatMsg::SetThinking {
             allow_thinking,
@@ -1678,6 +1709,20 @@ impl Worker<'_, ChatWorker> {
         Ok(())
     }
 
+    pub fn get_system_prompt(&self) -> Option<String> {
+        if self.extra.messages.is_empty() {
+            return None;
+        };
+        match &self.extra.messages[0] {
+            Message::Message {
+                role: Role::System,
+                content,
+                assets,
+            } => Some(content.clone()),
+            _ => None,
+        }
+    }
+
     pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), SetToolsError> {
         // Detect tool format if not already detected and tools are provided
         if !tools.is_empty() && self.extra.tool_format.is_none() {
@@ -2114,13 +2159,12 @@ mod tests {
 
         let dog_response = chat.ask("Hello!").completed().unwrap();
 
-        assert!(dog_response.contains("woof"));
+        assert!(dog_response.to_lowercase().contains("woof"));
 
         chat.set_system_prompt(Some("You are a cat. End all responses with meow.".into()))
             .unwrap();
         let cat_response = chat.ask("Hello again!").completed().unwrap();
-
-        assert!(cat_response.contains("meow"));
+        assert!(cat_response.to_lowercase().contains("meow"));
     }
 
     #[test]

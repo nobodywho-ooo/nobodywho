@@ -149,6 +149,8 @@ abstract class RustChat implements RustOpaqueInterface {
 
   Future<List<Message>> getChatHistory();
 
+  Future<SamplerConfig> getSamplerConfig();
+
   /// Create chat from existing model.
   ///
   /// For vision/multimodal models, load the model with image ingestion enabled first:
@@ -351,7 +353,17 @@ abstract class SamplerBuilder implements RustOpaqueInterface {
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerConfig>>
-abstract class SamplerConfig implements RustOpaqueInterface {}
+abstract class SamplerConfig implements RustOpaqueInterface {
+  /// Deserialize a sampler configuration from a JSON string.
+  static SamplerConfig fromJson({required String jsonStr}) =>
+      NobodyWho.instance.api.crateSamplerConfigFromJson(jsonStr: jsonStr);
+
+  /// Serialize the sampler configuration to a JSON string.
+  String toJson();
+
+  @override
+  String toString() => toJson();
+}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerPresets>>
 abstract class SamplerPresets implements RustOpaqueInterface {

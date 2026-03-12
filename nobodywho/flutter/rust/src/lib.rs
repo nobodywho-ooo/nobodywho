@@ -201,7 +201,9 @@ impl RustChat {
             .await
     }
 
-    pub async fn get_sampler_config(&self) -> Result<SamplerConfig, nobodywho::errors::GetterError> {
+    pub async fn get_sampler_config(
+        &self,
+    ) -> Result<SamplerConfig, nobodywho::errors::GetterError> {
         self.chat
             .get_sampler_config()
             .await
@@ -234,6 +236,12 @@ impl RustChat {
         system_prompt: Option<String>,
     ) -> Result<(), nobodywho::errors::SetterError> {
         self.chat.set_system_prompt(system_prompt).await
+    }
+
+    pub async fn get_system_prompt(
+        &self,
+    ) -> Result<Option<String>, nobodywho::errors::GetterError> {
+        self.chat.get_system_prompt().await
     }
 
     pub async fn set_tools(
@@ -481,10 +489,13 @@ fn dart_function_type_to_json_schema(
 /// A `SamplerConfig` can be constructed either using a preset function from the `SamplerPresets`
 /// class, or by manually constructing a sampler chain using the `SamplerBuilder` class.
 /// `SamplerConfig` supports serialization to/from JSON via `toJson()` and `fromJson()`.
-#[flutter_rust_bridge::frb(opaque, dart_code = "
+#[flutter_rust_bridge::frb(
+    opaque,
+    dart_code = "
   @override
   String toString() => toJson();
-")]
+"
+)]
 #[derive(Clone, Default)]
 pub struct SamplerConfig {
     sampler_config: nobodywho::sampler_config::SamplerConfig,
