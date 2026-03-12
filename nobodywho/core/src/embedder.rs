@@ -41,7 +41,7 @@ impl EmbedderAsync {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
 
         let join_handle = std::thread::spawn(move || {
-            let worker = Worker::new_embedder_worker(&*model, n_ctx);
+            let worker = Worker::new_embedder_worker(&model, n_ctx);
             let mut worker_state = match worker {
                 Ok(worker_state) => worker_state,
                 Err(errmsg) => {
