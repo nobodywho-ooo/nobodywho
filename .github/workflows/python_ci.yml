@@ -12,6 +12,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
       - name: Install uv
         uses: astral-sh/setup-uv@v2
         with:
@@ -66,6 +68,8 @@ jobs:
       RUSTFLAGS: ${{ matrix.runner == 'ubuntu-24.04' && '-C target-cpu=x86-64-v3' || '' }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - name: Install Rust
         run: |
@@ -151,6 +155,8 @@ jobs:
       RUSTFLAGS: -l Advapi32 -C target-cpu=x86-64-v3
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           target: ${{ matrix.target }}
@@ -194,6 +200,8 @@ jobs:
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - uses: actions/setup-python@v6
         with:
@@ -214,6 +222,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
       - name: Install uv
         uses: astral-sh/setup-uv@v2
         with:
@@ -272,6 +282,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - name: Install uv
         uses: astral-sh/setup-uv@v2
@@ -340,6 +352,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
@@ -383,6 +397,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
@@ -422,6 +438,8 @@ jobs:
             model_link: https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-Q4_1.gguf
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"

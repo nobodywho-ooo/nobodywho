@@ -49,6 +49,8 @@ jobs:
       RUSTFLAGS:  ${{ matrix.runner == 'ubuntu-24.04' && '-C target-cpu=x86-64-v3' || '' }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - name: "Cache Cargo Home"
         uses: actions/cache@v4
@@ -122,6 +124,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - name: "Cache Cargo Home"
         uses: actions/cache@v4
@@ -194,6 +198,8 @@ jobs:
       matrix: ${{ fromJSON(needs.setup-macos-matrix.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
       - run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           . "$HOME/.cargo/env"
@@ -247,6 +253,8 @@ jobs:
     needs: [cargo-build-macos]
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - name: "Download all build artifacts"
         uses: actions/download-artifact@v4
@@ -326,6 +334,8 @@ jobs:
     needs: [cargo-build-macos]
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
         with:
           submodules: true
 
@@ -446,6 +456,8 @@ jobs:
           - "flutter"
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - name: "Cache Cargo Home"
         uses: actions/cache@v4

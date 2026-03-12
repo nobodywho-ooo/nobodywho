@@ -12,6 +12,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
         - uses: actions/checkout@v4
+          with:
+            submodules: true
   
         - name: "Download all build artifacts"
           uses: actions/download-artifact@v4
@@ -150,6 +152,8 @@ jobs:
       contents: write # Required to create github release
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - name: "Download all Flutter artifacts"
         uses: actions/download-artifact@v4
