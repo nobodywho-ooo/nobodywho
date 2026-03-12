@@ -1881,7 +1881,7 @@ impl Worker<'_, ChatWorker> {
             Message::Message {
                 role: Role::System,
                 content,
-                assets,
+                assets: _,
             } => Some(content.clone()),
             _ => None,
         }
