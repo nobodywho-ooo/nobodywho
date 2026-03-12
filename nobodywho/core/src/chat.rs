@@ -28,7 +28,7 @@ use crate::errors::{
     MultimodalError, RenderError, SayError, SelectTemplateError, SetToolsError, ShiftError,
     WrappedResponseError,
 };
-use crate::llm::{self, read_sampler_metadata};
+use crate::llm::{self, read_sampler_from_metadata};
 use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
 use crate::llm::{Worker, WorkerGuard, WriteOutput};
 use crate::sampler_config::{SamplerConfig, ShiftStep};
@@ -1117,7 +1117,7 @@ impl Worker<'_, ChatWorker> {
         };
         let sampler_config = match config.sampler_config {
             Some(sc) => sc,
-            None => read_sampler_metadata(&model.language_model).unwrap_or_default(),
+            None => read_sampler_from_metadata(&model.language_model).unwrap_or_default(),
         };
 
         Worker::new_with_type(
