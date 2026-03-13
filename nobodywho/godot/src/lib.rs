@@ -269,8 +269,7 @@ impl NobodyWhoChat {
                 allow_thinking: self.allow_thinking,
                 sampler_config: SamplerConfig::default(),
             },
-        )
-        .map_err(|e| e.to_string())?;
+        );
         self.chat_handle = Some(chat_handle);
         Ok(())
     }
