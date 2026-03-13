@@ -1,3 +1,7 @@
+## 0.5.1-rc1
+
+- Fix incorrect linking of stdcxx on android
+
 ## 0.5.0
 
 - Support image ingestion for multimodal vision models
