@@ -137,19 +137,63 @@ Model('./model.gguf', use_gpu_if_available=True)
 So far, NobodyWho relies purely on [Vulkan](https://www.vulkan.org), however support
 of more architectures is planned (for details check out our [issues](https://github.com/nobodywho-ooo/nobodywho/issues) or join us on [Discord](https://discord.gg/qhaMc2qCYB)).
 
-## Reasoning
+## Template Variables
 
-To enhance cognitive performance, allowing reasoning can be a good idea:
+Chat templates are used internally by models to format conversation history into the expected prompt format. Different models may support different template variables that control specific behaviors. Template variables are boolean flags passed to the chat template that can enable or disable certain features.
+
+### Using Template Variables
+
+You can set template variables when creating a chat or modify them on existing instances:
+
 ```python
-chat = Chat("./model.gguf", allow_thinking=True)
+# Set template variables when creating a chat
+chat = Chat("./model.gguf", template_variables={"enable_thinking": True})
 ```
-Note that `Chat` has thinking set to `True` by default. You can also change the setting
-of an already existing chat instance:
+
+You can also modify template variables on an existing chat instance:
+
 ```{.python continuation}
-chat.set_allow_thinking(True)
+# Set a single template variable
+chat.set_template_variable("enable_thinking", True)
+
+# Set multiple template variables at once
+chat.set_template_variables({
+    "enable_thinking": True,
+    "verbose_mode": False
+})
+
+# Get current template variables
+variables = chat.get_template_variables()
+print(variables)  # {"enable_thinking": True, "verbose_mode": False}
 ```
-With the next message send, the setting will be propagated.
+
+With the next message sent, the updated settings will be propagated to the model.
+
+### Example: Qwen3 and Qwen3.5 Reasoning
+
+The Qwen3 and Qwen3.5 model families support the `enable_thinking` template variable, which controls whether the model should engage in explicit reasoning steps before answering:
+
+```python
+# Enable thinking mode for Qwen models
+chat = Chat("./qwen3.5-model.gguf", template_variables={"enable_thinking": True})
+chat.ask("Solve this logic puzzle: ...")
+```
+
+When `enable_thinking` is enabled, these models will show their reasoning process before providing the final answer.
+
+### Model-Specific Variables
+
+Different models may support different template variables depending on their chat template implementation. The available variables and their effects depend entirely on how the model's chat template is designed. Check your model's documentation to see which template variables are supported.
 
 !!! info ""
-    Note that **not every model** supports reasoning. If the model does not have
-    such an option, the `allow_thinking` setting will be ignored.
+    Note that template variables are model-specific. If a model's chat template doesn't use a specific variable, that variable will be ignored gracefully.
+
+### Backward Compatibility
+
+For backward compatibility, the deprecated `allow_thinking` parameter is still available but internally sets the `enable_thinking` template variable:
+
+```python
+# Deprecated - use template_variables instead
+chat = Chat("./model.gguf", allow_thinking=True)
+chat.set_allow_thinking(True)
+```
