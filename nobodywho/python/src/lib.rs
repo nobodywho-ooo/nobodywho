@@ -48,6 +48,15 @@ impl Model {
                 model_path.display()
             ))
         })?;
+        let path_str = if let Some(model_id) = path_str.strip_prefix("hf://") {
+            nobodywho::llm::get_model_path_from_download(model_id)
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?
+                .to_str()
+                .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("Downloaded path contains invalid UTF-8"))?
+                .to_owned()
+        } else {
+            path_str.to_owned()
+        };
         let mmproj_str = image_model_path
             .as_ref()
             .map(|p| {
@@ -59,7 +68,7 @@ impl Model {
                 })
             })
             .transpose()?;
-        let model_result = nobodywho::llm::get_model(path_str, use_gpu_if_available, mmproj_str);
+        let model_result = nobodywho::llm::get_model(&path_str, use_gpu_if_available, mmproj_str);
         match model_result {
             Ok(model) => Ok(Self {
                 model: Arc::new(model),
@@ -147,9 +156,19 @@ impl<'py> ModelOrPath<'py> {
                         path.display()
                     ))
                 })?;
-                nobodywho::llm::get_model(path_str, true, None)
-                    .map(Arc::new)
+                // If user wants to try to download a huggingface model
+                let path_str = if let Some(model_id) = path_str.strip_prefix("hf://") {
+                    nobodywho::llm::get_model_path_from_download(model_id)
+                        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?
+                        .to_str()
+                        .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("Downloaded path contains invalid UTF-8"))?
+                        .to_owned()
+                } else {
+                    path_str.to_owned()
+                };
+                nobodywho::llm::get_model(&path_str, true, None)
                     .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+                    .map(Arc::new)
             }
         }
     }
