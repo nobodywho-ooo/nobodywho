@@ -51,6 +51,11 @@ val resolveNativeLibraries by tasks.registering {
     val jniLibsDir = layout.buildDirectory.dir("jniLibs")
     val cacheDir = layout.buildDirectory.dir("nobodywho-cache")
 
+    // Declare inputs so Gradle re-runs this task when the version or resolve logic changes.
+    // Without these, Gradle considers the task UP-TO-DATE after the first run, causing stale
+    // .so files from a previous plugin version to persist across upgrades.
+    inputs.file("${projectDir}/../pubspec.yaml")
+    inputs.file("${projectDir}/../tool/resolve_binary.dart")
     outputs.dir(jniLibsDir)
 
     doLast {
