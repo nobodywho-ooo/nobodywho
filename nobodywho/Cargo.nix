@@ -113,16 +113,6 @@ rec {
       # File a bug if you depend on any for non-debug work!
       debug = internal.debugCrate { inherit packageId; };
     };
-    "nobodywho-swift-bindgen" = rec {
-      packageId = "nobodywho-swift-bindgen";
-      build = internal.buildRustCrateWithFeatures {
-        packageId = "nobodywho-swift-bindgen";
-      };
-
-      # Debug support which might change between releases.
-      # File a bug if you depend on any for non-debug work!
-      debug = internal.debugCrate { inherit packageId; };
-    };
     "nobodywho-uniffi" = rec {
       packageId = "nobodywho-uniffi";
       build = internal.buildRustCrateWithFeatures {
@@ -6684,40 +6674,6 @@ rec {
           {
             name = "tracing-subscriber";
             packageId = "tracing-subscriber";
-          }
-        ];
-
-      };
-      "nobodywho-swift-bindgen" = rec {
-        crateName = "nobodywho-swift-bindgen";
-        version = "0.1.0";
-        edition = "2021";
-        crateBin = [
-          {
-            name = "generate-swift";
-            path = "src/main.rs";
-            requiredFeatures = [ ];
-          }
-          {
-            name = "uniffi-bindgen";
-            path = "src/bin/uniffi-bindgen.rs";
-            requiredFeatures = [ ];
-          }
-        ];
-        src = lib.cleanSourceWith { filter = sourceFilter;  src = ./swift/bindgen; };
-        dependencies = [
-          {
-            name = "camino";
-            packageId = "camino";
-          }
-          {
-            name = "uniffi";
-            packageId = "uniffi";
-            features = [ "cli" ];
-          }
-          {
-            name = "uniffi_bindgen";
-            packageId = "uniffi_bindgen";
           }
         ];
 
