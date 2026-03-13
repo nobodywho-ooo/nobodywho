@@ -26,6 +26,7 @@ from eval import (
 class TaskConfig:
     system_prompt: str | None
     shuffle: bool
+    vision: bool = False
 
 
 TASK_CONFIGS: dict[str, TaskConfig] = {
@@ -89,6 +90,22 @@ TASK_CONFIGS: dict[str, TaskConfig] = {
         ),
         shuffle=True,
     ),
+    "mmmu_val_science": TaskConfig(
+        system_prompt=(
+            "You are an expert at answering multiple-choice questions. "
+            "Answer with only the letter of the correct option (A, B, C, or D)."
+        ),
+        shuffle=False,
+        vision=True,
+    ),
+    "mmmu_val_humanities_and_social_science": TaskConfig(
+        system_prompt=(
+            "You are an expert at answering multiple-choice questions. "
+            "Answer with only the letter of the correct option (A, B, C, or D)."
+        ),
+        shuffle=False,
+        vision=True,
+    ),
 }
 
 DEFAULT_TASKS = list(TASK_CONFIGS.keys())
@@ -123,7 +140,8 @@ def run(
     backend: Annotated[str, typer.Option("-b", "--backend", help="Backend: 'nobodywho' or 'gguf' (llama.cpp server)")] = "nobodywho",
     base_url: Annotated[Optional[str], typer.Option("--base-url", help="Server URL for gguf backend (e.g., http://localhost:8080)")] = None,
     model_name: Annotated[Optional[str], typer.Option("--model-name", help="Model name for CSV output (required for gguf backend)")] = None,
-    shuffle: Annotated[Optional[bool], typer.Option("--shuffle", help="Whether or not to shuffle all samples")] = None
+    shuffle: Annotated[Optional[bool], typer.Option("--shuffle", help="Whether or not to shuffle all samples")] = None,
+    image_model_path: Annotated[Optional[Path], typer.Option("--image-model-path", help="Path to multimodal projector GGUF (mmproj) for vision benchmarks")] = None,
 ):
     """Run eval benchmarks on one or more GGUF models."""
     if system_prompt is not None and no_system_prompts:
@@ -153,6 +171,21 @@ def run(
     logging.basicConfig(level=logging.WARNING)
 
     run_tasks = tasks.split(",") if tasks else DEFAULT_TASKS
+
+    # Vision task filtering
+    if tasks is None:
+        # Using defaults: silently exclude vision tasks when no mmproj provided
+        if image_model_path is None:
+            run_tasks = [t for t in run_tasks if not TASK_CONFIGS.get(t, TaskConfig(system_prompt=None, shuffle=False)).vision]
+    else:
+        # Explicit task list: error if vision tasks requested without mmproj
+        if image_model_path is None:
+            vision_tasks = [t for t in run_tasks if TASK_CONFIGS.get(t, TaskConfig(system_prompt=None, shuffle=False)).vision]
+            if vision_tasks:
+                raise typer.BadParameter(
+                    f"Vision tasks {vision_tasks} require --image-model-path"
+                )
+
     total_tasks = len(run_tasks)
     total_models = len(models) if models else 0
 
@@ -242,8 +275,9 @@ def run(
                 model_instance = NobodyWhoLM(
                     model_path=str(model_path.resolve()),
                     allow_thinking="false",
-                    n_ctx=32768,
+                    n_ctx=4096, #32768,
                     system_prompt=task_prompt,
+                    image_model_path=str(image_model_path.resolve()) if image_model_path else None,
                 )
             else:  # gguf backend
                 from lm_eval.models.gguf import GGUFLM

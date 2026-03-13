@@ -1,7 +1,9 @@
 import logging
 import os
 import platform
+import shutil
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 
@@ -136,15 +138,19 @@ def get_system_info() -> dict:
 
 @register_model("nobodywho")
 class NobodyWhoLM(LM):
+    MULTIMODAL = False
+
     chat: nobodywho.Chat
     allow_thinking: bool
     model_path: Path
+    image_model_path: Path | None
     system_prompt: str | None
     failed_samples: list[dict]
     total_samples: int
     total_tokens_generated: int
     total_generation_time: float
     sampler_config: dict
+    _temp_dir: str | None
 
     def __init__(
         self,
@@ -152,6 +158,7 @@ class NobodyWhoLM(LM):
         allow_thinking: str,
         n_ctx: int,
         system_prompt: str | None = None,
+        image_model_path: str | None = None,
         *args,
         **kwargs,
     ):
@@ -173,11 +180,24 @@ class NobodyWhoLM(LM):
         # system prompt
         self.system_prompt = system_prompt
 
+        # image model path (mmproj)
+        if image_model_path is not None:
+            self.image_model_path = Path(image_model_path)
+            assert self.image_model_path.exists()
+            self.MULTIMODAL = True
+        else:
+            self.image_model_path = None
+
+        self._temp_dir = None
         self.failed_samples = []
         self.total_samples = 0
         self.total_tokens_generated = 0
         self.total_generation_time = 0.0
         self._init_chat()
+
+    def __del__(self):
+        if self._temp_dir and os.path.exists(self._temp_dir):
+            shutil.rmtree(self._temp_dir, ignore_errors=True)
 
     def _init_chat(self):
         # Sampler config
@@ -202,12 +222,41 @@ class NobodyWhoLM(LM):
         }
         if self.system_prompt is not None:
             kwargs["system_prompt"] = self.system_prompt
-        self.chat = nobodywho.Chat(self.model_path, **kwargs)
+        if self.image_model_path is not None:
+            model = nobodywho.Model(self.model_path, image_model_path=self.image_model_path)
+            self.chat = nobodywho.Chat(model, **kwargs)
+        else:
+            self.chat = nobodywho.Chat(self.model_path, **kwargs)
+
+    def _pil_to_path(self, pil_image) -> str:
+        """Save a PIL image to a temp file and return its path."""
+        if self._temp_dir is None:
+            self._temp_dir = tempfile.mkdtemp(prefix="nw_eval_")
+        fd, path = tempfile.mkstemp(suffix=".png", dir=self._temp_dir)
+        os.close(fd)
+        pil_image.save(path, format="PNG")
+        return path
+
+    def _build_multimodal_prompt(self, text: str, images: list) -> nobodywho.Prompt:
+        """Split text on <image> placeholders and interleave with Image objects.
+
+        Only as many images are used as there are <image> placeholders in the text,
+        since some tasks provide more images in the visual list than are referenced.
+        """
+        parts = []
+        segments = text.split("<image>")
+        n_placeholders = len(segments) - 1
+        for i, segment in enumerate(segments):
+            if segment:
+                parts.append(nobodywho.Text(segment))
+            if i < n_placeholders and i < len(images):
+                img_path = self._pil_to_path(images[i])
+                parts.append(nobodywho.Image(img_path))
+        return nobodywho.Prompt(parts)
 
     def generate_until(self, requests: list[Instance], disable_tqdm=False):
         result: list[str] = []
         for request in tqdm([req.args for req in requests], disable=disable_tqdm):
-            self.chat.reset_history()
             text = request[0]
             assert isinstance(text, str)
 
@@ -216,12 +265,29 @@ class NobodyWhoLM(LM):
             max_gen_toks = request_args.get("max_gen_toks")  # None if not specified
             until = request_args.get("until", [])
 
+            # check for multimodal content (3rd element with "visual" key)
+            images = None
+            if len(request) >= 3 and isinstance(request[2], dict):
+                images = request[2].get("visual")
+
+            # For vision requests, fully reinitialize the chat to clear image
+            # embeddings from the KV cache — reset_history() does not clear them.
+            # For text-only, reset_history() is sufficient and faster.
+            if images:
+                self._init_chat()
+            else:
+                self.chat.reset_history()
+
             # calculate how many tokens to check for stop sequences
             # (each token is at least 1 char, so we need at most max_stop_len tokens)
             max_stop_len = max((len(s) for s in until), default=0)
 
             try:
-                response_stream = self.chat.ask(text)
+                if images:
+                    prompt = self._build_multimodal_prompt(text, images)
+                    response_stream = self.chat.ask(prompt)
+                else:
+                    response_stream = self.chat.ask(text)
 
                 # collect tokens, checking stop conditions
                 tokens: list[str] = []
@@ -361,6 +427,12 @@ TASK_METRICS: dict[str, list[str]] = {
     "drop": [
         "f1,none",
         "em,none",
+    ],
+    "mmmu_val_science": [
+        "acc,none",
+    ],
+    "mmmu_val_humanities_and_social_science": [
+        "acc,none",
     ],
 }
 
