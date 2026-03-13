@@ -272,8 +272,7 @@ impl NobodyWhoChat {
                 template_variables: temp_vars,
                 sampler_config: SamplerConfig::default(),
             },
-        )
-        .map_err(|e| e.to_string())?;
+        );
         self.chat_handle = Some(chat_handle);
         Ok(())
     }
