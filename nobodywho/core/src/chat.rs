@@ -15,7 +15,7 @@
 //!
 //! let chat = ChatBuilder::new(model)
 //!     .with_system_prompt(Some("You are a helpful assistant"))
-//!     .build();
+//!     .build()?;
 //!
 //! let response = chat.ask("Hello!").completed()?;
 //! # Ok(())
@@ -197,7 +197,7 @@ impl Default for ChatConfig {
 ///     .with_context_size(4096)
 ///     .with_system_prompt(Some("You're a helpful assistant"))
 ///     .with_tool(my_tool)
-///     .build();
+///     .build()?;
 /// # Ok(())
 /// # }
 /// ```
@@ -273,12 +273,12 @@ impl ChatBuilder {
     }
 
     /// Build a blocking chat handle and start the background worker.
-    pub fn build(self) -> ChatHandle {
+    pub fn build(self) -> Result<ChatHandle, InitWorkerError> {
         ChatHandle::new(self.model, self.config)
     }
 
     /// Build an async chat handle and start the background worker.
-    pub fn build_async(self) -> ChatHandleAsync {
+    pub fn build_async(self) -> Result<ChatHandleAsync, InitWorkerError> {
         ChatHandleAsync::new(self.model, self.config)
     }
 }
@@ -292,8 +292,9 @@ pub struct ChatHandle {
 
 impl ChatHandle {
     /// Create a new chat handle directly. Consider using [`ChatBuilder`] for a more ergonomic API.
-    pub fn new(model: Arc<llm::Model>, config: ChatConfig) -> Self {
+    pub fn new(model: Arc<llm::Model>, config: ChatConfig) -> Result<Self, InitWorkerError> {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
+        let (ready_tx, ready_rx) = std::sync::mpsc::channel::<Result<(), InitWorkerError>>();
 
         let should_stop = Arc::new(AtomicBool::new(false));
         let should_stop_clone = Arc::clone(&should_stop);
@@ -301,9 +302,13 @@ impl ChatHandle {
         let join_handle = std::thread::spawn(move || {
             let worker = Worker::new_chat_worker(&model, config, should_stop_clone);
             let mut worker_state = match worker {
-                Ok(worker_state) => worker_state,
-                Err(errmsg) => {
-                    return error!("Could not set up the worker initial state: {errmsg}")
+                Ok(worker_state) => {
+                    ready_tx.send(Ok(())).ok();
+                    worker_state
+                }
+                Err(e) => {
+                    ready_tx.send(Err(e)).ok();
+                    return;
                 }
             };
 
@@ -314,9 +319,15 @@ impl ChatHandle {
             }
         });
 
-        Self {
-            guard: WorkerGuard::new(msg_tx, join_handle, Some(should_stop)),
+        match ready_rx.recv() {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => return Err(e),
+            Err(_) => return Err(InitWorkerError::WorkerPanicked),
         }
+
+        Ok(Self {
+            guard: WorkerGuard::new(msg_tx, join_handle, Some(should_stop)),
+        })
     }
 
     /// Send a message and get a tokio channel
@@ -512,7 +523,7 @@ impl ChatHandle {
     /// # use nobodywho::llm::get_model;
     /// # use std::sync::Arc;
     /// # let model = Arc::new(get_model("model.gguf", true, None).unwrap());
-    /// # let chat = ChatBuilder::new(model).build();
+    /// # let chat = ChatBuilder::new(model).build().unwrap();
     /// chat.set_system_prompt(Some("You are a helpful coding assistant.".to_string()))?;
     /// # Ok::<(), nobodywho::errors::SetterError>(())
     /// ```
@@ -540,8 +551,9 @@ pub struct ChatHandleAsync {
 
 impl ChatHandleAsync {
     /// Create a new chat handle directly. Consider using [`ChatBuilder`] for a more ergonomic API.
-    pub fn new(model: Arc<llm::Model>, config: ChatConfig) -> Self {
+    pub fn new(model: Arc<llm::Model>, config: ChatConfig) -> Result<Self, InitWorkerError> {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
+        let (ready_tx, ready_rx) = std::sync::mpsc::channel::<Result<(), InitWorkerError>>();
 
         let should_stop = Arc::new(AtomicBool::new(false));
         let should_stop_clone = Arc::clone(&should_stop);
@@ -549,9 +561,13 @@ impl ChatHandleAsync {
         let join_handle = std::thread::spawn(move || {
             let worker = Worker::new_chat_worker(&model, config, should_stop_clone);
             let mut worker_state = match worker {
-                Ok(worker_state) => worker_state,
-                Err(errmsg) => {
-                    return error!("Could not set up the worker initial state: {errmsg}")
+                Ok(worker_state) => {
+                    ready_tx.send(Ok(())).ok();
+                    worker_state
+                }
+                Err(e) => {
+                    ready_tx.send(Err(e)).ok();
+                    return;
                 }
             };
 
@@ -562,9 +578,15 @@ impl ChatHandleAsync {
             }
         });
 
-        Self {
-            guard: Arc::new(WorkerGuard::new(msg_tx, join_handle, Some(should_stop))),
+        match ready_rx.recv() {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => return Err(e),
+            Err(_) => return Err(InitWorkerError::WorkerPanicked),
         }
+
+        Ok(Self {
+            guard: Arc::new(WorkerGuard::new(msg_tx, join_handle, Some(should_stop))),
+        })
     }
 
     /// Send a message and get a tokio channel
@@ -771,7 +793,7 @@ impl ChatHandleAsync {
     /// # use nobodywho::llm::get_model;
     /// # use std::sync::Arc;
     /// # let model = Arc::new(get_model("model.gguf", true, None).unwrap());
-    /// # let chat = ChatBuilder::new(model).build_async();
+    /// # let chat = ChatBuilder::new(model).build_async().unwrap();
     /// # chat.set_system_prompt(Some("You are a helpful coding assistant.".to_string())).await?;
     /// # Ok::<(), nobodywho::errors::SetterError>(())
     /// ```
@@ -2236,7 +2258,8 @@ mod tests {
         let chat = ChatBuilder::new(model)
             .with_context_size(2048)
             .with_system_prompt(Some("You are a dog. End all responses with woof."))
-            .build();
+            .build()
+            .unwrap();
 
         let dog_response = chat.ask("Hello!").completed().unwrap();
 
@@ -2706,7 +2729,7 @@ mod tests {
     async fn test_enable_thinking() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let chat = ChatBuilder::new(model).build_async();
+        let chat = ChatBuilder::new(model).build_async().unwrap();
 
         let res1: String = chat
             .ask("What is the capital of Denmark?".to_string())

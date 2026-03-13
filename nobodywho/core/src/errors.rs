@@ -43,6 +43,9 @@ pub enum InitWorkerError {
 
     #[error("Could not initialize projection model: {0}")]
     ProjectionModel(#[from] MultimodalError),
+
+    #[error("Worker thread panicked during initialization")]
+    WorkerPanicked,
 }
 
 #[derive(Debug, thiserror::Error)]

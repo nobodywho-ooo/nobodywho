@@ -107,7 +107,7 @@ impl RustChat {
         #[frb(default = "const {}")] template_variables: HashMap<String, bool>,
         #[frb(default = "const []")] tools: Vec<RustTool>,
         #[frb(default = "null")] sampler: Option<SamplerConfig>,
-    ) -> Self {
+    ) -> Result<Self, String> {
         let sampler_config = sampler.map(|s| s.sampler_config).unwrap_or_default();
 
         // Handle deprecated allow_thinking parameter
@@ -126,9 +126,10 @@ impl RustChat {
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
             .with_system_prompt(system_prompt)
             .with_sampler(sampler_config)
-            .build_async();
+            .build_async()
+            .map_err(|e| e.to_string())?;
 
-        Self { chat }
+        Ok(Self { chat })
     }
 
     /// Create chat directly from a model path. This is async as it loads a model
@@ -174,7 +175,8 @@ impl RustChat {
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
             .with_system_prompt(system_prompt)
             .with_sampler(sampler_config)
-            .build_async();
+            .build_async()
+            .map_err(|e| e.to_string())?;
         Ok(Self { chat })
     }
 
