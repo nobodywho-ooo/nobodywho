@@ -39,7 +39,7 @@ dependencies {
 
 val soVersion = project.findProperty("VERSION_NAME")?.toString() ?: "1.0.0"
 val githubRepo = project.findProperty("NOBODYWHO_GITHUB_REPO")?.toString()
-    ?: "nobodywho-ooo/nobodywho"
+    ?: "Intiserahmed/nobodywho"
 
 // ABI → release asset filename
 val abiAssets = mapOf(

@@ -222,7 +222,7 @@ jobs:
         with:
           repository: Intiserahmed/nobodywho-swift
           ref: main
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.SWIFT_REPO_TOKEN }}
           path: nobodywho-swift
 
       - name: "Download Swift XCFramework artifact"
