@@ -1,6 +1,7 @@
 import logging
 import os
 import platform
+import re
 import shutil
 import subprocess
 import tempfile
@@ -133,6 +134,22 @@ def get_system_info() -> dict:
     }
 
 
+# ── Output cleanup ───────────────────────────────────────────────────
+
+
+def strip_markdown_code_fences(text: str) -> str:
+    """Extract code from markdown fences if present.
+
+    Instruct-tuned models often wrap code in ```python ... ``` blocks,
+    which breaks benchmarks like MBPP/HumanEval that expect raw code.
+    """
+    # Match ```<optional language>\n<code>\n``` pattern
+    match = re.search(r"```(?:\w*)\n(.*?)```", text, re.DOTALL)
+    if match:
+        return match.group(1)
+    return text
+
+
 # ── Model ────────────────────────────────────────────────────────────
 
 
@@ -243,9 +260,14 @@ class NobodyWhoLM(LM):
         Only as many images are used as there are <image> placeholders in the text,
         since some tasks provide more images in the visual list than are referenced.
         """
-        parts = []
         segments = text.split("<image>")
         n_placeholders = len(segments) - 1
+        logger.debug(
+            f"_build_multimodal_prompt: {n_placeholders} <image> placeholders, "
+            f"{len(images)} images provided. "
+            f"Text snippet: {text[:200]!r}"
+        )
+        parts = []
         for i, segment in enumerate(segments):
             if segment:
                 parts.append(nobodywho.Text(segment))
@@ -257,6 +279,7 @@ class NobodyWhoLM(LM):
     def generate_until(self, requests: list[Instance], disable_tqdm=False):
         result: list[str] = []
         for request in tqdm([req.args for req in requests], disable=disable_tqdm):
+            self.chat.reset_history()
             text = request[0]
             assert isinstance(text, str)
 
@@ -269,14 +292,6 @@ class NobodyWhoLM(LM):
             images = None
             if len(request) >= 3 and isinstance(request[2], dict):
                 images = request[2].get("visual")
-
-            # For vision requests, fully reinitialize the chat to clear image
-            # embeddings from the KV cache — reset_history() does not clear them.
-            # For text-only, reset_history() is sufficient and faster.
-            if images:
-                self._init_chat()
-            else:
-                self.chat.reset_history()
 
             # calculate how many tokens to check for stop sequences
             # (each token is at least 1 char, so we need at most max_stop_len tokens)
@@ -360,6 +375,9 @@ class NobodyWhoLM(LM):
                 result.append("")
                 self.total_samples += 1
                 continue
+
+            # Strip markdown code fences that instruct-tuned models add
+            response_text = strip_markdown_code_fences(response_text)
 
             result.append(response_text.strip())
             self.total_samples += 1
