@@ -33,11 +33,18 @@ impl Model {
                 model_path.display()
             ))
         })?;
-        let model_result = nobodywho::llm::get_model(path_str, use_gpu_if_available);
-        match model_result {
-            Ok(model) => Ok(Self { model }),
-            Err(err) => Err(pyo3::exceptions::PyRuntimeError::new_err(err.to_string())),
-        }
+        let path_str = if let Some(model_id) = path_str.strip_prefix("hf://") {
+            nobodywho::llm::get_model_path_from_download(model_id)
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?
+                .to_str()
+                .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("Downloaded path contains invalid UTF-8"))?
+                .to_owned()
+        } else {
+            path_str.to_owned()
+        };
+        nobodywho::llm::get_model(&path_str, use_gpu_if_available)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+            .map(|model| Self { model })
     }
 
     /// Asynchronously load a model from a GGUF file.
@@ -93,7 +100,6 @@ impl<'py> ModelOrPath<'py> {
         match self {
             // the inner model is Arc<...>, so clone is cheap.
             ModelOrPath::ModelObj(model_obj) => Ok(model_obj.borrow().model.clone()),
-            // default to (trying to) use GPU if a string is passed
             ModelOrPath::Path(path) => {
                 let path_str = path.to_str().ok_or_else(|| {
                     pyo3::exceptions::PyValueError::new_err(format!(
@@ -101,7 +107,17 @@ impl<'py> ModelOrPath<'py> {
                         path.display()
                     ))
                 })?;
-                nobodywho::llm::get_model(path_str, true)
+                // If user wants to try to download a huggingface model
+                let path_str = if let Some(model_id) = path_str.strip_prefix("hf://") {
+                    nobodywho::llm::get_model_path_from_download(model_id)
+                        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?
+                        .to_str()
+                        .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("Downloaded path contains invalid UTF-8"))?
+                        .to_owned()
+                } else {
+                    path_str.to_owned()
+                };
+                nobodywho::llm::get_model(&path_str, true)
                     .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
             }
         }
