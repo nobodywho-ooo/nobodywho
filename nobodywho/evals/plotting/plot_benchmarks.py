@@ -24,6 +24,8 @@ BENCHMARK_CONFIGS = {
     "mbpp_pass_at_1": {"label": "MBPP", "color": "#8c564b"},
     "drop_f1": {"label": "DROP (F1)", "color": "#e377c2"},
     "drop_em": {"label": "DROP (EM)", "color": "#7f7f7f"},
+    "mmmu_val_science_acc": {"label": "MMMU (Science)", "color": "#17becf"},
+    "mmmu_val_humanities_and_social_science_acc": {"label": "MMMU (Humanities)", "color": "#bcbd22"},
 }
 
 
