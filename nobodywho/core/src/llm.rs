@@ -161,7 +161,56 @@ pub async fn get_model_async(
     }
 }
 
-fn read_add_bos_metadata(model: &LlamaModel) -> Result<AddBos, InitWorkerError> {
+/// Download a GGUF model from HuggingFace Hub and return the local path to it.
+///
+/// If the model is already cached locally, the cached path is returned without downloading.
+///
+/// The `model_id` argument can be any of the following formats:
+/// - Shorthand: `"owner/repo/filename.gguf"`
+/// - Resolve path: `"owner/repo/resolve/branch/filename.gguf"`
+/// - With domain: `"huggingface.co/owner/repo/resolve/branch/filename.gguf"`
+/// - Full URL: `"https://huggingface.co/owner/repo/resolve/branch/filename.gguf"`
+pub fn get_model_path_from_download(
+    model_id: &str,
+) -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
+    let invalid = || crate::errors::LoadModelError::InvalidHfModelId(model_id.to_string());
+
+    // Normalize: strip optional protocol and optional huggingface.co domain.
+    let path = model_id
+        .trim_start_matches("https://")
+        .trim_start_matches("http://")
+        .trim_start_matches("huggingface.co/");
+
+    let (repo_id, filename) = if let Some(resolve_pos) = path.find("/resolve/") {
+        // Resolve path: owner/repo/resolve/branch/filename.gguf
+        let repo_id = path[..resolve_pos].to_string();
+        let after_resolve = &path[resolve_pos + "/resolve/".len()..];
+
+        // Skip branch name to get filename (supports subdirectories in filename)
+        let filename_start = after_resolve.find('/').ok_or_else(invalid)?;
+        let filename = after_resolve[filename_start + 1..].to_string();
+
+        (repo_id, filename)
+    } else {
+        // Shorthand: owner/repo/filename.gguf
+        let parts: Vec<&str> = path.splitn(3, '/').collect();
+        if parts.len() != 3 {
+            return Err(invalid());
+        }
+        (format!("{}/{}", parts[0], parts[1]), parts[2].to_string())
+    };
+
+    let api = hf_hub::api::sync::Api::new()
+        .map_err(|e| crate::errors::LoadModelError::DownloadError(e.to_string()))?;
+    let repo = api.model(repo_id);
+    let path = repo
+        .get(&filename)
+        .map_err(|e| crate::errors::LoadModelError::DownloadError(e.to_string()))?;
+
+    Ok(path)
+}
+
+fn read_add_bos_metadata(model: &Arc<LlamaModel>) -> Result<AddBos, InitWorkerError> {
     match model.meta_val_str("tokenizer.ggml.add_bos_token") {
         Ok(val) => match val.as_str() {
             "true" => Ok(AddBos::Always),
