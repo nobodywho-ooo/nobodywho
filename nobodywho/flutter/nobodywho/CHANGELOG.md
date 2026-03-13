@@ -1,3 +1,8 @@
+## 0.5.1
+
+- Fix incorrect linking of stdcxx on android
+- Fix bad build caching on android build
+
 ## 0.5.1-rc1
 
 - Fix incorrect linking of stdcxx on android
