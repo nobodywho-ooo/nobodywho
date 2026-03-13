@@ -1699,6 +1699,9 @@ impl Worker<'_, ChatWorker> {
         // sync with an empty render and we only render when there are
         // messages present in the history.
 
+        self.extra
+            .context
+            .garbage_collect_bitmaps(&self.extra.messages);
         Ok(())
     }
 
