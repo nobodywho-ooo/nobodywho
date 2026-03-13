@@ -241,7 +241,7 @@ def run(
             if backend == "nobodywho":
                 model_instance = NobodyWhoLM(
                     model_path=str(model_path.resolve()),
-                    allow_thinking="true",
+                    allow_thinking="false",
                     n_ctx=32768,
                     system_prompt=task_prompt,
                 )
