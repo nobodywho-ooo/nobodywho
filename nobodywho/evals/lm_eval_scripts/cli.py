@@ -168,7 +168,7 @@ def run(
 
     # allow code eval: this lets the model run code. yolo.
     os.environ["HF_ALLOW_CODE_EVAL"] = "1"
-    logging.basicConfig(level=logging.WARNING)
+    logging.basicConfig(level=logging.ERROR)
 
     run_tasks = tasks.split(",") if tasks else DEFAULT_TASKS
 
@@ -275,7 +275,7 @@ def run(
                 model_instance = NobodyWhoLM(
                     model_path=str(model_path.resolve()),
                     allow_thinking="false",
-                    n_ctx=4096, #32768,
+                    n_ctx=32768,
                     system_prompt=task_prompt,
                     image_model_path=str(image_model_path.resolve()) if image_model_path else None,
                 )
