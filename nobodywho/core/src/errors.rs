@@ -24,6 +24,10 @@ pub enum LoadModelError {
     Multimodal(#[from] MultimodalError),
     #[error("Channel for receiving model was closed unexpectedly")]
     ModelChannelError,
+    #[error("Invalid HuggingFace model ID '{0}': expected format 'owner/repo/filename.gguf'")]
+    InvalidHfModelId(String),
+    #[error("Failed to download model from HuggingFace: {0}")]
+    DownloadError(String),
 }
 
 // Worker errors
