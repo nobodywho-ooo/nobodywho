@@ -52,7 +52,11 @@ impl Model {
             nobodywho::llm::get_model_path_from_download(model_id)
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?
                 .to_str()
-                .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("Downloaded path contains invalid UTF-8"))?
+                .ok_or_else(|| {
+                    pyo3::exceptions::PyValueError::new_err(
+                        "Downloaded path contains invalid UTF-8",
+                    )
+                })?
                 .to_owned()
         } else {
             path_str.to_owned()
@@ -161,7 +165,11 @@ impl<'py> ModelOrPath<'py> {
                     nobodywho::llm::get_model_path_from_download(model_id)
                         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?
                         .to_str()
-                        .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("Downloaded path contains invalid UTF-8"))?
+                        .ok_or_else(|| {
+                            pyo3::exceptions::PyValueError::new_err(
+                                "Downloaded path contains invalid UTF-8",
+                            )
+                        })?
                         .to_owned()
                 } else {
                     path_str.to_owned()
