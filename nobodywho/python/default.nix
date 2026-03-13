@@ -25,7 +25,7 @@ python3Packages.buildPythonPackage {
   cargoDeps = rustPlatform.importCargoLock {
     lockFile = ../Cargo.lock;
     outputHashes = {
-      "llama-cpp-2-0.1.139" = "sha256-pkHwpYxwdVM7H6gtrh0gKz6p4WBKoj0kC9SipNaiSHg=";
+      "llama-cpp-2-0.1.139" = "sha256-fsa+CK4Btqf/TEKzfNnrrRdNMAhGBb77wn9XINebiwI=";
     };
   };
 

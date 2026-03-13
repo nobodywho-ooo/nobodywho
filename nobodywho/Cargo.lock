@@ -1822,7 +1822,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-2"
 version = "0.1.139"
-source = "git+https://github.com/utilityai/llama-cpp-rs?branch=update-llama-cpp-2026-03-06#3076f76a286b166f1b2b1d444e32adeca7b28e81"
+source = "git+https://github.com/AsbjornOlling/llama-cpp-rs?branch=fix-android-static-link-libstdcxx-for-mtmd#5d50ff00a5b8b2af7f4cab44de582e52d891ebf9"
 dependencies = [
  "encoding_rs",
  "enumflags2",
@@ -1835,7 +1835,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-sys-2"
 version = "0.1.139"
-source = "git+https://github.com/utilityai/llama-cpp-rs?branch=update-llama-cpp-2026-03-06#3076f76a286b166f1b2b1d444e32adeca7b28e81"
+source = "git+https://github.com/AsbjornOlling/llama-cpp-rs?branch=fix-android-static-link-libstdcxx-for-mtmd#5d50ff00a5b8b2af7f4cab44de582e52d891ebf9"
 dependencies = [
  "bindgen",
  "cc",
