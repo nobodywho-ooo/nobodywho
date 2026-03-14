@@ -1,0 +1,16 @@
+[package]
+name = "nobodywho-uniffi"
+version = "2.1.1"
+edition = "2021"
+
+[lib]
+crate-type = ["lib", "staticlib", "cdylib"]
+name = "nobodywho_uniffi"
+
+[dependencies]
+nobodywho = { path = "../core" }
+uniffi = { version = "0.30.0", features = ["cli"] }
+thiserror = "2.0.3"
+
+[build-dependencies]
+uniffi = { version = "0.30.0", features = ["build"] }

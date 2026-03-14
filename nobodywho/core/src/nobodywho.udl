@@ -1,0 +1,91 @@
+namespace nobodywho {
+    // Initialize llama.cpp logging
+    void init_logging();
+
+    // Load a model from a GGUF file
+    [Throws=NobodyWhoError]
+    Model load_model(string path, boolean use_gpu);
+
+    // Load an embedder model from a GGUF file
+    [Throws=NobodyWhoError]
+    Embedder load_embedder(string path, boolean use_gpu, u32 context_size);
+
+    // Load a cross-encoder reranker model from a GGUF file
+    [Throws=NobodyWhoError]
+    CrossEncoder load_cross_encoder(string path, boolean use_gpu, u32 context_size);
+};
+
+// Main error type
+[Error]
+enum NobodyWhoError {
+    "ModelNotFound",
+    "InvalidModel",
+    "InitializationError",
+    "InferenceError",
+    "Other",
+};
+
+// Message role in chat
+enum Role {
+    "User",
+    "Assistant",
+    "System",
+    "Tool",
+};
+
+// Chat message
+dictionary Message {
+    Role role;
+    string content;
+};
+
+// LLM Model
+interface Model {
+    // Get model path
+    string path();
+};
+
+// Chat configuration
+dictionary ChatConfig {
+    u32 context_size;
+    string? system_prompt;
+};
+
+// Ranked document from cross-encoder reranker
+dictionary RankedDocument {
+    string content;
+    f32 score;
+};
+
+// Embedder for generating text embeddings
+interface Embedder {
+    [Throws=NobodyWhoError]
+    sequence<f32> embed(string text);
+
+    [Throws=NobodyWhoError]
+    sequence<sequence<f32>> embed_batch(sequence<string> texts);
+};
+
+// Cross-encoder reranker for scoring document relevance
+interface CrossEncoder {
+    [Throws=NobodyWhoError]
+    sequence<f32> rank(string query, sequence<string> documents);
+
+    [Throws=NobodyWhoError]
+    sequence<RankedDocument> rank_and_sort(string query, sequence<string> documents);
+};
+
+// Chat interface
+interface Chat {
+    // Create a new chat session
+    [Throws=NobodyWhoError]
+    constructor(Model model, ChatConfig config);
+
+    // Ask a question and get a blocking response
+    [Throws=NobodyWhoError]
+    string ask_blocking(string prompt);
+
+    // Get chat history
+    [Throws=NobodyWhoError]
+    sequence<Message> history();
+};

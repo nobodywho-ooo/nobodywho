@@ -1,5 +1,6 @@
 pub mod chat;
 pub mod crossencoder;
+pub mod embedder;
 pub mod encoder;
 pub mod errors;
 pub mod llm;
@@ -7,6 +8,21 @@ pub mod sampler_config;
 pub mod template;
 pub mod tokenizer;
 pub mod tool_calling;
+
+// UniFFI bindings for Swift/Kotlin
+#[cfg(feature = "uniffi")]
+pub mod uniffi_api;
+
+// Re-export UniFFI types at crate root
+#[cfg(feature = "uniffi")]
+pub use uniffi_api::{
+    init_logging, load_cross_encoder, load_embedder, load_model, Chat, ChatConfig, CrossEncoder,
+    Embedder, Message, Model, NobodyWhoError, RankedDocument, Role,
+};
+
+// Include UniFFI scaffolding at crate root
+#[cfg(feature = "uniffi")]
+uniffi::include_scaffolding!("nobodywho");
 
 pub fn send_llamacpp_logs_to_tracing() {
     llama_cpp_2::send_logs_to_tracing(llama_cpp_2::LogOptions::default().with_logs_enabled(true));

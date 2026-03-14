@@ -1,0 +1,4 @@
+{
+  "git+https://github.com/utilityai/llama-cpp-rs?branch=update-llama-cpp-2026-03-06#llama-cpp-2@0.1.139": "0y28lbba98nl1cj3v8jac3hsjgib40fswbd83wxm6xbhijjz0hd6",
+  "git+https://github.com/utilityai/llama-cpp-rs?branch=update-llama-cpp-2026-03-06#llama-cpp-sys-2@0.1.139": "0y28lbba98nl1cj3v8jac3hsjgib40fswbd83wxm6xbhijjz0hd6"
+}
