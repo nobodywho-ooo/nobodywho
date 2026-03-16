@@ -2,7 +2,6 @@ import io
 import logging
 import os
 import platform
-import re
 import shutil
 import subprocess
 import tempfile
@@ -138,19 +137,6 @@ def get_system_info() -> dict:
 # ── Output cleanup ───────────────────────────────────────────────────
 
 
-def strip_markdown_code_fences(text: str) -> str:
-    """Extract code from markdown fences if present.
-
-    Instruct-tuned models often wrap code in ```python ... ``` blocks,
-    which breaks benchmarks like MBPP/HumanEval that expect raw code.
-    """
-    # Match ```<optional language>\n<code>\n``` pattern
-    match = re.search(r"```(?:\w*)\n(.*?)```", text, re.DOTALL)
-    if match:
-        return match.group(1)
-    return text
-
-
 # ── Model ────────────────────────────────────────────────────────────
 
 
@@ -163,6 +149,7 @@ class NobodyWhoLM(LM):
     model_path: Path
     image_model_path: Path | None
     system_prompt: str | None
+    response_processor: "Callable[[str], str] | None"
     failed_samples: list[dict]
     total_samples: int
     total_tokens_generated: int
@@ -197,6 +184,9 @@ class NobodyWhoLM(LM):
 
         # system prompt
         self.system_prompt = system_prompt
+
+        # response processor (optional task-specific post-processing)
+        self.response_processor = None
 
         # image model path (mmproj)
         if image_model_path is not None:
@@ -402,8 +392,9 @@ class NobodyWhoLM(LM):
                 self.total_samples += 1
                 continue
 
-            # Strip markdown code fences that instruct-tuned models add
-            response_text = strip_markdown_code_fences(response_text)
+            # Apply task-specific post-processing if configured
+            if self.response_processor is not None:
+                response_text = self.response_processor(response_text)
 
             result.append(response_text.strip())
             self.total_samples += 1
