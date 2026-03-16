@@ -509,6 +509,7 @@ def build_run_row(
     sampler_config: dict | None = None,
     model_name_override: str | None = None,
     model_size_override: float | None = None,
+    allow_thinking: bool = False,
 ) -> dict:
     """Build a flat dict for one CSV row from a complete run."""
     import time
@@ -545,6 +546,7 @@ def build_run_row(
         "generation_time_seconds": round(total_generation_time, 2),
         "tokens_per_second": round(tokens_per_second, 2),
         "sampler_config": str(sampler_config) if sampler_config else "",
+        "allow_thinking": allow_thinking,
     }
 
     # Initialize all metric columns with empty string (not run)
@@ -575,6 +577,7 @@ def get_csv_fieldnames(system_info_keys: list[str]) -> list[str]:
         "total_samples", "failed_samples", "failure_rate",
         "total_tokens_generated", "generation_time_seconds", "tokens_per_second",
         "sampler_config",
+        "allow_thinking",
     ]
     metrics = get_all_metric_columns()
     return base + metrics + system_info_keys

@@ -209,6 +209,7 @@ def run(
     shuffle: Annotated[Optional[bool], typer.Option("--shuffle", help="Whether or not to shuffle all samples")] = None,
     image_model_path: Annotated[Optional[Path], typer.Option("--image-model-path", help="Path to multimodal projector GGUF (mmproj) for vision benchmarks")] = None,
     n_ctx: Annotated[int, typer.Option("--n-ctx", help="Context size (tokens)")] = 32768,
+    allow_thinking: Annotated[bool, typer.Option("--allow-thinking/--no-thinking", help="Allow model thinking/reasoning")] = False,
 ):
     """Run eval benchmarks on one or more GGUF models."""
     if system_prompt is not None and no_system_prompts:
@@ -341,7 +342,7 @@ def run(
             if backend == "nobodywho":
                 model_instance = NobodyWhoLM(
                     model_path=str(model_path.resolve()),
-                    allow_thinking="false",
+                    allow_thinking=str(allow_thinking).lower(),
                     n_ctx=n_ctx,
                     system_prompt=task_prompt,
                     image_model_path=str(image_model_path.resolve()) if image_model_path else None,
@@ -432,6 +433,7 @@ def run(
                 sampler_config={},
                 model_name_override=current_model_name,
                 model_size_override=None,  # Unknown for server
+                allow_thinking=allow_thinking,
             )
         else:
             row = build_run_row(
@@ -446,6 +448,7 @@ def run(
                 total_tokens_generated=total_tokens_generated,
                 total_generation_time=total_generation_time,
                 sampler_config={"temperature": 1.0, "top_k": 64, "top_p": 0.95, "min_p": 0.0},
+                allow_thinking=allow_thinking,
             )
         append_run_to_csv(csv_file, row, list(system_info.keys()))
 
