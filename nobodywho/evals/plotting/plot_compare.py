@@ -311,11 +311,13 @@ def plot(
     ax1.grid(True, alpha=0.3, axis="y", zorder=0)
 
     # Set title
+    from datetime import datetime
+    date_str = datetime.now().strftime("%Y-%m-%d")
     if title:
-        plt.title(title, pad=20)
+        plt.title(f"{title} ({date_str})", pad=20)
     else:
         families = df["family"].unique()
-        plt.title(f"Model Comparison: {', '.join(families)}", pad=20)
+        plt.title(f"Model Comparison: {', '.join(families)} ({date_str})", pad=20)
 
     plt.tight_layout()
 
@@ -432,8 +434,10 @@ def bar(
     ax.set_ylim(0, 1.0)
     ax.grid(True, alpha=0.3, axis="y")
 
+    from datetime import datetime
+    date_str = datetime.now().strftime("%Y-%m-%d")
     bench_label = BENCHMARK_CONFIGS.get(benchmark, {}).get("label", benchmark)
-    plt.title(title or f"{bench_label} by Model Family and Quantization")
+    plt.title(f"{title} ({date_str})" if title else f"{bench_label} by Model Family and Quantization ({date_str})")
     plt.tight_layout()
 
     if output:
