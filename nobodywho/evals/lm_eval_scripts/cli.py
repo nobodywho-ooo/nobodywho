@@ -204,6 +204,7 @@ def run(
     model_name: Annotated[Optional[str], typer.Option("--model-name", help="Model name for CSV output (required for gguf backend)")] = None,
     shuffle: Annotated[Optional[bool], typer.Option("--shuffle", help="Whether or not to shuffle all samples")] = None,
     image_model_path: Annotated[Optional[Path], typer.Option("--image-model-path", help="Path to multimodal projector GGUF (mmproj) for vision benchmarks")] = None,
+    n_ctx: Annotated[int, typer.Option("--n-ctx", help="Context size (tokens)")] = 32768,
 ):
     """Run eval benchmarks on one or more GGUF models."""
     if system_prompt is not None and no_system_prompts:
@@ -337,7 +338,7 @@ def run(
                 model_instance = NobodyWhoLM(
                     model_path=str(model_path.resolve()),
                     allow_thinking="false",
-                    n_ctx=32768,
+                    n_ctx=n_ctx,
                     system_prompt=task_prompt,
                     image_model_path=str(image_model_path.resolve()) if image_model_path else None,
                 )
