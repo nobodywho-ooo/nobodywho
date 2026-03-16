@@ -34,6 +34,19 @@ _DROP_PREAMBLE_PATTERNS = [
 ]
 
 
+def extract_boxed_answer(text: str) -> str:
+    r"""Extract the answer from a \boxed{} expression if present.
+
+    Models prompted with "put your final answer within \boxed{}" will wrap
+    their answer like \boxed{A} or \boxed{42}. This extracts the content so
+    the scorer sees just the answer letter/value.
+    """
+    match = re.search(r"\\boxed\{([^}]+)\}", text)
+    if match:
+        return match.group(1).strip()
+    return text
+
+
 def strip_markdown_code_fences(text: str) -> str:
     """Extract code from markdown fences if present.
 
@@ -140,18 +153,20 @@ TASK_CONFIGS: dict[str, TaskConfig] = {
     "mmmu_val_science": TaskConfig(
         system_prompt=(
             "You are an expert at answering multiple-choice questions. "
-            "Answer with only the letter of the correct option (A, B, C, or D)."
+            "Please reason step by step, and put your final answer within \\boxed{}."
         ),
         shuffle=False,
         vision=True,
+        response_processor=extract_boxed_answer,
     ),
     "mmmu_val_humanities_and_social_science": TaskConfig(
         system_prompt=(
             "You are an expert at answering multiple-choice questions. "
-            "Answer with only the letter of the correct option (A, B, C, or D)."
+            "Please reason step by step, and put your final answer within \\boxed{}."
         ),
         shuffle=False,
         vision=True,
+        response_processor=extract_boxed_answer,
     ),
 }
 
