@@ -195,8 +195,10 @@ def plot(
     ax1.grid(True, alpha=0.3, zorder=0)
 
     # Set title
+    from datetime import datetime
+    date_str = datetime.now().strftime("%Y-%m-%d")
     if title:
-        plt.title(title)
+        plt.title(f"{title} ({date_str})")
     else:
         model_names = df["model_name"].tolist()
         if model_names:
@@ -207,11 +209,11 @@ def plot(
                     match = re.search(r"(\d+)[bB]", name)
                     if match:
                         sizes.add(match.group(1) + "b")
-                plt.title(f"Gemma {' & '.join(sorted(sizes))} benchmarks")
+                plt.title(f"Gemma {' & '.join(sorted(sizes))} benchmarks ({date_str})")
             elif "qwen" in first.lower():
-                plt.title("Qwen benchmarks")
+                plt.title(f"Qwen benchmarks ({date_str})")
             else:
-                plt.title("Model benchmarks")
+                plt.title(f"Model benchmarks ({date_str})")
 
     plt.tight_layout()
 

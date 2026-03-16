@@ -317,8 +317,10 @@ def plot(
                 )
 
     # Set title
+    from datetime import datetime
+    date_str = datetime.now().strftime("%Y-%m-%d")
     if title:
-        plt.title(title)
+        plt.title(f"{title} ({date_str})")
     else:
         model_names = agg_df["model_name"].tolist()
         if model_names:
@@ -330,11 +332,11 @@ def plot(
                     match = re.search(r"(\d+)[bB]", name)
                     if match:
                         sizes.add(match.group(1) + "b")
-                plt.title(f"Gemma {' & '.join(sorted(sizes))} benchmarks{suffix}")
+                plt.title(f"Gemma {' & '.join(sorted(sizes))} benchmarks{suffix} ({date_str})")
             elif "qwen" in first.lower():
-                plt.title(f"Qwen benchmarks{suffix}")
+                plt.title(f"Qwen benchmarks{suffix} ({date_str})")
             else:
-                plt.title(f"Model benchmarks{suffix}")
+                plt.title(f"Model benchmarks{suffix} ({date_str})")
 
     plt.tight_layout()
 
