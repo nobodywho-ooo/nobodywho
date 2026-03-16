@@ -1,3 +1,4 @@
+import io
 import logging
 import os
 import platform
@@ -259,21 +260,46 @@ class NobodyWhoLM(LM):
 
         Only as many images are used as there are <image> placeholders in the text,
         since some tasks provide more images in the visual list than are referenced.
+
+        Duplicate images are deduplicated because the Rust backend stores bitmaps
+        in a content-hash-keyed map, so N duplicate images become 1 bitmap but the
+        rendered template would still have N markers, causing a mismatch error.
+        We deduplicate here by reusing the same Image path for identical PIL images
+        and dropping placeholder positions that reference an already-seen image.
         """
         segments = text.split("<image>")
         n_placeholders = len(segments) - 1
+        n_images = min(n_placeholders, len(images))
         logger.debug(
             f"_build_multimodal_prompt: {n_placeholders} <image> placeholders, "
             f"{len(images)} images provided. "
             f"Text snippet: {text[:200]!r}"
         )
+
+        # Deduplicate images by content: map each image to a unique path,
+        # and track which placeholder indices have a unique (first-seen) image.
+        seen_data: dict[bytes, str] = {}  # image bytes -> temp path
+        unique_indices: set[int] = set()
+        image_paths: list[str | None] = []
+        for i in range(n_images):
+            img = images[i]
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            img_bytes = buf.getvalue()
+            if img_bytes not in seen_data:
+                path = self._pil_to_path(img)
+                seen_data[img_bytes] = path
+                unique_indices.add(i)
+            image_paths.append(seen_data[img_bytes])
+
+        # Build prompt: only emit Image parts for first-seen (unique) images.
+        # For duplicate positions, merge the text segments without an Image.
         parts = []
         for i, segment in enumerate(segments):
             if segment:
                 parts.append(nobodywho.Text(segment))
-            if i < n_placeholders and i < len(images):
-                img_path = self._pil_to_path(images[i])
-                parts.append(nobodywho.Image(img_path))
+            if i < n_images and i in unique_indices:
+                parts.append(nobodywho.Image(image_paths[i]))
         return nobodywho.Prompt(parts)
 
     def generate_until(self, requests: list[Instance], disable_tqdm=False):
