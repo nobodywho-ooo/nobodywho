@@ -2,9 +2,10 @@ import dataclasses
 import logging
 import os
 import random
+import re
 import time
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated, Callable, Optional
 
 import lm_eval
 import typer
@@ -19,6 +20,48 @@ from eval import (
 )
 
 
+# ── Response processors ──────────────────────────────────────────────
+
+# Ordered from most to least specific so we stop at the first match.
+_DROP_PREAMBLE_PATTERNS = [
+    re.compile(r"^the answer (?:is|was|would be)[:\s]+", re.IGNORECASE),
+    re.compile(r"^answer[:\s]+", re.IGNORECASE),
+    re.compile(r"^it (?:is|was)[:\s]+", re.IGNORECASE),
+    re.compile(r"^that (?:is|was)[:\s]+", re.IGNORECASE),
+    re.compile(r"^there (?:were|was|are|is)[:\s]+", re.IGNORECASE),
+    re.compile(r"^(?:a total of|approximately|about|roughly)[:\s]+", re.IGNORECASE),
+    re.compile(r"^(?:in total,?\s*)", re.IGNORECASE),
+]
+
+
+def strip_markdown_code_fences(text: str) -> str:
+    """Extract code from markdown fences if present.
+
+    Instruct-tuned models often wrap code in ```python ... ``` blocks,
+    which breaks benchmarks like MBPP/HumanEval that expect raw code.
+    """
+    match = re.search(r"```(?:\w*)\n(.*?)```", text, re.DOTALL)
+    if match:
+        return match.group(1)
+    return text
+
+
+def extract_drop_answer(text: str) -> str:
+    """Strip common chat-model preamble from DROP answers.
+
+    DROP's lm-eval scorer normalizes both prediction and gold (removes articles,
+    lowercases, normalizes numbers to floats), but it does NOT strip words like
+    "answer is" or "there were". This function removes those preambles so the
+    remaining text can be compared cleanly.
+    """
+    text = text.strip()
+    for pattern in _DROP_PREAMBLE_PATTERNS:
+        cleaned = pattern.sub("", text).strip()
+        if cleaned != text:
+            return cleaned
+    return text
+
+
 # ── Task configuration ───────────────────────────────────────────────
 
 
@@ -27,6 +70,7 @@ class TaskConfig:
     system_prompt: str | None
     shuffle: bool
     vision: bool = False
+    response_processor: Callable[[str], str] | None = None
 
 
 TASK_CONFIGS: dict[str, TaskConfig] = {
@@ -61,6 +105,7 @@ TASK_CONFIGS: dict[str, TaskConfig] = {
             "the test cases."
         ),
         shuffle=False,
+        response_processor=strip_markdown_code_fences,
     ),
     "mbpp": TaskConfig(
         system_prompt=(
@@ -69,6 +114,7 @@ TASK_CONFIGS: dict[str, TaskConfig] = {
             "Output only the code without markdown formatting or explanations."
         ),
         shuffle=False,
+        response_processor=strip_markdown_code_fences,
     ),
     "drop": TaskConfig(
         system_prompt=(
@@ -89,6 +135,7 @@ TASK_CONFIGS: dict[str, TaskConfig] = {
             "Q: What year? A: 1985"
         ),
         shuffle=True,
+        response_processor=extract_drop_answer,
     ),
     "mmmu_val_science": TaskConfig(
         system_prompt=(
@@ -279,6 +326,9 @@ def run(
                     system_prompt=task_prompt,
                     image_model_path=str(image_model_path.resolve()) if image_model_path else None,
                 )
+                task_config = TASK_CONFIGS.get(task)
+                if task_config is not None:
+                    model_instance.response_processor = task_config.response_processor
             else:  # gguf backend
                 from lm_eval.models.gguf import GGUFLM
                 model_instance = GGUFLM(base_url=base_url)
