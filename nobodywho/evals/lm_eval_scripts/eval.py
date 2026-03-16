@@ -584,8 +584,15 @@ def append_run_to_csv(csv_path: Path, row: dict, system_info_keys: list[str]):
     """Append a run row to CSV, creating file with headers if needed."""
     import csv
 
-    fieldnames = get_csv_fieldnames(system_info_keys)
     file_exists = csv_path.exists()
+
+    if file_exists:
+        # Read existing header so we write in the same column order
+        with open(csv_path, newline="") as f:
+            reader = csv.reader(f)
+            fieldnames = next(reader)
+    else:
+        fieldnames = get_csv_fieldnames(system_info_keys)
 
     with open(csv_path, "a", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
