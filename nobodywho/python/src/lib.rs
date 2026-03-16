@@ -1028,7 +1028,7 @@ impl ChatAsync {
             allow_thinking
         );
         self.handle()
-            .set_allow_thinking(allow_thinking)
+            .set_template_variable("enable_thinking".to_string(), allow_thinking)
             .await
             .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
     }

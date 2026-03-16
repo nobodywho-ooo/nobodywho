@@ -606,6 +606,7 @@ class Chat {
   );
 
   /// Set whether thinking/reasoning is allowed.
+  @Deprecated('Use setTemplateVariable("enable_thinking", value) instead')
   Future<void> setAllowThinking(bool allowThinking) =>
       _chat.setAllowThinking(allowThinking: allowThinking);
 

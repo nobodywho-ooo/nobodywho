@@ -279,7 +279,7 @@ Future<void> main() async {
   // Initialize models
   final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
   
-  final crossencoder = await nobodywho.CrossEncoder.fromPath((modelPath: './reranker-model.gguf');)
+  final crossencoder = await nobodywho.CrossEncoder.fromPath(modelPath: './reranker-model.gguf');
 
   // Large knowledge base
   final knowledgeBase = [
