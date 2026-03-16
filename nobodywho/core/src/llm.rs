@@ -463,10 +463,6 @@ impl<T> Drop for WorkerGuard<T> {
         drop(self.msg_tx.take());
         if let Some(handle) = self.join_handle.take() {
             if handle.thread().id() == std::thread::current().id() {
-                // Self-join: we are the worker thread being dropped from within our own stack
-                // (e.g. Python GC collected the Chat object while the worker holds the GIL).
-                // Joining ourselves would deadlock. Drop the handle to detach the thread instead;
-                // the message channel is already closed so the recv() loop will exit naturally.
                 drop(handle);
                 return;
             }
