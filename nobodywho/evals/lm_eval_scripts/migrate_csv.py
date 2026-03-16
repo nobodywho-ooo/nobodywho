@@ -30,47 +30,67 @@ def migrate_csv(path: Path, dry_run: bool = False) -> bool:
     # Import here so the venv check happens at runtime
     from eval import get_all_metric_columns, get_csv_fieldnames
 
-    new_metric_cols = [c for c in get_all_metric_columns() if c not in existing_cols]
+    # Canonical base columns (kept in sync with get_csv_fieldnames in eval.py)
+    CANONICAL_BASE = [
+        "timestamp", "model_path", "model_name", "model_size_gb",
+        "limit", "seed", "duration_seconds",
+        "total_samples", "failed_samples", "failure_rate",
+        "total_tokens_generated", "generation_time_seconds", "tokens_per_second",
+        "sampler_config", "allow_thinking",
+    ]
 
-    if not new_metric_cols:
+    new_base_cols = [c for c in CANONICAL_BASE if c not in existing_cols]
+    new_metric_cols = [c for c in get_all_metric_columns() if c not in existing_cols]
+    all_new_cols = new_base_cols + new_metric_cols
+
+    if not all_new_cols:
         print(f"  OK (up to date): {path.name}")
         return False
 
-    print(f"  MIGRATE: {path.name} — adding {new_metric_cols}")
+    print(f"  MIGRATE: {path.name} — adding {all_new_cols}")
 
     if dry_run:
         return True
 
-    # Determine system_info keys: everything after the last known metric column
-    all_metrics = set(get_all_metric_columns())
-    # Find the first system_info key (first column after "sampler_config" that isn't a metric)
-    try:
-        sampler_idx = existing_cols.index("sampler_config")
-    except ValueError:
-        sampler_idx = -1
-    system_info_start = None
-    for i in range(sampler_idx + 1, len(existing_cols)):
-        if existing_cols[i] not in all_metrics:
-            system_info_start = i
-            break
+    new_fieldnames = list(existing_cols)
 
-    if system_info_start is not None:
-        # Insert new metric columns before system_info columns
-        new_fieldnames = (
-            existing_cols[:system_info_start]
-            + new_metric_cols
-            + existing_cols[system_info_start:]
-        )
-    else:
-        new_fieldnames = existing_cols + new_metric_cols
+    # Insert missing base columns after their predecessor in the canonical order
+    for col in new_base_cols:
+        canon_idx = CANONICAL_BASE.index(col)
+        insert_after = None
+        for prev in reversed(CANONICAL_BASE[:canon_idx]):
+            if prev in new_fieldnames:
+                insert_after = new_fieldnames.index(prev) + 1
+                break
+        if insert_after is not None:
+            new_fieldnames.insert(insert_after, col)
+        else:
+            new_fieldnames.insert(0, col)
+
+    # Insert missing metric columns before system_info columns
+    if new_metric_cols:
+        all_metrics = set(get_all_metric_columns())
+        base_set = set(CANONICAL_BASE)
+        # Find the first system_info key (first column after base that isn't a metric)
+        system_info_start = None
+        for i, c in enumerate(new_fieldnames):
+            if c not in base_set and c not in all_metrics:
+                system_info_start = i
+                break
+
+        if system_info_start is not None:
+            for j, col in enumerate(new_metric_cols):
+                new_fieldnames.insert(system_info_start + j, col)
+        else:
+            new_fieldnames.extend(new_metric_cols)
 
     tmp_path = path.with_suffix(".csv.tmp")
     with open(tmp_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=new_fieldnames, extrasaction="ignore")
         writer.writeheader()
         for row in rows:
-            for col in new_metric_cols:
-                row.setdefault(col, "")
+            for col in all_new_cols:
+                row.setdefault(col, "False" if col == "allow_thinking" else "")
             writer.writerow(row)
 
     tmp_path.replace(path)
