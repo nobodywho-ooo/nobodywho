@@ -71,7 +71,11 @@ def extract_drop_answer(text: str) -> str:
     for pattern in _DROP_PREAMBLE_PATTERNS:
         cleaned = pattern.sub("", text).strip()
         if cleaned != text:
-            return cleaned
+            text = cleaned
+            break
+
+    # Strip thousand-separator commas from numbers (e.g. "319,000" -> "319000")
+    text = re.sub(r"(\d),(\d)", r"\1\2", text)
     return text
 
 
