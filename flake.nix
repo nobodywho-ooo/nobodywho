@@ -35,7 +35,7 @@
         workspace = pkgs.callPackage ./nobodywho/workspace.nix { inherit crate2nix; };
 
         # python stuff
-        nobodywho-python = pkgs.callPackage ./nobodywho/python { };
+        nobodywho-python = pkgs.callPackage ./nobodywho/python { inherit workspace; };
 
         # flutter stuff
         nobodywho-flutter = workspace.workspaceMembers.nobodywho-flutter.build;

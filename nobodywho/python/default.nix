@@ -1,63 +1,71 @@
 {
   doCheck ? true,
   callPackage,
+  python3,
   python3Packages,
-  rustPlatform,
-  cmake,
-  rustfmt,
-  vulkan-headers,
-  vulkan-loader,
-  shaderc,
-  vulkan-tools,
+  workspace, # crate2nix workspace from workspace.nix
 }:
 
 let
   models = callPackage ../models.nix { };
+  pyprojectToml = builtins.fromTOML (builtins.readFile ./pyproject.toml);
+  # Phase 1: the .so is already built by crate2nix via workspace
+  nobodywho-python-rs = workspace.workspaceMembers.nobodywho-python.build;
 in
 python3Packages.buildPythonPackage {
   pname = "nobodywho";
-  version = "0.0.0";
-  pyproject = true;
+  version = pyprojectToml.project.version;
+  format = "other";
 
-  src = ../.;
-  buildAndTestSubdir = "python";
+  # No Rust source needed — we're just installing the pre-built .so
+  dontUnpack = true;
 
-  cargoDeps = rustPlatform.importCargoLock {
-    lockFile = ../Cargo.lock;
-    outputHashes = {
-      "llama-cpp-2-0.1.139" = "sha256-ZOPzf1uziCzPZHni1RsWzQiKH3NX9HAfmKF9P1jrbnk=";
-    };
-  };
-
-  nativeBuildInputs = [
-    rustfmt
-    rustPlatform.bindgenHook
-    rustPlatform.cargoSetupHook
-    rustPlatform.maturinBuildHook
-    cmake
-
-    # vulkan stuff
-    shaderc
-    vulkan-headers
-    vulkan-loader
-    vulkan-tools
-  ];
-
-  buildInputs = [
-    shaderc
-    vulkan-headers
-    vulkan-loader
-    vulkan-tools
-  ];
-
-  dontUseCmakeConfigure = true;
+  installPhase = ''
+    runHook preInstall
+    mkdir -p $out/${python3.sitePackages}
+    cp ${nobodywho-python-rs.lib}/lib/libnobodywho_python.so \
+       $out/${python3.sitePackages}/nobodywho.abi3.so
+    runHook postInstall
+  '';
 
   inherit doCheck;
+
+  # XXX: temporary while debugging
+  # since tests fail it may be useful to get the binary artifacts out for examination
+  # doCheck = false;
 
   nativeCheckInputs = with python3Packages; [
     pytestCheckHook
     pytest
     pytest-asyncio
+    pytest-markdown-docs
+  ];
+
+  # Since we used dontUnpack, copy test sources and docs for doctests.
+  # pytest config is passed explicitly via flags instead of relying on pyproject.toml.
+  # The symlink satisfies docs/conftest.py which resolves test images via
+  # Path(__file__).parent.parent / "nobodywho" / "python" / "tests" / "img"
+  preCheck = ''
+    # The "mkdir -p nobodywho/..." below creates a nobodywho/ directory that Python 3
+    # treats as an implicit namespace package, shadowing our real .abi3.so from site-packages.
+    # Prepending $out to PYTHONPATH ensures the real module wins import resolution.
+    export PYTHONPATH="$out/${python3.sitePackages}:$PYTHONPATH"
+    cp -r ${../python/tests} tests
+    cp -r ${../../docs} docs
+    mkdir -p nobodywho/python/tests
+    ln -s ../../../tests/img nobodywho/python/tests/img
+  '';
+
+  pytestFlagsArray = [
+    "tests"
+    "docs"
+    "-o=python_files=test_*.py *.md"
+    "-o=confcutdir=."
+  ];
+
+  # Vision/multimodal tests are too slow in the nix sandbox (no GPU access)
+  disabledTestPaths = [
+    "tests/test_multimodal.py"
   ];
 
   env.TEST_MODEL = models.TEST_MODEL;

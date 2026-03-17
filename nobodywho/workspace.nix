@@ -79,6 +79,13 @@ let
             vulkan-loader
           ];
         };
+
+        nobodywho-python = attrs: {
+          nativeBuildInputs = [
+            vulkan-loader
+            pkgs.python3
+          ];
+        };
       };
     };
 
