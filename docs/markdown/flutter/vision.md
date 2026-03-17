@@ -53,6 +53,7 @@ scenarios. If the model performs poorly, try to mess around with the order of su
 and the images, or the descriptions you supply. For example, the following prompt may perform better than the previously presented one.
 
 ```{.dart continuation}
+await chat.resetHistory();
 final response2 = await chat.askWithPrompt(nobodywho.Prompt([
   nobodywho.TextPart("Tell me what you see in the first image."),
   nobodywho.ImagePart("./dog.png"),

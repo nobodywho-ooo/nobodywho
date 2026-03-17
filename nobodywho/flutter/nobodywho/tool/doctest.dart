@@ -255,12 +255,19 @@ String generateTestFile(List<CodeGroup> groups, String testName) {
   buffer.writeln("      if (mmprojPath != null && !File('./mmproj.gguf').existsSync()) {");
   buffer.writeln("        Link('./mmproj.gguf').createSync(mmprojPath);");
   buffer.writeln("      }");
+  buffer.writeln("      // Create symlinks for test images used in vision docs");
+  buffer.writeln("      final testDir = '\${Directory.current.path}/test';");
+  buffer.writeln("      for (final image in ['dog.png', 'penguin.png']) {");
+  buffer.writeln("        if (!File('./\$image').existsSync() && File('\$testDir/\$image').existsSync()) {");
+  buffer.writeln("          Link('./\$image').createSync('\$testDir/\$image');");
+  buffer.writeln("        }");
+  buffer.writeln("      }");
   buffer.writeln("    });");
   buffer.writeln();
 
   buffer.writeln("    tearDownAll(() async {");
   buffer.writeln("      // Clean up symlinks");
-  buffer.writeln("      final links = ['./model.gguf', './embedding-model.gguf', './reranker-model.gguf', './vision-model.gguf', './mmproj.gguf'];");
+  buffer.writeln("      final links = ['./model.gguf', './embedding-model.gguf', './reranker-model.gguf', './vision-model.gguf', './mmproj.gguf', './dog.png', './penguin.png'];");
   buffer.writeln("      for (final path in links) {");
   buffer.writeln("        final link = Link(path);");
   buffer.writeln("        if (link.existsSync()) {");

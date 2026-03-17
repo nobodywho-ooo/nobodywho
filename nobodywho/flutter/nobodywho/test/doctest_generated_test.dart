@@ -39,11 +39,18 @@ void main() {
       if (mmprojPath != null && !File('./mmproj.gguf').existsSync()) {
         Link('./mmproj.gguf').createSync(mmprojPath);
       }
+      // Create symlinks for test images used in vision docs
+      final testDir = '${Directory.current.path}/test';
+      for (final image in ['dog.png', 'penguin.png']) {
+        if (!File('./$image').existsSync() && File('$testDir/$image').existsSync()) {
+          Link('./$image').createSync('$testDir/$image');
+        }
+      }
     });
 
     tearDownAll(() async {
       // Clean up symlinks
-      final links = ['./model.gguf', './embedding-model.gguf', './reranker-model.gguf', './vision-model.gguf', './mmproj.gguf'];
+      final links = ['./model.gguf', './embedding-model.gguf', './reranker-model.gguf', './vision-model.gguf', './mmproj.gguf', './dog.png', './penguin.png'];
       for (final path in links) {
         final link = Link(path);
         if (link.existsSync()) {
@@ -273,6 +280,7 @@ void main() {
         nobodywho.ImagePart("./dog.png"),
         nobodywho.ImagePart("./penguin.png"),
       ])).completed(); // It's a dog and a penguin!
+      await chat.resetHistory();
       final response2 = await chat.askWithPrompt(nobodywho.Prompt([
         nobodywho.TextPart("Tell me what you see in the first image."),
         nobodywho.ImagePart("./dog.png"),
