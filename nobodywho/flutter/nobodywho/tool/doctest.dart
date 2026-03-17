@@ -237,6 +237,8 @@ String generateTestFile(List<CodeGroup> groups, String testName) {
   buffer.writeln("      final modelPath = Platform.environment['TEST_MODEL'];");
   buffer.writeln("      final embeddingPath = Platform.environment['TEST_EMBEDDINGS_MODEL'];");
   buffer.writeln("      final rerankerPath = Platform.environment['TEST_CROSSENCODER_MODEL'];");
+  buffer.writeln("      final visionModelPath = Platform.environment['TEST_MULTIMODAL_MODEL'];");
+  buffer.writeln("      final mmprojPath = Platform.environment['TEST_MULTIMODAL_MMPROJ'];");
   buffer.writeln();
   buffer.writeln("      if (modelPath != null && !File('./model.gguf').existsSync()) {");
   buffer.writeln("        Link('./model.gguf').createSync(modelPath);");
@@ -247,12 +249,18 @@ String generateTestFile(List<CodeGroup> groups, String testName) {
   buffer.writeln("      if (rerankerPath != null && !File('./reranker-model.gguf').existsSync()) {");
   buffer.writeln("        Link('./reranker-model.gguf').createSync(rerankerPath);");
   buffer.writeln("      }");
+  buffer.writeln("      if (visionModelPath != null && !File('./vision-model.gguf').existsSync()) {");
+  buffer.writeln("        Link('./vision-model.gguf').createSync(visionModelPath);");
+  buffer.writeln("      }");
+  buffer.writeln("      if (mmprojPath != null && !File('./mmproj.gguf').existsSync()) {");
+  buffer.writeln("        Link('./mmproj.gguf').createSync(mmprojPath);");
+  buffer.writeln("      }");
   buffer.writeln("    });");
   buffer.writeln();
 
   buffer.writeln("    tearDownAll(() async {");
   buffer.writeln("      // Clean up symlinks");
-  buffer.writeln("      final links = ['./model.gguf', './embedding-model.gguf', './reranker-model.gguf'];");
+  buffer.writeln("      final links = ['./model.gguf', './embedding-model.gguf', './reranker-model.gguf', './vision-model.gguf', './mmproj.gguf'];");
   buffer.writeln("      for (final path in links) {");
   buffer.writeln("        final link = Link(path);");
   buffer.writeln("        if (link.existsSync()) {");
@@ -274,14 +282,23 @@ String generateTestFile(List<CodeGroup> groups, String testName) {
 
     final testDescription = '${group.sourceFile}:${group.startLine}';
 
+    // Add skip guard for vision tests that require multimodal models
+    final needsVisionModel = code.contains('vision-model.gguf') || code.contains('mmproj.gguf');
+
     if (hasMainFunction(code)) {
       // Code has its own main - extract it as a separate function
       buffer.writeln("    test('$testDescription', () async {");
+      if (needsVisionModel) {
+        buffer.writeln("      if (Platform.environment['TEST_MULTIMODAL_MODEL'] == null || Platform.environment['TEST_MULTIMODAL_MMPROJ'] == null) return;");
+      }
       buffer.writeln("      await _doctest_$testIndex();");
       buffer.writeln("    });");
     } else {
       // Wrap inline code in a test
       buffer.writeln("    test('$testDescription', () async {");
+      if (needsVisionModel) {
+        buffer.writeln("      if (Platform.environment['TEST_MULTIMODAL_MODEL'] == null || Platform.environment['TEST_MULTIMODAL_MMPROJ'] == null) return;");
+      }
 
       // Remove imports from inline code (they're at the top)
       final codeWithoutImports = removeImports(code);

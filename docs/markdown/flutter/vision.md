@@ -26,7 +26,7 @@ With the downloaded GGUFs, you can simply add the projection model when loading 
 import 'package:nobodywho/nobodywho.dart' as nobodywho;
 
 final model = await nobodywho.Model.load(
-  modelPath: "./model.gguf",
+  modelPath: "./vision-model.gguf",
   imageIngestion: "./mmproj.gguf",
 );
 final chat = nobodywho.Chat(
@@ -37,17 +37,14 @@ final chat = nobodywho.Chat(
 
 ## Composing a prompt object
 With the model configured, all that is left is to compose the prompt and send it to the model.
-That is done through `askWithPrompt`, which accepts a list of `PromptPart` values.
+That is done through `askWithPrompt`, which accepts a `Prompt` containing a list of `PromptPart` values.
 
-```dart
-import 'package:nobodywho/nobodywho.dart' as nobodywho;
-
-final prompt = nobodywho.Prompt([
+```{.dart continuation}
+final response = await chat.askWithPrompt(nobodywho.Prompt([
   nobodywho.TextPart("Tell me what you see in the images."),
   nobodywho.ImagePart("./dog.png"),
   nobodywho.ImagePart("./penguin.png"),
-]);
-final response = await chat.askWithPrompt(prompt).completed();  // It's a dog and a penguin!
+])).completed(); // It's a dog and a penguin!
 ```
 
 ## Tips for multimodality
@@ -55,22 +52,20 @@ As with textual prompts, the format in which you supply the multimodal prompt ca
 scenarios. If the model performs poorly, try to mess around with the order of supplying the text
 and the images, or the descriptions you supply. For example, the following prompt may perform better than the previously presented one.
 
-```dart
-final prompt = nobodywho.Prompt([
+```{.dart continuation}
+final response2 = await chat.askWithPrompt(nobodywho.Prompt([
   nobodywho.TextPart("Tell me what you see in the first image."),
   nobodywho.ImagePart("./dog.png"),
   nobodywho.TextPart("Also tell me what you see in the second image."),
   nobodywho.ImagePart("./penguin.png"),
-]);
-
-final response = await chat.askWithPrompt(prompt).completed
+])).completed();
 ```
 
 Also, there is still a lot of variance between how the models internally process the images.
 This, for example, causes differences in how quickly the model consumes context - for some models like Gemma 3, the number of tokens per image is constant; for others like Qwen 3, they scale with the size of the image. In that case, you can increase the context size if the resources allow:
 
-```dart
-final chat = nobodywho.Chat(
+```{.dart continuation}
+final chat2 = nobodywho.Chat(
   model: model,
   systemPrompt: "You are a helpful assistant.",
   contextSize: 8192,

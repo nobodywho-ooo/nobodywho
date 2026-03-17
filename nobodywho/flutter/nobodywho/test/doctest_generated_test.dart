@@ -21,6 +21,8 @@ void main() {
       final modelPath = Platform.environment['TEST_MODEL'];
       final embeddingPath = Platform.environment['TEST_EMBEDDINGS_MODEL'];
       final rerankerPath = Platform.environment['TEST_CROSSENCODER_MODEL'];
+      final visionModelPath = Platform.environment['TEST_MULTIMODAL_MODEL'];
+      final mmprojPath = Platform.environment['TEST_MULTIMODAL_MMPROJ'];
 
       if (modelPath != null && !File('./model.gguf').existsSync()) {
         Link('./model.gguf').createSync(modelPath);
@@ -31,11 +33,17 @@ void main() {
       if (rerankerPath != null && !File('./reranker-model.gguf').existsSync()) {
         Link('./reranker-model.gguf').createSync(rerankerPath);
       }
+      if (visionModelPath != null && !File('./vision-model.gguf').existsSync()) {
+        Link('./vision-model.gguf').createSync(visionModelPath);
+      }
+      if (mmprojPath != null && !File('./mmproj.gguf').existsSync()) {
+        Link('./mmproj.gguf').createSync(mmprojPath);
+      }
     });
 
     tearDownAll(() async {
       // Clean up symlinks
-      final links = ['./model.gguf', './embedding-model.gguf', './reranker-model.gguf'];
+      final links = ['./model.gguf', './embedding-model.gguf', './reranker-model.gguf', './vision-model.gguf', './mmproj.gguf'];
       for (final path in links) {
         final link = Link(path);
         if (link.existsSync()) {
@@ -98,7 +106,7 @@ void main() {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: './model.gguf',
         tools: [getCurrentDirTool, listFilesTool, getFileSizeTool],
-        allowThinking : false
+        templateVariables: {"enable_thinking": false}
       );
       
       final response = await chat.ask('What is the biggest file in my current directory?').completed();
@@ -196,11 +204,11 @@ void main() {
       await _doctest_8();
     });
 
-    test('embeddings-and-rag.md:216', () async {
+    test('embeddings-and-rag.md:217', () async {
       await _doctest_9();
     });
 
-    test('embeddings-and-rag.md:263', () async {
+    test('embeddings-and-rag.md:264', () async {
       // For longer documents, increase context size
       final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
       
@@ -250,6 +258,34 @@ void main() {
       await chat.setSamplerConfig(sampler);
     });
 
+    test('vision.md:25', () async {
+      if (Platform.environment['TEST_MULTIMODAL_MODEL'] == null || Platform.environment['TEST_MULTIMODAL_MMPROJ'] == null) return;
+      final model = await nobodywho.Model.load(
+        modelPath: "./vision-model.gguf",
+        imageIngestion: "./mmproj.gguf",
+      );
+      final chat = nobodywho.Chat(
+        model: model,
+        systemPrompt: "You are a helpful assistant.",
+      );
+      final response = await chat.askWithPrompt(nobodywho.Prompt([
+        nobodywho.TextPart("Tell me what you see in the images."),
+        nobodywho.ImagePart("./dog.png"),
+        nobodywho.ImagePart("./penguin.png"),
+      ])).completed(); // It's a dog and a penguin!
+      final response2 = await chat.askWithPrompt(nobodywho.Prompt([
+        nobodywho.TextPart("Tell me what you see in the first image."),
+        nobodywho.ImagePart("./dog.png"),
+        nobodywho.TextPart("Also tell me what you see in the second image."),
+        nobodywho.ImagePart("./penguin.png"),
+      ])).completed();
+      final chat2 = nobodywho.Chat(
+        model: model,
+        systemPrompt: "You are a helpful assistant.",
+        contextSize: 8192,
+      );
+    });
+
     test('chat.md:17', () async {
       final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
     });
@@ -261,7 +297,7 @@ void main() {
 
     test('chat.md:34', () async {
       final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
-      final response = await chat.ask("Is water wet?");
+      final response = chat.ask("Is water wet?");
       await for (final token in response) {
          stdout.write(token);
          await stdout.flush();
@@ -298,12 +334,31 @@ void main() {
       final chat = await nobodywho.Chat.fromPath(modelPath: './model.gguf', useGpu : false);
     });
 
-    test('chat.md:154', () async {
+    test('chat.md:159', () async {
+      final chat = await nobodywho.Chat.fromPath(
+        modelPath: "./model.gguf",
+        templateVariables: {"enable_thinking": true}
+      );
+      // Set a single template variable
+      await chat.setTemplateVariable("enable_thinking", true);
+      
+      // Set multiple template variables at once
+      await chat.setTemplateVariables({
+          "enable_thinking": true,
+          "verbose_mode": false
+      });
+      
+      // Get current template variables
+      final variables = await chat.getTemplateVariables();
+      print(variables); // {enable_thinking: true, verbose_mode: false}
+    });
+
+    test('chat.md:210', () async {
+      // Deprecated - use templateVariables instead
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         allowThinking: true
       );
-      await chat.setAllowThinking(true);
     });
 
   });
@@ -341,6 +396,7 @@ Future<void> _doctest_8() async {
   final chat = await nobodywho.Chat.fromPath(
     modelPath: './model.gguf',
     systemPrompt: "You are a customer service assistant. Use the search_knowledge tool to find relevant information from our policies before answering customer questions.",
+    templateVariables: {"enable_thinking": false},
     tools: [searchKnowledgeTool]
   );
 
@@ -349,7 +405,7 @@ Future<void> _doctest_8() async {
   print(response);
 }
 
-// Extracted from embeddings-and-rag.md:216
+// Extracted from embeddings-and-rag.md:217
 Future<void> _doctest_9() async {
   final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
   
