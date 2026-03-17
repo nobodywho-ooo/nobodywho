@@ -186,7 +186,7 @@ The Qwen3 and Qwen3.5 model families support the `enable_thinking` template vari
 
 ```dart
 final chat = await nobodywho.Chat.fromPath(
-  modelPath: "./qwen3.5-model.gguf",
+  modelPath: "./model.gguf",
   templateVariables: {"enable_thinking": true}
 );
 final response = chat.ask("Solve this logic puzzle: ...");

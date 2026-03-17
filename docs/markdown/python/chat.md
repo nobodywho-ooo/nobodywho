@@ -175,7 +175,7 @@ The Qwen3 and Qwen3.5 model families support the `enable_thinking` template vari
 
 ```python
 # Enable thinking mode for Qwen models
-chat = Chat("./qwen3.5-model.gguf", template_variables={"enable_thinking": True})
+chat = Chat("./model.gguf", template_variables={"enable_thinking": True})
 chat.ask("Solve this logic puzzle: ...")
 ```
 

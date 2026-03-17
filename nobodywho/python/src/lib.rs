@@ -625,16 +625,23 @@ impl Chat {
         tools: Vec<Tool>,
         sampler: SamplerConfig,
         allow_thinking: Option<bool>,
+        py: Python<'_>,
     ) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
 
         // Handle deprecated allow_thinking parameter
         let mut template_vars = template_variables;
         if let Some(allow) = allow_thinking {
-            tracing::warn!(
+            let msg = std::ffi::CString::new(format!(
                 "allow_thinking parameter is deprecated. Use template_variables={{\"enable_thinking\": {}}} instead.",
                 allow
-            );
+            )).unwrap();
+            PyErr::warn(
+                py,
+                &py.get_type::<pyo3::exceptions::PyDeprecationWarning>(),
+                &msg,
+                1,
+            )?;
             template_vars.insert("enable_thinking".to_string(), allow);
         }
 
@@ -715,12 +722,17 @@ impl Chat {
     /// Raises:
     ///     ValueError: If the setting cannot be changed
     #[pyo3(signature = (allow_thinking: "bool") -> "None")]
-    #[deprecated(note = "Use set_template_variable(\"enable_thinking\", value) instead")]
     pub fn set_allow_thinking(&self, allow_thinking: bool, py: Python) -> PyResult<()> {
-        tracing::warn!(
+        let msg = std::ffi::CString::new(format!(
             "set_allow_thinking is deprecated. Use set_template_variable(\"enable_thinking\", {}) instead.",
             allow_thinking
-        );
+        )).unwrap();
+        PyErr::warn(
+            py,
+            &py.get_type::<pyo3::exceptions::PyDeprecationWarning>(),
+            &msg,
+            1,
+        )?;
         py.detach(|| {
             self.handle()
                 .set_template_variable("enable_thinking".to_string(), allow_thinking)
@@ -937,16 +949,23 @@ impl ChatAsync {
         tools: Vec<Tool>,
         sampler: SamplerConfig,
         allow_thinking: Option<bool>,
+        py: Python<'_>,
     ) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
 
         // Handle deprecated allow_thinking parameter
         let mut template_vars = template_variables;
         if let Some(allow) = allow_thinking {
-            tracing::warn!(
+            let msg = std::ffi::CString::new(format!(
                 "allow_thinking parameter is deprecated. Use template_variables={{\"enable_thinking\": {}}} instead.",
                 allow
-            );
+            )).unwrap();
+            PyErr::warn(
+                py,
+                &py.get_type::<pyo3::exceptions::PyDeprecationWarning>(),
+                &msg,
+                1,
+            )?;
             template_vars.insert("enable_thinking".to_string(), allow);
         }
 
@@ -1021,12 +1040,19 @@ impl ChatAsync {
     /// Raises:
     ///     ValueError: If the setting cannot be changed
     #[pyo3(signature = (allow_thinking: "bool") -> "None")]
-    #[allow(deprecated)]
     pub async fn set_allow_thinking(&self, allow_thinking: bool) -> PyResult<()> {
-        tracing::warn!(
-            "set_allow_thinking is deprecated. Use set_template_variable(\"enable_thinking\", {}) instead.",
-            allow_thinking
-        );
+        Python::attach(|py| {
+            let msg = std::ffi::CString::new(format!(
+                "set_allow_thinking is deprecated. Use set_template_variable(\"enable_thinking\", {}) instead.",
+                allow_thinking
+            )).unwrap();
+            PyErr::warn(
+                py,
+                &py.get_type::<pyo3::exceptions::PyDeprecationWarning>(),
+                &msg,
+                1,
+            )
+        })?;
         self.handle()
             .set_template_variable("enable_thinking".to_string(), allow_thinking)
             .await
