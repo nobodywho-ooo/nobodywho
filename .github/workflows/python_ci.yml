@@ -296,6 +296,42 @@ jobs:
         run: |
           source .venv/bin/activate
           python3 -m pytest tests/test_multimodal.py -v --tb=short
+  
+          
+  linux-model-downloading-tests:
+    needs: [linux-build]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v2
+        with:
+          version: "latest"
+
+      - name: Download wheel artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: nobodywho_python_linux_manylinux_2_34_x86_64
+          path: ./wheels
+
+      - name: Set up virtualenv and install dependencies
+        working-directory: ./nobodywho/python
+        run: |
+          uv venv
+          uv sync --no-install-project --group dev
+          uv pip install ../../wheels/nobodywho*manylinux*x86*.whl
+
+      - name: Run model downloading tests
+        working-directory: ./nobodywho/python
+        run: |
+          source .venv/bin/activate
+          python3 -m pytest tests/test_model_downloading.py.py -v --tb=short
+      - name: Display test summary
+        if: always()
+        run: |
+          echo "- Status: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+    
 
   linux-tool-calling-tests:
     if: inputs.full_ci
