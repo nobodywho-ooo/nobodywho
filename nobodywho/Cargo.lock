@@ -1822,7 +1822,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-2"
 version = "0.1.139"
-source = "git+https://github.com/utilityai/llama-cpp-rs?branch=update-llama-cpp-2026-03-06#3076f76a286b166f1b2b1d444e32adeca7b28e81"
+source = "git+https://github.com/AsbjornOlling/llama-cpp-rs?branch=fix-android-static-link-libstdcxx-for-mtmd#b0540757fce045ce08df351eeffedcf8f4c31ea9"
 dependencies = [
  "encoding_rs",
  "enumflags2",
@@ -1835,7 +1835,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-sys-2"
 version = "0.1.139"
-source = "git+https://github.com/utilityai/llama-cpp-rs?branch=update-llama-cpp-2026-03-06#3076f76a286b166f1b2b1d444e32adeca7b28e81"
+source = "git+https://github.com/AsbjornOlling/llama-cpp-rs?branch=fix-android-static-link-libstdcxx-for-mtmd#b0540757fce045ce08df351eeffedcf8f4c31ea9"
 dependencies = [
  "bindgen",
  "cc",
@@ -1977,7 +1977,7 @@ checksum = "a846cbc04412cf509efcd8f3694b114fc700a035fb5a37f21517f9fb019f1ebc"
 
 [[package]]
 name = "nobodywho"
-version = "2.1.1"
+version = "2.2.0"
 dependencies = [
  "ahash",
  "chrono",

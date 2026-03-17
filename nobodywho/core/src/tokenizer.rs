@@ -16,7 +16,7 @@ use llama_cpp_2::{
 use std::hash::{Hash, Hasher};
 use tracing::{info, warn};
 
-use crate::{errors::MultimodalError, errors::TokenizationError, llm::has_discrete_gpu};
+use crate::{errors::MultimodalError, errors::TokenizationError};
 
 #[derive(Clone, Debug)]
 pub struct Prompt {
@@ -325,7 +325,11 @@ pub struct ProjectionModel {
 }
 
 impl ProjectionModel {
-    pub fn from_path(path: &str, parent_model: &LlamaModel) -> Result<Self, MultimodalError> {
+    pub fn from_path(
+        path: &str,
+        parent_model: &LlamaModel,
+        use_gpu: bool,
+    ) -> Result<Self, MultimodalError> {
         let n_threads = std::thread::available_parallelism()
             .map(|p| p.get() as i32)
             .unwrap_or(4);
@@ -333,7 +337,7 @@ impl ProjectionModel {
         let media_marker = llama_cpp_2::mtmd::mtmd_default_marker().to_string();
 
         let mtmd_params = MtmdContextParams {
-            use_gpu: has_discrete_gpu(),
+            use_gpu,
             print_timings: false,
             n_threads,
             media_marker: CString::new(media_marker.to_string())

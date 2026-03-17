@@ -1,5 +1,17 @@
 use llama_cpp_2::{context::kv_cache::KvCacheConversionError, TokenToStringError};
 
+// Memory errors
+
+#[derive(Debug, thiserror::Error)]
+pub enum MemoryError {
+    #[error("Not enough memory for context. Required: ~{required_gb:.1} GB, available: ~{available_gb:.1} GB. {suggestion}")]
+    InsufficientMemory {
+        required_gb: f64,
+        available_gb: f64,
+        suggestion: String,
+    },
+}
+
 // Model errors
 
 #[derive(Debug, thiserror::Error)]
@@ -43,6 +55,9 @@ pub enum InitWorkerError {
 
     #[error("Could not initialize projection model: {0}")]
     ProjectionModel(#[from] MultimodalError),
+
+    #[error("Insufficient memory for context: {0}")]
+    Memory(#[from] MemoryError),
 }
 
 #[derive(Debug, thiserror::Error)]
