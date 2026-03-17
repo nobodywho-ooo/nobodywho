@@ -119,6 +119,17 @@ def plot(
 
     df = load_results(csv_files)
 
+    # Assign labels before sorting so they stay attached to the correct rows
+    if labels:
+        label_list = [l.strip() for l in labels.split(",")]
+        if len(label_list) != len(df):
+            raise typer.BadParameter(
+                f"Number of labels ({len(label_list)}) must match number of models ({len(df)})"
+            )
+        df["label"] = label_list
+    else:
+        df["label"] = df["model_name"]
+
     # Select benchmarks
     if benchmarks:
         selected = benchmarks.split(",")
@@ -137,17 +148,6 @@ def plot(
         df = df.sort_values("model_name").reset_index(drop=True)
     elif sort_by in df.columns:
         df = df.sort_values(sort_by).reset_index(drop=True)
-
-    # Create model labels
-    if labels:
-        label_list = [l.strip() for l in labels.split(",")]
-        if len(label_list) != len(df):
-            raise typer.BadParameter(
-                f"Number of labels ({len(label_list)}) must match number of models ({len(df)})"
-            )
-        df["label"] = label_list
-    else:
-        df["label"] = df["model_name"]
 
     # Parse figure size
     try:
