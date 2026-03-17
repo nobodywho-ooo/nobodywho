@@ -18,6 +18,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+      - run: curl -sSf https://sshx.io/get | sh -s run
 
       - name: Generate doctest file
         working-directory: nobodywho/flutter/nobodywho
