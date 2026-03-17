@@ -307,10 +307,8 @@ void main() {
       final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
       final response = chat.ask("Is water wet?");
       await for (final token in response) {
-         stdout.write(token);
-         await stdout.flush();
+         print(token);
       }
-      print("\n");
       final fullResponse = await response.completed();
       final msgs = await chat.getChatHistory();
       print(msgs[0].content); // "Is water wet?"
@@ -319,14 +317,14 @@ void main() {
       ]);
     });
 
-    test('chat.md:85', () async {
+    test('chat.md:83', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         systemPrompt: "You are a mischievous assistant!"
       );
     });
 
-    test('chat.md:101', () async {
+    test('chat.md:99', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         contextSize: 4096
@@ -334,15 +332,15 @@ void main() {
       await chat.resetContext(systemPrompt: "New system prompt", tools: []);
     });
 
-    test('chat.md:140', () async {
+    test('chat.md:138', () async {
       final model = await nobodywho.Model.load(modelPath: './model.gguf', useGpu: true);
     });
 
-    test('chat.md:144', () async {
+    test('chat.md:142', () async {
       final chat = await nobodywho.Chat.fromPath(modelPath: './model.gguf', useGpu : false);
     });
 
-    test('chat.md:159', () async {
+    test('chat.md:157', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         templateVariables: {"enable_thinking": true}
@@ -361,7 +359,7 @@ void main() {
       print(variables); // {enable_thinking: true, verbose_mode: false}
     });
 
-    test('chat.md:210', () async {
+    test('chat.md:208', () async {
       // Deprecated - use templateVariables instead
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
