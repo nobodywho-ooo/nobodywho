@@ -362,7 +362,8 @@ List<File> findMarkdownFiles(String dirPath) {
       .listSync(recursive: true)
       .whereType<File>()
       .where((f) => f.path.endsWith('.md'))
-      .toList();
+      .toList()
+    ..sort((a, b) => a.path.compareTo(b.path));
 }
 
 void main(List<String> args) async {
