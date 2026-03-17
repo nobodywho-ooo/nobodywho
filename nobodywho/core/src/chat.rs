@@ -1509,7 +1509,10 @@ impl Worker<'_, ChatWorker> {
                 .render_unhandled(messages, &template_context)?
         };
 
-        let bitmaps: Vec<&MtmdBitmap> = self.extra.messages.iter()
+        let bitmaps: Vec<&MtmdBitmap> = self
+            .extra
+            .messages
+            .iter()
             .flat_map(|msg| msg.assets())
             .filter_map(|asset| self.extra.context.bitmaps.get(&asset.id))
             .collect();
