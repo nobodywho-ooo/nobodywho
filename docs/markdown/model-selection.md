@@ -14,28 +14,30 @@ If you just want a ~2GB chat model that works well, try [Qwen3 4B Q4_K_M](https:
 If you want something smaller and faster, try [Qwen3 0.6B Q4_K_M](https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf).
 
 
-## Which models are compatible with NobodyWho?
-If in doubt: All models on our HuggingFace (<https://huggingface.co/NobodyWho>) are known to work well NobodyWho.
-Broadly: almost anything in the `.gguf` file format.
+## Download a model
 
-For chatting, it should be an instruction-tuned GGUF file that includes a jinja2 chat template in the metadata.
-This description fits the vast majority of GGUF files out there. If in doubt, try it. NobodyWho will throw you a descriptive error message if something is wrong.
+We recommend starting with the models on our [Hugging Face page](https://huggingface.co/NobodyWho) since they are known to work well with NobodyWho.
 
-For embeddings or cross-encoding, you need to use models specific for embedding or cross-encoding. They will be named as such. Although notice that cross-encoding models are sometimes called "reranking" models.
+Once you're more familiar, you can also try models from [Bartowski](https://huggingface.co/bartowski) and [Unsloth](https://huggingface.co/unsloth/models).
 
+Broadly, almost any `.gguf` model on [Hugging Face](https://huggingface.co) should work, though some may fail due to formatting issues.
 
 
-## Understanding model names
+## Understanding model file names
 
-Model files have names that look something like this: `Qwen_Qwen3-0.6B-Q4_K_M.gguf`
+Model files follow a naming convention like this: `Qwen_Qwen3-0.6B-Q4_K_M.gguf`
 
-Let's break it down.
+Here's what each part means:
 
-- `Qwen` is the name of the organization that trained the model.
-- `Qwen3` is the name of the model release.
-- `0.6B` refers to the parameter count of the model, in billions of parameters. This model has 0.6 billion parameters (aka 600 million parameters).
-- `Q4` refers to the quantization level, i.e. the number of bits per parameter.
-- `K_M` refers to details about the quantization techniques used. Don't worry too much about this for now. `S` means faster and less precise, `L` means slower and more precise, `M` is medium both.
+- `Qwen` the organization that trained the model.
+- `Qwen3` the name of the model release.
+- `0.6B` the parameter count in billions. This model has 0.6 billion (600 million) parameters.
+- `Q4` the quantization level, i.e. the number of bits used per parameter.
+- `K_M` details about the quantization technique. `S` is faster but less precise, `L` is slower but more precise, and `M` is a middle ground. You don't need to worry too much about this for now.
+
+For chatting, you'll need an instruction-tuned GGUF file that includes a Jinja2 chat template in its metadata. This describes the vast majority of GGUF files available, so if you're unsure, just try it — NobodyWho will give you a descriptive error message if something isn't right.
+
+For embeddings or cross-encoding, you'll need models specifically designed for those tasks, they are typically named accordingly. Although note that cross-encoding models are sometimes referred to as "reranking" models.
 
 
 ## Quantization
@@ -83,16 +85,6 @@ There are many places online for comparing benchmark scores of different LLMs, h
 Remember that you need an open model, in order to be able to find a GGUF download and run it locally (e.g. Gemma is open, but Gemini isn't).
 
 
-## Finding a GGUF Download
-
-Once you have decided on an LLM you want to try, you can usually find it on one of the big HuggingFace pages:
-
-- <https://huggingface.co/bartowski>
-- <https://huggingface.co/unsloth/models>
-
-You can also just search "<modelname> GGUF" in your favorite search engine.
-
-
 ---
 
-*Need help choosing between specific models? Check our [community Discord](https://discord.gg/nobodywho).* 
+*Need help choosing between specific models? Check our [community Discord](https://discord.gg/qhaMc2qCYB).* 

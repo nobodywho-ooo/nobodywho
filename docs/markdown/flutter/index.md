@@ -47,6 +47,11 @@ This is a super simple example, but we believe that examples which do simple thi
 
 To get a full overview of the functionality provided by NobodyWho, simply keep reading. You can also have a look at our [flutter starter app repository](https://github.com/nobodywho-ooo/flutter-starter-example).
 
+## Minimum recommended specs
+
+- iOS: iPhone 11 or newer with at least 4 GB of RAM. We tested a Qwen3 0.6B (332 MB) on an iPhone X (iOS 16) and while it ran, performance was too slow to be practical.
+- Android: Snapdragon 855 / Adreno 640 / 6 GB RAM or better. The same Qwen3 0.6B model performed notably better on a OnePlus 7 Pro (Android 12) than on the iPhone X tested above.
+
 ## Feedback & Contributions
 
 We welcome your feedback and ideas!
