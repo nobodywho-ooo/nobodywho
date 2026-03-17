@@ -236,7 +236,8 @@ def run(
 
     # allow code eval: this lets the model run code. yolo.
     os.environ["HF_ALLOW_CODE_EVAL"] = "1"
-    logging.basicConfig(level=logging.ERROR)
+    log_level = logging.DEBUG if os.environ.get("LOGLEVEL", "").upper() == "DEBUG" else logging.ERROR
+    logging.basicConfig(level=log_level)
 
     run_tasks = tasks.split(",") if tasks else DEFAULT_TASKS
 

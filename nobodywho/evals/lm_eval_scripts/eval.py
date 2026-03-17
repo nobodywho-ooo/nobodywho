@@ -327,6 +327,8 @@ class NobodyWhoLM(LM):
                 # If thinking is disabled, enforce limits from the start
                 think_ended = not self.allow_thinking
                 response_tokens = 0
+                # Index where post-think tokens start (for stop sequence checking)
+                think_end_idx = 0
 
                 # Timing starts from first token (excludes prompt processing)
                 gen_start_time: float | None = None
@@ -347,6 +349,7 @@ class NobodyWhoLM(LM):
                         if "</think>" in recent:
                             think_ended = True
                             response_tokens = 0
+                            think_end_idx = len(tokens)
 
                     # Only enforce limits after think block
                     if think_ended:
@@ -357,8 +360,11 @@ class NobodyWhoLM(LM):
                             self.chat.stop_generation()
                             break
 
-                        # check stop sequences in recent tokens
-                        if until and any(stop_seq in "".join(tokens[-max_stop_len:]) for stop_seq in until):
+                        # check stop sequences in post-think tokens only,
+                        # stripping leading whitespace so newlines between
+                        # </think> and the response don't trigger stops
+                        post_think_text = "".join(tokens[think_end_idx:]).lstrip()
+                        if until and post_think_text and any(stop_seq in post_think_text[-max_stop_len:] for stop_seq in until):
                             self.chat.stop_generation()
                             break
 
@@ -371,8 +377,13 @@ class NobodyWhoLM(LM):
 
                 # Get completed text and extract response part (strip think block)
                 full_response = response_stream.completed()
+                if self.allow_thinking:
+                    logger.debug(
+                        f"Full response ({len(tokens)} tokens): "
+                        f"{full_response[:200]!r}...{full_response[-200:]!r}"
+                    )
                 if self.allow_thinking and "</think>" in full_response:
-                    response_text = full_response.split("</think>", 1)[1]
+                    response_text = full_response.split("</think>", 1)[1].lstrip()
                 else:
                     response_text = full_response
 
