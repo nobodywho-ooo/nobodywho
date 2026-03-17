@@ -30,13 +30,8 @@ python3Packages.buildPythonPackage {
 
   inherit doCheck;
 
-  # XXX: temporary while debugging
-  # since tests fail it may be useful to get the binary artifacts out for examination
-  # doCheck = false;
-
   nativeCheckInputs = with python3Packages; [
     pytestCheckHook
-    pytest
     pytest-asyncio
     pytest-markdown-docs
   ];
@@ -71,6 +66,8 @@ python3Packages.buildPythonPackage {
   env.TEST_MODEL = models.TEST_MODEL;
   env.TEST_EMBEDDINGS_MODEL = models.TEST_EMBEDDINGS_MODEL;
   env.TEST_CROSSENCODER_MODEL = models.TEST_CROSSENCODER_MODEL;
-  env.TEST_VISION_MODEL = models.TEST_VISION_MODEL;
-  env.TEST_MMPROJ_MODEL = models.TEST_MMPROJ_MODEL;
+  # not needed since we skip vision tests
+  # env.TEST_VISION_MODEL = models.TEST_VISION_MODEL;
+  # env.TEST_MMPROJ_MODEL = models.TEST_MMPROJ_MODEL;
+  # TODO: reintroduce vision tests when we can make them fast
 }
