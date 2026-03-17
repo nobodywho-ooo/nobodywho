@@ -8,486 +8,444 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'lib.freezed.dart';
 
-            // These functions are ignored because they are not marked as `pub`: `dart_function_type_to_json_schema`, `sample_step`, `shift_step`
+// These functions are ignored because they are not marked as `pub`: `dart_function_type_to_json_schema`, `sample_step`, `shift_step`
 
-
-            /// Helper function to convert ToolCall arguments to a JSON string.
+/// Helper function to convert ToolCall arguments to a JSON string.
 /// This is needed because serde_json::Value becomes an opaque type in Dart.
-String  toolCallArgumentsJson({required ToolCall toolCall }) => NobodyWho.instance.api.crateToolCallArgumentsJson(toolCall: toolCall);
-
-double  cosineSimilarity({required List<double> a , required List<double> b }) => NobodyWho.instance.api.crateCosineSimilarity(a: a, b: b);
-
-RustTool  newToolImpl({required FutureOr<String> Function(String) function , required String name , required String description , required String runtimeType , required Map<String, String> parameterDescriptions }) => NobodyWho.instance.api.crateNewToolImpl(function: function, name: name, description: description, runtimeType: runtimeType, parameterDescriptions: parameterDescriptions);
-
-            
-                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Asset>>
-                abstract class Asset implements RustOpaqueInterface {
-                    
-
-                    
-                }
-                
-
-
-                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CompletionError>>
-                abstract class CompletionError implements RustOpaqueInterface {
-                    
-
-                    
-                }
-                
-
-
-                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CrossEncoder>>
-                abstract class CrossEncoder implements RustOpaqueInterface {
-                    static Future<CrossEncoder>  fromPath({required String modelPath , int nCtx = 4096, bool useGpu = true})=>NobodyWho.instance.api.crateCrossEncoderFromPath(modelPath: modelPath, nCtx: nCtx, useGpu: useGpu);
-
-
-factory CrossEncoder({required Model model , int nCtx = 4096})=>NobodyWho.instance.api.crateCrossEncoderNew(model: model, nCtx: nCtx);
-
-
- Future<Float32List>  rank({required String query , required List<String> documents });
-
-
- Future<List<(String,double)>>  rankAndSort({required String query , required List<String> documents });
-
-
-
-                    
-                }
-                
-
-
-                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CrossEncoderWorkerError>>
-                abstract class CrossEncoderWorkerError implements RustOpaqueInterface {
-                    
-
-                    
-                }
-                
-
-
-                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Encoder>>
-                abstract class Encoder implements RustOpaqueInterface {
-                     Future<Float32List>  encode({required String text });
-
-
-static Future<Encoder>  fromPath({required String modelPath , int nCtx = 4096, bool useGpu = true})=>NobodyWho.instance.api.crateEncoderFromPath(modelPath: modelPath, nCtx: nCtx, useGpu: useGpu);
-
-
-factory Encoder({required Model model , int nCtx = 4096})=>NobodyWho.instance.api.crateEncoderNew(model: model, nCtx: nCtx);
-
-
-
-                    
-                }
-                
-
-
-                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< EncoderWorkerError>>
-                abstract class EncoderWorkerError implements RustOpaqueInterface {
-                    
-
-                    
-                }
-                
-
-
-                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< GetterError>>
-                abstract class GetterError implements RustOpaqueInterface {
-                    
-
-                    
-                }
-                
-
-
-                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Model>>
-                abstract class Model implements RustOpaqueInterface {
-                    static Future<Model>  load({required String modelPath , bool useGpu = true, String? imageIngestion = null})=>NobodyWho.instance.api.crateModelLoad(modelPath: modelPath, useGpu: useGpu, imageIngestion: imageIngestion);
-
-
-
-                    
-                }
-                
-
-
-                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Rust2DartSendError>>
-                abstract class Rust2DartSendError implements RustOpaqueInterface {
-                    
-
-                    
-                }
-                
-
-
-                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustChat>>
-                abstract class RustChat implements RustOpaqueInterface {
-                     RustTokenStream  ask(String message);
-
-
-/// Send a multimodal prompt (text + images) and get a stream of response tokens.
-///
-/// Args:
-///     parts: List of PromptPart (text or image) making up the prompt
- RustTokenStream  askWithPrompt({required List<PromptPart> parts });
-
-
-/// Create chat directly from a model path. This is async as it loads a model
-///
-/// Args:
-///     model_path: Path to GGUF model file
-///     image_ingestion: Path to a .mmproj file for vision/multimodal models
-///     system_prompt: System message to guide the model's behavior
-///     context_size: Context size (maximum conversation length in tokens)
-///     tools: List of Tool instances the model can call
-///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
-///     use_gpu: Whether to use GPU acceleration. Defaults to true.
-static Future<RustChat>  fromPath({required String modelPath , String? imageIngestion = null, String? systemPrompt = null, int contextSize = 4096, bool allowThinking = true, List<RustTool> tools = const [], SamplerConfig? sampler = null, bool useGpu = true})=>NobodyWho.instance.api.crateRustChatFromPath(modelPath: modelPath, imageIngestion: imageIngestion, systemPrompt: systemPrompt, contextSize: contextSize, allowThinking: allowThinking, tools: tools, sampler: sampler, useGpu: useGpu);
-
-
- Future<List<Message>>  getChatHistory();
-
-
-/// Create chat from existing model.
-///
-/// For vision/multimodal models, load the model with image ingestion enabled first:
-/// ```dart
-/// final model = Model.load("model.gguf", imageIngestion: "mmproj.gguf");
-/// final chat = Chat(model: model);
-/// ```
-///
-/// Args:
-///     model: A Model instance (may include a projection model for vision)
-///     system_prompt: System message to guide the model's behavior
-///     context_size: Context size (maximum conversation length in tokens)
-///     tools: List of Tool instances the model can call
-///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
-factory RustChat({required Model model , String? systemPrompt = null, int contextSize = 4096, bool allowThinking = true, List<RustTool> tools = const [], SamplerConfig? sampler = null})=>NobodyWho.instance.api.crateRustChatNew(model: model, systemPrompt: systemPrompt, contextSize: contextSize, allowThinking: allowThinking, tools: tools, sampler: sampler);
-
-
- Future<void>  resetContext({String? systemPrompt , required List<RustTool> tools });
-
-
- Future<void>  resetHistory();
-
-
- Future<void>  setAllowThinking({required bool allowThinking });
-
-
- Future<void>  setChatHistory({required List<Message> messages });
-
-
- Future<void>  setSamplerConfig({required SamplerConfig samplerConfig });
-
-
- Future<void>  setSystemPrompt({String? systemPrompt });
-
-
- Future<void>  setTools({required List<RustTool> tools });
-
-
- void  stopGeneration();
-
-
-
-                    
-                }
-                
-
-
-                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustTokenStream>>
-                abstract class RustTokenStream implements RustOpaqueInterface {
-                     Future<String>  completed();
-
-
- Stream<String>  iter();
-
-
- Future<String?>  nextToken();
-
-
-
-                    
-                }
-                
-
-
-                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustTool>>
-                abstract class RustTool implements RustOpaqueInterface {
-                    /// Get the JSON schema for this tool's parameters as a string
- String  getSchemaJson();
-
-
-
-                    
-                }
-                
-
-
-                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerBuilder>>
-                abstract class SamplerBuilder implements RustOpaqueInterface {
-                    /// Sample from the probability distribution (weighted random selection).
-///
-/// Returns:
-///     A complete SamplerConfig ready to use
- SamplerConfig  dist();
-
-
-/// DRY (Don't Repeat Yourself) sampler to reduce repetition.
-///
-/// Args:
-///     multiplier: Penalty strength multiplier
-///     base: Base penalty value
-///     allowed_length: Maximum allowed repetition length
-///     penalty_last_n: Number of recent tokens to consider
-///     seq_breakers: List of strings that break repetition sequences
- SamplerBuilder  dry({required double multiplier , required double base , required int allowedLength , required int penaltyLastN , required List<String> seqBreakers });
-
-
-/// Apply a grammar constraint to enforce structured output.
-///
-/// Args:
-///     grammar: Grammar specification in GBNF format (GGML BNF, a variant of BNF used by llama.cpp)
-///     trigger_on: Optional string that, when generated, activates the grammar constraint.
-///                 Useful for letting the model generate free-form text until a specific marker.
-///     root: Name of the root grammar rule to start parsing from
- SamplerBuilder  grammar({required String grammar , String? triggerOn , required String root });
-
-
-/// Always select the most probable token (deterministic).
-///
-/// Returns:
-///     A complete SamplerConfig ready to use
- SamplerConfig  greedy();
-
-
-/// Keep tokens with probability above min_p * (probability of most likely token).
-///
-/// Args:
-///     min_p: Minimum relative probability threshold (0.0 to 1.0). Typical: 0.05-0.1.
-///     min_keep: Minimum number of tokens to always keep
- SamplerBuilder  minP({required double minP , required int minKeep });
-
-
-/// Use Mirostat v1 algorithm for perplexity-controlled sampling.
-/// Mirostat dynamically adjusts sampling to maintain a target "surprise" level,
-/// producing more coherent output than fixed temperature. Good for long-form generation.
-///
-/// Args:
-///     tau: Target perplexity/surprise value (typically 3.0-5.0; lower = more focused)
-///     eta: Learning rate for perplexity adjustment (typically 0.1)
-///     m: Number of candidates to consider (typically 100)
-///
-/// Returns:
-///     A complete SamplerConfig ready to use
- SamplerConfig  mirostatV1({required double tau , required double eta , required int m });
-
-
-/// Use Mirostat v2 algorithm for perplexity-controlled sampling.
-/// Mirostat v2 is a simplified version of Mirostat that's often preferred.
-/// It dynamically adjusts sampling to maintain a target "surprise" level.
-///
-/// Args:
-///     tau: Target perplexity/surprise value (typically 3.0-5.0; lower = more focused)
-///     eta: Learning rate for perplexity adjustment (typically 0.1)
-///
-/// Returns:
-///     A complete SamplerConfig ready to use
- SamplerConfig  mirostatV2({required double tau , required double eta });
-
-
-/// Create a new SamplerBuilder to construct a custom sampler chain.
-factory SamplerBuilder()=>NobodyWho.instance.api.crateSamplerBuilderNew();
-
-
-/// Apply repetition penalties to discourage repeated tokens.
-///
-/// Args:
-///     penalty_last_n: Number of recent tokens to penalize (0 = disable)
-///     penalty_repeat: Base repetition penalty (1.0 = no penalty, >1.0 = penalize)
-///     penalty_freq: Frequency penalty based on token occurrence count
-///     penalty_present: Presence penalty for any token that appeared before
- SamplerBuilder  penalties({required int penaltyLastN , required double penaltyRepeat , required double penaltyFreq , required double penaltyPresent });
-
-
-/// Apply temperature scaling to the probability distribution.
-///
-/// Args:
-///     temperature: Temperature value (0.0 = deterministic, 1.0 = unchanged, >1.0 = more random)
- SamplerBuilder  temperature({required double temperature });
-
-
-/// Keep only the top K most probable tokens. Typical values: 40-50.
-///
-/// Args:
-///     top_k: Number of top tokens to keep
- SamplerBuilder  topK({required int topK });
-
-
-/// Keep tokens whose cumulative probability is below top_p. Typical values: 0.9-0.95.
-///
-/// Args:
-///     top_p: Cumulative probability threshold (0.0 to 1.0)
-///     min_keep: Minimum number of tokens to always keep
- SamplerBuilder  topP({required double topP , required int minKeep });
-
-
-/// Typical sampling: keeps tokens close to expected information content.
-///
-/// Args:
-///     typ_p: Typical probability mass (0.0 to 1.0). Typical: 0.9.
-///     min_keep: Minimum number of tokens to always keep
- SamplerBuilder  typicalP({required double typP , required int minKeep });
-
-
-/// XTC (eXclude Top Choices) sampler that probabilistically excludes high-probability tokens.
-/// This can increase output diversity by sometimes forcing the model to pick less obvious tokens.
-///
-/// Args:
-///     xtc_probability: Probability of applying XTC on each token (0.0 to 1.0)
-///     xtc_threshold: Tokens with probability above this threshold may be excluded (0.0 to 1.0)
-///     min_keep: Minimum number of tokens to always keep (prevents excluding all tokens)
- SamplerBuilder  xtc({required double xtcProbability , required double xtcThreshold , required int minKeep });
-
-
-
-                    
-                }
-                
-
-
-                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerConfig>>
-                abstract class SamplerConfig implements RustOpaqueInterface {
-                    
-
-                    
-                }
-                
-
-
-                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerPresets>>
-                abstract class SamplerPresets implements RustOpaqueInterface {
-                    /// Get the default sampler configuration.
-static SamplerConfig  defaultSampler()=>NobodyWho.instance.api.crateSamplerPresetsDefaultSampler();
-
-
-/// Create a DRY sampler preset to reduce repetition.
-static SamplerConfig  dry()=>NobodyWho.instance.api.crateSamplerPresetsDry();
-
-
-/// Create a sampler with a custom grammar constraint.
-///
-/// Args:
-///     grammar: Grammar specification in GBNF format (GGML BNF, a variant of BNF used by llama.cpp)
-static SamplerConfig  grammar({required String grammar })=>NobodyWho.instance.api.crateSamplerPresetsGrammar(grammar: grammar);
-
-
-/// Create a greedy sampler (always picks most probable token).
-static SamplerConfig  greedy()=>NobodyWho.instance.api.crateSamplerPresetsGreedy();
-
-
-/// Create a sampler configured for JSON output generation.
-/// Uses a grammar constraint to ensure the model outputs only valid JSON.
-static SamplerConfig  json()=>NobodyWho.instance.api.crateSamplerPresetsJson();
-
-
-/// Create a sampler with temperature scaling.
-///
-/// Args:
-///     temperature: Temperature value (lower = more focused, higher = more random)
-static SamplerConfig  temperature({required double temperature })=>NobodyWho.instance.api.crateSamplerPresetsTemperature(temperature: temperature);
-
-
-/// Create a sampler with top-k filtering only.
-///
-/// Args:
-///     top_k: Number of top tokens to keep
-static SamplerConfig  topK({required int topK })=>NobodyWho.instance.api.crateSamplerPresetsTopK(topK: topK);
-
-
-/// Create a sampler with nucleus (top-p) sampling.
-///
-/// Args:
-///     top_p: Cumulative probability threshold (0.0 to 1.0)
-static SamplerConfig  topP({required double topP })=>NobodyWho.instance.api.crateSamplerPresetsTopP(topP: topP);
-
-
-
-                    
-                }
-                
-
-
-                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< SetterError>>
-                abstract class SetterError implements RustOpaqueInterface {
-                    
-
-                    
-                }
-                
-
-
-                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ToolCall>>
-                abstract class ToolCall implements RustOpaqueInterface {
-                     Value get arguments;
-
-
- String get name;
-
+String toolCallArgumentsJson({required ToolCall toolCall}) =>
+    NobodyWho.instance.api.crateToolCallArgumentsJson(toolCall: toolCall);
+
+double cosineSimilarity({required List<double> a, required List<double> b}) =>
+    NobodyWho.instance.api.crateCosineSimilarity(a: a, b: b);
+
+RustTool newToolImpl({
+  required FutureOr<String> Function(String) function,
+  required String name,
+  required String description,
+  required String runtimeType,
+  required Map<String, String> parameterDescriptions,
+}) => NobodyWho.instance.api.crateNewToolImpl(
+  function: function,
+  name: name,
+  description: description,
+  runtimeType: runtimeType,
+  parameterDescriptions: parameterDescriptions,
+);
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Asset>>
+abstract class Asset implements RustOpaqueInterface {}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CompletionError>>
+abstract class CompletionError implements RustOpaqueInterface {}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CrossEncoder>>
+abstract class CrossEncoder implements RustOpaqueInterface {
+  static Future<CrossEncoder> fromPath({
+    required String modelPath,
+    int nCtx = 4096,
+    bool useGpu = true,
+  }) => NobodyWho.instance.api.crateCrossEncoderFromPath(
+    modelPath: modelPath,
+    nCtx: nCtx,
+    useGpu: useGpu,
+  );
+
+  factory CrossEncoder({required Model model, int nCtx = 4096}) =>
+      NobodyWho.instance.api.crateCrossEncoderNew(model: model, nCtx: nCtx);
+
+  Future<Float32List> rank({
+    required String query,
+    required List<String> documents,
+  });
+
+  Future<List<(String, double)>> rankAndSort({
+    required String query,
+    required List<String> documents,
+  });
+}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CrossEncoderWorkerError>>
+abstract class CrossEncoderWorkerError implements RustOpaqueInterface {}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Encoder>>
+abstract class Encoder implements RustOpaqueInterface {
+  Future<Float32List> encode({required String text});
+
+  static Future<Encoder> fromPath({
+    required String modelPath,
+    int nCtx = 4096,
+    bool useGpu = true,
+  }) => NobodyWho.instance.api.crateEncoderFromPath(
+    modelPath: modelPath,
+    nCtx: nCtx,
+    useGpu: useGpu,
+  );
+
+  factory Encoder({required Model model, int nCtx = 4096}) =>
+      NobodyWho.instance.api.crateEncoderNew(model: model, nCtx: nCtx);
+}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< EncoderWorkerError>>
+abstract class EncoderWorkerError implements RustOpaqueInterface {}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< GetterError>>
+abstract class GetterError implements RustOpaqueInterface {}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Model>>
+abstract class Model implements RustOpaqueInterface {
+  static Future<Model> load({
+    required String modelPath,
+    bool useGpu = true,
+    String? imageIngestion = null,
+  }) => NobodyWho.instance.api.crateModelLoad(
+    modelPath: modelPath,
+    useGpu: useGpu,
+    imageIngestion: imageIngestion,
+  );
+}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Rust2DartSendError>>
+abstract class Rust2DartSendError implements RustOpaqueInterface {}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustChat>>
+abstract class RustChat implements RustOpaqueInterface {
+  RustTokenStream ask(String message);
+
+  /// Send a multimodal prompt (text + images) and get a stream of response tokens.
+  ///
+  /// Args:
+  ///     parts: List of PromptPart (text or image) making up the prompt
+  RustTokenStream askWithPrompt({required List<PromptPart> parts});
+
+  /// Create chat directly from a model path. This is async as it loads a model
+  ///
+  /// Args:
+  ///     model_path: Path to GGUF model file
+  ///     image_ingestion: Path to a .mmproj file for vision/multimodal models
+  ///     system_prompt: System message to guide the model's behavior
+  ///     context_size: Context size (maximum conversation length in tokens)
+  ///     tools: List of Tool instances the model can call
+  ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
+  ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
+  static Future<RustChat> fromPath({
+    required String modelPath,
+    String? imageIngestion = null,
+    String? systemPrompt = null,
+    int contextSize = 4096,
+    bool allowThinking = true,
+    List<RustTool> tools = const [],
+    SamplerConfig? sampler = null,
+    bool useGpu = true,
+  }) => NobodyWho.instance.api.crateRustChatFromPath(
+    modelPath: modelPath,
+    imageIngestion: imageIngestion,
+    systemPrompt: systemPrompt,
+    contextSize: contextSize,
+    allowThinking: allowThinking,
+    tools: tools,
+    sampler: sampler,
+    useGpu: useGpu,
+  );
+
+  Future<List<Message>> getChatHistory();
+
+  /// Create chat from existing model.
+  ///
+  /// For vision/multimodal models, load the model with image ingestion enabled first:
+  /// ```dart
+  /// final model = Model.load("model.gguf", imageIngestion: "mmproj.gguf");
+  /// final chat = Chat(model: model);
+  /// ```
+  ///
+  /// Args:
+  ///     model: A Model instance (may include a projection model for vision)
+  ///     system_prompt: System message to guide the model's behavior
+  ///     context_size: Context size (maximum conversation length in tokens)
+  ///     tools: List of Tool instances the model can call
+  ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
+  factory RustChat({
+    required Model model,
+    String? systemPrompt = null,
+    int contextSize = 4096,
+    bool allowThinking = true,
+    List<RustTool> tools = const [],
+    SamplerConfig? sampler = null,
+  }) => NobodyWho.instance.api.crateRustChatNew(
+    model: model,
+    systemPrompt: systemPrompt,
+    contextSize: contextSize,
+    allowThinking: allowThinking,
+    tools: tools,
+    sampler: sampler,
+  );
+
+  Future<void> resetContext({
+    String? systemPrompt,
+    required List<RustTool> tools,
+  });
+
+  Future<void> resetHistory();
+
+  Future<void> setAllowThinking({required bool allowThinking});
+
+  Future<void> setChatHistory({required List<Message> messages});
+
+  Future<void> setSamplerConfig({required SamplerConfig samplerConfig});
+
+  Future<void> setSystemPrompt({String? systemPrompt});
+
+  Future<void> setTools({required List<RustTool> tools});
+
+  void stopGeneration();
+}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustTokenStream>>
+abstract class RustTokenStream implements RustOpaqueInterface {
+  Future<String> completed();
+
+  Stream<String> iter();
+
+  Future<String?> nextToken();
+}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustTool>>
+abstract class RustTool implements RustOpaqueInterface {
+  /// Get the JSON schema for this tool's parameters as a string
+  String getSchemaJson();
+}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerBuilder>>
+abstract class SamplerBuilder implements RustOpaqueInterface {
+  /// Sample from the probability distribution (weighted random selection).
+  ///
+  /// Returns:
+  ///     A complete SamplerConfig ready to use
+  SamplerConfig dist();
+
+  /// DRY (Don't Repeat Yourself) sampler to reduce repetition.
+  ///
+  /// Args:
+  ///     multiplier: Penalty strength multiplier
+  ///     base: Base penalty value
+  ///     allowed_length: Maximum allowed repetition length
+  ///     penalty_last_n: Number of recent tokens to consider
+  ///     seq_breakers: List of strings that break repetition sequences
+  SamplerBuilder dry({
+    required double multiplier,
+    required double base,
+    required int allowedLength,
+    required int penaltyLastN,
+    required List<String> seqBreakers,
+  });
+
+  /// Apply a grammar constraint to enforce structured output.
+  ///
+  /// Args:
+  ///     grammar: Grammar specification in GBNF format (GGML BNF, a variant of BNF used by llama.cpp)
+  ///     trigger_on: Optional string that, when generated, activates the grammar constraint.
+  ///                 Useful for letting the model generate free-form text until a specific marker.
+  ///     root: Name of the root grammar rule to start parsing from
+  SamplerBuilder grammar({
+    required String grammar,
+    String? triggerOn,
+    required String root,
+  });
+
+  /// Always select the most probable token (deterministic).
+  ///
+  /// Returns:
+  ///     A complete SamplerConfig ready to use
+  SamplerConfig greedy();
+
+  /// Keep tokens with probability above min_p * (probability of most likely token).
+  ///
+  /// Args:
+  ///     min_p: Minimum relative probability threshold (0.0 to 1.0). Typical: 0.05-0.1.
+  ///     min_keep: Minimum number of tokens to always keep
+  SamplerBuilder minP({required double minP, required int minKeep});
+
+  /// Use Mirostat v1 algorithm for perplexity-controlled sampling.
+  /// Mirostat dynamically adjusts sampling to maintain a target "surprise" level,
+  /// producing more coherent output than fixed temperature. Good for long-form generation.
+  ///
+  /// Args:
+  ///     tau: Target perplexity/surprise value (typically 3.0-5.0; lower = more focused)
+  ///     eta: Learning rate for perplexity adjustment (typically 0.1)
+  ///     m: Number of candidates to consider (typically 100)
+  ///
+  /// Returns:
+  ///     A complete SamplerConfig ready to use
+  SamplerConfig mirostatV1({
+    required double tau,
+    required double eta,
+    required int m,
+  });
+
+  /// Use Mirostat v2 algorithm for perplexity-controlled sampling.
+  /// Mirostat v2 is a simplified version of Mirostat that's often preferred.
+  /// It dynamically adjusts sampling to maintain a target "surprise" level.
+  ///
+  /// Args:
+  ///     tau: Target perplexity/surprise value (typically 3.0-5.0; lower = more focused)
+  ///     eta: Learning rate for perplexity adjustment (typically 0.1)
+  ///
+  /// Returns:
+  ///     A complete SamplerConfig ready to use
+  SamplerConfig mirostatV2({required double tau, required double eta});
+
+  /// Create a new SamplerBuilder to construct a custom sampler chain.
+  factory SamplerBuilder() => NobodyWho.instance.api.crateSamplerBuilderNew();
+
+  /// Apply repetition penalties to discourage repeated tokens.
+  ///
+  /// Args:
+  ///     penalty_last_n: Number of recent tokens to penalize (0 = disable)
+  ///     penalty_repeat: Base repetition penalty (1.0 = no penalty, >1.0 = penalize)
+  ///     penalty_freq: Frequency penalty based on token occurrence count
+  ///     penalty_present: Presence penalty for any token that appeared before
+  SamplerBuilder penalties({
+    required int penaltyLastN,
+    required double penaltyRepeat,
+    required double penaltyFreq,
+    required double penaltyPresent,
+  });
+
+  /// Apply temperature scaling to the probability distribution.
+  ///
+  /// Args:
+  ///     temperature: Temperature value (0.0 = deterministic, 1.0 = unchanged, >1.0 = more random)
+  SamplerBuilder temperature({required double temperature});
+
+  /// Keep only the top K most probable tokens. Typical values: 40-50.
+  ///
+  /// Args:
+  ///     top_k: Number of top tokens to keep
+  SamplerBuilder topK({required int topK});
+
+  /// Keep tokens whose cumulative probability is below top_p. Typical values: 0.9-0.95.
+  ///
+  /// Args:
+  ///     top_p: Cumulative probability threshold (0.0 to 1.0)
+  ///     min_keep: Minimum number of tokens to always keep
+  SamplerBuilder topP({required double topP, required int minKeep});
+
+  /// Typical sampling: keeps tokens close to expected information content.
+  ///
+  /// Args:
+  ///     typ_p: Typical probability mass (0.0 to 1.0). Typical: 0.9.
+  ///     min_keep: Minimum number of tokens to always keep
+  SamplerBuilder typicalP({required double typP, required int minKeep});
+
+  /// XTC (eXclude Top Choices) sampler that probabilistically excludes high-probability tokens.
+  /// This can increase output diversity by sometimes forcing the model to pick less obvious tokens.
+  ///
+  /// Args:
+  ///     xtc_probability: Probability of applying XTC on each token (0.0 to 1.0)
+  ///     xtc_threshold: Tokens with probability above this threshold may be excluded (0.0 to 1.0)
+  ///     min_keep: Minimum number of tokens to always keep (prevents excluding all tokens)
+  SamplerBuilder xtc({
+    required double xtcProbability,
+    required double xtcThreshold,
+    required int minKeep,
+  });
+}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerConfig>>
+abstract class SamplerConfig implements RustOpaqueInterface {}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerPresets>>
+abstract class SamplerPresets implements RustOpaqueInterface {
+  /// Get the default sampler configuration.
+  static SamplerConfig defaultSampler() =>
+      NobodyWho.instance.api.crateSamplerPresetsDefaultSampler();
+
+  /// Create a DRY sampler preset to reduce repetition.
+  static SamplerConfig dry() => NobodyWho.instance.api.crateSamplerPresetsDry();
+
+  /// Create a sampler with a custom grammar constraint.
+  ///
+  /// Args:
+  ///     grammar: Grammar specification in GBNF format (GGML BNF, a variant of BNF used by llama.cpp)
+  static SamplerConfig grammar({required String grammar}) =>
+      NobodyWho.instance.api.crateSamplerPresetsGrammar(grammar: grammar);
+
+  /// Create a greedy sampler (always picks most probable token).
+  static SamplerConfig greedy() =>
+      NobodyWho.instance.api.crateSamplerPresetsGreedy();
+
+  /// Create a sampler configured for JSON output generation.
+  /// Uses a grammar constraint to ensure the model outputs only valid JSON.
+  static SamplerConfig json() =>
+      NobodyWho.instance.api.crateSamplerPresetsJson();
+
+  /// Create a sampler with temperature scaling.
+  ///
+  /// Args:
+  ///     temperature: Temperature value (lower = more focused, higher = more random)
+  static SamplerConfig temperature({required double temperature}) => NobodyWho
+      .instance
+      .api
+      .crateSamplerPresetsTemperature(temperature: temperature);
+
+  /// Create a sampler with top-k filtering only.
+  ///
+  /// Args:
+  ///     top_k: Number of top tokens to keep
+  static SamplerConfig topK({required int topK}) =>
+      NobodyWho.instance.api.crateSamplerPresetsTopK(topK: topK);
+
+  /// Create a sampler with nucleus (top-p) sampling.
+  ///
+  /// Args:
+  ///     top_p: Cumulative probability threshold (0.0 to 1.0)
+  static SamplerConfig topP({required double topP}) =>
+      NobodyWho.instance.api.crateSamplerPresetsTopP(topP: topP);
+}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< SetterError>>
+abstract class SetterError implements RustOpaqueInterface {}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ToolCall>>
+abstract class ToolCall implements RustOpaqueInterface {
+  Value get arguments;
+
+  String get name;
 
   set arguments(Value arguments);
 
-
   set name(String name);
+}
 
-
-
-                    
-                }
-                
-
-
-                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< Value>>
-                abstract class Value implements RustOpaqueInterface {
-                    
-
-                    
-                }
-                
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< Value>>
+abstract class Value implements RustOpaqueInterface {}
 
 @freezed
-                sealed class Message with _$Message  {
-                    const Message._();
+sealed class Message with _$Message {
+  const Message._();
 
-                     const factory Message.message({   required Role role ,  required String content , @Default(const []) List<Asset> assets , }) = Message_Message;
- const factory Message.toolCalls({   required Role role ,  required String content ,  required List<ToolCall> toolCalls , }) = Message_ToolCalls;
- const factory Message.toolResp({   required Role role ,  required String name ,  required String content , }) = Message_ToolResp;
-
-                    
-
-                    
-                }
+  const factory Message.message({
+    required Role role,
+    required String content,
+    @Default(const []) List<Asset> assets,
+  }) = Message_Message;
+  const factory Message.toolCalls({
+    required Role role,
+    required String content,
+    required List<ToolCall> toolCalls,
+  }) = Message_ToolCalls;
+  const factory Message.toolResp({
+    required Role role,
+    required String name,
+    required String content,
+  }) = Message_ToolResp;
+}
 
 @freezed
-                sealed class PromptPart with _$PromptPart  {
-                    const PromptPart._();
+sealed class PromptPart with _$PromptPart {
+  const PromptPart._();
 
-                     const factory PromptPart.text({   required String content , }) = PromptPart_Text;
- const factory PromptPart.image({   required String path , }) = PromptPart_Image;
+  const factory PromptPart.text({required String content}) = PromptPart_Text;
+  const factory PromptPart.image({required String path}) = PromptPart_Image;
+}
 
-                    
-
-                    
-                }
-
-enum Role {
-                    user,
-assistant,
-system,
-tool,
-                    ;
-                    
-                }
-            
+enum Role { user, assistant, system, tool }

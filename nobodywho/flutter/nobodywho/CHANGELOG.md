@@ -1,3 +1,17 @@
+## 0.5.1
+
+- Fix incorrect linking of stdcxx on android
+- Fix bad build caching on android build
+
+## 0.5.1-rc1
+
+- Fix incorrect linking of stdcxx on android
+
+## 0.5.0
+
+- Support image ingestion for multimodal vision models
+- Fix windows dart executable path resolution (thanks to @leonludwig)
+
 ## 0.4.0
 
 ### New Features
