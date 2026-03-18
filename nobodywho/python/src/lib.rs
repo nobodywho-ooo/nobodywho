@@ -1,7 +1,14 @@
 use pyo3::prelude::*;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 mod parse;
+
+/// Gate for forwarding tracing events to Python's logging module.
+/// Set to `true` after pyo3_log is installed, set to `false` via an `atexit`
+/// handler before `Py_FinalizeEx` runs. This prevents worker threads from
+/// calling into a partially-destroyed interpreter during shutdown.
+static PYTHON_LOGGING_AVAILABLE: AtomicBool = AtomicBool::new(false);
 
 /// `Model` objects contain a GGUF model. It is primarily useful for sharing a single model instance
 /// between multiple `Chat`, `Encoder`, or `CrossEncoder` instances.
@@ -2099,6 +2106,10 @@ pub mod nobodywhopython {
             event: &tracing::Event<'_>,
             _ctx: tracing_subscriber::layer::Context<'_, S>,
         ) {
+            if !crate::PYTHON_LOGGING_AVAILABLE.load(std::sync::atomic::Ordering::Acquire) {
+                return;
+            }
+
             let metadata = event.metadata();
 
             // Force all llama-cpp logs to TRACE level
@@ -2214,7 +2225,21 @@ pub mod nobodywhopython {
         // Flow: llamacpp -> tracing -> LogForwardingLayer -> log crate -> pyo3_log -> Python
         nobodywho::send_llamacpp_logs_to_tracing();
 
+        // STEP 4: Enable log forwarding and register shutdown hook.
+        // The atexit handler disables forwarding before Py_FinalizeEx so that
+        // worker threads that are still alive don't call into a partially-destroyed
+        // interpreter (which would cause SIGABRT).
+        crate::PYTHON_LOGGING_AVAILABLE.store(true, std::sync::atomic::Ordering::Release);
+        let atexit = _m.py().import("atexit")?;
+        let cleanup_fn = wrap_pyfunction!(cleanup_logging, _m.py())?;
+        atexit.call_method1("register", (cleanup_fn,))?;
+
         Ok(())
+    }
+
+    #[pyfunction]
+    fn cleanup_logging() {
+        crate::PYTHON_LOGGING_AVAILABLE.store(false, std::sync::atomic::Ordering::Release);
     }
 
     #[pymodule_export]
