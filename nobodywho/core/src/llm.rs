@@ -462,10 +462,6 @@ impl<T> Drop for WorkerGuard<T> {
         }
         drop(self.msg_tx.take());
         if let Some(handle) = self.join_handle.take() {
-            if handle.thread().id() == std::thread::current().id() {
-                drop(handle);
-                return;
-            }
             if let Err(e) = handle.join() {
                 error!("Worker panicked: {:?}", e);
             }
