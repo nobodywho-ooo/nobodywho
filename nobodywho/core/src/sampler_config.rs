@@ -276,7 +276,7 @@ ws ::= | " " | "\n" [ \t]{0,20}"#;
 /// ----- Sampler Methods -----
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(tag = "type", content = "value", rename_all = "snake_case")]
 pub enum ShiftStep {
     TopK {
         top_k: i32,
@@ -289,6 +289,7 @@ pub enum ShiftStep {
         min_keep: u32,
         min_p: f32,
     },
+    #[serde(rename = "xtc")]
     XTC {
         xtc_probability: f32,
         xtc_threshold: f32,
@@ -303,6 +304,7 @@ pub enum ShiftStep {
         root: String,
         grammar: String,
     },
+    #[serde(rename = "dry")]
     DRY {
         multiplier: f32,
         base: f32,
@@ -321,7 +323,7 @@ pub enum ShiftStep {
     },
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(tag = "type", content = "value", rename_all = "snake_case")]
 pub enum SampleStep {
     Dist,
     Greedy,

@@ -180,7 +180,7 @@ fn read_add_bos_metadata(model: &LlamaModel) -> Result<AddBos, InitWorkerError> 
 }
 
 pub(crate) fn read_sampler_from_metadata(model: &LlamaModel) -> Option<SamplerConfig> {
-    match model.meta_val_str("sampler.sampler_config") {
+    match model.meta_val_str("sampler.chain.recommended") {
         Ok(val) => match serde_json::from_str::<SamplerConfig>(val.as_str()) {
             Ok(sampler) => Some(sampler),
             Err(_) => {
