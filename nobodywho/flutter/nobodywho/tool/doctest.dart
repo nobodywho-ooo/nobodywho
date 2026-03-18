@@ -158,6 +158,12 @@ String removeImports(String code) {
   return code.replaceAll(importRegex, '').trim();
 }
 
+/// Remove NobodyWho.init() calls — init is handled in setUpAll
+String removeInitCalls(String code) {
+  final initRegex = RegExp(r'^\s*await\s+nobodywho\.NobodyWho\.init\(\)\s*;\s*\n?', multiLine: true);
+  return code.replaceAll(initRegex, '').trim();
+}
+
 /// Check if code block should be skipped
 bool shouldSkipCodeBlock(String code) {
   final trimmed = code.trim();
@@ -231,8 +237,10 @@ String generateTestFile(List<CodeGroup> groups, String testName) {
   buffer.writeln("void main() {");
   buffer.writeln("  group('Doctest: $testName', () {");
 
-  // Setup for model symlinks
+  // Setup: init bridge and model symlinks
   buffer.writeln("    setUpAll(() async {");
+  buffer.writeln("      // Initialize flutter_rust_bridge");
+  buffer.writeln("      await nobodywho.NobodyWho.init();");
   buffer.writeln("      // Create symlinks for model paths used in docs");
   buffer.writeln("      final modelPath = Platform.environment['TEST_MODEL'];");
   buffer.writeln("      final embeddingPath = Platform.environment['TEST_EMBEDDINGS_MODEL'];");
@@ -307,8 +315,9 @@ String generateTestFile(List<CodeGroup> groups, String testName) {
         buffer.writeln("      if (Platform.environment['TEST_MULTIMODAL_MODEL'] == null || Platform.environment['TEST_MULTIMODAL_MMPROJ'] == null) return;");
       }
 
-      // Remove imports from inline code (they're at the top)
-      final codeWithoutImports = removeImports(code);
+      // Remove imports and init calls from inline code (they're handled in setup)
+      var codeWithoutImports = removeImports(code);
+      codeWithoutImports = removeInitCalls(codeWithoutImports);
 
       // Indent the code
       final indentedCode = codeWithoutImports.split('\n').map((l) => '      $l').join('\n');
@@ -336,8 +345,9 @@ String generateTestFile(List<CodeGroup> groups, String testName) {
       buffer.writeln();
       buffer.writeln("// Extracted from ${group.sourceFile}:${group.startLine}");
 
-      // Remove imports and rename main
+      // Remove imports, init calls, and rename main
       var codeWithoutImports = removeImports(code);
+      codeWithoutImports = removeInitCalls(codeWithoutImports);
       codeWithoutImports = codeWithoutImports
           .replaceFirst(RegExp(r'Future<void>\s+main\s*\('), 'Future<void> _doctest_$testIndex(')
           .replaceFirst(RegExp(r'void\s+main\s*\('), 'Future<void> _doctest_$testIndex(');

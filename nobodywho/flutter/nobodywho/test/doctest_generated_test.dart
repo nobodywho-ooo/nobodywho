@@ -17,6 +17,8 @@ import 'package:test/test.dart';
 void main() {
   group('Doctest: Flutter Docs', () {
     setUpAll(() async {
+      // Initialize flutter_rust_bridge
+      await nobodywho.NobodyWho.init();
       // Create symlinks for model paths used in docs
       final modelPath = Platform.environment['TEST_MODEL'];
       final embeddingPath = Platform.environment['TEST_EMBEDDINGS_MODEL'];
@@ -239,7 +241,7 @@ void main() {
     });
 
     test('index.md:23', () async {
-      await nobodywho.NobodyWho.init();
+      
     });
 
     test('sampling.md:15', () async {
