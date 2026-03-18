@@ -181,7 +181,17 @@ fn read_add_bos_metadata(model: &LlamaModel) -> Result<AddBos, InitWorkerError> 
 
 pub(crate) fn read_sampler_from_metadata(model: &LlamaModel) -> Option<SamplerConfig> {
     match model.meta_val_str("sampler.sampler_config") {
-        Ok(val) => serde_json::from_str::<SamplerConfig>(val.as_str()).ok(),
+        Ok(val) => match serde_json::from_str::<SamplerConfig>(val.as_str()) {
+            Ok(sampler) => Some(sampler),
+            Err(_) => {
+                warn!(
+                    "Error parsing sampler: {}. Example of sampler serialization: {}",
+                    val.as_str(),
+                    serde_json::to_string(&SamplerConfig::default()).unwrap()
+                );
+                None
+            }
+        },
         Err(_) => None,
     }
 }
