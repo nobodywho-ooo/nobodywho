@@ -30,7 +30,7 @@ jobs:
 
       - name: Check if generated tests are up to date
         run: |
-          if ! git diff --quiet; then
+          if git diff --quiet nobodywho/flutter/nobodywho/test/doctest_generated_test.dart; then
             echo "✅ Generated doctests are up to date"
           else
             echo "❌ Generated doctests are out of date!"

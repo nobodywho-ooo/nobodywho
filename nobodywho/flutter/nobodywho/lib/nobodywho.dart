@@ -518,7 +518,8 @@ class Chat {
     required nobodywho.Model model,
     String? systemPrompt,
     int contextSize = 4096,
-    bool allowThinking = true,
+    bool? allowThinking = null,
+    Map<String,bool> templateVariables = const {},
     List<Tool> tools = const [],
     nobodywho.SamplerConfig? sampler,
   }) {
@@ -526,6 +527,7 @@ class Chat {
       model: model,
       systemPrompt: systemPrompt,
       contextSize: contextSize,
+      templateVariables: templateVariables,
       allowThinking: allowThinking,
       tools: tools.map((t) => t._internalTool).toList(),
       sampler: sampler,
@@ -542,7 +544,8 @@ class Chat {
     String? imageIngestion,
     String? systemPrompt,
     int contextSize = 4096,
-    bool allowThinking = true,
+    bool? allowThinking = null,
+    Map<String,bool> templateVariables = const {},
     List<Tool> tools = const [],
     nobodywho.SamplerConfig? sampler,
     bool useGpu = true,
@@ -553,6 +556,7 @@ class Chat {
       systemPrompt: systemPrompt,
       contextSize: contextSize,
       allowThinking: allowThinking,
+      templateVariables: templateVariables,
       tools: tools.map((t) => t._internalTool).toList(),
       sampler: sampler,
       useGpu: useGpu,
@@ -602,6 +606,7 @@ class Chat {
   );
 
   /// Set whether thinking/reasoning is allowed.
+  @Deprecated('Use setTemplateVariable("enable_thinking", value) instead')
   Future<void> setAllowThinking(bool allowThinking) =>
       _chat.setAllowThinking(allowThinking: allowThinking);
 
@@ -616,6 +621,14 @@ class Chat {
   /// Set the available tools.
   Future<void> setTools(List<Tool> tools) =>
       _chat.setTools(tools: tools.map((t) => t._internalTool).toList());
+  
+  Future<void> setTemplateVariable(String name, bool value) =>
+      _chat.setTemplateVariable(name: name, value: value);
+
+  Future<void> setTemplateVariables(Map<String,bool> variables) =>
+      _chat.setTemplateVariables(variables: variables);
+
+  Future<Map<String,bool>> getTemplateVariables() => _chat.getTemplateVariables();
 
   /// Stop the current generation.
   void stopGeneration() => _chat.stopGeneration();

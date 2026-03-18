@@ -158,6 +158,12 @@ String removeImports(String code) {
   return code.replaceAll(importRegex, '').trim();
 }
 
+/// Remove NobodyWho.init() calls — init is handled in setUpAll
+String removeInitCalls(String code) {
+  final initRegex = RegExp(r'^\s*await\s+nobodywho\.NobodyWho\.init\(\)\s*;\s*\n?', multiLine: true);
+  return code.replaceAll(initRegex, '').trim();
+}
+
 /// Check if code block should be skipped
 bool shouldSkipCodeBlock(String code) {
   final trimmed = code.trim();
@@ -231,12 +237,16 @@ String generateTestFile(List<CodeGroup> groups, String testName) {
   buffer.writeln("void main() {");
   buffer.writeln("  group('Doctest: $testName', () {");
 
-  // Setup for model symlinks
+  // Setup: init bridge and model symlinks
   buffer.writeln("    setUpAll(() async {");
+  buffer.writeln("      // Initialize flutter_rust_bridge");
+  buffer.writeln("      await nobodywho.NobodyWho.init();");
   buffer.writeln("      // Create symlinks for model paths used in docs");
   buffer.writeln("      final modelPath = Platform.environment['TEST_MODEL'];");
   buffer.writeln("      final embeddingPath = Platform.environment['TEST_EMBEDDINGS_MODEL'];");
   buffer.writeln("      final rerankerPath = Platform.environment['TEST_CROSSENCODER_MODEL'];");
+  buffer.writeln("      final visionModelPath = Platform.environment['TEST_MULTIMODAL_MODEL'];");
+  buffer.writeln("      final mmprojPath = Platform.environment['TEST_MULTIMODAL_MMPROJ'];");
   buffer.writeln();
   buffer.writeln("      if (modelPath != null && !File('./model.gguf').existsSync()) {");
   buffer.writeln("        Link('./model.gguf').createSync(modelPath);");
@@ -247,12 +257,25 @@ String generateTestFile(List<CodeGroup> groups, String testName) {
   buffer.writeln("      if (rerankerPath != null && !File('./reranker-model.gguf').existsSync()) {");
   buffer.writeln("        Link('./reranker-model.gguf').createSync(rerankerPath);");
   buffer.writeln("      }");
+  buffer.writeln("      if (visionModelPath != null && !File('./vision-model.gguf').existsSync()) {");
+  buffer.writeln("        Link('./vision-model.gguf').createSync(visionModelPath);");
+  buffer.writeln("      }");
+  buffer.writeln("      if (mmprojPath != null && !File('./mmproj.gguf').existsSync()) {");
+  buffer.writeln("        Link('./mmproj.gguf').createSync(mmprojPath);");
+  buffer.writeln("      }");
+  buffer.writeln("      // Create symlinks for test images used in vision docs");
+  buffer.writeln("      final testDir = '\${Directory.current.path}/test';");
+  buffer.writeln("      for (final image in ['dog.png', 'penguin.png']) {");
+  buffer.writeln("        if (!File('./\$image').existsSync() && File('\$testDir/\$image').existsSync()) {");
+  buffer.writeln("          Link('./\$image').createSync('\$testDir/\$image');");
+  buffer.writeln("        }");
+  buffer.writeln("      }");
   buffer.writeln("    });");
   buffer.writeln();
 
   buffer.writeln("    tearDownAll(() async {");
   buffer.writeln("      // Clean up symlinks");
-  buffer.writeln("      final links = ['./model.gguf', './embedding-model.gguf', './reranker-model.gguf'];");
+  buffer.writeln("      final links = ['./model.gguf', './embedding-model.gguf', './reranker-model.gguf', './vision-model.gguf', './mmproj.gguf', './dog.png', './penguin.png'];");
   buffer.writeln("      for (final path in links) {");
   buffer.writeln("        final link = Link(path);");
   buffer.writeln("        if (link.existsSync()) {");
@@ -274,17 +297,27 @@ String generateTestFile(List<CodeGroup> groups, String testName) {
 
     final testDescription = '${group.sourceFile}:${group.startLine}';
 
+    // Add skip guard for vision tests that require multimodal models
+    final needsVisionModel = code.contains('vision-model.gguf') || code.contains('mmproj.gguf');
+
     if (hasMainFunction(code)) {
       // Code has its own main - extract it as a separate function
       buffer.writeln("    test('$testDescription', () async {");
+      if (needsVisionModel) {
+        buffer.writeln("      if (Platform.environment['TEST_MULTIMODAL_MODEL'] == null || Platform.environment['TEST_MULTIMODAL_MMPROJ'] == null) return;");
+      }
       buffer.writeln("      await _doctest_$testIndex();");
       buffer.writeln("    });");
     } else {
       // Wrap inline code in a test
       buffer.writeln("    test('$testDescription', () async {");
+      if (needsVisionModel) {
+        buffer.writeln("      if (Platform.environment['TEST_MULTIMODAL_MODEL'] == null || Platform.environment['TEST_MULTIMODAL_MMPROJ'] == null) return;");
+      }
 
-      // Remove imports from inline code (they're at the top)
-      final codeWithoutImports = removeImports(code);
+      // Remove imports and init calls from inline code (they're handled in setup)
+      var codeWithoutImports = removeImports(code);
+      codeWithoutImports = removeInitCalls(codeWithoutImports);
 
       // Indent the code
       final indentedCode = codeWithoutImports.split('\n').map((l) => '      $l').join('\n');
@@ -312,8 +345,9 @@ String generateTestFile(List<CodeGroup> groups, String testName) {
       buffer.writeln();
       buffer.writeln("// Extracted from ${group.sourceFile}:${group.startLine}");
 
-      // Remove imports and rename main
+      // Remove imports, init calls, and rename main
       var codeWithoutImports = removeImports(code);
+      codeWithoutImports = removeInitCalls(codeWithoutImports);
       codeWithoutImports = codeWithoutImports
           .replaceFirst(RegExp(r'Future<void>\s+main\s*\('), 'Future<void> _doctest_$testIndex(')
           .replaceFirst(RegExp(r'void\s+main\s*\('), 'Future<void> _doctest_$testIndex(');
@@ -338,7 +372,8 @@ List<File> findMarkdownFiles(String dirPath) {
       .listSync(recursive: true)
       .whereType<File>()
       .where((f) => f.path.endsWith('.md'))
-      .toList();
+      .toList()
+    ..sort((a, b) => a.path.compareTo(b.path));
 }
 
 void main(List<String> args) async {

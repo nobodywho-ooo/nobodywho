@@ -146,22 +146,70 @@ By defualt `useGpu` is set to true.
 So far, NobodyWho relies purely on [Vulkan](https://www.vulkan.org), however support
 of more architectures is planned (for details check out our [issues](https://github.com/nobodywho-ooo/nobodywho/issues) or join us on [Discord](https://discord.gg/qhaMc2qCYB)).
 
-## Reasoning
+## Template Variables
 
-To enhance cognitive performance, allowing reasoning can be a good idea:
+Chat templates are used internally by models to format conversation history into the expected prompt format. Different models may support different template variables that control specific behaviors. Template variables are boolean flags passed to the chat template that can enable or disable certain features.
+
+### Using Template Variables
+
+You can set template variables when creating a chat or modify them on existing instances:
+
 ```dart
+final chat = await nobodywho.Chat.fromPath(
+  modelPath: "./model.gguf",
+  templateVariables: {"enable_thinking": true}
+);
+```
+
+You can also modify template variables on an existing chat instance:
+
+```{.dart continuation}
+// Set a single template variable
+await chat.setTemplateVariable("enable_thinking", true);
+
+// Set multiple template variables at once
+await chat.setTemplateVariables({
+    "enable_thinking": true,
+    "verbose_mode": false
+});
+
+// Get current template variables
+final variables = await chat.getTemplateVariables();
+print(variables); // {enable_thinking: true, verbose_mode: false}
+```
+
+With the next message sent, the updated settings will be propagated to the model.
+
+### Example: Qwen3 and Qwen3.5 Reasoning
+
+The Qwen3 and Qwen3.5 model families support the `enable_thinking` template variable, which controls whether the model should engage in explicit reasoning steps before answering:
+
+```dart
+final chat = await nobodywho.Chat.fromPath(
+  modelPath: "./model.gguf",
+  templateVariables: {"enable_thinking": true}
+);
+final response = chat.ask("Solve this logic puzzle: ...");
+```
+
+When `enable_thinking` is enabled, these models will show their reasoning process before providing the final answer.
+
+### Model-Specific Variables
+
+Different models may support different template variables depending on their chat template implementation. The available variables and their effects depend entirely on how the model's chat template is designed. Check your model's documentation to see which template variables are supported.
+
+!!! info ""
+    Note that template variables are model-specific. If a model's chat template doesn't use a specific variable, that variable will be ignored gracefully.
+
+### Backward Compatibility
+
+For backward compatibility, the deprecated `allowThinking` parameter is still available but internally sets the `enable_thinking` template variable:
+
+```dart
+// Deprecated - use templateVariables instead
 final chat = await nobodywho.Chat.fromPath(
   modelPath: "./model.gguf",
   allowThinking: true
 );
 ```
-Note that `Chat` has thinking set to `true` by default. You can also change the setting of an already existing chat instance:
-```{.dart continuation}
-await chat.setAllowThinking(true);
-```
-With the next message send, the setting will be propagated.
-
-!!! info ""
-    Note that **not every model** supports reasoning. If the model does not have
-    such an option, the `allowThinking` setting will be ignored.
 

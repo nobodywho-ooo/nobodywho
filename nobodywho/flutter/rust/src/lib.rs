@@ -1,5 +1,6 @@
 use flutter_rust_bridge::{DartFnFuture, Rust2DartSendError};
 use nobodywho::chat::Asset;
+use std::collections::HashMap;
 use std::sync::Arc;
 // ^ in general I've only done fully-qualified imports, but these things need to be imported to
 // satisfy some frb macros
@@ -102,15 +103,26 @@ impl RustChat {
         model: &Model,
         #[frb(default = "null")] system_prompt: Option<String>,
         #[frb(default = 4096)] context_size: u32,
-        #[frb(default = true)] allow_thinking: bool,
+        #[frb(default = "null")] allow_thinking: Option<bool>,
+        #[frb(default = "const {}")] template_variables: HashMap<String, bool>,
         #[frb(default = "const []")] tools: Vec<RustTool>,
         #[frb(default = "null")] sampler: Option<SamplerConfig>,
     ) -> Self {
         let sampler_config = sampler.map(|s| s.sampler_config).unwrap_or_default();
 
+        // Handle deprecated allow_thinking parameter
+        let mut template_vars = template_variables;
+        if let Some(allow) = allow_thinking {
+            tracing::warn!(
+                "allow_thinking parameter is deprecated. Use template_variables={{\"enable_thinking\": {}}} instead.",
+                allow
+            );
+            template_vars.insert("enable_thinking".to_string(), allow);
+        }
+
         let chat = nobodywho::chat::ChatBuilder::new(Arc::clone(&model.model))
             .with_context_size(context_size)
-            .with_allow_thinking(allow_thinking)
+            .with_template_variables(template_vars)
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
             .with_system_prompt(system_prompt)
             .with_sampler(sampler_config)
@@ -136,7 +148,8 @@ impl RustChat {
         #[frb(default = "null")] image_ingestion: Option<String>,
         #[frb(default = "null")] system_prompt: Option<String>,
         #[frb(default = 4096)] context_size: u32,
-        #[frb(default = true)] allow_thinking: bool,
+        #[frb(default = "null")] allow_thinking: Option<bool>,
+        #[frb(default = "const {}")] template_variables: HashMap<String, bool>,
         #[frb(default = "const []")] tools: Vec<RustTool>,
         #[frb(default = "null")] sampler: Option<SamplerConfig>,
         #[frb(default = true)] use_gpu: bool,
@@ -145,9 +158,19 @@ impl RustChat {
             .map_err(|e| e.to_string())?;
         let sampler_config = sampler.map(|s| s.sampler_config).unwrap_or_default();
 
+        // Handle deprecated allow_thinking parameter
+        let mut template_vars = template_variables;
+        if let Some(allow) = allow_thinking {
+            tracing::warn!(
+                "allow_thinking parameter is deprecated. Use template_variables={{\"enable_thinking\": {}}} instead.",
+                allow
+            );
+            template_vars.insert("enable_thinking".to_string(), allow);
+        }
+
         let chat = nobodywho::chat::ChatBuilder::new(Arc::new(model))
             .with_context_size(context_size)
-            .with_allow_thinking(allow_thinking)
+            .with_template_variables(template_vars)
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
             .with_system_prompt(system_prompt)
             .with_sampler(sampler_config)
@@ -215,11 +238,14 @@ impl RustChat {
         self.chat.reset_history().await
     }
 
+    #[deprecated(note = "Use setTemplateVariable(\"enable_thinking\", value) instead")]
     pub async fn set_allow_thinking(
         &self,
         allow_thinking: bool,
     ) -> Result<(), nobodywho::errors::SetterError> {
-        self.chat.set_allow_thinking(allow_thinking).await
+        self.chat
+            .set_template_variable("enable_thinking".to_string(), allow_thinking)
+            .await
     }
 
     pub async fn set_system_prompt(
@@ -236,6 +262,27 @@ impl RustChat {
         self.chat
             .set_tools(tools.into_iter().map(|t| t.tool).collect())
             .await
+    }
+
+    pub async fn set_template_variable(
+        &self,
+        name: String,
+        value: bool,
+    ) -> Result<(), nobodywho::errors::SetterError> {
+        self.chat.set_template_variable(name, value).await
+    }
+
+    pub async fn set_template_variables(
+        &self,
+        variables: HashMap<String, bool>,
+    ) -> Result<(), nobodywho::errors::SetterError> {
+        self.chat.set_template_variables(variables).await
+    }
+
+    pub async fn get_template_variables(
+        &self,
+    ) -> Result<HashMap<String, bool>, nobodywho::errors::GetterError> {
+        self.chat.get_template_variables().await
     }
 
     #[flutter_rust_bridge::frb(sync)]

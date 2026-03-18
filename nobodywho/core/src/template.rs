@@ -1,7 +1,8 @@
+use std::collections::HashMap;
 use std::sync::LazyLock;
 
 use llama_cpp_2::mtmd::MtmdBitmap;
-use minijinja::{context, Environment, Template};
+use minijinja::{Environment, Template, Value};
 use tracing::{debug, trace, warn};
 
 use crate::{
@@ -9,22 +10,6 @@ use crate::{
     errors::SelectTemplateError,
     tool_calling::Tool,
 };
-
-macro_rules! struct_with_keys_getter {
-    (pub struct $name:ident {
-        $(pub $field_name:ident: $field_type:ty,)*
-    }) => {
-        pub struct $name {
-            $(pub $field_name: $field_type,)*
-        }
-
-        impl $name {
-            fn get_field_names() -> Vec<String> {
-                vec![$(stringify!($field_name).to_string()),*]
-            }
-        }
-    }
-}
 
 fn strftime_now(format_str: &str) -> String {
     chrono::Local::now().format(format_str).to_string()
@@ -104,13 +89,15 @@ impl ChatTemplate {
     }
 
     fn get_required_variables() -> Vec<String> {
-        let mut required_variables = ChatTemplateContext::get_field_names();
-        required_variables.extend(vec![
+        // These are the core variables that chat templates typically use.
+        // Template variables (like enable_thinking) are dynamic and model-specific,
+        // so we don't require them - templates should handle missing variables gracefully.
+        vec![
             "bos_token".into(),
             "eos_token".into(),
             "add_generation_prompt".into(),
-        ]);
-        required_variables
+            "tools".into(),
+        ]
     }
 
     fn get_template(&self) -> Result<Template<'_, '_>, minijinja::Error> {
@@ -134,14 +121,26 @@ impl ChatTemplate {
 
         let template = self.get_template()?;
 
-        let rendered_messages = template.render(context! {
-            messages => messages,
-            add_generation_prompt => add_generation_prompt,
-            enable_thinking => ctx.enable_thinking,
-            bos_token => self.bos_token,
-            eos_token => self.eos_token,
-            tools => ctx.tools,
-        })?;
+        // Build context with all template variables merged in
+        // We build a Vec of (key, value) pairs and then create the context from it
+        let mut context_pairs: Vec<(String, Value)> = vec![
+            ("messages".to_string(), Value::from_serialize(messages)),
+            (
+                "add_generation_prompt".to_string(),
+                Value::from(add_generation_prompt),
+            ),
+            ("bos_token".to_string(), Value::from(self.bos_token.clone())),
+            ("eos_token".to_string(), Value::from(self.eos_token.clone())),
+            ("tools".to_string(), Value::from_serialize(&ctx.tools)),
+        ];
+
+        // Add all template variables
+        for (key, value) in &ctx.template_variables {
+            context_pairs.push((key.clone(), Value::from(*value)));
+        }
+
+        let merged_context = Value::from_iter(context_pairs);
+        let rendered_messages = template.render(merged_context)?;
 
         Ok(rendered_messages)
     }
@@ -238,12 +237,19 @@ impl ChatTemplate {
     }
 }
 
-struct_with_keys_getter! {
-    pub struct ChatTemplateContext {
-        // we call it allow thinking, because not every model has thinking mode,
-        // and 'enable' could then cause confusion
-        pub enable_thinking: bool,
-        pub tools: Option<Vec<Tool>>,
+pub struct ChatTemplateContext {
+    /// Template variables to pass to the chat template (e.g., enable_thinking, etc.)
+    pub template_variables: HashMap<String, bool>,
+    pub tools: Option<Vec<Tool>>,
+}
+
+impl ChatTemplateContext {
+    /// Create a new ChatTemplateContext with the given template variables and tools.
+    pub fn new(template_variables: HashMap<String, bool>, tools: Option<Vec<Tool>>) -> Self {
+        Self {
+            template_variables,
+            tools,
+        }
     }
 }
 
@@ -313,8 +319,10 @@ mod tests {
 
         let bos = "<|begin_of_text|>";
         let eos = "<|end_of_text|>";
+        let mut template_vars = HashMap::default();
+        template_vars.insert("enable_thinking".to_string(), true);
         let ctx = ChatTemplateContext {
-            enable_thinking: true,
+            template_variables: template_vars,
             tools: None,
         };
 
@@ -372,8 +380,10 @@ mod tests {
         let bos = "<|bos|>";
         let eos = "<|eos|>";
 
+        let mut template_vars = HashMap::default();
+        template_vars.insert("enable_thinking".to_string(), true);
         let ctx = ChatTemplateContext {
-            enable_thinking: true,
+            template_variables: template_vars,
             tools: None,
         };
 
@@ -447,8 +457,10 @@ mod tests {
         let bos = "";
         let eos = "";
 
+        let mut template_vars = HashMap::default();
+        template_vars.insert("enable_thinking".to_string(), true);
         let ctx = ChatTemplateContext {
-            enable_thinking: true,
+            template_variables: template_vars,
             tools: None,
         };
         let chat_template = ChatTemplate::new(template, bos, eos).unwrap();

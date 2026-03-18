@@ -17,10 +17,14 @@ import 'package:test/test.dart';
 void main() {
   group('Doctest: Flutter Docs', () {
     setUpAll(() async {
+      // Initialize flutter_rust_bridge
+      await nobodywho.NobodyWho.init();
       // Create symlinks for model paths used in docs
       final modelPath = Platform.environment['TEST_MODEL'];
       final embeddingPath = Platform.environment['TEST_EMBEDDINGS_MODEL'];
       final rerankerPath = Platform.environment['TEST_CROSSENCODER_MODEL'];
+      final visionModelPath = Platform.environment['TEST_MULTIMODAL_MODEL'];
+      final mmprojPath = Platform.environment['TEST_MULTIMODAL_MMPROJ'];
 
       if (modelPath != null && !File('./model.gguf').existsSync()) {
         Link('./model.gguf').createSync(modelPath);
@@ -31,11 +35,24 @@ void main() {
       if (rerankerPath != null && !File('./reranker-model.gguf').existsSync()) {
         Link('./reranker-model.gguf').createSync(rerankerPath);
       }
+      if (visionModelPath != null && !File('./vision-model.gguf').existsSync()) {
+        Link('./vision-model.gguf').createSync(visionModelPath);
+      }
+      if (mmprojPath != null && !File('./mmproj.gguf').existsSync()) {
+        Link('./mmproj.gguf').createSync(mmprojPath);
+      }
+      // Create symlinks for test images used in vision docs
+      final testDir = '${Directory.current.path}/test';
+      for (final image in ['dog.png', 'penguin.png']) {
+        if (!File('./$image').existsSync() && File('$testDir/$image').existsSync()) {
+          Link('./$image').createSync('$testDir/$image');
+        }
+      }
     });
 
     tearDownAll(() async {
       // Clean up symlinks
-      final links = ['./model.gguf', './embedding-model.gguf', './reranker-model.gguf'];
+      final links = ['./model.gguf', './embedding-model.gguf', './reranker-model.gguf', './vision-model.gguf', './mmproj.gguf', './dog.png', './penguin.png'];
       for (final path in links) {
         final link = Link(path);
         if (link.existsSync()) {
@@ -44,65 +61,77 @@ void main() {
       }
     });
 
-    test('index.md:16', () async {
-      
+    test('chat.md:17', () async {
+      final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
     });
 
-    test('index.md:23', () async {
-      await nobodywho.NobodyWho.init();
+    test('chat.md:23', () async {
+      final model = await nobodywho.Model.load(modelPath: "./model.gguf");
+      final chat = nobodywho.Chat(model : model);
     });
 
-    test('tool-calling.md:21', () async {
-      final circleAreaTool = nobodywho.Tool(
-        name: "circle_area",
-        description: "Calculates the area of a circle given its radius",
-        function: ({ required double radius }) {
-          final area = math.pi * radius * radius;
-          return "Circle with radius $radius has area ${area.toStringAsFixed(2)}";
-        }
-      );
+    test('chat.md:34', () async {
+      final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
+      final response = chat.ask("Is water wet?");
+      await for (final token in response) {
+         print(token);
+      }
+      final fullResponse = await response.completed();
+      final msgs = await chat.getChatHistory();
+      print(msgs[0].content); // "Is water wet?"
+      await chat.setChatHistory([
+        nobodywho.Message.message(role: nobodywho.Role.user, content: "What is water?")
+      ]);
     });
 
-    test('tool-calling.md:50', () async {
-      final getCurrentDirTool = nobodywho.Tool(
-        name: "get_current_dir",
-        description: "Gets path of the current directory",
-        function: () => Directory.current.path
-      );
-      
-      final listFilesTool = nobodywho.Tool(
-        name: "list_files",
-        description: "Lists files in the given directory.",
-        function: ({required String path}) {
-          final dir = Directory(path);
-          final files = dir.listSync()
-              .where((entity) => entity is File)
-              .map((file) => file.path.split('/').last)
-              .toList();
-          return "Files: ${files.join(', ')}";
-        },
-        parameterDescriptions : {"path" : "The path to directory you want list. Must be a valid path." }
-      );
-      
-      final getFileSizeTool = nobodywho.Tool(
-        name: "get_file_size",
-        description: "Gets the size of a file in bytes.",
-        function: ({required String filepath}) async {
-          final file = File(filepath);
-          final size = await file.length();
-          return "File size: $size bytes";
-        },
-        parameterDescriptions : {"filepath" : "The path to file you wish to know the size of. Must be a valid path." }
-      );
-      
+    test('chat.md:83', () async {
       final chat = await nobodywho.Chat.fromPath(
-        modelPath: './model.gguf',
-        tools: [getCurrentDirTool, listFilesTool, getFileSizeTool],
-        allowThinking : false
+        modelPath: "./model.gguf",
+        systemPrompt: "You are a mischievous assistant!"
       );
+    });
+
+    test('chat.md:99', () async {
+      final chat = await nobodywho.Chat.fromPath(
+        modelPath: "./model.gguf",
+        contextSize: 4096
+      );
+      await chat.resetContext(systemPrompt: "New system prompt", tools: []);
+    });
+
+    test('chat.md:138', () async {
+      final model = await nobodywho.Model.load(modelPath: './model.gguf', useGpu: true);
+    });
+
+    test('chat.md:142', () async {
+      final chat = await nobodywho.Chat.fromPath(modelPath: './model.gguf', useGpu : false);
+    });
+
+    test('chat.md:157', () async {
+      final chat = await nobodywho.Chat.fromPath(
+        modelPath: "./model.gguf",
+        templateVariables: {"enable_thinking": true}
+      );
+      // Set a single template variable
+      await chat.setTemplateVariable("enable_thinking", true);
       
-      final response = await chat.ask('What is the biggest file in my current directory?').completed();
-      print(response); // The largest file in your current directory is `model.gguf`.
+      // Set multiple template variables at once
+      await chat.setTemplateVariables({
+          "enable_thinking": true,
+          "verbose_mode": false
+      });
+      
+      // Get current template variables
+      final variables = await chat.getTemplateVariables();
+      print(variables); // {enable_thinking: true, verbose_mode: false}
+    });
+
+    test('chat.md:208', () async {
+      // Deprecated - use templateVariables instead
+      final chat = await nobodywho.Chat.fromPath(
+        modelPath: "./model.gguf",
+        allowThinking: true
+      );
     });
 
     test('embeddings-and-rag.md:22', () async {
@@ -193,18 +222,26 @@ void main() {
     });
 
     test('embeddings-and-rag.md:167', () async {
-      await _doctest_8();
+      await _doctest_13();
     });
 
-    test('embeddings-and-rag.md:216', () async {
-      await _doctest_9();
+    test('embeddings-and-rag.md:217', () async {
+      await _doctest_14();
     });
 
-    test('embeddings-and-rag.md:263', () async {
+    test('embeddings-and-rag.md:264', () async {
       // For longer documents, increase context size
       final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
       
       final crossencoder = await nobodywho.CrossEncoder.fromPath(modelPath: './reranker-model.gguf');
+    });
+
+    test('index.md:16', () async {
+      
+    });
+
+    test('index.md:23', () async {
+      
     });
 
     test('sampling.md:15', () async {
@@ -250,67 +287,93 @@ void main() {
       await chat.setSamplerConfig(sampler);
     });
 
-    test('chat.md:17', () async {
-      final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
-    });
-
-    test('chat.md:23', () async {
-      final model = await nobodywho.Model.load(modelPath: "./model.gguf");
-      final chat = nobodywho.Chat(model : model);
-    });
-
-    test('chat.md:34', () async {
-      final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
-      final response = await chat.ask("Is water wet?");
-      await for (final token in response) {
-         stdout.write(token);
-         await stdout.flush();
-      }
-      print("\n");
-      final fullResponse = await response.completed();
-      final msgs = await chat.getChatHistory();
-      print(msgs[0].content); // "Is water wet?"
-      await chat.setChatHistory([
-        nobodywho.Message.message(role: nobodywho.Role.user, content: "What is water?")
-      ]);
-    });
-
-    test('chat.md:85', () async {
-      final chat = await nobodywho.Chat.fromPath(
-        modelPath: "./model.gguf",
-        systemPrompt: "You are a mischievous assistant!"
+    test('tool-calling.md:21', () async {
+      final circleAreaTool = nobodywho.Tool(
+        name: "circle_area",
+        description: "Calculates the area of a circle given its radius",
+        function: ({ required double radius }) {
+          final area = math.pi * radius * radius;
+          return "Circle with radius $radius has area ${area.toStringAsFixed(2)}";
+        }
       );
     });
 
-    test('chat.md:101', () async {
-      final chat = await nobodywho.Chat.fromPath(
-        modelPath: "./model.gguf",
-        contextSize: 4096
+    test('tool-calling.md:50', () async {
+      final getCurrentDirTool = nobodywho.Tool(
+        name: "get_current_dir",
+        description: "Gets path of the current directory",
+        function: () => Directory.current.path
       );
-      await chat.resetContext(systemPrompt: "New system prompt", tools: []);
-    });
-
-    test('chat.md:140', () async {
-      final model = await nobodywho.Model.load(modelPath: './model.gguf', useGpu: true);
-    });
-
-    test('chat.md:144', () async {
-      final chat = await nobodywho.Chat.fromPath(modelPath: './model.gguf', useGpu : false);
-    });
-
-    test('chat.md:154', () async {
-      final chat = await nobodywho.Chat.fromPath(
-        modelPath: "./model.gguf",
-        allowThinking: true
+      
+      final listFilesTool = nobodywho.Tool(
+        name: "list_files",
+        description: "Lists files in the given directory.",
+        function: ({required String path}) {
+          final dir = Directory(path);
+          final files = dir.listSync()
+              .where((entity) => entity is File)
+              .map((file) => file.path.split('/').last)
+              .toList();
+          return "Files: ${files.join(', ')}";
+        },
+        parameterDescriptions : {"path" : "The path to directory you want list. Must be a valid path." }
       );
-      await chat.setAllowThinking(true);
+      
+      final getFileSizeTool = nobodywho.Tool(
+        name: "get_file_size",
+        description: "Gets the size of a file in bytes.",
+        function: ({required String filepath}) async {
+          final file = File(filepath);
+          final size = await file.length();
+          return "File size: $size bytes";
+        },
+        parameterDescriptions : {"filepath" : "The path to file you wish to know the size of. Must be a valid path." }
+      );
+      
+      final chat = await nobodywho.Chat.fromPath(
+        modelPath: './model.gguf',
+        tools: [getCurrentDirTool, listFilesTool, getFileSizeTool],
+        templateVariables: {"enable_thinking": false}
+      );
+      
+      final response = await chat.ask('What is the biggest file in my current directory?').completed();
+      print(response); // The largest file in your current directory is `model.gguf`.
+    });
+
+    test('vision.md:25', () async {
+      if (Platform.environment['TEST_MULTIMODAL_MODEL'] == null || Platform.environment['TEST_MULTIMODAL_MMPROJ'] == null) return;
+      final model = await nobodywho.Model.load(
+        modelPath: "./vision-model.gguf",
+        imageIngestion: "./mmproj.gguf",
+      );
+      final chat = nobodywho.Chat(
+        model: model,
+        systemPrompt: "You are a helpful assistant.",
+      );
+      final response = await chat.askWithPrompt(nobodywho.Prompt([
+        nobodywho.TextPart("Tell me what you see in the images."),
+        nobodywho.ImagePart("./dog.png"),
+        nobodywho.ImagePart("./penguin.png"),
+      ])).completed(); // It's a dog and a penguin!
+      await chat.resetHistory();
+      final response2 = await chat.askWithPrompt(nobodywho.Prompt([
+        nobodywho.TextPart("Tell me what you see in the first image."),
+        nobodywho.ImagePart("./dog.png"),
+        nobodywho.TextPart("Also tell me what you see in the second image."),
+        nobodywho.ImagePart("./penguin.png"),
+      ])).completed();
+      final chat2 = nobodywho.Chat(
+        model: model,
+        systemPrompt: "You are a helpful assistant.",
+        contextSize: 8192,
+      );
     });
 
   });
 }
 
 // Extracted from embeddings-and-rag.md:167
-Future<void> _doctest_8() async {
+Future<void> _doctest_13() async {
   // Initialize the cross-encoder for document ranking
   final crossencoder = await nobodywho.CrossEncoder.fromPath(modelPath: './reranker-model.gguf');
 
@@ -341,6 +404,7 @@ Future<void> _doctest_8() async {
   final chat = await nobodywho.Chat.fromPath(
     modelPath: './model.gguf',
     systemPrompt: "You are a customer service assistant. Use the search_knowledge tool to find relevant information from our policies before answering customer questions.",
+    templateVariables: {"enable_thinking": false},
     tools: [searchKnowledgeTool]
   );
 
@@ -349,8 +413,8 @@ Future<void> _doctest_8() async {
   print(response);
 }
 
-// Extracted from embeddings-and-rag.md:216
-Future<void> _doctest_9() async {
+// Extracted from embeddings-and-rag.md:217
+Future<void> _doctest_14() async {
   final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
   
   final crossencoder = await nobodywho.CrossEncoder.fromPath(modelPath: './reranker-model.gguf');
