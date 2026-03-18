@@ -60,44 +60,13 @@ impl ChatTemplate {
         bos_token: &str,
         eos_token: &str,
     ) -> Result<Self, minijinja::Error> {
-        let template = MINIJINJA_ENV.template_from_str(original_template)?;
-
         trace!("Loading chat template: {}", original_template);
-
-        for missing_variable in Self::detect_missing_variables(&template) {
-            warn!("Missing required variable in the template: {}. This might affect functionality of the model.", missing_variable);
-        }
 
         Ok(Self {
             template: original_template.to_string(),
             bos_token: bos_token.to_string(),
             eos_token: eos_token.to_string(),
         })
-    }
-
-    fn detect_missing_variables(template: &Template<'_, '_>) -> Vec<String> {
-        let template_variables = template
-            .undeclared_variables(true)
-            .into_iter()
-            .collect::<Vec<String>>();
-        let required_variables = ChatTemplate::get_required_variables();
-
-        required_variables
-            .into_iter()
-            .filter(|v| !template_variables.contains(v))
-            .collect()
-    }
-
-    fn get_required_variables() -> Vec<String> {
-        // These are the core variables that chat templates typically use.
-        // Template variables (like enable_thinking) are dynamic and model-specific,
-        // so we don't require them - templates should handle missing variables gracefully.
-        vec![
-            "bos_token".into(),
-            "eos_token".into(),
-            "add_generation_prompt".into(),
-            "tools".into(),
-        ]
     }
 
     fn get_template(&self) -> Result<Template<'_, '_>, minijinja::Error> {
