@@ -64,10 +64,6 @@ impl ChatTemplate {
 
         trace!("Loading chat template: {}", original_template);
 
-        for missing_variable in Self::detect_missing_variables(&template) {
-            warn!("Missing required variable in the template: {}. This might affect functionality of the model.", missing_variable);
-        }
-
         Ok(Self {
             template: original_template.to_string(),
             bos_token: bos_token.to_string(),
