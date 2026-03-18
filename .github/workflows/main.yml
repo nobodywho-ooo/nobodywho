@@ -4,6 +4,7 @@ on:
     branches: [main]
     tags: ['nobodywho-*']
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
   workflow_dispatch:
     inputs:
       full_ci:

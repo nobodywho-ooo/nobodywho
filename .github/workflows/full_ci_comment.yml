@@ -13,6 +13,7 @@ jobs:
     permissions:
       actions: write
       pull-requests: read
+      issues: write
     steps:
       - name: Check permissions
         id: auth
@@ -24,7 +25,8 @@ jobs:
               repo: context.repo.repo,
               username: context.actor,
             });
-            const allowed = ['admin', 'maintain', 'write'].includes(data.permission);
+            // permission field uses legacy mapping: maintain→write, triage→read
+            const allowed = ['admin', 'write'].includes(data.permission);
             if (!allowed) {
               await github.rest.reactions.createForIssueComment({
                 owner: context.repo.owner,
