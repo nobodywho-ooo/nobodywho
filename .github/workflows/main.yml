@@ -23,7 +23,6 @@ jobs:
 
   python_ci:
     uses: ./.github/workflows/python_ci.yml
-    needs: [linting]
     with:
       full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
 
@@ -31,11 +30,9 @@ jobs:
     uses: ./.github/workflows/build.yml
     with:
       full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
-    needs: [linting]
 
   test:
     uses: ./.github/workflows/test.yml
-    needs: [linting]
     with:
       full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
     secrets:
@@ -43,7 +40,7 @@ jobs:
 
   release:
     if: startsWith(github.ref, 'refs/tags/nobodywho-')
-    needs: [build, test, python_ci]
+    needs: [linting, build, test, python_ci]
     uses: ./.github/workflows/release.yml
     secrets:
       TEST_PYPI_AUTH_TOKEN: ${{ secrets.TEST_PYPI_AUTH_TOKEN }}
