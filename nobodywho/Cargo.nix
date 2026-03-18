@@ -6613,7 +6613,7 @@ rec {
           {
             name = "pyo3";
             packageId = "pyo3";
-            features = [ "abi3-py38" "experimental-async" "experimental-inspect" ];
+            features = [ "abi3-py38" "experimental-async" "experimental-inspect" "extension-module" ];
           }
           {
             name = "pyo3-async-runtimes";
@@ -7629,7 +7629,7 @@ rec {
           "unindent" = [ "dep:unindent" ];
           "uuid" = [ "dep:uuid" ];
         };
-        resolvedDefaultFeatures = [ "abi3" "abi3-py310" "abi3-py311" "abi3-py312" "abi3-py313" "abi3-py314" "abi3-py38" "abi3-py39" "default" "experimental-async" "experimental-inspect" "indoc" "macros" "pyo3-macros" "unindent" ];
+        resolvedDefaultFeatures = [ "abi3" "abi3-py310" "abi3-py311" "abi3-py312" "abi3-py313" "abi3-py314" "abi3-py38" "abi3-py39" "default" "experimental-async" "experimental-inspect" "extension-module" "indoc" "macros" "pyo3-macros" "unindent" ];
       };
       "pyo3-async-runtimes" = rec {
         crateName = "pyo3-async-runtimes";
@@ -7752,7 +7752,7 @@ rec {
           "abi3-py39" = [ "abi3-py310" ];
           "generate-import-lib" = [ "dep:python3-dll-a" ];
         };
-        resolvedDefaultFeatures = [ "abi3" "abi3-py310" "abi3-py311" "abi3-py312" "abi3-py313" "abi3-py314" "abi3-py38" "abi3-py39" "default" "resolve-config" ];
+        resolvedDefaultFeatures = [ "abi3" "abi3-py310" "abi3-py311" "abi3-py312" "abi3-py313" "abi3-py314" "abi3-py38" "abi3-py39" "default" "extension-module" "resolve-config" ];
       };
       "pyo3-ffi" = rec {
         crateName = "pyo3-ffi";
@@ -7790,7 +7790,7 @@ rec {
           "extension-module" = [ "pyo3-build-config/extension-module" ];
           "generate-import-lib" = [ "pyo3-build-config/generate-import-lib" ];
         };
-        resolvedDefaultFeatures = [ "abi3" "abi3-py310" "abi3-py311" "abi3-py312" "abi3-py313" "abi3-py314" "abi3-py38" "abi3-py39" "default" ];
+        resolvedDefaultFeatures = [ "abi3" "abi3-py310" "abi3-py311" "abi3-py312" "abi3-py313" "abi3-py314" "abi3-py38" "abi3-py39" "default" "extension-module" ];
       };
       "pyo3-introspection" = rec {
         crateName = "pyo3-introspection";

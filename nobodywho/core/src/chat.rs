@@ -947,27 +947,13 @@ impl ChatContext {
         &mut self,
         bitmaps: Vec<MtmdBitmap>,
     ) -> Result<Vec<String>, MultimodalError> {
-        let bitmap_map: IndexMap<ChunkId, MtmdBitmap> = bitmaps
-            .into_iter()
-            .map(|bitmap| {
-                let id = self.create_bitmap_id(&bitmap);
-                bitmap.set_id(&id)?;
-
-                Ok((id, bitmap))
-            })
-            .collect::<Result<IndexMap<ChunkId, MtmdBitmap>, MultimodalError>>()?;
-
-        let bitmap_ids = bitmap_map.keys().cloned().collect::<Vec<_>>();
-        let existing_bitmap_ids = self
-            .bitmaps
-            .keys()
-            .filter(|&id| bitmap_ids.contains(id))
-            .cloned()
-            .collect::<Vec<_>>();
-
-        self.remove_bitmaps(existing_bitmap_ids);
-        self.bitmaps.extend(bitmap_map);
-
+        let mut bitmap_ids = Vec::with_capacity(bitmaps.len());
+        for bitmap in bitmaps {
+            let id = self.create_bitmap_id(&bitmap);
+            bitmap.set_id(&id)?;
+            bitmap_ids.push(id.clone());
+            self.bitmaps.entry(id).or_insert(bitmap);
+        }
         Ok(bitmap_ids)
     }
 
@@ -1523,7 +1509,13 @@ impl Worker<'_, ChatWorker> {
                 .render_unhandled(messages, &template_context)?
         };
 
-        let bitmaps = self.extra.context.bitmaps.values().collect::<Vec<_>>();
+        let bitmaps: Vec<&MtmdBitmap> = self
+            .extra
+            .messages
+            .iter()
+            .flat_map(|msg| msg.assets())
+            .filter_map(|asset| self.extra.context.bitmaps.get(&asset.id))
+            .collect();
         Ok(self.tokenizer.tokenize(rendered_chat, bitmaps)?)
     }
 
@@ -1698,6 +1690,10 @@ impl Worker<'_, ChatWorker> {
         // messages[0], which will result in an error. So now we never
         // sync with an empty render and we only render when there are
         // messages present in the history.
+
+        self.extra
+            .context
+            .garbage_collect_bitmaps(&self.extra.messages);
 
         Ok(())
     }
