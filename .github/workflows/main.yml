@@ -1,6 +1,16 @@
 name: "Build and test"
 on:
   push:
+    branches: [main]
+    tags: ['nobodywho-*']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      full_ci:
+        type: boolean
+        default: true
+        description: 'Run full CI suite (all platforms, all tests)'
+
 permissions:
   contents: write
   pages: write
@@ -14,22 +24,25 @@ jobs:
   python_ci:
     uses: ./.github/workflows/python_ci.yml
     needs: [linting]
+    with:
+      full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
 
   build:
     uses: ./.github/workflows/build.yml
     with:
-      upload_artifacts: true
-      full_macos_build: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/nobodywho-') }}
+      full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
     needs: [linting]
 
   test:
     uses: ./.github/workflows/test.yml
     needs: [linting]
+    with:
+      full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
     secrets:
       CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
 
-
   release:
+    if: startsWith(github.ref, 'refs/tags/nobodywho-')
     needs: [build, test, python_ci]
     uses: ./.github/workflows/release.yml
     secrets:

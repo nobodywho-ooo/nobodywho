@@ -2,30 +2,14 @@ name: "Build"
 on:
   workflow_call:
     inputs:
-      upload_artifacts:
-        type: boolean
-        default: true
-      full_macos_build:
-        description: "Run full macOS matrix (all targets, profiles). If false, only builds aarch64-darwin-release."
+      full_ci:
+        description: "Run full build matrix (all platforms, all targets, all profiles)."
         type: boolean
         default: false
 
 jobs:
-  # Dynamically compute macOS matrix based on full_macos_build input
-  setup-macos-matrix:
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-      - id: set-matrix
-        run: |
-          if [ "${{ inputs.full_macos_build }}" == "true" ]; then
-            echo 'matrix={"target":["x86_64-apple-darwin","aarch64-apple-darwin","aarch64-apple-ios","aarch64-apple-ios-sim"],"profile":["debug","release"],"integration":["godot","flutter"]}' >> $GITHUB_OUTPUT
-          else
-            echo 'matrix={"target":["aarch64-apple-darwin","aarch64-apple-ios"],"profile":["release"],"integration":["godot","flutter"]}' >> $GITHUB_OUTPUT
-          fi
-
   cargo-build-linux:
+    if: inputs.full_ci
     strategy:
       fail-fast: false
       matrix:
@@ -103,6 +87,7 @@ jobs:
           path: ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
 
   cargo-build-windows:
+    if: inputs.full_ci
     runs-on: windows-latest
     strategy:
       fail-fast: false
@@ -188,11 +173,22 @@ jobs:
             ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
 
   cargo-build-macos:
-    needs: setup-macos-matrix
+    if: inputs.full_ci
     runs-on: macos-15
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.setup-macos-matrix.outputs.matrix) }}
+      matrix:
+        target:
+          - "x86_64-apple-darwin"
+          - "aarch64-apple-darwin"
+          - "aarch64-apple-ios"
+          - "aarch64-apple-ios-sim"
+        profile:
+          - "debug"
+          - "release"
+        integration:
+          - "godot"
+          - "flutter"
     steps:
       - uses: actions/checkout@v4
       - run: |
@@ -234,7 +230,7 @@ jobs:
   # builds an "xcframework"
   # which is an apple thing that contains binaries for multiple systems
   build-flutter-xcframework:
-    if: inputs.full_macos_build
+    if: inputs.full_ci
     runs-on: macos-15
     needs: [cargo-build-macos]
     steps:
@@ -312,6 +308,7 @@ jobs:
           path: ./nobodywho_flutter.xcframework.zip
 
   cargo-build-android:
+    if: inputs.full_ci
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
