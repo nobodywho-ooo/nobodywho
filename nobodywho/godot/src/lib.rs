@@ -270,7 +270,6 @@ impl NobodyWhoChat {
                 tools: self.tools.clone(),
                 n_ctx: self.context_length,
                 template_variables: temp_vars,
-                allow_thinking: self.allow_thinking,
                 sampler_config: None,
             },
         );
