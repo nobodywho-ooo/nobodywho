@@ -29,7 +29,6 @@ python3Packages.buildPythonPackage {
   '';
 
   inherit doCheck;
-  pytestFlagsArray = [ "-m" "not network" ];
 
   nativeCheckInputs = with python3Packages; [
     pytestCheckHook
