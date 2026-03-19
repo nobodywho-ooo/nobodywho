@@ -210,7 +210,7 @@ pub fn get_model_path_from_download(
     Ok(path)
 }
 
-fn read_add_bos_metadata(model: &Arc<LlamaModel>) -> Result<AddBos, InitWorkerError> {
+fn read_add_bos_metadata(model: &LlamaModel) -> Result<AddBos, InitWorkerError> {
     match model.meta_val_str("tokenizer.ggml.add_bos_token") {
         Ok(val) => match val.as_str() {
             "true" => Ok(AddBos::Always),
