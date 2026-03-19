@@ -69,29 +69,6 @@ impl ChatTemplate {
         })
     }
 
-    fn detect_missing_variables(template: &Template<'_, '_>) -> Vec<String> {
-        let template_variables = template
-            .undeclared_variables(true)
-            .into_iter()
-            .collect::<Vec<String>>();
-        let required_variables = ChatTemplate::get_required_variables();
-
-        required_variables
-            .into_iter()
-            .filter(|v| !template_variables.contains(v))
-            .collect()
-    }
-
-    fn get_required_variables() -> Vec<String> {
-        let mut required_variables = ChatTemplateContext::get_field_names();
-        required_variables.extend(vec![
-            "bos_token".into(),
-            "eos_token".into(),
-            "add_generation_prompt".into(),
-        ]);
-        required_variables
-    }
-
     fn get_template(&self) -> Result<Template<'_, '_>, minijinja::Error> {
         MINIJINJA_ENV.template_from_str(&self.template)
     }
