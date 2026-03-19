@@ -67,12 +67,17 @@ pub struct Asset {
     path: PathBuf,
 }
 
+// deny_unknown_fields is required because assets has a serde default, making the
+// Message variant so permissive it would greedily match ToolCalls/ToolResp JSON
+// before they get a chance (serde untagged tries variants in declaration order
+// and ignores unknown fields by default).
 #[derive(Deserialize, Serialize, Clone, Debug)]
-#[serde(untagged)]
+#[serde(untagged, deny_unknown_fields)]
 pub enum Message {
     Message {
         role: Role,
         content: String,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
         assets: Vec<Asset>,
     },
     // it's kind of weird to have the content field in here
