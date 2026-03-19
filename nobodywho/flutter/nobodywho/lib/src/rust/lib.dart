@@ -132,7 +132,8 @@ abstract class RustChat implements RustOpaqueInterface {
     String? imageIngestion = null,
     String? systemPrompt = null,
     int contextSize = 4096,
-    bool allowThinking = true,
+    bool? allowThinking = null,
+    Map<String, bool> templateVariables = const {},
     List<RustTool> tools = const [],
     SamplerConfig? sampler = null,
     bool useGpu = true,
@@ -142,6 +143,7 @@ abstract class RustChat implements RustOpaqueInterface {
     systemPrompt: systemPrompt,
     contextSize: contextSize,
     allowThinking: allowThinking,
+    templateVariables: templateVariables,
     tools: tools,
     sampler: sampler,
     useGpu: useGpu,
@@ -152,6 +154,8 @@ abstract class RustChat implements RustOpaqueInterface {
   Future<SamplerConfig> getSamplerConfig();
 
   Future<String?> getSystemPrompt();
+
+  Future<Map<String, bool>> getTemplateVariables();
 
   /// Create chat from existing model.
   ///
@@ -171,7 +175,8 @@ abstract class RustChat implements RustOpaqueInterface {
     required Model model,
     String? systemPrompt = null,
     int contextSize = 4096,
-    bool allowThinking = true,
+    bool? allowThinking = null,
+    Map<String, bool> templateVariables = const {},
     List<RustTool> tools = const [],
     SamplerConfig? sampler = null,
   }) => NobodyWho.instance.api.crateRustChatNew(
@@ -179,6 +184,7 @@ abstract class RustChat implements RustOpaqueInterface {
     systemPrompt: systemPrompt,
     contextSize: contextSize,
     allowThinking: allowThinking,
+    templateVariables: templateVariables,
     tools: tools,
     sampler: sampler,
   );
@@ -197,6 +203,10 @@ abstract class RustChat implements RustOpaqueInterface {
   Future<void> setSamplerConfig({required SamplerConfig samplerConfig});
 
   Future<void> setSystemPrompt({String? systemPrompt});
+
+  Future<void> setTemplateVariable({required String name, required bool value});
+
+  Future<void> setTemplateVariables({required Map<String, bool> variables});
 
   Future<void> setTools({required List<RustTool> tools});
 
