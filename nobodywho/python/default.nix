@@ -57,6 +57,7 @@ python3Packages.buildPythonPackage {
     "docs"
     "-o=python_files=test_*.py *.md"
     "-o=confcutdir=."
+    "-m" "not network"
   ];
 
   # Vision/multimodal tests are too slow in the nix sandbox (no GPU access)
