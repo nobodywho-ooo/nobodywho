@@ -440,7 +440,7 @@ void main() {
       expect(response2, contains("WOW test WOW"));
     });
 
-    test('Python tool fibonacci', () async {
+    test('Python tool hello world', () async {
       final pythonChat = await nobodywho.Chat.fromPath(
         modelPath: modelPath,
         allowThinking: false,
