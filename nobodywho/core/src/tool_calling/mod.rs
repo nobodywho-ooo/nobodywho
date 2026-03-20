@@ -140,15 +140,7 @@ impl Tool {
                         return "ERROR: commands parameter could not be extracted".to_string();
                     };
 
-                    let rt = match tokio::runtime::Builder::new_current_thread()
-                        .enable_all()
-                        .build()
-                    {
-                        Ok(rt) => rt,
-                        Err(e) => return format!("ERROR: Failed to create tokio runtime: {e}"),
-                    };
-
-                    rt.block_on(async {
+                    futures::executor::block_on(async {
                         let fs = std::sync::Arc::new(InMemoryFs::new());
                         let limits = if let Some(max_cmds) = max_commands {
                             ExecutionLimits::new().max_commands(max_cmds)
