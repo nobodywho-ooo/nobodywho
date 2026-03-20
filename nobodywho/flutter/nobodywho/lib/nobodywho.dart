@@ -483,6 +483,22 @@ class Tool {
     return Tool._(rustTool);
   }
 
+  /// Creates a built-in tool that lets the LLM run sandboxed bash commands.
+  ///
+  /// The model can call this tool to execute self-contained bash snippets
+  /// in an in-memory filesystem. No network, host filesystem, or environment
+  /// variable access is permitted.
+  ///
+  /// - [maxCommands]: Maximum number of commands the snippet may execute.
+  factory Tool.bash({
+    int? maxCommands,
+  }) {
+    final rustTool = nobodywho.newBashTool(
+      maxCommands: maxCommands != null ? BigInt.from(maxCommands) : null,
+    );
+    return Tool._(rustTool);
+  }
+
   /// Internal getter for Chat to access the underlying tool
   nobodywho.RustTool get _internalTool => _tool;
 }
