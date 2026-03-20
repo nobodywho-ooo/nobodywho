@@ -52,7 +52,7 @@ jobs:
         run: uvx ty check
 
   linux-build:
-    if: inputs.full_ci || github.ref == 'refs/heads/krebso/functiongemma-seqfault' || github.head_ref == 'krebso/functiongemma-seqfault'
+    if: inputs.full_ci
     # Build inside manylinux_2_34 container for glibc 2.34 compatibility
     # This targets glibc version 2.34 which covers most distros going back to 2021
     # See: https://github.com/mayeut/pep600_compliance?tab=readme-ov-file#distro-compatibility
@@ -298,7 +298,7 @@ jobs:
           python3 -m pytest tests/test_multimodal.py -v --tb=short
 
   linux-tool-calling-tests:
-    if: inputs.full_ci || github.ref == 'refs/heads/krebso/functiongemma-seqfault' || github.head_ref == 'krebso/functiongemma-seqfault'
+    if: inputs.full_ci
     needs: [linux-build]
     runs-on: ubuntu-24.04
     strategy:
