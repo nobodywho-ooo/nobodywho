@@ -40,5 +40,5 @@ migrate_working_dir/
 *.so
 
 # Symlinks created by doctest setup
-dog.png
-penguin.png
+/dog.png
+/penguin.png
