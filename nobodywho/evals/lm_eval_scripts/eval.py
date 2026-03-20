@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import platform
@@ -149,6 +150,7 @@ class NobodyWhoLM(LM):
     image_model_path: Path | None
     system_prompt: str | None
     response_processor: "Callable[[str], str] | None"
+    stop_sequences_override: "list[str] | None"
     failed_samples: list[dict]
     total_samples: int
     total_tokens_generated: int
@@ -186,6 +188,8 @@ class NobodyWhoLM(LM):
 
         # response processor (optional task-specific post-processing)
         self.response_processor = None
+        # stop sequences override (None = use task defaults, [] = disable)
+        self.stop_sequences_override = None
 
         # image model path (mmproj)
         if image_model_path is not None:
@@ -278,7 +282,10 @@ class NobodyWhoLM(LM):
             # extract generation args (stop sequences, max tokens)
             request_args = request[1] if len(request) > 1 else {}
             max_gen_toks = request_args.get("max_gen_toks")  # None if not specified
-            until = request_args.get("until", [])
+            if self.stop_sequences_override is not None:
+                until = self.stop_sequences_override
+            else:
+                until = request_args.get("until", [])
 
             # check for multimodal content (3rd element with "visual" key)
             images = None
@@ -358,10 +365,15 @@ class NobodyWhoLM(LM):
                         f"Full response ({len(tokens)} tokens): "
                         f"{full_response[:200]!r}...{full_response[-200:]!r}"
                     )
+                    print(f"  [DEBUG] completed() ({len(tokens)} tok): {full_response[:300]!r}")
                 if self.allow_thinking and "</think>" in full_response:
-                    response_text = full_response.split("</think>", 1)[1].lstrip()
+                    # Split on last </think> to handle models that emit multiple think blocks
+                    response_text = full_response.rsplit("</think>", 1)[1].lstrip()
+                    print(f"  [DEBUG] after think-strip: {response_text[:300]!r}")
                 else:
                     response_text = full_response
+                    if self.allow_thinking:
+                        print(f"  [DEBUG] no </think> found, using full response")
 
                 # truncate at stop sequence if present
                 for stop_seq in until:
@@ -381,9 +393,16 @@ class NobodyWhoLM(LM):
 
             # Apply task-specific post-processing if configured
             if self.response_processor is not None:
+                pre_processor = response_text
                 response_text = self.response_processor(response_text)
+                if self.allow_thinking and response_text != pre_processor:
+                    print(f"  [DEBUG] after response_processor: {response_text[:300]!r}")
 
-            result.append(response_text.strip())
+            final = response_text.strip()
+            if self.allow_thinking:
+                print(f"  [DEBUG] final result: {final[:300]!r}")
+
+            result.append(final)
             self.total_samples += 1
         return result
 
@@ -494,20 +513,12 @@ def build_run_row(
     total_tokens_generated: int = 0,
     total_generation_time: float = 0.0,
     sampler_config: dict | None = None,
-    model_name_override: str | None = None,
-    model_size_override: float | None = None,
     allow_thinking: bool = False,
 ) -> dict:
     """Build a flat dict for one CSV row from a complete run."""
     import time
 
-    # Get model size - use override or calculate from file
-    if model_size_override is not None:
-        model_size_gb = model_size_override
-    elif model_path.exists():
-        model_size_gb = round(model_path.stat().st_size / (1024**3), 2)
-    else:
-        model_size_gb = ""  # Unknown (e.g., gguf server)
+    model_size_gb = round(model_path.stat().st_size / (1024**3), 2)
     failure_rate = failed_count / total_samples if total_samples > 0 else 0.0
     tokens_per_second = (
         total_tokens_generated / total_generation_time
@@ -515,8 +526,7 @@ def build_run_row(
         else 0.0
     )
 
-    # Use override for model name or get from path
-    resolved_model_name = model_name_override if model_name_override else model_path.stem
+    resolved_model_name = model_path.stem
 
     row = {
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -666,3 +676,125 @@ def print_results(results: dict):
         for metric_name, value in metrics.items():
             if not metric_name.endswith(",stderr"):
                 print(f"  {metric_name}: {value}")
+
+
+# ── Incorrect sample collection ──────────────────────────────────────
+
+# The per-sample metric key used to determine correctness per task.
+# These are the raw keys from process_results(), WITHOUT filter suffixes.
+# A sample is "incorrect" when this metric is falsy (0, 0.0, False).
+PRIMARY_METRIC: dict[str, str] = {
+    "ifeval": "prompt_level_strict_acc",
+    "gsm8k": "exact_match",
+    "truthfulqa_gen": "bleu_acc",
+    "humaneval": "pass@1",
+    "mbpp": "pass_at_1",
+    "drop": "em",
+    "mmmu_val_science": "acc",
+    "mmmu_val_humanities_and_social_science": "acc",
+}
+
+
+def save_incorrect_samples(
+    results: dict,
+    task_name: str,
+    output_path: Path,
+    model_name: str,
+    allow_thinking: bool,
+):
+    """Write incorrect samples to a JSONL file for debugging.
+
+    Each line is a JSON object with prompt, response, thinking block,
+    target, and per-sample metrics.
+    """
+    if "samples" not in results or task_name not in results["samples"]:
+        logger.warning(f"No samples found for {task_name}, skipping incorrect sample export")
+        return
+
+    metric_key = PRIMARY_METRIC.get(task_name)
+    if metric_key is None:
+        logger.warning(f"No primary metric defined for {task_name}, skipping incorrect sample export")
+        return
+
+    samples = results["samples"][task_name]
+    if not samples:
+        return
+
+    # Verify the metric key exists in the first sample
+    first_sample_metrics = samples[0].get("metrics", [])
+    if metric_key not in first_sample_metrics:
+        logger.warning(
+            f"Primary metric '{metric_key}' not found in {task_name} samples. "
+            f"Available per-sample metrics: {first_sample_metrics}"
+        )
+        return
+
+    incorrect = []
+
+    for sample in samples:
+        score = sample.get(metric_key)
+        if score is None:
+            continue
+        # Falsy score = incorrect (covers 0, 0.0, False)
+        if score:
+            continue
+
+        # Extract the full raw response
+        full_response = ""
+        if "resps" in sample and sample["resps"]:
+            resp = sample["resps"][0]
+            if isinstance(resp, (list, tuple)) and resp:
+                full_response = str(resp[0])
+            else:
+                full_response = str(resp)
+
+        # Split thinking from response
+        thinking = ""
+        response_text = full_response
+        if allow_thinking and "</think>" in full_response:
+            parts = full_response.split("</think>", 1)
+            thinking = parts[0].replace("<think>", "").strip()
+            response_text = parts[1].strip()
+
+        # Extract prompt text from arguments
+        prompt = ""
+        if "arguments" in sample and sample["arguments"]:
+            arg = sample["arguments"][0]
+            if isinstance(arg, (list, tuple)) and arg:
+                prompt = str(arg[0])
+            else:
+                prompt = str(arg)
+
+        # Collect all per-sample metric values
+        metric_names = sample.get("metrics", [])
+        metrics = {}
+        for m in metric_names:
+            if m in sample:
+                val = sample[m]
+                # Convert non-serializable types
+                if isinstance(val, (list, tuple)):
+                    val = [bool(v) if isinstance(v, bool) else v for v in val]
+                metrics[m] = val
+
+        record = {
+            "task": task_name,
+            "model": model_name,
+            "doc_id": sample.get("doc_id"),
+            "prompt": prompt,
+            "response": response_text,
+            "thinking": thinking,
+            "full_response": full_response,
+            "target": sample.get("target", ""),
+            "metrics": metrics,
+        }
+        incorrect.append(record)
+
+    if not incorrect:
+        print(f"  No incorrect samples for {task_name}")
+        return
+
+    with open(output_path, "a") as f:
+        for record in incorrect:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+    print(f"  Saved {len(incorrect)} incorrect samples to {output_path}")
