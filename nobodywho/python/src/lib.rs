@@ -895,6 +895,39 @@ impl Chat {
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         })
     }
+
+    /// Get the current sampler configuration.
+    ///
+    /// Returns:
+    ///     The current SamplerConfig used for token selection
+    ///
+    /// Raises:
+    ///     RuntimeError: If the sampler config cannot be retrieved
+    #[pyo3(signature = () -> "SamplerConfig")]
+    pub fn get_sampler_config(&self, py: Python) -> PyResult<SamplerConfig> {
+        py.detach(|| {
+            self.handle()
+                .get_sampler_config()
+                .map(|sampler_config| SamplerConfig { sampler_config })
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        })
+    }
+
+    /// Get the current system prompt.
+    ///
+    /// Returns:
+    ///     The current system prompt, or None if not set
+    ///
+    /// Raises:
+    ///     RuntimeError: If the system prompt cannot be retrieved
+    #[pyo3(signature = () -> "str | None")]
+    pub fn get_system_prompt(&self, py: Python) -> PyResult<Option<String>> {
+        py.detach(|| {
+            self.handle()
+                .get_system_prompt()
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        })
+    }
 }
 
 /// This is the async version of the `Chat` class.
@@ -1210,6 +1243,37 @@ impl ChatAsync {
             .await
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
+
+    /// Get the current sampler configuration.
+    ///
+    /// Returns:
+    ///     The current SamplerConfig used for token selection
+    ///
+    /// Raises:
+    ///     RuntimeError: If the sampler config cannot be retrieved
+    #[pyo3(signature = () -> "typing.Awaitable[SamplerConfig]")]
+    pub async fn get_sampler_config(&self) -> PyResult<SamplerConfig> {
+        self.handle()
+            .get_sampler_config()
+            .await
+            .map(|sampler_config| SamplerConfig { sampler_config })
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Get the current system prompt.
+    ///
+    /// Returns:
+    ///     The current system prompt, or None if not set
+    ///
+    /// Raises:
+    ///     RuntimeError: If the system prompt cannot be retrieved
+    #[pyo3(signature = () -> "typing.Awaitable[str | None]")]
+    pub async fn get_system_prompt(&self) -> PyResult<Option<String>> {
+        self.handle()
+            .get_system_prompt()
+            .await
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
 }
 
 /// Compute the cosine similarity between two vectors.
@@ -1240,10 +1304,50 @@ fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> PyResult<f32> {
 /// generation result.
 /// A `SamplerConfig` can be constructed either using a preset function from the `SamplerPresets`
 /// class, or by manually constructing a sampler chain using the `SamplerBuilder` class.
+/// `SamplerConfig` supports serialization to/from JSON via `to_json()` and `from_json()`.
 #[pyclass]
 #[derive(Clone, Default)]
 pub struct SamplerConfig {
     sampler_config: nobodywho::sampler_config::SamplerConfig,
+}
+
+#[pymethods]
+impl SamplerConfig {
+    /// Serialize the sampler configuration to a JSON string.
+    ///
+    /// Returns:
+    ///     A JSON string representing this sampler configuration
+    ///
+    /// Raises:
+    ///     RuntimeError: If serialization fails
+    #[pyo3(signature = () -> "str")]
+    pub fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.sampler_config)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Deserialize a sampler configuration from a JSON string.
+    ///
+    /// Args:
+    ///     json_str: A JSON string representing a sampler configuration
+    ///
+    /// Returns:
+    ///     A SamplerConfig instance
+    ///
+    /// Raises:
+    ///     ValueError: If the JSON is invalid or doesn't represent a valid sampler configuration
+    #[staticmethod]
+    #[pyo3(signature = (json_str: "str") -> "SamplerConfig")]
+    pub fn from_json(json_str: &str) -> PyResult<Self> {
+        let sampler_config: nobodywho::sampler_config::SamplerConfig =
+            serde_json::from_str(json_str)
+                .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        Ok(Self { sampler_config })
+    }
+
+    fn __repr__(&self) -> PyResult<String> {
+        self.to_json()
+    }
 }
 
 /// `SamplerBuilder` is used to manually construct a sampler chain.

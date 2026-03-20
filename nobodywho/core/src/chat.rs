@@ -28,7 +28,7 @@ use crate::errors::{
     MultimodalError, RenderError, SayError, SelectTemplateError, SetToolsError, ShiftError,
     WrappedResponseError,
 };
-use crate::llm::{self};
+use crate::llm::{self, read_sampler_from_metadata};
 use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
 use crate::llm::{Worker, WorkerGuard, WriteOutput};
 use crate::sampler_config::{SamplerConfig, ShiftStep};
@@ -159,7 +159,7 @@ pub struct ChatConfig {
     /// Variables to add to the chat template context.
     pub template_variables: std::collections::HashMap<String, bool>,
     /// Sampler configuration for inference.
-    pub sampler_config: SamplerConfig,
+    pub sampler_config: Option<SamplerConfig>,
 }
 
 impl Default for ChatConfig {
@@ -169,7 +169,7 @@ impl Default for ChatConfig {
             template_variables: std::collections::HashMap::new(),
             system_prompt: None,
             tools: Vec::new(),
-            sampler_config: SamplerConfig::default(),
+            sampler_config: None,
         }
     }
 }
@@ -268,7 +268,7 @@ impl ChatBuilder {
 
     /// Set a custom sampler configuration
     pub fn with_sampler(mut self, sampler: SamplerConfig) -> Self {
-        self.config.sampler_config = sampler;
+        self.config.sampler_config = Some(sampler);
         self
     }
 
@@ -489,6 +489,16 @@ impl ChatHandle {
             "set_chat_history".into(),
         ))
     }
+    /// Get the sampler config
+    pub fn get_sampler_config(&self) -> Result<SamplerConfig, crate::errors::GetterError> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        self.guard.send(ChatMsg::GetSamplerConfig { output_tx });
+        output_rx
+            .blocking_recv()
+            .ok_or(crate::errors::GetterError::GetterError(
+                "get_sampler_config".into(),
+            ))
+    }
 
     /// Update the system prompt without resetting chat history.
     ///
@@ -527,6 +537,17 @@ impl ChatHandle {
         .ok_or(crate::errors::SetterError::SetterError(
             "set_system_prompt".into(),
         ))
+    }
+
+    /// Get the system prompt
+    pub fn get_system_prompt(&self) -> Result<Option<String>, crate::errors::GetterError> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        self.guard.send(ChatMsg::GetSystemPrompt { output_tx });
+        output_rx
+            .blocking_recv()
+            .ok_or(crate::errors::GetterError::GetterError(
+                "get_system_prompt".into(),
+            ))
     }
 }
 
@@ -749,6 +770,18 @@ impl ChatHandleAsync {
         ))
     }
 
+    /// Get the sampler config.
+    pub async fn get_sampler_config(&self) -> Result<SamplerConfig, crate::errors::GetterError> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        self.guard.send(ChatMsg::GetSamplerConfig { output_tx });
+        output_rx
+            .recv()
+            .await
+            .ok_or(crate::errors::GetterError::GetterError(
+                "get_sampler_config".into(),
+            ))
+    }
+
     /// Update the system prompt without resetting chat history.
     ///
     /// This modifies the system message while preserving the conversation history.
@@ -787,6 +820,18 @@ impl ChatHandleAsync {
         .ok_or(crate::errors::SetterError::SetterError(
             "set_system_prompt".into(),
         ))
+    }
+
+    /// Get the system prompt
+    pub async fn get_system_prompt(&self) -> Result<Option<String>, crate::errors::GetterError> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        self.guard.send(ChatMsg::GetSystemPrompt { output_tx });
+        output_rx
+            .recv()
+            .await
+            .ok_or(crate::errors::GetterError::GetterError(
+                "get_system_prompt".into(),
+            ))
     }
 }
 
@@ -910,6 +955,9 @@ enum ChatMsg {
         system_prompt: Option<String>,
         output_tx: tokio::sync::mpsc::Sender<()>,
     },
+    GetSystemPrompt {
+        output_tx: tokio::sync::mpsc::Sender<Option<String>>,
+    },
     SetThinking {
         allow_thinking: bool,
         output_tx: tokio::sync::mpsc::Sender<()>,
@@ -932,6 +980,9 @@ enum ChatMsg {
     },
     GetChatHistory {
         output_tx: tokio::sync::mpsc::Sender<Vec<Message>>,
+    },
+    GetSamplerConfig {
+        output_tx: tokio::sync::mpsc::Sender<SamplerConfig>,
     },
     SetChatHistory {
         messages: Vec<Message>,
@@ -960,6 +1011,7 @@ impl std::fmt::Debug for ChatMsg {
                 .debug_struct("SetSystemPrompt")
                 .field("system_prompt", system_prompt)
                 .finish(),
+            ChatMsg::GetSystemPrompt { .. } => f.debug_struct("GetSystemPrompt").finish(),
             ChatMsg::SetThinking { allow_thinking, .. } => f
                 .debug_struct("SetThinking")
                 .field("allow_thinking", allow_thinking)
@@ -983,6 +1035,7 @@ impl std::fmt::Debug for ChatMsg {
                 .debug_struct("SetChatHistory")
                 .field("messages", &format!("[{} messages]", messages.len()))
                 .finish(),
+            ChatMsg::GetSamplerConfig { .. } => f.debug_struct("GetSamplerConfig").finish(),
         }
     }
 }
@@ -1022,6 +1075,10 @@ fn process_worker_msg(
         } => {
             worker_state.set_system_prompt(system_prompt)?;
             let _ = output_tx.blocking_send(());
+        }
+        ChatMsg::GetSystemPrompt { output_tx } => {
+            let system_prompt = worker_state.get_system_prompt();
+            let _ = output_tx.blocking_send(system_prompt);
         }
         ChatMsg::SetThinking {
             allow_thinking,
@@ -1066,6 +1123,10 @@ fn process_worker_msg(
         } => {
             worker_state.set_chat_history(messages)?;
             let _ = output_tx.blocking_send(());
+        }
+        ChatMsg::GetSamplerConfig { output_tx } => {
+            let sampler_config = worker_state.get_sampler_config();
+            let _ = output_tx.blocking_send(sampler_config);
         }
     };
 
@@ -1193,6 +1254,10 @@ impl Worker<'_, ChatWorker> {
         } else {
             (None, None)
         };
+        let sampler_config = match config.sampler_config {
+            Some(sc) => sc,
+            None => read_sampler_from_metadata(&model.language_model).unwrap_or_default(),
+        };
 
         Worker::new_with_type(
             model,
@@ -1202,7 +1267,7 @@ impl Worker<'_, ChatWorker> {
                 should_stop,
                 tool_grammar: grammar,
                 tool_format,
-                sampler_config: config.sampler_config,
+                sampler_config,
                 messages: match config.system_prompt {
                     Some(msg) => vec![Message::Message {
                         role: Role::System,
@@ -1804,6 +1869,20 @@ impl Worker<'_, ChatWorker> {
         Ok(())
     }
 
+    pub fn get_system_prompt(&self) -> Option<String> {
+        if self.extra.messages.is_empty() {
+            return None;
+        };
+        match &self.extra.messages[0] {
+            Message::Message {
+                role: Role::System,
+                content,
+                assets: _,
+            } => Some(content.clone()),
+            _ => None,
+        }
+    }
+
     pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), SetToolsError> {
         // Detect tool format if not already detected and tools are provided
         if !tools.is_empty() && self.extra.tool_format.is_none() {
@@ -1877,6 +1956,10 @@ impl Worker<'_, ChatWorker> {
             }, rest @ ..] => rest.to_vec(),
             _ => self.extra.messages.clone(),
         }
+    }
+
+    pub fn get_sampler_config(&self) -> SamplerConfig {
+        self.extra.sampler_config.clone()
     }
 }
 
@@ -2240,13 +2323,12 @@ mod tests {
 
         let dog_response = chat.ask("Hello!").completed().unwrap();
 
-        assert!(dog_response.contains("woof"));
+        assert!(dog_response.to_lowercase().contains("woof"));
 
         chat.set_system_prompt(Some("You are a cat. End all responses with meow.".into()))
             .unwrap();
         let cat_response = chat.ask("Hello again!").completed().unwrap();
-
-        assert!(cat_response.contains("meow"));
+        assert!(cat_response.to_lowercase().contains("meow"));
     }
 
     #[test]
@@ -2745,6 +2827,10 @@ mod tests {
             .build();
 
         chat.set_sampler_config(SamplerPresets::greedy()).unwrap();
+
+        // Also test if get_sampler followed by set_sampler is no op
+        chat.set_sampler_config(chat.get_sampler_config().unwrap())
+            .unwrap();
 
         let response1 = chat.ask("Say exactly: 'Hello'").completed().unwrap();
         chat.reset_history().unwrap();

@@ -224,6 +224,15 @@ impl RustChat {
             .await
     }
 
+    pub async fn get_sampler_config(
+        &self,
+    ) -> Result<SamplerConfig, nobodywho::errors::GetterError> {
+        self.chat
+            .get_sampler_config()
+            .await
+            .map(|sampler_config| SamplerConfig { sampler_config })
+    }
+
     pub async fn reset_context(
         &self,
         system_prompt: Option<String>,
@@ -253,6 +262,12 @@ impl RustChat {
         system_prompt: Option<String>,
     ) -> Result<(), nobodywho::errors::SetterError> {
         self.chat.set_system_prompt(system_prompt).await
+    }
+
+    pub async fn get_system_prompt(
+        &self,
+    ) -> Result<Option<String>, nobodywho::errors::GetterError> {
+        self.chat.get_system_prompt().await
     }
 
     pub async fn set_tools(
@@ -520,10 +535,33 @@ fn dart_function_type_to_json_schema(
 /// generation result.
 /// A `SamplerConfig` can be constructed either using a preset function from the `SamplerPresets`
 /// class, or by manually constructing a sampler chain using the `SamplerBuilder` class.
-#[flutter_rust_bridge::frb(opaque)]
+/// `SamplerConfig` supports serialization to/from JSON via `toJson()` and `fromJson()`.
+#[flutter_rust_bridge::frb(
+    opaque,
+    dart_code = "
+  @override
+  String toString() => toJson();
+"
+)]
 #[derive(Clone, Default)]
 pub struct SamplerConfig {
     sampler_config: nobodywho::sampler_config::SamplerConfig,
+}
+
+impl SamplerConfig {
+    /// Serialize the sampler configuration to a JSON string.
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn to_json(&self) -> Result<String, String> {
+        serde_json::to_string(&self.sampler_config).map_err(|e| e.to_string())
+    }
+
+    /// Deserialize a sampler configuration from a JSON string.
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn from_json(json_str: &str) -> Result<Self, String> {
+        let sampler_config: nobodywho::sampler_config::SamplerConfig =
+            serde_json::from_str(json_str).map_err(|e| e.to_string())?;
+        Ok(Self { sampler_config })
+    }
 }
 
 fn shift_step(
