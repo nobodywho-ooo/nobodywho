@@ -440,6 +440,33 @@ void main() {
       expect(response2, contains("WOW test WOW"));
     });
 
+    test('Python tool fibonacci', () async {
+      final pythonChat = await nobodywho.Chat.fromPath(
+        modelPath: modelPath,
+        allowThinking: false,
+        tools: [nobodywho.Tool.python()],
+      );
+
+      await pythonChat
+          .ask(
+            'Write a hello world script in python and run it with the python tool.'
+          )
+          .completed();
+
+      final history = await pythonChat.getChatHistory();
+      final toolCalls = history
+          .whereType<nobodywho.Message_ToolCalls>()
+          .expand((m) => m.toolCalls)
+          .toList();
+      final toolResponses = history
+          .whereType<nobodywho.Message_ToolResp>()
+          .toList();
+      expect(toolCalls.length, greaterThanOrEqualTo(1));
+      expect(toolCalls[0].name, equals('run_python'));
+      expect(toolResponses.length, greaterThanOrEqualTo(1));
+      expect(toolResponses[0].content.toLowerCase(), allOf(contains('hello'),contains("world")));
+    });
+
     test('Encoder.fromPath creates encoder and encodes text', () async {
       final modelPath = Platform.environment["TEST_EMBEDDINGS_MODEL"];
       if (modelPath == null) {

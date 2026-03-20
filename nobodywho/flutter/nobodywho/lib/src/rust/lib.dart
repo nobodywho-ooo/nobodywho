@@ -32,6 +32,19 @@ RustTool newToolImpl({
   parameterDescriptions: parameterDescriptions,
 );
 
+RustTool newBashTool({BigInt? maxCommands}) =>
+    NobodyWho.instance.api.crateNewBashTool(maxCommands: maxCommands);
+
+RustTool newPythonTool({
+  BigInt? maxDurationSecs,
+  BigInt? maxMemoryBytes,
+  BigInt? maxRecursionDepth,
+}) => NobodyWho.instance.api.crateNewPythonTool(
+  maxDurationSecs: maxDurationSecs,
+  maxMemoryBytes: maxMemoryBytes,
+  maxRecursionDepth: maxRecursionDepth,
+);
+
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Asset>>
 abstract class Asset implements RustOpaqueInterface {}
 
