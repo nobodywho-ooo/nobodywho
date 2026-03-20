@@ -17,6 +17,7 @@ from eval import (
     get_system_info,
     print_results,
     print_samples,
+    save_incorrect_samples,
 )
 
 
@@ -88,11 +89,13 @@ class TaskConfig:
     shuffle: bool
     vision: bool = False
     response_processor: Callable[[str], str] | None = None
+    # Override stop sequences from the task. None = use task defaults, [] = disable.
+    stop_sequences: list[str] | None = None
 
 
 TASK_CONFIGS: dict[str, TaskConfig] = {
     "ifeval": TaskConfig(
-        system_prompt="You are a helpful assistent. " 
+        system_prompt="You are a helpful assistent. "
         "Follow any instructions given as closely as possible.",
         shuffle=False,
     ),
@@ -123,6 +126,7 @@ TASK_CONFIGS: dict[str, TaskConfig] = {
         ),
         shuffle=False,
         response_processor=strip_markdown_code_fences,
+        stop_sequences=[],  # disable completion-style stops for instruct models
     ),
     "mbpp": TaskConfig(
         system_prompt=(
@@ -132,6 +136,7 @@ TASK_CONFIGS: dict[str, TaskConfig] = {
         ),
         shuffle=False,
         response_processor=strip_markdown_code_fences,
+        stop_sequences=["[DONE]"],  # keep few-shot delimiter, disable completion-style stops
     ),
     "drop": TaskConfig(
         system_prompt=(
@@ -195,7 +200,7 @@ app = typer.Typer(
 
 @app.command()
 def run(
-    models: Annotated[list[Path], typer.Argument(help="Path(s) to GGUF model files (ignored for gguf backend)")] = None,
+    models: Annotated[list[Path], typer.Argument(help="Path(s) to GGUF model files")],
     tasks: Annotated[Optional[str], typer.Option("-t", "--tasks", help=f"Comma-separated task list (default: {','.join(DEFAULT_TASKS)})")] = None,
     limit: Annotated[Optional[int], typer.Option("-l", "--limit", help="Samples per task")] = None,
     output: Annotated[str, typer.Option("-o", "--output", help="CSV results file template ({model} = model stem)")] = "results_{model}.csv",
@@ -203,36 +208,21 @@ def run(
     no_system_prompts: Annotated[bool, typer.Option("--no-system-prompts", help="Disable all built-in per-task prompts")] = False,
     print_samples_flag: Annotated[bool, typer.Option("--print-samples", help="Print sample outputs after each task")] = False,
     seed: Annotated[int, typer.Option("--seed", help="Random seed")] = 42,
-    backend: Annotated[str, typer.Option("-b", "--backend", help="Backend: 'nobodywho' or 'gguf' (llama.cpp server)")] = "nobodywho",
-    base_url: Annotated[Optional[str], typer.Option("--base-url", help="Server URL for gguf backend (e.g., http://localhost:8080)")] = None,
-    model_name: Annotated[Optional[str], typer.Option("--model-name", help="Model name for CSV output (required for gguf backend)")] = None,
     shuffle: Annotated[Optional[bool], typer.Option("--shuffle", help="Whether or not to shuffle all samples")] = None,
     image_model_path: Annotated[Optional[Path], typer.Option("--image-model-path", help="Path to multimodal projector GGUF (mmproj) for vision benchmarks")] = None,
     n_ctx: Annotated[int, typer.Option("--n-ctx", help="Context size (tokens)")] = 32768,
     allow_thinking: Annotated[bool, typer.Option("--allow-thinking/--no-thinking", help="Allow model thinking/reasoning")] = False,
+    save_incorrect: Annotated[bool, typer.Option("--save-incorrect", help="Save incorrect samples to JSONL for debugging")] = False,
 ):
     """Run eval benchmarks on one or more GGUF models."""
     if system_prompt is not None and no_system_prompts:
         raise typer.BadParameter("Cannot use both --system-prompt and --no-system-prompts")
 
-    # Validate backend options
-    if backend not in ("nobodywho", "gguf"):
-        raise typer.BadParameter(f"Unknown backend: {backend}. Use 'nobodywho' or 'gguf'")
-
-    if backend == "gguf":
-        if base_url is None:
-            raise typer.BadParameter("--base-url is required for gguf backend")
-        if model_name is None:
-            raise typer.BadParameter("--model-name is required for gguf backend (for CSV output)")
-        if system_prompt is not None or not no_system_prompts:
-            typer.echo("Warning: System prompts are not supported by gguf backend (completions API)")
-    else:
-        # nobodywho backend requires model paths
-        if not models:
-            raise typer.BadParameter("Model path(s) required for nobodywho backend")
-        for m in models:
-            if not m.exists():
-                raise typer.BadParameter(f"Model not found: {m}")
+    if not models:
+        raise typer.BadParameter("At least one model path is required")
+    for m in models:
+        if not m.exists():
+            raise typer.BadParameter(f"Model not found: {m}")
 
     # allow code eval: this lets the model run code. yolo.
     os.environ["HF_ALLOW_CODE_EVAL"] = "1"
@@ -256,39 +246,31 @@ def run(
                 )
 
     total_tasks = len(run_tasks)
-    total_models = len(models) if models else 0
+    total_models = len(models)
 
     # Print header
     print("==============================================")
     print("nw-eval -- NobodyWho Eval Suite")
     print("==============================================")
-    print(f"Backend: {backend}")
-    if backend == "gguf":
-        print(f"Server:  {base_url}")
-        print(f"Model:   {model_name}")
-    else:
-        print(f"Models:  {total_models}")
+    print(f"Models:  {total_models}")
     print(f"Tasks:   {', '.join(run_tasks)}")
     print(f"Limit:   {limit or 'none'}")
     print(f"Seed:    {seed}")
-    if backend == "nobodywho":
-        if system_prompt is not None:
-            print(f"System prompt override: {system_prompt[:80]}...")
-        elif no_system_prompts:
-            print("System prompts: disabled")
-        else:
-            print("System prompts: per-task defaults")
+    if system_prompt is not None:
+        print(f"System prompt override: {system_prompt[:80]}...")
+    elif no_system_prompts:
+        print("System prompts: disabled")
+    else:
+        print("System prompts: per-task defaults")
+    if save_incorrect:
+        print("Saving incorrect samples: yes")
     print("==============================================")
     print()
 
     suite_start = time.time()
     all_results_files: list[str] = []
 
-    # For gguf backend, we run once with the server; for nobodywho, iterate over models
-    if backend == "gguf":
-        model_iterations = [(None, model_name)]  # (path, name) - path is None for gguf
-    else:
-        model_iterations = [(m, m.stem) for m in models]
+    model_iterations = [(m, m.stem) for m in models]
 
     for model_idx, (model_path, current_model_name) in enumerate(model_iterations, 1):
         model_start = time.time()
@@ -308,28 +290,29 @@ def run(
         total_tokens_generated: int = 0
         total_generation_time: float = 0.0
 
+        # Prepare incorrect samples file (clear if exists from previous run)
+        if save_incorrect:
+            incorrect_file = Path(f"incorrect_{current_model_name}.jsonl")
+            incorrect_file.unlink(missing_ok=True)
+
         for task_idx, task in enumerate(run_tasks, 1):
             task_start = time.time()
 
-            # Resolve system prompt for this task (only for nobodywho backend)
+            # Resolve system prompt for this task
             task_prompt = None
-            if backend == "nobodywho":
-                if no_system_prompts:
-                    task_prompt = None
-                elif system_prompt is not None:
-                    task_prompt = system_prompt
-                else:
-                    config = TASK_CONFIGS.get(task, TaskConfig(system_prompt=None, shuffle=False))
-                    task_prompt = config.system_prompt
+            if no_system_prompts:
+                task_prompt = None
+            elif system_prompt is not None:
+                task_prompt = system_prompt
+            else:
+                config = TASK_CONFIGS.get(task, TaskConfig(system_prompt=None, shuffle=False))
+                task_prompt = config.system_prompt
 
             # Resolve shuffle for this task (DROP uses random sampling due to passage grouping)
             task_config = TASK_CONFIGS.get(task, TaskConfig(system_prompt=None, shuffle=False))
             task_shuffle = task_config.shuffle if shuffle is None else True
 
-            if backend == "nobodywho":
-                prompt_label = "custom" if system_prompt is not None else ("none" if task_prompt is None else task)
-            else:
-                prompt_label = "n/a (gguf)"
+            prompt_label = "custom" if system_prompt is not None else ("none" if task_prompt is None else task)
 
             print("==============================================")
             print(f"[{task_idx}/{total_tasks}] {task} (prompt: {prompt_label})")
@@ -339,21 +322,18 @@ def run(
                 print("Sampling: sequential")
             print("==============================================")
 
-            # Create model instance based on backend
-            if backend == "nobodywho":
-                model_instance = NobodyWhoLM(
-                    model_path=str(model_path.resolve()),
-                    allow_thinking=str(allow_thinking).lower(),
-                    n_ctx=n_ctx,
-                    system_prompt=task_prompt,
-                    image_model_path=str(image_model_path.resolve()) if image_model_path else None,
-                )
-                task_config = TASK_CONFIGS.get(task)
-                if task_config is not None:
-                    model_instance.response_processor = task_config.response_processor
-            else:  # gguf backend
-                from lm_eval.models.gguf import GGUFLM
-                model_instance = GGUFLM(base_url=base_url)
+            # Create model instance
+            model_instance = NobodyWhoLM(
+                model_path=str(model_path.resolve()),
+                allow_thinking=str(allow_thinking).lower(),
+                n_ctx=n_ctx,
+                system_prompt=task_prompt,
+                image_model_path=str(image_model_path.resolve()) if image_model_path else None,
+            )
+            task_config = TASK_CONFIGS.get(task)
+            if task_config is not None:
+                model_instance.response_processor = task_config.response_processor
+                model_instance.stop_sequences_override = task_config.stop_sequences
 
             # Build samples dict for random sampling, or use limit for first-N
             samples_dict = None
@@ -393,13 +373,18 @@ def run(
             if print_samples_flag:
                 print_samples(results, max_samples=limit or 5)
 
-            # Track failures, sample counts, and throughput (only for nobodywho)
-            if backend == "nobodywho":
-                if model_instance.failed_samples:
-                    all_task_failures.extend(model_instance.failed_samples)
-                total_samples_count += model_instance.total_samples
-                total_tokens_generated += model_instance.total_tokens_generated
-                total_generation_time += model_instance.total_generation_time
+            # Save incorrect samples if requested
+            if save_incorrect:
+                save_incorrect_samples(
+                    results, task, incorrect_file, current_model_name, allow_thinking,
+                )
+
+            # Track failures, sample counts, and throughput
+            if model_instance.failed_samples:
+                all_task_failures.extend(model_instance.failed_samples)
+            total_samples_count += model_instance.total_samples
+            total_tokens_generated += model_instance.total_tokens_generated
+            total_generation_time += model_instance.total_generation_time
 
             # Store results for CSV
             all_task_results[task] = results
@@ -418,39 +403,20 @@ def run(
 
         system_info = get_system_info()
 
-        if backend == "gguf":
-            # For gguf backend, use base_url as model_path and empty stats
-            row = build_run_row(
-                model_path=Path(base_url),  # Use base_url as identifier
-                task_results=all_task_results,
-                limit=limit,
-                seed=seed,
-                total_duration=model_duration,
-                system_info=system_info,
-                failed_count=0,
-                total_samples=0,
-                total_tokens_generated=0,
-                total_generation_time=0.0,
-                sampler_config={},
-                model_name_override=current_model_name,
-                model_size_override=None,  # Unknown for server
-                allow_thinking=allow_thinking,
-            )
-        else:
-            row = build_run_row(
-                model_path=model_path,
-                task_results=all_task_results,
-                limit=limit,
-                seed=seed,
-                total_duration=model_duration,
-                system_info=system_info,
-                failed_count=len(all_task_failures),
-                total_samples=total_samples_count,
-                total_tokens_generated=total_tokens_generated,
-                total_generation_time=total_generation_time,
-                sampler_config={"temperature": 0.6, "min_p": 0.0, "top_p": 0.95, "top_k": 20},
-                allow_thinking=allow_thinking,
-            )
+        row = build_run_row(
+            model_path=model_path,
+            task_results=all_task_results,
+            limit=limit,
+            seed=seed,
+            total_duration=model_duration,
+            system_info=system_info,
+            failed_count=len(all_task_failures),
+            total_samples=total_samples_count,
+            total_tokens_generated=total_tokens_generated,
+            total_generation_time=total_generation_time,
+            sampler_config={"temperature": 0.6, "min_p": 0.0, "top_p": 0.95, "top_k": 20},
+            allow_thinking=allow_thinking,
+        )
         append_run_to_csv(csv_file, row, list(system_info.keys()))
 
         # Per-model summary
@@ -459,14 +425,17 @@ def run(
         print("----------------------------------------------")
         print(f"Results saved to: {csv_file}")
 
-        # Print failure summary for this model (nobodywho only)
-        if backend == "nobodywho" and all_task_failures:
+        # Print failure summary for this model
+        if all_task_failures:
             print(f"\n--- Generation Failures ({len(all_task_failures)} total) ---")
             for i, failure in enumerate(all_task_failures[:10]):  # show first 10
                 print(f"\n[{i+1}] Error: {failure['error']}")
                 print(f"    Prompt: {failure['prompt'][:100]}...")
             if len(all_task_failures) > 10:
                 print(f"\n... and {len(all_task_failures) - 10} more failures")
+
+        if save_incorrect and incorrect_file.exists():
+            print(f"Incorrect samples saved to: {incorrect_file}")
 
         print()
 
