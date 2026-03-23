@@ -1,0 +1,16 @@
+[package]
+name = "nobodywho-napi"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+nobodywho = { path = "../core" }
+napi = { version = "3", features = ["async", "tokio_rt"] }
+napi-derive = "3"
+tokio = { version = "1.43.0", features = ["sync"] }
+
+[build-dependencies]
+napi-build = "2"
