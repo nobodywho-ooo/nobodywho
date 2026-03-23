@@ -6,6 +6,8 @@ members = [
     "python",
     "grammar/gbnf",
     "grammar/gbnf-macro",
+    "uniffi",
+    "napi",
 ]
 
 # edition = "2021" implies resolver = "2".
