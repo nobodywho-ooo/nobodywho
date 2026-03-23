@@ -1,0 +1,20 @@
+{
+  "name": "nobodywho-darwin-arm64",
+  "version": "0.1.0",
+  "cpu": [
+    "arm64"
+  ],
+  "main": "nobodywho.darwin-arm64.node",
+  "files": [
+    "nobodywho.darwin-arm64.node"
+  ],
+  "description": "Run LLMs locally with offline inference — Node.js bindings",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nobodywho-ooo/nobodywho"
+  },
+  "os": [
+    "darwin"
+  ]
+}

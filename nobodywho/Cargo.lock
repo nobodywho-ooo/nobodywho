@@ -2114,6 +2114,8 @@ dependencies = [
  "napi-sys",
  "nohash-hasher",
  "rustc-hash",
+ "serde",
+ "serde_json",
  "tokio",
 ]
 
@@ -2217,10 +2219,13 @@ dependencies = [
 name = "nobodywho-napi"
 version = "0.1.0"
 dependencies = [
+ "futures",
  "napi",
  "napi-build",
  "napi-derive",
  "nobodywho",
+ "serde",
+ "serde_json",
  "tokio",
 ]
 
@@ -2249,6 +2254,7 @@ name = "nobodywho-uniffi"
 version = "0.1.0"
 dependencies = [
  "nobodywho",
+ "serde_json",
  "tokio",
  "uniffi",
 ]

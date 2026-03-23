@@ -64,8 +64,8 @@ pub enum Role {
 
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Asset {
-    id: String,
-    path: PathBuf,
+    pub id: String,
+    pub path: PathBuf,
 }
 
 // deny_unknown_fields is required because assets has a serde default, making the
