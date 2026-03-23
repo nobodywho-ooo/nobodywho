@@ -7,3 +7,11 @@ __pycache__/
 .mypy_cache/
 .venv/
 */result
+
+# napi-rs (Node.js bindings)
+napi/*.node
+napi/index.js
+napi/index.d.ts
+napi/node_modules/
+napi/package-lock.json
+napi/npm/*/README.md
