@@ -77,20 +77,16 @@ impl Prompt {
             .collect()
     }
 
-    pub(crate) fn extract_media_assets(&self) -> Vec<(bool, &Path)> {
+    pub(crate) fn extract_media_assets(&self) -> Vec<&PromptPart> {
         self.parts
             .iter()
-            .filter_map(|part| match part {
-                PromptPart::Image(path) => Some((false, path.as_path())),
-                PromptPart::Audio(path) => Some((true, path.as_path())),
-                PromptPart::Text(_) => None,
-            })
+            .filter(|part| !matches!(part, PromptPart::Text(_)))
             .collect()
     }
 }
 
 #[derive(Clone, Debug)]
-enum PromptPart {
+pub(crate) enum PromptPart {
     Text(String),
     Image(PathBuf),
     Audio(PathBuf),
@@ -188,11 +184,10 @@ impl TokenizerChunk {
     pub fn n_tokens(&self) -> usize {
         match self {
             TokenizerChunk::Text(tokens, _) => tokens.len(),
-            TokenizerChunk::Image(chunks_rc, _) | TokenizerChunk::Audio(chunks_rc, _) => {
-                (0..chunks_rc.len())
-                    .map(|i| chunks_rc.get(i).map(|c| c.n_tokens()).unwrap_or(0))
-                    .sum()
-            }
+            TokenizerChunk::Image(chunks_rc, _) | TokenizerChunk::Audio(chunks_rc, _) => (0
+                ..chunks_rc.len())
+                .map(|i| chunks_rc.get(i).map(|c| c.n_tokens()).unwrap_or(0))
+                .sum(),
         }
     }
 }
@@ -262,7 +257,6 @@ impl TokenizerChunks {
         self.chunks.push(next);
         self
     }
-
 
     /// Returns [start, end) position of the chunk at the given index.
     pub fn chunk_bounds(&self, index: usize) -> (usize, usize) {

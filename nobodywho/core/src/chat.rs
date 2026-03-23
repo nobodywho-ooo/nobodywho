@@ -34,7 +34,8 @@ use crate::llm::{Worker, WorkerGuard, WriteOutput};
 use crate::sampler_config::{SamplerConfig, ShiftStep};
 use crate::template::{select_template, ChatTemplate, ChatTemplateContext};
 use crate::tokenizer::{
-    find_chunks_prefix_difference, ChunkId, Prompt, Promptable, TokenizerChunk, TokenizerChunks,
+    find_chunks_prefix_difference, ChunkId, Prompt, PromptPart, Promptable, TokenizerChunk,
+    TokenizerChunks,
 };
 use crate::tool_calling::{detect_tool_format, Tool, ToolCall, ToolFormat};
 use ahash::AHasher;
@@ -1611,12 +1612,10 @@ impl Worker<'_, ChatWorker> {
         let bitmaps = if let Some(projection_model) = self.projection_model.as_ref() {
             media_assets
                 .iter()
-                .map(|(is_audio, path)| {
-                    if *is_audio {
-                        projection_model.load_audio(path)
-                    } else {
-                        projection_model.load_image(path)
-                    }
+                .map(|part| match part {
+                    PromptPart::Image(path) => projection_model.load_image(path),
+                    PromptPart::Audio(path) => projection_model.load_audio(path),
+                    PromptPart::Text(_) => unreachable!(),
                 })
                 .collect::<Result<Vec<MtmdBitmap>, MultimodalError>>()?
         } else {
@@ -1629,9 +1628,12 @@ impl Worker<'_, ChatWorker> {
         let assets = bitmap_ids
             .iter()
             .zip(media_assets.iter())
-            .map(|(id, (_, path))| Asset {
+            .map(|(id, part)| Asset {
                 id: id.clone(),
-                path: path.to_path_buf(),
+                path: match part {
+                    PromptPart::Image(path) | PromptPart::Audio(path) => path.to_path_buf(),
+                    PromptPart::Text(_) => unreachable!(),
+                },
             })
             .collect::<Vec<_>>();
 
