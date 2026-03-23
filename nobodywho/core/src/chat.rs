@@ -1148,9 +1148,9 @@ fn process_worker_msg(
 // TOOL CHAT WORKER
 
 struct ChatContext {
-    /// Here we keep the current tokens + image embeddings, which are in the KV cache.
+    /// Here we keep the current tokens + media embeddings, which are in the KV cache.
     chunks: TokenizerChunks,
-    /// Here we keep a list of the image bitmaps, which are needed for tokenization.
+    /// Here we keep a list of the media bitmaps, which are needed for tokenization.
     bitmaps: IndexMap<ChunkId, MtmdBitmap>,
 }
 
@@ -1296,7 +1296,7 @@ impl Worker<'_, ChatWorker> {
     }
 
     pub fn add_system_message(&mut self, content: String) {
-        // Todo: Should we allow adding images into the system prompt?
+        // Todo: Should we allow adding media into the system prompt?
         self.add_message(Role::System, content, vec![])
     }
 
@@ -1607,11 +1607,17 @@ impl Worker<'_, ChatWorker> {
             .as_ref()
             .map(|fmt| fmt.begin_token().to_string());
 
-        let asset_paths = prompt.extract_asset_paths();
+        let media_assets = prompt.extract_media_assets();
         let bitmaps = if let Some(projection_model) = self.projection_model.as_ref() {
-            asset_paths
+            media_assets
                 .iter()
-                .map(|path| projection_model.load_image(path))
+                .map(|(is_audio, path)| {
+                    if *is_audio {
+                        projection_model.load_audio(path)
+                    } else {
+                        projection_model.load_image(path)
+                    }
+                })
                 .collect::<Result<Vec<MtmdBitmap>, MultimodalError>>()?
         } else {
             vec![]
@@ -1622,8 +1628,8 @@ impl Worker<'_, ChatWorker> {
         let bitmap_ids = self.extra.context.add_bitmaps(bitmaps)?;
         let assets = bitmap_ids
             .iter()
-            .zip(asset_paths)
-            .map(|(id, path)| Asset {
+            .zip(media_assets.iter())
+            .map(|(id, (_, path))| Asset {
                 id: id.clone(),
                 path: path.to_path_buf(),
             })

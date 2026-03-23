@@ -245,11 +245,11 @@ where
             let n_ctx = std::cmp::min(n_ctx, model.language_model.n_ctx_train());
 
             if projection_model.is_some() && n_ctx < 2048 {
-                warn!("Context size is less than 2048, which is the default minimum for ingesting images. This can cause issues.");
+                warn!("Context size is less than 2048, which is the default minimum for ingesting media. This can cause issues.");
             }
 
             // Still, better n_ubatch defaults could be possible, but with multimodality it is good to go for at least 2048,
-            // as the images are often encoded to many tokens by some projection models.
+            // as media is often encoded to many tokens by some projection models.
             let n_ubatch = if projection_model.is_some() {
                 std::cmp::min(2048, n_ctx)
             } else {
@@ -316,8 +316,8 @@ where
                 TokenizerChunk::Text(tokens, _) => {
                     self.read_text_tokens(tokens, inference_lock_token)?;
                 }
-                TokenizerChunk::Image(embeddings, _) => {
-                    self.read_image_embeddings(embeddings, inference_lock_token)?;
+                TokenizerChunk::Image(embeddings, _) | TokenizerChunk::Audio(embeddings, _) => {
+                    self.read_media_embeddings(embeddings, inference_lock_token)?;
                 }
             }
         }
@@ -326,7 +326,7 @@ where
     }
 
     #[tracing::instrument(level = "trace", skip(self))]
-    fn read_image_embeddings(
+    fn read_media_embeddings(
         &mut self,
         embeddings: Rc<MtmdInputChunks>,
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
@@ -337,9 +337,9 @@ where
             .ok_or(ReadError::ProjectionModelNotInitialized)?;
 
         let n_tokens = embeddings.as_ref().total_tokens();
-        debug!(n_tokens, "Reading image embeddings:");
+        debug!(n_tokens, "Reading media embeddings:");
 
-        let decode_span = debug_span!("read image embeddings", n_tokens = n_tokens);
+        let decode_span = debug_span!("read media embeddings", n_tokens = n_tokens);
         let decode_guard = decode_span.enter();
         let n_ctx = self.ctx.n_ctx() as i32;
         self.n_past = embeddings.eval_chunks(
@@ -353,7 +353,7 @@ where
 
         drop(decode_guard);
         debug!(
-            "Completed read image embeddings operation, n_past: {}",
+            "Completed read media embeddings operation, n_past: {}",
             self.n_past
         );
 
