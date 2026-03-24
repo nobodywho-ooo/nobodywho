@@ -69,8 +69,8 @@ pub(crate) fn plan_model_loading(
     let Some(info) = read_gguf_model_info(model_path) else {
         return LoadingPlan {
             gpu_layers: u32::MAX,
-            warnings: vec![                
-                format!("Could not parse GGUF metadata from {model_path}. Falling back to full GPU offload.")
+            warnings: vec![
+                format!("Could not parse GGUF metadata from {model_path}. Falling back to full GPU offload."),
             ],
         };
     };
