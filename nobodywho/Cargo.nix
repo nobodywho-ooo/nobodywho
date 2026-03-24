@@ -5684,14 +5684,9 @@ rec {
       };
       "llama-cpp-2" = rec {
         crateName = "llama-cpp-2";
-        version = "0.1.139";
+        version = "0.1.140";
         edition = "2021";
-        workspace_member = null;
-        src = pkgs.fetchgit {
-          url = "https://github.com/AsbjornOlling/llama-cpp-rs";
-          rev = "fd4026fe239e82e3b74b747353f620937d776340";
-          sha256 = "0ybfxdc3yzd1k0gp1x2pfcgql26d2qdxbqkrck7jr25kbdzz7qv4";
-        };
+        sha256 = "1wpj20sx9g6w5wpzh2ckf24k0ky9sz8n96j7f1s1aiy8p49lqq75";
         libName = "llama_cpp_2";
         dependencies = [
           {
@@ -5750,15 +5745,10 @@ rec {
       };
       "llama-cpp-sys-2" = rec {
         crateName = "llama-cpp-sys-2";
-        version = "0.1.139";
+        version = "0.1.140";
         edition = "2021";
         links = "llama";
-        workspace_member = null;
-        src = pkgs.fetchgit {
-          url = "https://github.com/AsbjornOlling/llama-cpp-rs";
-          rev = "fd4026fe239e82e3b74b747353f620937d776340";
-          sha256 = "0ybfxdc3yzd1k0gp1x2pfcgql26d2qdxbqkrck7jr25kbdzz7qv4";
-        };
+        sha256 = "1wv6993r8dvafv48pf35ypz4gbg98rcp6cd6crsa9agk0qn3xpfb";
         libName = "llama_cpp_sys_2";
         buildDependencies = [
           {
