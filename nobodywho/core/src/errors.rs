@@ -125,8 +125,8 @@ pub enum ReadError {
     #[error("Projection model not initialized")]
     ProjectionModelNotInitialized,
 
-    #[error("Llama.cpp failed reading image embeddings: {0}")]
-    FailedReadingImageEmbeddings(#[from] llama_cpp_2::mtmd::MtmdEvalError),
+    #[error("Llama.cpp failed reading media embeddings: {0}")]
+    FailedReadingMediaEmbeddings(#[from] llama_cpp_2::mtmd::MtmdEvalError),
 
     #[error("Could not tokenize string: {0}")]
     FailedToTokenize(#[from] TokenizationError),
@@ -308,6 +308,9 @@ pub enum MultimodalError {
     #[error("Failed to load image from '{path}': {error}")]
     LoadImage { path: String, error: String },
 
+    #[error("Failed to load audio from '{path}': {error}")]
+    LoadAudio { path: String, error: String },
+
     #[error("Multimodal context not initialized. Use with_mmproj() when building ChatHandle.")]
     ContextNotInitialized,
 
@@ -339,8 +342,8 @@ pub enum TokenizationError {
     #[error("Projection model failed to tokenize image bitmap: {0}")]
     ProjectionTokenizationError(String),
 
-    #[error("Image marker mismatch: found {n_markers} image markers in template but received {n_bitmaps} images. Each image placeholder in the prompt must have a corresponding image.\n\nTemplate preview: {template_preview}")]
-    ImageMarkerMismatch {
+    #[error("Media marker mismatch: found {n_markers} media markers in template but received {n_bitmaps} media items. Each media placeholder in the prompt must have a corresponding media item.\n\nTemplate preview: {template_preview}")]
+    MediaMarkerMismatch {
         n_markers: usize,
         n_bitmaps: usize,
         template_preview: String,

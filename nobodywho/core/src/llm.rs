@@ -1,5 +1,6 @@
 use crate::errors::{InitWorkerError, LoadModelError, ReadError};
 use crate::memory;
+use crate::sampler_config::SamplerConfig;
 use crate::tokenizer::{ProjectionModel, Tokenizer, TokenizerChunk, TokenizerChunks};
 use lazy_static::lazy_static;
 use llama_cpp_2::context::kv_cache::KvCacheConversionError;
@@ -183,6 +184,23 @@ fn read_add_bos_metadata(model: &LlamaModel) -> Result<AddBos, InitWorkerError> 
     }
 }
 
+pub(crate) fn read_sampler_from_metadata(model: &LlamaModel) -> Option<SamplerConfig> {
+    match model.meta_val_str("sampler.chain.recommended") {
+        Ok(val) => match serde_json::from_str::<SamplerConfig>(val.as_str()) {
+            Ok(sampler) => Some(sampler),
+            Err(_) => {
+                warn!(
+                    "Error parsing sampler: {}. Example of sampler serialization: {}",
+                    val.as_str(),
+                    serde_json::to_string(&SamplerConfig::default()).unwrap()
+                );
+                None
+            }
+        },
+        Err(_) => None,
+    }
+}
+
 #[derive(Debug)]
 pub(crate) struct Worker<'a, S> {
     pub(crate) n_past: i32,
@@ -229,7 +247,6 @@ where
         // Set up context parameters using available parallelism
         let ctx = {
             let n_threads = std::thread::available_parallelism()?.get() as i32;
-
             let ctx_plan = memory::plan_context(
                 std::cmp::min(n_ctx, model.language_model.n_ctx_train()),
                 projection_model.is_some(),
@@ -306,8 +323,8 @@ where
                 TokenizerChunk::Text(tokens, _) => {
                     self.read_text_tokens(tokens, inference_lock_token)?;
                 }
-                TokenizerChunk::Image(embeddings, _) => {
-                    self.read_image_embeddings(embeddings, inference_lock_token)?;
+                TokenizerChunk::Image(embeddings, _) | TokenizerChunk::Audio(embeddings, _) => {
+                    self.read_media_embeddings(embeddings, inference_lock_token)?;
                 }
             }
         }
@@ -316,7 +333,7 @@ where
     }
 
     #[tracing::instrument(level = "trace", skip(self))]
-    fn read_image_embeddings(
+    fn read_media_embeddings(
         &mut self,
         embeddings: Rc<MtmdInputChunks>,
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
@@ -327,9 +344,9 @@ where
             .ok_or(ReadError::ProjectionModelNotInitialized)?;
 
         let n_tokens = embeddings.as_ref().total_tokens();
-        debug!(n_tokens, "Reading image embeddings:");
+        debug!(n_tokens, "Reading media embeddings:");
 
-        let decode_span = debug_span!("read image embeddings", n_tokens = n_tokens);
+        let decode_span = debug_span!("read media embeddings", n_tokens = n_tokens);
         let decode_guard = decode_span.enter();
         let n_ctx = self.ctx.n_ctx() as i32;
         self.n_past = embeddings.eval_chunks(
@@ -343,7 +360,7 @@ where
 
         drop(decode_guard);
         debug!(
-            "Completed read image embeddings operation, n_past: {}",
+            "Completed read media embeddings operation, n_past: {}",
             self.n_past
         );
 

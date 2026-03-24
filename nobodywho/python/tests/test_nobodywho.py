@@ -20,14 +20,14 @@ def model():
 @pytest.fixture
 def chat(model):
     return nobodywho.Chat(
-        model, system_prompt="You are a helpful assistant", allow_thinking=False
+        model, system_prompt="You are a helpful assistant", template_variables={"enable_thinking" : False}
     )
 
 
 @pytest.fixture
 def chat_async(model):
     return nobodywho.ChatAsync(
-        model, system_prompt="You are a helpful assistant", allow_thinking=False
+        model, system_prompt="You are a helpful assistant", template_variables={"enable_thinking" : False}
     )
 
 
@@ -261,10 +261,10 @@ def test_load_chat_from_path():
     model_path = os.environ.get("TEST_MODEL")
     assert isinstance(model_path, str)
 
-    new_chat = nobodywho.Chat(model_path, allow_thinking=False)
+    new_chat = nobodywho.Chat(model_path, template_variables={"enable_thinking" : False})
     assert isinstance(new_chat, nobodywho.Chat)
 
-    new_async_chat = nobodywho.ChatAsync(model_path, allow_thinking=False)
+    new_async_chat = nobodywho.ChatAsync(model_path, template_variables={"enable_thinking" : False})
     assert isinstance(new_async_chat, nobodywho.ChatAsync)
 
 
@@ -292,8 +292,8 @@ def test_load_crossencoder_from_path():
 
 def test_set_and_get_chat_history(chat):
     chat_history = [
-        {"role": "user", "content": "What's 2 + 2?", "assets": []},
-        {"role": "assistant", "content": "2 + 2 = 4", "assets": []},
+        {"role": "user", "content": "What's 2 + 2?"},
+        {"role": "assistant", "content": "2 + 2 = 4"},
     ]
     chat.set_chat_history(chat_history)
     assert chat.get_chat_history() == chat_history
@@ -302,8 +302,8 @@ def test_set_and_get_chat_history(chat):
 @pytest.mark.asyncio
 async def test_async_set_and_get_chat_history(chat_async):
     chat_history = [
-        {"role": "user", "content": "What's 2 + 2?", "assets": []},
-        {"role": "assistant", "content": "2 + 2 = 4", "assets": []},
+        {"role": "user", "content": "What's 2 + 2?"},
+        {"role": "assistant", "content": "2 + 2 = 4"},
     ]
     await chat_async.set_chat_history(chat_history)
     assert (await chat_async.get_chat_history()) == chat_history
@@ -332,7 +332,7 @@ def test_reset_chat_history(chat):
 def test_set_system_prompt(model):
     """Test that set_system_prompt changes behavior and persists after reset_history"""
     chat = nobodywho.Chat(
-        model, system_prompt="You are a helpful assistant.", allow_thinking=False
+        model, system_prompt="You are a helpful assistant.", template_variables={"enable_thinking" : False}
     )
 
     # Have a conversation

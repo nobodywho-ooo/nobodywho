@@ -38,3 +38,7 @@ migrate_working_dir/
 
 # binaries
 *.so
+
+# Symlinks created by doctest setup
+dog.png
+penguin.png

@@ -1,0 +1,70 @@
+name: "Trigger full CI from PR comment"
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  trigger:
+    if: >-
+      github.event.issue.pull_request
+      && github.event.comment.body == '/full-ci'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      pull-requests: read
+      issues: write
+    steps:
+      - name: Check permissions
+        id: auth
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: context.actor,
+            });
+            // permission field uses legacy mapping: maintain→write, triage→read
+            const allowed = ['admin', 'write'].includes(data.permission);
+            if (!allowed) {
+              await github.rest.reactions.createForIssueComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: context.payload.comment.id,
+                content: 'confused',
+              });
+            }
+            core.setOutput('allowed', allowed);
+
+      - name: Get PR head ref
+        if: steps.auth.outputs.allowed == 'true'
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+            core.setOutput('ref', pr.data.head.ref);
+
+      - name: Trigger full CI
+        if: steps.auth.outputs.allowed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'main.yml',
+              ref: '${{ steps.pr.outputs.ref }}',
+              inputs: { full_ci: 'true' },
+            });
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: 'rocket',
+            });

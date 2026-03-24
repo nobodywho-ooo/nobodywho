@@ -31,7 +31,7 @@ impl Display for Prompt {
             .iter()
             .map(|part| match part {
                 PromptPart::Text(text) => text.clone(),
-                PromptPart::Image(_) => marker.to_string(),
+                PromptPart::Image(_) | PromptPart::Audio(_) => marker.to_string(),
             })
             .collect::<Vec<String>>()
             .join("");
@@ -63,21 +63,33 @@ impl Prompt {
         self.parts.push(PromptPart::Image(image_path.into()));
     }
 
+    pub fn push_audio(&mut self, audio_path: &Path) {
+        self.parts.push(PromptPart::Audio(audio_path.into()));
+    }
+
     pub fn extract_asset_paths(&self) -> Vec<&Path> {
         self.parts
             .iter()
             .filter_map(|part| match part {
-                PromptPart::Image(path) => Some(path.as_path()),
+                PromptPart::Image(path) | PromptPart::Audio(path) => Some(path.as_path()),
                 PromptPart::Text(_) => None,
             })
+            .collect()
+    }
+
+    pub(crate) fn extract_media_assets(&self) -> Vec<&PromptPart> {
+        self.parts
+            .iter()
+            .filter(|part| !matches!(part, PromptPart::Text(_)))
             .collect()
     }
 }
 
 #[derive(Clone, Debug)]
-enum PromptPart {
+pub(crate) enum PromptPart {
     Text(String),
     Image(PathBuf),
+    Audio(PathBuf),
 }
 
 pub trait Promptable {
@@ -128,6 +140,7 @@ pub type ChunkId = String;
 pub enum TokenizerChunk {
     Text(Vec<LlamaToken>, ChunkId),
     Image(Rc<MtmdInputChunks>, ChunkId),
+    Audio(Rc<MtmdInputChunks>, ChunkId),
 }
 
 impl TokenizerChunk {
@@ -151,16 +164,28 @@ impl TokenizerChunk {
         Self::Image(Rc::new(chunks), id.unwrap_or_default())
     }
 
+    pub fn new_audio(chunks: MtmdInputChunks) -> Self {
+        let id = (0..chunks.len()).find_map(|i| {
+            chunks
+                .get(i)
+                .filter(|c| c.chunk_type() == MtmdInputChunkType::Audio)
+                .map(|c| c.id().unwrap_or_default())
+        });
+
+        Self::Audio(Rc::new(chunks), id.unwrap_or_default())
+    }
+
     pub fn id(&self) -> &str {
         match self {
-            Self::Text(_, id) | Self::Image(_, id) => id,
+            Self::Text(_, id) | Self::Image(_, id) | Self::Audio(_, id) => id,
         }
     }
 
     pub fn n_tokens(&self) -> usize {
         match self {
             TokenizerChunk::Text(tokens, _) => tokens.len(),
-            TokenizerChunk::Image(chunks_rc, _) => (0..chunks_rc.len())
+            TokenizerChunk::Image(chunks_rc, _) | TokenizerChunk::Audio(chunks_rc, _) => (0
+                ..chunks_rc.len())
                 .map(|i| chunks_rc.get(i).map(|c| c.n_tokens()).unwrap_or(0))
                 .sum(),
         }
@@ -276,9 +301,11 @@ impl TokenizerChunks {
 
                 TokenizerChunks { chunks: new_chunks }
             }
-            TokenizerChunk::Image(_chunks, _) => TokenizerChunks {
-                chunks: self.chunks[i..].to_vec(),
-            },
+            TokenizerChunk::Image(_chunks, _) | TokenizerChunk::Audio(_chunks, _) => {
+                TokenizerChunks {
+                    chunks: self.chunks[i..].to_vec(),
+                }
+            }
         }
     }
 }
@@ -314,7 +341,7 @@ pub fn find_chunks_prefix_difference(old: &TokenizerChunks, new: &TokenizerChunk
         }
     }
 
-    // image and image, or image and text are colliding
+    // image/audio and image/audio, or image/audio and text are colliding
     new_start
 }
 
@@ -371,7 +398,11 @@ impl ProjectionModel {
             )
             .map_err(|e| TokenizationError::ProjectionTokenizationError(e.to_string()))?;
 
-        Ok(TokenizerChunk::new_image(mtmd_chunks))
+        if bitmap.is_audio() {
+            Ok(TokenizerChunk::new_audio(mtmd_chunks))
+        } else {
+            Ok(TokenizerChunk::new_image(mtmd_chunks))
+        }
     }
 
     pub fn load_image(&self, path: &Path) -> Result<MtmdBitmap, MultimodalError> {
@@ -384,6 +415,20 @@ impl ProjectionModel {
         })?;
 
         info!(path = %p, "Loading image for MTMD");
+
+        Ok(bitmap)
+    }
+
+    pub fn load_audio(&self, path: &Path) -> Result<MtmdBitmap, MultimodalError> {
+        let p = path.to_string_lossy().into_owned();
+        let bitmap = MtmdBitmap::from_file(&self.ctx, p.as_str()).map_err(|e| {
+            MultimodalError::LoadAudio {
+                path: p.clone(),
+                error: e.to_string(),
+            }
+        })?;
+
+        info!(path = %p, "Loading audio for MTMD");
 
         Ok(bitmap)
     }
@@ -419,7 +464,7 @@ impl<'a> Tokenizer<'a> {
         let n_image_markers = text_chunks.len() - 1;
         if n_image_markers != bitmaps.len() {
             let preview = rendered_chat.chars().take(200).collect::<String>();
-            return Err(TokenizationError::ImageMarkerMismatch {
+            return Err(TokenizationError::MediaMarkerMismatch {
                 n_markers: n_image_markers,
                 n_bitmaps: bitmaps.len(),
                 template_preview: preview,
@@ -427,7 +472,7 @@ impl<'a> Tokenizer<'a> {
         }
 
         let image_chunks = if !bitmaps.is_empty() {
-            self.tokenize_images(bitmaps)?
+            self.tokenize_media(bitmaps)?
         } else {
             vec![]
         };
@@ -467,7 +512,7 @@ impl<'a> Tokenizer<'a> {
         Ok(splits)
     }
 
-    fn tokenize_images(
+    fn tokenize_media(
         &self,
         bitmaps: Vec<&MtmdBitmap>,
     ) -> Result<Vec<TokenizerChunk>, TokenizationError> {
@@ -475,7 +520,7 @@ impl<'a> Tokenizer<'a> {
             TokenizationError::ProjectionTokenizationError("Context not initialized".to_string()),
         )?;
 
-        // Tokenize each image separately to get individual chunks
+        // Tokenize each media item separately to get individual chunks
         bitmaps
             .iter()
             .map(|bitmap| projection_model.tokenize(bitmap))

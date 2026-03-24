@@ -1,7 +1,14 @@
 use pyo3::prelude::*;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 mod parse;
+
+/// Gate for forwarding tracing events to Python's logging module.
+/// Set to `true` after pyo3_log is installed, set to `false` via an `atexit`
+/// handler before `Py_FinalizeEx` runs. This prevents worker threads from
+/// calling into a partially-destroyed interpreter during shutdown.
+static PYTHON_LOGGING_AVAILABLE: AtomicBool = AtomicBool::new(false);
 
 /// `Model` objects contain a GGUF model. It is primarily useful for sharing a single model instance
 /// between multiple `Chat`, `Encoder`, or `CrossEncoder` instances.
@@ -604,9 +611,10 @@ impl Chat {
     ///     model: A chat model (Model instance or path to GGUF file)
     ///     n_ctx: Context size (maximum conversation length in tokens). Defaults to 4096.
     ///     system_prompt: System message to guide the model's behavior. Defaults to empty string.
-    ///     allow_thinking: If True, allows extended reasoning tokens for supported models. Defaults to True.
+    ///     template_variables: Dict of template variables to pass to the chat template (e.g., {"enable_thinking": True}). Defaults to empty dict.
     ///     tools: List of Tool instances the model can call. Defaults to empty list.
     ///     sampler: SamplerConfig for token selection. Defaults to SamplerConfig.default().
+    ///     allow_thinking: DEPRECATED. Use template_variables={"enable_thinking": True} instead. If set, overrides enable_thinking in template_variables.
     ///
     /// Returns:
     ///     A Chat instance
@@ -615,20 +623,39 @@ impl Chat {
     ///     RuntimeError: If the model cannot be loaded
     ///     ValueError: If the path contains invalid UTF-8
     #[new]
-    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, allow_thinking = true, tools: "list[Tool]" = Vec::<Tool>::new(), sampler=SamplerConfig::default()) -> "Chat")]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = Vec::<Tool>::new(), sampler = SamplerConfig::default(), allow_thinking: "bool | None" = None) -> "Chat")]
     pub fn new(
         model: ModelOrPath,
         n_ctx: u32,
         system_prompt: Option<&str>,
-        allow_thinking: bool,
+        template_variables: std::collections::HashMap<String, bool>,
         tools: Vec<Tool>,
         sampler: SamplerConfig,
+        allow_thinking: Option<bool>,
+        py: Python<'_>,
     ) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
+
+        // Handle deprecated allow_thinking parameter
+        let mut template_vars = template_variables;
+        if let Some(allow) = allow_thinking {
+            let msg = std::ffi::CString::new(format!(
+                "allow_thinking parameter is deprecated. Use template_variables={{\"enable_thinking\": {}}} instead.",
+                allow
+            )).unwrap();
+            PyErr::warn(
+                py,
+                &py.get_type::<pyo3::exceptions::PyDeprecationWarning>(),
+                &msg,
+                1,
+            )?;
+            template_vars.insert("enable_thinking".to_string(), allow);
+        }
+
         let chat_handle = nobodywho::chat::ChatBuilder::new(nw_model)
             .with_context_size(n_ctx)
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
-            .with_allow_thinking(allow_thinking)
+            .with_template_variables(template_vars)
             .with_system_prompt(system_prompt)
             .with_sampler(sampler.sampler_config)
             .build();
@@ -692,6 +719,8 @@ impl Chat {
         })
     }
 
+    /// DEPRECATED: Use set_template_variable("enable_thinking", value) instead.
+    ///
     /// Enable or disable extended reasoning tokens for supported models.
     ///
     /// Args:
@@ -701,10 +730,77 @@ impl Chat {
     ///     ValueError: If the setting cannot be changed
     #[pyo3(signature = (allow_thinking: "bool") -> "None")]
     pub fn set_allow_thinking(&self, allow_thinking: bool, py: Python) -> PyResult<()> {
+        let msg = std::ffi::CString::new(format!(
+            "set_allow_thinking is deprecated. Use set_template_variable(\"enable_thinking\", {}) instead.",
+            allow_thinking
+        )).unwrap();
+        PyErr::warn(
+            py,
+            &py.get_type::<pyo3::exceptions::PyDeprecationWarning>(),
+            &msg,
+            1,
+        )?;
         py.detach(|| {
             self.handle()
-                .set_allow_thinking(allow_thinking)
+                .set_template_variable("enable_thinking".to_string(), allow_thinking)
                 .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+        })
+    }
+
+    /// Set a single template variable
+    ///
+    /// Args:
+    ///     name: The name of the template variable (e.g., "enable_thinking")
+    ///     value: The boolean value for the variable
+    ///
+    /// Raises:
+    ///     RuntimeError: If the variable cannot be set
+    #[pyo3(signature = (name: "str", value: "bool") -> "None")]
+    pub fn set_template_variable(&self, name: String, value: bool, py: Python) -> PyResult<()> {
+        py.detach(|| {
+            self.handle()
+                .set_template_variable(name, value)
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        })
+    }
+
+    /// Set all template variables, replacing any existing ones.
+    ///
+    /// Args:
+    ///     variables: Dict of template variable names to boolean values
+    ///
+    /// Raises:
+    ///     RuntimeError: If the variables cannot be set
+    #[pyo3(signature = (variables: "dict[str, bool]") -> "None")]
+    pub fn set_template_variables(
+        &self,
+        variables: std::collections::HashMap<String, bool>,
+        py: Python,
+    ) -> PyResult<()> {
+        py.detach(|| {
+            self.handle()
+                .set_template_variables(variables)
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        })
+    }
+
+    /// Get all template variables.
+    ///
+    /// Returns:
+    ///     Dict of template variable names to boolean values
+    ///
+    /// Raises:
+    ///     RuntimeError: If the variables cannot be retrieved
+    #[pyo3(signature = () -> "dict[str, bool]")]
+    pub fn get_template_variables(
+        &self,
+        py: Python,
+    ) -> PyResult<std::collections::HashMap<String, bool>> {
+        py.detach(|| {
+            self.handle()
+                .get_template_variables()
+                .map(|vars| vars.into_iter().collect())
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         })
     }
 
@@ -806,6 +902,39 @@ impl Chat {
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         })
     }
+
+    /// Get the current sampler configuration.
+    ///
+    /// Returns:
+    ///     The current SamplerConfig used for token selection
+    ///
+    /// Raises:
+    ///     RuntimeError: If the sampler config cannot be retrieved
+    #[pyo3(signature = () -> "SamplerConfig")]
+    pub fn get_sampler_config(&self, py: Python) -> PyResult<SamplerConfig> {
+        py.detach(|| {
+            self.handle()
+                .get_sampler_config()
+                .map(|sampler_config| SamplerConfig { sampler_config })
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        })
+    }
+
+    /// Get the current system prompt.
+    ///
+    /// Returns:
+    ///     The current system prompt, or None if not set
+    ///
+    /// Raises:
+    ///     RuntimeError: If the system prompt cannot be retrieved
+    #[pyo3(signature = () -> "str | None")]
+    pub fn get_system_prompt(&self, py: Python) -> PyResult<Option<String>> {
+        py.detach(|| {
+            self.handle()
+                .get_system_prompt()
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        })
+    }
 }
 
 /// This is the async version of the `Chat` class.
@@ -839,9 +968,10 @@ impl ChatAsync {
     ///     model: A chat model (Model instance or path to GGUF file)
     ///     n_ctx: Context size (maximum conversation length in tokens). Defaults to 4096.
     ///     system_prompt: System message to guide the model's behavior. Defaults to empty string.
-    ///     allow_thinking: If True, allows extended reasoning tokens for supported models. Defaults to True.
+    ///     template_variables: Dict of template variables to pass to the chat template (e.g., {"enable_thinking": True}). Defaults to empty dict.
     ///     tools: List of Tool instances the model can call. Defaults to empty list.
     ///     sampler: SamplerConfig for token selection. Defaults to SamplerConfig.default().
+    ///     allow_thinking: DEPRECATED. Use template_variables={"enable_thinking": True} instead. If set, overrides enable_thinking in template_variables.
     ///
     /// Returns:
     ///     A ChatAsync instance
@@ -850,20 +980,39 @@ impl ChatAsync {
     ///     RuntimeError: If the model cannot be loaded
     ///     ValueError: If the path contains invalid UTF-8
     #[new]
-    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, allow_thinking = true, tools: "list[Tool]" = vec![], sampler = SamplerConfig::default()) -> "ChatAsync")]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = vec![], sampler = SamplerConfig::default(), allow_thinking: "bool | None" = None) -> "ChatAsync")]
     pub fn new(
         model: ModelOrPath,
         n_ctx: u32,
         system_prompt: Option<&str>,
-        allow_thinking: bool,
+        template_variables: std::collections::HashMap<String, bool>,
         tools: Vec<Tool>,
         sampler: SamplerConfig,
+        allow_thinking: Option<bool>,
+        py: Python<'_>,
     ) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
+
+        // Handle deprecated allow_thinking parameter
+        let mut template_vars = template_variables;
+        if let Some(allow) = allow_thinking {
+            let msg = std::ffi::CString::new(format!(
+                "allow_thinking parameter is deprecated. Use template_variables={{\"enable_thinking\": {}}} instead.",
+                allow
+            )).unwrap();
+            PyErr::warn(
+                py,
+                &py.get_type::<pyo3::exceptions::PyDeprecationWarning>(),
+                &msg,
+                1,
+            )?;
+            template_vars.insert("enable_thinking".to_string(), allow);
+        }
+
         let chat_handle = nobodywho::chat::ChatBuilder::new(nw_model)
             .with_context_size(n_ctx)
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
-            .with_allow_thinking(allow_thinking)
+            .with_template_variables(template_vars)
             .with_system_prompt(system_prompt)
             .with_sampler(sampler.sampler_config)
             .build_async();
@@ -921,6 +1070,8 @@ impl ChatAsync {
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
+    /// DEPRECATED: Use set_template_variable("enable_thinking", value) instead.
+    ///
     /// Enable or disable extended reasoning tokens for supported models.
     ///
     /// Args:
@@ -930,10 +1081,74 @@ impl ChatAsync {
     ///     ValueError: If the setting cannot be changed
     #[pyo3(signature = (allow_thinking: "bool") -> "None")]
     pub async fn set_allow_thinking(&self, allow_thinking: bool) -> PyResult<()> {
+        Python::attach(|py| {
+            let msg = std::ffi::CString::new(format!(
+                "set_allow_thinking is deprecated. Use set_template_variable(\"enable_thinking\", {}) instead.",
+                allow_thinking
+            )).unwrap();
+            PyErr::warn(
+                py,
+                &py.get_type::<pyo3::exceptions::PyDeprecationWarning>(),
+                &msg,
+                1,
+            )
+        })?;
         self.handle()
-            .set_allow_thinking(allow_thinking)
+            .set_template_variable("enable_thinking".to_string(), allow_thinking)
             .await
             .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+    }
+
+    /// Set a single template variable.
+    ///
+    /// Args:
+    ///     name: The name of the template variable (e.g., "enable_thinking")
+    ///     value: The boolean value for the variable
+    ///
+    /// Raises:
+    ///     RuntimeError: If the variable cannot be set
+    #[pyo3(signature = (name: "str", value: "bool") -> "typing.Awaitable[None]")]
+    pub async fn set_template_variable(&self, name: String, value: bool) -> PyResult<()> {
+        self.handle()
+            .set_template_variable(name, value)
+            .await
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Set all template variables, replacing any existing ones.
+    ///
+    /// Args:
+    ///     variables: Dict of template variable names to boolean values
+    ///
+    /// Raises:
+    ///     RuntimeError: If the variables cannot be set
+    #[pyo3(signature = (variables: "dict[str, bool]") -> "typing.Awaitable[None]")]
+    pub async fn set_template_variables(
+        &self,
+        variables: std::collections::HashMap<String, bool>,
+    ) -> PyResult<()> {
+        self.handle()
+            .set_template_variables(variables)
+            .await
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Get all template variables.
+    ///
+    /// Returns:
+    ///     Dict of template variable names to boolean values
+    ///
+    /// Raises:
+    ///     RuntimeError: If the variables cannot be retrieved
+    #[pyo3(signature = () -> "typing.Awaitable[dict[str, bool]]")]
+    pub async fn get_template_variables(
+        &self,
+    ) -> PyResult<std::collections::HashMap<String, bool>> {
+        self.handle()
+            .get_template_variables()
+            .await
+            .map(|vars| vars.into_iter().collect())
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     /// Get the current chat history as a list of message dictionaries.
@@ -1035,6 +1250,37 @@ impl ChatAsync {
             .await
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
+
+    /// Get the current sampler configuration.
+    ///
+    /// Returns:
+    ///     The current SamplerConfig used for token selection
+    ///
+    /// Raises:
+    ///     RuntimeError: If the sampler config cannot be retrieved
+    #[pyo3(signature = () -> "typing.Awaitable[SamplerConfig]")]
+    pub async fn get_sampler_config(&self) -> PyResult<SamplerConfig> {
+        self.handle()
+            .get_sampler_config()
+            .await
+            .map(|sampler_config| SamplerConfig { sampler_config })
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Get the current system prompt.
+    ///
+    /// Returns:
+    ///     The current system prompt, or None if not set
+    ///
+    /// Raises:
+    ///     RuntimeError: If the system prompt cannot be retrieved
+    #[pyo3(signature = () -> "typing.Awaitable[str | None]")]
+    pub async fn get_system_prompt(&self) -> PyResult<Option<String>> {
+        self.handle()
+            .get_system_prompt()
+            .await
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
 }
 
 /// Compute the cosine similarity between two vectors.
@@ -1065,10 +1311,50 @@ fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> PyResult<f32> {
 /// generation result.
 /// A `SamplerConfig` can be constructed either using a preset function from the `SamplerPresets`
 /// class, or by manually constructing a sampler chain using the `SamplerBuilder` class.
+/// `SamplerConfig` supports serialization to/from JSON via `to_json()` and `from_json()`.
 #[pyclass]
 #[derive(Clone, Default)]
 pub struct SamplerConfig {
     sampler_config: nobodywho::sampler_config::SamplerConfig,
+}
+
+#[pymethods]
+impl SamplerConfig {
+    /// Serialize the sampler configuration to a JSON string.
+    ///
+    /// Returns:
+    ///     A JSON string representing this sampler configuration
+    ///
+    /// Raises:
+    ///     RuntimeError: If serialization fails
+    #[pyo3(signature = () -> "str")]
+    pub fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.sampler_config)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Deserialize a sampler configuration from a JSON string.
+    ///
+    /// Args:
+    ///     json_str: A JSON string representing a sampler configuration
+    ///
+    /// Returns:
+    ///     A SamplerConfig instance
+    ///
+    /// Raises:
+    ///     ValueError: If the JSON is invalid or doesn't represent a valid sampler configuration
+    #[staticmethod]
+    #[pyo3(signature = (json_str: "str") -> "SamplerConfig")]
+    pub fn from_json(json_str: &str) -> PyResult<Self> {
+        let sampler_config: nobodywho::sampler_config::SamplerConfig =
+            serde_json::from_str(json_str)
+                .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        Ok(Self { sampler_config })
+    }
+
+    fn __repr__(&self) -> PyResult<String> {
+        self.to_json()
+    }
 }
 
 /// `SamplerBuilder` is used to manually construct a sampler chain.
@@ -1924,6 +2210,10 @@ pub mod nobodywhopython {
             event: &tracing::Event<'_>,
             _ctx: tracing_subscriber::layer::Context<'_, S>,
         ) {
+            if !crate::PYTHON_LOGGING_AVAILABLE.load(std::sync::atomic::Ordering::Acquire) {
+                return;
+            }
+
             let metadata = event.metadata();
 
             // Force all llama-cpp logs to TRACE level
@@ -2039,7 +2329,21 @@ pub mod nobodywhopython {
         // Flow: llamacpp -> tracing -> LogForwardingLayer -> log crate -> pyo3_log -> Python
         nobodywho::send_llamacpp_logs_to_tracing();
 
+        // STEP 4: Enable log forwarding and register shutdown hook.
+        // The atexit handler disables forwarding before Py_FinalizeEx so that
+        // worker threads that are still alive don't call into a partially-destroyed
+        // interpreter (which would cause SIGABRT).
+        crate::PYTHON_LOGGING_AVAILABLE.store(true, std::sync::atomic::Ordering::Release);
+        let atexit = _m.py().import("atexit")?;
+        let cleanup_fn = wrap_pyfunction!(cleanup_logging, _m.py())?;
+        atexit.call_method1("register", (cleanup_fn,))?;
+
         Ok(())
+    }
+
+    #[pyfunction]
+    fn cleanup_logging() {
+        crate::PYTHON_LOGGING_AVAILABLE.store(false, std::sync::atomic::Ordering::Release);
     }
 
     #[pymodule_export]

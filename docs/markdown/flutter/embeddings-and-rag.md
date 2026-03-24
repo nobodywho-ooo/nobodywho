@@ -198,6 +198,7 @@ Future<void> main() async {
   final chat = await nobodywho.Chat.fromPath(
     modelPath: './model.gguf',
     systemPrompt: "You are a customer service assistant. Use the search_knowledge tool to find relevant information from our policies before answering customer questions.",
+    templateVariables: {"enable_thinking": false},
     tools: [searchKnowledgeTool]
   );
 
@@ -279,7 +280,7 @@ Future<void> main() async {
   // Initialize models
   final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
   
-  final crossencoder = await nobodywho.CrossEncoder.fromPath((modelPath: './reranker-model.gguf');)
+  final crossencoder = await nobodywho.CrossEncoder.fromPath(modelPath: './reranker-model.gguf');
 
   // Large knowledge base
   final knowledgeBase = [
@@ -329,6 +330,7 @@ Future<void> main() async {
   final chat = await nobodywho.Chat.fromPath(
     modelPath: './model.gguf',
     systemPrompt: "You are a technical documentation assistant. Always use the search tool to find relevant information before answering programming questions.",
+    templateVariables: {"enable_thinking": false},
     tools: [searchTool]
   );
 

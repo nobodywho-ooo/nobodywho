@@ -28,13 +28,14 @@ use crate::errors::{
     MultimodalError, RenderError, SayError, SelectTemplateError, SetToolsError, ShiftError,
     WrappedResponseError,
 };
-use crate::llm::{self};
+use crate::llm::{self, read_sampler_from_metadata};
 use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
 use crate::llm::{Worker, WorkerGuard, WriteOutput};
 use crate::sampler_config::{SamplerConfig, ShiftStep};
 use crate::template::{select_template, ChatTemplate, ChatTemplateContext};
 use crate::tokenizer::{
-    find_chunks_prefix_difference, ChunkId, Prompt, Promptable, TokenizerChunk, TokenizerChunks,
+    find_chunks_prefix_difference, ChunkId, Prompt, PromptPart, Promptable, TokenizerChunk,
+    TokenizerChunks,
 };
 use crate::tool_calling::{detect_tool_format, Tool, ToolCall, ToolFormat};
 use ahash::AHasher;
@@ -67,12 +68,17 @@ pub struct Asset {
     path: PathBuf,
 }
 
+// deny_unknown_fields is required because assets has a serde default, making the
+// Message variant so permissive it would greedily match ToolCalls/ToolResp JSON
+// before they get a chance (serde untagged tries variants in declaration order
+// and ignores unknown fields by default).
 #[derive(Deserialize, Serialize, Clone, Debug)]
-#[serde(untagged)]
+#[serde(untagged, deny_unknown_fields)]
 pub enum Message {
     Message {
         role: Role,
         content: String,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
         assets: Vec<Asset>,
     },
     // it's kind of weird to have the content field in here
@@ -156,20 +162,20 @@ pub struct ChatConfig {
     pub n_ctx: u32,
     /// System prompt for the chat session.
     pub system_prompt: Option<String>,
-    /// Whether to allow thinking mode during inference.
-    pub allow_thinking: bool,
+    /// Variables to add to the chat template context.
+    pub template_variables: std::collections::HashMap<String, bool>,
     /// Sampler configuration for inference.
-    pub sampler_config: SamplerConfig,
+    pub sampler_config: Option<SamplerConfig>,
 }
 
 impl Default for ChatConfig {
     fn default() -> Self {
         Self {
             n_ctx: 4096,
-            allow_thinking: true,
+            template_variables: std::collections::HashMap::new(),
             system_prompt: None,
             tools: Vec::new(),
-            sampler_config: SamplerConfig::default(),
+            sampler_config: None,
         }
     }
 }
@@ -239,15 +245,36 @@ impl ChatBuilder {
         self
     }
 
-    /// Allow thinking mode during inference.
+    /// DEPRECATED: Use with_template_variable("enable_thinking", value) instead.
+    #[deprecated(
+        since = "0.6.0",
+        note = "Use with_template_variable(\"enable_thinking\", value) instead"
+    )]
     pub fn with_allow_thinking(mut self, allow_thinking: bool) -> Self {
-        self.config.allow_thinking = allow_thinking;
+        self.config
+            .template_variables
+            .insert("enable_thinking".to_string(), allow_thinking);
+        self
+    }
+
+    /// Add a single template variable
+    pub fn with_template_variable(mut self, variable_name: String, value: bool) -> Self {
+        self.config.template_variables.insert(variable_name, value);
+        self
+    }
+
+    /// Set the template_variables
+    pub fn with_template_variables(
+        mut self,
+        variables: std::collections::HashMap<String, bool>,
+    ) -> Self {
+        self.config.template_variables = variables;
         self
     }
 
     /// Set a custom sampler configuration
     pub fn with_sampler(mut self, sampler: SamplerConfig) -> Self {
-        self.config.sampler_config = sampler;
+        self.config.sampler_config = Some(sampler);
         self
     }
 
@@ -367,7 +394,8 @@ impl ChatHandle {
             .ok_or(crate::errors::SetterError::SetterError("set_tools".into()))
     }
 
-    /// Update whether the model should use thinking mode during inference.
+    /// DEPRECATED: Use set_template_variable("enable_thinking", value) instead.
+    #[deprecated(note = "Use set_template_variable(\"enable_thinking\", value) instead")]
     pub fn set_allow_thinking(
         &self,
         allow_thinking: bool,
@@ -379,6 +407,49 @@ impl ChatHandle {
         .ok_or(crate::errors::SetterError::SetterError(
             "set_allow_thinking".into(),
         ))
+    }
+
+    /// Set a single template variable.
+    pub fn set_template_variable(
+        &self,
+        name: String,
+        value: bool,
+    ) -> Result<(), crate::errors::SetterError> {
+        self.set_and_wait_blocking(|output_tx| ChatMsg::SetTemplateVariable {
+            name,
+            value,
+            output_tx,
+        })
+        .ok_or(crate::errors::SetterError::SetterError(
+            "set_template_variable".into(),
+        ))
+    }
+
+    /// Set all template variables, replacing any existing ones.
+    pub fn set_template_variables(
+        &self,
+        variables: std::collections::HashMap<String, bool>,
+    ) -> Result<(), crate::errors::SetterError> {
+        self.set_and_wait_blocking(|output_tx| ChatMsg::SetTemplateVariables {
+            variables,
+            output_tx,
+        })
+        .ok_or(crate::errors::SetterError::SetterError(
+            "set_template_variables".into(),
+        ))
+    }
+
+    /// Get all template variables.
+    pub fn get_template_variables(
+        &self,
+    ) -> Result<std::collections::HashMap<String, bool>, crate::errors::GetterError> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        self.guard.send(ChatMsg::GetTemplateVariables { output_tx });
+        output_rx
+            .blocking_recv()
+            .ok_or(crate::errors::GetterError::GetterError(
+                "get_template_variables".into(),
+            ))
     }
 
     /// Update the sampler configuration for inference.
@@ -424,6 +495,16 @@ impl ChatHandle {
             "set_chat_history".into(),
         ))
     }
+    /// Get the sampler config
+    pub fn get_sampler_config(&self) -> Result<SamplerConfig, crate::errors::GetterError> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        self.guard.send(ChatMsg::GetSamplerConfig { output_tx });
+        output_rx
+            .blocking_recv()
+            .ok_or(crate::errors::GetterError::GetterError(
+                "get_sampler_config".into(),
+            ))
+    }
 
     /// Update the system prompt without resetting chat history.
     ///
@@ -462,6 +543,17 @@ impl ChatHandle {
         .ok_or(crate::errors::SetterError::SetterError(
             "set_system_prompt".into(),
         ))
+    }
+
+    /// Get the system prompt
+    pub fn get_system_prompt(&self) -> Result<Option<String>, crate::errors::GetterError> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        self.guard.send(ChatMsg::GetSystemPrompt { output_tx });
+        output_rx
+            .blocking_recv()
+            .ok_or(crate::errors::GetterError::GetterError(
+                "get_system_prompt".into(),
+            ))
     }
 }
 
@@ -575,7 +667,8 @@ impl ChatHandleAsync {
             .ok_or(crate::errors::SetterError::SetterError("set_tools".into()))
     }
 
-    /// Update whether the model should use thinking mode during inference.
+    /// DEPRECATED: Use set_template_variable("enable_thinking", value) instead.
+    #[deprecated(note = "Use set_template_variable(\"enable_thinking\", value) instead")]
     pub async fn set_allow_thinking(
         &self,
         allow_thinking: bool,
@@ -588,6 +681,52 @@ impl ChatHandleAsync {
         .ok_or(crate::errors::SetterError::SetterError(
             "set_allow_thinking".into(),
         ))
+    }
+
+    /// Set a single template variable.
+    pub async fn set_template_variable(
+        &self,
+        name: String,
+        value: bool,
+    ) -> Result<(), crate::errors::SetterError> {
+        self.set_and_wait_async(|output_tx| ChatMsg::SetTemplateVariable {
+            name,
+            value,
+            output_tx,
+        })
+        .await
+        .ok_or(crate::errors::SetterError::SetterError(
+            "set_template_variable".into(),
+        ))
+    }
+
+    /// Set all template variables, replacing any existing ones.
+    pub async fn set_template_variables(
+        &self,
+        variables: std::collections::HashMap<String, bool>,
+    ) -> Result<(), crate::errors::SetterError> {
+        self.set_and_wait_async(|output_tx| ChatMsg::SetTemplateVariables {
+            variables,
+            output_tx,
+        })
+        .await
+        .ok_or(crate::errors::SetterError::SetterError(
+            "set_template_variables".into(),
+        ))
+    }
+
+    /// Get all template variables.
+    pub async fn get_template_variables(
+        &self,
+    ) -> Result<std::collections::HashMap<String, bool>, crate::errors::GetterError> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        self.guard.send(ChatMsg::GetTemplateVariables { output_tx });
+        output_rx
+            .recv()
+            .await
+            .ok_or(crate::errors::GetterError::GetterError(
+                "get_template_variables".into(),
+            ))
     }
 
     /// Update the sampler configuration for inference.
@@ -637,6 +776,18 @@ impl ChatHandleAsync {
         ))
     }
 
+    /// Get the sampler config.
+    pub async fn get_sampler_config(&self) -> Result<SamplerConfig, crate::errors::GetterError> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        self.guard.send(ChatMsg::GetSamplerConfig { output_tx });
+        output_rx
+            .recv()
+            .await
+            .ok_or(crate::errors::GetterError::GetterError(
+                "get_sampler_config".into(),
+            ))
+    }
+
     /// Update the system prompt without resetting chat history.
     ///
     /// This modifies the system message while preserving the conversation history.
@@ -675,6 +826,18 @@ impl ChatHandleAsync {
         .ok_or(crate::errors::SetterError::SetterError(
             "set_system_prompt".into(),
         ))
+    }
+
+    /// Get the system prompt
+    pub async fn get_system_prompt(&self) -> Result<Option<String>, crate::errors::GetterError> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        self.guard.send(ChatMsg::GetSystemPrompt { output_tx });
+        output_rx
+            .recv()
+            .await
+            .ok_or(crate::errors::GetterError::GetterError(
+                "get_system_prompt".into(),
+            ))
     }
 }
 
@@ -798,9 +961,24 @@ enum ChatMsg {
         system_prompt: Option<String>,
         output_tx: tokio::sync::mpsc::Sender<()>,
     },
+    GetSystemPrompt {
+        output_tx: tokio::sync::mpsc::Sender<Option<String>>,
+    },
     SetThinking {
         allow_thinking: bool,
         output_tx: tokio::sync::mpsc::Sender<()>,
+    },
+    SetTemplateVariable {
+        name: String,
+        value: bool,
+        output_tx: tokio::sync::mpsc::Sender<()>,
+    },
+    SetTemplateVariables {
+        variables: std::collections::HashMap<String, bool>,
+        output_tx: tokio::sync::mpsc::Sender<()>,
+    },
+    GetTemplateVariables {
+        output_tx: tokio::sync::mpsc::Sender<std::collections::HashMap<String, bool>>,
     },
     SetSamplerConfig {
         sampler_config: SamplerConfig,
@@ -808,6 +986,9 @@ enum ChatMsg {
     },
     GetChatHistory {
         output_tx: tokio::sync::mpsc::Sender<Vec<Message>>,
+    },
+    GetSamplerConfig {
+        output_tx: tokio::sync::mpsc::Sender<SamplerConfig>,
     },
     SetChatHistory {
         messages: Vec<Message>,
@@ -836,10 +1017,21 @@ impl std::fmt::Debug for ChatMsg {
                 .debug_struct("SetSystemPrompt")
                 .field("system_prompt", system_prompt)
                 .finish(),
+            ChatMsg::GetSystemPrompt { .. } => f.debug_struct("GetSystemPrompt").finish(),
             ChatMsg::SetThinking { allow_thinking, .. } => f
                 .debug_struct("SetThinking")
                 .field("allow_thinking", allow_thinking)
                 .finish(),
+            ChatMsg::SetTemplateVariable { name, value, .. } => f
+                .debug_struct("SetTemplateVariable")
+                .field("name", name)
+                .field("value", value)
+                .finish(),
+            ChatMsg::SetTemplateVariables { variables, .. } => f
+                .debug_struct("SetTemplateVariables")
+                .field("variables", &format!("[{} variables]", variables.len()))
+                .finish(),
+            ChatMsg::GetTemplateVariables { .. } => f.debug_struct("GetTemplateVariables").finish(),
             ChatMsg::SetSamplerConfig { sampler_config, .. } => f
                 .debug_struct("SetSamplerConfig")
                 .field("sampler_config", sampler_config)
@@ -849,6 +1041,7 @@ impl std::fmt::Debug for ChatMsg {
                 .debug_struct("SetChatHistory")
                 .field("messages", &format!("[{} messages]", messages.len()))
                 .finish(),
+            ChatMsg::GetSamplerConfig { .. } => f.debug_struct("GetSamplerConfig").finish(),
         }
     }
 }
@@ -889,12 +1082,35 @@ fn process_worker_msg(
             worker_state.set_system_prompt(system_prompt)?;
             let _ = output_tx.blocking_send(());
         }
+        ChatMsg::GetSystemPrompt { output_tx } => {
+            let system_prompt = worker_state.get_system_prompt();
+            let _ = output_tx.blocking_send(system_prompt);
+        }
         ChatMsg::SetThinking {
             allow_thinking,
             output_tx,
         } => {
-            worker_state.set_allow_thinking(allow_thinking)?;
+            worker_state.set_template_variable("enable_thinking".to_string(), allow_thinking)?;
             let _ = output_tx.blocking_send(());
+        }
+        ChatMsg::SetTemplateVariable {
+            name,
+            value,
+            output_tx,
+        } => {
+            worker_state.set_template_variable(name, value)?;
+            let _ = output_tx.blocking_send(());
+        }
+        ChatMsg::SetTemplateVariables {
+            variables,
+            output_tx,
+        } => {
+            worker_state.set_template_variables(variables)?;
+            let _ = output_tx.blocking_send(());
+        }
+        ChatMsg::GetTemplateVariables { output_tx } => {
+            let vars = worker_state.get_template_variables();
+            let _ = output_tx.blocking_send(vars);
         }
         ChatMsg::SetSamplerConfig {
             sampler_config,
@@ -914,6 +1130,10 @@ fn process_worker_msg(
             worker_state.set_chat_history(messages)?;
             let _ = output_tx.blocking_send(());
         }
+        ChatMsg::GetSamplerConfig { output_tx } => {
+            let sampler_config = worker_state.get_sampler_config();
+            let _ = output_tx.blocking_send(sampler_config);
+        }
     };
 
     Ok(())
@@ -929,9 +1149,9 @@ fn process_worker_msg(
 // TOOL CHAT WORKER
 
 struct ChatContext {
-    /// Here we keep the current tokens + image embeddings, which are in the KV cache.
+    /// Here we keep the current tokens + media embeddings, which are in the KV cache.
     chunks: TokenizerChunks,
-    /// Here we keep a list of the image bitmaps, which are needed for tokenization.
+    /// Here we keep a list of the media bitmaps, which are needed for tokenization.
     bitmaps: IndexMap<ChunkId, MtmdBitmap>,
 }
 
@@ -947,27 +1167,13 @@ impl ChatContext {
         &mut self,
         bitmaps: Vec<MtmdBitmap>,
     ) -> Result<Vec<String>, MultimodalError> {
-        let bitmap_map: IndexMap<ChunkId, MtmdBitmap> = bitmaps
-            .into_iter()
-            .map(|bitmap| {
-                let id = self.create_bitmap_id(&bitmap);
-                bitmap.set_id(&id)?;
-
-                Ok((id, bitmap))
-            })
-            .collect::<Result<IndexMap<ChunkId, MtmdBitmap>, MultimodalError>>()?;
-
-        let bitmap_ids = bitmap_map.keys().cloned().collect::<Vec<_>>();
-        let existing_bitmap_ids = self
-            .bitmaps
-            .keys()
-            .filter(|&id| bitmap_ids.contains(id))
-            .cloned()
-            .collect::<Vec<_>>();
-
-        self.remove_bitmaps(existing_bitmap_ids);
-        self.bitmaps.extend(bitmap_map);
-
+        let mut bitmap_ids = Vec::with_capacity(bitmaps.len());
+        for bitmap in bitmaps {
+            let id = self.create_bitmap_id(&bitmap);
+            bitmap.set_id(&id)?;
+            bitmap_ids.push(id.clone());
+            self.bitmaps.entry(id).or_insert(bitmap);
+        }
         Ok(bitmap_ids)
     }
 
@@ -1010,7 +1216,7 @@ struct ChatWorker {
     tool_format: Option<ToolFormat>,
     sampler_config: SamplerConfig,
     messages: Vec<Message>,
-    allow_thinking: bool,
+    template_variables: std::collections::HashMap<String, bool>,
     tools: Vec<Tool>,
     chat_template: ChatTemplate,
     context: ChatContext,
@@ -1054,6 +1260,10 @@ impl Worker<'_, ChatWorker> {
         } else {
             (None, None)
         };
+        let sampler_config = match config.sampler_config {
+            Some(sc) => sc,
+            None => read_sampler_from_metadata(&model.language_model).unwrap_or_default(),
+        };
 
         Worker::new_with_type(
             model,
@@ -1063,7 +1273,7 @@ impl Worker<'_, ChatWorker> {
                 should_stop,
                 tool_grammar: grammar,
                 tool_format,
-                sampler_config: config.sampler_config,
+                sampler_config,
                 messages: match config.system_prompt {
                     Some(msg) => vec![Message::Message {
                         role: Role::System,
@@ -1073,7 +1283,7 @@ impl Worker<'_, ChatWorker> {
                     None => vec![],
                 },
                 chat_template: template,
-                allow_thinking: config.allow_thinking,
+                template_variables: config.template_variables,
                 tools: config.tools,
                 context: ChatContext::new(),
             },
@@ -1087,7 +1297,7 @@ impl Worker<'_, ChatWorker> {
     }
 
     pub fn add_system_message(&mut self, content: String) {
-        // Todo: Should we allow adding images into the system prompt?
+        // Todo: Should we allow adding media into the system prompt?
         self.add_message(Role::System, content, vec![])
     }
 
@@ -1398,11 +1608,15 @@ impl Worker<'_, ChatWorker> {
             .as_ref()
             .map(|fmt| fmt.begin_token().to_string());
 
-        let asset_paths = prompt.extract_asset_paths();
+        let media_assets = prompt.extract_media_assets();
         let bitmaps = if let Some(projection_model) = self.projection_model.as_ref() {
-            asset_paths
+            media_assets
                 .iter()
-                .map(|path| projection_model.load_image(path))
+                .map(|part| match part {
+                    PromptPart::Image(path) => projection_model.load_image(path),
+                    PromptPart::Audio(path) => projection_model.load_audio(path),
+                    PromptPart::Text(_) => unreachable!(),
+                })
                 .collect::<Result<Vec<MtmdBitmap>, MultimodalError>>()?
         } else {
             vec![]
@@ -1413,10 +1627,13 @@ impl Worker<'_, ChatWorker> {
         let bitmap_ids = self.extra.context.add_bitmaps(bitmaps)?;
         let assets = bitmap_ids
             .iter()
-            .zip(asset_paths)
-            .map(|(id, path)| Asset {
+            .zip(media_assets.iter())
+            .map(|(id, part)| Asset {
                 id: id.clone(),
-                path: path.to_path_buf(),
+                path: match part {
+                    PromptPart::Image(path) | PromptPart::Audio(path) => path.to_path_buf(),
+                    PromptPart::Text(_) => unreachable!(),
+                },
             })
             .collect::<Vec<_>>();
 
@@ -1504,14 +1721,14 @@ impl Worker<'_, ChatWorker> {
     /// Otherwise please handle stuff.
     fn render_as_chunks(&mut self, handled: bool) -> Result<TokenizerChunks, RenderError> {
         let messages = &self.extra.messages;
-        let template_context = ChatTemplateContext {
-            enable_thinking: self.extra.allow_thinking,
-            tools: if self.extra.tools.is_empty() {
+        let template_context = ChatTemplateContext::new(
+            self.extra.template_variables.clone(),
+            if self.extra.tools.is_empty() {
                 None
             } else {
                 Some(self.extra.tools.clone())
             },
-        };
+        );
 
         let rendered_chat = if handled {
             self.extra
@@ -1523,7 +1740,13 @@ impl Worker<'_, ChatWorker> {
                 .render_unhandled(messages, &template_context)?
         };
 
-        let bitmaps = self.extra.context.bitmaps.values().collect::<Vec<_>>();
+        let bitmaps: Vec<&MtmdBitmap> = self
+            .extra
+            .messages
+            .iter()
+            .flat_map(|msg| msg.assets())
+            .filter_map(|asset| self.extra.context.bitmaps.get(&asset.id))
+            .collect();
         Ok(self.tokenizer.tokenize(rendered_chat, bitmaps)?)
     }
 
@@ -1595,9 +1818,28 @@ impl Worker<'_, ChatWorker> {
         Ok(())
     }
 
-    pub fn set_allow_thinking(&mut self, allow_thinking: bool) -> Result<(), ChatWorkerError> {
-        self.extra.allow_thinking = allow_thinking;
+    /// Set a single template variable.
+    pub fn set_template_variable(
+        &mut self,
+        name: String,
+        value: bool,
+    ) -> Result<(), ChatWorkerError> {
+        self.extra.template_variables.insert(name, value);
         Ok(())
+    }
+
+    /// Set all template variables, replacing any existing ones.
+    pub fn set_template_variables(
+        &mut self,
+        variables: std::collections::HashMap<String, bool>,
+    ) -> Result<(), ChatWorkerError> {
+        self.extra.template_variables = variables;
+        Ok(())
+    }
+
+    /// Get all template variables.
+    pub fn get_template_variables(&self) -> std::collections::HashMap<String, bool> {
+        self.extra.template_variables.clone()
     }
 
     pub fn set_sampler_config(&mut self, sampler_config: SamplerConfig) {
@@ -1638,6 +1880,20 @@ impl Worker<'_, ChatWorker> {
         self.sync_context_with_render(&inference_lock_token)?;
 
         Ok(())
+    }
+
+    pub fn get_system_prompt(&self) -> Option<String> {
+        if self.extra.messages.is_empty() {
+            return None;
+        };
+        match &self.extra.messages[0] {
+            Message::Message {
+                role: Role::System,
+                content,
+                assets: _,
+            } => Some(content.clone()),
+            _ => None,
+        }
     }
 
     pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), SetToolsError> {
@@ -1699,6 +1955,10 @@ impl Worker<'_, ChatWorker> {
         // sync with an empty render and we only render when there are
         // messages present in the history.
 
+        self.extra
+            .context
+            .garbage_collect_bitmaps(&self.extra.messages);
+
         Ok(())
     }
 
@@ -1709,6 +1969,10 @@ impl Worker<'_, ChatWorker> {
             }, rest @ ..] => rest.to_vec(),
             _ => self.extra.messages.clone(),
         }
+    }
+
+    pub fn get_sampler_config(&self) -> SamplerConfig {
+        self.extra.sampler_config.clone()
     }
 }
 
@@ -2072,13 +2336,12 @@ mod tests {
 
         let dog_response = chat.ask("Hello!").completed().unwrap();
 
-        assert!(dog_response.contains("woof"));
+        assert!(dog_response.to_lowercase().contains("woof"));
 
         chat.set_system_prompt(Some("You are a cat. End all responses with meow.".into()))
             .unwrap();
         let cat_response = chat.ask("Hello again!").completed().unwrap();
-
-        assert!(cat_response.contains("meow"));
+        assert!(cat_response.to_lowercase().contains("meow"));
     }
 
     #[test]
@@ -2499,7 +2762,7 @@ mod tests {
         let dk_handle = std::thread::spawn(move || {
             let chat = ChatBuilder::new(model_clone)
                 .with_context_size(4096)
-                .with_allow_thinking(false)
+                .with_template_variable("enable_thinking".to_string(), false)
                 .build();
 
             chat.ask("What is the capital of Denmark?").completed()
@@ -2509,7 +2772,7 @@ mod tests {
         let de_handle = std::thread::spawn(move || {
             let chat = ChatBuilder::new(model)
                 .with_context_size(4096)
-                .with_allow_thinking(false)
+                .with_template_variable("enable_thinking".to_string(), false)
                 .build();
 
             chat.ask("What is the capital of Germany?").completed()
@@ -2535,7 +2798,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_allow_thinking() -> Result<(), Box<dyn std::error::Error>> {
+    async fn test_enable_thinking() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let chat = ChatBuilder::new(model).build_async();
@@ -2550,7 +2813,8 @@ mod tests {
             "Expected the model to initialize with thinking mode, but it did not"
         );
 
-        chat.set_allow_thinking(false).await?;
+        chat.set_template_variable("enable_thinking".to_string(), false)
+            .await?;
 
         let res2: String = chat
             .ask("What is the capital of the Czech Republic?".to_string())
@@ -2572,10 +2836,14 @@ mod tests {
 
         let chat = ChatBuilder::new(model)
             .with_context_size(2048)
-            .with_allow_thinking(false)
+            .with_template_variable("enable_thinking".to_string(), false)
             .build();
 
         chat.set_sampler_config(SamplerPresets::greedy()).unwrap();
+
+        // Also test if get_sampler followed by set_sampler is no op
+        chat.set_sampler_config(chat.get_sampler_config().unwrap())
+            .unwrap();
 
         let response1 = chat.ask("Say exactly: 'Hello'").completed().unwrap();
         chat.reset_history().unwrap();
@@ -2593,7 +2861,7 @@ mod tests {
         let model = test_utils::load_test_model();
         let chat = ChatBuilder::new(model)
             .with_context_size(2048)
-            .with_allow_thinking(false)
+            .with_template_variable("enable_thinking".to_string(), false)
             .build();
         let _ = chat.reset_history();
         let resp = chat

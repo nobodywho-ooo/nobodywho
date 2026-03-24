@@ -1,5 +1,6 @@
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::sampling::LlamaSampler;
+use serde::{Deserialize, Serialize};
 
 use crate::errors::SamplerError;
 
@@ -67,11 +68,16 @@ impl SamplerPresets {
 }
 
 /// Underlying sampler configuration API, with much more control and details.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SamplerConfig {
     steps: Vec<ShiftStep>,
     sample_step: Option<SampleStep>,
+    #[serde(skip, default = "default_seed")]
     seed: u32,
+}
+
+fn default_seed() -> u32 {
+    1234
 }
 
 impl SamplerConfig {
@@ -269,7 +275,8 @@ ws ::= | " " | "\n" [ \t]{0,20}"#;
 
 /// ----- Sampler Methods -----
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "type", content = "value", rename_all = "snake_case")]
 pub enum ShiftStep {
     TopK {
         top_k: i32,
@@ -282,6 +289,7 @@ pub enum ShiftStep {
         min_keep: u32,
         min_p: f32,
     },
+    #[serde(rename = "xtc")]
     XTC {
         xtc_probability: f32,
         xtc_threshold: f32,
@@ -296,6 +304,7 @@ pub enum ShiftStep {
         root: String,
         grammar: String,
     },
+    #[serde(rename = "dry")]
     DRY {
         multiplier: f32,
         base: f32,
@@ -313,7 +322,8 @@ pub enum ShiftStep {
         temperature: f32,
     },
 }
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "type", content = "value", rename_all = "snake_case")]
 pub enum SampleStep {
     Dist,
     Greedy,
@@ -347,6 +357,14 @@ mod tests {
         // Verify order: Temperature first (prepended), TopK second
         assert!(matches!(config.steps[0], ShiftStep::Temperature { .. }));
         assert!(matches!(config.steps[1], ShiftStep::TopK { .. }));
+    }
+
+    #[test]
+    fn test_serialize_deserialize_round_trip() {
+        let config = SamplerConfig::default();
+        let json = serde_json::to_string(&config).unwrap();
+        let deserialized: SamplerConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(format!("{:?}", config), format!("{:?}", deserialized));
     }
 
     #[test]

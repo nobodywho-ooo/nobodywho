@@ -1,6 +1,11 @@
 name: "Test"
 on:
   workflow_call:
+    inputs:
+      full_ci:
+        description: "Run full test suite. If false, only flutter-doc-tests-check and nix-flake-check run."
+        type: boolean
+        default: false
     secrets:
       CACHIX_AUTH_TOKEN:
         required: true
@@ -25,7 +30,7 @@ jobs:
 
       - name: Check if generated tests are up to date
         run: |
-          if ! git diff --quiet; then
+          if git diff --quiet nobodywho/flutter/nobodywho/test/doctest_generated_test.dart; then
             echo "✅ Generated doctests are up to date"
           else
             echo "❌ Generated doctests are out of date!"
@@ -70,6 +75,7 @@ jobs:
 
 
   flutter-multimodal-tests:
+    if: inputs.full_ci
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4

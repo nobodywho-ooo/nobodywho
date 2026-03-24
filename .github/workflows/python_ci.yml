@@ -2,6 +2,11 @@ name: "python_ci"
 
 on:
   workflow_call:
+    inputs:
+      full_ci:
+        description: "Run full Python CI (builds, tests, pip-install checks). If false, only static checks run."
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -47,6 +52,7 @@ jobs:
         run: uvx ty check
 
   linux-build:
+    if: inputs.full_ci
     # Build inside manylinux_2_34 container for glibc 2.34 compatibility
     # This targets glibc version 2.34 which covers most distros going back to 2021
     # See: https://github.com/mayeut/pep600_compliance?tab=readme-ov-file#distro-compatibility
@@ -140,6 +146,7 @@ jobs:
           path: ./wheelhouse/nobodywho*.whl
 
   windows-build:
+    if: inputs.full_ci
     strategy:
       fail-fast: false
       matrix:
@@ -188,6 +195,7 @@ jobs:
           path: C:/target/wheels/nobodywho*.whl
 
   mac-os-build:
+    if: inputs.full_ci
     runs-on: macos-latest
     strategy:
       fail-fast: false
@@ -209,6 +217,7 @@ jobs:
           path: ./nobodywho/target/wheels/nobodywho*.whl
 
   linux-pytest:
+    if: inputs.full_ci
     needs: [linux-build]
     runs-on: ubuntu-24.04
     steps:
@@ -254,6 +263,7 @@ jobs:
           python3 -m pytest --markdown-docs ../../docs --markdown-docs-syntax=superfences
 
   linux-multimodal-tests:
+    if: inputs.full_ci
     needs: [linux-build]
     runs-on: ubuntu-24.04
     steps:
@@ -288,6 +298,7 @@ jobs:
           python3 -m pytest tests/test_multimodal.py -v --tb=short
 
   linux-tool-calling-tests:
+    if: inputs.full_ci
     needs: [linux-build]
     runs-on: ubuntu-24.04
     strategy:
@@ -353,6 +364,7 @@ jobs:
           echo "- Status: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
 
   linux-pip-install-test:
+    if: inputs.full_ci
     needs: [linux-build]
     strategy:
       fail-fast: false
@@ -402,6 +414,7 @@ jobs:
           bash nobodywho/python/tests/test_reliability.sh -n ${{ matrix.model_iterations }} nobodywho/python/examples/small_model_demo.py "linux/nobodypython/models/${{ matrix.model_name }}"
 
   windows-pip-install-test:
+    if: inputs.full_ci
     needs: [windows-build]
     strategy:
       fail-fast: false
@@ -452,6 +465,7 @@ jobs:
           ./nobodywho/python/tests/test_reliability.ps1 -ScriptPath "D:/a/nobodywho/nobodywho/nobodywho/python/examples/small_model_demo.py" -Iterations ${{ matrix.model_iterations }} "D:/a/nobodywho/nobodywho/windows/nobodywho_python/models/${{ matrix.model_name }}"
 
   mac-os-pip-install-test:
+    if: inputs.full_ci
     needs: [mac-os-build]
     runs-on: macos-latest
     strategy:
