@@ -2,7 +2,7 @@
 
 NobodyWho is a Flutter library for running large language models locally and offline on iOS, Android, macOS, Linux, and Windows.
 
-Free to use in commercial projects under the EUPL-1.2 license — no API key required.
+Free to use in commercial projects under the EUPL-1.2 license — no API key required. Support text, vision, embeddings, RAG & function calling.
 
 - [Documentation](https://docs.nobodywho.ooo) — Flutter & other frameworks documentation
 - [Discord](https://discord.gg/qhaMc2qCYB) — Get help, share ideas, and connect with other developers
@@ -196,3 +196,41 @@ Future<void> main() async {
 ```
 
 See the [Embeddings & RAG documentation](https://docs.nobodywho.ooo/flutter/embeddings-and-rag/) for more.
+
+---
+
+## Vision
+
+Vision support lets you include images in your prompts, so the model can analyze and describe visual content alongside text.
+
+To enable this, you need two model files:
+
+- A **vision-language LLM** (usually has `VL` in the name)
+- A matching **projection model** that converts images into tokens the LLM can process (usually has `mmproj` in the name)
+
+Pass the projection model when loading your model, then use `askWithPrompt` to compose prompts that mix text and images:
+
+```dart
+import 'package:nobodywho/nobodywho.dart' as nobodywho;
+
+// Recommended vision model: https://huggingface.co/LiquidAI/LFM2-VL-450M-GGUF/resolve/main/LFM2-VL-450M-Q8_0.gguf
+// Recommended mmproj model: https://huggingface.co/LiquidAI/LFM2-VL-450M-GGUF/resolve/main/mmproj-LFM2-VL-450M-Q8_0.gguf
+final model = await nobodywho.Model.load(
+  modelPath: "./vision-model.gguf",
+  imageIngestion: "./mmproj.gguf",
+);
+
+final chat = nobodywho.Chat(
+  model: model,
+  systemPrompt: "You are a helpful assistant.",
+);
+
+final response = await chat.askWithPrompt(nobodywho.Prompt([
+  nobodywho.TextPart("What do you see in this image?"),
+  nobodywho.ImagePart("./photo.png"),
+])).completed();
+```
+
+You can pass multiple images and interleave text between them. If the model performs poorly, try reordering the text and image parts — this can make a noticeable difference. If images consume too much context, increase `contextSize` or preprocess images with compression.
+
+See the [Vision documentation](https://docs.nobodywho.ooo/flutter/vision/) for model recommendations and advanced tips.
