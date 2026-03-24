@@ -10,7 +10,7 @@ minijinja = { version = "2.11.0", features = ["builtins", "json", "loader"] }
 minijinja-contrib = { version = "2.11.0", features = ["pycompat"] }
 serde = { version = "1.0.215", features = ["derive"] }
 chrono = "0.4.39"
-llama-cpp-2 = { git = "https://github.com/AsbjornOlling/llama-cpp-rs", branch = "fix-android-static-link-libstdcxx-for-mtmd", default-features = false, features = [
+llama-cpp-2 = { version = "0.1.140", default-features = false, features = [
     "openmp",
     "android-static-stdcxx",
     "mtmd",
@@ -37,7 +37,7 @@ indexmap = "2.13.0"
 
 # Enable Vulkan for x86_64, x86, and aarch64 targets (excluding macOS, iOS, Android)
 [target.'cfg(all(not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android"), any(target_arch = "x86_64", target_arch = "x86", target_arch = "aarch64")))'.dependencies]
-llama-cpp-2 = { git = "https://github.com/AsbjornOlling/llama-cpp-rs", branch = "fix-android-static-link-libstdcxx-for-mtmd", default-features = false, features = [
+llama-cpp-2 = { version="0.1.140", default-features = false, features = [
     "openmp",
     "vulkan",
     "mtmd",
