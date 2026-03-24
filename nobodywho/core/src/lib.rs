@@ -7,10 +7,15 @@ pub mod memory;
 pub mod sampler_config;
 pub mod template;
 pub mod tokenizer;
+pub mod speech_to_text;
 pub mod tool_calling;
 
 pub fn send_llamacpp_logs_to_tracing() {
     llama_cpp_2::send_logs_to_tracing(llama_cpp_2::LogOptions::default().with_logs_enabled(true));
+}
+
+pub fn send_whisper_logs_to_tracing() {
+    whisper_rs::install_logging_hooks();
 }
 
 #[cfg(test)]
@@ -45,6 +50,11 @@ pub mod test_utils {
     /// Get path to test crossencoder model from TEST_CROSSENCODER_MODEL env var
     pub fn test_crossencoder_model_path() -> String {
         std::env::var("TEST_CROSSENCODER_MODEL").unwrap_or_else(|_| "crossencoder.gguf".to_string())
+    }
+
+    /// Get path to test whisper model from TEST_WHISPER_MODEL env var
+    pub fn test_whisper_model_path() -> String {
+        std::env::var("TEST_WHISPER_MODEL").unwrap_or_else(|_| "whisper.gguf".to_string())
     }
 
     /// Get path to test multimodal projector from TEST_MMPROJ env var
