@@ -1,4 +1,5 @@
 use crate::errors::{InitWorkerError, LoadModelError, ReadError};
+use crate::memory;
 use crate::sampler_config::SamplerConfig;
 use crate::tokenizer::{ProjectionModel, Tokenizer, TokenizerChunk, TokenizerChunks};
 use lazy_static::lazy_static;
@@ -34,7 +35,7 @@ pub struct Model {
     pub(crate) projection_model: Option<ProjectionModel>,
 }
 
-pub fn has_discrete_gpu() -> bool {
+pub fn has_gpu_backend() -> bool {
     #[cfg(any(
         all(target_os = "ios", target_arch = "aarch64", target_abi = "sim"),
         all(target_os = "ios", target_arch = "x86_64")
@@ -57,12 +58,12 @@ pub fn has_discrete_gpu() -> bool {
                 continue;
             }
             llama_cpp_2::LlamaBackendDeviceType::Accelerator => {
-                // TODO: investigate: can we use this?
+                // Accelerator devices (e.g. NPUs) are auto-initialized by llama.cpp during
+                // context creation regardless of n_gpu_layers — no explicit handling needed.
                 continue;
             }
             llama_cpp_2::LlamaBackendDeviceType::IntegratedGpu => {
-                // TODO: investigate: can we use this?
-                continue;
+                return true;
             }
             llama_cpp_2::LlamaBackendDeviceType::Gpu => {
                 return true;
@@ -86,8 +87,12 @@ pub fn get_model(
     }
 
     // TODO: `LlamaModelParams` uses all devices by default. Set it to an empty list once an upstream device API is available.
-    let use_gpu = use_gpu_if_available && has_discrete_gpu();
-    let gpu_layers = if use_gpu { u32::MAX } else { 0 };
+    let use_gpu = use_gpu_if_available && has_gpu_backend();
+    let loading_plan = memory::plan_model_loading(model_path, mmproj_path, use_gpu);
+    let gpu_layers = loading_plan.gpu_layers;
+    for warning in &loading_plan.warnings {
+        warn!("{}", warning);
+    }
 
     info!(use_gpu = use_gpu, gpu_layers = gpu_layers, "Loading model");
 
@@ -106,7 +111,7 @@ pub fn get_model(
 
     info!("Model loaded successfully");
     let projection_model = mmproj_path
-        .map(|path| ProjectionModel::from_path(path, &language_model))
+        .map(|path| ProjectionModel::from_path(path, &language_model, use_gpu))
         .transpose()?;
 
     Ok(Model {
@@ -242,19 +247,21 @@ where
         // Set up context parameters using available parallelism
         let ctx = {
             let n_threads = std::thread::available_parallelism()?.get() as i32;
-            let n_ctx = std::cmp::min(n_ctx, model.language_model.n_ctx_train());
-
-            if projection_model.is_some() && n_ctx < 2048 {
-                warn!("Context size is less than 2048, which is the default minimum for ingesting media. This can cause issues.");
+            let ctx_plan = memory::plan_context(
+                std::cmp::min(n_ctx, model.language_model.n_ctx_train()),
+                projection_model.is_some(),
+                memory::ModelArchitecture {
+                    n_layers: model.language_model.n_layer(),
+                    n_embd: model.language_model.n_embd() as u32,
+                    n_head: model.language_model.n_head(),
+                    n_head_kv: model.language_model.n_head_kv(),
+                },
+            )?;
+            let n_ctx = ctx_plan.n_ctx;
+            let n_ubatch = ctx_plan.n_ubatch;
+            for w in &ctx_plan.warnings {
+                warn!("{}", w);
             }
-
-            // Still, better n_ubatch defaults could be possible, but with multimodality it is good to go for at least 2048,
-            // as media is often encoded to many tokens by some projection models.
-            let n_ubatch = if projection_model.is_some() {
-                std::cmp::min(2048, n_ctx)
-            } else {
-                std::cmp::min(512, n_ctx)
-            };
 
             let ctx_params = LlamaContextParams::default()
                 .with_n_ctx(std::num::NonZero::new(n_ctx))
