@@ -56,6 +56,13 @@ let
           ];
         };
 
+        # whisper-rs build.rs reads DEP_WHISPER_WHISPER_CPP_VERSION (set by whisper-rs-sys
+        # via `cargo:WHISPER_CPP_VERSION=…`). crate2nix builds each crate in isolation so
+        # the output isn't propagated automatically — hard-code it here.
+        whisper-rs = attrs: {
+          env.DEP_WHISPER_WHISPER_CPP_VERSION = "1.8.3";
+        };
+
         whisper-rs-sys = attrs: {
           env.LIBCLANG_PATH = "${pkgs.libclang.lib}/lib/libclang.so";
 
