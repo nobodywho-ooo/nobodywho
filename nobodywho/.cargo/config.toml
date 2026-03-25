@@ -1,0 +1,6 @@
+# Both whisper-rs-sys and llama-cpp-sys-2 bundle their own copy of ggml.c.
+# When linking a cdylib (Python extension), the linker sees duplicate symbols.
+# The two copies are ABI-compatible (same upstream ggml utility functions),
+# so we tell the linker to silently pick one definition.
+[target.'cfg(target_os = "linux")']
+rustflags = ["-C", "link-arg=-Wl,--allow-multiple-definition"]

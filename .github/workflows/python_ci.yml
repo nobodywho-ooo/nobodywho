@@ -70,7 +70,9 @@ jobs:
     container:
       image: quay.io/pypa/${{ matrix.manylinux_target }}
     env:
-      RUSTFLAGS: ${{ matrix.runner == 'ubuntu-24.04' && '-C target-cpu=x86-64-v3' || '' }}
+      # -C link-arg=-Wl,--allow-multiple-definition: both whisper-rs-sys and llama-cpp-sys-2
+      # bundle their own ggml.c; tell the linker to silently pick one definition.
+      RUSTFLAGS: ${{ matrix.runner == 'ubuntu-24.04' && '-C target-cpu=x86-64-v3 -C link-arg=-Wl,--allow-multiple-definition' || '-C link-arg=-Wl,--allow-multiple-definition' }}
     steps:
       - uses: actions/checkout@v4
 
