@@ -276,7 +276,8 @@ fn collect_transcript(state: &whisper_rs::WhisperState) -> String {
 
 fn load_audio(path: &str, target_rate: u32) -> Result<Vec<f32>, SpeechToTextError> {
     let mut format_reader = open_format_reader(path)?;
-    let (track_id, sample_rate, n_channels, codec_params) = read_track_info(format_reader.as_ref(), path)?;
+    let (track_id, sample_rate, n_channels, codec_params) =
+        read_track_info(format_reader.as_ref(), path)?;
     let mut decoder = make_decoder(codec_params)?;
     let interleaved = collect_samples(&mut format_reader, &mut decoder, track_id)?;
     let mono = to_mono(interleaved, n_channels);
