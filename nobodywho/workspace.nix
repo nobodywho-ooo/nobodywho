@@ -96,7 +96,7 @@ let
         nobodywho-flutter = attrs: {
           env.NOBODYWHO_SKIP_CODEGEN = "True";
           # whisper-rs-sys and llama-cpp-sys-2 both bundle ggml.c; allow duplicate symbols.
-          env.RUSTFLAGS = "-C link-arg=-Wl,--allow-multiple-definition";
+          extraRustcOpts = [ "-C" "link-arg=-Wl,--allow-multiple-definition" ];
           nativeBuildInputs = [
             # this needs to be available at link-time
             vulkan-loader
@@ -106,7 +106,7 @@ let
 
         nobodywho-godot = attrs: {
           # whisper-rs-sys and llama-cpp-sys-2 both bundle ggml.c; allow duplicate symbols.
-          env.RUSTFLAGS = "-C link-arg=-Wl,--allow-multiple-definition";
+          extraRustcOpts = [ "-C" "link-arg=-Wl,--allow-multiple-definition" ];
           nativeBuildInputs = [
             # XXX: can we do this with propagatedNativeBuildInputs??
             # this needs to be available at link-time
@@ -116,7 +116,7 @@ let
 
         nobodywho-python = attrs: {
           # whisper-rs-sys and llama-cpp-sys-2 both bundle ggml.c; allow duplicate symbols.
-          env.RUSTFLAGS = "-C link-arg=-Wl,--allow-multiple-definition";
+          extraRustcOpts = [ "-C" "link-arg=-Wl,--allow-multiple-definition" ];
           nativeBuildInputs = [
             vulkan-loader
             pkgs.python3
