@@ -295,12 +295,20 @@ fn open_format_reader(path: &str) -> Result<Box<dyn FormatReader>, SpeechToTextE
     let mss = MediaSourceStream::new(Box::new(file), Default::default());
 
     let mut hint = Hint::new();
-    if let Some(ext) = std::path::Path::new(path).extension().and_then(|e| e.to_str()) {
+    if let Some(ext) = std::path::Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+    {
         hint.with_extension(ext);
     }
 
     symphonia::default::get_probe()
-        .format(&hint, mss, &FormatOptions::default(), &MetadataOptions::default())
+        .format(
+            &hint,
+            mss,
+            &FormatOptions::default(),
+            &MetadataOptions::default(),
+        )
         .map(|p| p.format)
         .map_err(|e| SpeechToTextError::AudioDecode(format!("Could not probe format: {}", e)))
 }
@@ -376,7 +384,11 @@ fn to_mono(interleaved: Vec<f32>, n_channels: usize) -> Vec<f32> {
 
 // -- Resampling --
 
-fn resample(samples: Vec<f32>, from_rate: u32, to_rate: u32) -> Result<Vec<f32>, SpeechToTextError> {
+fn resample(
+    samples: Vec<f32>,
+    from_rate: u32,
+    to_rate: u32,
+) -> Result<Vec<f32>, SpeechToTextError> {
     let n_input = samples.len();
     let expected_output = (n_input as f64 * to_rate as f64 / from_rate as f64).ceil() as usize;
 
