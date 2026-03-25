@@ -56,6 +56,29 @@ let
           ];
         };
 
+        whisper-rs-sys = attrs: {
+          env.LIBCLANG_PATH = "${pkgs.libclang.lib}/lib/libclang.so";
+
+          nativeBuildInputs = [
+            llvmPackages.bintools
+            cmake
+            rustPlatform.bindgenHook
+            vulkan-headers
+            vulkan-loader
+            shaderc
+            vulkan-tools
+            mesa
+            git
+          ];
+          propagatedBuildInputs = [
+            vulkan-loader
+            vulkan-headers
+            shaderc
+            vulkan-tools
+            mesa
+          ];
+        };
+
         nobodywho = attrs: {
           nativeBuildInputs = [
             # this needs to be available at link-time
