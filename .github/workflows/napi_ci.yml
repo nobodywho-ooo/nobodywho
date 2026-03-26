@@ -136,7 +136,8 @@ jobs:
           mv ./nobodywho/* C:/
           cd C:/napi
           npm install
-          napi build --release --target x86_64-pc-windows-msvc --target-dir C:/t -- --locked
+          # Note: no `-- --locked` here — PowerShell doesn't pass `--` through correctly to napi
+          napi build --release --target x86_64-pc-windows-msvc --target-dir C:/t
         env:
           CMAKE_GENERATOR: "Ninja"
 
