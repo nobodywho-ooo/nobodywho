@@ -70,7 +70,7 @@ jobs:
         working-directory: ./nobodywho/napi
         run: |
           npm install
-          napi build --release --target ${{ matrix.napi_target }} --cargo-flags="--locked"
+          napi build --release --target ${{ matrix.napi_target }} -- --locked
 
       - name: "Build TypeScript wrapper"
         working-directory: ./nobodywho/napi
@@ -136,7 +136,7 @@ jobs:
           mv ./nobodywho/* C:/
           cd C:/napi
           npm install
-          napi build --release --target x86_64-pc-windows-msvc --cargo-flags="--locked" --cargo-flags="--target-dir C:/t"
+          napi build --release --target x86_64-pc-windows-msvc --target-dir C:/t -- --locked
         env:
           CMAKE_GENERATOR: "Ninja"
 
@@ -179,7 +179,7 @@ jobs:
         working-directory: ./nobodywho/napi
         run: |
           npm install
-          napi build --release --target ${{ matrix.target }} --cargo-flags="--locked"
+          napi build --release --target ${{ matrix.target }} -- --locked
 
       - name: "Upload artifact"
         uses: actions/upload-artifact@v4
