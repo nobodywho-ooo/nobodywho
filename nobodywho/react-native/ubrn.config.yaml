@@ -1,0 +1,12 @@
+---
+rust:
+  directory: ..
+  manifestPath: uniffi/Cargo.toml
+
+bindings:
+  cpp: generated/cpp
+  ts: generated/ts
+
+turboModule:
+  cpp: cpp
+  ts: src

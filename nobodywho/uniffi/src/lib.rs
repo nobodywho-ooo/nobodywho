@@ -2,7 +2,22 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-uniffi::setup_scaffolding!();
+uniffi::setup_scaffolding!("nobodywho");
+
+// ---------- Error type ----------
+// UniFFI 0.30 requires a proper error type instead of bare String.
+
+#[derive(Debug, thiserror::Error, uniffi::Error)]
+pub enum NobodyWhoError {
+    #[error("{message}")]
+    Error { message: String },
+}
+
+impl From<String> for NobodyWhoError {
+    fn from(message: String) -> Self {
+        NobodyWhoError::Error { message }
+    }
+}
 
 // ---------- Message types ----------
 // Mirror types for core Message/Role/Asset/ToolCall.
@@ -114,7 +129,7 @@ fn core_message_to_uniffi(m: &nobodywho::chat::Message) -> Message {
     }
 }
 
-fn uniffi_message_to_core(m: &Message) -> Result<nobodywho::chat::Message, String> {
+fn uniffi_message_to_core(m: &Message) -> Result<nobodywho::chat::Message, NobodyWhoError> {
     match m {
         Message::Message {
             role,
@@ -136,7 +151,7 @@ fn uniffi_message_to_core(m: &Message) -> Result<nobodywho::chat::Message, Strin
             content,
             tool_calls,
         } => {
-            let tcs: Result<Vec<_>, String> = tool_calls
+            let tcs: Result<Vec<_>, NobodyWhoError> = tool_calls
                 .iter()
                 .map(|tc| {
                     let args: serde_json::Value = serde_json::from_str(&tc.arguments_json)
@@ -172,23 +187,25 @@ pub struct Model {
     inner: Arc<nobodywho::llm::Model>,
 }
 
+/// Load a GGUF model from disk.
+/// This is a free function instead of an async constructor because
+/// uniffi-bindgen-react-native generates invalid JS (`async static` instead
+/// of `static async`) for async constructors.
 #[uniffi::export]
-impl Model {
-    /// Load a GGUF model from disk.
-    #[uniffi::constructor]
-    pub async fn load(
-        model_path: String,
-        use_gpu: bool,
-        image_model_path: Option<String>,
-    ) -> Result<Arc<Self>, String> {
-        let model = nobodywho::llm::get_model_async(model_path, use_gpu, image_model_path)
-            .await
-            .map_err(|e| e.to_string())?;
+pub async fn load_model(
+    model_path: String,
+    use_gpu: bool,
+    image_model_path: Option<String>,
+) -> Result<Arc<Model>, NobodyWhoError> {
+    let model = nobodywho::llm::get_model_async(model_path, use_gpu, image_model_path)
+        .await
+        .map_err(|e| NobodyWhoError::Error {
+            message: e.to_string(),
+        })?;
 
-        Ok(Arc::new(Self {
-            inner: Arc::new(model),
-        }))
-    }
+    Ok(Arc::new(Model {
+        inner: Arc::new(model),
+    }))
 }
 
 /// Check if a discrete GPU is available.
@@ -222,9 +239,7 @@ impl Chat {
             .map(|t| t.inner.clone())
             .collect();
 
-        let sampler_config = sampler
-            .map(|s| s.inner.clone())
-            .unwrap_or_default();
+        let sampler_config = sampler.map(|s| s.inner.clone()).unwrap_or_default();
 
         let chat = nobodywho::chat::ChatBuilder::new(Arc::clone(&model.inner))
             .with_context_size(context_size)
@@ -254,7 +269,7 @@ impl Chat {
         &self,
         system_prompt: Option<String>,
         tools: Option<Vec<Arc<Tool>>>,
-    ) -> Result<(), String> {
+    ) -> Result<(), NobodyWhoError> {
         let core_tools: Vec<nobodywho::tool_calling::Tool> = tools
             .unwrap_or_default()
             .into_iter()
@@ -263,61 +278,78 @@ impl Chat {
         self.inner
             .reset_chat(system_prompt, core_tools)
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })
     }
 
     /// Reset the chat history, keeping the system prompt and tools.
-    pub async fn reset_history(&self) -> Result<(), String> {
+    pub async fn reset_history(&self) -> Result<(), NobodyWhoError> {
         self.inner
             .reset_history()
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })
     }
 
     /// Get the current chat history as a list of messages.
-    pub async fn get_chat_history(&self) -> Result<Vec<Message>, String> {
+    pub async fn get_chat_history(&self) -> Result<Vec<Message>, NobodyWhoError> {
         let messages = self
             .inner
             .get_chat_history()
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })?;
         Ok(messages.iter().map(core_message_to_uniffi).collect())
     }
 
     /// Set the chat history from a list of messages.
-    pub async fn set_chat_history(&self, messages: Vec<Message>) -> Result<(), String> {
-        let core_messages: Result<Vec<_>, String> =
+    pub async fn set_chat_history(&self, messages: Vec<Message>) -> Result<(), NobodyWhoError> {
+        let core_messages: Result<Vec<_>, NobodyWhoError> =
             messages.iter().map(uniffi_message_to_core).collect();
         self.inner
             .set_chat_history(core_messages?)
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })
     }
 
     /// Get the current system prompt.
-    pub async fn get_system_prompt(&self) -> Result<Option<String>, String> {
+    pub async fn get_system_prompt(&self) -> Result<Option<String>, NobodyWhoError> {
         self.inner
             .get_system_prompt()
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })
     }
 
     /// Set the system prompt.
-    pub async fn set_system_prompt(&self, system_prompt: Option<String>) -> Result<(), String> {
+    pub async fn set_system_prompt(
+        &self,
+        system_prompt: Option<String>,
+    ) -> Result<(), NobodyWhoError> {
         self.inner
             .set_system_prompt(system_prompt)
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })
     }
 
     /// Set the tools available to the model.
-    pub async fn set_tools(&self, tools: Vec<Arc<Tool>>) -> Result<(), String> {
+    pub async fn set_tools(&self, tools: Vec<Arc<Tool>>) -> Result<(), NobodyWhoError> {
         let core_tools: Vec<nobodywho::tool_calling::Tool> =
             tools.into_iter().map(|t| t.inner.clone()).collect();
         self.inner
             .set_tools(core_tools)
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })
     }
 
     /// Set a template variable.
@@ -325,37 +357,47 @@ impl Chat {
         &self,
         name: String,
         value: bool,
-    ) -> Result<(), String> {
+    ) -> Result<(), NobodyWhoError> {
         self.inner
             .set_template_variable(name, value)
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })
     }
 
     /// Get all template variables.
-    pub async fn get_template_variables(&self) -> Result<HashMap<String, bool>, String> {
+    pub async fn get_template_variables(&self) -> Result<HashMap<String, bool>, NobodyWhoError> {
         self.inner
             .get_template_variables()
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })
     }
 
     /// Set the sampler configuration.
-    pub async fn set_sampler_config(&self, sampler: &SamplerConfig) -> Result<(), String> {
+    pub async fn set_sampler_config(&self, sampler: &SamplerConfig) -> Result<(), NobodyWhoError> {
         self.inner
             .set_sampler_config(sampler.inner.clone())
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })
     }
 
     /// Get the current sampler configuration as a JSON string.
-    pub async fn get_sampler_config_json(&self) -> Result<String, String> {
+    pub async fn get_sampler_config_json(&self) -> Result<String, NobodyWhoError> {
         let config = self
             .inner
             .get_sampler_config()
             .await
-            .map_err(|e| e.to_string())?;
-        serde_json::to_string(&config).map_err(|e| e.to_string())
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })?;
+        serde_json::to_string(&config).map_err(|e| NobodyWhoError::Error {
+            message: e.to_string(),
+        })
     }
 }
 
@@ -376,17 +418,28 @@ impl TokenStream {
     }
 
     /// Wait for the full response to complete and return it.
-    pub async fn completed(&self) -> Result<String, String> {
+    pub async fn completed(&self) -> Result<String, NobodyWhoError> {
         self.inner
             .lock()
             .await
             .completed()
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })
     }
 }
 
 // ---------- Tool ----------
+
+/// Callback interface for tool functions.
+/// Implement this in your language to provide the tool's logic.
+/// The `call` method receives the tool arguments as a JSON string
+/// and should return the tool's result as a string.
+#[uniffi::export(callback_interface)]
+pub trait ToolCallback: Send + Sync {
+    fn call(&self, arguments_json: String) -> String;
+}
 
 #[derive(uniffi::Object)]
 pub struct Tool {
@@ -398,19 +451,19 @@ impl Tool {
     /// Create a tool that the model can call during inference.
     ///
     /// The json_schema must be a valid JSON string describing the tool's parameters.
-    /// The callback will be wired up in a future update.
+    /// The callback will be invoked with the arguments as a JSON string when the model calls the tool.
     #[uniffi::constructor]
     pub fn new(
         name: String,
         description: String,
         json_schema: String,
-    ) -> Result<Arc<Self>, String> {
+        callback: Box<dyn ToolCallback>,
+    ) -> Result<Arc<Self>, NobodyWhoError> {
         let schema: serde_json::Value =
             serde_json::from_str(&json_schema).map_err(|e| format!("Invalid JSON schema: {e}"))?;
 
-        let wrapped = move |_args: serde_json::Value| -> String {
-            "temp".to_string()
-        };
+        let callback = Arc::new(callback);
+        let wrapped = move |args: serde_json::Value| -> String { callback.call(args.to_string()) };
 
         let tool =
             nobodywho::tool_calling::Tool::new(name, description, schema, Arc::new(wrapped));
@@ -439,11 +492,13 @@ impl Encoder {
     }
 
     /// Encode text into an embedding vector.
-    pub async fn encode(&self, text: String) -> Result<Vec<f32>, String> {
+    pub async fn encode(&self, text: String) -> Result<Vec<f32>, NobodyWhoError> {
         self.inner
             .encode(text)
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })
     }
 }
 
@@ -473,11 +528,17 @@ impl CrossEncoder {
     }
 
     /// Rank documents by relevance to a query. Returns similarity scores.
-    pub async fn rank(&self, query: String, documents: Vec<String>) -> Result<Vec<f32>, String> {
+    pub async fn rank(
+        &self,
+        query: String,
+        documents: Vec<String>,
+    ) -> Result<Vec<f32>, NobodyWhoError> {
         self.inner
             .rank(query, documents)
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })
     }
 
     /// Rank documents and return them sorted by descending relevance.
@@ -487,13 +548,17 @@ impl CrossEncoder {
         &self,
         query: String,
         documents: Vec<String>,
-    ) -> Result<String, String> {
+    ) -> Result<String, NobodyWhoError> {
         let results = self
             .inner
             .rank_and_sort(query, documents)
             .await
-            .map_err(|e| e.to_string())?;
-        serde_json::to_string(&results).map_err(|e| e.to_string())
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })?;
+        serde_json::to_string(&results).map_err(|e| NobodyWhoError::Error {
+            message: e.to_string(),
+        })
     }
 }
 
@@ -507,15 +572,19 @@ pub struct SamplerConfig {
 #[uniffi::export]
 impl SamplerConfig {
     /// Serialize the sampler configuration to a JSON string.
-    pub fn to_json(&self) -> Result<String, String> {
-        serde_json::to_string(&self.inner).map_err(|e| e.to_string())
+    pub fn to_json(&self) -> Result<String, NobodyWhoError> {
+        serde_json::to_string(&self.inner).map_err(|e| NobodyWhoError::Error {
+            message: e.to_string(),
+        })
     }
 
     /// Deserialize a sampler configuration from a JSON string.
     #[uniffi::constructor]
-    pub fn from_json(json_str: String) -> Result<Arc<Self>, String> {
-        let inner: nobodywho::sampler_config::SamplerConfig =
-            serde_json::from_str(&json_str).map_err(|e| e.to_string())?;
+    pub fn from_json(json_str: String) -> Result<Arc<Self>, NobodyWhoError> {
+        let inner: nobodywho::sampler_config::SamplerConfig = serde_json::from_str(&json_str)
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })?;
         Ok(Arc::new(Self { inner }))
     }
 }
@@ -587,22 +656,24 @@ impl SamplerBuilder {
         min_keep: u32,
     ) -> Arc<SamplerBuilder> {
         Arc::new(SamplerBuilder {
-            inner: self.inner.clone().shift(
-                nobodywho::sampler_config::ShiftStep::XTC {
+            inner: self
+                .inner
+                .clone()
+                .shift(nobodywho::sampler_config::ShiftStep::XTC {
                     xtc_probability,
                     xtc_threshold,
                     min_keep,
-                },
-            ),
+                }),
         })
     }
 
     /// Typical sampling: keeps tokens close to expected information content.
     pub fn typical_p(&self, typ_p: f32, min_keep: u32) -> Arc<SamplerBuilder> {
         Arc::new(SamplerBuilder {
-            inner: self.inner.clone().shift(
-                nobodywho::sampler_config::ShiftStep::TypicalP { typ_p, min_keep },
-            ),
+            inner: self
+                .inner
+                .clone()
+                .shift(nobodywho::sampler_config::ShiftStep::TypicalP { typ_p, min_keep }),
         })
     }
 
@@ -614,13 +685,14 @@ impl SamplerBuilder {
         root: String,
     ) -> Arc<SamplerBuilder> {
         Arc::new(SamplerBuilder {
-            inner: self.inner.clone().shift(
-                nobodywho::sampler_config::ShiftStep::Grammar {
+            inner: self
+                .inner
+                .clone()
+                .shift(nobodywho::sampler_config::ShiftStep::Grammar {
                     grammar,
                     trigger_on,
                     root,
-                },
-            ),
+                }),
         })
     }
 
@@ -634,15 +706,16 @@ impl SamplerBuilder {
         seq_breakers: Vec<String>,
     ) -> Arc<SamplerBuilder> {
         Arc::new(SamplerBuilder {
-            inner: self.inner.clone().shift(
-                nobodywho::sampler_config::ShiftStep::DRY {
+            inner: self
+                .inner
+                .clone()
+                .shift(nobodywho::sampler_config::ShiftStep::DRY {
                     multiplier,
                     base,
                     allowed_length,
                     penalty_last_n,
                     seq_breakers,
-                },
-            ),
+                }),
         })
     }
 
@@ -655,14 +728,15 @@ impl SamplerBuilder {
         penalty_present: f32,
     ) -> Arc<SamplerBuilder> {
         Arc::new(SamplerBuilder {
-            inner: self.inner.clone().shift(
-                nobodywho::sampler_config::ShiftStep::Penalties {
+            inner: self
+                .inner
+                .clone()
+                .shift(nobodywho::sampler_config::ShiftStep::Penalties {
                     penalty_last_n,
                     penalty_repeat,
                     penalty_freq,
                     penalty_present,
-                },
-            ),
+                }),
         })
     }
 
@@ -691,9 +765,10 @@ impl SamplerBuilder {
     /// Use Mirostat v1 algorithm for perplexity-controlled sampling.
     pub fn mirostat_v1(&self, tau: f32, eta: f32, m: i32) -> Arc<SamplerConfig> {
         Arc::new(SamplerConfig {
-            inner: self.inner.clone().sample(
-                nobodywho::sampler_config::SampleStep::MirostatV1 { tau, eta, m },
-            ),
+            inner: self
+                .inner
+                .clone()
+                .sample(nobodywho::sampler_config::SampleStep::MirostatV1 { tau, eta, m }),
         })
     }
 
@@ -709,73 +784,69 @@ impl SamplerBuilder {
 }
 
 // ---------- SamplerPresets ----------
+// Free functions for uniffi-bindgen-react-native compatibility.
+// The TypeScript wrapper collects these into a static SamplerPresets class.
 
-#[derive(uniffi::Object)]
-pub struct SamplerPresets {}
-
+/// Get the default sampler configuration.
 #[uniffi::export]
-impl SamplerPresets {
-    /// Get the default sampler configuration.
-    #[uniffi::constructor]
-    pub fn default_sampler() -> Arc<SamplerConfig> {
-        Arc::new(SamplerConfig {
-            inner: nobodywho::sampler_config::SamplerConfig::default(),
-        })
-    }
+pub fn sampler_preset_default() -> Arc<SamplerConfig> {
+    Arc::new(SamplerConfig {
+        inner: nobodywho::sampler_config::SamplerConfig::default(),
+    })
+}
 
-    /// Create a sampler with top-k filtering only.
-    #[uniffi::constructor]
-    pub fn top_k(top_k: i32) -> Arc<SamplerConfig> {
-        Arc::new(SamplerConfig {
-            inner: nobodywho::sampler_config::SamplerPresets::top_k(top_k),
-        })
-    }
+/// Create a sampler with top-k filtering only.
+#[uniffi::export]
+pub fn sampler_preset_top_k(top_k: i32) -> Arc<SamplerConfig> {
+    Arc::new(SamplerConfig {
+        inner: nobodywho::sampler_config::SamplerPresets::top_k(top_k),
+    })
+}
 
-    /// Create a sampler with nucleus (top-p) sampling.
-    #[uniffi::constructor]
-    pub fn top_p(top_p: f32) -> Arc<SamplerConfig> {
-        Arc::new(SamplerConfig {
-            inner: nobodywho::sampler_config::SamplerPresets::top_p(top_p),
-        })
-    }
+/// Create a sampler with nucleus (top-p) sampling.
+#[uniffi::export]
+pub fn sampler_preset_top_p(top_p: f32) -> Arc<SamplerConfig> {
+    Arc::new(SamplerConfig {
+        inner: nobodywho::sampler_config::SamplerPresets::top_p(top_p),
+    })
+}
 
-    /// Create a greedy sampler (always picks most probable token).
-    #[uniffi::constructor]
-    pub fn greedy() -> Arc<SamplerConfig> {
-        Arc::new(SamplerConfig {
-            inner: nobodywho::sampler_config::SamplerPresets::greedy(),
-        })
-    }
+/// Create a greedy sampler (always picks most probable token).
+#[uniffi::export]
+pub fn sampler_preset_greedy() -> Arc<SamplerConfig> {
+    Arc::new(SamplerConfig {
+        inner: nobodywho::sampler_config::SamplerPresets::greedy(),
+    })
+}
 
-    /// Create a sampler with temperature scaling.
-    #[uniffi::constructor]
-    pub fn temperature(temperature: f32) -> Arc<SamplerConfig> {
-        Arc::new(SamplerConfig {
-            inner: nobodywho::sampler_config::SamplerPresets::temperature(temperature),
-        })
-    }
+/// Create a sampler with temperature scaling.
+#[uniffi::export]
+pub fn sampler_preset_temperature(temperature: f32) -> Arc<SamplerConfig> {
+    Arc::new(SamplerConfig {
+        inner: nobodywho::sampler_config::SamplerPresets::temperature(temperature),
+    })
+}
 
-    /// Create a DRY sampler preset to reduce repetition.
-    #[uniffi::constructor]
-    pub fn dry() -> Arc<SamplerConfig> {
-        Arc::new(SamplerConfig {
-            inner: nobodywho::sampler_config::SamplerPresets::dry(),
-        })
-    }
+/// Create a DRY sampler preset to reduce repetition.
+#[uniffi::export]
+pub fn sampler_preset_dry() -> Arc<SamplerConfig> {
+    Arc::new(SamplerConfig {
+        inner: nobodywho::sampler_config::SamplerPresets::dry(),
+    })
+}
 
-    /// Create a sampler configured for JSON output generation.
-    #[uniffi::constructor]
-    pub fn json() -> Arc<SamplerConfig> {
-        Arc::new(SamplerConfig {
-            inner: nobodywho::sampler_config::SamplerPresets::json(),
-        })
-    }
+/// Create a sampler configured for JSON output generation.
+#[uniffi::export]
+pub fn sampler_preset_json() -> Arc<SamplerConfig> {
+    Arc::new(SamplerConfig {
+        inner: nobodywho::sampler_config::SamplerPresets::json(),
+    })
+}
 
-    /// Create a sampler with a custom grammar constraint.
-    #[uniffi::constructor]
-    pub fn grammar(grammar: String) -> Arc<SamplerConfig> {
-        Arc::new(SamplerConfig {
-            inner: nobodywho::sampler_config::SamplerPresets::grammar(grammar),
-        })
-    }
+/// Create a sampler with a custom grammar constraint.
+#[uniffi::export]
+pub fn sampler_preset_grammar(grammar: String) -> Arc<SamplerConfig> {
+    Arc::new(SamplerConfig {
+        inner: nobodywho::sampler_config::SamplerPresets::grammar(grammar),
+    })
 }

@@ -15,3 +15,12 @@ napi/index.d.ts
 napi/node_modules/
 napi/package-lock.json
 napi/npm/*/README.md
+napi/dist/
+
+# React Native (uniffi-bindgen-react-native)
+react-native/node_modules/
+react-native/package-lock.json
+react-native/android/build/
+react-native/android/.cxx/
+react-native/android/src/main/jniLibs/
+react-native/test-app/

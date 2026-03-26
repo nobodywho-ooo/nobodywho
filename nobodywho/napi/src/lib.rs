@@ -135,7 +135,7 @@ impl Chat {
     #[napi]
     pub async fn set_chat_history(
         &self,
-        #[napi(ts_arg_type = "messages: Array<any>")] messages: serde_json::Value,
+        #[napi(ts_arg_type = "Array<any>")] messages: serde_json::Value,
     ) -> Result<()> {
         let messages: Vec<nobodywho::chat::Message> =
             serde_json::from_value(messages).map_err(|e| Error::from_reason(e.to_string()))?;
