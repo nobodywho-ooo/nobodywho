@@ -305,9 +305,10 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+  # Disabled until react-native package is ready for public release
   create-github-release-react-native:
     needs: [publish-react-native-npm]
-    if: startsWith(github.ref, 'refs/tags/nobodywho-react-native-')
+    if: false # startsWith(github.ref, 'refs/tags/nobodywho-react-native-')
     runs-on: ubuntu-24.04
     permissions:
       contents: write
