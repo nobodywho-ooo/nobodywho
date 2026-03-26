@@ -8,7 +8,7 @@ If you discover a security vulnerability within NobodyWho, please follow these s
 2. Send a direct message to the maintainers through:
    - Discord: Join our [Discord server](https://discord.gg/qhaMc2qCYB) and message an admin
    - Matrix: Contact us on [Matrix](https://matrix.to/#/#nobodywho:matrix.org)
-   - Email: [services@artificialmind.ai](services@artificialmind.ai)
+   - Email: [services@artificialmind.ai](services@nobodywho.ooo)
 
 Please include:
 - A description of the vulnerability
