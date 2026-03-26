@@ -2,8 +2,8 @@
   "name": "nobodywho",
   "version": "0.1.0",
   "description": "Run LLMs locally with offline inference — Node.js bindings",
-  "main": "index.js",
-  "types": "index.d.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "napi": {
     "binaryName": "nobodywho",
     "targets": [
@@ -14,9 +14,10 @@
       "x86_64-pc-windows-msvc"
     ]
   },
-  "license": "MIT",
+  "license": "EUPL-1.2",
   "devDependencies": {
-    "@napi-rs/cli": "^3"
+    "@napi-rs/cli": "^3",
+    "typescript": "^5"
   },
   "repository": {
     "type": "git",
@@ -24,13 +25,17 @@
   },
   "files": [
     "index.js",
-    "index.d.ts"
+    "index.d.ts",
+    "dist/"
   ],
   "scripts": {
-    "build": "napi build --release",
+    "build:native": "napi build --release",
+    "build:ts": "tsc",
+    "build": "npm run build:native && npm run build:ts",
     "artifacts": "napi artifacts",
     "prepublishOnly": "napi prepublish",
-    "version": "napi version"
+    "version": "napi version",
+    "test": "node --test test.mjs"
   },
   "optionalDependencies": {
     "nobodywho-darwin-x64": "0.1.0",

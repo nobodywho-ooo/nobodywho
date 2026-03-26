@@ -72,6 +72,14 @@ jobs:
           npm install
           napi build --release --target ${{ matrix.napi_target }} --cargo-flags="--locked"
 
+      - name: "Build TypeScript wrapper"
+        working-directory: ./nobodywho/napi
+        run: npx tsc
+
+      - name: "Run tests (no model)"
+        working-directory: ./nobodywho/napi
+        run: node --test test.mjs
+
       - name: "Upload artifact"
         uses: actions/upload-artifact@v4
         with:

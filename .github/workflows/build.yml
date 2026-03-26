@@ -189,6 +189,13 @@ jobs:
         integration:
           - "godot"
           - "flutter"
+          - "uniffi"
+        exclude:
+          # uniffi (React Native) only needs iOS targets, not macOS desktop
+          - integration: "uniffi"
+            target: "x86_64-apple-darwin"
+          - integration: "uniffi"
+            target: "aarch64-apple-darwin"
     steps:
       - uses: actions/checkout@v4
       - run: |
@@ -217,8 +224,14 @@ jobs:
 
       - name: "Rename built file"
         run: |
-          # .dylib: dynamically linkable shared object
-          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
+          if [ "${{ matrix.integration }}" = "uniffi" ]; then
+            # React Native needs static libraries (.a)
+            cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.a \
+              ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.a
+          else
+            cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib \
+              ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
+          fi
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v4
@@ -307,6 +320,39 @@ jobs:
           name: nobodywho-flutter-xcframework
           path: ./nobodywho_flutter.xcframework.zip
 
+  # builds an xcframework containing static libraries for React Native iOS
+  build-react-native-xcframework:
+    if: inputs.full_ci
+    runs-on: macos-15
+    needs: [cargo-build-macos]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Download uniffi iOS artifacts"
+        uses: actions/download-artifact@v4
+        with:
+          pattern: nobodywho-uniffi-*-apple-ios*-release
+          merge-multiple: true
+
+      - name: "List downloaded artifacts"
+        run: ls -la libnobodywho-uniffi-*
+
+      - name: "Build XCFramework from static libraries"
+        run: |
+          xcodebuild -create-xcframework \
+            -library libnobodywho-uniffi-aarch64-apple-ios-release.a \
+            -library libnobodywho-uniffi-aarch64-apple-ios-sim-release.a \
+            -output NobodywhoReactNativeFramework.xcframework
+
+      - name: "Zip XCFramework"
+        run: zip -y -r NobodywhoReactNativeFramework.xcframework.zip NobodywhoReactNativeFramework.xcframework
+
+      - name: "Upload build artifact"
+        uses: actions/upload-artifact@v4
+        with:
+          name: nobodywho-react-native-xcframework
+          path: ./NobodywhoReactNativeFramework.xcframework.zip
+
   cargo-build-android:
     if: inputs.full_ci
     runs-on: ubuntu-24.04
@@ -322,6 +368,7 @@ jobs:
         integration:
           - "godot"
           - "flutter"
+          - "uniffi"
     steps:
       - uses: actions/checkout@v4
 
@@ -381,10 +428,18 @@ jobs:
 
         # XXX: .so files for android in godot MUST start with "lib"
       - name: "Rename built file"
-        run: cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.so ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
+        run: |
+          if [ "${{ matrix.integration }}" = "uniffi" ]; then
+            # React Native needs static libraries (.a)
+            cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.a \
+              ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.a
+          else
+            cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.so \
+              ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
+          fi
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v4
         with:
           name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
-          path: ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
+          path: ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.*

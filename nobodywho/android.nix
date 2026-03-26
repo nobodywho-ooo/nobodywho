@@ -31,6 +31,11 @@ pkgs.mkShell {
     AR_aarch64_linux_android = "${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar";
     CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER = "${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang";
     CARGO_TARGET_AARCH64_LINUX_ANDROID_AR = "${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar";
+    CC_x86_64_linux_android = "${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android31-clang";
+    CXX_x86_64_linux_android = "${CC_x86_64_linux_android}++";
+    AR_x86_64_linux_android = "${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar";
+    CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER = "${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android31-clang";
+    CARGO_TARGET_X86_64_LINUX_ANDROID_AR = "${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar";
     JAVA_HOME = "${pkgs.jdk17}";
   };
   buildInputs = [
