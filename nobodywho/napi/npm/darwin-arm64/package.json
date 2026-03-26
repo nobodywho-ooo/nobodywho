@@ -9,7 +9,7 @@
     "nobodywho.darwin-arm64.node"
   ],
   "description": "Run LLMs locally with offline inference — Node.js bindings",
-  "license": "MIT",
+  "license": "EUPL-1.2",
   "repository": {
     "type": "git",
     "url": "https://github.com/nobodywho-ooo/nobodywho"

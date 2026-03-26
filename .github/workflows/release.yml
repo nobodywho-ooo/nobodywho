@@ -6,6 +6,8 @@ on:
         required: true
       PYPI_AUTH_TOKEN:
         required: true
+      NPM_TOKEN:
+        required: true
 
 jobs:
   godot-distributable:
@@ -143,6 +145,72 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  publish-npm:
+    if: startsWith(github.ref, 'refs/tags/nobodywho-napi-')
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Setup Node.js"
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: "Download all napi artifacts"
+        uses: actions/download-artifact@v4
+        with:
+          pattern: nobodywho-napi-*
+          path: ./artifacts
+
+      - name: "List downloaded artifacts"
+        run: find ./artifacts -type f -name '*.node' | sort
+
+      - name: "Install dependencies"
+        working-directory: ./nobodywho/napi
+        run: npm install
+
+      - name: "Move native modules to platform packages"
+        working-directory: ./nobodywho/napi
+        run: npx napi artifacts --artifacts-dir ../../artifacts
+
+      - name: "Build TypeScript wrapper"
+        working-directory: ./nobodywho/napi
+        run: npx tsc
+
+      - name: "Publish platform packages"
+        working-directory: ./nobodywho/napi
+        run: npx napi prepublish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: "Publish main package"
+        working-directory: ./nobodywho/napi
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  create-github-release-napi:
+    needs: [publish-npm]
+    if: startsWith(github.ref, 'refs/tags/nobodywho-napi-')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: "Download all napi artifacts"
+        uses: actions/download-artifact@v4
+        with:
+          pattern: nobodywho-napi-*
+          merge-multiple: true
+          path: ./nobodywho-napi-release
+
+      - name: "Create GitHub Release"
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ./nobodywho-napi-release/*.node
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   create-github-release-flutter:
     if: startsWith(github.ref, 'refs/tags/nobodywho-flutter-')
     runs-on: ubuntu-24.04
@@ -186,3 +254,80 @@ jobs:
     uses: dart-lang/setup-dart/.github/workflows/publish.yml@v1
     with:
       working-directory: nobodywho/flutter/nobodywho
+
+  publish-react-native-npm:
+    if: startsWith(github.ref, 'refs/tags/nobodywho-react-native-')
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Setup Node.js"
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: "Download Android ARM64 artifact"
+        uses: actions/download-artifact@v4
+        with:
+          name: nobodywho-uniffi-aarch64-linux-android-release
+          path: ./android-artifacts
+
+      - name: "Download Android x86_64 artifact"
+        uses: actions/download-artifact@v4
+        with:
+          name: nobodywho-uniffi-x86_64-linux-android-release
+          path: ./android-artifacts
+
+      - name: "Download React Native XCFramework"
+        uses: actions/download-artifact@v4
+        with:
+          name: nobodywho-react-native-xcframework
+          path: ./ios-artifacts
+
+      - name: "Place Android static libraries"
+        run: |
+          mkdir -p nobodywho/react-native/android/src/main/jniLibs/arm64-v8a
+          mkdir -p nobodywho/react-native/android/src/main/jniLibs/x86_64
+          cp ./android-artifacts/libnobodywho-uniffi-aarch64-linux-android-release.a \
+            nobodywho/react-native/android/src/main/jniLibs/arm64-v8a/libnobodywho_uniffi.a
+          cp ./android-artifacts/libnobodywho-uniffi-x86_64-linux-android-release.a \
+            nobodywho/react-native/android/src/main/jniLibs/x86_64/libnobodywho_uniffi.a
+
+      - name: "Place iOS XCFramework"
+        run: |
+          cd nobodywho/react-native
+          unzip ../../ios-artifacts/NobodywhoReactNativeFramework.xcframework.zip
+
+      - name: "Publish to npm"
+        working-directory: ./nobodywho/react-native
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  create-github-release-react-native:
+    needs: [publish-react-native-npm]
+    if: startsWith(github.ref, 'refs/tags/nobodywho-react-native-')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: "Download all uniffi release artifacts"
+        uses: actions/download-artifact@v4
+        with:
+          pattern: nobodywho-uniffi-*-release
+          merge-multiple: true
+          path: ./nobodywho-react-native-release
+
+      - name: "Download XCFramework"
+        uses: actions/download-artifact@v4
+        with:
+          name: nobodywho-react-native-xcframework
+          path: ./nobodywho-react-native-release
+
+      - name: "Create GitHub Release"
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ./nobodywho-react-native-release/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
