@@ -465,8 +465,7 @@ impl Tool {
         let callback = Arc::new(callback);
         let wrapped = move |args: serde_json::Value| -> String { callback.call(args.to_string()) };
 
-        let tool =
-            nobodywho::tool_calling::Tool::new(name, description, schema, Arc::new(wrapped));
+        let tool = nobodywho::tool_calling::Tool::new(name, description, schema, Arc::new(wrapped));
 
         Ok(Arc::new(Self { inner: tool }))
     }
