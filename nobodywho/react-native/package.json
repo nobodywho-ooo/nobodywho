@@ -1,0 +1,29 @@
+{
+  "name": "react-native-nobodywho",
+  "version": "0.1.0",
+  "description": "Run LLMs locally with offline inference — React Native bindings",
+  "main": "src/wrapper.ts",
+  "types": "src/wrapper.ts",
+  "license": "MIT",
+  "files": [
+    "src/",
+    "generated/",
+    "cpp/",
+    "ios/",
+    "android/",
+    "NobodywhoReactNative.podspec",
+    "ubrn.config.yaml",
+    "!android/build"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nobodywho-ooo/nobodywho"
+  },
+  "peerDependencies": {
+    "react": "*",
+    "react-native": "*"
+  },
+  "devDependencies": {
+    "uniffi-bindgen-react-native": "0.30.0-1"
+  }
+}

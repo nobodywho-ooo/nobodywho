@@ -1,9 +1,6 @@
 import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
-
-const require = createRequire(import.meta.url);
-const {
+import {
   Model,
   Chat,
   TokenStream,
@@ -11,7 +8,8 @@ const {
   SamplerConfig,
   SamplerPresets,
   cosineSimilarity,
-} = require('./index.js');
+  streamTokens,
+} from './dist/index.js';
 
 // ---------- Tests that don't need a model ----------
 
@@ -197,6 +195,16 @@ describe('Model loading', { skip: !modelPath && 'TEST_MODEL not set' }, () => {
       const sampler = new SamplerBuilder().topK(20).temperature(0.5).dist();
       const chat = new Chat(model, 'You are helpful.', 2048, null, null, sampler);
       assert.ok(chat instanceof Chat);
+    });
+
+    it('streamTokens yields tokens via for-await', async () => {
+      const chat = new Chat(model, 'You are helpful. Be brief.', 2048);
+      const tokens = [];
+      for await (const token of streamTokens(chat.ask('Say hi.'))) {
+        tokens.push(token);
+      }
+      assert.ok(tokens.length > 0, 'Should have received at least one token');
+      assert.ok(tokens.join('').length > 0, 'Full response should not be empty');
     });
 
     it('stopGeneration does not throw', () => {
