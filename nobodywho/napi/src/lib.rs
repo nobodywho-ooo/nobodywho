@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use napi::bindgen_prelude::*;
+use napi::threadsafe_function::ThreadsafeFunctionCallMode;
 use napi_derive::napi;
 
 // The core Message/Role types have Serialize/Deserialize but we can't impl
@@ -85,6 +86,58 @@ impl Chat {
         TokenStream {
             inner: tokio::sync::Mutex::new(self.inner.ask(message)),
         }
+    }
+
+    /// Send a multimodal prompt (text + images/audio) and get a token stream.
+    ///
+    /// `parts` is an array of objects, each with a `type` field:
+    /// - `{ type: "text", content: "..." }`
+    /// - `{ type: "image", path: "/path/to/image.jpg" }`
+    /// - `{ type: "audio", path: "/path/to/audio.wav" }`
+    #[napi]
+    pub fn ask_with_prompt(
+        &self,
+        #[napi(ts_arg_type = "Array<{ type: 'text', content: string } | { type: 'image', path: string } | { type: 'audio', path: string }>")] parts: Vec<serde_json::Value>,
+    ) -> Result<TokenStream> {
+        let mut prompt = nobodywho::tokenizer::Prompt::new();
+        for part in parts {
+            let part_type = part
+                .get("type")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| Error::from_reason("Each prompt part must have a 'type' field"))?;
+            match part_type {
+                "text" => {
+                    let content = part
+                        .get("content")
+                        .and_then(|v| v.as_str())
+                        .ok_or_else(|| {
+                            Error::from_reason("Text prompt part must have a 'content' field")
+                        })?;
+                    prompt.push_text(content);
+                }
+                "image" => {
+                    let path = part.get("path").and_then(|v| v.as_str()).ok_or_else(|| {
+                        Error::from_reason("Image prompt part must have a 'path' field")
+                    })?;
+                    prompt.push_image(path.as_ref());
+                }
+                "audio" => {
+                    let path = part.get("path").and_then(|v| v.as_str()).ok_or_else(|| {
+                        Error::from_reason("Audio prompt part must have a 'path' field")
+                    })?;
+                    prompt.push_audio(path.as_ref());
+                }
+                other => {
+                    return Err(Error::from_reason(format!(
+                        "Unknown prompt part type: '{}'. Expected 'text', 'image', or 'audio'",
+                        other
+                    )));
+                }
+            }
+        }
+        Ok(TokenStream {
+            inner: tokio::sync::Mutex::new(self.inner.ask(prompt)),
+        })
     }
 
     /// Stop the current generation.
@@ -266,8 +319,29 @@ impl Tool {
         let schema: serde_json::Value = serde_json::from_str(&json_schema)
             .map_err(|e| Error::from_reason(format!("Invalid JSON schema: {e}")))?;
 
+        // Create a threadsafe function so the callback can be invoked from
+        // the inference thread (which is not the JS main thread).
+        let tsfn = callback
+            .build_threadsafe_function::<String>()
+            .callee_handled::<false>()
+            .build()?;
+
         let wrapped = move |args: serde_json::Value| -> String {
-            return "temp".to_string();
+            let args_json = args.to_string();
+            // Call the JS function synchronously from this thread and block
+            // until we get the result back.
+            let (tx, rx) = std::sync::mpsc::channel();
+            tsfn.call_with_return_value(
+                args_json,
+                ThreadsafeFunctionCallMode::Blocking,
+                move |result: napi::Result<String>, _env: Env| {
+                    let _ = tx.send(
+                        result.unwrap_or_else(|e| format!("Tool callback error: {e}")),
+                    );
+                    Ok(())
+                },
+            );
+            rx.recv().unwrap_or_else(|_| "Tool callback channel closed".to_string())
         };
 
         let tool = nobodywho::tool_calling::Tool::new(name, description, schema, Arc::new(wrapped));
