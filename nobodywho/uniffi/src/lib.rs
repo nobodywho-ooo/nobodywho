@@ -557,10 +557,7 @@ impl Tool {
                 "bool" | "boolean" => "boolean",
                 _ => "string",
             };
-            properties.insert(
-                param.name.clone(),
-                serde_json::json!({ "type": json_type }),
-            );
+            properties.insert(param.name.clone(), serde_json::json!({ "type": json_type }));
             required.push(param.name.clone());
         }
         let schema = serde_json::json!({
