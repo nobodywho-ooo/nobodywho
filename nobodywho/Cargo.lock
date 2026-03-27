@@ -65,6 +65,17 @@ checksum = "84521a3cf562bc62942e294181d9eef17eb38ceb8c68677bc49f144e4c3d4f8d"
 
 [[package]]
 name = "android_logger"
+version = "0.14.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "05b07e8e73d720a1f2e4b6014766e6039fd2e96a4fa44e2a78d0e1fa2ff49826"
+dependencies = [
+ "android_log-sys",
+ "env_filter",
+ "log",
+]
+
+[[package]]
+name = "android_logger"
 version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dbb4e440d04be07da1f1bf44fb4495ebd58669372fe0cffa6e48595ac5bd88a3"
@@ -411,9 +422,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.2.56"
+version = "1.2.58"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aebf35691d1bfb0ac386a69bac2fde4dd276fb618cf8bf4f5318fe285e821bb2"
+checksum = "e1e928d4b69e3077709075a938a05ffbedfa53a84c8f766efbf8220bb1ff60e1"
 dependencies = [
  "find-msvc-tools",
  "jobserver",
@@ -924,7 +935,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dde126295b2acc5f0a712e265e91b6fdc0ed38767496483e592ae7134db83725"
 dependencies = [
  "allo-isolate",
- "android_logger",
+ "android_logger 0.15.1",
  "anyhow",
  "build-target",
  "bytemuck",
@@ -1947,8 +1958,9 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-2"
-version = "0.1.139"
-source = "git+https://github.com/AsbjornOlling/llama-cpp-rs?branch=fix-android-static-link-libstdcxx-for-mtmd#fd4026fe239e82e3b74b747353f620937d776340"
+version = "0.1.140"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e5604c13b9c847157470479a64d1d7c94f3089709309f82f2fdcbcd43510f2f2"
 dependencies = [
  "encoding_rs",
  "enumflags2",
@@ -1960,8 +1972,9 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-sys-2"
-version = "0.1.139"
-source = "git+https://github.com/AsbjornOlling/llama-cpp-rs?branch=fix-android-static-link-libstdcxx-for-mtmd#fd4026fe239e82e3b74b747353f620937d776340"
+version = "0.1.140"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cbdd3e2c06f3a9a47466a631735946e9ad47fef565b88bc8766a3794474a66f3"
 dependencies = [
  "bindgen",
  "cc",
@@ -1993,6 +2006,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9047e0a37a596d4e15411a1ffbdabe71c328908cb90a721cb9bf8dcf3434e6d2"
 dependencies = [
  "unicode-id",
+]
+
+[[package]]
+name = "matchers"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d1525a2a28c7f4fa0fc98bb91ae755d1e2d1505079e05539e35bc876b5d65ae9"
+dependencies = [
+ "regex-automata",
 ]
 
 [[package]]
@@ -2253,10 +2275,15 @@ dependencies = [
 name = "nobodywho-uniffi"
 version = "0.1.0"
 dependencies = [
+ "android_logger 0.14.1",
+ "log",
  "nobodywho",
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
+ "tracing",
+ "tracing-log",
+ "tracing-subscriber",
  "uniffi",
 ]
 
@@ -3638,10 +3665,14 @@ version = "0.3.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2f30143827ddab0d256fd843b7a66d164e9f271cfa0dde49142c5ca0ca291f1e"
 dependencies = [
+ "matchers",
  "nu-ansi-term",
+ "once_cell",
+ "regex-automata",
  "sharded-slab",
  "smallvec",
  "thread_local",
+ "tracing",
  "tracing-core",
  "tracing-log",
 ]

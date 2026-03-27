@@ -4,6 +4,27 @@ use std::sync::Arc;
 
 uniffi::setup_scaffolding!("nobodywho");
 
+/// Initialize logging so tracing output goes to Android logcat.
+#[cfg(target_os = "android")]
+fn init_logging() {
+    use std::sync::Once;
+    static INIT: Once = Once::new();
+    INIT.call_once(|| {
+        // Set up android_logger so log crate macros go to logcat
+        android_logger::init_once(
+            android_logger::Config::default()
+                .with_max_level(log::LevelFilter::Debug)
+                .with_tag("nobodywho"),
+        );
+        // Bridge tracing → log crate → android_logger → logcat
+        tracing_log::LogTracer::init().ok();
+        log::info!("NobodyWho logging initialized");
+    });
+}
+
+#[cfg(not(target_os = "android"))]
+fn init_logging() {}
+
 // ---------- Error type ----------
 // UniFFI 0.30 requires a proper error type instead of bare String.
 
@@ -21,12 +42,12 @@ impl From<String> for NobodyWhoError {
 
 // ---------- Prompt types ----------
 
-/// A part of a multimodal prompt. Use `Text` for text and `Image` for a
-/// file-system path to an image.  Mirrors the Flutter `PromptPart` enum.
+/// A part of a multimodal prompt.  Mirrors the core `PromptPart` enum.
 #[derive(uniffi::Enum, Clone)]
 pub enum PromptPart {
     Text { content: String },
     Image { path: String },
+    Audio { path: String },
 }
 
 // ---------- Message types ----------
@@ -213,21 +234,41 @@ pub async fn load_model(
     use_gpu: bool,
     image_model_path: Option<String>,
 ) -> Result<Arc<Model>, NobodyWhoError> {
-    let model = nobodywho::llm::get_model_async(model_path, use_gpu, image_model_path)
+    init_logging();
+    log::info!(
+        "load_model called: path={}, gpu={}, mmproj={:?}",
+        model_path,
+        use_gpu,
+        image_model_path
+    );
+
+    // Early validation: check that the model file exists before handing off to
+    // the loader thread, so callers get a clear error instead of a channel error.
+    if !std::path::Path::new(&model_path).exists() {
+        let msg = format!("Model file not found: {}", model_path);
+        log::error!("{}", msg);
+        return Err(NobodyWhoError::Error { message: msg });
+    }
+    if let Some(ref mmproj) = image_model_path {
+        if !std::path::Path::new(mmproj).exists() {
+            let msg = format!("Image model (mmproj) file not found: {}", mmproj);
+            log::error!("{}", msg);
+            return Err(NobodyWhoError::Error { message: msg });
+        }
+    }
+
+    let model = nobodywho::llm::get_model_async(model_path.clone(), use_gpu, image_model_path)
         .await
-        .map_err(|e| NobodyWhoError::Error {
-            message: e.to_string(),
+        .map_err(|e| {
+            let msg = format!("Failed to load model '{}': {}", model_path, e);
+            log::error!("{}", msg);
+            NobodyWhoError::Error { message: msg }
         })?;
 
+    log::info!("load_model SUCCESS for {}", model_path);
     Ok(Arc::new(Model {
         inner: Arc::new(model),
     }))
-}
-
-/// Check if a discrete GPU is available.
-#[uniffi::export]
-pub fn has_discrete_gpu() -> bool {
-    nobodywho::llm::has_discrete_gpu()
 }
 
 // ---------- Chat ----------
@@ -270,8 +311,27 @@ impl Chat {
 
     /// Send a message and get a token stream for the response.
     pub fn ask(&self, message: String) -> Arc<TokenStream> {
+        log::info!("Chat::ask called with message: {}", message);
         Arc::new(TokenStream {
             inner: tokio::sync::Mutex::new(self.inner.ask(message)),
+        })
+    }
+
+    /// Send a multimodal prompt (text + images/audio) and get a token stream.
+    ///
+    /// `parts` is an ordered list of `PromptPart` items.
+    /// Image and audio parts should contain a local file-system path.
+    pub fn ask_with_prompt(&self, parts: Vec<PromptPart>) -> Arc<TokenStream> {
+        let mut prompt = nobodywho::tokenizer::Prompt::new();
+        for part in parts {
+            match part {
+                PromptPart::Text { content } => prompt.push_text(content),
+                PromptPart::Image { path } => prompt.push_image(path.as_ref()),
+                PromptPart::Audio { path } => prompt.push_audio(path.as_ref()),
+            }
+        }
+        Arc::new(TokenStream {
+            inner: tokio::sync::Mutex::new(self.inner.ask(prompt)),
         })
     }
 
@@ -430,7 +490,9 @@ pub struct TokenStream {
 impl TokenStream {
     /// Get the next token. Returns None when generation is complete.
     pub async fn next_token(&self) -> Option<String> {
-        self.inner.lock().await.next_token().await
+        let token = self.inner.lock().await.next_token().await;
+        log::debug!("next_token: {:?}", token);
+        token
     }
 
     /// Wait for the full response to complete and return it.

@@ -22,8 +22,9 @@ export {
   Role,
   Message,
   Message_Tags,
+  PromptPart,
+  PromptPart_Tags,
   cosineSimilarity,
-  hasDiscreteGpu,
   loadModel,
   uniffiInitAsync,
 } from "./index";
