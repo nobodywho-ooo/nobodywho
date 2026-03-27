@@ -66,14 +66,14 @@ Build the UniFFI crate for the host, then run the bindgen to produce TypeScript 
 
 ```bash
 # From nobodywho/ (workspace root)
-cargo build -p nobodywho-uniffi
+cargo build -p nobodywho-uniffi --release
 
 # Generate the bindings (must run from nobodywho/ dir so cargo metadata works)
 npx --prefix react-native uniffi-bindgen-react-native generate jsi bindings \
   --library \
   --ts-dir react-native/generated/ts \
   --cpp-dir react-native/generated/cpp \
-  target/debug/libnobodywho_uniffi.so
+  target/release/libnobodywho_uniffi.so
 ```
 
 This reads the UniFFI metadata embedded in the compiled `.so`/`.dylib` and generates:
@@ -132,7 +132,7 @@ cargo build -p nobodywho-uniffi --target aarch64-apple-ios-sim --release
 
 ## Testing on Android
 
-### Build and install the test app
+### Build the test app
 
 ```bash
 # From project root
@@ -140,19 +140,19 @@ nix develop .#android --command bash -c \
   'cd nobodywho/react-native/test-app/android && \
    ANDROID_HOME=$ANDROID_SDK_ROOT \
    ./gradlew assembleDebug -PreactNativeArchitectures=arm64-v8a'
-
-# Install on connected device
-adb install -r nobodywho/react-native/test-app/android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-### Run with Metro (development)
+### Run on a connected device
+
+Start Metro first, then install and launch:
 
 ```bash
-# Terminal 1: start Metro bundler
+# Terminal 1: start Metro bundler (must be running before the app launches)
 cd nobodywho/react-native/test-app
 npx react-native start --port 8081
 
-# Terminal 2: set up port forwarding and launch
+# Terminal 2: install, set up port forwarding, and launch
+adb install -r nobodywho/react-native/test-app/android/app/build/outputs/apk/debug/app-debug.apk
 adb reverse tcp:8081 tcp:8081
 adb shell am start -n com.nobodywhotest/.MainActivity
 ```
@@ -161,7 +161,7 @@ adb shell am start -n com.nobodywhotest/.MainActivity
 
 If you change the Rust code in `uniffi/src/lib.rs`:
 
-1. `cargo build -p nobodywho-uniffi` — rebuild the host crate
+1. `cargo build -p nobodywho-uniffi --release` — rebuild the host crate
 2. Re-run the `generate jsi bindings` command (Step 1) — regenerate TypeScript + C++
 3. Rebuild static libraries for your target platforms (Step 3)
 4. Copy `.a` files to `android/src/main/jniLibs/`

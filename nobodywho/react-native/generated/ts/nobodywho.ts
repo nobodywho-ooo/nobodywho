@@ -95,18 +95,6 @@ export function cosineSimilarity(a: Array</*f32*/number>, b: Array</*f32*/number
     ));
     }
 /**
- * Check if a discrete GPU is available.
- */
-export function hasDiscreteGpu(): boolean {
-    return FfiConverterBool.lift(uniffiCaller.rustCall(
-            /*caller:*/ (callStatus) => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_has_discrete_gpu(
-                callStatus);
-            },
-            /*liftString:*/ FfiConverterString.lift,
-    ));
-    }
-/**
  * Load a GGUF model from disk.
  * This is a free function instead of an async constructor because
  * uniffi-bindgen-react-native generates invalid JS (`async static` instead
@@ -807,6 +795,205 @@ const FfiConverterTypeNobodyWhoError = (() => {
 })();
 
 
+// Enum: PromptPart
+export enum PromptPart_Tags {
+    Text = "Text",
+    Image = "Image",
+    Audio = "Audio"
+}
+/**
+ * A part of a multimodal prompt.  Mirrors the core `PromptPart` enum.
+ */
+export const PromptPart = (() => {
+    
+
+    type Text__interface = {
+        tag: PromptPart_Tags.Text;
+        inner: Readonly<{content: string}>
+    };
+
+    
+    class Text_ extends UniffiEnum implements Text__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "PromptPart";
+        readonly tag = PromptPart_Tags.Text;
+        readonly inner: Readonly<{content: string}>;
+        constructor(inner: { content: string }) {
+            super("PromptPart", "Text");
+            this.inner = Object.freeze(inner);
+        }
+
+        static new(inner: { content: string }): Text_ {
+            return new Text_(inner);
+        }
+
+        static instanceOf(obj: any): obj is Text_ {
+            return obj.tag === PromptPart_Tags.Text;
+        }
+        
+
+        
+
+    }
+    
+
+    type Image__interface = {
+        tag: PromptPart_Tags.Image;
+        inner: Readonly<{path: string}>
+    };
+
+    
+    class Image_ extends UniffiEnum implements Image__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "PromptPart";
+        readonly tag = PromptPart_Tags.Image;
+        readonly inner: Readonly<{path: string}>;
+        constructor(inner: { path: string }) {
+            super("PromptPart", "Image");
+            this.inner = Object.freeze(inner);
+        }
+
+        static new(inner: { path: string }): Image_ {
+            return new Image_(inner);
+        }
+
+        static instanceOf(obj: any): obj is Image_ {
+            return obj.tag === PromptPart_Tags.Image;
+        }
+        
+
+        
+
+    }
+    
+
+    type Audio__interface = {
+        tag: PromptPart_Tags.Audio;
+        inner: Readonly<{path: string}>
+    };
+
+    
+    class Audio_ extends UniffiEnum implements Audio__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "PromptPart";
+        readonly tag = PromptPart_Tags.Audio;
+        readonly inner: Readonly<{path: string}>;
+        constructor(inner: { path: string }) {
+            super("PromptPart", "Audio");
+            this.inner = Object.freeze(inner);
+        }
+
+        static new(inner: { path: string }): Audio_ {
+            return new Audio_(inner);
+        }
+
+        static instanceOf(obj: any): obj is Audio_ {
+            return obj.tag === PromptPart_Tags.Audio;
+        }
+        
+
+        
+
+    }
+
+    function instanceOf(obj: any): obj is PromptPart {
+        return obj[uniffiTypeNameSymbol] === "PromptPart";
+    }
+
+    return Object.freeze({
+        instanceOf,
+  Text: Text_, 
+  Image: Image_, 
+  Audio: Audio_
+    });
+
+})();
+
+
+/**
+ * A part of a multimodal prompt.  Mirrors the core `PromptPart` enum.
+ */
+
+export type PromptPart = InstanceType<
+    typeof PromptPart[keyof Omit<typeof PromptPart, 'instanceOf'>]
+>;
+
+// FfiConverter for enum PromptPart
+const FfiConverterTypePromptPart = (() => {
+    const ordinalConverter = FfiConverterInt32;
+    type TypeName = PromptPart;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        read(from: RustBuffer): TypeName {
+            switch (ordinalConverter.read(from)) {
+                case 1: return new PromptPart.Text({content: FfiConverterString.read(from) });
+                case 2: return new PromptPart.Image({path: FfiConverterString.read(from) });
+                case 3: return new PromptPart.Audio({path: FfiConverterString.read(from) });
+                default: throw new UniffiInternalError.UnexpectedEnumCase();
+            }
+        }
+        write(value: TypeName, into: RustBuffer): void {
+            switch (value.tag) {
+                case PromptPart_Tags.Text: {
+                    ordinalConverter.write(1, into);
+                    const inner = value.inner;
+                    FfiConverterString.write(inner.content, into);
+                    return;
+                }
+                case PromptPart_Tags.Image: {
+                    ordinalConverter.write(2, into);
+                    const inner = value.inner;
+                    FfiConverterString.write(inner.path, into);
+                    return;
+                }
+                case PromptPart_Tags.Audio: {
+                    ordinalConverter.write(3, into);
+                    const inner = value.inner;
+                    FfiConverterString.write(inner.path, into);
+                    return;
+                }
+                default:
+                    // Throwing from here means that PromptPart_Tags hasn't matched an ordinal.
+                    throw new UniffiInternalError.UnexpectedEnumCase();
+            }
+        }
+        allocationSize(value: TypeName): number {
+            switch (value.tag) {
+                case PromptPart_Tags.Text: {
+                    const inner = value.inner;
+                    let size = ordinalConverter.allocationSize(1);
+                    size += FfiConverterString.allocationSize(inner.content);
+                    return size;
+                }
+                case PromptPart_Tags.Image: {
+                    const inner = value.inner;
+                    let size = ordinalConverter.allocationSize(2);
+                    size += FfiConverterString.allocationSize(inner.path);
+                    return size;
+                }
+                case PromptPart_Tags.Audio: {
+                    const inner = value.inner;
+                    let size = ordinalConverter.allocationSize(3);
+                    size += FfiConverterString.allocationSize(inner.path);
+                    return size;
+                }
+                default: throw new UniffiInternalError.UnexpectedEnumCase();
+            }
+        }
+    }
+    return new FFIConverter();
+})();
+
+
+
 export enum Role {
     User,
     Assistant,
@@ -856,6 +1043,13 @@ export interface ChatInterface {
      * Send a message and get a token stream for the response.
      */
     ask(message: string) : TokenStreamInterface;
+    /**
+     * Send a multimodal prompt (text + images/audio) and get a token stream.
+     *
+     * `parts` is an ordered list of `PromptPart` items.
+     * Image and audio parts should contain a local file-system path.
+     */
+    askWithPrompt(parts: Array<PromptPart>) : TokenStreamInterface;
     /**
      * Get the current chat history as a list of messages.
      */
@@ -946,6 +1140,23 @@ export class Chat extends UniffiAbstractObject implements ChatInterface {
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_chat_ask(uniffiTypeChatObjectFactory.clonePointer(this), 
         FfiConverterString.lower(message),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    ));
+    }
+    
+    /**
+     * Send a multimodal prompt (text + images/audio) and get a token stream.
+     *
+     * `parts` is an ordered list of `PromptPart` items.
+     * Image and audio parts should contain a local file-system path.
+     */
+ askWithPrompt(parts: Array<PromptPart>): TokenStreamInterface {
+    return FfiConverterTypeTokenStream.lift(uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_chat_ask_with_prompt(uniffiTypeChatObjectFactory.clonePointer(this), 
+        FfiConverterArrayTypePromptPart.lower(parts),
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift,
@@ -2609,6 +2820,10 @@ const FfiConverterOptionalTypeSamplerConfig = new FfiConverterOptional(FfiConver
 const FfiConverterArrayTypeMessage = new FfiConverterArray(FfiConverterTypeMessage);
 
 
+// FfiConverter for Array<PromptPart>
+const FfiConverterArrayTypePromptPart = new FfiConverterArray(FfiConverterTypePromptPart);
+
+
 // FfiConverter for Array<ToolInterface>
 const FfiConverterArrayTypeTool = new FfiConverterArray(FfiConverterTypeTool);
 
@@ -2636,9 +2851,6 @@ function uniffiEnsureInitialized() {
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_cosine_similarity() !== 63439) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_cosine_similarity");
-    }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_has_discrete_gpu() !== 30190) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_has_discrete_gpu");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model() !== 19243) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_load_model");
@@ -2669,6 +2881,9 @@ function uniffiEnsureInitialized() {
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_ask() !== 63887) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_chat_ask");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_ask_with_prompt() !== 55787) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_chat_ask_with_prompt");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_get_chat_history() !== 25702) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_chat_get_chat_history");
@@ -2798,6 +3013,7 @@ export default Object.freeze({
     FfiConverterTypeMessage,
     FfiConverterTypeModel,
     FfiConverterTypeNobodyWhoError,
+    FfiConverterTypePromptPart,
     FfiConverterTypeRole,
     FfiConverterTypeSamplerBuilder,
     FfiConverterTypeSamplerConfig,
