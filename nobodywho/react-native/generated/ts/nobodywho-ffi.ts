@@ -71,7 +71,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_fn_method_tokenstream_next_token(ptr: bigint): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_clone_tool(handle: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_free_tool(handle: bigint, uniffi_out_err: UniffiRustCallStatus): void;
-    ubrn_uniffi_nobodywho_uniffi_fn_constructor_tool_new(name: Uint8Array, description: Uint8Array, jsonSchema: Uint8Array, callback: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_constructor_tool_new(name: Uint8Array, description: Uint8Array, parameters: Uint8Array, callback: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_init_callback_vtable_toolcallback(vtable: UniffiVTableCallbackInterfaceToolCallback): void;
     ubrn_uniffi_nobodywho_uniffi_fn_func_cosine_similarity(a: Uint8Array, b: Uint8Array, uniffi_out_err: UniffiRustCallStatus): number;
     ubrn_uniffi_nobodywho_uniffi_fn_func_has_discrete_gpu(uniffi_out_err: UniffiRustCallStatus): number;

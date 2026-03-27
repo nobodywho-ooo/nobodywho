@@ -19,6 +19,16 @@ impl From<String> for NobodyWhoError {
     }
 }
 
+// ---------- Prompt types ----------
+
+/// A part of a multimodal prompt. Use `Text` for text and `Image` for a
+/// file-system path to an image.  Mirrors the Flutter `PromptPart` enum.
+#[derive(uniffi::Enum, Clone)]
+pub enum PromptPart {
+    Text { content: String },
+    Image { path: String },
+}
+
 // ---------- Message types ----------
 // Mirror types for core Message/Role/Asset/ToolCall.
 // Needed because core types contain PathBuf and serde_json::Value
@@ -58,6 +68,12 @@ impl From<&Role> for nobodywho::chat::Role {
 pub struct Asset {
     pub id: String,
     pub path: String,
+}
+
+#[derive(uniffi::Record, Clone)]
+pub struct ToolParameter {
+    pub name: String,
+    pub r#type: String,
 }
 
 #[derive(uniffi::Record, Clone)]
@@ -450,24 +466,53 @@ pub struct Tool {
 impl Tool {
     /// Create a tool that the model can call during inference.
     ///
-    /// The json_schema must be a valid JSON string describing the tool's parameters.
-    /// The callback will be invoked with the arguments as a JSON string when the model calls the tool.
+    /// `parameters` is an ordered list of parameter definitions.
+    /// Each entry has a `name` and a `type` (e.g. `"string"`, `"integer"`, `"number"`, `"boolean"`).
+    /// The order matters — binding layers use it to map positional arguments
+    /// in the user's callback function to named JSON parameters.
+    ///
+    /// Supported types: `"string"`, `"integer"` / `"int"`, `"number"` / `"float"` / `"double"`,
+    /// `"boolean"` / `"bool"`.
+    /// A JSON schema is generated automatically from this list.
+    ///
+    /// The callback receives the model's arguments as a JSON string
+    /// (e.g. `{"city": "London", "degrees": 22}`).
+    /// Each binding layer wraps the user's function to parse this JSON and
+    /// pass individual typed arguments to the original function.
     #[uniffi::constructor]
     pub fn new(
         name: String,
         description: String,
-        json_schema: String,
+        parameters: Vec<ToolParameter>,
         callback: Box<dyn ToolCallback>,
-    ) -> Result<Arc<Self>, NobodyWhoError> {
-        let schema: serde_json::Value =
-            serde_json::from_str(&json_schema).map_err(|e| format!("Invalid JSON schema: {e}"))?;
+    ) -> Arc<Self> {
+        let mut properties = serde_json::Map::new();
+        let mut required = Vec::new();
+        for param in &parameters {
+            let json_type = match param.r#type.as_str() {
+                "int" | "integer" => "integer",
+                "float" | "number" | "double" => "number",
+                "bool" | "boolean" => "boolean",
+                _ => "string",
+            };
+            properties.insert(
+                param.name.clone(),
+                serde_json::json!({ "type": json_type }),
+            );
+            required.push(param.name.clone());
+        }
+        let schema = serde_json::json!({
+            "type": "object",
+            "properties": properties,
+            "required": required,
+        });
 
         let callback = Arc::new(callback);
         let wrapped = move |args: serde_json::Value| -> String { callback.call(args.to_string()) };
 
         let tool = nobodywho::tool_calling::Tool::new(name, description, schema, Arc::new(wrapped));
 
-        Ok(Arc::new(Self { inner: tool }))
+        Arc::new(Self { inner: tool })
     }
 }
 
