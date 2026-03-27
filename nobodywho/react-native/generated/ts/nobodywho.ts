@@ -424,6 +424,64 @@ const FfiConverterTypeToolCall = (() => {
 })();
 
 
+export type ToolParameter = {
+    name: string,
+    type: string
+}
+
+/**
+ * Generated factory for {@link ToolParameter} record objects.
+ */
+export const ToolParameter = (() => {
+    const defaults = () => ({
+    });
+    const create = (() => {
+        return uniffiCreateRecord<ToolParameter, ReturnType<typeof defaults>>(defaults);
+    })();
+    return Object.freeze({
+        /**
+         * Create a frozen instance of {@link ToolParameter}, with defaults specified
+         * in Rust, in the {@link nobodywho} crate.
+         */
+        create,
+
+        /**
+         * Create a frozen instance of {@link ToolParameter}, with defaults specified
+         * in Rust, in the {@link nobodywho} crate.
+         */
+        new: create,
+
+        /**
+         * Defaults specified in the {@link nobodywho} crate.
+         */
+        defaults: () => Object.freeze(defaults()) as Partial<ToolParameter>,
+
+    });
+})();
+
+const FfiConverterTypeToolParameter = (() => {
+    type TypeName = ToolParameter;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        read(from: RustBuffer): TypeName {
+            return {
+                name: FfiConverterString.read(from), 
+                type: FfiConverterString.read(from)
+            };
+        }
+        write(value: TypeName, into: RustBuffer): void {
+            FfiConverterString.write(value.name, into);
+            FfiConverterString.write(value.type, into);
+        }
+        allocationSize(value: TypeName): number {
+            return FfiConverterString.allocationSize(value.name) + 
+            FfiConverterString.allocationSize(value.type);
+            
+        }
+    };
+    return new FFIConverter();
+})();
+
+
 const stringConverter = {
     stringToBytes: (s: string) =>
         uniffiCaller.rustCall((status) => nativeModule().ubrn_uniffi_internal_fn_func_ffi__string_to_arraybuffer(s, status)),
@@ -2401,20 +2459,29 @@ export class Tool extends UniffiAbstractObject implements ToolInterface {
     /**
      * Create a tool that the model can call during inference.
      *
-     * The json_schema must be a valid JSON string describing the tool's parameters.
-     * The callback will be invoked with the arguments as a JSON string when the model calls the tool.
+     * `parameters` is an ordered list of parameter definitions.
+     * Each entry has a `name` and a `type` (e.g. `"string"`, `"integer"`, `"number"`, `"boolean"`).
+     * The order matters — binding layers use it to map positional arguments
+     * in the user's callback function to named JSON parameters.
+     *
+     * Supported types: `"string"`, `"integer"` / `"int"`, `"number"` / `"float"` / `"double"`,
+     * `"boolean"` / `"bool"`.
+     * A JSON schema is generated automatically from this list.
+     *
+     * The callback receives the model's arguments as a JSON string
+     * (e.g. `{"city": "London", "degrees": 22}`).
+     * Each binding layer wraps the user's function to parse this JSON and
+     * pass individual typed arguments to the original function.
      */
-    constructor(name: string, description: string, jsonSchema: string, callback: ToolCallback) /*throws*/ {
+    constructor(name: string, description: string, parameters: Array<ToolParameter>, callback: ToolCallback) {
         super();
         const pointer =
-            
-        uniffiCaller.rustCallWithError(
-            /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError),
+            uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_tool_new(
         FfiConverterString.lower(name),
         FfiConverterString.lower(description),
-        FfiConverterString.lower(jsonSchema),
+        FfiConverterArrayTypeToolParameter.lower(parameters),
         FfiConverterTypeToolCallback.lower(callback),
                 callStatus);
             },
@@ -2520,6 +2587,10 @@ const FfiConverterArrayTypeAsset = new FfiConverterArray(FfiConverterTypeAsset);
 
 // FfiConverter for Array<ToolCall>
 const FfiConverterArrayTypeToolCall = new FfiConverterArray(FfiConverterTypeToolCall);
+
+
+// FfiConverter for Array<ToolParameter>
+const FfiConverterArrayTypeToolParameter = new FfiConverterArray(FfiConverterTypeToolParameter);
 
 
 // FfiConverter for Array<string>
@@ -2707,7 +2778,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_samplerconfig_from_json() !== 6867) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_samplerconfig_from_json");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_tool_new() !== 12265) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_tool_new() !== 50618) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_tool_new");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_toolcallback_call() !== 2725) {
@@ -2733,5 +2804,6 @@ export default Object.freeze({
     FfiConverterTypeTokenStream,
     FfiConverterTypeTool,
     FfiConverterTypeToolCall,
+    FfiConverterTypeToolParameter,
   }
 });
