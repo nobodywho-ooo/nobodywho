@@ -34,10 +34,10 @@ impl Model {
         })
     }
 
-    /// Check if a discrete GPU is available.
+    /// Check if a GPU backend is available.
     #[napi]
-    pub fn has_discrete_gpu() -> bool {
-        nobodywho::llm::has_discrete_gpu()
+    pub fn has_gpu_backend() -> bool {
+        nobodywho::llm::has_gpu_backend()
     }
 }
 
