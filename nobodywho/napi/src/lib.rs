@@ -97,7 +97,10 @@ impl Chat {
     #[napi]
     pub fn ask_with_prompt(
         &self,
-        #[napi(ts_arg_type = "Array<{ type: 'text', content: string } | { type: 'image', path: string } | { type: 'audio', path: string }>")] parts: Vec<serde_json::Value>,
+        #[napi(
+            ts_arg_type = "Array<{ type: 'text', content: string } | { type: 'image', path: string } | { type: 'audio', path: string }>"
+        )]
+        parts: Vec<serde_json::Value>,
     ) -> Result<TokenStream> {
         let mut prompt = nobodywho::tokenizer::Prompt::new();
         for part in parts {
@@ -107,12 +110,12 @@ impl Chat {
                 .ok_or_else(|| Error::from_reason("Each prompt part must have a 'type' field"))?;
             match part_type {
                 "text" => {
-                    let content = part
-                        .get("content")
-                        .and_then(|v| v.as_str())
-                        .ok_or_else(|| {
-                            Error::from_reason("Text prompt part must have a 'content' field")
-                        })?;
+                    let content =
+                        part.get("content")
+                            .and_then(|v| v.as_str())
+                            .ok_or_else(|| {
+                                Error::from_reason("Text prompt part must have a 'content' field")
+                            })?;
                     prompt.push_text(content);
                 }
                 "image" => {
@@ -335,13 +338,12 @@ impl Tool {
                 args_json,
                 ThreadsafeFunctionCallMode::Blocking,
                 move |result: napi::Result<String>, _env: Env| {
-                    let _ = tx.send(
-                        result.unwrap_or_else(|e| format!("Tool callback error: {e}")),
-                    );
+                    let _ = tx.send(result.unwrap_or_else(|e| format!("Tool callback error: {e}")));
                     Ok(())
                 },
             );
-            rx.recv().unwrap_or_else(|_| "Tool callback channel closed".to_string())
+            rx.recv()
+                .unwrap_or_else(|_| "Tool callback channel closed".to_string())
         };
 
         let tool = nobodywho::tool_calling::Tool::new(name, description, schema, Arc::new(wrapped));
