@@ -44,3 +44,4 @@ export type {
 // Ergonomic wrapper additions.
 export { SamplerPresets } from "./sampler_presets";
 export { streamTokens } from "./streaming";
+export { createTool } from "./tool";
