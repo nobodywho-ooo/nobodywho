@@ -234,7 +234,7 @@ void uniffi_nobodywho_uniffi_fn_free_tokenstream(
 void uniffi_nobodywho_uniffi_fn_free_tool(
     /*handle*/ uint64_t handle, RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_constructor_tool_new(
-    RustBuffer name, RustBuffer description, RustBuffer json_schema,
+    RustBuffer name, RustBuffer description, RustBuffer parameters,
     uint64_t callback, RustCallStatus *uniffi_out_err);
 void uniffi_nobodywho_uniffi_fn_init_callback_vtable_toolcallback(
     UniffiVTableCallbackInterfaceToolCallback *vtable);
