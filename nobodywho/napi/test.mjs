@@ -4,11 +4,13 @@ import {
   Model,
   Chat,
   TokenStream,
+  Tool,
   SamplerBuilder,
   SamplerConfig,
   SamplerPresets,
   cosineSimilarity,
   streamTokens,
+  createTool,
 } from './dist/index.js';
 
 // ---------- Tests that don't need a model ----------
@@ -32,8 +34,8 @@ describe('cosineSimilarity', () => {
 });
 
 describe('Model', () => {
-  it('hasDiscreteGpu returns a boolean', () => {
-    const result = Model.hasDiscreteGpu();
+  it('hasGpuBackend returns a boolean', () => {
+    const result = Model.hasGpuBackend();
     assert.equal(typeof result, 'boolean');
   });
 });
@@ -145,6 +147,31 @@ describe('SamplerPresets', () => {
   });
 });
 
+describe('createTool', () => {
+  it('creates a tool with createTool helper', () => {
+    const tool = createTool({
+      name: 'get_weather',
+      description: 'Get weather for a city',
+      parameters: [['city', 'string'], ['unit', 'string']],
+      call: (city, unit) => JSON.stringify({ temp: 22, city, unit }),
+    });
+    assert.ok(tool instanceof Tool);
+  });
+
+  it('creates a tool with raw Tool constructor', () => {
+    const schema = JSON.stringify({
+      type: 'object',
+      properties: { x: { type: 'integer' } },
+      required: ['x'],
+    });
+    const tool = new Tool('double', 'doubles a number', schema, (argsJson) => {
+      const { x } = JSON.parse(argsJson);
+      return String(x * 2);
+    });
+    assert.ok(tool instanceof Tool);
+  });
+});
+
 // ---------- Tests that need a model ----------
 
 const modelPath = process.env.TEST_MODEL;
@@ -205,6 +232,16 @@ describe('Model loading', { skip: !modelPath && 'TEST_MODEL not set' }, () => {
       }
       assert.ok(tokens.length > 0, 'Should have received at least one token');
       assert.ok(tokens.join('').length > 0, 'Full response should not be empty');
+    });
+
+    it('askWithPrompt streams tokens for text parts', async () => {
+      const chat = new Chat(model, 'You are helpful. Be brief.', 2048);
+      const stream = chat.askWithPrompt([
+        { type: 'text', content: 'Say hello in exactly 3 words.' },
+      ]);
+      assert.ok(stream instanceof TokenStream);
+      const response = await stream.completed();
+      assert.ok(response.length > 0, 'Response should not be empty');
     });
 
     it('stopGeneration does not throw', () => {
