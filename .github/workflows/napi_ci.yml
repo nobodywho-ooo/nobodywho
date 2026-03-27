@@ -70,7 +70,7 @@ jobs:
         working-directory: ./nobodywho/napi
         run: |
           npm install
-          napi build --release --target ${{ matrix.napi_target }} -- --locked
+          napi build --release --platform --target ${{ matrix.napi_target }} -- --locked
 
       - name: "Build TypeScript wrapper"
         working-directory: ./nobodywho/napi
@@ -137,9 +137,17 @@ jobs:
           cd C:/napi
           npm install
           # Note: no `-- --locked` here — PowerShell doesn't pass `--` through correctly to napi
-          napi build --release --target x86_64-pc-windows-msvc --target-dir C:/t
+          napi build --release --platform --target x86_64-pc-windows-msvc --target-dir C:/t
         env:
           CMAKE_GENERATOR: "Ninja"
+
+      - name: "Build TypeScript wrapper"
+        run: npx tsc
+        working-directory: C:/napi
+
+      - name: "Run tests (no model)"
+        run: node --test test.mjs
+        working-directory: C:/napi
 
       - name: "Upload artifact"
         uses: actions/upload-artifact@v4
@@ -180,7 +188,16 @@ jobs:
         working-directory: ./nobodywho/napi
         run: |
           npm install
-          napi build --release --target ${{ matrix.target }} -- --locked
+          napi build --release --platform --target ${{ matrix.target }} -- --locked
+
+      - name: "Build TypeScript wrapper"
+        working-directory: ./nobodywho/napi
+        run: npx tsc
+
+      - name: "Run tests (no model)"
+        if: matrix.target == 'aarch64-apple-darwin'
+        working-directory: ./nobodywho/napi
+        run: node --test test.mjs
 
       - name: "Upload artifact"
         uses: actions/upload-artifact@v4
