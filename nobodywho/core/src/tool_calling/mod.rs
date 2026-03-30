@@ -140,7 +140,13 @@ impl Tool {
                         return "ERROR: commands parameter could not be extracted".to_string();
                     };
 
-                    futures::executor::block_on(async {
+                    // bashkit requires a Tokio reactor (for timers, I/O, etc.),
+                    // so we need a Tokio runtime here rather than futures::executor.
+                    let rt = tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build()
+                        .expect("failed to create tokio runtime for bash tool");
+                    rt.block_on(async {
                         let fs = std::sync::Arc::new(InMemoryFs::new());
                         let limits = if let Some(max_cmds) = max_commands {
                             ExecutionLimits::new().max_commands(max_cmds)
