@@ -1,3 +1,9 @@
+## 0.5.2
+
+- Fix duplicate image processing
+- Improve model selection docs
+- Lower dart sdk version
+
 ## 0.5.1
 
 - Fix incorrect linking of stdcxx on android
