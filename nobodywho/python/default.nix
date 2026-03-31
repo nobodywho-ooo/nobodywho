@@ -49,16 +49,20 @@ python3Packages.buildPythonPackage {
     cp -r ${../../docs} docs
     mkdir -p nobodywho/python/tests
     ln -s ../../../tests/img nobodywho/python/tests/img
+    # docs/pyproject.toml exists (for the mkdocs site) and confuses pytest into using
+    # /build/docs as rootdir instead of /build. A setup.cfg at the build root anchors
+    # the rootdir here and sets python_files without needing a space-containing flag
+    # (pytestFlags is still word-split by nixpkgs when elements contain spaces).
+    cat > setup.cfg <<'EOF'
+[tool:pytest]
+python_files = test_*.py *.md
+EOF
   '';
 
-  # pytestFlagsArray is obsolete: nixpkgs expands it via `eval "${array[*]}"` which
-  # word-splits elements, breaking any flag containing a space (e.g. "test_*.py *.md").
-  # pytestFlags uses proper bash array expansion and preserves spaces in elements.
   pytestFlags = [
+    "--rootdir=."
     "tests"
     "docs"
-    "-o=python_files=test_*.py *.md"
-    "-o=confcutdir=."
   ];
 
   # Skip @pytest.mark.network tests — no network access in the nix sandbox.
