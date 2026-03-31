@@ -443,8 +443,8 @@ void main() {
     });
 
     test('Python tool hello world', () async {
-      final pythonChat = await nobodywho.Chat.fromPath(
-        modelPath: modelPath,
+      final pythonChat = nobodywho.Chat(
+        model: model!,
         allowThinking: false,
         tools: [nobodywho.Tool.python()],
       );
