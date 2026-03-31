@@ -454,6 +454,28 @@ pub fn new_tool_impl(
     })
 }
 
+#[flutter_rust_bridge::frb(sync)]
+pub fn new_bash_tool(max_commands: Option<usize>) -> RustTool {
+    let tool = nobodywho::tool_calling::Tool::bash(max_commands);
+    let schema = tool.json_schema.clone();
+    RustTool { tool, schema }
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn new_python_tool(
+    max_duration_secs: Option<u64>,
+    max_memory_bytes: Option<usize>,
+    max_recursion_depth: Option<usize>,
+) -> RustTool {
+    let tool = nobodywho::tool_calling::Tool::python(
+        max_duration_secs.map(std::time::Duration::from_secs),
+        max_memory_bytes,
+        max_recursion_depth,
+    );
+    let schema = tool.json_schema.clone();
+    RustTool { tool, schema }
+}
+
 /// Converts a Dart function runtimeType string directly to a JSON schema
 /// Example input: "({String a, int b}) => String" or "() => String"
 /// Returns a JSON schema for the function parameters

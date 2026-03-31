@@ -10,6 +10,7 @@ func run_test():
 	assert(await test_tool_call())
 	assert(await test_tool_call_underscores())
 	assert(await test_tool_remove())
+	assert(await test_python_tool())
 	return true
 
 func test_say():
@@ -110,6 +111,19 @@ func test_tool_call_underscores():
 	assert("P@sSW0rd" in response)
 	return true
 
+
+
+func test_python_tool():
+	add_python_tool()
+	self.system_prompt = "You're a helpful assistant. Use your tools to answer questions that require computation."
+	self.reset_context()
+	self.allow_thinking = false
+	ask("What is the 30th Fibonacci number? Use code to compute it exactly.")
+	var response = await response_finished
+	print("✨ Got python tool response: " + response)
+	assert("832040" in response, "30th Fibonacci number should be 832040")
+	remove_python_tool()
+	return true
 
 
 func test_stop_generation():

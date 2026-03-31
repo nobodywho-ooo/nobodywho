@@ -9,9 +9,11 @@ mod functiongemma;
 mod ministral3;
 mod qwen3;
 
+use bashkit::{ExecutionLimits, InMemoryFs};
 use llama_cpp_2::model::LlamaModel;
+use monty::{LimitedTracker, MontyRun, PrintWriter, ResourceLimits};
 use serde::{ser::Serializer, Deserialize, Serialize};
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 use tracing::debug;
 
 pub use functiongemma::FunctionGemmaHandler;
@@ -55,6 +57,122 @@ impl Tool {
             json_schema,
             function,
         }
+    }
+
+    pub fn python(
+        max_duration: Option<Duration>,
+        max_memory: Option<usize>,
+        max_recursion_depth: Option<usize>,
+    ) -> Self {
+        Tool::new(
+            "run_python",
+            "Run a Python snippet and return its printed output. All values must be hardcoded in the code.",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "description": "
+                        Self-contained Python code with all values hardcoded. Use print() to produce output.
+                        Limitations of the Python interpreter:
+                        - No class definitions (use dicts or plain variables instead)
+                        - No match statements (use if/elif chains instead)
+                        - No third-party libraries (no numpy, requests, etc.)
+                        - Standard library is limited to: sys, os, typing, asyncio, re
+                        - No direct filesystem, network, or environment variable access
+                        "
+                    }
+                },
+                "required": ["code"]
+            }),
+            Arc::new({
+                move |args: serde_json::Value| -> String {
+                    let Some(code) = args.get("code").and_then(|c| c.as_str()) else {
+                        return "ERROR: Code parameter could not be extracted".to_string();
+                    };
+
+                    let runner = match MontyRun::new(code.to_string(), "script.py", vec![], vec![]) {
+                        Ok(runner) => runner,
+                        Err(e) => return format!("ERROR: Failed to create Python runner: {e}"),
+                    };
+
+                    let mut output = PrintWriter::Collect(String::new());
+                    let limits = ResourceLimits {
+                        max_duration,
+                        max_memory,
+                        gc_interval: None, // we dont let the user configure this
+                        max_allocations: None, // we dont let the user configure this
+                        max_recursion_depth,
+                    };
+
+                    match runner.run(vec![], LimitedTracker::new(limits), &mut output) {
+                        Ok(_) => output.collected_output().unwrap_or_default().to_string(),
+                        Err(e) => format!("ERROR: Failed to run Python code: {e}"),
+                    }
+                }
+            }),
+        )
+    }
+
+    pub fn bash(max_commands: Option<usize>) -> Self {
+        Tool::new(
+            "run_bash",
+            "Run a bash snippet and return its stdout (and stderr if non-empty). All values must be hardcoded in the commands.",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "commands": {
+                        "type": "string",
+                        "description": "
+                        Self-contained bash commands with all values hardcoded.
+                        Limitations of the bash interpreter:
+                        - In-memory filesystem only (no persistent state between calls)
+                        - No network access
+                        - No access to host environment variables or host filesystem
+                        "
+                    }
+                },
+                "required": ["commands"]
+            }),
+            Arc::new({
+                move |args: serde_json::Value| -> String {
+                    let Some(commands) = args.get("commands").and_then(|c| c.as_str()) else {
+                        return "ERROR: commands parameter could not be extracted".to_string();
+                    };
+
+                    // bashkit requires a Tokio reactor (for timers, I/O, etc.),
+                    // so we need a Tokio runtime here rather than futures::executor.
+                    let rt = tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build()
+                        .expect("failed to create tokio runtime for bash tool");
+                    rt.block_on(async {
+                        let fs = std::sync::Arc::new(InMemoryFs::new());
+                        let limits = if let Some(max_cmds) = max_commands {
+                            ExecutionLimits::new().max_commands(max_cmds)
+                        } else {
+                            ExecutionLimits::new()
+                        };
+                        let mut bash = bashkit::Bash::builder().fs(fs).limits(limits).build();
+
+                        match bash.exec(commands).await {
+                            Ok(result) => {
+                                let mut output = result.stdout;
+                                if !result.stderr.is_empty() {
+                                    if !output.is_empty() {
+                                        output.push('\n');
+                                    }
+                                    output.push_str("STDERR: ");
+                                    output.push_str(&result.stderr);
+                                }
+                                output
+                            }
+                            Err(e) => format!("ERROR: {e}"),
+                        }
+                    })
+                }
+            }),
+        )
     }
 }
 
