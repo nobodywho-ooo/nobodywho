@@ -49,6 +49,17 @@ python3Packages.buildPythonPackage {
     cp -r ${../../docs} docs
     mkdir -p nobodywho/python/tests
     ln -s ../../../tests/img nobodywho/python/tests/img
+    # Skip tests marked @pytest.mark.network (no network access in nix sandbox).
+    # Can't use pytestFlagsArray "-m not network" because nixpkgs word-splits array
+    # elements, breaking the space in "not network".
+    cat > conftest.py <<'EOF'
+import pytest
+def pytest_collection_modifyitems(config, items):
+    skip = pytest.mark.skip(reason="network tests not run in nix sandbox")
+    for item in items:
+        if "network" in item.keywords:
+            item.add_marker(skip)
+EOF
   '';
 
   pytestFlagsArray = [
@@ -56,7 +67,6 @@ python3Packages.buildPythonPackage {
     "docs"
     "-o=python_files=test_*.py *.md"
     "-o=confcutdir=."
-    "-m" "not network"
   ];
 
   # Vision/multimodal tests are too slow in the nix sandbox (no GPU access)
