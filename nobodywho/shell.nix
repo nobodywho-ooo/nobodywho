@@ -40,6 +40,9 @@ pkgs.mkShell {
     pkgs.flutter
     pkgs.flutter_rust_bridge_codegen
 
+    # web/wasm (emscripten)
+    pkgs.emscripten
+
     # python
     pkgs.python3
     pkgs.maturin

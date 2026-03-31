@@ -106,6 +106,9 @@ abstract class GetterError implements RustOpaqueInterface {}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Model>>
 abstract class Model implements RustOpaqueInterface {
+  static Future<Model> fromBytes({required List<int> data}) =>
+      NobodyWho.instance.api.crateModelFromBytes(data: data);
+
   static Future<Model> load({
     required String modelPath,
     bool useGpu = true,

@@ -1,0 +1,8 @@
+# wasm32-unknown-emscripten defaults to panic="unwind" (emscripten supports C++
+# unwinding). This triggers a restrictive MaybeUnwindSafe impl in wasm-bindgen
+# that breaks flutter_rust_bridge compilation. Setting panic=abort avoids it.
+[target.wasm32-unknown-emscripten]
+rustflags = [
+    "-Cpanic=abort",
+    "-Clink-arg=--no-entry",
+]
