@@ -75,6 +75,39 @@ pub fn has_gpu_backend() -> bool {
 }
 
 #[tracing::instrument(level = "info")]
+/// Crude hash to generate a unique-ish VFS filename for a model.
+/// Samples 4KB from the start, middle, and end of the data plus the total
+/// length, to avoid hashing the entire file (which may be multiple GB).
+fn unique_filename_for_model(data: &[u8]) -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
+    let chunk = 4096;
+    let mut hasher = DefaultHasher::new();
+    hasher.write(&data[..data.len().min(chunk)]);
+    if data.len() > chunk * 2 {
+        let mid = data.len() / 2;
+        hasher.write(&data[mid..mid + chunk.min(data.len() - mid)]);
+    }
+    hasher.write(&data[data.len().saturating_sub(chunk)..]);
+    data.len().hash(&mut hasher);
+    format!("/tmp/nobodywho_model_{:x}.gguf", hasher.finish())
+}
+
+/// Load a model from raw bytes by writing to a temporary file, then loading from that path.
+/// Intended for wasm/emscripten where Emscripten's virtual filesystem (MEMFS) is used.
+/// On other targets, prefer `get_model` with a file path instead.
+pub fn get_model_from_bytes(data: &[u8]) -> Result<Model, LoadModelError> {
+    #[cfg(not(target_os = "emscripten"))]
+    warn!("get_model_from_bytes is intended for wasm/emscripten; on other targets, use get_model with a file path instead");
+
+    let vfs_path = unique_filename_for_model(data);
+    std::fs::write(&vfs_path, data).map_err(|e| {
+        LoadModelError::InvalidModel(format!("failed to write model to VFS: {}", e))
+    })?;
+    get_model(&vfs_path, false, None)
+}
+
 pub fn get_model(
     model_path: &str,
     use_gpu_if_available: bool,

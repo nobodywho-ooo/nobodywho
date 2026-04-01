@@ -76,6 +76,15 @@ impl Model {
             model: Arc::new(model),
         })
     }
+
+    #[flutter_rust_bridge::frb]
+    pub fn from_bytes(data: &[u8]) -> Result<Self, String> {
+        let model =
+            nobodywho::llm::get_model_from_bytes(data).map_err(|e| e.to_string())?;
+        Ok(Self {
+            model: Arc::new(model),
+        })
+    }
 }
 
 #[flutter_rust_bridge::frb(opaque)]

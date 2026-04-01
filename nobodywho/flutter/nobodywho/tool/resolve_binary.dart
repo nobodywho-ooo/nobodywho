@@ -38,6 +38,12 @@ const platformMappings = {
       'lib': 'libnobodywho_flutter.so',
     },
   },
+  'web': {
+    'wasm32': {
+      'triple': 'wasm32-unknown-emscripten',
+      'lib': 'nobodywho_flutter.js',
+    },
+  },
 };
 
 void main(List<String> arguments) async {
@@ -66,6 +72,7 @@ class Config {
   });
 
   bool get isApplePlatform => platform == 'ios' || platform == 'macos';
+  bool get isWebPlatform => platform == 'web';
 }
 
 Config parseArguments(List<String> args) {
@@ -107,9 +114,14 @@ Config parseArguments(List<String> args) {
     throw ArgumentError('Missing required argument: --cache-dir');
   }
 
-  // Arch is not required for iOS/macOS (they use xcframework)
-  if (platform != 'ios' && platform != 'macos' && arch == null) {
+  // Arch is not required for iOS/macOS (they use xcframework) or web (single wasm target)
+  if (platform != 'ios' && platform != 'macos' && platform != 'web' && arch == null) {
     throw ArgumentError('Missing required argument: --arch (required for $platform)');
+  }
+
+  // Default arch for web
+  if (platform == 'web' && arch == null) {
+    arch = 'wasm32';
   }
 
   if (!['debug', 'release'].contains(buildType)) {
@@ -148,7 +160,21 @@ Future<String> resolveBinary(Config config) async {
 }
 
 String? checkEnvironmentOverride(Config config) {
-  if (config.isApplePlatform) {
+  if (config.isWebPlatform) {
+    // For web, check for wasm directory path
+    final wasmDir = Platform.environment['NOBODYWHO_FLUTTER_WASM_DIR'];
+    if (wasmDir != null && wasmDir.isNotEmpty) {
+      final jsFile = File('$wasmDir/nobodywho_flutter.js');
+      if (jsFile.existsSync()) {
+        stderr.writeln('Using wasm files from environment variable: $wasmDir');
+        return wasmDir;
+      } else {
+        throw Exception(
+          'NOBODYWHO_FLUTTER_WASM_DIR is set but nobodywho_flutter.js not found in: $wasmDir'
+        );
+      }
+    }
+  } else if (config.isApplePlatform) {
     // For iOS/macOS, check for xcframework path
     final xcframeworkPath = Platform.environment['NOBODYWHO_FLUTTER_XCFRAMEWORK_PATH'];
     if (xcframeworkPath != null && xcframeworkPath.isNotEmpty) {
@@ -190,6 +216,24 @@ String? checkLocalBuild(Config config) {
   final targetDir = Directory('${nobodywhoDir.path}/target');
 
   if (!targetDir.existsSync()) {
+    return null;
+  }
+
+  if (config.isWebPlatform) {
+    // For web, check the emscripten target directory for pkg/ output
+    final pkgDir = Directory('${targetDir.path}/wasm32-unknown-emscripten/${config.buildType}/pkg');
+    final jsFile = File('${pkgDir.path}/nobodywho_flutter.js');
+    if (jsFile.existsSync()) {
+      stderr.writeln('Using local web build: ${pkgDir.path}');
+      return pkgDir.absolute.path;
+    }
+
+    // Also check directly in the target directory (before pkg/ copy)
+    final directJs = File('${targetDir.path}/wasm32-unknown-emscripten/${config.buildType}/nobodywho_flutter.js');
+    if (directJs.existsSync()) {
+      stderr.writeln('Using local web build: ${directJs.parent.path}');
+      return directJs.parent.absolute.path;
+    }
     return null;
   }
 
@@ -240,6 +284,17 @@ String? checkCachedDownload(Config config) {
   final version = getVersion();
   final cacheBasePath = '${config.cacheDir}/nobodywho/$version';
 
+  if (config.isWebPlatform) {
+    // Check for cached wasm directory
+    final wasmCacheDir = '$cacheBasePath/web-wasm32';
+    final jsFile = File('$wasmCacheDir/nobodywho_flutter.js');
+    if (jsFile.existsSync()) {
+      stderr.writeln('Using cached wasm files: $wasmCacheDir');
+      return wasmCacheDir;
+    }
+    return null;
+  }
+
   if (config.isApplePlatform) {
     // Check for cached xcframework
     final xcframeworkPath = '$cacheBasePath/xcframework/nobodywho_flutter.xcframework';
@@ -278,9 +333,19 @@ Future<String> downloadFromGitHub(Config config) async {
     );
   }
 
+  if (config.isWebPlatform && config.buildType == 'debug') {
+    throw Exception(
+      'Debug builds for web are not provided in releases.\n'
+      'For local development, run scripts/build_web.sh --debug\n'
+      'or set NOBODYWHO_FLUTTER_WASM_DIR to point to your wasm output directory.'
+    );
+  }
+
   stderr.writeln('Downloading from GitHub releases (version: $version)...');
 
-  if (config.isApplePlatform) {
+  if (config.isWebPlatform) {
+    return await downloadWasmBundle(config, version);
+  } else if (config.isApplePlatform) {
     return await downloadXCFramework(config, version);
   } else {
     return await downloadLibrary(config, version);
@@ -335,6 +400,73 @@ Future<String> downloadLibrary(Config config, String version) async {
     // Clean up partial download
     if (outputFile.existsSync()) {
       outputFile.deleteSync();
+    }
+    rethrow;
+  }
+}
+
+Future<String> downloadWasmBundle(Config config, String version) async {
+  // Download URL for wasm bundle (zip containing .js and .wasm files)
+  final fileName = 'nobodywho-flutter-wasm32-unknown-emscripten-release.zip';
+  final url = 'https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-flutter-v$version/$fileName';
+
+  // Prepare cache directory
+  final cacheDir = '${config.cacheDir}/nobodywho/$version/web-wasm32';
+  final cacheDirObj = Directory(cacheDir);
+  await cacheDirObj.create(recursive: true);
+
+  final zipPath = '$cacheDir/$fileName';
+  final zipFile = File(zipPath);
+
+  stderr.writeln('Downloading: $url');
+
+  try {
+    final httpClient = HttpClient();
+    final request = await httpClient.getUrl(Uri.parse(url));
+    final response = await request.close();
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        'Failed to download wasm bundle: HTTP ${response.statusCode}\n'
+        'URL: $url\n'
+        'This version may not be available in releases. Check: https://github.com/nobodywho-ooo/nobodywho/releases/tag/nobodywho-flutter-v$version'
+      );
+    }
+
+    final sink = zipFile.openWrite();
+    await response.pipe(sink);
+    await sink.close();
+    httpClient.close();
+
+    stderr.writeln('Downloaded to: $zipPath');
+
+    // Unzip the wasm bundle
+    stderr.writeln('Extracting wasm bundle...');
+    final unzipResult = await Process.run(
+      'unzip',
+      ['-o', '-q', zipPath, '-d', cacheDir],
+      workingDirectory: cacheDir,
+    );
+
+    if (unzipResult.exitCode != 0) {
+      throw Exception('Failed to unzip wasm bundle: ${unzipResult.stderr}');
+    }
+
+    // Clean up zip file
+    zipFile.deleteSync();
+
+    // Verify JS file exists
+    final jsFile = File('$cacheDir/nobodywho_flutter.js');
+    if (!jsFile.existsSync()) {
+      throw Exception('nobodywho_flutter.js not found after extraction in: $cacheDir');
+    }
+
+    stderr.writeln('Extracted to: $cacheDir');
+    return cacheDir;
+  } catch (e) {
+    // Clean up partial download
+    if (zipFile.existsSync()) {
+      zipFile.deleteSync();
     }
     rethrow;
   }

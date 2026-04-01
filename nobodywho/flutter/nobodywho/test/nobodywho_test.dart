@@ -3,7 +3,8 @@
 //      the issue is mostly that the llvmpipe stuff we're doing inside nix sandbox is slow as hell
 import 'package:nobodywho/nobodywho.dart' as nobodywho;
 import 'package:test/test.dart';
-import 'dart:io';
+import 'load_model_native.dart'
+    if (dart.library.js_interop) 'load_model_web.dart';
 
 List<List<double>> multiplyMatrices(
   List<List<double>> a,
@@ -75,11 +76,12 @@ String addTwoNumbers({required double a, required double b}) {
 
 void main() {
   group('A group of tests', () {
-    final modelPath = Platform.environment["TEST_MODEL"]!;
+    nobodywho.Model? model;
     nobodywho.Chat? chat;
 
     setUpAll(() async {
       await nobodywho.NobodyWho.init();
+      model = await loadTestModel();
     });
 
     setUp(() async {
@@ -143,8 +145,8 @@ void main() {
         },
       );
 
-      chat = await nobodywho.Chat.fromPath(
-        modelPath: modelPath,
+      chat = nobodywho.Chat(
+        model: model!,
         systemPrompt: "",
         contextSize: 2048,
         templateVariables: {"enable_thinking" : false},
@@ -407,8 +409,8 @@ void main() {
         description: "Applies the sparklify effect to a string",
       );
 
-      final testChat = await nobodywho.Chat.fromPath(
-        modelPath: modelPath,
+      final testChat = nobodywho.Chat(
+        model: model!,
         systemPrompt: "",
         contextSize: 1024,
         templateVariables: {"enable_thinking" : false},
@@ -441,8 +443,8 @@ void main() {
     });
 
     test('Python tool hello world', () async {
-      final pythonChat = await nobodywho.Chat.fromPath(
-        modelPath: modelPath,
+      final pythonChat = nobodywho.Chat(
+        model: model!,
         allowThinking: false,
         tools: [nobodywho.Tool.python()],
       );
@@ -468,12 +470,11 @@ void main() {
     });
 
     test('Encoder.fromPath creates encoder and encodes text', () async {
-      final modelPath = Platform.environment["TEST_EMBEDDINGS_MODEL"];
-      if (modelPath == null) {
+      final encoder = await loadTestEncoder();
+      if (encoder == null) {
         return; // Skip test if model not provided
       }
 
-      final encoder = await nobodywho.Encoder.fromPath(modelPath: modelPath);
       final embeddings = await encoder.encode(text: "Test text for embedding.");
 
       // Basic checks
@@ -489,14 +490,10 @@ void main() {
     test(
       'CrossEncoder.fromPath creates cross encoder and ranks documents',
       () async {
-        final modelPath = Platform.environment["TEST_CROSSENCODER_MODEL"];
-        if (modelPath == null) {
+        final crossEncoder = await loadTestCrossEncoder();
+        if (crossEncoder == null) {
           return; // Skip test if model not provided
         }
-
-        final crossEncoder = await nobodywho.CrossEncoder.fromPath(
-          modelPath: modelPath,
-        );
         final documents = [
           "Paris is the capital of France.",
           "Berlin is the capital of Germany.",
