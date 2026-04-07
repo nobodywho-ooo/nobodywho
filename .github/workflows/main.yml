@@ -32,11 +32,6 @@ jobs:
     with:
       full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
 
-  napi_ci:
-    uses: ./.github/workflows/napi_ci.yml
-    with:
-      full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
-
   react_native_ci:
     uses: ./.github/workflows/react_native_ci.yml
     with:
@@ -51,7 +46,7 @@ jobs:
 
   release:
     if: startsWith(github.ref, 'refs/tags/nobodywho-')
-    needs: [linting, build, test, python_ci, napi_ci, react_native_ci]
+    needs: [linting, build, test, python_ci, react_native_ci]
     uses: ./.github/workflows/release.yml
     secrets:
       TEST_PYPI_AUTH_TOKEN: ${{ secrets.TEST_PYPI_AUTH_TOKEN }}

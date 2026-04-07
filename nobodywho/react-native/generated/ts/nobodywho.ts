@@ -32,7 +32,7 @@ import nativeModule, {
   type UniffiForeignFutureCompleteRustBuffer,
   type UniffiForeignFutureResultVoid,
   type UniffiForeignFutureCompleteVoid,
-  type UniffiVTableCallbackInterfaceToolCallback,
+  type UniffiVTableCallbackInterfaceRustToolCallback,
 } from "./nobodywho-ffi";
 import {
   type FfiConverter, 
@@ -236,14 +236,14 @@ export function samplerPresetTopP(topP: /*f32*/number): SamplerConfigInterface {
  * The `call` method receives the tool arguments as a JSON string
  * and should return the tool's result as a string.
  */
-export interface ToolCallback {
+export interface RustToolCallback {
     
     call(argumentsJson: string) : string;
 }
 
 
 // Put the implementation in a struct so we don't pollute the top-level namespace
-const uniffiCallbackInterfaceToolCallback: { vtable: UniffiVTableCallbackInterfaceToolCallback; register: () => void; } = {
+const uniffiCallbackInterfaceRustToolCallback: { vtable: UniffiVTableCallbackInterfaceRustToolCallback; register: () => void; } = {
     // Create the VTable using a series of closures.
     // ts automatically converts these into C callback functions.
     vtable: {
@@ -253,7 +253,7 @@ const uniffiCallbackInterfaceToolCallback: { vtable: UniffiVTableCallbackInterfa
             const uniffiMakeCall = 
             ()
             : string => {
-                const jsCallback = FfiConverterTypeToolCallback.lift(uniffiHandle);
+                const jsCallback = FfiConverterTypeRustToolCallback.lift(uniffiHandle);
                 return jsCallback.call(
                     FfiConverterString.lift(argumentsJson)
                 )
@@ -274,22 +274,22 @@ const uniffiCallbackInterfaceToolCallback: { vtable: UniffiVTableCallbackInterfa
             return uniffiResult;
         },
         uniffiFree: (uniffiHandle: UniffiHandle): void => {
-            // ToolCallback: this will throw a stale handle error if the handle isn't found.
-            FfiConverterTypeToolCallback.drop(uniffiHandle);
+            // RustToolCallback: this will throw a stale handle error if the handle isn't found.
+            FfiConverterTypeRustToolCallback.drop(uniffiHandle);
         },
         uniffiClone: (uniffiHandle: UniffiHandle): UniffiHandle => {
-            return FfiConverterTypeToolCallback.clone(uniffiHandle);
+            return FfiConverterTypeRustToolCallback.clone(uniffiHandle);
         }
     },
     register: () => {
-        nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_init_callback_vtable_toolcallback(
-            uniffiCallbackInterfaceToolCallback.vtable
+        nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_init_callback_vtable_rusttoolcallback(
+            uniffiCallbackInterfaceRustToolCallback.vtable
         );
     },
 };
 
 // FfiConverter protocol for callback interfaces
-const FfiConverterTypeToolCallback = new FfiConverterCallback<ToolCallback>();
+const FfiConverterTypeRustToolCallback = new FfiConverterCallback<RustToolCallback>();
 
 
 
@@ -1037,559 +1037,6 @@ const FfiConverterTypeRole = (() => {
 const FfiConverterMapStringBool = new FfiConverterMap(FfiConverterString, FfiConverterBool);
 
 
-export interface ChatInterface {
-    
-    /**
-     * Send a message and get a token stream for the response.
-     */
-    ask(message: string) : TokenStreamInterface;
-    /**
-     * Send a multimodal prompt (text + images/audio) and get a token stream.
-     *
-     * `parts` is an ordered list of `PromptPart` items.
-     * Image and audio parts should contain a local file-system path.
-     */
-    askWithPrompt(parts: Array<PromptPart>) : TokenStreamInterface;
-    /**
-     * Get the current chat history as a list of messages.
-     */
-    getChatHistory(asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<Array<Message>>;
-    /**
-     * Get the current sampler configuration as a JSON string.
-     */
-    getSamplerConfigJson(asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<string>;
-    /**
-     * Get the current system prompt.
-     */
-    getSystemPrompt(asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<string | undefined>;
-    /**
-     * Get all template variables.
-     */
-    getTemplateVariables(asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<Map<string, boolean>>;
-    /**
-     * Reset the chat context with a new system prompt and tools.
-     */
-    resetContext(systemPrompt: string | undefined, tools: Array<ToolInterface> | undefined, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<void>;
-    /**
-     * Reset the chat history, keeping the system prompt and tools.
-     */
-    resetHistory(asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<void>;
-    /**
-     * Set the chat history from a list of messages.
-     */
-    setChatHistory(messages: Array<Message>, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<void>;
-    /**
-     * Set the sampler configuration.
-     */
-    setSamplerConfig(sampler: SamplerConfigInterface, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<void>;
-    /**
-     * Set the system prompt.
-     */
-    setSystemPrompt(systemPrompt: string | undefined, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<void>;
-    /**
-     * Set a template variable.
-     */
-    setTemplateVariable(name: string, value: boolean, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<void>;
-    /**
-     * Set the tools available to the model.
-     */
-    setTools(tools: Array<ToolInterface>, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<void>;
-    /**
-     * Stop the current generation.
-     */
-    stopGeneration() : void;
-}
-
-
-export class Chat extends UniffiAbstractObject implements ChatInterface {
-
-    readonly [uniffiTypeNameSymbol] = "Chat";
-    readonly [destructorGuardSymbol]: UniffiGcObject;
-    readonly [pointerLiteralSymbol]: UniffiHandle;
-    /**
-     * Create a new chat session.
-     */
-    constructor(model: ModelInterface, systemPrompt: string | undefined, contextSize: /*u32*/number, templateVariables: Map<string, boolean> | undefined, tools: Array<ToolInterface> | undefined, sampler: SamplerConfigInterface | undefined) {
-        super();
-        const pointer =
-            uniffiCaller.rustCall(
-            /*caller:*/ (callStatus) => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_chat_new(
-        FfiConverterTypeModel.lower(model),
-        FfiConverterOptionalString.lower(systemPrompt),
-        FfiConverterUInt32.lower(contextSize),
-        FfiConverterOptionalMapStringBool.lower(templateVariables),
-        FfiConverterOptionalArrayTypeTool.lower(tools),
-        FfiConverterOptionalTypeSamplerConfig.lower(sampler),
-                callStatus);
-            },
-            /*liftString:*/ FfiConverterString.lift,
-    );
-        this[pointerLiteralSymbol] = pointer;
-        this[destructorGuardSymbol] = uniffiTypeChatObjectFactory.bless(pointer);
-    }
-
-    
-
-    
-    /**
-     * Send a message and get a token stream for the response.
-     */
- ask(message: string): TokenStreamInterface {
-    return FfiConverterTypeTokenStream.lift(uniffiCaller.rustCall(
-            /*caller:*/ (callStatus) => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_chat_ask(uniffiTypeChatObjectFactory.clonePointer(this), 
-        FfiConverterString.lower(message),
-                callStatus);
-            },
-            /*liftString:*/ FfiConverterString.lift,
-    ));
-    }
-    
-    /**
-     * Send a multimodal prompt (text + images/audio) and get a token stream.
-     *
-     * `parts` is an ordered list of `PromptPart` items.
-     * Image and audio parts should contain a local file-system path.
-     */
- askWithPrompt(parts: Array<PromptPart>): TokenStreamInterface {
-    return FfiConverterTypeTokenStream.lift(uniffiCaller.rustCall(
-            /*caller:*/ (callStatus) => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_chat_ask_with_prompt(uniffiTypeChatObjectFactory.clonePointer(this), 
-        FfiConverterArrayTypePromptPart.lower(parts),
-                callStatus);
-            },
-            /*liftString:*/ FfiConverterString.lift,
-    ));
-    }
-    
-    /**
-     * Get the current chat history as a list of messages.
-     */
-async  getChatHistory(asyncOpts_?: { signal: AbortSignal }): Promise<Array<Message>> /*throws*/ {
-    const __stack = uniffiIsDebug ? new Error().stack : undefined;
-    try {
-        return await uniffiRustCallAsync(
-            /*rustCaller:*/ uniffiCaller,
-            /*rustFutureFunc:*/ () => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_chat_get_chat_history(
-                    uniffiTypeChatObjectFactory.clonePointer(this)
-                    
-                );
-            },
-            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
-            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
-            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
-            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
-            /*liftFunc:*/ FfiConverterArrayTypeMessage.lift.bind(FfiConverterArrayTypeMessage),
-            /*liftString:*/ FfiConverterString.lift,
-            /*asyncOpts:*/ asyncOpts_,
-            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
-        );
-    } catch (__error: any) {
-        if (uniffiIsDebug && __error instanceof Error) {
-            __error.stack = __stack;
-        }
-        throw __error;
-    }
-    }
-    
-    /**
-     * Get the current sampler configuration as a JSON string.
-     */
-async  getSamplerConfigJson(asyncOpts_?: { signal: AbortSignal }): Promise<string> /*throws*/ {
-    const __stack = uniffiIsDebug ? new Error().stack : undefined;
-    try {
-        return await uniffiRustCallAsync(
-            /*rustCaller:*/ uniffiCaller,
-            /*rustFutureFunc:*/ () => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_chat_get_sampler_config_json(
-                    uniffiTypeChatObjectFactory.clonePointer(this)
-                    
-                );
-            },
-            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
-            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
-            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
-            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
-            /*liftFunc:*/ FfiConverterString.lift.bind(FfiConverterString),
-            /*liftString:*/ FfiConverterString.lift,
-            /*asyncOpts:*/ asyncOpts_,
-            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
-        );
-    } catch (__error: any) {
-        if (uniffiIsDebug && __error instanceof Error) {
-            __error.stack = __stack;
-        }
-        throw __error;
-    }
-    }
-    
-    /**
-     * Get the current system prompt.
-     */
-async  getSystemPrompt(asyncOpts_?: { signal: AbortSignal }): Promise<string | undefined> /*throws*/ {
-    const __stack = uniffiIsDebug ? new Error().stack : undefined;
-    try {
-        return await uniffiRustCallAsync(
-            /*rustCaller:*/ uniffiCaller,
-            /*rustFutureFunc:*/ () => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_chat_get_system_prompt(
-                    uniffiTypeChatObjectFactory.clonePointer(this)
-                    
-                );
-            },
-            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
-            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
-            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
-            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
-            /*liftFunc:*/ FfiConverterOptionalString.lift.bind(FfiConverterOptionalString),
-            /*liftString:*/ FfiConverterString.lift,
-            /*asyncOpts:*/ asyncOpts_,
-            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
-        );
-    } catch (__error: any) {
-        if (uniffiIsDebug && __error instanceof Error) {
-            __error.stack = __stack;
-        }
-        throw __error;
-    }
-    }
-    
-    /**
-     * Get all template variables.
-     */
-async  getTemplateVariables(asyncOpts_?: { signal: AbortSignal }): Promise<Map<string, boolean>> /*throws*/ {
-    const __stack = uniffiIsDebug ? new Error().stack : undefined;
-    try {
-        return await uniffiRustCallAsync(
-            /*rustCaller:*/ uniffiCaller,
-            /*rustFutureFunc:*/ () => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_chat_get_template_variables(
-                    uniffiTypeChatObjectFactory.clonePointer(this)
-                    
-                );
-            },
-            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
-            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
-            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
-            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
-            /*liftFunc:*/ FfiConverterMapStringBool.lift.bind(FfiConverterMapStringBool),
-            /*liftString:*/ FfiConverterString.lift,
-            /*asyncOpts:*/ asyncOpts_,
-            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
-        );
-    } catch (__error: any) {
-        if (uniffiIsDebug && __error instanceof Error) {
-            __error.stack = __stack;
-        }
-        throw __error;
-    }
-    }
-    
-    /**
-     * Reset the chat context with a new system prompt and tools.
-     */
-async  resetContext(systemPrompt: string | undefined, tools: Array<ToolInterface> | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
-    const __stack = uniffiIsDebug ? new Error().stack : undefined;
-    try {
-        return await uniffiRustCallAsync(
-            /*rustCaller:*/ uniffiCaller,
-            /*rustFutureFunc:*/ () => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_chat_reset_context(
-                    uniffiTypeChatObjectFactory.clonePointer(this),
-                    FfiConverterOptionalString.lower(systemPrompt),FfiConverterOptionalArrayTypeTool.lower(tools)
-                );
-            },
-            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_void,
-            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_void,
-            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_void,
-            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_void,
-            /*liftFunc:*/ (_v) => {},
-            /*liftString:*/ FfiConverterString.lift,
-            /*asyncOpts:*/ asyncOpts_,
-            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
-        );
-    } catch (__error: any) {
-        if (uniffiIsDebug && __error instanceof Error) {
-            __error.stack = __stack;
-        }
-        throw __error;
-    }
-    }
-    
-    /**
-     * Reset the chat history, keeping the system prompt and tools.
-     */
-async  resetHistory(asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
-    const __stack = uniffiIsDebug ? new Error().stack : undefined;
-    try {
-        return await uniffiRustCallAsync(
-            /*rustCaller:*/ uniffiCaller,
-            /*rustFutureFunc:*/ () => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_chat_reset_history(
-                    uniffiTypeChatObjectFactory.clonePointer(this)
-                    
-                );
-            },
-            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_void,
-            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_void,
-            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_void,
-            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_void,
-            /*liftFunc:*/ (_v) => {},
-            /*liftString:*/ FfiConverterString.lift,
-            /*asyncOpts:*/ asyncOpts_,
-            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
-        );
-    } catch (__error: any) {
-        if (uniffiIsDebug && __error instanceof Error) {
-            __error.stack = __stack;
-        }
-        throw __error;
-    }
-    }
-    
-    /**
-     * Set the chat history from a list of messages.
-     */
-async  setChatHistory(messages: Array<Message>, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
-    const __stack = uniffiIsDebug ? new Error().stack : undefined;
-    try {
-        return await uniffiRustCallAsync(
-            /*rustCaller:*/ uniffiCaller,
-            /*rustFutureFunc:*/ () => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_chat_set_chat_history(
-                    uniffiTypeChatObjectFactory.clonePointer(this),
-                    FfiConverterArrayTypeMessage.lower(messages)
-                );
-            },
-            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_void,
-            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_void,
-            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_void,
-            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_void,
-            /*liftFunc:*/ (_v) => {},
-            /*liftString:*/ FfiConverterString.lift,
-            /*asyncOpts:*/ asyncOpts_,
-            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
-        );
-    } catch (__error: any) {
-        if (uniffiIsDebug && __error instanceof Error) {
-            __error.stack = __stack;
-        }
-        throw __error;
-    }
-    }
-    
-    /**
-     * Set the sampler configuration.
-     */
-async  setSamplerConfig(sampler: SamplerConfigInterface, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
-    const __stack = uniffiIsDebug ? new Error().stack : undefined;
-    try {
-        return await uniffiRustCallAsync(
-            /*rustCaller:*/ uniffiCaller,
-            /*rustFutureFunc:*/ () => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_chat_set_sampler_config(
-                    uniffiTypeChatObjectFactory.clonePointer(this),
-                    FfiConverterTypeSamplerConfig.lower(sampler)
-                );
-            },
-            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_void,
-            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_void,
-            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_void,
-            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_void,
-            /*liftFunc:*/ (_v) => {},
-            /*liftString:*/ FfiConverterString.lift,
-            /*asyncOpts:*/ asyncOpts_,
-            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
-        );
-    } catch (__error: any) {
-        if (uniffiIsDebug && __error instanceof Error) {
-            __error.stack = __stack;
-        }
-        throw __error;
-    }
-    }
-    
-    /**
-     * Set the system prompt.
-     */
-async  setSystemPrompt(systemPrompt: string | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
-    const __stack = uniffiIsDebug ? new Error().stack : undefined;
-    try {
-        return await uniffiRustCallAsync(
-            /*rustCaller:*/ uniffiCaller,
-            /*rustFutureFunc:*/ () => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_chat_set_system_prompt(
-                    uniffiTypeChatObjectFactory.clonePointer(this),
-                    FfiConverterOptionalString.lower(systemPrompt)
-                );
-            },
-            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_void,
-            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_void,
-            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_void,
-            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_void,
-            /*liftFunc:*/ (_v) => {},
-            /*liftString:*/ FfiConverterString.lift,
-            /*asyncOpts:*/ asyncOpts_,
-            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
-        );
-    } catch (__error: any) {
-        if (uniffiIsDebug && __error instanceof Error) {
-            __error.stack = __stack;
-        }
-        throw __error;
-    }
-    }
-    
-    /**
-     * Set a template variable.
-     */
-async  setTemplateVariable(name: string, value: boolean, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
-    const __stack = uniffiIsDebug ? new Error().stack : undefined;
-    try {
-        return await uniffiRustCallAsync(
-            /*rustCaller:*/ uniffiCaller,
-            /*rustFutureFunc:*/ () => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_chat_set_template_variable(
-                    uniffiTypeChatObjectFactory.clonePointer(this),
-                    FfiConverterString.lower(name),FfiConverterBool.lower(value)
-                );
-            },
-            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_void,
-            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_void,
-            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_void,
-            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_void,
-            /*liftFunc:*/ (_v) => {},
-            /*liftString:*/ FfiConverterString.lift,
-            /*asyncOpts:*/ asyncOpts_,
-            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
-        );
-    } catch (__error: any) {
-        if (uniffiIsDebug && __error instanceof Error) {
-            __error.stack = __stack;
-        }
-        throw __error;
-    }
-    }
-    
-    /**
-     * Set the tools available to the model.
-     */
-async  setTools(tools: Array<ToolInterface>, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
-    const __stack = uniffiIsDebug ? new Error().stack : undefined;
-    try {
-        return await uniffiRustCallAsync(
-            /*rustCaller:*/ uniffiCaller,
-            /*rustFutureFunc:*/ () => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_chat_set_tools(
-                    uniffiTypeChatObjectFactory.clonePointer(this),
-                    FfiConverterArrayTypeTool.lower(tools)
-                );
-            },
-            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_void,
-            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_void,
-            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_void,
-            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_void,
-            /*liftFunc:*/ (_v) => {},
-            /*liftString:*/ FfiConverterString.lift,
-            /*asyncOpts:*/ asyncOpts_,
-            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
-        );
-    } catch (__error: any) {
-        if (uniffiIsDebug && __error instanceof Error) {
-            __error.stack = __stack;
-        }
-        throw __error;
-    }
-    }
-    
-    /**
-     * Stop the current generation.
-     */
- stopGeneration(): void {uniffiCaller.rustCall(
-            /*caller:*/ (callStatus) => { nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_chat_stop_generation(uniffiTypeChatObjectFactory.clonePointer(this), 
-                callStatus);
-            },
-            /*liftString:*/ FfiConverterString.lift,
-    );
-    }
-    
-
-    /**
-     * {@inheritDoc uniffi-bindgen-react-native#UniffiAbstractObject.uniffiDestroy}
-     */
-    uniffiDestroy(): void {
-        const ptr = (this as any)[destructorGuardSymbol];
-        if (ptr !== undefined) {
-            const pointer = uniffiTypeChatObjectFactory.pointer(this);
-            uniffiTypeChatObjectFactory.freePointer(pointer);
-            uniffiTypeChatObjectFactory.unbless(ptr);
-            delete (this as any)[destructorGuardSymbol];
-        }
-    }
-
-    static instanceOf(obj: any): obj is Chat {
-        return uniffiTypeChatObjectFactory.isConcreteType(obj);
-    }
-
-    
-}
-
-const uniffiTypeChatObjectFactory: UniffiObjectFactory<ChatInterface> = (() => {
-    
-    return {
-    create(pointer: UniffiHandle): ChatInterface {
-        const instance = Object.create(Chat.prototype);
-        instance[pointerLiteralSymbol] = pointer;
-        instance[destructorGuardSymbol] = this.bless(pointer);
-        instance[uniffiTypeNameSymbol] = "Chat";
-        return instance;
-    },
-
-    
-    bless(p: UniffiHandle): UniffiGcObject {
-        return uniffiCaller.rustCall(
-            /*caller:*/ (status) =>
-                nativeModule().ubrn_uniffi_internal_fn_method_chat_ffi__bless_pointer(p, status),
-            /*liftString:*/ FfiConverterString.lift
-        );
-    },
-
-    unbless(ptr: UniffiGcObject) {
-        ptr.markDestroyed();
-    },
-
-    pointer(obj: ChatInterface): UniffiHandle {
-        if ((obj as any)[destructorGuardSymbol] === undefined) {
-            throw new UniffiInternalError.UnexpectedNullPointer();
-        }
-        return (obj as any)[pointerLiteralSymbol];
-    },
-
-    clonePointer(obj: ChatInterface): UniffiHandle {
-        const pointer = this.pointer(obj);
-        return uniffiCaller.rustCall(
-            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_clone_chat(pointer, callStatus),
-            /*liftString:*/ FfiConverterString.lift
-        );
-    },
-
-    freePointer(pointer: UniffiHandle): void {
-        uniffiCaller.rustCall(
-            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_free_chat(pointer, callStatus),
-            /*liftString:*/ FfiConverterString.lift
-        );
-    },
-
-    isConcreteType(obj: any): obj is ChatInterface {
-        return obj[destructorGuardSymbol] && obj[uniffiTypeNameSymbol] === "Chat";
-    },
-}})();
-// FfiConverter for ChatInterface
-const FfiConverterTypeChat =  new FfiConverterObject(uniffiTypeChatObjectFactory);
-
-
 export interface CrossEncoderInterface {
     
     /**
@@ -2006,6 +1453,864 @@ const uniffiTypeModelObjectFactory: UniffiObjectFactory<ModelInterface> = (() =>
 }})();
 // FfiConverter for ModelInterface
 const FfiConverterTypeModel =  new FfiConverterObject(uniffiTypeModelObjectFactory);
+
+
+export interface RustChatInterface {
+    
+    /**
+     * Send a message and get a token stream for the response.
+     */
+    ask(message: string) : RustTokenStreamInterface;
+    /**
+     * Send a multimodal prompt (text + images/audio) and get a token stream.
+     *
+     * `parts` is an ordered list of `PromptPart` items.
+     * Image and audio parts should contain a local file-system path.
+     */
+    askWithPrompt(parts: Array<PromptPart>) : RustTokenStreamInterface;
+    /**
+     * Get the current chat history as a list of messages.
+     */
+    getChatHistory(asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<Array<Message>>;
+    /**
+     * Get the current sampler configuration as a JSON string.
+     */
+    getSamplerConfigJson(asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<string>;
+    /**
+     * Get the current system prompt.
+     */
+    getSystemPrompt(asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<string | undefined>;
+    /**
+     * Get all template variables.
+     */
+    getTemplateVariables(asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<Map<string, boolean>>;
+    /**
+     * Reset the chat context with a new system prompt and tools.
+     */
+    resetContext(systemPrompt: string | undefined, tools: Array<RustToolInterface> | undefined, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<void>;
+    /**
+     * Reset the chat history, keeping the system prompt and tools.
+     */
+    resetHistory(asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<void>;
+    /**
+     * Set the chat history from a list of messages.
+     */
+    setChatHistory(messages: Array<Message>, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<void>;
+    /**
+     * Set the sampler configuration.
+     */
+    setSamplerConfig(sampler: SamplerConfigInterface, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<void>;
+    /**
+     * Set the system prompt.
+     */
+    setSystemPrompt(systemPrompt: string | undefined, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<void>;
+    /**
+     * Set a template variable.
+     */
+    setTemplateVariable(name: string, value: boolean, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<void>;
+    /**
+     * Set the tools available to the model.
+     */
+    setTools(tools: Array<RustToolInterface>, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<void>;
+    /**
+     * Stop the current generation.
+     */
+    stopGeneration() : void;
+}
+
+
+export class RustChat extends UniffiAbstractObject implements RustChatInterface {
+
+    readonly [uniffiTypeNameSymbol] = "RustChat";
+    readonly [destructorGuardSymbol]: UniffiGcObject;
+    readonly [pointerLiteralSymbol]: UniffiHandle;
+    /**
+     * Create a new chat session.
+     */
+    constructor(model: ModelInterface, systemPrompt: string | undefined, contextSize: /*u32*/number, templateVariables: Map<string, boolean> | undefined, tools: Array<RustToolInterface> | undefined, sampler: SamplerConfigInterface | undefined) {
+        super();
+        const pointer =
+            uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(
+        FfiConverterTypeModel.lower(model),
+        FfiConverterOptionalString.lower(systemPrompt),
+        FfiConverterUInt32.lower(contextSize),
+        FfiConverterOptionalMapStringBool.lower(templateVariables),
+        FfiConverterOptionalArrayTypeRustTool.lower(tools),
+        FfiConverterOptionalTypeSamplerConfig.lower(sampler),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    );
+        this[pointerLiteralSymbol] = pointer;
+        this[destructorGuardSymbol] = uniffiTypeRustChatObjectFactory.bless(pointer);
+    }
+
+    
+
+    
+    /**
+     * Send a message and get a token stream for the response.
+     */
+ ask(message: string): RustTokenStreamInterface {
+    return FfiConverterTypeRustTokenStream.lift(uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_ask(uniffiTypeRustChatObjectFactory.clonePointer(this), 
+        FfiConverterString.lower(message),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    ));
+    }
+    
+    /**
+     * Send a multimodal prompt (text + images/audio) and get a token stream.
+     *
+     * `parts` is an ordered list of `PromptPart` items.
+     * Image and audio parts should contain a local file-system path.
+     */
+ askWithPrompt(parts: Array<PromptPart>): RustTokenStreamInterface {
+    return FfiConverterTypeRustTokenStream.lift(uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(uniffiTypeRustChatObjectFactory.clonePointer(this), 
+        FfiConverterArrayTypePromptPart.lower(parts),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    ));
+    }
+    
+    /**
+     * Get the current chat history as a list of messages.
+     */
+async  getChatHistory(asyncOpts_?: { signal: AbortSignal }): Promise<Array<Message>> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_get_chat_history(
+                    uniffiTypeRustChatObjectFactory.clonePointer(this)
+                    
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+            /*liftFunc:*/ FfiConverterArrayTypeMessage.lift.bind(FfiConverterArrayTypeMessage),
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+    
+    /**
+     * Get the current sampler configuration as a JSON string.
+     */
+async  getSamplerConfigJson(asyncOpts_?: { signal: AbortSignal }): Promise<string> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_get_sampler_config_json(
+                    uniffiTypeRustChatObjectFactory.clonePointer(this)
+                    
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+            /*liftFunc:*/ FfiConverterString.lift.bind(FfiConverterString),
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+    
+    /**
+     * Get the current system prompt.
+     */
+async  getSystemPrompt(asyncOpts_?: { signal: AbortSignal }): Promise<string | undefined> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_get_system_prompt(
+                    uniffiTypeRustChatObjectFactory.clonePointer(this)
+                    
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+            /*liftFunc:*/ FfiConverterOptionalString.lift.bind(FfiConverterOptionalString),
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+    
+    /**
+     * Get all template variables.
+     */
+async  getTemplateVariables(asyncOpts_?: { signal: AbortSignal }): Promise<Map<string, boolean>> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_get_template_variables(
+                    uniffiTypeRustChatObjectFactory.clonePointer(this)
+                    
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+            /*liftFunc:*/ FfiConverterMapStringBool.lift.bind(FfiConverterMapStringBool),
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+    
+    /**
+     * Reset the chat context with a new system prompt and tools.
+     */
+async  resetContext(systemPrompt: string | undefined, tools: Array<RustToolInterface> | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_reset_context(
+                    uniffiTypeRustChatObjectFactory.clonePointer(this),
+                    FfiConverterOptionalString.lower(systemPrompt),FfiConverterOptionalArrayTypeRustTool.lower(tools)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_void,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_void,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_void,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_void,
+            /*liftFunc:*/ (_v) => {},
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+    
+    /**
+     * Reset the chat history, keeping the system prompt and tools.
+     */
+async  resetHistory(asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_reset_history(
+                    uniffiTypeRustChatObjectFactory.clonePointer(this)
+                    
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_void,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_void,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_void,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_void,
+            /*liftFunc:*/ (_v) => {},
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+    
+    /**
+     * Set the chat history from a list of messages.
+     */
+async  setChatHistory(messages: Array<Message>, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_set_chat_history(
+                    uniffiTypeRustChatObjectFactory.clonePointer(this),
+                    FfiConverterArrayTypeMessage.lower(messages)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_void,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_void,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_void,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_void,
+            /*liftFunc:*/ (_v) => {},
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+    
+    /**
+     * Set the sampler configuration.
+     */
+async  setSamplerConfig(sampler: SamplerConfigInterface, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_set_sampler_config(
+                    uniffiTypeRustChatObjectFactory.clonePointer(this),
+                    FfiConverterTypeSamplerConfig.lower(sampler)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_void,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_void,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_void,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_void,
+            /*liftFunc:*/ (_v) => {},
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+    
+    /**
+     * Set the system prompt.
+     */
+async  setSystemPrompt(systemPrompt: string | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_set_system_prompt(
+                    uniffiTypeRustChatObjectFactory.clonePointer(this),
+                    FfiConverterOptionalString.lower(systemPrompt)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_void,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_void,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_void,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_void,
+            /*liftFunc:*/ (_v) => {},
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+    
+    /**
+     * Set a template variable.
+     */
+async  setTemplateVariable(name: string, value: boolean, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_set_template_variable(
+                    uniffiTypeRustChatObjectFactory.clonePointer(this),
+                    FfiConverterString.lower(name),FfiConverterBool.lower(value)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_void,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_void,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_void,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_void,
+            /*liftFunc:*/ (_v) => {},
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+    
+    /**
+     * Set the tools available to the model.
+     */
+async  setTools(tools: Array<RustToolInterface>, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_set_tools(
+                    uniffiTypeRustChatObjectFactory.clonePointer(this),
+                    FfiConverterArrayTypeRustTool.lower(tools)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_void,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_void,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_void,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_void,
+            /*liftFunc:*/ (_v) => {},
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+    
+    /**
+     * Stop the current generation.
+     */
+ stopGeneration(): void {uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => { nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_stop_generation(uniffiTypeRustChatObjectFactory.clonePointer(this), 
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    );
+    }
+    
+
+    /**
+     * {@inheritDoc uniffi-bindgen-react-native#UniffiAbstractObject.uniffiDestroy}
+     */
+    uniffiDestroy(): void {
+        const ptr = (this as any)[destructorGuardSymbol];
+        if (ptr !== undefined) {
+            const pointer = uniffiTypeRustChatObjectFactory.pointer(this);
+            uniffiTypeRustChatObjectFactory.freePointer(pointer);
+            uniffiTypeRustChatObjectFactory.unbless(ptr);
+            delete (this as any)[destructorGuardSymbol];
+        }
+    }
+
+    static instanceOf(obj: any): obj is RustChat {
+        return uniffiTypeRustChatObjectFactory.isConcreteType(obj);
+    }
+
+    
+}
+
+const uniffiTypeRustChatObjectFactory: UniffiObjectFactory<RustChatInterface> = (() => {
+    
+    return {
+    create(pointer: UniffiHandle): RustChatInterface {
+        const instance = Object.create(RustChat.prototype);
+        instance[pointerLiteralSymbol] = pointer;
+        instance[destructorGuardSymbol] = this.bless(pointer);
+        instance[uniffiTypeNameSymbol] = "RustChat";
+        return instance;
+    },
+
+    
+    bless(p: UniffiHandle): UniffiGcObject {
+        return uniffiCaller.rustCall(
+            /*caller:*/ (status) =>
+                nativeModule().ubrn_uniffi_internal_fn_method_rustchat_ffi__bless_pointer(p, status),
+            /*liftString:*/ FfiConverterString.lift
+        );
+    },
+
+    unbless(ptr: UniffiGcObject) {
+        ptr.markDestroyed();
+    },
+
+    pointer(obj: RustChatInterface): UniffiHandle {
+        if ((obj as any)[destructorGuardSymbol] === undefined) {
+            throw new UniffiInternalError.UnexpectedNullPointer();
+        }
+        return (obj as any)[pointerLiteralSymbol];
+    },
+
+    clonePointer(obj: RustChatInterface): UniffiHandle {
+        const pointer = this.pointer(obj);
+        return uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_clone_rustchat(pointer, callStatus),
+            /*liftString:*/ FfiConverterString.lift
+        );
+    },
+
+    freePointer(pointer: UniffiHandle): void {
+        uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_free_rustchat(pointer, callStatus),
+            /*liftString:*/ FfiConverterString.lift
+        );
+    },
+
+    isConcreteType(obj: any): obj is RustChatInterface {
+        return obj[destructorGuardSymbol] && obj[uniffiTypeNameSymbol] === "RustChat";
+    },
+}})();
+// FfiConverter for RustChatInterface
+const FfiConverterTypeRustChat =  new FfiConverterObject(uniffiTypeRustChatObjectFactory);
+
+
+export interface RustTokenStreamInterface {
+    
+    /**
+     * Wait for the full response to complete and return it.
+     */
+    completed(asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<string>;
+    /**
+     * Get the next token. Returns None when generation is complete.
+     */
+    nextToken(asyncOpts_?: { signal: AbortSignal }) : Promise<string | undefined>;
+}
+
+
+export class RustTokenStream extends UniffiAbstractObject implements RustTokenStreamInterface {
+
+    readonly [uniffiTypeNameSymbol] = "RustTokenStream";
+    readonly [destructorGuardSymbol]: UniffiGcObject;
+    readonly [pointerLiteralSymbol]: UniffiHandle;
+    // No primary constructor declared for this class.
+private constructor(pointer: UniffiHandle) {
+    super();
+    this[pointerLiteralSymbol] = pointer;
+    this[destructorGuardSymbol] = uniffiTypeRustTokenStreamObjectFactory.bless(pointer);
+}
+
+    
+
+    
+    /**
+     * Wait for the full response to complete and return it.
+     */
+async  completed(asyncOpts_?: { signal: AbortSignal }): Promise<string> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rusttokenstream_completed(
+                    uniffiTypeRustTokenStreamObjectFactory.clonePointer(this)
+                    
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+            /*liftFunc:*/ FfiConverterString.lift.bind(FfiConverterString),
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+    
+    /**
+     * Get the next token. Returns None when generation is complete.
+     */
+async  nextToken(asyncOpts_?: { signal: AbortSignal }): Promise<string | undefined> {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rusttokenstream_next_token(
+                    uniffiTypeRustTokenStreamObjectFactory.clonePointer(this)
+                    
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+            /*liftFunc:*/ FfiConverterOptionalString.lift.bind(FfiConverterOptionalString),
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+    
+
+    /**
+     * {@inheritDoc uniffi-bindgen-react-native#UniffiAbstractObject.uniffiDestroy}
+     */
+    uniffiDestroy(): void {
+        const ptr = (this as any)[destructorGuardSymbol];
+        if (ptr !== undefined) {
+            const pointer = uniffiTypeRustTokenStreamObjectFactory.pointer(this);
+            uniffiTypeRustTokenStreamObjectFactory.freePointer(pointer);
+            uniffiTypeRustTokenStreamObjectFactory.unbless(ptr);
+            delete (this as any)[destructorGuardSymbol];
+        }
+    }
+
+    static instanceOf(obj: any): obj is RustTokenStream {
+        return uniffiTypeRustTokenStreamObjectFactory.isConcreteType(obj);
+    }
+
+    
+}
+
+const uniffiTypeRustTokenStreamObjectFactory: UniffiObjectFactory<RustTokenStreamInterface> = (() => {
+    
+    return {
+    create(pointer: UniffiHandle): RustTokenStreamInterface {
+        const instance = Object.create(RustTokenStream.prototype);
+        instance[pointerLiteralSymbol] = pointer;
+        instance[destructorGuardSymbol] = this.bless(pointer);
+        instance[uniffiTypeNameSymbol] = "RustTokenStream";
+        return instance;
+    },
+
+    
+    bless(p: UniffiHandle): UniffiGcObject {
+        return uniffiCaller.rustCall(
+            /*caller:*/ (status) =>
+                nativeModule().ubrn_uniffi_internal_fn_method_rusttokenstream_ffi__bless_pointer(p, status),
+            /*liftString:*/ FfiConverterString.lift
+        );
+    },
+
+    unbless(ptr: UniffiGcObject) {
+        ptr.markDestroyed();
+    },
+
+    pointer(obj: RustTokenStreamInterface): UniffiHandle {
+        if ((obj as any)[destructorGuardSymbol] === undefined) {
+            throw new UniffiInternalError.UnexpectedNullPointer();
+        }
+        return (obj as any)[pointerLiteralSymbol];
+    },
+
+    clonePointer(obj: RustTokenStreamInterface): UniffiHandle {
+        const pointer = this.pointer(obj);
+        return uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_clone_rusttokenstream(pointer, callStatus),
+            /*liftString:*/ FfiConverterString.lift
+        );
+    },
+
+    freePointer(pointer: UniffiHandle): void {
+        uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_free_rusttokenstream(pointer, callStatus),
+            /*liftString:*/ FfiConverterString.lift
+        );
+    },
+
+    isConcreteType(obj: any): obj is RustTokenStreamInterface {
+        return obj[destructorGuardSymbol] && obj[uniffiTypeNameSymbol] === "RustTokenStream";
+    },
+}})();
+// FfiConverter for RustTokenStreamInterface
+const FfiConverterTypeRustTokenStream =  new FfiConverterObject(uniffiTypeRustTokenStreamObjectFactory);
+
+
+export interface RustToolInterface {
+    
+    /**
+     * Get the JSON schema for this tool's parameters as a string.
+     */
+    getSchemaJson() : string;
+}
+
+
+export class RustTool extends UniffiAbstractObject implements RustToolInterface {
+
+    readonly [uniffiTypeNameSymbol] = "RustTool";
+    readonly [destructorGuardSymbol]: UniffiGcObject;
+    readonly [pointerLiteralSymbol]: UniffiHandle;
+    /**
+     * Create a tool that the model can call during inference.
+     *
+     * `parameters` is an ordered list of parameter definitions.
+     * Each entry has a `name` and a `type` (e.g. `"string"`, `"integer"`, `"number"`, `"boolean"`).
+     * The order matters — binding layers use it to map positional arguments
+     * in the user's callback function to named JSON parameters.
+     *
+     * Supported types: `"string"`, `"integer"` / `"int"`, `"number"` / `"float"` / `"double"`,
+     * `"boolean"` / `"bool"`.
+     * A JSON schema is generated automatically from this list.
+     *
+     * The callback receives the model's arguments as a JSON string
+     * (e.g. `{"city": "London", "degrees": 22}`).
+     * Each binding layer wraps the user's function to parse this JSON and
+     * pass individual typed arguments to the original function.
+     */
+    constructor(name: string, description: string, parameters: Array<ToolParameter>, callback: RustToolCallback) {
+        super();
+        const pointer =
+            uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_rusttool_new(
+        FfiConverterString.lower(name),
+        FfiConverterString.lower(description),
+        FfiConverterArrayTypeToolParameter.lower(parameters),
+        FfiConverterTypeRustToolCallback.lower(callback),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    );
+        this[pointerLiteralSymbol] = pointer;
+        this[destructorGuardSymbol] = uniffiTypeRustToolObjectFactory.bless(pointer);
+    }
+
+    
+
+    
+    /**
+     * Get the JSON schema for this tool's parameters as a string.
+     */
+ getSchemaJson(): string {
+    return FfiConverterString.lift(uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rusttool_get_schema_json(uniffiTypeRustToolObjectFactory.clonePointer(this), 
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    ));
+    }
+    
+
+    /**
+     * {@inheritDoc uniffi-bindgen-react-native#UniffiAbstractObject.uniffiDestroy}
+     */
+    uniffiDestroy(): void {
+        const ptr = (this as any)[destructorGuardSymbol];
+        if (ptr !== undefined) {
+            const pointer = uniffiTypeRustToolObjectFactory.pointer(this);
+            uniffiTypeRustToolObjectFactory.freePointer(pointer);
+            uniffiTypeRustToolObjectFactory.unbless(ptr);
+            delete (this as any)[destructorGuardSymbol];
+        }
+    }
+
+    static instanceOf(obj: any): obj is RustTool {
+        return uniffiTypeRustToolObjectFactory.isConcreteType(obj);
+    }
+
+    
+}
+
+const uniffiTypeRustToolObjectFactory: UniffiObjectFactory<RustToolInterface> = (() => {
+    
+    return {
+    create(pointer: UniffiHandle): RustToolInterface {
+        const instance = Object.create(RustTool.prototype);
+        instance[pointerLiteralSymbol] = pointer;
+        instance[destructorGuardSymbol] = this.bless(pointer);
+        instance[uniffiTypeNameSymbol] = "RustTool";
+        return instance;
+    },
+
+    
+    bless(p: UniffiHandle): UniffiGcObject {
+        return uniffiCaller.rustCall(
+            /*caller:*/ (status) =>
+                nativeModule().ubrn_uniffi_internal_fn_method_rusttool_ffi__bless_pointer(p, status),
+            /*liftString:*/ FfiConverterString.lift
+        );
+    },
+
+    unbless(ptr: UniffiGcObject) {
+        ptr.markDestroyed();
+    },
+
+    pointer(obj: RustToolInterface): UniffiHandle {
+        if ((obj as any)[destructorGuardSymbol] === undefined) {
+            throw new UniffiInternalError.UnexpectedNullPointer();
+        }
+        return (obj as any)[pointerLiteralSymbol];
+    },
+
+    clonePointer(obj: RustToolInterface): UniffiHandle {
+        const pointer = this.pointer(obj);
+        return uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_clone_rusttool(pointer, callStatus),
+            /*liftString:*/ FfiConverterString.lift
+        );
+    },
+
+    freePointer(pointer: UniffiHandle): void {
+        uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_free_rusttool(pointer, callStatus),
+            /*liftString:*/ FfiConverterString.lift
+        );
+    },
+
+    isConcreteType(obj: any): obj is RustToolInterface {
+        return obj[destructorGuardSymbol] && obj[uniffiTypeNameSymbol] === "RustTool";
+    },
+}})();
+// FfiConverter for RustToolInterface
+const FfiConverterTypeRustTool =  new FfiConverterObject(uniffiTypeRustToolObjectFactory);
 
 
 export interface SamplerBuilderInterface {
@@ -2492,294 +2797,6 @@ const uniffiTypeSamplerConfigObjectFactory: UniffiObjectFactory<SamplerConfigInt
 const FfiConverterTypeSamplerConfig =  new FfiConverterObject(uniffiTypeSamplerConfigObjectFactory);
 
 
-export interface TokenStreamInterface {
-    
-    /**
-     * Wait for the full response to complete and return it.
-     */
-    completed(asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<string>;
-    /**
-     * Get the next token. Returns None when generation is complete.
-     */
-    nextToken(asyncOpts_?: { signal: AbortSignal }) : Promise<string | undefined>;
-}
-
-
-export class TokenStream extends UniffiAbstractObject implements TokenStreamInterface {
-
-    readonly [uniffiTypeNameSymbol] = "TokenStream";
-    readonly [destructorGuardSymbol]: UniffiGcObject;
-    readonly [pointerLiteralSymbol]: UniffiHandle;
-    // No primary constructor declared for this class.
-private constructor(pointer: UniffiHandle) {
-    super();
-    this[pointerLiteralSymbol] = pointer;
-    this[destructorGuardSymbol] = uniffiTypeTokenStreamObjectFactory.bless(pointer);
-}
-
-    
-
-    
-    /**
-     * Wait for the full response to complete and return it.
-     */
-async  completed(asyncOpts_?: { signal: AbortSignal }): Promise<string> /*throws*/ {
-    const __stack = uniffiIsDebug ? new Error().stack : undefined;
-    try {
-        return await uniffiRustCallAsync(
-            /*rustCaller:*/ uniffiCaller,
-            /*rustFutureFunc:*/ () => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_tokenstream_completed(
-                    uniffiTypeTokenStreamObjectFactory.clonePointer(this)
-                    
-                );
-            },
-            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
-            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
-            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
-            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
-            /*liftFunc:*/ FfiConverterString.lift.bind(FfiConverterString),
-            /*liftString:*/ FfiConverterString.lift,
-            /*asyncOpts:*/ asyncOpts_,
-            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
-        );
-    } catch (__error: any) {
-        if (uniffiIsDebug && __error instanceof Error) {
-            __error.stack = __stack;
-        }
-        throw __error;
-    }
-    }
-    
-    /**
-     * Get the next token. Returns None when generation is complete.
-     */
-async  nextToken(asyncOpts_?: { signal: AbortSignal }): Promise<string | undefined> {
-    const __stack = uniffiIsDebug ? new Error().stack : undefined;
-    try {
-        return await uniffiRustCallAsync(
-            /*rustCaller:*/ uniffiCaller,
-            /*rustFutureFunc:*/ () => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_tokenstream_next_token(
-                    uniffiTypeTokenStreamObjectFactory.clonePointer(this)
-                    
-                );
-            },
-            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
-            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
-            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
-            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
-            /*liftFunc:*/ FfiConverterOptionalString.lift.bind(FfiConverterOptionalString),
-            /*liftString:*/ FfiConverterString.lift,
-            /*asyncOpts:*/ asyncOpts_,
-            
-        );
-    } catch (__error: any) {
-        if (uniffiIsDebug && __error instanceof Error) {
-            __error.stack = __stack;
-        }
-        throw __error;
-    }
-    }
-    
-
-    /**
-     * {@inheritDoc uniffi-bindgen-react-native#UniffiAbstractObject.uniffiDestroy}
-     */
-    uniffiDestroy(): void {
-        const ptr = (this as any)[destructorGuardSymbol];
-        if (ptr !== undefined) {
-            const pointer = uniffiTypeTokenStreamObjectFactory.pointer(this);
-            uniffiTypeTokenStreamObjectFactory.freePointer(pointer);
-            uniffiTypeTokenStreamObjectFactory.unbless(ptr);
-            delete (this as any)[destructorGuardSymbol];
-        }
-    }
-
-    static instanceOf(obj: any): obj is TokenStream {
-        return uniffiTypeTokenStreamObjectFactory.isConcreteType(obj);
-    }
-
-    
-}
-
-const uniffiTypeTokenStreamObjectFactory: UniffiObjectFactory<TokenStreamInterface> = (() => {
-    
-    return {
-    create(pointer: UniffiHandle): TokenStreamInterface {
-        const instance = Object.create(TokenStream.prototype);
-        instance[pointerLiteralSymbol] = pointer;
-        instance[destructorGuardSymbol] = this.bless(pointer);
-        instance[uniffiTypeNameSymbol] = "TokenStream";
-        return instance;
-    },
-
-    
-    bless(p: UniffiHandle): UniffiGcObject {
-        return uniffiCaller.rustCall(
-            /*caller:*/ (status) =>
-                nativeModule().ubrn_uniffi_internal_fn_method_tokenstream_ffi__bless_pointer(p, status),
-            /*liftString:*/ FfiConverterString.lift
-        );
-    },
-
-    unbless(ptr: UniffiGcObject) {
-        ptr.markDestroyed();
-    },
-
-    pointer(obj: TokenStreamInterface): UniffiHandle {
-        if ((obj as any)[destructorGuardSymbol] === undefined) {
-            throw new UniffiInternalError.UnexpectedNullPointer();
-        }
-        return (obj as any)[pointerLiteralSymbol];
-    },
-
-    clonePointer(obj: TokenStreamInterface): UniffiHandle {
-        const pointer = this.pointer(obj);
-        return uniffiCaller.rustCall(
-            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_clone_tokenstream(pointer, callStatus),
-            /*liftString:*/ FfiConverterString.lift
-        );
-    },
-
-    freePointer(pointer: UniffiHandle): void {
-        uniffiCaller.rustCall(
-            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_free_tokenstream(pointer, callStatus),
-            /*liftString:*/ FfiConverterString.lift
-        );
-    },
-
-    isConcreteType(obj: any): obj is TokenStreamInterface {
-        return obj[destructorGuardSymbol] && obj[uniffiTypeNameSymbol] === "TokenStream";
-    },
-}})();
-// FfiConverter for TokenStreamInterface
-const FfiConverterTypeTokenStream =  new FfiConverterObject(uniffiTypeTokenStreamObjectFactory);
-
-
-export interface ToolInterface {
-    
-}
-
-
-export class Tool extends UniffiAbstractObject implements ToolInterface {
-
-    readonly [uniffiTypeNameSymbol] = "Tool";
-    readonly [destructorGuardSymbol]: UniffiGcObject;
-    readonly [pointerLiteralSymbol]: UniffiHandle;
-    /**
-     * Create a tool that the model can call during inference.
-     *
-     * `parameters` is an ordered list of parameter definitions.
-     * Each entry has a `name` and a `type` (e.g. `"string"`, `"integer"`, `"number"`, `"boolean"`).
-     * The order matters — binding layers use it to map positional arguments
-     * in the user's callback function to named JSON parameters.
-     *
-     * Supported types: `"string"`, `"integer"` / `"int"`, `"number"` / `"float"` / `"double"`,
-     * `"boolean"` / `"bool"`.
-     * A JSON schema is generated automatically from this list.
-     *
-     * The callback receives the model's arguments as a JSON string
-     * (e.g. `{"city": "London", "degrees": 22}`).
-     * Each binding layer wraps the user's function to parse this JSON and
-     * pass individual typed arguments to the original function.
-     */
-    constructor(name: string, description: string, parameters: Array<ToolParameter>, callback: ToolCallback) {
-        super();
-        const pointer =
-            uniffiCaller.rustCall(
-            /*caller:*/ (callStatus) => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_tool_new(
-        FfiConverterString.lower(name),
-        FfiConverterString.lower(description),
-        FfiConverterArrayTypeToolParameter.lower(parameters),
-        FfiConverterTypeToolCallback.lower(callback),
-                callStatus);
-            },
-            /*liftString:*/ FfiConverterString.lift,
-    );
-        this[pointerLiteralSymbol] = pointer;
-        this[destructorGuardSymbol] = uniffiTypeToolObjectFactory.bless(pointer);
-    }
-
-    
-
-    
-
-    /**
-     * {@inheritDoc uniffi-bindgen-react-native#UniffiAbstractObject.uniffiDestroy}
-     */
-    uniffiDestroy(): void {
-        const ptr = (this as any)[destructorGuardSymbol];
-        if (ptr !== undefined) {
-            const pointer = uniffiTypeToolObjectFactory.pointer(this);
-            uniffiTypeToolObjectFactory.freePointer(pointer);
-            uniffiTypeToolObjectFactory.unbless(ptr);
-            delete (this as any)[destructorGuardSymbol];
-        }
-    }
-
-    static instanceOf(obj: any): obj is Tool {
-        return uniffiTypeToolObjectFactory.isConcreteType(obj);
-    }
-
-    
-}
-
-const uniffiTypeToolObjectFactory: UniffiObjectFactory<ToolInterface> = (() => {
-    
-    return {
-    create(pointer: UniffiHandle): ToolInterface {
-        const instance = Object.create(Tool.prototype);
-        instance[pointerLiteralSymbol] = pointer;
-        instance[destructorGuardSymbol] = this.bless(pointer);
-        instance[uniffiTypeNameSymbol] = "Tool";
-        return instance;
-    },
-
-    
-    bless(p: UniffiHandle): UniffiGcObject {
-        return uniffiCaller.rustCall(
-            /*caller:*/ (status) =>
-                nativeModule().ubrn_uniffi_internal_fn_method_tool_ffi__bless_pointer(p, status),
-            /*liftString:*/ FfiConverterString.lift
-        );
-    },
-
-    unbless(ptr: UniffiGcObject) {
-        ptr.markDestroyed();
-    },
-
-    pointer(obj: ToolInterface): UniffiHandle {
-        if ((obj as any)[destructorGuardSymbol] === undefined) {
-            throw new UniffiInternalError.UnexpectedNullPointer();
-        }
-        return (obj as any)[pointerLiteralSymbol];
-    },
-
-    clonePointer(obj: ToolInterface): UniffiHandle {
-        const pointer = this.pointer(obj);
-        return uniffiCaller.rustCall(
-            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_clone_tool(pointer, callStatus),
-            /*liftString:*/ FfiConverterString.lift
-        );
-    },
-
-    freePointer(pointer: UniffiHandle): void {
-        uniffiCaller.rustCall(
-            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_free_tool(pointer, callStatus),
-            /*liftString:*/ FfiConverterString.lift
-        );
-    },
-
-    isConcreteType(obj: any): obj is ToolInterface {
-        return obj[destructorGuardSymbol] && obj[uniffiTypeNameSymbol] === "Tool";
-    },
-}})();
-// FfiConverter for ToolInterface
-const FfiConverterTypeTool =  new FfiConverterObject(uniffiTypeToolObjectFactory);
-
-
 // FfiConverter for string | undefined
 const FfiConverterOptionalString = new FfiConverterOptional(FfiConverterString);
 
@@ -2824,12 +2841,12 @@ const FfiConverterArrayTypeMessage = new FfiConverterArray(FfiConverterTypeMessa
 const FfiConverterArrayTypePromptPart = new FfiConverterArray(FfiConverterTypePromptPart);
 
 
-// FfiConverter for Array<ToolInterface>
-const FfiConverterArrayTypeTool = new FfiConverterArray(FfiConverterTypeTool);
+// FfiConverter for Array<RustToolInterface>
+const FfiConverterArrayTypeRustTool = new FfiConverterArray(FfiConverterTypeRustTool);
 
 
-// FfiConverter for Array<ToolInterface> | undefined
-const FfiConverterOptionalArrayTypeTool = new FfiConverterOptional(FfiConverterArrayTypeTool);
+// FfiConverter for Array<RustToolInterface> | undefined
+const FfiConverterOptionalArrayTypeRustTool = new FfiConverterOptional(FfiConverterArrayTypeRustTool);
 
 /**
  * This should be called before anything else.
@@ -2879,48 +2896,6 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_p() !== 54893) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_p");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_ask() !== 63887) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_chat_ask");
-    }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_ask_with_prompt() !== 55787) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_chat_ask_with_prompt");
-    }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_get_chat_history() !== 25702) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_chat_get_chat_history");
-    }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_get_sampler_config_json() !== 51017) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_chat_get_sampler_config_json");
-    }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_get_system_prompt() !== 64158) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_chat_get_system_prompt");
-    }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_get_template_variables() !== 11443) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_chat_get_template_variables");
-    }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_reset_context() !== 64460) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_chat_reset_context");
-    }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_reset_history() !== 61771) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_chat_reset_history");
-    }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_set_chat_history() !== 65309) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_chat_set_chat_history");
-    }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_set_sampler_config() !== 43008) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_chat_set_sampler_config");
-    }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_set_system_prompt() !== 10795) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_chat_set_system_prompt");
-    }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_set_template_variable() !== 51030) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_chat_set_template_variable");
-    }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_set_tools() !== 59191) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_chat_set_tools");
-    }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_stop_generation() !== 64933) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_chat_stop_generation");
-    }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_crossencoder_rank() !== 14399) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_crossencoder_rank");
     }
@@ -2929,6 +2904,57 @@ function uniffiEnsureInitialized() {
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_encoder_encode() !== 21765) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_encoder_encode");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_ask() !== 53575) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_ask");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt() !== 65089) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history() !== 12722) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_sampler_config_json() !== 33078) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_get_sampler_config_json");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_system_prompt() !== 57727) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_get_system_prompt");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables() !== 19616) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context() !== 47191) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_history() !== 12058) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_history");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_chat_history() !== 6058) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_set_chat_history");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_sampler_config() !== 28012) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_set_sampler_config");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_system_prompt() !== 31690) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_set_system_prompt");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_template_variable() !== 64000) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_set_template_variable");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_tools() !== 55680) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_set_tools");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_stop_generation() !== 24711) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_stop_generation");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_completed() !== 26060) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_completed");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_next_token() !== 44770) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_next_token");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttool_get_schema_json() !== 4679) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rusttool_get_schema_json");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() !== 23376) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist");
@@ -2972,20 +2998,17 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json() !== 51798) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_tokenstream_completed() !== 5479) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_tokenstream_completed");
-    }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_tokenstream_next_token() !== 46067) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_tokenstream_next_token");
-    }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_chat_new() !== 48417) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_chat_new");
-    }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_crossencoder_new() !== 12491) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_crossencoder_new");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_encoder_new() !== 32094) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_encoder_new");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() !== 6355) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new() !== 54104) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new() !== 50214) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new");
@@ -2993,21 +3016,17 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_samplerconfig_from_json() !== 6867) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_samplerconfig_from_json");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_tool_new() !== 50618) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_tool_new");
-    }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_toolcallback_call() !== 2725) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_toolcallback_call");
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttoolcallback_call() !== 43958) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rusttoolcallback_call");
     }
 
-    uniffiCallbackInterfaceToolCallback.register();
+    uniffiCallbackInterfaceRustToolCallback.register();
     }
 
 export default Object.freeze({
   initialize: uniffiEnsureInitialized,
   converters: {
     FfiConverterTypeAsset,
-    FfiConverterTypeChat,
     FfiConverterTypeCrossEncoder,
     FfiConverterTypeEncoder,
     FfiConverterTypeMessage,
@@ -3015,10 +3034,11 @@ export default Object.freeze({
     FfiConverterTypeNobodyWhoError,
     FfiConverterTypePromptPart,
     FfiConverterTypeRole,
+    FfiConverterTypeRustChat,
+    FfiConverterTypeRustTokenStream,
+    FfiConverterTypeRustTool,
     FfiConverterTypeSamplerBuilder,
     FfiConverterTypeSamplerConfig,
-    FfiConverterTypeTokenStream,
-    FfiConverterTypeTool,
     FfiConverterTypeToolCall,
     FfiConverterTypeToolParameter,
   }
