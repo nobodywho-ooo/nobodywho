@@ -1,6 +1,6 @@
 import {
-  Tool as GeneratedTool,
-  type ToolCallback,
+  RustTool,
+  type RustToolCallback,
   type ToolParameter,
 } from "../generated/ts/nobodywho";
 
@@ -26,17 +26,14 @@ function convertValue(value: unknown, paramType: string): unknown {
 }
 
 /**
- * Create a tool that the model can call during inference.
+ * A tool that the model can call during inference.
  *
- * Parameters are defined as an ordered list of `[name, type]` pairs.
- * The order determines how the parsed JSON arguments are passed as
- * positional arguments to the `call` function.
- *
- * Supported types: `"string"`, `"integer"`, `"number"`, `"boolean"`.
+ * Wraps the internal RustTool with an ergonomic API that handles
+ * JSON parsing and typed argument dispatch.
  *
  * @example
  * ```typescript
- * const weatherTool = createTool({
+ * const weatherTool = new Tool({
  *   name: "get_weather",
  *   description: "Get the current weather for a city",
  *   parameters: [["city", "string"], ["unit", "string"]],
@@ -44,25 +41,35 @@ function convertValue(value: unknown, paramType: string): unknown {
  * });
  * ```
  */
-export function createTool(opts: {
-  name: string;
-  description: string;
-  parameters: [string, string][];
-  call: (...args: unknown[]) => string;
-}): GeneratedTool {
-  const callback: ToolCallback = {
-    call(argumentsJson: string): string {
-      const parsed = JSON.parse(argumentsJson);
-      const args = opts.parameters.map(([paramName, paramType]) =>
-        convertValue(parsed[paramName], paramType)
-      );
-      return opts.call(...args);
-    },
-  };
+export class Tool {
+  /** @internal */
+  readonly _inner: RustTool;
 
-  const toolParams: ToolParameter[] = opts.parameters.map(
-    ([name, type]) => ({ name, type })
-  );
+  constructor(opts: {
+    name: string;
+    description: string;
+    parameters: [string, string][];
+    call: (...args: unknown[]) => string;
+  }) {
+    const callback: RustToolCallback = {
+      call(argumentsJson: string): string {
+        const parsed = JSON.parse(argumentsJson);
+        const args = opts.parameters.map(([paramName, paramType]) =>
+          convertValue(parsed[paramName], paramType)
+        );
+        return opts.call(...args);
+      },
+    };
 
-  return new GeneratedTool(opts.name, opts.description, toolParams, callback);
+    const toolParams: ToolParameter[] = opts.parameters.map(
+      ([name, type]) => ({ name, type })
+    );
+
+    this._inner = new RustTool(opts.name, opts.description, toolParams, callback);
+  }
+
+  /** Get the JSON schema for this tool's parameters. */
+  getSchemaJson(): string {
+    return this._inner.getSchemaJson();
+  }
 }
