@@ -95,55 +95,14 @@ typedef struct UniffiForeignFutureResultVoid {
 } UniffiForeignFutureResultVoid;
 typedef void (*UniffiForeignFutureCompleteVoid)(
     uint64_t callback_data, UniffiForeignFutureResultVoid result);
-typedef void (*UniffiCallbackInterfaceToolCallbackMethod0)(
+typedef void (*UniffiCallbackInterfaceRustToolCallbackMethod0)(
     uint64_t uniffi_handle, RustBuffer arguments_json,
     RustBuffer *uniffi_out_return, RustCallStatus *rust_call_status);
-typedef struct UniffiVTableCallbackInterfaceToolCallback {
+typedef struct UniffiVTableCallbackInterfaceRustToolCallback {
   UniffiCallbackInterfaceFree uniffi_free;
   UniffiCallbackInterfaceClone uniffi_clone;
-  UniffiCallbackInterfaceToolCallbackMethod0 call;
-} UniffiVTableCallbackInterfaceToolCallback;
-/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_clone_chat(
-    /*handle*/ uint64_t handle, RustCallStatus *uniffi_out_err);
-void uniffi_nobodywho_uniffi_fn_free_chat(
-    /*handle*/ uint64_t handle, RustCallStatus *uniffi_out_err);
-/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_constructor_chat_new(
-    /*handle*/ uint64_t model, RustBuffer system_prompt, uint32_t context_size,
-    RustBuffer template_variables, RustBuffer tools, RustBuffer sampler,
-    RustCallStatus *uniffi_out_err);
-/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_chat_ask(
-    /*handle*/ uint64_t ptr, RustBuffer message,
-    RustCallStatus *uniffi_out_err);
-/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_chat_ask_with_prompt(
-    /*handle*/ uint64_t ptr, RustBuffer parts, RustCallStatus *uniffi_out_err);
-/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_chat_get_chat_history(
-    /*handle*/ uint64_t ptr);
-/*handle*/ uint64_t
-uniffi_nobodywho_uniffi_fn_method_chat_get_sampler_config_json(
-    /*handle*/ uint64_t ptr);
-/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_chat_get_system_prompt(
-    /*handle*/ uint64_t ptr);
-/*handle*/ uint64_t
-uniffi_nobodywho_uniffi_fn_method_chat_get_template_variables(
-    /*handle*/ uint64_t ptr);
-/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_chat_reset_context(
-    /*handle*/ uint64_t ptr, RustBuffer system_prompt, RustBuffer tools);
-/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_chat_reset_history(
-    /*handle*/ uint64_t ptr);
-/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_chat_set_chat_history(
-    /*handle*/ uint64_t ptr, RustBuffer messages);
-/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_chat_set_sampler_config(
-    /*handle*/ uint64_t ptr,
-    /*handle*/ uint64_t sampler);
-/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_chat_set_system_prompt(
-    /*handle*/ uint64_t ptr, RustBuffer system_prompt);
-/*handle*/ uint64_t
-uniffi_nobodywho_uniffi_fn_method_chat_set_template_variable(
-    /*handle*/ uint64_t ptr, RustBuffer name, int8_t value);
-/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_chat_set_tools(
-    /*handle*/ uint64_t ptr, RustBuffer tools);
-void uniffi_nobodywho_uniffi_fn_method_chat_stop_generation(
-    /*handle*/ uint64_t ptr, RustCallStatus *uniffi_out_err);
+  UniffiCallbackInterfaceRustToolCallbackMethod0 call;
+} UniffiVTableCallbackInterfaceRustToolCallback;
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_clone_crossencoder(
     /*handle*/ uint64_t handle, RustCallStatus *uniffi_out_err);
 void uniffi_nobodywho_uniffi_fn_free_crossencoder(
@@ -169,6 +128,68 @@ void uniffi_nobodywho_uniffi_fn_free_encoder(
     /*handle*/ uint64_t handle, RustCallStatus *uniffi_out_err);
 void uniffi_nobodywho_uniffi_fn_free_model(
     /*handle*/ uint64_t handle, RustCallStatus *uniffi_out_err);
+/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_clone_rustchat(
+    /*handle*/ uint64_t handle, RustCallStatus *uniffi_out_err);
+void uniffi_nobodywho_uniffi_fn_free_rustchat(
+    /*handle*/ uint64_t handle, RustCallStatus *uniffi_out_err);
+/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(
+    /*handle*/ uint64_t model, RustBuffer system_prompt, uint32_t context_size,
+    RustBuffer template_variables, RustBuffer tools, RustBuffer sampler,
+    RustCallStatus *uniffi_out_err);
+/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_ask(
+    /*handle*/ uint64_t ptr, RustBuffer message,
+    RustCallStatus *uniffi_out_err);
+/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(
+    /*handle*/ uint64_t ptr, RustBuffer parts, RustCallStatus *uniffi_out_err);
+/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_get_chat_history(
+    /*handle*/ uint64_t ptr);
+/*handle*/ uint64_t
+uniffi_nobodywho_uniffi_fn_method_rustchat_get_sampler_config_json(
+    /*handle*/ uint64_t ptr);
+/*handle*/ uint64_t
+uniffi_nobodywho_uniffi_fn_method_rustchat_get_system_prompt(
+    /*handle*/ uint64_t ptr);
+/*handle*/ uint64_t
+uniffi_nobodywho_uniffi_fn_method_rustchat_get_template_variables(
+    /*handle*/ uint64_t ptr);
+/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_reset_context(
+    /*handle*/ uint64_t ptr, RustBuffer system_prompt, RustBuffer tools);
+/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_reset_history(
+    /*handle*/ uint64_t ptr);
+/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_set_chat_history(
+    /*handle*/ uint64_t ptr, RustBuffer messages);
+/*handle*/ uint64_t
+uniffi_nobodywho_uniffi_fn_method_rustchat_set_sampler_config(
+    /*handle*/ uint64_t ptr,
+    /*handle*/ uint64_t sampler);
+/*handle*/ uint64_t
+uniffi_nobodywho_uniffi_fn_method_rustchat_set_system_prompt(
+    /*handle*/ uint64_t ptr, RustBuffer system_prompt);
+/*handle*/ uint64_t
+uniffi_nobodywho_uniffi_fn_method_rustchat_set_template_variable(
+    /*handle*/ uint64_t ptr, RustBuffer name, int8_t value);
+/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_set_tools(
+    /*handle*/ uint64_t ptr, RustBuffer tools);
+void uniffi_nobodywho_uniffi_fn_method_rustchat_stop_generation(
+    /*handle*/ uint64_t ptr, RustCallStatus *uniffi_out_err);
+/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_clone_rusttokenstream(
+    /*handle*/ uint64_t handle, RustCallStatus *uniffi_out_err);
+void uniffi_nobodywho_uniffi_fn_free_rusttokenstream(
+    /*handle*/ uint64_t handle, RustCallStatus *uniffi_out_err);
+/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_rusttokenstream_completed(
+    /*handle*/ uint64_t ptr);
+/*handle*/ uint64_t
+uniffi_nobodywho_uniffi_fn_method_rusttokenstream_next_token(
+    /*handle*/ uint64_t ptr);
+/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_clone_rusttool(
+    /*handle*/ uint64_t handle, RustCallStatus *uniffi_out_err);
+void uniffi_nobodywho_uniffi_fn_free_rusttool(
+    /*handle*/ uint64_t handle, RustCallStatus *uniffi_out_err);
+/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_constructor_rusttool_new(
+    RustBuffer name, RustBuffer description, RustBuffer parameters,
+    uint64_t callback, RustCallStatus *uniffi_out_err);
+RustBuffer uniffi_nobodywho_uniffi_fn_method_rusttool_get_schema_json(
+    /*handle*/ uint64_t ptr, RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_clone_samplerbuilder(
     /*handle*/ uint64_t handle, RustCallStatus *uniffi_out_err);
 void uniffi_nobodywho_uniffi_fn_free_samplerbuilder(
@@ -223,23 +244,8 @@ uniffi_nobodywho_uniffi_fn_constructor_samplerconfig_from_json(
     RustBuffer json_str, RustCallStatus *uniffi_out_err);
 RustBuffer uniffi_nobodywho_uniffi_fn_method_samplerconfig_to_json(
     /*handle*/ uint64_t ptr, RustCallStatus *uniffi_out_err);
-/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_clone_tokenstream(
-    /*handle*/ uint64_t handle, RustCallStatus *uniffi_out_err);
-void uniffi_nobodywho_uniffi_fn_free_tokenstream(
-    /*handle*/ uint64_t handle, RustCallStatus *uniffi_out_err);
-/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_tokenstream_completed(
-    /*handle*/ uint64_t ptr);
-/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_tokenstream_next_token(
-    /*handle*/ uint64_t ptr);
-/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_clone_tool(
-    /*handle*/ uint64_t handle, RustCallStatus *uniffi_out_err);
-void uniffi_nobodywho_uniffi_fn_free_tool(
-    /*handle*/ uint64_t handle, RustCallStatus *uniffi_out_err);
-/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_constructor_tool_new(
-    RustBuffer name, RustBuffer description, RustBuffer parameters,
-    uint64_t callback, RustCallStatus *uniffi_out_err);
-void uniffi_nobodywho_uniffi_fn_init_callback_vtable_toolcallback(
-    UniffiVTableCallbackInterfaceToolCallback *vtable);
+void uniffi_nobodywho_uniffi_fn_init_callback_vtable_rusttoolcallback(
+    UniffiVTableCallbackInterfaceRustToolCallback *vtable);
 float uniffi_nobodywho_uniffi_fn_func_cosine_similarity(
     RustBuffer a, RustBuffer b, RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_func_load_model(
@@ -389,24 +395,30 @@ uint16_t uniffi_nobodywho_uniffi_checksum_func_sampler_preset_json();
 uint16_t uniffi_nobodywho_uniffi_checksum_func_sampler_preset_temperature();
 uint16_t uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_k();
 uint16_t uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_p();
-uint16_t uniffi_nobodywho_uniffi_checksum_method_chat_ask();
-uint16_t uniffi_nobodywho_uniffi_checksum_method_chat_ask_with_prompt();
-uint16_t uniffi_nobodywho_uniffi_checksum_method_chat_get_chat_history();
-uint16_t uniffi_nobodywho_uniffi_checksum_method_chat_get_sampler_config_json();
-uint16_t uniffi_nobodywho_uniffi_checksum_method_chat_get_system_prompt();
-uint16_t uniffi_nobodywho_uniffi_checksum_method_chat_get_template_variables();
-uint16_t uniffi_nobodywho_uniffi_checksum_method_chat_reset_context();
-uint16_t uniffi_nobodywho_uniffi_checksum_method_chat_reset_history();
-uint16_t uniffi_nobodywho_uniffi_checksum_method_chat_set_chat_history();
-uint16_t uniffi_nobodywho_uniffi_checksum_method_chat_set_sampler_config();
-uint16_t uniffi_nobodywho_uniffi_checksum_method_chat_set_system_prompt();
-uint16_t uniffi_nobodywho_uniffi_checksum_method_chat_set_template_variable();
-uint16_t uniffi_nobodywho_uniffi_checksum_method_chat_set_tools();
-uint16_t uniffi_nobodywho_uniffi_checksum_method_chat_stop_generation();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_crossencoder_rank();
 uint16_t
 uniffi_nobodywho_uniffi_checksum_method_crossencoder_rank_and_sort_json();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_encoder_encode();
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_ask();
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt();
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history();
+uint16_t
+uniffi_nobodywho_uniffi_checksum_method_rustchat_get_sampler_config_json();
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_get_system_prompt();
+uint16_t
+uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables();
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context();
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_history();
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_set_chat_history();
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_set_sampler_config();
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_set_system_prompt();
+uint16_t
+uniffi_nobodywho_uniffi_checksum_method_rustchat_set_template_variable();
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_set_tools();
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_stop_generation();
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_completed();
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_next_token();
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rusttool_get_schema_json();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dry();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_grammar();
@@ -421,15 +433,13 @@ uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_p();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_typical_p();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_xtc();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json();
-uint16_t uniffi_nobodywho_uniffi_checksum_method_tokenstream_completed();
-uint16_t uniffi_nobodywho_uniffi_checksum_method_tokenstream_next_token();
-uint16_t uniffi_nobodywho_uniffi_checksum_constructor_chat_new();
 uint16_t uniffi_nobodywho_uniffi_checksum_constructor_crossencoder_new();
 uint16_t uniffi_nobodywho_uniffi_checksum_constructor_encoder_new();
+uint16_t uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new();
+uint16_t uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new();
 uint16_t uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new();
 uint16_t uniffi_nobodywho_uniffi_checksum_constructor_samplerconfig_from_json();
-uint16_t uniffi_nobodywho_uniffi_checksum_constructor_tool_new();
-uint16_t uniffi_nobodywho_uniffi_checksum_method_toolcallback_call();
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rusttoolcallback_call();
 uint32_t ffi_nobodywho_uniffi_uniffi_contract_version();
 }
 
@@ -868,7 +878,7 @@ static void cleanup() {
   // Implementation of free callback function CallbackInterfaceFree
 
 // Callback function:
-// uniffi::nobodywho::st::vtablecallbackinterfacetoolcallback::vtablecallbackinterfacetoolcallback::free::UniffiCallbackInterfaceFree
+// uniffi::nobodywho::st::vtablecallbackinterfacerusttoolcallback::vtablecallbackinterfacerusttoolcallback::free::UniffiCallbackInterfaceFree
 //
 // We have the following constraints:
 // - we need to pass a function pointer to Rust.
@@ -881,8 +891,8 @@ static void cleanup() {
 //
 // We then give the `callback` function pointer to Rust which will call the
 // lambda sometime in the future.
-namespace uniffi::nobodywho::st::vtablecallbackinterfacetoolcallback::
-    vtablecallbackinterfacetoolcallback::free {
+namespace uniffi::nobodywho::st::vtablecallbackinterfacerusttoolcallback::
+    vtablecallbackinterfacerusttoolcallback::free {
 using namespace facebook;
 
 // We need to store a lambda in a global so we can call it from
@@ -936,7 +946,7 @@ static void callback(uint64_t rs_handle) {
 }
 
 [[maybe_unused]] static UniffiCallbackInterfaceFree
-makeCallbackFunction( // uniffi::nobodywho::st::vtablecallbackinterfacetoolcallback::vtablecallbackinterfacetoolcallback::free
+makeCallbackFunction( // uniffi::nobodywho::st::vtablecallbackinterfacerusttoolcallback::vtablecallbackinterfacerusttoolcallback::free
     jsi::Runtime &rt,
     std::shared_ptr<uniffi_runtime::UniffiCallInvoker> callInvoker,
     const jsi::Value &value) {
@@ -977,7 +987,7 @@ static void cleanup() {
   rsLambda = nullptr;
 }
 } // namespace
-  // uniffi::nobodywho::st::vtablecallbackinterfacetoolcallback::vtablecallbackinterfacetoolcallback::free
+  // uniffi::nobodywho::st::vtablecallbackinterfacerusttoolcallback::vtablecallbackinterfacerusttoolcallback::free
 namespace uniffi::nobodywho {
 using namespace facebook;
 using CallInvoker = uniffi_runtime::UniffiCallInvoker;
@@ -1801,10 +1811,10 @@ template <> struct Bridging<UniffiForeignFutureCompleteVoid> {
 };
 } // namespace uniffi::nobodywho
   // Implementation of CallbackInterfaceClone for vtable field uniffi_clone in
-  // VTableCallbackInterfaceToolCallback
+  // VTableCallbackInterfaceRustToolCallback
 
 // Callback function:
-// uniffi::nobodywho::cb::callbackinterfaceclone::vtablecallbackinterfacetoolcallback::UniffiCallbackInterfaceClone
+// uniffi::nobodywho::cb::callbackinterfaceclone::vtablecallbackinterfacerusttoolcallback::UniffiCallbackInterfaceClone
 //
 // We have the following constraints:
 // - we need to pass a function pointer to Rust.
@@ -1818,7 +1828,7 @@ template <> struct Bridging<UniffiForeignFutureCompleteVoid> {
 // We then give the `callback` function pointer to Rust which will call the
 // lambda sometime in the future.
 namespace uniffi::nobodywho::cb::callbackinterfaceclone::
-    vtablecallbackinterfacetoolcallback {
+    vtablecallbackinterfacerusttoolcallback {
 using namespace facebook;
 
 // We need to store a lambda in a global so we can call it from
@@ -1879,7 +1889,7 @@ static uint64_t callback(uint64_t rs_handle) {
 }
 
 [[maybe_unused]] static UniffiCallbackInterfaceClone
-makeCallbackFunction( // uniffi::nobodywho::cb::callbackinterfaceclone::vtablecallbackinterfacetoolcallback
+makeCallbackFunction( // uniffi::nobodywho::cb::callbackinterfaceclone::vtablecallbackinterfacerusttoolcallback
     jsi::Runtime &rt,
     std::shared_ptr<uniffi_runtime::UniffiCallInvoker> callInvoker,
     const jsi::Value &value) {
@@ -1921,12 +1931,12 @@ static void cleanup() {
   rsLambda = nullptr;
 }
 } // namespace
-  // uniffi::nobodywho::cb::callbackinterfaceclone::vtablecallbackinterfacetoolcallback
-  // Implementation of CallbackInterfaceToolCallbackMethod0 for vtable field
-  // call in VTableCallbackInterfaceToolCallback
+  // uniffi::nobodywho::cb::callbackinterfaceclone::vtablecallbackinterfacerusttoolcallback
+  // Implementation of CallbackInterfaceRustToolCallbackMethod0 for vtable field
+  // call in VTableCallbackInterfaceRustToolCallback
 
 // Callback function:
-// uniffi::nobodywho::cb::callbackinterfacetoolcallbackmethod0::vtablecallbackinterfacetoolcallback::UniffiCallbackInterfaceToolCallbackMethod0
+// uniffi::nobodywho::cb::callbackinterfacerusttoolcallbackmethod0::vtablecallbackinterfacerusttoolcallback::UniffiCallbackInterfaceRustToolCallbackMethod0
 //
 // We have the following constraints:
 // - we need to pass a function pointer to Rust.
@@ -1939,8 +1949,8 @@ static void cleanup() {
 //
 // We then give the `callback` function pointer to Rust which will call the
 // lambda sometime in the future.
-namespace uniffi::nobodywho::cb::callbackinterfacetoolcallbackmethod0::
-    vtablecallbackinterfacetoolcallback {
+namespace uniffi::nobodywho::cb::callbackinterfacerusttoolcallbackmethod0::
+    vtablecallbackinterfacerusttoolcallback {
 using namespace facebook;
 
 // We need to store a lambda in a global so we can call it from
@@ -1989,7 +1999,7 @@ static void body(jsi::Runtime &rt,
             rt, callInvoker, uniffiResult);
   } catch (const jsi::JSError &error) {
     std::cout
-        << "Error in callback UniffiCallbackInterfaceToolCallbackMethod0: "
+        << "Error in callback UniffiCallbackInterfaceRustToolCallbackMethod0: "
         << error.what() << std::endl;
     throw error;
   }
@@ -2017,8 +2027,8 @@ static void callback(uint64_t rs_uniffiHandle, RustBuffer rs_argumentsJson,
            uniffi_call_status);
 }
 
-[[maybe_unused]] static UniffiCallbackInterfaceToolCallbackMethod0
-makeCallbackFunction( // uniffi::nobodywho::cb::callbackinterfacetoolcallbackmethod0::vtablecallbackinterfacetoolcallback
+[[maybe_unused]] static UniffiCallbackInterfaceRustToolCallbackMethod0
+makeCallbackFunction( // uniffi::nobodywho::cb::callbackinterfacerusttoolcallbackmethod0::vtablecallbackinterfacerusttoolcallback
     jsi::Runtime &rt,
     std::shared_ptr<uniffi_runtime::UniffiCallInvoker> callInvoker,
     const jsi::Value &value) {
@@ -2063,39 +2073,38 @@ static void cleanup() {
   rsLambda = nullptr;
 }
 } // namespace
-  // uniffi::nobodywho::cb::callbackinterfacetoolcallbackmethod0::vtablecallbackinterfacetoolcallback
+  // uniffi::nobodywho::cb::callbackinterfacerusttoolcallbackmethod0::vtablecallbackinterfacerusttoolcallback
 namespace uniffi::nobodywho {
 using namespace facebook;
 using CallInvoker = uniffi_runtime::UniffiCallInvoker;
 
-template <> struct Bridging<UniffiVTableCallbackInterfaceToolCallback> {
-  static UniffiVTableCallbackInterfaceToolCallback
+template <> struct Bridging<UniffiVTableCallbackInterfaceRustToolCallback> {
+  static UniffiVTableCallbackInterfaceRustToolCallback
   fromJs(jsi::Runtime &rt, std::shared_ptr<CallInvoker> callInvoker,
          const jsi::Value &jsValue) {
     // Check if the input is an object
     if (!jsValue.isObject()) {
-      throw jsi::JSError(
-          rt,
-          "Expected an object for UniffiVTableCallbackInterfaceToolCallback");
+      throw jsi::JSError(rt, "Expected an object for "
+                             "UniffiVTableCallbackInterfaceRustToolCallback");
     }
 
     // Get the object from the jsi::Value
     auto jsObject = jsValue.getObject(rt);
 
     // Create the vtable struct
-    UniffiVTableCallbackInterfaceToolCallback rsObject;
+    UniffiVTableCallbackInterfaceRustToolCallback rsObject;
 
     // Create the vtable from the js callbacks.
     rsObject.uniffi_free =
-        uniffi::nobodywho::st::vtablecallbackinterfacetoolcallback::
-            vtablecallbackinterfacetoolcallback::free::makeCallbackFunction(
+        uniffi::nobodywho::st::vtablecallbackinterfacerusttoolcallback::
+            vtablecallbackinterfacerusttoolcallback::free::makeCallbackFunction(
                 rt, callInvoker, jsObject.getProperty(rt, "uniffiFree"));
     rsObject.uniffi_clone = uniffi::nobodywho::cb::callbackinterfaceclone::
-        vtablecallbackinterfacetoolcallback::makeCallbackFunction(
+        vtablecallbackinterfacerusttoolcallback::makeCallbackFunction(
             rt, callInvoker, jsObject.getProperty(rt, "uniffiClone"));
     rsObject.call =
-        uniffi::nobodywho::cb::callbackinterfacetoolcallbackmethod0::
-            vtablecallbackinterfacetoolcallback::makeCallbackFunction(
+        uniffi::nobodywho::cb::callbackinterfacerusttoolcallbackmethod0::
+            vtablecallbackinterfacerusttoolcallback::makeCallbackFunction(
                 rt, callInvoker, jsObject.getProperty(rt, "call"));
 
     return rsObject;
@@ -2160,212 +2169,6 @@ NativeNobodywho::NativeNobodywho(
                  const jsi::Value *args, size_t count) -> jsi::Value {
             return this->cpp_uniffi_internal_fn_func_ffi__arraybuffer_to_string(
                 rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_fn_clone_chat"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(
-              rt, "ubrn_uniffi_nobodywho_uniffi_fn_clone_chat"),
-          1,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this->cpp_uniffi_nobodywho_uniffi_fn_clone_chat(rt, thisVal,
-                                                                   args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_fn_free_chat"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(
-              rt, "ubrn_uniffi_nobodywho_uniffi_fn_free_chat"),
-          1,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this->cpp_uniffi_nobodywho_uniffi_fn_free_chat(rt, thisVal,
-                                                                  args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_fn_constructor_chat_new"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(
-              rt, "ubrn_uniffi_nobodywho_uniffi_fn_constructor_chat_new"),
-          6,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this->cpp_uniffi_nobodywho_uniffi_fn_constructor_chat_new(
-                rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_fn_method_chat_ask"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(
-              rt, "ubrn_uniffi_nobodywho_uniffi_fn_method_chat_ask"),
-          2,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this->cpp_uniffi_nobodywho_uniffi_fn_method_chat_ask(
-                rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_fn_method_chat_ask_with_prompt"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(
-              rt,
-              "ubrn_uniffi_nobodywho_uniffi_fn_method_chat_ask_with_prompt"),
-          2,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this
-                ->cpp_uniffi_nobodywho_uniffi_fn_method_chat_ask_with_prompt(
-                    rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_fn_method_chat_get_chat_history"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(
-              rt,
-              "ubrn_uniffi_nobodywho_uniffi_fn_method_chat_get_chat_history"),
-          1,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this
-                ->cpp_uniffi_nobodywho_uniffi_fn_method_chat_get_chat_history(
-                    rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_fn_method_chat_get_sampler_config_json"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_fn_"
-                                        "method_chat_get_sampler_config_json"),
-          1,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this
-                ->cpp_uniffi_nobodywho_uniffi_fn_method_chat_get_sampler_config_json(
-                    rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_fn_method_chat_get_system_prompt"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(
-              rt,
-              "ubrn_uniffi_nobodywho_uniffi_fn_method_chat_get_system_prompt"),
-          1,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this
-                ->cpp_uniffi_nobodywho_uniffi_fn_method_chat_get_system_prompt(
-                    rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_fn_method_chat_get_template_variables"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_fn_"
-                                        "method_chat_get_template_variables"),
-          1,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this
-                ->cpp_uniffi_nobodywho_uniffi_fn_method_chat_get_template_variables(
-                    rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_fn_method_chat_reset_context"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(
-              rt, "ubrn_uniffi_nobodywho_uniffi_fn_method_chat_reset_context"),
-          3,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this
-                ->cpp_uniffi_nobodywho_uniffi_fn_method_chat_reset_context(
-                    rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_fn_method_chat_reset_history"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(
-              rt, "ubrn_uniffi_nobodywho_uniffi_fn_method_chat_reset_history"),
-          1,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this
-                ->cpp_uniffi_nobodywho_uniffi_fn_method_chat_reset_history(
-                    rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_fn_method_chat_set_chat_history"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(
-              rt,
-              "ubrn_uniffi_nobodywho_uniffi_fn_method_chat_set_chat_history"),
-          2,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this
-                ->cpp_uniffi_nobodywho_uniffi_fn_method_chat_set_chat_history(
-                    rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_fn_method_chat_set_sampler_config"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(
-              rt,
-              "ubrn_uniffi_nobodywho_uniffi_fn_method_chat_set_sampler_config"),
-          2,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this
-                ->cpp_uniffi_nobodywho_uniffi_fn_method_chat_set_sampler_config(
-                    rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_fn_method_chat_set_system_prompt"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(
-              rt,
-              "ubrn_uniffi_nobodywho_uniffi_fn_method_chat_set_system_prompt"),
-          2,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this
-                ->cpp_uniffi_nobodywho_uniffi_fn_method_chat_set_system_prompt(
-                    rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_fn_method_chat_set_template_variable"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_fn_"
-                                        "method_chat_set_template_variable"),
-          3,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this
-                ->cpp_uniffi_nobodywho_uniffi_fn_method_chat_set_template_variable(
-                    rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_fn_method_chat_set_tools"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(
-              rt, "ubrn_uniffi_nobodywho_uniffi_fn_method_chat_set_tools"),
-          2,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this->cpp_uniffi_nobodywho_uniffi_fn_method_chat_set_tools(
-                rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_fn_method_chat_stop_generation"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(
-              rt,
-              "ubrn_uniffi_nobodywho_uniffi_fn_method_chat_stop_generation"),
-          1,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this
-                ->cpp_uniffi_nobodywho_uniffi_fn_method_chat_stop_generation(
-                    rt, thisVal, args, count);
           });
   props["ubrn_uniffi_nobodywho_uniffi_fn_clone_crossencoder"] =
       jsi::Function::createFromHostFunction(
@@ -2491,6 +2294,301 @@ NativeNobodywho::NativeNobodywho(
                  const jsi::Value *args, size_t count) -> jsi::Value {
             return this->cpp_uniffi_nobodywho_uniffi_fn_free_model(rt, thisVal,
                                                                    args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_clone_rustchat"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_nobodywho_uniffi_fn_clone_rustchat"),
+          1,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_nobodywho_uniffi_fn_clone_rustchat(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_free_rustchat"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_nobodywho_uniffi_fn_free_rustchat"),
+          1,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_nobodywho_uniffi_fn_free_rustchat(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustchat_new"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustchat_new"),
+          6,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_ask"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_ask"),
+          2,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_ask(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_fn_"
+                                        "method_rustchat_ask_with_prompt"),
+          2,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_get_chat_history"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_fn_"
+                                        "method_rustchat_get_chat_history"),
+          1,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_get_chat_history(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_get_sampler_config_"
+        "json"] = jsi::Function::createFromHostFunction(
+      rt,
+      jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_fn_method_"
+                                    "rustchat_get_sampler_config_json"),
+      1,
+      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+             const jsi::Value *args, size_t count) -> jsi::Value {
+        return this
+            ->cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_get_sampler_config_json(
+                rt, thisVal, args, count);
+      });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_get_system_prompt"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_fn_"
+                                        "method_rustchat_get_system_prompt"),
+          1,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_get_system_prompt(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_get_template_"
+        "variables"] = jsi::Function::createFromHostFunction(
+      rt,
+      jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_fn_method_"
+                                    "rustchat_get_template_variables"),
+      1,
+      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+             const jsi::Value *args, size_t count) -> jsi::Value {
+        return this
+            ->cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_get_template_variables(
+                rt, thisVal, args, count);
+      });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_reset_context"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt,
+              "ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_reset_context"),
+          3,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_reset_context(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_reset_history"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt,
+              "ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_reset_history"),
+          1,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_reset_history(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_set_chat_history"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_fn_"
+                                        "method_rustchat_set_chat_history"),
+          2,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_set_chat_history(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_set_sampler_config"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_fn_"
+                                        "method_rustchat_set_sampler_config"),
+          2,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_set_sampler_config(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_set_system_prompt"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_fn_"
+                                        "method_rustchat_set_system_prompt"),
+          2,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_set_system_prompt(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_set_template_"
+        "variable"] = jsi::Function::createFromHostFunction(
+      rt,
+      jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_fn_method_"
+                                    "rustchat_set_template_variable"),
+      3,
+      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+             const jsi::Value *args, size_t count) -> jsi::Value {
+        return this
+            ->cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_set_template_variable(
+                rt, thisVal, args, count);
+      });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_set_tools"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_set_tools"),
+          2,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_set_tools(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_stop_generation"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_fn_"
+                                        "method_rustchat_stop_generation"),
+          1,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_stop_generation(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_clone_rusttokenstream"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_nobodywho_uniffi_fn_clone_rusttokenstream"),
+          1,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_nobodywho_uniffi_fn_clone_rusttokenstream(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_free_rusttokenstream"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_nobodywho_uniffi_fn_free_rusttokenstream"),
+          1,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_nobodywho_uniffi_fn_free_rusttokenstream(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_method_rusttokenstream_completed"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_fn_"
+                                        "method_rusttokenstream_completed"),
+          1,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_fn_method_rusttokenstream_completed(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_method_rusttokenstream_next_token"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_fn_"
+                                        "method_rusttokenstream_next_token"),
+          1,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_fn_method_rusttokenstream_next_token(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_clone_rusttool"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_nobodywho_uniffi_fn_clone_rusttool"),
+          1,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_nobodywho_uniffi_fn_clone_rusttool(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_free_rusttool"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_nobodywho_uniffi_fn_free_rusttool"),
+          1,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_nobodywho_uniffi_fn_free_rusttool(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_constructor_rusttool_new"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_nobodywho_uniffi_fn_constructor_rusttool_new"),
+          4,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_fn_constructor_rusttool_new(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_method_rusttool_get_schema_json"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_fn_"
+                                        "method_rusttool_get_schema_json"),
+          1,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_fn_method_rusttool_get_schema_json(
+                    rt, thisVal, args, count);
           });
   props["ubrn_uniffi_nobodywho_uniffi_fn_clone_samplerbuilder"] =
       jsi::Function::createFromHostFunction(
@@ -2735,99 +2833,18 @@ NativeNobodywho::NativeNobodywho(
                 ->cpp_uniffi_nobodywho_uniffi_fn_method_samplerconfig_to_json(
                     rt, thisVal, args, count);
           });
-  props["ubrn_uniffi_nobodywho_uniffi_fn_clone_tokenstream"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(
-              rt, "ubrn_uniffi_nobodywho_uniffi_fn_clone_tokenstream"),
-          1,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this->cpp_uniffi_nobodywho_uniffi_fn_clone_tokenstream(
+  props["ubrn_uniffi_nobodywho_uniffi_fn_init_callback_vtable_"
+        "rusttoolcallback"] = jsi::Function::createFromHostFunction(
+      rt,
+      jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_fn_init_"
+                                    "callback_vtable_rusttoolcallback"),
+      1,
+      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+             const jsi::Value *args, size_t count) -> jsi::Value {
+        return this
+            ->cpp_uniffi_nobodywho_uniffi_fn_init_callback_vtable_rusttoolcallback(
                 rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_fn_free_tokenstream"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(
-              rt, "ubrn_uniffi_nobodywho_uniffi_fn_free_tokenstream"),
-          1,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this->cpp_uniffi_nobodywho_uniffi_fn_free_tokenstream(
-                rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_fn_method_tokenstream_completed"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(
-              rt,
-              "ubrn_uniffi_nobodywho_uniffi_fn_method_tokenstream_completed"),
-          1,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this
-                ->cpp_uniffi_nobodywho_uniffi_fn_method_tokenstream_completed(
-                    rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_fn_method_tokenstream_next_token"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(
-              rt,
-              "ubrn_uniffi_nobodywho_uniffi_fn_method_tokenstream_next_token"),
-          1,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this
-                ->cpp_uniffi_nobodywho_uniffi_fn_method_tokenstream_next_token(
-                    rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_fn_clone_tool"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(
-              rt, "ubrn_uniffi_nobodywho_uniffi_fn_clone_tool"),
-          1,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this->cpp_uniffi_nobodywho_uniffi_fn_clone_tool(rt, thisVal,
-                                                                   args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_fn_free_tool"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(
-              rt, "ubrn_uniffi_nobodywho_uniffi_fn_free_tool"),
-          1,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this->cpp_uniffi_nobodywho_uniffi_fn_free_tool(rt, thisVal,
-                                                                  args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_fn_constructor_tool_new"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(
-              rt, "ubrn_uniffi_nobodywho_uniffi_fn_constructor_tool_new"),
-          4,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this->cpp_uniffi_nobodywho_uniffi_fn_constructor_tool_new(
-                rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_fn_init_callback_vtable_toolcallback"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_fn_init_"
-                                        "callback_vtable_toolcallback"),
-          1,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this
-                ->cpp_uniffi_nobodywho_uniffi_fn_init_callback_vtable_toolcallback(
-                    rt, thisVal, args, count);
-          });
+      });
   props["ubrn_uniffi_nobodywho_uniffi_fn_func_cosine_similarity"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -3599,174 +3616,6 @@ NativeNobodywho::NativeNobodywho(
                 ->cpp_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_p(
                     rt, thisVal, args, count);
           });
-  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_ask"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(
-              rt, "ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_ask"),
-          0,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this->cpp_uniffi_nobodywho_uniffi_checksum_method_chat_ask(
-                rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_ask_with_prompt"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
-                                        "method_chat_ask_with_prompt"),
-          0,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this
-                ->cpp_uniffi_nobodywho_uniffi_checksum_method_chat_ask_with_prompt(
-                    rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_get_chat_history"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
-                                        "method_chat_get_chat_history"),
-          0,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this
-                ->cpp_uniffi_nobodywho_uniffi_checksum_method_chat_get_chat_history(
-                    rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_get_sampler_config_"
-        "json"] = jsi::Function::createFromHostFunction(
-      rt,
-      jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
-                                    "method_chat_get_sampler_config_json"),
-      0,
-      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-             const jsi::Value *args, size_t count) -> jsi::Value {
-        return this
-            ->cpp_uniffi_nobodywho_uniffi_checksum_method_chat_get_sampler_config_json(
-                rt, thisVal, args, count);
-      });
-  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_get_system_prompt"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
-                                        "method_chat_get_system_prompt"),
-          0,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this
-                ->cpp_uniffi_nobodywho_uniffi_checksum_method_chat_get_system_prompt(
-                    rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_get_template_"
-        "variables"] = jsi::Function::createFromHostFunction(
-      rt,
-      jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
-                                    "method_chat_get_template_variables"),
-      0,
-      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-             const jsi::Value *args, size_t count) -> jsi::Value {
-        return this
-            ->cpp_uniffi_nobodywho_uniffi_checksum_method_chat_get_template_variables(
-                rt, thisVal, args, count);
-      });
-  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_reset_context"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
-                                        "method_chat_reset_context"),
-          0,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this
-                ->cpp_uniffi_nobodywho_uniffi_checksum_method_chat_reset_context(
-                    rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_reset_history"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
-                                        "method_chat_reset_history"),
-          0,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this
-                ->cpp_uniffi_nobodywho_uniffi_checksum_method_chat_reset_history(
-                    rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_set_chat_history"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
-                                        "method_chat_set_chat_history"),
-          0,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this
-                ->cpp_uniffi_nobodywho_uniffi_checksum_method_chat_set_chat_history(
-                    rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_set_sampler_"
-        "config"] = jsi::Function::createFromHostFunction(
-      rt,
-      jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
-                                    "method_chat_set_sampler_config"),
-      0,
-      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-             const jsi::Value *args, size_t count) -> jsi::Value {
-        return this
-            ->cpp_uniffi_nobodywho_uniffi_checksum_method_chat_set_sampler_config(
-                rt, thisVal, args, count);
-      });
-  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_set_system_prompt"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
-                                        "method_chat_set_system_prompt"),
-          0,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this
-                ->cpp_uniffi_nobodywho_uniffi_checksum_method_chat_set_system_prompt(
-                    rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_set_template_"
-        "variable"] = jsi::Function::createFromHostFunction(
-      rt,
-      jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
-                                    "method_chat_set_template_variable"),
-      0,
-      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-             const jsi::Value *args, size_t count) -> jsi::Value {
-        return this
-            ->cpp_uniffi_nobodywho_uniffi_checksum_method_chat_set_template_variable(
-                rt, thisVal, args, count);
-      });
-  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_set_tools"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(
-              rt,
-              "ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_set_tools"),
-          0,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this
-                ->cpp_uniffi_nobodywho_uniffi_checksum_method_chat_set_tools(
-                    rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_chat_stop_generation"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
-                                        "method_chat_stop_generation"),
-          0,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this
-                ->cpp_uniffi_nobodywho_uniffi_checksum_method_chat_stop_generation(
-                    rt, thisVal, args, count);
-          });
   props["ubrn_uniffi_nobodywho_uniffi_checksum_method_crossencoder_rank"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -3805,6 +3654,210 @@ NativeNobodywho::NativeNobodywho(
                 ->cpp_uniffi_nobodywho_uniffi_checksum_method_encoder_encode(
                     rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_ask"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_ask"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_ask(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_"
+        "prompt"] = jsi::Function::createFromHostFunction(
+      rt,
+      jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
+                                    "method_rustchat_ask_with_prompt"),
+      0,
+      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+             const jsi::Value *args, size_t count) -> jsi::Value {
+        return this
+            ->cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt(
+                rt, thisVal, args, count);
+      });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_"
+        "history"] = jsi::Function::createFromHostFunction(
+      rt,
+      jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
+                                    "method_rustchat_get_chat_history"),
+      0,
+      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+             const jsi::Value *args, size_t count) -> jsi::Value {
+        return this
+            ->cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history(
+                rt, thisVal, args, count);
+      });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_sampler_"
+        "config_json"] = jsi::Function::createFromHostFunction(
+      rt,
+      jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
+                                    "method_rustchat_get_sampler_config_json"),
+      0,
+      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+             const jsi::Value *args, size_t count) -> jsi::Value {
+        return this
+            ->cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_sampler_config_json(
+                rt, thisVal, args, count);
+      });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_system_"
+        "prompt"] = jsi::Function::createFromHostFunction(
+      rt,
+      jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
+                                    "method_rustchat_get_system_prompt"),
+      0,
+      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+             const jsi::Value *args, size_t count) -> jsi::Value {
+        return this
+            ->cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_system_prompt(
+                rt, thisVal, args, count);
+      });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_"
+        "variables"] = jsi::Function::createFromHostFunction(
+      rt,
+      jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
+                                    "method_rustchat_get_template_variables"),
+      0,
+      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+             const jsi::Value *args, size_t count) -> jsi::Value {
+        return this
+            ->cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables(
+                rt, thisVal, args, count);
+      });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
+                                        "method_rustchat_reset_context"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_history"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
+                                        "method_rustchat_reset_history"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_history(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_chat_"
+        "history"] = jsi::Function::createFromHostFunction(
+      rt,
+      jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
+                                    "method_rustchat_set_chat_history"),
+      0,
+      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+             const jsi::Value *args, size_t count) -> jsi::Value {
+        return this
+            ->cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_chat_history(
+                rt, thisVal, args, count);
+      });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_sampler_"
+        "config"] = jsi::Function::createFromHostFunction(
+      rt,
+      jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
+                                    "method_rustchat_set_sampler_config"),
+      0,
+      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+             const jsi::Value *args, size_t count) -> jsi::Value {
+        return this
+            ->cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_sampler_config(
+                rt, thisVal, args, count);
+      });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_system_"
+        "prompt"] = jsi::Function::createFromHostFunction(
+      rt,
+      jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
+                                    "method_rustchat_set_system_prompt"),
+      0,
+      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+             const jsi::Value *args, size_t count) -> jsi::Value {
+        return this
+            ->cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_system_prompt(
+                rt, thisVal, args, count);
+      });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_template_"
+        "variable"] = jsi::Function::createFromHostFunction(
+      rt,
+      jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
+                                    "method_rustchat_set_template_variable"),
+      0,
+      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+             const jsi::Value *args, size_t count) -> jsi::Value {
+        return this
+            ->cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_template_variable(
+                rt, thisVal, args, count);
+      });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_tools"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
+                                        "method_rustchat_set_tools"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_tools(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_stop_"
+        "generation"] = jsi::Function::createFromHostFunction(
+      rt,
+      jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
+                                    "method_rustchat_stop_generation"),
+      0,
+      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+             const jsi::Value *args, size_t count) -> jsi::Value {
+        return this
+            ->cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_stop_generation(
+                rt, thisVal, args, count);
+      });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_"
+        "completed"] = jsi::Function::createFromHostFunction(
+      rt,
+      jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
+                                    "method_rusttokenstream_completed"),
+      0,
+      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+             const jsi::Value *args, size_t count) -> jsi::Value {
+        return this
+            ->cpp_uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_completed(
+                rt, thisVal, args, count);
+      });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_next_"
+        "token"] = jsi::Function::createFromHostFunction(
+      rt,
+      jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
+                                    "method_rusttokenstream_next_token"),
+      0,
+      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+             const jsi::Value *args, size_t count) -> jsi::Value {
+        return this
+            ->cpp_uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_next_token(
+                rt, thisVal, args, count);
+      });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttool_get_schema_"
+        "json"] = jsi::Function::createFromHostFunction(
+      rt,
+      jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
+                                    "method_rusttool_get_schema_json"),
+      0,
+      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+             const jsi::Value *args, size_t count) -> jsi::Value {
+        return this
+            ->cpp_uniffi_nobodywho_uniffi_checksum_method_rusttool_get_schema_json(
+                rt, thisVal, args, count);
+      });
   props["ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -3973,42 +4026,6 @@ NativeNobodywho::NativeNobodywho(
                 ->cpp_uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json(
                     rt, thisVal, args, count);
           });
-  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_tokenstream_completed"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
-                                        "method_tokenstream_completed"),
-          0,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this
-                ->cpp_uniffi_nobodywho_uniffi_checksum_method_tokenstream_completed(
-                    rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_tokenstream_next_token"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
-                                        "method_tokenstream_next_token"),
-          0,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this
-                ->cpp_uniffi_nobodywho_uniffi_checksum_method_tokenstream_next_token(
-                    rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_checksum_constructor_chat_new"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(
-              rt, "ubrn_uniffi_nobodywho_uniffi_checksum_constructor_chat_new"),
-          0,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this
-                ->cpp_uniffi_nobodywho_uniffi_checksum_constructor_chat_new(
-                    rt, thisVal, args, count);
-          });
   props["ubrn_uniffi_nobodywho_uniffi_checksum_constructor_crossencoder_new"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -4032,6 +4049,32 @@ NativeNobodywho::NativeNobodywho(
                  const jsi::Value *args, size_t count) -> jsi::Value {
             return this
                 ->cpp_uniffi_nobodywho_uniffi_checksum_constructor_encoder_new(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt,
+              "ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt,
+              "ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new(
                     rt, thisVal, args, count);
           });
   props["ubrn_uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_"
@@ -4058,29 +4101,16 @@ NativeNobodywho::NativeNobodywho(
             ->cpp_uniffi_nobodywho_uniffi_checksum_constructor_samplerconfig_from_json(
                 rt, thisVal, args, count);
       });
-  props["ubrn_uniffi_nobodywho_uniffi_checksum_constructor_tool_new"] =
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttoolcallback_call"] =
       jsi::Function::createFromHostFunction(
           rt,
-          jsi::PropNameID::forAscii(
-              rt, "ubrn_uniffi_nobodywho_uniffi_checksum_constructor_tool_new"),
+          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
+                                        "method_rusttoolcallback_call"),
           0,
           [this](jsi::Runtime &rt, const jsi::Value &thisVal,
                  const jsi::Value *args, size_t count) -> jsi::Value {
             return this
-                ->cpp_uniffi_nobodywho_uniffi_checksum_constructor_tool_new(
-                    rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_toolcallback_call"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(
-              rt,
-              "ubrn_uniffi_nobodywho_uniffi_checksum_method_toolcallback_call"),
-          0,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this
-                ->cpp_uniffi_nobodywho_uniffi_checksum_method_toolcallback_call(
+                ->cpp_uniffi_nobodywho_uniffi_checksum_method_rusttoolcallback_call(
                     rt, thisVal, args, count);
           });
   props["ubrn_ffi_nobodywho_uniffi_uniffi_contract_version"] =
@@ -4092,17 +4122,6 @@ NativeNobodywho::NativeNobodywho(
           [this](jsi::Runtime &rt, const jsi::Value &thisVal,
                  const jsi::Value *args, size_t count) -> jsi::Value {
             return this->cpp_ffi_nobodywho_uniffi_uniffi_contract_version(
-                rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_internal_fn_method_chat_ffi__bless_pointer"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(
-              rt, "ubrn_uniffi_internal_fn_method_chat_ffi__bless_pointer"),
-          1,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this->cpp_uniffi_internal_fn_method_chat_ffi__bless_pointer(
                 rt, thisVal, args, count);
           });
   props["ubrn_uniffi_internal_fn_method_crossencoder_ffi__bless_pointer"] =
@@ -4141,6 +4160,42 @@ NativeNobodywho::NativeNobodywho(
             return this->cpp_uniffi_internal_fn_method_model_ffi__bless_pointer(
                 rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_internal_fn_method_rustchat_ffi__bless_pointer"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_internal_fn_method_rustchat_ffi__bless_pointer"),
+          1,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_internal_fn_method_rustchat_ffi__bless_pointer(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_internal_fn_method_rusttokenstream_ffi__bless_pointer"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_internal_fn_method_"
+                                        "rusttokenstream_ffi__bless_pointer"),
+          1,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_internal_fn_method_rusttokenstream_ffi__bless_pointer(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_internal_fn_method_rusttool_ffi__bless_pointer"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_internal_fn_method_rusttool_ffi__bless_pointer"),
+          1,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_internal_fn_method_rusttool_ffi__bless_pointer(
+                    rt, thisVal, args, count);
+          });
   props["ubrn_uniffi_internal_fn_method_samplerbuilder_ffi__bless_pointer"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -4164,30 +4219,6 @@ NativeNobodywho::NativeNobodywho(
             return this
                 ->cpp_uniffi_internal_fn_method_samplerconfig_ffi__bless_pointer(
                     rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_internal_fn_method_tokenstream_ffi__bless_pointer"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(
-              rt,
-              "ubrn_uniffi_internal_fn_method_tokenstream_ffi__bless_pointer"),
-          1,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this
-                ->cpp_uniffi_internal_fn_method_tokenstream_ffi__bless_pointer(
-                    rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_internal_fn_method_tool_ffi__bless_pointer"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(
-              rt, "ubrn_uniffi_internal_fn_method_tool_ffi__bless_pointer"),
-          1,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this->cpp_uniffi_internal_fn_method_tool_ffi__bless_pointer(
-                rt, thisVal, args, count);
           });
 }
 
@@ -4232,12 +4263,12 @@ NativeNobodywho::~NativeNobodywho() {
   // Cleanup for callback function ForeignFutureDroppedCallback
   uniffi::nobodywho::cb::foreignfuturedroppedcallback::cleanup();
   // Cleanup for "free" callback function CallbackInterfaceFree
-  uniffi::nobodywho::st::vtablecallbackinterfacetoolcallback::
-      vtablecallbackinterfacetoolcallback::free::cleanup();
+  uniffi::nobodywho::st::vtablecallbackinterfacerusttoolcallback::
+      vtablecallbackinterfacerusttoolcallback::free::cleanup();
   uniffi::nobodywho::cb::callbackinterfaceclone::
-      vtablecallbackinterfacetoolcallback::cleanup();
-  uniffi::nobodywho::cb::callbackinterfacetoolcallbackmethod0::
-      vtablecallbackinterfacetoolcallback::cleanup();
+      vtablecallbackinterfacerusttoolcallback::cleanup();
+  uniffi::nobodywho::cb::callbackinterfacerusttoolcallbackmethod0::
+      vtablecallbackinterfacerusttoolcallback::cleanup();
 }
 
 // Utility functions for serialization/deserialization of strings.
@@ -4260,21 +4291,6 @@ NativeNobodywho::cpp_uniffi_internal_fn_func_ffi__arraybuffer_to_string(
     jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
     size_t count) {
   return uniffi_jsi::Bridging<std::string>::arraybuffer_to_string(rt, args[0]);
-}
-jsi::Value
-NativeNobodywho::cpp_uniffi_internal_fn_method_chat_ffi__bless_pointer(
-    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-    size_t count) {
-  auto pointer =
-      uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]);
-  auto static destructor = [](uint64_t p) {
-    RustCallStatus status = {0};
-    uniffi_nobodywho_uniffi_fn_free_chat(p, &status);
-  };
-  auto ptrObj =
-      std::make_shared<uniffi_jsi::DestructibleObject>(pointer, destructor);
-  auto obj = jsi::Object::createFromHostObject(rt, ptrObj);
-  return jsi::Value(rt, obj);
 }
 jsi::Value
 NativeNobodywho::cpp_uniffi_internal_fn_method_crossencoder_ffi__bless_pointer(
@@ -4321,6 +4337,51 @@ NativeNobodywho::cpp_uniffi_internal_fn_method_model_ffi__bless_pointer(
   auto obj = jsi::Object::createFromHostObject(rt, ptrObj);
   return jsi::Value(rt, obj);
 }
+jsi::Value
+NativeNobodywho::cpp_uniffi_internal_fn_method_rustchat_ffi__bless_pointer(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto pointer =
+      uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]);
+  auto static destructor = [](uint64_t p) {
+    RustCallStatus status = {0};
+    uniffi_nobodywho_uniffi_fn_free_rustchat(p, &status);
+  };
+  auto ptrObj =
+      std::make_shared<uniffi_jsi::DestructibleObject>(pointer, destructor);
+  auto obj = jsi::Object::createFromHostObject(rt, ptrObj);
+  return jsi::Value(rt, obj);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_internal_fn_method_rusttokenstream_ffi__bless_pointer(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto pointer =
+      uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]);
+  auto static destructor = [](uint64_t p) {
+    RustCallStatus status = {0};
+    uniffi_nobodywho_uniffi_fn_free_rusttokenstream(p, &status);
+  };
+  auto ptrObj =
+      std::make_shared<uniffi_jsi::DestructibleObject>(pointer, destructor);
+  auto obj = jsi::Object::createFromHostObject(rt, ptrObj);
+  return jsi::Value(rt, obj);
+}
+jsi::Value
+NativeNobodywho::cpp_uniffi_internal_fn_method_rusttool_ffi__bless_pointer(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto pointer =
+      uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]);
+  auto static destructor = [](uint64_t p) {
+    RustCallStatus status = {0};
+    uniffi_nobodywho_uniffi_fn_free_rusttool(p, &status);
+  };
+  auto ptrObj =
+      std::make_shared<uniffi_jsi::DestructibleObject>(pointer, destructor);
+  auto obj = jsi::Object::createFromHostObject(rt, ptrObj);
+  return jsi::Value(rt, obj);
+}
 jsi::Value NativeNobodywho::
     cpp_uniffi_internal_fn_method_samplerbuilder_ffi__bless_pointer(
         jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
@@ -4351,269 +4412,8 @@ NativeNobodywho::cpp_uniffi_internal_fn_method_samplerconfig_ffi__bless_pointer(
   auto obj = jsi::Object::createFromHostObject(rt, ptrObj);
   return jsi::Value(rt, obj);
 }
-jsi::Value
-NativeNobodywho::cpp_uniffi_internal_fn_method_tokenstream_ffi__bless_pointer(
-    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-    size_t count) {
-  auto pointer =
-      uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]);
-  auto static destructor = [](uint64_t p) {
-    RustCallStatus status = {0};
-    uniffi_nobodywho_uniffi_fn_free_tokenstream(p, &status);
-  };
-  auto ptrObj =
-      std::make_shared<uniffi_jsi::DestructibleObject>(pointer, destructor);
-  auto obj = jsi::Object::createFromHostObject(rt, ptrObj);
-  return jsi::Value(rt, obj);
-}
-jsi::Value
-NativeNobodywho::cpp_uniffi_internal_fn_method_tool_ffi__bless_pointer(
-    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-    size_t count) {
-  auto pointer =
-      uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]);
-  auto static destructor = [](uint64_t p) {
-    RustCallStatus status = {0};
-    uniffi_nobodywho_uniffi_fn_free_tool(p, &status);
-  };
-  auto ptrObj =
-      std::make_shared<uniffi_jsi::DestructibleObject>(pointer, destructor);
-  auto obj = jsi::Object::createFromHostObject(rt, ptrObj);
-  return jsi::Value(rt, obj);
-}
 
 // Methods calling directly into the uniffi generated C API of the Rust crate.
-jsi::Value NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_clone_chat(
-    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-    size_t count) {
-  RustCallStatus status =
-      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
-  auto value = uniffi_nobodywho_uniffi_fn_clone_chat(
-      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
-                                                        args[0]),
-      &status);
-  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
-      rt, callInvoker, status, args[count - 1]);
-
-  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
-                                                         value);
-}
-jsi::Value NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_free_chat(
-    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-    size_t count) {
-  RustCallStatus status =
-      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
-  uniffi_nobodywho_uniffi_fn_free_chat(
-      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
-                                                        args[0]),
-      &status);
-  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
-      rt, callInvoker, status, args[count - 1]);
-
-  return jsi::Value::undefined();
-}
-jsi::Value NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_constructor_chat_new(
-    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-    size_t count) {
-  RustCallStatus status =
-      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
-  auto value = uniffi_nobodywho_uniffi_fn_constructor_chat_new(
-      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
-                                                        args[0]),
-      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]),
-      uniffi_jsi::Bridging<uint32_t>::fromJs(rt, callInvoker, args[2]),
-      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[3]),
-      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[4]),
-      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[5]),
-      &status);
-  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
-      rt, callInvoker, status, args[count - 1]);
-
-  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
-                                                         value);
-}
-jsi::Value NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_chat_ask(
-    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-    size_t count) {
-  RustCallStatus status =
-      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
-  auto value = uniffi_nobodywho_uniffi_fn_method_chat_ask(
-      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
-                                                        args[0]),
-      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]),
-      &status);
-  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
-      rt, callInvoker, status, args[count - 1]);
-
-  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
-                                                         value);
-}
-jsi::Value
-NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_chat_ask_with_prompt(
-    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-    size_t count) {
-  RustCallStatus status =
-      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
-  auto value = uniffi_nobodywho_uniffi_fn_method_chat_ask_with_prompt(
-      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
-                                                        args[0]),
-      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]),
-      &status);
-  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
-      rt, callInvoker, status, args[count - 1]);
-
-  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
-                                                         value);
-}
-jsi::Value
-NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_chat_get_chat_history(
-    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-    size_t count) {
-  auto value = uniffi_nobodywho_uniffi_fn_method_chat_get_chat_history(
-      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
-                                                        args[0]));
-
-  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
-                                                         value);
-}
-jsi::Value NativeNobodywho::
-    cpp_uniffi_nobodywho_uniffi_fn_method_chat_get_sampler_config_json(
-        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-        size_t count) {
-  auto value = uniffi_nobodywho_uniffi_fn_method_chat_get_sampler_config_json(
-      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
-                                                        args[0]));
-
-  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
-                                                         value);
-}
-jsi::Value
-NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_chat_get_system_prompt(
-    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-    size_t count) {
-  auto value = uniffi_nobodywho_uniffi_fn_method_chat_get_system_prompt(
-      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
-                                                        args[0]));
-
-  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
-                                                         value);
-}
-jsi::Value NativeNobodywho::
-    cpp_uniffi_nobodywho_uniffi_fn_method_chat_get_template_variables(
-        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-        size_t count) {
-  auto value = uniffi_nobodywho_uniffi_fn_method_chat_get_template_variables(
-      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
-                                                        args[0]));
-
-  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
-                                                         value);
-}
-jsi::Value
-NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_chat_reset_context(
-    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-    size_t count) {
-  auto value = uniffi_nobodywho_uniffi_fn_method_chat_reset_context(
-      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
-                                                        args[0]),
-      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]),
-      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker,
-                                                      args[2]));
-
-  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
-                                                         value);
-}
-jsi::Value
-NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_chat_reset_history(
-    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-    size_t count) {
-  auto value = uniffi_nobodywho_uniffi_fn_method_chat_reset_history(
-      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
-                                                        args[0]));
-
-  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
-                                                         value);
-}
-jsi::Value
-NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_chat_set_chat_history(
-    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-    size_t count) {
-  auto value = uniffi_nobodywho_uniffi_fn_method_chat_set_chat_history(
-      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
-                                                        args[0]),
-      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker,
-                                                      args[1]));
-
-  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
-                                                         value);
-}
-jsi::Value
-NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_chat_set_sampler_config(
-    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-    size_t count) {
-  auto value = uniffi_nobodywho_uniffi_fn_method_chat_set_sampler_config(
-      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
-                                                        args[0]),
-      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
-                                                        args[1]));
-
-  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
-                                                         value);
-}
-jsi::Value
-NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_chat_set_system_prompt(
-    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-    size_t count) {
-  auto value = uniffi_nobodywho_uniffi_fn_method_chat_set_system_prompt(
-      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
-                                                        args[0]),
-      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker,
-                                                      args[1]));
-
-  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
-                                                         value);
-}
-jsi::Value NativeNobodywho::
-    cpp_uniffi_nobodywho_uniffi_fn_method_chat_set_template_variable(
-        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-        size_t count) {
-  auto value = uniffi_nobodywho_uniffi_fn_method_chat_set_template_variable(
-      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
-                                                        args[0]),
-      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]),
-      uniffi_jsi::Bridging<int8_t>::fromJs(rt, callInvoker, args[2]));
-
-  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
-                                                         value);
-}
-jsi::Value
-NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_chat_set_tools(
-    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-    size_t count) {
-  auto value = uniffi_nobodywho_uniffi_fn_method_chat_set_tools(
-      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
-                                                        args[0]),
-      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker,
-                                                      args[1]));
-
-  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
-                                                         value);
-}
-jsi::Value
-NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_chat_stop_generation(
-    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-    size_t count) {
-  RustCallStatus status =
-      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
-  uniffi_nobodywho_uniffi_fn_method_chat_stop_generation(
-      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
-                                                        args[0]),
-      &status);
-  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
-      rt, callInvoker, status, args[count - 1]);
-
-  return jsi::Value::undefined();
-}
 jsi::Value NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_clone_crossencoder(
     jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
     size_t count) {
@@ -4777,6 +4577,354 @@ jsi::Value NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_free_model(
       rt, callInvoker, status, args[count - 1]);
 
   return jsi::Value::undefined();
+}
+jsi::Value NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_clone_rustchat(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  RustCallStatus status =
+      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
+  auto value = uniffi_nobodywho_uniffi_fn_clone_rustchat(
+      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                        args[0]),
+      &status);
+  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_free_rustchat(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  RustCallStatus status =
+      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
+  uniffi_nobodywho_uniffi_fn_free_rustchat(
+      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                        args[0]),
+      &status);
+  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return jsi::Value::undefined();
+}
+jsi::Value
+NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  RustCallStatus status =
+      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
+  auto value = uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(
+      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                        args[0]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]),
+      uniffi_jsi::Bridging<uint32_t>::fromJs(rt, callInvoker, args[2]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[3]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[4]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[5]),
+      &status);
+  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_ask(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  RustCallStatus status =
+      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
+  auto value = uniffi_nobodywho_uniffi_fn_method_rustchat_ask(
+      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                        args[0]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]),
+      &status);
+  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value
+NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  RustCallStatus status =
+      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
+  auto value = uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(
+      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                        args[0]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]),
+      &status);
+  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_get_chat_history(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value = uniffi_nobodywho_uniffi_fn_method_rustchat_get_chat_history(
+      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                        args[0]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_get_sampler_config_json(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value =
+      uniffi_nobodywho_uniffi_fn_method_rustchat_get_sampler_config_json(
+          uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                            args[0]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_get_system_prompt(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value = uniffi_nobodywho_uniffi_fn_method_rustchat_get_system_prompt(
+      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                        args[0]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_get_template_variables(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value =
+      uniffi_nobodywho_uniffi_fn_method_rustchat_get_template_variables(
+          uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                            args[0]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value
+NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_reset_context(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_nobodywho_uniffi_fn_method_rustchat_reset_context(
+      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                        args[0]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                      args[2]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value
+NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_reset_history(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_nobodywho_uniffi_fn_method_rustchat_reset_history(
+      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                        args[0]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_set_chat_history(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value = uniffi_nobodywho_uniffi_fn_method_rustchat_set_chat_history(
+      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                        args[0]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                      args[1]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_set_sampler_config(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value = uniffi_nobodywho_uniffi_fn_method_rustchat_set_sampler_config(
+      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                        args[0]),
+      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                        args[1]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_set_system_prompt(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value = uniffi_nobodywho_uniffi_fn_method_rustchat_set_system_prompt(
+      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                        args[0]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                      args[1]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_set_template_variable(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value = uniffi_nobodywho_uniffi_fn_method_rustchat_set_template_variable(
+      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                        args[0]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]),
+      uniffi_jsi::Bridging<int8_t>::fromJs(rt, callInvoker, args[2]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value
+NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_set_tools(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_nobodywho_uniffi_fn_method_rustchat_set_tools(
+      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                        args[0]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                      args[1]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value
+NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_stop_generation(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  RustCallStatus status =
+      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
+  uniffi_nobodywho_uniffi_fn_method_rustchat_stop_generation(
+      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                        args[0]),
+      &status);
+  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return jsi::Value::undefined();
+}
+jsi::Value
+NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_clone_rusttokenstream(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  RustCallStatus status =
+      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
+  auto value = uniffi_nobodywho_uniffi_fn_clone_rusttokenstream(
+      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                        args[0]),
+      &status);
+  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_free_rusttokenstream(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  RustCallStatus status =
+      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
+  uniffi_nobodywho_uniffi_fn_free_rusttokenstream(
+      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                        args[0]),
+      &status);
+  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return jsi::Value::undefined();
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_fn_method_rusttokenstream_completed(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value = uniffi_nobodywho_uniffi_fn_method_rusttokenstream_completed(
+      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                        args[0]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_fn_method_rusttokenstream_next_token(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value = uniffi_nobodywho_uniffi_fn_method_rusttokenstream_next_token(
+      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                        args[0]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_clone_rusttool(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  RustCallStatus status =
+      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
+  auto value = uniffi_nobodywho_uniffi_fn_clone_rusttool(
+      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                        args[0]),
+      &status);
+  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_free_rusttool(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  RustCallStatus status =
+      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
+  uniffi_nobodywho_uniffi_fn_free_rusttool(
+      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                        args[0]),
+      &status);
+  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return jsi::Value::undefined();
+}
+jsi::Value
+NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_constructor_rusttool_new(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  RustCallStatus status =
+      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
+  auto value = uniffi_nobodywho_uniffi_fn_constructor_rusttool_new(
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[0]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[2]),
+      uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[3]),
+      &status);
+  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value
+NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_rusttool_get_schema_json(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  RustCallStatus status =
+      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
+  auto value = uniffi_nobodywho_uniffi_fn_method_rusttool_get_schema_json(
+      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                        args[0]),
+      &status);
+  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return uniffi::nobodywho::Bridging<RustBuffer>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_clone_samplerbuilder(
     jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
@@ -5111,115 +5259,18 @@ NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_samplerconfig_to_json(
 
   return uniffi::nobodywho::Bridging<RustBuffer>::toJs(rt, callInvoker, value);
 }
-jsi::Value NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_clone_tokenstream(
-    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-    size_t count) {
-  RustCallStatus status =
-      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
-  auto value = uniffi_nobodywho_uniffi_fn_clone_tokenstream(
-      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
-                                                        args[0]),
-      &status);
-  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
-      rt, callInvoker, status, args[count - 1]);
-
-  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
-                                                         value);
-}
-jsi::Value NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_free_tokenstream(
-    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-    size_t count) {
-  RustCallStatus status =
-      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
-  uniffi_nobodywho_uniffi_fn_free_tokenstream(
-      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
-                                                        args[0]),
-      &status);
-  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
-      rt, callInvoker, status, args[count - 1]);
-
-  return jsi::Value::undefined();
-}
-jsi::Value
-NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_tokenstream_completed(
-    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-    size_t count) {
-  auto value = uniffi_nobodywho_uniffi_fn_method_tokenstream_completed(
-      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
-                                                        args[0]));
-
-  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
-                                                         value);
-}
-jsi::Value
-NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_tokenstream_next_token(
-    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-    size_t count) {
-  auto value = uniffi_nobodywho_uniffi_fn_method_tokenstream_next_token(
-      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
-                                                        args[0]));
-
-  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
-                                                         value);
-}
-jsi::Value NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_clone_tool(
-    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-    size_t count) {
-  RustCallStatus status =
-      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
-  auto value = uniffi_nobodywho_uniffi_fn_clone_tool(
-      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
-                                                        args[0]),
-      &status);
-  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
-      rt, callInvoker, status, args[count - 1]);
-
-  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
-                                                         value);
-}
-jsi::Value NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_free_tool(
-    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-    size_t count) {
-  RustCallStatus status =
-      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
-  uniffi_nobodywho_uniffi_fn_free_tool(
-      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
-                                                        args[0]),
-      &status);
-  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
-      rt, callInvoker, status, args[count - 1]);
-
-  return jsi::Value::undefined();
-}
-jsi::Value NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_constructor_tool_new(
-    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-    size_t count) {
-  RustCallStatus status =
-      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
-  auto value = uniffi_nobodywho_uniffi_fn_constructor_tool_new(
-      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[0]),
-      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]),
-      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[2]),
-      uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[3]),
-      &status);
-  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
-      rt, callInvoker, status, args[count - 1]);
-
-  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
-                                                         value);
-}
 jsi::Value NativeNobodywho::
-    cpp_uniffi_nobodywho_uniffi_fn_init_callback_vtable_toolcallback(
+    cpp_uniffi_nobodywho_uniffi_fn_init_callback_vtable_rusttoolcallback(
         jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
         size_t count) {
   auto vtableInstance = uniffi::nobodywho::Bridging<
-      UniffiVTableCallbackInterfaceToolCallback>::fromJs(rt, callInvoker,
-                                                         args[0]);
+      UniffiVTableCallbackInterfaceRustToolCallback>::fromJs(rt, callInvoker,
+                                                             args[0]);
 
   std::lock_guard<std::mutex> lock(uniffi::nobodywho::registry::vtableMutex);
-  uniffi_nobodywho_uniffi_fn_init_callback_vtable_toolcallback(
+  uniffi_nobodywho_uniffi_fn_init_callback_vtable_rusttoolcallback(
       uniffi::nobodywho::registry::putTable(
-          "UniffiVTableCallbackInterfaceToolCallback", vtableInstance));
+          "UniffiVTableCallbackInterfaceRustToolCallback", vtableInstance));
   return jsi::Value::undefined();
 }
 jsi::Value
@@ -5984,122 +6035,6 @@ NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_p(
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value
-NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_method_chat_ask(
-    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-    size_t count) {
-  auto value = uniffi_nobodywho_uniffi_checksum_method_chat_ask();
-
-  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
-}
-jsi::Value NativeNobodywho::
-    cpp_uniffi_nobodywho_uniffi_checksum_method_chat_ask_with_prompt(
-        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-        size_t count) {
-  auto value = uniffi_nobodywho_uniffi_checksum_method_chat_ask_with_prompt();
-
-  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
-}
-jsi::Value NativeNobodywho::
-    cpp_uniffi_nobodywho_uniffi_checksum_method_chat_get_chat_history(
-        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-        size_t count) {
-  auto value = uniffi_nobodywho_uniffi_checksum_method_chat_get_chat_history();
-
-  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
-}
-jsi::Value NativeNobodywho::
-    cpp_uniffi_nobodywho_uniffi_checksum_method_chat_get_sampler_config_json(
-        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-        size_t count) {
-  auto value =
-      uniffi_nobodywho_uniffi_checksum_method_chat_get_sampler_config_json();
-
-  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
-}
-jsi::Value NativeNobodywho::
-    cpp_uniffi_nobodywho_uniffi_checksum_method_chat_get_system_prompt(
-        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-        size_t count) {
-  auto value = uniffi_nobodywho_uniffi_checksum_method_chat_get_system_prompt();
-
-  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
-}
-jsi::Value NativeNobodywho::
-    cpp_uniffi_nobodywho_uniffi_checksum_method_chat_get_template_variables(
-        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-        size_t count) {
-  auto value =
-      uniffi_nobodywho_uniffi_checksum_method_chat_get_template_variables();
-
-  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
-}
-jsi::Value
-NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_method_chat_reset_context(
-    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-    size_t count) {
-  auto value = uniffi_nobodywho_uniffi_checksum_method_chat_reset_context();
-
-  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
-}
-jsi::Value
-NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_method_chat_reset_history(
-    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-    size_t count) {
-  auto value = uniffi_nobodywho_uniffi_checksum_method_chat_reset_history();
-
-  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
-}
-jsi::Value NativeNobodywho::
-    cpp_uniffi_nobodywho_uniffi_checksum_method_chat_set_chat_history(
-        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-        size_t count) {
-  auto value = uniffi_nobodywho_uniffi_checksum_method_chat_set_chat_history();
-
-  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
-}
-jsi::Value NativeNobodywho::
-    cpp_uniffi_nobodywho_uniffi_checksum_method_chat_set_sampler_config(
-        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-        size_t count) {
-  auto value =
-      uniffi_nobodywho_uniffi_checksum_method_chat_set_sampler_config();
-
-  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
-}
-jsi::Value NativeNobodywho::
-    cpp_uniffi_nobodywho_uniffi_checksum_method_chat_set_system_prompt(
-        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-        size_t count) {
-  auto value = uniffi_nobodywho_uniffi_checksum_method_chat_set_system_prompt();
-
-  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
-}
-jsi::Value NativeNobodywho::
-    cpp_uniffi_nobodywho_uniffi_checksum_method_chat_set_template_variable(
-        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-        size_t count) {
-  auto value =
-      uniffi_nobodywho_uniffi_checksum_method_chat_set_template_variable();
-
-  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
-}
-jsi::Value
-NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_method_chat_set_tools(
-    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-    size_t count) {
-  auto value = uniffi_nobodywho_uniffi_checksum_method_chat_set_tools();
-
-  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
-}
-jsi::Value NativeNobodywho::
-    cpp_uniffi_nobodywho_uniffi_checksum_method_chat_stop_generation(
-        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-        size_t count) {
-  auto value = uniffi_nobodywho_uniffi_checksum_method_chat_stop_generation();
-
-  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
-}
-jsi::Value
 NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_method_crossencoder_rank(
     jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
     size_t count) {
@@ -6121,6 +6056,155 @@ NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_method_encoder_encode(
     jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
     size_t count) {
   auto value = uniffi_nobodywho_uniffi_checksum_method_encoder_encode();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value
+NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_ask(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_nobodywho_uniffi_checksum_method_rustchat_ask();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value =
+      uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value =
+      uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_sampler_config_json(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value =
+      uniffi_nobodywho_uniffi_checksum_method_rustchat_get_sampler_config_json();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_system_prompt(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value =
+      uniffi_nobodywho_uniffi_checksum_method_rustchat_get_system_prompt();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value =
+      uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value = uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_history(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value = uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_history();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_chat_history(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value =
+      uniffi_nobodywho_uniffi_checksum_method_rustchat_set_chat_history();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_sampler_config(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value =
+      uniffi_nobodywho_uniffi_checksum_method_rustchat_set_sampler_config();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_system_prompt(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value =
+      uniffi_nobodywho_uniffi_checksum_method_rustchat_set_system_prompt();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_template_variable(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value =
+      uniffi_nobodywho_uniffi_checksum_method_rustchat_set_template_variable();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value
+NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_tools(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_nobodywho_uniffi_checksum_method_rustchat_set_tools();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_stop_generation(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value =
+      uniffi_nobodywho_uniffi_checksum_method_rustchat_stop_generation();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_completed(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value =
+      uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_completed();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_next_token(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value =
+      uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_next_token();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_checksum_method_rusttool_get_schema_json(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value =
+      uniffi_nobodywho_uniffi_checksum_method_rusttool_get_schema_json();
 
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
@@ -6242,30 +6326,6 @@ jsi::Value NativeNobodywho::
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeNobodywho::
-    cpp_uniffi_nobodywho_uniffi_checksum_method_tokenstream_completed(
-        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-        size_t count) {
-  auto value = uniffi_nobodywho_uniffi_checksum_method_tokenstream_completed();
-
-  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
-}
-jsi::Value NativeNobodywho::
-    cpp_uniffi_nobodywho_uniffi_checksum_method_tokenstream_next_token(
-        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-        size_t count) {
-  auto value = uniffi_nobodywho_uniffi_checksum_method_tokenstream_next_token();
-
-  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
-}
-jsi::Value
-NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_constructor_chat_new(
-    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-    size_t count) {
-  auto value = uniffi_nobodywho_uniffi_checksum_constructor_chat_new();
-
-  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
-}
-jsi::Value NativeNobodywho::
     cpp_uniffi_nobodywho_uniffi_checksum_constructor_crossencoder_new(
         jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
         size_t count) {
@@ -6278,6 +6338,22 @@ NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_constructor_encoder_new(
     jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
     size_t count) {
   auto value = uniffi_nobodywho_uniffi_checksum_constructor_encoder_new();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value
+NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value
+NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new();
 
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
@@ -6299,19 +6375,11 @@ jsi::Value NativeNobodywho::
 
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
-jsi::Value
-NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_constructor_tool_new(
-    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-    size_t count) {
-  auto value = uniffi_nobodywho_uniffi_checksum_constructor_tool_new();
-
-  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
-}
-jsi::Value
-NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_method_toolcallback_call(
-    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-    size_t count) {
-  auto value = uniffi_nobodywho_uniffi_checksum_method_toolcallback_call();
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_checksum_method_rusttoolcallback_call(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value = uniffi_nobodywho_uniffi_checksum_method_rusttoolcallback_call();
 
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
