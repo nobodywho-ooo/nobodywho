@@ -271,15 +271,16 @@ pub async fn load_model(
     }))
 }
 
-// ---------- Chat ----------
+// ---------- RustChat ----------
+// Wrapper intended to be wrapped again in the target language (e.g. as `Chat`).
 
 #[derive(uniffi::Object)]
-pub struct Chat {
+pub struct RustChat {
     inner: nobodywho::chat::ChatHandleAsync,
 }
 
 #[uniffi::export]
-impl Chat {
+impl RustChat {
     /// Create a new chat session.
     #[uniffi::constructor]
     pub fn new(
@@ -287,7 +288,7 @@ impl Chat {
         system_prompt: Option<String>,
         context_size: u32,
         template_variables: Option<HashMap<String, bool>>,
-        tools: Option<Vec<Arc<Tool>>>,
+        tools: Option<Vec<Arc<RustTool>>>,
         sampler: Option<Arc<SamplerConfig>>,
     ) -> Self {
         let core_tools: Vec<nobodywho::tool_calling::Tool> = tools
@@ -310,9 +311,9 @@ impl Chat {
     }
 
     /// Send a message and get a token stream for the response.
-    pub fn ask(&self, message: String) -> Arc<TokenStream> {
-        log::info!("Chat::ask called with message: {}", message);
-        Arc::new(TokenStream {
+    pub fn ask(&self, message: String) -> Arc<RustTokenStream> {
+        log::info!("RustChat::ask called with message: {}", message);
+        Arc::new(RustTokenStream {
             inner: tokio::sync::Mutex::new(self.inner.ask(message)),
         })
     }
@@ -321,7 +322,7 @@ impl Chat {
     ///
     /// `parts` is an ordered list of `PromptPart` items.
     /// Image and audio parts should contain a local file-system path.
-    pub fn ask_with_prompt(&self, parts: Vec<PromptPart>) -> Arc<TokenStream> {
+    pub fn ask_with_prompt(&self, parts: Vec<PromptPart>) -> Arc<RustTokenStream> {
         let mut prompt = nobodywho::tokenizer::Prompt::new();
         for part in parts {
             match part {
@@ -330,7 +331,7 @@ impl Chat {
                 PromptPart::Audio { path } => prompt.push_audio(path.as_ref()),
             }
         }
-        Arc::new(TokenStream {
+        Arc::new(RustTokenStream {
             inner: tokio::sync::Mutex::new(self.inner.ask(prompt)),
         })
     }
@@ -344,7 +345,7 @@ impl Chat {
     pub async fn reset_context(
         &self,
         system_prompt: Option<String>,
-        tools: Option<Vec<Arc<Tool>>>,
+        tools: Option<Vec<Arc<RustTool>>>,
     ) -> Result<(), NobodyWhoError> {
         let core_tools: Vec<nobodywho::tool_calling::Tool> = tools
             .unwrap_or_default()
@@ -417,7 +418,7 @@ impl Chat {
     }
 
     /// Set the tools available to the model.
-    pub async fn set_tools(&self, tools: Vec<Arc<Tool>>) -> Result<(), NobodyWhoError> {
+    pub async fn set_tools(&self, tools: Vec<Arc<RustTool>>) -> Result<(), NobodyWhoError> {
         let core_tools: Vec<nobodywho::tool_calling::Tool> =
             tools.into_iter().map(|t| t.inner.clone()).collect();
         self.inner
@@ -477,17 +478,18 @@ impl Chat {
     }
 }
 
-// ---------- TokenStream ----------
+// ---------- RustTokenStream ----------
+// Wrapper intended to be wrapped again in the target language (e.g. as `TokenStream`).
 
 #[derive(uniffi::Object)]
-pub struct TokenStream {
+pub struct RustTokenStream {
     // Mutex needed because UniFFI wraps objects in Arc (giving &self),
     // but TokenStreamAsync methods require &mut self.
     inner: tokio::sync::Mutex<nobodywho::chat::TokenStreamAsync>,
 }
 
 #[uniffi::export]
-impl TokenStream {
+impl RustTokenStream {
     /// Get the next token. Returns None when generation is complete.
     pub async fn next_token(&self) -> Option<String> {
         let token = self.inner.lock().await.next_token().await;
@@ -508,24 +510,28 @@ impl TokenStream {
     }
 }
 
-// ---------- Tool ----------
+// ---------- RustTool ----------
+// Wrapper intended to be wrapped again in the target language (e.g. as `Tool`).
+// The target language wrapper should handle ergonomic tool creation:
+// accepting user-friendly parameter definitions and a typed callback,
+// then implementing RustToolCallback to parse JSON args and dispatch.
 
 /// Callback interface for tool functions.
 /// Implement this in your language to provide the tool's logic.
 /// The `call` method receives the tool arguments as a JSON string
 /// and should return the tool's result as a string.
 #[uniffi::export(callback_interface)]
-pub trait ToolCallback: Send + Sync {
+pub trait RustToolCallback: Send + Sync {
     fn call(&self, arguments_json: String) -> String;
 }
 
 #[derive(uniffi::Object)]
-pub struct Tool {
+pub struct RustTool {
     inner: nobodywho::tool_calling::Tool,
 }
 
 #[uniffi::export]
-impl Tool {
+impl RustTool {
     /// Create a tool that the model can call during inference.
     ///
     /// `parameters` is an ordered list of parameter definitions.
@@ -546,7 +552,7 @@ impl Tool {
         name: String,
         description: String,
         parameters: Vec<ToolParameter>,
-        callback: Box<dyn ToolCallback>,
+        callback: Box<dyn RustToolCallback>,
     ) -> Arc<Self> {
         let mut properties = serde_json::Map::new();
         let mut required = Vec::new();
@@ -572,6 +578,11 @@ impl Tool {
         let tool = nobodywho::tool_calling::Tool::new(name, description, schema, Arc::new(wrapped));
 
         Arc::new(Self { inner: tool })
+    }
+
+    /// Get the JSON schema for this tool's parameters as a string.
+    pub fn get_schema_json(&self) -> String {
+        self.inner.json_schema.to_string()
     }
 }
 

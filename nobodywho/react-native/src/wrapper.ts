@@ -1,24 +1,26 @@
 /**
  * NobodyWho — React Native bindings for local LLM inference.
  *
- * This is the public entry point. It re-exports everything from the
- * generated index.tsx (which handles native module initialization)
- * and adds ergonomic wrapper utilities.
+ * This is the public entry point. It re-exports the public API:
+ * - Wrapper classes: Chat, Tool, TokenStream (wrapping internal Rust* types)
+ * - Direct re-exports: Model, Encoder, CrossEncoder, SamplerBuilder, SamplerConfig, etc.
+ * - Utilities: SamplerPresets, loadModel, cosineSimilarity
  *
  * This file is NOT generated — it is safe to edit.
  */
 
-// Re-export everything from the generated entry point.
-// This triggers native module installation and binding initialization.
+// Wrapper classes that hide the internal Rust* types.
+export { Chat } from "./chat";
+export { Tool } from "./tool";
+export { TokenStream } from "./streaming";
+
+// Re-export types that don't need wrapping.
 export {
   Model,
-  Chat,
-  TokenStream,
   Encoder,
   CrossEncoder,
   SamplerBuilder,
   SamplerConfig,
-  Tool,
   Role,
   Message,
   Message_Tags,
@@ -31,18 +33,14 @@ export {
 
 export type {
   ModelInterface,
-  ChatInterface,
-  TokenStreamInterface,
   EncoderInterface,
   CrossEncoderInterface,
   SamplerBuilderInterface,
   SamplerConfigInterface,
-  ToolInterface,
   Asset,
   ToolCall,
+  ToolParameter,
 } from "./index";
 
 // Ergonomic wrapper additions.
 export { SamplerPresets } from "./sampler_presets";
-export { streamTokens } from "./streaming";
-export { createTool } from "./tool";
