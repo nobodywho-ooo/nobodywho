@@ -4,9 +4,11 @@
 //! Currently supported formats:
 //! - Qwen3: `<tool_call>{"name": "...", "arguments": {...}}</tool_call>`
 //! - FunctionGemma: `<start_function_call>call:name{param:<escape>val<escape>}<end_function_call>`
+//! - Phi4Mini: `<|tool_call|>{"name": "...", "arguments": {...}}<|/tool_call|>`
 
 mod functiongemma;
 mod ministral3;
+mod phi4mini;
 mod qwen3;
 
 use bashkit::{ExecutionLimits, InMemoryFs};
@@ -18,6 +20,7 @@ use tracing::debug;
 
 pub use functiongemma::FunctionGemmaHandler;
 pub use ministral3::Ministral3Handler;
+pub use phi4mini::Phi4MiniHandler;
 pub use qwen3::Qwen3Handler;
 
 // ============================================================================
@@ -262,6 +265,7 @@ pub enum ToolFormat {
     Qwen3(Qwen3Handler),
     FunctionGemma(FunctionGemmaHandler),
     Ministral3(Ministral3Handler),
+    Phi4Mini(Phi4MiniHandler),
 }
 
 impl ToolFormat {
@@ -270,6 +274,7 @@ impl ToolFormat {
             ToolFormat::Qwen3(h) => h,
             ToolFormat::FunctionGemma(h) => h,
             ToolFormat::Ministral3(h) => h,
+            ToolFormat::Phi4Mini(h) => h,
         }
     }
 
@@ -291,50 +296,48 @@ impl ToolFormat {
 }
 
 pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatError> {
-    // get a chat template from the model
-    // fails early if no utf-8 decodable chat template is found
-    let template_str = model
-        // 1. try to get the "tool_use" chat template if present
+    let template = model
         .chat_template(Some("tool_use"))
-        .and_then(|t| Ok(t.to_string()?))
-        // 2. try to get the default chat template if no tool_use chat template
-        .or_else(|_| model.chat_template(None).and_then(|t| Ok(t.to_string()?)))?;
+        .or_else(|_| model.chat_template(None))
+        .and_then(|t| Ok(t.to_string()?))?;
 
-    debug!(template = %template_str, "Checking template for format markers");
+    debug!(template = %template, "Checking template for format markers");
 
-    // Check for FunctionGemma markers
-    if template_str.contains("<start_function_call>")
-        || template_str.contains("<end_function_call>")
-    {
+    if template.contains("<start_function_call>") || template.contains("<end_function_call>") {
         debug!("Detected FunctionGemma format from template markers");
         return Ok(ToolFormat::FunctionGemma(FunctionGemmaHandler));
     }
-
-    // Check for Qwen3 markers
-    if template_str.contains("<tool_call>") || template_str.contains("</tool_call>") {
+    if template.contains("<tool_call>") || template.contains("</tool_call>") {
         debug!("Detected Qwen3 format from template markers");
         return Ok(ToolFormat::Qwen3(Qwen3Handler));
     }
-
-    // Check for Ministral3 markers
-    if template_str.contains("[TOOL_CALLS]") {
+    if template.contains("[TOOL_CALLS]") {
         debug!("Detected Ministral3 format from template markers");
         return Ok(ToolFormat::Ministral3(Ministral3Handler));
     }
+    if template.contains("<|tool_call|>")
+        || template.contains("<|/tool_call|>")
+        || template.contains("<|tool|>")
+        || template.contains("<|/tool|>")
+    {
+        debug!("Detected Phi-4-mini format from template markers");
+        return Ok(ToolFormat::Phi4Mini(Phi4MiniHandler));
+    }
 
-    // Try to detect from model name/metadata
+    // Fall back to model name
     if let Ok(name) = model.meta_val_str("general.name") {
-        debug!(model_name = %name, "Checking model name for format hints");
-
         let name_lower = name.to_lowercase();
         if name_lower.contains("functiongemma") || name_lower.contains("function-gemma") {
             debug!("Detected FunctionGemma format from model name");
             return Ok(ToolFormat::FunctionGemma(FunctionGemmaHandler));
         }
-
         if name_lower.contains("qwen") {
             debug!("Detected Qwen3 format from model name");
             return Ok(ToolFormat::Qwen3(Qwen3Handler));
+        }
+        if name_lower.contains("phi-4") || name_lower.contains("phi4") {
+            debug!("Detected Phi-4-mini format from model name");
+            return Ok(ToolFormat::Phi4Mini(Phi4MiniHandler));
         }
     }
 
@@ -359,6 +362,13 @@ mod tests {
         let format = ToolFormat::FunctionGemma(FunctionGemmaHandler);
         assert_eq!(format.begin_token(), "<start_function_call>");
         assert_eq!(format.end_token(), "<end_function_call>");
+    }
+
+    #[test]
+    fn test_phi4mini_format() {
+        let format = ToolFormat::Phi4Mini(Phi4MiniHandler);
+        assert_eq!(format.begin_token(), "<|tool_call|>");
+        assert_eq!(format.end_token(), "<|/tool_call|>");
     }
 
     #[test]
