@@ -14,10 +14,16 @@
     "cpp/",
     "ios/",
     "android/",
-    "NobodywhoReactNative.podspec",
+    "Nobodywho.podspec",
+    "NobodywhoFramework.xcframework",
     "ubrn.config.yaml",
     "!android/build"
   ],
+  "codegenConfig": {
+    "name": "NobodywhoSpec",
+    "type": "modules",
+    "jsSrcsDir": "src"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/nobodywho-ooo/nobodywho"

@@ -11,6 +11,7 @@
 
 // Wrapper classes that hide the internal Rust* types.
 export { Chat } from "./chat";
+export { Prompt } from "./prompt";
 export { Tool } from "./tool";
 export { TokenStream } from "./streaming";
 
