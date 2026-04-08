@@ -6,7 +6,7 @@ use nom::{
     branch::alt as nom_alt,
     bytes::complete::{tag, take_until, take_while1},
     combinator::{map, value},
-    multi::{many0, separated_list0},
+    multi::{many1, separated_list0},
     number::complete::recognize_float,
     sequence::{delimited, separated_pair},
     IResult, Parser,
@@ -301,7 +301,7 @@ impl ToolFormatHandler for Gemma4Handler {
                 schema_to_rule(&tool.json_schema, builder, &prefix)?;
             builder = new_builder;
 
-            let tool_rule = format!("tool{}", i);
+            let tool_rule = format!("tool{}-call", i);
             builder = builder.rule(
                 &tool_rule,
                 seq(&[t("call:"), t(&tool.name), nt(&params_rule)]),
@@ -325,17 +325,12 @@ impl ToolFormatHandler for Gemma4Handler {
         let start = input.find(BEGIN_TOKEN)?;
         let input = &input[start..];
 
-        let Ok((_, calls)) = many0(single_tool_call).parse(input) else {
+        let Ok((_, calls)) = many1(single_tool_call).parse(input) else {
             debug!("No Gemma4 tool calls detected");
             return None;
         };
 
-        if calls.is_empty() {
-            debug!("No Gemma4 tool calls detected");
-            None
-        } else {
-            Some(calls)
-        }
+        Some(calls)
     }
 }
 
