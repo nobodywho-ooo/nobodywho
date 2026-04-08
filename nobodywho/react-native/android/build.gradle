@@ -33,11 +33,11 @@ if (isNewArchitectureEnabled()) {
 }
 
 def getExtOrDefault(name) {
-  return rootProject.ext.has(name) ? rootProject.ext.get(name) : project.properties["NobodywhoReactNative_" + name]
+  return rootProject.ext.has(name) ? rootProject.ext.get(name) : project.properties["Nobodywho_" + name]
 }
 
 def getExtOrIntegerDefault(name) {
-  return rootProject.ext.has(name) ? rootProject.ext.get(name) : (project.properties["NobodywhoReactNative_" + name]).toInteger()
+  return rootProject.ext.has(name) ? rootProject.ext.get(name) : (project.properties["Nobodywho_" + name]).toInteger()
 }
 
 def supportsNamespace() {
@@ -51,7 +51,7 @@ def supportsNamespace() {
 
 android {
   if (supportsNamespace()) {
-    namespace "com.nobodywhoreactnative"
+    namespace "com.nobodywho"
 
     sourceSets {
       main {
@@ -138,7 +138,7 @@ dependencies {
 if (isNewArchitectureEnabled()) {
   react {
     jsRootDir = file("../src/")
-    libraryName = "NobodywhoReactNative"
-    codegenJavaPackageName = "com.nobodywhoreactnative"
+    libraryName = "Nobodywho"
+    codegenJavaPackageName = "com.nobodywho"
   }
 }
