@@ -1,3 +1,7 @@
+## 0.5.3-rc1
+
+- Bump llama.cpp to get Gemma4 support
+
 ## 0.5.2
 
 - Fix duplicate image processing
