@@ -12,7 +12,7 @@ monty = { git = "https://github.com/pydantic/monty", tag = "v0.0.7" }
 bashkit = { git = "https://github.com/everruns/bashkit", tag = "v0.1.10" }
 serde = { version = "1.0.215", features = ["derive"] }
 chrono = "0.4.39"
-llama-cpp-2 = { git = "https://github.com/querymt/llama-cpp-rs", branch = "fix_include", default-features = false, features = [
+llama-cpp-2 = { git = "https://github.com/utilityai/llama-cpp-rs", branch = "main", default-features = false, features = [
     "openmp",
     "android-static-stdcxx",
     "mtmd",
@@ -39,7 +39,7 @@ indexmap = "2.13.0"
 
 # Enable Vulkan for x86_64, x86, and aarch64 targets (excluding macOS, iOS, Android)
 [target.'cfg(all(not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android"), any(target_arch = "x86_64", target_arch = "x86", target_arch = "aarch64")))'.dependencies]
-llama-cpp-2 = { git = "https://github.com/querymt/llama-cpp-rs", branch = "fix_include", default-features = false, features = [
+llama-cpp-2 = { git = "https://github.com/utilityai/llama-cpp-rs", branch = "main", default-features = false, features = [
     "openmp",
     "vulkan",
     "mtmd",
