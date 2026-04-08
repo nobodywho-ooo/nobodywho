@@ -5,23 +5,22 @@ import {
 } from "../generated/ts/nobodywho";
 
 /**
- * Convert a value from JSON to the appropriate JS type
- * based on the parameter type string.
+ * Convert a value from JSON based on the JSON Schema type.
  */
-function convertValue(value: unknown, paramType: string): unknown {
-  switch (paramType) {
-    case "int":
+function convertValue(
+  value: unknown,
+  schema: Record<string, unknown>,
+): unknown {
+  switch (schema.type) {
     case "integer":
-    case "float":
     case "number":
-    case "double":
       return Number(value);
-    case "bool":
     case "boolean":
       return typeof value === "string" ? value === "true" : Boolean(value);
     case "string":
-    default:
       return String(value);
+    default:
+      return value;
   }
 }
 
@@ -36,8 +35,11 @@ function convertValue(value: unknown, paramType: string): unknown {
  * const weatherTool = new Tool({
  *   name: "get_weather",
  *   description: "Get the current weather for a city",
- *   parameters: [["city", "string"], ["unit", "string"]],
- *   call: (city, unit) => JSON.stringify({ temp: 22, unit }),
+ *   parameters: {
+ *     city: { type: "string" },
+ *     unit: { type: "string", enum: ["celsius", "fahrenheit"] },
+ *   },
+ *   call: ({ city, unit }) => JSON.stringify({ temp: 22, unit }),
  * });
  * ```
  */
@@ -48,21 +50,24 @@ export class Tool {
   constructor(opts: {
     name: string;
     description: string;
-    parameters: [string, string][];
-    call: (...args: unknown[]) => string;
+    parameters: Record<string, Record<string, unknown>>;
+    call: (args: Record<string, unknown>) => string;
   }) {
+    const paramEntries = Object.entries(opts.parameters);
+
     const callback: RustToolCallback = {
       call(argumentsJson: string): string {
         const parsed = JSON.parse(argumentsJson);
-        const args = opts.parameters.map(([paramName, paramType]) =>
-          convertValue(parsed[paramName], paramType)
-        );
-        return opts.call(...args);
+        const args: Record<string, unknown> = {};
+        for (const [paramName, schema] of paramEntries) {
+          args[paramName] = convertValue(parsed[paramName], schema);
+        }
+        return opts.call(args);
       },
     };
 
-    const toolParams: ToolParameter[] = opts.parameters.map(
-      ([name, type]) => ({ name, type })
+    const toolParams: ToolParameter[] = paramEntries.map(
+      ([name, schema]) => ({ name, schema: JSON.stringify(schema) }),
     );
 
     this._inner = new RustTool(opts.name, opts.description, toolParams, callback);
