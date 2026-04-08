@@ -1,11 +1,12 @@
 import {
   RustChat,
+  loadModel,
   type ModelInterface,
   type SamplerConfigInterface,
   type Message,
-  type PromptPart,
 } from "../generated/ts/nobodywho";
 import { TokenStream } from "./streaming";
+import type { Prompt } from "./prompt";
 import type { Tool } from "./tool";
 
 /**
@@ -48,14 +49,42 @@ export class Chat {
     );
   }
 
-  /** Send a text message and get a token stream for the response. */
-  ask(message: string): TokenStream {
-    return new TokenStream(this._inner.ask(message));
+  /**
+   * Create a chat session directly from a model path.
+   * Loads the model and creates the chat in one step.
+   *
+   * @example
+   * ```typescript
+   * const chat = await Chat.fromPath({
+   *   modelPath: "model.gguf",
+   *   systemPrompt: "You are a helpful assistant.",
+   * });
+   * ```
+   */
+  static async fromPath(opts: {
+    modelPath: string;
+    useGpu?: boolean;
+    imageModelPath?: string;
+    systemPrompt?: string;
+    contextSize?: number;
+    templateVariables?: Map<string, boolean>;
+    tools?: Tool[];
+    sampler?: SamplerConfigInterface;
+  }): Promise<Chat> {
+    const model = await loadModel(
+      opts.modelPath,
+      opts.useGpu ?? true,
+      opts.imageModelPath,
+    );
+    return new Chat({ model, ...opts });
   }
 
-  /** Send a multimodal prompt (text + images/audio) and get a token stream. */
-  askWithPrompt(parts: PromptPart[]): TokenStream {
-    return new TokenStream(this._inner.askWithPrompt(parts));
+  /** Send a text message or multimodal prompt and get a token stream for the response. */
+  ask(message: string | Prompt): TokenStream {
+    if (typeof message === "string") {
+      return new TokenStream(this._inner.ask(message));
+    }
+    return new TokenStream(this._inner.askWithPrompt(message._parts));
   }
 
   /** Stop the current generation. */

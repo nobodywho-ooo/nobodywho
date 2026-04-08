@@ -342,16 +342,16 @@ jobs:
           xcodebuild -create-xcframework \
             -library libnobodywho-uniffi-aarch64-apple-ios-release.a \
             -library libnobodywho-uniffi-aarch64-apple-ios-sim-release.a \
-            -output NobodywhoReactNativeFramework.xcframework
+            -output NobodywhoFramework.xcframework
 
       - name: "Zip XCFramework"
-        run: zip -y -r NobodywhoReactNativeFramework.xcframework.zip NobodywhoReactNativeFramework.xcframework
+        run: zip -y -r NobodywhoFramework.xcframework.zip NobodywhoFramework.xcframework
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v4
         with:
           name: nobodywho-react-native-xcframework
-          path: ./NobodywhoReactNativeFramework.xcframework.zip
+          path: ./NobodywhoFramework.xcframework.zip
 
   cargo-build-android:
     if: inputs.full_ci
