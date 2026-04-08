@@ -4,6 +4,9 @@
   "description": "Run LLMs locally with offline inference — React Native bindings",
   "main": "src/wrapper.ts",
   "types": "src/wrapper.ts",
+  "exports": {
+    ".": "./src/wrapper.ts"
+  },
   "license": "MIT",
   "files": [
     "src/",

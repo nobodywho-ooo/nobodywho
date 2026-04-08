@@ -414,7 +414,10 @@ const FfiConverterTypeToolCall = (() => {
 
 export type ToolParameter = {
     name: string,
-    type: string
+    /**
+     * JSON Schema for this parameter (e.g. `{"type": "string"}`).
+     */
+    schema: string
 }
 
 /**
@@ -453,16 +456,16 @@ const FfiConverterTypeToolParameter = (() => {
         read(from: RustBuffer): TypeName {
             return {
                 name: FfiConverterString.read(from), 
-                type: FfiConverterString.read(from)
+                schema: FfiConverterString.read(from)
             };
         }
         write(value: TypeName, into: RustBuffer): void {
             FfiConverterString.write(value.name, into);
-            FfiConverterString.write(value.type, into);
+            FfiConverterString.write(value.schema, into);
         }
         allocationSize(value: TypeName): number {
             return FfiConverterString.allocationSize(value.name) + 
-            FfiConverterString.allocationSize(value.type);
+            FfiConverterString.allocationSize(value.schema);
             
         }
     };

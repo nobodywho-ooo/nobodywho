@@ -94,7 +94,8 @@ pub struct Asset {
 #[derive(uniffi::Record, Clone)]
 pub struct ToolParameter {
     pub name: String,
-    pub r#type: String,
+    /// JSON Schema for this parameter (e.g. `{"type": "string"}`).
+    pub schema: String,
 }
 
 #[derive(uniffi::Record, Clone)]
@@ -557,13 +558,9 @@ impl RustTool {
         let mut properties = serde_json::Map::new();
         let mut required = Vec::new();
         for param in &parameters {
-            let json_type = match param.r#type.as_str() {
-                "int" | "integer" => "integer",
-                "float" | "number" | "double" => "number",
-                "bool" | "boolean" => "boolean",
-                _ => "string",
-            };
-            properties.insert(param.name.clone(), serde_json::json!({ "type": json_type }));
+            let param_schema: serde_json::Value = serde_json::from_str(&param.schema)
+                .unwrap_or_else(|_| serde_json::json!({ "type": "string" }));
+            properties.insert(param.name.clone(), param_schema);
             required.push(param.name.clone());
         }
         let schema = serde_json::json!({

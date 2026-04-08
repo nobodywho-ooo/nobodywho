@@ -34,17 +34,17 @@ export class Chat {
     model: ModelInterface;
     systemPrompt?: string;
     contextSize?: number;
-    templateVariables?: Record<string, boolean>;
+    templateVariables?: Map<string, boolean>;
     tools?: Tool[];
     sampler?: SamplerConfigInterface;
   }) {
     this._inner = new RustChat(
       opts.model,
-      opts.systemPrompt ?? null,
+      opts.systemPrompt ?? undefined,
       opts.contextSize ?? 4096,
-      opts.templateVariables ?? null,
-      opts.tools?.map((t) => t._inner) ?? null,
-      opts.sampler ?? null,
+      opts.templateVariables ?? undefined,
+      opts.tools?.map((t) => t._inner) ?? undefined,
+      opts.sampler ?? undefined,
     );
   }
 
@@ -69,8 +69,8 @@ export class Chat {
     tools?: Tool[];
   }): Promise<void> {
     return this._inner.resetContext(
-      opts?.systemPrompt ?? null,
-      opts?.tools?.map((t) => t._inner) ?? null,
+      opts?.systemPrompt ?? undefined,
+      opts?.tools?.map((t) => t._inner) ?? undefined,
     );
   }
 
@@ -90,12 +90,12 @@ export class Chat {
   }
 
   /** Get the current system prompt. */
-  async getSystemPrompt(): Promise<string | null> {
+  async getSystemPrompt(): Promise<string | undefined> {
     return this._inner.getSystemPrompt();
   }
 
   /** Set the system prompt. */
-  async setSystemPrompt(systemPrompt: string | null): Promise<void> {
+  async setSystemPrompt(systemPrompt: string | undefined): Promise<void> {
     return this._inner.setSystemPrompt(systemPrompt);
   }
 
@@ -110,7 +110,7 @@ export class Chat {
   }
 
   /** Get all template variables. */
-  async getTemplateVariables(): Promise<Record<string, boolean>> {
+  async getTemplateVariables(): Promise<Map<string, boolean>> {
     return this._inner.getTemplateVariables();
   }
 

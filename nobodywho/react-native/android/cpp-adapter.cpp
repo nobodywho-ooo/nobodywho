@@ -2,23 +2,23 @@
 #include <jni.h>
 #include <jsi/jsi.h>
 #include <ReactCommon/CallInvokerHolder.h>
-#include "nobodywho-react-native.h"
+#include "react-native-nobodywho.h"
 
 namespace jsi = facebook::jsi;
 namespace react = facebook::react;
 
-// Automated testing checks Java_com_nobodywhoreactnative_NobodywhoReactNativeModule and nobodywhoreactnative
+// Automated testing checks Java_com_nobodywho_NobodywhoModule and nobodywho
 // by comparing the whole line here.
 /*
-Java_com_nobodywhoreactnative_NobodywhoReactNativeModule_nativeMultiply(JNIEnv *env, jclass type, jdouble a, jdouble b) {
-    return nobodywhoreactnative::multiply(a, b);
+Java_com_nobodywho_NobodywhoModule_nativeMultiply(JNIEnv *env, jclass type, jdouble a, jdouble b) {
+    return nobodywho::multiply(a, b);
 }
 */
 
-// Installer coming from NobodywhoReactNativeModule
+// Installer coming from NobodywhoModule
 extern "C"
 JNIEXPORT jboolean JNICALL
-Java_com_nobodywhoreactnative_NobodywhoReactNativeModule_nativeInstallRustCrate(
+Java_com_nobodywho_NobodywhoModule_nativeInstallRustCrate(
     JNIEnv *env,
     jclass type,
     jlong rtPtr,
@@ -32,12 +32,12 @@ Java_com_nobodywhoreactnative_NobodywhoReactNativeModule_nativeInstallRustCrate(
     auto jsCallInvoker = holderCxx->getCallInvoker();
     auto runtime = reinterpret_cast<jsi::Runtime *>(rtPtr);
 
-    return nobodywhoreactnative::installRustCrate(*runtime, jsCallInvoker);
+    return nobodywho::installRustCrate(*runtime, jsCallInvoker);
 }
 
 extern "C"
 JNIEXPORT jboolean JNICALL
-Java_com_nobodywhoreactnative_NobodywhoReactNativeModule_nativeCleanupRustCrate(JNIEnv *env, jclass type, jlong rtPtr) {
+Java_com_nobodywho_NobodywhoModule_nativeCleanupRustCrate(JNIEnv *env, jclass type, jlong rtPtr) {
     auto runtime = reinterpret_cast<jsi::Runtime *>(rtPtr);
-    return nobodywhoreactnative::cleanupRustCrate(*runtime);
+    return nobodywho::cleanupRustCrate(*runtime);
 }
