@@ -93,11 +93,7 @@ fn gemma4_object(input: &str) -> IResult<&str, Value> {
 /// Parse a Gemma4 array: [value,value,...]
 fn gemma4_array(input: &str) -> IResult<&str, Value> {
     map(
-        delimited(
-            tag("["),
-            separated_list0(tag(","), gemma4_value),
-            tag("]"),
-        ),
+        delimited(tag("["), separated_list0(tag(","), gemma4_value), tag("]")),
         Value::Array,
     )
     .parse(input)
@@ -180,9 +176,7 @@ fn schema_to_rule(
         "null" => Ok(("gemmafour-null".to_string(), builder)),
         "object" => {
             let rule_name = format!("{}-obj", prefix);
-            let props = schema
-                .get("properties")
-                .and_then(|p| p.as_object());
+            let props = schema.get("properties").and_then(|p| p.as_object());
 
             let mut items: Vec<Expr> = vec![t("{")];
 
@@ -207,9 +201,10 @@ fn schema_to_rule(
         }
         "array" => {
             let rule_name = format!("{}-arr", prefix);
-            let default_items = Value::Object(
-                serde_json::Map::from_iter([("type".to_string(), Value::String("string".to_string()))]),
-            );
+            let default_items = Value::Object(serde_json::Map::from_iter([(
+                "type".to_string(),
+                Value::String("string".to_string()),
+            )]));
             let item_schema = schema.get("items").unwrap_or(&default_items);
             let item_prefix = format!("{}-item", prefix);
             let (item_rule, new_builder) = schema_to_rule(item_schema, builder, &item_prefix)?;
@@ -217,10 +212,7 @@ fn schema_to_rule(
 
             // [item(,item)*] — at least one item, or empty
             let repeat_rule = format!("{}-repeat", prefix);
-            builder = builder.rule(
-                &repeat_rule,
-                seq(&[t(","), nt(&item_rule)]),
-            );
+            builder = builder.rule(&repeat_rule, seq(&[t(","), nt(&item_rule)]));
             builder = builder.rule(
                 &rule_name,
                 alt(&[
@@ -297,8 +289,7 @@ impl ToolFormatHandler for Gemma4Handler {
         let mut tool_rule_names = Vec::new();
         for (i, tool) in tools.iter().enumerate() {
             let prefix = format!("tool{}", i);
-            let (params_rule, new_builder) =
-                schema_to_rule(&tool.json_schema, builder, &prefix)?;
+            let (params_rule, new_builder) = schema_to_rule(&tool.json_schema, builder, &prefix)?;
             builder = new_builder;
 
             let tool_rule = format!("tool{}-call", i);
@@ -312,7 +303,10 @@ impl ToolFormatHandler for Gemma4Handler {
         // Step 4: Combine tools
         let tool_alts: Vec<Expr> = tool_rule_names.iter().map(|n| nt(n)).collect();
         let grammar = builder
-            .rule("toolcall", seq(&[t(BEGIN_TOKEN), alt(&tool_alts), t(END_TOKEN)]))
+            .rule(
+                "toolcall",
+                seq(&[t(BEGIN_TOKEN), alt(&tool_alts), t(END_TOKEN)]),
+            )
             .rule("superroot", nt_plus("toolcall"))
             .root("superroot")
             .build();
@@ -350,8 +344,7 @@ mod tests {
     fn test_extract_mixed_types_and_multiple_params() {
         // Covers: string with <|"|>, integer, boolean, multiple params, single call
         let handler = Gemma4Handler;
-        let input =
-            r#"<|tool_call>call:search{query:<|"|>rust lang<|"|>,limit:10,exact:false}<tool_call|>"#;
+        let input = r#"<|tool_call>call:search{query:<|"|>rust lang<|"|>,limit:10,exact:false}<tool_call|>"#;
 
         let calls = handler.extract_tool_calls(input).unwrap();
         assert_eq!(calls.len(), 1);
@@ -385,7 +378,10 @@ mod tests {
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].name, "create_event");
         assert_eq!(calls[0].arguments["name"], json!("Meeting"));
-        assert_eq!(calls[0].arguments["location"], json!({"city": "NYC", "floor": 3}));
+        assert_eq!(
+            calls[0].arguments["location"],
+            json!({"city": "NYC", "floor": 3})
+        );
         assert_eq!(calls[0].arguments["tags"], json!(["work", "urgent"]));
         assert_eq!(calls[0].arguments["rating"], json!(4.5));
     }
@@ -421,6 +417,10 @@ mod tests {
         ];
 
         let result = handler.generate_grammar(&tools);
-        assert!(result.is_ok(), "Grammar generation failed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Grammar generation failed: {:?}",
+            result.err()
+        );
     }
 }
