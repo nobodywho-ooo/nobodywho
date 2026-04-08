@@ -297,7 +297,7 @@ jobs:
       - name: "Place iOS XCFramework"
         run: |
           cd nobodywho/react-native
-          unzip ../../ios-artifacts/NobodywhoReactNativeFramework.xcframework.zip
+          unzip ../../ios-artifacts/NobodywhoFramework.xcframework.zip
 
       - name: "Publish to npm"
         working-directory: ./nobodywho/react-native
@@ -305,10 +305,9 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-  # Disabled until react-native package is ready for public release
   create-github-release-react-native:
     needs: [publish-react-native-npm]
-    if: false # startsWith(github.ref, 'refs/tags/nobodywho-react-native-')
+    if: startsWith(github.ref, 'refs/tags/nobodywho-react-native-')
     runs-on: ubuntu-24.04
     permissions:
       contents: write
