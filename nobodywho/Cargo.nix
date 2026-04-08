@@ -12263,9 +12263,9 @@ rec {
       };
       "tokio" = rec {
         crateName = "tokio";
-        version = "1.51.0";
+        version = "1.51.1";
         edition = "2021";
-        sha256 = "1k90g0ij7vap4lwz45gr0kq97f637smdmxjyq47vjyjazk0c9l9b";
+        sha256 = "131vl4p3hdn8kpvgv6qv06lspfxj7yvk9avq7r6p4jysbicgjszn";
         authors = [
           "Tokio Contributors <team@tokio.rs>"
         ];

@@ -185,7 +185,7 @@ fn schema_to_rule(
                     if i > 0 {
                         items.push(t(","));
                     }
-                    let prop_prefix = format!("{}-{}", prefix, key);
+                    let prop_prefix = format!("{}-{}", prefix, key.replace('_', "-"));
                     let (prop_rule, new_builder) =
                         schema_to_rule(prop_schema, builder, &prop_prefix)?;
                     builder = new_builder;
