@@ -319,7 +319,7 @@ jobs:
             format: Ministral3
           - name: Gemma4
             file: gemma-4-E2B-it-Q4_0.gguf
-            url: https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/blob/main/gemma-4-E2B-it-Q4_0.gguf
+            url: https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_0.gguf
             format: Gemma4
 
     steps:
