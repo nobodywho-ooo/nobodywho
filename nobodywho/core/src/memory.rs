@@ -20,7 +20,14 @@ pub struct LoadingPlan {
 }
 
 fn device_free(d: &llama_cpp_2::LlamaBackendDevice) -> u64 {
-    (d.memory_free as u64).min(d.memory_total as u64)
+    let memory_free = d.memory_free as u64;
+    let memory_total = d.memory_total as u64;
+
+    if memory_free > memory_total {
+        warn!("Detected more free memory on the device than the total memory of the device. This should not happen.");
+    }
+
+    memory_free.min(memory_total)
 }
 
 fn select_best_gpu() -> Option<llama_cpp_2::LlamaBackendDevice> {
