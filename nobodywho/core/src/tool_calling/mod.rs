@@ -342,7 +342,7 @@ pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatEr
             return Ok(ToolFormat::FunctionGemma(FunctionGemmaHandler));
         }
 
-        if name_lower.contains("gemma") && !name_lower.contains("functiongemma") {
+        if name_lower.contains("gemma-4") || name_lower.contains("gemma4") {
             debug!("Detected Gemma4 format from model name");
             return Ok(ToolFormat::Gemma4(Gemma4Handler));
         }
