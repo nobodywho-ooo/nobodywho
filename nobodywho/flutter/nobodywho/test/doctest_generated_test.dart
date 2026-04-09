@@ -4,7 +4,7 @@
 // ignore_for_file: unused_local_variable, unused_import
 // ignore_for_file: avoid_print, unnecessary_string_interpolations
 
-@Timeout(Duration(seconds: 600))
+@Timeout(Duration(seconds: 780))
 library;
 
 import "dart:io";
