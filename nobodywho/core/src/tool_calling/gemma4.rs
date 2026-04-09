@@ -250,6 +250,26 @@ fn schema_to_rule(
             }
             Ok((rule_name, builder))
         }
+        "array" if schema.get("prefixItems").is_some() => {
+            // Tuple: fixed positional types, e.g. [string, integer]
+            let rule_name = format!("{}-arr", prefix);
+            let prefix_items = schema["prefixItems"].as_array().ok_or_else(|| {
+                ToolFormatError::GrammarGenerationFailed("prefixItems is not an array".into())
+            })?;
+            let mut elems: Vec<Expr> = vec![t("[")];
+            for (i, item_schema) in prefix_items.iter().enumerate() {
+                if i > 0 {
+                    elems.push(t(","));
+                }
+                let (item_rule, b) =
+                    schema_to_rule(item_schema, builder, &format!("{}-{}", prefix, i))?;
+                builder = b;
+                elems.push(nt(&item_rule));
+            }
+            elems.push(t("]"));
+            builder = builder.rule(&rule_name, seq(&elems));
+            Ok((rule_name, builder))
+        }
         "array" => {
             let rule_name = format!("{}-arr", prefix);
             let default_items = Value::Object(serde_json::Map::from_iter([(
@@ -257,11 +277,10 @@ fn schema_to_rule(
                 Value::String("string".to_string()),
             )]));
             let item_schema = schema.get("items").unwrap_or(&default_items);
-            let item_prefix = format!("{}-item", prefix);
-            let (item_rule, new_builder) = schema_to_rule(item_schema, builder, &item_prefix)?;
-            builder = new_builder;
+            let (item_rule, b) =
+                schema_to_rule(item_schema, builder, &format!("{}-item", prefix))?;
+            builder = b;
 
-            // [item(,item)*] — at least one item, or empty
             let repeat_rule = format!("{}-repeat", prefix);
             builder = builder.rule(&repeat_rule, seq(&[t(","), nt(&item_rule)]));
             builder = builder.rule(
