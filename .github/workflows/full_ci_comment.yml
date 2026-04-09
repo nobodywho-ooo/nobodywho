@@ -52,7 +52,6 @@ jobs:
 
       - name: Trigger full CI
         if: steps.auth.outputs.allowed == 'true'
-        id: dispatch
         uses: actions/github-script@v7
         with:
           script: |
@@ -68,18 +67,4 @@ jobs:
               repo: context.repo.repo,
               comment_id: context.payload.comment.id,
               content: 'rocket',
-            });
-
-      - name: Comment workflow link
-        if: steps.auth.outputs.allowed == 'true'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const ref = '${{ steps.pr.outputs.ref }}';
-            const url = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/workflows/main.yml?query=branch%3A${encodeURIComponent(ref)}`;
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: `Full CI triggered! Track progress: ${url}`,
             });
