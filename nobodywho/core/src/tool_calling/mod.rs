@@ -4,6 +4,8 @@
 //! Currently supported formats:
 //! - Qwen3: `<tool_call>{"name": "...", "arguments": {...}}</tool_call>`
 //! - FunctionGemma: `<start_function_call>call:name{param:<escape>val<escape>}<end_function_call>`
+//! - Gemma4: `<|tool_call>call:name{key:<|"|>val<|"|>}<tool_call|>`
+//! - Ministral3: `[TOOL_CALLS][{"name": "...", "arguments": {...}}]`
 
 mod functiongemma;
 mod gemma4;
