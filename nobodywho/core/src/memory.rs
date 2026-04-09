@@ -19,6 +19,33 @@ pub struct LoadingPlan {
     pub warnings: Vec<String>,
 }
 
+fn device_free(d: &llama_cpp_2::LlamaBackendDevice) -> u64 {
+    let memory_free = d.memory_free as u64;
+    let memory_total = d.memory_total as u64;
+
+    if memory_free > memory_total {
+        warn!("Detected more free memory on the device than the total memory of the device. This should not happen.");
+    }
+
+    memory_free.min(memory_total)
+}
+
+fn select_best_gpu() -> Option<llama_cpp_2::LlamaBackendDevice> {
+    llama_cpp_2::list_llama_ggml_backend_devices()
+        .into_iter()
+        .filter(|d| {
+            matches!(
+                d.device_type,
+                llama_cpp_2::LlamaBackendDeviceType::Gpu
+                    | llama_cpp_2::LlamaBackendDeviceType::IntegratedGpu
+            )
+        })
+        .max_by_key(|d| {
+            let is_gpu = matches!(d.device_type, llama_cpp_2::LlamaBackendDeviceType::Gpu);
+            (is_gpu, device_free(d))
+        })
+}
+
 fn read_gguf_model_info(path: &str) -> Option<GgufModelInfo> {
     let ctx = llama_cpp_2::gguf::GgufContext::from_file(Path::new(path))?;
     let file_size = std::fs::metadata(path).ok()?.len();
@@ -75,26 +102,15 @@ pub(crate) fn plan_model_loading(
         };
     };
 
-    // Find the GPU device with the most free memory
-    let best_gpu = llama_cpp_2::list_llama_ggml_backend_devices()
-        .into_iter()
-        .filter(|d| {
-            matches!(
-                d.device_type,
-                llama_cpp_2::LlamaBackendDeviceType::Gpu
-                    | llama_cpp_2::LlamaBackendDeviceType::IntegratedGpu
-            )
-        })
-        .max_by_key(|d| d.memory_free);
-
-    let Some(gpu) = best_gpu else {
+    let Some(gpu) = select_best_gpu() else {
         return LoadingPlan {
             gpu_layers: 0,
             warnings: vec![],
         };
     };
 
-    let mut available = gpu.memory_free as u64;
+    let gpu_free = device_free(&gpu);
+    let mut available = gpu_free;
 
     // Reserve space for projection model
     if let Some(mmproj) = mmproj_path {
@@ -123,7 +139,7 @@ pub(crate) fn plan_model_loading(
     let mut warnings = vec![];
 
     if gpu_layers_estimate < min_useful_layers {
-        let available_gb = gpu.memory_free as f64 / 1e9;
+        let available_gb = gpu_free as f64 / 1e9;
         let model_gb = info.file_size as f64 / 1e9;
         warnings.push(format!(
             "Only {gpu_layers_estimate}/{} layers would fit in GPU VRAM \
@@ -138,7 +154,7 @@ pub(crate) fn plan_model_loading(
     }
 
     if gpu_layers_estimate < info.n_layers {
-        let available_gb = gpu.memory_free as f64 / 1e9;
+        let available_gb = gpu_free as f64 / 1e9;
         warnings.push(format!(
             "Model does not fully fit in GPU VRAM ({available_gb:.1} GB free). \
              Offloading {gpu_layers_estimate}/{} layers to GPU; \
@@ -170,9 +186,9 @@ pub(crate) fn plan_context(
     arch: ModelArchitecture,
 ) -> Result<ContextPlan, MemoryError> {
     let n_ubatch = if has_projection_model {
-        std::cmp::min(2048, n_ctx)
+        n_ctx.min(2048)
     } else {
-        std::cmp::min(512, n_ctx)
+        n_ctx.min(512)
     };
 
     let mut warnings = vec![];
@@ -185,29 +201,14 @@ pub(crate) fn plan_context(
     }
 
     let devices = llama_cpp_2::list_llama_ggml_backend_devices();
-
-    let best_gpu = devices
-        .iter()
-        .filter(|d| {
-            matches!(
-                d.device_type,
-                llama_cpp_2::LlamaBackendDeviceType::Gpu
-                    | llama_cpp_2::LlamaBackendDeviceType::IntegratedGpu
-            )
-        })
-        .max_by_key(|d| d.memory_free);
-
     let cpu_free: u64 = devices
         .iter()
         .find(|d| matches!(d.device_type, llama_cpp_2::LlamaBackendDeviceType::Cpu))
-        .map(|d| d.memory_free as u64)
+        .map(device_free)
         .unwrap_or(0);
 
-    let (total_available, available_gb_label) = match best_gpu {
-        Some(gpu) => (
-            gpu.memory_free as u64 + cpu_free,
-            gpu.memory_free as f64 / 1e9,
-        ),
+    let (total_available, available_gb_label) = match select_best_gpu() {
+        Some(gpu) => (device_free(&gpu) + cpu_free, device_free(&gpu) as f64 / 1e9),
         None => (cpu_free, cpu_free as f64 / 1e9),
     };
 
