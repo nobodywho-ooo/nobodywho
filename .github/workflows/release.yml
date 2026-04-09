@@ -255,76 +255,37 @@ jobs:
     with:
       working-directory: nobodywho/flutter/nobodywho
 
-  publish-react-native-npm:
-    if: startsWith(github.ref, 'refs/tags/nobodywho-react-native-')
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: "Setup Node.js"
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          registry-url: https://registry.npmjs.org
-
-      - name: "Download Android ARM64 artifact"
-        uses: actions/download-artifact@v4
-        with:
-          name: nobodywho-uniffi-aarch64-linux-android-release
-          path: ./android-artifacts
-
-      - name: "Download Android x86_64 artifact"
-        uses: actions/download-artifact@v4
-        with:
-          name: nobodywho-uniffi-x86_64-linux-android-release
-          path: ./android-artifacts
-
-      - name: "Download React Native XCFramework"
-        uses: actions/download-artifact@v4
-        with:
-          name: nobodywho-react-native-xcframework
-          path: ./ios-artifacts
-
-      - name: "Place Android static libraries"
-        run: |
-          mkdir -p nobodywho/react-native/android/src/main/jniLibs/arm64-v8a
-          mkdir -p nobodywho/react-native/android/src/main/jniLibs/x86_64
-          cp ./android-artifacts/libnobodywho-uniffi-aarch64-linux-android-release.a \
-            nobodywho/react-native/android/src/main/jniLibs/arm64-v8a/libnobodywho_uniffi.a
-          cp ./android-artifacts/libnobodywho-uniffi-x86_64-linux-android-release.a \
-            nobodywho/react-native/android/src/main/jniLibs/x86_64/libnobodywho_uniffi.a
-
-      - name: "Place iOS XCFramework"
-        run: |
-          cd nobodywho/react-native
-          unzip ../../ios-artifacts/NobodywhoFramework.xcframework.zip
-
-      - name: "Publish to npm with provenance"
-        working-directory: ./nobodywho/react-native
-        run: npm publish --access public --provenance
-
+  # Create GitHub Release with native binaries.
+  # npm publish is done manually: cd nobodywho/react-native && npm publish --access public
   create-github-release-react-native:
-    needs: [publish-react-native-npm]
     if: startsWith(github.ref, 'refs/tags/nobodywho-react-native-')
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
-      - name: "Download all uniffi release artifacts"
+      - name: "Download Android ARM64 artifact"
         uses: actions/download-artifact@v4
         with:
-          pattern: nobodywho-uniffi-*-release
-          merge-multiple: true
+          name: nobodywho-uniffi-aarch64-linux-android-release
           path: ./nobodywho-react-native-release
 
-      - name: "Download XCFramework"
+      - name: "Download Android x86_64 artifact"
+        uses: actions/download-artifact@v4
+        with:
+          name: nobodywho-uniffi-x86_64-linux-android-release
+          path: ./nobodywho-react-native-release
+
+      - name: "Download iOS XCFramework"
         uses: actions/download-artifact@v4
         with:
           name: nobodywho-react-native-xcframework
           path: ./nobodywho-react-native-release
+
+      - name: "Keep only React Native artifacts (.a and xcframework)"
+        run: |
+          cd nobodywho-react-native-release
+          rm -f *.so *.dll *.dylib *.pdb
+          ls -la
 
       - name: "Create GitHub Release"
         uses: softprops/action-gh-release@v1
