@@ -142,6 +142,22 @@ fn quote_token_expr() -> Expr {
     })
 }
 
+/// Create the Expr for the <|tool_call> special token
+fn begin_token_expr() -> Expr {
+    Expr::Token(TokenRef::ByString {
+        name: "|tool_call".to_string(),
+        negated: false,
+    })
+}
+
+/// Create the Expr for the <tool_call|> special token
+fn end_token_expr() -> Expr {
+    Expr::Token(TokenRef::ByString {
+        name: "tool_call|".to_string(),
+        negated: false,
+    })
+}
+
 /// Walk a JSON schema and add grammar rules to the builder.
 /// Returns the rule name to reference and the updated builder.
 fn schema_to_rule(
@@ -149,6 +165,8 @@ fn schema_to_rule(
     mut builder: GrammarBuilder<gbnf::builder::NoRoot>,
     prefix: &str,
 ) -> Result<(String, GrammarBuilder<gbnf::builder::NoRoot>), ToolFormatError> {
+    debug!(json_schema = %schema);
+
     let type_str = schema
         .get("type")
         .and_then(|t| t.as_str())
@@ -176,11 +194,14 @@ fn schema_to_rule(
         "null" => Ok(("gemmafour-null".to_string(), builder)),
         "object" => {
             let rule_name = format!("{}-obj", prefix);
-            let props = schema.get("properties").and_then(|p| p.as_object());
-
-            let mut items: Vec<Expr> = vec![t("{")];
+            let props = schema
+                .get("properties")
+                .and_then(|p| p.as_object())
+                .filter(|p| !p.is_empty());
 
             if let Some(props) = props {
+                // Known properties: fixed key:value pairs
+                let mut items: Vec<Expr> = vec![t("{")];
                 for (i, (key, prop_schema)) in props.iter().enumerate() {
                     if i > 0 {
                         items.push(t(","));
@@ -193,10 +214,40 @@ fn schema_to_rule(
                     items.push(t(":"));
                     items.push(nt(&prop_rule));
                 }
-            }
+                items.push(t("}"));
+                builder = builder.rule(&rule_name, seq(&items));
+            } else {
+                // Free-form object: arbitrary key:value pairs
+                let default_val = Value::Object(serde_json::Map::from_iter([(
+                    "type".to_string(),
+                    Value::String("string".to_string()),
+                )]));
+                let val_schema = schema.get("additionalProperties").unwrap_or(&default_val);
+                let val_prefix = format!("{}-val", prefix);
+                let (val_rule, new_builder) = schema_to_rule(val_schema, builder, &val_prefix)?;
+                builder = new_builder;
 
-            items.push(t("}"));
-            builder = builder.rule(&rule_name, seq(&items));
+                let kv_rule = format!("{}-kv", prefix);
+                builder =
+                    builder.rule(&kv_rule, seq(&[nt("gemmafour-key"), t(":"), nt(&val_rule)]));
+                let repeat_rule = format!("{}-repeat", prefix);
+                builder = builder.rule(&repeat_rule, seq(&[t(","), nt(&kv_rule)]));
+                builder = builder.rule(
+                    &rule_name,
+                    alt(&[
+                        seq(&[
+                            t("{"),
+                            nt(&kv_rule),
+                            Expr::Quantified {
+                                expr: Box::new(nt(&repeat_rule)),
+                                quantifier: Quantifier::ZeroOrMore,
+                            },
+                            t("}"),
+                        ]),
+                        seq(&[t("{"), t("}")]),
+                    ]),
+                );
+            }
             Ok((rule_name, builder))
         }
         "array" => {
@@ -283,6 +334,34 @@ impl ToolFormatHandler for Gemma4Handler {
                     },
                     quote_token_expr(),
                 ]),
+            )
+            .rule(
+                "gemmafour-keychar",
+                alt(&[
+                    Expr::CharacterRange(gbnf::CharacterRange::Range {
+                        begin: 'a',
+                        end: 'z',
+                        negated: false,
+                    }),
+                    Expr::CharacterRange(gbnf::CharacterRange::Range {
+                        begin: 'A',
+                        end: 'Z',
+                        negated: false,
+                    }),
+                    Expr::CharacterRange(gbnf::CharacterRange::Range {
+                        begin: '0',
+                        end: '9',
+                        negated: false,
+                    }),
+                    t("_"),
+                ]),
+            )
+            .rule(
+                "gemmafour-key",
+                Expr::Quantified {
+                    expr: Box::new(nt("gemmafour-keychar")),
+                    quantifier: Quantifier::OneOrMore,
+                },
             );
 
         // Step 3: Per-tool rules from JSON schema
@@ -303,9 +382,10 @@ impl ToolFormatHandler for Gemma4Handler {
         // Step 4: Combine tools
         let tool_alts: Vec<Expr> = tool_rule_names.iter().map(|n| nt(n)).collect();
         let grammar = builder
+            .rule("tool-alt", alt(&tool_alts))
             .rule(
                 "toolcall",
-                seq(&[t(BEGIN_TOKEN), alt(&tool_alts), t(END_TOKEN)]),
+                seq(&[begin_token_expr(), nt("tool-alt"), end_token_expr()]),
             )
             .rule("superroot", nt_plus("toolcall"))
             .root("superroot")
