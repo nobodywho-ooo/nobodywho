@@ -678,3 +678,51 @@ class Chat {
   /// Stop the current generation.
   void stopGeneration() => _chat.stopGeneration();
 }
+
+/// Transcribes audio files using a Whisper model.
+///
+/// Load from a model path, then call [transcribe] with an audio file path.
+/// The returned [TokenStream] can be iterated segment by segment or awaited
+/// in full via [TokenStream.completed].
+///
+/// ```dart
+/// final stt = await SpeechToText.fromPath(modelPath: "whisper-base.bin", language: "en");
+/// final text = await stt.transcribe("audio.wav").completed();
+///
+/// await for (final segment in stt.transcribe("audio.wav")) {
+///   print(segment);
+/// }
+/// ```
+class SpeechToText {
+  final nobodywho.RustSpeechToText _stt;
+
+  SpeechToText._(this._stt);
+
+  /// Load a SpeechToText instance from a Whisper model path.
+  ///
+  /// [language] is a BCP-47 language code (e.g. "en", "de"). Defaults to auto-detect.
+  /// [translate] translates output to English instead of transcribing. Defaults to false.
+  /// [initialPrompt] primes the decoder with domain-specific vocabulary.
+  static Future<SpeechToText> fromPath({
+    required String modelPath,
+    String? language,
+    bool translate = false,
+    String? initialPrompt,
+  }) async {
+    final stt = await nobodywho.RustSpeechToText.fromPath(
+      modelPath: modelPath,
+      language: language,
+      translate: translate,
+      initialPrompt: initialPrompt,
+    );
+    return SpeechToText._(stt);
+  }
+
+  /// Transcribe an audio file and return a stream of segments.
+  ///
+  /// Iterate over segments as they arrive, or call [TokenStream.completed]
+  /// to wait for the full transcript.
+  TokenStream transcribe(String audioPath) {
+    return TokenStream._(_stt.transcribe(audioPath: audioPath));
+  }
+}

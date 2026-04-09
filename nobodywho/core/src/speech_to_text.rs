@@ -1,5 +1,5 @@
 use crate::errors::SpeechToTextError;
-use crate::llm::WorkerGuard;
+use crate::llm::{TokenStream, TokenStreamAsync, WorkerGuard, WriteOutput};
 use rubato::{FftFixedIn, Resampler};
 use std::sync::Arc;
 use symphonia::core::audio::SampleBuffer;
@@ -9,7 +9,6 @@ use symphonia::core::formats::{FormatOptions, FormatReader};
 use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 use symphonia::core::probe::Hint;
-use tokio::sync::mpsc::UnboundedReceiver;
 use tracing::error;
 use whisper_rs::{
     FullParams, SamplingStrategy, SegmentCallbackData, WhisperContext, WhisperContextParameters,
@@ -18,7 +17,7 @@ use whisper_rs::{
 const RESAMPLE_CHUNK_SIZE: usize = 1024;
 
 /// Configuration for speech-to-text transcription.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct SpeechToTextConfig {
     /// Target language code (e.g. "en", "de"). None for auto-detect.
     pub language: Option<String>,
@@ -26,24 +25,6 @@ pub struct SpeechToTextConfig {
     pub translate: bool,
     /// Text to prime the decoder with domain-specific vocabulary. Default: None.
     pub initial_prompt: Option<String>,
-}
-
-impl Default for SpeechToTextConfig {
-    fn default() -> Self {
-        Self {
-            language: Some("en".to_string()),
-            translate: false,
-            initial_prompt: None,
-        }
-    }
-}
-
-/// Output from a streaming transcription.
-pub enum SttOutput {
-    /// A single whisper segment as it is produced.
-    Segment(String),
-    /// Signals completion; carries the full trimmed transcript.
-    Done(String),
 }
 
 /// Synchronous speech-to-text handle. Wraps [`SpeechToTextAsync`].
@@ -59,23 +40,7 @@ pub struct SpeechToTextAsync {
 }
 
 enum SttMsg {
-    Convert(
-        String,
-        tokio::sync::mpsc::Sender<Result<String, SpeechToTextError>>,
-    ),
-    Stream(String, tokio::sync::mpsc::UnboundedSender<SttOutput>),
-}
-
-/// A stream of transcript segments, sync version.
-pub struct SegmentStream {
-    rx: UnboundedReceiver<SttOutput>,
-    completed_transcript: Option<String>,
-}
-
-/// A stream of transcript segments, async version.
-pub struct SegmentStreamAsync {
-    rx: UnboundedReceiver<SttOutput>,
-    completed_transcript: Option<String>,
+    Stream(String, tokio::sync::mpsc::UnboundedSender<WriteOutput>),
 }
 
 // -- Public API --
@@ -86,12 +51,10 @@ impl SpeechToText {
         Ok(Self { async_handle })
     }
 
-    pub fn convert(&self, audio_path: String) -> Result<String, SpeechToTextError> {
-        futures::executor::block_on(async { self.async_handle.convert(audio_path).await })
-    }
-
-    pub fn stream(&self, audio_path: String) -> SegmentStream {
-        SegmentStream::new(self.async_handle.stream_channel(audio_path))
+    pub fn transcribe(&self, audio_path: String) -> TokenStream {
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        self.async_handle.guard.send(SttMsg::Stream(audio_path, tx));
+        TokenStream::new(rx)
     }
 }
 
@@ -110,10 +73,6 @@ impl SpeechToTextAsync {
 
             while let Ok(msg) = msg_rx.recv() {
                 match msg {
-                    SttMsg::Convert(audio_path, respond) => {
-                        let result = transcribe(&mut state, &config, &audio_path);
-                        let _ = respond.blocking_send(result);
-                    }
                     SttMsg::Stream(audio_path, output_tx) => {
                         transcribe_streaming(&mut state, &config, &audio_path, &output_tx);
                     }
@@ -126,107 +85,20 @@ impl SpeechToTextAsync {
         })
     }
 
-    pub async fn convert(&self, audio_path: String) -> Result<String, SpeechToTextError> {
-        let (tx, mut rx) = tokio::sync::mpsc::channel(1);
-        self.guard.send(SttMsg::Convert(audio_path, tx));
-        rx.recv().await.ok_or(SpeechToTextError::NoResponse)?
-    }
-
-    pub fn stream(&self, audio_path: String) -> SegmentStreamAsync {
-        SegmentStreamAsync::new(self.stream_channel(audio_path))
-    }
-
-    fn stream_channel(&self, audio_path: String) -> UnboundedReceiver<SttOutput> {
+    pub fn transcribe(&self, audio_path: String) -> TokenStreamAsync {
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         self.guard.send(SttMsg::Stream(audio_path, tx));
-        rx
-    }
-}
-
-impl SegmentStream {
-    fn new(rx: UnboundedReceiver<SttOutput>) -> Self {
-        Self {
-            rx,
-            completed_transcript: None,
-        }
-    }
-
-    /// Get the next segment. Returns `None` when transcription is complete.
-    pub fn next_segment(&mut self) -> Option<String> {
-        if self.completed_transcript.is_some() {
-            return None;
-        }
-        match self.rx.blocking_recv()? {
-            SttOutput::Segment(text) => Some(text),
-            SttOutput::Done(full) => {
-                self.completed_transcript = Some(full);
-                None
-            }
-        }
-    }
-
-    /// Drain the stream and return the full transcript. Idempotent.
-    pub fn completed(&mut self) -> Result<String, SpeechToTextError> {
-        while self.next_segment().is_some() {}
-        self.completed_transcript
-            .clone()
-            .ok_or(SpeechToTextError::NoResponse)
-    }
-}
-
-impl SegmentStreamAsync {
-    fn new(rx: UnboundedReceiver<SttOutput>) -> Self {
-        Self {
-            rx,
-            completed_transcript: None,
-        }
-    }
-
-    /// Wait for the next segment. Returns `None` when transcription is complete.
-    pub async fn next_segment(&mut self) -> Option<String> {
-        if self.completed_transcript.is_some() {
-            return None;
-        }
-        match self.rx.recv().await? {
-            SttOutput::Segment(text) => Some(text),
-            SttOutput::Done(full) => {
-                self.completed_transcript = Some(full);
-                None
-            }
-        }
-    }
-
-    /// Drain the stream and return the full transcript. Idempotent.
-    pub async fn completed(&mut self) -> Result<String, SpeechToTextError> {
-        while self.next_segment().await.is_some() {}
-        self.completed_transcript
-            .clone()
-            .ok_or(SpeechToTextError::NoResponse)
+        TokenStreamAsync::new(rx)
     }
 }
 
 // -- Transcription --
 
-fn transcribe(
-    state: &mut whisper_rs::WhisperState,
-    config: &SpeechToTextConfig,
-    audio_path: &str,
-) -> Result<String, SpeechToTextError> {
-    let samples = load_audio(audio_path, 16000)?;
-    let params = build_whisper_params(config);
-
-    state
-        .full(params, &samples)
-        .map_err(|e| SpeechToTextError::Transcribe(e.to_string()))?;
-
-    Ok(collect_transcript(state))
-}
-
 fn transcribe_streaming(
     state: &mut whisper_rs::WhisperState,
     config: &SpeechToTextConfig,
     audio_path: &str,
-    output_tx: &tokio::sync::mpsc::UnboundedSender<SttOutput>,
+    output_tx: &tokio::sync::mpsc::UnboundedSender<WriteOutput>,
 ) {
     let samples = match load_audio(audio_path, 16000) {
         Ok(s) => s,
@@ -236,14 +108,14 @@ fn transcribe_streaming(
     let mut params = build_whisper_params(config);
     let tx = output_tx.clone();
     params.set_segment_callback_safe_lossy(move |data: SegmentCallbackData| {
-        let _ = tx.send(SttOutput::Segment(data.text));
+        let _ = tx.send(WriteOutput::Token(data.text));
     });
 
     if state.full(params, &samples).is_err() {
         return;
     }
 
-    let _ = output_tx.send(SttOutput::Done(collect_transcript(state)));
+    let _ = output_tx.send(WriteOutput::Done(collect_transcript(state)));
 }
 
 fn build_whisper_params(config: &'_ SpeechToTextConfig) -> FullParams<'_, '_> {
