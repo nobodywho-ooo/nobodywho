@@ -1,191 +1,128 @@
-# nobodywho — React Native bindings (UniFFI)
+# NobodyWho React Native
 
-React Native TurboModule for running LLMs locally on iOS and Android (via Vulkan/Metal GPU acceleration). Uses [UniFFI](https://mozilla.github.io/uniffi-rs/) to generate C++ JSI bindings from Rust, with [uniffi-bindgen-react-native](https://github.com/aspect-build/aspect-build) as the code generator.
+NobodyWho is a React Native library for running large language models locally and offline on iOS and Android.
 
-## Prerequisites
+Free to use in commercial projects under the EUPL-1.2 license — no API key required. Supports text, vision, embeddings, RAG & function calling.
 
-- Rust toolchain (stable) with Android targets: `rustup target add aarch64-linux-android x86_64-linux-android`
-- Node.js 22+
-- For Android: Nix (`nix develop .#android` provides NDK r28, cmake, JDK 17, and all cross-compilation env vars)
-- For iOS: Xcode, CocoaPods
+- [Documentation](https://docs.nobodywho.ooo) — React Native & other frameworks documentation
+- [Discord](https://discord.gg/qhaMc2qCYB) — Get help, share ideas, and connect with other developers
+- [GitHub Issues](https://github.com/nobodywho-ooo/nobodywho/issues) — Report bugs
+- [GitHub Discussions](https://github.com/nobodywho-ooo/nobodywho/discussions) — Ask questions and request features
 
-## Project structure
+## Quick Start
+
+Install the library:
 
 ```
-react-native/
-├── ubrn.config.yaml             # uniffi-bindgen-react-native config
-├── package.json                 # npm package metadata
-├── NobodywhoReactNative.podspec # CocoaPods spec (iOS)
-│
-├── src/
-│   ├── wrapper.ts               # Public entry point (hand-written, safe to edit)
-│   ├── index.tsx                # Native init + generated re-exports (generated, do not edit)
-│   ├── streaming.ts             # streamTokens() async generator (hand-written)
-│   ├── sampler_presets.ts       # SamplerPresets static class (hand-written)
-│   └── NativeNobodywhoReactNative.ts  # TurboModule spec (generated)
-│
-├── generated/                   # Generated bindings (gitignored, regenerate from Rust)
-│   ├── ts/
-│   │   ├── nobodywho.ts         # TypeScript bindings
-│   │   └── nobodywho-ffi.ts     # Low-level FFI types
-│   └── cpp/
-│       ├── nobodywho.cpp        # C++ JSI bridge
-│       └── nobodywho.hpp        # C++ header
-│
-├── cpp/                         # TurboModule C++ glue (generated, committed)
-│   ├── nobodywho-react-native.cpp
-│   └── nobodywho-react-native.h
-│
-├── ios/                         # iOS native module (generated, committed)
-│   ├── NobodywhoReactNative.h
-│   └── NobodywhoReactNative.mm
-│
-├── android/                     # Android native module (generated, committed)
-│   ├── build.gradle
-│   ├── CMakeLists.txt
-│   ├── cpp-adapter.cpp
-│   └── src/main/
-│       ├── AndroidManifest.xml
-│       ├── AndroidManifestNew.xml
-│       └── java/com/nobodywhoreactnative/
-│           ├── NobodywhoReactNativeModule.kt
-│           └── NobodywhoReactNativePackage.kt
-│
-└── test-app/                    # Minimal React Native app for testing
-    ├── App.tsx                  # Test screen with sanity checks
-    └── android/                 # Android project (Gradle)
+npm install react-native-nobodywho
 ```
 
-## Build system overview
+## Supported Model Format
 
-The build has two code generation steps, then a native compilation step.
+This library uses the **GGUF format** — a binary format optimized for fast loading and efficient LLM inference. A wide selection of GGUF models is available on [Hugging Face](https://huggingface.co/models).
 
-### Step 1: Generate bindings from Rust
+**Compatibility notes:**
+- Most GGUF models will work, but some may fail due to formatting issues.
+- For mobile devices, models under 1 GB tend to run smoothly. As a general rule, the device should have at least twice the available RAM as the model file size. Note that available RAM differs from total RAM — iOS typically reserves around 1–2 GB for the kernel and system processes, while Android overhead varies by manufacturer: roughly 2 GB on stock Android (e.g. Pixel devices), and between 2–4 GB on Samsung, Xiaomi, and Oppo devices due to additional services.
 
-Build the UniFFI crate for the host, then run the bindgen to produce TypeScript + C++:
+**Minimum recommended specs:**
 
-```bash
-# From nobodywho/ (workspace root)
-cargo build -p nobodywho-uniffi --release
+- iOS: iPhone 11 or newer with at least 4 GB of RAM.
+- Android: Snapdragon 855 / Adreno 640 / 6 GB RAM or better.
 
-# Generate the bindings (must run from nobodywho/ dir so cargo metadata works)
-npx --prefix react-native uniffi-bindgen-react-native generate jsi bindings \
-  --library \
-  --ts-dir react-native/generated/ts \
-  --cpp-dir react-native/generated/cpp \
-  target/release/libnobodywho_uniffi.so
+## Chat
+
+```typescript
+import { Chat } from "react-native-nobodywho";
+
+const chat = await Chat.fromPath({
+  modelPath: "/path/to/model.gguf",
+  systemPrompt: "You are a helpful assistant.",
+});
+
+// Stream tokens
+for await (const token of chat.ask("Is water wet?")) {
+  process.stdout.write(token);
+}
+
+// Or get the full response
+const response = await chat.ask("Is water wet?").completed();
 ```
 
-This reads the UniFFI metadata embedded in the compiled `.so`/`.dylib` and generates:
-- `generated/ts/nobodywho.ts` — TypeScript classes, enums, free functions
-- `generated/ts/nobodywho-ffi.ts` — low-level FFI type bridge
-- `generated/cpp/nobodywho.{cpp,hpp}` — C++ JSI bridge implementation
+See the [Chat documentation](https://docs.nobodywho.ooo/react-native/chat/) for details.
 
-### Step 2: Generate TurboModule glue (one-time)
+## Tool Calling
 
-This produces the native module registration code for iOS and Android. Only needs to be re-run if the package name or structure changes:
+Give your LLM the ability to interact with the outside world by defining tools:
 
-```bash
-cd react-native
-npx uniffi-bindgen-react-native generate jsi turbo-module \
-  --config ubrn.config.yaml \
-  nobodywho
+```typescript
+import { Chat, Tool } from "react-native-nobodywho";
+
+const getWeather = new Tool({
+  name: "get_weather",
+  description: "Get the current weather for a city",
+  parameters: {
+    city: { type: "string", description: "The city name" },
+  },
+  call: ({ city }) => JSON.stringify({ temp: 22, condition: "sunny" }),
+});
+
+const chat = await Chat.fromPath({
+  modelPath: "/path/to/model.gguf",
+  tools: [getWeather],
+});
+
+const response = await chat.ask("What's the weather in Paris?").completed();
 ```
 
-This generates the files in `cpp/`, `ios/`, and `android/`.
+See the [Tool Calling documentation](https://docs.nobodywho.ooo/react-native/tool-calling/) for more.
 
-### Step 3: Build native static libraries for mobile targets
+---
 
-The Android CMake build expects static libraries (`.a` files), not shared libraries. The `.a` gets linked into the final `libnobodywho-react-native.so` alongside the C++ JSI bridge.
+## Sampling
 
-Use the nix android shell which provides NDK, cmake, and all cross-compilation environment variables:
+The model outputs a probability distribution over possible tokens. A sampler determines how the next token is selected from that distribution. You can configure sampling to improve output quality or constrain outputs to a specific format (e.g. JSON):
 
-```bash
-# From project root (where flake.nix is)
+```typescript
+import { Chat, SamplerPresets } from "react-native-nobodywho";
 
-# Android ARM64 (physical devices)
-nix develop .#android --command bash -c \
-  'cd nobodywho && cargo build -p nobodywho-uniffi --target aarch64-linux-android --release'
-
-# Android x86_64 (emulator)
-nix develop .#android --command bash -c \
-  'cd nobodywho && cargo build -p nobodywho-uniffi --target x86_64-linux-android --release'
+const chat = await Chat.fromPath({
+  modelPath: "/path/to/model.gguf",
+  sampler: SamplerPresets.temperature(0.2), // Lower = more deterministic
+});
 ```
 
-Then copy the `.a` files to where the Android CMake build expects them:
+See the [Sampling documentation](https://docs.nobodywho.ooo/react-native/sampling/) for more.
 
-```bash
-# ARM64
-cp nobodywho/target/aarch64-linux-android/release/libnobodywho_uniffi.a \
-  nobodywho/react-native/android/src/main/jniLibs/arm64-v8a/
+---
 
-# x86_64
-cp nobodywho/target/x86_64-linux-android/release/libnobodywho_uniffi.a \
-  nobodywho/react-native/android/src/main/jniLibs/x86_64/
+## Vision
+
+Vision support lets you include images in your prompts, so the model can analyze and describe visual content alongside text.
+
+To enable this, you need two model files:
+
+- A **vision-language LLM** (usually has `VL` in the name)
+- A matching **projection model** that converts images into tokens the LLM can process (usually has `mmproj` in the name)
+
+Pass the projection model when loading your model, then use `Prompt` to compose prompts that mix text and images:
+
+```typescript
+import { Chat, Prompt } from "react-native-nobodywho";
+
+const chat = await Chat.fromPath({
+  modelPath: "/path/to/vision-model.gguf",
+  imageModelPath: "/path/to/mmproj.gguf",
+});
+
+const prompt = new Prompt([
+  Prompt.Text("What do you see in this image?"),
+  Prompt.Image("/path/to/photo.png"),
+]);
+
+const response = await chat.ask(prompt).completed();
 ```
 
-For iOS:
-```bash
-cargo build -p nobodywho-uniffi --target aarch64-apple-ios --release
-cargo build -p nobodywho-uniffi --target aarch64-apple-ios-sim --release
-```
+You can pass multiple images and interleave text between them. If the model performs poorly, try reordering the text and image parts — this can make a noticeable difference. If images consume too much context, increase `contextSize` or preprocess images with compression.
 
-## Testing on Android
-
-### Build the test app
-
-```bash
-# From project root
-nix develop .#android --command bash -c \
-  'cd nobodywho/react-native/test-app/android && \
-   ANDROID_HOME=$ANDROID_SDK_ROOT \
-   ./gradlew assembleDebug -PreactNativeArchitectures=arm64-v8a'
-```
-
-### Run on a connected device
-
-Start Metro first, then install and launch:
-
-```bash
-# Terminal 1: start Metro bundler (must be running before the app launches)
-cd nobodywho/react-native/test-app
-npx react-native start --port 8081
-
-# Terminal 2: install, set up port forwarding, and launch
-adb install -r nobodywho/react-native/test-app/android/app/build/outputs/apk/debug/app-debug.apk
-adb reverse tcp:8081 tcp:8081
-adb shell am start -n com.nobodywhotest/.MainActivity
-```
-
-## Rebuilding after changes
-
-If you change the Rust code in `uniffi/src/lib.rs`:
-
-1. `cargo build -p nobodywho-uniffi --release` — rebuild the host crate
-2. Re-run the `generate jsi bindings` command (Step 1) — regenerate TypeScript + C++
-3. Rebuild static libraries for your target platforms (Step 3)
-4. Copy `.a` files to `android/src/main/jniLibs/`
-5. Rebuild the test app APK
-
-If you only change the TypeScript wrapper (`src/*.ts`), no regeneration or rebuild is needed — Metro hot-reloads automatically.
-
-## Files not committed to git
-
-- `node_modules/` and `package-lock.json`
-- `android/src/main/jniLibs/*/libnobodywho_uniffi.a` — build artifacts (produced by CI or local cross-compilation)
-- `NobodywhoReactNativeFramework.xcframework` — iOS build artifact (produced by CI)
-
-## Files committed to git
-
-Everything else is committed, including:
-- `src/` — hand-written TypeScript wrapper + generated `NativeNobodywhoReactNative.ts`
-- `generated/` — generated TypeScript + C++ bindings (regenerate if Rust API changes)
-- `cpp/`, `ios/`, `android/` — TurboModule glue (generated once, rarely changes)
-- `ubrn.config.yaml`, `package.json`, `NobodywhoReactNative.podspec`
-
-## Known issues
-
-- **uniffi-bindgen-react-native `async static` bug:** Async constructors generate invalid JS
-  (`async static` instead of `static async`). Workaround: use free functions instead of async
-  constructors in the Rust UniFFI crate. This is why `Model` uses `loadModel()` instead of
-  `Model.load()`.
+See the [Vision documentation](https://docs.nobodywho.ooo/react-native/vision/) for model recommendations and advanced tips.
