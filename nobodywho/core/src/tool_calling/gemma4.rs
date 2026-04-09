@@ -54,11 +54,7 @@ fn gemma4_number(input: &str) -> IResult<&str, Value> {
     map(recognize_float, |s: &str| {
         if let Ok(i) = s.parse::<i64>() {
             Value::Number(i.into())
-        } else if let Some(n) = s
-            .parse::<f64>()
-            .ok()
-            .and_then(serde_json::Number::from_f64)
-        {
+        } else if let Some(n) = s.parse::<f64>().ok().and_then(serde_json::Number::from_f64) {
             Value::Number(n)
         } else {
             Value::String(s.to_string())
