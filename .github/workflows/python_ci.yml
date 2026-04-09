@@ -317,6 +317,10 @@ jobs:
             file: mistralai_Ministral-3-3B-Instruct-2512-Q6_K_L.gguf
             url: https://huggingface.co/bartowski/mistralai_Ministral-3-3B-Instruct-2512-GGUF/resolve/main/mistralai_Ministral-3-3B-Instruct-2512-Q6_K_L.gguf
             format: Ministral3
+          - name: Gemma4
+            file: gemma-4-E2B-it-Q4_0.gguf
+            url: https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_0.gguf
+            format: Gemma4
 
     steps:
       - uses: actions/checkout@v4
