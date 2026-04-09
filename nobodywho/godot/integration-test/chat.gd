@@ -111,7 +111,6 @@ func test_tool_call_underscores():
 	return true
 
 
-
 func test_stop_generation():
 	print("✨ Testing stop generation")
 	system_prompt = "You're countbot. A robot that's very good at counting"
