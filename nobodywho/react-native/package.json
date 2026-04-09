@@ -27,9 +27,9 @@
     "ios/",
     "android/",
     "Nobodywho.podspec",
-    "NobodywhoFramework.xcframework",
     "ubrn.config.yaml",
-    "!android/build"
+    "!android/build",
+    "!android/src/main/jniLibs"
   ],
   "codegenConfig": {
     "name": "NobodywhoSpec",
