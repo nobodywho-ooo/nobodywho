@@ -340,6 +340,13 @@ void main() {
       print(response); // The largest file in your current directory is `model.gguf`.
     });
 
+    test('tool-calling.md:103', () async {
+      final chat = await nobodywho.Chat.fromPath(
+        modelPath: './model.gguf',
+        tools: [nobodywho.Tool.python(), nobodywho.Tool.bash()],
+      );
+    });
+
     test('vision.md:25', () async {
       if (Platform.environment['TEST_MULTIMODAL_MODEL'] == null || Platform.environment['TEST_MULTIMODAL_MMPROJ'] == null) return;
       final model = await nobodywho.Model.load(
