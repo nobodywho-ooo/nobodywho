@@ -313,15 +313,13 @@ impl ToolFormatHandler for Gemma4Handler {
         };
 
         // Step 2: Extend with gemmafour-string via builder.
-        // <|"|> is a single special token, so between two of them we just
-        // allow any printable character. The token boundary handles the rest.
+        // Strings are delimited by <|"|>, so a string char is anything that isn't that token.
         let mut builder = GrammarBuilder::from_existing(primitives)
             .rule(
                 "gemmafour-strchar",
-                Expr::CharacterRange(gbnf::CharacterRange::Range {
-                    begin: ' ',
-                    end: '~',
-                    negated: false,
+                Expr::Token(TokenRef::ByString {
+                    name: r#"|"|"#.to_string(),
+                    negated: true,
                 }),
             )
             .rule(
