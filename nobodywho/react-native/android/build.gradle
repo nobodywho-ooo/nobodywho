@@ -49,6 +49,83 @@ def supportsNamespace() {
   return (major == 7 && minor >= 3) || major >= 8
 }
 
+// ABI to Rust target triple mapping
+def abiToTriple = [
+  "arm64-v8a": "aarch64-linux-android",
+  "x86_64": "x86_64-linux-android",
+]
+
+// Read version from package.json
+def packageJsonFile = file("${projectDir}/../package.json")
+def packageJson = new groovy.json.JsonSlurper().parseText(packageJsonFile.text)
+def nobodywhoVersion = packageJson.version
+
+// Download native library from GitHub Releases if not already present
+task resolveNativeLibraries {
+  description = "Downloads NobodyWho native libraries from GitHub Releases if not present locally"
+
+  def jniLibsDir = file("${projectDir}/src/main/jniLibs")
+  outputs.dir(jniLibsDir)
+
+  doLast {
+    abiToTriple.each { abi, triple ->
+      def abiDir = new File(jniLibsDir, abi)
+      def libFile = new File(abiDir, "libnobodywho_uniffi.a")
+
+      if (libFile.exists()) {
+        logger.lifecycle("[NobodyWho] ${abi}: Using existing library at ${libFile.path}")
+        return
+      }
+
+      abiDir.mkdirs()
+
+      def fileName = "libnobodywho-uniffi-${triple}-release.a"
+      def downloadUrl = "https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-react-native-${nobodywhoVersion}/${fileName}"
+
+      logger.lifecycle("[NobodyWho] ${abi}: Downloading from ${downloadUrl}")
+
+      try {
+        // Follow redirects manually to handle cross-protocol redirects
+        // (GitHub redirects from github.com to objects.githubusercontent.com)
+        def url = downloadUrl
+        def maxRedirects = 5
+        for (int i = 0; i < maxRedirects; i++) {
+          def connection = (java.net.HttpURLConnection) new URL(url).openConnection()
+          connection.setInstanceFollowRedirects(false)
+          connection.connect()
+
+          def code = connection.responseCode
+          if (code == 200) {
+            libFile.withOutputStream { out ->
+              out << connection.inputStream
+            }
+            logger.lifecycle("[NobodyWho] ${abi}: Downloaded to ${libFile.path} (${libFile.length()} bytes)")
+            return
+          } else if (code == 301 || code == 302 || code == 307 || code == 308) {
+            url = connection.getHeaderField("Location")
+            connection.disconnect()
+          } else {
+            throw new GradleException(
+              "Failed to download NobodyWho library for ${abi}: HTTP ${code}\n" +
+              "URL: ${downloadUrl}\n" +
+              "Check that the release exists: https://github.com/nobodywho-ooo/nobodywho/releases/tag/nobodywho-react-native-${nobodywhoVersion}"
+            )
+          }
+        }
+        throw new GradleException("Too many redirects downloading NobodyWho library for ${abi}")
+      } catch (GradleException e) {
+        throw e
+      } catch (Exception e) {
+        throw new GradleException(
+          "Failed to download NobodyWho library for ${abi}: ${e.message}\n" +
+          "For local development, manually place the .a file at: ${libFile.path}",
+          e
+        )
+      }
+    }
+  }
+}
+
 android {
   if (supportsNamespace()) {
     namespace "com.nobodywho"
@@ -117,6 +194,15 @@ android {
           ]
       }
     }
+  }
+}
+
+// Ensure native libraries are downloaded before CMake configuration
+afterEvaluate {
+  tasks.matching {
+    it.name.contains("configureCMake") || it.name.contains("externalNativeBuild")
+  }.configureEach {
+    dependsOn(resolveNativeLibraries)
   }
 }
 
