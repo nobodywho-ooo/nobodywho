@@ -50,9 +50,8 @@ await for (final token in response) {
 If you just want to get the complete response, you can call `TokenStream.completed()`.
 This will return the entire response string once the model is done generating its entire response.
 
-```dart
-final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
-final fullResponse = await chat.ask("Is water wet?").completed();
+```{.dart continuation}
+final fullResponse = await response.completed();
 ```
 
 All of your messages and the model's responses are stored in the `Chat` object, so the next time you call `Chat.ask()`, it will remember the previous messages.
