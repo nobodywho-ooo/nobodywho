@@ -277,8 +277,7 @@ fn schema_to_rule(
                 Value::String("string".to_string()),
             )]));
             let item_schema = schema.get("items").unwrap_or(&default_items);
-            let (item_rule, b) =
-                schema_to_rule(item_schema, builder, &format!("{}-item", prefix))?;
+            let (item_rule, b) = schema_to_rule(item_schema, builder, &format!("{}-item", prefix))?;
             builder = b;
 
             let repeat_rule = format!("{}-repeat", prefix);
