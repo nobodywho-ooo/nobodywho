@@ -1,3 +1,8 @@
+## 0.6.0
+
+- Gemma 4 support
+- Automatic memory usage estimation and splitting of large models across GPU and CPU
+
 ## 0.5.3-rc1
 
 - Bump llama.cpp to get Gemma4 support
