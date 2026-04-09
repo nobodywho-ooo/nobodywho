@@ -1,13 +1,25 @@
 {
   "name": "react-native-nobodywho",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Run LLMs locally with offline inference — React Native bindings",
   "main": "src/wrapper.ts",
   "types": "src/wrapper.ts",
   "exports": {
     ".": "./src/wrapper.ts"
   },
-  "license": "MIT",
+  "license": "EUPL-1.2",
+  "homepage": "https://nobodywho.ooo",
+  "bugs": "https://github.com/nobodywho-ooo/nobodywho/issues",
+  "keywords": [
+    "react-native",
+    "ai",
+    "llm",
+    "local-ai",
+    "inference",
+    "gguf",
+    "on-device",
+    "offline"
+  ],
   "files": [
     "src/",
     "generated/",
