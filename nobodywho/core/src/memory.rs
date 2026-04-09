@@ -85,7 +85,11 @@ pub(crate) fn plan_model_loading(
                     | llama_cpp_2::LlamaBackendDeviceType::IntegratedGpu
             )
         })
-        .max_by_key(|d| d.memory_free);
+        .max_by_key(|d| {
+            let is_gpu =
+                matches!(d.device_type, llama_cpp_2::LlamaBackendDeviceType::Gpu);
+            (is_gpu, d.memory_free)
+        });
 
     let Some(gpu) = best_gpu else {
         return LoadingPlan {
