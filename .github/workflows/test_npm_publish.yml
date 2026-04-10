@@ -2,34 +2,24 @@ name: "Test npm publish"
 
 on:
   workflow_call:
-
-permissions:
-  contents: read
-  id-token: write
+    secrets:
+      NPM_TOKEN:
+        required: true
 
 jobs:
   test-publish:
     runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-      id-token: write
     steps:
       - uses: actions/checkout@v4
 
       - name: "Setup Node.js"
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 22
           registry-url: https://registry.npmjs.org
 
-      - name: "Upgrade npm for OIDC support"
-        run: npm i -g npm@11.5.0
-
-      - name: "Verify npm auth config"
-        run: |
-          npm --version
-          cat ~/.npmrc || true
-
-      - name: "Publish to npm with provenance"
+      - name: "Publish to npm"
         working-directory: ./nobodywho/react-native
-        run: npm publish --access public --provenance
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
