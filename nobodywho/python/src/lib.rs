@@ -86,7 +86,7 @@ impl Model {
     ///     ValueError: If the path contains invalid UTF-8
     ///     RuntimeError: If the model file cannot be loaded
     #[staticmethod]
-    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, image_model_path: "os.PathLike | str | None" = None) -> "typing.Awaitable[Model]")]
+    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, image_model_path: "os.PathLike | str | None" = None) -> "Model")]
     pub async fn load_model_async(
         model_path: std::path::PathBuf,
         use_gpu_if_available: bool,
@@ -220,7 +220,7 @@ impl TokenStreamAsync {
     ///
     /// Returns:
     ///     The next token as a string, or None if the stream has ended.
-    #[pyo3(signature = () -> "typing.Awaitable[str | None]")]
+    #[pyo3(signature = () -> "str | None")]
     pub async fn next_token(&mut self) -> Option<String> {
         // no need to release GIL in async functions
         self.stream.lock().await.next_token().await
@@ -233,7 +233,7 @@ impl TokenStreamAsync {
     ///
     /// Raises:
     ///     RuntimeError: If generation fails.
-    #[pyo3(signature = () -> "typing.Awaitable[str]")]
+    #[pyo3(signature = () -> "str")]
     pub async fn completed(&mut self) -> PyResult<String> {
         self.stream
             .lock()
@@ -382,7 +382,7 @@ impl EncoderAsync {
     ///
     /// Raises:
     ///     RuntimeError: If encoding fails
-    #[pyo3(signature = (text: "str") -> "typing.Awaitable[list[float]]")]
+    #[pyo3(signature = (text: "str") -> "list[float]")]
     async fn encode(&self, text: String) -> PyResult<Vec<f32>> {
         self.inner().encode(text).await.map_err(|e| {
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
@@ -543,7 +543,7 @@ impl CrossEncoderAsync {
     ///
     /// Raises:
     ///     RuntimeError: If ranking fails
-    #[pyo3(signature = (query: "str", documents: "list[str]") -> "typing.Awaitable[list[float]]")]
+    #[pyo3(signature = (query: "str", documents: "list[str]") -> "list[float]")]
     async fn rank(&self, query: String, documents: Vec<String>) -> PyResult<Vec<f32>> {
         self.inner().rank(query, documents).await.map_err(|e| {
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
@@ -563,7 +563,7 @@ impl CrossEncoderAsync {
     ///
     /// Raises:
     ///     RuntimeError: If ranking fails
-    #[pyo3(signature = (query: "str", documents: "list[str]") -> "typing.Awaitable[list[tuple[str, float]]]")]
+    #[pyo3(signature = (query: "str", documents: "list[str]") -> "list[tuple[str, float]]")]
     async fn rank_and_sort(
         &self,
         query: String,
@@ -1109,7 +1109,7 @@ impl ChatAsync {
     ///
     /// Raises:
     ///     RuntimeError: If the variable cannot be set
-    #[pyo3(signature = (name: "str", value: "bool") -> "typing.Awaitable[None]")]
+    #[pyo3(signature = (name: "str", value: "bool") -> "None")]
     pub async fn set_template_variable(&self, name: String, value: bool) -> PyResult<()> {
         self.handle()
             .set_template_variable(name, value)
@@ -1124,7 +1124,7 @@ impl ChatAsync {
     ///
     /// Raises:
     ///     RuntimeError: If the variables cannot be set
-    #[pyo3(signature = (variables: "dict[str, bool]") -> "typing.Awaitable[None]")]
+    #[pyo3(signature = (variables: "dict[str, bool]") -> "None")]
     pub async fn set_template_variables(
         &self,
         variables: std::collections::HashMap<String, bool>,
@@ -1142,7 +1142,7 @@ impl ChatAsync {
     ///
     /// Raises:
     ///     RuntimeError: If the variables cannot be retrieved
-    #[pyo3(signature = () -> "typing.Awaitable[dict[str, bool]]")]
+    #[pyo3(signature = () -> "dict[str, bool]")]
     pub async fn get_template_variables(
         &self,
     ) -> PyResult<std::collections::HashMap<String, bool>> {
@@ -1260,7 +1260,7 @@ impl ChatAsync {
     ///
     /// Raises:
     ///     RuntimeError: If the sampler config cannot be retrieved
-    #[pyo3(signature = () -> "typing.Awaitable[SamplerConfig]")]
+    #[pyo3(signature = () -> "SamplerConfig")]
     pub async fn get_sampler_config(&self) -> PyResult<SamplerConfig> {
         self.handle()
             .get_sampler_config()
@@ -1276,7 +1276,7 @@ impl ChatAsync {
     ///
     /// Raises:
     ///     RuntimeError: If the system prompt cannot be retrieved
-    #[pyo3(signature = () -> "typing.Awaitable[str | None]")]
+    #[pyo3(signature = () -> "str | None")]
     pub async fn get_system_prompt(&self) -> PyResult<Option<String>> {
         self.handle()
             .get_system_prompt()

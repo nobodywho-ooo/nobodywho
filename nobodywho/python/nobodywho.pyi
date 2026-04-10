@@ -236,7 +236,7 @@ class ChatAsync:
         Raises:
             RuntimeError: If retrieval fails
         """
-    async def get_sampler_config(self, /) -> "typing.Awaitable[SamplerConfig]":
+    async def get_sampler_config(self, /) -> "SamplerConfig":
         """
         Get the current sampler configuration.
         
@@ -246,7 +246,7 @@ class ChatAsync:
         Raises:
             RuntimeError: If the sampler config cannot be retrieved
         """
-    async def get_system_prompt(self, /) -> "typing.Awaitable[str | None]":
+    async def get_system_prompt(self, /) -> "str | None":
         """
         Get the current system prompt.
         
@@ -256,7 +256,7 @@ class ChatAsync:
         Raises:
             RuntimeError: If the system prompt cannot be retrieved
         """
-    async def get_template_variables(self, /) -> "typing.Awaitable[dict[str, bool]]":
+    async def get_template_variables(self, /) -> "dict[str, bool]":
         """
         Get all template variables.
         
@@ -328,7 +328,7 @@ class ChatAsync:
         Raises:
             RuntimeError: If the system prompt cannot be changed
         """
-    async def set_template_variable(self, /, name: "str", value: "bool") -> "typing.Awaitable[None]":
+    async def set_template_variable(self, /, name: "str", value: "bool") -> "None":
         """
         Set a single template variable.
         
@@ -339,7 +339,7 @@ class ChatAsync:
         Raises:
             RuntimeError: If the variable cannot be set
         """
-    async def set_template_variables(self, /, variables: "dict[str, bool]") -> "typing.Awaitable[None]":
+    async def set_template_variables(self, /, variables: "dict[str, bool]") -> "None":
         """
         Set all template variables, replacing any existing ones.
         
@@ -440,7 +440,7 @@ class CrossEncoderAsync:
             RuntimeError: If the model cannot be loaded
             ValueError: If the path contains invalid UTF-8
         """
-    async def rank(self, /, query: "str", documents: "list[str]") -> "typing.Awaitable[list[float]]":
+    async def rank(self, /, query: "str", documents: "list[str]") -> "list[float]":
         """
         Compute similarity scores between a query and multiple documents asynchronously.
         
@@ -454,7 +454,7 @@ class CrossEncoderAsync:
         Raises:
             RuntimeError: If ranking fails
         """
-    async def rank_and_sort(self, /, query: "str", documents: "list[str]") -> "typing.Awaitable[list[tuple[str, float]]]":
+    async def rank_and_sort(self, /, query: "str", documents: "list[str]") -> "list[tuple[str, float]]":
         """
         Rank documents by similarity to query and return them sorted asynchronously.
         
@@ -527,7 +527,7 @@ class EncoderAsync:
             RuntimeError: If the model cannot be loaded
             ValueError: If the path contains invalid UTF-8
         """
-    async def encode(self, /, text: "str") -> "typing.Awaitable[list[float]]":
+    async def encode(self, /, text: "str") -> "list[float]":
         """
         Generate an embedding vector for the given text asynchronously.
         
@@ -578,7 +578,7 @@ class Model:
             RuntimeError: If the model file cannot be loaded
         """
     @staticmethod
-    async def load_model_async(model_path: "os.PathLike | str", use_gpu_if_available: bool = True, image_model_path: "os.PathLike | str | None" = None) -> "typing.Awaitable[Model]":
+    async def load_model_async(model_path: "os.PathLike | str", use_gpu_if_available: bool = True, image_model_path: "os.PathLike | str | None" = None) -> "Model":
         """
         Asynchronously load a model from a GGUF file.
         
@@ -896,7 +896,7 @@ class TokenStreamAsync:
     """
     def __aiter__(self, /) -> TokenStreamAsync: ...
     def __anext__(self, /) -> typing.Awaitable[str]: ...
-    async def completed(self, /) -> "typing.Awaitable[str]":
+    async def completed(self, /) -> "str":
         """
         Wait for the entire response to be generated and return it as a single string.
         
@@ -906,7 +906,7 @@ class TokenStreamAsync:
         Raises:
             RuntimeError: If generation fails.
         """
-    async def next_token(self, /) -> "typing.Awaitable[str | None]":
+    async def next_token(self, /) -> "str | None":
         """
         Get the next token from the stream asynchronously.
         
