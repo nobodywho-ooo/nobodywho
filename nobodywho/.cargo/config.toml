@@ -1,13 +1,7 @@
 # Both whisper-rs-sys and llama-cpp-sys-2 bundle their own copy of ggml.c.
-# When linking a cdylib (Python extension), the linker sees duplicate symbols.
-# The two copies are ABI-compatible (same upstream ggml utility functions),
-# so we tell the linker to silently pick one definition.
+# When linking a cdylib, the linker sees duplicate symbols.
+# In Nix builds this is fixed by deleting whisper's ggml archives in the
+# whisper-rs-sys postInstall hook (see workspace.nix). For non-Nix cargo
+# builds on Linux, tell the linker to silently pick one definition.
 [target.'cfg(target_os = "linux")']
 rustflags = ["-C", "link-arg=-Wl,--allow-multiple-definition"]
-
-# Compile whisper.cpp (and llama.cpp) ggml with hidden visibility so that
-# ggml symbols are not exported from the final shared library, reducing
-# the risk of symbol conflicts between the two bundled ggml copies at runtime.
-[env]
-CMAKE_C_VISIBILITY_PRESET = "hidden"
-CMAKE_CXX_VISIBILITY_PRESET = "hidden"
