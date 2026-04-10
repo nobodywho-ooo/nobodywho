@@ -53,6 +53,11 @@ jobs:
       PYPI_AUTH_TOKEN: ${{ secrets.PYPI_AUTH_TOKEN }}
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+  # Temporary: test npm trusted publishers via workflow_call
+  test_npm_publish:
+    if: github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/test_npm_publish.yml
+
   docs:
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/deploy-cloudflare-pages'
     uses: ./.github/workflows/docs.yml
