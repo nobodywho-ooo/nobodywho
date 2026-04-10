@@ -7630,6 +7630,10 @@ rec {
         libName = "nobodywho_godot";type = [ "cdylib" ];
         dependencies = [
           {
+            name = "futures";
+            packageId = "futures";
+          }
+          {
             name = "godot";
             packageId = "godot";
             features = [ "register-docs" "experimental-threads" ];

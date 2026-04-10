@@ -2408,6 +2408,7 @@ dependencies = [
 name = "nobodywho-godot"
 version = "8.3.0"
 dependencies = [
+ "futures",
  "godot",
  "nobodywho",
  "serde_json",
