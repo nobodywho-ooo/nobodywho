@@ -1367,9 +1367,9 @@ rec {
       };
       "cc" = rec {
         crateName = "cc";
-        version = "1.2.59";
+        version = "1.2.60";
         edition = "2018";
-        sha256 = "10sjxshjiyvglpqnap8z8fqdggf9mnxm8dn5kwr8mli4cpnd795p";
+        sha256 = "084a8ziprdlyrj865f3303qr0b7aaggilkl18slncss6m4yp1ia3";
         authors = [
           "Alex Crichton <alex@alexcrichton.com>"
         ];
@@ -4618,6 +4618,27 @@ rec {
         };
         resolvedDefaultFeatures = [ "allocator-api2" "default" "default-hasher" "equivalent" "inline-more" "raw-entry" ];
       };
+      "hashbrown 0.17.0" = rec {
+        crateName = "hashbrown";
+        version = "0.17.0";
+        edition = "2024";
+        sha256 = "0l8gvcz80lvinb7x22h53cqbi2y1fm603y2jhhh9qwygvkb7sijg";
+        authors = [
+          "Amanieu d'Antras <amanieu@gmail.com>"
+        ];
+        features = {
+          "alloc" = [ "dep:alloc" ];
+          "allocator-api2" = [ "dep:allocator-api2" ];
+          "core" = [ "dep:core" ];
+          "default" = [ "default-hasher" "inline-more" "allocator-api2" "equivalent" "raw-entry" ];
+          "default-hasher" = [ "dep:foldhash" ];
+          "equivalent" = [ "dep:equivalent" ];
+          "nightly" = [ "foldhash?/nightly" "bumpalo/allocator_api" ];
+          "rayon" = [ "dep:rayon" ];
+          "rustc-dep-of-std" = [ "nightly" "core" "alloc" "rustc-internal-api" ];
+          "serde" = [ "dep:serde_core" "dep:serde" ];
+        };
+      };
       "heapless" = rec {
         crateName = "heapless";
         version = "0.7.17";
@@ -5650,9 +5671,9 @@ rec {
       };
       "indexmap" = rec {
         crateName = "indexmap";
-        version = "2.13.1";
-        edition = "2021";
-        sha256 = "1zs2af09vgdaix8qzhi3bd12zpn5za7pbc6v0cc0q2ryrfws5a25";
+        version = "2.14.0";
+        edition = "2024";
+        sha256 = "1na9z6f0d5pkjr1lgsni470v98gv2r7c41j8w48skr089x2yjrnl";
         dependencies = [
           {
             name = "equivalent";
@@ -5661,7 +5682,7 @@ rec {
           }
           {
             name = "hashbrown";
-            packageId = "hashbrown 0.16.1";
+            packageId = "hashbrown 0.17.0";
             usesDefaultFeatures = false;
           }
           {
@@ -6656,9 +6677,9 @@ rec {
       };
       "libredox" = rec {
         crateName = "libredox";
-        version = "0.1.15";
+        version = "0.1.16";
         edition = "2021";
-        sha256 = "022g34brmdis15kji0w9kla6xk6098xvs416ihgnn92isj7z9nvx";
+        sha256 = "0v54zvgknag9310wcjykgv86pgq02qr3mzgkdg4r6m1k7ns3nbz0";
         authors = [
           "4lDO2 <4lDO2@protonmail.com>"
         ];
@@ -6680,7 +6701,7 @@ rec {
           }
           {
             name = "redox_syscall";
-            packageId = "redox_syscall 0.7.3";
+            packageId = "redox_syscall 0.7.4";
             optional = true;
           }
         ];
@@ -6755,13 +6776,13 @@ rec {
       };
       "llama-cpp-2" = rec {
         crateName = "llama-cpp-2";
-        version = "0.1.143";
+        version = "0.1.144";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/utilityai/llama-cpp-rs";
-          rev = "b25863e1422d0c8fe09b5efbcbc0481345b7d003";
-          sha256 = "1n31sld7wiqsw9k1c7ncwnc1c53sysz8bsvraxc4fqhqzw1zxdzy";
+          rev = "94dfe89c24d9b085905b9c98ad4623f71be881e7";
+          sha256 = "1jks316k863rjbbh2nm1fq0k3gs3f4jaaac275297l8qyp2060yl";
         };
         libName = "llama_cpp_2";
         dependencies = [
@@ -6815,20 +6836,21 @@ rec {
           "openmp" = [ "llama-cpp-sys-2/openmp" ];
           "rocm" = [ "llama-cpp-sys-2/rocm" ];
           "system-ggml" = [ "llama-cpp-sys-2/system-ggml" ];
+          "system-ggml-static" = [ "llama-cpp-sys-2/system-ggml-static" ];
           "vulkan" = [ "llama-cpp-sys-2/vulkan" ];
         };
         resolvedDefaultFeatures = [ "android-static-stdcxx" "mtmd" "openmp" "vulkan" ];
       };
       "llama-cpp-sys-2" = rec {
         crateName = "llama-cpp-sys-2";
-        version = "0.1.143";
+        version = "0.1.144";
         edition = "2021";
         links = "llama";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/utilityai/llama-cpp-rs";
-          rev = "b25863e1422d0c8fe09b5efbcbc0481345b7d003";
-          sha256 = "1n31sld7wiqsw9k1c7ncwnc1c53sysz8bsvraxc4fqhqzw1zxdzy";
+          rev = "94dfe89c24d9b085905b9c98ad4623f71be881e7";
+          sha256 = "1jks316k863rjbbh2nm1fq0k3gs3f4jaaac275297l8qyp2060yl";
         };
         libName = "llama_cpp_sys_2";
         buildDependencies = [
@@ -6860,6 +6882,7 @@ rec {
         ];
         features = {
           "cuda-no-vmm" = [ "cuda" ];
+          "system-ggml-static" = [ "system-ggml" ];
         };
         resolvedDefaultFeatures = [ "metal" "mtmd" "openmp" "static-stdcxx" "vulkan" ];
       };
@@ -7535,7 +7558,7 @@ rec {
       };
       "nobodywho-flutter" = rec {
         crateName = "nobodywho-flutter";
-        version = "0.5.2";
+        version = "0.6.0";
         edition = "2021";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./flutter/rust; };
         libName = "nobodywho_flutter";type = [ "cdylib" ];
@@ -7583,7 +7606,7 @@ rec {
       };
       "nobodywho-godot" = rec {
         crateName = "nobodywho-godot";
-        version = "8.2.0";
+        version = "8.3.0";
         edition = "2021";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./godot; };
         libName = "nobodywho_godot";type = [ "cdylib" ];
@@ -8248,9 +8271,9 @@ rec {
       };
       "ordermap" = rec {
         crateName = "ordermap";
-        version = "1.1.0";
-        edition = "2021";
-        sha256 = "05b7rlp6dcdyfaq5sman2kf03chfgr7rc6ibq8l3dg8v0y98r9yg";
+        version = "1.2.0";
+        edition = "2024";
+        sha256 = "1hapyx6a761wiydv3f7m6pl1d9fhrjfyxrq8fb71zzr2n6jpcx3z";
         dependencies = [
           {
             name = "indexmap";
@@ -8748,14 +8771,9 @@ rec {
       };
       "pyo3" = rec {
         crateName = "pyo3";
-        version = "0.28.2";
+        version = "0.28.3";
         edition = "2021";
-        workspace_member = null;
-        src = pkgs.fetchgit {
-          url = "https://github.com/PyO3/pyo3";
-          rev = "d120c2b7517fc11d57588a4ba0b7e0a55337bc72";
-          sha256 = "05y3yrc7v452qrfnd81whr5h3kyrfci6i81ijjlh4gka4hcj4p3c";
-        };
+        sha256 = "04hwqcrfx9w3f67pnhjcg28y0iq1srpwv0drgwbd23mmlcw8xzci";
         authors = [
           "PyO3 Project and Contributors <https://github.com/PyO3>"
         ];
@@ -8797,6 +8815,7 @@ rec {
           "abi3-py312" = [ "abi3-py313" "pyo3-build-config/abi3-py312" "pyo3-ffi/abi3-py312" ];
           "abi3-py313" = [ "abi3-py314" "pyo3-build-config/abi3-py313" "pyo3-ffi/abi3-py313" ];
           "abi3-py314" = [ "abi3" "pyo3-build-config/abi3-py314" "pyo3-ffi/abi3-py314" ];
+          "abi3-py37" = [ "abi3-py38" "pyo3-build-config/abi3-py37" "pyo3-ffi/abi3-py37" ];
           "abi3-py38" = [ "abi3-py39" "pyo3-build-config/abi3-py38" "pyo3-ffi/abi3-py38" ];
           "abi3-py39" = [ "abi3-py310" "pyo3-build-config/abi3-py39" "pyo3-ffi/abi3-py39" ];
           "anyhow" = [ "dep:anyhow" ];
@@ -8930,14 +8949,9 @@ rec {
       };
       "pyo3-build-config" = rec {
         crateName = "pyo3-build-config";
-        version = "0.28.2";
+        version = "0.28.3";
         edition = "2021";
-        workspace_member = null;
-        src = pkgs.fetchgit {
-          url = "https://github.com/PyO3/pyo3";
-          rev = "d120c2b7517fc11d57588a4ba0b7e0a55337bc72";
-          sha256 = "05y3yrc7v452qrfnd81whr5h3kyrfci6i81ijjlh4gka4hcj4p3c";
-        };
+        sha256 = "07k16mnxn220x4aw0axzcss4mn4gckhknf7qlyyck67bzpfyfs73";
         libName = "pyo3_build_config";
         authors = [
           "PyO3 Project and Contributors <https://github.com/PyO3>"
@@ -8960,22 +8974,19 @@ rec {
           "abi3-py312" = [ "abi3-py313" ];
           "abi3-py313" = [ "abi3-py314" ];
           "abi3-py314" = [ "abi3" ];
+          "abi3-py37" = [ "abi3-py38" ];
           "abi3-py38" = [ "abi3-py39" ];
           "abi3-py39" = [ "abi3-py310" ];
+          "generate-import-lib" = [ "dep:python3-dll-a" ];
         };
         resolvedDefaultFeatures = [ "abi3" "abi3-py310" "abi3-py311" "abi3-py312" "abi3-py313" "abi3-py314" "abi3-py38" "abi3-py39" "default" "extension-module" "resolve-config" ];
       };
       "pyo3-ffi" = rec {
         crateName = "pyo3-ffi";
-        version = "0.28.2";
+        version = "0.28.3";
         edition = "2021";
         links = "python";
-        workspace_member = null;
-        src = pkgs.fetchgit {
-          url = "https://github.com/PyO3/pyo3";
-          rev = "d120c2b7517fc11d57588a4ba0b7e0a55337bc72";
-          sha256 = "05y3yrc7v452qrfnd81whr5h3kyrfci6i81ijjlh4gka4hcj4p3c";
-        };
+        sha256 = "07k5bxh8h2ax3v6gmb43x09wsgm003lar7pnyz57q7qbz05f2abz";
         libName = "pyo3_ffi";
         authors = [
           "PyO3 Project and Contributors <https://github.com/PyO3>"
@@ -9000,6 +9011,7 @@ rec {
           "abi3-py312" = [ "abi3-py313" "pyo3-build-config/abi3-py312" ];
           "abi3-py313" = [ "abi3-py314" "pyo3-build-config/abi3-py313" ];
           "abi3-py314" = [ "abi3" "pyo3-build-config/abi3-py314" ];
+          "abi3-py37" = [ "abi3-py38" "pyo3-build-config/abi3-py37" ];
           "abi3-py38" = [ "abi3-py39" "pyo3-build-config/abi3-py38" ];
           "abi3-py39" = [ "abi3-py310" "pyo3-build-config/abi3-py39" ];
           "extension-module" = [ "pyo3-build-config/extension-module" ];
@@ -9009,14 +9021,9 @@ rec {
       };
       "pyo3-introspection" = rec {
         crateName = "pyo3-introspection";
-        version = "0.28.2";
+        version = "0.28.3";
         edition = "2021";
-        workspace_member = null;
-        src = pkgs.fetchgit {
-          url = "https://github.com/PyO3/pyo3";
-          rev = "d120c2b7517fc11d57588a4ba0b7e0a55337bc72";
-          sha256 = "05y3yrc7v452qrfnd81whr5h3kyrfci6i81ijjlh4gka4hcj4p3c";
-        };
+        sha256 = "0dhphkzbkgn0b3vzz277n3721mr382r4d0g0bij4xi9aalj0a14n";
         libName = "pyo3_introspection";
         authors = [
           "PyO3 Project and Contributors <https://github.com/PyO3>"
@@ -9082,14 +9089,9 @@ rec {
       };
       "pyo3-macros" = rec {
         crateName = "pyo3-macros";
-        version = "0.28.2";
+        version = "0.28.3";
         edition = "2021";
-        workspace_member = null;
-        src = pkgs.fetchgit {
-          url = "https://github.com/PyO3/pyo3";
-          rev = "d120c2b7517fc11d57588a4ba0b7e0a55337bc72";
-          sha256 = "05y3yrc7v452qrfnd81whr5h3kyrfci6i81ijjlh4gka4hcj4p3c";
-        };
+        sha256 = "04wqy9knmxkf2m12dfwbj4817p959chxhzgwsabmki27zw754vnz";
         procMacro = true;
         libName = "pyo3_macros";
         authors = [
@@ -9123,14 +9125,9 @@ rec {
       };
       "pyo3-macros-backend" = rec {
         crateName = "pyo3-macros-backend";
-        version = "0.28.2";
+        version = "0.28.3";
         edition = "2021";
-        workspace_member = null;
-        src = pkgs.fetchgit {
-          url = "https://github.com/PyO3/pyo3";
-          rev = "d120c2b7517fc11d57588a4ba0b7e0a55337bc72";
-          sha256 = "05y3yrc7v452qrfnd81whr5h3kyrfci6i81ijjlh4gka4hcj4p3c";
-        };
+        sha256 = "1jrsh65i0vwinp5k6blbvypv8idgg0h853rkqa0qywrmv0cc5kf4";
         libName = "pyo3_macros_backend";
         authors = [
           "PyO3 Project and Contributors <https://github.com/PyO3>"
@@ -9146,6 +9143,11 @@ rec {
             usesDefaultFeatures = false;
           }
           {
+            name = "pyo3-build-config";
+            packageId = "pyo3-build-config";
+            features = [ "resolve-config" ];
+          }
+          {
             name = "quote";
             packageId = "quote";
             usesDefaultFeatures = false;
@@ -9155,6 +9157,12 @@ rec {
             packageId = "syn 2.0.117";
             usesDefaultFeatures = false;
             features = [ "derive" "parsing" "printing" "clone-impls" "full" "extra-traits" "visit-mut" ];
+          }
+        ];
+        buildDependencies = [
+          {
+            name = "pyo3-build-config";
+            packageId = "pyo3-build-config";
           }
         ];
         features = {
@@ -9507,11 +9515,11 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" "userspace" ];
       };
-      "redox_syscall 0.7.3" = rec {
+      "redox_syscall 0.7.4" = rec {
         crateName = "redox_syscall";
-        version = "0.7.3";
+        version = "0.7.4";
         edition = "2021";
-        sha256 = "05mys0g4faa5l7dqvl4y8395b42yshs2qlvysdvijlwhx1s0mrvc";
+        sha256 = "0fk4infcfn2hvshrwgf7r48rf9mr1zxy1a28d7xn798x7ffasl7l";
         libName = "syscall";
         authors = [
           "Jeremy Soller <jackpot51@gmail.com>"

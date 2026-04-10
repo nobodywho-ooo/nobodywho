@@ -444,9 +444,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.2.59"
+version = "1.2.60"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b7a4d3ec6524d28a329fc53654bbadc9bdd7b0431f5d65f1a56ffb28a1ee5283"
+checksum = "43c5703da9466b66a946814e1adf53ea2c90f10063b86290cc9eb67ce3478a20"
 dependencies = [
  "find-msvc-tools",
  "jobserver",
@@ -1483,6 +1483,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "hashbrown"
+version = "0.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f467dd6dccf739c208452f8014c75c18bb8301b050ad1cfb27153803edb0f51"
+
+[[package]]
 name = "heapless"
 version = "0.7.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1779,12 +1785,12 @@ dependencies = [
 
 [[package]]
 name = "indexmap"
-version = "2.13.1"
+version = "2.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "45a8a2b9cb3e0b0c1803dbb0758ffac5de2f425b23c28f518faabd9d805342ff"
+checksum = "d466e9454f08e4a911e14806c24e16fba1b4c121d1ea474396f396069cf949d9"
 dependencies = [
  "equivalent",
- "hashbrown 0.16.1",
+ "hashbrown 0.17.0",
  "serde",
  "serde_core",
 ]
@@ -2120,14 +2126,14 @@ checksum = "b6d2cec3eae94f9f509c767b45932f1ada8350c4bdb85af2fcab4a3c14807981"
 
 [[package]]
 name = "libredox"
-version = "0.1.15"
+version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ddbf48fd451246b1f8c2610bd3b4ac0cc6e149d89832867093ab69a17194f08"
+checksum = "e02f3bb43d335493c96bf3fd3a321600bf6bd07ed34bc64118e9293bdffea46c"
 dependencies = [
  "bitflags 2.11.0",
  "libc",
  "plain",
- "redox_syscall 0.7.3",
+ "redox_syscall 0.7.4",
 ]
 
 [[package]]
@@ -2153,8 +2159,8 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-2"
-version = "0.1.143"
-source = "git+https://github.com/utilityai/llama-cpp-rs?branch=main#b25863e1422d0c8fe09b5efbcbc0481345b7d003"
+version = "0.1.144"
+source = "git+https://github.com/utilityai/llama-cpp-rs?branch=main#94dfe89c24d9b085905b9c98ad4623f71be881e7"
 dependencies = [
  "encoding_rs",
  "enumflags2",
@@ -2166,8 +2172,8 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-sys-2"
-version = "0.1.143"
-source = "git+https://github.com/utilityai/llama-cpp-rs?branch=main#b25863e1422d0c8fe09b5efbcbc0481345b7d003"
+version = "0.1.144"
+source = "git+https://github.com/utilityai/llama-cpp-rs?branch=main#94dfe89c24d9b085905b9c98ad4623f71be881e7"
 dependencies = [
  "bindgen",
  "cc",
@@ -2595,9 +2601,9 @@ checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
 name = "ordermap"
-version = "1.1.0"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cfa78c92071bbd3628c22b1a964f7e0eb201dc1456555db072beb1662ecd6715"
+checksum = "7f7476a5b122ff1fce7208e7ee9dccd0a516e835f5b8b19b8f3c98a34cf757c1"
 dependencies = [
  "indexmap",
 ]
@@ -2779,8 +2785,9 @@ dependencies = [
 
 [[package]]
 name = "pyo3"
-version = "0.28.2"
-source = "git+https://github.com/PyO3/pyo3?branch=main#d120c2b7517fc11d57588a4ba0b7e0a55337bc72"
+version = "0.28.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "91fd8e38a3b50ed1167fb981cd6fd60147e091784c427b8f7183a7ee32c31c12"
 dependencies = [
  "libc",
  "once_cell",
@@ -2818,16 +2825,18 @@ dependencies = [
 
 [[package]]
 name = "pyo3-build-config"
-version = "0.28.2"
-source = "git+https://github.com/PyO3/pyo3?branch=main#d120c2b7517fc11d57588a4ba0b7e0a55337bc72"
+version = "0.28.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e368e7ddfdeb98c9bca7f8383be1648fd84ab466bf2bc015e94008db6d35611e"
 dependencies = [
  "target-lexicon",
 ]
 
 [[package]]
 name = "pyo3-ffi"
-version = "0.28.2"
-source = "git+https://github.com/PyO3/pyo3?branch=main#d120c2b7517fc11d57588a4ba0b7e0a55337bc72"
+version = "0.28.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f29e10af80b1f7ccaf7f69eace800a03ecd13e883acfacc1e5d0988605f651e"
 dependencies = [
  "libc",
  "pyo3-build-config",
@@ -2835,8 +2844,9 @@ dependencies = [
 
 [[package]]
 name = "pyo3-introspection"
-version = "0.28.2"
-source = "git+https://github.com/PyO3/pyo3?branch=main#8a654f69d4cbef2539068dec1f5274dd10ec4cff"
+version = "0.28.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96040524552ac54e645ce08146b24023d720ceb0e788fff758c0beb9fe841736"
 dependencies = [
  "anyhow",
  "goblin",
@@ -2857,8 +2867,9 @@ dependencies = [
 
 [[package]]
 name = "pyo3-macros"
-version = "0.28.2"
-source = "git+https://github.com/PyO3/pyo3?branch=main#d120c2b7517fc11d57588a4ba0b7e0a55337bc72"
+version = "0.28.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df6e520eff47c45997d2fc7dd8214b25dd1310918bbb2642156ef66a67f29813"
 dependencies = [
  "proc-macro2",
  "pyo3-macros-backend",
@@ -2868,11 +2879,13 @@ dependencies = [
 
 [[package]]
 name = "pyo3-macros-backend"
-version = "0.28.2"
-source = "git+https://github.com/PyO3/pyo3?branch=main#d120c2b7517fc11d57588a4ba0b7e0a55337bc72"
+version = "0.28.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c4cdc218d835738f81c2338f822078af45b4afdf8b2e33cbb5916f108b813acb"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
+ "pyo3-build-config",
  "quote",
  "syn 2.0.117",
 ]
@@ -3000,9 +3013,9 @@ dependencies = [
 
 [[package]]
 name = "redox_syscall"
-version = "0.7.3"
+version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ce70a74e890531977d37e532c34d45e9055d2409ed08ddba14529471ed0be16"
+checksum = "f450ad9c3b1da563fb6948a8e0fb0fb9269711c9c73d9ea1de5058c79c8d643a"
 dependencies = [
  "bitflags 2.11.0",
 ]

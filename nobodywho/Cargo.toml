@@ -10,11 +10,3 @@ members = [
 
 # edition = "2021" implies resolver = "2".
 resolver = "2"
-
-[patch.crates-io]
-pyo3 = { git = "https://github.com/PyO3/pyo3", branch = "main" }
-pyo3-ffi = { git = "https://github.com/PyO3/pyo3", branch = "main" }
-pyo3-macros = { git = "https://github.com/PyO3/pyo3", branch = "main" }
-pyo3-macros-backend = { git = "https://github.com/PyO3/pyo3", branch = "main" }
-pyo3-build-config = { git = "https://github.com/PyO3/pyo3", branch = "main" }
-pyo3-introspection = { git = "https://github.com/PyO3/pyo3", branch = "main" }
