@@ -20,9 +20,15 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
+          registry-url: https://registry.npmjs.org
 
-      - name: "Install npm 11.5.0"
+      - name: "Upgrade npm for OIDC support"
         run: npm i -g npm@11.5.0
+
+      - name: "Verify npm auth config"
+        run: |
+          npm --version
+          cat ~/.npmrc || true
 
       - name: "Publish to npm with provenance"
         working-directory: ./nobodywho/react-native
