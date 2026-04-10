@@ -8773,7 +8773,12 @@ rec {
         crateName = "pyo3";
         version = "0.28.3";
         edition = "2021";
-        sha256 = "04hwqcrfx9w3f67pnhjcg28y0iq1srpwv0drgwbd23mmlcw8xzci";
+        workspace_member = null;
+        src = pkgs.fetchgit {
+          url = "https://github.com/PyO3/pyo3";
+          rev = "e662975d241c56c44dfeab8651d3f79ec1b23bff";
+          sha256 = "1gpfpladcsvq180n0c0v3h354vbiiwv8m2khp9wrx7v3py1pcwkd";
+        };
         authors = [
           "PyO3 Project and Contributors <https://github.com/PyO3>"
         ];
@@ -8815,7 +8820,6 @@ rec {
           "abi3-py312" = [ "abi3-py313" "pyo3-build-config/abi3-py312" "pyo3-ffi/abi3-py312" ];
           "abi3-py313" = [ "abi3-py314" "pyo3-build-config/abi3-py313" "pyo3-ffi/abi3-py313" ];
           "abi3-py314" = [ "abi3" "pyo3-build-config/abi3-py314" "pyo3-ffi/abi3-py314" ];
-          "abi3-py37" = [ "abi3-py38" "pyo3-build-config/abi3-py37" "pyo3-ffi/abi3-py37" ];
           "abi3-py38" = [ "abi3-py39" "pyo3-build-config/abi3-py38" "pyo3-ffi/abi3-py38" ];
           "abi3-py39" = [ "abi3-py310" "pyo3-build-config/abi3-py39" "pyo3-ffi/abi3-py39" ];
           "anyhow" = [ "dep:anyhow" ];
@@ -8951,7 +8955,12 @@ rec {
         crateName = "pyo3-build-config";
         version = "0.28.3";
         edition = "2021";
-        sha256 = "07k16mnxn220x4aw0axzcss4mn4gckhknf7qlyyck67bzpfyfs73";
+        workspace_member = null;
+        src = pkgs.fetchgit {
+          url = "https://github.com/PyO3/pyo3";
+          rev = "e662975d241c56c44dfeab8651d3f79ec1b23bff";
+          sha256 = "1gpfpladcsvq180n0c0v3h354vbiiwv8m2khp9wrx7v3py1pcwkd";
+        };
         libName = "pyo3_build_config";
         authors = [
           "PyO3 Project and Contributors <https://github.com/PyO3>"
@@ -8974,10 +8983,8 @@ rec {
           "abi3-py312" = [ "abi3-py313" ];
           "abi3-py313" = [ "abi3-py314" ];
           "abi3-py314" = [ "abi3" ];
-          "abi3-py37" = [ "abi3-py38" ];
           "abi3-py38" = [ "abi3-py39" ];
           "abi3-py39" = [ "abi3-py310" ];
-          "generate-import-lib" = [ "dep:python3-dll-a" ];
         };
         resolvedDefaultFeatures = [ "abi3" "abi3-py310" "abi3-py311" "abi3-py312" "abi3-py313" "abi3-py314" "abi3-py38" "abi3-py39" "default" "extension-module" "resolve-config" ];
       };
@@ -8986,7 +8993,12 @@ rec {
         version = "0.28.3";
         edition = "2021";
         links = "python";
-        sha256 = "07k5bxh8h2ax3v6gmb43x09wsgm003lar7pnyz57q7qbz05f2abz";
+        workspace_member = null;
+        src = pkgs.fetchgit {
+          url = "https://github.com/PyO3/pyo3";
+          rev = "e662975d241c56c44dfeab8651d3f79ec1b23bff";
+          sha256 = "1gpfpladcsvq180n0c0v3h354vbiiwv8m2khp9wrx7v3py1pcwkd";
+        };
         libName = "pyo3_ffi";
         authors = [
           "PyO3 Project and Contributors <https://github.com/PyO3>"
@@ -9011,7 +9023,6 @@ rec {
           "abi3-py312" = [ "abi3-py313" "pyo3-build-config/abi3-py312" ];
           "abi3-py313" = [ "abi3-py314" "pyo3-build-config/abi3-py313" ];
           "abi3-py314" = [ "abi3" "pyo3-build-config/abi3-py314" ];
-          "abi3-py37" = [ "abi3-py38" "pyo3-build-config/abi3-py37" ];
           "abi3-py38" = [ "abi3-py39" "pyo3-build-config/abi3-py38" ];
           "abi3-py39" = [ "abi3-py310" "pyo3-build-config/abi3-py39" ];
           "extension-module" = [ "pyo3-build-config/extension-module" ];
@@ -9023,7 +9034,12 @@ rec {
         crateName = "pyo3-introspection";
         version = "0.28.3";
         edition = "2021";
-        sha256 = "0dhphkzbkgn0b3vzz277n3721mr382r4d0g0bij4xi9aalj0a14n";
+        workspace_member = null;
+        src = pkgs.fetchgit {
+          url = "https://github.com/PyO3/pyo3";
+          rev = "e662975d241c56c44dfeab8651d3f79ec1b23bff";
+          sha256 = "1gpfpladcsvq180n0c0v3h354vbiiwv8m2khp9wrx7v3py1pcwkd";
+        };
         libName = "pyo3_introspection";
         authors = [
           "PyO3 Project and Contributors <https://github.com/PyO3>"
@@ -9091,7 +9107,12 @@ rec {
         crateName = "pyo3-macros";
         version = "0.28.3";
         edition = "2021";
-        sha256 = "04wqy9knmxkf2m12dfwbj4817p959chxhzgwsabmki27zw754vnz";
+        workspace_member = null;
+        src = pkgs.fetchgit {
+          url = "https://github.com/PyO3/pyo3";
+          rev = "e662975d241c56c44dfeab8651d3f79ec1b23bff";
+          sha256 = "1gpfpladcsvq180n0c0v3h354vbiiwv8m2khp9wrx7v3py1pcwkd";
+        };
         procMacro = true;
         libName = "pyo3_macros";
         authors = [
@@ -9127,7 +9148,12 @@ rec {
         crateName = "pyo3-macros-backend";
         version = "0.28.3";
         edition = "2021";
-        sha256 = "1jrsh65i0vwinp5k6blbvypv8idgg0h853rkqa0qywrmv0cc5kf4";
+        workspace_member = null;
+        src = pkgs.fetchgit {
+          url = "https://github.com/PyO3/pyo3";
+          rev = "e662975d241c56c44dfeab8651d3f79ec1b23bff";
+          sha256 = "1gpfpladcsvq180n0c0v3h354vbiiwv8m2khp9wrx7v3py1pcwkd";
+        };
         libName = "pyo3_macros_backend";
         authors = [
           "PyO3 Project and Contributors <https://github.com/PyO3>"
@@ -9143,11 +9169,6 @@ rec {
             usesDefaultFeatures = false;
           }
           {
-            name = "pyo3-build-config";
-            packageId = "pyo3-build-config";
-            features = [ "resolve-config" ];
-          }
-          {
             name = "quote";
             packageId = "quote";
             usesDefaultFeatures = false;
@@ -9157,12 +9178,6 @@ rec {
             packageId = "syn 2.0.117";
             usesDefaultFeatures = false;
             features = [ "derive" "parsing" "printing" "clone-impls" "full" "extra-traits" "visit-mut" ];
-          }
-        ];
-        buildDependencies = [
-          {
-            name = "pyo3-build-config";
-            packageId = "pyo3-build-config";
           }
         ];
         features = {
