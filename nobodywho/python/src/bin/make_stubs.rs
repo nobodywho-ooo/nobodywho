@@ -10,6 +10,9 @@ use std::fs;
 use std::path::PathBuf;
 
 const EXCEPTIONS_TO_REPLACE: &[(&str, &str)] = &[
+    // pyo3 infers Option<String> as `str | None`, but at runtime it raises StopIteration
+    // instead of returning None, so the yielded type is always `str`.
+    ("def __next__(self, /) -> str | None: ...", "def __next__(self, /) -> str: ..."),
     // __anext__ returns PyAny (wrapping a coroutine), so pyo3 can't infer the inner type
     (
         "def __anext__(self, /) -> typing.Any: ...",
@@ -38,15 +41,15 @@ const GENERIC_TYPE_REPLACEMENTS: &[(&str, &str)] = &[
 ];
 
 fn replace_exceptions(mut contents: String) -> String {
+    // Normalize union type formatting before replacements: `str |None` -> `str | None`
+    contents = contents.replace(" |None", " | None");
+
     for (pattern, replacement) in EXCEPTIONS_TO_REPLACE {
         contents = contents.replace(pattern, replacement);
     }
     // Clean up Any from the typing import line if no longer used
     contents = contents.replace("from typing import Any, final", "from typing import final");
     contents = contents.replace("from typing import final, Any", "from typing import final");
-
-    // Normalize union type formatting: `str |None` -> `str | None`
-    contents = contents.replace(" |None", " | None");
 
     // Ensure `import typing` is present (needed for typing.TypeVar, typing.Generic, etc.)
     if !contents.lines().any(|l| l == "import typing") {
