@@ -60,16 +60,19 @@ def packageJsonFile = file("${projectDir}/../package.json")
 def packageJson = new groovy.json.JsonSlurper().parseText(packageJsonFile.text)
 def nobodywhoVersion = packageJson.version
 
-// Download native library from GitHub Releases if not already present
-task resolveNativeLibraries {
-  description = "Downloads NobodyWho native libraries from GitHub Releases if not present locally"
+// Directory for downloaded native libraries (outside source tree to avoid Gradle conflicts)
+def nativeLibsDir = new File(buildDir, "nobodywho-native")
 
-  def jniLibsDir = file("${projectDir}/src/main/jniLibs")
-  outputs.dir(jniLibsDir)
+// Download native static libraries from GitHub Releases if not already present.
+// These are .a files used by CMake at link time — not .so files for jniLibs.
+task resolveNativeLibraries {
+  description = "Downloads NobodyWho native static libraries from GitHub Releases"
+
+  outputs.dir(nativeLibsDir)
 
   doLast {
     abiToTriple.each { abi, triple ->
-      def abiDir = new File(jniLibsDir, abi)
+      def abiDir = new File(nativeLibsDir, abi)
       def libFile = new File(abiDir, "libnobodywho_uniffi.a")
 
       if (libFile.exists()) {
@@ -118,7 +121,7 @@ task resolveNativeLibraries {
       } catch (Exception e) {
         throw new GradleException(
           "Failed to download NobodyWho library for ${abi}: ${e.message}\n" +
-          "For local development, manually place the .a file at: ${libFile.path}",
+          "For local development, build the uniffi crate and place the .a file at: ${libFile.path}",
           e
         )
       }
@@ -151,7 +154,8 @@ android {
     }
     externalNativeBuild {
       cmake {
-        arguments '-DANDROID_STL=c++_shared'
+        arguments '-DANDROID_STL=c++_shared',
+                  "-DNOBODYWHO_NATIVE_LIBS_DIR=${nativeLibsDir.absolutePath}"
         abiFilters (*reactNativeArchitectures())
       }
     }
@@ -197,7 +201,7 @@ android {
   }
 }
 
-// Ensure native libraries are downloaded before CMake configuration
+// Ensure native libraries are downloaded before CMake runs
 afterEvaluate {
   tasks.matching {
     it.name.contains("configureCMake") || it.name.contains("externalNativeBuild")

@@ -50,6 +50,8 @@ Pod::Spec.new do |s|
 
   s.source_files = "ios/**/*.{h,m,mm,swift}", "ios/generated/**/*.{h,m,mm}", "cpp/**/*.{hpp,cpp,c,h}", "generated/cpp/**/*.{hpp,cpp,c,h}"
   s.vendored_frameworks = framework_name
+  s.libraries = 'c++'
+  s.frameworks = 'Accelerate'
   s.dependency    "uniffi-bindgen-react-native", "0.30.0-1"
 
   # Use install_modules_dependencies helper to install the dependencies if React Native version >=0.71.0.
@@ -62,11 +64,6 @@ Pod::Spec.new do |s|
     # Don't install the dependencies when we run `pod install` in the old architecture.
     if ENV['RCT_NEW_ARCH_ENABLED'] == '1' then
       s.compiler_flags = folly_compiler_flags + " -DRCT_NEW_ARCH_ENABLED=1"
-      s.pod_target_xcconfig    = {
-          "HEADER_SEARCH_PATHS" => "\"$(PODS_ROOT)/boost\"",
-          "OTHER_CPLUSPLUSFLAGS" => "-DFOLLY_NO_CONFIG -DFOLLY_MOBILE=1 -DFOLLY_USE_LIBCPP=1",
-          "CLANG_CXX_LANGUAGE_STANDARD" => "c++17"
-      }
       s.dependency "React-Codegen"
       s.dependency "RCT-Folly"
       s.dependency "RCTRequired"
@@ -74,4 +71,12 @@ Pod::Spec.new do |s|
       s.dependency "ReactCommon/turbomodule/core"
     end
   end
+
+  # Only arm64 simulator is supported (no x86_64 simulator build)
+  s.pod_target_xcconfig = {
+    'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386 x86_64'
+  }
+  s.user_target_xcconfig = {
+    'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386 x86_64'
+  }
 end

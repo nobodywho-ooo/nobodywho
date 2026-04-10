@@ -29,6 +29,7 @@
     "Nobodywho.podspec",
     "ubrn.config.yaml",
     "!android/build",
+    "!android/.cxx",
     "!android/src/main/jniLibs"
   ],
   "codegenConfig": {
