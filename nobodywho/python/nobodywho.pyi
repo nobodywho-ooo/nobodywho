@@ -1,3 +1,5 @@
+import os
+import typing
 from typing import final
 
 T = typing.TypeVar('T', str, typing.Awaitable[str])  # Type variable for tool return types (sync str or async Awaitable[str])

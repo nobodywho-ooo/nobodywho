@@ -52,6 +52,17 @@ fn replace_exceptions(mut contents: String) -> String {
     // Clean up Any from the typing import line if no longer used
     contents = contents.replace("from typing import Any, final", "from typing import final");
     contents = contents.replace("from typing import final, Any", "from typing import final");
+
+    // Ensure `import typing` is present (needed for typing.TypeVar, typing.Generic, etc.)
+    if !contents.lines().any(|l| l == "import typing") {
+        contents = format!("import typing\n{}", contents);
+    }
+
+    // Ensure `import os` is present (needed for os.PathLike)
+    if !contents.lines().any(|l| l == "import os") {
+        contents = format!("import os\n{}", contents);
+    }
+
     contents
 }
 
