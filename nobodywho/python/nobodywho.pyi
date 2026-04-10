@@ -1,6 +1,6 @@
-import os
-from _typeshed import Incomplete
-from typing import Any, final
+from typing import final
+
+T = typing.TypeVar('T', str, typing.Awaitable[str])  # Type variable for tool return types (sync str or async Awaitable[str])
 
 @final
 class Chat:
@@ -893,7 +893,7 @@ class TokenStreamAsync:
     This class also supports async iteration using `async for token in stream:` syntax.
     """
     def __aiter__(self, /) -> TokenStreamAsync: ...
-    def __anext__(self, /) -> Any: ...
+    def __anext__(self, /) -> typing.Awaitable[str]: ...
     async def completed(self, /) -> "typing.Awaitable[str]":
         """
         Wait for the entire response to be generated and return it as a single string.
@@ -991,8 +991,6 @@ def tool(description: "str", params: "dict[str, str] | None" = None) -> "typing.
         @tool("Fetch data from a URL", params={"url": "The URL to fetch"})
         async def fetch_url(url: str) -> str:
             import aiohttp
-
-T = typing.TypeVar('T', str, typing.Awaitable[str])  # Type variable for tool return types (sync str or async Awaitable[str])
             async with aiohttp.ClientSession() as session:
                 async with session.get(url) as response:
                     return await response.text()
@@ -1001,5 +999,3 @@ T = typing.TypeVar('T', str, typing.Awaitable[str])  # Type variable for tool re
         All function parameters must have type hints. The function should return a string.
         Async functions (defined with 'async def') are automatically detected and handled.
     """
-
-def __getattr__(name: str) -> Incomplete: ...
