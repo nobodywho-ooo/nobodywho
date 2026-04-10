@@ -19,53 +19,43 @@ permissions:
   deployments: write
 
 jobs:
-  # NOTE: Other CI jobs temporarily disabled for npm publish testing.
-  # Uncomment when done.
-  #
-  # linting:
-  #   uses: ./.github/workflows/linting.yml
-  #
-  # python_ci:
-  #   uses: ./.github/workflows/python_ci.yml
-  #   with:
-  #     full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
-  #
-  # build:
-  #   uses: ./.github/workflows/build.yml
-  #   with:
-  #     full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
-  #
-  # react_native_ci:
-  #   uses: ./.github/workflows/react_native_ci.yml
-  #   with:
-  #     full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
-  #
-  # test:
-  #   uses: ./.github/workflows/test.yml
-  #   with:
-  #     full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
-  #   secrets:
-  #     CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
-  #
-  # release:
-  #   if: startsWith(github.ref, 'refs/tags/nobodywho-')
-  #   needs: [linting, build, test, python_ci, react_native_ci]
-  #   uses: ./.github/workflows/release.yml
-  #   secrets:
-  #     TEST_PYPI_AUTH_TOKEN: ${{ secrets.TEST_PYPI_AUTH_TOKEN }}
-  #     PYPI_AUTH_TOKEN: ${{ secrets.PYPI_AUTH_TOKEN }}
-  #     NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-  #
-  # docs:
-  #   if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/deploy-cloudflare-pages'
-  #   uses: ./.github/workflows/docs.yml
-  #   secrets:
-  #     CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-  #     CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  linting:
+    uses: ./.github/workflows/linting.yml
 
-  # Temporary: test npm publish with granular token
-  test_npm_publish:
-    if: github.event_name == 'workflow_dispatch'
-    uses: ./.github/workflows/test_npm_publish.yml
+  python_ci:
+    uses: ./.github/workflows/python_ci.yml
+    with:
+      full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
+
+  build:
+    uses: ./.github/workflows/build.yml
+    with:
+      full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
+
+  react_native_ci:
+    uses: ./.github/workflows/react_native_ci.yml
+    with:
+      full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
+
+  test:
+    uses: ./.github/workflows/test.yml
+    with:
+      full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
     secrets:
+      CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/nobodywho-')
+    needs: [linting, build, test, python_ci, react_native_ci]
+    uses: ./.github/workflows/release.yml
+    secrets:
+      TEST_PYPI_AUTH_TOKEN: ${{ secrets.TEST_PYPI_AUTH_TOKEN }}
+      PYPI_AUTH_TOKEN: ${{ secrets.PYPI_AUTH_TOKEN }}
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  docs:
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/deploy-cloudflare-pages'
+    uses: ./.github/workflows/docs.yml
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
