@@ -86,15 +86,25 @@ let
           ];
 
           # HACK: Both whisper-rs-sys and llama-cpp-sys-2 bundle ggml, producing
-          # identically-named static archives (libggml.a, libggml-base.a, etc.).
-          # On Linux the linker picks whisper's OLDER ggml (Jan 2026) first due to
-          # -L path ordering, but llama.cpp needs the NEWER ggml (Apr 2026) which
-          # added FGDN support in March 2026. Delete whisper's ggml archives so
-          # the linker can only find llama's copies. libwhisper.a is kept — its
-          # ggml symbol references resolve against llama's ggml at link time.
+          # identically-named static archives and object files. buildRustCrate
+          # packs static library objects directly into the .rlib, so both rlibs
+          # end up containing ggml object files — causing duplicate symbol errors
+          # at the final link step.
+          # Fix: strip ggml objects from whisper's .rlib and delete whisper's
+          # libggml*.a archives. Whisper's remaining ggml symbol references
+          # (in libwhisper.a) resolve against llama's ggml at link time.
           # The two ggml versions are ABI-compatible (additive changes only,
           # same GGML_FILE_VERSION=2 and GGML_QNT_VERSION=2).
           postInstall = ''
+            for rlib in $lib/lib/*.rlib; do
+              [ -f "$rlib" ] || continue
+              objs=$(ar t "$rlib" 2>/dev/null | grep -E '^ggml' || true)
+              if [ -n "$objs" ]; then
+                echo "Stripping ggml objects from $rlib:"
+                echo "$objs"
+                echo "$objs" | xargs ar d "$rlib"
+              fi
+            done
             find $lib/lib -name 'libggml*.a' -print -delete || true
           '';
         };
