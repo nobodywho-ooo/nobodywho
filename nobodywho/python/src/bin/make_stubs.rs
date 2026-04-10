@@ -28,14 +28,8 @@ const EXCEPTIONS_TO_REPLACE: &[(&str, &str)] = &[
         "def __anext__(self, /) -> typing.Awaitable[str]: ...",
     ),
     // Remove Incomplete import and __getattr__ stub
-    (
-        "from _typeshed import Incomplete\n",
-        "",
-    ),
-    (
-        "def __getattr__(name: str) -> Incomplete: ...\n",
-        "",
-    ),
+    ("from _typeshed import Incomplete\n", ""),
+    ("def __getattr__(name: str) -> Incomplete: ...\n", ""),
 ];
 
 const TYPEVARS_TO_INJECT: &[(&str, &str)] = &[(
