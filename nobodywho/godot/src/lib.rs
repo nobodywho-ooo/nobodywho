@@ -1313,7 +1313,12 @@ impl NobodyWhoCrossEncoder {
     /// - query: The question or query to rank documents against
     /// - documents: Array of document strings to rank
     /// - limit: Maximum number of documents to return (-1 for all documents)
-    fn rank_sync(&mut self, query: String, documents: PackedStringArray, limit: i32) -> PackedStringArray {
+    fn rank_sync(
+        &mut self,
+        query: String,
+        documents: PackedStringArray,
+        limit: i32,
+    ) -> PackedStringArray {
         let Some(crossencoder_handle) = &self.crossencoder_handle else {
             godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
             self.start_worker();
