@@ -1314,7 +1314,7 @@ fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> PyResult<f32> {
 /// A `SamplerConfig` can be constructed either using a preset function from the `SamplerPresets`
 /// class, or by manually constructing a sampler chain using the `SamplerBuilder` class.
 /// `SamplerConfig` supports serialization to/from JSON via `to_json()` and `from_json()`.
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone, Default)]
 pub struct SamplerConfig {
     sampler_config: nobodywho::sampler_config::SamplerConfig,
@@ -1368,7 +1368,7 @@ impl SamplerConfig {
 /// that results from applying all of the probability-shifting steps in order.
 /// E.g. the `dist` sampling step selects a token with weighted randomness, and the
 /// `greedy` sampling step always selects the most probable.
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct SamplerBuilder {
     sampler_config: nobodywho::sampler_config::SamplerConfig,
@@ -1698,7 +1698,7 @@ impl SamplerPresets {
 
 /// A `Tool` is a wrapped python function, that can be passed as a tool for the model to call.
 /// `Tool`s are constructed using the `@tool` decorator.
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct Tool {
     tool: nobodywho::tool_calling::Tool,
     pyfunc: Py<PyAny>,
@@ -1730,7 +1730,7 @@ impl Tool {
 ///
 /// Example:
 ///     prompt = Prompt([Text("Describe this"), Image("./img.jpg")])
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct Text {
     text: String,
@@ -1758,7 +1758,7 @@ impl Text {
 ///
 /// Example:
 ///     prompt = Prompt([Text("Describe this"), Image("./img.jpg")])
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct Image {
     path: String,
@@ -1794,7 +1794,7 @@ impl Image {
 ///
 /// Example:
 ///     prompt = Prompt([Text("Tell me what's in the image"), Image("./img.jpg")])
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct Prompt {
     prompt: nobodywho::tokenizer::Prompt,
