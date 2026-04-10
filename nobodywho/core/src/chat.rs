@@ -1967,7 +1967,6 @@ impl Worker<'_, ChatWorker> {
             .context
             .garbage_collect_bitmaps(&self.extra.messages);
 
-
         Ok(())
     }
 
