@@ -6,6 +6,10 @@ edition = "2021"
 [lib]
 crate-type = ["cdylib"]
 
+[[bin]]
+name = "nobodywho_flutter_web"
+path = "src/main.rs"
+
 [dependencies]
 nobodywho = { path = "../../core" }
 flutter_rust_bridge = "=2.12.0"

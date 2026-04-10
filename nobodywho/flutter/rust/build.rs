@@ -3,10 +3,32 @@ use lib_flutter_rust_bridge_codegen::codegen;
 fn main() {
     println!("cargo:rerun-if-changed=.");
 
-    // link c++ standard library on macOS
     let target = std::env::var("CARGO_CFG_TARGET_OS").unwrap();
+
+    // link c++ standard library on macOS
     if target.contains("macos") || target.contains("darwin") {
         println!("cargo:rustc-link-lib=c++");
+    }
+
+    // emscripten-specific linker flags for the web bin target only
+    if target == "emscripten" {
+        let bin = "nobodywho_flutter_web";
+        // Tell emscripten to invoke wasm-bindgen on the linked .wasm,
+        // which auto-exports all #[wasm_bindgen] symbols and generates JS bindings
+        println!("cargo:rustc-link-arg-bin={bin}=-sWASM_BINDGEN");
+        // Allow memory growth for large models
+        println!("cargo:rustc-link-arg-bin={bin}=-sALLOW_MEMORY_GROWTH=1");
+        // Wrap output in a module factory function
+        println!("cargo:rustc-link-arg-bin={bin}=-sMODULARIZE=1");
+        println!("cargo:rustc-link-arg-bin={bin}=-sEXPORT_NAME='createNobodyWhoModule'");
+        // Export externref intrinsics required by wasm-bindgen's externref transform.
+        // Rust 1.82+ enables reference-types by default for wasm32 targets; wasm-bindgen
+        // compiles these functions (gated on wbg_reference_types cfg) but wasm-ld may
+        // dead-code-eliminate them since nothing calls them directly in the Rust code.
+        // wasm-bindgen-cli needs them exported so it can rewrite externref operations.
+        println!("cargo:rustc-link-arg-bin={bin}=-Wl,--export=__externref_table_alloc");
+        println!("cargo:rustc-link-arg-bin={bin}=-Wl,--export=__externref_table_dealloc");
+        println!("cargo:rustc-link-arg-bin={bin}=-Wl,--export=__externref_drop_slice");
     }
 
     if std::env::var("NOBODYWHO_SKIP_CODEGEN").is_ok() {

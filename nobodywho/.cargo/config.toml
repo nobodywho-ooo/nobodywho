@@ -4,5 +4,4 @@
 [target.wasm32-unknown-emscripten]
 rustflags = [
     "-Cpanic=abort",
-    "-Clink-arg=--no-entry",
 ]

@@ -11,6 +11,12 @@
     android-nixpkgs.url = "github:tadfisher/android-nixpkgs";
     crate2nix.url = "github:nix-community/crate2nix";
     crate2nix.inputs.nixpkgs.follows = "nixpkgs";
+    # walkingeyerobot's emscripten fork with -sWASM_BINDGEN support
+    # (draft PR: emscripten-core/emscripten#23493)
+    emscripten-wbg-src = {
+      url = "github:walkingeyerobot/emscripten/wbg-walkingeyerobot";
+      flake = false;
+    };
   };
   outputs =
     {
@@ -18,6 +24,7 @@
       flake-utils,
       android-nixpkgs,
       crate2nix,
+      emscripten-wbg-src,
       ...
     }:
     flake-utils.lib.eachDefaultSystem (
@@ -29,6 +36,37 @@
             config = {
               android_sdk.accept_license = true;
             };
+            overlays = [
+              # Override emscripten with walkingeyerobot's fork that supports -sWASM_BINDGEN
+              (final: prev: {
+                # wasm-bindgen-cli 0.2.117 — emscripten support merged upstream in 0.2.115
+                # Must match the wasm-bindgen crate version resolved by Cargo.
+                wasm-bindgen-cli = prev.buildWasmBindgenCli rec {
+                  src = prev.fetchCrate {
+                    pname = "wasm-bindgen-cli";
+                    version = "0.2.117";
+                    hash = "sha256-vtDQXL8FSgdutqXG7/rBUWgrYCtzdmeVQQkWkjasvZU=";
+                  };
+                  cargoDeps = prev.rustPlatform.fetchCargoVendor {
+                    inherit src;
+                    inherit (src) pname version;
+                    hash = "sha256-eKe7uwneUYxejSbG/1hKqg6bSmtL0KQ9ojlazeqTi88=";
+                  };
+                };
+                emscripten = prev.emscripten.overrideAttrs (old: {
+                  src = emscripten-wbg-src;
+                  # The fork is merged with upstream main (past 5.0.0) so it expects
+                  # LLVM 23, but nixpkgs ships LLVM 21. The stock derivation's buildPhase
+                  # seds "22" -> "21.1"; we also need to handle "23".
+                  buildPhase = builtins.replaceStrings
+                    [ "EXPECTED_LLVM_VERSION = 22" ]
+                    [ "EXPECTED_LLVM_VERSION = 23" ]
+                    old.buildPhase;
+                  # Note: the fork's 2026-04-02 update removed the --target emscripten
+                  # flag from run_wasm_bindgen(), so no postPatch needed for that anymore.
+                });
+              })
+            ];
           }
         );
 
@@ -39,7 +77,7 @@
 
         # flutter stuff
         nobodywho-flutter = workspace.workspaceMembers.nobodywho-flutter.build;
-        flutter_tests = pkgs.callPackage ./nobodywho/flutter/nobodywho {
+        flutter-tests = pkgs.callPackage ./nobodywho/flutter/nobodywho {
           nobodywho_flutter_rust = nobodywho-flutter;
         };
 
@@ -76,8 +114,9 @@
         packages.default = nobodywho-godot;
 
         # checks
-        checks.default = flutter_tests;
-        checks.flutter_tests = flutter_tests;
+        checks.default = flutter-tests;
+        checks.flutter-tests = flutter-tests;
+        checks.flutter-tests-web = flutter-tests.override { web = true; };
         checks.build-godot = nobodywho-godot;
         checks.godot-integration-test = run-godot-integration-test;
 

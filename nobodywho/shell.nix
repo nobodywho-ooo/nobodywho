@@ -13,6 +13,9 @@ pkgs.mkShell {
       pkgs.vulkan-loader
       pkgs.gcc.cc.lib
     ];
+    # Tells the emscripten fork where to find wasm-bindgen CLI
+    # (used by -sWASM_BINDGEN at link time)
+    EM_WASM_BINDGEN = "${pkgs.wasm-bindgen-cli}/bin/wasm-bindgen";
   }
   // (removeAttrs test-models [ "override" "overrideDerivation" ]);
 
@@ -40,8 +43,9 @@ pkgs.mkShell {
     pkgs.flutter
     pkgs.flutter_rust_bridge_codegen
 
-    # web/wasm (emscripten)
+    # web/wasm (emscripten + wasm-bindgen)
     pkgs.emscripten
+    pkgs.wasm-bindgen-cli
 
     # python
     pkgs.python3
@@ -52,5 +56,8 @@ pkgs.mkShell {
   ];
   shellHook = ''
     ulimit -n 2048
+    # Emscripten's sysroot isn't pre-populated by the Nix package,
+    # so we need to generate it on first use for wasm builds to work.
+    embuilder build sysroot
   '';
 }

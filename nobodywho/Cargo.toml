@@ -10,4 +10,3 @@ members = [
 
 # edition = "2021" implies resolver = "2".
 resolver = "2"
-

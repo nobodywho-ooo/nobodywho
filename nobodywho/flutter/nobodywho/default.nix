@@ -1,8 +1,10 @@
 {
   lib,
   flutter,
+  chromium,
   callPackage,
   nobodywho_flutter_rust,
+  web ? false,
 }:
 
 let
@@ -37,6 +39,9 @@ flutter.buildFlutterApplication {
   '';
 
   doCheck = true;
+
+  checkInputs = if web then [ chromium ] else [ ];
+
   checkPhase = ''
     runHook preCheck
 
@@ -49,7 +54,8 @@ flutter.buildFlutterApplication {
     export TEST_EMBEDDINGS_MODEL="${models.TEST_EMBEDDINGS_MODEL}"
     export TEST_CROSSENCODER_MODEL="${models.TEST_CROSSENCODER_MODEL}"
 
-    flutter test --fail-fast test/
+    ${if web then "export CHROME_EXECUTABLE=$(which chromium)" else ""}
+    flutter test --fail-fast test/ ${if web then "--platform chrome" else ""}
 
     runHook postCheck
   '';
