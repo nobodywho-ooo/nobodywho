@@ -63,7 +63,9 @@ jobs:
   #     CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
   #     CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-  # Temporary: test npm trusted publishers via workflow_call
+  # Temporary: test npm publish with granular token
   test_npm_publish:
     if: github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/test_npm_publish.yml
+    secrets:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
