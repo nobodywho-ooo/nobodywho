@@ -1,5 +1,6 @@
 import os
 import typing
+from collections.abc import Sequence
 from typing import final
 
 T = typing.TypeVar('T', str, typing.Awaitable[str])  # Type variable for tool return types (sync str or async Awaitable[str])
@@ -17,7 +18,7 @@ class Chat:
     to use, whether to allow extended thinking, etc.
     See `ChatAsync` for the async version of this class.
     """
-    def __new__(cls, /, model: "Model | os.PathLike | str", n_ctx: int = 4096, system_prompt: str |None = None, template_variables: "dict[str, bool]" = ..., tools: "list[Tool]" = ..., sampler: SamplerConfig = ..., allow_thinking: "bool | None" = None) -> "Chat":
+    def __new__(cls, /, model: "Model | os.PathLike | str", n_ctx: int = 4096, system_prompt: str | None = None, template_variables: "dict[str, bool]" = ..., tools: "list[Tool]" = ..., sampler: SamplerConfig = ..., allow_thinking: "bool | None" = None) -> "Chat":
         """
         Create a new Chat instance for conversational text generation.
         
@@ -58,7 +59,7 @@ class Chat:
         Raises:
             RuntimeError: If retrieval fails
         """
-    def get_sampler_config(self, /) -> "SamplerConfig":
+    def get_sampler_config(self, /) -> SamplerConfig:
         """
         Get the current sampler configuration.
         
@@ -68,7 +69,7 @@ class Chat:
         Raises:
             RuntimeError: If the sampler config cannot be retrieved
         """
-    def get_system_prompt(self, /) -> "str | None":
+    def get_system_prompt(self, /) -> str | None:
         """
         Get the current system prompt.
         
@@ -78,7 +79,7 @@ class Chat:
         Raises:
             RuntimeError: If the system prompt cannot be retrieved
         """
-    def get_template_variables(self, /) -> "dict[str, bool]":
+    def get_template_variables(self, /) -> dict[str, bool]:
         """
         Get all template variables.
         
@@ -88,7 +89,7 @@ class Chat:
         Raises:
             RuntimeError: If the variables cannot be retrieved
         """
-    def reset(self, /, system_prompt: "str | None", tools: "list[Tool]") -> "None":
+    def reset(self, /, system_prompt: str | None, tools: Sequence[Tool]) -> None:
         """
         Reset the conversation with a new system prompt and tools. Clears all chat history.
         
@@ -99,14 +100,14 @@ class Chat:
         Raises:
             RuntimeError: If reset fails
         """
-    def reset_history(self, /) -> "None":
+    def reset_history(self, /) -> None:
         """
         Clear the chat history while keeping the system prompt and tools unchanged.
         
         Raises:
             RuntimeError: If reset fails
         """
-    def set_allow_thinking(self, /, allow_thinking: "bool") -> "None":
+    def set_allow_thinking(self, /, allow_thinking: bool) -> None:
         """
         DEPRECATED: Use set_template_variable("enable_thinking", value) instead.
         
@@ -130,7 +131,7 @@ class Chat:
             ValueError: If message format is invalid
             RuntimeError: If setting history fails
         """
-    def set_sampler_config(self, /, sampler: "SamplerConfig") -> "None":
+    def set_sampler_config(self, /, sampler: SamplerConfig) -> None:
         """
         Update the sampler configuration without resetting chat history.
         
@@ -140,7 +141,7 @@ class Chat:
         Raises:
             RuntimeError: If the sampler config cannot be changed
         """
-    def set_system_prompt(self, /, system_prompt: "str | None") -> "None":
+    def set_system_prompt(self, /, system_prompt: str | None) -> None:
         """
         Update the system prompt without resetting chat history.
         
@@ -150,7 +151,7 @@ class Chat:
         Raises:
             RuntimeError: If the system prompt cannot be changed
         """
-    def set_template_variable(self, /, name: "str", value: "bool") -> "None":
+    def set_template_variable(self, /, name: str, value: bool) -> None:
         """
         Set a single template variable
         
@@ -161,7 +162,7 @@ class Chat:
         Raises:
             RuntimeError: If the variable cannot be set
         """
-    def set_template_variables(self, /, variables: "dict[str, bool]") -> "None":
+    def set_template_variables(self, /, variables: dict[str, bool]) -> None:
         """
         Set all template variables, replacing any existing ones.
         
@@ -171,7 +172,7 @@ class Chat:
         Raises:
             RuntimeError: If the variables cannot be set
         """
-    def set_tools(self, /, tools: "list[Tool]") -> "None":
+    def set_tools(self, /, tools: Sequence[Tool]) -> None:
         """
         Update the list of tools available to the model without resetting chat history.
         
@@ -181,7 +182,7 @@ class Chat:
         Raises:
             RuntimeError: If updating tools fails
         """
-    def stop_generation(self, /) -> "None":
+    def stop_generation(self, /) -> None:
         """
         Stop the current text generation immediately.
         
@@ -195,7 +196,7 @@ class ChatAsync:
     This is the async version of the `Chat` class.
     See the docs for the `Chat` class for more information.
     """
-    def __new__(cls, /, model: "Model | os.PathLike | str", n_ctx: int = 4096, system_prompt: str |None = None, template_variables: "dict[str, bool]" = ..., tools: "list[Tool]" = ..., sampler: SamplerConfig = ..., allow_thinking: "bool | None" = None) -> "ChatAsync":
+    def __new__(cls, /, model: "Model | os.PathLike | str", n_ctx: int = 4096, system_prompt: str | None = None, template_variables: "dict[str, bool]" = ..., tools: "list[Tool]" = ..., sampler: SamplerConfig = ..., allow_thinking: "bool | None" = None) -> "ChatAsync":
         """
         Create a new async Chat instance for conversational text generation.
         
@@ -236,7 +237,7 @@ class ChatAsync:
         Raises:
             RuntimeError: If retrieval fails
         """
-    async def get_sampler_config(self, /) -> "SamplerConfig":
+    async def get_sampler_config(self, /) -> SamplerConfig:
         """
         Get the current sampler configuration.
         
@@ -246,7 +247,7 @@ class ChatAsync:
         Raises:
             RuntimeError: If the sampler config cannot be retrieved
         """
-    async def get_system_prompt(self, /) -> "str | None":
+    async def get_system_prompt(self, /) -> str | None:
         """
         Get the current system prompt.
         
@@ -256,7 +257,7 @@ class ChatAsync:
         Raises:
             RuntimeError: If the system prompt cannot be retrieved
         """
-    async def get_template_variables(self, /) -> "dict[str, bool]":
+    async def get_template_variables(self, /) -> dict[str, bool]:
         """
         Get all template variables.
         
@@ -266,7 +267,7 @@ class ChatAsync:
         Raises:
             RuntimeError: If the variables cannot be retrieved
         """
-    async def reset(self, /, system_prompt: "str | None", tools: "list[Tool]") -> "None":
+    async def reset(self, /, system_prompt: str | None, tools: Sequence[Tool]) -> None:
         """
         Reset the conversation with a new system prompt and tools. Clears all chat history.
         
@@ -277,14 +278,14 @@ class ChatAsync:
         Raises:
             RuntimeError: If reset fails
         """
-    async def reset_history(self, /) -> "None":
+    async def reset_history(self, /) -> None:
         """
         Clear the chat history while keeping the system prompt and tools unchanged.
         
         Raises:
             RuntimeError: If reset fails
         """
-    async def set_allow_thinking(self, /, allow_thinking: "bool") -> "None":
+    async def set_allow_thinking(self, /, allow_thinking: bool) -> None:
         """
         DEPRECATED: Use set_template_variable("enable_thinking", value) instead.
         
@@ -308,7 +309,7 @@ class ChatAsync:
             ValueError: If message format is invalid
             RuntimeError: If setting history fails
         """
-    async def set_sampler_config(self, /, sampler: "SamplerConfig") -> "None":
+    async def set_sampler_config(self, /, sampler: SamplerConfig) -> None:
         """
         Update the sampler configuration without resetting chat history.
         
@@ -318,7 +319,7 @@ class ChatAsync:
         Raises:
             RuntimeError: If the sampler config cannot be changed
         """
-    async def set_system_prompt(self, /, system_prompt: "str | None") -> "None":
+    async def set_system_prompt(self, /, system_prompt: str | None) -> None:
         """
         Update the system prompt without resetting chat history.
         
@@ -328,7 +329,7 @@ class ChatAsync:
         Raises:
             RuntimeError: If the system prompt cannot be changed
         """
-    async def set_template_variable(self, /, name: "str", value: "bool") -> "None":
+    async def set_template_variable(self, /, name: str, value: bool) -> None:
         """
         Set a single template variable.
         
@@ -339,7 +340,7 @@ class ChatAsync:
         Raises:
             RuntimeError: If the variable cannot be set
         """
-    async def set_template_variables(self, /, variables: "dict[str, bool]") -> "None":
+    async def set_template_variables(self, /, variables: dict[str, bool]) -> None:
         """
         Set all template variables, replacing any existing ones.
         
@@ -349,7 +350,7 @@ class ChatAsync:
         Raises:
             RuntimeError: If the variables cannot be set
         """
-    async def set_tools(self, /, tools: "list[Tool]") -> "None":
+    async def set_tools(self, /, tools: Sequence[Tool]) -> None:
         """
         Update the list of tools available to the model without resetting chat history.
         
@@ -359,7 +360,7 @@ class ChatAsync:
         Raises:
             RuntimeError: If updating tools fails
         """
-    async def stop_generation(self, /) -> "None":
+    async def stop_generation(self, /) -> None:
         """
         Stop the current text generation immediately.
         
@@ -390,7 +391,7 @@ class CrossEncoder:
             RuntimeError: If the model cannot be loaded
             ValueError: If the path contains invalid UTF-8
         """
-    def rank(self, /, query: "str", documents: "list[str]") -> "list[float]":
+    def rank(self, /, query: str, documents: Sequence[str]) -> list[float]:
         """
         Compute similarity scores between a query and multiple documents. This method blocks.
         
@@ -404,7 +405,7 @@ class CrossEncoder:
         Raises:
             RuntimeError: If ranking fails
         """
-    def rank_and_sort(self, /, query: "str", documents: "list[str]") -> "list[tuple[str, float]]":
+    def rank_and_sort(self, /, query: str, documents: Sequence[str]) -> list[tuple[str, float]]:
         """
         Rank documents by similarity to query and return them sorted. This method blocks.
         
@@ -440,7 +441,7 @@ class CrossEncoderAsync:
             RuntimeError: If the model cannot be loaded
             ValueError: If the path contains invalid UTF-8
         """
-    async def rank(self, /, query: "str", documents: "list[str]") -> "list[float]":
+    async def rank(self, /, query: str, documents: Sequence[str]) -> list[float]:
         """
         Compute similarity scores between a query and multiple documents asynchronously.
         
@@ -454,7 +455,7 @@ class CrossEncoderAsync:
         Raises:
             RuntimeError: If ranking fails
         """
-    async def rank_and_sort(self, /, query: "str", documents: "list[str]") -> "list[tuple[str, float]]":
+    async def rank_and_sort(self, /, query: str, documents: Sequence[str]) -> list[tuple[str, float]]:
         """
         Rank documents by similarity to query and return them sorted asynchronously.
         
@@ -493,7 +494,7 @@ class Encoder:
             RuntimeError: If the model cannot be loaded
             ValueError: If the path contains invalid UTF-8
         """
-    def encode(self, /, text: "str") -> "list[float]":
+    def encode(self, /, text: str) -> list[float]:
         """
         Generate an embedding vector for the given text. This method blocks until complete.
         
@@ -527,7 +528,7 @@ class EncoderAsync:
             RuntimeError: If the model cannot be loaded
             ValueError: If the path contains invalid UTF-8
         """
-    async def encode(self, /, text: "str") -> "list[float]":
+    async def encode(self, /, text: str) -> list[float]:
         """
         Generate an embedding vector for the given text asynchronously.
         
@@ -622,7 +623,7 @@ class SamplerBuilder:
     E.g. the `dist` sampling step selects a token with weighted randomness, and the
     `greedy` sampling step always selects the most probable.
     """
-    def __new__(cls, /) -> "SamplerBuilder":
+    def __new__(cls, /) -> SamplerBuilder:
         """
         Create a new SamplerBuilder to construct a custom sampler chain.
         """
@@ -633,7 +634,7 @@ class SamplerBuilder:
         Returns:
             A complete SamplerConfig ready to use
         """
-    def dry(self, /, multiplier: "float", base: "float", allowed_length: "int", penalty_last_n: "int", seq_breakers: "list[str]") -> "SamplerBuilder":
+    def dry(self, /, multiplier: float, base: float, allowed_length: int, penalty_last_n: int, seq_breakers: Sequence[str]) -> SamplerBuilder:
         """
         DRY (Don't Repeat Yourself) sampler to reduce repetition.
         
@@ -644,7 +645,7 @@ class SamplerBuilder:
             penalty_last_n: Number of recent tokens to consider
             seq_breakers: List of strings that break repetition sequences
         """
-    def grammar(self, /, grammar: str, trigger_on: str |None, root: str) -> SamplerBuilder:
+    def grammar(self, /, grammar: str, trigger_on: str | None, root: str) -> SamplerBuilder:
         """
         Apply a grammar constraint to enforce structured output.
         
@@ -759,7 +760,7 @@ class SamplerConfig:
     """
     def __repr__(self, /) -> str: ...
     @staticmethod
-    def from_json(json_str: "str") -> "SamplerConfig":
+    def from_json(json_str: str) -> SamplerConfig:
         """
         Deserialize a sampler configuration from a JSON string.
         
@@ -772,7 +773,7 @@ class SamplerConfig:
         Raises:
             ValueError: If the JSON is invalid or doesn't represent a valid sampler configuration
         """
-    def to_json(self, /) -> "str":
+    def to_json(self, /) -> str:
         """
         Serialize the sampler configuration to a JSON string.
         
@@ -852,7 +853,7 @@ class Text:
     Example:
         prompt = Prompt([Text("Describe this"), Image("./img.jpg")])
     """
-    def __new__(cls, /, text: "str") -> "Text": ...
+    def __new__(cls, /, text: str) -> Text: ...
     def __repr__(self, /) -> str: ...
     @property
     def text(self, /) -> str: ...
@@ -867,7 +868,7 @@ class TokenStream:
     Also see `TokenStreamAsync`, for an async version of this class.
     """
     def __iter__(self, /) -> TokenStream: ...
-    def __next__(self, /) -> str |None: ...
+    def __next__(self, /) -> str | None: ...
     def completed(self, /) -> str:
         """
         Wait for the entire response to be generated and return it as a single string.
@@ -879,7 +880,7 @@ class TokenStream:
         Raises:
             RuntimeError: If generation fails.
         """
-    def next_token(self, /) -> "str | None":
+    def next_token(self, /) -> str | None:
         """
         Get the next token from the stream. Blocks until a token is available.
         
@@ -896,7 +897,7 @@ class TokenStreamAsync:
     """
     def __aiter__(self, /) -> TokenStreamAsync: ...
     def __anext__(self, /) -> typing.Awaitable[str]: ...
-    async def completed(self, /) -> "str":
+    async def completed(self, /) -> str:
         """
         Wait for the entire response to be generated and return it as a single string.
         
@@ -906,7 +907,7 @@ class TokenStreamAsync:
         Raises:
             RuntimeError: If generation fails.
         """
-    async def next_token(self, /) -> "str | None":
+    async def next_token(self, /) -> str | None:
         """
         Get the next token from the stream asynchronously.
         
@@ -922,7 +923,7 @@ class Tool(typing.Generic[T]):
     """
     def __call__(self, /, *args, **kwargs) -> "T": ...
 
-def bash_tool(max_commands: "int | None" = None) -> "Tool":
+def bash_tool(max_commands: int | None = None) -> Tool:
     """
     Create a bash interpreter tool that the LLM can use to run bash snippets.
     
@@ -935,7 +936,7 @@ def bash_tool(max_commands: "int | None" = None) -> "Tool":
 
 def cleanup_logging() -> None: ...
 
-def cosine_similarity(a: "list[float]", b: "list[float]") -> "float":
+def cosine_similarity(a: Sequence[float], b: Sequence[float]) -> float:
     """
     Compute the cosine similarity between two vectors.
     Particularly useful for comparing embedding vectors from an Encoder.
@@ -951,7 +952,7 @@ def cosine_similarity(a: "list[float]", b: "list[float]") -> "float":
         ValueError: If vectors have different lengths
     """
 
-def python_tool(max_duration: "int | None" = None, max_memory: "int | None" = None, max_recursion_depth: "int | None" = None) -> "Tool":
+def python_tool(max_duration: int | None = None, max_memory: int | None = None, max_recursion_depth: int | None = None) -> Tool:
     """
     Create a built-in tool that lets the LLM run sandboxed Python code.
     

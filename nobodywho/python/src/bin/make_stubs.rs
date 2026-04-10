@@ -10,15 +10,7 @@ use std::fs;
 use std::path::PathBuf;
 
 const EXCEPTIONS_TO_REPLACE: &[(&str, &str)] = &[
-    // pyo3 may emit `typing.Any` or bare `Any` depending on version
-    (
-        "def __next__(self, /) -> typing.Any: ...",
-        "def __next__(self, /) -> str: ...",
-    ),
-    (
-        "def __next__(self, /) -> Any: ...",
-        "def __next__(self, /) -> str: ...",
-    ),
+    // __anext__ returns PyAny (wrapping a coroutine), so pyo3 can't infer the inner type
     (
         "def __anext__(self, /) -> typing.Any: ...",
         "def __anext__(self, /) -> typing.Awaitable[str]: ...",
@@ -52,6 +44,9 @@ fn replace_exceptions(mut contents: String) -> String {
     // Clean up Any from the typing import line if no longer used
     contents = contents.replace("from typing import Any, final", "from typing import final");
     contents = contents.replace("from typing import final, Any", "from typing import final");
+
+    // Normalize union type formatting: `str |None` -> `str | None`
+    contents = contents.replace(" |None", " | None");
 
     // Ensure `import typing` is present (needed for typing.TypeVar, typing.Generic, etc.)
     if !contents.lines().any(|l| l == "import typing") {
@@ -132,7 +127,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let output_dir = env::var("STUBS_DIR").unwrap_or_else(|_| ".".to_string());
 
     println!("Generating stub files in: {}", output_dir);
-    for (file_path, contents) in stub_files.clone().iter() {
+    for (file_path, contents) in stub_files.iter() {
         let contents = replace_exceptions(contents.clone());
         let contents = inject_typevars(contents);
         let full_path = PathBuf::from(&output_dir).join(file_path);
@@ -177,6 +172,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
-    println!("Done! Generated {} stub file(s)", stub_files.clone().len());
+    println!("Done! Generated {} stub file(s)", stub_files.len());
     Ok(())
 }
