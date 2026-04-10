@@ -40,9 +40,15 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
 # Set linker flags for 16KB page size alignment (required for Android 15+)
 set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-z,max-page-size=16384")
 
+# NOBODYWHO_NATIVE_LIBS_DIR is passed from build.gradle via cmake arguments.
+# Fall back to src/main/jniLibs for local development where libs are placed manually.
+if(NOT NOBODYWHO_NATIVE_LIBS_DIR)
+  set(NOBODYWHO_NATIVE_LIBS_DIR "${CMAKE_SOURCE_DIR}/src/main/jniLibs")
+endif()
+
 cmake_path(
   SET MY_RUST_LIB
-  ${CMAKE_SOURCE_DIR}/src/main/jniLibs/${ANDROID_ABI}/libnobodywho_uniffi.a
+  ${NOBODYWHO_NATIVE_LIBS_DIR}/${ANDROID_ABI}/libnobodywho_uniffi.a
   NORMALIZE
 )
 add_library(my_rust_lib STATIC IMPORTED)
