@@ -3,7 +3,7 @@ use crate::llm;
 use crate::llm::{Worker, WorkerGuard};
 use llama_cpp_2::context::params::LlamaPoolingType;
 use std::sync::Arc;
-use tracing::error;
+use tracing::{error, warn};
 
 #[derive(Clone)]
 pub struct Encoder {
@@ -38,6 +38,9 @@ impl EncoderAsync {
                     return error!(error=%errmsg, "Could not set up the worker initial state")
                 }
             };
+
+            // Warmup: force lazy backend initialization before real messages.
+            warmup_encode(&mut worker_state);
 
             while let Ok(msg) = msg_rx.recv() {
                 if let Err(e) = process_worker_msg(&mut worker_state, msg) {
@@ -78,6 +81,16 @@ fn process_worker_msg(
     }
 
     Ok(())
+}
+
+fn warmup_encode(worker_state: &mut Worker<'_, EncoderWorker>) {
+    match worker_state.read_string(" ".to_string()) {
+        Ok(w) => {
+            let _ = w.get_embedding();
+        }
+        Err(e) => warn!(error=%e, "Encoder warmup failed"),
+    }
+    worker_state.reset_context();
 }
 
 struct EncoderWorker {}
