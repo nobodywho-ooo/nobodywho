@@ -66,6 +66,7 @@ python3Packages.buildPythonPackage {
   env.TEST_MODEL = models.TEST_MODEL;
   env.TEST_EMBEDDINGS_MODEL = models.TEST_EMBEDDINGS_MODEL;
   env.TEST_CROSSENCODER_MODEL = models.TEST_CROSSENCODER_MODEL;
+  env.TEST_WHISPER_MODEL = models.TEST_WHISPER_MODEL;
   # not needed since we skip vision tests
   # env.TEST_VISION_MODEL = models.TEST_VISION_MODEL;
   # env.TEST_MMPROJ_MODEL = models.TEST_MMPROJ_MODEL;
