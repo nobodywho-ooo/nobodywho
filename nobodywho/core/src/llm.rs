@@ -183,7 +183,6 @@ fn read_add_bos_metadata(model: &LlamaModel) -> Result<AddBos, InitWorkerError> 
     }
 }
 
-
 #[derive(Debug)]
 pub(crate) struct Worker<'a, S> {
     pub(crate) n_past: i32,

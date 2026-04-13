@@ -373,7 +373,13 @@ pub(crate) fn read_sampler_from_metadata(model: &LlamaModel) -> Option<SamplerCo
         seq.split(';').map(str::trim).collect()
     } else {
         vec![
-            "penalties", "top_k", "top_p", "min_p", "xtc", "temp", "dist",
+            "penalties",
+            "top_k",
+            "top_p",
+            "min_p",
+            "xtc",
+            "temp",
+            "dist",
         ]
     };
 
@@ -457,7 +463,10 @@ pub(crate) fn read_sampler_from_metadata(model: &LlamaModel) -> Option<SamplerCo
                     }
                 }
             }
-            unknown => warn!("Unknown sampler step '{}' in GGUF metadata, skipping", unknown),
+            unknown => warn!(
+                "Unknown sampler step '{}' in GGUF metadata, skipping",
+                unknown
+            ),
         }
     }
 
