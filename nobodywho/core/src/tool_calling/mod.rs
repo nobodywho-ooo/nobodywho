@@ -4,8 +4,11 @@
 //! Currently supported formats:
 //! - Qwen3: `<tool_call>{"name": "...", "arguments": {...}}</tool_call>`
 //! - FunctionGemma: `<start_function_call>call:name{param:<escape>val<escape>}<end_function_call>`
+//! - Gemma4: `<|tool_call>call:name{key:<|"|>val<|"|>}<tool_call|>`
+//! - Ministral3: `[TOOL_CALLS][{"name": "...", "arguments": {...}}]`
 
 mod functiongemma;
+mod gemma4;
 mod ministral3;
 mod qwen3;
 
@@ -17,6 +20,7 @@ use std::{sync::Arc, time::Duration};
 use tracing::debug;
 
 pub use functiongemma::FunctionGemmaHandler;
+pub use gemma4::Gemma4Handler;
 pub use ministral3::Ministral3Handler;
 pub use qwen3::Qwen3Handler;
 
@@ -261,6 +265,7 @@ pub trait ToolFormatHandler {
 pub enum ToolFormat {
     Qwen3(Qwen3Handler),
     FunctionGemma(FunctionGemmaHandler),
+    Gemma4(Gemma4Handler),
     Ministral3(Ministral3Handler),
 }
 
@@ -269,6 +274,7 @@ impl ToolFormat {
         match self {
             ToolFormat::Qwen3(h) => h,
             ToolFormat::FunctionGemma(h) => h,
+            ToolFormat::Gemma4(h) => h,
             ToolFormat::Ministral3(h) => h,
         }
     }
@@ -310,6 +316,12 @@ pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatEr
         return Ok(ToolFormat::FunctionGemma(FunctionGemmaHandler));
     }
 
+    // Check for Gemma4 markers (must be before Qwen3 since both contain "tool_call")
+    if template_str.contains("<|tool_call>") || template_str.contains("<tool_call|>") {
+        debug!("Detected Gemma4 format from template markers");
+        return Ok(ToolFormat::Gemma4(Gemma4Handler));
+    }
+
     // Check for Qwen3 markers
     if template_str.contains("<tool_call>") || template_str.contains("</tool_call>") {
         debug!("Detected Qwen3 format from template markers");
@@ -330,6 +342,11 @@ pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatEr
         if name_lower.contains("functiongemma") || name_lower.contains("function-gemma") {
             debug!("Detected FunctionGemma format from model name");
             return Ok(ToolFormat::FunctionGemma(FunctionGemmaHandler));
+        }
+
+        if name_lower.contains("gemma-4") || name_lower.contains("gemma4") {
+            debug!("Detected Gemma4 format from model name");
+            return Ok(ToolFormat::Gemma4(Gemma4Handler));
         }
 
         if name_lower.contains("qwen") {

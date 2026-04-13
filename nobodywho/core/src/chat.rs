@@ -1142,7 +1142,10 @@ impl Worker<'_, ChatWorker> {
                     debug!(format = ?format, "Detected tool calling format");
 
                     let grammar = match format.generate_grammar(&config.tools) {
-                        Ok(g) => Some(g),
+                        Ok(g) => {
+                            debug!(grammar = %g.as_str(), root = %g.root_name, "Generated tool calling grammar");
+                            Some(g)
+                        }
                         Err(e) => {
                             debug!(error = %e, "Failed to generate grammar from tools");
                             None
@@ -1450,8 +1453,16 @@ impl Worker<'_, ChatWorker> {
             let (_result, _bytes_read, _had_errors) =
                 decoder.decode_to_string(&token_bytes, &mut token_str, false);
 
-            trace!(?new_token, ?token_str);
-            let has_eog = self.ctx.model.is_eog_token(new_token);
+            // XXX: this literal '<eos>' token match is a fucked hotfix for gemma4. it seems like
+            // some gemma4 models will emit a *wrong* eos token (doesn't match the expected format)
+            // after tool calls. This doesn't trigger the is_eog_token match in llama.cpp and
+            // causes a bad infinite generation loop.
+            // it seems like vllm also has a codepath to handle this specific case:
+            // https://docs.vllm.ai/en/stable/api/vllm/model_executor/models/gemma4_utils/#vllm.model_executor.models.gemma4_utils.has_tool_response_tag
+            let gemma4_eog_hotfix = token_str == "<eos>" && new_token == LlamaToken::new(1);
+
+            let has_eog = self.ctx.model.is_eog_token(new_token) || gemma4_eog_hotfix;
+            trace!(?new_token, ?token_str, ?has_eog);
 
             if !has_eog {
                 full_response.push_str(&token_str);

@@ -20,7 +20,7 @@ def vision_model():
 @pytest.fixture
 def vision_chat(vision_model):
     return nobodywho.Chat(
-        vision_model, system_prompt="You are a helpful assistant.", allow_thinking=False
+        vision_model, system_prompt="You are a helpful assistant.", template_variables={"enable_thinking": False}
     )
 
 

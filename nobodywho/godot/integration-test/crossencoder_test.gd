@@ -33,5 +33,11 @@ func run_test():
 	print("✨ Got all ranked documents: " + str(all_ranked_docs))
 	
 	assert(all_ranked_docs.size() == documents.size(), "Should return all documents when limit is -1")
-	
-	return true 
+
+	# Test synchronous ranking (rank_sync) - used by tool functions which cannot use await
+	var sync_ranked_docs: PackedStringArray = rank_sync(query, documents, 4)
+	print("✨ Got sync ranked documents: " + str(sync_ranked_docs))
+	assert(sync_ranked_docs.size() == 4, "rank_sync should return exactly 4 documents")
+	assert("".join(sync_ranked_docs).contains("Paris is the capital of France"), "rank_sync: Paris is the capital of France should be in the top 4")
+
+	return true

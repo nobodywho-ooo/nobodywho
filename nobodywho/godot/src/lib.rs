@@ -1305,6 +1305,41 @@ impl NobodyWhoCrossEncoder {
         godot::builtin::Signal::from_object_signal(&self.base_mut(), "ranking_finished")
     }
 
+    #[func]
+    /// Synchronous version of `rank`. Blocks until the ranking is complete and returns the result directly.
+    /// This is useful for tool functions, which cannot use `await`.
+    ///
+    /// Parameters:
+    /// - query: The question or query to rank documents against
+    /// - documents: Array of document strings to rank
+    /// - limit: Maximum number of documents to return (-1 for all documents)
+    fn rank_sync(
+        &mut self,
+        query: String,
+        documents: PackedStringArray,
+        limit: i32,
+    ) -> PackedStringArray {
+        let Some(crossencoder_handle) = &self.crossencoder_handle else {
+            godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
+            self.start_worker();
+            return self.rank_sync(query, documents, limit);
+        };
+
+        let docs_vec: Vec<String> = documents
+            .to_vec()
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect();
+
+        match futures::executor::block_on(crossencoder_handle.rank(query, docs_vec.clone())) {
+            Ok(scores) => Self::_to_sorted_string_array(docs_vec, scores, limit),
+            Err(err) => {
+                godot_error!("Failed generating ranking: {err}");
+                PackedStringArray::new()
+            }
+        }
+    }
+
     /// takes a list of scores and documents and returns a sorted packedstring array
     fn _to_sorted_string_array(
         documents: Vec<String>,

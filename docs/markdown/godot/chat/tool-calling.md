@@ -164,3 +164,23 @@ A note on descriptions:
 The description helps the model pick the right tool and pass the right arguments. Be explicit. Explain when to use the tool, explain what the tool does.
 Bad: **"Door"**  
 Good: **"Use this function when the assistant is blocked or needs to close a door. This tool opens or closes the door with the given id, if -1 is given, the nearest door will be interacted with."**
+
+---
+
+## Pre-packaged tools
+
+We ship NobodyWho with two packaged-in tools, which are general enough for multiple use-cases - [monty](https://github.com/pydantic/monty) Python interpreter
+and [bashkit](https://github.com/everruns/bashkit) Bash interpreter. Both of them should serve similar purpose - to give your small LLM a better chance to answer
+questions requiring precise reasoning or some kind of computation, possibly on a big context.
+
+The usage is straightforward. Use `add_python_tool()` and `add_bash_tool()`:
+
+```gdscript
+func _ready():
+    add_python_tool()
+    add_bash_tool()
+```
+
+Lastly, keep in mind that for most use-cases it is reasonable to constrain the tools with some limits regarding memory and computation time,
+so that you don't end up executing infinite loop code. To solve this, `add_python_tool()` provides `max_duration_secs`, `max_memory_bytes` and `max_recursion_depth`
+and `add_bash_tool()` provides `max_commands`.
