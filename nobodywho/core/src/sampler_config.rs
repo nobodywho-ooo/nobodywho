@@ -1,6 +1,7 @@
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::sampling::LlamaSampler;
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 
 use crate::errors::SamplerError;
 
@@ -456,7 +457,7 @@ pub(crate) fn read_sampler_from_metadata(model: &LlamaModel) -> Option<SamplerCo
                     }
                 }
             }
-            _ => {} // Skip unknown sampler names
+            unknown => warn!("Unknown sampler step '{}' in GGUF metadata, skipping", unknown),
         }
     }
 
