@@ -9151,7 +9151,7 @@ rec {
         src = pkgs.fetchgit {
           url = "https://github.com/PyO3/pyo3";
           rev = "dd63a6ae3ec3aa1856c2a0ef906f389e50a52fdc";
-          sha256 = "08wc857ah3rhxwwdia3djpzyyy4gx4p7s9wz7llvjp680g6f9iv3";
+          sha256 = "0l3brckbbw8mcq36isqs00mbx49h6dn8y6614gn68kcmfm0rvkvv";
         };
         authors = [
           "PyO3 Project and Contributors <https://github.com/PyO3>"
@@ -9333,7 +9333,7 @@ rec {
         src = pkgs.fetchgit {
           url = "https://github.com/PyO3/pyo3";
           rev = "dd63a6ae3ec3aa1856c2a0ef906f389e50a52fdc";
-          sha256 = "08wc857ah3rhxwwdia3djpzyyy4gx4p7s9wz7llvjp680g6f9iv3";
+          sha256 = "0l3brckbbw8mcq36isqs00mbx49h6dn8y6614gn68kcmfm0rvkvv";
         };
         libName = "pyo3_build_config";
         authors = [
@@ -9371,7 +9371,7 @@ rec {
         src = pkgs.fetchgit {
           url = "https://github.com/PyO3/pyo3";
           rev = "dd63a6ae3ec3aa1856c2a0ef906f389e50a52fdc";
-          sha256 = "08wc857ah3rhxwwdia3djpzyyy4gx4p7s9wz7llvjp680g6f9iv3";
+          sha256 = "0l3brckbbw8mcq36isqs00mbx49h6dn8y6614gn68kcmfm0rvkvv";
         };
         libName = "pyo3_ffi";
         authors = [
@@ -9412,7 +9412,7 @@ rec {
         src = pkgs.fetchgit {
           url = "https://github.com/PyO3/pyo3";
           rev = "dd63a6ae3ec3aa1856c2a0ef906f389e50a52fdc";
-          sha256 = "08wc857ah3rhxwwdia3djpzyyy4gx4p7s9wz7llvjp680g6f9iv3";
+          sha256 = "0l3brckbbw8mcq36isqs00mbx49h6dn8y6614gn68kcmfm0rvkvv";
         };
         libName = "pyo3_introspection";
         authors = [
@@ -9485,7 +9485,7 @@ rec {
         src = pkgs.fetchgit {
           url = "https://github.com/PyO3/pyo3";
           rev = "dd63a6ae3ec3aa1856c2a0ef906f389e50a52fdc";
-          sha256 = "08wc857ah3rhxwwdia3djpzyyy4gx4p7s9wz7llvjp680g6f9iv3";
+          sha256 = "0l3brckbbw8mcq36isqs00mbx49h6dn8y6614gn68kcmfm0rvkvv";
         };
         procMacro = true;
         libName = "pyo3_macros";
@@ -9526,7 +9526,7 @@ rec {
         src = pkgs.fetchgit {
           url = "https://github.com/PyO3/pyo3";
           rev = "dd63a6ae3ec3aa1856c2a0ef906f389e50a52fdc";
-          sha256 = "08wc857ah3rhxwwdia3djpzyyy4gx4p7s9wz7llvjp680g6f9iv3";
+          sha256 = "0l3brckbbw8mcq36isqs00mbx49h6dn8y6614gn68kcmfm0rvkvv";
         };
         libName = "pyo3_macros_backend";
         authors = [
