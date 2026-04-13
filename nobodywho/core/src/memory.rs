@@ -46,8 +46,8 @@ fn select_best_gpu() -> Option<llama_cpp_2::LlamaBackendDevice> {
         })
 }
 
-fn read_gguf_model_info(path: &str) -> Option<GgufModelInfo> {
-    let ctx = llama_cpp_2::gguf::GgufContext::from_file(Path::new(path))?;
+fn read_gguf_model_info(path: &Path) -> Option<GgufModelInfo> {
+    let ctx = llama_cpp_2::gguf::GgufContext::from_file(path)?;
     let file_size = std::fs::metadata(path).ok()?.len();
 
     let find_u32 = |suffix: &str| {
@@ -82,8 +82,8 @@ fn estimate_kv_cache_bytes(arch: &ModelArchitecture, n_ctx: u32) -> u64 {
 /// Compute how many GPU layers to offload based on available VRAM.
 /// This function never fails: on any estimation error it falls back to current behavior.
 pub(crate) fn plan_model_loading(
-    model_path: &str,
-    mmproj_path: Option<&str>,
+    model_path: &Path,
+    mmproj_path: Option<&Path>,
     use_gpu: bool,
 ) -> LoadingPlan {
     if !use_gpu {
@@ -96,9 +96,10 @@ pub(crate) fn plan_model_loading(
     let Some(info) = read_gguf_model_info(model_path) else {
         return LoadingPlan {
             gpu_layers: u32::MAX,
-            warnings: vec![
-                format!("Could not parse GGUF metadata from {model_path}. Falling back to full GPU offload."),
-            ],
+            warnings: vec![format!(
+                "Could not parse GGUF metadata from {}. Falling back to full GPU offload.",
+                model_path.display()
+            )],
         };
     };
 
@@ -120,7 +121,11 @@ pub(crate) fn plan_model_loading(
                 available = available.saturating_sub(mmproj_size);
             }
             Err(e) => {
-                warn!("Could not read mmproj file size for {}: {}", mmproj, e);
+                warn!(
+                    "Could not read mmproj file size for {}: {}",
+                    mmproj.display(),
+                    e
+                );
             }
         }
     }

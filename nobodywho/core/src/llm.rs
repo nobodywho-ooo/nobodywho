@@ -73,21 +73,94 @@ pub fn has_gpu_backend() -> bool {
     false
 }
 
+#[derive(Clone)]
+enum ParsedModelPath {
+    HuggingFaceUrl(String, String, String), // e.g. hf://owner/repo/model.gguf -> (repo_id, filename)
+    HttpUrl(String),                        // e.g. https://example.com/lol/qwen3.gguf
+    FilesystemPath(std::path::PathBuf),     // e.g. ./qwen3.gguf
+}
+
+fn parse_model_path(
+    model_path: &str,
+) -> Result<ParsedModelPath, nom::Err<nom::error::Error<String>>> {
+    use nom::branch::alt;
+    use nom::bytes::complete::{tag, take_until};
+    use nom::combinator::{map, rest};
+    use nom::sequence::{preceded, terminated, tuple};
+    use nom::Parser;
+
+    let mut parser = alt((
+        // hf://owner/repo/filename.gguf
+        map(
+            preceded(
+                tag("hf://"),
+                tuple((
+                    terminated(take_until("/"), tag("/")),
+                    terminated(take_until("/"), tag("/")),
+                    rest,
+                )),
+            ),
+            |(owner, repo, filename): (&str, &str, &str)| {
+                ParsedModelPath::HuggingFaceUrl(owner.into(), repo.into(), filename.into())
+            },
+        ),
+        // https://... or http://...
+        map(
+            tuple((alt((tag("https://"), tag("http://"))), rest)),
+            |(scheme, path): (&str, &str)| ParsedModelPath::HttpUrl(format!("{}{}", scheme, path)),
+        ),
+        // Anything else is a filesystem path
+        map(rest, |p: &str| {
+            ParsedModelPath::FilesystemPath(std::path::PathBuf::from(p))
+        }),
+    ));
+    let result: nom::IResult<&str, ParsedModelPath> = parser.parse(model_path);
+    result
+        .map(|(_, parsed)| parsed)
+        .map_err(|e| e.map(|e| e.cloned()))
+}
+
+/// takes a fancy path (possibly with hf: or https:// in front), and resolve it to a realized path
+/// on the filesystem
+fn resolve_fancy_path_to_fs(
+    parsed_path: ParsedModelPath,
+) -> Result<std::path::PathBuf, LoadModelError> {
+    let fs_model_path = match parsed_path {
+        ParsedModelPath::HuggingFaceUrl(owner, repo, filename) => {
+            download_model_from_hf(&owner, &repo, &filename)?
+        }
+        ParsedModelPath::FilesystemPath(path) => path,
+        ParsedModelPath::HttpUrl(_url) => {
+            todo!()
+        }
+    };
+
+    if !fs_model_path.exists() {
+        let e = LoadModelError::ModelNotFound(fs_model_path.to_string_lossy().into());
+        error!(error = %e, "Model file not found");
+        return Err(e);
+    }
+
+    Ok(fs_model_path)
+}
+
 #[tracing::instrument(level = "info")]
 pub fn get_model(
     model_path: &str,
     use_gpu_if_available: bool,
     mmproj_path: Option<&str>,
 ) -> Result<Model, LoadModelError> {
-    if !std::path::Path::new(model_path).exists() {
-        let e = LoadModelError::ModelNotFound(model_path.into());
-        error!(error = %e, "Model file not found");
-        return Err(e);
-    }
+    let real_model_path = resolve_fancy_path_to_fs(parse_model_path(model_path)?)?;
+    let real_mmproj_path = mmproj_path
+        .map(parse_model_path) // parse inside option
+        .transpose()? // return early if parse fails
+        .map(resolve_fancy_path_to_fs) // download the file if needed
+        .transpose()?; // return early if download fails
 
     // TODO: `LlamaModelParams` uses all devices by default. Set it to an empty list once an upstream device API is available.
     let use_gpu = use_gpu_if_available && has_gpu_backend();
-    let loading_plan = memory::plan_model_loading(model_path, mmproj_path, use_gpu);
+    let loading_plan =
+        memory::plan_model_loading(&real_model_path, real_mmproj_path.as_deref(), use_gpu);
     let gpu_layers = loading_plan.gpu_layers;
     for warning in &loading_plan.warnings {
         warn!("{}", warning);
@@ -98,15 +171,21 @@ pub fn get_model(
     let model_params = LlamaModelParams::default().with_n_gpu_layers(gpu_layers);
 
     let model_params = pin!(model_params);
-    let load_span = info_span!("model_load", path = model_path);
+    let load_span = info_span!("model_load", path = %real_model_path.display());
     let _guard = load_span.enter();
 
-    let language_model = LlamaModel::load_from_file(&LLAMA_BACKEND, model_path, &model_params)
-        .map_err(|e| {
-            let error_msg = format!("Bad model path: {} - Llama.cpp error: {}", model_path, e);
-            error!(error = %error_msg, "Failed to load model");
-            LoadModelError::InvalidModel(error_msg)
-        })?;
+    let language_model =
+        LlamaModel::load_from_file(&LLAMA_BACKEND, &real_model_path, &model_params).map_err(
+            |e| {
+                let error_msg = format!(
+                    "Bad model path: {} - Llama.cpp error: {}",
+                    real_model_path.display(),
+                    e
+                );
+                error!(error = %error_msg, "Failed to load model");
+                LoadModelError::InvalidModel(error_msg)
+            },
+        )?;
 
     info!("Model loaded successfully");
     let projection_model = mmproj_path
@@ -170,39 +249,14 @@ pub async fn get_model_async(
 /// - Resolve path: `"owner/repo/resolve/branch/filename.gguf"`
 /// - With domain: `"huggingface.co/owner/repo/resolve/branch/filename.gguf"`
 /// - Full URL: `"https://huggingface.co/owner/repo/resolve/branch/filename.gguf"`
-pub fn get_model_path_from_download(
-    model_id: &str,
+pub fn download_model_from_hf(
+    owner: &str,
+    repo: &str,
+    filename: &str,
 ) -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
-    let invalid = || crate::errors::LoadModelError::InvalidHfModelId(model_id.to_string());
-
-    // Normalize: strip optional protocol and optional huggingface.co domain.
-    let path = model_id
-        .trim_start_matches("https://")
-        .trim_start_matches("http://")
-        .trim_start_matches("huggingface.co/");
-
-    let (repo_id, filename) = if let Some(resolve_pos) = path.find("/resolve/") {
-        // Resolve path: owner/repo/resolve/branch/filename.gguf
-        let repo_id = path[..resolve_pos].to_string();
-        let after_resolve = &path[resolve_pos + "/resolve/".len()..];
-
-        // Skip branch name to get filename (supports subdirectories in filename)
-        let filename_start = after_resolve.find('/').ok_or_else(invalid)?;
-        let filename = after_resolve[filename_start + 1..].to_string();
-
-        (repo_id, filename)
-    } else {
-        // Shorthand: owner/repo/filename.gguf
-        let parts: Vec<&str> = path.splitn(3, '/').collect();
-        if parts.len() != 3 {
-            return Err(invalid());
-        }
-        (format!("{}/{}", parts[0], parts[1]), parts[2].to_string())
-    };
-
     let api = hf_hub::api::sync::Api::new()
         .map_err(|e| crate::errors::LoadModelError::DownloadError(e.to_string()))?;
-    let repo = api.model(repo_id);
+    let repo = api.model(format!("{owner}/{repo}"));
     let path = repo
         .get(&filename)
         .map_err(|e| crate::errors::LoadModelError::DownloadError(e.to_string()))?;
