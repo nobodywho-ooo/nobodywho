@@ -142,6 +142,11 @@ Set<String> extractImports(String code) {
     }
     // Normalize package names
     importLine = normalizeImport(importLine);
+    // Normalize double quotes to single quotes to avoid duplicates
+    importLine = importLine.replaceAllMapped(
+      RegExp(r'^(import\s+)"(.+)"(.*);$'),
+      (m) => "${m.group(1)}'${m.group(2)}'${m.group(3)};",
+    );
     // Skip nobodywho imports since we add them ourselves
     if (importLine.contains('nobodywho.dart')) {
       continue;
@@ -175,13 +180,15 @@ String injectThinkingDisable(String code) {
         return match.group(0)!;
       }
       final closing = match.group(3)!;
+      // Strip trailing whitespace/commas so we don't produce double commas
+      final trimmedArgs = args.trimRight().replaceAll(RegExp(r',+$'), '');
       if (closing.startsWith('\n')) {
         // Multiline call: add param on its own line with matching indent
         final indent = closing.substring(1, closing.indexOf(')'));
-        return '${match.group(1)}$args,\n$indent  templateVariables: {"enable_thinking": false}$closing';
+        return '${match.group(1)}$trimmedArgs,\n$indent  templateVariables: {"enable_thinking": false}$closing';
       }
       // Single-line call: add param inline
-      return '${match.group(1)}$args, templateVariables: {"enable_thinking": false}$closing';
+      return '${match.group(1)}$trimmedArgs, templateVariables: {"enable_thinking": false}$closing';
     },
   );
 }
