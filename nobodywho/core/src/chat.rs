@@ -28,7 +28,8 @@ use crate::errors::{
     MultimodalError, RenderError, SayError, SelectTemplateError, SetToolsError, ShiftError,
     WrappedResponseError,
 };
-use crate::llm::{self, read_sampler_from_metadata};
+use crate::llm;
+use crate::sampler_config::read_sampler_from_metadata;
 use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
 use crate::llm::{Worker, WorkerGuard, WriteOutput};
 use crate::sampler_config::{SamplerConfig, ShiftStep};

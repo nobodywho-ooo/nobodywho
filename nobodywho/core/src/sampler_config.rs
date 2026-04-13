@@ -331,6 +331,142 @@ pub enum SampleStep {
     MirostatV2 { tau: f32, eta: f32 },
 }
 
+fn read_meta_f32(model: &LlamaModel, key: &str) -> Option<f32> {
+    model.meta_val_str(key).ok()?.trim().parse::<f32>().ok()
+}
+
+fn read_meta_i32(model: &LlamaModel, key: &str) -> Option<i32> {
+    model.meta_val_str(key).ok()?.trim().parse::<i32>().ok()
+}
+
+pub(crate) fn read_sampler_from_metadata(model: &LlamaModel) -> Option<SamplerConfig> {
+    let temp = read_meta_f32(model, "general.sampling.temp");
+    let top_k = read_meta_i32(model, "general.sampling.top_k");
+    let top_p = read_meta_f32(model, "general.sampling.top_p");
+    let min_p = read_meta_f32(model, "general.sampling.min_p");
+    let xtc_probability = read_meta_f32(model, "general.sampling.xtc_probability");
+    let xtc_threshold = read_meta_f32(model, "general.sampling.xtc_threshold");
+    let penalty_last_n = read_meta_i32(model, "general.sampling.penalty_last_n");
+    let penalty_repeat = read_meta_f32(model, "general.sampling.penalty_repeat");
+    let penalty_freq = read_meta_f32(model, "general.sampling.penalty_freq");
+    let penalty_present = read_meta_f32(model, "general.sampling.penalty_present");
+    let mirostat = read_meta_i32(model, "general.sampling.mirostat");
+    let mirostat_tau = read_meta_f32(model, "general.sampling.mirostat_tau");
+    let mirostat_eta = read_meta_f32(model, "general.sampling.mirostat_eta");
+
+    // Return None early if no sampling keys are present in this GGUF
+    if temp.is_none()
+        && top_k.is_none()
+        && top_p.is_none()
+        && min_p.is_none()
+        && xtc_probability.is_none()
+        && penalty_last_n.is_none()
+        && mirostat.is_none()
+    {
+        return None;
+    }
+
+    // Use sequence key if present to determine step order, otherwise fall back to llama.cpp default
+    let sequence_str = model.meta_val_str("general.sampling.sequence").ok();
+    let sampler_names: Vec<&str> = if let Some(ref seq) = sequence_str {
+        seq.split(';').map(str::trim).collect()
+    } else {
+        vec![
+            "penalties", "top_k", "top_p", "min_p", "xtc", "temp", "dist",
+        ]
+    };
+
+    let mut config = SamplerConfig::new();
+    let mut has_sample_step = false;
+
+    for name in &sampler_names {
+        match *name {
+            "temp" | "temperature" => {
+                if let Some(t) = temp {
+                    config = config.shift(ShiftStep::Temperature { temperature: t });
+                }
+            }
+            "top_k" => {
+                if let Some(k) = top_k {
+                    config = config.shift(ShiftStep::TopK { top_k: k });
+                }
+            }
+            "top_p" => {
+                if let Some(p) = top_p {
+                    config = config.shift(ShiftStep::TopP {
+                        top_p: p,
+                        min_keep: 1,
+                    });
+                }
+            }
+            "min_p" => {
+                if let Some(p) = min_p {
+                    config = config.shift(ShiftStep::MinP {
+                        min_p: p,
+                        min_keep: 1,
+                    });
+                }
+            }
+            "xtc" => {
+                if let (Some(prob), Some(thresh)) = (xtc_probability, xtc_threshold) {
+                    config = config.shift(ShiftStep::XTC {
+                        xtc_probability: prob,
+                        xtc_threshold: thresh,
+                        min_keep: 1,
+                    });
+                }
+            }
+            "penalties" | "repeat_penalty" => {
+                if penalty_last_n.is_some() || penalty_repeat.is_some() {
+                    config = config.shift(ShiftStep::Penalties {
+                        penalty_last_n: penalty_last_n.unwrap_or(64),
+                        penalty_repeat: penalty_repeat.unwrap_or(1.0),
+                        penalty_freq: penalty_freq.unwrap_or(0.0),
+                        penalty_present: penalty_present.unwrap_or(0.0),
+                    });
+                }
+            }
+            "dist" => {
+                config = config.sample(SampleStep::Dist);
+                has_sample_step = true;
+            }
+            "greedy" => {
+                config = config.sample(SampleStep::Greedy);
+                has_sample_step = true;
+            }
+            "mirostat" => {
+                if let Some(mode) = mirostat {
+                    match mode {
+                        1 => {
+                            config = config.sample(SampleStep::MirostatV1 {
+                                tau: mirostat_tau.unwrap_or(5.0),
+                                eta: mirostat_eta.unwrap_or(0.1),
+                                m: 100,
+                            });
+                            has_sample_step = true;
+                        }
+                        2 => {
+                            config = config.sample(SampleStep::MirostatV2 {
+                                tau: mirostat_tau.unwrap_or(5.0),
+                                eta: mirostat_eta.unwrap_or(0.1),
+                            });
+                            has_sample_step = true;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            _ => {} // Skip unknown sampler names
+        }
+    }
+
+    if !has_sample_step {
+        config = config.sample(SampleStep::Dist);
+    }
+
+    Some(config)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
