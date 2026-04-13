@@ -348,7 +348,8 @@ void main() {
     test('tool-calling.md:103', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: './model.gguf',
-        tools: [nobodywho.Tool.python(), nobodywho.Tool.bash()],
+        tools: [nobodywho.Tool.python(), nobodywho.Tool.bash()],,
+        templateVariables: {"enable_thinking": false}
       );
     });
 
