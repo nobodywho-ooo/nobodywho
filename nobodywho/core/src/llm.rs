@@ -337,42 +337,55 @@ fn download_file(
         info!("Download size: {:.1} GB", total as f64 / 1_073_741_824.0);
     }
 
-    // Write to a temp file first, then rename — avoids partial files on failure
+    // Write to a temp file first, then rename — avoids partial files on failure.
     let tmp_path = target_path.with_extension("part");
-    let mut file = std::fs::File::create(&tmp_path).map_err(|e| {
-        crate::errors::LoadModelError::DownloadError(format!(
-            "Failed to create temp file {}: {e}",
-            tmp_path.display()
-        ))
-    })?;
 
-    let body = response.into_body();
-    let mut reader = body.into_reader();
-    let mut downloaded: u64 = 0;
-    let mut last_logged_pct: u64 = 0;
-    let mut buf = vec![0u8; 256 * 1024]; // 256 KB chunks
-
-    loop {
-        let n = reader.read(&mut buf).map_err(|e| {
-            crate::errors::LoadModelError::DownloadError(format!("Read error during download: {e}"))
-        })?;
-        if n == 0 {
-            break;
-        }
-        file.write_all(&buf[..n]).map_err(|e| {
+    let download_result: Result<(), crate::errors::LoadModelError> = (|| {
+        let mut file = std::fs::File::create(&tmp_path).map_err(|e| {
             crate::errors::LoadModelError::DownloadError(format!(
-                "Write error during download: {e}"
+                "Failed to create temp file {}: {e}",
+                tmp_path.display()
             ))
         })?;
-        downloaded += n as u64;
 
-        if let Some(total) = content_length {
-            let pct = (downloaded * 100) / total;
-            if pct >= last_logged_pct + 5 {
-                info!("Download progress: {pct}% ({downloaded}/{total} bytes)");
-                last_logged_pct = pct;
+        let body = response.into_body();
+        let mut reader = body.into_reader();
+        let mut downloaded: u64 = 0;
+        let mut last_logged_pct: u64 = 0;
+        let mut buf = vec![0u8; 256 * 1024]; // 256 KB chunks
+
+        loop {
+            let n = reader.read(&mut buf).map_err(|e| {
+                crate::errors::LoadModelError::DownloadError(format!(
+                    "Read error during download: {e}"
+                ))
+            })?;
+            if n == 0 {
+                break;
+            }
+            file.write_all(&buf[..n]).map_err(|e| {
+                crate::errors::LoadModelError::DownloadError(format!(
+                    "Write error during download: {e}"
+                ))
+            })?;
+            downloaded += n as u64;
+
+            if let Some(total) = content_length {
+                let pct = (downloaded * 100) / total;
+                if pct >= last_logged_pct + 5 {
+                    info!("Download progress: {pct}% ({downloaded}/{total} bytes)");
+                    last_logged_pct = pct;
+                }
             }
         }
+        Ok(())
+    })();
+
+    if download_result.is_err() {
+        if let Err(e) = std::fs::remove_file(&tmp_path) {
+            warn!("Failed to clean up temp file {}: {e}", tmp_path.display());
+        }
+        return download_result;
     }
 
     // Rename temp file to final path
