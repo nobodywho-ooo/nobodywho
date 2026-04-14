@@ -429,6 +429,29 @@ pub enum SetToolsError {
     Render(#[from] RenderError),
 }
 
+// SpeechToText errors
+
+#[derive(Debug, thiserror::Error)]
+pub enum SpeechToTextError {
+    #[error("Failed to load whisper model: {0}")]
+    LoadModel(String),
+
+    #[error("Failed to create whisper state: {0}")]
+    CreateState(String),
+
+    #[error("Failed to decode audio file: {0}")]
+    AudioDecode(String),
+
+    #[error("Failed to resample audio: {0}")]
+    Resample(String),
+
+    #[error("Whisper transcription failed: {0}")]
+    Transcribe(String),
+
+    #[error("Worker crashed while waiting for response. Enable logging for details.")]
+    NoResponse,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum CompletionError {
     #[error("Worker thread terminated before completing the response. This usually indicates an error occurred during token generation (e.g., context shift failure, sampling error, or token decoding issue).")]

@@ -846,6 +846,72 @@ class SamplerPresets:
         """
 
 @final
+class SpeechToText:
+    """
+    `SpeechToText` transcribes audio files using a Whisper model.
+    Initialize with a path to a Whisper GGUF model and optional config.
+    Call `.transcribe()` with an audio file path to get a `TokenStream`
+    you can iterate over (one segment per iteration) or call `.completed()`
+    on to get the full transcript at once.
+    See `SpeechToTextAsync` for the async version.
+    """
+    def __new__(cls, /, model_path: "os.PathLike | str", language: "str | None" = None, translate: bool = False, initial_prompt: "str | None" = None) -> "SpeechToText":
+        """
+        Create a new SpeechToText instance.
+        
+        Args:
+            model_path: Path to the Whisper GGUF model file
+            language: BCP-47 language code (e.g. "en", "de"). None for auto-detect. Defaults to None.
+            translate: If True, translate output to English instead of transcribing. Defaults to False.
+            initial_prompt: Text to prime the decoder with domain-specific vocabulary. Defaults to None.
+        
+        Raises:
+            RuntimeError: If the model cannot be loaded
+        """
+    def transcribe(self, /, audio_path: "os.PathLike | str") -> "TokenStream":
+        """
+        Transcribe an audio file.
+        
+        Args:
+            audio_path: Path to the audio file to transcribe
+        
+        Returns:
+            A TokenStream that yields transcript segments as they are produced.
+            Call `.completed()` to wait for the full transcript.
+        """
+
+@final
+class SpeechToTextAsync:
+    """
+    `SpeechToTextAsync` is the async variant of `SpeechToText`.
+    All methods mirror `SpeechToText` but must be awaited.
+    """
+    def __new__(cls, /, model_path: "os.PathLike | str", language: "str | None" = None, translate: bool = False, initial_prompt: "str | None" = None) -> "SpeechToTextAsync":
+        """
+        Create a new SpeechToTextAsync instance.
+        
+        Args:
+            model_path: Path to the Whisper GGUF model file
+            language: BCP-47 language code (e.g. "en", "de"). None for auto-detect. Defaults to None.
+            translate: If True, translate output to English instead of transcribing. Defaults to False.
+            initial_prompt: Text to prime the decoder with domain-specific vocabulary. Defaults to None.
+        
+        Raises:
+            RuntimeError: If the model cannot be loaded
+        """
+    def transcribe(self, /, audio_path: "os.PathLike | str") -> "TokenStreamAsync":
+        """
+        Transcribe an audio file asynchronously.
+        
+        Args:
+            audio_path: Path to the audio file to transcribe
+        
+        Returns:
+            A TokenStreamAsync that yields transcript segments as they are produced.
+            Call `.completed()` to wait for the full transcript.
+        """
+
+@final
 class Text:
     """
     A `Text` prompt part, used to build multimodal `Prompt`s.

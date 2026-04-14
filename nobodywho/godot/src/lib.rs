@@ -1371,6 +1371,171 @@ impl NobodyWhoCrossEncoder {
     }
 }
 
+#[derive(GodotClass)]
+#[class(base=Node)]
+/// NobodyWhoSpeechToText transcribes audio files using a Whisper model.
+///
+/// Set `model_path` to a `.bin` or `.gguf` Whisper model, then call `transcribe()` with an audio
+/// file path. Transcription runs in the background; connect to `transcription_updated` to receive
+/// segments as they arrive, or `await transcription_finished` to get the full transcript at once.
+///
+/// Example:
+///
+/// ```
+/// extends NobodyWhoSpeechToText
+///
+/// func _ready():
+///     self.model_path = "res://models/whisper-base.en.bin"
+///     self.language = "en"
+///
+///     transcribe("res://audio/recording.wav")
+///     var transcript = await transcription_finished
+///     print("Transcript: " + transcript)
+/// ```
+struct NobodyWhoSpeechToText {
+    #[export(file = "*.bin,*.gguf")]
+    /// Path to the Whisper model file (.bin or .gguf).
+    model_path: GString,
+
+    #[export]
+    /// BCP-47 language code (e.g. "en", "de"). Leave empty for auto-detect.
+    language: GString,
+
+    #[export]
+    /// If true, translate output to English instead of transcribing in the source language.
+    translate: bool,
+
+    #[export]
+    #[var(hint = MULTILINE_TEXT)]
+    /// Optional text to prime the decoder with domain-specific vocabulary.
+    initial_prompt: GString,
+
+    stt: Option<nobodywho::speech_to_text::SpeechToTextAsync>,
+    base: Base<Node>,
+}
+
+#[godot_api]
+impl INode for NobodyWhoSpeechToText {
+    fn init(base: Base<Node>) -> Self {
+        Self {
+            model_path: GString::from(""),
+            language: GString::from(""),
+            translate: false,
+            initial_prompt: GString::from(""),
+            stt: None,
+            base,
+        }
+    }
+}
+
+#[godot_api]
+impl NobodyWhoSpeechToText {
+    #[signal]
+    /// Emitted for each transcription segment as it is produced.
+    fn transcription_updated(segment: GString);
+
+    #[signal]
+    /// Emitted when transcription is complete. Returns the full trimmed transcript.
+    fn transcription_finished(transcript: GString);
+
+    #[func]
+    /// Initializes the Whisper worker. Called automatically on first `transcribe()` if not called
+    /// explicitly. Call ahead of time to avoid the startup delay on the first transcription.
+    fn start_worker(&mut self) {
+        if let Err(msg) = self.start_worker_impl() {
+            godot_error!("Failed to start STT worker: {}", msg);
+        }
+    }
+
+    fn start_worker_impl(&mut self) -> Result<(), String> {
+        if self.stt.is_some() {
+            return Ok(());
+        }
+
+        let project_settings = ProjectSettings::singleton();
+        let model_path: String = project_settings
+            .globalize_path(&self.model_path.clone())
+            .into();
+
+        let language = {
+            let s = self.language.to_string();
+            if s.is_empty() {
+                None
+            } else {
+                Some(s)
+            }
+        };
+        let initial_prompt = {
+            let s = self.initial_prompt.to_string();
+            if s.is_empty() {
+                None
+            } else {
+                Some(s)
+            }
+        };
+
+        let config = nobodywho::speech_to_text::SpeechToTextConfig {
+            language,
+            translate: self.translate,
+            initial_prompt,
+        };
+
+        let stt = nobodywho::speech_to_text::SpeechToTextAsync::new(model_path, config)
+            .map_err(|e| e.to_string())?;
+
+        self.stt = Some(stt);
+        Ok(())
+    }
+
+    #[func]
+    /// Transcribes the audio file at `audio_path`. Accepts `res://` paths or absolute paths.
+    /// Emits `transcription_updated` for each segment and `transcription_finished` when done.
+    fn transcribe(&mut self, audio_path: String) {
+        if self.stt.is_none() {
+            if let Err(msg) = self.start_worker_impl() {
+                godot_error!("Failed auto-starting STT worker: {}", msg);
+                return;
+            }
+        }
+
+        let stt = self.stt.as_ref().unwrap();
+
+        let project_settings = ProjectSettings::singleton();
+        let resolved_path: String = project_settings
+            .globalize_path(&GString::from(audio_path.as_str()))
+            .into();
+
+        let mut stream = stt.transcribe(resolved_path);
+        let emit_node = self.to_gd();
+
+        godot::task::spawn(async move {
+            loop {
+                match stream.next_token().await {
+                    Some(segment) => emit_node
+                        .signals()
+                        .transcription_updated()
+                        .emit(&GString::from(segment.as_str())),
+                    None => break,
+                }
+            }
+            match stream.completed().await {
+                Ok(full) => emit_node
+                    .signals()
+                    .transcription_finished()
+                    .emit(&GString::from(full.as_str())),
+                Err(e) => godot_error!("Transcription failed: {}", e),
+            }
+        });
+    }
+
+    #[func]
+    /// Sets the (global) log level of NobodyWho.
+    /// Valid arguments are "TRACE", "DEBUG", "INFO", "WARN", and "ERROR".
+    fn set_log_level(level: String) {
+        set_log_level(&level);
+    }
+}
+
 /// Small utility to convert our internal Messsage type to godot dictionaries.
 fn messages_to_dictionaries(messages: &[Message]) -> Array<VarDictionary> {
     messages

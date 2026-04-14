@@ -162,7 +162,7 @@ impl<'py> ModelOrPath<'py> {
 /// Also see `TokenStreamAsync`, for an async version of this class.
 #[pyclass]
 pub struct TokenStream {
-    stream: nobodywho::chat::TokenStream,
+    stream: nobodywho::llm::TokenStream,
 }
 
 #[pymethods]
@@ -208,7 +208,7 @@ pub struct TokenStreamAsync {
     // this needs to be behind a mutex for async iterators to work
     // because __anext__ needs to return a python awaitable for *one* element
     // and our single-consumer channels can't be cloned
-    stream: std::sync::Arc<tokio::sync::Mutex<nobodywho::chat::TokenStreamAsync>>,
+    stream: std::sync::Arc<tokio::sync::Mutex<nobodywho::llm::TokenStreamAsync>>,
     // we can probably get rid of this Arc<Mutex<...>>, if we switch to mpmc channels
     // (e.g. via the async_channel crate)
 }
@@ -1320,6 +1320,168 @@ impl SamplerConfig {
 
     fn __repr__(&self) -> PyResult<String> {
         self.to_json()
+    }
+}
+
+/// `SpeechToText` transcribes audio files using a Whisper model.
+/// Initialize with a path to a Whisper GGUF model and optional config.
+/// Call `.transcribe()` with an audio file path to get a `TokenStream`
+/// you can iterate over (one segment per iteration) or call `.completed()`
+/// on to get the full transcript at once.
+/// See `SpeechToTextAsync` for the async version.
+#[pyclass]
+pub struct SpeechToText {
+    stt: Option<nobodywho::speech_to_text::SpeechToText>,
+}
+
+impl SpeechToText {
+    fn handle(&self) -> &nobodywho::speech_to_text::SpeechToText {
+        self.stt.as_ref().expect("SpeechToText used after drop")
+    }
+}
+
+impl Drop for SpeechToText {
+    fn drop(&mut self) {
+        let stt = self.stt.take();
+        Python::attach(|py| py.detach(|| drop(stt)));
+    }
+}
+
+#[pymethods]
+impl SpeechToText {
+    /// Create a new SpeechToText instance.
+    ///
+    /// Args:
+    ///     model_path: Path to the Whisper GGUF model file
+    ///     language: BCP-47 language code (e.g. "en", "de"). None for auto-detect. Defaults to None.
+    ///     translate: If True, translate output to English instead of transcribing. Defaults to False.
+    ///     initial_prompt: Text to prime the decoder with domain-specific vocabulary. Defaults to None.
+    ///
+    /// Raises:
+    ///     RuntimeError: If the model cannot be loaded
+    #[new]
+    #[pyo3(signature = (model_path: "os.PathLike | str", language: "str | None" = None, translate = false, initial_prompt: "str | None" = None) -> "SpeechToText")]
+    pub fn new(
+        model_path: std::path::PathBuf,
+        language: Option<String>,
+        translate: bool,
+        initial_prompt: Option<String>,
+    ) -> PyResult<Self> {
+        let path_str = model_path.to_str().ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "Path contains invalid UTF-8: {}",
+                model_path.display()
+            ))
+        })?;
+        let config = nobodywho::speech_to_text::SpeechToTextConfig {
+            language,
+            translate,
+            initial_prompt,
+        };
+        nobodywho::speech_to_text::SpeechToText::new(path_str.to_string(), config)
+            .map(|stt| Self { stt: Some(stt) })
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Transcribe an audio file.
+    ///
+    /// Args:
+    ///     audio_path: Path to the audio file to transcribe
+    ///
+    /// Returns:
+    ///     A TokenStream that yields transcript segments as they are produced.
+    ///     Call `.completed()` to wait for the full transcript.
+    #[pyo3(signature = (audio_path: "os.PathLike | str") -> "TokenStream")]
+    pub fn transcribe(&self, audio_path: std::path::PathBuf, py: Python) -> PyResult<TokenStream> {
+        let path_str = audio_path.to_str().ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "Path contains invalid UTF-8: {}",
+                audio_path.display()
+            ))
+        })?;
+        let stream = py.detach(|| self.handle().transcribe(path_str.to_string()));
+        Ok(TokenStream { stream })
+    }
+}
+
+/// `SpeechToTextAsync` is the async variant of `SpeechToText`.
+/// All methods mirror `SpeechToText` but must be awaited.
+#[pyclass]
+pub struct SpeechToTextAsync {
+    stt: Option<nobodywho::speech_to_text::SpeechToTextAsync>,
+}
+
+impl SpeechToTextAsync {
+    fn handle(&self) -> &nobodywho::speech_to_text::SpeechToTextAsync {
+        self.stt
+            .as_ref()
+            .expect("SpeechToTextAsync used after drop")
+    }
+}
+
+impl Drop for SpeechToTextAsync {
+    fn drop(&mut self) {
+        let stt = self.stt.take();
+        Python::attach(|py| py.detach(|| drop(stt)));
+    }
+}
+
+#[pymethods]
+impl SpeechToTextAsync {
+    /// Create a new SpeechToTextAsync instance.
+    ///
+    /// Args:
+    ///     model_path: Path to the Whisper GGUF model file
+    ///     language: BCP-47 language code (e.g. "en", "de"). None for auto-detect. Defaults to None.
+    ///     translate: If True, translate output to English instead of transcribing. Defaults to False.
+    ///     initial_prompt: Text to prime the decoder with domain-specific vocabulary. Defaults to None.
+    ///
+    /// Raises:
+    ///     RuntimeError: If the model cannot be loaded
+    #[new]
+    #[pyo3(signature = (model_path: "os.PathLike | str", language: "str | None" = None, translate = false, initial_prompt: "str | None" = None) -> "SpeechToTextAsync")]
+    pub fn new(
+        model_path: std::path::PathBuf,
+        language: Option<String>,
+        translate: bool,
+        initial_prompt: Option<String>,
+    ) -> PyResult<Self> {
+        let path_str = model_path.to_str().ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "Path contains invalid UTF-8: {}",
+                model_path.display()
+            ))
+        })?;
+        let config = nobodywho::speech_to_text::SpeechToTextConfig {
+            language,
+            translate,
+            initial_prompt,
+        };
+        nobodywho::speech_to_text::SpeechToTextAsync::new(path_str.to_string(), config)
+            .map(|stt| Self { stt: Some(stt) })
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Transcribe an audio file asynchronously.
+    ///
+    /// Args:
+    ///     audio_path: Path to the audio file to transcribe
+    ///
+    /// Returns:
+    ///     A TokenStreamAsync that yields transcript segments as they are produced.
+    ///     Call `.completed()` to wait for the full transcript.
+    #[pyo3(signature = (audio_path: "os.PathLike | str") -> "TokenStreamAsync")]
+    pub fn transcribe(&self, audio_path: std::path::PathBuf) -> PyResult<TokenStreamAsync> {
+        let path_str = audio_path.to_str().ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "Path contains invalid UTF-8: {}",
+                audio_path.display()
+            ))
+        })?;
+        let stream = self.handle().transcribe(path_str.to_string());
+        Ok(TokenStreamAsync {
+            stream: std::sync::Arc::new(tokio::sync::Mutex::new(stream)),
+        })
     }
 }
 
@@ -2454,6 +2616,10 @@ pub mod nobodywhopython {
     use super::SamplerConfig;
     #[pymodule_export]
     use super::SamplerPresets;
+    #[pymodule_export]
+    use super::SpeechToText;
+    #[pymodule_export]
+    use super::SpeechToTextAsync;
     #[pymodule_export]
     use super::Text;
     #[pymodule_export]

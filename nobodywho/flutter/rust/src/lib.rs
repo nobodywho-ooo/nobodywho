@@ -308,7 +308,7 @@ impl RustChat {
 
 #[flutter_rust_bridge::frb(opaque)]
 pub struct RustTokenStream {
-    stream: nobodywho::chat::TokenStreamAsync,
+    stream: nobodywho::llm::TokenStreamAsync,
 }
 
 impl RustTokenStream {
@@ -328,6 +328,37 @@ impl RustTokenStream {
 
     pub async fn completed(&mut self) -> Result<String, nobodywho::errors::CompletionError> {
         self.stream.completed().await
+    }
+}
+
+#[flutter_rust_bridge::frb(opaque)]
+pub struct RustSpeechToText {
+    stt: nobodywho::speech_to_text::SpeechToTextAsync,
+}
+
+impl RustSpeechToText {
+    #[flutter_rust_bridge::frb]
+    pub fn from_path(
+        model_path: &str,
+        #[frb(default = "null")] language: Option<String>,
+        #[frb(default = false)] translate: bool,
+        #[frb(default = "null")] initial_prompt: Option<String>,
+    ) -> Result<Self, String> {
+        let config = nobodywho::speech_to_text::SpeechToTextConfig {
+            language,
+            translate,
+            initial_prompt,
+        };
+        nobodywho::speech_to_text::SpeechToTextAsync::new(model_path.to_string(), config)
+            .map(|stt| Self { stt })
+            .map_err(|e| e.to_string())
+    }
+
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn transcribe(&self, audio_path: String) -> RustTokenStream {
+        RustTokenStream {
+            stream: self.stt.transcribe(audio_path),
+        }
     }
 }
 

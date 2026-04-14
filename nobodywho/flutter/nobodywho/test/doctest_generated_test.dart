@@ -7,7 +7,6 @@
 @Timeout(Duration(seconds: 600))
 library;
 
-import "dart:io";
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -62,7 +61,7 @@ void main() {
     });
 
     test('chat.md:17', () async {
-      final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
+      final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf", templateVariables: {"enable_thinking": false});
     });
 
     test('chat.md:23', () async {
@@ -71,7 +70,7 @@ void main() {
     });
 
     test('chat.md:34', () async {
-      final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
+      final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf", templateVariables: {"enable_thinking": false});
       final response = chat.ask("Is water wet?");
       await for (final token in response) {
          print(token);
@@ -87,14 +86,16 @@ void main() {
     test('chat.md:83', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
-        systemPrompt: "You are a mischievous assistant!"
+        systemPrompt: "You are a mischievous assistant!",
+        templateVariables: {"enable_thinking": false}
       );
     });
 
     test('chat.md:99', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
-        contextSize: 4096
+        contextSize: 4096,
+        templateVariables: {"enable_thinking": false}
       );
       await chat.resetContext(systemPrompt: "New system prompt", tools: []);
     });
@@ -104,7 +105,7 @@ void main() {
     });
 
     test('chat.md:142', () async {
-      final chat = await nobodywho.Chat.fromPath(modelPath: './model.gguf', useGpu : false);
+      final chat = await nobodywho.Chat.fromPath(modelPath: './model.gguf', useGpu : false, templateVariables: {"enable_thinking": false});
     });
 
     test('chat.md:157', () async {
@@ -247,14 +248,16 @@ void main() {
     test('sampling.md:15', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
-        sampler: nobodywho.SamplerPresets.temperature(temperature: 0.2)
+        sampler: nobodywho.SamplerPresets.temperature(temperature: 0.2),
+        templateVariables: {"enable_thinking": false}
       );
     });
 
     test('sampling.md:46', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: './model.gguf',
-        sampler: nobodywho.SamplerPresets.json()
+        sampler: nobodywho.SamplerPresets.json(),
+        templateVariables: {"enable_thinking": false}
       );
     });
 
@@ -277,7 +280,8 @@ void main() {
         sampler: nobodywho.SamplerBuilder()
             .temperature(temperature: 0.8)
             .topK(topK: 5)
-            .dist()
+            .dist(),
+        templateVariables: {"enable_thinking": false}
       );
       final sampler = nobodywho.SamplerBuilder()
           .temperature(temperature: 0.8)
@@ -344,6 +348,7 @@ void main() {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: './model.gguf',
         tools: [nobodywho.Tool.python(), nobodywho.Tool.bash()],
+        templateVariables: {"enable_thinking": false}
       );
     });
 

@@ -226,6 +226,23 @@ abstract class RustChat implements RustOpaqueInterface {
   void stopGeneration();
 }
 
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustSpeechToText>>
+abstract class RustSpeechToText implements RustOpaqueInterface {
+  static Future<RustSpeechToText> fromPath({
+    required String modelPath,
+    String? language = null,
+    bool translate = false,
+    String? initialPrompt = null,
+  }) => NobodyWho.instance.api.crateRustSpeechToTextFromPath(
+    modelPath: modelPath,
+    language: language,
+    translate: translate,
+    initialPrompt: initialPrompt,
+  );
+
+  RustTokenStream transcribe({required String audioPath});
+}
+
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustTokenStream>>
 abstract class RustTokenStream implements RustOpaqueInterface {
   Future<String> completed();

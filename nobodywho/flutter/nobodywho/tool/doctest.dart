@@ -142,6 +142,11 @@ Set<String> extractImports(String code) {
     }
     // Normalize package names
     importLine = normalizeImport(importLine);
+    // Normalize double quotes to single quotes to avoid duplicates
+    importLine = importLine.replaceAllMapped(
+      RegExp(r'^(import\s+)"(.+)"(.*);$'),
+      (m) => "${m.group(1)}'${m.group(2)}'${m.group(3)};",
+    );
     // Skip nobodywho imports since we add them ourselves
     if (importLine.contains('nobodywho.dart')) {
       continue;
@@ -162,6 +167,30 @@ String removeImports(String code) {
 String removeInitCalls(String code) {
   final initRegex = RegExp(r'^\s*await\s+nobodywho\.NobodyWho\.init\(\)\s*;\s*\n?', multiLine: true);
   return code.replaceAll(initRegex, '').trim();
+}
+
+/// Inject templateVariables: {"enable_thinking": false} into Chat.fromPath() calls
+/// that don't already mention enable_thinking, so tests skip thinking tokens.
+String injectThinkingDisable(String code) {
+  return code.replaceAllMapped(
+    RegExp(r'(Chat\.fromPath\()([\s\S]*?)(\n\s*\);|\);)'),
+    (match) {
+      final args = match.group(2)!;
+      if (args.contains('enable_thinking') || args.contains('allowThinking')) {
+        return match.group(0)!;
+      }
+      final closing = match.group(3)!;
+      // Strip trailing whitespace/commas so we don't produce double commas
+      final trimmedArgs = args.trimRight().replaceAll(RegExp(r',+$'), '');
+      if (closing.startsWith('\n')) {
+        // Multiline call: add param on its own line with matching indent
+        final indent = closing.substring(1, closing.indexOf(')'));
+        return '${match.group(1)}$trimmedArgs,\n$indent  templateVariables: {"enable_thinking": false}$closing';
+      }
+      // Single-line call: add param inline
+      return '${match.group(1)}$trimmedArgs, templateVariables: {"enable_thinking": false}$closing';
+    },
+  );
 }
 
 /// Check if code block should be skipped
@@ -357,7 +386,7 @@ String generateTestFile(List<CodeGroup> groups, String testName) {
     testIndex++;
   }
 
-  return buffer.toString();
+  return injectThinkingDisable(buffer.toString());
 }
 
 /// Finds all markdown files in a directory
