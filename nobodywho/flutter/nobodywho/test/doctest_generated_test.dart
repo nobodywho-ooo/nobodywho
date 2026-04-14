@@ -347,27 +347,27 @@ void main() {
       );
     });
 
-    test('vision.md:25', () async {
+    test('vision.md:27', () async {
       if (Platform.environment['TEST_MULTIMODAL_MODEL'] == null || Platform.environment['TEST_MULTIMODAL_MMPROJ'] == null) return;
       final model = await nobodywho.Model.load(
         modelPath: "./vision-model.gguf",
-        imageIngestion: "./mmproj.gguf",
+        projectionModelPath: "./mmproj.gguf",
       );
       final chat = nobodywho.Chat(
         model: model,
-        systemPrompt: "You are a helpful assistant.",
+        systemPrompt: "You are a helpful assistant, that can hear and see stuff!",
       );
       final response = await chat.askWithPrompt(nobodywho.Prompt([
-        nobodywho.TextPart("Tell me what you see in the images."),
+        nobodywho.TextPart("Tell me what you see in the image and what you hear in the audio."),
         nobodywho.ImagePart("./dog.png"),
-        nobodywho.ImagePart("./penguin.png"),
+        nobodywho.AudioPart("./sound.mp3"),
       ])).completed(); // It's a dog and a penguin!
       await chat.resetHistory();
       final response2 = await chat.askWithPrompt(nobodywho.Prompt([
-        nobodywho.TextPart("Tell me what you see in the first image."),
+        nobodywho.TextPart("Tell me what you see in the image."),
         nobodywho.ImagePart("./dog.png"),
-        nobodywho.TextPart("Also tell me what you see in the second image."),
-        nobodywho.ImagePart("./penguin.png"),
+        nobodywho.TextPart("Also tell me what you hear in the audio"),
+        nobodywho.AudioPart("./sound.mp3"),
       ])).completed();
       final chat2 = nobodywho.Chat(
         model: model,
