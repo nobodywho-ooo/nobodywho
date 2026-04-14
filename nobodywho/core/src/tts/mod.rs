@@ -17,10 +17,10 @@ use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::AddBos;
 use llama_cpp_2::token::LlamaToken;
 use serde::{Deserialize, Serialize};
-use stft_rs::{BatchIstft, ReconstructionMode, Spectrum, StftConfigBuilder, WindowType};
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Instant;
+use stft_rs::{BatchIstft, ReconstructionMode, Spectrum, StftConfigBuilder, WindowType};
 use tracing::{debug, error, info};
 
 /// Output sample rate for WAV encoding.
@@ -68,7 +68,10 @@ pub enum VocoderBackend {
 
 impl TtsBackendConfig {
     pub fn new(text_model: TextModelBackend, vocoder: VocoderBackend) -> Self {
-        Self { text_model, vocoder }
+        Self {
+            text_model,
+            vocoder,
+        }
     }
 
     pub fn text_model(&self) -> &TextModelBackend {
@@ -126,7 +129,9 @@ impl TextModelBackend {
     fn max_audio_codes(&self, spoken_char_count: usize) -> Option<usize> {
         match self {
             TextModelBackend::OuteTtsV02 => None,
-            TextModelBackend::OuteTtsV03 => Some(std::cmp::max(256, spoken_char_count.saturating_mul(20))),
+            TextModelBackend::OuteTtsV03 => {
+                Some(std::cmp::max(256, spoken_char_count.saturating_mul(20)))
+            }
         }
     }
 }
@@ -293,8 +298,7 @@ impl Tts {
     }
 
     pub fn new(tts_model: Arc<llm::Model>, vocoder_model: Arc<llm::Model>, n_ctx: u32) -> Self {
-        Self::try_new(tts_model, vocoder_model, n_ctx)
-            .expect("failed to initialize TTS workers")
+        Self::try_new(tts_model, vocoder_model, n_ctx).expect("failed to initialize TTS workers")
     }
 
     pub fn try_new(
@@ -312,12 +316,7 @@ impl Tts {
         backend: TtsBackendConfig,
     ) -> Result<Self, TtsWorkerError> {
         Ok(Self {
-            async_handle: TtsAsync::try_new_with_backend(
-                tts_model,
-                vocoder_model,
-                n_ctx,
-                backend,
-            )?,
+            async_handle: TtsAsync::try_new_with_backend(tts_model, vocoder_model, n_ctx, backend)?,
         })
     }
 
@@ -346,8 +345,7 @@ impl TtsAsync {
     }
 
     pub fn new(tts_model: Arc<llm::Model>, vocoder_model: Arc<llm::Model>, n_ctx: u32) -> Self {
-        Self::try_new(tts_model, vocoder_model, n_ctx)
-            .expect("failed to initialize TTS workers")
+        Self::try_new(tts_model, vocoder_model, n_ctx).expect("failed to initialize TTS workers")
     }
 
     pub fn try_new(
@@ -382,17 +380,14 @@ impl TtsAsync {
                     return error!("Failed to initialize TTS worker");
                 }
             };
-            let mut audio_decoder = match create_audio_decoder(
-                &vocoder_model,
-                n_ctx,
-                worker_backend.vocoder.clone(),
-            ) {
-                Ok(w) => w,
-                Err(err) => {
-                    let _ = ready_tx.send(Err(err));
-                    return error!("Failed to initialize audio decoder");
-                }
-            };
+            let mut audio_decoder =
+                match create_audio_decoder(&vocoder_model, n_ctx, worker_backend.vocoder.clone()) {
+                    Ok(w) => w,
+                    Err(err) => {
+                        let _ = ready_tx.send(Err(err));
+                        return error!("Failed to initialize audio decoder");
+                    }
+                };
             if let Err(err) = initialize_tts_caches(&mut tts_worker) {
                 let _ = ready_tx.send(Err(err));
                 return error!("Failed to initialize TTS prompt caches");
@@ -425,11 +420,10 @@ impl TtsAsync {
 
     pub async fn synthesize_request(&self, request: TtsRequest) -> Result<Vec<u8>, TtsWorkerError> {
         let (result_tx, mut result_rx) = tokio::sync::mpsc::channel(1);
-        self.guard
-            .send(TtsMsg::SynthesizePrepared(
-                request.prepare_with_backend(&self.backend.text_model)?,
-                result_tx,
-            ));
+        self.guard.send(TtsMsg::SynthesizePrepared(
+            request.prepare_with_backend(&self.backend.text_model)?,
+            result_tx,
+        ));
         result_rx.recv().await.ok_or(TtsWorkerError::NoResponse)?
     }
 
@@ -438,7 +432,8 @@ impl TtsAsync {
         prompt: impl Into<String>,
     ) -> Result<Vec<u8>, TtsWorkerError> {
         let (result_tx, mut result_rx) = tokio::sync::mpsc::channel(1);
-        self.guard.send(TtsMsg::Synthesize(prompt.into(), result_tx));
+        self.guard
+            .send(TtsMsg::Synthesize(prompt.into(), result_tx));
         result_rx.recv().await.ok_or(TtsWorkerError::NoResponse)?
     }
 }
@@ -591,13 +586,11 @@ fn create_audio_decoder<'a>(
     backend: VocoderBackend,
 ) -> Result<AudioDecoder<'a>, TtsWorkerError> {
     match backend {
-        VocoderBackend::WavTokenizer75 => Worker::new_vocoder_worker(
-            vocoder_model,
-            n_ctx,
-            VocoderBackend::WavTokenizer75,
-        )
-        .map(AudioDecoder::WavTokenizer)
-        .map_err(TtsWorkerError::InitWorker),
+        VocoderBackend::WavTokenizer75 => {
+            Worker::new_vocoder_worker(vocoder_model, n_ctx, VocoderBackend::WavTokenizer75)
+                .map(AudioDecoder::WavTokenizer)
+                .map_err(TtsWorkerError::InitWorker)
+        }
     }
 }
 
@@ -802,11 +795,12 @@ fn generate_audio_codes_from_current_state(
         .stop_token()
         .map(|piece| resolve_special_token(worker, piece))
         .transpose()?;
-    let (audio_token_min, audio_token_max) = worker.extra.backend.audio_code_range().ok_or_else(|| {
-        TtsWorkerError::InvalidRequest(
-            "audio-code extraction for this TTS backend is not implemented yet".into(),
-        )
-    })?;
+    let (audio_token_min, audio_token_max) =
+        worker.extra.backend.audio_code_range().ok_or_else(|| {
+            TtsWorkerError::InvalidRequest(
+                "audio-code extraction for this TTS backend is not implemented yet".into(),
+            )
+        })?;
     let remaining_ctx = worker.ctx.n_ctx() as i32 - worker.n_past;
     if remaining_ctx <= 0 {
         return Err(TtsWorkerError::InvalidRequest(
@@ -853,7 +847,10 @@ fn generate_audio_codes_from_current_state(
                 grace_audio_codes_remaining -= 1;
                 if grace_audio_codes_remaining == 0 {
                     stop_reason = pending_terminal_reason.unwrap_or("grace_exhausted");
-                    debug!(stop_reason, "grace audio-code window exhausted, stopping generation");
+                    debug!(
+                        stop_reason,
+                        "grace audio-code window exhausted, stopping generation"
+                    );
                     break;
                 }
             }
@@ -885,7 +882,10 @@ fn generate_audio_codes_from_current_state(
             }
 
             stop_reason = pending_terminal_reason.unwrap_or(terminal_reason);
-            debug!(terminal_reason = stop_reason, "terminal token reached, stopping generation");
+            debug!(
+                terminal_reason = stop_reason,
+                "terminal token reached, stopping generation"
+            );
             break;
         }
     }
@@ -893,9 +893,7 @@ fn generate_audio_codes_from_current_state(
     let recent_tokens = recent_tokens.into_iter().collect::<Vec<_>>().join(" ");
     info!(
         n_codes = audio_codes.len(),
-        stop_reason,
-        recent_tokens,
-        "Stopped TTS token generation"
+        stop_reason, recent_tokens, "Stopped TTS token generation"
     );
 
     Ok(audio_codes)
@@ -1012,8 +1010,7 @@ fn run_vocoder(
         .unwrap_or_else(|| worker.ctx.model.n_embd() as usize);
     debug!(
         n_embd_features = worker.ctx.model.n_embd(),
-        n_embd_out,
-        "Vocoder embedding dimensions"
+        n_embd_out, "Vocoder embedding dimensions"
     );
 
     let mut frames = Vec::with_capacity(n_codes);
@@ -1082,7 +1079,11 @@ fn reconstruct_audio_with_backend(
         }
     }
 
-    let spectrum = Spectrum { num_frames: n_frames, freq_bins: n_bins, data };
+    let spectrum = Spectrum {
+        num_frames: n_frames,
+        freq_bins: n_bins,
+        data,
+    };
     let pcm = istft.process(&spectrum);
 
     Ok(pcm)
@@ -1147,8 +1148,8 @@ mod tests {
 
     #[test]
     fn test_request_builds_prompt() -> Result<(), Box<dyn std::error::Error>> {
-        let prepared = TtsRequest::new("Hello world")
-            .prepare_with_backend(&TextModelBackend::OuteTtsV02)?;
+        let prepared =
+            TtsRequest::new("Hello world").prepare_with_backend(&TextModelBackend::OuteTtsV02)?;
         let prompt = v02::prompt(&prepared)?;
         assert!(prompt.contains("<|audio_start|>"));
         assert!(prompt.contains("<|text_start|>hello<|text_sep|>world<|text_end|>"));
@@ -1157,8 +1158,8 @@ mod tests {
 
     #[test]
     fn test_outetts_v03_no_speaker_builds_prompt() -> Result<(), Box<dyn std::error::Error>> {
-        let prepared = TtsRequest::new("Hello world")
-            .prepare_with_backend(&TextModelBackend::OuteTtsV03)?;
+        let prepared =
+            TtsRequest::new("Hello world").prepare_with_backend(&TextModelBackend::OuteTtsV03)?;
         let prompt = TextModelBackend::OuteTtsV03.prompt(&prepared)?;
         assert!(prompt.contains("<|text_start|>hello<|space|>world<|text_end|>"));
         assert!(prompt.contains("<|audio_start|>"));
@@ -1187,7 +1188,8 @@ mod tests {
             .with_speaker_profile(profile)
             .prepare_with_backend(&TextModelBackend::OuteTtsV03)?;
         let prompt = TextModelBackend::OuteTtsV03.prompt(&prepared)?;
-        assert!(prompt.contains("<|text_start|>hello<|space|>world<|space|>hello<|space|>world<|text_end|>"));
+        assert!(prompt
+            .contains("<|text_start|>hello<|space|>world<|space|>hello<|space|>world<|text_end|>"));
         assert!(prompt.contains("<|audio_start|>"));
         assert!(prompt.contains("hello<|t_0.52|><|551|><|552|>"));
         assert!(prompt.contains("world<|t_0.25|><|3|>"));
@@ -1197,7 +1199,8 @@ mod tests {
 
     #[test]
     fn test_speaker_profile_json_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
-        let json = r#"{"text":"hello","words":[{"word":"hello","duration":0.52,"codes":[551,552]}]}"#;
+        let json =
+            r#"{"text":"hello","words":[{"word":"hello","duration":0.52,"codes":[551,552]}]}"#;
         let profile = TtsSpeakerProfile::from_json_str(json)?;
         assert_eq!(profile.words.len(), 1);
         assert_eq!(profile.words[0].codes, vec![551, 552]);

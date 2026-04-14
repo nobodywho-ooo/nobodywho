@@ -22,12 +22,16 @@ pub(crate) fn process_text(text: &str) -> String {
 
 pub(crate) fn cached_prompt_prefix(speaker: &TtsSpeaker) -> Option<String> {
     match speaker {
-        TtsSpeaker::Preset(TtsSpeakerPreset::DefaultEnglishMale) => Some(default_english_male_prefix()),
+        TtsSpeaker::Preset(TtsSpeakerPreset::DefaultEnglishMale) => {
+            Some(default_english_male_prefix())
+        }
         TtsSpeaker::Profile(_) => None,
     }
 }
 
-pub(crate) fn prompt(request: &crate::tts::PreparedTtsRequest) -> Result<String, crate::errors::TtsWorkerError> {
+pub(crate) fn prompt(
+    request: &crate::tts::PreparedTtsRequest,
+) -> Result<String, crate::errors::TtsWorkerError> {
     match &request.speaker {
         TtsSpeaker::Preset(TtsSpeakerPreset::DefaultEnglishMale) => {
             Ok(build_default_english_male_prompt(&request.processed_text))
@@ -85,9 +89,7 @@ lovely<|t_0.56|><|code_start|><|634|><|596|><|1766|><|1556|><|1306|><|1285|><|14
 <|audio_end|>
 "#;
 
-    format!(
-        "<|im_start|>\n<|text_start|>{reference_text}<|text_end|>\n{reference_audio}"
-    )
+    format!("<|im_start|>\n<|text_start|>{reference_text}<|text_end|>\n{reference_audio}")
 }
 
 fn build_default_english_male_prompt(processed_text: &str) -> String {
