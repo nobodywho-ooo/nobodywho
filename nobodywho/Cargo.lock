@@ -1527,6 +1527,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0a7763b98ba8a24f59e698bf9ab197e7676c640d6455d1580b4ce7dc560f0f0d"
 
 [[package]]
+name = "hound"
+version = "3.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62adaabb884c94955b19907d60019f4e145d091c75345379e70d1ee696f7854f"
+
+[[package]]
 name = "http"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2371,6 +2377,7 @@ dependencies = [
  "futures",
  "gbnf",
  "gbnf-macro",
+ "hound",
  "indexmap",
  "lazy_static",
  "llama-cpp-2",
@@ -2382,6 +2389,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "stft-rs",
  "thiserror 2.0.18",
  "tokio",
  "tokio-stream",
@@ -2572,6 +2580,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
 dependencies = [
  "autocfg",
+ "libm",
 ]
 
 [[package]]
@@ -2773,6 +2782,15 @@ checksum = "479ca8adacdd7ce8f1fb39ce9ecccbfe93a3f1344b3d0d97f20bc0196208f62b"
 dependencies = [
  "proc-macro2",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "primal-check"
+version = "0.3.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc0d895b311e3af9902528fbb8f928688abbd95872819320517cc24ca6b2bd08"
+dependencies = [
+ "num-integer",
 ]
 
 [[package]]
@@ -3246,6 +3264,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustfft"
+version = "6.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "21db5f9893e91f41798c88680037dba611ca6674703c1a18601b01a72c8adb89"
+dependencies = [
+ "num-complex",
+ "num-integer",
+ "num-traits",
+ "primal-check",
+ "strength_reduce",
+ "transpose",
+]
+
+[[package]]
 name = "rustix"
 version = "1.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3657,6 +3689,22 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
+
+[[package]]
+name = "stft-rs"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "70474acbb1d79da46d715fd6b6c9082b55710c66e5e09e6cfae8aa3f7276afc5"
+dependencies = [
+ "num-traits",
+ "rustfft",
+]
+
+[[package]]
+name = "strength_reduce"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe895eb47f22e2ddd4dabc02bce419d2e643c8e3b585c78158b349195bc24d82"
 
 [[package]]
 name = "strsim"
@@ -4073,6 +4121,16 @@ dependencies = [
  "thread_local",
  "tracing-core",
  "tracing-log",
+]
+
+[[package]]
+name = "transpose"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1ad61aed86bc3faea4300c7aee358b4c6d0c8d6ccc36524c96e4c92ccf26e77e"
+dependencies = [
+ "num-integer",
+ "strength_reduce",
 ]
 
 [[package]]

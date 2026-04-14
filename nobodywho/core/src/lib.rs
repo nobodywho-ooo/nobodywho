@@ -8,6 +8,7 @@ pub mod sampler_config;
 pub mod template;
 pub mod tokenizer;
 pub mod tool_calling;
+pub mod tts;
 
 pub fn send_llamacpp_logs_to_tracing() {
     llama_cpp_2::send_logs_to_tracing(llama_cpp_2::LogOptions::default().with_logs_enabled(true));
