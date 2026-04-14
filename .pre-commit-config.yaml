@@ -22,10 +22,4 @@ repos:
         pass_filenames: false
         types: [python]
 
-      # Ty fucks up on a lotta pytests in general, false positives and whatnot, exclude it for now
-      # - id: ty
-      #   name: ty (type check)
-      #   language: system
-      #   entry: bash -c 'cd nobodywho/python && uvx ty check'
-      #   pass_filenames: false
-      #   types: [python]
+      # Ty fucks up on a lotta pytests in general, false positives and whatnot, thats why it is excluded
