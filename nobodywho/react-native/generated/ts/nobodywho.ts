@@ -693,108 +693,76 @@ const FfiConverterTypeMessage = (() => {
 
 
 
-// Error type: NobodyWhoError
 
-// Enum: NobodyWhoError
+// Flat error type: NobodyWhoError
 export enum NobodyWhoError_Tags {
     Error = "Error"
 }
 export const NobodyWhoError = (() => {
-    
-
-    type Error__interface = {
-        tag: NobodyWhoError_Tags.Error;
-        inner: Readonly<{message: string}>
-    };
-
-    
-    class Error_ extends UniffiError implements Error__interface {
+    class Error extends UniffiError {
         /**
          * @private
-         * This field is private and should not be used, use `tag` instead.
+         * This field is private and should not be used.
          */
-        readonly [uniffiTypeNameSymbol] = "NobodyWhoError";
+        readonly [uniffiTypeNameSymbol]: string = "NobodyWhoError";
+        /**
+         * @private
+         * This field is private and should not be used.
+         */
+        readonly [variantOrdinalSymbol] = 1;
+
         readonly tag = NobodyWhoError_Tags.Error;
-        readonly inner: Readonly<{message: string}>;
-        constructor(inner: { message: string }) {
-            super("NobodyWhoError", "Error");
-            this.inner = Object.freeze(inner);
+
+        constructor(message: string) {
+            super("NobodyWhoError", "Error", message);
         }
 
-        static new(inner: { message: string }): Error_ {
-            return new Error_(inner);
+        static instanceOf(e: any): e is Error {
+            return (
+                instanceOf(e) && (e as any)[variantOrdinalSymbol] === 1
+            );
         }
-
-        static instanceOf(obj: any): obj is Error_ {
-            return obj.tag === NobodyWhoError_Tags.Error;
-        }
-        
-
-        
-        static hasInner(obj: any): obj is Error_ {
-            return Error_.instanceOf(obj);
-        }
-
-        static getInner(obj: Error_): Readonly<{message: string}> {
-            return obj.inner;
-        }
-
     }
 
-    function instanceOf(obj: any): obj is NobodyWhoError {
-        return obj[uniffiTypeNameSymbol] === "NobodyWhoError";
+    // Utility function which does not rely on instanceof.
+    function instanceOf(e: any): e is NobodyWhoError {
+        return (e as any)[uniffiTypeNameSymbol] === "NobodyWhoError";
     }
-
-    return Object.freeze({
+    return {
+        Error,
         instanceOf,
-  Error: Error_
-    });
-
+    };
 })();
 
+// Union type for NobodyWhoError error type.
 
 
 export type NobodyWhoError = InstanceType<
     typeof NobodyWhoError[keyof Omit<typeof NobodyWhoError, 'instanceOf'>]
 >;
 
-// FfiConverter for enum NobodyWhoError
 const FfiConverterTypeNobodyWhoError = (() => {
-    const ordinalConverter = FfiConverterInt32;
+    const intConverter = FfiConverterInt32;
     type TypeName = NobodyWhoError;
-    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+    class FfiConverter extends AbstractFfiConverterByteArray<TypeName> {
         read(from: RustBuffer): TypeName {
-            switch (ordinalConverter.read(from)) {
-                case 1: return new NobodyWhoError.Error({message: FfiConverterString.read(from) });
+            switch (intConverter.read(from)) {
+                case 1: return new NobodyWhoError.Error(FfiConverterString.read(from)
+                );
+            
                 default: throw new UniffiInternalError.UnexpectedEnumCase();
             }
         }
         write(value: TypeName, into: RustBuffer): void {
-            switch (value.tag) {
-                case NobodyWhoError_Tags.Error: {
-                    ordinalConverter.write(1, into);
-                    const inner = value.inner;
-                    FfiConverterString.write(inner.message, into);
-                    return;
-                }
-                default:
-                    // Throwing from here means that NobodyWhoError_Tags hasn't matched an ordinal.
-                    throw new UniffiInternalError.UnexpectedEnumCase();
-            }
+            const obj = value as any;
+            const index = obj[variantOrdinalSymbol] as number;
+            intConverter.write(index, into);
         }
         allocationSize(value: TypeName): number {
-            switch (value.tag) {
-                case NobodyWhoError_Tags.Error: {
-                    const inner = value.inner;
-                    let size = ordinalConverter.allocationSize(1);
-                    size += FfiConverterString.allocationSize(inner.message);
-                    return size;
-                }
-                default: throw new UniffiInternalError.UnexpectedEnumCase();
-            }
+            return intConverter.allocationSize(0);
         }
     }
-    return new FFIConverter();
+    return new FfiConverter();
 })();
 
 
