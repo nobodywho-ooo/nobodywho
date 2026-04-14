@@ -45,7 +45,7 @@
     "react": "*",
     "react-native": "*"
   },
-  "devDependencies": {
+  "dependencies": {
     "uniffi-bindgen-react-native": "0.30.0-1"
   }
 }
