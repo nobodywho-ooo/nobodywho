@@ -26,9 +26,7 @@ pub enum LoadModelError {
     ModelChannelError,
     #[error("Failed parsing model path: {0}")]
     FailedParsingModelPath(#[from] nom::Err<nom::error::Error<String>>),
-    #[error("Invalid HuggingFace model ID '{0}': expected format 'owner/repo/filename.gguf'")]
-    InvalidHfModelId(String),
-    #[error("Failed to download model from HuggingFace: {0}")]
+    #[error("Failed to download model: {0}")]
     DownloadError(String),
 }
 
