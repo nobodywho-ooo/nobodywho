@@ -12,6 +12,7 @@ use llama_cpp_2::model::AddBos;
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::mtmd::MtmdInputChunks;
 use llama_cpp_2::token::LlamaToken;
+use std::io::Read;
 use std::pin::pin;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -130,9 +131,7 @@ fn resolve_fancy_path_to_fs(
             download_model_from_hf(&owner, &repo, &filename)?
         }
         ParsedModelPath::FilesystemPath(path) => path,
-        ParsedModelPath::HttpUrl(_url) => {
-            todo!()
-        }
+        ParsedModelPath::HttpUrl(url) => download_model_from_url(&url)?,
     };
 
     if !fs_model_path.exists() {
@@ -240,28 +239,178 @@ pub async fn get_model_async(
     }
 }
 
+/// Get the cache directory for downloaded models.
+///
+/// On Android, the package name is read from `/proc/self/cmdline` and the user ID
+/// is derived from the UID (`uid / 100000`). This avoids needing JNI or an Android
+/// Context object, which isn't reliably available — Flutter loads native libraries
+/// via `dlopen` (not `System.loadLibrary`), so `JNI_OnLoad` is never called.
+///
+/// On other platforms, uses the `dirs` crate to find the standard cache directory.
+fn get_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
+    let base = get_platform_cache_dir()?;
+    Ok(base.join("nobodywho").join("models"))
+}
+
+#[cfg(target_os = "android")]
+fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
+    // Read the package name from /proc/self/cmdline. This file contains the process
+    // name as a null-terminated string. On Android this is the package name
+    // (e.g. "com.example.app"), possibly with a colon suffix for multi-process apps
+    // (e.g. "com.example.app:remote").
+    let cmdline = std::fs::read("/proc/self/cmdline").map_err(|e| {
+        crate::errors::LoadModelError::DownloadError(format!(
+            "Failed to read /proc/self/cmdline: {e}"
+        ))
+    })?;
+
+    let package_name = cmdline
+        .split(|&b| b == 0)
+        .next()
+        .and_then(|bytes| std::str::from_utf8(bytes).ok())
+        .map(|s| s.split(':').next().unwrap_or(s))
+        .ok_or_else(|| {
+            crate::errors::LoadModelError::DownloadError(
+                "Could not determine Android package name from /proc/self/cmdline".into(),
+            )
+        })?;
+
+    // Derive the Android user ID from the Unix UID. Android assigns UIDs as:
+    //   uid = user_id * 100000 + app_id
+    // This gives the correct path on multi-user devices (e.g. GrapheneOS work
+    // profiles), where /data/data/ is a symlink only valid for user 0.
+    let uid = unsafe { libc::getuid() };
+    let user_id = uid / 100000;
+
+    Ok(std::path::PathBuf::from(format!(
+        "/data/user/{user_id}/{package_name}/cache"
+    )))
+}
+
+#[cfg(not(target_os = "android"))]
+fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
+    dirs::cache_dir().ok_or_else(|| {
+        crate::errors::LoadModelError::DownloadError(
+            "Could not determine cache directory".into(),
+        )
+    })
+}
+
+/// Download a file from a URL to a local path, streaming to disk with progress logging.
+///
+/// Returns early if the file already exists at the target path.
+fn download_file(
+    url: &str,
+    target_path: &std::path::Path,
+) -> Result<(), crate::errors::LoadModelError> {
+    if target_path.exists() {
+        info!("Using cached file: {}", target_path.display());
+        return Ok(());
+    }
+
+    // Create parent directories
+    if let Some(parent) = target_path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| {
+            crate::errors::LoadModelError::DownloadError(format!(
+                "Failed to create cache directory {}: {e}",
+                parent.display()
+            ))
+        })?;
+    }
+
+    info!("Downloading {} -> {}", url, target_path.display());
+
+    let response = ureq::get(url).call().map_err(|e| {
+        crate::errors::LoadModelError::DownloadError(format!("HTTP request failed: {e}"))
+    })?;
+
+    let content_length = response
+        .headers()
+        .get("content-length")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse::<u64>().ok());
+
+    if let Some(total) = content_length {
+        info!("Download size: {:.1} GB", total as f64 / 1_073_741_824.0);
+    }
+
+    // Write to a temp file first, then rename — avoids partial files on failure
+    let tmp_path = target_path.with_extension("part");
+    let mut file = std::fs::File::create(&tmp_path).map_err(|e| {
+        crate::errors::LoadModelError::DownloadError(format!(
+            "Failed to create temp file {}: {e}",
+            tmp_path.display()
+        ))
+    })?;
+
+    let body = response.into_body();
+    let mut reader = body.into_reader();
+    let mut downloaded: u64 = 0;
+    let mut last_logged_pct: u64 = 0;
+    let mut buf = vec![0u8; 256 * 1024]; // 256 KB chunks
+
+    loop {
+        let n = reader.read(&mut buf).map_err(|e| {
+            crate::errors::LoadModelError::DownloadError(format!("Read error during download: {e}"))
+        })?;
+        if n == 0 {
+            break;
+        }
+        std::io::Write::write_all(&mut file, &buf[..n]).map_err(|e| {
+            crate::errors::LoadModelError::DownloadError(format!(
+                "Write error during download: {e}"
+            ))
+        })?;
+        downloaded += n as u64;
+
+        if let Some(total) = content_length {
+            let pct = (downloaded * 100) / total;
+            if pct >= last_logged_pct + 5 {
+                info!("Download progress: {pct}% ({downloaded}/{total} bytes)");
+                last_logged_pct = pct;
+            }
+        }
+    }
+
+    // Rename temp file to final path
+    std::fs::rename(&tmp_path, target_path).map_err(|e| {
+        crate::errors::LoadModelError::DownloadError(format!(
+            "Failed to rename temp file to {}: {e}",
+            target_path.display()
+        ))
+    })?;
+
+    info!("Download complete: {}", target_path.display());
+    Ok(())
+}
+
 /// Download a GGUF model from HuggingFace Hub and return the local path to it.
 ///
 /// If the model is already cached locally, the cached path is returned without downloading.
-///
-/// The `model_id` argument can be any of the following formats:
-/// - Shorthand: `"owner/repo/filename.gguf"`
-/// - Resolve path: `"owner/repo/resolve/branch/filename.gguf"`
-/// - With domain: `"huggingface.co/owner/repo/resolve/branch/filename.gguf"`
-/// - Full URL: `"https://huggingface.co/owner/repo/resolve/branch/filename.gguf"`
 pub fn download_model_from_hf(
     owner: &str,
     repo: &str,
     filename: &str,
 ) -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
-    let api = hf_hub::api::sync::Api::new()
-        .map_err(|e| crate::errors::LoadModelError::DownloadError(e.to_string()))?;
-    let repo = api.model(format!("{owner}/{repo}"));
-    let path = repo
-        .get(&filename)
-        .map_err(|e| crate::errors::LoadModelError::DownloadError(e.to_string()))?;
+    let cache_dir = get_cache_dir()?;
+    let target_path = cache_dir.join(owner).join(repo).join(filename);
+    let url = format!("https://huggingface.co/{owner}/{repo}/resolve/main/{filename}");
+    download_file(&url, &target_path)?;
+    Ok(target_path)
+}
 
-    Ok(path)
+/// Download a model from a generic HTTP(S) URL and return the local path to it.
+///
+/// The file is cached by its URL path components under the cache directory.
+fn download_model_from_url(url: &str) -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
+    let cache_dir = get_cache_dir()?;
+    // Derive a cache path from the URL: strip scheme, use the rest as path components
+    let path_part = url
+        .trim_start_matches("https://")
+        .trim_start_matches("http://");
+    let target_path = cache_dir.join("http").join(path_part);
+    download_file(url, &target_path)?;
+    Ok(target_path)
 }
 
 fn read_add_bos_metadata(model: &LlamaModel) -> Result<AddBos, InitWorkerError> {
