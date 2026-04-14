@@ -1040,7 +1040,7 @@ fn reconstruct_audio_with_backend(
     }
 
     let n_embd = frames[0].len();
-    if n_embd == 0 || n_embd % 2 != 0 {
+    if n_embd == 0 || !n_embd.is_multiple_of(2) {
         return Err(TtsWorkerError::Vocoder(format!(
             "unsupported vocoder embedding width {n_embd}"
         )));
