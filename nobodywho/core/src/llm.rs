@@ -94,7 +94,12 @@ fn parse_model_path(
         // hf://owner/repo/filename.gguf (also hf:, huggingface:, huggingface://)
         map(
             preceded(
-                alt((tag_no_case("huggingface://"), tag_no_case("huggingface:"), tag_no_case("hf://"), tag_no_case("hf:"))),
+                alt((
+                    tag_no_case("huggingface://"),
+                    tag_no_case("huggingface:"),
+                    tag_no_case("hf://"),
+                    tag_no_case("hf:"),
+                )),
                 (
                     terminated(take_until("/"), tag("/")),
                     terminated(take_until("/"), tag("/")),
@@ -290,9 +295,7 @@ fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadMod
 #[cfg(not(target_os = "android"))]
 fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
     dirs::cache_dir().ok_or_else(|| {
-        crate::errors::LoadModelError::DownloadError(
-            "Could not determine cache directory".into(),
-        )
+        crate::errors::LoadModelError::DownloadError("Could not determine cache directory".into())
     })
 }
 
