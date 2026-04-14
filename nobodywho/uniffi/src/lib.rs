@@ -29,6 +29,7 @@ fn init_logging() {}
 // UniFFI 0.30 requires a proper error type instead of bare String.
 
 #[derive(Debug, thiserror::Error, uniffi::Error)]
+#[uniffi(flat_error)]
 pub enum NobodyWhoError {
     #[error("{message}")]
     Error { message: String },

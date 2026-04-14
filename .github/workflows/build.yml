@@ -339,9 +339,12 @@ jobs:
 
       - name: "Build XCFramework from static libraries"
         run: |
+          mkdir -p device sim
+          cp libnobodywho-uniffi-aarch64-apple-ios-release.a device/libnobodywho_uniffi.a
+          cp libnobodywho-uniffi-aarch64-apple-ios-sim-release.a sim/libnobodywho_uniffi.a
           xcodebuild -create-xcframework \
-            -library libnobodywho-uniffi-aarch64-apple-ios-release.a \
-            -library libnobodywho-uniffi-aarch64-apple-ios-sim-release.a \
+            -library device/libnobodywho_uniffi.a \
+            -library sim/libnobodywho_uniffi.a \
             -output NobodywhoFramework.xcframework
 
       - name: "Zip XCFramework"
