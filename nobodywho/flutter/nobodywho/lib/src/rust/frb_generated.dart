@@ -115,7 +115,7 @@ abstract class NobodyWhoApi extends BaseApi {
   Future<Model> crateModelLoad({
     required String modelPath,
     bool useGpu = true,
-    String? projectionModelPath = null,
+    String? imageIngestion = null,
   });
 
   RustTokenStream crateRustChatAsk({
@@ -130,7 +130,7 @@ abstract class NobodyWhoApi extends BaseApi {
 
   Future<RustChat> crateRustChatFromPath({
     required String modelPath,
-    String? projectionModelPath = null,
+    String? imageIngestion = null,
     String? systemPrompt = null,
     int contextSize = 4096,
     bool? allowThinking = null,
@@ -764,7 +764,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   Future<Model> crateModelLoad({
     required String modelPath,
     bool useGpu = true,
-    String? projectionModelPath = null,
+    String? imageIngestion = null,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -772,7 +772,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(modelPath, serializer);
           sse_encode_bool(useGpu, serializer);
-          sse_encode_opt_String(projectionModelPath, serializer);
+          sse_encode_opt_String(imageIngestion, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -786,7 +786,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateModelLoadConstMeta,
-        argValues: [modelPath, useGpu, projectionModelPath],
+        argValues: [modelPath, useGpu, imageIngestion],
         apiImpl: this,
       ),
     );
@@ -794,7 +794,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 
   TaskConstMeta get kCrateModelLoadConstMeta => const TaskConstMeta(
     debugName: "Model_load",
-    argNames: ["modelPath", "useGpu", "projectionModelPath"],
+    argNames: ["modelPath", "useGpu", "imageIngestion"],
   );
 
   @override
@@ -866,7 +866,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   @override
   Future<RustChat> crateRustChatFromPath({
     required String modelPath,
-    String? projectionModelPath = null,
+    String? imageIngestion = null,
     String? systemPrompt = null,
     int contextSize = 4096,
     bool? allowThinking = null,
@@ -880,7 +880,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(modelPath, serializer);
-          sse_encode_opt_String(projectionModelPath, serializer);
+          sse_encode_opt_String(imageIngestion, serializer);
           sse_encode_opt_String(systemPrompt, serializer);
           sse_encode_u_32(contextSize, serializer);
           sse_encode_opt_box_autoadd_bool(allowThinking, serializer);
@@ -909,7 +909,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         constMeta: kCrateRustChatFromPathConstMeta,
         argValues: [
           modelPath,
-          projectionModelPath,
+          imageIngestion,
           systemPrompt,
           contextSize,
           allowThinking,
@@ -927,7 +927,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     debugName: "RustChat_from_path",
     argNames: [
       "modelPath",
-      "projectionModelPath",
+      "imageIngestion",
       "systemPrompt",
       "contextSize",
       "allowThinking",
@@ -3624,8 +3624,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         return PromptPart_Text(content: dco_decode_String(raw[1]));
       case 1:
         return PromptPart_Image(path: dco_decode_String(raw[1]));
-      case 2:
-        return PromptPart_Audio(path: dco_decode_String(raw[1]));
       default:
         throw Exception("unreachable");
     }
@@ -4621,9 +4619,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       case 1:
         var var_path = sse_decode_String(deserializer);
         return PromptPart_Image(path: var_path);
-      case 2:
-        var var_path = sse_decode_String(deserializer);
-        return PromptPart_Audio(path: var_path);
       default:
         throw UnimplementedError('');
     }
@@ -5682,9 +5677,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         sse_encode_String(content, serializer);
       case PromptPart_Image(path: final path):
         sse_encode_i_32(1, serializer);
-        sse_encode_String(path, serializer);
-      case PromptPart_Audio(path: final path):
-        sse_encode_i_32(2, serializer);
         sse_encode_String(path, serializer);
     }
   }

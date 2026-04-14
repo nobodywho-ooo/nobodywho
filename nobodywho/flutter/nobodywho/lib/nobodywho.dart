@@ -32,13 +32,7 @@ final class ImagePart extends PromptPart {
   const ImagePart(this.path);
 }
 
-/// An audio part of a prompt, identified by file path.
-final class AudioPart extends PromptPart {
-  final String path;
-  const AudioPart(this.path);
-}
-
-/// A multimodal prompt consisting of one or more [PromptPart]s (text, images, and/or audio).
+/// A multimodal prompt consisting of one or more [PromptPart]s (text and/or images).
 ///
 /// Example:
 /// ```dart
@@ -58,7 +52,6 @@ List<nobodywho.PromptPart> _convertPromptParts(List<PromptPart> parts) {
   return parts.map((p) => switch (p) {
     TextPart(:final text) => nobodywho.PromptPart.text(content: text),
     ImagePart(:final path) => nobodywho.PromptPart.image(path: path),
-    AudioPart(:final path) => nobodywho.PromptPart.audio(path: path),
   }).toList();
 }
 
@@ -556,7 +549,7 @@ class Chat {
   ///
   /// For vision/multimodal models, the model should be loaded with image ingestion enabled:
   /// ```dart
-  /// final model = Model.load("model.gguf", projectionModelPath: "mmproj.gguf");
+  /// final model = Model.load("model.gguf", imageIngestion: "mmproj.gguf");
   /// final chat = Chat(model: model);
   /// ```
   factory Chat({
@@ -582,11 +575,11 @@ class Chat {
 
   /// Create chat directly from a model path.
   ///
-  /// [projectionModelPath] is an optional path to a `.mmproj` projection model file,
+  /// [imageIngestion] is an optional path to a `.mmproj` projection model file,
   /// required for vision/multimodal models (e.g. LLaVA, Qwen-VL).
   static Future<Chat> fromPath({
     required String modelPath,
-    String? projectionModelPath,
+    String? imageIngestion,
     String? systemPrompt,
     int contextSize = 4096,
     bool? allowThinking = null,
@@ -597,7 +590,7 @@ class Chat {
   }) async {
     final chat = await nobodywho.RustChat.fromPath(
       modelPath: modelPath,
-      projectionModelPath: projectionModelPath,
+      imageIngestion: imageIngestion,
       systemPrompt: systemPrompt,
       contextSize: contextSize,
       allowThinking: allowThinking,

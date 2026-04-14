@@ -6,19 +6,6 @@ from typing import final
 T = typing.TypeVar('T', str, typing.Awaitable[str])  # Type variable for tool return types (sync str or async Awaitable[str])
 
 @final
-class Audio:
-    """
-    An `Audio` prompt part, used to build multimodal `Prompt`s.
-    
-    Example:
-        prompt = Prompt([Text("Transcribe this:"), Audio("./clip.wav")])
-    """
-    def __new__(cls, /, path: "os.PathLike | str") -> "Audio": ...
-    def __repr__(self, /) -> str: ...
-    @property
-    def path(self, /) -> str: ...
-
-@final
 class Chat:
     """
     `Chat` is a general-purpose class for interacting with instruction-tuned conversational LLMs.
@@ -576,14 +563,14 @@ class Model:
     Sharing is efficient because the underlying model data is reference-counted.
     There is no `ModelAsync` variant. A regular `Model` can be used with both `Chat` and `ChatAsync`.
     """
-    def __new__(cls, /, model_path: "os.PathLike | str", use_gpu_if_available: bool = True, projection_model_path: "os.PathLike | str | None" = None) -> "Model":
+    def __new__(cls, /, model_path: "os.PathLike | str", use_gpu_if_available: bool = True, image_model_path: "os.PathLike | str | None" = None) -> "Model":
         """
         Create a new Model from a GGUF file.
         
         Args:
             model_path: Path to the GGUF model file
             use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
-            projection_model_path: Path to a multimodal projector file for vision models. Defaults to None.
+            image_model_path: Path to a multimodal projector file for vision models. Defaults to None.
         
         Returns:
             A Model instance
@@ -592,7 +579,7 @@ class Model:
             RuntimeError: If the model file cannot be loaded
         """
     @staticmethod
-    async def load_model_async(model_path: "os.PathLike | str", use_gpu_if_available: bool = True, projection_model_path: "os.PathLike | str | None" = None) -> "Model":
+    async def load_model_async(model_path: "os.PathLike | str", use_gpu_if_available: bool = True, image_model_path: "os.PathLike | str | None" = None) -> "Model":
         """
         Asynchronously load a model from a GGUF file.
         
@@ -603,7 +590,7 @@ class Model:
         Args:
             model_path: Path to the GGUF model file
             use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
-            projection_model_path: Path to a multimodal projector file for vision models. Defaults to None.
+            image_model_path: Path to a multimodal projector file for vision models. Defaults to None.
         
         Returns:
             A Model instance wrapped in an awaitable (async function returns a coroutine)
@@ -616,12 +603,12 @@ class Model:
 @final
 class Prompt:
     """
-    A multimodal prompt consisting of interleaved `Text`, `Image`, and `Audio` parts.
+    A multimodal prompt consisting of interleaved `Text` and `Image` parts.
     
     Example:
         prompt = Prompt([Text("Tell me what's in the image"), Image("./img.jpg")])
     """
-    def __new__(cls, /, parts: "list[Text | Image | Audio]" = ...) -> "Prompt": ...
+    def __new__(cls, /, parts: "list[Text | Image]" = ...) -> "Prompt": ...
 
 @final
 class SamplerBuilder:

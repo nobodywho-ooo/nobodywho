@@ -217,7 +217,7 @@ import 'package:nobodywho/nobodywho.dart' as nobodywho;
 // Recommended mmproj model: https://huggingface.co/LiquidAI/LFM2-VL-450M-GGUF/resolve/main/mmproj-LFM2-VL-450M-Q8_0.gguf
 final model = await nobodywho.Model.load(
   modelPath: "./vision-model.gguf",
-  projectionModelPath: "./mmproj.gguf",
+  imageIngestion: "./mmproj.gguf",
 );
 
 final chat = nobodywho.Chat(

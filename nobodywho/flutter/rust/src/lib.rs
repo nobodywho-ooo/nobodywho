@@ -11,12 +11,11 @@ mod parse;
 pub use nobodywho::chat::{Message, Role};
 pub use nobodywho::tool_calling::ToolCall;
 
-/// A part of a multimodal prompt. Use [`PromptPart::Text`] for text,
-/// [`PromptPart::Image`] for images, and [`PromptPart::Audio`] for audio clips.
+/// A part of a multimodal prompt. Use [`PromptPart::Text`] for text and
+/// [`PromptPart::Image`] for images.
 pub enum PromptPart {
     Text { content: String },
     Image { path: String },
-    Audio { path: String },
 }
 
 #[flutter_rust_bridge::frb(mirror(ToolCall))]
@@ -69,9 +68,9 @@ impl Model {
     pub fn load(
         model_path: &str,
         #[frb(default = true)] use_gpu: bool,
-        #[frb(default = "null")] projection_model_path: Option<String>,
+        #[frb(default = "null")] image_ingestion: Option<String>,
     ) -> Result<Self, String> {
-        let model = nobodywho::llm::get_model(model_path, use_gpu, projection_model_path.as_deref())
+        let model = nobodywho::llm::get_model(model_path, use_gpu, image_ingestion.as_deref())
             .map_err(|e| e.to_string())?;
         Ok(Self {
             model: Arc::new(model),
@@ -89,7 +88,7 @@ impl RustChat {
     ///
     /// For vision/multimodal models, load the model with image ingestion enabled first:
     /// ```dart
-    /// final model = Model.load("model.gguf", projectionModelPath: "mmproj.gguf");
+    /// final model = Model.load("model.gguf", imageIngestion: "mmproj.gguf");
     /// final chat = Chat(model: model);
     /// ```
     ///
@@ -136,7 +135,7 @@ impl RustChat {
     ///
     /// Args:
     ///     model_path: Path to GGUF model file
-    ///     projection_model_path: Path to a .mmproj file for vision/multimodal models
+    ///     image_ingestion: Path to a .mmproj file for vision/multimodal models
     ///     system_prompt: System message to guide the model's behavior
     ///     context_size: Context size (maximum conversation length in tokens)
     ///     tools: List of Tool instances the model can call
@@ -146,7 +145,7 @@ impl RustChat {
     #[allow(clippy::too_many_arguments)]
     pub fn from_path(
         model_path: &str,
-        #[frb(default = "null")] projection_model_path: Option<String>,
+        #[frb(default = "null")] image_ingestion: Option<String>,
         #[frb(default = "null")] system_prompt: Option<String>,
         #[frb(default = 4096)] context_size: u32,
         #[frb(default = "null")] allow_thinking: Option<bool>,
@@ -155,7 +154,7 @@ impl RustChat {
         #[frb(default = "null")] sampler: Option<SamplerConfig>,
         #[frb(default = true)] use_gpu: bool,
     ) -> Result<Self, String> {
-        let model = nobodywho::llm::get_model(model_path, use_gpu, projection_model_path.as_deref())
+        let model = nobodywho::llm::get_model(model_path, use_gpu, image_ingestion.as_deref())
             .map_err(|e| e.to_string())?;
         let sampler_config = sampler.map(|s| s.sampler_config).unwrap_or_default();
 
@@ -197,7 +196,6 @@ impl RustChat {
             match part {
                 PromptPart::Text { content } => prompt.push_text(content),
                 PromptPart::Image { path } => prompt.push_image(path.as_ref()),
-                PromptPart::Audio { path } => prompt.push_audio(path.as_ref()),
             }
         }
 

@@ -421,15 +421,12 @@ fn wire__crate__Model_load_impl(
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_model_path = <String>::sse_decode(&mut deserializer);
             let api_use_gpu = <bool>::sse_decode(&mut deserializer);
-            let api_projection_model_path = <Option<String>>::sse_decode(&mut deserializer);
+            let api_image_ingestion = <Option<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, String>((move || {
-                    let output_ok = crate::Model::load(
-                        &api_model_path,
-                        api_use_gpu,
-                        api_projection_model_path,
-                    )?;
+                    let output_ok =
+                        crate::Model::load(&api_model_path, api_use_gpu, api_image_ingestion)?;
                     Ok(output_ok)
                 })())
             }
@@ -557,7 +554,7 @@ fn wire__crate__RustChat_from_path_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_model_path = <String>::sse_decode(&mut deserializer);
-            let api_projection_model_path = <Option<String>>::sse_decode(&mut deserializer);
+            let api_image_ingestion = <Option<String>>::sse_decode(&mut deserializer);
             let api_system_prompt = <Option<String>>::sse_decode(&mut deserializer);
             let api_context_size = <u32>::sse_decode(&mut deserializer);
             let api_allow_thinking = <Option<bool>>::sse_decode(&mut deserializer);
@@ -571,7 +568,7 @@ fn wire__crate__RustChat_from_path_impl(
                 transform_result_sse::<_, String>((move || {
                     let output_ok = crate::RustChat::from_path(
                         &api_model_path,
-                        api_projection_model_path,
+                        api_image_ingestion,
                         api_system_prompt,
                         api_context_size,
                         api_allow_thinking,
@@ -3903,10 +3900,6 @@ impl SseDecode for crate::PromptPart {
                 let mut var_path = <String>::sse_decode(deserializer);
                 return crate::PromptPart::Image { path: var_path };
             }
-            2 => {
-                let mut var_path = <String>::sse_decode(deserializer);
-                return crate::PromptPart::Audio { path: var_path };
-            }
             _ => {
                 unimplemented!("");
             }
@@ -4418,9 +4411,6 @@ impl flutter_rust_bridge::IntoDart for crate::PromptPart {
             }
             crate::PromptPart::Image { path } => {
                 [1.into_dart(), path.into_into_dart().into_dart()].into_dart()
-            }
-            crate::PromptPart::Audio { path } => {
-                [2.into_dart(), path.into_into_dart().into_dart()].into_dart()
             }
             _ => {
                 unimplemented!("");
@@ -5069,10 +5059,6 @@ impl SseEncode for crate::PromptPart {
             }
             crate::PromptPart::Image { path } => {
                 <i32>::sse_encode(1, serializer);
-                <String>::sse_encode(path, serializer);
-            }
-            crate::PromptPart::Audio { path } => {
-                <i32>::sse_encode(2, serializer);
                 <String>::sse_encode(path, serializer);
             }
             _ => {
