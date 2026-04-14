@@ -194,7 +194,7 @@ void main() {
     });
 
     test('Tool calling with no arguments test', () async {
-      final response = await chat!
+      await chat!
           .ask(
             "Please make a call to the noArgs function and show me the exact output!",
           )
@@ -206,7 +206,7 @@ void main() {
     });
 
     test('Tool calling for doubles', () async {
-      final response = await chat!
+      await chat!
           .ask("Please use the provided tool to add the numbers 13 and 17")
           .completed();
       final history = await chat!.getChatHistory();
@@ -216,7 +216,7 @@ void main() {
     });
 
     test('Tool calling with 2 layer nested list arguments', () async {
-      final response = await chat!
+      await chat!
           .ask(
             "Please use the provided tool to add the vectors [[1,2,3],[4,5,6],[7,8,9]].",
           )
@@ -228,7 +228,7 @@ void main() {
     });
 
     test('Tool calling with 3 layer nested list arguments', () async {
-      final response = await chat!
+      await chat!
           .ask(
             "Please use the provided tool multiply the three 2x2 matrices [[1, 2],[3, 5]], [[1, 3],[13, 4]] and [[-5, 2],[23, 3]].",
           )
@@ -240,7 +240,7 @@ void main() {
     });
 
     test('Tool calling for maps', () async {
-      final response = await chat!
+      await chat!
           .ask(
             "Please use the provided tool to multiply the strings Hello and BingBong by 2 and 3 respectively.",
           )
@@ -252,7 +252,7 @@ void main() {
     });
 
     test('Tool calling for sets', () async {
-      final response = await chat!
+      await chat!
           .ask(
             "Please use the provided tool to find the intersection between the sets {12,4,6,7,8} and {12,5,7,3,4}.",
           )
@@ -479,7 +479,7 @@ void main() {
       // Basic checks
       expect(embeddings, isA<List<double>>());
       expect(embeddings.length, greaterThan(0));
-      expect(embeddings.every((x) => x is double), isTrue);
+      expect(embeddings, isNotEmpty);
 
       // Verify self-similarity is close to 1.0 (embeddings make sense)
       final selfSim = nobodywho.cosineSimilarity(a: embeddings, b: embeddings);
@@ -511,7 +511,7 @@ void main() {
         // Basic checks
         expect(scores, isA<List<double>>());
         expect(scores.length, equals(documents.length));
-        expect(scores.every((x) => x is double), isTrue);
+        expect(scores, isNotEmpty);
 
         // Verify most relevant document has highest score
         expect(scores[0], greaterThan(scores[1]));

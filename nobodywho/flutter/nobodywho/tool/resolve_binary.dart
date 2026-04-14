@@ -7,7 +7,6 @@
 // 4. Download from GitHub releases
 
 import 'dart:io';
-import 'dart:convert';
 
 // Platform/architecture mappings to Rust triples and library names
 const platformMappings = {

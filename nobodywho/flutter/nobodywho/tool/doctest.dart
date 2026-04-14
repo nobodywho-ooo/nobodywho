@@ -12,7 +12,6 @@
 ///   TEST_EMBEDDINGS_MODEL - Path to the embedding model .gguf file
 ///   TEST_CROSSENCODER_MODEL - Path to the reranker model .gguf file
 
-import 'dart:convert';
 import 'dart:io';
 
 /// Represents a code block extracted from markdown
@@ -125,6 +124,8 @@ String normalizeImport(String importLine) {
   importLine = importLine.replaceAll('nobodywho_dart/nobodywho_dart.dart', 'nobodywho/nobodywho.dart');
   importLine = importLine.replaceAll("'package:nobodywho_dart/", "'package:nobodywho/");
   importLine = importLine.replaceAll('"package:nobodywho_dart/', '"package:nobodywho/');
+  // Normalize double quotes to single quotes to avoid duplicate imports
+  importLine = importLine.replaceAll('"', "'");
   return importLine;
 }
 
