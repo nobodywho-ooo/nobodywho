@@ -1,7 +1,7 @@
 ---
-title: Vision
-description:  Enabling models to see images
-sidebar_title: Vision
+title: Vision & Hearing
+description:  Enabling models to ingest images and audio
+sidebar_title: Vision & Hearing
 order: 3
 ---
 
@@ -9,38 +9,45 @@ A picture is worth a thousand words (or at least a thousand tokens).
 With NobodyWho, you can easily provide image information to your LLM.
 
 ## Choosing a model
-Not all models have built-in image capabilities. Generally, you will
+Not all models have built-in image and audio capabilities. Generally, you will
 need two parts for making this work:
 
-1. Vision-Language (VL) LLM, so the LLM can consume image-tokens
-2. Projection model, which converts images to image-tokens
+1. Multimodal LLM, so the LLM can consume image-tokens or/and audio-tokens
+2. Projection model, which converts images to image-tokens or/and audio to audio-tokens
 
-To find such a model, refer to the [HuggingFace Image-Text-to-Text](https://huggingface.co/models?pipeline_tag=image-text-to-text&library=gguf&sort=likes) section.
+To find such a model, refer to the [HuggingFace Image-Text-to-Text](https://huggingface.co/models?pipeline_tag=image-text-to-text&library=gguf&sort=likes) section
+and [Audio-Text-to-Text](https://huggingface.co/models?pipeline_tag=audio-text-to-text&sort=trending). Some models like Gemma 4 even manage both!
 Usually, the projection model then includes `mmproj` in its name.
 
-If you are unsure which ones to pick, or just want a reasonable default, you can try [Gemma 3 4b](https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/blob/main/gemma-3-4b-it-Q4_K_M.gguf) with its [F16 projection model](https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/blob/main/mmproj-F16.gguf).
+If you are unsure which ones to pick, or just want a reasonable default, you can try [Gemma 4](https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_K_M.gguf?download=true) with its [BF16 projection model](https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/mmproj-BF16.gguf?download=true),
+which can do both image and audio.
 
 With the downloaded GGUFs, you can simply add the projection model as:
 
 ```python
 from nobodywho import Model, Chat
 
-model = Model("./vision-model.gguf", image_model_path="./projection_model.gguf")
+model = Model("./vision-model.gguf", projection_model_path="./projection_model.gguf")
 chat = Chat(
-    model, system_prompt="You are a helpful assistant."
+    model, system_prompt="You are a helpful assistant, that can hear and see stuff!"
 )
 ```
+
+!!! info ""
+    The language model and projection model have to **fit** together, as they are trained together!
+    Unfortunately you can't just take projection model and a LLM that you like and expect them
+    to work together.
 
 ## Composing a prompt object
 With the model configured, all that is left is to compose the prompt and send it to the model.
 That is done through the `Prompt` object.
 ```{.python continuation}
-from nobodywho import Text, Image, Prompt
+from nobodywho import Audio, Image, Prompt, Text
 
 prompt = Prompt([
-    Text("Tell me what you see in the images."),
+    Text("Tell me what you see in the image and what you hear in the audio."),
     Image("./dog.png"),
-    Image("./penguin.png")
+    Audio("./sound.mp3")
 ])
 
 chat.ask(prompt).completed() # It's a dog and a penguin!
@@ -49,14 +56,14 @@ chat.ask(prompt).completed() # It's a dog and a penguin!
 ## Tips for multimodality
 As with textual prompts, the format in which you supply the multimodal prompt can matter in certain
 scenarios. If the model performs poorly, try to mess around with the order of supplying the text
-and the images, or the descriptions you supply. For example, the following prompt may perform better than the previously presented one.
+and the multimodal files, or the descriptions you supply. For example, the following prompt may perform better than the previously presented one.
 
 ```{.python continuation}
 prompt = Prompt([
-    Text("Tell me what you see in the first image."),
+    Text("Tell me what you see in the image."),
     Image("./dog.png"),
-    Text("Also tell me what you see in the second image."),
-    Image("./penguin.png")
+    Text("Also tell me what you hear in the audio"),
+    Image("./sound.mp3")
 ])
 ```
 
@@ -69,4 +76,8 @@ chat = Chat(
 ```
 Or, for example, preprocess your images with some kind of compression (sometimes even changing the image type helps).
 
-Nevertheless, with more niche models you can find bugs. If you stumble upon some of them, please be sure to [report them](https://github.com/nobodywho-ooo/nobodywho/issues), so we can fix the functionality.
+Moreover, audio ingestion seems to be also reliant a lot on the data type of the projection model file - for gemma 4,
+ingesting audio works the best on BF16, while other types reportedly struggle. We thus recommend sticking at least trying out different
+projection model files, if the one you picked does not work.
+
+As always with more niche models you can find bugs. If you stumble upon some of them, please be sure to [report them](https://github.com/nobodywho-ooo/nobodywho/issues), so we can fix the functionality.

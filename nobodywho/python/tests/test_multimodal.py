@@ -14,7 +14,7 @@ def vision_model():
     if not image_model_path:
         raise ValueError("TEST_MMPROJ_MODEL environment variable is not set")
 
-    return nobodywho.Model(model_path, image_model_path=image_model_path)
+    return nobodywho.Model(model_path, projection_model_path=image_model_path)
 
 
 @pytest.fixture
