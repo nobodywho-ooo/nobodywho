@@ -86,7 +86,7 @@ fn parse_model_path(
     use nom::branch::alt;
     use nom::bytes::complete::{tag, take_until};
     use nom::combinator::{map, rest};
-    use nom::sequence::{preceded, terminated, tuple};
+    use nom::sequence::{preceded, terminated};
     use nom::Parser;
 
     let mut parser = alt((
@@ -94,11 +94,11 @@ fn parse_model_path(
         map(
             preceded(
                 tag("hf://"),
-                tuple((
+                (
                     terminated(take_until("/"), tag("/")),
                     terminated(take_until("/"), tag("/")),
                     rest,
-                )),
+                ),
             ),
             |(owner, repo, filename): (&str, &str, &str)| {
                 ParsedModelPath::HuggingFaceUrl(owner.into(), repo.into(), filename.into())
@@ -106,7 +106,7 @@ fn parse_model_path(
         ),
         // https://... or http://...
         map(
-            tuple((alt((tag("https://"), tag("http://"))), rest)),
+            (alt((tag("https://"), tag("http://"))), rest),
             |(scheme, path): (&str, &str)| ParsedModelPath::HttpUrl(format!("{}{}", scheme, path)),
         ),
         // Anything else is a filesystem path
