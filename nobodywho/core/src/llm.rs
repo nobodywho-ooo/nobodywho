@@ -12,7 +12,7 @@ use llama_cpp_2::model::AddBos;
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::mtmd::MtmdInputChunks;
 use llama_cpp_2::token::LlamaToken;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::pin::pin;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -359,7 +359,7 @@ fn download_file(
         if n == 0 {
             break;
         }
-        std::io::Write::write_all(&mut file, &buf[..n]).map_err(|e| {
+        file.write_all(&buf[..n]).map_err(|e| {
             crate::errors::LoadModelError::DownloadError(format!(
                 "Write error during download: {e}"
             ))
