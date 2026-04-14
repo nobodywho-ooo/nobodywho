@@ -109,11 +109,11 @@ abstract class Model implements RustOpaqueInterface {
   static Future<Model> load({
     required String modelPath,
     bool useGpu = true,
-    String? imageIngestion = null,
+    String? projectionModelPath = null,
   }) => NobodyWho.instance.api.crateModelLoad(
     modelPath: modelPath,
     useGpu: useGpu,
-    imageIngestion: imageIngestion,
+    projectionModelPath: projectionModelPath,
   );
 }
 
@@ -134,7 +134,7 @@ abstract class RustChat implements RustOpaqueInterface {
   ///
   /// Args:
   ///     model_path: Path to GGUF model file
-  ///     image_ingestion: Path to a .mmproj file for vision/multimodal models
+  ///     projection_model_path: Path to a .mmproj file for vision/multimodal models
   ///     system_prompt: System message to guide the model's behavior
   ///     context_size: Context size (maximum conversation length in tokens)
   ///     tools: List of Tool instances the model can call
@@ -142,7 +142,7 @@ abstract class RustChat implements RustOpaqueInterface {
   ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
   static Future<RustChat> fromPath({
     required String modelPath,
-    String? imageIngestion = null,
+    String? projectionModelPath = null,
     String? systemPrompt = null,
     int contextSize = 4096,
     bool? allowThinking = null,
@@ -152,7 +152,7 @@ abstract class RustChat implements RustOpaqueInterface {
     bool useGpu = true,
   }) => NobodyWho.instance.api.crateRustChatFromPath(
     modelPath: modelPath,
-    imageIngestion: imageIngestion,
+    projectionModelPath: projectionModelPath,
     systemPrompt: systemPrompt,
     contextSize: contextSize,
     allowThinking: allowThinking,
@@ -174,7 +174,7 @@ abstract class RustChat implements RustOpaqueInterface {
   ///
   /// For vision/multimodal models, load the model with image ingestion enabled first:
   /// ```dart
-  /// final model = Model.load("model.gguf", imageIngestion: "mmproj.gguf");
+  /// final model = Model.load("model.gguf", projectionModelPath: "mmproj.gguf");
   /// final chat = Chat(model: model);
   /// ```
   ///
@@ -483,6 +483,7 @@ sealed class PromptPart with _$PromptPart {
 
   const factory PromptPart.text({required String content}) = PromptPart_Text;
   const factory PromptPart.image({required String path}) = PromptPart_Image;
+  const factory PromptPart.audio({required String path}) = PromptPart_Audio;
 }
 
 enum Role { user, assistant, system, tool }

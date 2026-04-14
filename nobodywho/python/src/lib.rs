@@ -28,7 +28,7 @@ impl Model {
     /// Args:
     ///     model_path: Path to the GGUF model file
     ///     use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
-    ///     image_model_path: Path to a multimodal projector file for vision models. Defaults to None.
+    ///     projection_model_path: Path to a multimodal projector file for vision models. Defaults to None.
     ///
     /// Returns:
     ///     A Model instance
@@ -36,11 +36,11 @@ impl Model {
     /// Raises:
     ///     RuntimeError: If the model file cannot be loaded
     #[new]
-    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, image_model_path: "os.PathLike | str | None" = None) -> "Model")]
+    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, projection_model_path: "os.PathLike | str | None" = None) -> "Model")]
     pub fn new(
         model_path: std::path::PathBuf,
         use_gpu_if_available: bool,
-        image_model_path: Option<std::path::PathBuf>,
+        projection_model_path: Option<std::path::PathBuf>,
     ) -> PyResult<Self> {
         let path_str = model_path.to_str().ok_or_else(|| {
             pyo3::exceptions::PyValueError::new_err(format!(
@@ -48,7 +48,7 @@ impl Model {
                 model_path.display()
             ))
         })?;
-        let mmproj_str = image_model_path
+        let mmproj_str = projection_model_path
             .as_ref()
             .map(|p| {
                 p.to_str().ok_or_else(|| {
@@ -77,7 +77,7 @@ impl Model {
     /// Args:
     ///     model_path: Path to the GGUF model file
     ///     use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
-    ///     image_model_path: Path to a multimodal projector file for vision models. Defaults to None.
+    ///     projection_model_path: Path to a multimodal projector file for vision models. Defaults to None.
     ///
     /// Returns:
     ///     A Model instance wrapped in an awaitable (async function returns a coroutine)
@@ -86,11 +86,11 @@ impl Model {
     ///     ValueError: If the path contains invalid UTF-8
     ///     RuntimeError: If the model file cannot be loaded
     #[staticmethod]
-    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, image_model_path: "os.PathLike | str | None" = None) -> "Model")]
+    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, projection_model_path: "os.PathLike | str | None" = None) -> "Model")]
     pub async fn load_model_async(
         model_path: std::path::PathBuf,
         use_gpu_if_available: bool,
-        image_model_path: Option<std::path::PathBuf>,
+        projection_model_path: Option<std::path::PathBuf>,
     ) -> PyResult<Self> {
         let path_str = model_path.to_str().ok_or_else(|| {
             pyo3::exceptions::PyValueError::new_err(format!(
@@ -98,7 +98,7 @@ impl Model {
                 model_path.display()
             ))
         })?;
-        let mmproj_str = image_model_path
+        let mmproj_str = projection_model_path
             .as_ref()
             .map(|p| {
                 p.to_str().ok_or_else(|| {
@@ -1751,7 +1751,43 @@ impl Image {
     }
 }
 
-/// A multimodal prompt consisting of interleaved `Text` and `Image` parts.
+/// An `Audio` prompt part, used to build multimodal `Prompt`s.
+///
+/// Example:
+///     prompt = Prompt([Text("Transcribe this:"), Audio("./clip.wav")])
+#[pyclass(from_py_object)]
+#[derive(Clone)]
+pub struct Audio {
+    path: String,
+}
+
+#[pymethods]
+impl Audio {
+    #[new]
+    #[pyo3(signature = (path: "os.PathLike | str") -> "Audio")]
+    pub fn new(path: std::path::PathBuf) -> PyResult<Self> {
+        let path_str = path.to_str().ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "Path contains invalid UTF-8: {}",
+                path.display()
+            ))
+        })?;
+        Ok(Self {
+            path: path_str.to_string(),
+        })
+    }
+
+    #[getter]
+    pub fn path(&self) -> String {
+        self.path.clone()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("Audio({:?})", self.path)
+    }
+}
+
+/// A multimodal prompt consisting of interleaved `Text`, `Image`, and `Audio` parts.
 ///
 /// Example:
 ///     prompt = Prompt([Text("Tell me what's in the image"), Image("./img.jpg")])
@@ -1764,7 +1800,7 @@ pub struct Prompt {
 #[pymethods]
 impl Prompt {
     #[new]
-    #[pyo3(signature = (parts: "list[Text | Image]" = Vec::<Py<PyAny>>::new()) -> "Prompt")]
+    #[pyo3(signature = (parts: "list[Text | Image | Audio]" = Vec::<Py<PyAny>>::new()) -> "Prompt")]
     pub fn new(parts: Vec<Py<PyAny>>, py: Python) -> PyResult<Self> {
         let mut prompt = nobodywho::tokenizer::Prompt::new();
 
@@ -1782,8 +1818,14 @@ impl Prompt {
                 continue;
             }
 
+            if let Ok(audio_part) = part.extract::<Bound<Audio>>() {
+                let audio_ref = audio_part.borrow();
+                prompt.push_audio(audio_ref.path.as_ref());
+                continue;
+            }
+
             return Err(pyo3::exceptions::PyTypeError::new_err(
-                "Prompt parts must be Text(...) or Image(...)",
+                "Prompt parts must be Text(...), Image(...), or Audio(...)",
             ));
         }
 
@@ -2442,6 +2484,8 @@ pub mod nobodywhopython {
     use super::Encoder;
     #[pymodule_export]
     use super::EncoderAsync;
+    #[pymodule_export]
+    use super::Audio;
     #[pymodule_export]
     use super::Image;
     #[pymodule_export]
