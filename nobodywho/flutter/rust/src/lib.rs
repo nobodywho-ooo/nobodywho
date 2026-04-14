@@ -71,8 +71,9 @@ impl Model {
         #[frb(default = true)] use_gpu: bool,
         #[frb(default = "null")] projection_model_path: Option<String>,
     ) -> Result<Self, String> {
-        let model = nobodywho::llm::get_model(model_path, use_gpu, projection_model_path.as_deref())
-            .map_err(|e| e.to_string())?;
+        let model =
+            nobodywho::llm::get_model(model_path, use_gpu, projection_model_path.as_deref())
+                .map_err(|e| e.to_string())?;
         Ok(Self {
             model: Arc::new(model),
         })
@@ -155,8 +156,9 @@ impl RustChat {
         #[frb(default = "null")] sampler: Option<SamplerConfig>,
         #[frb(default = true)] use_gpu: bool,
     ) -> Result<Self, String> {
-        let model = nobodywho::llm::get_model(model_path, use_gpu, projection_model_path.as_deref())
-            .map_err(|e| e.to_string())?;
+        let model =
+            nobodywho::llm::get_model(model_path, use_gpu, projection_model_path.as_deref())
+                .map_err(|e| e.to_string())?;
         let sampler_config = sampler.map(|s| s.sampler_config).unwrap_or_default();
 
         // Handle deprecated allow_thinking parameter

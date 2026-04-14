@@ -2473,6 +2473,8 @@ pub mod nobodywhopython {
     #[pymodule_export]
     use super::tool;
     #[pymodule_export]
+    use super::Audio;
+    #[pymodule_export]
     use super::Chat;
     #[pymodule_export]
     use super::ChatAsync;
@@ -2484,8 +2486,6 @@ pub mod nobodywhopython {
     use super::Encoder;
     #[pymodule_export]
     use super::EncoderAsync;
-    #[pymodule_export]
-    use super::Audio;
     #[pymodule_export]
     use super::Image;
     #[pymodule_export]
