@@ -25,7 +25,7 @@ lazy_static! {
         Mutex::new(GlobalInferenceLockToken);
 }
 
-static LLAMA_BACKEND: LazyLock<LlamaBackend> =
+pub(crate) static LLAMA_BACKEND: LazyLock<LlamaBackend> =
     LazyLock::new(|| LlamaBackend::init().expect("Failed to initialize llama backend"));
 
 #[derive(Debug)]
@@ -161,7 +161,7 @@ pub async fn get_model_async(
     }
 }
 
-fn read_add_bos_metadata(model: &LlamaModel) -> Result<AddBos, InitWorkerError> {
+pub(crate) fn read_add_bos_metadata(model: &LlamaModel) -> Result<AddBos, InitWorkerError> {
     match model.meta_val_str("tokenizer.ggml.add_bos_token") {
         Ok(val) => match val.as_str() {
             "true" => Ok(AddBos::Always),
