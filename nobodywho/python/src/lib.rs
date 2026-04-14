@@ -49,7 +49,7 @@ impl Model {
             ))
         })?;
 
-        let mmproj_str = image_model_path
+        let mmproj_str = projection_model_path
             .as_ref()
             .map(|p| {
                 p.to_str().ok_or_else(|| {
