@@ -11,7 +11,9 @@
 ///
 /// Output is saved to output.wav and played with `afplay` on macOS when available.
 use nobodywho::llm;
-use nobodywho::tts::{TextModelBackend, Tts, TtsBackendConfig, TtsRequest, TtsSpeakerProfile, VocoderBackend};
+use nobodywho::tts::{
+    TextModelBackend, Tts, TtsBackendConfig, TtsRequest, TtsSpeakerProfile, VocoderBackend,
+};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -54,7 +56,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         8192 * 2,
         TtsBackendConfig::new(backend.clone(), VocoderBackend::WavTokenizer75),
     );
-    println!("Initialized TTS handles in {:.2?}", tts_init_start.elapsed());
+    println!(
+        "Initialized TTS handles in {:.2?}",
+        tts_init_start.elapsed()
+    );
 
     println!("Synthesizing: {user_text:?}");
     let synth_start = Instant::now();
