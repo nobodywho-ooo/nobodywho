@@ -5,8 +5,8 @@ import pytest
 import nobodywho
 
 # The model used for all download tests.
-# This translates to: https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf
-HF_MODEL = "hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-IQ2_M.gguf"
+# This translates to: https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-IQ2_M.gguf
+HF_MODEL = "hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-IQ2_M.gguf"
 HF_REPO_ID = "NobodyWho/Qwen_Qwen3-0.6B-GGUF"
 HF_FILENAME = "Qwen_Qwen3-0.6B-IQ2_M.gguf"
 
