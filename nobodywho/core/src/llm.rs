@@ -84,16 +84,16 @@ fn parse_model_path(
     model_path: &str,
 ) -> Result<ParsedModelPath, nom::Err<nom::error::Error<String>>> {
     use nom::branch::alt;
-    use nom::bytes::complete::{tag, take_until};
+    use nom::bytes::complete::{tag, tag_no_case, take_until};
     use nom::combinator::{map, rest};
     use nom::sequence::{preceded, terminated};
     use nom::Parser;
 
     let mut parser = alt((
-        // hf://owner/repo/filename.gguf
+        // hf://owner/repo/filename.gguf (also hf:, huggingface:, huggingface://)
         map(
             preceded(
-                tag("hf://"),
+                alt((tag_no_case("huggingface://"), tag_no_case("huggingface:"), tag_no_case("hf://"), tag_no_case("hf:"))),
                 (
                     terminated(take_until("/"), tag("/")),
                     terminated(take_until("/"), tag("/")),
@@ -106,7 +106,7 @@ fn parse_model_path(
         ),
         // https://... or http://...
         map(
-            (alt((tag("https://"), tag("http://"))), rest),
+            (alt((tag_no_case("https://"), tag_no_case("http://"))), rest),
             |(scheme, path): (&str, &str)| ParsedModelPath::HttpUrl(format!("{}{}", scheme, path)),
         ),
         // Anything else is a filesystem path
