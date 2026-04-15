@@ -1,8 +1,5 @@
-import {
-  CrossEncoder as RustCrossEncoder,
-  loadModel,
-  type ModelInterface,
-} from "../generated/ts/nobodywho";
+import { CrossEncoder as RustCrossEncoder } from "../generated/ts/nobodywho";
+import { Model } from "./model";
 
 /**
  * A cross-encoder for ranking documents by relevance to a query.
@@ -23,9 +20,9 @@ export class CrossEncoder {
   /** @internal */
   private readonly _inner: RustCrossEncoder;
 
-  constructor(opts: { model: ModelInterface; contextSize?: number }) {
+  constructor(opts: { model: Model; contextSize?: number }) {
     this._inner = new RustCrossEncoder(
-      opts.model,
+      opts.model._inner,
       opts.contextSize ?? undefined,
     );
   }
@@ -39,7 +36,7 @@ export class CrossEncoder {
     useGpu?: boolean;
     contextSize?: number;
   }): Promise<CrossEncoder> {
-    const model = await loadModel(opts.modelPath, opts.useGpu ?? true, undefined);
+    const model = await Model.load({ modelPath: opts.modelPath, useGpu: opts.useGpu });
     return new CrossEncoder({ model, ...opts });
   }
 

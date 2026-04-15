@@ -100,13 +100,13 @@ export function cosineSimilarity(a: Array</*f32*/number>, b: Array</*f32*/number
  * uniffi-bindgen-react-native generates invalid JS (`async static` instead
  * of `static async`) for async constructors.
  */
-export async function loadModel(modelPath: string, useGpu: boolean, imageModelPath: string | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<ModelInterface> /*throws*/ {
+export async function loadModel(modelPath: string, useGpu: boolean, projectionModelPath: string | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<ModelInterface> /*throws*/ {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
         return await uniffiRustCallAsync(
             /*rustCaller:*/ uniffiCaller,
             /*rustFutureFunc:*/ () => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_load_model(FfiConverterString.lower(modelPath),FfiConverterBool.lower(useGpu),FfiConverterOptionalString.lower(imageModelPath)
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_load_model(FfiConverterString.lower(modelPath),FfiConverterBool.lower(useGpu),FfiConverterOptionalString.lower(projectionModelPath)
                 );
             },
             /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_u64,
@@ -2840,7 +2840,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_cosine_similarity() !== 63439) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_cosine_similarity");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model() !== 19243) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model() !== 11009) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_load_model");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_default() !== 10834) {

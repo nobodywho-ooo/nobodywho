@@ -1,10 +1,9 @@
 import {
   RustChat,
-  loadModel,
-  type ModelInterface,
-  type SamplerConfigInterface,
-  type Message,
+  SamplerConfig,
 } from "../generated/ts/nobodywho";
+import { Model } from "./model";
+import { type ChatMessage, fromInternal, toInternal } from "./message";
 import { TokenStream } from "./streaming";
 import type { Prompt } from "./prompt";
 import type { Tool } from "./tool";
@@ -17,7 +16,7 @@ import type { Tool } from "./tool";
  *
  * @example
  * ```typescript
- * const model = await loadModel("model.gguf", true);
+ * const model = await Model.load({ modelPath: "model.gguf" });
  * const chat = new Chat({
  *   model,
  *   systemPrompt: "You are a helpful assistant.",
@@ -32,15 +31,15 @@ export class Chat {
   private readonly _inner: RustChat;
 
   constructor(opts: {
-    model: ModelInterface;
+    model: Model;
     systemPrompt?: string;
     contextSize?: number;
     templateVariables?: Map<string, boolean>;
     tools?: Tool[];
-    sampler?: SamplerConfigInterface;
+    sampler?: SamplerConfig;
   }) {
     this._inner = new RustChat(
-      opts.model,
+      opts.model._inner,
       opts.systemPrompt ?? undefined,
       opts.contextSize ?? 4096,
       opts.templateVariables ?? undefined,
@@ -64,18 +63,18 @@ export class Chat {
   static async fromPath(opts: {
     modelPath: string;
     useGpu?: boolean;
-    imageModelPath?: string;
+    projectionModelPath?: string;
     systemPrompt?: string;
     contextSize?: number;
     templateVariables?: Map<string, boolean>;
     tools?: Tool[];
-    sampler?: SamplerConfigInterface;
+    sampler?: SamplerConfig;
   }): Promise<Chat> {
-    const model = await loadModel(
-      opts.modelPath,
-      opts.useGpu ?? true,
-      opts.imageModelPath,
-    );
+    const model = await Model.load({
+      modelPath: opts.modelPath,
+      useGpu: opts.useGpu,
+      projectionModelPath: opts.projectionModelPath,
+    });
     return new Chat({ model, ...opts });
   }
 
@@ -109,13 +108,14 @@ export class Chat {
   }
 
   /** Get the current chat history as a list of messages. */
-  async getChatHistory(): Promise<Message[]> {
-    return this._inner.getChatHistory();
+  async getChatHistory(): Promise<ChatMessage[]> {
+    const internal = await this._inner.getChatHistory();
+    return internal.map(fromInternal);
   }
 
   /** Set the chat history from a list of messages. */
-  async setChatHistory(messages: Message[]): Promise<void> {
-    return this._inner.setChatHistory(messages);
+  async setChatHistory(messages: ChatMessage[]): Promise<void> {
+    return this._inner.setChatHistory(messages.map(toInternal));
   }
 
   /** Get the current system prompt. */
@@ -144,7 +144,7 @@ export class Chat {
   }
 
   /** Set the sampler configuration. */
-  async setSamplerConfig(sampler: SamplerConfigInterface): Promise<void> {
+  async setSamplerConfig(sampler: SamplerConfig): Promise<void> {
     return this._inner.setSamplerConfig(sampler);
   }
 
@@ -156,9 +156,6 @@ export class Chat {
   /**
    * Immediately free the underlying Rust resources (model context, KV cache, etc.).
    * After calling this, the Chat instance is no longer usable.
-   *
-   * If not called, resources will be freed when the JS garbage collector
-   * collects this object, but that timing is unpredictable.
    */
   destroy(): void {
     this._inner.uniffiDestroy();
