@@ -1,5 +1,5 @@
-import type { SamplerConfigInterface } from "../generated/ts/nobodywho";
 import {
+  type SamplerConfig,
   samplerPresetDefault,
   samplerPresetDry,
   samplerPresetGrammar,
@@ -23,42 +23,42 @@ export class SamplerPresets {
   private constructor() {}
 
   /** Get the default sampler configuration. */
-  static default(): SamplerConfigInterface {
+  static default(): SamplerConfig {
     return samplerPresetDefault();
   }
 
   /** Create a sampler with top-k filtering only. */
-  static topK(topK: number): SamplerConfigInterface {
+  static topK(topK: number): SamplerConfig {
     return samplerPresetTopK(topK);
   }
 
   /** Create a sampler with nucleus (top-p) sampling. */
-  static topP(topP: number): SamplerConfigInterface {
+  static topP(topP: number): SamplerConfig {
     return samplerPresetTopP(topP);
   }
 
   /** Create a greedy sampler (always picks most probable token). */
-  static greedy(): SamplerConfigInterface {
+  static greedy(): SamplerConfig {
     return samplerPresetGreedy();
   }
 
   /** Create a sampler with temperature scaling. */
-  static temperature(temperature: number): SamplerConfigInterface {
+  static temperature(temperature: number): SamplerConfig {
     return samplerPresetTemperature(temperature);
   }
 
   /** Create a DRY sampler preset to reduce repetition. */
-  static dry(): SamplerConfigInterface {
+  static dry(): SamplerConfig {
     return samplerPresetDry();
   }
 
   /** Create a sampler configured for JSON output generation. */
-  static json(): SamplerConfigInterface {
+  static json(): SamplerConfig {
     return samplerPresetJson();
   }
 
   /** Create a sampler with a custom grammar constraint. */
-  static grammar(grammar: string): SamplerConfigInterface {
+  static grammar(grammar: string): SamplerConfig {
     return samplerPresetGrammar(grammar);
   }
 }

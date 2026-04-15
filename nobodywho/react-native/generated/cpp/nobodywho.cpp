@@ -249,7 +249,7 @@ void uniffi_nobodywho_uniffi_fn_init_callback_vtable_rusttoolcallback(
 float uniffi_nobodywho_uniffi_fn_func_cosine_similarity(
     RustBuffer a, RustBuffer b, RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_func_load_model(
-    RustBuffer model_path, int8_t use_gpu, RustBuffer image_model_path);
+    RustBuffer model_path, int8_t use_gpu, RustBuffer projection_model_path);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_func_sampler_preset_default(
     RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_func_sampler_preset_dry(
