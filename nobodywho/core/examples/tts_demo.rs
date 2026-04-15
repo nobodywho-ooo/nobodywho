@@ -15,8 +15,6 @@
 ///   Piper (Danish):
 ///     curl -LO https://huggingface.co/rhasspy/piper-voices/resolve/main/da/da_DK/talesyntese/medium/da_DK-talesyntese-medium.onnx
 ///     curl -LO https://huggingface.co/rhasspy/piper-voices/resolve/main/da/da_DK/talesyntese/medium/da_DK-talesyntese-medium.onnx.json
-///
-/// Output is saved to output.wav and played with `afplay` on macOS when available.
 use nobodywho::tts::{Tts, TtsRequest};
 use std::time::Instant;
 
@@ -29,12 +27,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
 
     if args.get(1).map(|s| s.as_str()) == Some("--piper") {
-        return run_piper(&args);
+        run_piper(&args)?;
+    } else {
+        run_kokoro(&args)?;
     }
 
-    run_kokoro(&args)?;
     println!("Total runtime: {:.2?}", program_start.elapsed());
-    play_output();
     Ok(())
 }
 
@@ -87,8 +85,7 @@ fn run_kokoro(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         wav_bytes.len()
     );
 
-    std::fs::write("output.wav", &wav_bytes)?;
-    println!("Saved output.wav");
+    play_wav(&wav_bytes);
     Ok(())
 }
 
@@ -119,20 +116,33 @@ fn run_piper(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         wav_bytes.len()
     );
 
-    std::fs::write("output.wav", &wav_bytes)?;
-    println!("Saved output.wav");
-
-    play_output();
+    play_wav(&wav_bytes);
     Ok(())
 }
 
-fn play_output() {
-    let status = std::process::Command::new("afplay")
-        .arg("output.wav")
-        .status();
-    match status {
-        Ok(s) if s.success() => println!("Playback done."),
-        Ok(_) => eprintln!("afplay exited with an error"),
-        Err(e) => eprintln!("Could not run afplay: {e}  (open output.wav manually)"),
+fn play_wav(wav_bytes: &[u8]) {
+    let tmp = std::env::temp_dir().join("nobodywho_tts_demo.wav");
+    if std::fs::write(&tmp, wav_bytes).is_err() {
+        eprintln!("Failed to write temp WAV file");
+        return;
     }
+
+    let tmp_str = tmp.to_string_lossy();
+    // afplay: macOS, paplay: PulseAudio (Linux), aplay: ALSA (Linux)
+    let players = ["afplay", "paplay", "aplay"];
+
+    for cmd in players {
+        let result = std::process::Command::new(cmd).arg(tmp_str.as_ref()).status();
+        match result {
+            Ok(s) if s.success() => {
+                println!("Playback done ({cmd}).");
+                let _ = std::fs::remove_file(&tmp);
+                return;
+            }
+            _ => continue,
+        }
+    }
+
+    let _ = std::fs::remove_file(&tmp);
+    eprintln!("No audio player found. Install afplay (macOS), paplay, or aplay (Linux).");
 }
