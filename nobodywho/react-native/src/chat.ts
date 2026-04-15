@@ -152,4 +152,15 @@ export class Chat {
   async getSamplerConfigJson(): Promise<string> {
     return this._inner.getSamplerConfigJson();
   }
+
+  /**
+   * Immediately free the underlying Rust resources (model context, KV cache, etc.).
+   * After calling this, the Chat instance is no longer usable.
+   *
+   * If not called, resources will be freed when the JS garbage collector
+   * collects this object, but that timing is unpredictable.
+   */
+  destroy(): void {
+    this._inner.uniffiDestroy();
+  }
 }

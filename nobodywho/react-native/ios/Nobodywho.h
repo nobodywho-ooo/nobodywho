@@ -4,7 +4,7 @@
 #endif
 
 #ifdef RCT_NEW_ARCH_ENABLED
-#import "RNNativeModuleSpec.h"
+#import "NobodywhoSpec.h"
 
 @interface Nobodywho : NSObject <NativeNobodywhoSpec>
 #else
