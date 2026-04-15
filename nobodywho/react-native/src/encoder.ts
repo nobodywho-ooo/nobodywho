@@ -1,8 +1,5 @@
-import {
-  Encoder as RustEncoder,
-  loadModel,
-  type ModelInterface,
-} from "../generated/ts/nobodywho";
+import { Encoder as RustEncoder } from "../generated/ts/nobodywho";
+import { Model } from "./model";
 
 /**
  * An embedding encoder for generating text embeddings.
@@ -22,8 +19,8 @@ export class Encoder {
   /** @internal */
   private readonly _inner: RustEncoder;
 
-  constructor(opts: { model: ModelInterface; contextSize?: number }) {
-    this._inner = new RustEncoder(opts.model, opts.contextSize ?? undefined);
+  constructor(opts: { model: Model; contextSize?: number }) {
+    this._inner = new RustEncoder(opts.model._inner, opts.contextSize ?? undefined);
   }
 
   /**
@@ -35,7 +32,7 @@ export class Encoder {
     useGpu?: boolean;
     contextSize?: number;
   }): Promise<Encoder> {
-    const model = await loadModel(opts.modelPath, opts.useGpu ?? true, undefined);
+    const model = await Model.load({ modelPath: opts.modelPath, useGpu: opts.useGpu });
     return new Encoder({ model, ...opts });
   }
 

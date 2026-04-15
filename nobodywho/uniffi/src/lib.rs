@@ -234,14 +234,14 @@ pub struct Model {
 pub async fn load_model(
     model_path: String,
     use_gpu: bool,
-    image_model_path: Option<String>,
+    projection_model_path: Option<String>,
 ) -> Result<Arc<Model>, NobodyWhoError> {
     init_logging();
     log::info!(
         "load_model called: path={}, gpu={}, mmproj={:?}",
         model_path,
         use_gpu,
-        image_model_path
+        projection_model_path
     );
 
     // Early validation: check that the model file exists before handing off to
@@ -251,15 +251,15 @@ pub async fn load_model(
         log::error!("{}", msg);
         return Err(NobodyWhoError::Error { message: msg });
     }
-    if let Some(ref mmproj) = image_model_path {
+    if let Some(ref mmproj) = projection_model_path {
         if !std::path::Path::new(mmproj).exists() {
-            let msg = format!("Image model (mmproj) file not found: {}", mmproj);
+            let msg = format!("Projection model file not found: {}", mmproj);
             log::error!("{}", msg);
             return Err(NobodyWhoError::Error { message: msg });
         }
     }
 
-    let model = nobodywho::llm::get_model_async(model_path.clone(), use_gpu, image_model_path)
+    let model = nobodywho::llm::get_model_async(model_path.clone(), use_gpu, projection_model_path)
         .await
         .map_err(|e| {
             let msg = format!("Failed to load model '{}': {}", model_path, e);
