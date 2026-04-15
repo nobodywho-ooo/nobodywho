@@ -48,6 +48,9 @@ libc = "0.2"
 dirs = "6"
 stft-rs = "0.6.0"
 hound = "3"
+kokoros = { git = "https://github.com/lucasjinreal/Kokoros", branch = "main" }
+ort = { version = "2.0.0-rc.12", default-features = true }
+espeak-rs = "0.1.9"
 
 # Enable Vulkan for x86_64, x86, and aarch64 targets (excluding Apple platforms and Android).
 # Apple platforms use Metal, which is auto-enabled by llama-cpp-rs for all Apple targets
