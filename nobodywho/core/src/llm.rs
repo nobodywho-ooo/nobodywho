@@ -192,7 +192,8 @@ pub fn get_model(
         )?;
 
     info!("Model loaded successfully");
-    let projection_model = mmproj_path
+    let projection_model = real_mmproj_path
+        .as_ref()
         .map(|path| ProjectionModel::from_path(path, &language_model, use_gpu))
         .transpose()?;
 
