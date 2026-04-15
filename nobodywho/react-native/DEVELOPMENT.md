@@ -15,16 +15,21 @@ React Native TurboModule for running LLMs locally on iOS and Android (via Vulkan
 react-native/
 ├── ubrn.config.yaml             # uniffi-bindgen-react-native config
 ├── package.json                 # npm package metadata
-├── NobodywhoReactNative.podspec # CocoaPods spec (iOS)
+├── Nobodywho.podspec            # CocoaPods spec (iOS) — customized, do not regenerate
 │
-├── src/
-│   ├── wrapper.ts               # Public entry point (hand-written, safe to edit)
+├── src/                         # Hand-written TypeScript wrappers
+│   ├── wrapper.ts               # Public entry point (re-exports public API)
+│   ├── chat.ts                  # Chat wrapper (fromPath, destroy, etc.)
+│   ├── encoder.ts               # Encoder wrapper (fromPath, destroy)
+│   ├── cross_encoder.ts         # CrossEncoder wrapper (fromPath, destroy, rankAndSort)
+│   ├── streaming.ts             # TokenStream with AsyncIterable support
+│   ├── tool.ts                  # Tool with declarative parameter API
+│   ├── prompt.ts                # Prompt with Text/Image/Audio factories
+│   ├── sampler_presets.ts       # SamplerPresets static class
 │   ├── index.tsx                # Native init + generated re-exports (generated, do not edit)
-│   ├── streaming.ts             # streamTokens() async generator (hand-written)
-│   ├── sampler_presets.ts       # SamplerPresets static class (hand-written)
-│   └── NativeNobodywhoReactNative.ts  # TurboModule spec (generated)
+│   └── NativeNobodywho.ts      # TurboModule spec (generated, do not edit)
 │
-├── generated/                   # Generated bindings (gitignored, regenerate from Rust)
+├── generated/                   # Generated bindings (committed, regenerate when Rust API changes)
 │   ├── ts/
 │   │   ├── nobodywho.ts         # TypeScript bindings
 │   │   └── nobodywho-ffi.ts     # Low-level FFI types
@@ -32,48 +37,96 @@ react-native/
 │       ├── nobodywho.cpp        # C++ JSI bridge
 │       └── nobodywho.hpp        # C++ header
 │
-├── cpp/                         # TurboModule C++ glue (generated, committed)
+├── cpp/                         # TurboModule C++ glue (generated once, rarely changes)
+│   ├── react-native-nobodywho.cpp
+│   ├── react-native-nobodywho.h
 │   ├── nobodywho-react-native.cpp
 │   └── nobodywho-react-native.h
 │
-├── ios/                         # iOS native module (generated, committed)
-│   ├── NobodywhoReactNative.h
-│   └── NobodywhoReactNative.mm
+├── ios/                         # iOS native module (generated once, rarely changes)
+│   ├── Nobodywho.h
+│   └── Nobodywho.mm
 │
-├── android/                     # Android native module (generated, committed)
-│   ├── build.gradle
-│   ├── CMakeLists.txt
-│   ├── cpp-adapter.cpp
+├── android/                     # Android native module
+│   ├── build.gradle             # Customized — downloads .a from GitHub Releases
+│   ├── CMakeLists.txt           # Customized — links static lib + uniffi headers
+│   ├── cpp-adapter.cpp          # Generated glue
 │   └── src/main/
 │       ├── AndroidManifest.xml
 │       ├── AndroidManifestNew.xml
-│       └── java/com/nobodywhoreactnative/
-│           ├── NobodywhoReactNativeModule.kt
-│           └── NobodywhoReactNativePackage.kt
+│       └── java/com/nobodywho/
+│           ├── NobodywhoModule.kt
+│           └── NobodywhoPackage.kt
 │
 └── test-app/                    # Minimal React Native app for testing
-    ├── App.tsx                  # Test screen with sanity checks
-    └── android/                 # Android project (Gradle)
+    ├── App.tsx
+    └── android/
 ```
+
+## When to regenerate what
+
+There are three layers of generated code. Each layer only needs regeneration for specific changes:
+
+### 1. Bindings (`generated/ts/`, `generated/cpp/`)
+
+**Regenerate when:** Rust API changes — adding/removing/renaming functions, types, errors, or changing their signatures in `uniffi/src/lib.rs`.
+
+```bash
+# From nobodywho/ (workspace root)
+cargo build -p nobodywho-uniffi
+npx --prefix react-native uniffi-bindgen-react-native generate jsi bindings \
+  --library --ts-dir react-native/generated/ts --cpp-dir react-native/generated/cpp \
+  target/debug/libnobodywho_uniffi.so
+```
+
+**Do not regenerate for:** TypeScript wrapper changes, build config changes, version bumps.
+
+### 2. TurboModule glue (`ios/`, `cpp/`, `src/NativeNobodywho.ts`, `src/index.tsx`)
+
+**Regenerate when:** Module name changes, `codegenConfig` in `package.json` changes, or upgrading `uniffi-bindgen-react-native` version.
+
+```bash
+cd react-native
+npx uniffi-bindgen-react-native generate jsi turbo-module --config ubrn.config.yaml nobodywho
+```
+
+**WARNING:** This overwrites `Nobodywho.podspec`, `android/build.gradle`, and `android/CMakeLists.txt` with defaults, destroying custom build logic (binary download, xcframework support, etc.). After running, restore these files:
+
+```bash
+git checkout -- Nobodywho.podspec android/build.gradle android/CMakeLists.txt
+```
+
+**Do not regenerate for:** Rust API changes, adding new functions/types — those only affect the bindings layer above.
+
+### 3. TypeScript wrappers (`src/*.ts` except `NativeNobodywho.ts` and `index.tsx`)
+
+**Never regenerated** — these are hand-written. Edit freely. Metro hot-reloads changes automatically.
+
+### Quick reference
+
+| What changed | Regenerate bindings | Regenerate turbo-module | Rebuild native libs |
+|---|---|---|---|
+| Rust API (`uniffi/src/lib.rs`) | Yes | No | Yes |
+| Core Rust library (`core/src/`) | No | No | Yes |
+| TypeScript wrappers (`src/*.ts`) | No | No | No |
+| Module name / `codegenConfig` | No | Yes (then restore build files) | No |
+| `uniffi-bindgen-react-native` version | Yes | Yes (then restore build files) | No |
 
 ## Build system overview
 
-The build has two code generation steps, then a native compilation step.
-
-### Step 1: Generate bindings from Rust
+### Generate bindings from Rust
 
 Build the UniFFI crate for the host, then run the bindgen to produce TypeScript + C++:
 
 ```bash
 # From nobodywho/ (workspace root)
-cargo build -p nobodywho-uniffi --release
+cargo build -p nobodywho-uniffi
 
-# Generate the bindings (must run from nobodywho/ dir so cargo metadata works)
 npx --prefix react-native uniffi-bindgen-react-native generate jsi bindings \
   --library \
   --ts-dir react-native/generated/ts \
   --cpp-dir react-native/generated/cpp \
-  target/release/libnobodywho_uniffi.so
+  target/debug/libnobodywho_uniffi.so
 ```
 
 This reads the UniFFI metadata embedded in the compiled `.so`/`.dylib` and generates:
@@ -81,22 +134,9 @@ This reads the UniFFI metadata embedded in the compiled `.so`/`.dylib` and gener
 - `generated/ts/nobodywho-ffi.ts` — low-level FFI type bridge
 - `generated/cpp/nobodywho.{cpp,hpp}` — C++ JSI bridge implementation
 
-### Step 2: Generate TurboModule glue (one-time)
+### Build native static libraries for mobile targets
 
-This produces the native module registration code for iOS and Android. Only needs to be re-run if the package name or structure changes:
-
-```bash
-cd react-native
-npx uniffi-bindgen-react-native generate jsi turbo-module \
-  --config ubrn.config.yaml \
-  nobodywho
-```
-
-This generates the files in `cpp/`, `ios/`, and `android/`.
-
-### Step 3: Build native static libraries for mobile targets
-
-The Android CMake build expects static libraries (`.a` files), not shared libraries. The `.a` gets linked into the final `libnobodywho-react-native.so` alongside the C++ JSI bridge.
+The Android CMake build expects static libraries (`.a` files), not shared libraries. The `.a` gets linked into the final `libreact-native-nobodywho.so` alongside the C++ JSI bridge.
 
 Use the nix android shell which provides NDK, cmake, and all cross-compilation environment variables:
 
@@ -130,6 +170,14 @@ cargo build -p nobodywho-uniffi --target aarch64-apple-ios --release
 cargo build -p nobodywho-uniffi --target aarch64-apple-ios-sim --release
 ```
 
+### Release builds (CI)
+
+In CI, native `.a` files are cross-compiled and uploaded as GitHub Release assets. At install time:
+- **Android:** `build.gradle` downloads `.a` files from the GitHub Release matching the package version
+- **iOS:** `Nobodywho.podspec` downloads and extracts `NobodywhoFramework.xcframework.zip` from the same release
+
+This keeps the npm package small (code only, no binaries).
+
 ## Testing on Android
 
 ### Build the test app
@@ -157,31 +205,15 @@ adb reverse tcp:8081 tcp:8081
 adb shell am start -n com.nobodywhotest/.MainActivity
 ```
 
-## Rebuilding after changes
+## Customized files (do not regenerate)
 
-If you change the Rust code in `uniffi/src/lib.rs`:
+These files were initially generated but have been customized with project-specific logic:
 
-1. `cargo build -p nobodywho-uniffi --release` — rebuild the host crate
-2. Re-run the `generate jsi bindings` command (Step 1) — regenerate TypeScript + C++
-3. Rebuild static libraries for your target platforms (Step 3)
-4. Copy `.a` files to `android/src/main/jniLibs/`
-5. Rebuild the test app APK
+- **`Nobodywho.podspec`** — Downloads prebuilt xcframework from GitHub Releases, custom authors/source fields
+- **`android/build.gradle`** — Downloads prebuilt `.a` files from GitHub Releases at build time
+- **`android/CMakeLists.txt`** — Points to downloaded native libs dir, links uniffi headers from `uniffi-bindgen-react-native`
 
-If you only change the TypeScript wrapper (`src/*.ts`), no regeneration or rebuild is needed — Metro hot-reloads automatically.
-
-## Files not committed to git
-
-- `node_modules/` and `package-lock.json`
-- `android/src/main/jniLibs/*/libnobodywho_uniffi.a` — build artifacts (produced by CI or local cross-compilation)
-- `NobodywhoReactNativeFramework.xcframework` — iOS build artifact (produced by CI)
-
-## Files committed to git
-
-Everything else is committed, including:
-- `src/` — hand-written TypeScript wrapper + generated `NativeNobodywhoReactNative.ts`
-- `generated/` — generated TypeScript + C++ bindings (regenerate if Rust API changes)
-- `cpp/`, `ios/`, `android/` — TurboModule glue (generated once, rarely changes)
-- `ubrn.config.yaml`, `package.json`, `NobodywhoReactNative.podspec`
+If you regenerate the turbo-module glue, these get overwritten with defaults. Always restore them with `git checkout`.
 
 ## Known issues
 
