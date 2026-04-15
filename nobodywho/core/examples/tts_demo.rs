@@ -1,20 +1,23 @@
-/// TTS demo — synthesizes speech using OuteTTS + WavTokenizer.
+/// TTS demo — synthesizes speech using Kokoro (ONNX) or Piper (VITS + espeak-ng).
 ///
 /// Usage:
-///   cargo run --example tts_demo -- <outetts.gguf> <wavtokenizer.gguf> "text to speak"
+///   Kokoro:
+///     cargo run --example tts_demo -- <kokoro.onnx> <voices.bin> "text to speak" [voice] [speed] [language]
+///
+///   Piper:
+///     cargo run --example tts_demo -- --piper <model.onnx> <model.onnx.json> "text to speak"
 ///
 /// Download models:
-///   OuteTTS 0.2:  https://huggingface.co/OuteAI/OuteTTS-0.2-500M-GGUF
-///   OuteTTS 0.3:  https://huggingface.co/OuteAI/OuteTTS-0.3-1B-GGUF
-///   WavTokenizer: https://huggingface.co/novateur/WavTokenizer-large-speech-75token-GGUF
-///                 (e.g. wavtokenizer-large-75-f16.gguf)
+///   Kokoro:
+///     curl -LO https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx
+///     curl -LO https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin
+///
+///   Piper (Danish):
+///     curl -LO https://huggingface.co/rhasspy/piper-voices/resolve/main/da/da_DK/talesyntese/medium/da_DK-talesyntese-medium.onnx
+///     curl -LO https://huggingface.co/rhasspy/piper-voices/resolve/main/da/da_DK/talesyntese/medium/da_DK-talesyntese-medium.onnx.json
 ///
 /// Output is saved to output.wav and played with `afplay` on macOS when available.
-use nobodywho::llm;
-use nobodywho::tts::{
-    TextModelBackend, Tts, TtsBackendConfig, TtsRequest, TtsSpeakerProfile, VocoderBackend,
-};
-use std::sync::Arc;
+use nobodywho::tts::{Tts, TtsRequest};
 use std::time::Instant;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -22,54 +25,61 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::INFO)
         .init();
-    nobodywho::send_llamacpp_logs_to_tracing();
 
     let args: Vec<String> = std::env::args().collect();
-    if args.len() != 4 && args.len() != 5 {
+
+    if args.get(1).map(|s| s.as_str()) == Some("--piper") {
+        return run_piper(&args);
+    }
+
+    run_kokoro(&args)?;
+    println!("Total runtime: {:.2?}", program_start.elapsed());
+    play_output();
+    Ok(())
+}
+
+fn run_kokoro(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    if args.len() < 4 {
         eprintln!(
-            "Usage: {} <outetts.gguf> <wavtokenizer.gguf> \"text to speak\" [speaker.json]",
+            "Usage: {} <kokoro.onnx> <voices.bin> \"text\" [voice] [speed] [language]",
             args[0]
         );
+        eprintln!(
+            "       {} --piper <model.onnx> <model.onnx.json> \"text\"",
+            args[0]
+        );
+        eprintln!();
+        eprintln!("Kokoro voices: af_heart, af_sarah, am_michael, bf_emma, bm_george, ...");
+        eprintln!("Speed: 0.5 = slow, 1.0 = normal, 2.0 = fast");
+        eprintln!("Language: en-us (default), en-gb, ja, zh, fr, hi, it, pt, es");
         std::process::exit(1);
     }
 
-    let tts_model_path = &args[1];
-    let vocoder_path = &args[2];
-    let user_text = &args[3];
-    let speaker_path = args.get(4);
+    let model_path = &args[1];
+    let voices_path = &args[2];
+    let text = &args[3];
+    let voice = args.get(4).map(|s| s.as_str()).unwrap_or("af_heart");
+    let speed: f32 = args.get(5).and_then(|s| s.parse().ok()).unwrap_or(1.0);
+    let language = args.get(6).map(|s| s.as_str()).unwrap_or("en-us");
 
-    println!("Loading TTS model: {tts_model_path}");
-    let tts_load_start = Instant::now();
-    let tts_model = Arc::new(llm::get_model(tts_model_path, true, None)?);
-    println!("Loaded TTS model in {:.2?}", tts_load_start.elapsed());
+    println!("Loading Kokoro model: {model_path}");
+    let load_start = Instant::now();
+    let tts = Tts::new(model_path, voices_path)?;
+    println!("Loaded in {:.2?}", load_start.elapsed());
 
-    println!("Loading vocoder: {vocoder_path}");
-    let vocoder_load_start = Instant::now();
-    let voc_model = Arc::new(llm::get_model(vocoder_path, true, None)?);
-    println!("Loaded vocoder in {:.2?}", vocoder_load_start.elapsed());
+    let voices = tts.available_voices();
+    println!("Available voices ({}):", voices.len());
+    for v in &voices {
+        print!("  {v}");
+    }
+    println!();
 
-    let backend = detect_backend(tts_model_path);
-    let tts_init_start = Instant::now();
-    let tts = Tts::new_with_backend(
-        tts_model,
-        voc_model,
-        8192 * 2,
-        TtsBackendConfig::new(backend.clone(), VocoderBackend::WavTokenizer75),
-    );
-    println!(
-        "Initialized TTS handles in {:.2?}",
-        tts_init_start.elapsed()
-    );
-
-    println!("Synthesizing: {user_text:?}");
+    println!("Synthesizing with voice={voice}, speed={speed}, language={language}: {text:?}");
     let synth_start = Instant::now();
-    let request = match (backend, speaker_path) {
-        (TextModelBackend::OuteTtsV03, Some(path)) => {
-            let profile = TtsSpeakerProfile::from_path(path)?;
-            TtsRequest::new(user_text).with_speaker_profile(profile)
-        }
-        _ => TtsRequest::new(user_text),
-    };
+    let request = TtsRequest::new(text.as_str())
+        .with_voice(voice)
+        .with_speed(speed)
+        .with_language(language);
     let wav_bytes = tts.synthesize_request(request)?;
     println!(
         "Synthesis completed in {:.2?} ({} bytes)",
@@ -77,28 +87,52 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         wav_bytes.len()
     );
 
-    let out_path = "output.wav";
-    let write_start = Instant::now();
-    std::fs::write(out_path, &wav_bytes)?;
-    println!("Saved {out_path} in {:.2?}", write_start.elapsed());
-
-    let playback_start = Instant::now();
-    let status = std::process::Command::new("afplay").arg(out_path).status();
-    match status {
-        Ok(s) if s.success() => println!("Playback done in {:.2?}.", playback_start.elapsed()),
-        Ok(_) => eprintln!("afplay exited with an error"),
-        Err(e) => eprintln!("Could not run afplay: {e}  (open {out_path} manually)"),
-    }
-
-    println!("Total runtime: {:.2?}", program_start.elapsed());
-
+    std::fs::write("output.wav", &wav_bytes)?;
+    println!("Saved output.wav");
     Ok(())
 }
 
-fn detect_backend(model_path: &str) -> TextModelBackend {
-    if model_path.contains("0.3") {
-        TextModelBackend::OuteTtsV03
-    } else {
-        TextModelBackend::OuteTtsV02
+fn run_piper(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    if args.len() < 5 {
+        eprintln!(
+            "Usage: {} --piper <model.onnx> <model.onnx.json> \"text to speak\"",
+            args[0]
+        );
+        std::process::exit(1);
+    }
+
+    let model_path = &args[2];
+    let config_path = &args[3];
+    let text = &args[4];
+
+    println!("Loading Piper model: {model_path}");
+    let load_start = Instant::now();
+    let tts = Tts::new_piper(model_path, config_path)?;
+    println!("Loaded in {:.2?}", load_start.elapsed());
+
+    println!("Synthesizing: {text:?}");
+    let synth_start = Instant::now();
+    let wav_bytes = tts.synthesize(text.as_str())?;
+    println!(
+        "Synthesis completed in {:.2?} ({} bytes)",
+        synth_start.elapsed(),
+        wav_bytes.len()
+    );
+
+    std::fs::write("output.wav", &wav_bytes)?;
+    println!("Saved output.wav");
+
+    play_output();
+    Ok(())
+}
+
+fn play_output() {
+    let status = std::process::Command::new("afplay")
+        .arg("output.wav")
+        .status();
+    match status {
+        Ok(s) if s.success() => println!("Playback done."),
+        Ok(_) => eprintln!("afplay exited with an error"),
+        Err(e) => eprintln!("Could not run afplay: {e}  (open output.wav manually)"),
     }
 }

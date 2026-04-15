@@ -169,33 +169,18 @@ pub enum EncoderWorkerError {
     Encode(String),
 }
 
-// TtsWorker errors
+// TTS errors
 
 #[derive(Debug, thiserror::Error)]
-pub enum TtsWorkerError {
-    #[error("Error initializing TTS worker: {0}")]
-    InitWorker(#[from] InitWorkerError),
+pub enum TtsError {
+    #[error("Error initializing TTS: {0}")]
+    Init(String),
 
-    #[error("Invalid TTS request: {0}")]
-    InvalidRequest(String),
-
-    #[error("Error reading prompt: {0}")]
-    Read(#[from] ReadError),
-
-    #[error("Error in token generation: {0}")]
-    Decoding(#[from] DecodingError),
-
-    #[error("Error initializing sampler: {0}")]
-    Sampler(#[from] SamplerError),
-
-    #[error("Error running vocoder: {0}")]
-    Vocoder(String),
+    #[error("Error during synthesis: {0}")]
+    Synthesis(String),
 
     #[error("Error encoding WAV output: {0}")]
     WavEncoding(String),
-
-    #[error("Worker never responded")]
-    NoResponse,
 }
 
 // ChatWorker errors
