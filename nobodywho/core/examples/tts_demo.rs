@@ -132,7 +132,9 @@ fn play_wav(wav_bytes: &[u8]) {
     let players = ["afplay", "paplay", "aplay"];
 
     for cmd in players {
-        let result = std::process::Command::new(cmd).arg(tmp_str.as_ref()).status();
+        let result = std::process::Command::new(cmd)
+            .arg(tmp_str.as_ref())
+            .status();
         match result {
             Ok(s) if s.success() => {
                 println!("Playback done ({cmd}).");
