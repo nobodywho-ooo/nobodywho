@@ -26,11 +26,8 @@ export {
   Role,
   Message,
   Message_Tags,
-  PromptPart,
-  PromptPart_Tags,
   cosineSimilarity,
   loadModel,
-  uniffiInitAsync,
 } from "./index";
 
 export type {
