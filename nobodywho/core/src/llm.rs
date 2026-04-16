@@ -245,7 +245,7 @@ where
                 warn!("{}", w);
             }
 
-            let ctx_params = LlamaContextParams::default()
+            let mut ctx_params = LlamaContextParams::default()
                 .with_n_ctx(std::num::NonZero::new(n_ctx))
                 .with_n_batch(n_ctx) // n_batch sets the max size of a batch (i.e. max prompt size)
                 .with_n_ubatch(n_ubatch)
@@ -253,6 +253,16 @@ where
                 .with_n_threads_batch(n_threads)
                 .with_embeddings(use_embeddings)
                 .with_pooling_type(extra.pooling_type());
+
+            // KV cache quantization: use q8_0 on CPU for ~50% memory savings
+            if std::env::var("NOBODYWHO_KV_CACHE_Q8").is_ok() {
+                use llama_cpp_2::context::params::KvCacheType;
+                info!("Using q8_0 KV cache quantization");
+                ctx_params = ctx_params
+                    .with_type_k(KvCacheType::Q8_0)
+                    .with_type_v(KvCacheType::Q8_0);
+            }
+
 
             // Create inference context and sampler
             model
