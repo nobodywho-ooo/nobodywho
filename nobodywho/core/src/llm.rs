@@ -86,7 +86,7 @@ fn parse_model_path(
 ) -> Result<ParsedModelPath, nom::Err<nom::error::Error<String>>> {
     use nom::branch::alt;
     use nom::bytes::complete::{tag, tag_no_case, take_until};
-    use nom::combinator::{map, rest};
+    use nom::combinator::{cut, map, rest};
     use nom::sequence::{preceded, terminated};
     use nom::Parser;
 
@@ -100,11 +100,11 @@ fn parse_model_path(
                     tag_no_case("hf://"),
                     tag_no_case("hf:"),
                 )),
-                (
+                cut((
                     terminated(take_until("/"), tag("/")),
                     terminated(take_until("/"), tag("/")),
                     rest,
-                ),
+                )),
             ),
             |(owner, repo, filename): (&str, &str, &str)| {
                 ParsedModelPath::HuggingFaceUrl(owner.into(), repo.into(), filename.into())

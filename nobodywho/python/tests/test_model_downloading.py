@@ -82,16 +82,15 @@ def test_local_path_does_not_trigger_download():
 
 
 # ---------------------------------------------------------------------------
-# Test 5 – an hf:// prefix with invalid format falls through to filesystem lookup
+# Test 5 – an hf:// prefix with invalid format gives a parse error
 # ---------------------------------------------------------------------------
 
 
-def test_hf_prefix_triggers_download_path():
+def test_hf_invalid_format_gives_parse_error():
     """Passing an hf:// path with an invalid format (missing owner/repo/file
-    structure) falls through to a filesystem path lookup and raises
-    'Model not found'.
+    structure) raises a parse error, not 'Model not found'.
     """
-    with pytest.raises(RuntimeError, match="Model not found"):
+    with pytest.raises(RuntimeError, match="Failed parsing model path"):
         nobodywho.Model(HF_INVALID_ID)
 
 
