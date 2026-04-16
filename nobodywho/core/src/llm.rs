@@ -395,6 +395,12 @@ fn download_file(
                 last_logged_pct = pct;
             }
         }
+        if downloaded != content_length.get() {
+            return Err(crate::errors::LoadModelError::DownloadError(format!(
+                "Download incomplete: got {downloaded}/{} bytes",
+                content_length
+            )));
+        }
         Ok(())
     })();
 
