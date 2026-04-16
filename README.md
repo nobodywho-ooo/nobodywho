@@ -143,9 +143,7 @@ For further instructions on how to setup NobodyWho in Godot please refer to our 
 
 ### Can I export to HTML5 or iOS?
 
-Currently only Linux, MacOS, Android and Windows are supported platforms.
-
-iOS exports seem very feasible. See issue [#114](https://github.com/nobodywho-ooo/nobodywho/issues/114)
+Desktop (Linux, MacOS, Windows) is supported across all bindings. Android is supported on Godot and Flutter. iOS is supported on Flutter only.
 
 Web exports will be a bit trickier to get right. See issue [#111](https://github.com/nobodywho-ooo/nobodywho/issues/111).
 
