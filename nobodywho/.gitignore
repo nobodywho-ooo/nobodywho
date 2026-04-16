@@ -15,6 +15,10 @@ napi/package-lock.json
 napi/npm/*/README.md
 napi/dist/
 
+# Swift and Kotlin standalone packages (not yet released)
+swift/
+kotlin/
+
 # React Native (uniffi-bindgen-react-native)
 react-native/node_modules/
 react-native/package-lock.json
