@@ -76,7 +76,7 @@ pub fn has_gpu_backend() -> bool {
 
 #[derive(Clone)]
 enum ParsedModelPath {
-    HuggingFaceUrl(String, String, String), // e.g. hf://owner/repo/model.gguf -> (repo_id, filename)
+    HuggingFaceUrl(String, String, String), // e.g. hf://owner/repo/model.gguf -> (owner, repo, filename)
     HttpUrl(String),                        // e.g. https://example.com/lol/qwen3.gguf
     FilesystemPath(std::path::PathBuf),     // e.g. ./qwen3.gguf
 }
