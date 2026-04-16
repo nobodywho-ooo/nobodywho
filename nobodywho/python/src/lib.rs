@@ -36,16 +36,33 @@ impl Model {
     /// Raises:
     ///     RuntimeError: If the model file cannot be loaded
     #[new]
-    #[pyo3(signature = (model_path: "str", use_gpu_if_available = true, projection_model_path: "str | None" = None) -> "Model")]
+    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, projection_model_path: "os.PathLike | str | None" = None) -> "Model")]
     pub fn new(
-        model_path: String,
+        model_path: std::path::PathBuf,
         use_gpu_if_available: bool,
-        projection_model_path: Option<String>,
+        projection_model_path: Option<std::path::PathBuf>,
     ) -> PyResult<Self> {
+        let path_str = model_path.to_str().ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "Path contains invalid UTF-8: {}",
+                model_path.display()
+            ))
+        })?;
+        let mmproj_str = projection_model_path
+            .as_ref()
+            .map(|p| {
+                p.to_str().ok_or_else(|| {
+                    pyo3::exceptions::PyValueError::new_err(format!(
+                        "Path contains invalid UTF-8: {}",
+                        p.display()
+                    ))
+                })
+            })
+            .transpose()?;
         let model_result = nobodywho::llm::get_model(
-            &model_path,
+            path_str,
             use_gpu_if_available,
-            projection_model_path.as_deref(),
+            mmproj_str,
         );
         match model_result {
             Ok(model) => Ok(Self {
@@ -72,16 +89,33 @@ impl Model {
     /// Raises:
     ///     RuntimeError: If the model file cannot be loaded
     #[staticmethod]
-    #[pyo3(signature = (model_path: "str", use_gpu_if_available = true, projection_model_path: "str | None" = None) -> "Model")]
+    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, projection_model_path: "os.PathLike | str | None" = None) -> "Model")]
     pub async fn load_model_async(
-        model_path: String,
+        model_path: std::path::PathBuf,
         use_gpu_if_available: bool,
-        projection_model_path: Option<String>,
+        projection_model_path: Option<std::path::PathBuf>,
     ) -> PyResult<Self> {
+        let path_str = model_path.to_str().ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "Path contains invalid UTF-8: {}",
+                model_path.display()
+            ))
+        })?;
+        let mmproj_str = projection_model_path
+            .as_ref()
+            .map(|p| {
+                p.to_str().ok_or_else(|| {
+                    pyo3::exceptions::PyValueError::new_err(format!(
+                        "Path contains invalid UTF-8: {}",
+                        p.display()
+                    ))
+                })
+            })
+            .transpose()?;
         let model_result = nobodywho::llm::get_model_async(
-            model_path,
+            path_str.to_owned(),
             use_gpu_if_available,
-            projection_model_path,
+            mmproj_str.map(str::to_owned),
         )
         .await;
         match model_result {
@@ -100,7 +134,7 @@ impl Model {
 #[derive(FromPyObject)]
 pub enum ModelOrPath<'py> {
     ModelObj(Bound<'py, Model>),
-    Path(String),
+    Path(std::path::PathBuf),
 }
 
 impl<'py> ModelOrPath<'py> {
@@ -109,9 +143,17 @@ impl<'py> ModelOrPath<'py> {
         match self {
             ModelOrPath::ModelObj(model_obj) => Ok(Arc::clone(&model_obj.borrow().model)),
             // default to (trying to) use GPU if a string is passed
-            ModelOrPath::Path(path) => nobodywho::llm::get_model(path, true, None)
-                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
-                .map(Arc::new),
+            ModelOrPath::Path(path) => {
+                let path_str = path.to_str().ok_or_else(|| {
+                    pyo3::exceptions::PyValueError::new_err(format!(
+                        "Path contains invalid UTF-8: {}",
+                        path.display()
+                    ))
+                })?;
+                nobodywho::llm::get_model(path_str, true, None)
+                    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+                    .map(Arc::new)
+            }
         }
     }
 }
