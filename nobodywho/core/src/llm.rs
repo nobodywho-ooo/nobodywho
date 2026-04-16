@@ -337,15 +337,21 @@ fn download_file(
         crate::errors::LoadModelError::DownloadError(format!("HTTP request failed: {e}"))
     })?;
 
-    let content_length = response
+    let content_length: std::num::NonZeroU64 = response
         .headers()
         .get("content-length")
         .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.parse::<u64>().ok());
+        .and_then(|v| v.parse::<std::num::NonZeroU64>().ok())
+        .ok_or_else(|| {
+            crate::errors::LoadModelError::DownloadError(format!(
+                "Server returned missing or zero Content-Length for {url}"
+            ))
+        })?;
 
-    if let Some(total) = content_length {
-        info!("Download size: {:.1} GB", total as f64 / 1_073_741_824.0);
-    }
+    info!(
+        "Download size: {:.1} GB",
+        content_length.get() as f64 / 1_073_741_824.0
+    );
 
     // Write to a temp file first, then rename — avoids partial files on failure.
     let tmp_path = target_path.with_file_name(format!(
@@ -383,12 +389,10 @@ fn download_file(
             })?;
             downloaded += n as u64;
 
-            if let Some(total) = content_length {
-                let pct = (downloaded * 100) / total;
-                if pct >= last_logged_pct + 5 {
-                    info!("Download progress: {pct}% ({downloaded}/{total} bytes)");
-                    last_logged_pct = pct;
-                }
+            let pct = (downloaded * 100) / content_length;
+            if pct >= last_logged_pct + 5 {
+                info!("Download progress: {pct}% ({downloaded}/{} bytes)", content_length);
+                last_logged_pct = pct;
             }
         }
         Ok(())
