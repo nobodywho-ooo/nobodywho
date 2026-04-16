@@ -35,7 +35,7 @@ Now you are ready to pick a model. NobodyWho can download GGUF models directly f
 
 Then create a `Chat` object and call `.ask`!
 
-``` dart
+```dart
 final chat = await nobodywho.Chat.fromPath(
   modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
 );

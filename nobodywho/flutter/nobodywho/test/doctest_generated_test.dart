@@ -47,6 +47,16 @@ void main() {
           Link('./$image').createSync('$testDir/$image');
         }
       }
+      // Populate the HF download cache so huggingface: paths in docs work offline
+      if (modelPath != null) {
+        final cacheHome = Platform.environment['XDG_CACHE_HOME'] ?? '${Platform.environment['HOME']}/.cache';
+        final hfCache = Directory('$cacheHome/nobodywho/models/NobodyWho/Qwen_Qwen3-0.6B-GGUF');
+        hfCache.createSync(recursive: true);
+        final hfLink = Link('${hfCache.path}/Qwen_Qwen3-0.6B-Q4_K_M.gguf');
+        if (!hfLink.existsSync()) {
+          hfLink.createSync(modelPath);
+        }
+      }
     });
 
     tearDownAll(() async {
@@ -57,6 +67,12 @@ void main() {
         if (link.existsSync()) {
           link.deleteSync();
         }
+      }
+      // Clean up HF cache symlink
+      final cacheHome = Platform.environment['XDG_CACHE_HOME'] ?? '${Platform.environment['HOME']}/.cache';
+      final hfLink = Link('$cacheHome/nobodywho/models/NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf');
+      if (hfLink.existsSync()) {
+        hfLink.deleteSync();
       }
     });
 
@@ -241,6 +257,14 @@ void main() {
 
     test('index.md:23', () async {
       
+    });
+
+    test('index.md:38', () async {
+      final chat = await nobodywho.Chat.fromPath(
+        modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
+      );
+      final msg = await chat.ask('Is water wet?').completed();
+      print(msg); // Yes, indeed, water is wet!
     });
 
     test('sampling.md:15', () async {
