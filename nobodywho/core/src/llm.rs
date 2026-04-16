@@ -303,10 +303,19 @@ fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadMod
 /// Download a file from a URL to a local path, streaming to disk with progress logging.
 ///
 /// Returns early if the file already exists at the target path.
+/// Rejects paths containing `..` to prevent path traversal attacks.
 fn download_file(
     url: &str,
     target_path: &std::path::Path,
 ) -> Result<(), crate::errors::LoadModelError> {
+    for component in target_path.components() {
+        if component == std::path::Component::ParentDir {
+            return Err(crate::errors::LoadModelError::DownloadError(
+                "Path traversal detected: '..' is not allowed in model paths".into(),
+            ));
+        }
+    }
+
     if target_path.exists() {
         info!("Using cached file: {}", target_path.display());
         return Ok(());
