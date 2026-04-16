@@ -420,7 +420,7 @@ fn download_file(
 /// Download a GGUF model from HuggingFace Hub and return the local path to it.
 ///
 /// If the model is already cached locally, the cached path is returned without downloading.
-pub fn download_model_from_hf(
+fn download_model_from_hf(
     owner: &str,
     repo: &str,
     filename: &str,
