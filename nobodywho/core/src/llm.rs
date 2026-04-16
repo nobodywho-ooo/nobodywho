@@ -356,7 +356,10 @@ fn download_file(
     // Write to a temp file first, then rename — avoids partial files on failure.
     let tmp_path = target_path.with_file_name(format!(
         "{}.part",
-        target_path.file_name().unwrap_or_default().to_string_lossy()
+        target_path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
     ));
 
     let download_result: Result<(), crate::errors::LoadModelError> = (|| {
@@ -391,7 +394,10 @@ fn download_file(
 
             let pct = (downloaded * 100) / content_length;
             if pct >= last_logged_pct + 5 {
-                info!("Download progress: {pct}% ({downloaded}/{} bytes)", content_length);
+                info!(
+                    "Download progress: {pct}% ({downloaded}/{} bytes)",
+                    content_length
+                );
                 last_logged_pct = pct;
             }
         }
