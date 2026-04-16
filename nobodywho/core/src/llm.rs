@@ -355,11 +355,12 @@ fn download_file(
 
     // Write to a temp file first, then rename — avoids partial files on failure.
     let tmp_path = target_path.with_file_name(format!(
-        "{}.part",
+        "{}.{:x}.part",
         target_path
             .file_name()
             .unwrap_or_default()
-            .to_string_lossy()
+            .to_string_lossy(),
+        rand::random::<u32>(),
     ));
 
     let download_result: Result<(), crate::errors::LoadModelError> = (|| {
