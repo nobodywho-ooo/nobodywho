@@ -570,7 +570,7 @@ class Model:
     Sharing is efficient because the underlying model data is reference-counted.
     There is no `ModelAsync` variant. A regular `Model` can be used with both `Chat` and `ChatAsync`.
     """
-    def __new__(cls, /, model_path: "str", use_gpu_if_available: bool = True, projection_model_path: "str | None" = None) -> "Model":
+    def __new__(cls, /, model_path: "os.PathLike | str", use_gpu_if_available: bool = True, projection_model_path: "os.PathLike | str | None" = None) -> "Model":
         """
         Create a new Model from a GGUF file.
         
@@ -586,7 +586,7 @@ class Model:
             RuntimeError: If the model file cannot be loaded
         """
     @staticmethod
-    async def load_model_async(model_path: "str", use_gpu_if_available: bool = True, projection_model_path: "str | None" = None) -> "Model":
+    async def load_model_async(model_path: "os.PathLike | str", use_gpu_if_available: bool = True, projection_model_path: "os.PathLike | str | None" = None) -> "Model":
         """
         Asynchronously load a model from a GGUF file.
         

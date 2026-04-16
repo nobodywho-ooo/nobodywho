@@ -59,11 +59,7 @@ impl Model {
                 })
             })
             .transpose()?;
-        let model_result = nobodywho::llm::get_model(
-            path_str,
-            use_gpu_if_available,
-            mmproj_str,
-        );
+        let model_result = nobodywho::llm::get_model(path_str, use_gpu_if_available, mmproj_str);
         match model_result {
             Ok(model) => Ok(Self {
                 model: Arc::new(model),
