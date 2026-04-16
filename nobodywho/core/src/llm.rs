@@ -348,7 +348,10 @@ fn download_file(
     }
 
     // Write to a temp file first, then rename — avoids partial files on failure.
-    let tmp_path = target_path.with_extension("part");
+    let tmp_path = target_path.with_file_name(format!(
+        "{}.part",
+        target_path.file_name().unwrap_or_default().to_string_lossy()
+    ));
 
     let download_result: Result<(), crate::errors::LoadModelError> = (|| {
         let mut file = std::fs::File::create(&tmp_path).map_err(|e| {
