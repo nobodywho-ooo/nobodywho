@@ -8,6 +8,7 @@ VISION_MODEL_SYMLINK = Path("./vision-model.gguf")
 PROJECTION_MODEL_SYMLINK = Path("./projection_model.gguf")
 DOG_IMAGE_SYMLINK = Path("./dog.png")
 PENGUIN_IMAGE_SYMLINK = Path("./penguin.png")
+SOUND_SYMLINK = Path("./sound.mp3")
 
 # Cache symlinks for huggingface: paths used in doc examples.
 # These let doctests use huggingface: paths without network access,
@@ -71,6 +72,11 @@ def pytest_markdown_docs_globals():
     if (tests_img_dir / "penguin.png").exists() and not PENGUIN_IMAGE_SYMLINK.exists():
         os.symlink(tests_img_dir / "penguin.png", PENGUIN_IMAGE_SYMLINK)
 
+    # make symlink for test audio used in vision docs
+    tests_audio_dir = Path(__file__).parent.parent / "nobodywho" / "python" / "tests" / "audio"
+    if (tests_audio_dir / "sound.mp3").exists() and not SOUND_SYMLINK.exists():
+        os.symlink(tests_audio_dir / "sound.mp3", SOUND_SYMLINK)
+
     return {
         "nobodywho": nobodywho,
         "Chat": nobodywho.Chat,
@@ -85,6 +91,7 @@ def pytest_markdown_docs_globals():
         "tool": nobodywho.tool,
         "Text": nobodywho.Text,
         "Image": nobodywho.Image,
+        "Audio": nobodywho.Audio,
         "Prompt": nobodywho.Prompt,
     }
 
@@ -99,6 +106,7 @@ def pytest_sessionfinish(session, exitstatus):
         PROJECTION_MODEL_SYMLINK,
         DOG_IMAGE_SYMLINK,
         PENGUIN_IMAGE_SYMLINK,
+        SOUND_SYMLINK,
         *HF_CACHE_SYMLINKS,
     ]:
         if os.path.islink(symlink):
