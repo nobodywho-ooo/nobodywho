@@ -2014,7 +2014,7 @@ where
                     .send(resp.clone())
                     .expect("Failed sending response");
             }
-            llm::WriteOutput::Token(_) => {}
+            llm::WriteOutput::Token(_) => (),
         }
         if emitting {
             respond(x)
