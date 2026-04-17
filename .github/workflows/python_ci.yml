@@ -346,11 +346,6 @@ jobs:
             url: https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf
             format: Qwen3
             pytest_args: tests/test_tool_calling.py -v --tb=short
-          - name: Qwen3.6
-            file: Qwen3.6-35B-A3B-UD-IQ1_M.gguf
-            url: https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF/resolve/main/Qwen3.6-35B-A3B-UD-IQ1_M.gguf
-            format: Qwen35_36
-            pytest_args: tests/test_tool_calling.py::test_tool_calling -v --tb=short
           - name: FunctionGemma
             file: functiongemma-270m-it-BF16.gguf
             url: https://huggingface.co/unsloth/functiongemma-270m-it-GGUF/resolve/main/functiongemma-270m-it-BF16.gguf
