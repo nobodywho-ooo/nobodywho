@@ -461,22 +461,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "requires QWEN_MODEL env var pointing at a Qwen GGUF; optional QWEN_TMPL_OUT path"]
-    fn dump_qwen_chat_template() {
-        let path = std::env::var("QWEN_MODEL").expect("set QWEN_MODEL");
-        let out = std::env::var("QWEN_TMPL_OUT").expect("set QWEN_TMPL_OUT");
-        let model = crate::llm::get_model(&path, false, None).expect("load model");
-        let default_tmpl: String = model
-            .language_model
-            .chat_template(None)
-            .ok()
-            .and_then(|t| t.to_string().ok())
-            .unwrap_or_default();
-        std::fs::write(&out, &default_tmpl).expect("write template");
-        eprintln!("wrote {} bytes to {out}", default_tmpl.len());
-    }
-
-    #[test]
     #[ignore = "requires QWEN36_MODEL env var pointing at a Qwen3.6 GGUF"]
     fn diagnose_qwen36_detection() {
         let path = std::env::var("QWEN36_MODEL").expect("set QWEN36_MODEL");
