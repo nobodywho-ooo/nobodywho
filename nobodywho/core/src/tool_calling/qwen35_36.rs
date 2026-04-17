@@ -79,18 +79,61 @@ fn none_of(chars: &[char]) -> Expr {
     })
 }
 
-/// Add a body rule matching any sequence of characters.
+/// Add GBNF rules for an arbitrary-content body that does *not* contain `PARAM_TERMINATOR`.
 ///
-/// The outer rule wraps each body with `"<parameter=name>\n" body PARAM_TERMINATOR`.
-fn add_param_value_body_rule(prefix: &str, b: Builder) -> (String, Builder) {
+/// GBNF has no "not-substring" operator, so we encode the constraint as a KMP-style
+/// automaton over the terminator: state `a_k` means "the last k+1 consumed chars are a
+/// prefix of PARAM_TERMINATOR". This stops the body from accidentally swallowing the
+/// close marker, which would let the model continue the value past the template's
+/// natural boundary.
+///
+/// The automaton assumes `\n` is only repeated at the endpoints of the terminator, so
+/// any stray `\n` resets to state a0 (rather than needing a general failure function).
+/// Returns the name of the body rule.
+fn add_param_value_body_rule(prefix: &str, mut b: Builder) -> (String, Builder) {
+    let mid = PARAM_TERMINATOR.trim_matches('\n');
+    debug_assert!(!mid.contains('\n'));
+    debug_assert_eq!(mid.len() + 2, PARAM_TERMINATOR.len());
+    let last = mid.chars().count();
+
     let body = format!("{prefix}-body");
-    let b = b.rule(
+    let a = |k: usize| format!("{prefix}-a{k}");
+
+    // body ::= "" | [^\n] body | "\n" a0
+    b = b.rule(
         &body,
-        Expr::Quantified {
-            expr: Box::new(none_of(&[])),
-            quantifier: Quantifier::ZeroOrMore,
-        },
+        alt(&[
+            t(""),
+            seq(&[none_of(&['\n']), nt(&body)]),
+            seq(&[t("\n"), nt(&a(0))]),
+        ]),
     );
+
+    // a_k (0..last) ::= "" | c_k a_{k+1} | "\n" a0 | [^\n, c_k] body
+    for (k, next_c) in mid.chars().enumerate() {
+        b = b.rule(
+            &a(k),
+            alt(&[
+                t(""),
+                seq(&[t(&next_c.to_string()), nt(&a(k + 1))]),
+                seq(&[t("\n"), nt(&a(0))]),
+                seq(&[none_of(&['\n', next_c]), nt(&body)]),
+            ]),
+        );
+    }
+
+    // a_last ::= "" | "\n" a0 | [^\n] body
+    // Consuming the final `\n` completes the terminator, which the outer rule
+    // handles; the epsilon alternative lets the parser exit the body.
+    b = b.rule(
+        &a(last),
+        alt(&[
+            t(""),
+            seq(&[t("\n"), nt(&a(0))]),
+            seq(&[none_of(&['\n']), nt(&body)]),
+        ]),
+    );
+
     (body, b)
 }
 
@@ -196,15 +239,12 @@ fn add_tool_rule(
     Ok((tool_rule.clone(), builder.rule(&tool_rule, seq(&call_seq))))
 }
 
+/// llama.cpp's grammar parser only accepts `[a-zA-Z0-9-]` in rule names
+/// (see `is_word_char` in `llama-grammar.cpp`), so underscores in parameter
+/// names must be mapped to `-`.
 fn sanitize(s: &str) -> String {
     s.chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
-                c
-            } else {
-                '-'
-            }
-        })
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
         .collect()
 }
 
