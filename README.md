@@ -37,16 +37,16 @@ Install the library:
 flutter pub add nobodywho
 ```
 
-Download a model file, for example: [Qwen3 0.6B](https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf).
-
-Then start chatting with the model:
+Then start chatting with a model — NobodyWho downloads it automatically from Hugging Face:
 
 ```dart
 import 'package:nobodywho/nobodywho.dart' as nobodywho;
 
 void main() async {
   await nobodywho.NobodyWho.init();
-  final chat = await nobodywho.Chat.fromPath(modelPath: './model.gguf');
+  final chat = await nobodywho.Chat.fromPath(
+    modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
+  );
   final msg = await chat.ask('Is water wet?').completed();
   print(msg); // Yes, indeed, water is wet!
 }
@@ -67,13 +67,11 @@ Start by installing NobodyWho. This is simply
 pip install nobodywho
 ```
 
-Next download a model. For a quick start we recommend [this one](https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf). It is quite small, but will get the job done.
-
-Then you start generating a response from the model with the following code snippet:
+Then start chatting with a model — NobodyWho downloads it automatically from Hugging Face:
 
 ```python
 from nobodywho import Chat
-chat = Chat("./path/to/your/model.gguf")
+chat = Chat("huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf")
 response = chat.ask("Is water wet?")
 for token in response:
     print(token, end="", flush=True)
@@ -89,7 +87,7 @@ You can also setup a basic interactive chatbot very quickly with the code snippe
 
 ```python
 from nobodywho import Chat, TokenStream
-chat = Chat("./path/to/your/model.gguf")
+chat = Chat("huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf")
 while True:
     prompt = input("Enter your prompt: ")
     response: TokenStream = chat.ask(prompt)

@@ -1,3 +1,11 @@
+## 0.7.0-rc2
+
+- Re-work model downloading to pick proper directory on android
+
+## 0.7.0-rc1
+
+- Test build of runtime model downloading for flutter
+
 ## 0.6.0
 
 - Gemma 4 support

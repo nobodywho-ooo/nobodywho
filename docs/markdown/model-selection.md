@@ -9,12 +9,34 @@ Choosing the right language model can make or break your project. In general you
 
 ## TL;DR
 
-If you just want a ~2GB chat model that works well, try [Qwen3 4B Q4_K_M](https://huggingface.co/NobodyWho/Qwen_Qwen3-4B-GGUF/resolve/main/Qwen_Qwen3-4B-Q4_K_M.gguf).
+If you just want a ~2GB chat model that works well, use:
 
-If you want something smaller and faster, try [Qwen3 0.6B Q4_K_M](https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf).
+```
+huggingface:NobodyWho/Qwen_Qwen3-4B-GGUF/Qwen_Qwen3-4B-Q4_K_M.gguf
+```
+
+If you want something smaller and faster, use:
+
+```
+huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf
+```
+
+Pass these as the model path when creating a `Chat`, `Model`, `Encoder`, etc. NobodyWho will download the model automatically and cache it locally for future use.
 
 
-## Download a model
+## Getting a model
+
+NobodyWho can download models directly from Hugging Face. Instead of downloading a file manually, pass a `huggingface:` path where you'd normally pass a file path:
+
+```
+huggingface:owner/repo/filename.gguf
+```
+
+The model is downloaded once and cached locally — no internet connection is needed after the first load. `hf:` is also accepted as a shorthand.
+
+You can also pass a full `https://` URL to download a model from any host.
+
+Of course, you can still pass a local file path if you prefer to manage model files yourself.
 
 We recommend starting with the models on our [Hugging Face page](https://huggingface.co/NobodyWho) since they are known to work well with NobodyWho.
 

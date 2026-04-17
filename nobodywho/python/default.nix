@@ -49,16 +49,29 @@ python3Packages.buildPythonPackage {
     cp -r ${../../docs} docs
     mkdir -p nobodywho/python/tests
     ln -s ../../../tests/img nobodywho/python/tests/img
+    # docs/pyproject.toml exists (for the mkdocs site) and confuses pytest into using
+    # /build/docs as rootdir instead of /build. A setup.cfg at the build root anchors
+    # the rootdir here and sets python_files without needing a space-containing flag
+    # (pytestFlags is still word-split by nixpkgs when elements contain spaces).
+    cat > setup.cfg <<'EOF'
+[tool:pytest]
+python_files = test_*.py *.md
+EOF
   '';
 
-  pytestFlagsArray = [
+  pytestFlags = [
+    "--rootdir=."
     "tests"
     "docs"
-    "-o=python_files=test_*.py *.md"
-    "-o=confcutdir=."
   ];
 
+  # Skip @pytest.mark.network tests — no network access in the nix sandbox.
+  # pytestCheckHook's disabledTestMarks generates a properly-quoted `-m "not (network)"`
+  # flag, which is why we use it instead of a hand-rolled conftest.py workaround.
+  disabledTestMarks = [ "network" ];
+
   # Vision/multimodal tests are too slow in the nix sandbox (no GPU access)
+  # Model downloading tests require network access (not available in nix sandbox)
   disabledTestPaths = [
     "tests/test_multimodal.py"
   ];

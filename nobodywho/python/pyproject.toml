@@ -34,3 +34,8 @@ pythonpath = ["."]
 # Don't capture stdout/stderr so IO (prints, logs, progress bars) shows in real time
 # confcutdir via addopts (not valid in ini_options) - limits conftest discovery to repo root
 addopts = "-s --confcutdir=../.."
+# Allow conftest.py discovery up to the repository root
+confcutdir = "../.."
+markers = [
+    "network: marks tests that require network access (deselect with '-m \"not network\"')",
+]

@@ -271,6 +271,16 @@ String generateTestFile(List<CodeGroup> groups, String testName) {
   buffer.writeln("          Link('./\$image').createSync('\$testDir/\$image');");
   buffer.writeln("        }");
   buffer.writeln("      }");
+  buffer.writeln("      // Populate the HF download cache so huggingface: paths in docs work offline");
+  buffer.writeln("      if (modelPath != null) {");
+  buffer.writeln("        final cacheHome = Platform.environment['XDG_CACHE_HOME'] ?? '\${Platform.environment['HOME']}/.cache';");
+  buffer.writeln("        final hfCache = Directory('\$cacheHome/nobodywho/models/NobodyWho/Qwen_Qwen3-0.6B-GGUF');");
+  buffer.writeln("        hfCache.createSync(recursive: true);");
+  buffer.writeln("        final hfLink = Link('\${hfCache.path}/Qwen_Qwen3-0.6B-Q4_K_M.gguf');");
+  buffer.writeln("        if (!hfLink.existsSync()) {");
+  buffer.writeln("          hfLink.createSync(modelPath);");
+  buffer.writeln("        }");
+  buffer.writeln("      }");
   buffer.writeln("    });");
   buffer.writeln();
 
@@ -282,6 +292,12 @@ String generateTestFile(List<CodeGroup> groups, String testName) {
   buffer.writeln("        if (link.existsSync()) {");
   buffer.writeln("          link.deleteSync();");
   buffer.writeln("        }");
+  buffer.writeln("      }");
+  buffer.writeln("      // Clean up HF cache symlink");
+  buffer.writeln("      final cacheHome = Platform.environment['XDG_CACHE_HOME'] ?? '\${Platform.environment['HOME']}/.cache';");
+  buffer.writeln("      final hfLink = Link('\$cacheHome/nobodywho/models/NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf');");
+  buffer.writeln("      if (hfLink.existsSync()) {");
+  buffer.writeln("        hfLink.deleteSync();");
   buffer.writeln("      }");
   buffer.writeln("    });");
   buffer.writeln();

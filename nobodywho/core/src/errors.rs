@@ -24,6 +24,10 @@ pub enum LoadModelError {
     Multimodal(#[from] MultimodalError),
     #[error("Channel for receiving model was closed unexpectedly")]
     ModelChannelError,
+    #[error("Failed parsing model path: {0}")]
+    FailedParsingModelPath(#[from] nom::Err<nom::error::Error<String>>),
+    #[error("Failed to download model: {0}")]
+    DownloadError(String),
 }
 
 // Worker errors
