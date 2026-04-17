@@ -30,13 +30,31 @@ This library uses the **GGUF format** — a binary format optimized for fast loa
 - iOS: iPhone 11 or newer with at least 4 GB of RAM.
 - Android: Snapdragon 855 / Adreno 640 / 6 GB RAM or better.
 
+## Model Loading
+
+Models can be loaded from a local file path or downloaded automatically from HuggingFace:
+
+```typescript
+import { Model } from "react-native-nobodywho";
+
+// Download from HuggingFace (cached automatically)
+const model = await Model.load({
+  modelPath: "hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf",
+});
+
+// Or load from a local file
+const model = await Model.load({ modelPath: "/path/to/model.gguf" });
+```
+
+Downloaded models are cached on disk and reused on subsequent loads.
+
 ## Chat
 
 ```typescript
 import { Chat } from "react-native-nobodywho";
 
 const chat = await Chat.fromPath({
-  modelPath: "/path/to/model.gguf",
+  modelPath: "hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf",
   systemPrompt: "You are a helpful assistant.",
 });
 

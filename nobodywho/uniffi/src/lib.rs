@@ -226,7 +226,11 @@ pub struct Model {
     inner: Arc<nobodywho::llm::Model>,
 }
 
-/// Load a GGUF model from disk.
+/// Load a GGUF model from a local path or remote URL.
+///
+/// Accepts local filesystem paths, `hf://owner/repo/file.gguf` for HuggingFace downloads,
+/// or `https://` URLs. Downloaded models are cached automatically.
+///
 /// This is a free function instead of an async constructor because
 /// uniffi-bindgen-react-native generates invalid JS (`async static` instead
 /// of `static async`) for async constructors.
@@ -243,21 +247,6 @@ pub async fn load_model(
         use_gpu,
         projection_model_path
     );
-
-    // Early validation: check that the model file exists before handing off to
-    // the loader thread, so callers get a clear error instead of a channel error.
-    if !std::path::Path::new(&model_path).exists() {
-        let msg = format!("Model file not found: {}", model_path);
-        log::error!("{}", msg);
-        return Err(NobodyWhoError::Error { message: msg });
-    }
-    if let Some(ref mmproj) = projection_model_path {
-        if !std::path::Path::new(mmproj).exists() {
-            let msg = format!("Projection model file not found: {}", mmproj);
-            log::error!("{}", msg);
-            return Err(NobodyWhoError::Error { message: msg });
-        }
-    }
 
     let model = nobodywho::llm::get_model_async(model_path.clone(), use_gpu, projection_model_path)
         .await
