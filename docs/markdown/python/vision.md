@@ -24,6 +24,7 @@ which can do both image and audio.
 
 With the downloaded GGUFs, you can simply add the projection model as:
 
+<!-- not tested: requires audio-capable mmproj (Gemma 4), CI uses Gemma 3 -->
 ```python
 from nobodywho import Model, Chat
 
@@ -63,7 +64,7 @@ prompt = Prompt([
     Text("Tell me what you see in the image."),
     Image("./dog.png"),
     Text("Also tell me what you hear in the audio"),
-    Image("./sound.mp3")
+    Audio("./sound.mp3")
 ])
 ```
 
