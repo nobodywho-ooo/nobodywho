@@ -2437,6 +2437,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nobodywho-rust"
+version = "0.1.0"
+dependencies = [
+ "nobodywho",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "nom"
 version = "7.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

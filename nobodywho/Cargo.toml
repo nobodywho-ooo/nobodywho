@@ -4,6 +4,7 @@ members = [
     "godot",
     "flutter/rust",
     "python",
+    "rust",
     "grammar/gbnf",
     "grammar/gbnf-macro",
 ]
