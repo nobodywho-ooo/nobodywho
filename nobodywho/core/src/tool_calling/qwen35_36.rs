@@ -70,10 +70,8 @@ impl ToolFormatHandler for Qwen35_36Handler {
 //
 // Each `add_*` helper receives the in-progress `Builder`, appends one or more
 // rules, and returns the new `Builder` together with the name of the rule the
-// caller should reference. The threading is verbose but keeps the grammar
-// value owned through construction (the builder is consumed by `.rule(...)`).
+// caller should reference.
 
-/// Single-char expression that matches anything except the given chars.
 fn none_of(chars: &[char]) -> Expr {
     Expr::CharacterRange(CharacterRange::Set {
         chars: chars.to_vec(),
@@ -84,10 +82,6 @@ fn none_of(chars: &[char]) -> Expr {
 /// Add a body rule matching any sequence of characters.
 ///
 /// The outer rule wraps each body with `"<parameter=name>\n" body PARAM_TERMINATOR`.
-/// GBNF grammars for constrained sampling handle ambiguity by exploring all live
-/// parses — at each step the engine allows both extending the body and matching
-/// the terminator, and the model (trained on this template) picks the right branch.
-/// We don't parse generated output with this grammar; extraction is regex-based.
 fn add_param_value_body_rule(prefix: &str, b: Builder) -> (String, Builder) {
     let body = format!("{prefix}-body");
     let b = b.rule(
@@ -101,10 +95,6 @@ fn add_param_value_body_rule(prefix: &str, b: Builder) -> (String, Builder) {
 }
 
 /// Build a rule matching a single parameter value per its JSON schema type.
-///
-/// Strings reuse the shared body rule (any content) unless constrained by `enum`.
-/// Everything else (scalars, objects, arrays) delegates to `json_schema_to_grammar`,
-/// which is included into this grammar under a uniquified alias.
 fn add_value_rule(
     schema: &Value,
     prefix: &str,
@@ -206,7 +196,6 @@ fn add_tool_rule(
     Ok((tool_rule.clone(), builder.rule(&tool_rule, seq(&call_seq))))
 }
 
-/// Conservative rule-name sanitizer: GBNF rule names allow alphanumerics, `-`, and `_`.
 fn sanitize(s: &str) -> String {
     s.chars()
         .map(|c| {
