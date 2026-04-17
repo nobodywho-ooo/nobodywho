@@ -349,9 +349,7 @@ pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatEr
         return Ok(ToolFormat::Gemma4(Gemma4Handler));
     }
 
-    // Qwen family: 3.5/3.6 introduced an XML-function body format distinct from 3's
-    // JSON body. Distinguish by the template's rendered `<function=` marker, which
-    // only appears in the 3.5/3.6 instruction block.
+    // Qwen 3.5/3.6
     let has_qwen_call =
         template_str.contains("<tool_call>") || template_str.contains("</tool_call>");
     if has_qwen_call {
@@ -369,8 +367,7 @@ pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatEr
         return Ok(ToolFormat::Ministral3(Ministral3Handler));
     }
 
-    // Fall back to model metadata. Architecture is the most reliable signal for the
-    // Qwen family since `qwen35`/`qwen35moe` are distinct from `qwen3`.
+    // Fall back to model metadata.
     if let Ok(arch) = model.meta_val_str("general.architecture") {
         debug!(architecture = %arch, "Checking model architecture for format hints");
         let arch_lower = arch.to_lowercase();
