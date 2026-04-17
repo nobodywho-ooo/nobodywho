@@ -1676,9 +1676,7 @@ impl Worker<'_, ChatWorker> {
         // Process tool calls if tool format is configured
         // Clone to avoid borrow issues in the loop
         if let Some(tool_format) = self.extra.tool_format.clone() {
-            while let Some(tool_calls) =
-                tool_format.extract_tool_calls_typed(&response, &self.extra.tools)
-            {
+            while let Some(tool_calls) = tool_format.extract_tool_calls(&response) {
                 debug!(?tool_calls, "Got tool calls:");
 
                 self.add_tool_calls(tool_calls.clone());
