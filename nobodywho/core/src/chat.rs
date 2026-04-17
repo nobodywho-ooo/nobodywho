@@ -1676,7 +1676,9 @@ impl Worker<'_, ChatWorker> {
         // Process tool calls if tool format is configured
         // Clone to avoid borrow issues in the loop
         if let Some(tool_format) = self.extra.tool_format.clone() {
-            while let Some(tool_calls) = tool_format.extract_tool_calls(&response) {
+            while let Some(tool_calls) =
+                tool_format.extract_tool_calls_typed(&response, &self.extra.tools)
+            {
                 debug!(?tool_calls, "Got tool calls:");
 
                 self.add_tool_calls(tool_calls.clone());
@@ -2003,18 +2005,32 @@ where
 {
     let (resp_sender, resp_receiver) = std::sync::mpsc::channel();
     let mut emitting = true;
+    let log_hidden_tool_tokens = std::env::var("NOBODYWHO_LOG_TOOL_TOKENS")
+        .ok()
+        .map(|v| matches!(v.as_str(), "1" | "true" | "TRUE" | "yes" | "YES"))
+        .unwrap_or(false);
 
     let wrapped_respond = move |x| {
         match &x {
             llm::WriteOutput::Token(tok) if tool_call_begin_token.as_ref() == Some(tok) => {
                 emitting = false;
+                if log_hidden_tool_tokens {
+                    eprintln!("tool-token: {tok:?} [trigger]");
+                }
             }
             llm::WriteOutput::Done(resp) => {
+                if log_hidden_tool_tokens && !emitting {
+                    eprintln!("tool-response-complete: {resp:?}");
+                }
                 resp_sender
                     .send(resp.clone())
                     .expect("Failed sending response");
             }
-            llm::WriteOutput::Token(_) => (),
+            llm::WriteOutput::Token(tok) => {
+                if log_hidden_tool_tokens && !emitting {
+                    eprintln!("tool-token: {tok:?}");
+                }
+            }
         }
         if emitting {
             respond(x)

@@ -3,6 +3,7 @@
 //! This module provides abstractions for handling tool calling across different LLM formats.
 //! Currently supported formats:
 //! - Qwen3: `<tool_call>{"name": "...", "arguments": {...}}</tool_call>`
+//! - Qwen3.5/3.6: `<tool_call><function=name><parameter=k>v</parameter>...</function></tool_call>`
 //! - FunctionGemma: `<start_function_call>call:name{param:<escape>val<escape>}<end_function_call>`
 //! - Gemma4: `<|tool_call>call:name{key:<|"|>val<|"|>}<tool_call|>`
 //! - Ministral3: `[TOOL_CALLS][{"name": "...", "arguments": {...}}]`
@@ -11,11 +12,13 @@ mod functiongemma;
 mod gemma4;
 mod ministral3;
 mod qwen3;
+mod qwen35_36;
 
 use bashkit::{ExecutionLimits, InMemoryFs};
 use llama_cpp_2::model::LlamaModel;
 use monty::{LimitedTracker, MontyRun, PrintWriter, ResourceLimits};
 use serde::{ser::Serializer, Deserialize, Serialize};
+use serde_json::{Map, Number, Value};
 use std::{sync::Arc, time::Duration};
 use tracing::debug;
 
@@ -23,6 +26,7 @@ pub use functiongemma::FunctionGemmaHandler;
 pub use gemma4::Gemma4Handler;
 pub use ministral3::Ministral3Handler;
 pub use qwen3::Qwen3Handler;
+pub use qwen35_36::Qwen35_36Handler;
 
 // ============================================================================
 // Core Types
@@ -264,6 +268,7 @@ pub trait ToolFormatHandler {
 #[derive(Debug, Clone)]
 pub enum ToolFormat {
     Qwen3(Qwen3Handler),
+    Qwen35_36(Qwen35_36Handler),
     FunctionGemma(FunctionGemmaHandler),
     Gemma4(Gemma4Handler),
     Ministral3(Ministral3Handler),
@@ -273,6 +278,7 @@ impl ToolFormat {
     pub fn handler(&self) -> &dyn ToolFormatHandler {
         match self {
             ToolFormat::Qwen3(h) => h,
+            ToolFormat::Qwen35_36(h) => h,
             ToolFormat::FunctionGemma(h) => h,
             ToolFormat::Gemma4(h) => h,
             ToolFormat::Ministral3(h) => h,
@@ -294,6 +300,223 @@ impl ToolFormat {
     pub fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>> {
         self.handler().extract_tool_calls(input)
     }
+
+    pub fn extract_tool_calls_typed(&self, input: &str, tools: &[Tool]) -> Option<Vec<ToolCall>> {
+        self.extract_tool_calls(input)
+            .map(|calls| coerce_tool_calls_to_schema(calls, tools))
+    }
+}
+
+fn coerce_tool_calls_to_schema(tool_calls: Vec<ToolCall>, tools: &[Tool]) -> Vec<ToolCall> {
+    tool_calls
+        .into_iter()
+        .map(|tool_call| {
+            let Some(tool) = tools.iter().find(|tool| tool.name == tool_call.name) else {
+                return tool_call;
+            };
+
+            let arguments = coerce_arguments_to_schema(tool_call.arguments, &tool.json_schema);
+            ToolCall {
+                name: tool_call.name,
+                arguments,
+            }
+        })
+        .collect()
+}
+
+fn coerce_arguments_to_schema(arguments: Value, schema: &Value) -> Value {
+    let Some(properties) = schema.get("properties").and_then(|v| v.as_object()) else {
+        return arguments;
+    };
+
+    let Value::Object(map) = arguments else {
+        return arguments;
+    };
+
+    let coerced = map
+        .into_iter()
+        .map(|(key, value)| {
+            let coerced = properties.get(&key).map_or(value.clone(), |prop_schema| {
+                coerce_value_to_schema(value, prop_schema)
+            });
+            (key, coerced)
+        })
+        .collect::<Map<String, Value>>();
+
+    Value::Object(coerced)
+}
+
+fn coerce_value_to_schema(value: Value, schema: &Value) -> Value {
+    if let Some(types) = schema.get("type").and_then(|v| v.as_array()) {
+        for ty in types.iter().filter_map(|v| v.as_str()) {
+            let coerced = coerce_value_for_type(value.clone(), ty, schema);
+            if matches_schema_type(&coerced, ty) {
+                return coerced;
+            }
+        }
+        return value;
+    }
+
+    if let Some(ty) = schema.get("type").and_then(|v| v.as_str()) {
+        return coerce_value_for_type(value, ty, schema);
+    }
+
+    value
+}
+
+fn coerce_value_for_type(value: Value, ty: &str, schema: &Value) -> Value {
+    match ty {
+        "string" => match value {
+            Value::String(_) => value,
+            other => Value::String(json_scalar_to_string(&other)),
+        },
+        "integer" => coerce_integer(value),
+        "number" => coerce_number(value),
+        "boolean" => coerce_boolean(value),
+        "object" => coerce_object(value, schema),
+        "array" => coerce_array(value, schema),
+        "null" => {
+            if value.is_null() {
+                Value::Null
+            } else {
+                value
+            }
+        }
+        _ => value,
+    }
+}
+
+fn coerce_integer(value: Value) -> Value {
+    match value {
+        Value::Number(n) if n.is_i64() || n.is_u64() => Value::Number(n),
+        Value::String(s) => s
+            .parse::<i64>()
+            .ok()
+            .map(Number::from)
+            .map(Value::Number)
+            .unwrap_or(Value::String(s)),
+        other => other,
+    }
+}
+
+fn coerce_number(value: Value) -> Value {
+    match value {
+        Value::Number(_) => value,
+        Value::String(s) => s
+            .parse::<f64>()
+            .ok()
+            .and_then(Number::from_f64)
+            .map(Value::Number)
+            .unwrap_or(Value::String(s)),
+        other => other,
+    }
+}
+
+fn coerce_boolean(value: Value) -> Value {
+    match value {
+        Value::Bool(_) => value,
+        Value::String(s) => match s.as_str() {
+            "true" => Value::Bool(true),
+            "false" => Value::Bool(false),
+            _ => Value::String(s),
+        },
+        other => other,
+    }
+}
+
+fn coerce_object(value: Value, schema: &Value) -> Value {
+    let parsed = match value {
+        Value::Object(map) => Value::Object(map),
+        Value::String(s) => serde_json::from_str::<Value>(&s).unwrap_or(Value::String(s)),
+        other => other,
+    };
+
+    let Value::Object(map) = parsed else {
+        return parsed;
+    };
+
+    let Some(properties) = schema.get("properties").and_then(|v| v.as_object()) else {
+        return Value::Object(map);
+    };
+
+    let coerced = map
+        .into_iter()
+        .map(|(key, child)| {
+            let coerced = properties.get(&key).map_or(child.clone(), |child_schema| {
+                coerce_value_to_schema(child, child_schema)
+            });
+            (key, coerced)
+        })
+        .collect::<Map<String, Value>>();
+    Value::Object(coerced)
+}
+
+fn coerce_array(value: Value, schema: &Value) -> Value {
+    let parsed = match value {
+        Value::Array(items) => Value::Array(items),
+        Value::String(s) => serde_json::from_str::<Value>(&s).unwrap_or(Value::String(s)),
+        other => other,
+    };
+
+    let Value::Array(items) = parsed else {
+        return parsed;
+    };
+
+    let Some(item_schema) = schema.get("items") else {
+        return Value::Array(items);
+    };
+
+    Value::Array(
+        items
+            .into_iter()
+            .map(|item| coerce_value_to_schema(item, item_schema))
+            .collect(),
+    )
+}
+
+fn matches_schema_type(value: &Value, ty: &str) -> bool {
+    match ty {
+        "string" => value.is_string(),
+        "integer" => value.as_i64().is_some() || value.as_u64().is_some(),
+        "number" => value.is_number(),
+        "boolean" => value.is_boolean(),
+        "object" => value.is_object(),
+        "array" => value.is_array(),
+        "null" => value.is_null(),
+        _ => false,
+    }
+}
+
+fn json_scalar_to_string(value: &Value) -> String {
+    match value {
+        Value::String(s) => s.clone(),
+        Value::Number(n) => n.to_string(),
+        Value::Bool(b) => b.to_string(),
+        Value::Null => "null".to_string(),
+        Value::Array(_) | Value::Object(_) => value.to_string(),
+    }
+}
+
+fn is_qwen35_36_architecture(arch: &str) -> bool {
+    let arch = arch.to_lowercase();
+    arch.starts_with("qwen35")
+        || arch.starts_with("qwen36")
+        || arch.contains("qwen3.5")
+        || arch.contains("qwen3.6")
+}
+
+fn is_qwen35_36_name(name: &str) -> bool {
+    let name = name.to_lowercase();
+    [
+        "qwen3.5", "qwen3.6", "qwen 3.5", "qwen 3.6", "qwen-3.5", "qwen-3.6", "qwen35", "qwen36",
+    ]
+    .iter()
+    .any(|needle| name.contains(needle))
+}
+
+fn is_qwen3_name(name: &str) -> bool {
+    let name = name.to_lowercase();
+    name.contains("qwen3") || name.contains("qwen 3") || name.contains("qwen-3")
 }
 
 pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatError> {
@@ -316,14 +539,22 @@ pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatEr
         return Ok(ToolFormat::FunctionGemma(FunctionGemmaHandler));
     }
 
-    // Check for Gemma4 markers (must be before Qwen3 since both contain "tool_call")
+    // Check for Gemma4 markers (must be before Qwen since both contain "tool_call")
     if template_str.contains("<|tool_call>") || template_str.contains("<tool_call|>") {
         debug!("Detected Gemma4 format from template markers");
         return Ok(ToolFormat::Gemma4(Gemma4Handler));
     }
 
-    // Check for Qwen3 markers
-    if template_str.contains("<tool_call>") || template_str.contains("</tool_call>") {
+    // Qwen family: 3.5/3.6 introduced an XML-function body format distinct from 3's
+    // JSON body. Distinguish by the template's rendered `<function=` marker, which
+    // only appears in the 3.5/3.6 instruction block.
+    let has_qwen_call =
+        template_str.contains("<tool_call>") || template_str.contains("</tool_call>");
+    if has_qwen_call {
+        if template_str.contains("<function=") {
+            debug!("Detected Qwen3.5/3.6 format from template markers");
+            return Ok(ToolFormat::Qwen35_36(Qwen35_36Handler));
+        }
         debug!("Detected Qwen3 format from template markers");
         return Ok(ToolFormat::Qwen3(Qwen3Handler));
     }
@@ -334,7 +565,21 @@ pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatEr
         return Ok(ToolFormat::Ministral3(Ministral3Handler));
     }
 
-    // Try to detect from model name/metadata
+    // Fall back to model metadata. Architecture is the most reliable signal for the
+    // Qwen family since `qwen35`/`qwen35moe` are distinct from `qwen3`.
+    if let Ok(arch) = model.meta_val_str("general.architecture") {
+        debug!(architecture = %arch, "Checking model architecture for format hints");
+        let arch_lower = arch.to_lowercase();
+        if is_qwen35_36_architecture(&arch_lower) {
+            debug!("Detected Qwen3.5/3.6 format from architecture");
+            return Ok(ToolFormat::Qwen35_36(Qwen35_36Handler));
+        }
+        if arch_lower.starts_with("qwen3") {
+            debug!("Detected Qwen3 format from architecture");
+            return Ok(ToolFormat::Qwen3(Qwen3Handler));
+        }
+    }
+
     if let Ok(name) = model.meta_val_str("general.name") {
         debug!(model_name = %name, "Checking model name for format hints");
 
@@ -349,7 +594,12 @@ pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatEr
             return Ok(ToolFormat::Gemma4(Gemma4Handler));
         }
 
-        if name_lower.contains("qwen") {
+        if is_qwen35_36_name(&name_lower) {
+            debug!("Detected Qwen3.5/3.6 format from model name");
+            return Ok(ToolFormat::Qwen35_36(Qwen35_36Handler));
+        }
+
+        if is_qwen3_name(&name_lower) || name_lower.contains("qwen") {
             debug!("Detected Qwen3 format from model name");
             return Ok(ToolFormat::Qwen3(Qwen3Handler));
         }
@@ -363,6 +613,8 @@ pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatEr
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
+    use std::sync::Arc;
 
     #[test]
     fn test_qwen3_format() {
@@ -380,9 +632,6 @@ mod tests {
 
     #[test]
     fn test_tool_serialization() {
-        use serde_json::json;
-        use std::sync::Arc;
-
         let tool = Tool {
             name: "test_tool".to_string(),
             description: "A test tool".to_string(),
@@ -408,6 +657,73 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "requires QWEN_MODEL env var pointing at a Qwen GGUF; optional QWEN_TMPL_OUT path"]
+    fn dump_qwen_chat_template() {
+        let path = std::env::var("QWEN_MODEL").expect("set QWEN_MODEL");
+        let out = std::env::var("QWEN_TMPL_OUT").expect("set QWEN_TMPL_OUT");
+        let model = crate::llm::get_model(&path, false, None).expect("load model");
+        let default_tmpl: String = model
+            .language_model
+            .chat_template(None)
+            .ok()
+            .and_then(|t| t.to_string().ok())
+            .unwrap_or_default();
+        std::fs::write(&out, &default_tmpl).expect("write template");
+        eprintln!("wrote {} bytes to {out}", default_tmpl.len());
+    }
+
+    #[test]
+    #[ignore = "requires QWEN36_MODEL env var pointing at a Qwen3.6 GGUF"]
+    fn diagnose_qwen36_detection() {
+        let path = std::env::var("QWEN36_MODEL").expect("set QWEN36_MODEL");
+        let model = crate::llm::get_model(&path, false, None).expect("load model");
+
+        let name = model
+            .language_model
+            .meta_val_str("general.name")
+            .unwrap_or_else(|_| "<no general.name>".into());
+        let arch = model
+            .language_model
+            .meta_val_str("general.architecture")
+            .unwrap_or_else(|_| "<no arch>".into());
+        eprintln!("general.name         = {name}");
+        eprintln!("general.architecture = {arch}");
+
+        let has_tool_use_tmpl = model.language_model.chat_template(Some("tool_use")).is_ok();
+        eprintln!("has tool_use template: {has_tool_use_tmpl}");
+
+        let default_tmpl: String = model
+            .language_model
+            .chat_template(None)
+            .ok()
+            .and_then(|t| t.to_string().ok())
+            .unwrap_or_default();
+        for marker in [
+            "<tool_call>",
+            "</tool_call>",
+            "<|tool_call>",
+            "<tool_call|>",
+            "<start_function_call>",
+            "[TOOL_CALLS]",
+        ] {
+            eprintln!(
+                "default_tmpl contains {marker:>22}: {}",
+                default_tmpl.contains(marker)
+            );
+        }
+
+        let fmt = detect_tool_format(&model.language_model).expect("detect_tool_format failed");
+        let variant = match fmt {
+            ToolFormat::Qwen3(_) => "Qwen3",
+            ToolFormat::Qwen35_36(_) => "Qwen35_36",
+            ToolFormat::FunctionGemma(_) => "FunctionGemma",
+            ToolFormat::Gemma4(_) => "Gemma4",
+            ToolFormat::Ministral3(_) => "Ministral3",
+        };
+        eprintln!("detected handler     = {variant}");
+    }
+
+    #[test]
     fn test_tool_call_serialization() {
         use serde_json::json;
 
@@ -424,6 +740,139 @@ mod tests {
                 "function": {
                     "name": "test_tool",
                     "arguments": {"arg": "value"}
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn test_qwen35_36_name_detection_beats_generic_qwen3() {
+        for name in [
+            "Qwen3.5-2B-Instruct",
+            "Qwen3.6-30B-A3B",
+            "Qwen 3.5 coder",
+            "Qwen-3.6 reasoning",
+            "qwen35",
+            "qwen36",
+        ] {
+            assert!(is_qwen35_36_name(name), "{name} should map to Qwen35_36");
+        }
+
+        assert!(!is_qwen35_36_name("Qwen3-8B-Instruct"));
+        assert!(is_qwen3_name("Qwen3-8B-Instruct"));
+    }
+
+    #[test]
+    fn test_qwen35_36_architecture_detection_beats_generic_qwen3() {
+        for arch in ["qwen35", "qwen35moe", "qwen36", "qwen3.5", "qwen3.6"] {
+            assert!(
+                is_qwen35_36_architecture(arch),
+                "{arch} should map to Qwen35_36"
+            );
+        }
+
+        assert!(!is_qwen35_36_architecture("qwen3"));
+    }
+
+    #[test]
+    fn test_coerce_tool_calls_keeps_declared_string_scalars() {
+        let tools = vec![Tool {
+            name: "coerce".to_string(),
+            description: "coerce".to_string(),
+            json_schema: json!({
+                "type": "object",
+                "properties": {
+                    "zip": {"type": "string"},
+                    "enabled": {"type": "string"},
+                    "count": {"type": "integer"}
+                }
+            }),
+            function: Arc::new(|_| "ok".to_string()),
+        }];
+
+        let calls = vec![ToolCall {
+            name: "coerce".to_string(),
+            arguments: json!({
+                "zip": 2100,
+                "enabled": true,
+                "count": "42"
+            }),
+        }];
+
+        let coerced = coerce_tool_calls_to_schema(calls, &tools);
+        assert_eq!(
+            coerced[0].arguments,
+            json!({
+                "zip": "2100",
+                "enabled": "true",
+                "count": 42
+            })
+        );
+    }
+
+    #[test]
+    fn test_coerce_tool_calls_turns_numeric_string_field_into_json_string() {
+        let tools = vec![Tool {
+            name: "coerce".to_string(),
+            description: "coerce".to_string(),
+            json_schema: json!({
+                "type": "object",
+                "properties": {
+                    "seat": {"type": "string"}
+                },
+                "required": ["seat"]
+            }),
+            function: Arc::new(|_| "ok".to_string()),
+        }];
+
+        let calls = vec![ToolCall {
+            name: "coerce".to_string(),
+            arguments: json!({
+                "seat": 67
+            }),
+        }];
+
+        let coerced = coerce_tool_calls_to_schema(calls, &tools);
+        assert_eq!(coerced[0].arguments, json!({ "seat": "67" }));
+    }
+
+    #[test]
+    fn test_coerce_tool_calls_recurses_into_object_and_array() {
+        let tools = vec![Tool {
+            name: "nested".to_string(),
+            description: "nested".to_string(),
+            json_schema: json!({
+                "type": "object",
+                "properties": {
+                    "filters": {
+                        "type": "object",
+                        "properties": {
+                            "direct_only": {"type": "boolean"},
+                            "airlines": {
+                                "type": "array",
+                                "items": {"type": "string"}
+                            }
+                        }
+                    }
+                }
+            }),
+            function: Arc::new(|_| "ok".to_string()),
+        }];
+
+        let calls = vec![ToolCall {
+            name: "nested".to_string(),
+            arguments: json!({
+                "filters": "{\"direct_only\":\"true\",\"airlines\":[1,\"SK\"]}"
+            }),
+        }];
+
+        let coerced = coerce_tool_calls_to_schema(calls, &tools);
+        assert_eq!(
+            coerced[0].arguments,
+            json!({
+                "filters": {
+                    "direct_only": true,
+                    "airlines": ["1", "SK"]
                 }
             })
         );

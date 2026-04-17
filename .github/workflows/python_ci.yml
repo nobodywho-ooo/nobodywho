@@ -345,18 +345,27 @@ jobs:
             file: Qwen_Qwen3-0.6B-Q4_K_M.gguf
             url: https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf
             format: Qwen3
+            pytest_args: tests/test_tool_calling.py -v --tb=short
+          - name: Qwen3.6
+            file: Qwen3.6-35B-A3B-UD-IQ1_M.gguf
+            url: https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF/resolve/main/Qwen3.6-35B-A3B-UD-IQ1_M.gguf
+            format: Qwen35_36
+            pytest_args: tests/test_tool_calling.py::test_tool_calling -v --tb=short
           - name: FunctionGemma
             file: functiongemma-270m-it-BF16.gguf
             url: https://huggingface.co/unsloth/functiongemma-270m-it-GGUF/resolve/main/functiongemma-270m-it-BF16.gguf
             format: FunctionGemma
+            pytest_args: tests/test_tool_calling.py -v --tb=short
           - name: Ministral3
             file: mistralai_Ministral-3-3B-Instruct-2512-Q6_K_L.gguf
             url: https://huggingface.co/bartowski/mistralai_Ministral-3-3B-Instruct-2512-GGUF/resolve/main/mistralai_Ministral-3-3B-Instruct-2512-Q6_K_L.gguf
             format: Ministral3
+            pytest_args: tests/test_tool_calling.py -v --tb=short
           - name: Gemma4
             file: gemma-4-E2B-it-Q4_0.gguf
             url: https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_0.gguf
             format: Gemma4
+            pytest_args: tests/test_tool_calling.py -v --tb=short
 
     steps:
       - uses: actions/checkout@v4
@@ -394,7 +403,7 @@ jobs:
           TEST_MODEL: ${{ github.workspace }}/models/${{ matrix.model.file }}
         run: |
           source .venv/bin/activate
-          python3 -m pytest tests/test_tool_calling.py -v --tb=short
+          python3 -m pytest ${{ matrix.model.pytest_args }}
       - name: Display test summary
         if: always()
         run: |
