@@ -19,6 +19,43 @@ from tqdm import tqdm
 logger = logging.getLogger(__name__)
 
 
+# ── Think-block helpers ──────────────────────────────────────────────
+# Standard models (DeepSeek, Qwen, …) use <think>…</think>.
+# Gemma 4 uses <|channel>thought\n…\n<channel|>.
+
+# Markers that signal the end of a thinking block in the token stream.
+THINK_END_MARKERS = ["</think>", "<channel|>"]
+
+
+def strip_think_block(text: str) -> tuple[str, str]:
+    """Strip the thinking block from a full model response.
+
+    Returns (thinking_text, response_text).
+    Handles both <think>…</think> and <|channel>thought…<channel|> formats.
+    Splits on the *last* occurrence so nested/multiple blocks are handled.
+    """
+    # Standard format: <think>…</think>
+    if "</think>" in text:
+        before, after = text.rsplit("</think>", 1)
+        thinking = before.replace("<think>", "").strip()
+        return thinking, after.lstrip()
+
+    # Gemma 4 format: <|channel>thought\n…\n<channel|>
+    if "<channel|>" in text:
+        before, after = text.rsplit("<channel|>", 1)
+        thinking = before
+        # Remove the opening tag + "thought\n" prefix if present
+        if "<|channel>" in thinking:
+            thinking = thinking.split("<|channel>", 1)[1]
+            if thinking.startswith("thought\n"):
+                thinking = thinking[len("thought\n"):]
+            elif thinking.startswith("thought"):
+                thinking = thinking[len("thought"):]
+        return thinking.strip(), after.lstrip()
+
+    return "", text
+
+
 # ── System info ──────────────────────────────────────────────────────
 
 
@@ -329,7 +366,7 @@ class NobodyWhoLM(LM):
                     # Detect when thinking block ends (check last 5 chunks only)
                     if self.allow_thinking and not think_ended:
                         recent = "".join(tokens[-5:])
-                        if "</think>" in recent:
+                        if any(marker in recent for marker in THINK_END_MARKERS):
                             think_ended = True
                             response_tokens = 0
                             think_end_idx = len(tokens)
@@ -366,14 +403,14 @@ class NobodyWhoLM(LM):
                         f"{full_response[:200]!r}...{full_response[-200:]!r}"
                     )
                     print(f"  [DEBUG] completed() ({len(tokens)} tok): {full_response[:300]!r}")
-                if self.allow_thinking and "</think>" in full_response:
-                    # Split on last </think> to handle models that emit multiple think blocks
-                    response_text = full_response.rsplit("</think>", 1)[1].lstrip()
-                    print(f"  [DEBUG] after think-strip: {response_text[:300]!r}")
+                if self.allow_thinking:
+                    thinking, response_text = strip_think_block(full_response)
+                    if thinking:
+                        print(f"  [DEBUG] after think-strip: {response_text[:300]!r}")
+                    else:
+                        print(f"  [DEBUG] no think block found, using full response")
                 else:
                     response_text = full_response
-                    if self.allow_thinking:
-                        print(f"  [DEBUG] no </think> found, using full response")
 
                 # truncate at stop sequence if present
                 for stop_seq in until:
@@ -751,10 +788,8 @@ def save_incorrect_samples(
         # Split thinking from response
         thinking = ""
         response_text = full_response
-        if allow_thinking and "</think>" in full_response:
-            parts = full_response.split("</think>", 1)
-            thinking = parts[0].replace("<think>", "").strip()
-            response_text = parts[1].strip()
+        if allow_thinking:
+            thinking, response_text = strip_think_block(full_response)
 
         # Extract prompt text from arguments
         prompt = ""
