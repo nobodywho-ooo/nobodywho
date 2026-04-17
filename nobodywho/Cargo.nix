@@ -6825,8 +6825,8 @@ rec {
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
-          url = "https://github.com/utilityai/llama-cpp-rs";
-          rev = "4d3961ac6091cac33d7ebe4052941651886e850b";
+          url = "https://github.com/marek-hradil/llama-cpp-rs";
+          rev = "8ed773394865138a94ac62931d4e60814d315a65";
           sha256 = "0x7bjvg27vmpzak6xzh4l80grwfcchdny96gypx661wmrfx09276";
         };
         libName = "llama_cpp_2";
@@ -6893,8 +6893,8 @@ rec {
         links = "llama";
         workspace_member = null;
         src = pkgs.fetchgit {
-          url = "https://github.com/utilityai/llama-cpp-rs";
-          rev = "4d3961ac6091cac33d7ebe4052941651886e850b";
+          url = "https://github.com/marek-hradil/llama-cpp-rs";
+          rev = "8ed773394865138a94ac62931d4e60814d315a65";
           sha256 = "0x7bjvg27vmpzak6xzh4l80grwfcchdny96gypx661wmrfx09276";
         };
         libName = "llama_cpp_sys_2";
@@ -7618,7 +7618,7 @@ rec {
       };
       "nobodywho-flutter" = rec {
         crateName = "nobodywho-flutter";
-        version = "0.6.0";
+        version = "1.0.0";
         edition = "2021";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./flutter/rust; };
         libName = "nobodywho_flutter";type = [ "cdylib" ];
@@ -7706,7 +7706,7 @@ rec {
       };
       "nobodywho-python" = rec {
         crateName = "nobodywho-python";
-        version = "0.9.1";
+        version = "1.0.0";
         edition = "2021";
         crateBin = [
           {
