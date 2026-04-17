@@ -95,7 +95,11 @@ export function cosineSimilarity(a: Array</*f32*/number>, b: Array</*f32*/number
     ));
     }
 /**
- * Load a GGUF model from disk.
+ * Load a GGUF model from a local path or remote URL.
+ *
+ * Accepts local filesystem paths, `hf://owner/repo/file.gguf` for HuggingFace downloads,
+ * or `https://` URLs. Downloaded models are cached automatically.
+ *
  * This is a free function instead of an async constructor because
  * uniffi-bindgen-react-native generates invalid JS (`async static` instead
  * of `static async`) for async constructors.
@@ -2840,7 +2844,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_cosine_similarity() !== 63439) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_cosine_similarity");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model() !== 11009) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model() !== 57455) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_load_model");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_default() !== 10834) {
