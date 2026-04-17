@@ -2003,32 +2003,18 @@ where
 {
     let (resp_sender, resp_receiver) = std::sync::mpsc::channel();
     let mut emitting = true;
-    let log_hidden_tool_tokens = std::env::var("NOBODYWHO_LOG_TOOL_TOKENS")
-        .ok()
-        .map(|v| matches!(v.as_str(), "1" | "true" | "TRUE" | "yes" | "YES"))
-        .unwrap_or(false);
 
     let wrapped_respond = move |x| {
         match &x {
             llm::WriteOutput::Token(tok) if tool_call_begin_token.as_ref() == Some(tok) => {
                 emitting = false;
-                if log_hidden_tool_tokens {
-                    eprintln!("tool-token: {tok:?} [trigger]");
-                }
             }
             llm::WriteOutput::Done(resp) => {
-                if log_hidden_tool_tokens && !emitting {
-                    eprintln!("tool-response-complete: {resp:?}");
-                }
                 resp_sender
                     .send(resp.clone())
                     .expect("Failed sending response");
             }
-            llm::WriteOutput::Token(tok) => {
-                if log_hidden_tool_tokens && !emitting {
-                    eprintln!("tool-token: {tok:?}");
-                }
-            }
+            llm::WriteOutput::Token(_) => {}
         }
         if emitting {
             respond(x)
