@@ -4,8 +4,8 @@ import pytest
 import nobodywho
 
 # The model used for all download tests.
-# This translates to: https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-IQ2_M.gguf
-HF_MODEL = "hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-IQ2_M.gguf"
+# This translates to: https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf
+HF_MODEL = "hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
 
 # An hf:// path with a valid format that refers to a model that doesn't exist,
 # used for tests that verify the hf:// code path is reached without needing a
