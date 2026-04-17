@@ -71,11 +71,7 @@ fn estimate_per_layer_bytes(info: &GgufModelInfo) -> u64 {
 
 fn estimate_kv_cache_bytes(arch: &ModelArchitecture, n_ctx: u32) -> u64 {
     // KV cache: 2 (K+V) * n_layers * n_ctx * n_head_kv * head_dim * 2 bytes (f16)
-    let head_dim = if arch.n_head > 0 {
-        arch.n_embd / arch.n_head
-    } else {
-        64
-    } as u64;
+    let head_dim = arch.n_embd.checked_div(arch.n_head).unwrap_or(64) as u64;
     2 * arch.n_layers as u64 * n_ctx as u64 * arch.n_head_kv as u64 * head_dim * 2
 }
 
