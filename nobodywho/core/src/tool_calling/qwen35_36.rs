@@ -79,18 +79,38 @@ fn none_of(chars: &[char]) -> Expr {
     })
 }
 
-/// Add a GBNF rule for a single-line parameter value body.
+/// Add GBNF rules for an arbitrary-content body that cannot consume
+/// `PARAM_TERMINATOR` (`\n</parameter>\n`).
 ///
-/// The body matches any sequence of non-newline characters. Since the
-/// `PARAM_TERMINATOR` starts with `\n`, the body can never consume it, which
-/// makes the grammar unambiguous without needing a multi-state automaton.
-///
-/// String parameter values are restricted to a single line. For non-string
-/// types (integer, boolean, object, etc.) the JSON schema grammar is used
-/// instead, so this rule only affects free-form string parameters.
-fn add_param_value_body_rule(prefix: &str, b: Builder) -> (String, Builder) {
+/// The terminator always begins with `\n<`, so the body allows multi-line
+/// content but forbids `<` at the start of any line. This is two rules
+/// instead of the 14-state KMP automaton needed to match the full terminator
+/// string, and is sufficient in practice because tool-call parameter values
+/// (code, text, etc.) rarely start a line with `<`.
+fn add_param_value_body_rule(prefix: &str, mut b: Builder) -> (String, Builder) {
     let body = format!("{prefix}-body");
-    let b = b.rule(&body, alt(&[t(""), seq(&[none_of(&['\n']), nt(&body)])]));
+    let after_nl = format!("{prefix}-after-nl");
+
+    // body ::= "" | [^\n] body | "\n" after-nl
+    b = b.rule(
+        &body,
+        alt(&[
+            t(""),
+            seq(&[none_of(&['\n']), nt(&body)]),
+            seq(&[t("\n"), nt(&after_nl)]),
+        ]),
+    );
+
+    // after-nl ::= "" | [^<\n] body | "\n" after-nl
+    b = b.rule(
+        &after_nl,
+        alt(&[
+            t(""),
+            seq(&[none_of(&['<', '\n']), nt(&body)]),
+            seq(&[t("\n"), nt(&after_nl)]),
+        ]),
+    );
+
     (body, b)
 }
 
