@@ -2402,7 +2402,7 @@ dependencies = [
 
 [[package]]
 name = "nobodywho-flutter"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "flutter_rust_bridge",
  "flutter_rust_bridge_codegen",
@@ -2430,7 +2430,7 @@ dependencies = [
 
 [[package]]
 name = "nobodywho-python"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "futures",
  "log",
