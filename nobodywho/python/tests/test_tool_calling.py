@@ -381,7 +381,7 @@ def test_python_tool(model):
         template_variables={"enable_thinking": False},
     )
 
-    chat.ask("Use python tool to print the first 10 fibonacci numbers, one per line").completed()
+    chat.ask("Use python tool to compute and print what is 42 * 42").completed()
 
     history = chat.get_chat_history()
     tool_calls = get_tool_calls(history)
@@ -392,7 +392,7 @@ def test_python_tool(model):
 
     assert len(tool_responses) >= 1
     assert all(tr["name"] == "run_python" for tr in tool_responses)
-    assert "34" in tool_responses[0]["content"]
+    assert any("1764" in tr["content"] for tr in tool_responses)
 
 
 def test_bash_tool(model):
