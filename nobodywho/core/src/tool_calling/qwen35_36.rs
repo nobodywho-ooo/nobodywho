@@ -79,61 +79,18 @@ fn none_of(chars: &[char]) -> Expr {
     })
 }
 
-/// Add GBNF rules for an arbitrary-content body that does *not* contain `PARAM_TERMINATOR`.
+/// Add a GBNF rule for a single-line parameter value body.
 ///
-/// GBNF has no "not-substring" operator, so we encode the constraint as a KMP-style
-/// automaton over the terminator: state `a_k` means "the last k+1 consumed chars are a
-/// prefix of PARAM_TERMINATOR". This stops the body from accidentally swallowing the
-/// close marker, which would let the model continue the value past the template's
-/// natural boundary.
+/// The body matches any sequence of non-newline characters. Since the
+/// `PARAM_TERMINATOR` starts with `\n`, the body can never consume it, which
+/// makes the grammar unambiguous without needing a multi-state automaton.
 ///
-/// The automaton assumes `\n` is only repeated at the endpoints of the terminator, so
-/// any stray `\n` resets to state a0 (rather than needing a general failure function).
-/// Returns the name of the body rule.
-fn add_param_value_body_rule(prefix: &str, mut b: Builder) -> (String, Builder) {
-    let mid = PARAM_TERMINATOR.trim_matches('\n');
-    debug_assert!(!mid.contains('\n'));
-    debug_assert_eq!(mid.len() + 2, PARAM_TERMINATOR.len());
-    let last = mid.chars().count();
-
+/// String parameter values are restricted to a single line. For non-string
+/// types (integer, boolean, object, etc.) the JSON schema grammar is used
+/// instead, so this rule only affects free-form string parameters.
+fn add_param_value_body_rule(prefix: &str, b: Builder) -> (String, Builder) {
     let body = format!("{prefix}-body");
-    let a = |k: usize| format!("{prefix}-a{k}");
-
-    // body ::= "" | [^\n] body | "\n" a0
-    b = b.rule(
-        &body,
-        alt(&[
-            t(""),
-            seq(&[none_of(&['\n']), nt(&body)]),
-            seq(&[t("\n"), nt(&a(0))]),
-        ]),
-    );
-
-    // a_k (0..last) ::= "" | c_k a_{k+1} | "\n" a0 | [^\n, c_k] body
-    for (k, next_c) in mid.chars().enumerate() {
-        b = b.rule(
-            &a(k),
-            alt(&[
-                t(""),
-                seq(&[t(&next_c.to_string()), nt(&a(k + 1))]),
-                seq(&[t("\n"), nt(&a(0))]),
-                seq(&[none_of(&['\n', next_c]), nt(&body)]),
-            ]),
-        );
-    }
-
-    // a_last ::= "" | "\n" a0 | [^\n] body
-    // Consuming the final `\n` completes the terminator, which the outer rule
-    // handles; the epsilon alternative lets the parser exit the body.
-    b = b.rule(
-        &a(last),
-        alt(&[
-            t(""),
-            seq(&[t("\n"), nt(&a(0))]),
-            seq(&[none_of(&['\n']), nt(&body)]),
-        ]),
-    );
-
+    let b = b.rule(&body, alt(&[t(""), seq(&[none_of(&['\n']), nt(&body)])]));
     (body, b)
 }
 
