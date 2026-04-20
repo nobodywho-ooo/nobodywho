@@ -104,7 +104,7 @@ export function cosineSimilarity(a: Array</*f32*/number>, b: Array</*f32*/number
  * uniffi-bindgen-react-native generates invalid JS (`async static` instead
  * of `static async`) for async constructors.
  */
-export async function loadModel(modelPath: string, useGpu: boolean, projectionModelPath: string | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<ModelInterface> /*throws*/ {
+export async function loadModel(modelPath: string, useGpu: boolean, projectionModelPath: string | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<RustModelInterface> /*throws*/ {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
         return await uniffiRustCallAsync(
@@ -117,7 +117,7 @@ export async function loadModel(modelPath: string, useGpu: boolean, projectionMo
             /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_u64,
             /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_u64,
             /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_u64,
-            /*liftFunc:*/ FfiConverterTypeModel.lift.bind(FfiConverterTypeModel),
+            /*liftFunc:*/ FfiConverterTypeRustModel.lift.bind(FfiConverterTypeRustModel),
             /*liftString:*/ FfiConverterString.lift,
             /*asyncOpts:*/ asyncOpts_,
             /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
@@ -1012,424 +1012,6 @@ const FfiConverterTypeRole = (() => {
 const FfiConverterMapStringBool = new FfiConverterMap(FfiConverterString, FfiConverterBool);
 
 
-export interface CrossEncoderInterface {
-    
-    /**
-     * Rank documents by relevance to a query. Returns similarity scores.
-     */
-    rank(query: string, documents: Array<string>, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<Array</*f32*/number>>;
-    /**
-     * Rank documents and return them sorted by descending relevance.
-     * Returns a JSON string of [document, score] pairs since UniFFI
-     * doesn't support tuples directly.
-     */
-    rankAndSortJson(query: string, documents: Array<string>, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<string>;
-}
-
-
-export class CrossEncoder extends UniffiAbstractObject implements CrossEncoderInterface {
-
-    readonly [uniffiTypeNameSymbol] = "CrossEncoder";
-    readonly [destructorGuardSymbol]: UniffiGcObject;
-    readonly [pointerLiteralSymbol]: UniffiHandle;
-    /**
-     * Create a new cross-encoder for ranking documents by relevance.
-     */
-    constructor(model: ModelInterface, contextSize: /*u32*/number | undefined) {
-        super();
-        const pointer =
-            uniffiCaller.rustCall(
-            /*caller:*/ (callStatus) => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_crossencoder_new(
-        FfiConverterTypeModel.lower(model),
-        FfiConverterOptionalUInt32.lower(contextSize),
-                callStatus);
-            },
-            /*liftString:*/ FfiConverterString.lift,
-    );
-        this[pointerLiteralSymbol] = pointer;
-        this[destructorGuardSymbol] = uniffiTypeCrossEncoderObjectFactory.bless(pointer);
-    }
-
-    
-
-    
-    /**
-     * Rank documents by relevance to a query. Returns similarity scores.
-     */
-async  rank(query: string, documents: Array<string>, asyncOpts_?: { signal: AbortSignal }): Promise<Array</*f32*/number>> /*throws*/ {
-    const __stack = uniffiIsDebug ? new Error().stack : undefined;
-    try {
-        return await uniffiRustCallAsync(
-            /*rustCaller:*/ uniffiCaller,
-            /*rustFutureFunc:*/ () => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_crossencoder_rank(
-                    uniffiTypeCrossEncoderObjectFactory.clonePointer(this),
-                    FfiConverterString.lower(query),FfiConverterArrayString.lower(documents)
-                );
-            },
-            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
-            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
-            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
-            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
-            /*liftFunc:*/ FfiConverterArrayFloat32.lift.bind(FfiConverterArrayFloat32),
-            /*liftString:*/ FfiConverterString.lift,
-            /*asyncOpts:*/ asyncOpts_,
-            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
-        );
-    } catch (__error: any) {
-        if (uniffiIsDebug && __error instanceof Error) {
-            __error.stack = __stack;
-        }
-        throw __error;
-    }
-    }
-    
-    /**
-     * Rank documents and return them sorted by descending relevance.
-     * Returns a JSON string of [document, score] pairs since UniFFI
-     * doesn't support tuples directly.
-     */
-async  rankAndSortJson(query: string, documents: Array<string>, asyncOpts_?: { signal: AbortSignal }): Promise<string> /*throws*/ {
-    const __stack = uniffiIsDebug ? new Error().stack : undefined;
-    try {
-        return await uniffiRustCallAsync(
-            /*rustCaller:*/ uniffiCaller,
-            /*rustFutureFunc:*/ () => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_crossencoder_rank_and_sort_json(
-                    uniffiTypeCrossEncoderObjectFactory.clonePointer(this),
-                    FfiConverterString.lower(query),FfiConverterArrayString.lower(documents)
-                );
-            },
-            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
-            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
-            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
-            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
-            /*liftFunc:*/ FfiConverterString.lift.bind(FfiConverterString),
-            /*liftString:*/ FfiConverterString.lift,
-            /*asyncOpts:*/ asyncOpts_,
-            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
-        );
-    } catch (__error: any) {
-        if (uniffiIsDebug && __error instanceof Error) {
-            __error.stack = __stack;
-        }
-        throw __error;
-    }
-    }
-    
-
-    /**
-     * {@inheritDoc uniffi-bindgen-react-native#UniffiAbstractObject.uniffiDestroy}
-     */
-    uniffiDestroy(): void {
-        const ptr = (this as any)[destructorGuardSymbol];
-        if (ptr !== undefined) {
-            const pointer = uniffiTypeCrossEncoderObjectFactory.pointer(this);
-            uniffiTypeCrossEncoderObjectFactory.freePointer(pointer);
-            uniffiTypeCrossEncoderObjectFactory.unbless(ptr);
-            delete (this as any)[destructorGuardSymbol];
-        }
-    }
-
-    static instanceOf(obj: any): obj is CrossEncoder {
-        return uniffiTypeCrossEncoderObjectFactory.isConcreteType(obj);
-    }
-
-    
-}
-
-const uniffiTypeCrossEncoderObjectFactory: UniffiObjectFactory<CrossEncoderInterface> = (() => {
-    
-    return {
-    create(pointer: UniffiHandle): CrossEncoderInterface {
-        const instance = Object.create(CrossEncoder.prototype);
-        instance[pointerLiteralSymbol] = pointer;
-        instance[destructorGuardSymbol] = this.bless(pointer);
-        instance[uniffiTypeNameSymbol] = "CrossEncoder";
-        return instance;
-    },
-
-    
-    bless(p: UniffiHandle): UniffiGcObject {
-        return uniffiCaller.rustCall(
-            /*caller:*/ (status) =>
-                nativeModule().ubrn_uniffi_internal_fn_method_crossencoder_ffi__bless_pointer(p, status),
-            /*liftString:*/ FfiConverterString.lift
-        );
-    },
-
-    unbless(ptr: UniffiGcObject) {
-        ptr.markDestroyed();
-    },
-
-    pointer(obj: CrossEncoderInterface): UniffiHandle {
-        if ((obj as any)[destructorGuardSymbol] === undefined) {
-            throw new UniffiInternalError.UnexpectedNullPointer();
-        }
-        return (obj as any)[pointerLiteralSymbol];
-    },
-
-    clonePointer(obj: CrossEncoderInterface): UniffiHandle {
-        const pointer = this.pointer(obj);
-        return uniffiCaller.rustCall(
-            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_clone_crossencoder(pointer, callStatus),
-            /*liftString:*/ FfiConverterString.lift
-        );
-    },
-
-    freePointer(pointer: UniffiHandle): void {
-        uniffiCaller.rustCall(
-            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_free_crossencoder(pointer, callStatus),
-            /*liftString:*/ FfiConverterString.lift
-        );
-    },
-
-    isConcreteType(obj: any): obj is CrossEncoderInterface {
-        return obj[destructorGuardSymbol] && obj[uniffiTypeNameSymbol] === "CrossEncoder";
-    },
-}})();
-// FfiConverter for CrossEncoderInterface
-const FfiConverterTypeCrossEncoder =  new FfiConverterObject(uniffiTypeCrossEncoderObjectFactory);
-
-
-export interface EncoderInterface {
-    
-    /**
-     * Encode text into an embedding vector.
-     */
-    encode(text: string, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<Array</*f32*/number>>;
-}
-
-
-export class Encoder extends UniffiAbstractObject implements EncoderInterface {
-
-    readonly [uniffiTypeNameSymbol] = "Encoder";
-    readonly [destructorGuardSymbol]: UniffiGcObject;
-    readonly [pointerLiteralSymbol]: UniffiHandle;
-    /**
-     * Create a new encoder for generating text embeddings.
-     */
-    constructor(model: ModelInterface, contextSize: /*u32*/number | undefined) {
-        super();
-        const pointer =
-            uniffiCaller.rustCall(
-            /*caller:*/ (callStatus) => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_encoder_new(
-        FfiConverterTypeModel.lower(model),
-        FfiConverterOptionalUInt32.lower(contextSize),
-                callStatus);
-            },
-            /*liftString:*/ FfiConverterString.lift,
-    );
-        this[pointerLiteralSymbol] = pointer;
-        this[destructorGuardSymbol] = uniffiTypeEncoderObjectFactory.bless(pointer);
-    }
-
-    
-
-    
-    /**
-     * Encode text into an embedding vector.
-     */
-async  encode(text: string, asyncOpts_?: { signal: AbortSignal }): Promise<Array</*f32*/number>> /*throws*/ {
-    const __stack = uniffiIsDebug ? new Error().stack : undefined;
-    try {
-        return await uniffiRustCallAsync(
-            /*rustCaller:*/ uniffiCaller,
-            /*rustFutureFunc:*/ () => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_encoder_encode(
-                    uniffiTypeEncoderObjectFactory.clonePointer(this),
-                    FfiConverterString.lower(text)
-                );
-            },
-            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
-            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
-            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
-            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
-            /*liftFunc:*/ FfiConverterArrayFloat32.lift.bind(FfiConverterArrayFloat32),
-            /*liftString:*/ FfiConverterString.lift,
-            /*asyncOpts:*/ asyncOpts_,
-            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
-        );
-    } catch (__error: any) {
-        if (uniffiIsDebug && __error instanceof Error) {
-            __error.stack = __stack;
-        }
-        throw __error;
-    }
-    }
-    
-
-    /**
-     * {@inheritDoc uniffi-bindgen-react-native#UniffiAbstractObject.uniffiDestroy}
-     */
-    uniffiDestroy(): void {
-        const ptr = (this as any)[destructorGuardSymbol];
-        if (ptr !== undefined) {
-            const pointer = uniffiTypeEncoderObjectFactory.pointer(this);
-            uniffiTypeEncoderObjectFactory.freePointer(pointer);
-            uniffiTypeEncoderObjectFactory.unbless(ptr);
-            delete (this as any)[destructorGuardSymbol];
-        }
-    }
-
-    static instanceOf(obj: any): obj is Encoder {
-        return uniffiTypeEncoderObjectFactory.isConcreteType(obj);
-    }
-
-    
-}
-
-const uniffiTypeEncoderObjectFactory: UniffiObjectFactory<EncoderInterface> = (() => {
-    
-    return {
-    create(pointer: UniffiHandle): EncoderInterface {
-        const instance = Object.create(Encoder.prototype);
-        instance[pointerLiteralSymbol] = pointer;
-        instance[destructorGuardSymbol] = this.bless(pointer);
-        instance[uniffiTypeNameSymbol] = "Encoder";
-        return instance;
-    },
-
-    
-    bless(p: UniffiHandle): UniffiGcObject {
-        return uniffiCaller.rustCall(
-            /*caller:*/ (status) =>
-                nativeModule().ubrn_uniffi_internal_fn_method_encoder_ffi__bless_pointer(p, status),
-            /*liftString:*/ FfiConverterString.lift
-        );
-    },
-
-    unbless(ptr: UniffiGcObject) {
-        ptr.markDestroyed();
-    },
-
-    pointer(obj: EncoderInterface): UniffiHandle {
-        if ((obj as any)[destructorGuardSymbol] === undefined) {
-            throw new UniffiInternalError.UnexpectedNullPointer();
-        }
-        return (obj as any)[pointerLiteralSymbol];
-    },
-
-    clonePointer(obj: EncoderInterface): UniffiHandle {
-        const pointer = this.pointer(obj);
-        return uniffiCaller.rustCall(
-            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_clone_encoder(pointer, callStatus),
-            /*liftString:*/ FfiConverterString.lift
-        );
-    },
-
-    freePointer(pointer: UniffiHandle): void {
-        uniffiCaller.rustCall(
-            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_free_encoder(pointer, callStatus),
-            /*liftString:*/ FfiConverterString.lift
-        );
-    },
-
-    isConcreteType(obj: any): obj is EncoderInterface {
-        return obj[destructorGuardSymbol] && obj[uniffiTypeNameSymbol] === "Encoder";
-    },
-}})();
-// FfiConverter for EncoderInterface
-const FfiConverterTypeEncoder =  new FfiConverterObject(uniffiTypeEncoderObjectFactory);
-
-
-export interface ModelInterface {
-    
-}
-
-
-export class Model extends UniffiAbstractObject implements ModelInterface {
-
-    readonly [uniffiTypeNameSymbol] = "Model";
-    readonly [destructorGuardSymbol]: UniffiGcObject;
-    readonly [pointerLiteralSymbol]: UniffiHandle;
-    // No primary constructor declared for this class.
-private constructor(pointer: UniffiHandle) {
-    super();
-    this[pointerLiteralSymbol] = pointer;
-    this[destructorGuardSymbol] = uniffiTypeModelObjectFactory.bless(pointer);
-}
-
-    
-
-    
-
-    /**
-     * {@inheritDoc uniffi-bindgen-react-native#UniffiAbstractObject.uniffiDestroy}
-     */
-    uniffiDestroy(): void {
-        const ptr = (this as any)[destructorGuardSymbol];
-        if (ptr !== undefined) {
-            const pointer = uniffiTypeModelObjectFactory.pointer(this);
-            uniffiTypeModelObjectFactory.freePointer(pointer);
-            uniffiTypeModelObjectFactory.unbless(ptr);
-            delete (this as any)[destructorGuardSymbol];
-        }
-    }
-
-    static instanceOf(obj: any): obj is Model {
-        return uniffiTypeModelObjectFactory.isConcreteType(obj);
-    }
-
-    
-}
-
-const uniffiTypeModelObjectFactory: UniffiObjectFactory<ModelInterface> = (() => {
-    
-    return {
-    create(pointer: UniffiHandle): ModelInterface {
-        const instance = Object.create(Model.prototype);
-        instance[pointerLiteralSymbol] = pointer;
-        instance[destructorGuardSymbol] = this.bless(pointer);
-        instance[uniffiTypeNameSymbol] = "Model";
-        return instance;
-    },
-
-    
-    bless(p: UniffiHandle): UniffiGcObject {
-        return uniffiCaller.rustCall(
-            /*caller:*/ (status) =>
-                nativeModule().ubrn_uniffi_internal_fn_method_model_ffi__bless_pointer(p, status),
-            /*liftString:*/ FfiConverterString.lift
-        );
-    },
-
-    unbless(ptr: UniffiGcObject) {
-        ptr.markDestroyed();
-    },
-
-    pointer(obj: ModelInterface): UniffiHandle {
-        if ((obj as any)[destructorGuardSymbol] === undefined) {
-            throw new UniffiInternalError.UnexpectedNullPointer();
-        }
-        return (obj as any)[pointerLiteralSymbol];
-    },
-
-    clonePointer(obj: ModelInterface): UniffiHandle {
-        const pointer = this.pointer(obj);
-        return uniffiCaller.rustCall(
-            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_clone_model(pointer, callStatus),
-            /*liftString:*/ FfiConverterString.lift
-        );
-    },
-
-    freePointer(pointer: UniffiHandle): void {
-        uniffiCaller.rustCall(
-            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_free_model(pointer, callStatus),
-            /*liftString:*/ FfiConverterString.lift
-        );
-    },
-
-    isConcreteType(obj: any): obj is ModelInterface {
-        return obj[destructorGuardSymbol] && obj[uniffiTypeNameSymbol] === "Model";
-    },
-}})();
-// FfiConverter for ModelInterface
-const FfiConverterTypeModel =  new FfiConverterObject(uniffiTypeModelObjectFactory);
-
-
 export interface RustChatInterface {
     
     /**
@@ -1502,13 +1084,13 @@ export class RustChat extends UniffiAbstractObject implements RustChatInterface 
     /**
      * Create a new chat session.
      */
-    constructor(model: ModelInterface, systemPrompt: string | undefined, contextSize: /*u32*/number, templateVariables: Map<string, boolean> | undefined, tools: Array<RustToolInterface> | undefined, sampler: SamplerConfigInterface | undefined) {
+    constructor(model: RustModelInterface, systemPrompt: string | undefined, contextSize: /*u32*/number, templateVariables: Map<string, boolean> | undefined, tools: Array<RustToolInterface> | undefined, sampler: SamplerConfigInterface | undefined) {
         super();
         const pointer =
             uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(
-        FfiConverterTypeModel.lower(model),
+        FfiConverterTypeRustModel.lower(model),
         FfiConverterOptionalString.lower(systemPrompt),
         FfiConverterUInt32.lower(contextSize),
         FfiConverterOptionalMapStringBool.lower(templateVariables),
@@ -1981,6 +1563,424 @@ const uniffiTypeRustChatObjectFactory: UniffiObjectFactory<RustChatInterface> = 
 }})();
 // FfiConverter for RustChatInterface
 const FfiConverterTypeRustChat =  new FfiConverterObject(uniffiTypeRustChatObjectFactory);
+
+
+export interface RustCrossEncoderInterface {
+    
+    /**
+     * Rank documents by relevance to a query. Returns similarity scores.
+     */
+    rank(query: string, documents: Array<string>, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<Array</*f32*/number>>;
+    /**
+     * Rank documents and return them sorted by descending relevance.
+     * Returns a JSON string of [document, score] pairs since UniFFI
+     * doesn't support tuples directly.
+     */
+    rankAndSortJson(query: string, documents: Array<string>, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<string>;
+}
+
+
+export class RustCrossEncoder extends UniffiAbstractObject implements RustCrossEncoderInterface {
+
+    readonly [uniffiTypeNameSymbol] = "RustCrossEncoder";
+    readonly [destructorGuardSymbol]: UniffiGcObject;
+    readonly [pointerLiteralSymbol]: UniffiHandle;
+    /**
+     * Create a new cross-encoder for ranking documents by relevance.
+     */
+    constructor(model: RustModelInterface, contextSize: /*u32*/number | undefined) {
+        super();
+        const pointer =
+            uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_new(
+        FfiConverterTypeRustModel.lower(model),
+        FfiConverterOptionalUInt32.lower(contextSize),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    );
+        this[pointerLiteralSymbol] = pointer;
+        this[destructorGuardSymbol] = uniffiTypeRustCrossEncoderObjectFactory.bless(pointer);
+    }
+
+    
+
+    
+    /**
+     * Rank documents by relevance to a query. Returns similarity scores.
+     */
+async  rank(query: string, documents: Array<string>, asyncOpts_?: { signal: AbortSignal }): Promise<Array</*f32*/number>> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustcrossencoder_rank(
+                    uniffiTypeRustCrossEncoderObjectFactory.clonePointer(this),
+                    FfiConverterString.lower(query),FfiConverterArrayString.lower(documents)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+            /*liftFunc:*/ FfiConverterArrayFloat32.lift.bind(FfiConverterArrayFloat32),
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+    
+    /**
+     * Rank documents and return them sorted by descending relevance.
+     * Returns a JSON string of [document, score] pairs since UniFFI
+     * doesn't support tuples directly.
+     */
+async  rankAndSortJson(query: string, documents: Array<string>, asyncOpts_?: { signal: AbortSignal }): Promise<string> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustcrossencoder_rank_and_sort_json(
+                    uniffiTypeRustCrossEncoderObjectFactory.clonePointer(this),
+                    FfiConverterString.lower(query),FfiConverterArrayString.lower(documents)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+            /*liftFunc:*/ FfiConverterString.lift.bind(FfiConverterString),
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+    
+
+    /**
+     * {@inheritDoc uniffi-bindgen-react-native#UniffiAbstractObject.uniffiDestroy}
+     */
+    uniffiDestroy(): void {
+        const ptr = (this as any)[destructorGuardSymbol];
+        if (ptr !== undefined) {
+            const pointer = uniffiTypeRustCrossEncoderObjectFactory.pointer(this);
+            uniffiTypeRustCrossEncoderObjectFactory.freePointer(pointer);
+            uniffiTypeRustCrossEncoderObjectFactory.unbless(ptr);
+            delete (this as any)[destructorGuardSymbol];
+        }
+    }
+
+    static instanceOf(obj: any): obj is RustCrossEncoder {
+        return uniffiTypeRustCrossEncoderObjectFactory.isConcreteType(obj);
+    }
+
+    
+}
+
+const uniffiTypeRustCrossEncoderObjectFactory: UniffiObjectFactory<RustCrossEncoderInterface> = (() => {
+    
+    return {
+    create(pointer: UniffiHandle): RustCrossEncoderInterface {
+        const instance = Object.create(RustCrossEncoder.prototype);
+        instance[pointerLiteralSymbol] = pointer;
+        instance[destructorGuardSymbol] = this.bless(pointer);
+        instance[uniffiTypeNameSymbol] = "RustCrossEncoder";
+        return instance;
+    },
+
+    
+    bless(p: UniffiHandle): UniffiGcObject {
+        return uniffiCaller.rustCall(
+            /*caller:*/ (status) =>
+                nativeModule().ubrn_uniffi_internal_fn_method_rustcrossencoder_ffi__bless_pointer(p, status),
+            /*liftString:*/ FfiConverterString.lift
+        );
+    },
+
+    unbless(ptr: UniffiGcObject) {
+        ptr.markDestroyed();
+    },
+
+    pointer(obj: RustCrossEncoderInterface): UniffiHandle {
+        if ((obj as any)[destructorGuardSymbol] === undefined) {
+            throw new UniffiInternalError.UnexpectedNullPointer();
+        }
+        return (obj as any)[pointerLiteralSymbol];
+    },
+
+    clonePointer(obj: RustCrossEncoderInterface): UniffiHandle {
+        const pointer = this.pointer(obj);
+        return uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_clone_rustcrossencoder(pointer, callStatus),
+            /*liftString:*/ FfiConverterString.lift
+        );
+    },
+
+    freePointer(pointer: UniffiHandle): void {
+        uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_free_rustcrossencoder(pointer, callStatus),
+            /*liftString:*/ FfiConverterString.lift
+        );
+    },
+
+    isConcreteType(obj: any): obj is RustCrossEncoderInterface {
+        return obj[destructorGuardSymbol] && obj[uniffiTypeNameSymbol] === "RustCrossEncoder";
+    },
+}})();
+// FfiConverter for RustCrossEncoderInterface
+const FfiConverterTypeRustCrossEncoder =  new FfiConverterObject(uniffiTypeRustCrossEncoderObjectFactory);
+
+
+export interface RustEncoderInterface {
+    
+    /**
+     * Encode text into an embedding vector.
+     */
+    encode(text: string, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<Array</*f32*/number>>;
+}
+
+
+export class RustEncoder extends UniffiAbstractObject implements RustEncoderInterface {
+
+    readonly [uniffiTypeNameSymbol] = "RustEncoder";
+    readonly [destructorGuardSymbol]: UniffiGcObject;
+    readonly [pointerLiteralSymbol]: UniffiHandle;
+    /**
+     * Create a new encoder for generating text embeddings.
+     */
+    constructor(model: RustModelInterface, contextSize: /*u32*/number | undefined) {
+        super();
+        const pointer =
+            uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustencoder_new(
+        FfiConverterTypeRustModel.lower(model),
+        FfiConverterOptionalUInt32.lower(contextSize),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    );
+        this[pointerLiteralSymbol] = pointer;
+        this[destructorGuardSymbol] = uniffiTypeRustEncoderObjectFactory.bless(pointer);
+    }
+
+    
+
+    
+    /**
+     * Encode text into an embedding vector.
+     */
+async  encode(text: string, asyncOpts_?: { signal: AbortSignal }): Promise<Array</*f32*/number>> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustencoder_encode(
+                    uniffiTypeRustEncoderObjectFactory.clonePointer(this),
+                    FfiConverterString.lower(text)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+            /*liftFunc:*/ FfiConverterArrayFloat32.lift.bind(FfiConverterArrayFloat32),
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+    
+
+    /**
+     * {@inheritDoc uniffi-bindgen-react-native#UniffiAbstractObject.uniffiDestroy}
+     */
+    uniffiDestroy(): void {
+        const ptr = (this as any)[destructorGuardSymbol];
+        if (ptr !== undefined) {
+            const pointer = uniffiTypeRustEncoderObjectFactory.pointer(this);
+            uniffiTypeRustEncoderObjectFactory.freePointer(pointer);
+            uniffiTypeRustEncoderObjectFactory.unbless(ptr);
+            delete (this as any)[destructorGuardSymbol];
+        }
+    }
+
+    static instanceOf(obj: any): obj is RustEncoder {
+        return uniffiTypeRustEncoderObjectFactory.isConcreteType(obj);
+    }
+
+    
+}
+
+const uniffiTypeRustEncoderObjectFactory: UniffiObjectFactory<RustEncoderInterface> = (() => {
+    
+    return {
+    create(pointer: UniffiHandle): RustEncoderInterface {
+        const instance = Object.create(RustEncoder.prototype);
+        instance[pointerLiteralSymbol] = pointer;
+        instance[destructorGuardSymbol] = this.bless(pointer);
+        instance[uniffiTypeNameSymbol] = "RustEncoder";
+        return instance;
+    },
+
+    
+    bless(p: UniffiHandle): UniffiGcObject {
+        return uniffiCaller.rustCall(
+            /*caller:*/ (status) =>
+                nativeModule().ubrn_uniffi_internal_fn_method_rustencoder_ffi__bless_pointer(p, status),
+            /*liftString:*/ FfiConverterString.lift
+        );
+    },
+
+    unbless(ptr: UniffiGcObject) {
+        ptr.markDestroyed();
+    },
+
+    pointer(obj: RustEncoderInterface): UniffiHandle {
+        if ((obj as any)[destructorGuardSymbol] === undefined) {
+            throw new UniffiInternalError.UnexpectedNullPointer();
+        }
+        return (obj as any)[pointerLiteralSymbol];
+    },
+
+    clonePointer(obj: RustEncoderInterface): UniffiHandle {
+        const pointer = this.pointer(obj);
+        return uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_clone_rustencoder(pointer, callStatus),
+            /*liftString:*/ FfiConverterString.lift
+        );
+    },
+
+    freePointer(pointer: UniffiHandle): void {
+        uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_free_rustencoder(pointer, callStatus),
+            /*liftString:*/ FfiConverterString.lift
+        );
+    },
+
+    isConcreteType(obj: any): obj is RustEncoderInterface {
+        return obj[destructorGuardSymbol] && obj[uniffiTypeNameSymbol] === "RustEncoder";
+    },
+}})();
+// FfiConverter for RustEncoderInterface
+const FfiConverterTypeRustEncoder =  new FfiConverterObject(uniffiTypeRustEncoderObjectFactory);
+
+
+export interface RustModelInterface {
+    
+}
+
+
+export class RustModel extends UniffiAbstractObject implements RustModelInterface {
+
+    readonly [uniffiTypeNameSymbol] = "RustModel";
+    readonly [destructorGuardSymbol]: UniffiGcObject;
+    readonly [pointerLiteralSymbol]: UniffiHandle;
+    // No primary constructor declared for this class.
+private constructor(pointer: UniffiHandle) {
+    super();
+    this[pointerLiteralSymbol] = pointer;
+    this[destructorGuardSymbol] = uniffiTypeRustModelObjectFactory.bless(pointer);
+}
+
+    
+
+    
+
+    /**
+     * {@inheritDoc uniffi-bindgen-react-native#UniffiAbstractObject.uniffiDestroy}
+     */
+    uniffiDestroy(): void {
+        const ptr = (this as any)[destructorGuardSymbol];
+        if (ptr !== undefined) {
+            const pointer = uniffiTypeRustModelObjectFactory.pointer(this);
+            uniffiTypeRustModelObjectFactory.freePointer(pointer);
+            uniffiTypeRustModelObjectFactory.unbless(ptr);
+            delete (this as any)[destructorGuardSymbol];
+        }
+    }
+
+    static instanceOf(obj: any): obj is RustModel {
+        return uniffiTypeRustModelObjectFactory.isConcreteType(obj);
+    }
+
+    
+}
+
+const uniffiTypeRustModelObjectFactory: UniffiObjectFactory<RustModelInterface> = (() => {
+    
+    return {
+    create(pointer: UniffiHandle): RustModelInterface {
+        const instance = Object.create(RustModel.prototype);
+        instance[pointerLiteralSymbol] = pointer;
+        instance[destructorGuardSymbol] = this.bless(pointer);
+        instance[uniffiTypeNameSymbol] = "RustModel";
+        return instance;
+    },
+
+    
+    bless(p: UniffiHandle): UniffiGcObject {
+        return uniffiCaller.rustCall(
+            /*caller:*/ (status) =>
+                nativeModule().ubrn_uniffi_internal_fn_method_rustmodel_ffi__bless_pointer(p, status),
+            /*liftString:*/ FfiConverterString.lift
+        );
+    },
+
+    unbless(ptr: UniffiGcObject) {
+        ptr.markDestroyed();
+    },
+
+    pointer(obj: RustModelInterface): UniffiHandle {
+        if ((obj as any)[destructorGuardSymbol] === undefined) {
+            throw new UniffiInternalError.UnexpectedNullPointer();
+        }
+        return (obj as any)[pointerLiteralSymbol];
+    },
+
+    clonePointer(obj: RustModelInterface): UniffiHandle {
+        const pointer = this.pointer(obj);
+        return uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_clone_rustmodel(pointer, callStatus),
+            /*liftString:*/ FfiConverterString.lift
+        );
+    },
+
+    freePointer(pointer: UniffiHandle): void {
+        uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_free_rustmodel(pointer, callStatus),
+            /*liftString:*/ FfiConverterString.lift
+        );
+    },
+
+    isConcreteType(obj: any): obj is RustModelInterface {
+        return obj[destructorGuardSymbol] && obj[uniffiTypeNameSymbol] === "RustModel";
+    },
+}})();
+// FfiConverter for RustModelInterface
+const FfiConverterTypeRustModel =  new FfiConverterObject(uniffiTypeRustModelObjectFactory);
 
 
 export interface RustTokenStreamInterface {
@@ -2844,7 +2844,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_cosine_similarity() !== 63439) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_cosine_similarity");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model() !== 57455) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model() !== 63144) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_load_model");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_default() !== 10834) {
@@ -2870,15 +2870,6 @@ function uniffiEnsureInitialized() {
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_p() !== 54893) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_p");
-    }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_crossencoder_rank() !== 14399) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_crossencoder_rank");
-    }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_crossencoder_rank_and_sort_json() !== 4173) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_crossencoder_rank_and_sort_json");
-    }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_encoder_encode() !== 21765) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_encoder_encode");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_ask() !== 53575) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_ask");
@@ -2921,6 +2912,15 @@ function uniffiEnsureInitialized() {
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_stop_generation() !== 24711) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_stop_generation");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank() !== 55500) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank_and_sort_json() !== 24587) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank_and_sort_json");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode() !== 52601) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_completed() !== 26060) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_completed");
@@ -2973,14 +2973,14 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json() !== 51798) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_crossencoder_new() !== 12491) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_crossencoder_new");
-    }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_encoder_new() !== 32094) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_encoder_new");
-    }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() !== 6355) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() !== 38902) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() !== 9022) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new() !== 27902) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new() !== 54104) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new");
@@ -3002,14 +3002,14 @@ export default Object.freeze({
   initialize: uniffiEnsureInitialized,
   converters: {
     FfiConverterTypeAsset,
-    FfiConverterTypeCrossEncoder,
-    FfiConverterTypeEncoder,
     FfiConverterTypeMessage,
-    FfiConverterTypeModel,
     FfiConverterTypeNobodyWhoError,
     FfiConverterTypePromptPart,
     FfiConverterTypeRole,
     FfiConverterTypeRustChat,
+    FfiConverterTypeRustCrossEncoder,
+    FfiConverterTypeRustEncoder,
+    FfiConverterTypeRustModel,
     FfiConverterTypeRustTokenStream,
     FfiConverterTypeRustTool,
     FfiConverterTypeSamplerBuilder,

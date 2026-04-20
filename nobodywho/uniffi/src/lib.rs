@@ -219,10 +219,11 @@ fn uniffi_message_to_core(m: &Message) -> Result<nobodywho::chat::Message, Nobod
     }
 }
 
-// ---------- Model ----------
+// ---------- RustModel ----------
+// Wrapper intended to be wrapped again in the target language (e.g. as `Model`).
 
 #[derive(uniffi::Object)]
-pub struct Model {
+pub struct RustModel {
     inner: Arc<nobodywho::llm::Model>,
 }
 
@@ -239,7 +240,7 @@ pub async fn load_model(
     model_path: String,
     use_gpu: bool,
     projection_model_path: Option<String>,
-) -> Result<Arc<Model>, NobodyWhoError> {
+) -> Result<Arc<RustModel>, NobodyWhoError> {
     init_logging();
     log::info!(
         "load_model called: path={}, gpu={}, mmproj={:?}",
@@ -257,7 +258,7 @@ pub async fn load_model(
         })?;
 
     log::info!("load_model SUCCESS for {}", model_path);
-    Ok(Arc::new(Model {
+    Ok(Arc::new(RustModel {
         inner: Arc::new(model),
     }))
 }
@@ -275,7 +276,7 @@ impl RustChat {
     /// Create a new chat session.
     #[uniffi::constructor]
     pub fn new(
-        model: &Model,
+        model: &RustModel,
         system_prompt: Option<String>,
         context_size: u32,
         template_variables: Option<HashMap<String, bool>>,
@@ -573,18 +574,19 @@ impl RustTool {
     }
 }
 
-// ---------- Encoder ----------
+// ---------- RustEncoder ----------
+// Wrapper intended to be wrapped again in the target language (e.g. as `Encoder`).
 
 #[derive(uniffi::Object)]
-pub struct Encoder {
+pub struct RustEncoder {
     inner: nobodywho::encoder::EncoderAsync,
 }
 
 #[uniffi::export]
-impl Encoder {
+impl RustEncoder {
     /// Create a new encoder for generating text embeddings.
     #[uniffi::constructor]
-    pub fn new(model: &Model, context_size: Option<u32>) -> Arc<Self> {
+    pub fn new(model: &RustModel, context_size: Option<u32>) -> Arc<Self> {
         let handle = nobodywho::encoder::EncoderAsync::new(
             Arc::clone(&model.inner),
             context_size.unwrap_or(4096),
@@ -609,18 +611,19 @@ pub fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> f32 {
     nobodywho::encoder::cosine_similarity(&a, &b)
 }
 
-// ---------- CrossEncoder ----------
+// ---------- RustCrossEncoder ----------
+// Wrapper intended to be wrapped again in the target language (e.g. as `CrossEncoder`).
 
 #[derive(uniffi::Object)]
-pub struct CrossEncoder {
+pub struct RustCrossEncoder {
     inner: nobodywho::crossencoder::CrossEncoderAsync,
 }
 
 #[uniffi::export]
-impl CrossEncoder {
+impl RustCrossEncoder {
     /// Create a new cross-encoder for ranking documents by relevance.
     #[uniffi::constructor]
-    pub fn new(model: &Model, context_size: Option<u32>) -> Arc<Self> {
+    pub fn new(model: &RustModel, context_size: Option<u32>) -> Arc<Self> {
         let handle = nobodywho::crossencoder::CrossEncoderAsync::new(
             Arc::clone(&model.inner),
             context_size.unwrap_or(4096),

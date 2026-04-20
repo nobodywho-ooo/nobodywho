@@ -28,40 +28,6 @@ protected:
   jsi::Value cpp_uniffi_internal_fn_func_ffi__arraybuffer_to_string(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_clone_crossencoder(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_free_crossencoder(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_constructor_crossencoder_new(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_crossencoder_rank(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
-  jsi::Value
-  cpp_uniffi_nobodywho_uniffi_fn_method_crossencoder_rank_and_sort_json(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_clone_encoder(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_free_encoder(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_constructor_encoder_new(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_encoder_encode(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_clone_model(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_free_model(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_clone_rustchat(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
@@ -114,6 +80,40 @@ protected:
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_stop_generation(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_clone_rustcrossencoder(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_free_rustcrossencoder(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_new(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_rustcrossencoder_rank(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_fn_method_rustcrossencoder_rank_and_sort_json(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_clone_rustencoder(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_free_rustencoder(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_constructor_rustencoder_new(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_rustencoder_encode(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_clone_rustmodel(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_free_rustmodel(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_clone_rusttokenstream(
@@ -409,16 +409,6 @@ protected:
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_p(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_crossencoder_rank(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
-  jsi::Value
-  cpp_uniffi_nobodywho_uniffi_checksum_method_crossencoder_rank_and_sort_json(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_encoder_encode(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_ask(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
@@ -469,6 +459,16 @@ protected:
       size_t count);
   jsi::Value
   cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_stop_generation(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank_and_sort_json(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value
@@ -530,13 +530,14 @@ protected:
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_constructor_crossencoder_new(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_constructor_encoder_new(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new(
@@ -556,16 +557,16 @@ protected:
   jsi::Value cpp_ffi_nobodywho_uniffi_uniffi_contract_version(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_internal_fn_method_crossencoder_ffi__bless_pointer(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
-  jsi::Value cpp_uniffi_internal_fn_method_encoder_ffi__bless_pointer(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
-  jsi::Value cpp_uniffi_internal_fn_method_model_ffi__bless_pointer(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
   jsi::Value cpp_uniffi_internal_fn_method_rustchat_ffi__bless_pointer(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_internal_fn_method_rustcrossencoder_ffi__bless_pointer(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_internal_fn_method_rustencoder_ffi__bless_pointer(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_internal_fn_method_rustmodel_ffi__bless_pointer(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_internal_fn_method_rusttokenstream_ffi__bless_pointer(
