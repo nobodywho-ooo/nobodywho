@@ -60,20 +60,19 @@ def packageJsonFile = file("${projectDir}/../package.json")
 def packageJson = new groovy.json.JsonSlurper().parseText(packageJsonFile.text)
 def nobodywhoVersion = packageJson.version
 
-// Directory for downloaded native libraries (outside source tree to avoid Gradle conflicts)
+// Directory for downloaded native shared libraries.
+// These .so files are fully linked at CI time with a known-good NDK, eliminating
+// NDK version coupling for consumers.
 def nativeLibsDir = new File(buildDir, "nobodywho-native")
 
-// Download native static libraries from GitHub Releases if not already present.
-// These are .a files used by CMake at link time — not .so files for jniLibs.
+// Download native shared libraries from GitHub Releases if not already present.
 task resolveNativeLibraries {
-  description = "Downloads NobodyWho native static libraries from GitHub Releases"
-
-  outputs.dir(nativeLibsDir)
+  description = "Downloads NobodyWho native shared libraries from GitHub Releases"
 
   doLast {
     abiToTriple.each { abi, triple ->
       def abiDir = new File(nativeLibsDir, abi)
-      def libFile = new File(abiDir, "libnobodywho_uniffi.a")
+      def libFile = new File(abiDir, "libnobodywho_uniffi.so")
 
       if (libFile.exists()) {
         logger.lifecycle("[NobodyWho] ${abi}: Using existing library at ${libFile.path}")
@@ -82,7 +81,7 @@ task resolveNativeLibraries {
 
       abiDir.mkdirs()
 
-      def fileName = "libnobodywho-uniffi-${triple}-release.a"
+      def fileName = "libnobodywho-uniffi-${triple}-release.so"
       def downloadUrl = "https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-react-native-${nobodywhoVersion}/${fileName}"
 
       logger.lifecycle("[NobodyWho] ${abi}: Downloading from ${downloadUrl}")
@@ -121,7 +120,7 @@ task resolveNativeLibraries {
       } catch (Exception e) {
         throw new GradleException(
           "Failed to download NobodyWho library for ${abi}: ${e.message}\n" +
-          "For local development, build the uniffi crate and place the .a file at: ${libFile.path}",
+          "For local development, build the uniffi crate and place the .so file at: ${libFile.path}",
           e
         )
       }
@@ -140,7 +139,11 @@ android {
     }
   }
 
-  ndkVersion getExtOrDefault("ndkVersion")
+  // Let the consumer's rootProject.ext.ndkVersion control the NDK version.
+  // If not set, AGP uses the default NDK bundled with the Android SDK.
+  if (rootProject.ext.has("ndkVersion")) {
+    ndkVersion rootProject.ext.get("ndkVersion")
+  }
   compileSdkVersion getExtOrIntegerDefault("compileSdkVersion")
 
   defaultConfig {
@@ -160,7 +163,7 @@ android {
       }
     }
     ndk {
-      abiFilters "arm64-v8a", "armeabi-v7a", "x86", "x86_64"
+      abiFilters "arm64-v8a", "x86_64"
     }
   }
 
@@ -191,6 +194,8 @@ android {
 
   sourceSets {
     main {
+      // Include downloaded .so files so they get packaged into the APK
+      jniLibs.srcDirs += [nativeLibsDir]
       if (isNewArchitectureEnabled()) {
           java.srcDirs += [
             "generated/java",
@@ -201,12 +206,12 @@ android {
   }
 }
 
-// Ensure native libraries are downloaded before CMake runs
-afterEvaluate {
-  tasks.matching {
-    it.name.contains("configureCMake") || it.name.contains("externalNativeBuild")
-  }.configureEach {
-    dependsOn(resolveNativeLibraries)
+// Ensure native libraries are downloaded before CMake and JNI merge tasks run.
+tasks.configureEach { task ->
+  if (task.name.contains("configureCMake") ||
+      task.name.contains("externalNativeBuild") ||
+      task.name.contains("ergeJniLibFolders")) {
+    task.dependsOn(resolveNativeLibraries)
   }
 }
 
