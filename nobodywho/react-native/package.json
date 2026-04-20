@@ -47,5 +47,10 @@
   },
   "dependencies": {
     "uniffi-bindgen-react-native": "0.30.0-1"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "jest": "^30.3.0",
+    "ts-jest": "^29.4.9"
   }
 }

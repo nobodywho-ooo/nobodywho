@@ -37,6 +37,7 @@ class NobodywhoModule(reactContext: ReactApplicationContext) :
     const val NAME = "Nobodywho"
 
     init {
+      System.loadLibrary("nobodywho_uniffi")
       System.loadLibrary("react-native-nobodywho")
     }
   }

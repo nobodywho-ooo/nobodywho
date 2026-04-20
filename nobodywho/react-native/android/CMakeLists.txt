@@ -42,16 +42,18 @@ set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-z,max-page-size
 
 # NOBODYWHO_NATIVE_LIBS_DIR is passed from build.gradle via cmake arguments.
 # Fall back to src/main/jniLibs for local development where libs are placed manually.
+# The .so files are pre-built shared libraries — fully linked at CI time — so the
+# consumer's NDK version does not affect the Rust code.
 if(NOT NOBODYWHO_NATIVE_LIBS_DIR)
   set(NOBODYWHO_NATIVE_LIBS_DIR "${CMAKE_SOURCE_DIR}/src/main/jniLibs")
 endif()
 
 cmake_path(
   SET MY_RUST_LIB
-  ${NOBODYWHO_NATIVE_LIBS_DIR}/${ANDROID_ABI}/libnobodywho_uniffi.a
+  ${NOBODYWHO_NATIVE_LIBS_DIR}/${ANDROID_ABI}/libnobodywho_uniffi.so
   NORMALIZE
 )
-add_library(my_rust_lib STATIC IMPORTED)
+add_library(my_rust_lib SHARED IMPORTED)
 set_target_properties(my_rust_lib PROPERTIES IMPORTED_LOCATION ${MY_RUST_LIB})
 
 # Add ReactAndroid libraries, being careful to account for different versions.
