@@ -280,10 +280,10 @@ jobs:
           name: nobodywho-react-native-xcframework
           path: ./nobodywho-react-native-release
 
-      - name: "Keep only React Native artifacts (.a and xcframework)"
+      - name: "Keep only React Native artifacts (.so and xcframework)"
         run: |
           cd nobodywho-react-native-release
-          rm -f *.so *.dll *.dylib *.pdb
+          rm -f *.a *.dll *.dylib *.pdb
           ls -la
 
       - name: "Create GitHub Release"
