@@ -1,4 +1,4 @@
-import { Encoder as RustEncoder } from "../generated/ts/nobodywho";
+import { RustEncoder } from "../generated/ts/nobodywho";
 import { Model } from "./model";
 
 /**

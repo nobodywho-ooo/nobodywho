@@ -27,7 +27,7 @@ import { Chat } from "react-native-nobodywho";
 
 const chat = await Chat.fromPath({
   modelPath: "/path/to/vision-model.gguf",
-  imageModelPath: "/path/to/mmproj.gguf",
+  projectionModelPath: "/path/to/mmproj.gguf",
   systemPrompt: "You are a helpful assistant.",
 });
 ```
@@ -35,13 +35,12 @@ const chat = await Chat.fromPath({
 Or load the model separately:
 
 ```typescript
-import { loadModel, Chat } from "react-native-nobodywho";
+import { Model, Chat } from "react-native-nobodywho";
 
-const model = await loadModel(
-  "/path/to/vision-model.gguf",
-  true,
-  "/path/to/mmproj.gguf",
-);
+const model = await Model.load({
+  modelPath: "/path/to/vision-model.gguf",
+  projectionModelPath: "/path/to/mmproj.gguf",
+});
 const chat = new Chat({
   model,
   systemPrompt: "You are a helpful assistant.",
@@ -58,7 +57,7 @@ import { Chat, Prompt } from "react-native-nobodywho";
 
 const chat = await Chat.fromPath({
   modelPath: "/path/to/vision-model.gguf",
-  imageModelPath: "/path/to/mmproj.gguf",
+  projectionModelPath: "/path/to/mmproj.gguf",
 });
 
 const response = await chat
@@ -93,7 +92,7 @@ This, for example, causes differences in how quickly the model consumes context 
 ```typescript
 const chat = await Chat.fromPath({
   modelPath: "/path/to/vision-model.gguf",
-  imageModelPath: "/path/to/mmproj.gguf",
+  projectionModelPath: "/path/to/mmproj.gguf",
   contextSize: 8192,
 });
 ```

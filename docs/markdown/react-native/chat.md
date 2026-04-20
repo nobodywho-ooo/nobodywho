@@ -23,9 +23,9 @@ This function is async since loading a model can take a bit of time, but this sh
 Another way to achieve the same thing is to load the model separately and then use the `Chat` constructor:
 
 ```typescript
-import { loadModel, Chat } from "react-native-nobodywho";
+import { Model, Chat } from "react-native-nobodywho";
 
-const model = await loadModel("/path/to/model.gguf", true);
+const model = await Model.load({ modelPath: "/path/to/model.gguf" });
 const chat = new Chat({ model });
 ```
 
@@ -71,8 +71,10 @@ console.log(msgs[0]); // The first message
 Similarly, if you want to edit what messages are in the context, you can use `setChatHistory`:
 
 ```typescript
+import { Role } from "react-native-nobodywho";
+
 await chat.setChatHistory([
-  new Message.Message({ role: Role.User, content: "What is water?" }),
+  { role: Role.User, content: "What is water?" },
 ]);
 ```
 
@@ -123,9 +125,9 @@ If you don't want to change the already set defaults (`systemPrompt`, `tools`), 
 There are scenarios where you would like to keep separate chat contexts (e.g. for every user of your app), but have only one model loaded. In this case you must load the model separately from creating the `Chat` instance.
 
 ```typescript
-import { loadModel, Chat } from "react-native-nobodywho";
+import { Model, Chat } from "react-native-nobodywho";
 
-const model = await loadModel("/path/to/model.gguf", true);
+const model = await Model.load({ modelPath: "/path/to/model.gguf" });
 const chat1 = new Chat({ model });
 const chat2 = new Chat({ model });
 ```
@@ -134,10 +136,10 @@ NobodyWho will then take care of the separation, such that your chat histories w
 
 ## GPU
 
-When using `loadModel` or `Chat.fromPath` you have the option to disable/enable GPU acceleration:
+When using `Model.load` or `Chat.fromPath` you have the option to disable/enable GPU acceleration:
 
 ```typescript
-const model = await loadModel("/path/to/model.gguf", false); // GPU disabled
+const model = await Model.load({ modelPath: "/path/to/model.gguf", useGpu: false });
 ```
 
 or

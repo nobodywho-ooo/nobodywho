@@ -1,6 +1,6 @@
 import {
   loadModel,
-  type ModelInterface,
+  type RustModelInterface,
 } from "../generated/ts/nobodywho";
 
 /**
@@ -26,10 +26,10 @@ import {
  */
 export class Model {
   /** @internal */
-  readonly _inner: ModelInterface;
+  readonly _inner: RustModelInterface;
 
   /** @internal */
-  private constructor(inner: ModelInterface) {
+  private constructor(inner: RustModelInterface) {
     this._inner = inner;
   }
 
