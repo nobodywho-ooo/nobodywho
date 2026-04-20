@@ -1,3 +1,7 @@
+## 1.1.0
+
+- Add support for Qwen3.5 and Qwen3.6 tool calling
+
 ## 1.0.0
 
 ### Breaking Changes
