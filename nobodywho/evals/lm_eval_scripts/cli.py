@@ -289,6 +289,7 @@ def run(
         total_samples_count: int = 0
         total_tokens_generated: int = 0
         total_generation_time: float = 0.0
+        all_sample_times: list[float] = []
 
         # Prepare incorrect samples file (clear if exists from previous run)
         if save_incorrect:
@@ -385,6 +386,7 @@ def run(
             total_samples_count += model_instance.total_samples
             total_tokens_generated += model_instance.total_tokens_generated
             total_generation_time += model_instance.total_generation_time
+            all_sample_times.extend(model_instance.sample_times)
 
             # Store results for CSV
             all_task_results[task] = results
@@ -416,6 +418,7 @@ def run(
             total_generation_time=total_generation_time,
             sampler_config={"temperature": 0.6, "min_p": 0.0, "top_p": 0.95, "top_k": 20},
             allow_thinking=allow_thinking,
+            sample_times=all_sample_times,
         )
         append_run_to_csv(csv_file, row, list(system_info.keys()))
 

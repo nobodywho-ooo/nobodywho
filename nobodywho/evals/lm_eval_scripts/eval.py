@@ -1,5 +1,6 @@
 import json
 import logging
+import math
 import os
 import platform
 import shutil
@@ -171,6 +172,20 @@ def get_system_info() -> dict:
     }
 
 
+def compute_time_stats(times: list[float]) -> dict:
+    """Compute summary statistics for per-sample wall-clock times."""
+    if not times:
+        return {"sample_time_mean": 0.0, "sample_time_median": 0.0}
+    sorted_t = sorted(times)
+    n = len(sorted_t)
+    mean = sum(sorted_t) / n
+    median = sorted_t[n // 2] if n % 2 else (sorted_t[n // 2 - 1] + sorted_t[n // 2]) / 2
+    return {
+        "sample_time_mean": round(mean, 2),
+        "sample_time_median": round(median, 2),
+    }
+
+
 # ── Output cleanup ───────────────────────────────────────────────────
 
 
@@ -192,6 +207,7 @@ class NobodyWhoLM(LM):
     total_samples: int
     total_tokens_generated: int
     total_generation_time: float
+    sample_times: list[float]  # per-sample wall-clock seconds (prompt + generation)
     sampler_config: dict
     _temp_dir: str | None
 
@@ -241,6 +257,7 @@ class NobodyWhoLM(LM):
         self.total_samples = 0
         self.total_tokens_generated = 0
         self.total_generation_time = 0.0
+        self.sample_times = []
         self._init_chat()
 
     def __del__(self):
@@ -312,6 +329,7 @@ class NobodyWhoLM(LM):
     def generate_until(self, requests: list[Instance], disable_tqdm=False):
         result: list[str] = []
         for request in tqdm([req.args for req in requests], disable=disable_tqdm):
+            sample_start = time.perf_counter()
             self.chat.reset_history()
             text = request[0]
             assert isinstance(text, str)
@@ -424,6 +442,7 @@ class NobodyWhoLM(LM):
                     "prompt": text[:500],  # truncate for logging
                     "error": str(e),
                 })
+                self.sample_times.append(time.perf_counter() - sample_start)
                 result.append("")
                 self.total_samples += 1
                 continue
@@ -439,6 +458,7 @@ class NobodyWhoLM(LM):
             if self.allow_thinking:
                 print(f"  [DEBUG] final result: {final[:300]!r}")
 
+            self.sample_times.append(time.perf_counter() - sample_start)
             result.append(final)
             self.total_samples += 1
         return result
@@ -461,6 +481,8 @@ class NobodyWhoLM(LM):
             else 0.0
         )
 
+        time_stats = compute_time_stats(self.sample_times)
+
         return {
             "model_size_gb": model_size_gb,
             "failed_sample_count": failed_count,
@@ -468,6 +490,7 @@ class NobodyWhoLM(LM):
             "total_tokens_generated": self.total_tokens_generated,
             "total_generation_time_sec": round(self.total_generation_time, 2),
             "tokens_per_second": round(tokens_per_second, 2),
+            **time_stats,
             **get_system_info(),
         }
 
@@ -551,6 +574,7 @@ def build_run_row(
     total_generation_time: float = 0.0,
     sampler_config: dict | None = None,
     allow_thinking: bool = False,
+    sample_times: list[float] | None = None,
 ) -> dict:
     """Build a flat dict for one CSV row from a complete run."""
     import time
@@ -564,6 +588,7 @@ def build_run_row(
     )
 
     resolved_model_name = model_path.stem
+    time_stats = compute_time_stats(sample_times or [])
 
     row = {
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -579,6 +604,8 @@ def build_run_row(
         "total_tokens_generated": total_tokens_generated,
         "generation_time_seconds": round(total_generation_time, 2),
         "tokens_per_second": round(tokens_per_second, 2),
+        "sample_time_mean": time_stats["sample_time_mean"],
+        "sample_time_median": time_stats["sample_time_median"],
         "sampler_config": str(sampler_config) if sampler_config else "",
         "allow_thinking": allow_thinking,
     }
@@ -610,6 +637,7 @@ def get_csv_fieldnames(system_info_keys: list[str]) -> list[str]:
         "limit", "seed", "duration_seconds",
         "total_samples", "failed_samples", "failure_rate",
         "total_tokens_generated", "generation_time_seconds", "tokens_per_second",
+        "sample_time_mean", "sample_time_median",
         "sampler_config",
         "allow_thinking",
     ]
