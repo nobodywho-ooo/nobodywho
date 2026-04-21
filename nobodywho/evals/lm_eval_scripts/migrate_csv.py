@@ -36,6 +36,7 @@ def migrate_csv(path: Path, dry_run: bool = False) -> bool:
         "limit", "seed", "duration_seconds",
         "total_samples", "failed_samples", "failure_rate",
         "total_tokens_generated", "generation_time_seconds", "tokens_per_second",
+        "sample_time_mean", "sample_time_median",
         "sampler_config", "allow_thinking",
     ]
 
