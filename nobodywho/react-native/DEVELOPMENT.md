@@ -232,6 +232,7 @@ These files were initially generated but have been customized with project-speci
 - **`android/build.gradle`** — Downloads prebuilt `.so` files from GitHub Releases at build time, optional NDK version
 - **`android/CMakeLists.txt`** — Links shared lib with `IMPORTED_NO_SONAME` for correct runtime resolution
 - **`android/src/main/java/com/nobodywho/NobodywhoModule.kt`** — Loads `libnobodywho_uniffi.so` before the bridge lib
+- **`android/src/main/java/com/nobodywho/NobodywhoPackage.kt`** — Uses `BaseReactPackage` instead of deprecated `TurboReactPackage`
 
 If you regenerate the turbo-module glue, these get overwritten with defaults. Always restore them with `git checkout`.
 
