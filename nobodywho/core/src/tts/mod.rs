@@ -238,10 +238,7 @@ impl Tts {
     /// The directory must contain `tokenizer.json`, `model_config.json`,
     /// `default_cond/` with pre-computed conditioning, and `onnx/` with the
     /// ONNX models.
-    pub fn new_roest(
-        model_dir: impl AsRef<Path>,
-        device: TtsDevice,
-    ) -> Result<Self, TtsError> {
+    pub fn new_roest(model_dir: impl AsRef<Path>, device: TtsDevice) -> Result<Self, TtsError> {
         Ok(Self {
             inner: TtsAsync::new_roest(model_dir, device)?,
         })
@@ -343,10 +340,7 @@ impl TtsAsync {
     }
 
     /// Create a Røst-backed handle (see [`Tts::new_roest`]).
-    pub fn new_roest(
-        model_dir: impl AsRef<Path>,
-        device: TtsDevice,
-    ) -> Result<Self, TtsError> {
+    pub fn new_roest(model_dir: impl AsRef<Path>, device: TtsDevice) -> Result<Self, TtsError> {
         let init_start = Instant::now();
         let model = chatterbox_roest::RoestModel::new(model_dir.as_ref(), device)?;
         info!(elapsed = ?init_start.elapsed(), "Initialized Røst TTS");
@@ -406,7 +400,10 @@ fn load_chatterbox_reference(
 ) -> Result<Option<Arc<Vec<f32>>>, TtsError> {
     if let Some(path) = reference_wav {
         let samples = chatterbox::load_reference_audio(path.as_ref())?;
-        info!(samples = samples.len(), "Loaded reference audio for voice cloning");
+        info!(
+            samples = samples.len(),
+            "Loaded reference audio for voice cloning"
+        );
         return Ok(Some(Arc::new(samples)));
     }
 

@@ -323,7 +323,10 @@ mod tests {
 
         let mut logits = vec![1.0f32; 5];
         apply_repetition_penalty(&mut logits, &[0, 0, 0], 2.0, false);
-        assert_eq!(logits[0], 0.125, "token 0 penalized three times without dedup");
+        assert_eq!(
+            logits[0], 0.125,
+            "token 0 penalized three times without dedup"
+        );
     }
 
     #[test]
