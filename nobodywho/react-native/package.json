@@ -1,6 +1,6 @@
 {
   "name": "react-native-nobodywho",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Run LLMs locally with offline inference — React Native bindings",
   "main": "src/wrapper.ts",
   "types": "src/wrapper.ts",
@@ -39,7 +39,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/nobodywho-ooo/nobodywho"
+    "url": "git+https://github.com/nobodywho-ooo/nobodywho.git"
   },
   "peerDependencies": {
     "react": "*",
