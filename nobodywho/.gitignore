@@ -8,13 +8,6 @@ __pycache__/
 .venv/
 */result
 
-# napi-rs (Node.js bindings)
-napi/*.node
-napi/node_modules/
-napi/package-lock.json
-napi/npm/*/README.md
-napi/dist/
-
 # Swift and Kotlin standalone packages (not yet released)
 swift/
 kotlin/
