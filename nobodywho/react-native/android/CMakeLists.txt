@@ -54,7 +54,10 @@ cmake_path(
   NORMALIZE
 )
 add_library(my_rust_lib SHARED IMPORTED)
-set_target_properties(my_rust_lib PROPERTIES IMPORTED_LOCATION ${MY_RUST_LIB})
+set_target_properties(my_rust_lib PROPERTIES
+  IMPORTED_LOCATION ${MY_RUST_LIB}
+  IMPORTED_NO_SONAME TRUE
+)
 
 # Add ReactAndroid libraries, being careful to account for different versions.
 find_package(ReactAndroid REQUIRED CONFIG)
