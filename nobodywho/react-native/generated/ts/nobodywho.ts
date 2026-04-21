@@ -358,6 +358,67 @@ const FfiConverterTypeAsset = (() => {
 })();
 
 
+/**
+ * A pending tool call waiting for resolution from the language binding.
+ */
+export type PendingToolCall = {
+    callId: string,
+    argumentsJson: string
+}
+
+/**
+ * Generated factory for {@link PendingToolCall} record objects.
+ */
+export const PendingToolCall = (() => {
+    const defaults = () => ({
+    });
+    const create = (() => {
+        return uniffiCreateRecord<PendingToolCall, ReturnType<typeof defaults>>(defaults);
+    })();
+    return Object.freeze({
+        /**
+         * Create a frozen instance of {@link PendingToolCall}, with defaults specified
+         * in Rust, in the {@link nobodywho} crate.
+         */
+        create,
+
+        /**
+         * Create a frozen instance of {@link PendingToolCall}, with defaults specified
+         * in Rust, in the {@link nobodywho} crate.
+         */
+        new: create,
+
+        /**
+         * Defaults specified in the {@link nobodywho} crate.
+         */
+        defaults: () => Object.freeze(defaults()) as Partial<PendingToolCall>,
+
+    });
+})();
+
+const FfiConverterTypePendingToolCall = (() => {
+    type TypeName = PendingToolCall;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        read(from: RustBuffer): TypeName {
+            return {
+                callId: FfiConverterString.read(from), 
+                argumentsJson: FfiConverterString.read(from)
+            };
+        }
+        write(value: TypeName, into: RustBuffer): void {
+            FfiConverterString.write(value.callId, into);
+            FfiConverterString.write(value.argumentsJson, into);
+        }
+        allocationSize(value: TypeName): number {
+            return FfiConverterString.allocationSize(value.callId) + 
+            FfiConverterString.allocationSize(value.argumentsJson);
+            
+        }
+    };
+    return new FFIConverter();
+})();
+
+
 export type ToolCall = {
     name: string,
     argumentsJson: string
@@ -2154,6 +2215,14 @@ export interface RustToolInterface {
      * Get the JSON schema for this tool's parameters as a string.
      */
     getSchemaJson() : string;
+    /**
+     * Await the next tool call from inference. Returns `None` when the tool is dropped.
+     */
+    nextPendingCall(asyncOpts_?: { signal: AbortSignal }) : Promise<PendingToolCall | undefined>;
+    /**
+     * Resolve a pending tool call with the result string.
+     */
+    resolvePendingCall(callId: string, result: string) : void;
 }
 
 
@@ -2163,21 +2232,7 @@ export class RustTool extends UniffiAbstractObject implements RustToolInterface 
     readonly [destructorGuardSymbol]: UniffiGcObject;
     readonly [pointerLiteralSymbol]: UniffiHandle;
     /**
-     * Create a tool that the model can call during inference.
-     *
-     * `parameters` is an ordered list of parameter definitions.
-     * Each entry has a `name` and a `type` (e.g. `"string"`, `"integer"`, `"number"`, `"boolean"`).
-     * The order matters — binding layers use it to map positional arguments
-     * in the user's callback function to named JSON parameters.
-     *
-     * Supported types: `"string"`, `"integer"` / `"int"`, `"number"` / `"float"` / `"double"`,
-     * `"boolean"` / `"bool"`.
-     * A JSON schema is generated automatically from this list.
-     *
-     * The callback receives the model's arguments as a JSON string
-     * (e.g. `{"city": "London", "degrees": 22}`).
-     * Each binding layer wraps the user's function to parse this JSON and
-     * pass individual typed arguments to the original function.
+     * Create a tool with a synchronous callback (for Swift, Kotlin).
      */
     constructor(name: string, description: string, parameters: Array<ToolParameter>, callback: RustToolCallback) {
         super();
@@ -2198,6 +2253,26 @@ export class RustTool extends UniffiAbstractObject implements RustToolInterface 
     }
 
     
+    /**
+     * Create a tool with async callback support (for React Native).
+     *
+     * Use `next_pending_call` to await tool invocations and
+     * `resolve_pending_call` to return results. The inference thread
+     * blocks until resolved.
+     */
+static newAsync(name: string, description: string, parameters: Array<ToolParameter>): RustToolInterface {
+    return FfiConverterTypeRustTool.lift(uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_rusttool_new_async(
+        FfiConverterString.lower(name),
+        FfiConverterString.lower(description),
+        FfiConverterArrayTypeToolParameter.lower(parameters),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    ));
+    }
+    
 
     
     /**
@@ -2211,6 +2286,50 @@ export class RustTool extends UniffiAbstractObject implements RustToolInterface 
             },
             /*liftString:*/ FfiConverterString.lift,
     ));
+    }
+    
+    /**
+     * Await the next tool call from inference. Returns `None` when the tool is dropped.
+     */
+async  nextPendingCall(asyncOpts_?: { signal: AbortSignal }): Promise<PendingToolCall | undefined> {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rusttool_next_pending_call(
+                    uniffiTypeRustToolObjectFactory.clonePointer(this)
+                    
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+            /*liftFunc:*/ FfiConverterOptionalTypePendingToolCall.lift.bind(FfiConverterOptionalTypePendingToolCall),
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+    
+    /**
+     * Resolve a pending tool call with the result string.
+     */
+ resolvePendingCall(callId: string, result: string): void {uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => { nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rusttool_resolve_pending_call(uniffiTypeRustToolObjectFactory.clonePointer(this), 
+        FfiConverterString.lower(callId),
+        FfiConverterString.lower(result),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    );
     }
     
 
@@ -2772,6 +2891,10 @@ const uniffiTypeSamplerConfigObjectFactory: UniffiObjectFactory<SamplerConfigInt
 const FfiConverterTypeSamplerConfig =  new FfiConverterObject(uniffiTypeSamplerConfigObjectFactory);
 
 
+// FfiConverter for PendingToolCall | undefined
+const FfiConverterOptionalTypePendingToolCall = new FfiConverterOptional(FfiConverterTypePendingToolCall);
+
+
 // FfiConverter for string | undefined
 const FfiConverterOptionalString = new FfiConverterOptional(FfiConverterString);
 
@@ -2931,6 +3054,12 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttool_get_schema_json() !== 4679) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rusttool_get_schema_json");
     }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttool_next_pending_call() !== 52020) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rusttool_next_pending_call");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call() !== 10096) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call");
+    }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() !== 23376) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist");
     }
@@ -2982,8 +3111,11 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new() !== 27902) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new() !== 54104) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new() !== 9431) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async() !== 54521) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new() !== 50214) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new");
@@ -3004,6 +3136,7 @@ export default Object.freeze({
     FfiConverterTypeAsset,
     FfiConverterTypeMessage,
     FfiConverterTypeNobodyWhoError,
+    FfiConverterTypePendingToolCall,
     FfiConverterTypePromptPart,
     FfiConverterTypeRole,
     FfiConverterTypeRustChat,
