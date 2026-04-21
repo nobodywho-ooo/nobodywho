@@ -69,7 +69,7 @@ fn run_kokoro_or_piper(args: &[String]) -> Result<(), Box<dyn std::error::Error>
 
     println!("Loading model: {model_path}");
     let load_start = Instant::now();
-    let tts = Tts::new_with_device(model_path, second_path, device)?;
+    let tts = Tts::new(model_path, second_path, device)?;
     println!("Loaded in {:.2?}", load_start.elapsed());
 
     let voices = tts.available_voices();
@@ -112,7 +112,7 @@ fn run_roest(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Loading Røst from: {model_dir}");
     let load_start = Instant::now();
-    let tts = Tts::new_roest_with_device(model_dir, device)?;
+    let tts = Tts::new_roest(model_dir, device)?;
     println!("Loaded in {:.2?}", load_start.elapsed());
 
     println!("Synthesizing: {text:?}");
@@ -167,7 +167,7 @@ fn run_chatterbox(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Loading Chatterbox from: {model_dir}");
     let load_start = Instant::now();
-    let tts = Tts::new_chatterbox_with_device(model_dir, voice_wav.as_deref(), device)?;
+    let tts = Tts::new_chatterbox(model_dir, voice_wav.as_deref(), device)?;
     println!("Loaded in {:.2?}", load_start.elapsed());
 
     println!(

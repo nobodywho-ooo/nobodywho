@@ -1,9 +1,10 @@
-/// Piper TTS inference via ONNX Runtime + espeak-ng phonemization.
-///
-/// Implements the VITS-based Piper pipeline: text → espeak phonemes → phoneme IDs → ONNX → PCM audio.
+//! Piper TTS inference via ONNX Runtime + espeak-ng phonemization.
+//!
+//! Implements the VITS-based Piper pipeline: text → espeak phonemes →
+//! phoneme IDs → ONNX → PCM audio.
+
 use crate::errors::TtsError;
-use crate::tts::{ort_execution_providers, TtsDevice};
-use ort::session::builder::SessionBuilder;
+use crate::tts::{ort_util, TtsDevice};
 use ort::session::Session;
 use ort::value::Tensor;
 use ort::value::Value;
@@ -57,12 +58,7 @@ impl PiperModel {
         let config: PiperConfig = serde_json::from_str(&config_str)
             .map_err(|e| TtsError::Init(format!("failed to parse piper config: {e}")))?;
 
-        let session = SessionBuilder::new()
-            .map_err(|e| TtsError::Init(format!("ort session builder: {e}")))?
-            .with_execution_providers(ort_execution_providers(device))
-            .map_err(|e| TtsError::Init(format!("ort execution providers: {e}")))?
-            .commit_from_file(model_path)
-            .map_err(|e| TtsError::Init(format!("ort load model: {e}")))?;
+        let session = ort_util::load_session(model_path, device, false)?;
 
         info!(
             sample_rate = config.audio.sample_rate,
