@@ -21,7 +21,6 @@ kotlin/
 
 # React Native (uniffi-bindgen-react-native)
 react-native/node_modules/
-react-native/package-lock.json
 react-native/android/build/
 react-native/android/.cxx/
 react-native/android/src/main/jniLibs/
