@@ -47,7 +47,7 @@ This library uses the **GGUF format** — a binary format optimized for fast loa
 
 You can provide a model in two ways:
 
-1. **On-demand download** — Download the model when needed using a library like [background_downloader](https://pub.dev/packages/background_downloader). You can also download a model without additional dependencies by passing `huggingface:owner/repo/filename.gguf` where you'd normally pass the model path. This keeps your app size small but requires extra implementation for model management. Here is an example:
+1. **On-demand download** — Download the model when needed using a library like [background_downloader](https://pub.dev/packages/background_downloader). You can also download a model without additional dependencies by passing `huggingface:owner/repo/filename.gguf` where you'd normally pass the model path. Here is an example:
 
 ```dart
 final chat = await nobodywho.Chat.fromPath(
