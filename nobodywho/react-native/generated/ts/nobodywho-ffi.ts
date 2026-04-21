@@ -53,7 +53,10 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_fn_clone_rusttool(handle: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_free_rusttool(handle: bigint, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_nobodywho_uniffi_fn_constructor_rusttool_new(name: Uint8Array, description: Uint8Array, parameters: Uint8Array, callback: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_constructor_rusttool_new_async(name: Uint8Array, description: Uint8Array, parameters: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rusttool_get_schema_json(ptr: bigint, uniffi_out_err: UniffiRustCallStatus): Uint8Array;
+    ubrn_uniffi_nobodywho_uniffi_fn_method_rusttool_next_pending_call(ptr: bigint): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_method_rusttool_resolve_pending_call(ptr: bigint, callId: Uint8Array, result: Uint8Array, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_nobodywho_uniffi_fn_clone_samplerbuilder(handle: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_free_samplerbuilder(handle: bigint, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_nobodywho_uniffi_fn_constructor_samplerbuilder_new(uniffi_out_err: UniffiRustCallStatus): bigint;
@@ -163,6 +166,8 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_completed(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_next_token(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttool_get_schema_json(): number;
+    ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttool_next_pending_call(): number;
+    ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dry(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_grammar(): number;
@@ -181,6 +186,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new(): number;
+    ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_constructor_samplerconfig_from_json(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttoolcallback_call(): number;

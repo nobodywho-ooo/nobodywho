@@ -517,28 +517,37 @@ pub trait RustToolCallback: Send + Sync {
     fn call(&self, arguments_json: String) -> String;
 }
 
+/// A pending tool call waiting for resolution from the language binding.
+#[derive(uniffi::Record, Clone)]
+pub struct PendingToolCall {
+    pub call_id: String,
+    pub arguments_json: String,
+}
+
+fn build_json_schema(parameters: &[ToolParameter]) -> serde_json::Value {
+    let mut properties = serde_json::Map::new();
+    let mut required = Vec::new();
+    for param in parameters {
+        let param_schema: serde_json::Value = serde_json::from_str(&param.schema)
+            .unwrap_or_else(|_| serde_json::json!({ "type": "string" }));
+        properties.insert(param.name.clone(), param_schema);
+        required.push(param.name.clone());
+    }
+    serde_json::json!({ "type": "object", "properties": properties, "required": required })
+}
+
+static CALL_ID_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 #[derive(uniffi::Object)]
 pub struct RustTool {
     inner: nobodywho::tool_calling::Tool,
+    pending_rx: Option<tokio::sync::Mutex<tokio::sync::mpsc::UnboundedReceiver<PendingToolCall>>>,
+    resolvers: Option<Arc<std::sync::Mutex<HashMap<String, std::sync::mpsc::Sender<String>>>>>,
 }
 
 #[uniffi::export]
 impl RustTool {
-    /// Create a tool that the model can call during inference.
-    ///
-    /// `parameters` is an ordered list of parameter definitions.
-    /// Each entry has a `name` and a `type` (e.g. `"string"`, `"integer"`, `"number"`, `"boolean"`).
-    /// The order matters — binding layers use it to map positional arguments
-    /// in the user's callback function to named JSON parameters.
-    ///
-    /// Supported types: `"string"`, `"integer"` / `"int"`, `"number"` / `"float"` / `"double"`,
-    /// `"boolean"` / `"bool"`.
-    /// A JSON schema is generated automatically from this list.
-    ///
-    /// The callback receives the model's arguments as a JSON string
-    /// (e.g. `{"city": "London", "degrees": 22}`).
-    /// Each binding layer wraps the user's function to parse this JSON and
-    /// pass individual typed arguments to the original function.
+    /// Create a tool with a synchronous callback (for Swift, Kotlin).
     #[uniffi::constructor]
     pub fn new(
         name: String,
@@ -546,26 +555,54 @@ impl RustTool {
         parameters: Vec<ToolParameter>,
         callback: Box<dyn RustToolCallback>,
     ) -> Arc<Self> {
-        let mut properties = serde_json::Map::new();
-        let mut required = Vec::new();
-        for param in &parameters {
-            let param_schema: serde_json::Value = serde_json::from_str(&param.schema)
-                .unwrap_or_else(|_| serde_json::json!({ "type": "string" }));
-            properties.insert(param.name.clone(), param_schema);
-            required.push(param.name.clone());
-        }
-        let schema = serde_json::json!({
-            "type": "object",
-            "properties": properties,
-            "required": required,
-        });
-
+        let schema = build_json_schema(&parameters);
         let callback = Arc::new(callback);
         let wrapped = move |args: serde_json::Value| -> String { callback.call(args.to_string()) };
+        let tool = nobodywho::tool_calling::Tool::new(name, description, schema, Arc::new(wrapped));
+        Arc::new(Self { inner: tool, pending_rx: None, resolvers: None })
+    }
+
+    /// Create a tool with async callback support (for React Native).
+    ///
+    /// Use `next_pending_call` to await tool invocations and
+    /// `resolve_pending_call` to return results. The inference thread
+    /// blocks until resolved.
+    #[uniffi::constructor]
+    pub fn new_async(
+        name: String,
+        description: String,
+        parameters: Vec<ToolParameter>,
+    ) -> Arc<Self> {
+        let schema = build_json_schema(&parameters);
+        let (pending_tx, pending_rx) = tokio::sync::mpsc::unbounded_channel();
+        let resolvers: Arc<std::sync::Mutex<HashMap<String, std::sync::mpsc::Sender<String>>>> =
+            Arc::new(std::sync::Mutex::new(HashMap::new()));
+        let resolvers_clone = resolvers.clone();
+
+        let wrapped = move |args: serde_json::Value| -> String {
+            let call_id = format!("c{}", CALL_ID_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
+            let (tx, rx) = std::sync::mpsc::channel();
+            resolvers_clone.lock().unwrap().insert(call_id.clone(), tx);
+            let _ = pending_tx.send(PendingToolCall { call_id: call_id.clone(), arguments_json: args.to_string() });
+            rx.recv().unwrap_or_else(|_| "Error: tool call dropped".into())
+        };
 
         let tool = nobodywho::tool_calling::Tool::new(name, description, schema, Arc::new(wrapped));
+        Arc::new(Self { inner: tool, pending_rx: Some(tokio::sync::Mutex::new(pending_rx)), resolvers: Some(resolvers) })
+    }
 
-        Arc::new(Self { inner: tool })
+    /// Await the next tool call from inference. Returns `None` when the tool is dropped.
+    pub async fn next_pending_call(&self) -> Option<PendingToolCall> {
+        self.pending_rx.as_ref()?.lock().await.recv().await
+    }
+
+    /// Resolve a pending tool call with the result string.
+    pub fn resolve_pending_call(&self, call_id: String, result: String) {
+        if let Some(resolvers) = &self.resolvers {
+            if let Some(tx) = resolvers.lock().unwrap().remove(&call_id) {
+                let _ = tx.send(result);
+            }
+        }
     }
 
     /// Get the JSON schema for this tool's parameters as a string.
