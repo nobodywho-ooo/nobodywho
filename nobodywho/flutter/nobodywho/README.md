@@ -213,7 +213,7 @@ Include audio and images in your prompts, so the model can hear and see content 
 Not all models have built-in image and audio capabilities. Generally, you will need two parts for making this work:
 
 1. Multimodal LLM, so the LLM can consume image-tokens or/and audio-tokens
-2. a matching projection model, which converts images to image-tokens or/and audio to audio-tokens
+2. A matching projection model, which converts images to image-tokens or/and audio to audio-tokens
 
 *NB:*The language model and projection model have to **fit** together, as they are trained together.
 
@@ -230,7 +230,7 @@ import 'package:nobodywho/nobodywho.dart' as nobodywho;
 // Vision + Hearing: https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/tree/main
 
 final model = await nobodywho.Model.load(
-  modelPath: "./chat-model.gguf", // e.g gemma-4-E2B-it-Q3_K_M.gguf
+  modelPath: "./multimodal-model.gguf", // e.g gemma-4-E2B-it-Q3_K_M.gguf
   projectionModelPath: "./mmproj.gguf", // e.g mmproj-BF16.gguf
 );
 
@@ -248,4 +248,4 @@ final response = await chat.askWithPrompt(nobodywho.Prompt([
 
 You can pass multiple images and audio parts and interleave text between them. If the model performs poorly, try reordering the text and image parts — this can make a noticeable difference. If images consume too much context, increase `contextSize` or preprocess images with compression.
 
-See the [Vision documentation](https://docs.nobodywho.ooo/flutter/vision/) for model recommendations and advanced tips.
+See the [Vision & Hearing documentation](https://docs.nobodywho.ooo/flutter/vision/) for model recommendations and advanced tips.
