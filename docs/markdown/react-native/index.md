@@ -30,6 +30,12 @@ This is a super simple example, but we believe that examples which do simple thi
 
 To get a full overview of the functionality provided by NobodyWho, simply keep reading.
 
+## Android requirements
+
+If you use the x86_64 Android emulator for development, your app must set `minSdkVersion` to at least 31. This is due to a threading feature (ELF TLS) that the Rust runtime requires on x86_64. ARM64 devices (i.e. all real phones) work with any `minSdkVersion`.
+
+No specific NDK version is required — NobodyWho ships prebuilt shared libraries, so your project's NDK version does not affect the Rust code.
+
 ## Minimum recommended specs
 
 - iOS: iPhone 11 or newer with at least 4 GB of RAM. We tested a Qwen3 0.6B (332 MB) on an iPhone X (iOS 16) and while it ran, performance was too slow to be practical.
