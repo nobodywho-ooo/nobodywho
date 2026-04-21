@@ -2,6 +2,7 @@
 ///
 /// Implements the VITS-based Piper pipeline: text → espeak phonemes → phoneme IDs → ONNX → PCM audio.
 use crate::errors::TtsError;
+use crate::tts::{ort_execution_providers, TtsDevice};
 use ort::session::builder::SessionBuilder;
 use ort::session::Session;
 use ort::value::Tensor;
@@ -50,7 +51,7 @@ const BOS_ID: i64 = 1; // "^"
 const EOS_ID: i64 = 2; // "$"
 
 impl PiperModel {
-    pub fn new(model_path: &Path, config_path: &Path) -> Result<Self, TtsError> {
+    pub fn new(model_path: &Path, config_path: &Path, device: TtsDevice) -> Result<Self, TtsError> {
         let config_str = std::fs::read_to_string(config_path)
             .map_err(|e| TtsError::Init(format!("failed to read piper config: {e}")))?;
         let config: PiperConfig = serde_json::from_str(&config_str)
@@ -58,7 +59,7 @@ impl PiperModel {
 
         let session = SessionBuilder::new()
             .map_err(|e| TtsError::Init(format!("ort session builder: {e}")))?
-            .with_execution_providers([ort::ep::CPU::default().build()])
+            .with_execution_providers(ort_execution_providers(device))
             .map_err(|e| TtsError::Init(format!("ort execution providers: {e}")))?
             .commit_from_file(model_path)
             .map_err(|e| TtsError::Init(format!("ort load model: {e}")))?;

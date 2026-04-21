@@ -38,7 +38,7 @@ ahash = "0.8.12"
 indexmap = "2.13.0"
 hound = "3"
 kokoros = { git = "https://github.com/lucasjinreal/Kokoros", branch = "main" }
-ort = { version = "2.0.0-rc.12", default-features = true }
+ort = { version = "2.0.0-rc.12", default-features = true, features = ["cuda"] }
 espeak-rs = "0.1.9"
 tokenizers = { version = "0.22", default-features = false, features = ["onig"] }
 unicode-normalization = "0.1"

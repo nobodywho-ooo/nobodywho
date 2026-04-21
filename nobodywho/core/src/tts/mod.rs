@@ -20,6 +20,29 @@ use std::sync::Arc;
 use std::time::Instant;
 use tracing::info;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TtsDevice {
+    Auto,
+    Cpu,
+    Cuda,
+}
+
+pub(crate) fn ort_execution_providers(
+    device: TtsDevice,
+) -> Vec<ort::ep::ExecutionProviderDispatch> {
+    match device {
+        TtsDevice::Cpu => vec![ort::ep::CPU::default().build()],
+        TtsDevice::Cuda => vec![
+            ort::ep::CUDA::default().build().error_on_failure(),
+            ort::ep::CPU::default().build(),
+        ],
+        TtsDevice::Auto => vec![
+            ort::ep::CUDA::default().build().fail_silently(),
+            ort::ep::CPU::default().build(),
+        ],
+    }
+}
+
 /// Synchronous TTS handle. Wraps [`TtsAsync`] and blocks the calling thread.
 #[derive(Clone)]
 pub struct Tts {
@@ -137,7 +160,17 @@ impl Tts {
         second_path: impl AsRef<Path>,
     ) -> Result<Self, TtsError> {
         Ok(Self {
-            inner: TtsAsync::new(model_path, second_path)?,
+            inner: TtsAsync::new_with_device(model_path, second_path, TtsDevice::Auto)?,
+        })
+    }
+
+    pub fn new_with_device(
+        model_path: impl AsRef<Path>,
+        second_path: impl AsRef<Path>,
+        device: TtsDevice,
+    ) -> Result<Self, TtsError> {
+        Ok(Self {
+            inner: TtsAsync::new_with_device(model_path, second_path, device)?,
         })
     }
 
@@ -150,7 +183,17 @@ impl Tts {
         reference_wav: Option<impl AsRef<Path>>,
     ) -> Result<Self, TtsError> {
         Ok(Self {
-            inner: TtsAsync::new_chatterbox(model_dir, reference_wav)?,
+            inner: TtsAsync::new_chatterbox_with_device(model_dir, reference_wav, TtsDevice::Auto)?,
+        })
+    }
+
+    pub fn new_chatterbox_with_device(
+        model_dir: impl AsRef<Path>,
+        reference_wav: Option<impl AsRef<Path>>,
+        device: TtsDevice,
+    ) -> Result<Self, TtsError> {
+        Ok(Self {
+            inner: TtsAsync::new_chatterbox_with_device(model_dir, reference_wav, device)?,
         })
     }
 
@@ -160,7 +203,16 @@ impl Tts {
     /// `default_cond/` with pre-computed conditioning, and `onnx/` with ONNX models.
     pub fn new_roest(model_dir: impl AsRef<Path>) -> Result<Self, TtsError> {
         Ok(Self {
-            inner: TtsAsync::new_roest(model_dir)?,
+            inner: TtsAsync::new_roest_with_device(model_dir, TtsDevice::Auto)?,
+        })
+    }
+
+    pub fn new_roest_with_device(
+        model_dir: impl AsRef<Path>,
+        device: TtsDevice,
+    ) -> Result<Self, TtsError> {
+        Ok(Self {
+            inner: TtsAsync::new_roest_with_device(model_dir, device)?,
         })
     }
 
@@ -186,6 +238,14 @@ impl TtsAsync {
         model_path: impl AsRef<Path>,
         second_path: impl AsRef<Path>,
     ) -> Result<Self, TtsError> {
+        Self::new_with_device(model_path, second_path, TtsDevice::Auto)
+    }
+
+    pub fn new_with_device(
+        model_path: impl AsRef<Path>,
+        second_path: impl AsRef<Path>,
+        device: TtsDevice,
+    ) -> Result<Self, TtsError> {
         let second = second_path.as_ref();
 
         let is_piper = second
@@ -193,7 +253,7 @@ impl TtsAsync {
             .is_some_and(|ext| ext.eq_ignore_ascii_case("json"));
 
         if is_piper {
-            Self::new_piper(model_path, second)
+            Self::new_piper(model_path, second, device)
         } else {
             Self::new_kokoro(
                 model_path.as_ref().to_string_lossy(),
@@ -230,9 +290,10 @@ impl TtsAsync {
     fn new_piper(
         model_path: impl AsRef<Path>,
         config_path: impl AsRef<Path>,
+        device: TtsDevice,
     ) -> Result<Self, TtsError> {
         let init_start = Instant::now();
-        let model = piper::PiperModel::new(model_path.as_ref(), config_path.as_ref())?;
+        let model = piper::PiperModel::new(model_path.as_ref(), config_path.as_ref(), device)?;
         let sample_rate = model.sample_rate();
         info!(elapsed = ?init_start.elapsed(), "Initialized Piper TTS");
 
@@ -249,13 +310,24 @@ impl TtsAsync {
         model_dir: impl AsRef<Path>,
         reference_wav: Option<impl AsRef<Path>>,
     ) -> Result<Self, TtsError> {
+        Self::new_chatterbox_with_device(model_dir, reference_wav, TtsDevice::Auto)
+    }
+
+    pub fn new_chatterbox_with_device(
+        model_dir: impl AsRef<Path>,
+        reference_wav: Option<impl AsRef<Path>>,
+        device: TtsDevice,
+    ) -> Result<Self, TtsError> {
         let init_start = Instant::now();
-        let model = chatterbox::ChatterboxModel::new(model_dir.as_ref())?;
+        let model = chatterbox::ChatterboxModel::new(model_dir.as_ref(), device)?;
 
         let reference_audio = match reference_wav {
             Some(path) => {
                 let samples = chatterbox::load_reference_audio(path.as_ref())?;
-                info!(samples = samples.len(), "Loaded reference audio for voice cloning");
+                info!(
+                    samples = samples.len(),
+                    "Loaded reference audio for voice cloning"
+                );
                 Some(Arc::new(samples))
             }
             None => {
@@ -283,8 +355,15 @@ impl TtsAsync {
 
     /// Create a Røst TTS handle from a model directory.
     pub fn new_roest(model_dir: impl AsRef<Path>) -> Result<Self, TtsError> {
+        Self::new_roest_with_device(model_dir, TtsDevice::Auto)
+    }
+
+    pub fn new_roest_with_device(
+        model_dir: impl AsRef<Path>,
+        device: TtsDevice,
+    ) -> Result<Self, TtsError> {
         let init_start = Instant::now();
-        let model = chatterbox_roest::RoestModel::new(model_dir.as_ref())?;
+        let model = chatterbox_roest::RoestModel::new(model_dir.as_ref(), device)?;
         info!(elapsed = ?init_start.elapsed(), "Initialized Røst TTS");
 
         Ok(Self {
@@ -311,7 +390,9 @@ impl TtsAsync {
     pub fn available_voices(&self) -> Vec<String> {
         match &self.backend {
             TtsBackend::Kokoro { koko, .. } => koko.get_available_voices(),
-            TtsBackend::Piper { .. } | TtsBackend::Chatterbox { .. } | TtsBackend::Roest { .. } => Vec::new(),
+            TtsBackend::Piper { .. } | TtsBackend::Chatterbox { .. } | TtsBackend::Roest { .. } => {
+                Vec::new()
+            }
         }
     }
 }
@@ -374,10 +455,7 @@ fn synthesize_sync(backend: &TtsBackend, request: TtsRequest) -> Result<Vec<u8>,
                 min_p: request.min_p,
                 cfg_weight: request.cfg_weight,
             };
-            let samples = model.synthesize(
-                &request.text,
-                &sampling,
-            )?;
+            let samples = model.synthesize(&request.text, &request.language, &sampling)?;
             (samples, 24000u32)
         }
     };

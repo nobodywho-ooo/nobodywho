@@ -8,6 +8,7 @@
 ///
 /// Supports 23 languages including Danish, with voice cloning from a reference WAV.
 use crate::errors::TtsError;
+use crate::tts::{ort_execution_providers, TtsDevice};
 use ort::memory::Allocator;
 use ort::session::builder::SessionBuilder;
 use ort::session::Session;
@@ -75,17 +76,17 @@ impl ChatterboxModel {
     ///     onnx/embed_tokens.onnx (+.onnx_data)
     ///     onnx/language_model*.onnx (+.onnx_data)   — any quantization variant
     ///     onnx/conditional_decoder.onnx (+.onnx_data)
-    pub fn new(model_dir: &Path) -> Result<Self, TtsError> {
+    pub fn new(model_dir: &Path, device: TtsDevice) -> Result<Self, TtsError> {
         let onnx_dir = model_dir.join("onnx");
 
         let tokenizer_path = model_dir.join("tokenizer.json");
         let tokenizer = tokenizers::Tokenizer::from_file(&tokenizer_path)
             .map_err(|e| TtsError::Init(format!("failed to load tokenizer: {e}")))?;
 
-        let speech_encoder = load_session(&onnx_dir.join("speech_encoder.onnx"))?;
-        let embed_tokens = load_session(&onnx_dir.join("embed_tokens.onnx"))?;
-        let language_model = find_and_load_language_model(&onnx_dir)?;
-        let conditional_decoder = load_session(&onnx_dir.join("conditional_decoder.onnx"))?;
+        let speech_encoder = load_session(&onnx_dir.join("speech_encoder.onnx"), device)?;
+        let embed_tokens = load_session(&onnx_dir.join("embed_tokens.onnx"), device)?;
+        let language_model = find_and_load_language_model(&onnx_dir, device)?;
+        let conditional_decoder = load_session(&onnx_dir.join("conditional_decoder.onnx"), device)?;
 
         // Detect layer count from LM input names: past_key_values.{N}.key
         let num_layers = language_model
@@ -191,7 +192,10 @@ impl ChatterboxModel {
             raw_ids
         } else {
             // Turbo/GPT-2 tokenizer — all IDs are text tokens, offset them
-            raw_ids.iter().map(|&id| id + self.text_token_offset).collect()
+            raw_ids
+                .iter()
+                .map(|&id| id + self.text_token_offset)
+                .collect()
         };
         // Append START_SPEECH token — the LM expects [cond | text | START_SPEECH]
         input_ids.push(START_SPEECH_TOKEN);
@@ -221,9 +225,8 @@ impl ChatterboxModel {
                     pc.prompt_feat.clone(),
                 )
             } else {
-                let audio_tensor =
-                    Tensor::from_array(([1, audio_samples.len()], audio_samples))
-                        .map_err(|e| TtsError::Synthesis(format!("audio tensor: {e}")))?;
+                let audio_tensor = Tensor::from_array(([1, audio_samples.len()], audio_samples))
+                    .map_err(|e| TtsError::Synthesis(format!("audio tensor: {e}")))?;
 
                 let mut session = self
                     .speech_encoder
@@ -231,12 +234,10 @@ impl ChatterboxModel {
                     .map_err(|e| TtsError::Synthesis(format!("lock: {e}")))?;
 
                 let outputs = session
-                    .run(
-                        ort::session::SessionInputs::from(vec![(
-                            Cow::Borrowed("audio_values"),
-                            ort::session::SessionInputValue::Owned(Value::from(audio_tensor)),
-                        )]),
-                    )
+                    .run(ort::session::SessionInputs::from(vec![(
+                        Cow::Borrowed("audio_values"),
+                        ort::session::SessionInputValue::Owned(Value::from(audio_tensor)),
+                    )]))
                     .map_err(|e| TtsError::Synthesis(format!("speech encoder: {e}")))?;
 
                 let cond_emb = extract_f32_tensor(&outputs[0], "cond_emb")?;
@@ -254,12 +255,8 @@ impl ChatterboxModel {
         );
 
         // Step 3: Autoregressive generation loop
-        let speech_tokens = self.generate_speech_tokens(
-            &input_ids,
-            &position_ids,
-            &cond_emb,
-            sampling,
-        )?;
+        let speech_tokens =
+            self.generate_speech_tokens(&input_ids, &position_ids, &cond_emb, sampling)?;
 
         // Prepend prompt tokens to generated speech tokens
         let mut full_speech_tokens: Vec<i64> = prompt_token.data.clone();
@@ -272,11 +269,7 @@ impl ChatterboxModel {
         );
 
         // Step 4: Conditional decoder — speech tokens → PCM
-        let pcm = self.decode_speech(
-            &full_speech_tokens,
-            &ref_x_vector,
-            &prompt_feat,
-        )?;
+        let pcm = self.decode_speech(&full_speech_tokens, &ref_x_vector, &prompt_feat)?;
 
         info!(
             samples = pcm.len(),
@@ -298,9 +291,7 @@ impl ChatterboxModel {
         let batch_size = if use_cfg { 2usize } else { 1usize };
         let mut generated: Vec<i64> = vec![START_SPEECH_TOKEN];
 
-        let mut kv_cache: Vec<Vec<f32>> = (0..self.num_layers * 2)
-            .map(|_| Vec::new())
-            .collect();
+        let mut kv_cache: Vec<Vec<f32>> = (0..self.num_layers * 2).map(|_| Vec::new()).collect();
         let mut kv_seq_len: usize = 0;
         let mut attention_mask: Vec<i64> = Vec::new();
 
@@ -328,13 +319,18 @@ impl ChatterboxModel {
             let ids_tensor = Tensor::from_array(([1, cur_seq_len], current_ids))
                 .map_err(|e| TtsError::Synthesis(format!("ids tensor: {e}")))?;
 
-            let mut embed_inputs: Vec<(Cow<'_, str>, ort::session::SessionInputValue<'_>)> = vec![
-                (Cow::Borrowed("input_ids"), ort::session::SessionInputValue::Owned(Value::from(ids_tensor))),
-            ];
+            let mut embed_inputs: Vec<(Cow<'_, str>, ort::session::SessionInputValue<'_>)> =
+                vec![(
+                    Cow::Borrowed("input_ids"),
+                    ort::session::SessionInputValue::Owned(Value::from(ids_tensor)),
+                )];
             if self.embed_has_position_ids {
                 let pos_tensor = Tensor::from_array(([1, cur_seq_len], current_pos))
                     .map_err(|e| TtsError::Synthesis(format!("pos tensor: {e}")))?;
-                embed_inputs.push((Cow::Borrowed("position_ids"), ort::session::SessionInputValue::Owned(Value::from(pos_tensor))));
+                embed_inputs.push((
+                    Cow::Borrowed("position_ids"),
+                    ort::session::SessionInputValue::Owned(Value::from(pos_tensor)),
+                ));
             }
 
             let embed_outputs = embed_session
@@ -358,7 +354,7 @@ impl ChatterboxModel {
                 if use_cfg {
                     // Batch 1: cond_emb + ZEROED text embeddings (unconditioned)
                     data.extend_from_slice(&cond_emb.data);
-                    data.extend(std::iter::repeat(0.0f32).take(text_seq * hidden_dim));
+                    data.extend(std::iter::repeat_n(0.0f32, text_seq * hidden_dim));
                 }
                 (data, total_seq)
             } else {
@@ -385,22 +381,35 @@ impl ChatterboxModel {
             .map_err(|e| TtsError::Synthesis(format!("embeds tensor: {e}")))?;
 
             // Attention mask: replicate for batch_size
-            let attn_data: Vec<i64> = (0..batch_size).flat_map(|_| attention_mask.iter().copied()).collect();
+            let attn_data: Vec<i64> = (0..batch_size)
+                .flat_map(|_| attention_mask.iter().copied())
+                .collect();
             let attn_tensor = Tensor::from_array(([batch_size, attention_mask.len()], attn_data))
                 .map_err(|e| TtsError::Synthesis(format!("attn tensor: {e}")))?;
 
             let mut lm_inputs: Vec<(Cow<'_, str>, ort::session::SessionInputValue<'_>)> = vec![
-                (Cow::Borrowed("inputs_embeds"), ort::session::SessionInputValue::Owned(Value::from(embeds_tensor))),
-                (Cow::Borrowed("attention_mask"), ort::session::SessionInputValue::Owned(Value::from(attn_tensor))),
+                (
+                    Cow::Borrowed("inputs_embeds"),
+                    ort::session::SessionInputValue::Owned(Value::from(embeds_tensor)),
+                ),
+                (
+                    Cow::Borrowed("attention_mask"),
+                    ort::session::SessionInputValue::Owned(Value::from(attn_tensor)),
+                ),
             ];
 
             if self.lm_has_position_ids {
                 let pos_ids: Vec<i64> = (0..batch_size)
-                    .flat_map(|_| (kv_seq_len..kv_seq_len + inputs_embeds_seq_len).map(|i| i as i64))
+                    .flat_map(|_| {
+                        (kv_seq_len..kv_seq_len + inputs_embeds_seq_len).map(|i| i as i64)
+                    })
                     .collect();
                 let pos_tensor = Tensor::from_array(([batch_size, inputs_embeds_seq_len], pos_ids))
                     .map_err(|e| TtsError::Synthesis(format!("pos_id tensor: {e}")))?;
-                lm_inputs.push((Cow::Borrowed("position_ids"), ort::session::SessionInputValue::Owned(Value::from(pos_tensor))));
+                lm_inputs.push((
+                    Cow::Borrowed("position_ids"),
+                    ort::session::SessionInputValue::Owned(Value::from(pos_tensor)),
+                ));
             }
 
             // KV cache
@@ -411,7 +420,12 @@ impl ChatterboxModel {
                     let tensor = if kv_seq_len == 0 {
                         Tensor::<f32>::new(
                             &Allocator::default(),
-                            Shape::new([batch_size as i64, self.num_kv_heads as i64, 0, self.head_dim as i64]),
+                            Shape::new([
+                                batch_size as i64,
+                                self.num_kv_heads as i64,
+                                0,
+                                self.head_dim as i64,
+                            ]),
                         )
                         .map_err(|e| TtsError::Synthesis(format!("empty kv {name}: {e}")))?
                     } else {
@@ -421,7 +435,10 @@ impl ChatterboxModel {
                         ))
                         .map_err(|e| TtsError::Synthesis(format!("kv {name}: {e}")))?
                     };
-                    lm_inputs.push((Cow::Owned(name), ort::session::SessionInputValue::Owned(Value::from(tensor))));
+                    lm_inputs.push((
+                        Cow::Owned(name),
+                        ort::session::SessionInputValue::Owned(Value::from(tensor)),
+                    ));
                 }
             }
 
@@ -493,17 +510,12 @@ impl ChatterboxModel {
         let tokens_tensor = Tensor::from_array(([1, num_tokens], speech_tokens.to_vec()))
             .map_err(|e| TtsError::Synthesis(format!("speech tokens tensor: {e}")))?;
 
-        let speaker_tensor = Tensor::from_array((
-            ref_x_vector.shape.clone(),
-            ref_x_vector.data.clone(),
-        ))
-        .map_err(|e| TtsError::Synthesis(format!("speaker tensor: {e}")))?;
+        let speaker_tensor =
+            Tensor::from_array((ref_x_vector.shape.clone(), ref_x_vector.data.clone()))
+                .map_err(|e| TtsError::Synthesis(format!("speaker tensor: {e}")))?;
 
-        let feat_tensor = Tensor::from_array((
-            prompt_feat.shape.clone(),
-            prompt_feat.data.clone(),
-        ))
-        .map_err(|e| TtsError::Synthesis(format!("feat tensor: {e}")))?;
+        let feat_tensor = Tensor::from_array((prompt_feat.shape.clone(), prompt_feat.data.clone()))
+            .map_err(|e| TtsError::Synthesis(format!("feat tensor: {e}")))?;
 
         let inputs: Vec<(Cow<'_, str>, ort::session::SessionInputValue<'_>)> = vec![
             (
@@ -617,17 +629,19 @@ fn load_precomputed_cond(dir: &Path) -> Option<PrecomputedCond> {
     })
 }
 
-fn load_session(path: &Path) -> Result<Session, TtsError> {
+fn load_session(path: &Path, device: TtsDevice) -> Result<Session, TtsError> {
     SessionBuilder::new()
         .map_err(|e| TtsError::Init(format!("ort session builder: {e}")))?
-        .with_execution_providers([ort::ep::CPU::default().build()])
+        .with_log_level(ort::logging::LogLevel::Warning)
+        .map_err(|e| TtsError::Init(format!("ort log level: {e}")))?
+        .with_execution_providers(ort_execution_providers(device))
         .map_err(|e| TtsError::Init(format!("ort execution providers: {e}")))?
         .commit_from_file(path)
         .map_err(|e| TtsError::Init(format!("ort load model {}: {e}", path.display())))
 }
 
 /// Find the language model ONNX file, preferring quantized variants.
-fn find_and_load_language_model(onnx_dir: &Path) -> Result<Session, TtsError> {
+fn find_and_load_language_model(onnx_dir: &Path, device: TtsDevice) -> Result<Session, TtsError> {
     // fp32 is safest (fp16/q4 need matching tensor types or can segfault)
     let candidates = [
         "language_model.onnx",
@@ -640,7 +654,7 @@ fn find_and_load_language_model(onnx_dir: &Path) -> Result<Session, TtsError> {
         let path = onnx_dir.join(name);
         if path.exists() {
             info!(model = name, "Loading language model");
-            return load_session(&path);
+            return load_session(&path, device);
         }
     }
 
@@ -684,7 +698,8 @@ fn sample_token(logits: &mut [f32], params: &SamplingParams) -> usize {
 
     // Build sorted index for top-k / top-p filtering
     let mut indexed: Vec<(usize, f32)> = logits.iter().copied().enumerate().collect();
-    indexed.sort_unstable_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
+    indexed
+        .sort_unstable_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
 
     // Top-k: keep only the top k candidates
     let k = if params.top_k > 0 {
