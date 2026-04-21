@@ -23,12 +23,8 @@
 //! `instrumentation.rs` for details.
 
 use crate::errors::TtsError;
-use crate::tts::instrumentation::{
-    self, DebugSampler, FirstStepDump, GenerationTimings, StepDump,
-};
-use crate::tts::ort_util::{
-    self, detect_num_layers, has_position_ids, KvCacheLayout, TensorData,
-};
+use crate::tts::instrumentation::{self, DebugSampler, FirstStepDump, GenerationTimings, StepDump};
+use crate::tts::ort_util::{self, detect_num_layers, has_position_ids, KvCacheLayout, TensorData};
 use crate::tts::sampling::{self, SamplingParams};
 use crate::tts::TtsDevice;
 use ort::session::{Session, SessionInputValue, SessionInputs};
@@ -104,7 +100,8 @@ impl RoestModel {
 
         // Røst's ONNX graphs break under ORT's default graph fusion passes —
         // load them with optimization disabled.
-        let embed_tokens = ort_util::load_session(&onnx_dir.join("embed_tokens.onnx"), device, true)?;
+        let embed_tokens =
+            ort_util::load_session(&onnx_dir.join("embed_tokens.onnx"), device, true)?;
         let language_model = ort_util::find_language_model(
             &onnx_dir,
             device,
@@ -336,7 +333,8 @@ impl RoestModel {
             let next_token = if let Some(token) = debug_sampler.forced_token(step) {
                 token
             } else {
-                sampling::sample_token(&mut final_logits, sampling_params, &mut debug_sampler) as i64
+                sampling::sample_token(&mut final_logits, sampling_params, &mut debug_sampler)
+                    as i64
             };
             generated.push(next_token);
             timings.sample += sample_start.elapsed();

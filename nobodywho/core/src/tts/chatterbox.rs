@@ -13,9 +13,7 @@
 
 use crate::errors::TtsError;
 use crate::tts::instrumentation::GenerationTimings;
-use crate::tts::ort_util::{
-    self, detect_num_layers, has_position_ids, KvCacheLayout, TensorData,
-};
+use crate::tts::ort_util::{self, detect_num_layers, has_position_ids, KvCacheLayout, TensorData};
 use crate::tts::sampling::{self, SamplingParams, SystemRng};
 use crate::tts::TtsDevice;
 use ort::session::{Session, SessionInputValue, SessionInputs};
@@ -164,7 +162,11 @@ impl ChatterboxModel {
         let prepared_text = prepare_text(text, language);
         let (input_ids, position_ids) = self.tokenize_for_lm(&prepared_text)?;
 
-        info!(tokens = input_ids.len(), text = prepared_text, "Chatterbox: tokenized");
+        info!(
+            tokens = input_ids.len(),
+            text = prepared_text,
+            "Chatterbox: tokenized"
+        );
 
         let cond = self.obtain_conditioning(reference_audio)?;
 
@@ -174,7 +176,8 @@ impl ChatterboxModel {
             "Chatterbox: speaker conditioning ready"
         );
 
-        let speech_tokens = self.generate_speech_tokens(&input_ids, &position_ids, &cond, sampling)?;
+        let speech_tokens =
+            self.generate_speech_tokens(&input_ids, &position_ids, &cond, sampling)?;
 
         let mut full_speech_tokens = cond.prompt_token.data.clone();
         full_speech_tokens.extend_from_slice(&speech_tokens);
@@ -352,7 +355,8 @@ impl ChatterboxModel {
                 REPETITION_PENALTY,
                 false,
             );
-            let next_token = sampling::sample_token(&mut final_logits, sampling_params, &mut rng) as i64;
+            let next_token =
+                sampling::sample_token(&mut final_logits, sampling_params, &mut rng) as i64;
             generated.push(next_token);
             timings.sample += sample_start.elapsed();
 
@@ -618,7 +622,9 @@ fn read_text_token_offset(model_dir: &Path) -> i64 {
     let Ok(v) = serde_json::from_str::<serde_json::Value>(&s) else {
         return DEFAULT_TEXT_TOKEN_OFFSET;
     };
-    v["text_token_offset"].as_i64().unwrap_or(DEFAULT_TEXT_TOKEN_OFFSET)
+    v["text_token_offset"]
+        .as_i64()
+        .unwrap_or(DEFAULT_TEXT_TOKEN_OFFSET)
 }
 
 /// Load a WAV file and resample to `S3GEN_SR` mono f32 samples.
