@@ -26,7 +26,7 @@
 ///
 ///   Chatterbox Multilingual:
 ///     See https://huggingface.co/onnx-community/chatterbox-multilingual-ONNX
-use nobodywho::tts::{Tts, TtsRequest};
+use nobodywho::tts::{Tts, TtsDevice, TtsRequest};
 use std::time::Instant;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -59,16 +59,17 @@ fn run_kokoro_or_piper(args: &[String]) -> Result<(), Box<dyn std::error::Error>
         std::process::exit(1);
     }
 
+    let (device, end) = parse_trailing_device(args)?;
     let model_path = &args[1];
     let second_path = &args[2];
     let text = &args[3];
     let voice = args.get(4).map(|s| s.as_str()).unwrap_or("af_heart");
     let speed: f32 = args.get(5).and_then(|s| s.parse().ok()).unwrap_or(1.0);
-    let language = args.get(6).map(|s| s.as_str()).unwrap_or("en-us");
+    let language = if end > 6 { args[6].as_str() } else { "en-us" };
 
     println!("Loading model: {model_path}");
     let load_start = Instant::now();
-    let tts = Tts::new(model_path, second_path)?;
+    let tts = Tts::new_with_device(model_path, second_path, device)?;
     println!("Loaded in {:.2?}", load_start.elapsed());
 
     let voices = tts.available_voices();
@@ -98,25 +99,25 @@ fn run_kokoro_or_piper(args: &[String]) -> Result<(), Box<dyn std::error::Error>
 }
 
 fn run_roest(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
-    // --roest <dir> "text" [language]
+    // --roest <dir> "text" [language] [device]
     if args.len() < 4 {
         eprintln!("Usage: {} --roest <model_dir> \"text\" [language]", args[0]);
         std::process::exit(1);
     }
 
+    let (device, end) = parse_trailing_device(args)?;
     let model_dir = &args[2];
     let text = &args[3];
-    let language = args.get(4).map(|s| s.as_str()).unwrap_or("");
+    let language = if end > 4 { args[4].as_str() } else { "" };
 
     println!("Loading Røst from: {model_dir}");
     let load_start = Instant::now();
-    let tts = Tts::new_roest(model_dir)?;
+    let tts = Tts::new_roest_with_device(model_dir, device)?;
     println!("Loaded in {:.2?}", load_start.elapsed());
 
     println!("Synthesizing: {text:?}");
     let synth_start = Instant::now();
-    let request = TtsRequest::new(text.as_str())
-        .with_language(language);
+    let request = TtsRequest::new(text.as_str()).with_language(language);
     let wav_bytes = tts.synthesize_request(request)?;
     println!(
         "Synthesis completed in {:.2?} ({} bytes)",
@@ -129,30 +130,49 @@ fn run_roest(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn run_chatterbox(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
-    // --chatterbox <dir> "text" [language] [voice.wav] [temperature] [top_k] [top_p]
+    // --chatterbox <dir> "text" [language] [voice.wav] [temperature] [top_k] [top_p] [device]
     if args.len() < 4 {
         print_usage(&args[0]);
         std::process::exit(1);
     }
 
+    let (device, end) = parse_trailing_device(args)?;
     let model_dir = &args[2];
     let text = &args[3];
-    let language = args.get(4).map(|s| s.as_str()).unwrap_or("");
-    let voice_wav = args.get(5).and_then(|s| {
-        if s.ends_with(".wav") { Some(std::path::PathBuf::from(s)) } else { None }
+    let language = if end > 4 { args[4].as_str() } else { "" };
+    let voice_wav = args.get(5).filter(|_| end > 5).and_then(|s| {
+        if s.ends_with(".wav") {
+            Some(std::path::PathBuf::from(s))
+        } else {
+            None
+        }
     });
     // Sampling args shift by 1 if voice.wav is provided
     let sampling_offset = if voice_wav.is_some() { 6 } else { 5 };
-    let temperature: f32 = args.get(sampling_offset).and_then(|s| s.parse().ok()).unwrap_or(0.0);
-    let top_k: usize = args.get(sampling_offset + 1).and_then(|s| s.parse().ok()).unwrap_or(0);
-    let top_p: f32 = args.get(sampling_offset + 2).and_then(|s| s.parse().ok()).unwrap_or(1.0);
+    let temperature: f32 = if end > sampling_offset {
+        args[sampling_offset].parse().unwrap_or(0.0)
+    } else {
+        0.0
+    };
+    let top_k: usize = if end > sampling_offset + 1 {
+        args[sampling_offset + 1].parse().unwrap_or(0)
+    } else {
+        0
+    };
+    let top_p: f32 = if end > sampling_offset + 2 {
+        args[sampling_offset + 2].parse().unwrap_or(1.0)
+    } else {
+        1.0
+    };
 
     println!("Loading Chatterbox from: {model_dir}");
     let load_start = Instant::now();
-    let tts = Tts::new_chatterbox(model_dir, voice_wav.as_deref())?;
+    let tts = Tts::new_chatterbox_with_device(model_dir, voice_wav.as_deref(), device)?;
     println!("Loaded in {:.2?}", load_start.elapsed());
 
-    println!("Synthesizing ({language}): {text:?}  (temp={temperature}, top_k={top_k}, top_p={top_p})");
+    println!(
+        "Synthesizing ({language}): {text:?}  (temp={temperature}, top_k={top_k}, top_p={top_p})"
+    );
     let synth_start = Instant::now();
     let request = TtsRequest::new(text.as_str())
         .with_language(language)
@@ -172,10 +192,33 @@ fn run_chatterbox(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
 
 fn print_usage(program: &str) {
     eprintln!("Usage:");
-    eprintln!("  Kokoro/Piper: {program} <model.onnx> <voices.bin|config.json> \"text\" [voice] [speed] [language]");
-    eprintln!("  Chatterbox:   {program} --chatterbox <model_dir> \"text\" [language] [voice.wav] [exaggeration]");
+    eprintln!("  Kokoro/Piper: {program} <model.onnx> <voices.bin|config.json> \"text\" [voice] [speed] [language] [device]");
+    eprintln!("  Røst:         {program} --roest <model_dir> \"text\" [language] [device]");
+    eprintln!("  Chatterbox:   {program} --chatterbox <model_dir> \"text\" [language] [voice.wav] [temperature] [top_k] [top_p] [device]");
     eprintln!();
+    eprintln!("Devices: auto (default), cpu, cuda");
     eprintln!("Chatterbox languages: ar, da, de, el, en, es, fi, fr, he, hi, it, ja, ko, ms, nl, no, pl, pt, ru, sv, sw, tr, zh");
+}
+
+fn parse_device(s: &str) -> Result<TtsDevice, Box<dyn std::error::Error>> {
+    match s.to_ascii_lowercase().as_str() {
+        "auto" => Ok(TtsDevice::Auto),
+        "cpu" => Ok(TtsDevice::Cpu),
+        "cuda" => Ok(TtsDevice::Cuda),
+        _ => Err(format!("invalid device `{s}`; expected auto, cpu, or cuda").into()),
+    }
+}
+
+fn parse_trailing_device(
+    args: &[String],
+) -> Result<(TtsDevice, usize), Box<dyn std::error::Error>> {
+    if let Some(last) = args.last() {
+        match last.to_ascii_lowercase().as_str() {
+            "auto" | "cpu" | "cuda" => return Ok((parse_device(last)?, args.len() - 1)),
+            _ => {}
+        }
+    }
+    Ok((TtsDevice::Auto, args.len()))
 }
 
 fn play_wav(wav_bytes: &[u8]) {
