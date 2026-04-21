@@ -15,19 +15,25 @@ React Native TurboModule for running LLMs locally on iOS and Android (via Vulkan
 react-native/
 ├── ubrn.config.yaml             # uniffi-bindgen-react-native config
 ├── package.json                 # npm package metadata
+├── jest.config.js               # Jest test configuration
 ├── Nobodywho.podspec            # CocoaPods spec (iOS) — customized, do not regenerate
 │
 ├── src/                         # Hand-written TypeScript wrappers
 │   ├── wrapper.ts               # Public entry point (re-exports public API)
 │   ├── chat.ts                  # Chat wrapper (fromPath, destroy, etc.)
+│   ├── model.ts                 # Model wrapper (Model.load factory)
 │   ├── encoder.ts               # Encoder wrapper (fromPath, destroy)
 │   ├── cross_encoder.ts         # CrossEncoder wrapper (fromPath, destroy, rankAndSort)
 │   ├── streaming.ts             # TokenStream with AsyncIterable support
 │   ├── tool.ts                  # Tool with declarative parameter API
 │   ├── prompt.ts                # Prompt with Text/Image/Audio factories
+│   ├── message.ts               # ChatMessage type + internal conversion
 │   ├── sampler_presets.ts       # SamplerPresets static class
 │   ├── index.tsx                # Native init + generated re-exports (generated, do not edit)
 │   └── NativeNobodywho.ts      # TurboModule spec (generated, do not edit)
+│
+├── __tests__/                   # Jest tests (pure TS, no native deps)
+│   └── convertValue.test.ts     # Tests for tool parameter type conversion
 │
 ├── generated/                   # Generated bindings (committed, regenerate when Rust API changes)
 │   ├── ts/
@@ -48,8 +54,8 @@ react-native/
 │   └── Nobodywho.mm
 │
 ├── android/                     # Android native module
-│   ├── build.gradle             # Customized — downloads .a from GitHub Releases
-│   ├── CMakeLists.txt           # Customized — links static lib + uniffi headers
+│   ├── build.gradle             # Customized — downloads .so from GitHub Releases
+│   ├── CMakeLists.txt           # Customized — links shared lib + uniffi headers
 │   ├── cpp-adapter.cpp          # Generated glue
 │   └── src/main/
 │       ├── AndroidManifest.xml
@@ -134,11 +140,11 @@ This reads the UniFFI metadata embedded in the compiled `.so`/`.dylib` and gener
 - `generated/ts/nobodywho-ffi.ts` — low-level FFI type bridge
 - `generated/cpp/nobodywho.{cpp,hpp}` — C++ JSI bridge implementation
 
-### Build native static libraries for mobile targets
+### Build native shared libraries for mobile targets
 
-The Android CMake build expects static libraries (`.a` files), not shared libraries. The `.a` gets linked into the final `libreact-native-nobodywho.so` alongside the C++ JSI bridge.
+The Android build expects shared libraries (`.so` files). These are prebuilt at CI time and downloaded by Gradle, so the consumer's NDK version does not affect the Rust code.
 
-Use the nix android shell which provides NDK, cmake, and all cross-compilation environment variables:
+For local development, use the nix android shell:
 
 ```bash
 # From project root (where flake.nix is)
@@ -152,16 +158,18 @@ nix develop .#android --command bash -c \
   'cd nobodywho && cargo build -p nobodywho-uniffi --target x86_64-linux-android --release'
 ```
 
-Then copy the `.a` files to where the Android CMake build expects them:
+Then copy the `.so` files to where the Android build expects them:
 
 ```bash
+mkdir -p nobodywho/react-native/android/build/nobodywho-native/{arm64-v8a,x86_64}
+
 # ARM64
-cp nobodywho/target/aarch64-linux-android/release/libnobodywho_uniffi.a \
-  nobodywho/react-native/android/src/main/jniLibs/arm64-v8a/
+cp nobodywho/target/aarch64-linux-android/release/libnobodywho_uniffi.so \
+  nobodywho/react-native/android/build/nobodywho-native/arm64-v8a/
 
 # x86_64
-cp nobodywho/target/x86_64-linux-android/release/libnobodywho_uniffi.a \
-  nobodywho/react-native/android/src/main/jniLibs/x86_64/
+cp nobodywho/target/x86_64-linux-android/release/libnobodywho_uniffi.so \
+  nobodywho/react-native/android/build/nobodywho-native/x86_64/
 ```
 
 For iOS:
@@ -172,15 +180,26 @@ cargo build -p nobodywho-uniffi --target aarch64-apple-ios-sim --release
 
 ### Release builds (CI)
 
-In CI, native `.a` files are cross-compiled and uploaded as GitHub Release assets. At install time:
-- **Android:** `build.gradle` downloads `.a` files from the GitHub Release matching the package version
+In CI, native `.so` files are cross-compiled and uploaded as GitHub Release assets. At install time:
+- **Android:** `build.gradle` downloads `.so` files from the GitHub Release matching the package version
 - **iOS:** `Nobodywho.podspec` downloads and extracts `NobodywhoFramework.xcframework.zip` from the same release
 
 This keeps the npm package small (code only, no binaries).
 
-## Testing on Android
+## Running tests
 
-### Build the test app
+### Jest tests (pure TypeScript)
+
+```bash
+cd nobodywho/react-native
+npm test
+```
+
+These tests run without native code — they test pure TypeScript functions like `convertValue`. They are also run as a nix flake check (`nix build .#checks.x86_64-linux.react-native-jest`).
+
+### Testing on Android
+
+#### Build the test app
 
 ```bash
 # From project root
@@ -190,7 +209,7 @@ nix develop .#android --command bash -c \
    ./gradlew assembleDebug -PreactNativeArchitectures=arm64-v8a'
 ```
 
-### Run on a connected device
+#### Run on a connected device
 
 Start Metro first, then install and launch:
 
@@ -210,8 +229,9 @@ adb shell am start -n com.nobodywhotest/.MainActivity
 These files were initially generated but have been customized with project-specific logic:
 
 - **`Nobodywho.podspec`** — Downloads prebuilt xcframework from GitHub Releases, custom authors/source fields
-- **`android/build.gradle`** — Downloads prebuilt `.a` files from GitHub Releases at build time
-- **`android/CMakeLists.txt`** — Points to downloaded native libs dir, links uniffi headers from `uniffi-bindgen-react-native`
+- **`android/build.gradle`** — Downloads prebuilt `.so` files from GitHub Releases at build time, optional NDK version
+- **`android/CMakeLists.txt`** — Links shared lib with `IMPORTED_NO_SONAME` for correct runtime resolution
+- **`android/src/main/java/com/nobodywho/NobodywhoModule.kt`** — Loads `libnobodywho_uniffi.so` before the bridge lib
 
 If you regenerate the turbo-module glue, these get overwritten with defaults. Always restore them with `git checkout`.
 
@@ -221,3 +241,5 @@ If you regenerate the turbo-module glue, these get overwritten with defaults. Al
   (`async static` instead of `static async`). Workaround: use free functions instead of async
   constructors in the Rust UniFFI crate. This is why `Model` uses `loadModel()` instead of
   `Model.load()`.
+- **Async tool callbacks:** JavaScript cannot synchronously await a Promise, so tool callbacks
+  must currently be synchronous. Async support is planned via a channel-based architecture.
