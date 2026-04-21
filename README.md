@@ -25,7 +25,9 @@ We currently support Python, Flutter and Godot, with more integrations on the wa
 * ⚡ Super fast inference on GPU powered by Vulkan or Metal
 * 🤖 Compatible with thousands of pre-trained LLMs - use any LLM in the GGUF format
 * 🦙 Powered by the wonderful [llama.cpp](https://github.com/ggml-org/llama.cpp)
-
+* 🏞️ Vision capabilites - provide image information to your LLM
+* 🎧 Hearing capabilites - provide audio information to your LLM
+* 🌐 Model downloading — Load models directly from Hugging Face or any URL
 
 ## Flutter
 

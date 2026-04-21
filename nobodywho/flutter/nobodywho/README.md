@@ -47,7 +47,13 @@ This library uses the **GGUF format** — a binary format optimized for fast loa
 
 You can provide a model in two ways:
 
-1. **On-demand download** — Download the model when needed using a library like [background_downloader](https://pub.dev/packages/background_downloader). This keeps your app size small but requires extra implementation for model management.
+1. **On-demand download** — Download the model when needed using a library like [background_downloader](https://pub.dev/packages/background_downloader). You can also download a model without additional dependencies by passing `huggingface:owner/repo/filename.gguf` where you'd normally pass the model path. This keeps your app size small but requires extra implementation for model management. Here is an example:
+
+```dart
+final chat = await nobodywho.Chat.fromPath(
+  modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
+);
+```
 
 2. **Bundle in assets** — Include the model directly in your `assets` folder. Simpler to set up and great for development, but significantly increases app size — not recommended for production.
 
@@ -199,25 +205,33 @@ See the [Embeddings & RAG documentation](https://docs.nobodywho.ooo/flutter/embe
 
 ---
 
-## Vision
+## Vision and Hearing
 
-Vision support lets you include images in your prompts, so the model can analyze and describe visual content alongside text.
+Include audio and images in your prompts, so the model can hear and see content alongside text.
 
-To enable this, you need two model files:
+### Choosing a model
+Not all models have built-in image and audio capabilities. Generally, you will need two parts for making this work:
 
-- A **vision-language LLM** (usually has `VL` in the name)
-- A matching **projection model** that converts images into tokens the LLM can process (usually has `mmproj` in the name)
+1. Multimodal LLM, so the LLM can consume image-tokens or/and audio-tokens
+2. a matching projection model, which converts images to image-tokens or/and audio to audio-tokens
 
-Pass the projection model when loading your model, then use `askWithPrompt` to compose prompts that mix text and images:
+*NB:*The language model and projection model have to **fit** together, as they are trained together.
+
+Usually a projection model has `mmproj` in the name, and can usually be found in the same Hugging Face page as the chat model. 
+
+Pass the projection model when loading your model, then use `askWithPrompt` to compose prompts that mix text, audio and images:
 
 ```dart
 import 'package:nobodywho/nobodywho.dart' as nobodywho;
 
-// Recommended vision model: https://huggingface.co/LiquidAI/LFM2-VL-450M-GGUF/resolve/main/LFM2-VL-450M-Q8_0.gguf
-// Recommended mmproj model: https://huggingface.co/LiquidAI/LFM2-VL-450M-GGUF/resolve/main/mmproj-LFM2-VL-450M-Q8_0.gguf
+// Examples
+// Vision: https://huggingface.co/LiquidAI/LFM2-VL-450M-GGUF/tree/main
+// Hearing: https://huggingface.co/ggml-org/ultravox-v0_5-llama-3_2-1b-GGUF/tree/main
+// Vision + Hearing: https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/tree/main
+
 final model = await nobodywho.Model.load(
-  modelPath: "./vision-model.gguf",
-  projectionModelPath: "./mmproj.gguf",
+  modelPath: "./chat-model.gguf", // e.g gemma-4-E2B-it-Q3_K_M.gguf
+  projectionModelPath: "./mmproj.gguf", // e.g mmproj-BF16.gguf
 );
 
 final chat = nobodywho.Chat(
@@ -226,11 +240,12 @@ final chat = nobodywho.Chat(
 );
 
 final response = await chat.askWithPrompt(nobodywho.Prompt([
-  nobodywho.TextPart("What do you see in this image?"),
-  nobodywho.ImagePart("./photo.png"),
+  nobodywho.TextPart("Tell me what you see in the image and what you hear in the audio."),
+  nobodywho.ImagePart("./dog.png"),
+  nobodywho.AudioPart("./sound.mp3"),
 ])).completed();
 ```
 
-You can pass multiple images and interleave text between them. If the model performs poorly, try reordering the text and image parts — this can make a noticeable difference. If images consume too much context, increase `contextSize` or preprocess images with compression.
+You can pass multiple images and audio parts and interleave text between them. If the model performs poorly, try reordering the text and image parts — this can make a noticeable difference. If images consume too much context, increase `contextSize` or preprocess images with compression.
 
 See the [Vision documentation](https://docs.nobodywho.ooo/flutter/vision/) for model recommendations and advanced tips.
