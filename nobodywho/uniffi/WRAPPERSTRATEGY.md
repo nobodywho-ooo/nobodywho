@@ -25,7 +25,7 @@ These types are intentionally thin FFI wrappers. Each target language must provi
 - **`Model`**: `Model.load(opts)` async factory (wraps `load_model` free function). `destroy()` for eager resource cleanup. Private constructor — consumers must use the factory.
 - **`Chat`**: Constructor taking wrapper `Model` and `Tool` types. `Chat.fromPath(opts)` convenience that loads a model and creates a chat in one step. `ask()` returns a `TokenStream`. All other methods delegate to `RustChat`.
 - **`TokenStream`**: Async iteration support for the target language. `nextToken()` and `completed()` methods.
-- **`Tool`**: Accepts a user-friendly parameter definition (name, description, parameter schemas, callback). Internally constructs `RustTool` and implements `RustToolCallback` to parse JSON arguments and dispatch to the user's typed callback.
+- **`Tool`**: Accepts a user-friendly parameter definition (name, description, ordered parameter array with JSON Schema properties, callback). Arguments from the LLM are passed positionally to the callback in parameter array order, so any regular function can be used directly. Internally constructs `RustTool` and handles JSON parsing and type coercion.
 - **`Encoder`**: `Encoder.fromPath(opts)` factory. `encode(text)` returns embeddings. `destroy()`.
 - **`CrossEncoder`**: `CrossEncoder.fromPath(opts)` factory. `rank()` and `rankAndSort()` (parses JSON tuples). `destroy()`.
 
@@ -51,7 +51,7 @@ These types are used internally by the wrapper layer but should not be exposed t
 |-------------|------|---------------|
 | `Message` | Enum | Awkward generated API (`Message.Message` stutter, tagged union). Wrapper converts to a flat type (e.g. `ChatMessage` in TS). |
 | `PromptPart` | Enum | Implementation detail of `Prompt` wrapper class. |
-| `ToolParameter` | Record | Implementation detail of `Tool` wrapper. Consumers declare parameters as a plain object/dict. |
+| `ToolParameter` | Record | Implementation detail of `Tool` wrapper. Consumers declare parameters as an ordered array. |
 | `load_model` | Function | Replaced by `Model.load()` factory. |
 
 ## Adding a New Type

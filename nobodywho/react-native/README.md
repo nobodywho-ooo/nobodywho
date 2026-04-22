@@ -76,13 +76,17 @@ Give your LLM the ability to interact with the outside world by defining tools:
 ```typescript
 import { Chat, Tool } from "react-native-nobodywho";
 
+function getWeatherForCity(city: string): string {
+  return JSON.stringify({ temp: 22, condition: "sunny" });
+}
+
 const getWeather = new Tool({
   name: "get_weather",
   description: "Get the current weather for a city",
-  parameters: {
-    city: { type: "string", description: "The city name" },
-  },
-  call: ({ city }) => JSON.stringify({ temp: 22, condition: "sunny" }),
+  parameters: [
+    { name: "city", type: "string", description: "The city name" },
+  ],
+  call: getWeatherForCity,
 });
 
 const chat = await Chat.fromPath({

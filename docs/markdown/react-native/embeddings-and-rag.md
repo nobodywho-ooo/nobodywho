@@ -144,14 +144,11 @@ const knowledge = [
 const searchKnowledgeTool = new Tool({
   name: "search_knowledge",
   description: "Search the knowledge base for relevant information",
-  parameters: {
-    query: { type: "string", description: "The search query" },
-  },
-  call: async ({ query }) => {
-    const ranked = await crossencoder.rankAndSort(
-      query as string,
-      knowledge,
-    );
+  parameters: [
+    { name: "query", type: "string", description: "The search query" },
+  ],
+  call: async (query: string) => {
+    const ranked = await crossencoder.rankAndSort(query, knowledge);
     const topDocs = ranked
       .slice(0, 3)
       .map(([doc]) => doc);
