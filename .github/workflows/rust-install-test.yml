@@ -1,0 +1,104 @@
+name: "Rust crate install test"
+
+on:
+  # Just to test it in the first place, will be replaced later
+  workflow_dispatch:
+        
+  # push:
+  #   paths:
+  #     - "nobodywho/rust/**"
+  #     - "nobodywho/core/**"
+  #     - ".github/workflows/rust-install-test.yml"
+  # pull_request:
+  #   paths:
+  #     - "nobodywho/rust/**"
+  #     - "nobodywho/core/**"
+  #     - ".github/workflows/rust-install-test.yml"
+
+jobs:
+  ubuntu:
+    name: "Ubuntu (apt)"
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake clang libclang-dev build-essential \
+            libvulkan-dev libshaderc-dev glslc vulkan-tools
+
+      - name: cargo check
+        working-directory: nobodywho
+        run: cargo check -p nobodywho-rust
+
+  macos:
+    name: "macOS"
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install libomp
+        run: brew install libomp
+
+      - name: cargo check
+        working-directory: nobodywho
+        run: |
+          export CC=/usr/bin/clang
+          export CXX=/usr/bin/clang++
+          export LDFLAGS="-L$(brew --prefix libomp)/lib"
+          export CPPFLAGS="-I$(brew --prefix libomp)/include"
+          cargo check -p nobodywho-rust
+
+  windows:
+    name: "Windows"
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+        shell: bash
+
+      - name: Install LLVM
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: "17"
+
+      - name: Install Vulkan SDK
+        uses: humbletim/setup-vulkan-sdk@v1.2.0
+        with:
+          vulkan-query-version: latest
+          vulkan-components: Vulkan-Headers, Vulkan-Loader
+          vulkan-use-cache: true
+
+      - name: cargo check
+        working-directory: nobodywho
+        env:
+          LIBCLANG_PATH: ${{ env.LLVM_PATH }}/lib
+        run: cargo check -p nobodywho-rust
+
+  nix:
+    name: "Nix"
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: cargo check inside nix shell
+        run: |
+          nix-shell nobodywho/shell.nix --run "cd nobodywho && cargo check -p nobodywho-rust"
