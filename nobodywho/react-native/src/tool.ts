@@ -109,13 +109,14 @@ export class Tool {
 
     // Use the async constructor — the polling loop handles both sync
     // and async callbacks uniformly via await.
-    this._inner = RustTool.newAsync(opts.name, opts.description, toolParams);
+    this._inner = RustTool.newAsync(opts.name, opts.description, toolParams) as RustTool;
 
     // Start the polling loop. It exits when the RustTool is dropped
     // (nextPendingCall returns null).
     const poll = async () => {
-      let call;
-      while ((call = await this._inner.nextPendingCall()) !== null) {
+      for (;;) {
+        const call = await this._inner.nextPendingCall();
+        if (call == null) break;
         try {
           const args = parseArgs(call.argumentsJson);
           const result = await opts.call(...args);
