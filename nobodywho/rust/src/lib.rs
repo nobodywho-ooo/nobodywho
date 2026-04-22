@@ -618,9 +618,6 @@ impl SamplerBuilder {
     }
 
     /// Apply a GBNF grammar constraint. `root` is the grammar's start rule.
-    ///
-    /// To activate the grammar only after a specific string is generated,
-    /// chain `.grammar_trigger(trigger)` immediately after.
     pub fn grammar(self, grammar: impl Into<String>, root: impl Into<String>) -> Self {
         Self {
             config: self.config.shift(ShiftStep::Grammar {
@@ -631,15 +628,20 @@ impl SamplerBuilder {
         }
     }
 
-    // TODO: Should we call this "with_trigger" for consistency? (You're making a grammar...)
-    /// Activate the most recently added grammar only after `trigger` is generated.
-    ///
-    /// Must be called immediately after [`.grammar()`](Self::grammar).
-    pub fn grammar_trigger(mut self, trigger: impl Into<String>) -> Self {
-        if let Some(ShiftStep::Grammar { trigger_on, .. }) = self.config.steps_mut().last_mut() {
-            *trigger_on = Some(trigger.into());
+    /// Apply a GBNF grammar constraint that only activates after `trigger` is generated.
+    pub fn grammar_lazy(
+        self,
+        grammar: impl Into<String>,
+        root: impl Into<String>,
+        trigger: impl Into<String>,
+    ) -> Self {
+        Self {
+            config: self.config.shift(ShiftStep::Grammar {
+                grammar: grammar.into(),
+                trigger_on: Some(trigger.into()),
+                root: root.into(),
+            }),
         }
-        self
     }
 
     pub fn dry(
