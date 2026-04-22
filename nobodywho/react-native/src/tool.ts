@@ -59,23 +59,28 @@ function convertValue(
  *
  * @example
  * ```typescript
- * // Sync callback
+ * // Any function can be used as a tool — arguments are passed positionally
+ * // in the same order as the parameters object.
+ * function getWeather(city: string, unit: string): string {
+ *   return JSON.stringify({ temp: 22, unit });
+ * }
+ *
  * const tool = new Tool({
  *   name: "get_weather",
  *   description: "Get the current weather for a city",
- *   parameters: {
- *     city: { type: "string" },
- *     unit: { type: "string", enum: ["celsius", "fahrenheit"] },
- *   },
- *   call: ({ city, unit }) => JSON.stringify({ temp: 22, unit }),
+ *   parameters: [
+ *     { name: "city", type: "string" },
+ *     { name: "unit", type: "string", enum: ["celsius", "fahrenheit"] },
+ *   ],
+ *   call: getWeather,
  * });
  *
- * // Async callback
+ * // Async functions work too
  * const tool = new Tool({
  *   name: "search",
  *   description: "Search the knowledge base",
- *   parameters: { query: { type: "string" } },
- *   call: async ({ query }) => await searchDatabase(query as string),
+ *   parameters: [{ name: "query", type: "string" }],
+ *   call: async (query) => await searchDatabase(query as string),
  * });
  * ```
  */
@@ -86,21 +91,20 @@ export class Tool {
   constructor(opts: {
     name: string;
     description: string;
-    parameters: Record<string, Record<string, unknown>>;
-    call: (args: Record<string, unknown>) => string | Promise<string>;
+    parameters: { name: string; [schemaKey: string]: unknown }[];
+    call: (...args: any[]) => string | Promise<string>;
   }) {
-    const paramEntries = Object.entries(opts.parameters);
-    const toolParams: ToolParameter[] = paramEntries.map(
-      ([name, schema]) => ({ name, schema: JSON.stringify(schema) }),
-    );
+    const params = opts.parameters;
+    const toolParams: ToolParameter[] = params.map(({ name, ...schema }) => ({
+      name,
+      schema: JSON.stringify(schema),
+    }));
 
-    function parseArgs(argumentsJson: string): Record<string, unknown> {
+    function parseArgs(argumentsJson: string): unknown[] {
       const parsed = JSON.parse(argumentsJson);
-      const args: Record<string, unknown> = {};
-      for (const [paramName, schema] of paramEntries) {
-        args[paramName] = convertValue(parsed[paramName], schema);
-      }
-      return args;
+      return params.map(({ name, ...schema }) =>
+        convertValue(parsed[name], schema),
+      );
     }
 
     // Use the async constructor — the polling loop handles both sync
@@ -114,7 +118,7 @@ export class Tool {
       while ((call = await this._inner.nextPendingCall()) !== null) {
         try {
           const args = parseArgs(call.argumentsJson);
-          const result = await opts.call(args);
+          const result = await opts.call(...args);
           this._inner.resolvePendingCall(call.callId, result);
         } catch (e) {
           this._inner.resolvePendingCall(
