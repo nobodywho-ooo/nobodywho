@@ -1,18 +1,30 @@
-use nobodywho_rust::{Chat, ChatAsync, CrossEncoder, CrossEncoderAsync, Encoder, EncoderAsync, Model};
+use nobodywho_rust::{
+    Chat, ChatAsync, CrossEncoder, CrossEncoderAsync, Encoder, EncoderAsync, Model,
+};
 
 fn chat_model() -> Model {
     let path = std::env::var("TEST_MODEL").unwrap_or_else(|_| "model.gguf".to_string());
-    Model::builder(path).build().expect("failed to load chat model")
+    Model::builder(path)
+        .build()
+        .expect("failed to load chat model")
 }
 
 fn embeddings_model() -> Model {
-    let path = std::env::var("TEST_EMBEDDINGS_MODEL").unwrap_or_else(|_| "embeddings.gguf".to_string());
-    Model::builder(path).use_gpu(false).build().expect("failed to load embeddings model")
+    let path =
+        std::env::var("TEST_EMBEDDINGS_MODEL").unwrap_or_else(|_| "embeddings.gguf".to_string());
+    Model::builder(path)
+        .use_gpu(false)
+        .build()
+        .expect("failed to load embeddings model")
 }
 
 fn crossencoder_model() -> Model {
-    let path = std::env::var("TEST_CROSSENCODER_MODEL").unwrap_or_else(|_| "crossencoder.gguf".to_string());
-    Model::builder(path).use_gpu(false).build().expect("failed to load crossencoder model")
+    let path = std::env::var("TEST_CROSSENCODER_MODEL")
+        .unwrap_or_else(|_| "crossencoder.gguf".to_string());
+    Model::builder(path)
+        .use_gpu(false)
+        .build()
+        .expect("failed to load crossencoder model")
 }
 
 #[test]
