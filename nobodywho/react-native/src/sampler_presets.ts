@@ -24,41 +24,41 @@ export class SamplerPresets {
 
   /** Get the default sampler configuration. */
   static default(): SamplerConfig {
-    return samplerPresetDefault();
+    return samplerPresetDefault() as SamplerConfig;
   }
 
   /** Create a sampler with top-k filtering only. */
   static topK(topK: number): SamplerConfig {
-    return samplerPresetTopK(topK);
+    return samplerPresetTopK(topK) as SamplerConfig;
   }
 
   /** Create a sampler with nucleus (top-p) sampling. */
   static topP(topP: number): SamplerConfig {
-    return samplerPresetTopP(topP);
+    return samplerPresetTopP(topP) as SamplerConfig;
   }
 
   /** Create a greedy sampler (always picks most probable token). */
   static greedy(): SamplerConfig {
-    return samplerPresetGreedy();
+    return samplerPresetGreedy() as SamplerConfig;
   }
 
   /** Create a sampler with temperature scaling. */
   static temperature(temperature: number): SamplerConfig {
-    return samplerPresetTemperature(temperature);
+    return samplerPresetTemperature(temperature) as SamplerConfig;
   }
 
   /** Create a DRY sampler preset to reduce repetition. */
   static dry(): SamplerConfig {
-    return samplerPresetDry();
+    return samplerPresetDry() as SamplerConfig;
   }
 
   /** Create a sampler configured for JSON output generation. */
   static json(): SamplerConfig {
-    return samplerPresetJson();
+    return samplerPresetJson() as SamplerConfig;
   }
 
   /** Create a sampler with a custom grammar constraint. */
   static grammar(grammar: string): SamplerConfig {
-    return samplerPresetGrammar(grammar);
+    return samplerPresetGrammar(grammar) as SamplerConfig;
   }
 }
