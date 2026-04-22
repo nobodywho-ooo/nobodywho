@@ -559,7 +559,11 @@ impl RustTool {
         let callback = Arc::new(callback);
         let wrapped = move |args: serde_json::Value| -> String { callback.call(args.to_string()) };
         let tool = nobodywho::tool_calling::Tool::new(name, description, schema, Arc::new(wrapped));
-        Arc::new(Self { inner: tool, pending_rx: None, resolvers: None })
+        Arc::new(Self {
+            inner: tool,
+            pending_rx: None,
+            resolvers: None,
+        })
     }
 
     /// Create a tool with async callback support (for React Native).
@@ -580,15 +584,26 @@ impl RustTool {
         let resolvers_clone = resolvers.clone();
 
         let wrapped = move |args: serde_json::Value| -> String {
-            let call_id = format!("c{}", CALL_ID_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
+            let call_id = format!(
+                "c{}",
+                CALL_ID_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            );
             let (tx, rx) = std::sync::mpsc::channel();
             resolvers_clone.lock().unwrap().insert(call_id.clone(), tx);
-            let _ = pending_tx.send(PendingToolCall { call_id: call_id.clone(), arguments_json: args.to_string() });
-            rx.recv().unwrap_or_else(|_| "Error: tool call dropped".into())
+            let _ = pending_tx.send(PendingToolCall {
+                call_id: call_id.clone(),
+                arguments_json: args.to_string(),
+            });
+            rx.recv()
+                .unwrap_or_else(|_| "Error: tool call dropped".into())
         };
 
         let tool = nobodywho::tool_calling::Tool::new(name, description, schema, Arc::new(wrapped));
-        Arc::new(Self { inner: tool, pending_rx: Some(tokio::sync::Mutex::new(pending_rx)), resolvers: Some(resolvers) })
+        Arc::new(Self {
+            inner: tool,
+            pending_rx: Some(tokio::sync::Mutex::new(pending_rx)),
+            resolvers: Some(resolvers),
+        })
     }
 
     /// Await the next tool call from inference. Returns `None` when the tool is dropped.
