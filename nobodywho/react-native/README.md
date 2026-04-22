@@ -5,6 +5,7 @@ NobodyWho is a React Native library for running large language models locally an
 Free to use in commercial projects under the EUPL-1.2 license — no API key required. Supports text, vision, embeddings, RAG & function calling.
 
 - [Documentation](https://docs.nobodywho.ooo) — React Native & other frameworks documentation
+- [Starter example app](https://github.com/nobodywho-ooo/react-native-starter-example) — Test this library in 5 minutes
 - [Discord](https://discord.gg/qhaMc2qCYB) — Get help, share ideas, and connect with other developers
 - [GitHub Issues](https://github.com/nobodywho-ooo/nobodywho/issues) — Report bugs
 - [GitHub Discussions](https://github.com/nobodywho-ooo/nobodywho/discussions) — Ask questions and request features
@@ -60,7 +61,7 @@ const chat = await Chat.fromPath({
 
 // Stream tokens
 for await (const token of chat.ask("Is water wet?")) {
-  process.stdout.write(token);
+  console.log(token);
 }
 
 // Or get the full response
