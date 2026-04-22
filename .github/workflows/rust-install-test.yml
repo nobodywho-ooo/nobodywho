@@ -77,11 +77,7 @@ jobs:
           version: "17"
 
       - name: Install Vulkan SDK
-        uses: humbletim/setup-vulkan-sdk@v1.2.0
-        with:
-          vulkan-query-version: latest
-          vulkan-components: Vulkan-Headers, Vulkan-Loader
-          vulkan-use-cache: true
+        run: choco install vulkan-sdk -y
 
       - name: cargo check
         working-directory: nobodywho
