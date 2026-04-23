@@ -410,6 +410,7 @@ impl NobodyWhoChat {
                 Ok(c) => Some(c),
                 Err(e) => {
                     godot_error!("ask() dropped: {}", e);
+                    self.signals().worker_failed().emit(&e);
                     return;
                 }
             }
@@ -438,6 +439,7 @@ impl NobodyWhoChat {
                         Ok(h) => h,
                         Err(e) => {
                             godot_error!("ask() dropped: {}", e);
+                            emit_node.signals().worker_failed().emit(&e);
                             return;
                         }
                     }
@@ -1345,7 +1347,9 @@ impl NobodyWhoEncoder {
             match self.model_node.clone() {
                 Some(n) => Some(n),
                 None => {
-                    godot_error!("encode() dropped: Model node was not set");
+                    let err = GString::from("Model node was not set");
+                    godot_error!("encode() dropped: {}", err);
+                    self.signals().worker_failed().emit(&err);
                     return godot::builtin::Signal::from_object_signal(
                         &self.base_mut(),
                         "encoding_finished",
@@ -1367,6 +1371,7 @@ impl NobodyWhoEncoder {
                         Ok(h) => h,
                         Err(e) => {
                             godot_error!("encode() dropped: {}", e);
+                            emit_node.signals().worker_failed().emit(&e);
                             return;
                         }
                     }
@@ -1535,7 +1540,9 @@ impl NobodyWhoCrossEncoder {
             match self.model_node.clone() {
                 Some(n) => Some(n),
                 None => {
-                    godot_error!("rank() dropped: Model node was not set");
+                    let err = GString::from("Model node was not set");
+                    godot_error!("rank() dropped: {}", err);
+                    self.signals().worker_failed().emit(&err);
                     return godot::builtin::Signal::from_object_signal(
                         &self.base_mut(),
                         "ranking_finished",
@@ -1563,6 +1570,7 @@ impl NobodyWhoCrossEncoder {
                         Ok(h) => h,
                         Err(e) => {
                             godot_error!("rank() dropped: {}", e);
+                            emit_node.signals().worker_failed().emit(&e);
                             return;
                         }
                     }
@@ -1600,14 +1608,18 @@ impl NobodyWhoCrossEncoder {
     ) -> PackedStringArray {
         if self.crossencoder_handle.is_none() {
             let Some(node) = self.model_node.clone() else {
-                godot_error!("Model node was not set");
+                let err = GString::from("Model node was not set");
+                godot_error!("rank_sync() dropped: {}", err);
+                self.signals().worker_failed().emit(&err);
                 return PackedStringArray::new();
             };
             let model = match futures::executor::block_on(NobodyWhoModel::load_model_detached(node))
             {
                 Ok(m) => m,
                 Err(e) => {
-                    godot_error!("Failed loading model for rank_sync: {}", e);
+                    let err = GString::from(e.to_string().as_str());
+                    godot_error!("Failed loading model for rank_sync: {}", err);
+                    self.signals().worker_failed().emit(&err);
                     return PackedStringArray::new();
                 }
             };
