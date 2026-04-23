@@ -71,88 +71,6 @@ export LDFLAGS="-L$(brew --prefix libomp)/lib"
 export CPPFLAGS="-I$(brew --prefix libomp)/include"
 ```
 
-### NixOS / Nix
-
-The easiest approach is to drop a `shell.nix` or `flake.nix` into your project. Both set up all required dependencies — cmake, clang, Vulkan, and the necessary environment variables — automatically.
-
-#### Option A: shell.nix (no flakes required)
-
-Create `shell.nix` in your project root:
-
-```nix
-{ pkgs ? import <nixpkgs> { } }:
-
-pkgs.mkShell {
-  env = {
-    LIBCLANG_PATH = "${pkgs.libclang.lib}/lib/libclang.so";
-    LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
-      pkgs.vulkan-loader
-      pkgs.gcc.cc.lib
-    ];
-  };
-
-  packages = [
-    pkgs.rustup
-    pkgs.cmake
-    pkgs.clang
-    pkgs.vulkan-headers
-    pkgs.vulkan-loader
-    pkgs.shaderc
-  ];
-}
-```
-
-Then enter the shell and build:
-
-```sh
-nix-shell
-cargo build
-```
-
-#### Option B: flake.nix
-
-Create `flake.nix` in your project root:
-
-```nix
-{
-  inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
-    flake-utils.url = "github:numtide/flake-utils";
-  };
-
-  outputs = { nixpkgs, flake-utils, ... }:
-    flake-utils.lib.eachDefaultSystem (system:
-      let
-        pkgs = import nixpkgs { inherit system; };
-      in {
-        devShells.default = pkgs.mkShell {
-          env = {
-            LIBCLANG_PATH = "${pkgs.libclang.lib}/lib/libclang.so";
-            LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
-              pkgs.vulkan-loader
-              pkgs.gcc.cc.lib
-            ];
-          };
-
-          packages = [
-            pkgs.rustup
-            pkgs.cmake
-            pkgs.clang
-            pkgs.vulkan-headers
-            pkgs.vulkan-loader
-            pkgs.shaderc
-          ];
-        };
-      });
-}
-```
-
-Then enter the shell and build:
-
-```sh
-nix develop
-cargo build
-```
 
 ### Windows
 
@@ -221,3 +139,4 @@ If GPU initialisation fails, the library logs a warning and falls back to CPU au
 | `Vulkan SDK not found` | Install Vulkan SDK and verify `VULKAN_SDK` env var is set |
 | `ld: library not found for -lomp` (macOS) | Run `brew install libomp` and set the env vars above |
 | Very slow first build | Normal — llama.cpp compiles from source |
+| `gmake: Makefile: No such file or directory ... gmake: *** No rule to make target 'Makefile'.` | `cargo clean` and then  try `cargo build` again. |
