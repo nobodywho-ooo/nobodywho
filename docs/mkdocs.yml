@@ -16,6 +16,13 @@ nav:
       - Streaming & Async API: python/streaming-and-async-api.md
       - Embeddings & RAG: python/embeddings-and-rag.md
       - Logging: python/logging-and-troubleshooting.md
+  - React Native:
+      - Getting started with React Native: react-native/index.md
+      - Chat: react-native/chat.md
+      - Tool Calling: react-native/tool-calling.md
+      - Vision: react-native/vision.md
+      - Sampling: react-native/sampling.md
+      - Embeddings & RAG: react-native/embeddings-and-rag.md
   - Flutter:
       - Getting started with Flutter: flutter/index.md
       - Chat: flutter/chat.md

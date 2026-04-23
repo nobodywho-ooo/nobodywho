@@ -1,0 +1,78 @@
+name: "react_native_ci"
+
+on:
+  workflow_call:
+    inputs:
+      full_ci:
+        description: "Run full React Native CI."
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  generate-and-check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Cache Cargo Home"
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo
+            nobodywho/target
+          key: ${{ runner.os }}-cargo-home-uniffi-host-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-home-uniffi-host-
+
+      - name: "Setup rust toolchain"
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          . "$HOME/.cargo/env"
+          rustup update stable
+          rustup default stable
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: "Install Vulkan dependencies"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
+
+      - name: "Build uniffi crate for host"
+        working-directory: ./nobodywho
+        run: cargo build -p nobodywho-uniffi --locked
+
+      - name: "Setup Node.js"
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: "Install npm dependencies"
+        working-directory: ./nobodywho/react-native
+        run: npm install
+
+      - name: "Generate bindings"
+        working-directory: ./nobodywho
+        run: |
+          npx --prefix react-native uniffi-bindgen-react-native generate jsi bindings \
+            --library \
+            --ts-dir react-native/generated/ts \
+            --cpp-dir react-native/generated/cpp \
+            target/debug/libnobodywho_uniffi.so
+
+      - name: "Verify committed generated files are up to date"
+        working-directory: ./nobodywho/react-native
+        run: |
+          if git diff --exit-code generated/; then
+            echo "Generated bindings are up to date"
+          else
+            echo "ERROR: Committed generated bindings are out of date."
+            echo "Run the binding generation command and commit the results:"
+            echo "  cd nobodywho && cargo build -p nobodywho-uniffi"
+            echo "  npx --prefix react-native uniffi-bindgen-react-native generate jsi bindings \\"
+            echo "    --library --ts-dir react-native/generated/ts --cpp-dir react-native/generated/cpp \\"
+            echo "    target/debug/libnobodywho_uniffi.so"
+            exit 1
+          fi

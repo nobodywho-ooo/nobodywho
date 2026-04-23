@@ -84,6 +84,17 @@
         checks.cargo-test = nobodywho-tested;
         checks.nobodywho-python = nobodywho-python;
 
+        checks.react-native-jest = pkgs.buildNpmPackage {
+          pname = "react-native-jest";
+          version = "0.0.0"; # nix derivation metadata only, does not need to match the npm package version
+          src = ./nobodywho/react-native;
+          npmDepsHash = "sha256-aSDOiQJ4VIk01riMXmQefbTnIc6Z95BWL0STnfg3vkk=";
+          dontNpmBuild = true;
+          checkPhase = "npx jest";
+          doCheck = true;
+          installPhase = "touch $out";
+        };
+
         # the Everything devshell
         devShells.default = pkgs.callPackage ./nobodywho/shell.nix { inherit android-nixpkgs; };
 
