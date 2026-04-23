@@ -34,7 +34,7 @@ export class Chat {
     model: Model;
     systemPrompt?: string;
     contextSize?: number;
-    templateVariables?: Map<string, boolean>;
+    templateVariables?: Record<string, boolean>;
     tools?: Tool[];
     sampler?: SamplerConfig;
   }) {
@@ -42,7 +42,7 @@ export class Chat {
       opts.model._inner,
       opts.systemPrompt ?? undefined,
       opts.contextSize ?? 4096,
-      opts.templateVariables ?? undefined,
+      opts.templateVariables ? new Map(Object.entries(opts.templateVariables)) : undefined,
       opts.tools?.map((t) => t._inner) ?? undefined,
       opts.sampler ?? undefined,
     );
@@ -66,7 +66,7 @@ export class Chat {
     projectionModelPath?: string;
     systemPrompt?: string;
     contextSize?: number;
-    templateVariables?: Map<string, boolean>;
+    templateVariables?: Record<string, boolean>;
     tools?: Tool[];
     sampler?: SamplerConfig;
   }): Promise<Chat> {
@@ -139,8 +139,8 @@ export class Chat {
   }
 
   /** Get all template variables. */
-  async getTemplateVariables(): Promise<Map<string, boolean>> {
-    return this._inner.getTemplateVariables();
+  async getTemplateVariables(): Promise<Record<string, boolean>> {
+    return Object.fromEntries(await this._inner.getTemplateVariables());
   }
 
   /** Set the sampler configuration. */
