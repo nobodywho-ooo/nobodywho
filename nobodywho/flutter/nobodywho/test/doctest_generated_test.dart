@@ -370,10 +370,10 @@ void main() {
       );
     });
 
-    test('vision.md:27', () async {
+    test('vision.md:26', () async {
       if (Platform.environment['TEST_MULTIMODAL_MODEL'] == null || Platform.environment['TEST_MULTIMODAL_MMPROJ'] == null) return;
       final model = await nobodywho.Model.load(
-        modelPath: "./vision-model.gguf",
+        modelPath: "./multimodal-model.gguf",
         projectionModelPath: "./mmproj.gguf",
       );
       final chat = nobodywho.Chat(

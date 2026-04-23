@@ -5,8 +5,7 @@ sidebar_title: Vision & Hearing
 order: 3
 ---
 
-A picture is worth a thousand words (or at least a thousand tokens).
-With NobodyWho, you can easily provide image information to your LLM.
+Easily provide image and audio information to your LLM.
 
 ## Choosing a model
 Not all models have built-in image and audio capabilities. Generally, you will
@@ -28,7 +27,7 @@ With the downloaded GGUFs, you can simply add the projection model when loading 
 import 'package:nobodywho/nobodywho.dart' as nobodywho;
 
 final model = await nobodywho.Model.load(
-  modelPath: "./vision-model.gguf",
+  modelPath: "./multimodal-model.gguf",
   projectionModelPath: "./mmproj.gguf",
 );
 final chat = nobodywho.Chat(
