@@ -356,6 +356,46 @@ jobs:
           name: nobodywho-react-native-xcframework
           path: ./NobodywhoFramework.xcframework.zip
 
+  # builds an xcframework containing static libraries + headers for Swift SPM
+  build-swift-xcframework:
+    if: inputs.full_ci
+    runs-on: macos-15
+    needs: [cargo-build-macos]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Download uniffi iOS artifacts"
+        uses: actions/download-artifact@v4
+        with:
+          pattern: nobodywho-uniffi-*-apple-ios*-release
+          merge-multiple: true
+
+      - name: "List downloaded artifacts"
+        run: ls -la libnobodywho-uniffi-*
+
+      - name: "Build XCFramework with headers"
+        run: |
+          mkdir -p device/Headers sim/Headers
+          cp libnobodywho-uniffi-aarch64-apple-ios-release.a device/libnobodywho_uniffi.a
+          cp libnobodywho-uniffi-aarch64-apple-ios-sim-release.a sim/libnobodywho_uniffi.a
+          for dir in device sim; do
+            cp nobodywho/swift/generated/nobodywhoFFI.h $dir/Headers/
+            cp nobodywho/swift/generated/nobodywhoFFI.modulemap $dir/Headers/module.modulemap
+          done
+          xcodebuild -create-xcframework \
+            -library device/libnobodywho_uniffi.a -headers device/Headers \
+            -library sim/libnobodywho_uniffi.a -headers sim/Headers \
+            -output NobodyWhoNative.xcframework
+
+      - name: "Zip XCFramework"
+        run: zip -y -r NobodyWhoNative.xcframework.zip NobodyWhoNative.xcframework
+
+      - name: "Upload build artifact"
+        uses: actions/upload-artifact@v4
+        with:
+          name: nobodywho-swift-xcframework
+          path: ./NobodyWhoNative.xcframework.zip
+
   cargo-build-android:
     if: inputs.full_ci
     runs-on: ubuntu-24.04
