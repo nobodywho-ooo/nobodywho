@@ -63,7 +63,7 @@ def nobodywhoVersion = packageJson.version
 // Directory for downloaded native shared libraries.
 // These .so files are fully linked at CI time with a known-good NDK, eliminating
 // NDK version coupling for consumers.
-def nativeLibsDir = new File(buildDir, "nobodywho-native")
+def nativeLibsDir = new File(buildDir, "nobodywho-native/${nobodywhoVersion}")
 
 // Download native shared libraries from GitHub Releases if not already present.
 task resolveNativeLibraries {

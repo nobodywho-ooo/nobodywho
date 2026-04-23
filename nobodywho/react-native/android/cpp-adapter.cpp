@@ -7,10 +7,10 @@
 namespace jsi = facebook::jsi;
 namespace react = facebook::react;
 
-// Automated testing checks Java_com_nobodywho_NobodywhoModule and nobodywho
+// Automated testing checks Java_ooo_nobodywho_NobodywhoModule and nobodywho
 // by comparing the whole line here.
 /*
-Java_com_nobodywho_NobodywhoModule_nativeMultiply(JNIEnv *env, jclass type, jdouble a, jdouble b) {
+Java_ooo_nobodywho_NobodywhoModule_nativeMultiply(JNIEnv *env, jclass type, jdouble a, jdouble b) {
     return nobodywho::multiply(a, b);
 }
 */
@@ -18,7 +18,7 @@ Java_com_nobodywho_NobodywhoModule_nativeMultiply(JNIEnv *env, jclass type, jdou
 // Installer coming from NobodywhoModule
 extern "C"
 JNIEXPORT jboolean JNICALL
-Java_com_nobodywho_NobodywhoModule_nativeInstallRustCrate(
+Java_ooo_nobodywho_NobodywhoModule_nativeInstallRustCrate(
     JNIEnv *env,
     jclass type,
     jlong rtPtr,
@@ -37,7 +37,7 @@ Java_com_nobodywho_NobodywhoModule_nativeInstallRustCrate(
 
 extern "C"
 JNIEXPORT jboolean JNICALL
-Java_com_nobodywho_NobodywhoModule_nativeCleanupRustCrate(JNIEnv *env, jclass type, jlong rtPtr) {
+Java_ooo_nobodywho_NobodywhoModule_nativeCleanupRustCrate(JNIEnv *env, jclass type, jlong rtPtr) {
     auto runtime = reinterpret_cast<jsi::Runtime *>(rtPtr);
     return nobodywho::cleanupRustCrate(*runtime);
 }
