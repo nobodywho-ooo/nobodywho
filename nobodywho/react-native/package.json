@@ -1,0 +1,56 @@
+{
+  "name": "react-native-nobodywho",
+  "version": "0.3.2",
+  "description": "Run LLMs locally with offline inference — React Native bindings",
+  "main": "src/wrapper.ts",
+  "types": "src/wrapper.ts",
+  "exports": {
+    ".": "./src/wrapper.ts"
+  },
+  "license": "EUPL-1.2",
+  "homepage": "https://nobodywho.ooo",
+  "bugs": "https://github.com/nobodywho-ooo/nobodywho/issues",
+  "keywords": [
+    "react-native",
+    "ai",
+    "llm",
+    "local-ai",
+    "inference",
+    "gguf",
+    "on-device",
+    "offline"
+  ],
+  "files": [
+    "src/",
+    "generated/",
+    "cpp/",
+    "ios/",
+    "android/",
+    "Nobodywho.podspec",
+    "ubrn.config.yaml",
+    "!android/build",
+    "!android/.cxx",
+    "!android/src/main/jniLibs"
+  ],
+  "codegenConfig": {
+    "name": "NobodywhoSpec",
+    "type": "modules",
+    "jsSrcsDir": "src"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nobodywho-ooo/nobodywho.git"
+  },
+  "peerDependencies": {
+    "react": "*",
+    "react-native": "*"
+  },
+  "dependencies": {
+    "uniffi-bindgen-react-native": "0.30.0-1"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "jest": "^30.3.0",
+    "ts-jest": "^29.4.9"
+  }
+}

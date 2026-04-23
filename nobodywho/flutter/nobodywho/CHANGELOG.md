@@ -1,3 +1,45 @@
+## 1.1.0
+
+- Add support for Qwen3.5 and Qwen3.6 tool calling
+
+## 1.0.0
+
+### Breaking Changes
+
+- **Renamed `imageIngestion` to `projectionModelPath`** — The parameter on `Model.load()` and `Chat.fromPath()` has been renamed from `imageIngestion` to `projectionModelPath` to better reflect its purpose. Update call sites:
+  ```dart
+  // Before
+  final model = Model.load("model.gguf", imageIngestion: "mmproj.gguf");
+  final chat = await Chat.fromPath(modelPath: "model.gguf", imageIngestion: "mmproj.gguf");
+
+  // After
+  final model = Model.load("model.gguf", projectionModelPath: "mmproj.gguf");
+  final chat = await Chat.fromPath(modelPath: "model.gguf", projectionModelPath: "mmproj.gguf");
+  ```
+
+### New Features
+
+- **Model downloading** — Load models directly from Hugging Face at runtime using `hf://` URLs (e.g. `hf://owner/repo/model.gguf`). Also supports plain HTTP/HTTPS URLs. Models are cached locally and re-used on subsequent loads. Works on Android with proper cache directory selection.
+- **Audio input support** — Added `AudioPart` for multimodal prompts. You can now send audio alongside text and images to models that support it.
+- **Load sampler settings from GGUF** — Sampler configuration (temperature, top_k, top_p, min_p, XTC, repetition penalties, mirostat) is now automatically read from GGUF metadata when present, so models ship with their recommended sampling settings out of the box.
+
+### Improvements
+
+- Internal test fixes and cleanup
+
+## 0.7.0-rc2
+
+- Re-work model downloading to pick proper directory on android
+
+## 0.7.0-rc1
+
+- Test build of runtime model downloading for flutter
+
+## 0.6.0
+
+- Gemma 4 support
+- Automatic memory usage estimation and splitting of large models across GPU and CPU
+
 ## 0.5.3-rc1
 
 - Bump llama.cpp to get Gemma4 support

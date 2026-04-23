@@ -1,0 +1,17 @@
+{
+  "git+https://github.com/PyO3/pyo3?branch=main#0.28.3": "0l3brckbbw8mcq36isqs00mbx49h6dn8y6614gn68kcmfm0rvkvv",
+  "git+https://github.com/PyO3/pyo3?branch=main#pyo3-build-config@0.28.3": "0l3brckbbw8mcq36isqs00mbx49h6dn8y6614gn68kcmfm0rvkvv",
+  "git+https://github.com/PyO3/pyo3?branch=main#pyo3-ffi@0.28.3": "0l3brckbbw8mcq36isqs00mbx49h6dn8y6614gn68kcmfm0rvkvv",
+  "git+https://github.com/PyO3/pyo3?branch=main#pyo3-introspection@0.28.3": "0l3brckbbw8mcq36isqs00mbx49h6dn8y6614gn68kcmfm0rvkvv",
+  "git+https://github.com/PyO3/pyo3?branch=main#pyo3-macros-backend@0.28.3": "0l3brckbbw8mcq36isqs00mbx49h6dn8y6614gn68kcmfm0rvkvv",
+  "git+https://github.com/PyO3/pyo3?branch=main#pyo3-macros@0.28.3": "0l3brckbbw8mcq36isqs00mbx49h6dn8y6614gn68kcmfm0rvkvv",
+  "git+https://github.com/astral-sh/ruff.git?rev=6ded4bed1651e30b34dd04cdaa50c763036abb0d#ruff_python_ast@0.0.0": "03a816gz8nk7zadnwlcx21bmgb2wx6n2wpj4a10jcnlbjvhh4m4x",
+  "git+https://github.com/astral-sh/ruff.git?rev=6ded4bed1651e30b34dd04cdaa50c763036abb0d#ruff_python_parser@0.0.0": "03a816gz8nk7zadnwlcx21bmgb2wx6n2wpj4a10jcnlbjvhh4m4x",
+  "git+https://github.com/astral-sh/ruff.git?rev=6ded4bed1651e30b34dd04cdaa50c763036abb0d#ruff_python_trivia@0.0.0": "03a816gz8nk7zadnwlcx21bmgb2wx6n2wpj4a10jcnlbjvhh4m4x",
+  "git+https://github.com/astral-sh/ruff.git?rev=6ded4bed1651e30b34dd04cdaa50c763036abb0d#ruff_source_file@0.0.0": "03a816gz8nk7zadnwlcx21bmgb2wx6n2wpj4a10jcnlbjvhh4m4x",
+  "git+https://github.com/astral-sh/ruff.git?rev=6ded4bed1651e30b34dd04cdaa50c763036abb0d#ruff_text_size@0.0.0": "03a816gz8nk7zadnwlcx21bmgb2wx6n2wpj4a10jcnlbjvhh4m4x",
+  "git+https://github.com/everruns/bashkit?tag=v0.1.10#0.1.10": "0i0m81sqcmkynrdi45q112p6brcna9ws7wy1ac3wkh6mjl5k9swg",
+  "git+https://github.com/marek-hradil/llama-cpp-rs?branch=main#llama-cpp-2@0.1.144": "0nssdjbsrck4l65pcm980i5i1pcc7wwwdpk7wifi7rqs8gnmv3gp",
+  "git+https://github.com/marek-hradil/llama-cpp-rs?branch=main#llama-cpp-sys-2@0.1.144": "0nssdjbsrck4l65pcm980i5i1pcc7wwwdpk7wifi7rqs8gnmv3gp",
+  "git+https://github.com/pydantic/monty?tag=v0.0.7#0.0.7": "0k7a1pqyph7062msz39p6v2s1ylpyjn37wbscwmi09m3xkj109pa"
+}

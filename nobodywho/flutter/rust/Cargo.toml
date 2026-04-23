@@ -1,6 +1,6 @@
 [package]
 name = "nobodywho-flutter"
-version = "0.5.2"
+version = "1.1.0"
 edition = "2021"
 
 [lib]

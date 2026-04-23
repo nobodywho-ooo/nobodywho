@@ -7,7 +7,6 @@
 @Timeout(Duration(seconds: 600))
 library;
 
-import "dart:io";
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -48,6 +47,16 @@ void main() {
           Link('./$image').createSync('$testDir/$image');
         }
       }
+      // Populate the HF download cache so huggingface: paths in docs work offline
+      if (modelPath != null) {
+        final cacheHome = Platform.environment['XDG_CACHE_HOME'] ?? '${Platform.environment['HOME']}/.cache';
+        final hfCache = Directory('$cacheHome/nobodywho/models/NobodyWho/Qwen_Qwen3-0.6B-GGUF');
+        hfCache.createSync(recursive: true);
+        final hfLink = Link('${hfCache.path}/Qwen_Qwen3-0.6B-Q4_K_M.gguf');
+        if (!hfLink.existsSync()) {
+          hfLink.createSync(modelPath);
+        }
+      }
     });
 
     tearDownAll(() async {
@@ -58,6 +67,12 @@ void main() {
         if (link.existsSync()) {
           link.deleteSync();
         }
+      }
+      // Clean up HF cache symlink
+      final cacheHome = Platform.environment['XDG_CACHE_HOME'] ?? '${Platform.environment['HOME']}/.cache';
+      final hfLink = Link('$cacheHome/nobodywho/models/NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf');
+      if (hfLink.existsSync()) {
+        hfLink.deleteSync();
       }
     });
 
@@ -244,6 +259,14 @@ void main() {
       
     });
 
+    test('index.md:38', () async {
+      final chat = await nobodywho.Chat.fromPath(
+        modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
+      );
+      final msg = await chat.ask('Is water wet?').completed();
+      print(msg); // Yes, indeed, water is wet!
+    });
+
     test('sampling.md:15', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
@@ -340,27 +363,34 @@ void main() {
       print(response); // The largest file in your current directory is `model.gguf`.
     });
 
-    test('vision.md:25', () async {
+    test('tool-calling.md:103', () async {
+      final chat = await nobodywho.Chat.fromPath(
+        modelPath: './model.gguf',
+        tools: [nobodywho.Tool.python(), nobodywho.Tool.bash()],
+      );
+    });
+
+    test('vision.md:26', () async {
       if (Platform.environment['TEST_MULTIMODAL_MODEL'] == null || Platform.environment['TEST_MULTIMODAL_MMPROJ'] == null) return;
       final model = await nobodywho.Model.load(
-        modelPath: "./vision-model.gguf",
-        imageIngestion: "./mmproj.gguf",
+        modelPath: "./multimodal-model.gguf",
+        projectionModelPath: "./mmproj.gguf",
       );
       final chat = nobodywho.Chat(
         model: model,
-        systemPrompt: "You are a helpful assistant.",
+        systemPrompt: "You are a helpful assistant, that can hear and see stuff!",
       );
       final response = await chat.askWithPrompt(nobodywho.Prompt([
-        nobodywho.TextPart("Tell me what you see in the images."),
+        nobodywho.TextPart("Tell me what you see in the image and what you hear in the audio."),
         nobodywho.ImagePart("./dog.png"),
-        nobodywho.ImagePart("./penguin.png"),
+        nobodywho.AudioPart("./sound.mp3"),
       ])).completed(); // It's a dog and a penguin!
       await chat.resetHistory();
       final response2 = await chat.askWithPrompt(nobodywho.Prompt([
-        nobodywho.TextPart("Tell me what you see in the first image."),
+        nobodywho.TextPart("Tell me what you see in the image."),
         nobodywho.ImagePart("./dog.png"),
-        nobodywho.TextPart("Also tell me what you see in the second image."),
-        nobodywho.ImagePart("./penguin.png"),
+        nobodywho.TextPart("Also tell me what you hear in the audio"),
+        nobodywho.AudioPart("./sound.mp3"),
       ])).completed();
       final chat2 = nobodywho.Chat(
         model: model,

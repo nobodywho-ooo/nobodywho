@@ -108,14 +108,14 @@ def chat(model):
         c = nobodywho.Chat(
             model,
             system_prompt="You are a helpful assistant",
-            allow_thinking=False,
+            template_variables={"enable_thinking": False},
             tools=[sparklify],
         )
     else:
         c = nobodywho.Chat(
             model,
             system_prompt="You are a helpful assistant",
-            allow_thinking=False,
+            template_variables={"enable_thinking": False},
             tools=[
                 set_intersection,
                 multiply_strings,
@@ -201,7 +201,7 @@ def test_set_tools(model):
     chat = nobodywho.Chat(
         model,
         system_prompt="You are a helpful assistant",
-        allow_thinking=False,
+        template_variables={"enable_thinking": False},
         tools=[sparklify],
     )
     # Use initial tool
@@ -252,7 +252,7 @@ def test_tool_calling_with_custom_sampler(model):
         .top_p(0.95, min_keep=2)
         .temperature(0.8)
         .dist(),
-        allow_thinking=False,
+        template_variables={"enable_thinking": False},
     )
 
     chat.ask(
@@ -378,7 +378,7 @@ def test_python_tool(model):
                 max_recursion_depth=1000,
             )
         ],
-        allow_thinking=False,
+        template_variables={"enable_thinking": False},
     )
 
     chat.ask("Use python tool to compute and print what is 42 * 42").completed()
@@ -399,7 +399,7 @@ def test_bash_tool(model):
     chat = nobodywho.Chat(
         model,
         tools=[nobodywho.bash_tool(max_commands=1000)],
-        allow_thinking=False,
+        template_variables={"enable_thinking": False},
     )
 
     # We have to be nice to the model, as it is dumb to write bash.

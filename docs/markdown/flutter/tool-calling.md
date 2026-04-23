@@ -92,6 +92,27 @@ final response = await chat.ask('What is the biggest file in my current director
 print(response); // The largest file in your current directory is `model.gguf`.
 ```
 
+## Pre-packaged tools
+
+We ship NobodyWho with two packaged-in tools, which are general enough for multiple use-cases - [monty](https://github.com/pydantic/monty) Python interpreter
+and [bashkit](https://github.com/everruns/bashkit) Bash interpreter. Both of them should serve similar purpose - to give your small LLM a better chance to answer
+questions requiring precise reasoning or some kind of computation, possibly on a big context.
+
+The usage is straightforward. Use the `Tool.python()` and `Tool.bash()` factory constructors:
+
+```dart
+import 'package:nobodywho/nobodywho.dart' as nobodywho;
+
+final chat = await nobodywho.Chat.fromPath(
+  modelPath: './model.gguf',
+  tools: [nobodywho.Tool.python(), nobodywho.Tool.bash()],
+);
+```
+
+Lastly, keep in mind that for most use-cases it is reasonable to constrain the tools with some limits regarding memory and computation time,
+so that you don't end up executing infinite loop code. To solve this, `Tool.python()` provides `maxDuration`, `maxMemoryBytes` and `maxRecursionDepth`
+and `Tool.bash()` provides `maxCommands`.
+
 ## Tool calling and the context
 
 As with everything made to improve response quality, using tool calls fills up the context faster than simply chatting with an LLM. So be aware that you might need to use a larger context size than expected when using tools.

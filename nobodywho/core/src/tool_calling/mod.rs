@@ -3,11 +3,16 @@
 //! This module provides abstractions for handling tool calling across different LLM formats.
 //! Currently supported formats:
 //! - Qwen3: `<tool_call>{"name": "...", "arguments": {...}}</tool_call>`
+//! - Qwen3.5/3.6: `<tool_call><function=name><parameter=k>v</parameter>...</function></tool_call>`
 //! - FunctionGemma: `<start_function_call>call:name{param:<escape>val<escape>}<end_function_call>`
+//! - Gemma4: `<|tool_call>call:name{key:<|"|>val<|"|>}<tool_call|>`
+//! - Ministral3: `[TOOL_CALLS][{"name": "...", "arguments": {...}}]`
 
 mod functiongemma;
+mod gemma4;
 mod ministral3;
 mod qwen3;
+mod qwen35_36;
 
 use bashkit::{ExecutionLimits, InMemoryFs};
 use llama_cpp_2::model::LlamaModel;
@@ -17,8 +22,10 @@ use std::{sync::Arc, time::Duration};
 use tracing::debug;
 
 pub use functiongemma::FunctionGemmaHandler;
+pub use gemma4::Gemma4Handler;
 pub use ministral3::Ministral3Handler;
 pub use qwen3::Qwen3Handler;
+pub use qwen35_36::Qwen35_36Handler;
 
 // ============================================================================
 // Core Types
@@ -260,7 +267,9 @@ pub trait ToolFormatHandler {
 #[derive(Debug, Clone)]
 pub enum ToolFormat {
     Qwen3(Qwen3Handler),
+    Qwen35_36(Qwen35_36Handler),
     FunctionGemma(FunctionGemmaHandler),
+    Gemma4(Gemma4Handler),
     Ministral3(Ministral3Handler),
 }
 
@@ -268,7 +277,9 @@ impl ToolFormat {
     pub fn handler(&self) -> &dyn ToolFormatHandler {
         match self {
             ToolFormat::Qwen3(h) => h,
+            ToolFormat::Qwen35_36(h) => h,
             ToolFormat::FunctionGemma(h) => h,
+            ToolFormat::Gemma4(h) => h,
             ToolFormat::Ministral3(h) => h,
         }
     }
@@ -288,6 +299,28 @@ impl ToolFormat {
     pub fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>> {
         self.handler().extract_tool_calls(input)
     }
+}
+
+fn is_qwen35_36_architecture(arch: &str) -> bool {
+    let arch = arch.to_lowercase();
+    arch.starts_with("qwen35")
+        || arch.starts_with("qwen36")
+        || arch.contains("qwen3.5")
+        || arch.contains("qwen3.6")
+}
+
+fn is_qwen35_36_name(name: &str) -> bool {
+    let name = name.to_lowercase();
+    [
+        "qwen3.5", "qwen3.6", "qwen 3.5", "qwen 3.6", "qwen-3.5", "qwen-3.6", "qwen35", "qwen36",
+    ]
+    .iter()
+    .any(|needle| name.contains(needle))
+}
+
+fn is_qwen3_name(name: &str) -> bool {
+    let name = name.to_lowercase();
+    name.contains("qwen3") || name.contains("qwen 3") || name.contains("qwen-3")
 }
 
 pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatError> {
@@ -310,8 +343,20 @@ pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatEr
         return Ok(ToolFormat::FunctionGemma(FunctionGemmaHandler));
     }
 
-    // Check for Qwen3 markers
-    if template_str.contains("<tool_call>") || template_str.contains("</tool_call>") {
+    // Check for Gemma4 markers (must be before Qwen since both contain "tool_call")
+    if template_str.contains("<|tool_call>") || template_str.contains("<tool_call|>") {
+        debug!("Detected Gemma4 format from template markers");
+        return Ok(ToolFormat::Gemma4(Gemma4Handler));
+    }
+
+    // Qwen 3.5/3.6
+    let has_qwen_call =
+        template_str.contains("<tool_call>") || template_str.contains("</tool_call>");
+    if has_qwen_call {
+        if template_str.contains("<function=") {
+            debug!("Detected Qwen3.5/3.6 format from template markers");
+            return Ok(ToolFormat::Qwen35_36(Qwen35_36Handler));
+        }
         debug!("Detected Qwen3 format from template markers");
         return Ok(ToolFormat::Qwen3(Qwen3Handler));
     }
@@ -322,7 +367,20 @@ pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatEr
         return Ok(ToolFormat::Ministral3(Ministral3Handler));
     }
 
-    // Try to detect from model name/metadata
+    // Fall back to model metadata.
+    if let Ok(arch) = model.meta_val_str("general.architecture") {
+        debug!(architecture = %arch, "Checking model architecture for format hints");
+        let arch_lower = arch.to_lowercase();
+        if is_qwen35_36_architecture(&arch_lower) {
+            debug!("Detected Qwen3.5/3.6 format from architecture");
+            return Ok(ToolFormat::Qwen35_36(Qwen35_36Handler));
+        }
+        if arch_lower.starts_with("qwen3") {
+            debug!("Detected Qwen3 format from architecture");
+            return Ok(ToolFormat::Qwen3(Qwen3Handler));
+        }
+    }
+
     if let Ok(name) = model.meta_val_str("general.name") {
         debug!(model_name = %name, "Checking model name for format hints");
 
@@ -332,7 +390,17 @@ pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatEr
             return Ok(ToolFormat::FunctionGemma(FunctionGemmaHandler));
         }
 
-        if name_lower.contains("qwen") {
+        if name_lower.contains("gemma-4") || name_lower.contains("gemma4") {
+            debug!("Detected Gemma4 format from model name");
+            return Ok(ToolFormat::Gemma4(Gemma4Handler));
+        }
+
+        if is_qwen35_36_name(&name_lower) {
+            debug!("Detected Qwen3.5/3.6 format from model name");
+            return Ok(ToolFormat::Qwen35_36(Qwen35_36Handler));
+        }
+
+        if is_qwen3_name(&name_lower) || name_lower.contains("qwen") {
             debug!("Detected Qwen3 format from model name");
             return Ok(ToolFormat::Qwen3(Qwen3Handler));
         }
@@ -346,6 +414,8 @@ pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatEr
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
+    use std::sync::Arc;
 
     #[test]
     fn test_qwen3_format() {
@@ -363,9 +433,6 @@ mod tests {
 
     #[test]
     fn test_tool_serialization() {
-        use serde_json::json;
-        use std::sync::Arc;
-
         let tool = Tool {
             name: "test_tool".to_string(),
             description: "A test tool".to_string(),
@@ -391,6 +458,57 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "requires QWEN36_MODEL env var pointing at a Qwen3.6 GGUF"]
+    fn diagnose_qwen36_detection() {
+        let path = std::env::var("QWEN36_MODEL").expect("set QWEN36_MODEL");
+        let model = crate::llm::get_model(&path, false, None).expect("load model");
+
+        let name = model
+            .language_model
+            .meta_val_str("general.name")
+            .unwrap_or_else(|_| "<no general.name>".into());
+        let arch = model
+            .language_model
+            .meta_val_str("general.architecture")
+            .unwrap_or_else(|_| "<no arch>".into());
+        eprintln!("general.name         = {name}");
+        eprintln!("general.architecture = {arch}");
+
+        let has_tool_use_tmpl = model.language_model.chat_template(Some("tool_use")).is_ok();
+        eprintln!("has tool_use template: {has_tool_use_tmpl}");
+
+        let default_tmpl: String = model
+            .language_model
+            .chat_template(None)
+            .ok()
+            .and_then(|t| t.to_string().ok())
+            .unwrap_or_default();
+        for marker in [
+            "<tool_call>",
+            "</tool_call>",
+            "<|tool_call>",
+            "<tool_call|>",
+            "<start_function_call>",
+            "[TOOL_CALLS]",
+        ] {
+            eprintln!(
+                "default_tmpl contains {marker:>22}: {}",
+                default_tmpl.contains(marker)
+            );
+        }
+
+        let fmt = detect_tool_format(&model.language_model).expect("detect_tool_format failed");
+        let variant = match fmt {
+            ToolFormat::Qwen3(_) => "Qwen3",
+            ToolFormat::Qwen35_36(_) => "Qwen35_36",
+            ToolFormat::FunctionGemma(_) => "FunctionGemma",
+            ToolFormat::Gemma4(_) => "Gemma4",
+            ToolFormat::Ministral3(_) => "Ministral3",
+        };
+        eprintln!("detected handler     = {variant}");
+    }
+
+    #[test]
     fn test_tool_call_serialization() {
         use serde_json::json;
 
@@ -410,5 +528,34 @@ mod tests {
                 }
             })
         );
+    }
+
+    #[test]
+    fn test_qwen35_36_name_detection_beats_generic_qwen3() {
+        for name in [
+            "Qwen3.5-2B-Instruct",
+            "Qwen3.6-30B-A3B",
+            "Qwen 3.5 coder",
+            "Qwen-3.6 reasoning",
+            "qwen35",
+            "qwen36",
+        ] {
+            assert!(is_qwen35_36_name(name), "{name} should map to Qwen35_36");
+        }
+
+        assert!(!is_qwen35_36_name("Qwen3-8B-Instruct"));
+        assert!(is_qwen3_name("Qwen3-8B-Instruct"));
+    }
+
+    #[test]
+    fn test_qwen35_36_architecture_detection_beats_generic_qwen3() {
+        for arch in ["qwen35", "qwen35moe", "qwen36", "qwen3.5", "qwen3.6"] {
+            assert!(
+                is_qwen35_36_architecture(arch),
+                "{arch} should map to Qwen35_36"
+            );
+        }
+
+        assert!(!is_qwen35_36_architecture("qwen3"));
     }
 }

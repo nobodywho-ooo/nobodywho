@@ -25,7 +25,9 @@ We currently support Python, Flutter and Godot, with more integrations on the wa
 * ⚡ Super fast inference on GPU powered by Vulkan or Metal
 * 🤖 Compatible with thousands of pre-trained LLMs - use any LLM in the GGUF format
 * 🦙 Powered by the wonderful [llama.cpp](https://github.com/ggml-org/llama.cpp)
-
+* 🏞️ Vision capabilites - provide image information to your LLM
+* 🎧 Hearing capabilites - provide audio information to your LLM
+* 🌐 Model downloading — Load models directly from Hugging Face or any URL
 
 ## Flutter
 
@@ -37,16 +39,16 @@ Install the library:
 flutter pub add nobodywho
 ```
 
-Download a model file, for example: [Qwen3 0.6B](https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf).
-
-Then start chatting with the model:
+Then start chatting with a model — NobodyWho downloads it automatically from Hugging Face:
 
 ```dart
 import 'package:nobodywho/nobodywho.dart' as nobodywho;
 
 void main() async {
   await nobodywho.NobodyWho.init();
-  final chat = await nobodywho.Chat.fromPath(modelPath: './model.gguf');
+  final chat = await nobodywho.Chat.fromPath(
+    modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
+  );
   final msg = await chat.ask('Is water wet?').completed();
   print(msg); // Yes, indeed, water is wet!
 }
@@ -67,13 +69,11 @@ Start by installing NobodyWho. This is simply
 pip install nobodywho
 ```
 
-Next download a model. For a quick start we recommend [this one](https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf). It is quite small, but will get the job done.
-
-Then you start generating a response from the model with the following code snippet:
+Then start chatting with a model — NobodyWho downloads it automatically from Hugging Face:
 
 ```python
 from nobodywho import Chat
-chat = Chat("./path/to/your/model.gguf")
+chat = Chat("huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf")
 response = chat.ask("Is water wet?")
 for token in response:
     print(token, end="", flush=True)
@@ -89,7 +89,7 @@ You can also setup a basic interactive chatbot very quickly with the code snippe
 
 ```python
 from nobodywho import Chat, TokenStream
-chat = Chat("./path/to/your/model.gguf")
+chat = Chat("huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf")
 while True:
     prompt = input("Enter your prompt: ")
     response: TokenStream = chat.ask(prompt)
@@ -143,9 +143,7 @@ For further instructions on how to setup NobodyWho in Godot please refer to our 
 
 ### Can I export to HTML5 or iOS?
 
-Currently only Linux, MacOS, Android and Windows are supported platforms.
-
-iOS exports seem very feasible. See issue [#114](https://github.com/nobodywho-ooo/nobodywho/issues/114)
+Desktop (Linux, MacOS, Windows) is supported across all bindings. Android is supported on Godot and Flutter. iOS is supported on Flutter only.
 
 Web exports will be a bit trickier to get right. See issue [#111](https://github.com/nobodywho-ooo/nobodywho/issues/111).
 

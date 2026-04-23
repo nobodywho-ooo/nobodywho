@@ -26,9 +26,9 @@ impl Model {
     /// Create a new Model from a GGUF file.
     ///
     /// Args:
-    ///     model_path: Path to the GGUF model file
+    ///     model_path: Path or URL to a GGUF model file. Accepts a local file path (e.g. `./model.gguf`), a `huggingface:` path (e.g. `huggingface:owner/repo/file.gguf`), or an `https://` URL. Remote models are downloaded and cached automatically.
     ///     use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
-    ///     image_model_path: Path to a multimodal projector file for vision models. Defaults to None.
+    ///     projection_model_path: Path or URL to a multimodal projector file for vision models. Accepts the same formats as model_path. Defaults to None.
     ///
     /// Returns:
     ///     A Model instance
@@ -36,11 +36,11 @@ impl Model {
     /// Raises:
     ///     RuntimeError: If the model file cannot be loaded
     #[new]
-    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, image_model_path: "os.PathLike | str | None" = None) -> "Model")]
+    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, projection_model_path: "os.PathLike | str | None" = None) -> "Model")]
     pub fn new(
         model_path: std::path::PathBuf,
         use_gpu_if_available: bool,
-        image_model_path: Option<std::path::PathBuf>,
+        projection_model_path: Option<std::path::PathBuf>,
     ) -> PyResult<Self> {
         let path_str = model_path.to_str().ok_or_else(|| {
             pyo3::exceptions::PyValueError::new_err(format!(
@@ -48,7 +48,7 @@ impl Model {
                 model_path.display()
             ))
         })?;
-        let mmproj_str = image_model_path
+        let mmproj_str = projection_model_path
             .as_ref()
             .map(|p| {
                 p.to_str().ok_or_else(|| {
@@ -75,22 +75,21 @@ impl Model {
     /// a background thread, allowing other async tasks to continue running.
     ///
     /// Args:
-    ///     model_path: Path to the GGUF model file
+    ///     model_path: Path or URL to a GGUF model file. Accepts a local file path (e.g. `./model.gguf`), a `huggingface:` path (e.g. `huggingface:owner/repo/file.gguf`), or an `https://` URL. Remote models are downloaded and cached automatically.
     ///     use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
-    ///     image_model_path: Path to a multimodal projector file for vision models. Defaults to None.
+    ///     projection_model_path: Path or URL to a multimodal projector file for vision models. Accepts the same formats as model_path. Defaults to None.
     ///
     /// Returns:
     ///     A Model instance wrapped in an awaitable (async function returns a coroutine)
     ///
     /// Raises:
-    ///     ValueError: If the path contains invalid UTF-8
     ///     RuntimeError: If the model file cannot be loaded
     #[staticmethod]
-    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, image_model_path: "os.PathLike | str | None" = None) -> "typing.Awaitable[Model]")]
+    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, projection_model_path: "os.PathLike | str | None" = None) -> "Model")]
     pub async fn load_model_async(
         model_path: std::path::PathBuf,
         use_gpu_if_available: bool,
-        image_model_path: Option<std::path::PathBuf>,
+        projection_model_path: Option<std::path::PathBuf>,
     ) -> PyResult<Self> {
         let path_str = model_path.to_str().ok_or_else(|| {
             pyo3::exceptions::PyValueError::new_err(format!(
@@ -98,7 +97,7 @@ impl Model {
                 model_path.display()
             ))
         })?;
-        let mmproj_str = image_model_path
+        let mmproj_str = projection_model_path
             .as_ref()
             .map(|p| {
                 p.to_str().ok_or_else(|| {
@@ -110,7 +109,7 @@ impl Model {
             })
             .transpose()?;
         let model_result = nobodywho::llm::get_model_async(
-            path_str.into(),
+            path_str.to_owned(),
             use_gpu_if_available,
             mmproj_str.map(str::to_owned),
         )
@@ -148,8 +147,8 @@ impl<'py> ModelOrPath<'py> {
                     ))
                 })?;
                 nobodywho::llm::get_model(path_str, true, None)
-                    .map(Arc::new)
                     .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+                    .map(Arc::new)
             }
         }
     }
@@ -171,7 +170,6 @@ impl TokenStream {
     ///
     /// Returns:
     ///     The next token as a string, or None if the stream has ended.
-    #[pyo3(signature = () -> "str | None")]
     pub fn next_token(&mut self, py: Python) -> Option<String> {
         // Release the GIL while waiting for the next token
         // This allows the background thread to acquire the GIL if needed for tool calls
@@ -220,7 +218,6 @@ impl TokenStreamAsync {
     ///
     /// Returns:
     ///     The next token as a string, or None if the stream has ended.
-    #[pyo3(signature = () -> "typing.Awaitable[str | None]")]
     pub async fn next_token(&mut self) -> Option<String> {
         // no need to release GIL in async functions
         self.stream.lock().await.next_token().await
@@ -233,7 +230,6 @@ impl TokenStreamAsync {
     ///
     /// Raises:
     ///     RuntimeError: If generation fails.
-    #[pyo3(signature = () -> "typing.Awaitable[str]")]
     pub async fn completed(&mut self) -> PyResult<String> {
         self.stream
             .lock()
@@ -288,7 +284,7 @@ impl Encoder {
     /// Create a new Encoder for generating text embeddings.
     ///
     /// Args:
-    ///     model: An embedding model (Model instance or path to GGUF file)
+    ///     model: An embedding model (Model instance, local path, `huggingface:` path, or `https://` URL to a GGUF file)
     ///     n_ctx: Context size (maximum sequence length). Defaults to 4096.
     ///
     /// Returns:
@@ -296,7 +292,7 @@ impl Encoder {
     ///
     /// Raises:
     ///     RuntimeError: If the model cannot be loaded
-    ///     ValueError: If the path contains invalid UTF-8
+
     #[new]
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096) -> "Encoder")]
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
@@ -317,7 +313,6 @@ impl Encoder {
     ///
     /// Raises:
     ///     RuntimeError: If encoding fails
-    #[pyo3(signature = (text: "str") -> "list[float]")]
     pub fn encode(&self, text: String, py: Python) -> PyResult<Vec<f32>> {
         py.detach(|| {
             self.inner()
@@ -353,7 +348,7 @@ impl EncoderAsync {
     /// Create a new async Encoder for generating text embeddings.
     ///
     /// Args:
-    ///     model: An embedding model (Model instance or path to GGUF file)
+    ///     model: An embedding model (Model instance, local path, `huggingface:` path, or `https://` URL to a GGUF file)
     ///     n_ctx: Context size (maximum sequence length). Defaults to 4096.
     ///
     /// Returns:
@@ -361,7 +356,7 @@ impl EncoderAsync {
     ///
     /// Raises:
     ///     RuntimeError: If the model cannot be loaded
-    ///     ValueError: If the path contains invalid UTF-8
+
     #[new]
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096) -> "EncoderAsync")]
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
@@ -382,7 +377,6 @@ impl EncoderAsync {
     ///
     /// Raises:
     ///     RuntimeError: If encoding fails
-    #[pyo3(signature = (text: "str") -> "typing.Awaitable[list[float]]")]
     async fn encode(&self, text: String) -> PyResult<Vec<f32>> {
         self.inner().encode(text).await.map_err(|e| {
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
@@ -421,7 +415,7 @@ impl CrossEncoder {
     /// Create a new CrossEncoder for comparing text similarity.
     ///
     /// Args:
-    ///     model: A cross-encoder model (Model instance or path to GGUF file)
+    ///     model: A cross-encoder model (Model instance, local path, `huggingface:` path, or `https://` URL to a GGUF file)
     ///     n_ctx: Context size (maximum sequence length). Defaults to 4096.
     ///
     /// Returns:
@@ -429,7 +423,7 @@ impl CrossEncoder {
     ///
     /// Raises:
     ///     RuntimeError: If the model cannot be loaded
-    ///     ValueError: If the path contains invalid UTF-8
+
     #[new]
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096) -> "CrossEncoder")]
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
@@ -451,7 +445,6 @@ impl CrossEncoder {
     ///
     /// Raises:
     ///     RuntimeError: If ranking fails
-    #[pyo3(signature = (query: "str", documents: "list[str]") -> "list[float]")]
     pub fn rank(&self, query: String, documents: Vec<String>, py: Python) -> PyResult<Vec<f32>> {
         py.detach(|| {
             self.inner()
@@ -471,7 +464,6 @@ impl CrossEncoder {
     ///
     /// Raises:
     ///     RuntimeError: If ranking fails
-    #[pyo3(signature = (query: "str", documents: "list[str]") -> "list[tuple[str, float]]")]
     pub fn rank_and_sort(
         &self,
         query: String,
@@ -513,7 +505,7 @@ impl CrossEncoderAsync {
     /// Create a new async CrossEncoder for comparing text similarity.
     ///
     /// Args:
-    ///     model: A cross-encoder model (Model instance or path to GGUF file)
+    ///     model: A cross-encoder model (Model instance, local path, `huggingface:` path, or `https://` URL to a GGUF file)
     ///     n_ctx: Context size (maximum sequence length). Defaults to 4096.
     ///
     /// Returns:
@@ -521,7 +513,7 @@ impl CrossEncoderAsync {
     ///
     /// Raises:
     ///     RuntimeError: If the model cannot be loaded
-    ///     ValueError: If the path contains invalid UTF-8
+
     #[new]
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096) -> "CrossEncoderAsync")]
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
@@ -543,7 +535,6 @@ impl CrossEncoderAsync {
     ///
     /// Raises:
     ///     RuntimeError: If ranking fails
-    #[pyo3(signature = (query: "str", documents: "list[str]") -> "typing.Awaitable[list[float]]")]
     async fn rank(&self, query: String, documents: Vec<String>) -> PyResult<Vec<f32>> {
         self.inner().rank(query, documents).await.map_err(|e| {
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
@@ -563,7 +554,6 @@ impl CrossEncoderAsync {
     ///
     /// Raises:
     ///     RuntimeError: If ranking fails
-    #[pyo3(signature = (query: "str", documents: "list[str]") -> "typing.Awaitable[list[tuple[str, float]]]")]
     async fn rank_and_sort(
         &self,
         query: String,
@@ -610,7 +600,7 @@ impl Chat {
     /// Create a new Chat instance for conversational text generation.
     ///
     /// Args:
-    ///     model: A chat model (Model instance or path to GGUF file)
+    ///     model: A chat model (Model instance, local path, `huggingface:` path, or `https://` URL to a GGUF file)
     ///     n_ctx: Context size (maximum conversation length in tokens). Defaults to 4096.
     ///     system_prompt: System message to guide the model's behavior. Defaults to empty string.
     ///     template_variables: Dict of template variables to pass to the chat template (e.g., {"enable_thinking": True}). Defaults to empty dict.
@@ -623,7 +613,7 @@ impl Chat {
     ///
     /// Raises:
     ///     RuntimeError: If the model cannot be loaded
-    ///     ValueError: If the path contains invalid UTF-8
+
     #[new]
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = Vec::<Tool>::new(), sampler = SamplerConfig::default(), allow_thinking: "bool | None" = None) -> "Chat")]
     pub fn new(
@@ -694,7 +684,6 @@ impl Chat {
     ///
     /// Raises:
     ///     RuntimeError: If reset fails
-    #[pyo3(signature = (system_prompt: "str | None", tools: "list[Tool]") -> "None")]
     pub fn reset(
         &self,
         system_prompt: Option<String>,
@@ -712,7 +701,6 @@ impl Chat {
     ///
     /// Raises:
     ///     RuntimeError: If reset fails
-    #[pyo3(signature = () -> "None")]
     pub fn reset_history(&self, py: Python) -> PyResult<()> {
         py.detach(|| {
             self.handle()
@@ -730,7 +718,6 @@ impl Chat {
     ///
     /// Raises:
     ///     ValueError: If the setting cannot be changed
-    #[pyo3(signature = (allow_thinking: "bool") -> "None")]
     pub fn set_allow_thinking(&self, allow_thinking: bool, py: Python) -> PyResult<()> {
         let msg = std::ffi::CString::new(format!(
             "set_allow_thinking is deprecated. Use set_template_variable(\"enable_thinking\", {}) instead.",
@@ -757,7 +744,6 @@ impl Chat {
     ///
     /// Raises:
     ///     RuntimeError: If the variable cannot be set
-    #[pyo3(signature = (name: "str", value: "bool") -> "None")]
     pub fn set_template_variable(&self, name: String, value: bool, py: Python) -> PyResult<()> {
         py.detach(|| {
             self.handle()
@@ -773,7 +759,6 @@ impl Chat {
     ///
     /// Raises:
     ///     RuntimeError: If the variables cannot be set
-    #[pyo3(signature = (variables: "dict[str, bool]") -> "None")]
     pub fn set_template_variables(
         &self,
         variables: std::collections::HashMap<String, bool>,
@@ -793,7 +778,6 @@ impl Chat {
     ///
     /// Raises:
     ///     RuntimeError: If the variables cannot be retrieved
-    #[pyo3(signature = () -> "dict[str, bool]")]
     pub fn get_template_variables(
         &self,
         py: Python,
@@ -852,7 +836,6 @@ impl Chat {
     ///
     /// This can be used to cancel an in-progress generation if the response is taking too long
     /// or is no longer needed.
-    #[pyo3(signature = () -> "None")]
     pub fn stop_generation(&self, py: Python) {
         py.detach(|| self.handle().stop_generation())
     }
@@ -864,7 +847,6 @@ impl Chat {
     ///
     /// Raises:
     ///     RuntimeError: If updating tools fails
-    #[pyo3(signature = (tools : "list[Tool]") -> "None")]
     pub fn set_tools(&self, tools: Vec<Tool>, py: Python) -> PyResult<()> {
         py.detach(|| {
             self.handle()
@@ -880,7 +862,6 @@ impl Chat {
     ///
     /// Raises:
     ///     RuntimeError: If the system prompt cannot be changed
-    #[pyo3(signature = (system_prompt : "str | None") -> "None")]
     pub fn set_system_prompt(&self, system_prompt: Option<String>, py: Python) -> PyResult<()> {
         py.detach(|| {
             self.handle()
@@ -896,7 +877,6 @@ impl Chat {
     ///
     /// Raises:
     ///     RuntimeError: If the sampler config cannot be changed
-    #[pyo3(signature = (sampler : "SamplerConfig") -> "None")]
     pub fn set_sampler_config(&self, sampler: SamplerConfig, py: Python) -> PyResult<()> {
         py.detach(|| {
             self.handle()
@@ -912,7 +892,6 @@ impl Chat {
     ///
     /// Raises:
     ///     RuntimeError: If the sampler config cannot be retrieved
-    #[pyo3(signature = () -> "SamplerConfig")]
     pub fn get_sampler_config(&self, py: Python) -> PyResult<SamplerConfig> {
         py.detach(|| {
             self.handle()
@@ -929,7 +908,6 @@ impl Chat {
     ///
     /// Raises:
     ///     RuntimeError: If the system prompt cannot be retrieved
-    #[pyo3(signature = () -> "str | None")]
     pub fn get_system_prompt(&self, py: Python) -> PyResult<Option<String>> {
         py.detach(|| {
             self.handle()
@@ -967,7 +945,7 @@ impl ChatAsync {
     /// Create a new async Chat instance for conversational text generation.
     ///
     /// Args:
-    ///     model: A chat model (Model instance or path to GGUF file)
+    ///     model: A chat model (Model instance, local path, `huggingface:` path, or `https://` URL to a GGUF file)
     ///     n_ctx: Context size (maximum conversation length in tokens). Defaults to 4096.
     ///     system_prompt: System message to guide the model's behavior. Defaults to empty string.
     ///     template_variables: Dict of template variables to pass to the chat template (e.g., {"enable_thinking": True}). Defaults to empty dict.
@@ -980,7 +958,7 @@ impl ChatAsync {
     ///
     /// Raises:
     ///     RuntimeError: If the model cannot be loaded
-    ///     ValueError: If the path contains invalid UTF-8
+
     #[new]
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = vec![], sampler = SamplerConfig::default(), allow_thinking: "bool | None" = None) -> "ChatAsync")]
     pub fn new(
@@ -1052,7 +1030,6 @@ impl ChatAsync {
     ///
     /// Raises:
     ///     RuntimeError: If reset fails
-    #[pyo3(signature = (system_prompt: "str | None", tools: "list[Tool]") -> "None")]
     pub async fn reset(&self, system_prompt: Option<String>, tools: Vec<Tool>) -> PyResult<()> {
         self.handle()
             .reset_chat(system_prompt, tools.into_iter().map(|t| t.tool).collect())
@@ -1064,7 +1041,6 @@ impl ChatAsync {
     ///
     /// Raises:
     ///     RuntimeError: If reset fails
-    #[pyo3(signature = () -> "None")]
     pub async fn reset_history(&self) -> PyResult<()> {
         self.handle()
             .reset_history()
@@ -1081,7 +1057,6 @@ impl ChatAsync {
     ///
     /// Raises:
     ///     ValueError: If the setting cannot be changed
-    #[pyo3(signature = (allow_thinking: "bool") -> "None")]
     pub async fn set_allow_thinking(&self, allow_thinking: bool) -> PyResult<()> {
         Python::attach(|py| {
             let msg = std::ffi::CString::new(format!(
@@ -1109,7 +1084,6 @@ impl ChatAsync {
     ///
     /// Raises:
     ///     RuntimeError: If the variable cannot be set
-    #[pyo3(signature = (name: "str", value: "bool") -> "typing.Awaitable[None]")]
     pub async fn set_template_variable(&self, name: String, value: bool) -> PyResult<()> {
         self.handle()
             .set_template_variable(name, value)
@@ -1124,7 +1098,6 @@ impl ChatAsync {
     ///
     /// Raises:
     ///     RuntimeError: If the variables cannot be set
-    #[pyo3(signature = (variables: "dict[str, bool]") -> "typing.Awaitable[None]")]
     pub async fn set_template_variables(
         &self,
         variables: std::collections::HashMap<String, bool>,
@@ -1142,7 +1115,6 @@ impl ChatAsync {
     ///
     /// Raises:
     ///     RuntimeError: If the variables cannot be retrieved
-    #[pyo3(signature = () -> "typing.Awaitable[dict[str, bool]]")]
     pub async fn get_template_variables(
         &self,
     ) -> PyResult<std::collections::HashMap<String, bool>> {
@@ -1203,7 +1175,6 @@ impl ChatAsync {
     ///
     /// This can be used to cancel an in-progress generation if the response is taking too long
     /// or is no longer needed.
-    #[pyo3(signature = () -> "None")]
     pub async fn stop_generation(&self) {
         self.handle().stop_generation()
     }
@@ -1215,7 +1186,6 @@ impl ChatAsync {
     ///
     /// Raises:
     ///     RuntimeError: If updating tools fails
-    #[pyo3(signature = (tools : "list[Tool]") -> "None")]
     pub async fn set_tools(&self, tools: Vec<Tool>) -> PyResult<()> {
         self.handle()
             .set_tools(tools.into_iter().map(|t| t.tool).collect())
@@ -1230,7 +1200,6 @@ impl ChatAsync {
     ///
     /// Raises:
     ///     RuntimeError: If the system prompt cannot be changed
-    #[pyo3(signature = (system_prompt : "str | None") -> "None")]
     pub async fn set_system_prompt(&self, system_prompt: Option<String>) -> PyResult<()> {
         self.handle()
             .set_system_prompt(system_prompt)
@@ -1245,7 +1214,6 @@ impl ChatAsync {
     ///
     /// Raises:
     ///     RuntimeError: If the sampler config cannot be changed
-    #[pyo3(signature = (sampler : "SamplerConfig") -> "None")]
     pub async fn set_sampler_config(&self, sampler: SamplerConfig) -> PyResult<()> {
         self.handle()
             .set_sampler_config(sampler.sampler_config)
@@ -1260,7 +1228,6 @@ impl ChatAsync {
     ///
     /// Raises:
     ///     RuntimeError: If the sampler config cannot be retrieved
-    #[pyo3(signature = () -> "typing.Awaitable[SamplerConfig]")]
     pub async fn get_sampler_config(&self) -> PyResult<SamplerConfig> {
         self.handle()
             .get_sampler_config()
@@ -1276,7 +1243,6 @@ impl ChatAsync {
     ///
     /// Raises:
     ///     RuntimeError: If the system prompt cannot be retrieved
-    #[pyo3(signature = () -> "typing.Awaitable[str | None]")]
     pub async fn get_system_prompt(&self) -> PyResult<Option<String>> {
         self.handle()
             .get_system_prompt()
@@ -1298,7 +1264,6 @@ impl ChatAsync {
 /// Raises:
 ///     ValueError: If vectors have different lengths
 #[pyfunction]
-#[pyo3(signature = (a: "list[float]", b: "list[float]") -> "float")]
 fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> PyResult<f32> {
     if a.len() != b.len() {
         return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
@@ -1314,7 +1279,7 @@ fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> PyResult<f32> {
 /// A `SamplerConfig` can be constructed either using a preset function from the `SamplerPresets`
 /// class, or by manually constructing a sampler chain using the `SamplerBuilder` class.
 /// `SamplerConfig` supports serialization to/from JSON via `to_json()` and `from_json()`.
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone, Default)]
 pub struct SamplerConfig {
     sampler_config: nobodywho::sampler_config::SamplerConfig,
@@ -1329,7 +1294,6 @@ impl SamplerConfig {
     ///
     /// Raises:
     ///     RuntimeError: If serialization fails
-    #[pyo3(signature = () -> "str")]
     pub fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.sampler_config)
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
@@ -1346,7 +1310,6 @@ impl SamplerConfig {
     /// Raises:
     ///     ValueError: If the JSON is invalid or doesn't represent a valid sampler configuration
     #[staticmethod]
-    #[pyo3(signature = (json_str: "str") -> "SamplerConfig")]
     pub fn from_json(json_str: &str) -> PyResult<Self> {
         let sampler_config: nobodywho::sampler_config::SamplerConfig =
             serde_json::from_str(json_str)
@@ -1368,7 +1331,7 @@ impl SamplerConfig {
 /// that results from applying all of the probability-shifting steps in order.
 /// E.g. the `dist` sampling step selects a token with weighted randomness, and the
 /// `greedy` sampling step always selects the most probable.
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct SamplerBuilder {
     sampler_config: nobodywho::sampler_config::SamplerConfig,
@@ -1384,7 +1347,6 @@ impl Default for SamplerBuilder {
 impl SamplerBuilder {
     /// Create a new SamplerBuilder to construct a custom sampler chain.
     #[new]
-    #[pyo3(signature = () -> "SamplerBuilder")]
     pub fn new() -> Self {
         Self {
             sampler_config: nobodywho::sampler_config::SamplerConfig::default(),
@@ -1482,7 +1444,6 @@ impl SamplerBuilder {
     ///     allowed_length: Maximum allowed repetition length
     ///     penalty_last_n: Number of recent tokens to consider
     ///     seq_breakers: List of strings that break repetition sequences
-    #[pyo3(signature = (multiplier: "float", base: "float", allowed_length: "int", penalty_last_n: "int", seq_breakers: "list[str]") -> "SamplerBuilder")]
     pub fn dry(
         &self,
         multiplier: f32,
@@ -1698,7 +1659,7 @@ impl SamplerPresets {
 
 /// A `Tool` is a wrapped python function, that can be passed as a tool for the model to call.
 /// `Tool`s are constructed using the `@tool` decorator.
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct Tool {
     tool: nobodywho::tool_calling::Tool,
     pyfunc: Py<PyAny>,
@@ -1730,7 +1691,7 @@ impl Tool {
 ///
 /// Example:
 ///     prompt = Prompt([Text("Describe this"), Image("./img.jpg")])
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct Text {
     text: String,
@@ -1739,7 +1700,6 @@ pub struct Text {
 #[pymethods]
 impl Text {
     #[new]
-    #[pyo3(signature = (text: "str") -> "Text")]
     pub fn new(text: String) -> Self {
         Self { text }
     }
@@ -1758,7 +1718,7 @@ impl Text {
 ///
 /// Example:
 ///     prompt = Prompt([Text("Describe this"), Image("./img.jpg")])
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct Image {
     path: String,
@@ -1790,11 +1750,47 @@ impl Image {
     }
 }
 
-/// A multimodal prompt consisting of interleaved `Text` and `Image` parts.
+/// An `Audio` prompt part, used to build multimodal `Prompt`s.
+///
+/// Example:
+///     prompt = Prompt([Text("Transcribe this:"), Audio("./clip.wav")])
+#[pyclass(from_py_object)]
+#[derive(Clone)]
+pub struct Audio {
+    path: String,
+}
+
+#[pymethods]
+impl Audio {
+    #[new]
+    #[pyo3(signature = (path: "os.PathLike | str") -> "Audio")]
+    pub fn new(path: std::path::PathBuf) -> PyResult<Self> {
+        let path_str = path.to_str().ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "Path contains invalid UTF-8: {}",
+                path.display()
+            ))
+        })?;
+        Ok(Self {
+            path: path_str.to_string(),
+        })
+    }
+
+    #[getter]
+    pub fn path(&self) -> String {
+        self.path.clone()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("Audio({:?})", self.path)
+    }
+}
+
+/// A multimodal prompt consisting of interleaved `Text`, `Image`, and `Audio` parts.
 ///
 /// Example:
 ///     prompt = Prompt([Text("Tell me what's in the image"), Image("./img.jpg")])
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct Prompt {
     prompt: nobodywho::tokenizer::Prompt,
@@ -1803,7 +1799,7 @@ pub struct Prompt {
 #[pymethods]
 impl Prompt {
     #[new]
-    #[pyo3(signature = (parts: "list[Text | Image]" = Vec::<Py<PyAny>>::new()) -> "Prompt")]
+    #[pyo3(signature = (parts: "list[Text | Image | Audio]" = Vec::<Py<PyAny>>::new()) -> "Prompt")]
     pub fn new(parts: Vec<Py<PyAny>>, py: Python) -> PyResult<Self> {
         let mut prompt = nobodywho::tokenizer::Prompt::new();
 
@@ -1821,8 +1817,14 @@ impl Prompt {
                 continue;
             }
 
+            if let Ok(audio_part) = part.extract::<Bound<Audio>>() {
+                let audio_ref = audio_part.borrow();
+                prompt.push_audio(audio_ref.path.as_ref());
+                continue;
+            }
+
             return Err(pyo3::exceptions::PyTypeError::new_err(
-                "Prompt parts must be Text(...) or Image(...)",
+                "Prompt parts must be Text(...), Image(...), or Audio(...)",
             ));
         }
 
@@ -1970,7 +1972,7 @@ fn tool<'a>(
 /// Returns:
 ///     A Tool instance ready to pass to Chat or ChatAsync.
 #[pyfunction]
-#[pyo3(signature = (max_duration: "int | None" = None, max_memory: "int | None" = None, max_recursion_depth: "int | None" = None) -> "Tool")]
+#[pyo3(signature = (max_duration = None, max_memory = None, max_recursion_depth = None))]
 fn python_tool(
     max_duration: Option<u64>,
     max_memory: Option<usize>,
@@ -2029,7 +2031,7 @@ fn python_tool(
 /// Returns:
 ///     A Tool instance ready to pass to Chat or ChatAsync.
 #[pyfunction]
-#[pyo3(signature = (max_commands: "int | None" = None) -> "Tool")]
+#[pyo3(signature = (max_commands = None))]
 fn bash_tool(max_commands: Option<usize>, py: Python) -> PyResult<Tool> {
     let core_tool = nobodywho::tool_calling::Tool::bash(max_commands);
 
@@ -2469,6 +2471,8 @@ pub mod nobodywhopython {
     use super::python_tool;
     #[pymodule_export]
     use super::tool;
+    #[pymodule_export]
+    use super::Audio;
     #[pymodule_export]
     use super::Chat;
     #[pymodule_export]

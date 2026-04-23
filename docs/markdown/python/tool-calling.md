@@ -84,6 +84,24 @@ def get_current_temperature(lon: str, lat: str) -> str:
 These will be then appended to the information provided to model, so it can better navigate itself
 when using the tool.
 
+## Pre-packaged tools
+We ship NobodyWho with two packaged-in tools, which are general enough for mutliple use-cases - [monty](https://github.com/pydantic/monty) Python interpreter
+and [bashkit](https://github.com/everruns/bashkit) Bash interpreter. Both of them should serve similar purpose - to give your small LLM a better chance to answer
+questions requiring precise reasoning or some kind of computation, possibly on a big context.
+
+The usage is straightforward. Start with importing either `python_tool` or `bash_tool` from `nobodywho`.
+
+
+```python
+from nobodywho import python_tool, bash_tool
+
+chat = Chat('./model.gguf', tools=[python_tool(), bash_tool()])
+```
+
+Lastly, keep in mind that for most use-cases it is reasonable to constraint the tools with some limits regarding memory and computation time,
+so that you don't end up executing infinite loop code. To solve this, `python_tool` provides `max_duration`, `max_memory` and `max_recursion_depth`
+and `bash_tool` provides `max_commands`.
+
 
 ## Tool calling and the context
 
