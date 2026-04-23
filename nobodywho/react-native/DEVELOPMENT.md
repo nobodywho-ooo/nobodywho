@@ -60,7 +60,7 @@ react-native/
 │   └── src/main/
 │       ├── AndroidManifest.xml
 │       ├── AndroidManifestNew.xml
-│       └── java/com/nobodywho/
+│       └── java/ooo/nobodywho/
 │           ├── NobodywhoModule.kt
 │           └── NobodywhoPackage.kt
 │
@@ -205,7 +205,6 @@ These tests run without native code — they test pure TypeScript functions like
 # From project root
 nix develop .#android --command bash -c \
   'cd nobodywho/react-native/test-app/android && \
-   ANDROID_HOME=$ANDROID_SDK_ROOT \
    ./gradlew assembleDebug -PreactNativeArchitectures=arm64-v8a'
 ```
 
@@ -231,8 +230,8 @@ These files were initially generated but have been customized with project-speci
 - **`Nobodywho.podspec`** — Downloads prebuilt xcframework from GitHub Releases, custom authors/source fields
 - **`android/build.gradle`** — Downloads prebuilt `.so` files from GitHub Releases at build time, optional NDK version
 - **`android/CMakeLists.txt`** — Links shared lib with `IMPORTED_NO_SONAME` for correct runtime resolution
-- **`android/src/main/java/com/nobodywho/NobodywhoModule.kt`** — Loads `libnobodywho_uniffi.so` before the bridge lib
-- **`android/src/main/java/com/nobodywho/NobodywhoPackage.kt`** — Uses `BaseReactPackage` instead of deprecated `TurboReactPackage`
+- **`android/src/main/java/ooo/nobodywho/NobodywhoModule.kt`** — Loads `libnobodywho_uniffi.so` before the bridge lib
+- **`android/src/main/java/ooo/nobodywho/NobodywhoPackage.kt`** — Uses `BaseReactPackage` instead of deprecated `TurboReactPackage`
 
 If you regenerate the turbo-module glue, these get overwritten with defaults. Always restore them with `git checkout`.
 

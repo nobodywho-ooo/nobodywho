@@ -10,7 +10,7 @@ To give your LLM the ability to interact with the outside world, you will need t
 !!! info ""
     Note that **not every model** supports tool calling. If the model does not have
     such an option, it might not call your tools.
-    For reliable tool calling, we recommend trying the [Qwen](https://huggingface.co/Qwen/models) family of models.
+    For reliable tool calling, we recommend trying the [Qwen](https://huggingface.co/collections/NobodyWho/qwen-3) family of models.
 
 ## Declaring a tool
 
@@ -108,4 +108,4 @@ console.log(response);
 
 ## Tool calling and the context
 
-As with everything made to improve response quality, using tool calls fills up the context faster than simply chatting with an LLM. So be aware that you might need to use a larger context size than expected when using tools.
+As with most things made to improve response quality, using tool calls fills up the context faster than simply chatting with an LLM. So be aware that you might need to use a larger context size than expected when using tools.

@@ -130,7 +130,7 @@ task resolveNativeLibraries {
 
 android {
   if (supportsNamespace()) {
-    namespace "com.nobodywho"
+    namespace "ooo.nobodywho"
 
     sourceSets {
       main {
@@ -234,6 +234,6 @@ if (isNewArchitectureEnabled()) {
   react {
     jsRootDir = file("../src/")
     libraryName = "Nobodywho"
-    codegenJavaPackageName = "com.nobodywho"
+    codegenJavaPackageName = "ooo.nobodywho"
   }
 }
