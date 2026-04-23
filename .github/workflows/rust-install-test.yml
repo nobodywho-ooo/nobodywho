@@ -1,16 +1,23 @@
 name: "Rust crate install test"
 
-on:        
-  push:
-    paths:
-      - "nobodywho/rust/**"
-      - "nobodywho/core/**"
-      - ".github/workflows/rust-install-test.yml"
-  pull_request:
-    paths:
-      - "nobodywho/rust/**"
-      - "nobodywho/core/**"
-      - ".github/workflows/rust-install-test.yml"
+on:
+  workflow_dispatch:
+    inputs:
+      full_ci:
+        type: boolean
+        default: true
+        description: 'Run full CI suite (all platforms, all tests)'
+
+  # push:
+  #   paths:
+  #     - "nobodywho/rust/**"
+  #     - "nobodywho/core/**"
+  #     - ".github/workflows/rust-install-test.yml"
+  # pull_request:
+  #   paths:
+  #     - "nobodywho/rust/**"
+  #     - "nobodywho/core/**"
+  #     - ".github/workflows/rust-install-test.yml"
 
 jobs:
   download-model:
