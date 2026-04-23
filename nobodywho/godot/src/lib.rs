@@ -30,9 +30,34 @@ unsafe impl ExtensionLibrary for NobodyWhoExtension {
     }
 }
 
+/// Resolve a path provided in a Godot `#[export]` field to something core can open.
+///
+/// Godot-virtual paths (`res://…`, `user://…`) are globalized to an absolute filesystem
+/// path via `ProjectSettings::globalize_path`. Everything else — absolute filesystem paths,
+/// relative paths, and remote schemes like `huggingface:`, `hf://`, `http://`, `https://` —
+/// is passed through unchanged so core's path parser can dispatch on the scheme.
+fn resolve_godot_path(path: &GString) -> String {
+    let s = path.to_string();
+    if s.starts_with("res://") || s.starts_with("user://") {
+        ProjectSettings::singleton().globalize_path(path).into()
+    } else {
+        s
+    }
+}
+
 #[derive(GodotClass)]
 #[class(base=Node)]
 /// The model node is used to load the model, currently only GGUF models are supported.
+///
+/// The `model_path` and `projection_model_path` fields accept any of:
+/// - a local filesystem path (`/absolute/path/to/model.gguf` or `./relative.gguf`),
+/// - a Godot-virtual path (`res://models/foo.gguf`, `user://downloaded.gguf`),
+/// - a HuggingFace reference (`huggingface:owner/repo/file.gguf` or `hf://owner/repo/file.gguf`),
+/// - a plain HTTPS URL (`https://example.com/model.gguf`).
+///
+/// Remote models are downloaded to the platform cache directory once and re-used on
+/// subsequent loads. Downloads run on a background thread; connect to the consumer
+/// nodes' `worker_started` / `worker_failed` signals to know when they finish.
 ///
 /// If you dont know what model to use, we would suggest checking out https://huggingface.co/spaces/k-mktr/gpu-poor-llm-arena
 struct NobodyWhoModel {
@@ -66,45 +91,36 @@ impl INode for NobodyWhoModel {
 
 #[godot_api]
 impl NobodyWhoModel {
-    // memoized model loader
-    fn get_model(&mut self) -> Result<Arc<llm::Model>, errors::LoadModelError> {
-        if let Some(model) = &self.model {
+    /// Load the model without holding a `GdMut` across `.await`. Takes the node by value
+    /// so each bind is scoped to a short block — other code can still access the node
+    /// during the (potentially slow) load/download.
+    async fn load_model_detached(
+        mut gd: Gd<Self>,
+    ) -> Result<Arc<llm::Model>, errors::LoadModelError> {
+        // Fast path — brief immutable bind.
+        if let Some(model) = gd.bind().model.as_ref() {
             return Ok(Arc::clone(model));
         }
 
-        let project_settings = ProjectSettings::singleton();
-        let model_path_string: String = project_settings
-            .globalize_path(&self.model_path.clone())
-            .into();
-
-        let mmproj_str_owned: Option<String> = {
-            let s = self.projection_model_path.to_string();
-            if s.is_empty() {
-                None
-            } else {
-                Some(
-                    project_settings
-                        .globalize_path(&self.projection_model_path.clone())
-                        .into(),
-                )
-            }
+        // Extract config, then drop the guard before awaiting.
+        let (path, use_gpu, mmproj) = {
+            let b = gd.bind();
+            let mmproj = {
+                let s = b.projection_model_path.to_string();
+                (!s.is_empty()).then(|| resolve_godot_path(&b.projection_model_path))
+            };
+            (
+                resolve_godot_path(&b.model_path),
+                b.use_gpu_if_available,
+                mmproj,
+            )
         };
 
-        match llm::get_model(
-            model_path_string.as_str(),
-            self.use_gpu_if_available,
-            mmproj_str_owned.as_deref(),
-        ) {
-            Ok(model) => {
-                let model = Arc::new(model);
-                self.model = Some(Arc::clone(&model));
-                Ok(model)
-            }
-            Err(err) => {
-                godot_error!("Could not load model: {:?}", err.to_string());
-                Err(err)
-            }
-        }
+        let model = Arc::new(llm::get_model_async(path, use_gpu, mmproj).await?);
+
+        // Rebind briefly to memoize.
+        gd.bind_mut().model = Some(Arc::clone(&model));
+        Ok(model)
     }
 
     #[func]
@@ -249,43 +265,108 @@ impl INode for NobodyWhoChat {
 
 #[godot_api]
 impl NobodyWhoChat {
-    fn get_model(&mut self) -> Result<Arc<llm::Model>, GString> {
-        let gd_model_node = self.model_node.as_mut().ok_or("Model node was not set")?;
-        let mut nobody_model = gd_model_node.bind_mut();
-        let model = nobody_model
-            .get_model()
+    /// Load the model and create the chat worker. All synchronous state reads happen
+    /// before this is spawned — the only `me.bind_mut()` here runs after the first
+    /// `.await`, by which point any calling `#[func]` method's `&mut self` borrow has
+    /// been released.
+    async fn load_and_store_worker(
+        mut me: Gd<Self>,
+        model_node: Gd<NobodyWhoModel>,
+        system_prompt: String,
+        tools: Vec<nobodywho::tool_calling::Tool>,
+        n_ctx: u32,
+        allow_thinking: bool,
+    ) -> Result<nobodywho::chat::ChatHandleAsync, GString> {
+        let model = NobodyWhoModel::load_model_detached(model_node)
+            .await
             .map_err(|e| GString::from(e.to_string().as_str()))?;
 
-        Ok(model)
-    }
-
-    #[func]
-    /// Starts the LLM worker thread. This is required before you can send messages to the LLM.
-    /// This fuction is blocking and can be a bit slow, so you may want to be strategic about when you call it.
-    fn start_worker(&mut self) {
-        let result = self.start_worker_impl();
-        // run it and show error in godot if it fails
-        if let Err(msg) = result {
-            godot_error!("Error running model: {}", msg);
-        }
-    }
-
-    fn start_worker_impl(&mut self) -> Result<(), String> {
-        let model = self.get_model()?;
-        let mut temp_vars = HashMap::new();
-        temp_vars.insert("enable_thinking".to_string(), self.allow_thinking);
-        let chat_handle = nobodywho::chat::ChatHandleAsync::new(
+        let mut template_variables = HashMap::new();
+        template_variables.insert("enable_thinking".to_string(), allow_thinking);
+        let handle = nobodywho::chat::ChatHandleAsync::new(
             model,
             nobodywho::chat::ChatConfig {
-                system_prompt: Some(self.system_prompt.to_string()),
-                tools: self.tools.clone(),
-                n_ctx: self.context_length,
-                template_variables: temp_vars,
+                system_prompt: Some(system_prompt),
+                tools,
+                n_ctx,
+                template_variables,
                 sampler_config: None,
             },
         );
-        self.chat_handle = Some(chat_handle);
-        Ok(())
+
+        // Safe: we're past an `.await`, so the caller's `&mut self` borrow is gone.
+        // If a concurrent load raced us, prefer the existing handle.
+        let mut b = me.bind_mut();
+        if let Some(existing) = &b.chat_handle {
+            Ok(existing.clone())
+        } else {
+            b.chat_handle = Some(handle.clone());
+            Ok(handle)
+        }
+    }
+
+    /// Synchronously snapshot the config needed for worker init. Returns an error string
+    /// if model_node isn't set. Must be called from a `&mut self` (or `&self`) context.
+    fn snapshot_worker_config(
+        &self,
+    ) -> Result<(Gd<NobodyWhoModel>, String, Vec<nobodywho::tool_calling::Tool>, u32, bool), GString>
+    {
+        let Some(model_node) = self.model_node.clone() else {
+            return Err(GString::from("Model node was not set"));
+        };
+        Ok((
+            model_node,
+            self.system_prompt.to_string(),
+            self.tools.clone(),
+            self.context_length,
+            self.allow_thinking,
+        ))
+    }
+
+    #[func]
+    /// Starts the LLM worker asynchronously: loads (or downloads) the model on a
+    /// background thread, then creates the chat worker.
+    ///
+    /// **Returns immediately.** Connect to the `worker_started` signal to know when the
+    /// worker is ready, or `worker_failed(error)` to surface load errors. Calls to
+    /// `ask()` before the worker is ready are queued and dispatched once loading
+    /// completes.
+    fn start_worker(&mut self) {
+        if self.chat_handle.is_some() {
+            self.signals().worker_started().emit();
+            return;
+        }
+
+        let (model_node, system_prompt, tools, n_ctx, allow_thinking) =
+            match self.snapshot_worker_config() {
+                Ok(c) => c,
+                Err(e) => {
+                    godot_error!("Error starting worker: {}", e);
+                    self.signals().worker_failed().emit(&e);
+                    return;
+                }
+            };
+
+        let me = self.to_gd();
+        godot::task::spawn(async move {
+            let me_emit = me.clone();
+            match Self::load_and_store_worker(
+                me,
+                model_node,
+                system_prompt,
+                tools,
+                n_ctx,
+                allow_thinking,
+            )
+            .await
+            {
+                Ok(_) => me_emit.signals().worker_started().emit(),
+                Err(e) => {
+                    godot_error!("Error running model: {}", e);
+                    me_emit.signals().worker_failed().emit(&e);
+                }
+            }
+        });
     }
 
     #[func]
@@ -297,18 +378,11 @@ impl NobodyWhoChat {
     #[func]
     /// Sends a message to the LLM. Accepts a String or a NobodyWhoPrompt.
     /// This will start the inference process. meaning you can also listen on the `response_updated` and `response_finished` signals to get the response.
+    ///
+    /// If the worker has not been started yet, `ask` will auto-start it and queue the
+    /// prompt until loading completes. The generation itself happens on a background
+    /// task — emissions arrive via the `response_updated` / `response_finished` signals.
     fn ask(&mut self, message: Variant) {
-        let Some(chat_handle) = self.chat_handle.as_ref() else {
-            godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
-            match self.start_worker_impl() {
-                Err(msg) => {
-                    godot_error!("Failed auto-starting the worker: {}", msg);
-                    return;
-                }
-                Ok(_) => return self.ask(message),
-            };
-        };
-
         let prompt: tokenizer::Prompt = if let Ok(text) = message.try_to::<GString>() {
             text.to_string().to_prompt()
         } else if let Ok(prompt_node) = message.try_to::<Gd<NobodyWhoPrompt>>() {
@@ -321,9 +395,47 @@ impl NobodyWhoChat {
             return;
         };
 
-        let emit_node = self.to_gd();
-        let mut generation_channel = chat_handle.ask_channel(prompt);
+        let existing_handle = self.chat_handle.clone();
+        let load_config = if existing_handle.is_none() {
+            godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
+            match self.snapshot_worker_config() {
+                Ok(c) => Some(c),
+                Err(e) => {
+                    godot_error!("ask() dropped: {}", e);
+                    return;
+                }
+            }
+        } else {
+            None
+        };
+
+        let me = self.to_gd();
+        let emit_node = me.clone();
         godot::task::spawn(async move {
+            let chat_handle = match existing_handle {
+                Some(h) => h,
+                None => {
+                    let (model_node, system_prompt, tools, n_ctx, allow_thinking) =
+                        load_config.expect("load_config set when no existing handle");
+                    match Self::load_and_store_worker(
+                        me,
+                        model_node,
+                        system_prompt,
+                        tools,
+                        n_ctx,
+                        allow_thinking,
+                    )
+                    .await
+                    {
+                        Ok(h) => h,
+                        Err(e) => {
+                            godot_error!("ask() dropped: {}", e);
+                            return;
+                        }
+                    }
+                }
+            };
+            let mut generation_channel = chat_handle.ask_channel(prompt);
             while let Some(out) = generation_channel.recv().await {
                 match out {
                     nobodywho::llm::WriteOutput::Token(tok) => emit_node
@@ -388,7 +500,9 @@ impl NobodyWhoChat {
         if let Some(chat_handle) = self.chat_handle.as_ref() {
             let handle_clone = chat_handle.clone();
             godot::task::spawn(async move {
-                let result = handle_clone.set_allow_thinking(allow_thinking).await;
+                let result = handle_clone
+                    .set_template_variable("enable_thinking".to_string(), allow_thinking)
+                    .await;
                 if let Err(msg) = result {
                     godot_warn!("Error setting allow_thinking: {}", msg);
                 }
@@ -837,6 +951,17 @@ impl NobodyWhoChat {
     /// Triggered when the LLM has finished generating the response. Returns the full response as a string.
     fn response_finished(response: GString);
 
+    #[signal]
+    /// Emitted once the worker has finished loading (including any model download) and is
+    /// ready to accept `ask()` calls. Connect before calling `start_worker()` if you want
+    /// to block your game logic until the model is ready.
+    fn worker_started();
+
+    #[signal]
+    /// Emitted if loading the model (or setting up the worker) failed. The payload is a
+    /// human-readable error message.
+    fn worker_failed(error: GString);
+
     #[func]
     /// Sets the (global) log level of NobodyWho.
     /// Valid arguments are "TRACE", "DEBUG", "INFO", "WARN", and "ERROR".
@@ -845,18 +970,15 @@ impl NobodyWhoChat {
     }
 
     fn set_sampler_preset_impl(&mut self, sampler: SamplerConfig) {
-        let Some(chat_handle) = self.chat_handle.as_ref() else {
-            godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
-            match self.start_worker_impl() {
-                Err(msg) => {
-                    godot_error!("Failed auto-starting the worker: {}", msg);
-                    return;
-                }
-                Ok(_) => return self.set_sampler_preset_impl(sampler),
-            };
-        };
+        // Sampler presets set before the worker is ready are dropped. Call sampler
+        // preset setters after `worker_started` has fired (or after a successful
+        // `ask()` auto-start completes).
+        if self.chat_handle.is_none() {
+            warn!("Worker not started, dropping sampler config.");
+            return;
+        }
 
-        let chat_handle = chat_handle.clone();
+        let chat_handle = self.chat_handle.as_ref().unwrap().clone();
         let _ = godot::task::spawn(async move {
             let _ = chat_handle.set_sampler_config(sampler).await;
         });
@@ -1140,41 +1262,108 @@ impl NobodyWhoEncoder {
     /// Triggered when the encoding has finished. Returns the encoding as a PackedFloat32Array.
     fn encoding_finished(encoding: PackedFloat32Array);
 
-    fn get_model(&mut self) -> Result<Arc<llm::Model>, String> {
-        let gd_model_node = self.model_node.as_mut().ok_or("Model node was not set")?;
-        let mut nobody_model = gd_model_node.bind_mut();
-        nobody_model.get_model().map_err(|e| e.to_string())
+    #[signal]
+    /// Emitted once the encoder worker has finished loading (including any model download)
+    /// and is ready to accept `encode()` calls.
+    fn worker_started();
+
+    #[signal]
+    /// Emitted if loading the model (or setting up the encoder worker) failed.
+    fn worker_failed(error: GString);
+
+    /// Load the model and create the encoder worker. The only `me.bind_mut()` here
+    /// runs after the first `.await`, by which point any calling `#[func]` method's
+    /// `&mut self` borrow has been released.
+    async fn load_and_store_worker(
+        mut me: Gd<Self>,
+        model_node: Gd<NobodyWhoModel>,
+    ) -> Result<nobodywho::encoder::EncoderAsync, GString> {
+        let model = NobodyWhoModel::load_model_detached(model_node)
+            .await
+            .map_err(|e| GString::from(e.to_string().as_str()))?;
+
+        // TODO: configurable n_ctx
+        let handle = nobodywho::encoder::EncoderAsync::new(model, 4096);
+
+        let mut b = me.bind_mut();
+        if let Some(existing) = &b.encoder_handle {
+            Ok(existing.clone())
+        } else {
+            b.encoder_handle = Some(handle.clone());
+            Ok(handle)
+        }
     }
 
     #[func]
-    /// Starts the encoder worker thread. This is called automatically when you call `encode`, if it wasn't already called.
+    /// Starts the encoder worker asynchronously: loads (or downloads) the model on a
+    /// background thread, then creates the encoder.
+    ///
+    /// **Returns immediately.** Connect to `worker_started` to know when the encoder is
+    /// ready, or `worker_failed(error)` for load errors. Calls to `encode()` before the
+    /// worker is ready are queued and dispatched once loading completes.
     fn start_worker(&mut self) {
-        let mut result = || -> Result<(), String> {
-            let model = self.get_model()?;
-
-            // TODO: configurable n_ctx
-            self.encoder_handle = Some(nobodywho::encoder::EncoderAsync::new(model, 4096));
-            Ok(())
-        };
-        // run it and show error in godot if it fails
-        if let Err(msg) = result() {
-            godot_error!("Error running model: {}", msg);
+        if self.encoder_handle.is_some() {
+            self.signals().worker_started().emit();
+            return;
         }
+
+        let Some(model_node) = self.model_node.clone() else {
+            let err = GString::from("Model node was not set");
+            godot_error!("Error starting worker: {}", err);
+            self.signals().worker_failed().emit(&err);
+            return;
+        };
+
+        let me = self.to_gd();
+        godot::task::spawn(async move {
+            let me_emit = me.clone();
+            match Self::load_and_store_worker(me, model_node).await {
+                Ok(_) => me_emit.signals().worker_started().emit(),
+                Err(e) => {
+                    godot_error!("Error running model: {}", e);
+                    me_emit.signals().worker_failed().emit(&e);
+                }
+            }
+        });
     }
 
     #[func]
     /// Generates the encoding of a text string. This will return a signal that you can use to wait for the encoding.
     /// The signal will return a PackedFloat32Array.
     fn encode(&mut self, text: String) -> Signal {
-        let Some(encoder_handle) = &mut self.encoder_handle else {
+        let existing_handle = self.encoder_handle.clone();
+        let model_node = if existing_handle.is_none() {
             godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
-            self.start_worker();
-            return self.encode(text);
+            match self.model_node.clone() {
+                Some(n) => Some(n),
+                None => {
+                    godot_error!("encode() dropped: Model node was not set");
+                    return godot::builtin::Signal::from_object_signal(
+                        &self.base_mut(),
+                        "encoding_finished",
+                    );
+                }
+            }
+        } else {
+            None
         };
-        let encoder_handle = encoder_handle.clone();
-        let emit_node = self.to_gd();
 
+        let me = self.to_gd();
+        let emit_node = me.clone();
         godot::task::spawn(async move {
+            let encoder_handle = match existing_handle {
+                Some(h) => h,
+                None => {
+                    let model_node = model_node.expect("model_node set when no existing handle");
+                    match Self::load_and_store_worker(me, model_node).await {
+                        Ok(h) => h,
+                        Err(e) => {
+                            godot_error!("encode() dropped: {}", e);
+                            return;
+                        }
+                    }
+                }
+            };
             match encoder_handle.encode(text).await {
                 Ok(encoding) => emit_node
                     .signals()
@@ -1187,7 +1376,7 @@ impl NobodyWhoEncoder {
         });
 
         // returns signal, so that you can `var vec = await encode("Hello, world!")`
-        return godot::builtin::Signal::from_object_signal(&self.base_mut(), "encoding_finished");
+        godot::builtin::Signal::from_object_signal(&self.base_mut(), "encoding_finished")
     }
 
     #[func]
@@ -1256,27 +1445,70 @@ impl NobodyWhoCrossEncoder {
     /// Triggered when the ranking has finished. Returns the ranked documents as a PackedStringArray.
     fn ranking_finished(ranked_documents: PackedStringArray);
 
-    fn get_model(&mut self) -> Result<Arc<llm::Model>, String> {
-        let gd_model_node = self.model_node.as_mut().ok_or("Model node was not set")?;
-        let mut nobody_model = gd_model_node.bind_mut();
-        nobody_model.get_model().map_err(|e| e.to_string())
+    #[signal]
+    /// Emitted once the crossencoder worker has finished loading (including any model
+    /// download) and is ready to accept `rank()` calls.
+    fn worker_started();
+
+    #[signal]
+    /// Emitted if loading the model (or setting up the crossencoder worker) failed.
+    fn worker_failed(error: GString);
+
+    /// Load the model and create the crossencoder worker. The only `me.bind_mut()`
+    /// here runs after the first `.await`, by which point any calling `#[func]`
+    /// method's `&mut self` borrow has been released.
+    async fn load_and_store_worker(
+        mut me: Gd<Self>,
+        model_node: Gd<NobodyWhoModel>,
+    ) -> Result<nobodywho::crossencoder::CrossEncoderAsync, GString> {
+        let model = NobodyWhoModel::load_model_detached(model_node)
+            .await
+            .map_err(|e| GString::from(e.to_string().as_str()))?;
+
+        // TODO: configurable n_ctx like with the embeddings node
+        let handle = nobodywho::crossencoder::CrossEncoderAsync::new(model, 4096);
+
+        let mut b = me.bind_mut();
+        if let Some(existing) = &b.crossencoder_handle {
+            Ok(existing.clone())
+        } else {
+            b.crossencoder_handle = Some(handle.clone());
+            Ok(handle)
+        }
     }
 
     #[func]
-    /// Starts the crossencoder worker thread. This is called automatically when you call `rank`, if it wasn't already called.
+    /// Starts the crossencoder worker asynchronously: loads (or downloads) the model on a
+    /// background thread, then creates the reranker.
+    ///
+    /// **Returns immediately.** Connect to `worker_started` to know when the reranker is
+    /// ready, or `worker_failed(error)` for load errors. Calls to `rank()` before the
+    /// worker is ready are queued and dispatched once loading completes. `rank_sync()`,
+    /// on the other hand, blocks until the worker is ready — avoid it during a download.
     fn start_worker(&mut self) {
-        let mut result = || -> Result<(), String> {
-            let model = self.get_model()?;
+        if self.crossencoder_handle.is_some() {
+            self.signals().worker_started().emit();
+            return;
+        }
 
-            // TODO: configurable n_ctx liek with the embeddings node
-            self.crossencoder_handle =
-                Some(nobodywho::crossencoder::CrossEncoderAsync::new(model, 4096));
-            Ok(())
+        let Some(model_node) = self.model_node.clone() else {
+            let err = GString::from("Model node was not set");
+            godot_error!("Error starting worker: {}", err);
+            self.signals().worker_failed().emit(&err);
+            return;
         };
 
-        if let Err(msg) = result() {
-            godot_error!("Error running model: {}", msg);
-        }
+        let me = self.to_gd();
+        godot::task::spawn(async move {
+            let me_emit = me.clone();
+            match Self::load_and_store_worker(me, model_node).await {
+                Ok(_) => me_emit.signals().worker_started().emit(),
+                Err(e) => {
+                    godot_error!("Error running model: {}", e);
+                    me_emit.signals().worker_failed().emit(&e);
+                }
+            }
+        });
     }
 
     #[func]
@@ -1289,21 +1521,45 @@ impl NobodyWhoCrossEncoder {
     /// - documents: Array of document strings to rank
     /// - limit: Maximum number of documents to return (-1 for all documents)
     fn rank(&mut self, query: String, documents: PackedStringArray, limit: i32) -> Signal {
-        let Some(crossencoder_handle) = &mut self.crossencoder_handle else {
+        let existing_handle = self.crossencoder_handle.clone();
+        let model_node = if existing_handle.is_none() {
             godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
-            self.start_worker();
-            return self.rank(query, documents, limit);
+            match self.model_node.clone() {
+                Some(n) => Some(n),
+                None => {
+                    godot_error!("rank() dropped: Model node was not set");
+                    return godot::builtin::Signal::from_object_signal(
+                        &self.base_mut(),
+                        "ranking_finished",
+                    );
+                }
+            }
+        } else {
+            None
         };
-        let crossencoder_handle = crossencoder_handle.clone();
 
         let docs_vec: Vec<String> = documents
             .to_vec()
             .into_iter()
             .map(|s| s.to_string())
             .collect();
-        let emit_node = self.to_gd();
+        let me = self.to_gd();
+        let emit_node = me.clone();
 
         godot::task::spawn(async move {
+            let crossencoder_handle = match existing_handle {
+                Some(h) => h,
+                None => {
+                    let model_node = model_node.expect("model_node set when no existing handle");
+                    match Self::load_and_store_worker(me, model_node).await {
+                        Ok(h) => h,
+                        Err(e) => {
+                            godot_error!("rank() dropped: {}", e);
+                            return;
+                        }
+                    }
+                }
+            };
             match crossencoder_handle.rank(query, docs_vec.clone()).await {
                 Ok(scores) => {
                     let result = Self::_to_sorted_string_array(docs_vec, scores, limit);
@@ -1320,6 +1576,10 @@ impl NobodyWhoCrossEncoder {
     /// Synchronous version of `rank`. Blocks until the ranking is complete and returns the result directly.
     /// This is useful for tool functions, which cannot use `await`.
     ///
+    /// If the worker hasn't been started yet, this will block the calling thread while
+    /// the model loads — including any HuggingFace/URL download. For remote models,
+    /// call `start_worker()` and await `worker_started` first to avoid freezing the game.
+    ///
     /// Parameters:
     /// - query: The question or query to rank documents against
     /// - documents: Array of document strings to rank
@@ -1330,12 +1590,25 @@ impl NobodyWhoCrossEncoder {
         documents: PackedStringArray,
         limit: i32,
     ) -> PackedStringArray {
-        let Some(crossencoder_handle) = &self.crossencoder_handle else {
-            godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
-            self.start_worker();
-            return self.rank_sync(query, documents, limit);
-        };
+        if self.crossencoder_handle.is_none() {
+            let Some(node) = self.model_node.clone() else {
+                godot_error!("Model node was not set");
+                return PackedStringArray::new();
+            };
+            let model = match futures::executor::block_on(
+                NobodyWhoModel::load_model_detached(node),
+            ) {
+                Ok(m) => m,
+                Err(e) => {
+                    godot_error!("Failed loading model for rank_sync: {}", e);
+                    return PackedStringArray::new();
+                }
+            };
+            self.crossencoder_handle =
+                Some(nobodywho::crossencoder::CrossEncoderAsync::new(model, 4096));
+        }
 
+        let crossencoder_handle = self.crossencoder_handle.as_ref().unwrap().clone();
         let docs_vec: Vec<String> = documents
             .to_vec()
             .into_iter()

@@ -67,6 +67,10 @@
             ''
               cd ${godot-integration-test}
               export HOME=$TMPDIR
+              # Point the model-download cache at the symlink tree created in
+              # the godot-integration-test derivation. Mirrors docs/conftest.py
+              # so the hf_path_test runs offline.
+              export XDG_CACHE_HOME=${godot-integration-test}/hf-cache
               ./game --headless
               touch $out
             '';
