@@ -251,3 +251,56 @@ jobs:
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # Create GitHub Release with xcframework, then push to nobodywho-swift mirror repo.
+  create-github-release-swift:
+    if: startsWith(github.ref, 'refs/tags/nobodywho-swift-')
+    runs-on: macos-15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Download Swift XCFramework"
+        uses: actions/download-artifact@v4
+        with:
+          name: nobodywho-swift-xcframework
+          path: ./release
+
+      - name: "Create GitHub Release"
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ./release/NobodyWhoNative.xcframework.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Push to nobodywho-swift mirror repo"
+        run: |
+          TAG=$GITHUB_REF_NAME
+          VERSION=${TAG#nobodywho-swift-v}
+          CHECKSUM=$(shasum -a 256 release/NobodyWhoNative.xcframework.zip | cut -d' ' -f1)
+          URL="https://github.com/nobodywho-ooo/nobodywho/releases/download/${TAG}/NobodyWhoNative.xcframework.zip"
+
+          # Clone mirror repo
+          git clone https://x-access-token:${{ secrets.SWIFT_MIRROR_TOKEN }}@github.com/nobodywho-ooo/nobodywho-swift.git mirror
+          cd mirror
+
+          # Clear and copy sources
+          rm -rf src generated macros Package.swift
+          cp -r ../nobodywho/swift/src .
+          mkdir -p generated
+          cp ../nobodywho/swift/generated/nobodywho.swift generated/
+          cp -r ../nobodywho/swift/macros .
+          cp ../nobodywho/swift/Package.swift .
+
+          # Patch Package.swift: replace path: with url: + checksum:
+          sed -i '' "s|path: \"Frameworks/NobodyWhoNative.xcframework\"|url: \"${URL}\",\n            checksum: \"${CHECKSUM}\"|" Package.swift
+
+          # Commit, tag, push
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Release ${VERSION}"
+          git tag "${VERSION}"
+          git push origin main --force
+          git push origin "${VERSION}"
