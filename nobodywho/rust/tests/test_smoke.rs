@@ -57,8 +57,8 @@ fn test_create_crossencoder() {
     let _ce = CrossEncoder::new(&model, 512);
 }
 
-#[tokio::test]
-async fn test_create_crossencoder_async() {
+#[test]
+fn test_create_crossencoder_async() {
     let model = crossencoder_model();
     let _ce = CrossEncoderAsync::new(&model, 512);
 }
