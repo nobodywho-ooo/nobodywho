@@ -2417,7 +2417,7 @@ dependencies = [
 
 [[package]]
 name = "nobodywho-godot"
-version = "8.3.0"
+version = "9.0.0"
 dependencies = [
  "futures",
  "godot",
