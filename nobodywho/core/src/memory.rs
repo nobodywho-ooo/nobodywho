@@ -170,6 +170,128 @@ pub(crate) fn plan_model_loading(
     }
 }
 
+// --- Dry-run memory estimation ---
+
+struct GgufModelInfoExtended {
+    n_layers: u32,
+    file_size: u64,
+    n_embd: u32,
+    n_head: u32,
+    n_head_kv: u32,
+}
+
+fn read_gguf_model_info_extended(path: &str) -> Option<GgufModelInfoExtended> {
+    let ctx = llama_cpp_2::gguf::GgufContext::from_file(Path::new(path))?;
+    let file_size = std::fs::metadata(path).ok()?.len();
+
+    let find_u32 = |suffix: &str| {
+        (0..ctx.n_kv())
+            .find(|&i| ctx.key_at(i).is_some_and(|k| k.ends_with(suffix)))
+            .map(|i| ctx.val_u32(i))
+    };
+
+    Some(GgufModelInfoExtended {
+        n_layers: find_u32(".block_count").unwrap_or(0),
+        file_size,
+        n_embd: find_u32(".embedding_length").unwrap_or(0),
+        n_head: find_u32(".attention.head_count").unwrap_or(0),
+        n_head_kv: find_u32(".attention.head_count_kv").unwrap_or(0),
+    })
+}
+
+/// Estimate memory requirements for a model without loading it.
+/// Returns `(model_weights_bytes, kv_cache_bytes)`.
+///
+/// `kv_type_k_bytes` and `kv_type_v_bytes` are bytes per element for the KV cache types
+/// (e.g. 4.0 = f32, 2.0 = f16, 1.0 = q8_0, 0.5 = q4_0).
+/// File size is used as a proxy for model weight memory; llama.cpp runtime overhead is not included.
+pub fn dry_run_memory_estimate(
+    model_path: &str,
+    n_ctx: u32,
+    kv_type_k_bytes: f32,
+    kv_type_v_bytes: f32,
+) -> Result<(u64, u64), MemoryError> {
+    let info = read_gguf_model_info_extended(model_path)
+        .ok_or_else(|| MemoryError::GgufReadError(model_path.to_string()))?;
+
+    let head_dim = if info.n_head > 0 {
+        info.n_embd / info.n_head
+    } else {
+        64
+    } as f64;
+    let tokens = info.n_layers as f64 * n_ctx as f64 * info.n_head_kv as f64 * head_dim;
+    let kv_bytes = (tokens * kv_type_k_bytes as f64 + tokens * kv_type_v_bytes as f64) as u64;
+
+    Ok((info.file_size, kv_bytes))
+}
+
+/// Compute the largest context size that fits within a fraction of available memory, up to a maximum.
+///
+/// When a GPU is present, uses GPU VRAM by default. Set `include_cpu` to also count CPU RAM —
+/// useful if you don't mind the KV cache spilling to CPU, but note this is significantly slower.
+/// Model weights (file size) are subtracted from the budget before computing KV cache headroom.
+/// `kv_type_k_bytes` / `kv_type_v_bytes` are bytes per element (4.0=f32, 2.0=f16, 1.0=q8_0, 0.5=q4_0).
+pub fn compute_context_size_for_budget(
+    model_path: &str,
+    memory_fraction: f64,
+    max_n_ctx: u32,
+    kv_type_k_bytes: f32,
+    kv_type_v_bytes: f32,
+    include_cpu: bool,
+) -> Result<u32, MemoryError> {
+    let info = read_gguf_model_info_extended(model_path)
+        .ok_or_else(|| MemoryError::GgufReadError(model_path.to_string()))?;
+
+    let devices = llama_cpp_2::list_llama_ggml_backend_devices();
+    let cpu_free = devices
+        .iter()
+        .find(|d| matches!(d.device_type, llama_cpp_2::LlamaBackendDeviceType::Cpu))
+        .map(|d| device_free(d))
+        .unwrap_or(0);
+    let total_available = match select_best_gpu() {
+        Some(gpu) if include_cpu => device_free(&gpu) + cpu_free,
+        Some(gpu) => device_free(&gpu),
+        None => cpu_free,
+    };
+
+    let budget = (total_available as f64 * memory_fraction.clamp(0.0, 1.0)) as u64;
+    let remaining = budget.saturating_sub(info.file_size);
+
+    if remaining == 0 {
+        return Err(MemoryError::InsufficientMemory {
+            required_gb: info.file_size as f64 / 1e9,
+            available_gb: budget as f64 / 1e9,
+            suggestion: "increase memory_fraction or use a smaller model".to_string(),
+        });
+    }
+
+    let head_dim = if info.n_head > 0 {
+        info.n_embd / info.n_head
+    } else {
+        64
+    } as f64;
+    let bytes_per_token = info.n_layers as f64
+        * info.n_head_kv as f64
+        * head_dim
+        * (kv_type_k_bytes + kv_type_v_bytes) as f64;
+
+    if bytes_per_token == 0.0 {
+        return Ok(max_n_ctx);
+    }
+
+    let n_ctx = ((remaining as f64 / bytes_per_token) as u32).min(max_n_ctx);
+
+    if n_ctx == 0 {
+        return Err(MemoryError::InsufficientMemory {
+            required_gb: (info.file_size as f64 + bytes_per_token) / 1e9,
+            available_gb: budget as f64 / 1e9,
+            suggestion: "increase memory_fraction or use a smaller model".to_string(),
+        });
+    }
+
+    Ok(n_ctx)
+}
+
 // --- Context planning ---
 
 pub struct ContextPlan {

@@ -1251,6 +1251,99 @@ impl ChatAsync {
     }
 }
 
+/// Load a model and compute the largest context size that fits within a fraction of available memory.
+///
+/// Reads the model's GGUF metadata, checks free memory on the best available device,
+/// and returns a ``(Model, n_ctx)`` tuple ready to pass directly to ``Chat`` or ``Encoder``.
+///
+/// By default only GPU VRAM is counted. Set ``include_cpu=True`` to also include CPU RAM —
+/// this allows a larger context but the KV cache may spill to CPU, which is significantly slower.
+///
+/// Args:
+///     model_path: Path to the GGUF model file
+///     memory_fraction: Fraction of available memory to use (default: 0.8)
+///     max_n_ctx: Hard upper bound on context size (default: 32768)
+///     kv_type_k_bytes: Bytes per element for the K cache (default: 2.0 = f16)
+///     kv_type_v_bytes: Bytes per element for the V cache (default: 2.0 = f16)
+///     use_gpu_if_available: Whether to use GPU acceleration (default: True)
+///     include_cpu: Also count CPU RAM in the memory budget (default: False)
+///
+/// Returns:
+///     Tuple of ``(Model, n_ctx)``
+///
+/// Raises:
+///     ValueError: If the model metadata cannot be read or the memory budget is too small
+///     RuntimeError: If the model fails to load
+#[pyfunction]
+#[pyo3(signature = (model_path, memory_fraction=0.8, max_n_ctx=32768, kv_type_k_bytes=2.0, kv_type_v_bytes=2.0, use_gpu_if_available=true, include_cpu=false))]
+fn load_model_for_memory_budget(
+    py: Python<'_>,
+    model_path: std::path::PathBuf,
+    memory_fraction: f64,
+    max_n_ctx: u32,
+    kv_type_k_bytes: f32,
+    kv_type_v_bytes: f32,
+    use_gpu_if_available: bool,
+    include_cpu: bool,
+) -> PyResult<(Py<Model>, u32)> {
+    let path_str = model_path.to_str().ok_or_else(|| {
+        pyo3::exceptions::PyValueError::new_err(format!(
+            "Path contains invalid UTF-8: {}",
+            model_path.display()
+        ))
+    })?;
+    let n_ctx = nobodywho::memory::compute_context_size_for_budget(
+        path_str,
+        memory_fraction,
+        max_n_ctx,
+        kv_type_k_bytes,
+        kv_type_v_bytes,
+        include_cpu,
+    )
+    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+    let model = nobodywho::llm::get_model(path_str, use_gpu_if_available, None)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    let py_model = Py::new(
+        py,
+        Model {
+            model: Arc::new(model),
+        },
+    )?;
+    Ok((py_model, n_ctx))
+}
+
+/// Estimate memory requirements for a model without loading it.
+///
+/// Returns a tuple of ``(model_weights_bytes, kv_cache_bytes)``.
+/// Model weights are estimated from the file size (llama.cpp runtime overhead not included).
+/// KV cache is computed from the model's architecture and the requested context size.
+///
+/// ``kv_type_k_bytes`` and ``kv_type_v_bytes`` are bytes per element for the K and V caches:
+/// ``4.0`` = f32, ``2.0`` = f16, ``1.0`` = q8_0, ``0.5`` = q4_0.
+///
+/// Args:
+///     model_path: Path to the GGUF model file
+///     n_ctx: Context size (number of tokens)
+///     kv_type_k_bytes: Bytes per element for the K cache (default: 2.0 = f16)
+///     kv_type_v_bytes: Bytes per element for the V cache (default: 2.0 = f16)
+///
+/// Returns:
+///     Tuple of ``(model_weights_bytes, kv_cache_bytes)``
+///
+/// Raises:
+///     ValueError: If the model file cannot be read or is not a valid GGUF
+#[pyfunction]
+#[pyo3(signature = (model_path, n_ctx, kv_type_k_bytes=2.0, kv_type_v_bytes=2.0))]
+fn estimate_model_memory(
+    model_path: &str,
+    n_ctx: u32,
+    kv_type_k_bytes: f32,
+    kv_type_v_bytes: f32,
+) -> PyResult<(u64, u64)> {
+    nobodywho::memory::dry_run_memory_estimate(model_path, n_ctx, kv_type_k_bytes, kv_type_v_bytes)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+}
+
 /// Compute the cosine similarity between two vectors.
 /// Particularly useful for comparing embedding vectors from an Encoder.
 ///
@@ -2467,6 +2560,10 @@ pub mod nobodywhopython {
     use super::bash_tool;
     #[pymodule_export]
     use super::cosine_similarity;
+    #[pymodule_export]
+    use super::estimate_model_memory;
+    #[pymodule_export]
+    use super::load_model_for_memory_budget;
     #[pymodule_export]
     use super::python_tool;
     #[pymodule_export]
