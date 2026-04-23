@@ -309,8 +309,16 @@ impl NobodyWhoChat {
     /// if model_node isn't set. Must be called from a `&mut self` (or `&self`) context.
     fn snapshot_worker_config(
         &self,
-    ) -> Result<(Gd<NobodyWhoModel>, String, Vec<nobodywho::tool_calling::Tool>, u32, bool), GString>
-    {
+    ) -> Result<
+        (
+            Gd<NobodyWhoModel>,
+            String,
+            Vec<nobodywho::tool_calling::Tool>,
+            u32,
+            bool,
+        ),
+        GString,
+    > {
         let Some(model_node) = self.model_node.clone() else {
             return Err(GString::from("Model node was not set"));
         };
@@ -1595,9 +1603,8 @@ impl NobodyWhoCrossEncoder {
                 godot_error!("Model node was not set");
                 return PackedStringArray::new();
             };
-            let model = match futures::executor::block_on(
-                NobodyWhoModel::load_model_detached(node),
-            ) {
+            let model = match futures::executor::block_on(NobodyWhoModel::load_model_detached(node))
+            {
                 Ok(m) => m,
                 Err(e) => {
                     godot_error!("Failed loading model for rank_sync: {}", e);
