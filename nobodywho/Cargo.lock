@@ -2554,6 +2554,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "nobodywho-rust"
+version = "0.1.0"
+dependencies = [
+ "nobodywho",
+]
+
+[[package]]
 name = "nobodywho-uniffi"
 version = "0.1.0"
 dependencies = [
@@ -2567,15 +2574,6 @@ dependencies = [
  "tracing-log",
  "tracing-subscriber",
  "uniffi",
-]
-
-[[package]]
-name = "nobodywho-rust"
-version = "0.1.0"
-dependencies = [
- "nobodywho",
- "serde_json",
- "tokio",
 ]
 
 [[package]]
