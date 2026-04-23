@@ -8,8 +8,7 @@ __pycache__/
 .venv/
 */result
 
-# Swift and Kotlin standalone packages (not yet released)
-swift/
+# Kotlin standalone package (not yet released)
 kotlin/
 
 # React Native (uniffi-bindgen-react-native)
