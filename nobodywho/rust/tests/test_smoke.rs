@@ -69,6 +69,6 @@ fn test_chat_simple_question() {
     let chat = Chat::builder(&model)
         .with_system_prompt("You are a helpful assistant.")
         .build();
-    let response = chat.ask("What is 1+1?").completed().unwrap();
+    let response = chat.ask("Is water wet?").completed().unwrap();
     assert!(!response.is_empty(), "expected a non-empty response");
 }
