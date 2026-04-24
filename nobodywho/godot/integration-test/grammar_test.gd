@@ -49,9 +49,9 @@ null ::= "null"
 ws ::= ([ \\t\\n] ws)?
 ws01 ::= ([ \\t\\n])?
 	"""
-	chat.set_sampler_preset_grammar(gbnf_grammar)
-
 	chat.start_worker()
+	await chat.worker_started
+	chat.set_sampler_preset_grammar(gbnf_grammar)
 
 	var result = await test_json_output()
 	return true

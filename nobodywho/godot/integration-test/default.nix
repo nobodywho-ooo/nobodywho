@@ -56,6 +56,15 @@ stdenv.mkDerivation {
     cp ${models.TEST_EMBEDDINGS_MODEL} $out/bge-small-en-v1.5-q8_0.gguf
     cp ${models.TEST_CROSSENCODER_MODEL} $out/bge-reranker-v2-m3-Q8_0.gguf
 
+    # Pre-populate the HuggingFace download cache so the hf_path_test can resolve
+    # `huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/...` without network access. Core's
+    # download_file() checks this exact layout before hitting the network (see
+    # `core/src/llm.rs::download_model_from_hf`). XDG_CACHE_HOME is pointed at
+    # `$out/hf-cache` by the `run-godot-integration-test` derivation.
+    mkdir -p $out/hf-cache/nobodywho/models/NobodyWho/Qwen_Qwen3-0.6B-GGUF
+    ln -s ${models.TEST_MODEL} \
+      $out/hf-cache/nobodywho/models/NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf
+
     # Patch binaries.
     patchelf --set-interpreter $(cat $NIX_CC/nix-support/dynamic-linker) $out/game
   '';

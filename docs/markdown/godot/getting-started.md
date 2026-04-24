@@ -42,6 +42,36 @@ Set the model path to point to your GGUF model. (1)
 
 1. ![set model path](assets/godot_model_selection.png)
 
+### Supported model path formats
+
+The `model_path` field (and `projection_model_path` for vision models) accepts several forms:
+
+| Form | Example | Notes |
+| ---- | ------- | ----- |
+| Godot resource path | `res://models/my-model.gguf` | Bundled with your game export |
+| User data path | `user://downloaded.gguf` | Written by your game at runtime |
+| Absolute filesystem path | `/opt/models/foo.gguf` | Local file |
+| HuggingFace reference | `huggingface:owner/repo/file.gguf` or `hf://owner/repo/file.gguf` | Downloaded & cached on first use |
+| HTTPS URL | `https://example.com/model.gguf` | Downloaded & cached on first use |
+
+Remote models are downloaded to the platform cache directory on the first load and re-used on subsequent runs. Downloads happen on a background thread — the Godot main loop stays responsive while a multi-GB model is fetched.
+
+### Knowing when the worker is ready
+
+`start_worker()` returns immediately. The worker finishes loading in the background (including any download). Connect to the new signals if your game logic needs to wait:
+
+```gdscript
+chat.worker_started.connect(func():
+    print("Ready to chat!")
+)
+chat.worker_failed.connect(func(err):
+    push_error("Model load failed: " + err)
+)
+chat.start_worker()
+```
+
+You can also call `ask()` straight away — prompts issued before the worker is ready are queued and dispatched as soon as loading completes. The same applies to `NobodyWhoEncoder.encode()` and `NobodyWhoCrossEncoder.rank()`.
+
 
 ## Create a new Chat
 
