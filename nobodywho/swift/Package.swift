@@ -48,5 +48,18 @@ let package = Package(
             path: "generated",
             sources: ["nobodywho.swift"]
         ),
+        .testTarget(
+            name: "NobodyWhoMacroTests",
+            dependencies: [
+                "NobodyWhoMacros",
+                .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
+            ],
+            path: "tests/MacroTests"
+        ),
+        .testTarget(
+            name: "NobodyWhoTests",
+            dependencies: ["NobodyWho"],
+            path: "tests/NobodyWhoTests"
+        ),
     ]
 )

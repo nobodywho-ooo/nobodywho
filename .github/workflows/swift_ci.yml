@@ -1,0 +1,113 @@
+name: "swift_ci"
+
+on:
+  workflow_call:
+    inputs:
+      full_ci:
+        description: "Run full Swift CI (integration tests with model). If false, only macro tests and binding generation check run."
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  generate-and-check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Cache Cargo Home"
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo
+            nobodywho/target
+          key: ${{ runner.os }}-cargo-home-uniffi-host-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-home-uniffi-host-
+
+      - name: "Setup rust toolchain"
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          . "$HOME/.cargo/env"
+          rustup update stable
+          rustup default stable
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: "Install Vulkan dependencies"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
+
+      - name: "Build uniffi crate for host"
+        working-directory: ./nobodywho
+        run: cargo build -p nobodywho-uniffi --locked
+
+      - name: "Generate Swift bindings"
+        working-directory: ./nobodywho
+        run: |
+          cargo run --bin uniffi-bindgen -- generate \
+            --library target/debug/libnobodywho_uniffi.so \
+            --language swift \
+            --out-dir swift/generated
+
+      - name: "Verify committed generated files are up to date"
+        working-directory: ./nobodywho/swift
+        run: |
+          if git diff --exit-code generated/; then
+            echo "Generated bindings are up to date"
+          else
+            echo "ERROR: Committed generated bindings are out of date."
+            echo "Run the binding generation command and commit the results:"
+            echo "  cd nobodywho && cargo build -p nobodywho-uniffi"
+            echo "  cargo run --bin uniffi-bindgen -- generate \\"
+            echo "    --library target/debug/libnobodywho_uniffi.so \\"
+            echo "    --language swift --out-dir swift/generated"
+            exit 1
+          fi
+
+  macro-tests:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Run macro tests"
+        working-directory: ./nobodywho/swift
+        run: swift test --filter NobodyWhoMacroTests
+
+  integration-tests:
+    if: inputs.full_ci
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Download xcframework artifact"
+        uses: actions/download-artifact@v4
+        with:
+          name: nobodywho-swift-xcframework
+          path: ./xcframework-zip
+
+      - name: "Install xcframework"
+        run: |
+          mkdir -p nobodywho/swift/Frameworks
+          unzip -o xcframework-zip/NobodyWhoNative.xcframework.zip -d nobodywho/swift/Frameworks/
+          ls -la nobodywho/swift/Frameworks/NobodyWhoNative.xcframework/
+
+      - name: "Download test models"
+        run: |
+          mkdir -p test-models
+          curl -L -o test-models/model.gguf \
+            "https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
+          curl -L -o test-models/vision-model.gguf \
+            "https://huggingface.co/LiquidAI/LFM2.5-VL-450M-GGUF/resolve/main/LFM2.5-VL-450M-Q4_0.gguf"
+          curl -L -o test-models/mmproj.gguf \
+            "https://huggingface.co/LiquidAI/LFM2.5-VL-450M-GGUF/resolve/main/mmproj-LFM2.5-VL-450m-F16.gguf"
+
+      - name: "Run integration tests"
+        working-directory: ./nobodywho/swift
+        env:
+          TEST_MODEL: ${{ github.workspace }}/test-models/model.gguf
+          TEST_VISION_MODEL: ${{ github.workspace }}/test-models/vision-model.gguf
+          TEST_MMPROJ: ${{ github.workspace }}/test-models/mmproj.gguf
+        run: swift test --filter NobodyWhoTests
