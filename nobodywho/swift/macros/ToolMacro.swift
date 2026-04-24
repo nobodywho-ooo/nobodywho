@@ -54,6 +54,7 @@ public struct ToolMacro: PeerMacro {
 
         let funcName = funcDecl.name.text
         let parameters = funcDecl.signature.parameterClause.parameters
+        let isAsync = funcDecl.signature.effectSpecifiers?.asyncSpecifier != nil
 
         // Build ToolParameter array entries and argument extraction lines
         var toolParamEntries: [String] = []
@@ -91,19 +92,43 @@ public struct ToolMacro: PeerMacro {
 
         let argBindingsCode = argLetBindings.joined(separator: "\n            ")
 
+        let callExpr = isAsync
+            ? "await \(funcName)(\(callArgs))"
+            : "\(funcName)(\(callArgs))"
+
+        let callbackType = isAsync ? "AsyncToolCallbackClosure" : "ToolCallbackClosure"
+
+        let closureBody: String
+        if isAsync {
+            closureBody = """
+            \(callbackType) { argumentsJson async in
+                            guard let data = argumentsJson.data(using: .utf8),
+                                  let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                                return "Error: Failed to parse arguments"
+                            }
+                            \(argBindingsCode)
+                            return \(callExpr)
+                        }
+            """
+        } else {
+            closureBody = """
+            \(callbackType) { argumentsJson in
+                            guard let data = argumentsJson.data(using: .utf8),
+                                  let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                                return "Error: Failed to parse arguments"
+                            }
+                            \(argBindingsCode)
+                            return \(callExpr)
+                        }
+            """
+        }
+
         let generated = """
         let \(funcName)Tool = Tool(
             name: "\(funcName)",
             description: "\(description)",
             parameters: \(paramListCode),
-            callback: ToolCallbackClosure { argumentsJson in
-                guard let data = argumentsJson.data(using: .utf8),
-                      let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                    return "Error: Failed to parse arguments"
-                }
-                \(argBindingsCode)
-                return \(funcName)(\(callArgs))
-            }
+            callback: \(closureBody)
         )
         """
 
