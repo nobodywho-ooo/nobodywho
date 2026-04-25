@@ -29,6 +29,13 @@ lazy_static! {
 static LLAMA_BACKEND: LazyLock<LlamaBackend> =
     LazyLock::new(|| LlamaBackend::init().expect("Failed to initialize llama backend"));
 
+/// Callback invoked during model downloads with `(downloaded_bytes, total_bytes)`.
+///
+/// Invoked on each read chunk from the single download thread. If the same callback
+/// is shared across concurrent downloads, the closure is responsible for its own
+/// synchronization (hence the `Sync` bound).
+pub type DownloadProgressCallback = Arc<dyn Fn(u64, u64) + Send + Sync>;
+
 #[derive(Debug)]
 pub struct Model {
     pub(crate) language_model: LlamaModel,
@@ -130,13 +137,14 @@ fn parse_model_path(
 /// on the filesystem
 fn resolve_fancy_path_to_fs(
     parsed_path: ParsedModelPath,
+    progress: Option<&DownloadProgressCallback>,
 ) -> Result<std::path::PathBuf, LoadModelError> {
     let fs_model_path = match parsed_path {
         ParsedModelPath::HuggingFaceUrl(owner, repo, filename) => {
-            download_model_from_hf(&owner, &repo, &filename)?
+            download_model_from_hf(&owner, &repo, &filename, progress)?
         }
         ParsedModelPath::FilesystemPath(path) => path,
-        ParsedModelPath::HttpUrl(url) => download_model_from_url(&url)?,
+        ParsedModelPath::HttpUrl(url) => download_model_from_url(&url, progress)?,
     };
 
     if !fs_model_path.exists() {
@@ -148,17 +156,19 @@ fn resolve_fancy_path_to_fs(
     Ok(fs_model_path)
 }
 
-#[tracing::instrument(level = "info")]
+#[tracing::instrument(level = "info", skip(progress))]
 pub fn get_model(
     model_path: &str,
     use_gpu_if_available: bool,
     mmproj_path: Option<&str>,
+    progress: Option<DownloadProgressCallback>,
 ) -> Result<Model, LoadModelError> {
-    let real_model_path = resolve_fancy_path_to_fs(parse_model_path(model_path)?)?;
+    let real_model_path =
+        resolve_fancy_path_to_fs(parse_model_path(model_path)?, progress.as_ref())?;
     let real_mmproj_path = mmproj_path
         .map(parse_model_path) // parse inside option
         .transpose()? // return early if parse fails
-        .map(resolve_fancy_path_to_fs) // download the file if needed
+        .map(|p| resolve_fancy_path_to_fs(p, progress.as_ref())) // download the file if needed
         .transpose()?; // return early if download fails
 
     // TODO: `LlamaModelParams` uses all devices by default. Set it to an empty list once an upstream device API is available.
@@ -224,11 +234,12 @@ pub fn get_model(
 /// * The model file is not found (`LoadModelError::ModelNotFound`)
 /// * The model file is invalid or unsupported (`LoadModelError::InvalidModel`)
 /// * The communication channel closes unexpectedly (`LoadModelError::ModelChannelError`)
-#[tracing::instrument(level = "info")]
+#[tracing::instrument(level = "info", skip(progress))]
 pub async fn get_model_async(
     model_path: String,
     use_gpu_if_available: bool,
     mmproj_path: Option<String>,
+    progress: Option<DownloadProgressCallback>,
 ) -> Result<Model, LoadModelError> {
     let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(4096);
     std::thread::spawn(move || {
@@ -236,6 +247,7 @@ pub async fn get_model_async(
             &model_path,
             use_gpu_if_available,
             mmproj_path.as_deref(),
+            progress,
         ))
     });
 
@@ -307,6 +319,7 @@ fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadMod
 fn download_file(
     url: &str,
     target_path: &std::path::Path,
+    progress: Option<&DownloadProgressCallback>,
 ) -> Result<(), crate::errors::LoadModelError> {
     for component in target_path.components() {
         if component == std::path::Component::ParentDir {
@@ -393,6 +406,10 @@ fn download_file(
             })?;
             downloaded += n as u64;
 
+            if let Some(cb) = progress {
+                cb(downloaded, content_length.get());
+            }
+
             let pct = (downloaded * 100) / content_length;
             if pct >= last_logged_pct + 5 {
                 info!(
@@ -437,25 +454,29 @@ fn download_model_from_hf(
     owner: &str,
     repo: &str,
     filename: &str,
+    progress: Option<&DownloadProgressCallback>,
 ) -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
     let cache_dir = get_cache_dir()?;
     let target_path = cache_dir.join(owner).join(repo).join(filename);
     let url = format!("https://huggingface.co/{owner}/{repo}/resolve/main/{filename}");
-    download_file(&url, &target_path)?;
+    download_file(&url, &target_path, progress)?;
     Ok(target_path)
 }
 
 /// Download a model from a generic HTTP(S) URL and return the local path to it.
 ///
 /// The file is cached by its URL path components under the cache directory.
-fn download_model_from_url(url: &str) -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
+fn download_model_from_url(
+    url: &str,
+    progress: Option<&DownloadProgressCallback>,
+) -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
     let cache_dir = get_cache_dir()?;
     // Derive a cache path from the URL: strip scheme, use the rest as path components
     let path_part = url
         .trim_start_matches("https://")
         .trim_start_matches("http://");
     let target_path = cache_dir.join("http").join(path_part);
-    download_file(url, &target_path)?;
+    download_file(url, &target_path, progress)?;
     Ok(target_path)
 }
 

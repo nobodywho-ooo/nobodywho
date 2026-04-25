@@ -2538,6 +2538,7 @@ name = "nobodywho-python"
 version = "1.1.0"
 dependencies = [
  "futures",
+ "indicatif",
  "log",
  "nobodywho",
  "nom 8.0.0",

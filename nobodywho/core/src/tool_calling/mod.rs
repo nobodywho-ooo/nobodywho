@@ -461,7 +461,7 @@ mod tests {
     #[ignore = "requires QWEN36_MODEL env var pointing at a Qwen3.6 GGUF"]
     fn diagnose_qwen36_detection() {
         let path = std::env::var("QWEN36_MODEL").expect("set QWEN36_MODEL");
-        let model = crate::llm::get_model(&path, false, None).expect("load model");
+        let model = crate::llm::get_model(&path, false, None, None).expect("load model");
 
         let name = model
             .language_model
