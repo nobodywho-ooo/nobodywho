@@ -294,35 +294,14 @@ impl ChatBuilder {
 ///
 /// Use [`ChatBuilder`] to create a new instance with a fluent API.
 pub struct ChatHandle {
-    guard: WorkerGuard<ChatMsg>,
+    async_handle: ChatHandleAsync,
 }
 
 impl ChatHandle {
     /// Create a new chat handle directly. Consider using [`ChatBuilder`] for a more ergonomic API.
     pub fn new(model: Arc<llm::Model>, config: ChatConfig) -> Self {
-        let (msg_tx, msg_rx) = std::sync::mpsc::channel();
-
-        let should_stop = Arc::new(AtomicBool::new(false));
-        let should_stop_clone = Arc::clone(&should_stop);
-
-        let join_handle = std::thread::spawn(move || {
-            let worker = Worker::new_chat_worker(&model, config, should_stop_clone);
-            let mut worker_state = match worker {
-                Ok(worker_state) => worker_state,
-                Err(errmsg) => {
-                    return error!("Could not set up the worker initial state: {errmsg}")
-                }
-            };
-
-            while let Ok(msg) = msg_rx.recv() {
-                if let Err(e) = process_worker_msg(&mut worker_state, msg) {
-                    return error!("Worker crashed: {e}");
-                }
-            }
-        });
-
         Self {
-            guard: WorkerGuard::new(msg_tx, join_handle, Some(should_stop)),
+            async_handle: ChatHandleAsync::new(model, config),
         }
     }
 
@@ -332,36 +311,23 @@ impl ChatHandle {
         &self,
         prompt: Prompt,
     ) -> tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput> {
-        let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
-        self.guard.send(ChatMsg::Ask { prompt, output_tx });
-        output_rx
+        self.async_handle.ask_channel(prompt)
     }
 
     /// Send a message and collect tokens as they arrive.
     ///
     /// # Example
     /// ```
-    /// # use nobodywho::chat::ChatHandleAsync;
-    /// # async fn example(chat: &ChatHandleAsync) {
+    /// # use nobodywho::chat::ChatHandle;
+    /// # fn example(chat: &ChatHandle) {
     /// let mut stream = chat.ask("Tell me a story");
-    /// while let Some(token) = stream.next_token().await {
+    /// while let Some(token) = stream.next_token() {
     ///     print!("{}", token);
     /// }
     /// # }
     /// ```
     pub fn ask(&self, prompt: impl Promptable) -> TokenStream {
-        TokenStream::new(self.ask_channel(prompt.to_prompt()))
-    }
-
-    fn set_and_wait_blocking<F>(&self, make_msg: F) -> Option<()>
-    where
-        F: FnOnce(tokio::sync::mpsc::Sender<()>) -> ChatMsg,
-    {
-        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        let msg = make_msg(output_tx);
-        self.guard.send(msg);
-        // block until processed
-        output_rx.blocking_recv()
+        TokenStream::new(self.async_handle.ask_channel(prompt.to_prompt()))
     }
 
     /// Reset the chat conversation with a new system prompt and tools.
@@ -370,29 +336,17 @@ impl ChatHandle {
         system_prompt: Option<String>,
         tools: Vec<Tool>,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(|output_tx| ChatMsg::ResetChat {
-            system_prompt,
-            tools,
-            output_tx,
-        })
-        .ok_or(crate::errors::SetterError::SetterError("reset_chat".into()))
+        futures::executor::block_on(self.async_handle.reset_chat(system_prompt, tools))
     }
 
     /// Reset the chat conversation history.
     pub fn reset_history(&self) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(|output_tx| ChatMsg::SetChatHistory {
-            messages: vec![],
-            output_tx,
-        })
-        .ok_or(crate::errors::SetterError::SetterError(
-            "reset_history".into(),
-        ))
+        futures::executor::block_on(self.async_handle.reset_history())
     }
 
     /// Update the available tools for the model to use.
     pub fn set_tools(&self, tools: Vec<Tool>) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(|output_tx| ChatMsg::SetTools { tools, output_tx })
-            .ok_or(crate::errors::SetterError::SetterError("set_tools".into()))
+        futures::executor::block_on(self.async_handle.set_tools(tools))
     }
 
     /// DEPRECATED: Use set_template_variable("enable_thinking", value) instead.
@@ -401,13 +355,7 @@ impl ChatHandle {
         &self,
         allow_thinking: bool,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(|output_tx| ChatMsg::SetThinking {
-            allow_thinking,
-            output_tx,
-        })
-        .ok_or(crate::errors::SetterError::SetterError(
-            "set_allow_thinking".into(),
-        ))
+        futures::executor::block_on(self.async_handle.set_allow_thinking(allow_thinking))
     }
 
     /// Set a single template variable.
@@ -416,14 +364,7 @@ impl ChatHandle {
         name: String,
         value: bool,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(|output_tx| ChatMsg::SetTemplateVariable {
-            name,
-            value,
-            output_tx,
-        })
-        .ok_or(crate::errors::SetterError::SetterError(
-            "set_template_variable".into(),
-        ))
+        futures::executor::block_on(self.async_handle.set_template_variable(name, value))
     }
 
     /// Set all template variables, replacing any existing ones.
@@ -431,26 +372,14 @@ impl ChatHandle {
         &self,
         variables: std::collections::HashMap<String, bool>,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(|output_tx| ChatMsg::SetTemplateVariables {
-            variables,
-            output_tx,
-        })
-        .ok_or(crate::errors::SetterError::SetterError(
-            "set_template_variables".into(),
-        ))
+        futures::executor::block_on(self.async_handle.set_template_variables(variables))
     }
 
     /// Get all template variables.
     pub fn get_template_variables(
         &self,
     ) -> Result<std::collections::HashMap<String, bool>, crate::errors::GetterError> {
-        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        self.guard.send(ChatMsg::GetTemplateVariables { output_tx });
-        output_rx
-            .blocking_recv()
-            .ok_or(crate::errors::GetterError::GetterError(
-                "get_template_variables".into(),
-            ))
+        futures::executor::block_on(self.async_handle.get_template_variables())
     }
 
     /// Update the sampler configuration for inference.
@@ -458,29 +387,17 @@ impl ChatHandle {
         &self,
         sampler_config: SamplerConfig,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(|output_tx| ChatMsg::SetSamplerConfig {
-            sampler_config,
-            output_tx,
-        })
-        .ok_or(crate::errors::SetterError::SetterError(
-            "set_sampler_config".into(),
-        ))
+        futures::executor::block_on(self.async_handle.set_sampler_config(sampler_config))
     }
 
     /// Stop the current generation if one is in progress.
     pub fn stop_generation(&self) {
-        self.guard.stop();
+        self.async_handle.stop_generation()
     }
 
     /// Get the chat history without the system prompt (lower-level API).
     pub fn get_chat_history(&self) -> Result<Vec<Message>, crate::errors::GetterError> {
-        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        self.guard.send(ChatMsg::GetChatHistory { output_tx });
-        output_rx
-            .blocking_recv()
-            .ok_or(crate::errors::GetterError::GetterError(
-                "get_chat_history".into(),
-            ))
+        futures::executor::block_on(self.async_handle.get_chat_history())
     }
 
     /// Set the chat history (lower-level API).
@@ -488,23 +405,12 @@ impl ChatHandle {
         &self,
         messages: Vec<Message>,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(|output_tx| ChatMsg::SetChatHistory {
-            messages,
-            output_tx,
-        })
-        .ok_or(crate::errors::SetterError::SetterError(
-            "set_chat_history".into(),
-        ))
+        futures::executor::block_on(self.async_handle.set_chat_history(messages))
     }
+
     /// Get the sampler config
     pub fn get_sampler_config(&self) -> Result<SamplerConfig, crate::errors::GetterError> {
-        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        self.guard.send(ChatMsg::GetSamplerConfig { output_tx });
-        output_rx
-            .blocking_recv()
-            .ok_or(crate::errors::GetterError::GetterError(
-                "get_sampler_config".into(),
-            ))
+        futures::executor::block_on(self.async_handle.get_sampler_config())
     }
 
     /// Update the system prompt without resetting chat history.
@@ -537,24 +443,12 @@ impl ChatHandle {
         &self,
         system_prompt: Option<String>,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(|output_tx| ChatMsg::SetSystemPrompt {
-            system_prompt,
-            output_tx,
-        })
-        .ok_or(crate::errors::SetterError::SetterError(
-            "set_system_prompt".into(),
-        ))
+        futures::executor::block_on(self.async_handle.set_system_prompt(system_prompt))
     }
 
     /// Get the system prompt
     pub fn get_system_prompt(&self) -> Result<Option<String>, crate::errors::GetterError> {
-        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        self.guard.send(ChatMsg::GetSystemPrompt { output_tx });
-        output_rx
-            .blocking_recv()
-            .ok_or(crate::errors::GetterError::GetterError(
-                "get_system_prompt".into(),
-            ))
+        futures::executor::block_on(self.async_handle.get_system_prompt())
     }
 }
 
