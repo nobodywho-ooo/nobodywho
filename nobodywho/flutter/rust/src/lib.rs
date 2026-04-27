@@ -414,6 +414,19 @@ pub fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> f32 {
     nobodywho::encoder::cosine_similarity(&a, &b)
 }
 
+/// Returns the paths and total byte size of all cached .gguf models.
+///
+/// The tuple contains: (list of absolute path strings, total size in bytes).
+#[flutter_rust_bridge::frb(sync)]
+pub fn get_cached_models() -> Result<(Vec<String>, u64), String> {
+    let (paths, total_size) = nobodywho::llm::get_cached_models().map_err(|e| e.to_string())?;
+    let string_paths = paths
+        .iter()
+        .map(|p| p.to_string_lossy().into_owned())
+        .collect();
+    Ok((string_paths, total_size))
+}
+
 #[flutter_rust_bridge::frb(opaque)]
 pub struct RustTool {
     tool: nobodywho::tool_calling::Tool,

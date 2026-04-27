@@ -445,6 +445,30 @@ fn download_model_from_hf(
     Ok(target_path)
 }
 
+/// Get the paths and total byte size of every .gguf model in the nobodywho cache.
+pub fn get_cache_information() -> Result<(Vec<std::path::PathBuf>, u64), crate::errors::LoadModelError> {
+    let cache_dir = get_cache_dir()?;
+    let mut models = Vec::new();
+    let mut total_size: u64 = 0;
+    fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>, size: &mut u64) {
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    walk(&path, out, size);
+                } else if path.extension().and_then(|e| e.to_str()) == Some("gguf") {
+                    *size += std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+                    out.push(path);
+                }
+            }
+        }
+    }
+    if cache_dir.exists() {
+        walk(&cache_dir, &mut models, &mut total_size);
+    }
+    Ok((models, total_size))
+}
+
 /// Download a model from a generic HTTP(S) URL and return the local path to it.
 ///
 /// The file is cached by its URL path components under the cache directory.
