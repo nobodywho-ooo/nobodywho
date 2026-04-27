@@ -41,7 +41,7 @@ pub enum _Role {
 
 #[flutter_rust_bridge::frb(mirror(Message))]
 pub enum _Message {
-    Message {
+    Standard {
         role: Role,
         content: String,
         #[frb(default = "const []")]
@@ -52,7 +52,7 @@ pub enum _Message {
         content: String,
         tool_calls: Vec<ToolCall>,
     },
-    ToolResp {
+    ToolResult {
         role: Role,
         name: String,
         content: String,

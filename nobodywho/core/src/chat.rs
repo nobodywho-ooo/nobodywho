@@ -70,13 +70,13 @@ pub struct Asset {
 }
 
 // deny_unknown_fields is required because assets has a serde default, making the
-// Message variant so permissive it would greedily match ToolCalls/ToolResp JSON
+// Standard variant so permissive it would greedily match ToolCalls/ToolResult JSON
 // before they get a chance (serde untagged tries variants in declaration order
 // and ignores unknown fields by default).
 #[derive(Deserialize, Serialize, Clone, Debug)]
 #[serde(untagged, deny_unknown_fields)]
 pub enum Message {
-    Message {
+    Standard {
         role: Role,
         content: String,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -92,7 +92,7 @@ pub enum Message {
         content: String,
         tool_calls: Vec<ToolCall>,
     },
-    ToolResp {
+    ToolResult {
         role: Role,
         name: String,
         content: String,
@@ -102,30 +102,30 @@ pub enum Message {
 impl Message {
     pub fn role(&self) -> &Role {
         match self {
-            Message::Message { role, .. }
+            Message::Standard { role, .. }
             | Message::ToolCalls { role, .. }
-            | Message::ToolResp { role, .. } => role,
+            | Message::ToolResult { role, .. } => role,
         }
     }
 
     pub fn content(&self) -> &str {
         match self {
-            Message::Message { content, .. }
+            Message::Standard { content, .. }
             | Message::ToolCalls { content, .. }
-            | Message::ToolResp { content, .. } => content,
+            | Message::ToolResult { content, .. } => content,
         }
     }
 
     pub fn assets(&self) -> Vec<Asset> {
         match self {
-            Message::Message { assets, .. } => assets.clone(),
+            Message::Standard { assets, .. } => assets.clone(),
             Message::ToolCalls { .. } => vec![],
-            Message::ToolResp { .. } => vec![],
+            Message::ToolResult { .. } => vec![],
         }
     }
 
     pub fn new_user(content: String) -> Self {
-        Self::Message {
+        Self::Standard {
             role: Role::User,
             content,
             assets: vec![],
@@ -133,7 +133,7 @@ impl Message {
     }
 
     pub fn new_assistant(content: String) -> Self {
-        Self::Message {
+        Self::Standard {
             role: Role::Assistant,
             content,
             assets: vec![],
@@ -141,7 +141,7 @@ impl Message {
     }
 
     pub fn new_system(content: String) -> Self {
-        Self::Message {
+        Self::Standard {
             role: Role::System,
             content,
             assets: vec![],
@@ -294,7 +294,7 @@ impl ChatBuilder {
 ///
 /// Use [`ChatBuilder`] to create a new instance with a fluent API.
 pub struct ChatHandle {
-    guard: WorkerGuard<ChatMsg>,
+    guard: WorkerGuard<WorkerCommand>,
 }
 
 impl ChatHandle {
@@ -333,7 +333,7 @@ impl ChatHandle {
         prompt: Prompt,
     ) -> tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput> {
         let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
-        self.guard.send(ChatMsg::Ask { prompt, output_tx });
+        self.guard.send(WorkerCommand::Ask { prompt, output_tx });
         output_rx
     }
 
@@ -355,7 +355,7 @@ impl ChatHandle {
 
     fn set_and_wait_blocking<F>(&self, make_msg: F) -> Option<()>
     where
-        F: FnOnce(tokio::sync::mpsc::Sender<()>) -> ChatMsg,
+        F: FnOnce(tokio::sync::mpsc::Sender<()>) -> WorkerCommand,
     {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         let msg = make_msg(output_tx);
@@ -370,7 +370,7 @@ impl ChatHandle {
         system_prompt: Option<String>,
         tools: Vec<Tool>,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(|output_tx| ChatMsg::ResetChat {
+        self.set_and_wait_blocking(|output_tx| WorkerCommand::ResetChat {
             system_prompt,
             tools,
             output_tx,
@@ -380,7 +380,7 @@ impl ChatHandle {
 
     /// Reset the chat conversation history.
     pub fn reset_history(&self) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(|output_tx| ChatMsg::SetChatHistory {
+        self.set_and_wait_blocking(|output_tx| WorkerCommand::SetChatHistory {
             messages: vec![],
             output_tx,
         })
@@ -391,7 +391,7 @@ impl ChatHandle {
 
     /// Update the available tools for the model to use.
     pub fn set_tools(&self, tools: Vec<Tool>) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(|output_tx| ChatMsg::SetTools { tools, output_tx })
+        self.set_and_wait_blocking(|output_tx| WorkerCommand::SetTools { tools, output_tx })
             .ok_or(crate::errors::SetterError::SetterError("set_tools".into()))
     }
 
@@ -401,7 +401,7 @@ impl ChatHandle {
         &self,
         allow_thinking: bool,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(|output_tx| ChatMsg::SetThinking {
+        self.set_and_wait_blocking(|output_tx| WorkerCommand::SetThinking {
             allow_thinking,
             output_tx,
         })
@@ -416,7 +416,7 @@ impl ChatHandle {
         name: String,
         value: bool,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(|output_tx| ChatMsg::SetTemplateVariable {
+        self.set_and_wait_blocking(|output_tx| WorkerCommand::SetTemplateVariable {
             name,
             value,
             output_tx,
@@ -431,7 +431,7 @@ impl ChatHandle {
         &self,
         variables: std::collections::HashMap<String, bool>,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(|output_tx| ChatMsg::SetTemplateVariables {
+        self.set_and_wait_blocking(|output_tx| WorkerCommand::SetTemplateVariables {
             variables,
             output_tx,
         })
@@ -445,7 +445,7 @@ impl ChatHandle {
         &self,
     ) -> Result<std::collections::HashMap<String, bool>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        self.guard.send(ChatMsg::GetTemplateVariables { output_tx });
+        self.guard.send(WorkerCommand::GetTemplateVariables { output_tx });
         output_rx
             .blocking_recv()
             .ok_or(crate::errors::GetterError::GetterError(
@@ -458,7 +458,7 @@ impl ChatHandle {
         &self,
         sampler_config: SamplerConfig,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(|output_tx| ChatMsg::SetSamplerConfig {
+        self.set_and_wait_blocking(|output_tx| WorkerCommand::SetSamplerConfig {
             sampler_config,
             output_tx,
         })
@@ -475,7 +475,7 @@ impl ChatHandle {
     /// Get the chat history without the system prompt (lower-level API).
     pub fn get_chat_history(&self) -> Result<Vec<Message>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        self.guard.send(ChatMsg::GetChatHistory { output_tx });
+        self.guard.send(WorkerCommand::GetChatHistory { output_tx });
         output_rx
             .blocking_recv()
             .ok_or(crate::errors::GetterError::GetterError(
@@ -488,7 +488,7 @@ impl ChatHandle {
         &self,
         messages: Vec<Message>,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(|output_tx| ChatMsg::SetChatHistory {
+        self.set_and_wait_blocking(|output_tx| WorkerCommand::SetChatHistory {
             messages,
             output_tx,
         })
@@ -499,7 +499,7 @@ impl ChatHandle {
     /// Get the sampler config
     pub fn get_sampler_config(&self) -> Result<SamplerConfig, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        self.guard.send(ChatMsg::GetSamplerConfig { output_tx });
+        self.guard.send(WorkerCommand::GetSamplerConfig { output_tx });
         output_rx
             .blocking_recv()
             .ok_or(crate::errors::GetterError::GetterError(
@@ -537,7 +537,7 @@ impl ChatHandle {
         &self,
         system_prompt: Option<String>,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(|output_tx| ChatMsg::SetSystemPrompt {
+        self.set_and_wait_blocking(|output_tx| WorkerCommand::SetSystemPrompt {
             system_prompt,
             output_tx,
         })
@@ -549,7 +549,7 @@ impl ChatHandle {
     /// Get the system prompt
     pub fn get_system_prompt(&self) -> Result<Option<String>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        self.guard.send(ChatMsg::GetSystemPrompt { output_tx });
+        self.guard.send(WorkerCommand::GetSystemPrompt { output_tx });
         output_rx
             .blocking_recv()
             .ok_or(crate::errors::GetterError::GetterError(
@@ -563,7 +563,7 @@ impl ChatHandle {
 /// Use [`ChatBuilder`] to create a new instance with a fluent API.
 #[derive(Clone)]
 pub struct ChatHandleAsync {
-    guard: Arc<WorkerGuard<ChatMsg>>,
+    guard: Arc<WorkerGuard<WorkerCommand>>,
 }
 
 impl ChatHandleAsync {
@@ -602,7 +602,7 @@ impl ChatHandleAsync {
         prompt: Prompt,
     ) -> tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput> {
         let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
-        self.guard.send(ChatMsg::Ask { prompt, output_tx });
+        self.guard.send(WorkerCommand::Ask { prompt, output_tx });
         output_rx
     }
 
@@ -625,7 +625,7 @@ impl ChatHandleAsync {
     // internal helper function for async setters
     async fn set_and_wait_async<F>(&self, make_msg: F) -> Option<()>
     where
-        F: FnOnce(tokio::sync::mpsc::Sender<()>) -> ChatMsg,
+        F: FnOnce(tokio::sync::mpsc::Sender<()>) -> WorkerCommand,
     {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         let msg = make_msg(output_tx);
@@ -640,7 +640,7 @@ impl ChatHandleAsync {
         system_prompt: Option<String>,
         tools: Vec<Tool>,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_async(|output_tx| ChatMsg::ResetChat {
+        self.set_and_wait_async(|output_tx| WorkerCommand::ResetChat {
             system_prompt,
             tools,
             output_tx,
@@ -651,7 +651,7 @@ impl ChatHandleAsync {
 
     /// Reset the chat conversation history.
     pub async fn reset_history(&self) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_async(|output_tx| ChatMsg::SetChatHistory {
+        self.set_and_wait_async(|output_tx| WorkerCommand::SetChatHistory {
             messages: vec![],
             output_tx,
         })
@@ -663,7 +663,7 @@ impl ChatHandleAsync {
 
     /// Update the available tools for the model to use.
     pub async fn set_tools(&self, tools: Vec<Tool>) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_async(|output_tx| ChatMsg::SetTools { tools, output_tx })
+        self.set_and_wait_async(|output_tx| WorkerCommand::SetTools { tools, output_tx })
             .await
             .ok_or(crate::errors::SetterError::SetterError("set_tools".into()))
     }
@@ -674,7 +674,7 @@ impl ChatHandleAsync {
         &self,
         allow_thinking: bool,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_async(|output_tx| ChatMsg::SetThinking {
+        self.set_and_wait_async(|output_tx| WorkerCommand::SetThinking {
             allow_thinking,
             output_tx,
         })
@@ -690,7 +690,7 @@ impl ChatHandleAsync {
         name: String,
         value: bool,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_async(|output_tx| ChatMsg::SetTemplateVariable {
+        self.set_and_wait_async(|output_tx| WorkerCommand::SetTemplateVariable {
             name,
             value,
             output_tx,
@@ -706,7 +706,7 @@ impl ChatHandleAsync {
         &self,
         variables: std::collections::HashMap<String, bool>,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_async(|output_tx| ChatMsg::SetTemplateVariables {
+        self.set_and_wait_async(|output_tx| WorkerCommand::SetTemplateVariables {
             variables,
             output_tx,
         })
@@ -721,7 +721,7 @@ impl ChatHandleAsync {
         &self,
     ) -> Result<std::collections::HashMap<String, bool>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        self.guard.send(ChatMsg::GetTemplateVariables { output_tx });
+        self.guard.send(WorkerCommand::GetTemplateVariables { output_tx });
         output_rx
             .recv()
             .await
@@ -735,7 +735,7 @@ impl ChatHandleAsync {
         &self,
         sampler_config: SamplerConfig,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_async(|output_tx| ChatMsg::SetSamplerConfig {
+        self.set_and_wait_async(|output_tx| WorkerCommand::SetSamplerConfig {
             sampler_config,
             output_tx,
         })
@@ -753,7 +753,7 @@ impl ChatHandleAsync {
     /// Get the chat history without the system prompt (lower-level API).
     pub async fn get_chat_history(&self) -> Result<Vec<Message>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        self.guard.send(ChatMsg::GetChatHistory { output_tx });
+        self.guard.send(WorkerCommand::GetChatHistory { output_tx });
         output_rx
             .recv()
             .await
@@ -767,7 +767,7 @@ impl ChatHandleAsync {
         &self,
         messages: Vec<Message>,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_async(|output_tx| ChatMsg::SetChatHistory {
+        self.set_and_wait_async(|output_tx| WorkerCommand::SetChatHistory {
             messages,
             output_tx,
         })
@@ -780,7 +780,7 @@ impl ChatHandleAsync {
     /// Get the sampler config.
     pub async fn get_sampler_config(&self) -> Result<SamplerConfig, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        self.guard.send(ChatMsg::GetSamplerConfig { output_tx });
+        self.guard.send(WorkerCommand::GetSamplerConfig { output_tx });
         output_rx
             .recv()
             .await
@@ -819,7 +819,7 @@ impl ChatHandleAsync {
         &self,
         system_prompt: Option<String>,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_async(|output_tx| ChatMsg::SetSystemPrompt {
+        self.set_and_wait_async(|output_tx| WorkerCommand::SetSystemPrompt {
             system_prompt,
             output_tx,
         })
@@ -832,7 +832,7 @@ impl ChatHandleAsync {
     /// Get the system prompt
     pub async fn get_system_prompt(&self) -> Result<Option<String>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        self.guard.send(ChatMsg::GetSystemPrompt { output_tx });
+        self.guard.send(WorkerCommand::GetSystemPrompt { output_tx });
         output_rx
             .recv()
             .await
@@ -944,7 +944,7 @@ impl TokenStreamAsync {
     }
 }
 
-enum ChatMsg {
+enum WorkerCommand {
     Ask {
         prompt: Prompt,
         output_tx: tokio::sync::mpsc::UnboundedSender<llm::WriteOutput>,
@@ -997,11 +997,11 @@ enum ChatMsg {
     },
 }
 
-impl std::fmt::Debug for ChatMsg {
+impl std::fmt::Debug for WorkerCommand {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ChatMsg::Ask { prompt, .. } => f.debug_struct("Ask").field("text", prompt).finish(),
-            ChatMsg::ResetChat {
+            WorkerCommand::Ask { prompt, .. } => f.debug_struct("Ask").field("text", prompt).finish(),
+            WorkerCommand::ResetChat {
                 system_prompt,
                 tools,
                 ..
@@ -1010,50 +1010,50 @@ impl std::fmt::Debug for ChatMsg {
                 .field("system_prompt", system_prompt)
                 .field("tools", &format!("[{} tools]", tools.len()))
                 .finish(),
-            ChatMsg::SetTools { tools, .. } => f
+            WorkerCommand::SetTools { tools, .. } => f
                 .debug_struct("SetTools")
                 .field("tools", &format!("[{} tools]", tools.len()))
                 .finish(),
-            ChatMsg::SetSystemPrompt { system_prompt, .. } => f
+            WorkerCommand::SetSystemPrompt { system_prompt, .. } => f
                 .debug_struct("SetSystemPrompt")
                 .field("system_prompt", system_prompt)
                 .finish(),
-            ChatMsg::GetSystemPrompt { .. } => f.debug_struct("GetSystemPrompt").finish(),
-            ChatMsg::SetThinking { allow_thinking, .. } => f
+            WorkerCommand::GetSystemPrompt { .. } => f.debug_struct("GetSystemPrompt").finish(),
+            WorkerCommand::SetThinking { allow_thinking, .. } => f
                 .debug_struct("SetThinking")
                 .field("allow_thinking", allow_thinking)
                 .finish(),
-            ChatMsg::SetTemplateVariable { name, value, .. } => f
+            WorkerCommand::SetTemplateVariable { name, value, .. } => f
                 .debug_struct("SetTemplateVariable")
                 .field("name", name)
                 .field("value", value)
                 .finish(),
-            ChatMsg::SetTemplateVariables { variables, .. } => f
+            WorkerCommand::SetTemplateVariables { variables, .. } => f
                 .debug_struct("SetTemplateVariables")
                 .field("variables", &format!("[{} variables]", variables.len()))
                 .finish(),
-            ChatMsg::GetTemplateVariables { .. } => f.debug_struct("GetTemplateVariables").finish(),
-            ChatMsg::SetSamplerConfig { sampler_config, .. } => f
+            WorkerCommand::GetTemplateVariables { .. } => f.debug_struct("GetTemplateVariables").finish(),
+            WorkerCommand::SetSamplerConfig { sampler_config, .. } => f
                 .debug_struct("SetSamplerConfig")
                 .field("sampler_config", sampler_config)
                 .finish(),
-            ChatMsg::GetChatHistory { .. } => f.debug_struct("GetChatHistory").finish(),
-            ChatMsg::SetChatHistory { messages, .. } => f
+            WorkerCommand::GetChatHistory { .. } => f.debug_struct("GetChatHistory").finish(),
+            WorkerCommand::SetChatHistory { messages, .. } => f
                 .debug_struct("SetChatHistory")
                 .field("messages", &format!("[{} messages]", messages.len()))
                 .finish(),
-            ChatMsg::GetSamplerConfig { .. } => f.debug_struct("GetSamplerConfig").finish(),
+            WorkerCommand::GetSamplerConfig { .. } => f.debug_struct("GetSamplerConfig").finish(),
         }
     }
 }
 
 fn process_worker_msg(
     worker_state: &mut Worker<'_, ChatWorker>,
-    msg: ChatMsg,
+    msg: WorkerCommand,
 ) -> Result<(), ChatWorkerError> {
     info!(?msg, "Worker processing:");
     match msg {
-        ChatMsg::Ask { prompt, output_tx } => {
+        WorkerCommand::Ask { prompt, output_tx } => {
             let should_stop = Arc::clone(&worker_state.extra.should_stop);
             let callback = move |out| {
                 if output_tx.send(out).is_err() {
@@ -1064,7 +1064,7 @@ fn process_worker_msg(
             };
             worker_state.ask(prompt, callback)?;
         }
-        ChatMsg::ResetChat {
+        WorkerCommand::ResetChat {
             system_prompt,
             tools,
             output_tx,
@@ -1072,29 +1072,29 @@ fn process_worker_msg(
             worker_state.reset_chat(system_prompt, tools)?;
             let _ = output_tx.blocking_send(());
         }
-        ChatMsg::SetTools { tools, output_tx } => {
+        WorkerCommand::SetTools { tools, output_tx } => {
             worker_state.set_tools(tools)?;
             let _ = output_tx.blocking_send(());
         }
-        ChatMsg::SetSystemPrompt {
+        WorkerCommand::SetSystemPrompt {
             system_prompt,
             output_tx,
         } => {
             worker_state.set_system_prompt(system_prompt)?;
             let _ = output_tx.blocking_send(());
         }
-        ChatMsg::GetSystemPrompt { output_tx } => {
+        WorkerCommand::GetSystemPrompt { output_tx } => {
             let system_prompt = worker_state.get_system_prompt();
             let _ = output_tx.blocking_send(system_prompt);
         }
-        ChatMsg::SetThinking {
+        WorkerCommand::SetThinking {
             allow_thinking,
             output_tx,
         } => {
             worker_state.set_template_variable("enable_thinking".to_string(), allow_thinking)?;
             let _ = output_tx.blocking_send(());
         }
-        ChatMsg::SetTemplateVariable {
+        WorkerCommand::SetTemplateVariable {
             name,
             value,
             output_tx,
@@ -1102,36 +1102,36 @@ fn process_worker_msg(
             worker_state.set_template_variable(name, value)?;
             let _ = output_tx.blocking_send(());
         }
-        ChatMsg::SetTemplateVariables {
+        WorkerCommand::SetTemplateVariables {
             variables,
             output_tx,
         } => {
             worker_state.set_template_variables(variables)?;
             let _ = output_tx.blocking_send(());
         }
-        ChatMsg::GetTemplateVariables { output_tx } => {
+        WorkerCommand::GetTemplateVariables { output_tx } => {
             let vars = worker_state.get_template_variables();
             let _ = output_tx.blocking_send(vars);
         }
-        ChatMsg::SetSamplerConfig {
+        WorkerCommand::SetSamplerConfig {
             sampler_config,
             output_tx,
         } => {
             worker_state.set_sampler_config(sampler_config);
             let _ = output_tx.blocking_send(());
         }
-        ChatMsg::GetChatHistory { output_tx } => {
+        WorkerCommand::GetChatHistory { output_tx } => {
             let msgs = worker_state.get_chat_history();
             let _ = output_tx.blocking_send(msgs);
         }
-        ChatMsg::SetChatHistory {
+        WorkerCommand::SetChatHistory {
             messages,
             output_tx,
         } => {
             worker_state.set_chat_history(messages)?;
             let _ = output_tx.blocking_send(());
         }
-        ChatMsg::GetSamplerConfig { output_tx } => {
+        WorkerCommand::GetSamplerConfig { output_tx } => {
             let sampler_config = worker_state.get_sampler_config();
             let _ = output_tx.blocking_send(sampler_config);
         }
@@ -1279,7 +1279,7 @@ impl Worker<'_, ChatWorker> {
                 tool_format,
                 sampler_config,
                 messages: match config.system_prompt {
-                    Some(msg) => vec![Message::Message {
+                    Some(msg) => vec![Message::Standard {
                         role: Role::System,
                         content: msg,
                         assets: vec![],
@@ -1314,7 +1314,7 @@ impl Worker<'_, ChatWorker> {
     }
 
     fn add_message(&mut self, role: Role, content: String, assets: Vec<Asset>) {
-        self.extra.messages.push(Message::Message {
+        self.extra.messages.push(Message::Standard {
             role,
             content,
             assets,
@@ -1330,7 +1330,7 @@ impl Worker<'_, ChatWorker> {
     }
 
     pub fn add_tool_resp(&mut self, name: String, content: String) {
-        self.extra.messages.push(Message::ToolResp {
+        self.extra.messages.push(Message::ToolResult {
             role: Role::Tool,
             name,
             content,
@@ -1864,7 +1864,7 @@ impl Worker<'_, ChatWorker> {
     ) -> Result<(), ContextSyncError> {
         match system_prompt {
             Some(sys_msg) => {
-                let system_message = Message::Message {
+                let system_message = Message::Standard {
                     role: Role::System,
                     content: sys_msg,
                     assets: vec![],
@@ -1899,7 +1899,7 @@ impl Worker<'_, ChatWorker> {
             return None;
         };
         match &self.extra.messages[0] {
-            Message::Message {
+            Message::Standard {
                 role: Role::System,
                 content,
                 assets: _,
@@ -1953,7 +1953,7 @@ impl Worker<'_, ChatWorker> {
     pub fn set_chat_history(&mut self, messages: Vec<Message>) -> Result<(), ContextSyncError> {
         // get system prompt, if it is there
         let system_msg: Option<Message> = match self.extra.messages.as_slice() {
-            [msg @ Message::Message {
+            [msg @ Message::Standard {
                 role: Role::System, ..
             }, ..] => Some(msg.clone()),
             _ => None,
@@ -1976,7 +1976,7 @@ impl Worker<'_, ChatWorker> {
 
     pub fn get_chat_history(&self) -> Vec<Message> {
         match self.extra.messages.as_slice() {
-            [Message::Message {
+            [Message::Standard {
                 role: Role::System, ..
             }, rest @ ..] => rest.to_vec(),
             _ => self.extra.messages.clone(),
@@ -2410,7 +2410,7 @@ mod tests {
             "System message should remain"
         );
 
-        if let Message::Message { content, .. } = &messages_after[0] {
+        if let Message::Standard { content, .. } = &messages_after[0] {
             assert!(
                 content.contains("helpful assistant"),
                 "System prompt should be preserved"
@@ -2440,7 +2440,7 @@ mod tests {
             .rev()
             .find(|m| m.role() == &Role::User);
 
-        if let Some(Message::Message { content, .. }) = last_user {
+        if let Some(Message::Standard { content, .. }) = last_user {
             assert!(
                 content.contains("Hello!"),
                 "Last user message should be preserved"
@@ -2560,7 +2560,7 @@ mod tests {
             .rev()
             .find(|m| m.role() == &Role::User);
 
-        if let Some(Message::Message { content, .. }) = last_user {
+        if let Some(Message::Standard { content, .. }) = last_user {
             assert!(
                 content.contains("Final question!"),
                 "Last user message should be preserved"
@@ -2666,7 +2666,7 @@ mod tests {
             .rev()
             .find(|m| m.role() == &Role::User);
 
-        if let Some(Message::Message { content, .. }) = last_user {
+        if let Some(Message::Standard { content, .. }) = last_user {
             assert!(
                 content.contains("new question"),
                 "Last user message should be preserved"
@@ -2749,7 +2749,7 @@ mod tests {
             .rev()
             .find(|m| m.role() == &Role::User);
 
-        if let Some(Message::Message { content, .. }) = last_user {
+        if let Some(Message::Standard { content, .. }) = last_user {
             assert!(
                 content.contains("What is"),
                 "Last user message should be preserved"

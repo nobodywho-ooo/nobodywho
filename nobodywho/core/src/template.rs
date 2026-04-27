@@ -81,10 +81,10 @@ impl ChatTemplate {
         let add_generation_prompt = messages.last().is_some_and(|msg| {
             matches!(
                 msg,
-                Message::Message {
+                Message::Standard {
                     role: Role::User,
                     ..
-                } | Message::ToolResp { .. }
+                } | Message::ToolResult { .. }
             )
         });
 
@@ -123,16 +123,16 @@ impl ChatTemplate {
     ) -> Result<Vec<Message>, minijinja::Error> {
         warn!("System role not supported by this chat template. Concatenating first user message and system prompt.");
         match messages {
-            [Message::Message {
+            [Message::Standard {
                 role: Role::System,
                 content: first_content,
                 assets: first_assets,
-            }, Message::Message {
+            }, Message::Standard {
                 role: Role::User,
                 content: second_content,
                 assets: second_assets,
             }, rest @ ..] => {
-                let new_first_message = Message::Message {
+                let new_first_message = Message::Standard {
                     role: Role::User,
                     content: format!("{}\n\n{}", first_content, second_content),
                     assets: first_assets

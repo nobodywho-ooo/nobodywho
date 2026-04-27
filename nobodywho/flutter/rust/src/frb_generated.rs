@@ -3109,7 +3109,7 @@ fn wire__crate__tool_call_arguments_json_impl(
 
 #[allow(clippy::unnecessary_literal_unwrap)]
 const _: fn() = || match None::<crate::Message>.unwrap() {
-    crate::Message::Message {
+    crate::Message::Standard {
         role,
         content,
         assets,
@@ -3127,7 +3127,7 @@ const _: fn() = || match None::<crate::Message>.unwrap() {
         let _: String = content;
         let _: Vec<ToolCall> = tool_calls;
     }
-    crate::Message::ToolResp {
+    crate::Message::ToolResult {
         role,
         name,
         content,
@@ -3800,7 +3800,7 @@ impl SseDecode for crate::Message {
                 let mut var_role = <crate::Role>::sse_decode(deserializer);
                 let mut var_content = <String>::sse_decode(deserializer);
                 let mut var_assets = <Vec<Asset>>::sse_decode(deserializer);
-                return crate::Message::Message {
+                return crate::Message::Standard {
                     role: var_role,
                     content: var_content,
                     assets: var_assets,
@@ -3820,7 +3820,7 @@ impl SseDecode for crate::Message {
                 let mut var_role = <crate::Role>::sse_decode(deserializer);
                 let mut var_name = <String>::sse_decode(deserializer);
                 let mut var_content = <String>::sse_decode(deserializer);
-                return crate::Message::ToolResp {
+                return crate::Message::ToolResult {
                     role: var_role,
                     name: var_name,
                     content: var_content,
@@ -4364,7 +4364,7 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<Value>> for Value {
 impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::Message> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self.0 {
-            crate::Message::Message {
+            crate::Message::Standard {
                 role,
                 content,
                 assets,
@@ -4386,7 +4386,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::Message> {
                 tool_calls.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::Message::ToolResp {
+            crate::Message::ToolResult {
                 role,
                 name,
                 content,
@@ -4972,7 +4972,7 @@ impl SseEncode for crate::Message {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         match self {
-            crate::Message::Message {
+            crate::Message::Standard {
                 role,
                 content,
                 assets,
@@ -4992,7 +4992,7 @@ impl SseEncode for crate::Message {
                 <String>::sse_encode(content, serializer);
                 <Vec<ToolCall>>::sse_encode(tool_calls, serializer);
             }
-            crate::Message::ToolResp {
+            crate::Message::ToolResult {
                 role,
                 name,
                 content,
