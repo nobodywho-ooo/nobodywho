@@ -1005,6 +1005,17 @@ def download_model(model_path: str |PathLike[str], headers: dict[str, str] | Non
         RuntimeError: If the download fails
     """
 
+def get_cached_models() -> tuple[list[str], int]:
+    """
+    Returns the paths and total byte size of all cached .gguf models.
+    
+    Returns:
+        A tuple of (list[str], int): paths to each cached model file, and their combined size in bytes.
+    
+    Raises:
+        RuntimeError: If the cache directory cannot be read
+    """
+
 def python_tool(max_duration: int | None = None, max_memory: int | None = None, max_recursion_depth: int | None = None) -> Tool:
     """
     Create a built-in tool that lets the LLM run sandboxed Python code.
