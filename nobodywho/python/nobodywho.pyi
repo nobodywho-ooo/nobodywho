@@ -1,6 +1,7 @@
 import os
 import typing
 from collections.abc import Sequence
+from os import PathLike
 from typing import final
 
 T = typing.TypeVar('T', str, typing.Awaitable[str])  # Type variable for tool return types (sync str or async Awaitable[str])
@@ -956,6 +957,53 @@ def cosine_similarity(a: Sequence[float], b: Sequence[float]) -> float:
     
     Raises:
         ValueError: If vectors have different lengths
+    """
+
+def estimate_model_memory(model_path: str, n_ctx: int, kv_type_k_bytes: float = 2.0, kv_type_v_bytes: float = 2.0) -> tuple[int, int]:
+    """
+    Estimate memory requirements for a model without loading it.
+    
+    Returns a tuple of ``(model_weights_bytes, kv_cache_bytes)``.
+    Model weights are estimated from the file size (llama.cpp runtime overhead not included).
+    KV cache is computed from the model's architecture and the requested context size.
+    
+    ``kv_type_k_bytes`` and ``kv_type_v_bytes`` are bytes per element for the K and V caches:
+    ``4.0`` = f32, ``2.0`` = f16, ``1.0`` = q8_0, ``0.5`` = q4_0.
+    
+    Args:
+        model_path: Path to the GGUF model file
+        n_ctx: Context size (number of tokens)
+        kv_type_k_bytes: Bytes per element for the K cache (default: 2.0 = f16)
+        kv_type_v_bytes: Bytes per element for the V cache (default: 2.0 = f16)
+    
+    Returns:
+        Tuple of ``(model_weights_bytes, kv_cache_bytes)``
+    
+    Raises:
+        ValueError: If the model file cannot be read or is not a valid GGUF
+    """
+
+def load_model_for_memory_budget(model_path: str |PathLike[str], memory_fraction: float = 0.8, max_n_ctx: int = 32768, kv_type_k_bytes: float = 2.0, kv_type_v_bytes: float = 2.0, use_gpu_if_available: bool = True) -> tuple[Model, int]:
+    """
+    Load a model and compute the largest context size that fits within a fraction of available memory.
+    
+    Reads the model's GGUF metadata, checks free memory on the best available device,
+    and returns a ``(Model, n_ctx)`` tuple ready to pass directly to ``Chat`` or ``Encoder``.
+    
+    Args:
+        model_path: Path to the GGUF model file
+        memory_fraction: Fraction of available memory to use (default: 0.8)
+        max_n_ctx: Hard upper bound on context size (default: 32768)
+        kv_type_k_bytes: Bytes per element for the K cache (default: 2.0 = f16)
+        kv_type_v_bytes: Bytes per element for the V cache (default: 2.0 = f16)
+        use_gpu_if_available: Whether to use GPU acceleration (default: True)
+    
+    Returns:
+        Tuple of ``(Model, n_ctx)``
+    
+    Raises:
+        ValueError: If the model metadata cannot be read or the memory budget is too small
+        RuntimeError: If the model fails to load
     """
 
 def python_tool(max_duration: int | None = None, max_memory: int | None = None, max_recursion_depth: int | None = None) -> Tool:

@@ -446,7 +446,7 @@ fn download_model_from_hf(
 }
 
 /// Get the paths and total byte size of every .gguf model in the nobodywho cache.
-pub fn get_cache_information() -> Result<(Vec<std::path::PathBuf>, u64), crate::errors::LoadModelError> {
+pub fn get_cached_models() -> Result<(Vec<std::path::PathBuf>, u64), crate::errors::LoadModelError> {
     let cache_dir = get_cache_dir()?;
     let mut models = Vec::new();
     let mut total_size: u64 = 0;
