@@ -489,6 +489,7 @@ pub(crate) struct Worker<'a, S> {
     pub(crate) small_batch: LlamaBatch<'a>,
     pub(crate) projection_model: Option<&'a ProjectionModel>,
     pub(crate) tokenizer: Tokenizer<'a>,
+    pub(crate) use_embeddings: bool,
 
     pub(crate) extra: S,
 }
@@ -574,6 +575,7 @@ where
             projection_model,
             extra,
             tokenizer,
+            use_embeddings,
         };
         Ok(state)
     }
@@ -672,8 +674,12 @@ where
             self.big_batch.clear();
             let seq_ids = &[0];
             for (i, token) in (0..).zip(tokens.iter()) {
-                // Only compute logits for the last token to save computation
-                let output_logits = i == n_tokens - 1;
+                // For LLM workers only the last token's logits are needed (sampling).
+                // For encoder workers every token must be marked as an output so the
+                // pooling layer has hidden states to work with — otherwise llama.cpp
+                // logs "embeddings required but some input tokens were not marked as
+                // outputs -> overriding" and silently flips them on for us.
+                let output_logits = self.use_embeddings || i == n_tokens - 1;
                 self.big_batch
                     .add(*token, self.n_past + i as i32, seq_ids, output_logits)?;
             }
