@@ -12,7 +12,7 @@
 
 NobodyWho is a library that lets you run LLMs locally and efficiently on any device.
 
-We currently support Python, Flutter and Godot, with more integrations on the way.
+We currently support Python, Flutter, React Native and Godot, with more integrations on the way.
 
 
 ## At a Glance
@@ -57,6 +57,34 @@ void main() async {
 Check out the [starter example app](https://github.com/nobodywho-ooo/flutter-starter-example) to test the library in 2 minutes and explore advanced features like embeddings, tool calling, and RAG.
 
 See our [Flutter documentation](https://docs.nobodywho.ooo/flutter/) and [pub.dev](https://pub.dev/packages/nobodywho) for more.
+
+
+## React Native
+
+### Quick Start
+
+Install the library:
+
+```
+npm install react-native-nobodywho
+```
+
+Then start chatting with a model — NobodyWho downloads it automatically from Hugging Face:
+
+```typescript
+import { Chat } from "react-native-nobodywho";
+
+const chat = await Chat.fromPath({
+  modelPath: "hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf",
+});
+
+const msg = await chat.ask("Is water wet?").completed();
+console.log(msg); // Yes, indeed, water is wet!
+```
+
+Check out the [starter example app](https://github.com/nobodywho-ooo/react-native-starter-example) to test the library in 5 minutes and explore advanced features like embeddings, tool calling, and vision.
+
+See our [React Native documentation](https://docs.nobodywho.ooo/react-native/) and [npm](https://www.npmjs.com/package/react-native-nobodywho) for more.
 
 
 ## Python
@@ -143,7 +171,7 @@ For further instructions on how to setup NobodyWho in Godot please refer to our 
 
 ### Can I export to HTML5 or iOS?
 
-Desktop (Linux, MacOS, Windows) is supported across all bindings. Android is supported on Godot and Flutter. iOS is supported on Flutter only.
+Desktop (Linux, MacOS, Windows) is supported across all bindings. Android is supported on Godot, Flutter and React Native. iOS is supported on Flutter and React Native.
 
 Web exports will be a bit trickier to get right. See issue [#111](https://github.com/nobodywho-ooo/nobodywho/issues/111).
 
