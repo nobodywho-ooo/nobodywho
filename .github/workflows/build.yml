@@ -191,11 +191,9 @@ jobs:
           - "flutter"
           - "uniffi"
         exclude:
-          # uniffi (React Native) only needs iOS targets, not macOS desktop
+          # uniffi needs iOS targets + macOS arm64 (for Swift package), but not macOS x86_64
           - integration: "uniffi"
             target: "x86_64-apple-darwin"
-          - integration: "uniffi"
-            target: "aarch64-apple-darwin"
     steps:
       - uses: actions/checkout@v4
       - run: |
@@ -364,10 +362,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: "Download uniffi iOS artifacts"
+      - name: "Download uniffi Apple artifacts"
         uses: actions/download-artifact@v4
         with:
-          pattern: nobodywho-uniffi-*-apple-ios*-release
+          pattern: nobodywho-uniffi-*-apple-*-release
           merge-multiple: true
 
       - name: "List downloaded artifacts"
@@ -375,16 +373,18 @@ jobs:
 
       - name: "Build XCFramework with headers"
         run: |
-          mkdir -p device/Headers sim/Headers
+          mkdir -p device/Headers sim/Headers macos/Headers
           cp libnobodywho-uniffi-aarch64-apple-ios-release.a device/libnobodywho_uniffi.a
           cp libnobodywho-uniffi-aarch64-apple-ios-sim-release.a sim/libnobodywho_uniffi.a
-          for dir in device sim; do
+          cp libnobodywho-uniffi-aarch64-apple-darwin-release.a macos/libnobodywho_uniffi.a
+          for dir in device sim macos; do
             cp nobodywho/swift/generated/nobodywhoFFI.h $dir/Headers/
             cp nobodywho/swift/generated/nobodywhoFFI.modulemap $dir/Headers/module.modulemap
           done
           xcodebuild -create-xcframework \
             -library device/libnobodywho_uniffi.a -headers device/Headers \
             -library sim/libnobodywho_uniffi.a -headers sim/Headers \
+            -library macos/libnobodywho_uniffi.a -headers macos/Headers \
             -output NobodyWhoNative.xcframework
 
       - name: "Zip XCFramework"
