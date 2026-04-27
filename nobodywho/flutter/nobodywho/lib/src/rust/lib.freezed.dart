@@ -87,13 +87,13 @@ extension MessagePatterns on Message {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( Message_Message value)?  message,TResult Function( Message_ToolCalls value)?  toolCalls,TResult Function( Message_ToolResp value)?  toolResp,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( Message_Standard value)?  standard,TResult Function( Message_ToolCalls value)?  toolCalls,TResult Function( Message_ToolResult value)?  toolResult,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
-case Message_Message() when message != null:
-return message(_that);case Message_ToolCalls() when toolCalls != null:
-return toolCalls(_that);case Message_ToolResp() when toolResp != null:
-return toolResp(_that);case _:
+case Message_Standard() when standard != null:
+return standard(_that);case Message_ToolCalls() when toolCalls != null:
+return toolCalls(_that);case Message_ToolResult() when toolResult != null:
+return toolResult(_that);case _:
   return orElse();
 
 }
@@ -111,13 +111,13 @@ return toolResp(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( Message_Message value)  message,required TResult Function( Message_ToolCalls value)  toolCalls,required TResult Function( Message_ToolResp value)  toolResp,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( Message_Standard value)  standard,required TResult Function( Message_ToolCalls value)  toolCalls,required TResult Function( Message_ToolResult value)  toolResult,}){
 final _that = this;
 switch (_that) {
-case Message_Message():
-return message(_that);case Message_ToolCalls():
-return toolCalls(_that);case Message_ToolResp():
-return toolResp(_that);}
+case Message_Standard():
+return standard(_that);case Message_ToolCalls():
+return toolCalls(_that);case Message_ToolResult():
+return toolResult(_that);}
 }
 /// A variant of `map` that fallback to returning `null`.
 ///
@@ -131,13 +131,13 @@ return toolResp(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( Message_Message value)?  message,TResult? Function( Message_ToolCalls value)?  toolCalls,TResult? Function( Message_ToolResp value)?  toolResp,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( Message_Standard value)?  standard,TResult? Function( Message_ToolCalls value)?  toolCalls,TResult? Function( Message_ToolResult value)?  toolResult,}){
 final _that = this;
 switch (_that) {
-case Message_Message() when message != null:
-return message(_that);case Message_ToolCalls() when toolCalls != null:
-return toolCalls(_that);case Message_ToolResp() when toolResp != null:
-return toolResp(_that);case _:
+case Message_Standard() when standard != null:
+return standard(_that);case Message_ToolCalls() when toolCalls != null:
+return toolCalls(_that);case Message_ToolResult() when toolResult != null:
+return toolResult(_that);case _:
   return null;
 
 }
@@ -154,12 +154,12 @@ return toolResp(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( Role role,  String content,  List<Asset> assets)?  message,TResult Function( Role role,  String content,  List<ToolCall> toolCalls)?  toolCalls,TResult Function( Role role,  String name,  String content)?  toolResp,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( Role role,  String content,  List<Asset> assets)?  standard,TResult Function( Role role,  String content,  List<ToolCall> toolCalls)?  toolCalls,TResult Function( Role role,  String name,  String content)?  toolResult,required TResult orElse(),}) {final _that = this;
 switch (_that) {
-case Message_Message() when message != null:
-return message(_that.role,_that.content,_that.assets);case Message_ToolCalls() when toolCalls != null:
-return toolCalls(_that.role,_that.content,_that.toolCalls);case Message_ToolResp() when toolResp != null:
-return toolResp(_that.role,_that.name,_that.content);case _:
+case Message_Standard() when standard != null:
+return standard(_that.role,_that.content,_that.assets);case Message_ToolCalls() when toolCalls != null:
+return toolCalls(_that.role,_that.content,_that.toolCalls);case Message_ToolResult() when toolResult != null:
+return toolResult(_that.role,_that.name,_that.content);case _:
   return orElse();
 
 }
@@ -177,12 +177,12 @@ return toolResp(_that.role,_that.name,_that.content);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( Role role,  String content,  List<Asset> assets)  message,required TResult Function( Role role,  String content,  List<ToolCall> toolCalls)  toolCalls,required TResult Function( Role role,  String name,  String content)  toolResp,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( Role role,  String content,  List<Asset> assets)  standard,required TResult Function( Role role,  String content,  List<ToolCall> toolCalls)  toolCalls,required TResult Function( Role role,  String name,  String content)  toolResult,}) {final _that = this;
 switch (_that) {
-case Message_Message():
-return message(_that.role,_that.content,_that.assets);case Message_ToolCalls():
-return toolCalls(_that.role,_that.content,_that.toolCalls);case Message_ToolResp():
-return toolResp(_that.role,_that.name,_that.content);}
+case Message_Standard():
+return standard(_that.role,_that.content,_that.assets);case Message_ToolCalls():
+return toolCalls(_that.role,_that.content,_that.toolCalls);case Message_ToolResult():
+return toolResult(_that.role,_that.name,_that.content);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -196,12 +196,12 @@ return toolResp(_that.role,_that.name,_that.content);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( Role role,  String content,  List<Asset> assets)?  message,TResult? Function( Role role,  String content,  List<ToolCall> toolCalls)?  toolCalls,TResult? Function( Role role,  String name,  String content)?  toolResp,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( Role role,  String content,  List<Asset> assets)?  standard,TResult? Function( Role role,  String content,  List<ToolCall> toolCalls)?  toolCalls,TResult? Function( Role role,  String name,  String content)?  toolResult,}) {final _that = this;
 switch (_that) {
-case Message_Message() when message != null:
-return message(_that.role,_that.content,_that.assets);case Message_ToolCalls() when toolCalls != null:
-return toolCalls(_that.role,_that.content,_that.toolCalls);case Message_ToolResp() when toolResp != null:
-return toolResp(_that.role,_that.name,_that.content);case _:
+case Message_Standard() when standard != null:
+return standard(_that.role,_that.content,_that.assets);case Message_ToolCalls() when toolCalls != null:
+return toolCalls(_that.role,_that.content,_that.toolCalls);case Message_ToolResult() when toolResult != null:
+return toolResult(_that.role,_that.name,_that.content);case _:
   return null;
 
 }
@@ -212,8 +212,8 @@ return toolResp(_that.role,_that.name,_that.content);case _:
 /// @nodoc
 
 
-class Message_Message extends Message {
-  const Message_Message({required this.role, required this.content, final  List<Asset> assets = const []}): _assets = assets,super._();
+class Message_Standard extends Message {
+  const Message_Standard({required this.role, required this.content, final  List<Asset> assets = const []}): _assets = assets,super._();
   
 
 @override final  Role role;
@@ -230,13 +230,13 @@ class Message_Message extends Message {
 /// with the given fields replaced by the non-null parameter values.
 @override @JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
-$Message_MessageCopyWith<Message_Message> get copyWith => _$Message_MessageCopyWithImpl<Message_Message>(this, _$identity);
+$Message_StandardCopyWith<Message_Standard> get copyWith => _$Message_StandardCopyWithImpl<Message_Standard>(this, _$identity);
 
 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Message_Message&&(identical(other.role, role) || other.role == role)&&(identical(other.content, content) || other.content == content)&&const DeepCollectionEquality().equals(other._assets, _assets));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Message_Standard&&(identical(other.role, role) || other.role == role)&&(identical(other.content, content) || other.content == content)&&const DeepCollectionEquality().equals(other._assets, _assets));
 }
 
 
@@ -245,15 +245,15 @@ int get hashCode => Object.hash(runtimeType,role,content,const DeepCollectionEqu
 
 @override
 String toString() {
-  return 'Message.message(role: $role, content: $content, assets: $assets)';
+  return 'Message.standard(role: $role, content: $content, assets: $assets)';
 }
 
 
 }
 
 /// @nodoc
-abstract mixin class $Message_MessageCopyWith<$Res> implements $MessageCopyWith<$Res> {
-  factory $Message_MessageCopyWith(Message_Message value, $Res Function(Message_Message) _then) = _$Message_MessageCopyWithImpl;
+abstract mixin class $Message_StandardCopyWith<$Res> implements $MessageCopyWith<$Res> {
+  factory $Message_StandardCopyWith(Message_Standard value, $Res Function(Message_Standard) _then) = _$Message_StandardCopyWithImpl;
 @override @useResult
 $Res call({
  Role role, String content, List<Asset> assets
@@ -264,17 +264,17 @@ $Res call({
 
 }
 /// @nodoc
-class _$Message_MessageCopyWithImpl<$Res>
-    implements $Message_MessageCopyWith<$Res> {
-  _$Message_MessageCopyWithImpl(this._self, this._then);
+class _$Message_StandardCopyWithImpl<$Res>
+    implements $Message_StandardCopyWith<$Res> {
+  _$Message_StandardCopyWithImpl(this._self, this._then);
 
-  final Message_Message _self;
-  final $Res Function(Message_Message) _then;
+  final Message_Standard _self;
+  final $Res Function(Message_Standard) _then;
 
 /// Create a copy of Message
 /// with the given fields replaced by the non-null parameter values.
 @override @pragma('vm:prefer-inline') $Res call({Object? role = null,Object? content = null,Object? assets = null,}) {
-  return _then(Message_Message(
+  return _then(Message_Standard(
 role: null == role ? _self.role : role // ignore: cast_nullable_to_non_nullable
 as Role,content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
 as String,assets: null == assets ? _self._assets : assets // ignore: cast_nullable_to_non_nullable
@@ -364,8 +364,8 @@ as List<ToolCall>,
 /// @nodoc
 
 
-class Message_ToolResp extends Message {
-  const Message_ToolResp({required this.role, required this.name, required this.content}): super._();
+class Message_ToolResult extends Message {
+  const Message_ToolResult({required this.role, required this.name, required this.content}): super._();
   
 
 @override final  Role role;
@@ -376,13 +376,13 @@ class Message_ToolResp extends Message {
 /// with the given fields replaced by the non-null parameter values.
 @override @JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
-$Message_ToolRespCopyWith<Message_ToolResp> get copyWith => _$Message_ToolRespCopyWithImpl<Message_ToolResp>(this, _$identity);
+$Message_ToolResultCopyWith<Message_ToolResult> get copyWith => _$Message_ToolResultCopyWithImpl<Message_ToolResult>(this, _$identity);
 
 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Message_ToolResp&&(identical(other.role, role) || other.role == role)&&(identical(other.name, name) || other.name == name)&&(identical(other.content, content) || other.content == content));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Message_ToolResult&&(identical(other.role, role) || other.role == role)&&(identical(other.name, name) || other.name == name)&&(identical(other.content, content) || other.content == content));
 }
 
 
@@ -391,15 +391,15 @@ int get hashCode => Object.hash(runtimeType,role,name,content);
 
 @override
 String toString() {
-  return 'Message.toolResp(role: $role, name: $name, content: $content)';
+  return 'Message.toolResult(role: $role, name: $name, content: $content)';
 }
 
 
 }
 
 /// @nodoc
-abstract mixin class $Message_ToolRespCopyWith<$Res> implements $MessageCopyWith<$Res> {
-  factory $Message_ToolRespCopyWith(Message_ToolResp value, $Res Function(Message_ToolResp) _then) = _$Message_ToolRespCopyWithImpl;
+abstract mixin class $Message_ToolResultCopyWith<$Res> implements $MessageCopyWith<$Res> {
+  factory $Message_ToolResultCopyWith(Message_ToolResult value, $Res Function(Message_ToolResult) _then) = _$Message_ToolResultCopyWithImpl;
 @override @useResult
 $Res call({
  Role role, String name, String content
@@ -410,17 +410,17 @@ $Res call({
 
 }
 /// @nodoc
-class _$Message_ToolRespCopyWithImpl<$Res>
-    implements $Message_ToolRespCopyWith<$Res> {
-  _$Message_ToolRespCopyWithImpl(this._self, this._then);
+class _$Message_ToolResultCopyWithImpl<$Res>
+    implements $Message_ToolResultCopyWith<$Res> {
+  _$Message_ToolResultCopyWithImpl(this._self, this._then);
 
-  final Message_ToolResp _self;
-  final $Res Function(Message_ToolResp) _then;
+  final Message_ToolResult _self;
+  final $Res Function(Message_ToolResult) _then;
 
 /// Create a copy of Message
 /// with the given fields replaced by the non-null parameter values.
 @override @pragma('vm:prefer-inline') $Res call({Object? role = null,Object? name = null,Object? content = null,}) {
-  return _then(Message_ToolResp(
+  return _then(Message_ToolResult(
 role: null == role ? _self.role : role // ignore: cast_nullable_to_non_nullable
 as Role,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable

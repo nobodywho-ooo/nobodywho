@@ -107,7 +107,7 @@ pub struct ToolCall {
 
 #[derive(uniffi::Enum, Clone)]
 pub enum Message {
-    Message {
+    Standard {
         role: Role,
         content: String,
         assets: Vec<Asset>,
@@ -117,7 +117,7 @@ pub enum Message {
         content: String,
         tool_calls: Vec<ToolCall>,
     },
-    ToolResp {
+    ToolResult {
         role: Role,
         name: String,
         content: String,
@@ -126,11 +126,11 @@ pub enum Message {
 
 fn core_message_to_uniffi(m: &nobodywho::chat::Message) -> Message {
     match m {
-        nobodywho::chat::Message::Message {
+        nobodywho::chat::Message::Standard {
             role,
             content,
             assets,
-        } => Message::Message {
+        } => Message::Standard {
             role: Role::from(role),
             content: content.clone(),
             assets: assets
@@ -156,11 +156,11 @@ fn core_message_to_uniffi(m: &nobodywho::chat::Message) -> Message {
                 })
                 .collect(),
         },
-        nobodywho::chat::Message::ToolResp {
+        nobodywho::chat::Message::ToolResult {
             role,
             name,
             content,
-        } => Message::ToolResp {
+        } => Message::ToolResult {
             role: Role::from(role),
             name: name.clone(),
             content: content.clone(),
@@ -170,11 +170,11 @@ fn core_message_to_uniffi(m: &nobodywho::chat::Message) -> Message {
 
 fn uniffi_message_to_core(m: &Message) -> Result<nobodywho::chat::Message, NobodyWhoError> {
     match m {
-        Message::Message {
+        Message::Standard {
             role,
             content,
             assets,
-        } => Ok(nobodywho::chat::Message::Message {
+        } => Ok(nobodywho::chat::Message::Standard {
             role: nobodywho::chat::Role::from(role),
             content: content.clone(),
             assets: assets
@@ -207,11 +207,11 @@ fn uniffi_message_to_core(m: &Message) -> Result<nobodywho::chat::Message, Nobod
                 tool_calls: tcs?,
             })
         }
-        Message::ToolResp {
+        Message::ToolResult {
             role,
             name,
             content,
-        } => Ok(nobodywho::chat::Message::ToolResp {
+        } => Ok(nobodywho::chat::Message::ToolResult {
             role: nobodywho::chat::Role::from(role),
             name: name.clone(),
             content: content.clone(),

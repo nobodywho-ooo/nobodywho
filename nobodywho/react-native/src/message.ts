@@ -28,14 +28,14 @@ import {
  * }
  * ```
  */
-export type ChatMessage =
+export type Message =
   | { role: Role.User | Role.Assistant | Role.System; content: string; assets?: Asset[] }
   | { role: Role.Assistant; content: string; toolCalls: ToolCall[] }
   | { role: Role.Tool; name: string; content: string };
 
-/** @internal Convert internal Message to ChatMessage */
-export function fromInternal(msg: InternalMessage): ChatMessage {
-  if (msg.tag === Message_Tags.Message) {
+/** @internal Convert internal Message to Message */
+export function fromInternal(msg: InternalMessage): Message {
+  if (msg.tag === Message_Tags.Standard) {
     const { role, content, assets } = msg.inner;
     return {
       role: role as Role.User | Role.Assistant | Role.System,
@@ -51,8 +51,8 @@ export function fromInternal(msg: InternalMessage): ChatMessage {
   }
 }
 
-/** @internal Convert ChatMessage to internal Message */
-export function toInternal(msg: ChatMessage): InternalMessage {
+/** @internal Convert Message to internal Message */
+export function toInternal(msg: Message): InternalMessage {
   if ("toolCalls" in msg) {
     return new InternalMessage.ToolCalls({
       role: msg.role,
@@ -60,13 +60,13 @@ export function toInternal(msg: ChatMessage): InternalMessage {
       toolCalls: msg.toolCalls,
     });
   } else if ("name" in msg) {
-    return new InternalMessage.ToolResp({
+    return new InternalMessage.ToolResult({
       role: msg.role,
       name: msg.name,
       content: msg.content,
     });
   } else {
-    return new InternalMessage.Message({
+    return new InternalMessage.Standard({
       role: msg.role,
       content: msg.content,
       assets: msg.assets ?? [],
