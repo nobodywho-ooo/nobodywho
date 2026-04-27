@@ -68,9 +68,22 @@ jobs:
           fi
 
   macro-tests:
+    if: inputs.full_ci
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+
+      - name: "Download xcframework artifact"
+        uses: actions/download-artifact@v4
+        with:
+          name: nobodywho-swift-xcframework
+          path: ./xcframework-zip
+
+      - name: "Install xcframework"
+        run: |
+          mkdir -p nobodywho/swift/Frameworks
+          unzip -o xcframework-zip/NobodyWhoNative.xcframework.zip -d nobodywho/swift/Frameworks/
+          ls -la nobodywho/swift/Frameworks/NobodyWhoNative.xcframework/
 
       - name: "Run macro tests"
         working-directory: ./nobodywho/swift
