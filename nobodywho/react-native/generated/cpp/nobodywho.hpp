@@ -578,7 +578,7 @@ protected:
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value
-  cpp_uniffi_nobodywho_uniffi_checksum_method_rustdownloadprogresscallback_on_progress(
+  cpp_uniffi_nobodywho_uniffi_checksum_method_rustdownloadprogresscallback_on_download_progress(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_rusttoolcallback_call(

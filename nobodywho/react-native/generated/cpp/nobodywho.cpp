@@ -104,7 +104,8 @@ typedef void (*UniffiCallbackInterfaceRustToolCallbackMethod0)(
 typedef struct UniffiVTableCallbackInterfaceRustDownloadProgressCallback {
   UniffiCallbackInterfaceFree uniffi_free;
   UniffiCallbackInterfaceClone uniffi_clone;
-  UniffiCallbackInterfaceRustDownloadProgressCallbackMethod0 on_progress;
+  UniffiCallbackInterfaceRustDownloadProgressCallbackMethod0
+      on_download_progress;
 } UniffiVTableCallbackInterfaceRustDownloadProgressCallback;
 typedef struct UniffiVTableCallbackInterfaceRustToolCallback {
   UniffiCallbackInterfaceFree uniffi_free;
@@ -269,7 +270,7 @@ float uniffi_nobodywho_uniffi_fn_func_cosine_similarity(
     RustBuffer a, RustBuffer b, RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_func_load_model(
     RustBuffer model_path, int8_t use_gpu, RustBuffer projection_model_path,
-    RustBuffer progress_callback);
+    RustBuffer on_download_progress);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_func_sampler_preset_default(
     RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_func_sampler_preset_dry(
@@ -464,7 +465,7 @@ uint16_t uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async();
 uint16_t uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new();
 uint16_t uniffi_nobodywho_uniffi_checksum_constructor_samplerconfig_from_json();
 uint16_t
-uniffi_nobodywho_uniffi_checksum_method_rustdownloadprogresscallback_on_progress();
+uniffi_nobodywho_uniffi_checksum_method_rustdownloadprogresscallback_on_download_progress();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_rusttoolcallback_call();
 uint32_t ffi_nobodywho_uniffi_uniffi_contract_version();
 }
@@ -2072,7 +2073,7 @@ static void cleanup() {
 } // namespace
   // uniffi::nobodywho::cb::callbackinterfaceclone::vtablecallbackinterfacerustdownloadprogresscallback
   // Implementation of CallbackInterfaceRustDownloadProgressCallbackMethod0 for
-  // vtable field on_progress in
+  // vtable field on_download_progress in
   // VTableCallbackInterfaceRustDownloadProgressCallback
 
 // Callback function:
@@ -2245,11 +2246,12 @@ struct Bridging<UniffiVTableCallbackInterfaceRustDownloadProgressCallback> {
         vtablecallbackinterfacerustdownloadprogresscallback::
             makeCallbackFunction(rt, callInvoker,
                                  jsObject.getProperty(rt, "uniffiClone"));
-    rsObject.on_progress = uniffi::nobodywho::cb::
+    rsObject.on_download_progress = uniffi::nobodywho::cb::
         callbackinterfacerustdownloadprogresscallbackmethod0::
             vtablecallbackinterfacerustdownloadprogresscallback::
-                makeCallbackFunction(rt, callInvoker,
-                                     jsObject.getProperty(rt, "onProgress"));
+                makeCallbackFunction(
+                    rt, callInvoker,
+                    jsObject.getProperty(rt, "onDownloadProgress"));
 
     return rsObject;
   }
@@ -4635,17 +4637,17 @@ NativeNobodywho::NativeNobodywho(
                 rt, thisVal, args, count);
       });
   props["ubrn_uniffi_nobodywho_uniffi_checksum_method_"
-        "rustdownloadprogresscallback_on_progress"] =
+        "rustdownloadprogresscallback_on_download_progress"] =
       jsi::Function::createFromHostFunction(
           rt,
           jsi::PropNameID::forAscii(
               rt, "ubrn_uniffi_nobodywho_uniffi_checksum_method_"
-                  "rustdownloadprogresscallback_on_progress"),
+                  "rustdownloadprogresscallback_on_download_progress"),
           0,
           [this](jsi::Runtime &rt, const jsi::Value &thisVal,
                  const jsi::Value *args, size_t count) -> jsi::Value {
             return this
-                ->cpp_uniffi_nobodywho_uniffi_checksum_method_rustdownloadprogresscallback_on_progress(
+                ->cpp_uniffi_nobodywho_uniffi_checksum_method_rustdownloadprogresscallback_on_download_progress(
                     rt, thisVal, args, count);
           });
   props["ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttoolcallback_call"] =
@@ -7022,11 +7024,11 @@ jsi::Value NativeNobodywho::
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeNobodywho::
-    cpp_uniffi_nobodywho_uniffi_checksum_method_rustdownloadprogresscallback_on_progress(
+    cpp_uniffi_nobodywho_uniffi_checksum_method_rustdownloadprogresscallback_on_download_progress(
         jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
         size_t count) {
   auto value =
-      uniffi_nobodywho_uniffi_checksum_method_rustdownloadprogresscallback_on_progress();
+      uniffi_nobodywho_uniffi_checksum_method_rustdownloadprogresscallback_on_download_progress();
 
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }

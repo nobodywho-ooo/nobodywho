@@ -105,13 +105,13 @@ export function cosineSimilarity(a: Array</*f32*/number>, b: Array</*f32*/number
  * uniffi-bindgen-react-native generates invalid JS (`async static` instead
  * of `static async`) for async constructors.
  */
-export async function loadModel(modelPath: string, useGpu: boolean, projectionModelPath: string | undefined, progressCallback: RustDownloadProgressCallback | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<RustModelInterface> /*throws*/ {
+export async function loadModel(modelPath: string, useGpu: boolean, projectionModelPath: string | undefined, onDownloadProgress: RustDownloadProgressCallback | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<RustModelInterface> /*throws*/ {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
         return await uniffiRustCallAsync(
             /*rustCaller:*/ uniffiCaller,
             /*rustFutureFunc:*/ () => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_load_model(FfiConverterString.lower(modelPath),FfiConverterBool.lower(useGpu),FfiConverterOptionalString.lower(projectionModelPath),FfiConverterOptionalTypeRustDownloadProgressCallback.lower(progressCallback)
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_load_model(FfiConverterString.lower(modelPath),FfiConverterBool.lower(useGpu),FfiConverterOptionalString.lower(projectionModelPath),FfiConverterOptionalTypeRustDownloadProgressCallback.lower(onDownloadProgress)
                 );
             },
             /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_u64,
@@ -243,7 +243,7 @@ export function samplerPresetTopP(topP: /*f32*/number): SamplerConfigInterface {
  */
 export interface RustDownloadProgressCallback {
     
-    onProgress(downloaded: /*u64*/bigint, total: /*u64*/bigint) : void;
+    onDownloadProgress(downloaded: /*u64*/bigint, total: /*u64*/bigint) : void;
 }
 
 
@@ -252,7 +252,7 @@ const uniffiCallbackInterfaceRustDownloadProgressCallback: { vtable: UniffiVTabl
     // Create the VTable using a series of closures.
     // ts automatically converts these into C callback functions.
     vtable: {
-        onProgress: (
+        onDownloadProgress: (
             uniffiHandle: bigint,
             downloaded: bigint,
             total: bigint,) => {
@@ -260,7 +260,7 @@ const uniffiCallbackInterfaceRustDownloadProgressCallback: { vtable: UniffiVTabl
             ()
             : void => {
                 const jsCallback = FfiConverterTypeRustDownloadProgressCallback.lift(uniffiHandle);
-                return jsCallback.onProgress(
+                return jsCallback.onDownloadProgress(
                     FfiConverterUInt64.lift(downloaded), 
                     FfiConverterUInt64.lift(total)
                 )
@@ -3035,7 +3035,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_cosine_similarity() !== 63439) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_cosine_similarity");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model() !== 21168) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model() !== 33587) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_load_model");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_default() !== 10834) {
@@ -3191,8 +3191,8 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_samplerconfig_from_json() !== 6867) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_samplerconfig_from_json");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustdownloadprogresscallback_on_progress() !== 20201) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustdownloadprogresscallback_on_progress");
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustdownloadprogresscallback_on_download_progress() !== 28617) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustdownloadprogresscallback_on_download_progress");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttoolcallback_call() !== 43958) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rusttoolcallback_call");
