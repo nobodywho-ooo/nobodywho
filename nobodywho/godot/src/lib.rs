@@ -72,11 +72,12 @@ struct NobodyWhoModel {
     use_gpu_if_available: bool,
 
     model: Option<Arc<llm::Model>>,
+    base: Base<Node>,
 }
 
 #[godot_api]
 impl INode for NobodyWhoModel {
-    fn init(_base: Base<Node>) -> Self {
+    fn init(base: Base<Node>) -> Self {
         // default values to show in godot editor
         let model_path: GString = GString::from("model.gguf");
 
@@ -85,12 +86,20 @@ impl INode for NobodyWhoModel {
             projection_model_path: GString::from(""),
             use_gpu_if_available: true,
             model: None,
+            base,
         }
     }
 }
 
 #[godot_api]
 impl NobodyWhoModel {
+    #[signal]
+    /// Emitted while a remote model is being downloaded, with `(downloaded, total)`
+    /// byte counts. Throttled to ~10 Hz with a guaranteed final emit on
+    /// completion. Not emitted when the model resolves to a local file or a
+    /// cached download (no actual transfer).
+    fn download_progress(downloaded: i64, total: i64);
+
     /// Load the model without holding a `GdMut` across `.await`. Takes the node by value
     /// so each bind is scoped to a short block — other code can still access the node
     /// during the (potentially slow) load/download.
@@ -116,7 +125,60 @@ impl NobodyWhoModel {
             )
         };
 
-        let model = Arc::new(llm::get_model_async(path, use_gpu, mmproj).await?);
+        // Bridge the download-thread progress callback to a main-thread signal
+        // emit via an mpsc channel.
+        //
+        // Why the channel is mandatory, not stylistic: core invokes the progress
+        // callback from a std::thread::spawn'd download worker. gdext signals
+        // must be emitted on the main thread, and Gd<T> is !Send so we can't
+        // capture this node in a Send + Sync closure (which is what
+        // DownloadProgressCallback requires). The download thread does only
+        // tx.send; the rx.recv side runs inside this godot::task::spawn'd async
+        // (main thread) and is the one that touches Gd<Self>.
+        let emit_node = gd.clone();
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<(u64, u64)>();
+        let progress = llm::throttled_progress_callback(move |d, t| {
+            // Send only fails if rx was dropped, which only happens after this
+            // function returns — at which point we don't care about events.
+            let _ = tx.send((d, t));
+        });
+
+        let load_fut = llm::get_model_async(path, use_gpu, mmproj, Some(progress));
+        tokio::pin!(load_fut);
+
+        // select! lets one task drive the load AND drain progress on the same
+        // main-thread executor. A two-task version would also work, but keeping
+        // it in one task means the drain ends deterministically when load_fut
+        // resolves — no separate teardown needed.
+        let model = loop {
+            tokio::select! {
+                event = rx.recv() => {
+                    if let Some((d, t)) = event {
+                        emit_node
+                            .signals()
+                            .download_progress()
+                            .emit(d as i64, t as i64);
+                    }
+                    // None means tx was dropped (callback gone, load finished);
+                    // the next iteration's load arm will resolve.
+                }
+                result = &mut load_fut => {
+                    break result?;
+                }
+            }
+        };
+
+        // Drain any events buffered between the last select! check and the load
+        // arm completing — guarantees the throttle's mandatory completion emit
+        // reaches GDScript.
+        while let Ok((d, t)) = rx.try_recv() {
+            emit_node
+                .signals()
+                .download_progress()
+                .emit(d as i64, t as i64);
+        }
+
+        let model = Arc::new(model);
 
         // Rebind briefly to memoize.
         gd.bind_mut().model = Some(Arc::clone(&model));

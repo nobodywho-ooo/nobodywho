@@ -267,6 +267,15 @@ void main() {
       print(msg); // Yes, indeed, water is wet!
     });
 
+    test('index.md:52', () async {
+      final chat = await nobodywho.Chat.fromPath(
+        modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
+        onDownloadProgress: (downloaded, total) {
+          print('$downloaded / $total bytes');
+        },
+      );
+    });
+
     test('sampling.md:15', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",

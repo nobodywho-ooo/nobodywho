@@ -2486,6 +2486,7 @@ dependencies = [
  "gbnf",
  "gbnf-macro",
  "indexmap",
+ "indicatif",
  "lazy_static",
  "libc",
  "llama-cpp-2",
