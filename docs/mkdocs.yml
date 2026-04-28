@@ -64,6 +64,10 @@ extra_css:
 
 extra_javascript:
   - js/plausible.js
+  - js/open-dropdown.js
+
+hooks:
+  - hooks/raw_md.py
 # theme:
 #   # use eyes icon to trigger people clicking on images and gifs.
 #   icon:
