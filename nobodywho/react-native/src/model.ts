@@ -49,7 +49,7 @@ export class Model {
   }): Promise<Model> {
     const cb = opts.onDownloadProgress;
     const progressCallback = cb
-      ? { onProgress: (d: bigint, t: bigint) => cb(Number(d), Number(t)) }
+      ? { onDownloadProgress: (d: bigint, t: bigint) => cb(Number(d), Number(t)) }
       : undefined;
     const inner = await loadModel(
       opts.modelPath,

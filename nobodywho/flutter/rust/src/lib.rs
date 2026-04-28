@@ -19,12 +19,12 @@ pub enum PromptPart {
     Audio { path: String },
 }
 
-/// No-op default for download progress callbacks. Not meant to be called by
+/// No-op default for `onDownloadProgress` callbacks. Not meant to be called by
 /// users — it exists so we can reference it as a const tear-off in the Dart
-/// `#[frb(default = "noopProgressCallback")]` attribute (closure literals
+/// `#[frb(default = "noopOnDownloadProgress")]` attribute (closure literals
 /// aren't const in Dart, but top-level function tear-offs are).
 #[flutter_rust_bridge::frb(sync, positional)]
-pub fn noop_progress_callback(_downloaded: i64, _total: i64) {}
+pub fn noop_on_download_progress(_downloaded: i64, _total: i64) {}
 
 /// Bridge a Dart async progress callback into the synchronous closure core
 /// expects, with ~10 Hz throttling provided by `throttled_progress_callback`.
@@ -92,7 +92,7 @@ impl Model {
     ///
     /// Args:
     ///     model_path: Path or URL to a GGUF model file.
-    ///     progress_callback: Invoked with `(downloadedBytes, totalBytes)` while a
+    ///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while a
     ///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
     ///         final emit on completion. Not invoked for cached/local files.
     ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
@@ -100,7 +100,7 @@ impl Model {
     #[flutter_rust_bridge::frb]
     pub fn load(
         model_path: &str,
-        #[frb(default = "noopProgressCallback")] progress_callback: impl Fn(i64, i64) -> DartFnFuture<()>
+        #[frb(default = "noopOnDownloadProgress")] on_download_progress: impl Fn(i64, i64) -> DartFnFuture<()>
             + Send
             + Sync
             + 'static,
@@ -111,7 +111,7 @@ impl Model {
             model_path,
             use_gpu,
             projection_model_path.as_deref(),
-            Some(wrap_progress(progress_callback)),
+            Some(wrap_progress(on_download_progress)),
         )
         .map_err(|e| e.to_string())?;
         Ok(Self {
@@ -177,7 +177,7 @@ impl RustChat {
     ///
     /// Args:
     ///     model_path: Path to GGUF model file
-    ///     progress_callback: Invoked with `(downloadedBytes, totalBytes)` while a
+    ///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while a
     ///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
     ///         final emit on completion. Not invoked for cached/local files.
     ///     projection_model_path: Path to a .mmproj file for vision/multimodal models
@@ -190,7 +190,7 @@ impl RustChat {
     #[allow(clippy::too_many_arguments)]
     pub fn from_path(
         model_path: &str,
-        #[frb(default = "noopProgressCallback")] progress_callback: impl Fn(i64, i64) -> DartFnFuture<()>
+        #[frb(default = "noopOnDownloadProgress")] on_download_progress: impl Fn(i64, i64) -> DartFnFuture<()>
             + Send
             + Sync
             + 'static,
@@ -207,7 +207,7 @@ impl RustChat {
             model_path,
             use_gpu,
             projection_model_path.as_deref(),
-            Some(wrap_progress(progress_callback)),
+            Some(wrap_progress(on_download_progress)),
         )
         .map_err(|e| e.to_string())?;
         let sampler_config = sampler.map(|s| s.sampler_config).unwrap_or_default();
@@ -402,7 +402,7 @@ impl Encoder {
     ///
     /// Args:
     ///     model_path: Path or URL to a GGUF embedding model file.
-    ///     progress_callback: Invoked with `(downloadedBytes, totalBytes)` while a
+    ///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while a
     ///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
     ///         final emit on completion. Not invoked for cached/local files.
     ///     n_ctx: Context size for the encoder. Defaults to 4096.
@@ -410,7 +410,7 @@ impl Encoder {
     #[flutter_rust_bridge::frb]
     pub fn from_path(
         model_path: &str,
-        #[frb(default = "noopProgressCallback")] progress_callback: impl Fn(i64, i64) -> DartFnFuture<()>
+        #[frb(default = "noopOnDownloadProgress")] on_download_progress: impl Fn(i64, i64) -> DartFnFuture<()>
             + Send
             + Sync
             + 'static,
@@ -421,7 +421,7 @@ impl Encoder {
             model_path,
             use_gpu,
             None,
-            Some(wrap_progress(progress_callback)),
+            Some(wrap_progress(on_download_progress)),
         )
         .map_err(|e| e.to_string())?;
         let handle = nobodywho::encoder::EncoderAsync::new(Arc::new(model), n_ctx);
@@ -454,7 +454,7 @@ impl CrossEncoder {
     ///
     /// Args:
     ///     model_path: Path or URL to a GGUF cross-encoder model file.
-    ///     progress_callback: Invoked with `(downloadedBytes, totalBytes)` while a
+    ///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while a
     ///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
     ///         final emit on completion. Not invoked for cached/local files.
     ///     n_ctx: Context size for the cross-encoder. Defaults to 4096.
@@ -462,7 +462,7 @@ impl CrossEncoder {
     #[flutter_rust_bridge::frb]
     pub fn from_path(
         model_path: &str,
-        #[frb(default = "noopProgressCallback")] progress_callback: impl Fn(i64, i64) -> DartFnFuture<()>
+        #[frb(default = "noopOnDownloadProgress")] on_download_progress: impl Fn(i64, i64) -> DartFnFuture<()>
             + Send
             + Sync
             + 'static,
@@ -473,7 +473,7 @@ impl CrossEncoder {
             model_path,
             use_gpu,
             None,
-            Some(wrap_progress(progress_callback)),
+            Some(wrap_progress(on_download_progress)),
         )
         .map_err(|e| e.to_string())?;
         let handle = nobodywho::crossencoder::CrossEncoderAsync::new(Arc::new(model), n_ctx);

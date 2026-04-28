@@ -67,7 +67,7 @@ class NobodyWho
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 1341680574;
+  int get rustContentHash => -453489807;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -81,8 +81,8 @@ class NobodyWho
 abstract class NobodyWhoApi extends BaseApi {
   Future<CrossEncoder> crateCrossEncoderFromPath({
     required String modelPath,
-    FutureOr<void> Function(PlatformInt64, PlatformInt64) progressCallback =
-        noopProgressCallback,
+    FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
+        noopOnDownloadProgress,
     int nCtx = 4096,
     bool useGpu = true,
   });
@@ -108,8 +108,8 @@ abstract class NobodyWhoApi extends BaseApi {
 
   Future<Encoder> crateEncoderFromPath({
     required String modelPath,
-    FutureOr<void> Function(PlatformInt64, PlatformInt64) progressCallback =
-        noopProgressCallback,
+    FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
+        noopOnDownloadProgress,
     int nCtx = 4096,
     bool useGpu = true,
   });
@@ -118,8 +118,8 @@ abstract class NobodyWhoApi extends BaseApi {
 
   Future<Model> crateModelLoad({
     required String modelPath,
-    FutureOr<void> Function(PlatformInt64, PlatformInt64) progressCallback =
-        noopProgressCallback,
+    FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
+        noopOnDownloadProgress,
     bool useGpu = true,
     String? projectionModelPath = null,
   });
@@ -136,8 +136,8 @@ abstract class NobodyWhoApi extends BaseApi {
 
   Future<RustChat> crateRustChatFromPath({
     required String modelPath,
-    FutureOr<void> Function(PlatformInt64, PlatformInt64) progressCallback =
-        noopProgressCallback,
+    FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
+        noopOnDownloadProgress,
     String? projectionModelPath = null,
     String? systemPrompt = null,
     int contextSize = 4096,
@@ -359,7 +359,7 @@ abstract class NobodyWhoApi extends BaseApi {
     required Map<String, String> parameterDescriptions,
   });
 
-  void crateNoopProgressCallback({
+  void crateNoopOnDownloadProgress({
     required PlatformInt64 downloaded,
     required PlatformInt64 total,
   });
@@ -523,8 +523,8 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   @override
   Future<CrossEncoder> crateCrossEncoderFromPath({
     required String modelPath,
-    FutureOr<void> Function(PlatformInt64, PlatformInt64) progressCallback =
-        noopProgressCallback,
+    FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
+        noopOnDownloadProgress,
     int nCtx = 4096,
     bool useGpu = true,
   }) {
@@ -534,7 +534,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(modelPath, serializer);
           sse_encode_DartFn_Inputs_i_64_i_64_Output_unit_AnyhowException(
-            progressCallback,
+            onDownloadProgress,
             serializer,
           );
           sse_encode_u_32(nCtx, serializer);
@@ -552,7 +552,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateCrossEncoderFromPathConstMeta,
-        argValues: [modelPath, progressCallback, nCtx, useGpu],
+        argValues: [modelPath, onDownloadProgress, nCtx, useGpu],
         apiImpl: this,
       ),
     );
@@ -560,7 +560,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 
   TaskConstMeta get kCrateCrossEncoderFromPathConstMeta => const TaskConstMeta(
     debugName: "CrossEncoder_from_path",
-    argNames: ["modelPath", "progressCallback", "nCtx", "useGpu"],
+    argNames: ["modelPath", "onDownloadProgress", "nCtx", "useGpu"],
   );
 
   @override
@@ -715,8 +715,8 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   @override
   Future<Encoder> crateEncoderFromPath({
     required String modelPath,
-    FutureOr<void> Function(PlatformInt64, PlatformInt64) progressCallback =
-        noopProgressCallback,
+    FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
+        noopOnDownloadProgress,
     int nCtx = 4096,
     bool useGpu = true,
   }) {
@@ -726,7 +726,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(modelPath, serializer);
           sse_encode_DartFn_Inputs_i_64_i_64_Output_unit_AnyhowException(
-            progressCallback,
+            onDownloadProgress,
             serializer,
           );
           sse_encode_u_32(nCtx, serializer);
@@ -744,7 +744,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateEncoderFromPathConstMeta,
-        argValues: [modelPath, progressCallback, nCtx, useGpu],
+        argValues: [modelPath, onDownloadProgress, nCtx, useGpu],
         apiImpl: this,
       ),
     );
@@ -752,7 +752,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 
   TaskConstMeta get kCrateEncoderFromPathConstMeta => const TaskConstMeta(
     debugName: "Encoder_from_path",
-    argNames: ["modelPath", "progressCallback", "nCtx", "useGpu"],
+    argNames: ["modelPath", "onDownloadProgress", "nCtx", "useGpu"],
   );
 
   @override
@@ -788,8 +788,8 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   @override
   Future<Model> crateModelLoad({
     required String modelPath,
-    FutureOr<void> Function(PlatformInt64, PlatformInt64) progressCallback =
-        noopProgressCallback,
+    FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
+        noopOnDownloadProgress,
     bool useGpu = true,
     String? projectionModelPath = null,
   }) {
@@ -799,7 +799,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(modelPath, serializer);
           sse_encode_DartFn_Inputs_i_64_i_64_Output_unit_AnyhowException(
-            progressCallback,
+            onDownloadProgress,
             serializer,
           );
           sse_encode_bool(useGpu, serializer);
@@ -817,7 +817,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateModelLoadConstMeta,
-        argValues: [modelPath, progressCallback, useGpu, projectionModelPath],
+        argValues: [modelPath, onDownloadProgress, useGpu, projectionModelPath],
         apiImpl: this,
       ),
     );
@@ -827,7 +827,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     debugName: "Model_load",
     argNames: [
       "modelPath",
-      "progressCallback",
+      "onDownloadProgress",
       "useGpu",
       "projectionModelPath",
     ],
@@ -902,8 +902,8 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   @override
   Future<RustChat> crateRustChatFromPath({
     required String modelPath,
-    FutureOr<void> Function(PlatformInt64, PlatformInt64) progressCallback =
-        noopProgressCallback,
+    FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
+        noopOnDownloadProgress,
     String? projectionModelPath = null,
     String? systemPrompt = null,
     int contextSize = 4096,
@@ -919,7 +919,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(modelPath, serializer);
           sse_encode_DartFn_Inputs_i_64_i_64_Output_unit_AnyhowException(
-            progressCallback,
+            onDownloadProgress,
             serializer,
           );
           sse_encode_opt_String(projectionModelPath, serializer);
@@ -951,7 +951,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         constMeta: kCrateRustChatFromPathConstMeta,
         argValues: [
           modelPath,
-          progressCallback,
+          onDownloadProgress,
           projectionModelPath,
           systemPrompt,
           contextSize,
@@ -970,7 +970,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     debugName: "RustChat_from_path",
     argNames: [
       "modelPath",
-      "progressCallback",
+      "onDownloadProgress",
       "projectionModelPath",
       "systemPrompt",
       "contextSize",
@@ -2771,7 +2771,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   );
 
   @override
-  void crateNoopProgressCallback({
+  void crateNoopOnDownloadProgress({
     required PlatformInt64 downloaded,
     required PlatformInt64 total,
   }) {
@@ -2787,17 +2787,18 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeSuccessData: sse_decode_unit,
           decodeErrorData: null,
         ),
-        constMeta: kCrateNoopProgressCallbackConstMeta,
+        constMeta: kCrateNoopOnDownloadProgressConstMeta,
         argValues: [downloaded, total],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateNoopProgressCallbackConstMeta => const TaskConstMeta(
-    debugName: "noop_progress_callback",
-    argNames: ["downloaded", "total"],
-  );
+  TaskConstMeta get kCrateNoopOnDownloadProgressConstMeta =>
+      const TaskConstMeta(
+        debugName: "noop_on_download_progress",
+        argNames: ["downloaded", "total"],
+      );
 
   @override
   String crateToolCallArgumentsJson({required ToolCall toolCall}) {

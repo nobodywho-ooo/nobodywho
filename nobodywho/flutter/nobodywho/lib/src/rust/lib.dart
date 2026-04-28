@@ -10,12 +10,12 @@ part 'lib.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `dart_function_type_to_json_schema`, `sample_step`, `shift_step`, `wrap_progress`
 
-/// No-op default for download progress callbacks. Not meant to be called by
+/// No-op default for `onDownloadProgress` callbacks. Not meant to be called by
 /// users — it exists so we can reference it as a const tear-off in the Dart
-/// `#[frb(default = "noopProgressCallback")]` attribute (closure literals
+/// `#[frb(default = "noopOnDownloadProgress")]` attribute (closure literals
 /// aren't const in Dart, but top-level function tear-offs are).
-void noopProgressCallback(PlatformInt64 downloaded, PlatformInt64 total) =>
-    NobodyWho.instance.api.crateNoopProgressCallback(
+void noopOnDownloadProgress(PlatformInt64 downloaded, PlatformInt64 total) =>
+    NobodyWho.instance.api.crateNoopOnDownloadProgress(
       downloaded: downloaded,
       total: total,
     );
@@ -67,20 +67,20 @@ abstract class CrossEncoder implements RustOpaqueInterface {
   ///
   /// Args:
   ///     model_path: Path or URL to a GGUF cross-encoder model file.
-  ///     progress_callback: Invoked with `(downloadedBytes, totalBytes)` while a
+  ///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while a
   ///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
   ///         final emit on completion. Not invoked for cached/local files.
   ///     n_ctx: Context size for the cross-encoder. Defaults to 4096.
   ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
   static Future<CrossEncoder> fromPath({
     required String modelPath,
-    FutureOr<void> Function(PlatformInt64, PlatformInt64) progressCallback =
-        noopProgressCallback,
+    FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
+        noopOnDownloadProgress,
     int nCtx = 4096,
     bool useGpu = true,
   }) => NobodyWho.instance.api.crateCrossEncoderFromPath(
     modelPath: modelPath,
-    progressCallback: progressCallback,
+    onDownloadProgress: onDownloadProgress,
     nCtx: nCtx,
     useGpu: useGpu,
   );
@@ -110,20 +110,20 @@ abstract class Encoder implements RustOpaqueInterface {
   ///
   /// Args:
   ///     model_path: Path or URL to a GGUF embedding model file.
-  ///     progress_callback: Invoked with `(downloadedBytes, totalBytes)` while a
+  ///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while a
   ///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
   ///         final emit on completion. Not invoked for cached/local files.
   ///     n_ctx: Context size for the encoder. Defaults to 4096.
   ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
   static Future<Encoder> fromPath({
     required String modelPath,
-    FutureOr<void> Function(PlatformInt64, PlatformInt64) progressCallback =
-        noopProgressCallback,
+    FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
+        noopOnDownloadProgress,
     int nCtx = 4096,
     bool useGpu = true,
   }) => NobodyWho.instance.api.crateEncoderFromPath(
     modelPath: modelPath,
-    progressCallback: progressCallback,
+    onDownloadProgress: onDownloadProgress,
     nCtx: nCtx,
     useGpu: useGpu,
   );
@@ -145,20 +145,20 @@ abstract class Model implements RustOpaqueInterface {
   ///
   /// Args:
   ///     model_path: Path or URL to a GGUF model file.
-  ///     progress_callback: Invoked with `(downloadedBytes, totalBytes)` while a
+  ///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while a
   ///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
   ///         final emit on completion. Not invoked for cached/local files.
   ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
   ///     projection_model_path: Optional path to a `.mmproj` file for vision/multimodal models.
   static Future<Model> load({
     required String modelPath,
-    FutureOr<void> Function(PlatformInt64, PlatformInt64) progressCallback =
-        noopProgressCallback,
+    FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
+        noopOnDownloadProgress,
     bool useGpu = true,
     String? projectionModelPath = null,
   }) => NobodyWho.instance.api.crateModelLoad(
     modelPath: modelPath,
-    progressCallback: progressCallback,
+    onDownloadProgress: onDownloadProgress,
     useGpu: useGpu,
     projectionModelPath: projectionModelPath,
   );
@@ -181,7 +181,7 @@ abstract class RustChat implements RustOpaqueInterface {
   ///
   /// Args:
   ///     model_path: Path to GGUF model file
-  ///     progress_callback: Invoked with `(downloadedBytes, totalBytes)` while a
+  ///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while a
   ///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
   ///         final emit on completion. Not invoked for cached/local files.
   ///     projection_model_path: Path to a .mmproj file for vision/multimodal models
@@ -192,8 +192,8 @@ abstract class RustChat implements RustOpaqueInterface {
   ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
   static Future<RustChat> fromPath({
     required String modelPath,
-    FutureOr<void> Function(PlatformInt64, PlatformInt64) progressCallback =
-        noopProgressCallback,
+    FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
+        noopOnDownloadProgress,
     String? projectionModelPath = null,
     String? systemPrompt = null,
     int contextSize = 4096,
@@ -204,7 +204,7 @@ abstract class RustChat implements RustOpaqueInterface {
     bool useGpu = true,
   }) => NobodyWho.instance.api.crateRustChatFromPath(
     modelPath: modelPath,
-    progressCallback: progressCallback,
+    onDownloadProgress: onDownloadProgress,
     projectionModelPath: projectionModelPath,
     systemPrompt: systemPrompt,
     contextSize: contextSize,

@@ -240,7 +240,7 @@ pub async fn load_model(
     model_path: String,
     use_gpu: bool,
     projection_model_path: Option<String>,
-    progress_callback: Option<Box<dyn RustDownloadProgressCallback>>,
+    on_download_progress: Option<Box<dyn RustDownloadProgressCallback>>,
 ) -> Result<Arc<RustModel>, NobodyWhoError> {
     init_logging();
     log::info!(
@@ -250,7 +250,7 @@ pub async fn load_model(
         projection_model_path
     );
 
-    let progress = progress_callback.map(wrap_progress);
+    let progress = on_download_progress.map(wrap_progress);
     let model = nobodywho::llm::get_model_async(
         model_path.clone(),
         use_gpu,
@@ -530,7 +530,7 @@ pub trait RustToolCallback: Send + Sync {
 /// on completion. Not invoked for cached/local files.
 #[uniffi::export(callback_interface)]
 pub trait RustDownloadProgressCallback: Send + Sync {
-    fn on_progress(&self, downloaded: u64, total: u64);
+    fn on_download_progress(&self, downloaded: u64, total: u64);
 }
 
 /// Bridge a foreign `RustDownloadProgressCallback` into the synchronous closure
@@ -541,7 +541,7 @@ fn wrap_progress(
 ) -> nobodywho::llm::DownloadProgressCallback {
     let cb: Arc<dyn RustDownloadProgressCallback> = Arc::from(cb);
     nobodywho::llm::throttled_progress_callback(move |downloaded, total| {
-        cb.on_progress(downloaded, total);
+        cb.on_download_progress(downloaded, total);
     })
 }
 

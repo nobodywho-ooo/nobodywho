@@ -570,7 +570,7 @@ class Model:
     Sharing is efficient because the underlying model data is reference-counted.
     There is no `ModelAsync` variant. A regular `Model` can be used with both `Chat` and `ChatAsync`.
     """
-    def __new__(cls, /, model_path: "os.PathLike | str", use_gpu_if_available: bool = True, projection_model_path: "os.PathLike | str | None" = None, progress_callback: "typing.Callable[[int, int], None] | None" = None) -> "Model":
+    def __new__(cls, /, model_path: "os.PathLike | str", use_gpu_if_available: bool = True, projection_model_path: "os.PathLike | str | None" = None, on_download_progress: "typing.Callable[[int, int], None] | None" = None) -> "Model":
         """
         Create a new Model from a GGUF file.
         
@@ -578,7 +578,7 @@ class Model:
             model_path: Path or URL to a GGUF model file. Accepts a local file path (e.g. `./model.gguf`), a `huggingface:` path (e.g. `huggingface:owner/repo/file.gguf`), or an `https://` URL. Remote models are downloaded and cached automatically.
             use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
             projection_model_path: Path or URL to a multimodal projector file for vision models. Accepts the same formats as model_path. Defaults to None.
-            progress_callback: Optional callable invoked during model downloads with `(downloaded_bytes, total_bytes)`. Not called for locally cached models. If a projection model is also downloaded, the callback fires for each download sequentially, so `total_bytes` resets between them. Defaults to None.
+            on_download_progress: Optional callable invoked during model downloads with `(downloaded_bytes, total_bytes)`. Not called for locally cached models. If a projection model is also downloaded, the callback fires for each download sequentially, so `total_bytes` resets between them. Defaults to None.
         
         Returns:
             A Model instance
@@ -587,7 +587,7 @@ class Model:
             RuntimeError: If the model file cannot be loaded
         """
     @staticmethod
-    async def load_model_async(model_path: "os.PathLike | str", use_gpu_if_available: bool = True, projection_model_path: "os.PathLike | str | None" = None, progress_callback: "typing.Callable[[int, int], None] | None" = None) -> "Model":
+    async def load_model_async(model_path: "os.PathLike | str", use_gpu_if_available: bool = True, projection_model_path: "os.PathLike | str | None" = None, on_download_progress: "typing.Callable[[int, int], None] | None" = None) -> "Model":
         """
         Asynchronously load a model from a GGUF file.
         
@@ -599,7 +599,7 @@ class Model:
             model_path: Path or URL to a GGUF model file. Accepts a local file path (e.g. `./model.gguf`), a `huggingface:` path (e.g. `huggingface:owner/repo/file.gguf`), or an `https://` URL. Remote models are downloaded and cached automatically.
             use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
             projection_model_path: Path or URL to a multimodal projector file for vision models. Accepts the same formats as model_path. Defaults to None.
-            progress_callback: Optional callable invoked during model downloads with `(downloaded_bytes, total_bytes)`. Not called for locally cached models. If a projection model is also downloaded, the callback fires for each download sequentially, so `total_bytes` resets between them. Defaults to None.
+            on_download_progress: Optional callable invoked during model downloads with `(downloaded_bytes, total_bytes)`. Not called for locally cached models. If a projection model is also downloaded, the callback fires for each download sequentially, so `total_bytes` resets between them. Defaults to None.
         
         Returns:
             A Model instance wrapped in an awaitable (async function returns a coroutine)
