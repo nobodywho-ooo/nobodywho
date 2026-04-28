@@ -502,3 +502,75 @@ fn resample(samples: &[f32], from_rate: u32, to_rate: u32) -> Vec<f32> {
     }
     output
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn prepare_text_lowercases_and_tags_language() {
+        assert_eq!(prepare_text("Hej Verden", "DA"), "[da]hej[SPACE]verden");
+    }
+
+    #[test]
+    fn prepare_text_no_tag_when_language_empty() {
+        assert_eq!(prepare_text("Hej", ""), "hej");
+    }
+
+    #[test]
+    fn prepare_text_replaces_spaces_with_marker() {
+        assert_eq!(prepare_text("a b c", "en"), "[en]a[SPACE]b[SPACE]c");
+    }
+
+    #[test]
+    fn build_first_step_embeds_no_cfg_packs_cond_text() {
+        let cond = TensorData {
+            data: vec![1.0; 8],
+            shape: vec![1, 2, 4],
+        };
+        let text = TensorData {
+            data: vec![2.0; 12],
+            shape: vec![1, 3, 4],
+        };
+        let (data, seq, hidden) = build_first_step_embeds(&cond, &text, false);
+        assert_eq!(seq, 5);
+        assert_eq!(hidden, 4);
+        assert_eq!(data.len(), 20);
+        assert_eq!(&data[..8], &[1.0; 8]);
+        assert_eq!(&data[8..20], &[2.0; 12]);
+    }
+
+    #[test]
+    fn build_first_step_embeds_with_cfg_zeros_uncond_text() {
+        let cond = TensorData {
+            data: vec![1.0; 8],
+            shape: vec![1, 2, 4],
+        };
+        let text = TensorData {
+            data: vec![2.0; 12],
+            shape: vec![1, 3, 4],
+        };
+        let (data, seq, hidden) = build_first_step_embeds(&cond, &text, true);
+        assert_eq!(seq, 5);
+        assert_eq!(hidden, 4);
+        // batch=2 → 40 floats.
+        assert_eq!(data.len(), 40);
+        // Conditioned branch.
+        assert_eq!(&data[..8], &[1.0; 8]);
+        assert_eq!(&data[8..20], &[2.0; 12]);
+        // Unconditioned branch: cond + zeros for text positions.
+        assert_eq!(&data[20..28], &[1.0; 8]);
+        assert_eq!(&data[28..40], &[0.0; 12]);
+    }
+
+    #[test]
+    fn resample_passthrough_when_rates_equal() {
+        let samples = vec![0.1, 0.2, 0.3];
+        assert_eq!(resample(&samples, 16000, 16000), samples);
+    }
+
+    #[test]
+    fn resample_empty_returns_empty() {
+        assert!(resample(&[], 16000, 24000).is_empty());
+    }
+}

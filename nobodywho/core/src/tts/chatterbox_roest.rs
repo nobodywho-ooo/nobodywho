@@ -510,3 +510,183 @@ fn load_model_config(model_dir: &Path) -> Result<ModelConfig, TtsError> {
 fn load_text_pos_emb(model_dir: &Path, shape: &[usize]) -> Result<TensorData<f32>, TtsError> {
     ort_util::read_le_bin(&model_dir.join("text_pos_emb.bin"), shape.to_vec())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── punc_norm ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn punc_norm_empty_returns_default_message() {
+        assert_eq!(punc_norm(""), "You need to add some text for me to talk.");
+    }
+
+    #[test]
+    fn punc_norm_capitalizes_first_letter() {
+        assert_eq!(punc_norm("hej"), "Hej.");
+    }
+
+    #[test]
+    fn punc_norm_keeps_already_capital() {
+        assert_eq!(punc_norm("Hej."), "Hej.");
+    }
+
+    #[test]
+    fn punc_norm_collapses_extra_whitespace() {
+        assert_eq!(punc_norm("hej   verden"), "Hej verden.");
+    }
+
+    #[test]
+    fn punc_norm_replaces_ellipsis_with_comma() {
+        assert_eq!(punc_norm("hej..."), "Hej,");
+    }
+
+    #[test]
+    fn punc_norm_replaces_unicode_ellipsis() {
+        assert_eq!(punc_norm("hej\u{2026}"), "Hej,");
+    }
+
+    #[test]
+    fn punc_norm_replaces_em_dash_with_hyphen() {
+        assert_eq!(punc_norm("hej\u{2014}verden"), "Hej-verden.");
+    }
+
+    #[test]
+    fn punc_norm_replaces_dashed_phrase_with_comma() {
+        assert_eq!(punc_norm("hej - verden"), "Hej, verden.");
+    }
+
+    #[test]
+    fn punc_norm_replaces_smart_double_quotes() {
+        assert_eq!(punc_norm("\u{201C}hej\u{201D}"), "\"hej\".");
+    }
+
+    #[test]
+    fn punc_norm_appends_period_when_missing_terminator() {
+        assert_eq!(punc_norm("hej"), "Hej.");
+    }
+
+    #[test]
+    fn punc_norm_keeps_existing_terminator() {
+        assert_eq!(punc_norm("hej!"), "Hej!");
+        assert_eq!(punc_norm("hej?"), "Hej?");
+    }
+
+    // ── prepare_text_for_mtl_tokenizer ─────────────────────────────────────
+
+    #[test]
+    fn prepare_text_for_mtl_default_language_is_da() {
+        assert_eq!(prepare_text_for_mtl_tokenizer("Hej.", ""), "[da]hej.");
+    }
+
+    #[test]
+    fn prepare_text_for_mtl_lowercases_language_tag() {
+        assert_eq!(prepare_text_for_mtl_tokenizer("Hej.", "DA"), "[da]hej.");
+    }
+
+    #[test]
+    fn prepare_text_for_mtl_replaces_spaces_with_marker() {
+        assert_eq!(
+            prepare_text_for_mtl_tokenizer("a b c", "en"),
+            "[en]a[SPACE]b[SPACE]c."
+        );
+    }
+
+    // ── build_first_step_embeds ────────────────────────────────────────────
+
+    fn tensor_3d(batch: usize, seq: usize, hidden: usize, fill: f32) -> TensorData<f32> {
+        TensorData {
+            data: vec![fill; batch * seq * hidden],
+            shape: vec![batch, seq, hidden],
+        }
+    }
+
+    fn pos_emb(rows: usize, hidden: usize, fill: f32) -> TensorData<f32> {
+        TensorData {
+            data: vec![fill; rows * hidden],
+            shape: vec![rows, hidden],
+        }
+    }
+
+    #[test]
+    fn build_first_step_embeds_no_cfg_packs_cond_text_bos_bos() {
+        let cond = tensor_3d(1, 3, 4, 1.0);
+        let text_pos = pos_emb(8, 4, 0.0);
+        let text = tensor_3d(1, 2, 4, 2.0);
+        let bos = tensor_3d(1, 1, 4, 3.0);
+
+        let (data, seq, hidden) =
+            build_first_step_embeds(&cond, &text_pos, &text, &bos, false).unwrap();
+
+        // total_seq = 3 (cond) + 2 (text) + 1 + 1 (bos x 2) = 7, batch = 1.
+        assert_eq!(seq, 7);
+        assert_eq!(hidden, 4);
+        assert_eq!(data.len(), 28);
+        assert_eq!(&data[..12], &[1.0; 12]); // cond
+        assert_eq!(&data[12..20], &[2.0; 8]); // text
+        assert_eq!(&data[20..28], &[3.0; 8]); // bos x 2
+    }
+
+    #[test]
+    fn build_first_step_embeds_with_cfg_substitutes_text_pos_in_uncond() {
+        let cond = tensor_3d(1, 3, 4, 1.0);
+        let mut text_pos = pos_emb(8, 4, 0.0);
+        // Mark the first text_seq * hidden = 8 entries so we can recognize the slice.
+        for v in &mut text_pos.data[..8] {
+            *v = 7.0;
+        }
+        let text = tensor_3d(1, 2, 4, 2.0);
+        let bos = tensor_3d(1, 1, 4, 3.0);
+
+        let (data, seq, hidden) =
+            build_first_step_embeds(&cond, &text_pos, &text, &bos, true).unwrap();
+
+        assert_eq!(seq, 7);
+        assert_eq!(hidden, 4);
+        // batch = 2 → 56 floats total.
+        assert_eq!(data.len(), 56);
+        // Conditioned branch (first 28).
+        assert_eq!(&data[..12], &[1.0; 12]);
+        assert_eq!(&data[12..20], &[2.0; 8]);
+        assert_eq!(&data[20..28], &[3.0; 8]);
+        // Unconditioned branch (next 28).
+        assert_eq!(&data[28..40], &[1.0; 12]); // cond
+        assert_eq!(&data[40..48], &[7.0; 8]); // text_pos slice (substituted)
+        assert_eq!(&data[48..56], &[3.0; 8]); // bos x 2
+    }
+
+    // ── text_position_slice ────────────────────────────────────────────────
+
+    #[test]
+    fn text_position_slice_returns_leading_chunk() {
+        let pos = pos_emb(10, 4, 0.5);
+        let s = text_position_slice(&pos, 3, 4).unwrap();
+        assert_eq!(s.len(), 12);
+        assert!(s.iter().all(|&v| v == 0.5));
+    }
+
+    #[test]
+    fn text_position_slice_rejects_non_rank_2() {
+        let pos = TensorData {
+            data: vec![0.0; 8],
+            shape: vec![8],
+        };
+        let err = text_position_slice(&pos, 1, 4).unwrap_err().to_string();
+        assert!(err.contains("rank-2"));
+    }
+
+    #[test]
+    fn text_position_slice_rejects_hidden_dim_mismatch() {
+        let pos = pos_emb(10, 8, 0.0);
+        let err = text_position_slice(&pos, 1, 4).unwrap_err().to_string();
+        assert!(err.contains("hidden size mismatch"));
+    }
+
+    #[test]
+    fn text_position_slice_rejects_too_short() {
+        let pos = pos_emb(2, 4, 0.0);
+        let err = text_position_slice(&pos, 5, 4).unwrap_err().to_string();
+        assert!(err.contains("too short"));
+    }
+}
