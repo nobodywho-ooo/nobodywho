@@ -1,32 +1,15 @@
-/// TTS demo — synthesizes speech using Kokoro, Piper, or Chatterbox.
-///
-/// The backend is auto-detected from the arguments:
-///   .bin  → Kokoro (voices file)
-///   .json → Piper (config file)
-///   --chatterbox <dir> → Chatterbox (model directory)
+/// TTS demo — synthesizes speech using Kokoro, Piper, Chatterbox, or Røst.
 ///
 /// Usage:
-///   Kokoro:
-///     cargo run --example tts_demo -- <kokoro.onnx> <voices.bin> "text" [voice] [speed] [language]
+///   Kokoro:     cargo run --example tts_demo -- <kokoro.onnx> <voices.bin> "text" [voice] [speed] [language] [device]
+///   Piper:      cargo run --example tts_demo -- <model.onnx> <model.onnx.json> "text" [device]
+///   Chatterbox: cargo run --example tts_demo -- --chatterbox <dir> "text" [language] [voice.wav] [device]
+///   Røst:       cargo run --example tts_demo -- --roest <dir> "text" [language] [device]
 ///
-///   Piper:
-///     cargo run --example tts_demo -- <model.onnx> <model.onnx.json> "text"
-///
-///   Chatterbox:
-///     cargo run --example tts_demo -- --chatterbox <model_dir> "text" [language] [voice.wav] [exaggeration]
-///
-/// Download models:
-///   Kokoro:
-///     curl -LO https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx
-///     curl -LO https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin
-///
-///   Piper (Danish):
-///     curl -LO https://huggingface.co/rhasspy/piper-voices/resolve/main/da/da_DK/talesyntese/medium/da_DK-talesyntese-medium.onnx
-///     curl -LO https://huggingface.co/rhasspy/piper-voices/resolve/main/da/da_DK/talesyntese/medium/da_DK-talesyntese-medium.onnx.json
-///
-///   Chatterbox Multilingual:
-///     See https://huggingface.co/onnx-community/chatterbox-multilingual-ONNX
-use nobodywho::tts::{Tts, TtsDevice, TtsRequest};
+/// Devices: auto (default), cpu, cuda
+use nobodywho::tts::{
+    ChatterboxConfig, KokoroConfig, PiperConfig, RoestConfig, Tts, TtsBuilder, TtsConfig, TtsDevice,
+};
 use std::time::Instant;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -41,12 +24,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(1);
     }
 
-    if args[1] == "--roest" {
-        run_roest(&args)?;
-    } else if args[1] == "--chatterbox" {
-        run_chatterbox(&args)?;
-    } else {
-        run_kokoro_or_piper(&args)?;
+    match args[1].as_str() {
+        "--roest" => run_roest(&args)?,
+        "--chatterbox" => run_chatterbox(&args)?,
+        _ => run_kokoro_or_piper(&args)?,
     }
 
     println!("Total runtime: {:.2?}", program_start.elapsed());
@@ -63,74 +44,61 @@ fn run_kokoro_or_piper(args: &[String]) -> Result<(), Box<dyn std::error::Error>
     let model_path = &args[1];
     let second_path = &args[2];
     let text = &args[3];
-    let voice = args.get(4).map(|s| s.as_str()).unwrap_or("af_heart");
-    let speed: f32 = args.get(5).and_then(|s| s.parse().ok()).unwrap_or(1.0);
-    let language = if end > 6 { args[6].as_str() } else { "en-us" };
+
+    let config = if second_path.ends_with(".json") {
+        TtsConfig::Piper(PiperConfig::new(model_path, second_path))
+    } else {
+        let mut cfg = KokoroConfig::new(model_path, second_path);
+        if let Some(v) = args.get(4).filter(|_| end > 4) {
+            cfg.voice = v.clone();
+        }
+        if let Some(s) = args.get(5).filter(|_| end > 5).and_then(|s| s.parse().ok()) {
+            cfg.speed = s;
+        }
+        if let Some(l) = args.get(6).filter(|_| end > 6) {
+            cfg.language = l.clone();
+        }
+        TtsConfig::Kokoro(cfg)
+    };
 
     println!("Loading model: {model_path}");
     let load_start = Instant::now();
-    let tts = Tts::new(model_path, second_path, device)?;
+    let tts = TtsBuilder::new(config).with_device(device).build()?;
     println!("Loaded in {:.2?}", load_start.elapsed());
 
-    let voices = tts.available_voices();
-    if !voices.is_empty() {
-        println!("Available voices ({}):", voices.len());
-        for v in &voices {
-            print!("  {v}");
-        }
-        println!();
-    }
-
-    println!("Synthesizing: {text:?}");
-    let synth_start = Instant::now();
-    let request = TtsRequest::new(text.as_str())
-        .with_voice(voice)
-        .with_speed(speed)
-        .with_language(language);
-    let wav_bytes = tts.synthesize_request(request)?;
-    println!(
-        "Synthesis completed in {:.2?} ({} bytes)",
-        synth_start.elapsed(),
-        wav_bytes.len()
-    );
-
-    play_wav(&wav_bytes);
-    Ok(())
+    list_voices(&tts);
+    synthesize_and_play(&tts, text)
 }
 
 fn run_roest(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
-    // --roest <dir> "text" [language] [device]
     if args.len() < 4 {
-        eprintln!("Usage: {} --roest <model_dir> \"text\" [language]", args[0]);
+        eprintln!(
+            "Usage: {} --roest <model_dir> \"text\" [language] [device]",
+            args[0]
+        );
         std::process::exit(1);
     }
 
     let (device, end) = parse_trailing_device(args)?;
     let model_dir = &args[2];
     let text = &args[3];
-    let language = if end > 4 { args[4].as_str() } else { "" };
+
+    let mut config = RoestConfig::new(model_dir);
+    if let Some(l) = args.get(4).filter(|_| end > 4) {
+        config.language = l.clone();
+    }
 
     println!("Loading Røst from: {model_dir}");
     let load_start = Instant::now();
-    let tts = Tts::new_roest(model_dir, device)?;
+    let tts = TtsBuilder::new(TtsConfig::Roest(config))
+        .with_device(device)
+        .build()?;
     println!("Loaded in {:.2?}", load_start.elapsed());
 
-    println!("Synthesizing: {text:?}");
-    let synth_start = Instant::now();
-    let request = TtsRequest::new(text.as_str()).with_language(language);
-    let wav_bytes = tts.synthesize_request(request)?;
-    println!(
-        "Synthesis completed in {:.2?} ({} bytes)",
-        synth_start.elapsed(),
-        wav_bytes.len()
-    );
-
-    play_wav(&wav_bytes);
-    Ok(())
+    synthesize_and_play(&tts, text)
 }
 
 fn run_chatterbox(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
-    // --chatterbox <dir> "text" [language] [voice.wav] [temperature] [top_k] [top_p] [device]
     if args.len() < 4 {
         print_usage(&args[0]);
         std::process::exit(1);
@@ -139,47 +107,29 @@ fn run_chatterbox(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     let (device, end) = parse_trailing_device(args)?;
     let model_dir = &args[2];
     let text = &args[3];
-    let language = if end > 4 { args[4].as_str() } else { "" };
-    let voice_wav = args.get(5).filter(|_| end > 5).and_then(|s| {
-        if s.ends_with(".wav") {
-            Some(std::path::PathBuf::from(s))
-        } else {
-            None
-        }
-    });
-    // Sampling args shift by 1 if voice.wav is provided
-    let sampling_offset = if voice_wav.is_some() { 6 } else { 5 };
-    let temperature: f32 = if end > sampling_offset {
-        args[sampling_offset].parse().unwrap_or(0.0)
-    } else {
-        0.0
-    };
-    let top_k: usize = if end > sampling_offset + 1 {
-        args[sampling_offset + 1].parse().unwrap_or(0)
-    } else {
-        0
-    };
-    let top_p: f32 = if end > sampling_offset + 2 {
-        args[sampling_offset + 2].parse().unwrap_or(1.0)
-    } else {
-        1.0
-    };
+
+    let mut config = ChatterboxConfig::new(model_dir);
+    if let Some(l) = args.get(4).filter(|_| end > 4) {
+        config.language = l.clone();
+    }
+    if let Some(wav) = args.get(5).filter(|s| end > 5 && s.ends_with(".wav")) {
+        config.reference_wav = Some(wav.into());
+    }
 
     println!("Loading Chatterbox from: {model_dir}");
     let load_start = Instant::now();
-    let tts = Tts::new_chatterbox(model_dir, voice_wav.as_deref(), device)?;
+    let tts = TtsBuilder::new(TtsConfig::Chatterbox(config))
+        .with_device(device)
+        .build()?;
     println!("Loaded in {:.2?}", load_start.elapsed());
 
-    println!(
-        "Synthesizing ({language}): {text:?}  (temp={temperature}, top_k={top_k}, top_p={top_p})"
-    );
+    synthesize_and_play(&tts, text)
+}
+
+fn synthesize_and_play(tts: &Tts, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Synthesizing: {text:?}");
     let synth_start = Instant::now();
-    let request = TtsRequest::new(text.as_str())
-        .with_language(language)
-        .with_temperature(temperature)
-        .with_top_k(top_k)
-        .with_top_p(top_p);
-    let wav_bytes = tts.synthesize_request(request)?;
+    let wav_bytes = tts.synthesize(text)?;
     println!(
         "Synthesis completed in {:.2?} ({} bytes)",
         synth_start.elapsed(),
@@ -190,32 +140,38 @@ fn run_chatterbox(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn list_voices(tts: &Tts) {
+    let voices = tts.available_voices();
+    if !voices.is_empty() {
+        println!("Available voices ({}):", voices.len());
+        for v in &voices {
+            print!("  {v}");
+        }
+        println!();
+    }
+}
+
 fn print_usage(program: &str) {
     eprintln!("Usage:");
     eprintln!("  Kokoro/Piper: {program} <model.onnx> <voices.bin|config.json> \"text\" [voice] [speed] [language] [device]");
     eprintln!("  Røst:         {program} --roest <model_dir> \"text\" [language] [device]");
-    eprintln!("  Chatterbox:   {program} --chatterbox <model_dir> \"text\" [language] [voice.wav] [temperature] [top_k] [top_p] [device]");
+    eprintln!("  Chatterbox:   {program} --chatterbox <model_dir> \"text\" [language] [voice.wav] [device]");
     eprintln!();
     eprintln!("Devices: auto (default), cpu, cuda");
-    eprintln!("Chatterbox languages: ar, da, de, el, en, es, fi, fr, he, hi, it, ja, ko, ms, nl, no, pl, pt, ru, sv, sw, tr, zh");
-}
-
-fn parse_device(s: &str) -> Result<TtsDevice, Box<dyn std::error::Error>> {
-    match s.to_ascii_lowercase().as_str() {
-        "auto" => Ok(TtsDevice::Auto),
-        "cpu" => Ok(TtsDevice::Cpu),
-        "cuda" => Ok(TtsDevice::Cuda),
-        _ => Err(format!("invalid device `{s}`; expected auto, cpu, or cuda").into()),
-    }
 }
 
 fn parse_trailing_device(
     args: &[String],
 ) -> Result<(TtsDevice, usize), Box<dyn std::error::Error>> {
     if let Some(last) = args.last() {
-        match last.to_ascii_lowercase().as_str() {
-            "auto" | "cpu" | "cuda" => return Ok((parse_device(last)?, args.len() - 1)),
-            _ => {}
+        let device = match last.to_ascii_lowercase().as_str() {
+            "auto" => Some(TtsDevice::Auto),
+            "cpu" => Some(TtsDevice::Cpu),
+            "cuda" => Some(TtsDevice::Cuda),
+            _ => None,
+        };
+        if let Some(d) = device {
+            return Ok((d, args.len() - 1));
         }
     }
     Ok((TtsDevice::Auto, args.len()))
@@ -230,19 +186,16 @@ fn play_wav(wav_bytes: &[u8]) {
 
     let tmp_str = tmp.to_string_lossy();
     // afplay: macOS, paplay: PulseAudio (Linux), aplay: ALSA (Linux)
-    let players = ["afplay", "paplay", "aplay"];
-
-    for cmd in players {
-        let result = std::process::Command::new(cmd)
+    for cmd in ["afplay", "paplay", "aplay"] {
+        if let Ok(s) = std::process::Command::new(cmd)
             .arg(tmp_str.as_ref())
-            .status();
-        match result {
-            Ok(s) if s.success() => {
+            .status()
+        {
+            if s.success() {
                 println!("Playback done ({cmd}).");
                 let _ = std::fs::remove_file(&tmp);
                 return;
             }
-            _ => continue,
         }
     }
 
