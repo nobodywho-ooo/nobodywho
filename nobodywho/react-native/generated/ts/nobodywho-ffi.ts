@@ -77,9 +77,10 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_fn_free_samplerconfig(handle: bigint, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_nobodywho_uniffi_fn_constructor_samplerconfig_from_json(jsonStr: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerconfig_to_json(ptr: bigint, uniffi_out_err: UniffiRustCallStatus): Uint8Array;
+    ubrn_uniffi_nobodywho_uniffi_fn_init_callback_vtable_rustdownloadprogresscallback(vtable: UniffiVTableCallbackInterfaceRustDownloadProgressCallback): void;
     ubrn_uniffi_nobodywho_uniffi_fn_init_callback_vtable_rusttoolcallback(vtable: UniffiVTableCallbackInterfaceRustToolCallback): void;
     ubrn_uniffi_nobodywho_uniffi_fn_func_cosine_similarity(a: Uint8Array, b: Uint8Array, uniffi_out_err: UniffiRustCallStatus): number;
-    ubrn_uniffi_nobodywho_uniffi_fn_func_load_model(modelPath: Uint8Array, useGpu: number, projectionModelPath: Uint8Array): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_func_load_model(modelPath: Uint8Array, useGpu: number, projectionModelPath: Uint8Array, progressCallback: Uint8Array): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_default(uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_dry(uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_grammar(grammar: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
@@ -189,6 +190,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_constructor_samplerconfig_from_json(): number;
+    ubrn_uniffi_nobodywho_uniffi_checksum_method_rustdownloadprogresscallback_on_progress(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttoolcallback_call(): number;
     ubrn_ffi_nobodywho_uniffi_uniffi_contract_version(): number;
     ubrn_uniffi_internal_fn_method_rustchat_ffi__bless_pointer(pointer: bigint, uniffi_out_err: UniffiRustCallStatus): UniffiGcObject;
@@ -278,8 +280,15 @@ export type UniffiForeignFutureResultVoid = {
   callStatus: UniffiRustCallStatus;
 };
 export type UniffiForeignFutureCompleteVoid = (callbackData: bigint, result: UniffiForeignFutureResultVoid) => void;
+type UniffiCallbackInterfaceRustDownloadProgressCallbackMethod0 = (uniffiHandle: bigint, downloaded: bigint, total: bigint) => UniffiResult<void>
+;
 type UniffiCallbackInterfaceRustToolCallbackMethod0 = (uniffiHandle: bigint, argumentsJson: Uint8Array) => Uint8Array
 ;
+export type UniffiVTableCallbackInterfaceRustDownloadProgressCallback = {
+  uniffiFree: UniffiCallbackInterfaceFree;
+  uniffiClone: UniffiCallbackInterfaceClone;
+  onProgress: UniffiCallbackInterfaceRustDownloadProgressCallbackMethod0;
+};
 export type UniffiVTableCallbackInterfaceRustToolCallback = {
   uniffiFree: UniffiCallbackInterfaceFree;
   uniffiClone: UniffiCallbackInterfaceClone;

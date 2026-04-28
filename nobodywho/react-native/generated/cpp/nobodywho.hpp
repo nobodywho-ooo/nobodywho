@@ -211,6 +211,10 @@ protected:
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value
+  cpp_uniffi_nobodywho_uniffi_fn_init_callback_vtable_rustdownloadprogresscallback(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value
   cpp_uniffi_nobodywho_uniffi_fn_init_callback_vtable_rusttoolcallback(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
@@ -571,6 +575,10 @@ protected:
       size_t count);
   jsi::Value
   cpp_uniffi_nobodywho_uniffi_checksum_constructor_samplerconfig_from_json(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_checksum_method_rustdownloadprogresscallback_on_progress(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_rusttoolcallback_call(

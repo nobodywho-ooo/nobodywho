@@ -32,6 +32,7 @@ import nativeModule, {
   type UniffiForeignFutureCompleteRustBuffer,
   type UniffiForeignFutureResultVoid,
   type UniffiForeignFutureCompleteVoid,
+  type UniffiVTableCallbackInterfaceRustDownloadProgressCallback,
   type UniffiVTableCallbackInterfaceRustToolCallback,
 } from "./nobodywho-ffi";
 import {
@@ -104,13 +105,13 @@ export function cosineSimilarity(a: Array</*f32*/number>, b: Array</*f32*/number
  * uniffi-bindgen-react-native generates invalid JS (`async static` instead
  * of `static async`) for async constructors.
  */
-export async function loadModel(modelPath: string, useGpu: boolean, projectionModelPath: string | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<RustModelInterface> /*throws*/ {
+export async function loadModel(modelPath: string, useGpu: boolean, projectionModelPath: string | undefined, progressCallback: RustDownloadProgressCallback | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<RustModelInterface> /*throws*/ {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
         return await uniffiRustCallAsync(
             /*rustCaller:*/ uniffiCaller,
             /*rustFutureFunc:*/ () => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_load_model(FfiConverterString.lower(modelPath),FfiConverterBool.lower(useGpu),FfiConverterOptionalString.lower(projectionModelPath)
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_load_model(FfiConverterString.lower(modelPath),FfiConverterBool.lower(useGpu),FfiConverterOptionalString.lower(projectionModelPath),FfiConverterOptionalTypeRustDownloadProgressCallback.lower(progressCallback)
                 );
             },
             /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_u64,
@@ -231,6 +232,69 @@ export function samplerPresetTopP(topP: /*f32*/number): SamplerConfigInterface {
     }
 
 
+
+
+
+/**
+ * Callback interface for download progress reporting. Implement this in your
+ * language to receive `(downloadedBytes, totalBytes)` events while a remote
+ * model is being downloaded. Throttled to ~10 Hz with a guaranteed final emit
+ * on completion. Not invoked for cached/local files.
+ */
+export interface RustDownloadProgressCallback {
+    
+    onProgress(downloaded: /*u64*/bigint, total: /*u64*/bigint) : void;
+}
+
+
+// Put the implementation in a struct so we don't pollute the top-level namespace
+const uniffiCallbackInterfaceRustDownloadProgressCallback: { vtable: UniffiVTableCallbackInterfaceRustDownloadProgressCallback; register: () => void; } = {
+    // Create the VTable using a series of closures.
+    // ts automatically converts these into C callback functions.
+    vtable: {
+        onProgress: (
+            uniffiHandle: bigint,
+            downloaded: bigint,
+            total: bigint,) => {
+            const uniffiMakeCall = 
+            ()
+            : void => {
+                const jsCallback = FfiConverterTypeRustDownloadProgressCallback.lift(uniffiHandle);
+                return jsCallback.onProgress(
+                    FfiConverterUInt64.lift(downloaded), 
+                    FfiConverterUInt64.lift(total)
+                )
+            };
+            const uniffiResult = UniffiResult.ready<void>();
+            const uniffiHandleSuccess = (obj: any) => {};
+            const uniffiHandleError = (code: number, errBuf: UniffiByteArray) => {
+                UniffiResult.writeError(uniffiResult, code, errBuf);
+            };
+            uniffiTraitInterfaceCall(
+                /*makeCall:*/ uniffiMakeCall,
+                /*handleSuccess:*/ uniffiHandleSuccess,
+                /*handleError:*/ uniffiHandleError,
+                /*lowerString:*/ FfiConverterString.lower
+            )
+            return uniffiResult;
+        },
+        uniffiFree: (uniffiHandle: UniffiHandle): void => {
+            // RustDownloadProgressCallback: this will throw a stale handle error if the handle isn't found.
+            FfiConverterTypeRustDownloadProgressCallback.drop(uniffiHandle);
+        },
+        uniffiClone: (uniffiHandle: UniffiHandle): UniffiHandle => {
+            return FfiConverterTypeRustDownloadProgressCallback.clone(uniffiHandle);
+        }
+    },
+    register: () => {
+        nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_init_callback_vtable_rustdownloadprogresscallback(
+            uniffiCallbackInterfaceRustDownloadProgressCallback.vtable
+        );
+    },
+};
+
+// FfiConverter protocol for callback interfaces
+const FfiConverterTypeRustDownloadProgressCallback = new FfiConverterCallback<RustDownloadProgressCallback>();
 
 
 
@@ -2891,6 +2955,10 @@ const uniffiTypeSamplerConfigObjectFactory: UniffiObjectFactory<SamplerConfigInt
 const FfiConverterTypeSamplerConfig =  new FfiConverterObject(uniffiTypeSamplerConfigObjectFactory);
 
 
+// FfiConverter for RustDownloadProgressCallback | undefined
+const FfiConverterOptionalTypeRustDownloadProgressCallback = new FfiConverterOptional(FfiConverterTypeRustDownloadProgressCallback);
+
+
 // FfiConverter for PendingToolCall | undefined
 const FfiConverterOptionalTypePendingToolCall = new FfiConverterOptional(FfiConverterTypePendingToolCall);
 
@@ -2967,7 +3035,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_cosine_similarity() !== 63439) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_cosine_similarity");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model() !== 63144) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model() !== 21168) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_load_model");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_default() !== 10834) {
@@ -3123,10 +3191,14 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_samplerconfig_from_json() !== 6867) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_samplerconfig_from_json");
     }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustdownloadprogresscallback_on_progress() !== 20201) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustdownloadprogresscallback_on_progress");
+    }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttoolcallback_call() !== 43958) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rusttoolcallback_call");
     }
 
+    uniffiCallbackInterfaceRustDownloadProgressCallback.register();
     uniffiCallbackInterfaceRustToolCallback.register();
     }
 

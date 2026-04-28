@@ -240,6 +240,7 @@ pub async fn load_model(
     model_path: String,
     use_gpu: bool,
     projection_model_path: Option<String>,
+    progress_callback: Option<Box<dyn RustDownloadProgressCallback>>,
 ) -> Result<Arc<RustModel>, NobodyWhoError> {
     init_logging();
     log::info!(
@@ -249,7 +250,8 @@ pub async fn load_model(
         projection_model_path
     );
 
-    let model = nobodywho::llm::get_model_async(model_path.clone(), use_gpu, projection_model_path, None)
+    let progress = progress_callback.map(wrap_progress);
+    let model = nobodywho::llm::get_model_async(model_path.clone(), use_gpu, projection_model_path, progress)
         .await
         .map_err(|e| {
             let msg = format!("Failed to load model '{}': {}", model_path, e);
@@ -515,6 +517,44 @@ impl RustTokenStream {
 #[uniffi::export(callback_interface)]
 pub trait RustToolCallback: Send + Sync {
     fn call(&self, arguments_json: String) -> String;
+}
+
+/// Callback interface for download progress reporting. Implement this in your
+/// language to receive `(downloadedBytes, totalBytes)` events while a remote
+/// model is being downloaded. Throttled to ~10 Hz with a guaranteed final emit
+/// on completion. Not invoked for cached/local files.
+#[uniffi::export(callback_interface)]
+pub trait RustDownloadProgressCallback: Send + Sync {
+    fn on_progress(&self, downloaded: u64, total: u64);
+}
+
+/// Bridge a foreign `RustDownloadProgressCallback` into the synchronous closure
+/// that core's `download_file` expects, with ~10 Hz throttling. Core fires the
+/// inner callback per chunk; without throttling we'd burn JSI hops on fast
+/// downloads. Always emits on completion so the UI never sticks at 99%.
+fn wrap_progress(
+    cb: Box<dyn RustDownloadProgressCallback>,
+) -> nobodywho::llm::DownloadProgressCallback {
+    use std::sync::Mutex;
+    use std::time::{Duration, Instant};
+    let cb: Arc<dyn RustDownloadProgressCallback> = Arc::from(cb);
+    let last_emit = Arc::new(Mutex::new(None::<Instant>));
+    Arc::new(move |downloaded: u64, total: u64| {
+        let is_done = total > 0 && downloaded >= total;
+        let emit = {
+            let mut last = last_emit.lock().expect("progress mutex poisoned");
+            let due = last.map_or(true, |t| t.elapsed() >= Duration::from_millis(100));
+            if is_done || due {
+                *last = Some(Instant::now());
+                true
+            } else {
+                false
+            }
+        };
+        if emit {
+            cb.on_progress(downloaded, total);
+        }
+    })
 }
 
 /// A pending tool call waiting for resolution from the language binding.
