@@ -69,11 +69,13 @@ export class Chat {
     templateVariables?: Record<string, boolean>;
     tools?: Tool[];
     sampler?: SamplerConfig;
+    onDownloadProgress?: (downloaded: number, total: number) => void;
   }): Promise<Chat> {
     const model = await Model.load({
       modelPath: opts.modelPath,
       useGpu: opts.useGpu,
       projectionModelPath: opts.projectionModelPath,
+      onDownloadProgress: opts.onDownloadProgress,
     });
     return new Chat({ model, ...opts });
   }

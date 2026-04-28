@@ -31,8 +31,13 @@ export class Encoder {
     modelPath: string;
     useGpu?: boolean;
     contextSize?: number;
+    onDownloadProgress?: (downloaded: number, total: number) => void;
   }): Promise<Encoder> {
-    const model = await Model.load({ modelPath: opts.modelPath, useGpu: opts.useGpu });
+    const model = await Model.load({
+      modelPath: opts.modelPath,
+      useGpu: opts.useGpu,
+      onDownloadProgress: opts.onDownloadProgress,
+    });
     return new Encoder({ model, ...opts });
   }
 

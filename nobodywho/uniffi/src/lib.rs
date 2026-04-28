@@ -529,31 +529,14 @@ pub trait RustDownloadProgressCallback: Send + Sync {
 }
 
 /// Bridge a foreign `RustDownloadProgressCallback` into the synchronous closure
-/// that core's `download_file` expects, with ~10 Hz throttling. Core fires the
-/// inner callback per chunk; without throttling we'd burn JSI hops on fast
-/// downloads. Always emits on completion so the UI never sticks at 99%.
+/// core expects, with ~10 Hz throttling provided by
+/// `throttled_progress_callback` (avoids burning JSI hops on fast downloads).
 fn wrap_progress(
     cb: Box<dyn RustDownloadProgressCallback>,
 ) -> nobodywho::llm::DownloadProgressCallback {
-    use std::sync::Mutex;
-    use std::time::{Duration, Instant};
     let cb: Arc<dyn RustDownloadProgressCallback> = Arc::from(cb);
-    let last_emit = Arc::new(Mutex::new(None::<Instant>));
-    Arc::new(move |downloaded: u64, total: u64| {
-        let is_done = total > 0 && downloaded >= total;
-        let emit = {
-            let mut last = last_emit.lock().expect("progress mutex poisoned");
-            let due = last.map_or(true, |t| t.elapsed() >= Duration::from_millis(100));
-            if is_done || due {
-                *last = Some(Instant::now());
-                true
-            } else {
-                false
-            }
-        };
-        if emit {
-            cb.on_progress(downloaded, total);
-        }
+    nobodywho::llm::throttled_progress_callback(move |downloaded, total| {
+        cb.on_progress(downloaded, total);
     })
 }
 

@@ -26,13 +26,8 @@ pub enum PromptPart {
 #[flutter_rust_bridge::frb(sync, positional)]
 pub fn noop_progress_callback(_downloaded: i64, _total: i64) {}
 
-/// Wrap a Dart async progress callback into the synchronous closure that core's
-/// `download_file` expects.
-///
-/// Core fires the inner callback per chunk (potentially thousands of times per
-/// second on fast networks). Each Dart round-trip via `block_on` costs a Dart
-/// isolate event-loop hop, so we sample the stream at ~10 Hz, plus an extra
-/// emit on completion so the UI never sticks at 99%.
+/// Bridge a Dart async progress callback into the synchronous closure core
+/// expects, with ~10 Hz throttling provided by `throttled_progress_callback`.
 ///
 /// The Dart callback takes `(i64, i64)` rather than `(u64, u64)` so that frb
 /// generates a plain `int` Dart parameter; i64::MAX is ~9.2 EB which is far
@@ -41,24 +36,8 @@ fn wrap_progress<F>(callback: F) -> nobodywho::llm::DownloadProgressCallback
 where
     F: Fn(i64, i64) -> flutter_rust_bridge::DartFnFuture<()> + Send + Sync + 'static,
 {
-    use std::sync::Mutex;
-    use std::time::{Duration, Instant};
-    let last_emit = Arc::new(Mutex::new(None::<Instant>));
-    Arc::new(move |downloaded: u64, total: u64| {
-        let is_done = total > 0 && downloaded >= total;
-        let emit = {
-            let mut last = last_emit.lock().expect("progress state mutex poisoned");
-            let due = last.map_or(true, |t| t.elapsed() >= Duration::from_millis(100));
-            if is_done || due {
-                *last = Some(Instant::now());
-                true
-            } else {
-                false
-            }
-        };
-        if emit {
-            futures::executor::block_on(callback(downloaded as i64, total as i64));
-        }
+    nobodywho::llm::throttled_progress_callback(move |downloaded, total| {
+        futures::executor::block_on(callback(downloaded as i64, total as i64));
     })
 }
 

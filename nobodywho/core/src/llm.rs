@@ -76,6 +76,43 @@ pub fn default_progress_callback() -> DownloadProgressCallback {
     })
 }
 
+/// Wrap a progress callback so it fires at most ~10 Hz, with a guaranteed
+/// final emit on completion.
+///
+/// Use this when each invocation of the user-provided callback is expensive —
+/// typically because it crosses a language boundary (Dart isolate hop, JSI
+/// hop, etc.). Without throttling, a fast download (thousands of chunks/sec)
+/// would saturate the cross-language bridge. The Python binding does NOT need
+/// this since a PyO3 callable invocation is cheap; it forwards every chunk.
+///
+/// Implementation: single mutex protecting the last-emit `Instant`. Emits if
+/// `now - last >= 100ms` or if `total > 0 && downloaded >= total` (completion,
+/// so the UI never sticks at 99%).
+pub fn throttled_progress_callback<F>(callback: F) -> DownloadProgressCallback
+where
+    F: Fn(u64, u64) + Send + Sync + 'static,
+{
+    let last_emit = Arc::new(Mutex::new(None::<std::time::Instant>));
+    Arc::new(move |downloaded: u64, total: u64| {
+        let is_done = total > 0 && downloaded >= total;
+        let emit = {
+            let mut last = last_emit.lock().expect("progress mutex poisoned");
+            let due = last.map_or(true, |t: std::time::Instant| {
+                t.elapsed() >= Duration::from_millis(100)
+            });
+            if is_done || due {
+                *last = Some(std::time::Instant::now());
+                true
+            } else {
+                false
+            }
+        };
+        if emit {
+            callback(downloaded, total);
+        }
+    })
+}
+
 #[derive(Debug)]
 pub struct Model {
     pub(crate) language_model: LlamaModel,
@@ -834,4 +871,37 @@ impl<T> Drop for WorkerGuard<T> {
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn throttled_callback_drops_intermediate_calls_within_window() {
+        let count = Arc::new(AtomicUsize::new(0));
+        let count_inner = Arc::clone(&count);
+        let cb = throttled_progress_callback(move |_d, _t| {
+            count_inner.fetch_add(1, Ordering::Relaxed);
+        });
+
+        // First call always emits; subsequent calls within 100ms are dropped.
+        for i in 0..1000 {
+            cb(i, 10_000);
+        }
+        let n = count.load(Ordering::Relaxed);
+        assert!(n >= 1 && n <= 5, "expected 1–5 emits, got {}", n);
+    }
+
+    #[test]
+    fn throttled_callback_always_emits_on_completion() {
+        let count = Arc::new(AtomicUsize::new(0));
+        let count_inner = Arc::clone(&count);
+        let cb = throttled_progress_callback(move |_d, _t| {
+            count_inner.fetch_add(1, Ordering::Relaxed);
+        });
+
+        // First call: emits. Second call inside the window but is_done=true: emits.
+        cb(50, 100);
+        cb(100, 100);
+        assert_eq!(count.load(Ordering::Relaxed), 2);
+    }
+}
