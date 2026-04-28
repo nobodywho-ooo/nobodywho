@@ -4,6 +4,7 @@
 //! phoneme IDs → ONNX → PCM audio.
 
 use crate::errors::TtsError;
+use crate::tts::backend::TtsBackendImpl;
 use crate::tts::{ort_util, TtsDevice};
 use ort::session::Session;
 use ort::value::Tensor;
@@ -12,8 +13,25 @@ use serde::Deserialize;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::Mutex;
 use tracing::info;
+
+pub(super) struct PiperBackend {
+    model: PiperModel,
+    sample_rate: u32,
+}
+
+impl PiperBackend {
+    pub fn new(model: PiperModel) -> Self {
+        let sample_rate = model.sample_rate();
+        Self { model, sample_rate }
+    }
+}
+
+impl TtsBackendImpl for PiperBackend {
+    fn synthesize_raw(&mut self, text: &str) -> Result<(Vec<f32>, u32), TtsError> {
+        Ok((self.model.synthesize(text)?, self.sample_rate))
+    }
+}
 
 #[derive(Deserialize)]
 pub(crate) struct PiperConfig {
@@ -43,7 +61,7 @@ pub(crate) struct InferenceConfig {
 }
 
 pub(crate) struct PiperModel {
-    session: Mutex<Session>,
+    session: Session,
     config: PiperConfig,
 }
 
@@ -67,17 +85,14 @@ impl PiperModel {
             "Loaded Piper model"
         );
 
-        Ok(Self {
-            session: Mutex::new(session),
-            config,
-        })
+        Ok(Self { session, config })
     }
 
     pub fn sample_rate(&self) -> u32 {
         self.config.audio.sample_rate
     }
 
-    pub fn synthesize(&self, text: &str) -> Result<Vec<f32>, TtsError> {
+    pub fn synthesize(&mut self, text: &str) -> Result<Vec<f32>, TtsError> {
         let phoneme_sentences =
             espeak_rs::text_to_phonemes(text, &self.config.espeak.voice, None, true, false)
                 .map_err(|e| TtsError::Synthesis(format!("espeak phonemization failed: {e}")))?;
@@ -115,7 +130,7 @@ impl PiperModel {
     }
 
     fn infer(
-        &self,
+        &mut self,
         phoneme_ids: &[i64],
         noise_scale: f32,
         length_scale: f32,
@@ -156,11 +171,8 @@ impl PiperModel {
             ));
         }
 
-        let mut session = self
+        let outputs = self
             .session
-            .lock()
-            .map_err(|e| TtsError::Synthesis(format!("session lock poisoned: {e}")))?;
-        let outputs = session
             .run(ort::session::SessionInputs::from(inputs))
             .map_err(|e| TtsError::Synthesis(format!("ort inference failed: {e}")))?;
 

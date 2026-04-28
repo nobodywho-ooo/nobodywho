@@ -3,12 +3,7 @@
 //! The pipeline — temperature → repetition penalty (applied by caller) →
 //! top-k → min-p → top-p → multinomial — follows Hugging Face's logit warpers
 //! so the Rust output can be compared against the reference torch path.
-//!
-//! Callers that need bit-exact reproducibility (e.g. Røst regression checks)
-//! plug in a [`UniformSource`] that replays pinned uniforms instead of drawing
-//! from the system RNG.
 
-use crate::errors::TtsError;
 use std::cmp::Ordering;
 
 /// Sampling knobs shared by every Chatterbox-family backend.
@@ -32,62 +27,6 @@ pub(super) struct SamplingParams {
     /// mix `logits = cond + cfg_weight × (cond − uncond)` and require the LM
     /// to be called with a duplicated unconditioned batch.
     pub cfg_weight: f32,
-}
-
-/// Source of uniform `[0, 1)` draws used by multinomial sampling.
-///
-/// Abstracted as a trait so regression tests can substitute [`DebugUniforms`]
-/// for [`SystemRng`] and reproduce a known token sequence.
-pub(super) trait UniformSource {
-    fn next_uniform(&mut self) -> f32;
-}
-
-/// Production RNG backed by `rand::random`.
-pub(super) struct SystemRng;
-
-impl UniformSource for SystemRng {
-    fn next_uniform(&mut self) -> f32 {
-        rand::random()
-    }
-}
-
-/// Replay a fixed sequence of uniform draws. Parsed from
-/// `NOBODYWHO_TTS_SAMPLE_UNIFORMS` by the Røst instrumentation layer.
-pub(super) struct DebugUniforms {
-    values: Vec<f32>,
-    cursor: usize,
-}
-
-impl DebugUniforms {
-    pub fn new(values: Vec<f32>) -> Self {
-        Self { values, cursor: 0 }
-    }
-
-    pub fn from_env_var(raw: &str) -> Result<Self, TtsError> {
-        let values = raw
-            .split(',')
-            .filter(|v| !v.trim().is_empty())
-            .map(|v| {
-                v.trim().parse::<f32>().map_err(|e| {
-                    TtsError::Synthesis(format!(
-                        "invalid NOBODYWHO_TTS_SAMPLE_UNIFORMS entry `{v}`: {e}"
-                    ))
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(Self::new(values))
-    }
-}
-
-impl UniformSource for DebugUniforms {
-    fn next_uniform(&mut self) -> f32 {
-        if self.values.is_empty() {
-            return rand::random();
-        }
-        let idx = self.cursor.min(self.values.len() - 1);
-        self.cursor += 1;
-        self.values[idx]
-    }
 }
 
 /// Return the index of the largest element, treating NaNs as smaller than
@@ -239,8 +178,8 @@ pub(super) fn apply_top_p(logits: &mut [f32], top_p: f32) {
 }
 
 /// Draw one multinomial sample from a normalized probability distribution.
-fn sample_multinomial(probs: &[f32], rng: &mut impl UniformSource) -> usize {
-    let mut r = rng.next_uniform() as f64;
+fn sample_multinomial(probs: &[f32]) -> usize {
+    let mut r = rand::random::<f64>();
     for (idx, &p) in probs.iter().enumerate() {
         r -= p as f64;
         if r <= 0.0 {
@@ -261,11 +200,7 @@ fn sample_multinomial(probs: &[f32], rng: &mut impl UniformSource) -> usize {
 ///
 /// `logits` is mutated in place. If `params.temperature <= 1e-6` the function
 /// short-circuits to [`argmax`] and skips the warpers entirely.
-pub(super) fn sample_token(
-    logits: &mut [f32],
-    params: &SamplingParams,
-    rng: &mut impl UniformSource,
-) -> usize {
+pub(super) fn sample_token(logits: &mut [f32], params: &SamplingParams) -> usize {
     if params.temperature <= 1e-6 {
         return argmax(logits);
     }
@@ -281,7 +216,7 @@ pub(super) fn sample_token(
     apply_top_p(logits, params.top_p);
 
     let probs = softmax(logits);
-    sample_multinomial(&probs, rng)
+    sample_multinomial(&probs)
 }
 
 #[cfg(test)]
@@ -295,15 +230,6 @@ mod tests {
             top_p: 1.0,
             min_p: 0.0,
             cfg_weight: 0.0,
-        }
-    }
-
-    struct FixedUniforms(Vec<f32>, usize);
-    impl UniformSource for FixedUniforms {
-        fn next_uniform(&mut self) -> f32 {
-            let v = self.0[self.1.min(self.0.len() - 1)];
-            self.1 += 1;
-            v
         }
     }
 
@@ -357,7 +283,6 @@ mod tests {
 
     #[test]
     fn min_p_keeps_at_least_top_one() {
-        // With extreme min_p everything else is masked; top must survive.
         let mut logits = vec![10.0, 0.0, -1.0];
         apply_min_p(&mut logits, 0.9);
         assert_eq!(logits[0], 10.0);
@@ -375,24 +300,11 @@ mod tests {
     #[test]
     fn sample_token_greedy_when_temperature_zero() {
         let mut logits = vec![0.1, 0.9, 0.3];
-        let mut rng = FixedUniforms(vec![0.5], 0);
         let p = SamplingParams {
             temperature: 0.0,
             ..params()
         };
-        assert_eq!(sample_token(&mut logits, &p, &mut rng), 1);
-    }
-
-    #[test]
-    fn sample_token_is_deterministic_with_fixed_uniforms() {
-        let original = vec![1.0f32, 2.0, 3.0, 4.0];
-        let mut rng_a = FixedUniforms(vec![0.1], 0);
-        let mut rng_b = FixedUniforms(vec![0.1], 0);
-        let mut la = original.clone();
-        let mut lb = original.clone();
-        let a = sample_token(&mut la, &params(), &mut rng_a);
-        let b = sample_token(&mut lb, &params(), &mut rng_b);
-        assert_eq!(a, b);
+        assert_eq!(sample_token(&mut logits, &p), 1);
     }
 
     #[test]

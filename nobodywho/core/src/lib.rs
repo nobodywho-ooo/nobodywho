@@ -8,6 +8,7 @@ pub mod sampler_config;
 pub mod template;
 pub mod tokenizer;
 pub mod tool_calling;
+#[cfg(feature = "tts")]
 pub mod tts;
 
 pub fn send_llamacpp_logs_to_tracing() {
