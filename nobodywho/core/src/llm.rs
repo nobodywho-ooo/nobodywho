@@ -16,7 +16,7 @@ use llama_cpp_2::token::LlamaToken;
 use std::io::{Read, Write};
 use std::pin::pin;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
 use std::time::Duration;
 use tracing::{debug, debug_span, error, info, info_span, warn};
@@ -85,29 +85,27 @@ pub fn default_progress_callback() -> DownloadProgressCallback {
 /// would saturate the cross-language bridge. The Python binding does NOT need
 /// this since a PyO3 callable invocation is cheap; it forwards every chunk.
 ///
-/// Implementation: single mutex protecting the last-emit `Instant`. Emits if
+/// Implementation: lock-free `AtomicU64` holding nanoseconds since a process-wide
+/// epoch. The load/check/store has a benign race (two concurrent emitters could
+/// both decide to emit within the same window) but `download_file` is
+/// single-threaded per download, and an extra emit is harmless. Emits if
 /// `now - last >= 100ms` or if `total > 0 && downloaded >= total` (completion,
-/// so the UI never sticks at 99%).
+/// so the UI never sticks at 99%). 0 is the "never emitted" sentinel.
 pub fn throttled_progress_callback<F>(callback: F) -> DownloadProgressCallback
 where
     F: Fn(u64, u64) + Send + Sync + 'static,
 {
-    let last_emit = Arc::new(Mutex::new(None::<std::time::Instant>));
+    static EPOCH: LazyLock<std::time::Instant> = LazyLock::new(std::time::Instant::now);
+    const THROTTLE_NS: u64 = 100_000_000;
+
+    let last_emit_ns = Arc::new(AtomicU64::new(0));
     Arc::new(move |downloaded: u64, total: u64| {
         let is_done = total > 0 && downloaded >= total;
-        let emit = {
-            let mut last = last_emit.lock().expect("progress mutex poisoned");
-            let due = last.is_none_or(|t: std::time::Instant| {
-                t.elapsed() >= Duration::from_millis(100)
-            });
-            if is_done || due {
-                *last = Some(std::time::Instant::now());
-                true
-            } else {
-                false
-            }
-        };
-        if emit {
+        let now_ns = EPOCH.elapsed().as_nanos() as u64;
+        let prev = last_emit_ns.load(Ordering::Relaxed);
+        let due = prev == 0 || now_ns.saturating_sub(prev) >= THROTTLE_NS;
+        if is_done || due {
+            last_emit_ns.store(now_ns, Ordering::Relaxed);
             callback(downloaded, total);
         }
     })
