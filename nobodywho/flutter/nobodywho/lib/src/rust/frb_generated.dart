@@ -3551,7 +3551,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     // Codec=Dco (DartCObject based), see doc to use other codecs
     switch (raw[0]) {
       case 0:
-        return Message_Message(
+        return Message_Standard(
           role: dco_decode_role(raw[1]),
           content: dco_decode_String(raw[2]),
           assets:
@@ -3569,7 +3569,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
               ),
         );
       case 2:
-        return Message_ToolResp(
+        return Message_ToolResult(
           role: dco_decode_role(raw[1]),
           name: dco_decode_String(raw[2]),
           content: dco_decode_String(raw[3]),
@@ -4518,7 +4518,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             sse_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
               deserializer,
             );
-        return Message_Message(
+        return Message_Standard(
           role: var_role,
           content: var_content,
           assets: var_assets,
@@ -4539,7 +4539,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         var var_role = sse_decode_role(deserializer);
         var var_name = sse_decode_String(deserializer);
         var var_content = sse_decode_String(deserializer);
-        return Message_ToolResp(
+        return Message_ToolResult(
           role: var_role,
           name: var_name,
           content: var_content,
@@ -5577,7 +5577,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   void sse_encode_message(Message self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     switch (self) {
-      case Message_Message(
+      case Message_Standard(
         role: final role,
         content: final content,
         assets: final assets,
@@ -5601,7 +5601,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           toolCalls,
           serializer,
         );
-      case Message_ToolResp(
+      case Message_ToolResult(
         role: final role,
         name: final name,
         content: final content,

@@ -460,21 +460,21 @@ abstract class Value implements RustOpaqueInterface {}
 sealed class Message with _$Message {
   const Message._();
 
-  const factory Message.message({
+  const factory Message.standard({
     required Role role,
     required String content,
     @Default(const []) List<Asset> assets,
-  }) = Message_Message;
+  }) = Message_Standard;
   const factory Message.toolCalls({
     required Role role,
     required String content,
     required List<ToolCall> toolCalls,
   }) = Message_ToolCalls;
-  const factory Message.toolResp({
+  const factory Message.toolResult({
     required Role role,
     required String name,
     required String content,
-  }) = Message_ToolResp;
+  }) = Message_ToolResult;
 }
 
 @freezed

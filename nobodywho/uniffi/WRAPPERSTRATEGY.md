@@ -49,7 +49,7 @@ These types are used internally by the wrapper layer but should not be exposed t
 
 | UniFFI Type | Kind | Hidden Because |
 |-------------|------|---------------|
-| `Message` | Enum | Awkward generated API (`Message.Message` stutter, tagged union). Wrapper converts to a flat type (e.g. `ChatMessage` in TS). |
+| `Message` | Enum | Tagged union with awkward generated API. Wrapper converts to a flat type (e.g. `Message` in TS). |
 | `PromptPart` | Enum | Implementation detail of `Prompt` wrapper class. |
 | `ToolParameter` | Record | Implementation detail of `Tool` wrapper. Consumers declare parameters as an ordered array. |
 | `load_model` | Function | Replaced by `Model.load()` factory. |

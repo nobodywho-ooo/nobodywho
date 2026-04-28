@@ -3,7 +3,7 @@ import {
   SamplerConfig,
 } from "../generated/ts/nobodywho";
 import { Model } from "./model";
-import { type ChatMessage, fromInternal, toInternal } from "./message";
+import { type Message, fromInternal, toInternal } from "./message";
 import { TokenStream } from "./streaming";
 import type { Prompt } from "./prompt";
 import type { Tool } from "./tool";
@@ -108,13 +108,13 @@ export class Chat {
   }
 
   /** Get the current chat history as a list of messages. */
-  async getChatHistory(): Promise<ChatMessage[]> {
+  async getChatHistory(): Promise<Message[]> {
     const internal = await this._inner.getChatHistory();
     return internal.map(fromInternal);
   }
 
   /** Set the chat history from a list of messages. */
-  async setChatHistory(messages: ChatMessage[]): Promise<void> {
+  async setChatHistory(messages: Message[]): Promise<void> {
     return this._inner.setChatHistory(messages.map(toInternal));
   }
 

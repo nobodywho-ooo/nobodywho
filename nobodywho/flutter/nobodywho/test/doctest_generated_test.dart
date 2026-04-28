@@ -95,7 +95,7 @@ void main() {
       final msgs = await chat.getChatHistory();
       print(msgs[0].content); // "Is water wet?"
       await chat.setChatHistory([
-        nobodywho.Message.message(role: nobodywho.Role.user, content: "What is water?")
+        nobodywho.Message.standard(role: nobodywho.Role.user, content: "What is water?")
       ]);
     });
 

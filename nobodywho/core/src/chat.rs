@@ -70,13 +70,13 @@ pub struct Asset {
 }
 
 // deny_unknown_fields is required because assets has a serde default, making the
-// Message variant so permissive it would greedily match ToolCalls/ToolResp JSON
+// Standard variant so permissive it would greedily match ToolCalls/ToolResult JSON
 // before they get a chance (serde untagged tries variants in declaration order
 // and ignores unknown fields by default).
 #[derive(Deserialize, Serialize, Clone, Debug)]
 #[serde(untagged, deny_unknown_fields)]
 pub enum Message {
-    Message {
+    Standard {
         role: Role,
         content: String,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -92,7 +92,7 @@ pub enum Message {
         content: String,
         tool_calls: Vec<ToolCall>,
     },
-    ToolResp {
+    ToolResult {
         role: Role,
         name: String,
         content: String,
@@ -102,30 +102,30 @@ pub enum Message {
 impl Message {
     pub fn role(&self) -> &Role {
         match self {
-            Message::Message { role, .. }
+            Message::Standard { role, .. }
             | Message::ToolCalls { role, .. }
-            | Message::ToolResp { role, .. } => role,
+            | Message::ToolResult { role, .. } => role,
         }
     }
 
     pub fn content(&self) -> &str {
         match self {
-            Message::Message { content, .. }
+            Message::Standard { content, .. }
             | Message::ToolCalls { content, .. }
-            | Message::ToolResp { content, .. } => content,
+            | Message::ToolResult { content, .. } => content,
         }
     }
 
     pub fn assets(&self) -> Vec<Asset> {
         match self {
-            Message::Message { assets, .. } => assets.clone(),
+            Message::Standard { assets, .. } => assets.clone(),
             Message::ToolCalls { .. } => vec![],
-            Message::ToolResp { .. } => vec![],
+            Message::ToolResult { .. } => vec![],
         }
     }
 
     pub fn new_user(content: String) -> Self {
-        Self::Message {
+        Self::Standard {
             role: Role::User,
             content,
             assets: vec![],
@@ -133,7 +133,7 @@ impl Message {
     }
 
     pub fn new_assistant(content: String) -> Self {
-        Self::Message {
+        Self::Standard {
             role: Role::Assistant,
             content,
             assets: vec![],
@@ -141,7 +141,7 @@ impl Message {
     }
 
     pub fn new_system(content: String) -> Self {
-        Self::Message {
+        Self::Standard {
             role: Role::System,
             content,
             assets: vec![],
@@ -1279,7 +1279,7 @@ impl Worker<'_, ChatWorker> {
                 tool_format,
                 sampler_config,
                 messages: match config.system_prompt {
-                    Some(msg) => vec![Message::Message {
+                    Some(msg) => vec![Message::Standard {
                         role: Role::System,
                         content: msg,
                         assets: vec![],
@@ -1314,7 +1314,7 @@ impl Worker<'_, ChatWorker> {
     }
 
     fn add_message(&mut self, role: Role, content: String, assets: Vec<Asset>) {
-        self.extra.messages.push(Message::Message {
+        self.extra.messages.push(Message::Standard {
             role,
             content,
             assets,
@@ -1330,7 +1330,7 @@ impl Worker<'_, ChatWorker> {
     }
 
     pub fn add_tool_resp(&mut self, name: String, content: String) {
-        self.extra.messages.push(Message::ToolResp {
+        self.extra.messages.push(Message::ToolResult {
             role: Role::Tool,
             name,
             content,
@@ -1864,7 +1864,7 @@ impl Worker<'_, ChatWorker> {
     ) -> Result<(), ContextSyncError> {
         match system_prompt {
             Some(sys_msg) => {
-                let system_message = Message::Message {
+                let system_message = Message::Standard {
                     role: Role::System,
                     content: sys_msg,
                     assets: vec![],
@@ -1899,7 +1899,7 @@ impl Worker<'_, ChatWorker> {
             return None;
         };
         match &self.extra.messages[0] {
-            Message::Message {
+            Message::Standard {
                 role: Role::System,
                 content,
                 assets: _,
@@ -1953,7 +1953,7 @@ impl Worker<'_, ChatWorker> {
     pub fn set_chat_history(&mut self, messages: Vec<Message>) -> Result<(), ContextSyncError> {
         // get system prompt, if it is there
         let system_msg: Option<Message> = match self.extra.messages.as_slice() {
-            [msg @ Message::Message {
+            [msg @ Message::Standard {
                 role: Role::System, ..
             }, ..] => Some(msg.clone()),
             _ => None,
@@ -1976,7 +1976,7 @@ impl Worker<'_, ChatWorker> {
 
     pub fn get_chat_history(&self) -> Vec<Message> {
         match self.extra.messages.as_slice() {
-            [Message::Message {
+            [Message::Standard {
                 role: Role::System, ..
             }, rest @ ..] => rest.to_vec(),
             _ => self.extra.messages.clone(),
@@ -2410,7 +2410,7 @@ mod tests {
             "System message should remain"
         );
 
-        if let Message::Message { content, .. } = &messages_after[0] {
+        if let Message::Standard { content, .. } = &messages_after[0] {
             assert!(
                 content.contains("helpful assistant"),
                 "System prompt should be preserved"
@@ -2440,7 +2440,7 @@ mod tests {
             .rev()
             .find(|m| m.role() == &Role::User);
 
-        if let Some(Message::Message { content, .. }) = last_user {
+        if let Some(Message::Standard { content, .. }) = last_user {
             assert!(
                 content.contains("Hello!"),
                 "Last user message should be preserved"
@@ -2560,7 +2560,7 @@ mod tests {
             .rev()
             .find(|m| m.role() == &Role::User);
 
-        if let Some(Message::Message { content, .. }) = last_user {
+        if let Some(Message::Standard { content, .. }) = last_user {
             assert!(
                 content.contains("Final question!"),
                 "Last user message should be preserved"
@@ -2666,7 +2666,7 @@ mod tests {
             .rev()
             .find(|m| m.role() == &Role::User);
 
-        if let Some(Message::Message { content, .. }) = last_user {
+        if let Some(Message::Standard { content, .. }) = last_user {
             assert!(
                 content.contains("new question"),
                 "Last user message should be preserved"
@@ -2749,7 +2749,7 @@ mod tests {
             .rev()
             .find(|m| m.role() == &Role::User);
 
-        if let Some(Message::Message { content, .. }) = last_user {
+        if let Some(Message::Standard { content, .. }) = last_user {
             assert!(
                 content.contains("What is"),
                 "Last user message should be preserved"
