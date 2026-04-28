@@ -11,7 +11,7 @@ export 'src/rust/lib.dart'
         newToolImpl, // Internal helper
         toolCallArgumentsJson, // Internal helper
         PromptPart, // Users should use the hand-written PromptPart sealed class
-        noopProgressCallback; // Internal default for progressCallback parameters
+        noopOnDownloadProgress; // Internal default for onDownloadProgress parameters
 export 'src/rust/frb_generated.dart' show NobodyWho;
 
 import 'src/rust/lib.dart' as nobodywho;
@@ -586,7 +586,7 @@ class Chat {
   /// [projectionModelPath] is an optional path to a `.mmproj` projection model file,
   /// required for vision/multimodal models (e.g. LLaVA, Qwen-VL).
   ///
-  /// [progressCallback] is invoked while a remote model is being downloaded
+  /// [onDownloadProgress] is invoked while a remote model is being downloaded
   /// (HuggingFace or HTTPS URLs). It receives `(downloadedBytes, totalBytes)`
   /// and is throttled in Rust to roughly 10 Hz, with mandatory emits on the
   /// first chunk, on a new file (e.g. mmproj following the model), and on
@@ -603,12 +603,12 @@ class Chat {
     List<Tool> tools = const [],
     nobodywho.SamplerConfig? sampler,
     bool useGpu = true,
-    FutureOr<void> Function(int downloaded, int total) progressCallback =
-        nobodywho.noopProgressCallback,
+    FutureOr<void> Function(int downloaded, int total) onDownloadProgress =
+        nobodywho.noopOnDownloadProgress,
   }) async {
     final chat = await nobodywho.RustChat.fromPath(
       modelPath: modelPath,
-      progressCallback: progressCallback,
+      onDownloadProgress: onDownloadProgress,
       projectionModelPath: projectionModelPath,
       systemPrompt: systemPrompt,
       contextSize: contextSize,

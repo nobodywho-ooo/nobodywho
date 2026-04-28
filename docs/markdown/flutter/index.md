@@ -45,6 +45,19 @@ print(msg); // Yes, indeed, water is wet!
 
 This is a super simple example, but we believe that examples which do simple things, should be simple!
 
+## Tracking download progress
+
+When loading a remote model, pass an `onDownloadProgress` callback to observe the download. It receives `(downloadedBytes, totalBytes)`, is throttled to roughly 10 Hz with a guaranteed final emit on completion, and is not called for cached or local files.
+
+```dart
+final chat = await nobodywho.Chat.fromPath(
+  modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
+  onDownloadProgress: (downloaded, total) {
+    print('$downloaded / $total bytes');
+  },
+);
+```
+
 To get a full overview of the functionality provided by NobodyWho, simply keep reading. You can also have a look at our [flutter starter app repository](https://github.com/nobodywho-ooo/flutter-starter-example).
 
 ## Minimum recommended specs
