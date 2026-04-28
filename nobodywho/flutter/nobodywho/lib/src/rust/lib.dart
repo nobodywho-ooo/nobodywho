@@ -63,6 +63,15 @@ abstract class CompletionError implements RustOpaqueInterface {}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CrossEncoder>>
 abstract class CrossEncoder implements RustOpaqueInterface {
+  /// Load a cross-encoder model from a local path, HuggingFace path, or HTTPS URL.
+  ///
+  /// Args:
+  ///     model_path: Path or URL to a GGUF cross-encoder model file.
+  ///     progress_callback: Invoked with `(downloadedBytes, totalBytes)` while a
+  ///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
+  ///         final emit on completion. Not invoked for cached/local files.
+  ///     n_ctx: Context size for the cross-encoder. Defaults to 4096.
+  ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
   static Future<CrossEncoder> fromPath({
     required String modelPath,
     FutureOr<void> Function(PlatformInt64, PlatformInt64) progressCallback =
@@ -97,6 +106,15 @@ abstract class CrossEncoderWorkerError implements RustOpaqueInterface {}
 abstract class Encoder implements RustOpaqueInterface {
   Future<Float32List> encode({required String text});
 
+  /// Load an embedding model from a local path, HuggingFace path, or HTTPS URL.
+  ///
+  /// Args:
+  ///     model_path: Path or URL to a GGUF embedding model file.
+  ///     progress_callback: Invoked with `(downloadedBytes, totalBytes)` while a
+  ///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
+  ///         final emit on completion. Not invoked for cached/local files.
+  ///     n_ctx: Context size for the encoder. Defaults to 4096.
+  ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
   static Future<Encoder> fromPath({
     required String modelPath,
     FutureOr<void> Function(PlatformInt64, PlatformInt64) progressCallback =
@@ -122,6 +140,16 @@ abstract class GetterError implements RustOpaqueInterface {}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Model>>
 abstract class Model implements RustOpaqueInterface {
+  /// Load a model from a local path, HuggingFace path (`huggingface:owner/repo/file.gguf`),
+  /// or HTTPS URL. Remote models are downloaded and cached automatically.
+  ///
+  /// Args:
+  ///     model_path: Path or URL to a GGUF model file.
+  ///     progress_callback: Invoked with `(downloadedBytes, totalBytes)` while a
+  ///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
+  ///         final emit on completion. Not invoked for cached/local files.
+  ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
+  ///     projection_model_path: Optional path to a `.mmproj` file for vision/multimodal models.
   static Future<Model> load({
     required String modelPath,
     FutureOr<void> Function(PlatformInt64, PlatformInt64) progressCallback =
@@ -153,6 +181,9 @@ abstract class RustChat implements RustOpaqueInterface {
   ///
   /// Args:
   ///     model_path: Path to GGUF model file
+  ///     progress_callback: Invoked with `(downloadedBytes, totalBytes)` while a
+  ///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
+  ///         final emit on completion. Not invoked for cached/local files.
   ///     projection_model_path: Path to a .mmproj file for vision/multimodal models
   ///     system_prompt: System message to guide the model's behavior
   ///     context_size: Context size (maximum conversation length in tokens)
