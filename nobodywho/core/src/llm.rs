@@ -97,7 +97,7 @@ where
         let is_done = total > 0 && downloaded >= total;
         let emit = {
             let mut last = last_emit.lock().expect("progress mutex poisoned");
-            let due = last.map_or(true, |t: std::time::Instant| {
+            let due = last.is_none_or(|t: std::time::Instant| {
                 t.elapsed() >= Duration::from_millis(100)
             });
             if is_done || due {
