@@ -593,4 +593,127 @@ mod tests {
         };
         assert!(err.contains("length mismatch"));
     }
+
+    // ── collapse_logits ────────────────────────────────────────────────────
+
+    #[test]
+    fn collapse_logits_no_cfg_takes_last_position_of_batch_zero() {
+        // shape [1, 2, 3] — batch=1, seq=2, vocab=3
+        let logits = TensorData {
+            data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+            shape: vec![1, 2, 3],
+        };
+        assert_eq!(collapse_logits(&logits, false, 0.0), vec![4.0, 5.0, 6.0]);
+    }
+
+    #[test]
+    fn collapse_logits_with_cfg_mixes_branches_at_last_position() {
+        // shape [2, 2, 3] — batch=2, seq=2, vocab=3
+        let logits = TensorData {
+            data: vec![
+                // batch 0
+                1.0, 1.0, 1.0, // pos 0 (ignored)
+                10.0, 20.0, 30.0, // pos 1 — cond
+                // batch 1
+                2.0, 2.0, 2.0, // pos 0 (ignored)
+                1.0, 2.0, 3.0, // pos 1 — uncond
+            ],
+            shape: vec![2, 2, 3],
+        };
+        // cond + 0.5 * (cond - uncond) = [14.5, 29.0, 43.5]
+        assert_eq!(collapse_logits(&logits, true, 0.5), vec![14.5, 29.0, 43.5]);
+    }
+
+    #[test]
+    fn collapse_logits_with_cfg_zero_weight_returns_cond_unchanged() {
+        let logits = TensorData {
+            data: vec![10.0, 20.0, 30.0, 100.0, 200.0, 300.0],
+            shape: vec![2, 1, 3],
+        };
+        assert_eq!(collapse_logits(&logits, true, 0.0), vec![10.0, 20.0, 30.0]);
+    }
+
+    // ── SpeechGenerationState ──────────────────────────────────────────────
+
+    fn layout(num_layers: usize) -> KvCacheLayout {
+        KvCacheLayout {
+            num_layers,
+            num_kv_heads: 1,
+            head_dim: 1,
+            batch: 1,
+        }
+    }
+
+    #[test]
+    fn speech_generation_state_starts_with_start_token() {
+        let s = SpeechGenerationState::new(&layout(2), 6561, 1000, 0);
+        assert_eq!(s.generated, vec![6561]);
+        assert_eq!(s.kv_cache.len(), 4); // 2 layers × 2 (k, v)
+        assert_eq!(s.kv_seq_len, 0);
+        assert!(s.attention_mask.is_empty());
+    }
+
+    #[test]
+    fn step_inputs_first_step_uses_provided_sequence() {
+        let s = SpeechGenerationState::new(&layout(1), 6561, 1000, 0);
+        let (ids, pos) = s.step_inputs(0, &[10, 20, 30], &[0, 1, 2]);
+        assert_eq!(ids, vec![10, 20, 30]);
+        assert_eq!(pos, vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn step_inputs_continuation_uses_last_generated() {
+        let mut s = SpeechGenerationState::new(&layout(1), 6561, 1000, 0);
+        s.generated.push(42);
+        let (ids, pos) = s.step_inputs(5, &[10, 20], &[0, 1]);
+        assert_eq!(ids, vec![42]);
+        assert_eq!(pos, vec![5]);
+    }
+
+    #[test]
+    fn update_attention_first_step_resets_to_seq_len() {
+        let mut s = SpeechGenerationState::new(&layout(1), 6561, 1000, 0);
+        s.update_attention(0, 5);
+        assert_eq!(s.attention_mask, vec![1, 1, 1, 1, 1]);
+    }
+
+    #[test]
+    fn update_attention_continuation_appends_one() {
+        let mut s = SpeechGenerationState::new(&layout(1), 6561, 1000, 0);
+        s.attention_mask = vec![1, 1, 1];
+        s.update_attention(1, 1);
+        assert_eq!(s.attention_mask, vec![1, 1, 1, 1]);
+    }
+
+    #[test]
+    fn accept_token_advances_kv_seq_for_normal_token() {
+        let mut s = SpeechGenerationState::new(&layout(1), 6561, 1000, 0);
+        let stop = s.accept_token(42, 5, 6562);
+        assert!(!stop);
+        assert_eq!(s.kv_seq_len, 5);
+        assert_eq!(s.generated.last().copied(), Some(42));
+    }
+
+    #[test]
+    fn accept_token_signals_stop_without_advancing_kv() {
+        let mut s = SpeechGenerationState::new(&layout(1), 6561, 1000, 0);
+        let stop = s.accept_token(6562, 5, 6562);
+        assert!(stop);
+        assert_eq!(s.kv_seq_len, 0);
+        assert_eq!(s.generated.last().copied(), Some(6562));
+    }
+
+    #[test]
+    fn output_tokens_strips_start_and_stop_markers() {
+        let mut s = SpeechGenerationState::new(&layout(1), 6561, 1000, 0);
+        s.generated = vec![6561, 100, 200, 300, 6562];
+        assert_eq!(s.output_tokens(6561, 6562), vec![100, 200, 300]);
+    }
+
+    #[test]
+    fn generated_count_excludes_initial_start_token() {
+        let mut s = SpeechGenerationState::new(&layout(1), 6561, 1000, 0);
+        s.generated.extend(&[1, 2, 3]);
+        assert_eq!(s.generated_count(), 3);
+    }
 }
