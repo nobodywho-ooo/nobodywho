@@ -85,12 +85,9 @@ pub fn default_progress_callback() -> DownloadProgressCallback {
 /// would saturate the cross-language bridge. The Python binding does NOT need
 /// this since a PyO3 callable invocation is cheap; it forwards every chunk.
 ///
-/// Implementation: lock-free `AtomicU64` holding nanoseconds since a process-wide
-/// epoch. The load/check/store has a benign race (two concurrent emitters could
-/// both decide to emit within the same window) but `download_file` is
-/// single-threaded per download, and an extra emit is harmless. Emits if
-/// `now - last >= 100ms` or if `total > 0 && downloaded >= total` (completion,
-/// so the UI never sticks at 99%). 0 is the "never emitted" sentinel.
+/// Lock-free: nanoseconds since a process-wide epoch in an `AtomicU64`, with `0`
+/// as the never-emitted sentinel. The load/check/store can race, but an extra
+/// emit per ~100ms window is harmless and downloads are single-threaded anyway.
 pub fn throttled_progress_callback<F>(callback: F) -> DownloadProgressCallback
 where
     F: Fn(u64, u64) + Send + Sync + 'static,
@@ -98,7 +95,7 @@ where
     static EPOCH: LazyLock<std::time::Instant> = LazyLock::new(std::time::Instant::now);
     const THROTTLE_NS: u64 = 100_000_000;
 
-    let last_emit_ns = Arc::new(AtomicU64::new(0));
+    let last_emit_ns = AtomicU64::new(0);
     Arc::new(move |downloaded: u64, total: u64| {
         let is_done = total > 0 && downloaded >= total;
         let now_ns = EPOCH.elapsed().as_nanos() as u64;
