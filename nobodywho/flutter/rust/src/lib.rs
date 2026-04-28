@@ -19,6 +19,49 @@ pub enum PromptPart {
     Audio { path: String },
 }
 
+/// No-op default for download progress callbacks. Not meant to be called by
+/// users — it exists so we can reference it as a const tear-off in the Dart
+/// `#[frb(default = "noopProgressCallback")]` attribute (closure literals
+/// aren't const in Dart, but top-level function tear-offs are).
+#[flutter_rust_bridge::frb(sync, positional)]
+pub fn noop_progress_callback(_downloaded: i64, _total: i64) {}
+
+/// Wrap a Dart async progress callback into the synchronous closure that core's
+/// `download_file` expects.
+///
+/// Core fires the inner callback per chunk (potentially thousands of times per
+/// second on fast networks). Each Dart round-trip via `block_on` costs a Dart
+/// isolate event-loop hop, so we sample the stream at ~10 Hz, plus an extra
+/// emit on completion so the UI never sticks at 99%.
+///
+/// The Dart callback takes `(i64, i64)` rather than `(u64, u64)` so that frb
+/// generates a plain `int` Dart parameter; i64::MAX is ~9.2 EB which is far
+/// beyond any practical model file size.
+fn wrap_progress<F>(callback: F) -> nobodywho::llm::DownloadProgressCallback
+where
+    F: Fn(i64, i64) -> flutter_rust_bridge::DartFnFuture<()> + Send + Sync + 'static,
+{
+    use std::sync::Mutex;
+    use std::time::{Duration, Instant};
+    let last_emit = Arc::new(Mutex::new(None::<Instant>));
+    Arc::new(move |downloaded: u64, total: u64| {
+        let is_done = total > 0 && downloaded >= total;
+        let emit = {
+            let mut last = last_emit.lock().expect("progress state mutex poisoned");
+            let due = last.map_or(true, |t| t.elapsed() >= Duration::from_millis(100));
+            if is_done || due {
+                *last = Some(Instant::now());
+                true
+            } else {
+                false
+            }
+        };
+        if emit {
+            futures::executor::block_on(callback(downloaded as i64, total as i64));
+        }
+    })
+}
+
 #[flutter_rust_bridge::frb(mirror(ToolCall))]
 pub struct _ToolCall {
     pub name: String,
@@ -68,12 +111,20 @@ impl Model {
     #[flutter_rust_bridge::frb]
     pub fn load(
         model_path: &str,
+        #[frb(default = "noopProgressCallback")] progress_callback: impl Fn(i64, i64) -> DartFnFuture<()>
+            + Send
+            + Sync
+            + 'static,
         #[frb(default = true)] use_gpu: bool,
         #[frb(default = "null")] projection_model_path: Option<String>,
     ) -> Result<Self, String> {
-        let model =
-            nobodywho::llm::get_model(model_path, use_gpu, projection_model_path.as_deref(), None)
-                .map_err(|e| e.to_string())?;
+        let model = nobodywho::llm::get_model(
+            model_path,
+            use_gpu,
+            projection_model_path.as_deref(),
+            Some(wrap_progress(progress_callback)),
+        )
+        .map_err(|e| e.to_string())?;
         Ok(Self {
             model: Arc::new(model),
         })
@@ -147,6 +198,10 @@ impl RustChat {
     #[allow(clippy::too_many_arguments)]
     pub fn from_path(
         model_path: &str,
+        #[frb(default = "noopProgressCallback")] progress_callback: impl Fn(i64, i64) -> DartFnFuture<()>
+            + Send
+            + Sync
+            + 'static,
         #[frb(default = "null")] projection_model_path: Option<String>,
         #[frb(default = "null")] system_prompt: Option<String>,
         #[frb(default = 4096)] context_size: u32,
@@ -156,9 +211,13 @@ impl RustChat {
         #[frb(default = "null")] sampler: Option<SamplerConfig>,
         #[frb(default = true)] use_gpu: bool,
     ) -> Result<Self, String> {
-        let model =
-            nobodywho::llm::get_model(model_path, use_gpu, projection_model_path.as_deref(), None)
-                .map_err(|e| e.to_string())?;
+        let model = nobodywho::llm::get_model(
+            model_path,
+            use_gpu,
+            projection_model_path.as_deref(),
+            Some(wrap_progress(progress_callback)),
+        )
+        .map_err(|e| e.to_string())?;
         let sampler_config = sampler.map(|s| s.sampler_config).unwrap_or_default();
 
         // Handle deprecated allow_thinking parameter
@@ -350,11 +409,20 @@ impl Encoder {
     #[flutter_rust_bridge::frb]
     pub fn from_path(
         model_path: &str,
+        #[frb(default = "noopProgressCallback")] progress_callback: impl Fn(i64, i64) -> DartFnFuture<()>
+            + Send
+            + Sync
+            + 'static,
         #[frb(default = 4096)] n_ctx: u32,
         #[frb(default = true)] use_gpu: bool,
     ) -> Result<Self, String> {
-        let model =
-            nobodywho::llm::get_model(model_path, use_gpu, None, None).map_err(|e| e.to_string())?;
+        let model = nobodywho::llm::get_model(
+            model_path,
+            use_gpu,
+            None,
+            Some(wrap_progress(progress_callback)),
+        )
+        .map_err(|e| e.to_string())?;
         let handle = nobodywho::encoder::EncoderAsync::new(Arc::new(model), n_ctx);
 
         Ok(Self { handle })
@@ -384,11 +452,20 @@ impl CrossEncoder {
     #[flutter_rust_bridge::frb]
     pub fn from_path(
         model_path: &str,
+        #[frb(default = "noopProgressCallback")] progress_callback: impl Fn(i64, i64) -> DartFnFuture<()>
+            + Send
+            + Sync
+            + 'static,
         #[frb(default = 4096)] n_ctx: u32,
         #[frb(default = true)] use_gpu: bool,
     ) -> Result<Self, String> {
-        let model =
-            nobodywho::llm::get_model(model_path, use_gpu, None, None).map_err(|e| e.to_string())?;
+        let model = nobodywho::llm::get_model(
+            model_path,
+            use_gpu,
+            None,
+            Some(wrap_progress(progress_callback)),
+        )
+        .map_err(|e| e.to_string())?;
         let handle = nobodywho::crossencoder::CrossEncoderAsync::new(Arc::new(model), n_ctx);
         Ok(Self { handle })
     }

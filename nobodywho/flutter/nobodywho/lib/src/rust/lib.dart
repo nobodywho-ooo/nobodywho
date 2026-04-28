@@ -8,7 +8,17 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'lib.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `dart_function_type_to_json_schema`, `sample_step`, `shift_step`
+// These functions are ignored because they are not marked as `pub`: `dart_function_type_to_json_schema`, `sample_step`, `shift_step`, `wrap_progress`
+
+/// No-op default for download progress callbacks. Not meant to be called by
+/// users — it exists so we can reference it as a const tear-off in the Dart
+/// `#[frb(default = "noopProgressCallback")]` attribute (closure literals
+/// aren't const in Dart, but top-level function tear-offs are).
+void noopProgressCallback(PlatformInt64 downloaded, PlatformInt64 total) =>
+    NobodyWho.instance.api.crateNoopProgressCallback(
+      downloaded: downloaded,
+      total: total,
+    );
 
 /// Helper function to convert ToolCall arguments to a JSON string.
 /// This is needed because serde_json::Value becomes an opaque type in Dart.
@@ -55,10 +65,13 @@ abstract class CompletionError implements RustOpaqueInterface {}
 abstract class CrossEncoder implements RustOpaqueInterface {
   static Future<CrossEncoder> fromPath({
     required String modelPath,
+    FutureOr<void> Function(PlatformInt64, PlatformInt64) progressCallback =
+        noopProgressCallback,
     int nCtx = 4096,
     bool useGpu = true,
   }) => NobodyWho.instance.api.crateCrossEncoderFromPath(
     modelPath: modelPath,
+    progressCallback: progressCallback,
     nCtx: nCtx,
     useGpu: useGpu,
   );
@@ -86,10 +99,13 @@ abstract class Encoder implements RustOpaqueInterface {
 
   static Future<Encoder> fromPath({
     required String modelPath,
+    FutureOr<void> Function(PlatformInt64, PlatformInt64) progressCallback =
+        noopProgressCallback,
     int nCtx = 4096,
     bool useGpu = true,
   }) => NobodyWho.instance.api.crateEncoderFromPath(
     modelPath: modelPath,
+    progressCallback: progressCallback,
     nCtx: nCtx,
     useGpu: useGpu,
   );
@@ -108,10 +124,13 @@ abstract class GetterError implements RustOpaqueInterface {}
 abstract class Model implements RustOpaqueInterface {
   static Future<Model> load({
     required String modelPath,
+    FutureOr<void> Function(PlatformInt64, PlatformInt64) progressCallback =
+        noopProgressCallback,
     bool useGpu = true,
     String? projectionModelPath = null,
   }) => NobodyWho.instance.api.crateModelLoad(
     modelPath: modelPath,
+    progressCallback: progressCallback,
     useGpu: useGpu,
     projectionModelPath: projectionModelPath,
   );
@@ -142,6 +161,8 @@ abstract class RustChat implements RustOpaqueInterface {
   ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
   static Future<RustChat> fromPath({
     required String modelPath,
+    FutureOr<void> Function(PlatformInt64, PlatformInt64) progressCallback =
+        noopProgressCallback,
     String? projectionModelPath = null,
     String? systemPrompt = null,
     int contextSize = 4096,
@@ -152,6 +173,7 @@ abstract class RustChat implements RustOpaqueInterface {
     bool useGpu = true,
   }) => NobodyWho.instance.api.crateRustChatFromPath(
     modelPath: modelPath,
+    progressCallback: progressCallback,
     projectionModelPath: projectionModelPath,
     systemPrompt: systemPrompt,
     contextSize: contextSize,
