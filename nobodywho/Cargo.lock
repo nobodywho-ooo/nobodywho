@@ -2554,6 +2554,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "nobodywho-rust"
+version = "0.1.0"
+dependencies = [
+ "nobodywho",
+]
+
+[[package]]
 name = "nobodywho-uniffi"
 version = "0.1.0"
 dependencies = [
