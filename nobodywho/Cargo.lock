@@ -2486,6 +2486,7 @@ dependencies = [
  "gbnf",
  "gbnf-macro",
  "indexmap",
+ "indicatif",
  "lazy_static",
  "libc",
  "llama-cpp-2",
@@ -2538,7 +2539,6 @@ name = "nobodywho-python"
 version = "1.1.0"
 dependencies = [
  "futures",
- "indicatif",
  "log",
  "nobodywho",
  "nom 8.0.0",

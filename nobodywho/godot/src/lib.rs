@@ -116,7 +116,7 @@ impl NobodyWhoModel {
             )
         };
 
-        let model = Arc::new(llm::get_model_async(path, use_gpu, mmproj).await?);
+        let model = Arc::new(llm::get_model_async(path, use_gpu, mmproj, None).await?);
 
         // Rebind briefly to memoize.
         gd.bind_mut().model = Some(Arc::clone(&model));

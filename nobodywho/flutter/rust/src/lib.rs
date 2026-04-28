@@ -72,7 +72,7 @@ impl Model {
         #[frb(default = "null")] projection_model_path: Option<String>,
     ) -> Result<Self, String> {
         let model =
-            nobodywho::llm::get_model(model_path, use_gpu, projection_model_path.as_deref())
+            nobodywho::llm::get_model(model_path, use_gpu, projection_model_path.as_deref(), None)
                 .map_err(|e| e.to_string())?;
         Ok(Self {
             model: Arc::new(model),
@@ -157,7 +157,7 @@ impl RustChat {
         #[frb(default = true)] use_gpu: bool,
     ) -> Result<Self, String> {
         let model =
-            nobodywho::llm::get_model(model_path, use_gpu, projection_model_path.as_deref())
+            nobodywho::llm::get_model(model_path, use_gpu, projection_model_path.as_deref(), None)
                 .map_err(|e| e.to_string())?;
         let sampler_config = sampler.map(|s| s.sampler_config).unwrap_or_default();
 
@@ -354,7 +354,7 @@ impl Encoder {
         #[frb(default = true)] use_gpu: bool,
     ) -> Result<Self, String> {
         let model =
-            nobodywho::llm::get_model(model_path, use_gpu, None).map_err(|e| e.to_string())?;
+            nobodywho::llm::get_model(model_path, use_gpu, None, None).map_err(|e| e.to_string())?;
         let handle = nobodywho::encoder::EncoderAsync::new(Arc::new(model), n_ctx);
 
         Ok(Self { handle })
@@ -388,7 +388,7 @@ impl CrossEncoder {
         #[frb(default = true)] use_gpu: bool,
     ) -> Result<Self, String> {
         let model =
-            nobodywho::llm::get_model(model_path, use_gpu, None).map_err(|e| e.to_string())?;
+            nobodywho::llm::get_model(model_path, use_gpu, None, None).map_err(|e| e.to_string())?;
         let handle = nobodywho::crossencoder::CrossEncoderAsync::new(Arc::new(model), n_ctx);
         Ok(Self { handle })
     }

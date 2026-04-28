@@ -1,9 +1,7 @@
-use std::time::Duration;
-
-use indicatif::{ProgressBar, ProgressStyle};
 use pyo3::prelude::*;
 use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::time::Duration;
 
 mod parse;
 
@@ -22,64 +20,35 @@ pub struct Model {
     model: Arc<nobodywho::llm::Model>,
 }
 
-/// Resolve a Python-side `progress_callback` argument into a core `DownloadProgressCallback`.
+/// Wrap a Python `progress_callback` argument into a core `DownloadProgressCallback`.
 ///
 /// - `Some(py_callable)` → wraps it so the Python function is invoked on each chunk
 ///   with `(downloaded_bytes, total_bytes)`. Exceptions are printed and swallowed.
-/// - `None` → installs the default terminal progress bar (see `default_progress_callback`).
+/// - `None` → returns `None`; core installs its own default terminal progress bar.
 ///
-/// The callback fires from the download thread. If a projection model is also downloaded,
-/// it fires for each download sequentially, so `total_bytes` resets when the second begins.
+/// Returns `TypeError` if `py_callback` is not callable, so a non-callable argument
+/// fails fast at construction rather than per-chunk during download.
 fn resolve_progress_callback(
     py_callback: Option<Py<PyAny>>,
-) -> Option<nobodywho::llm::DownloadProgressCallback> {
-    match py_callback {
-        Some(cb) => Some(Arc::new(move |downloaded: u64, total: u64| {
-            Python::attach(|py| {
-                if let Err(e) = cb.call1(py, (downloaded, total)) {
-                    e.print(py);
-                }
-            });
-        }) as nobodywho::llm::DownloadProgressCallback),
-        None => Some(default_progress_callback()),
-    }
-}
-
-/// Default terminal progress bar shown when the user doesn't pass their own callback.
-///
-/// Renders an `indicatif` bar with spinner, elapsed time, wide bar, binary byte counts,
-/// throughput, and ETA. indicatif auto-disables on non-TTY stderr, so this is safe to use
-/// unconditionally. Detects a new download (model → mmproj transition) by watching for
-/// `total` to change, finishes the previous bar, and starts a fresh one.
-fn default_progress_callback() -> nobodywho::llm::DownloadProgressCallback {
-    let style = ProgressStyle::with_template(
-        "{spinner:.green} [{elapsed_precise}] {wide_bar:.cyan/blue} \
-         {binary_bytes}/{binary_total_bytes} ({binary_bytes_per_sec}, {eta})",
-    )
-    .expect("static progress bar template is valid")
-    .progress_chars("█▉▊▋▌▍▎▏ ");
-
-    let state: Arc<Mutex<(Option<ProgressBar>, u64)>> = Arc::new(Mutex::new((None, 0)));
-
-    Arc::new(move |downloaded: u64, total: u64| {
-        let mut s = state.lock().expect("progress bar mutex poisoned");
-        if s.0.is_none() || s.1 != total {
-            if let Some(old) = s.0.take() {
-                old.finish_and_clear();
+) -> PyResult<Option<nobodywho::llm::DownloadProgressCallback>> {
+    let Some(cb) = py_callback else {
+        return Ok(None);
+    };
+    Python::attach(|py| {
+        if !cb.bind(py).is_callable() {
+            return Err(pyo3::exceptions::PyTypeError::new_err(
+                "progress_callback must be callable, taking (downloaded_bytes, total_bytes)",
+            ));
+        }
+        Ok(())
+    })?;
+    Ok(Some(Arc::new(move |downloaded: u64, total: u64| {
+        Python::attach(|py| {
+            if let Err(e) = cb.call1(py, (downloaded, total)) {
+                e.print(py);
             }
-            let bar = ProgressBar::new(total);
-            bar.set_style(style.clone());
-            bar.enable_steady_tick(Duration::from_millis(100));
-            s.0 = Some(bar);
-            s.1 = total;
-        }
-        let bar = s.0.as_ref().unwrap();
-        bar.set_position(downloaded);
-        if downloaded >= total {
-            bar.finish();
-            s.0 = None;
-        }
-    })
+        });
+    }) as nobodywho::llm::DownloadProgressCallback))
 }
 
 #[pymethods]
@@ -122,7 +91,7 @@ impl Model {
                 })
             })
             .transpose()?;
-        let progress = resolve_progress_callback(progress_callback);
+        let progress = resolve_progress_callback(progress_callback)?;
         let model_result =
             nobodywho::llm::get_model(path_str, use_gpu_if_available, mmproj_str, progress);
         match model_result {
@@ -175,7 +144,7 @@ impl Model {
                 })
             })
             .transpose()?;
-        let progress = resolve_progress_callback(progress_callback);
+        let progress = resolve_progress_callback(progress_callback)?;
         let model_result = nobodywho::llm::get_model_async(
             path_str.to_owned(),
             use_gpu_if_available,
@@ -215,7 +184,7 @@ impl<'py> ModelOrPath<'py> {
                         path.display()
                     ))
                 })?;
-                nobodywho::llm::get_model(path_str, true, None, Some(default_progress_callback()))
+                nobodywho::llm::get_model(path_str, true, None, None)
                     .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
                     .map(Arc::new)
             }

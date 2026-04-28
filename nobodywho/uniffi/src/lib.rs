@@ -249,7 +249,7 @@ pub async fn load_model(
         projection_model_path
     );
 
-    let model = nobodywho::llm::get_model_async(model_path.clone(), use_gpu, projection_model_path)
+    let model = nobodywho::llm::get_model_async(model_path.clone(), use_gpu, projection_model_path, None)
         .await
         .map_err(|e| {
             let msg = format!("Failed to load model '{}': {}", model_path, e);

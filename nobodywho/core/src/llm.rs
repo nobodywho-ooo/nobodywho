@@ -12,11 +12,13 @@ use llama_cpp_2::model::AddBos;
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::mtmd::MtmdInputChunks;
 use llama_cpp_2::token::LlamaToken;
+use indicatif::{ProgressBar, ProgressStyle};
 use std::io::{Read, Write};
 use std::pin::pin;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
+use std::time::Duration;
 use tracing::{debug, debug_span, error, info, info_span, warn};
 
 #[derive(Debug)]
@@ -35,6 +37,44 @@ static LLAMA_BACKEND: LazyLock<LlamaBackend> =
 /// is shared across concurrent downloads, the closure is responsible for its own
 /// synchronization (hence the `Sync` bound).
 pub type DownloadProgressCallback = Arc<dyn Fn(u64, u64) + Send + Sync>;
+
+/// Default terminal progress bar shown when the user doesn't pass their own callback.
+///
+/// Renders an `indicatif` bar with spinner, elapsed time, wide bar, binary byte counts,
+/// throughput, and ETA. indicatif auto-disables on non-TTY stderr, so this is safe to use
+/// unconditionally — GUI bindings (Godot, Flutter mobile) won't see output in production.
+/// Detects a new download (model → mmproj transition) by watching for `total` to change,
+/// finishes the previous bar, and starts a fresh one.
+pub fn default_progress_callback() -> DownloadProgressCallback {
+    let style = ProgressStyle::with_template(
+        "{spinner:.green} [{elapsed_precise}] {wide_bar:.cyan/blue} \
+         {binary_bytes}/{binary_total_bytes} ({binary_bytes_per_sec}, {eta})",
+    )
+    .expect("static progress bar template is valid")
+    .progress_chars("█▉▊▋▌▍▎▏ ");
+
+    let state: Arc<Mutex<(Option<ProgressBar>, u64)>> = Arc::new(Mutex::new((None, 0)));
+
+    Arc::new(move |downloaded: u64, total: u64| {
+        let mut s = state.lock().expect("progress bar mutex poisoned");
+        if s.0.is_none() || s.1 != total {
+            if let Some(old) = s.0.take() {
+                old.finish_and_clear();
+            }
+            let bar = ProgressBar::new(total);
+            bar.set_style(style.clone());
+            bar.enable_steady_tick(Duration::from_millis(100));
+            s.0 = Some(bar);
+            s.1 = total;
+        }
+        let bar = s.0.as_ref().unwrap();
+        bar.set_position(downloaded);
+        if downloaded >= total {
+            bar.finish();
+            s.0 = None;
+        }
+    })
+}
 
 #[derive(Debug)]
 pub struct Model {
@@ -137,7 +177,7 @@ fn parse_model_path(
 /// on the filesystem
 fn resolve_fancy_path_to_fs(
     parsed_path: ParsedModelPath,
-    progress: Option<&DownloadProgressCallback>,
+    progress: &DownloadProgressCallback,
 ) -> Result<std::path::PathBuf, LoadModelError> {
     let fs_model_path = match parsed_path {
         ParsedModelPath::HuggingFaceUrl(owner, repo, filename) => {
@@ -163,12 +203,12 @@ pub fn get_model(
     mmproj_path: Option<&str>,
     progress: Option<DownloadProgressCallback>,
 ) -> Result<Model, LoadModelError> {
-    let real_model_path =
-        resolve_fancy_path_to_fs(parse_model_path(model_path)?, progress.as_ref())?;
+    let progress = progress.unwrap_or_else(default_progress_callback);
+    let real_model_path = resolve_fancy_path_to_fs(parse_model_path(model_path)?, &progress)?;
     let real_mmproj_path = mmproj_path
         .map(parse_model_path) // parse inside option
         .transpose()? // return early if parse fails
-        .map(|p| resolve_fancy_path_to_fs(p, progress.as_ref())) // download the file if needed
+        .map(|p| resolve_fancy_path_to_fs(p, &progress)) // download the file if needed
         .transpose()?; // return early if download fails
 
     // TODO: `LlamaModelParams` uses all devices by default. Set it to an empty list once an upstream device API is available.
@@ -319,7 +359,7 @@ fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadMod
 fn download_file(
     url: &str,
     target_path: &std::path::Path,
-    progress: Option<&DownloadProgressCallback>,
+    progress: &DownloadProgressCallback,
 ) -> Result<(), crate::errors::LoadModelError> {
     for component in target_path.components() {
         if component == std::path::Component::ParentDir {
@@ -406,9 +446,7 @@ fn download_file(
             })?;
             downloaded += n as u64;
 
-            if let Some(cb) = progress {
-                cb(downloaded, content_length.get());
-            }
+            progress(downloaded, content_length.get());
 
             let pct = (downloaded * 100) / content_length;
             if pct >= last_logged_pct + 5 {
@@ -454,7 +492,7 @@ fn download_model_from_hf(
     owner: &str,
     repo: &str,
     filename: &str,
-    progress: Option<&DownloadProgressCallback>,
+    progress: &DownloadProgressCallback,
 ) -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
     let cache_dir = get_cache_dir()?;
     let target_path = cache_dir.join(owner).join(repo).join(filename);
@@ -468,7 +506,7 @@ fn download_model_from_hf(
 /// The file is cached by its URL path components under the cache directory.
 fn download_model_from_url(
     url: &str,
-    progress: Option<&DownloadProgressCallback>,
+    progress: &DownloadProgressCallback,
 ) -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
     let cache_dir = get_cache_dir()?;
     // Derive a cache path from the URL: strip scheme, use the rest as path components
