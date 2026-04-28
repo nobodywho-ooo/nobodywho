@@ -1,6 +1,7 @@
 use crate::errors::{InitWorkerError, LoadModelError, ReadError};
 use crate::memory;
 use crate::tokenizer::{ProjectionModel, Tokenizer, TokenizerChunk, TokenizerChunks};
+use indicatif::{ProgressBar, ProgressStyle};
 use lazy_static::lazy_static;
 use llama_cpp_2::context::kv_cache::KvCacheConversionError;
 use llama_cpp_2::context::params::{LlamaContextParams, LlamaPoolingType};
@@ -12,7 +13,6 @@ use llama_cpp_2::model::AddBos;
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::mtmd::MtmdInputChunks;
 use llama_cpp_2::token::LlamaToken;
-use indicatif::{ProgressBar, ProgressStyle};
 use std::io::{Read, Write};
 use std::pin::pin;
 use std::rc::Rc;

@@ -172,7 +172,10 @@ impl NobodyWhoModel {
         // arm completing — guarantees the throttle's mandatory completion emit
         // reaches GDScript.
         while let Ok((d, t)) = rx.try_recv() {
-            emit_node.signals().download_progress().emit(d as i64, t as i64);
+            emit_node
+                .signals()
+                .download_progress()
+                .emit(d as i64, t as i64);
         }
 
         let model = Arc::new(model);

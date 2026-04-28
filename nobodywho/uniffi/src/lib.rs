@@ -251,13 +251,18 @@ pub async fn load_model(
     );
 
     let progress = progress_callback.map(wrap_progress);
-    let model = nobodywho::llm::get_model_async(model_path.clone(), use_gpu, projection_model_path, progress)
-        .await
-        .map_err(|e| {
-            let msg = format!("Failed to load model '{}': {}", model_path, e);
-            log::error!("{}", msg);
-            NobodyWhoError::Error { message: msg }
-        })?;
+    let model = nobodywho::llm::get_model_async(
+        model_path.clone(),
+        use_gpu,
+        projection_model_path,
+        progress,
+    )
+    .await
+    .map_err(|e| {
+        let msg = format!("Failed to load model '{}': {}", model_path, e);
+        log::error!("{}", msg);
+        NobodyWhoError::Error { message: msg }
+    })?;
 
     log::info!("load_model SUCCESS for {}", model_path);
     Ok(Arc::new(RustModel {
