@@ -174,7 +174,7 @@ jobs:
 
   cargo-build-macos:
     if: inputs.full_ci
-    runs-on: macos-15
+    runs-on: depot-macos-15
     strategy:
       fail-fast: false
       matrix:
@@ -244,7 +244,7 @@ jobs:
   # which is an apple thing that contains binaries for multiple systems
   build-flutter-xcframework:
     if: inputs.full_ci
-    runs-on: macos-15
+    runs-on: depot-macos-15
     needs: [cargo-build-macos]
     steps:
       - uses: actions/checkout@v4
@@ -323,7 +323,7 @@ jobs:
   # builds an xcframework containing static libraries for React Native iOS
   build-react-native-xcframework:
     if: inputs.full_ci
-    runs-on: macos-15
+    runs-on: depot-macos-15
     needs: [cargo-build-macos]
     steps:
       - uses: actions/checkout@v4

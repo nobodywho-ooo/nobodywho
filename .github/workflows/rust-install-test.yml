@@ -39,7 +39,7 @@ jobs:
 
   macos:
     name: "macOS"
-    runs-on: macos-latest
+    runs-on: depot-macos-latest
     steps:
       - uses: actions/checkout@v4
 
