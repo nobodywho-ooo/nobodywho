@@ -1,9 +1,13 @@
 name: "Rust crate install test"
 
 on:
-  # Just to test it in the first place, will be replaced later
   workflow_dispatch:
-        
+    inputs:
+      full_ci:
+        type: boolean
+        default: true
+        description: 'Run full CI suite (all platforms, all tests)'
+
   # push:
   #   paths:
   #     - "nobodywho/rust/**"
@@ -16,9 +20,27 @@ on:
   #     - ".github/workflows/rust-install-test.yml"
 
 jobs:
+  download-model:
+    name: "Download model"
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download model
+        run: |
+          curl -L --fail --progress-bar \
+            https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf \
+            -o model.gguf
+
+      - name: Upload model artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-gguf
+          path: model.gguf
+          retention-days: 1
+
   ubuntu:
     name: "Ubuntu (apt)"
     runs-on: ubuntu-24.04
+    needs: download-model
     steps:
       - uses: actions/checkout@v4
 
@@ -33,13 +55,21 @@ jobs:
           sudo apt-get install -y cmake clang libclang-dev build-essential \
             libvulkan-dev libshaderc-dev glslc vulkan-tools
 
-      - name: cargo check
+      - name: Download model
+        uses: actions/download-artifact@v4
+        with:
+          name: model-gguf
+
+      - name: Smoke test
         working-directory: nobodywho
-        run: cargo check -p nobodywho-rust
+        env:
+          TEST_MODEL: ${{ github.workspace }}/model.gguf
+        run: cargo test -p nobodywho-rust test_blocking_completed -- --nocapture --test-threads=1
 
   macos:
     name: "macOS"
     runs-on: macos-latest
+    needs: download-model
     steps:
       - uses: actions/checkout@v4
 
@@ -51,18 +81,26 @@ jobs:
       - name: Install libomp
         run: brew install libomp
 
-      - name: cargo check
+      - name: Download model
+        uses: actions/download-artifact@v4
+        with:
+          name: model-gguf
+
+      - name: Smoke test
         working-directory: nobodywho
+        env:
+          TEST_MODEL: ${{ github.workspace }}/model.gguf
         run: |
           export CC=/usr/bin/clang
           export CXX=/usr/bin/clang++
           export LDFLAGS="-L$(brew --prefix libomp)/lib"
           export CPPFLAGS="-I$(brew --prefix libomp)/include"
-          cargo check -p nobodywho-rust
+          cargo test -p nobodywho-rust test_blocking_completed -- --nocapture --test-threads=1
 
   windows:
     name: "Windows"
     runs-on: windows-latest
+    needs: download-model
     steps:
       - uses: actions/checkout@v4
 
@@ -79,15 +117,22 @@ jobs:
       - name: Install Vulkan SDK
         run: choco install vulkan-sdk -y
 
-      - name: cargo check
+      - name: Download model
+        uses: actions/download-artifact@v4
+        with:
+          name: model-gguf
+
+      - name: Smoke test
         working-directory: nobodywho
         env:
           LIBCLANG_PATH: ${{ env.LLVM_PATH }}/lib
-        run: cargo check -p nobodywho-rust
+          TEST_MODEL: ${{ github.workspace }}\model.gguf
+        run: cargo test -p nobodywho-rust test_blocking_completed -- --nocapture --test-threads=1
 
   nix:
     name: "Nix"
     runs-on: ubuntu-24.04
+    needs: download-model
     steps:
       - uses: actions/checkout@v4
 
@@ -95,6 +140,12 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-unstable
 
-      - name: cargo check inside nix shell
+      - name: Download model
+        uses: actions/download-artifact@v4
+        with:
+          name: model-gguf
+
+      - name: Smoke test inside nix shell
         run: |
-          nix-shell nobodywho/shell.nix --run "cd nobodywho && cargo check -p nobodywho-rust"
+          nix-shell nobodywho/shell.nix --run \
+            "cd nobodywho && TEST_MODEL=${{ github.workspace }}/model.gguf cargo test -p nobodywho-rust test_blocking_completed -- --nocapture --test-threads=1"
