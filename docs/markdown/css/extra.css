@@ -1,6 +1,7 @@
-/* Hide the copy button in the header */
-#page-header button {
-    display: none;
+/* Strip the theme's article-link underline from page-actions dropdown items */
+#open-dropdown a,
+#open-dropdown a:hover {
+    text-decoration: none;
 }
 
 .codehilite .kn,
