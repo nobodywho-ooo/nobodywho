@@ -1,0 +1,15 @@
+<footer view-transition-name="footer"
+    class="group-has-[.section-soft]/body:bg-surface/40 3xl:fixed:bg-transparent dark:bg-transparent">
+    <div class="container-wrapper px-4 xl:px-6">
+        <div class="flex h-(--footer-height) items-center justify-between">
+            <div class="text-muted-foreground w-full text-center text-xs leading-loose sm:text-sm">
+                NobodyWho &mdash;
+                {% if config.repo_url %}
+                <a href="{{ config.repo_url }}">source</a> &middot;
+                {% endif %}
+                <a href="/llms.txt">llms.txt</a> &middot;
+                <a href="/llms-full.txt">llms-full.txt</a>
+            </div>
+        </div>
+    </div>
+</footer>
