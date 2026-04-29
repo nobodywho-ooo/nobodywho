@@ -1,3 +1,18 @@
+## 1.2.0
+
+### Features
+
+- **Download progress callback** — Remote model loads (`hf://` and `https://`) now report progress via an `onDownloadProgress(downloaded, total)` callback so you can drive a progress UI during multi-GB downloads. (#498)
+
+### Bug Fixes
+
+- **Embeddings**: pooling type is now read from GGUF metadata, fixing incorrect embeddings for models that specify a non-default pooling type. (#500)
+- **Embeddings**: explicitly mark all tokens as output during encoder runs, silencing a spurious llama.cpp warning. (Behavioral no-op — llama.cpp was already enabling outputs on all tokens for embeddings; this just suppresses the warning.) (#500)
+
+### Documentation
+
+- Improved vision and audio (hearing) docs and examples. (#489)
+
 ## 1.1.0
 
 - Add support for Qwen3.5 and Qwen3.6 tool calling
