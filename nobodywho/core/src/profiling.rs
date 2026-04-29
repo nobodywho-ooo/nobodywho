@@ -29,22 +29,32 @@ use tracing_subscriber::layer::Context;
 use tracing_subscriber::registry::LookupSpan;
 use tracing_subscriber::Layer;
 
+/// Bucket width in nanoseconds (100µs). 1000 buckets covers 0–100ms, which
+/// captures per-token spans like `llm::write_decode` (milliseconds) and
+/// `llm::sample` (sub-millisecond). Spans slower than 100ms (e.g. full
+/// `chat::ask`) land in the outlier vec, but those fire rarely.
+const BUCKET_WIDTH_NS: u64 = 100_000;
+const NUM_BUCKETS: usize = 1000;
+
+type SpanKey = (&'static str, Option<&'static str>);
+
 #[derive(Debug, Clone)]
 struct SpanTiming {
-    name: String,
-    parent_name: Option<String>,
     total_ns: u64,
     count: u64,
     min_ns: u64,
     max_ns: u64,
-    /// All individual durations, for computing median/percentiles.
-    durations_ns: Vec<u64>,
+    /// Fixed histogram: bucket `i` covers `[i * BUCKET_WIDTH_NS, (i+1) * BUCKET_WIDTH_NS)`.
+    /// Spans under 100ms land here for O(1) insert and O(NUM_BUCKETS) percentile computation.
+    buckets: Box<[u32; NUM_BUCKETS]>,
+    /// Durations >= NUM_BUCKETS * BUCKET_WIDTH_NS. Sorted on demand for percentile queries.
+    outliers: Vec<u64>,
 }
 
 #[derive(Debug, Clone)]
 pub struct SpanStats {
-    pub name: String,
-    pub parent_name: Option<String>,
+    pub name: &'static str,
+    pub parent_name: Option<&'static str>,
     pub count: u64,
     pub total_ns: u64,
     pub mean_ns: u64,
@@ -55,14 +65,13 @@ pub struct SpanStats {
 }
 
 struct SpanData {
-    name: String,
-    parent_name: Option<String>,
+    key: SpanKey,
     entered_at: Option<Instant>,
 }
 
 #[derive(Clone)]
 pub struct SpanProfiler {
-    timings: Arc<Mutex<HashMap<String, SpanTiming>>>,
+    timings: Arc<Mutex<HashMap<SpanKey, SpanTiming>>>,
 }
 
 impl SpanProfiler {
@@ -94,23 +103,13 @@ impl SpanProfiler {
     pub fn stats(&self) -> Vec<SpanStats> {
         let timings = self.timings.lock().unwrap();
         let mut stats: Vec<SpanStats> = timings
-            .values()
-            .map(|t| {
-                let mut sorted = t.durations_ns.clone();
-                sorted.sort_unstable();
-                let median_ns = if sorted.is_empty() {
-                    0
-                } else {
-                    sorted[sorted.len() / 2]
-                };
-                let p95_ns = if sorted.is_empty() {
-                    0
-                } else {
-                    sorted[(sorted.len() as f64 * 0.95) as usize]
-                };
+            .iter()
+            .map(|(&(name, parent_name), t)| {
+                let median_ns = percentile_from_buckets(&t.buckets, &t.outliers, t.count, 0.50);
+                let p95_ns = percentile_from_buckets(&t.buckets, &t.outliers, t.count, 0.95);
                 SpanStats {
-                    name: t.name.clone(),
-                    parent_name: t.parent_name.clone(),
+                    name,
+                    parent_name,
                     count: t.count,
                     total_ns: t.total_ns,
                     mean_ns: if t.count > 0 {
@@ -147,9 +146,9 @@ impl SpanProfiler {
         lines.push("─".repeat(133));
 
         for s in &stats {
-            let display_name = match &s.parent_name {
+            let display_name = match s.parent_name {
                 Some(parent) => format!("├─ {}/{}", parent, s.name),
-                None => s.name.clone(),
+                None => s.name.to_string(),
             };
             let pct = s.total_ns as f64 / top_total_ns as f64 * 100.0;
             lines.push(format!(
@@ -188,8 +187,38 @@ fn format_duration(ns: u64) -> String {
     }
 }
 
+/// Compute an approximate percentile from the histogram buckets + sorted outliers.
+/// Returns the midpoint of the bucket that contains the target rank.
+fn percentile_from_buckets(
+    buckets: &[u32; NUM_BUCKETS],
+    outliers: &[u64],
+    count: u64,
+    pct: f64,
+) -> u64 {
+    if count == 0 {
+        return 0;
+    }
+    let target = ((count as f64 * pct) as u64).max(1);
+    let mut cumulative: u64 = 0;
+    for (i, &bucket_count) in buckets.iter().enumerate() {
+        cumulative += bucket_count as u64;
+        if cumulative >= target {
+            // Return midpoint of this bucket
+            return i as u64 * BUCKET_WIDTH_NS + BUCKET_WIDTH_NS / 2;
+        }
+    }
+    // Target is in the outliers
+    let mut sorted_outliers = outliers.to_vec();
+    sorted_outliers.sort_unstable();
+    let outlier_rank = target.saturating_sub(cumulative) as usize;
+    sorted_outliers
+        .get(outlier_rank.min(sorted_outliers.len().saturating_sub(1)))
+        .copied()
+        .unwrap_or(0)
+}
+
 pub struct SpanProfilerLayer<S> {
-    timings: Arc<Mutex<HashMap<String, SpanTiming>>>,
+    timings: Arc<Mutex<HashMap<SpanKey, SpanTiming>>>,
     _subscriber: std::marker::PhantomData<S>,
 }
 
@@ -199,13 +228,12 @@ where
 {
     fn on_new_span(&self, attrs: &Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
         let span = ctx.span(id).expect("span not found");
-        let parent_name = span.parent().map(|p| p.name().to_string());
-        let data = SpanData {
-            name: attrs.metadata().name().to_string(),
-            parent_name,
+        let name: &'static str = attrs.metadata().name();
+        let parent_name: Option<&'static str> = span.parent().map(|p| p.metadata().name());
+        span.extensions_mut().insert(SpanData {
+            key: (name, parent_name),
             entered_at: None,
-        };
-        span.extensions_mut().insert(data);
+        });
     }
 
     fn on_enter(&self, id: &Id, ctx: Context<'_, S>) {
@@ -227,30 +255,26 @@ where
         };
 
         let elapsed_ns = entered_at.elapsed().as_nanos() as u64;
-        let name = data.name.clone();
-        let parent_name = data.parent_name.clone();
-
-        // Use "parent/name" as key to distinguish same-named spans under different parents
-        let key = match &parent_name {
-            Some(p) => format!("{}/{}", p, name),
-            None => name.clone(),
-        };
 
         let mut timings = self.timings.lock().unwrap();
-        let entry = timings.entry(key).or_insert_with(|| SpanTiming {
-            name,
-            parent_name,
+        let entry = timings.entry(data.key).or_insert_with(|| SpanTiming {
             total_ns: 0,
             count: 0,
             min_ns: u64::MAX,
             max_ns: 0,
-            durations_ns: Vec::new(),
+            buckets: Box::new([0; NUM_BUCKETS]),
+            outliers: Vec::new(),
         });
         entry.total_ns += elapsed_ns;
         entry.count += 1;
         entry.min_ns = entry.min_ns.min(elapsed_ns);
         entry.max_ns = entry.max_ns.max(elapsed_ns);
-        entry.durations_ns.push(elapsed_ns);
+        let bucket_idx = (elapsed_ns / BUCKET_WIDTH_NS) as usize;
+        if bucket_idx < NUM_BUCKETS {
+            entry.buckets[bucket_idx] += 1;
+        } else {
+            entry.outliers.push(elapsed_ns);
+        }
     }
 }
 
@@ -287,7 +311,7 @@ mod tests {
         assert!(inner.is_some(), "Should have 'inner' span");
         assert_eq!(inner.unwrap().count, 1);
         assert_eq!(
-            inner.unwrap().parent_name.as_deref(),
+            inner.unwrap().parent_name,
             Some("outer"),
             "inner should be child of outer"
         );

@@ -55,7 +55,6 @@ llama-cpp-2 = { git = "https://github.com/marek-hradil/llama-cpp-rs", branch = "
 ] }
 
 [dev-dependencies]
-criterion = { version = "0.5", features = ["html_reports"] }
 tracing-flame = "0.2"
 inferno = "0.12"
 
