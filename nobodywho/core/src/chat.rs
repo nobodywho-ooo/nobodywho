@@ -2363,9 +2363,8 @@ mod tests {
 
         // Verify essential messages are preserved:
         // 1. System prompt should be first
-        assert_eq!(
+        assert!(
             messages_after[0].is_system(),
-            true,
             "System message should remain"
         );
 
