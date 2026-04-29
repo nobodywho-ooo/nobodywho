@@ -18,7 +18,7 @@ on:
 jobs:
   ubuntu:
     name: "Ubuntu (apt)"
-    runs-on: ubuntu-24.04
+    runs-on: depot-ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -39,7 +39,7 @@ jobs:
 
   macos:
     name: "macOS"
-    runs-on: macos-latest
+    runs-on: depot-macos-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -62,7 +62,7 @@ jobs:
 
   windows:
     name: "Windows"
-    runs-on: windows-latest
+    runs-on: depot-windows-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -87,7 +87,7 @@ jobs:
 
   nix:
     name: "Nix"
-    runs-on: ubuntu-24.04
+    runs-on: depot-ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 

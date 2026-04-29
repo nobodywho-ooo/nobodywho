@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   static-checks:
-    runs-on: ubuntu-24.04
+    runs-on: depot-ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Install uv
@@ -60,17 +60,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+        runner: [depot-ubuntu-24.04, depot-depot-ubuntu-24.04-arm]
         include:
-          - runner: ubuntu-24.04
+          - runner: depot-ubuntu-24.04
             manylinux_target: manylinux_2_34_x86_64
-          - runner: ubuntu-24.04-arm
+          - runner: depot-depot-ubuntu-24.04-arm
             manylinux_target: manylinux_2_34_aarch64
     runs-on: ${{ matrix.runner }}
     container:
       image: quay.io/pypa/${{ matrix.manylinux_target }}
     env:
-      RUSTFLAGS: ${{ matrix.runner == 'ubuntu-24.04' && '-C target-cpu=x86-64-v3' || '' }}
+      RUSTFLAGS: ${{ matrix.runner == 'depot-ubuntu-24.04' && '-C target-cpu=x86-64-v3' || '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -91,7 +91,7 @@ jobs:
           pip3 install maturin auditwheel
 
       - name: Setup Vulkan SDK (manual for ARM64)
-        if: matrix.runner == 'ubuntu-24.04-arm'
+        if: matrix.runner == 'depot-depot-ubuntu-24.04-arm'
         run: |
           SDK_VERSION="1.4.304.0"
           SDK_URL="https://github.com/jakoch/vulkan-sdk-arm/releases/download/${SDK_VERSION}/vulkansdk-ubuntu-22.04-arm-${SDK_VERSION}.tar.xz"
@@ -152,7 +152,7 @@ jobs:
       matrix:
         target:
           - "x86_64-pc-windows-msvc"
-    runs-on: windows-latest
+    runs-on: depot-windows-latest
     env:
       RUSTFLAGS: -l Advapi32 -C target-cpu=x86-64-v3
     steps:
@@ -196,7 +196,7 @@ jobs:
 
   mac-os-build:
     if: inputs.full_ci
-    runs-on: macos-latest
+    runs-on: depot-macos-latest
     strategy:
       fail-fast: false
     steps:
@@ -219,7 +219,7 @@ jobs:
   linux-pytest:
     if: inputs.full_ci
     needs: [linux-build]
-    runs-on: ubuntu-24.04
+    runs-on: depot-ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Install uv
@@ -265,7 +265,7 @@ jobs:
   linux-multimodal-tests:
     if: inputs.full_ci
     needs: [linux-build]
-    runs-on: ubuntu-24.04
+    runs-on: depot-ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Install uv
@@ -300,7 +300,7 @@ jobs:
 
   linux-model-downloading-tests:
     needs: [linux-build]
-    runs-on: ubuntu-24.04
+    runs-on: depot-ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -336,7 +336,7 @@ jobs:
   linux-tool-calling-tests:
     if: inputs.full_ci
     needs: [linux-build]
-    runs-on: ubuntu-24.04
+    runs-on: depot-ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -414,7 +414,7 @@ jobs:
       fail-fast: false
       matrix:
         model: [Qwen, Gemma]
-        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+        runner: [depot-ubuntu-24.04, depot-depot-ubuntu-24.04-arm]
         include:
           - model: Qwen
             model_name: Qwen3-0.6B-UD-Q6_K_XL.gguf
@@ -424,9 +424,9 @@ jobs:
             model_name: google_gemma-3-4b-it-Q4_1.gguf
             model_iterations: 10
             model_link: https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-Q4_1.gguf
-          - runner: ubuntu-24.04
+          - runner: depot-ubuntu-24.04
             manylinux_target: manylinux_2_34_x86_64
-          - runner: ubuntu-24.04-arm
+          - runner: depot-depot-ubuntu-24.04-arm
             manylinux_target: manylinux_2_34_aarch64
     runs-on: ${{ matrix.runner }}
     steps:
@@ -463,14 +463,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [windows-latest]
+        runner: [depot-windows-latest]
         model: [Gemma]
         include:
           - model: Gemma
             model_name: google_gemma-3-4b-it-Q4_1.gguf
             model_iterations: 10
             model_link: https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-Q4_1.gguf
-          - runner: windows-latest
+          - runner: depot-windows-latest
             target: x86_64-pc-windows-msvc
     runs-on: ${{ matrix.runner }}
     steps:
@@ -511,7 +511,7 @@ jobs:
   mac-os-pip-install-test:
     if: inputs.full_ci
     needs: [mac-os-build]
-    runs-on: macos-latest
+    runs-on: depot-macos-latest
     strategy:
       fail-fast: false
       matrix:

@@ -13,7 +13,7 @@ permissions:
   deployments: write
 jobs:
   deploy-pages:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
