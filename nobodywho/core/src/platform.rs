@@ -25,11 +25,11 @@ fn has_backend_files(dir: &Path) -> bool {
     #[cfg(not(target_os = "windows"))]
     let ext = ".so";
 
-    std::fs::read_dir(dir).ok().map_or(false, |mut entries| {
+    std::fs::read_dir(dir).ok().is_some_and(|mut entries| {
         entries.any(|e| {
             e.ok()
                 .and_then(|e| e.file_name().into_string().ok())
-                .map_or(false, |name| {
+                .is_some_and(|name| {
                     name.ends_with(ext)
                         && (name.starts_with("libggml-") || name.starts_with("ggml-"))
                 })
