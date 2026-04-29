@@ -7,4 +7,5 @@ dependencies = [
     "mkdocs>=1.6.1",
     "mkdocs-material>=9.7.0",
     "mkdocs-shadcn>=0.9.8",
+    "mkdocs-llms-source>=1.1.0",
 ]

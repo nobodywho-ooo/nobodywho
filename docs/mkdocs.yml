@@ -46,6 +46,7 @@ repo_url: https://github.com/nobodywho-ooo/nobodywho
 repo_name: nobodywho-ooo/nobodywho
 theme:
   name: shadcn
+  custom_dir: overrides
   show_title: true # show the title in the top bar
   show_stargazers: true # show the stargazers in the top bar
   pygments_style: # default styles
@@ -64,6 +65,12 @@ extra_css:
 
 extra_javascript:
   - js/plausible.js
+  - js/page-actions.js
+
+plugins:
+  - search
+  - llms-source:
+      description: "Local-first LLM inference for Python, Godot, Flutter, and React Native, built on llama.cpp. Streaming chat, tool calling, embeddings, and RAG with offline GPU-accelerated inference."
 # theme:
 #   # use eyes icon to trigger people clicking on images and gifs.
 #   icon:
