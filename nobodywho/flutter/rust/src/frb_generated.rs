@@ -3168,30 +3168,21 @@ fn wire__crate__tool_call_arguments_json_impl(
 
 #[allow(clippy::unnecessary_literal_unwrap)]
 const _: fn() = || match None::<crate::Message>.unwrap() {
-    crate::Message::Standard {
-        role,
-        content,
-        assets,
-    } => {
-        let _: crate::Role = role;
+    crate::Message::User { content, assets } => {
         let _: String = content;
         let _: Vec<Asset> = assets;
     }
-    crate::Message::ToolCalls {
-        role,
+    crate::Message::Assistant {
         content,
         tool_calls,
     } => {
-        let _: crate::Role = role;
         let _: String = content;
-        let _: Vec<ToolCall> = tool_calls;
+        let _: Option<Vec<ToolCall>> = tool_calls;
     }
-    crate::Message::ToolResult {
-        role,
-        name,
-        content,
-    } => {
-        let _: crate::Role = role;
+    crate::Message::System { content } => {
+        let _: String = content;
+    }
+    crate::Message::Tool { name, content } => {
         let _: String = name;
         let _: String = content;
     }
@@ -3899,31 +3890,31 @@ impl SseDecode for crate::Message {
         let mut tag_ = <i32>::sse_decode(deserializer);
         match tag_ {
             0 => {
-                let mut var_role = <crate::Role>::sse_decode(deserializer);
                 let mut var_content = <String>::sse_decode(deserializer);
                 let mut var_assets = <Vec<Asset>>::sse_decode(deserializer);
-                return crate::Message::Standard {
-                    role: var_role,
+                return crate::Message::User {
                     content: var_content,
                     assets: var_assets,
                 };
             }
             1 => {
-                let mut var_role = <crate::Role>::sse_decode(deserializer);
                 let mut var_content = <String>::sse_decode(deserializer);
-                let mut var_toolCalls = <Vec<ToolCall>>::sse_decode(deserializer);
-                return crate::Message::ToolCalls {
-                    role: var_role,
+                let mut var_toolCalls = <Option<Vec<ToolCall>>>::sse_decode(deserializer);
+                return crate::Message::Assistant {
                     content: var_content,
                     tool_calls: var_toolCalls,
                 };
             }
             2 => {
-                let mut var_role = <crate::Role>::sse_decode(deserializer);
+                let mut var_content = <String>::sse_decode(deserializer);
+                return crate::Message::System {
+                    content: var_content,
+                };
+            }
+            3 => {
                 let mut var_name = <String>::sse_decode(deserializer);
                 let mut var_content = <String>::sse_decode(deserializer);
-                return crate::Message::ToolResult {
-                    role: var_role,
+                return crate::Message::Tool {
                     name: var_name,
                     content: var_content,
                 };
@@ -3990,6 +3981,17 @@ impl SseDecode for Option<usize> {
     }
 }
 
+impl SseDecode for Option<Vec<ToolCall>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<Vec<ToolCall>>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for crate::PromptPart {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -4040,20 +4042,6 @@ impl SseDecode for (String, String) {
         let mut var_field0 = <String>::sse_decode(deserializer);
         let mut var_field1 = <String>::sse_decode(deserializer);
         return (var_field0, var_field1);
-    }
-}
-
-impl SseDecode for crate::Role {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut inner = <i32>::sse_decode(deserializer);
-        return match inner {
-            0 => crate::Role::User,
-            1 => crate::Role::Assistant,
-            2 => crate::Role::System,
-            3 => crate::Role::Tool,
-            _ => unreachable!("Invalid variant for Role: {}", inner),
-        };
     }
 }
 
@@ -4467,35 +4455,26 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<Value>> for Value {
 impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::Message> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self.0 {
-            crate::Message::Standard {
-                role,
-                content,
-                assets,
-            } => [
+            crate::Message::User { content, assets } => [
                 0.into_dart(),
-                role.into_into_dart().into_dart(),
                 content.into_into_dart().into_dart(),
                 assets.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::Message::ToolCalls {
-                role,
+            crate::Message::Assistant {
                 content,
                 tool_calls,
             } => [
                 1.into_dart(),
-                role.into_into_dart().into_dart(),
                 content.into_into_dart().into_dart(),
                 tool_calls.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::Message::ToolResult {
-                role,
-                name,
-                content,
-            } => [
-                2.into_dart(),
-                role.into_into_dart().into_dart(),
+            crate::Message::System { content } => {
+                [2.into_dart(), content.into_into_dart().into_dart()].into_dart()
+            }
+            crate::Message::Tool { name, content } => [
+                3.into_dart(),
                 name.into_into_dart().into_dart(),
                 content.into_into_dart().into_dart(),
             ]
@@ -4535,24 +4514,6 @@ impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::Prom
 impl flutter_rust_bridge::IntoIntoDart<crate::PromptPart> for crate::PromptPart {
     fn into_into_dart(self) -> crate::PromptPart {
         self
-    }
-}
-// Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::Role> {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        match self.0 {
-            crate::Role::User => 0.into_dart(),
-            crate::Role::Assistant => 1.into_dart(),
-            crate::Role::System => 2.into_dart(),
-            crate::Role::Tool => 3.into_dart(),
-            _ => unreachable!(),
-        }
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<crate::Role> {}
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::Role>> for crate::Role {
-    fn into_into_dart(self) -> FrbWrapper<crate::Role> {
-        self.into()
     }
 }
 
@@ -5082,33 +5043,25 @@ impl SseEncode for crate::Message {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         match self {
-            crate::Message::Standard {
-                role,
-                content,
-                assets,
-            } => {
+            crate::Message::User { content, assets } => {
                 <i32>::sse_encode(0, serializer);
-                <crate::Role>::sse_encode(role, serializer);
                 <String>::sse_encode(content, serializer);
                 <Vec<Asset>>::sse_encode(assets, serializer);
             }
-            crate::Message::ToolCalls {
-                role,
+            crate::Message::Assistant {
                 content,
                 tool_calls,
             } => {
                 <i32>::sse_encode(1, serializer);
-                <crate::Role>::sse_encode(role, serializer);
                 <String>::sse_encode(content, serializer);
-                <Vec<ToolCall>>::sse_encode(tool_calls, serializer);
+                <Option<Vec<ToolCall>>>::sse_encode(tool_calls, serializer);
             }
-            crate::Message::ToolResult {
-                role,
-                name,
-                content,
-            } => {
+            crate::Message::System { content } => {
                 <i32>::sse_encode(2, serializer);
-                <crate::Role>::sse_encode(role, serializer);
+                <String>::sse_encode(content, serializer);
+            }
+            crate::Message::Tool { name, content } => {
+                <i32>::sse_encode(3, serializer);
                 <String>::sse_encode(name, serializer);
                 <String>::sse_encode(content, serializer);
             }
@@ -5169,6 +5122,16 @@ impl SseEncode for Option<usize> {
     }
 }
 
+impl SseEncode for Option<Vec<ToolCall>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <Vec<ToolCall>>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for crate::PromptPart {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -5213,24 +5176,6 @@ impl SseEncode for (String, String) {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.0, serializer);
         <String>::sse_encode(self.1, serializer);
-    }
-}
-
-impl SseEncode for crate::Role {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <i32>::sse_encode(
-            match self {
-                crate::Role::User => 0,
-                crate::Role::Assistant => 1,
-                crate::Role::System => 2,
-                crate::Role::Tool => 3,
-                _ => {
-                    unimplemented!("");
-                }
-            },
-            serializer,
-        );
     }
 }
 

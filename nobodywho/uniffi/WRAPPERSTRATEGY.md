@@ -37,7 +37,6 @@ These types are ergonomic enough as generated and should be re-exported directly
 |-------------|------|-------|
 | `SamplerConfig` | Object | Serializable via `toJson()`/`fromJson()`. Produced by `SamplerBuilder` and preset functions. |
 | `SamplerBuilder` | Object | Fluent builder API, works well as-is in all languages. |
-| `Role` | Enum | Simple enum: `User`, `Assistant`, `System`, `Tool`. |
 | `Asset` | Record | Simple data: `{ id, path }`. |
 | `ToolCall` | Record | Simple data: `{ name, argumentsJson }`. |
 | `cosine_similarity` | Function | Pure utility function. |

@@ -52,39 +52,9 @@ pub enum PromptPart {
 }
 
 // ---------- Message types ----------
-// Mirror types for core Message/Role/Asset/ToolCall.
+// Mirror types for core Message/Asset/ToolCall.
 // Needed because core types contain PathBuf and serde_json::Value
 // which UniFFI doesn't support natively.
-
-#[derive(uniffi::Enum, Clone)]
-pub enum Role {
-    User,
-    Assistant,
-    System,
-    Tool,
-}
-
-impl From<&nobodywho::chat::Role> for Role {
-    fn from(r: &nobodywho::chat::Role) -> Self {
-        match r {
-            nobodywho::chat::Role::User => Role::User,
-            nobodywho::chat::Role::Assistant => Role::Assistant,
-            nobodywho::chat::Role::System => Role::System,
-            nobodywho::chat::Role::Tool => Role::Tool,
-        }
-    }
-}
-
-impl From<&Role> for nobodywho::chat::Role {
-    fn from(r: &Role) -> Self {
-        match r {
-            Role::User => nobodywho::chat::Role::User,
-            Role::Assistant => nobodywho::chat::Role::Assistant,
-            Role::System => nobodywho::chat::Role::System,
-            Role::Tool => nobodywho::chat::Role::Tool,
-        }
-    }
-}
 
 #[derive(uniffi::Record, Clone)]
 pub struct Asset {
@@ -107,18 +77,18 @@ pub struct ToolCall {
 
 #[derive(uniffi::Enum, Clone)]
 pub enum Message {
-    Standard {
-        role: Role,
+    User {
         content: String,
         assets: Vec<Asset>,
     },
-    ToolCalls {
-        role: Role,
+    Assistant {
         content: String,
-        tool_calls: Vec<ToolCall>,
+        tool_calls: Option<Vec<ToolCall>>,
     },
-    ToolResult {
-        role: Role,
+    System {
+        content: String,
+    },
+    Tool {
         name: String,
         content: String,
     },
@@ -126,12 +96,7 @@ pub enum Message {
 
 fn core_message_to_uniffi(m: &nobodywho::chat::Message) -> Message {
     match m {
-        nobodywho::chat::Message::Standard {
-            role,
-            content,
-            assets,
-        } => Message::Standard {
-            role: Role::from(role),
+        nobodywho::chat::Message::User { content, assets } => Message::User {
             content: content.clone(),
             assets: assets
                 .iter()
@@ -141,27 +106,24 @@ fn core_message_to_uniffi(m: &nobodywho::chat::Message) -> Message {
                 })
                 .collect(),
         },
-        nobodywho::chat::Message::ToolCalls {
-            role,
+        nobodywho::chat::Message::Assistant {
             content,
             tool_calls,
-        } => Message::ToolCalls {
-            role: Role::from(role),
+        } => Message::Assistant {
             content: content.clone(),
-            tool_calls: tool_calls
-                .iter()
-                .map(|tc| ToolCall {
-                    name: tc.name.clone(),
-                    arguments_json: tc.arguments.to_string(),
-                })
-                .collect(),
+            tool_calls: tool_calls.as_ref().map(|tcs| {
+                tcs.iter()
+                    .map(|tc| ToolCall {
+                        name: tc.name.clone(),
+                        arguments_json: tc.arguments.to_string(),
+                    })
+                    .collect()
+            }),
         },
-        nobodywho::chat::Message::ToolResult {
-            role,
-            name,
-            content,
-        } => Message::ToolResult {
-            role: Role::from(role),
+        nobodywho::chat::Message::System { content } => Message::System {
+            content: content.clone(),
+        },
+        nobodywho::chat::Message::Tool { name, content } => Message::Tool {
             name: name.clone(),
             content: content.clone(),
         },
@@ -170,12 +132,7 @@ fn core_message_to_uniffi(m: &nobodywho::chat::Message) -> Message {
 
 fn uniffi_message_to_core(m: &Message) -> Result<nobodywho::chat::Message, NobodyWhoError> {
     match m {
-        Message::Standard {
-            role,
-            content,
-            assets,
-        } => Ok(nobodywho::chat::Message::Standard {
-            role: nobodywho::chat::Role::from(role),
+        Message::User { content, assets } => Ok(nobodywho::chat::Message::User {
             content: content.clone(),
             assets: assets
                 .iter()
@@ -185,34 +142,35 @@ fn uniffi_message_to_core(m: &Message) -> Result<nobodywho::chat::Message, Nobod
                 })
                 .collect(),
         }),
-        Message::ToolCalls {
-            role,
+        Message::Assistant {
             content,
             tool_calls,
         } => {
-            let tcs: Result<Vec<_>, NobodyWhoError> = tool_calls
-                .iter()
-                .map(|tc| {
-                    let args: serde_json::Value = serde_json::from_str(&tc.arguments_json)
-                        .map_err(|e| format!("Invalid tool call arguments JSON: {e}"))?;
-                    Ok(nobodywho::tool_calling::ToolCall {
-                        name: tc.name.clone(),
-                        arguments: args,
-                    })
+            let tcs = tool_calls
+                .as_ref()
+                .map(|tcs| {
+                    tcs.iter()
+                        .map(|tc| {
+                            let args: serde_json::Value =
+                                serde_json::from_str(&tc.arguments_json)
+                                    .map_err(|e| format!("Invalid tool call arguments JSON: {e}"))?;
+                            Ok(nobodywho::tool_calling::ToolCall {
+                                name: tc.name.clone(),
+                                arguments: args,
+                            })
+                        })
+                        .collect::<Result<Vec<_>, NobodyWhoError>>()
                 })
-                .collect();
-            Ok(nobodywho::chat::Message::ToolCalls {
-                role: nobodywho::chat::Role::from(role),
+                .transpose()?;
+            Ok(nobodywho::chat::Message::Assistant {
                 content: content.clone(),
-                tool_calls: tcs?,
+                tool_calls: tcs,
             })
         }
-        Message::ToolResult {
-            role,
-            name,
-            content,
-        } => Ok(nobodywho::chat::Message::ToolResult {
-            role: nobodywho::chat::Role::from(role),
+        Message::System { content } => Ok(nobodywho::chat::Message::System {
+            content: content.clone(),
+        }),
+        Message::Tool { name, content } => Ok(nobodywho::chat::Message::Tool {
             name: name.clone(),
             content: content.clone(),
         }),

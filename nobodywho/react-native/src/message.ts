@@ -1,27 +1,27 @@
 import {
   Message as InternalMessage,
   Message_Tags,
-  Role,
   type Asset,
   type ToolCall,
 } from "../generated/ts/nobodywho";
 
 /**
- * A chat message. The `role` field combined with the presence of
- * `toolCalls` or `name` determines the message type:
+ * A chat message. The variant determines the message type:
  *
- * - **User/Assistant/System message:** `{ role, content, assets? }`
- * - **Tool call request:** `{ role: Role.Assistant, content, toolCalls }`
- * - **Tool response:** `{ role: Role.Tool, name, content }`
+ * - **User message:** `{ role: "user", content, assets? }`
+ * - **Assistant message:** `{ role: "assistant", content }`
+ * - **Assistant tool call:** `{ role: "assistant", content, toolCalls }`
+ * - **System message:** `{ role: "system", content }`
+ * - **Tool response:** `{ role: "tool", name, content }`
  *
  * @example
  * ```typescript
  * const history = await chat.getChatHistory();
  * for (const msg of history) {
- *   if ("toolCalls" in msg) {
- *     console.log("Tool calls:", msg.toolCalls);
- *   } else if ("name" in msg) {
+ *   if (msg.role === "tool") {
  *     console.log("Tool response:", msg.name, msg.content);
+ *   } else if (msg.role === "assistant" && "toolCalls" in msg) {
+ *     console.log("Tool calls:", msg.toolCalls);
  *   } else {
  *     console.log(msg.role, msg.content);
  *   }
@@ -29,47 +29,61 @@ import {
  * ```
  */
 export type Message =
-  | { role: Role.User | Role.Assistant | Role.System; content: string; assets?: Asset[] }
-  | { role: Role.Assistant; content: string; toolCalls: ToolCall[] }
-  | { role: Role.Tool; name: string; content: string };
+  | { role: "user"; content: string; assets?: Asset[] }
+  | { role: "assistant"; content: string }
+  | { role: "assistant"; content: string; toolCalls: ToolCall[] }
+  | { role: "system"; content: string }
+  | { role: "tool"; name: string; content: string };
 
 /** @internal Convert internal Message to Message */
 export function fromInternal(msg: InternalMessage): Message {
-  if (msg.tag === Message_Tags.Standard) {
-    const { role, content, assets } = msg.inner;
+  if (msg.tag === Message_Tags.User) {
+    const { content, assets } = msg.inner;
     return {
-      role: role as Role.User | Role.Assistant | Role.System,
+      role: "user",
       content,
       ...(assets.length > 0 ? { assets } : {}),
     };
-  } else if (msg.tag === Message_Tags.ToolCalls) {
-    const { role, content, toolCalls } = msg.inner;
-    return { role: role as Role.Assistant, content, toolCalls };
+  } else if (msg.tag === Message_Tags.Assistant) {
+    const { content, toolCalls } = msg.inner;
+    if (toolCalls != null && toolCalls.length > 0) {
+      return { role: "assistant", content, toolCalls };
+    }
+    return { role: "assistant", content };
+  } else if (msg.tag === Message_Tags.System) {
+    const { content } = msg.inner;
+    return { role: "system", content };
   } else {
-    const { role, name, content } = msg.inner;
-    return { role: role as Role.Tool, name, content };
+    const { name, content } = msg.inner;
+    return { role: "tool", name, content };
   }
 }
 
 /** @internal Convert Message to internal Message */
 export function toInternal(msg: Message): InternalMessage {
-  if ("toolCalls" in msg) {
-    return new InternalMessage.ToolCalls({
-      role: msg.role,
+  if (msg.role === "user") {
+    return new InternalMessage.User({
+      content: msg.content,
+      assets: msg.assets ?? [],
+    });
+  } else if (msg.role === "assistant" && "toolCalls" in msg) {
+    return new InternalMessage.Assistant({
       content: msg.content,
       toolCalls: msg.toolCalls,
     });
-  } else if ("name" in msg) {
-    return new InternalMessage.ToolResult({
-      role: msg.role,
-      name: msg.name,
+  } else if (msg.role === "assistant") {
+    return new InternalMessage.Assistant({
+      content: msg.content,
+      toolCalls: null,
+    });
+  } else if (msg.role === "system") {
+    return new InternalMessage.System({
       content: msg.content,
     });
   } else {
-    return new InternalMessage.Standard({
-      role: msg.role,
+    return new InternalMessage.Tool({
+      name: msg.name,
       content: msg.content,
-      assets: msg.assets ?? [],
     });
   }
 }

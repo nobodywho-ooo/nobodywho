@@ -513,21 +513,17 @@ abstract class Value implements RustOpaqueInterface {}
 sealed class Message with _$Message {
   const Message._();
 
-  const factory Message.standard({
-    required Role role,
+  const factory Message.user({
     required String content,
     @Default(const []) List<Asset> assets,
-  }) = Message_Standard;
-  const factory Message.toolCalls({
-    required Role role,
+  }) = Message_User;
+  const factory Message.assistant({
     required String content,
-    required List<ToolCall> toolCalls,
-  }) = Message_ToolCalls;
-  const factory Message.toolResult({
-    required Role role,
-    required String name,
-    required String content,
-  }) = Message_ToolResult;
+    @Default(null) List<ToolCall>? toolCalls,
+  }) = Message_Assistant;
+  const factory Message.system({required String content}) = Message_System;
+  const factory Message.tool({required String name, required String content}) =
+      Message_Tool;
 }
 
 @freezed
@@ -538,5 +534,3 @@ sealed class PromptPart with _$PromptPart {
   const factory PromptPart.image({required String path}) = PromptPart_Image;
   const factory PromptPart.audio({required String path}) = PromptPart_Audio;
 }
-
-enum Role { user, assistant, system, tool }
