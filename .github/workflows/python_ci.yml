@@ -60,11 +60,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [depot-ubuntu-24.04, depot-depot-ubuntu-24.04-arm]
+        runner: [depot-ubuntu-24.04, depot-ubuntu-24.04-arm]
         include:
           - runner: depot-ubuntu-24.04
             manylinux_target: manylinux_2_34_x86_64
-          - runner: depot-depot-ubuntu-24.04-arm
+          - runner: depot-ubuntu-24.04-arm
             manylinux_target: manylinux_2_34_aarch64
     runs-on: ${{ matrix.runner }}
     container:
@@ -91,7 +91,7 @@ jobs:
           pip3 install maturin auditwheel
 
       - name: Setup Vulkan SDK (manual for ARM64)
-        if: matrix.runner == 'depot-depot-ubuntu-24.04-arm'
+        if: matrix.runner == 'depot-ubuntu-24.04-arm'
         run: |
           SDK_VERSION="1.4.304.0"
           SDK_URL="https://github.com/jakoch/vulkan-sdk-arm/releases/download/${SDK_VERSION}/vulkansdk-ubuntu-22.04-arm-${SDK_VERSION}.tar.xz"
@@ -414,7 +414,7 @@ jobs:
       fail-fast: false
       matrix:
         model: [Qwen, Gemma]
-        runner: [depot-ubuntu-24.04, depot-depot-ubuntu-24.04-arm]
+        runner: [depot-ubuntu-24.04, depot-ubuntu-24.04-arm]
         include:
           - model: Qwen
             model_name: Qwen3-0.6B-UD-Q6_K_XL.gguf
@@ -426,7 +426,7 @@ jobs:
             model_link: https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-Q4_1.gguf
           - runner: depot-ubuntu-24.04
             manylinux_target: manylinux_2_34_x86_64
-          - runner: depot-depot-ubuntu-24.04-arm
+          - runner: depot-ubuntu-24.04-arm
             manylinux_target: manylinux_2_34_aarch64
     runs-on: ${{ matrix.runner }}
     steps:
