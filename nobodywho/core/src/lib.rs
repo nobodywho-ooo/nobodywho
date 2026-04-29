@@ -4,6 +4,7 @@ pub mod encoder;
 pub mod errors;
 pub mod llm;
 pub mod memory;
+pub(crate) mod platform;
 pub mod sampler_config;
 pub mod speech_to_text;
 pub mod template;
@@ -12,10 +13,6 @@ pub mod tool_calling;
 
 pub fn send_llamacpp_logs_to_tracing() {
     llama_cpp_2::send_logs_to_tracing(llama_cpp_2::LogOptions::default().with_logs_enabled(true));
-}
-
-pub fn send_whisper_logs_to_tracing() {
-    whisper_rs::install_logging_hooks();
 }
 
 #[cfg(test)]

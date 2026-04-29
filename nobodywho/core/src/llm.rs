@@ -1,5 +1,6 @@
 use crate::errors::{InitWorkerError, LoadModelError, ReadError};
 use crate::memory;
+use crate::platform::get_backends_path;
 use crate::sampler_config::SamplerConfig;
 use crate::tokenizer::{ProjectionModel, Tokenizer, TokenizerChunk, TokenizerChunks};
 use lazy_static::lazy_static;
@@ -26,8 +27,13 @@ lazy_static! {
         Mutex::new(GlobalInferenceLockToken);
 }
 
-static LLAMA_BACKEND: LazyLock<LlamaBackend> =
-    LazyLock::new(|| LlamaBackend::init().expect("Failed to initialize llama backend"));
+static LLAMA_BACKEND: LazyLock<LlamaBackend> = LazyLock::new(|| {
+    match get_backends_path() {
+        Some(path) => llama_cpp_2::llama_backend::load_backends_from_path(&path),
+        None => warn!("No GGML backend directory found; hardware acceleration backends (Vulkan, CPU variants) will not be loaded"),
+    }
+    LlamaBackend::init().expect("Failed to initialize llama backend")
+});
 
 #[derive(Debug)]
 pub struct Model {

@@ -85,28 +85,12 @@ let
             mesa
           ];
 
-          # HACK: Both whisper-rs-sys and llama-cpp-sys-2 bundle ggml, producing
-          # identically-named static archives and object files. buildRustCrate
-          # packs static library objects directly into the .rlib, so both rlibs
-          # end up containing ggml object files — causing duplicate symbol errors
-          # at the final link step.
-          # Fix: strip ggml objects from whisper's .rlib and delete whisper's
-          # libggml*.a archives. Whisper's remaining ggml symbol references
-          # (in libwhisper.a) resolve against llama's ggml at link time.
-          # The two ggml versions are ABI-compatible (additive changes only,
-          # same GGML_FILE_VERSION=2 and GGML_QNT_VERSION=2).
-          postInstall = ''
-            for rlib in $lib/lib/*.rlib; do
-              [ -f "$rlib" ] || continue
-              objs=$(ar t "$rlib" 2>/dev/null | grep -E '^ggml' || true)
-              if [ -n "$objs" ]; then
-                echo "Stripping ggml objects from $rlib:"
-                echo "$objs"
-                echo "$objs" | xargs ar d "$rlib"
-              fi
-            done
-            find $lib/lib -name 'libggml*.a' -print -delete || true
-          '';
+        };
+
+        nobodywho-stt = attrs: {
+          nativeBuildInputs = [
+            vulkan-loader
+          ];
         };
 
         nobodywho = attrs: {

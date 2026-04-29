@@ -42,8 +42,40 @@ endif()
 
 message(STATUS "Using NobodyWho library for Linux ${LINUX_ARCH}: ${NOBODYWHO_LIB_PATH}")
 
-# List of absolute paths to libraries that should be bundled with the plugin.
-set(nobodywho_bundled_libraries
-  ${NOBODYWHO_LIB_PATH}
-  PARENT_SCOPE
+get_filename_component(NOBODYWHO_LIB_DIR "${NOBODYWHO_LIB_PATH}" DIRECTORY)
+
+# Start with the main library and accumulate siblings into this list.
+set(_bundled_libs "${NOBODYWHO_LIB_PATH}")
+
+# Whisper module (optional – STT falls back to runtime discovery if absent).
+set(_whisper "${NOBODYWHO_LIB_DIR}/libnobodywho_stt.so")
+if(EXISTS "${_whisper}")
+  message(STATUS "Bundling STT module: ${_whisper}")
+  list(APPEND _bundled_libs "${_whisper}")
+else()
+  message(STATUS "Whisper module not found at ${_whisper}; STT will use runtime discovery")
+endif()
+
+# GGML shared libs – present when built with dynamic-backends / dynamic-link.
+# libggml-base and libllama are hard runtime deps; without them the extension won't load.
+foreach(_lib libggml-base.so libllama.so)
+  if(EXISTS "${NOBODYWHO_LIB_DIR}/${_lib}")
+    message(STATUS "Bundling GGML lib: ${NOBODYWHO_LIB_DIR}/${_lib}")
+    list(APPEND _bundled_libs "${NOBODYWHO_LIB_DIR}/${_lib}")
+  endif()
+endforeach()
+
+# GGML backend modules – dlopen'd at runtime for hardware selection.
+# Broad glob catches all backends: CPU variants, Vulkan, QNN, OpenCL, RPC, CANN, etc.
+file(GLOB _backend_modules
+  "${NOBODYWHO_LIB_DIR}/libggml-*.so"
+  "${NOBODYWHO_LIB_DIR}/ggml-*.so"
 )
+# libggml-base.so is a hard dep handled above, not a dlopen'd module.
+list(FILTER _backend_modules EXCLUDE REGEX "libggml-base\\.so$")
+if(_backend_modules)
+  message(STATUS "Bundling GGML backend modules: ${_backend_modules}")
+  list(APPEND _bundled_libs ${_backend_modules})
+endif()
+
+set(nobodywho_bundled_libraries ${_bundled_libs} PARENT_SCOPE)

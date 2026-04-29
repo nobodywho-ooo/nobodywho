@@ -10,7 +10,7 @@ AUDIO_FILE = pathlib.Path(__file__).parent / "sound.mp3"
 def whisper_model():
     model_path = os.environ.get("TEST_WHISPER_MODEL")
     if not model_path:
-        raise ValueError("TEST_WHISPER_MODEL environment variable is not set")
+        pytest.skip("TEST_WHISPER_MODEL not set")
     return nobodywho.SpeechToText(model_path, language="en")
 
 

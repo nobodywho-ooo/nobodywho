@@ -1,6 +1,7 @@
 {
 
   nobodywho-godot,
+  nobodywho-stt,
   stdenv,
   callPackage,
   godot_4,
@@ -27,6 +28,23 @@ stdenv.mkDerivation {
     rm ./nobodywho.gdextension
     mkdir -p ./bin/
     cp ${nobodywho-godot.lib}/lib/libnobodywho_godot.so ./bin/libnobodywho_godot.so
+    cp ${nobodywho-stt.lib}/lib/libnobodywho_stt.so ./bin/libnobodywho_stt.so
+
+    # GGML shared libs – present when built with dynamic-backends / dynamic-link.
+    for lib in libggml-base.so libllama.so; do
+      if [ -f "${nobodywho-godot.lib}/lib/$lib" ]; then
+        cp "${nobodywho-godot.lib}/lib/$lib" ./bin/
+      fi
+    done
+
+    # GGML backend modules – dlopen'd at runtime for hardware selection.
+    for module in ${nobodywho-godot.lib}/lib/libggml-*.so ${nobodywho-godot.lib}/lib/ggml-*.so; do
+      if [ -f "$module" ] && [ "$(basename $module)" != "libggml-base.so" ]; then
+        cp "$module" ./bin/
+      fi
+    done
+
+    export LD_LIBRARY_PATH="./bin:${nobodywho-godot.lib}/lib:${nobodywho-stt.lib}/lib"
     cat << EOF > bin/nobodywho.gdextension
     [configuration]
     entry_symbol = "gdext_rust_init"

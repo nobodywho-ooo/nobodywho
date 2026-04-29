@@ -436,20 +436,8 @@ pub enum SpeechToTextError {
     #[error("Failed to load whisper model: {0}")]
     LoadModel(String),
 
-    #[error("Failed to create whisper state: {0}")]
-    CreateState(String),
-
-    #[error("Failed to decode audio file: {0}")]
-    AudioDecode(String),
-
-    #[error("Failed to resample audio: {0}")]
-    Resample(String),
-
-    #[error("Whisper transcription failed: {0}")]
-    Transcribe(String),
-
-    #[error("Worker crashed while waiting for response. Enable logging for details.")]
-    NoResponse,
+    #[error("Whisper module not found or failed to load: {0}")]
+    ModuleLoad(String),
 }
 
 #[derive(Debug, thiserror::Error)]

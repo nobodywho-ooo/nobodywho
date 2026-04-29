@@ -1,20 +1,188 @@
 use crate::errors::SpeechToTextError;
 use crate::llm::{TokenStream, TokenStreamAsync, WorkerGuard, WriteOutput};
-use rubato::{FftFixedIn, Resampler};
-use std::sync::Arc;
-use symphonia::core::audio::SampleBuffer;
-use symphonia::core::codecs::{CodecParameters, Decoder, DecoderOptions, CODEC_TYPE_NULL};
-use symphonia::core::errors::Error::{DecodeError, IoError};
-use symphonia::core::formats::{FormatOptions, FormatReader};
-use symphonia::core::io::MediaSourceStream;
-use symphonia::core::meta::MetadataOptions;
-use symphonia::core::probe::Hint;
+use crate::platform::self_dir;
+use libloading::Library;
+use std::ffi::{c_char, c_void, CString};
+use std::sync::{Arc, OnceLock};
 use tracing::error;
-use whisper_rs::{
-    FullParams, SamplingStrategy, SegmentCallbackData, WhisperContext, WhisperContextParameters,
-};
 
-const RESAMPLE_CHUNK_SIZE: usize = 1024;
+const EXPECTED_ABI_VERSION: u32 = 1;
+
+// Plain filename — used for single-arch installs (Python wheels, local builds).
+#[cfg(target_os = "windows")]
+const LIB_NAME: &str = "nobodywho_stt.dll";
+#[cfg(target_os = "macos")]
+const LIB_NAME: &str = "libnobodywho_stt.dylib";
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+const LIB_NAME: &str = "libnobodywho_stt.so";
+
+// Target-triple-specific filename — used in multi-arch release bundles (Godot addon zip,
+// Flutter release dir) where multiple architectures coexist in the same directory.
+// Mirrors the rename step in build.yml: libnobodywho_stt-{triple}-{profile}.ext
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+const LIB_NAME_RELEASE: &str = "libnobodywho_stt-x86_64-unknown-linux-gnu-release.so";
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+const LIB_NAME_RELEASE: &str = "libnobodywho_stt-aarch64-unknown-linux-gnu-release.so";
+#[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+const LIB_NAME_RELEASE: &str = "libnobodywho_stt-x86_64-apple-darwin-release.dylib";
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+const LIB_NAME_RELEASE: &str = "libnobodywho_stt-aarch64-apple-darwin-release.dylib";
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+const LIB_NAME_RELEASE: &str = "nobodywho_stt-x86_64-pc-windows-msvc-release.dll";
+#[cfg(all(target_os = "android", target_arch = "aarch64"))]
+const LIB_NAME_RELEASE: &str = "libnobodywho_stt-aarch64-linux-android-release.so";
+#[cfg(all(target_os = "android", target_arch = "x86_64"))]
+const LIB_NAME_RELEASE: &str = "libnobodywho_stt-x86_64-linux-android-release.so";
+#[cfg(not(any(
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "linux", target_arch = "aarch64"),
+    all(target_os = "macos", target_arch = "x86_64"),
+    all(target_os = "macos", target_arch = "aarch64"),
+    all(target_os = "windows", target_arch = "x86_64"),
+    all(target_os = "android", target_arch = "aarch64"),
+    all(target_os = "android", target_arch = "x86_64"),
+)))]
+const LIB_NAME_RELEASE: &str = LIB_NAME; // fallback to plain name for unknown targets
+
+// -- STT dylib symbol table --
+
+struct SttSyms {
+    version: unsafe extern "C" fn() -> u32,
+    create: unsafe extern "C" fn(*const c_char, *const c_char, bool, *const c_char) -> *mut c_void,
+    destroy: unsafe extern "C" fn(*mut c_void),
+    transcribe: unsafe extern "C" fn(
+        *mut c_void,
+        *const c_char,
+        Option<extern "C" fn(*const c_char, usize, *mut c_void)>,
+        Option<extern "C" fn(*const c_char, usize, *mut c_void)>,
+        *mut c_void,
+    ) -> i32,
+    last_error: unsafe extern "C" fn() -> *const c_char,
+}
+
+// SAFETY: function pointers from a loaded library are valid for the process lifetime
+// (the Library is held alive in STT_LIB).
+unsafe impl Send for SttSyms {}
+unsafe impl Sync for SttSyms {}
+
+static STT_LIB: OnceLock<Result<(Library, SttSyms), String>> = OnceLock::new();
+
+fn load_stt() -> Result<&'static SttSyms, SpeechToTextError> {
+    STT_LIB
+        .get_or_init(try_load_stt)
+        .as_ref()
+        .map(|(_, syms)| syms)
+        .map_err(|e| SpeechToTextError::ModuleLoad(e.clone()))
+}
+
+fn try_load_stt() -> Result<(Library, SttSyms), String> {
+    let lib = open_stt_library()?;
+
+    let syms = unsafe {
+        macro_rules! sym {
+            ($name:literal, $ty:ty) => {{
+                let s: libloading::Symbol<$ty> = lib
+                    .get($name)
+                    .map_err(|e| format!("symbol {} not found: {}", stringify!($name), e))?;
+                *s
+            }};
+        }
+        SttSyms {
+            version: sym!(b"stt_module_version\0", unsafe extern "C" fn() -> u32),
+            create: sym!(
+                b"stt_module_create\0",
+                unsafe extern "C" fn(
+                    *const c_char,
+                    *const c_char,
+                    bool,
+                    *const c_char,
+                ) -> *mut c_void
+            ),
+            destroy: sym!(b"stt_module_destroy\0", unsafe extern "C" fn(*mut c_void)),
+            transcribe: sym!(
+                b"stt_module_transcribe\0",
+                unsafe extern "C" fn(
+                    *mut c_void,
+                    *const c_char,
+                    Option<extern "C" fn(*const c_char, usize, *mut c_void)>,
+                    Option<extern "C" fn(*const c_char, usize, *mut c_void)>,
+                    *mut c_void,
+                ) -> i32
+            ),
+            last_error: sym!(
+                b"stt_module_last_error\0",
+                unsafe extern "C" fn() -> *const c_char
+            ),
+        }
+    };
+
+    let got = unsafe { (syms.version)() };
+    if got != EXPECTED_ABI_VERSION {
+        return Err(format!(
+            "version mismatch: expected {}, got {}",
+            EXPECTED_ABI_VERSION, got
+        ));
+    }
+
+    Ok((lib, syms))
+}
+
+fn open_stt_library() -> Result<Library, String> {
+    // 1. Explicit override via environment variable.
+    if let Ok(path) = std::env::var("NOBODYWHO_STT_MODULE_PATH") {
+        return unsafe { Library::new(&path) }
+            .map_err(|e| format!("NOBODYWHO_STT_MODULE_PATH={path}: {e}"));
+    }
+
+    // 2. Sibling to the current shared library (covers Python site-packages, Godot addon dir).
+    //    Try the arch-specific release name first (multi-arch bundles like the Godot addon zip
+    //    where x86_64 and aarch64 files coexist), then fall back to the plain name.
+    if let Some(dir) = self_dir() {
+        for name in &[LIB_NAME_RELEASE, LIB_NAME] {
+            let candidate = dir.join(name);
+            if candidate.exists() {
+                if let Ok(lib) = unsafe { Library::new(&candidate) } {
+                    return Ok(lib);
+                }
+            }
+        }
+    }
+
+    // 3. Sibling to the running executable (covers standalone binaries, test wrappers).
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            for name in &[LIB_NAME_RELEASE, LIB_NAME] {
+                let candidate = dir.join(name);
+                if candidate.exists() {
+                    if let Ok(lib) = unsafe { Library::new(&candidate) } {
+                        return Ok(lib);
+                    }
+                }
+            }
+        }
+    }
+
+    // 4. OS default search path (LD_LIBRARY_PATH / DYLD_LIBRARY_PATH / PATH).
+    unsafe { Library::new(LIB_NAME) }
+        .map_err(|e| format!("could not find {LIB_NAME} in any search path: {e}"))
+}
+
+// -- Opaque handle wrapper (send across threads) --
+//
+// Note: accessing `.0` inside a closure triggers RFC-2229 disjoint capture of the field
+// (*mut c_void, which is !Send). Using a method call instead forces capture of the whole
+// HandlePtr (which is Send).
+
+struct HandlePtr(*mut c_void);
+unsafe impl Send for HandlePtr {}
+
+impl HandlePtr {
+    fn ptr(&self) -> *mut c_void {
+        self.0
+    }
+}
+
+// -- Public API types --
 
 /// Configuration for speech-to-text transcription.
 #[derive(Clone, Debug, Default)]
@@ -39,11 +207,12 @@ pub struct SpeechToTextAsync {
     guard: Arc<WorkerGuard<SttMsg>>,
 }
 
-enum SttMsg {
-    Stream(String, tokio::sync::mpsc::UnboundedSender<WriteOutput>),
+struct SttMsg {
+    audio_path: String,
+    output_tx: tokio::sync::mpsc::UnboundedSender<WriteOutput>,
 }
 
-// -- Public API --
+// -- Public API impl --
 
 impl SpeechToText {
     pub fn new(model_path: String, config: SpeechToTextConfig) -> Result<Self, SpeechToTextError> {
@@ -53,31 +222,66 @@ impl SpeechToText {
 
     pub fn transcribe(&self, audio_path: String) -> TokenStream {
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-        self.async_handle.guard.send(SttMsg::Stream(audio_path, tx));
+        self.async_handle.guard.send(SttMsg {
+            audio_path,
+            output_tx: tx,
+        });
         TokenStream::new(rx)
     }
 }
 
 impl SpeechToTextAsync {
     pub fn new(model_path: String, config: SpeechToTextConfig) -> Result<Self, SpeechToTextError> {
-        let ctx = WhisperContext::new_with_params(&model_path, WhisperContextParameters::default())
+        let syms = load_stt()?;
+
+        let model_cstr =
+            CString::new(model_path).map_err(|e| SpeechToTextError::LoadModel(e.to_string()))?;
+        let language_cstr = config
+            .language
+            .as_deref()
+            .map(CString::new)
+            .transpose()
+            .map_err(|e| SpeechToTextError::LoadModel(e.to_string()))?;
+        let prompt_cstr = config
+            .initial_prompt
+            .as_deref()
+            .map(CString::new)
+            .transpose()
             .map_err(|e| SpeechToTextError::LoadModel(e.to_string()))?;
 
+        let raw_handle = unsafe {
+            (syms.create)(
+                model_cstr.as_ptr(),
+                language_cstr
+                    .as_ref()
+                    .map_or(std::ptr::null(), |s| s.as_ptr()),
+                config.translate,
+                prompt_cstr
+                    .as_ref()
+                    .map_or(std::ptr::null(), |s| s.as_ptr()),
+            )
+        };
+
+        if raw_handle.is_null() {
+            let msg = unsafe {
+                let ptr = (syms.last_error)();
+                if ptr.is_null() {
+                    "unknown error".to_string()
+                } else {
+                    std::ffi::CStr::from_ptr(ptr).to_string_lossy().into_owned()
+                }
+            };
+            return Err(SpeechToTextError::LoadModel(msg));
+        }
+
+        let handle = HandlePtr(raw_handle);
         let (msg_tx, msg_rx) = std::sync::mpsc::channel::<SttMsg>();
 
         let join_handle = std::thread::spawn(move || {
-            let mut state = match ctx.create_state() {
-                Ok(s) => s,
-                Err(e) => return error!(error=%e, "Could not create whisper state"),
-            };
-
             while let Ok(msg) = msg_rx.recv() {
-                match msg {
-                    SttMsg::Stream(audio_path, output_tx) => {
-                        transcribe_streaming(&mut state, &config, &audio_path, &output_tx);
-                    }
-                }
+                call_transcribe(syms, handle.ptr(), &msg.audio_path, msg.output_tx);
             }
+            unsafe { (syms.destroy)(handle.ptr()) };
         });
 
         Ok(Self {
@@ -87,213 +291,68 @@ impl SpeechToTextAsync {
 
     pub fn transcribe(&self, audio_path: String) -> TokenStreamAsync {
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-        self.guard.send(SttMsg::Stream(audio_path, tx));
+        self.guard.send(SttMsg {
+            audio_path,
+            output_tx: tx,
+        });
         TokenStreamAsync::new(rx)
     }
 }
 
-// -- Transcription --
+// -- FFI callbacks + transcription call --
 
-fn transcribe_streaming(
-    state: &mut whisper_rs::WhisperState,
-    config: &SpeechToTextConfig,
+extern "C" fn segment_cb(text: *const c_char, len: usize, ud: *mut c_void) {
+    let tx = unsafe { &*(ud as *const tokio::sync::mpsc::UnboundedSender<WriteOutput>) };
+    let bytes = unsafe { std::slice::from_raw_parts(text as *const u8, len) };
+    if let Ok(s) = std::str::from_utf8(bytes) {
+        let _ = tx.send(WriteOutput::Token(s.to_string()));
+    }
+}
+
+extern "C" fn done_cb(text: *const c_char, len: usize, ud: *mut c_void) {
+    let tx = unsafe { &*(ud as *const tokio::sync::mpsc::UnboundedSender<WriteOutput>) };
+    let bytes = unsafe { std::slice::from_raw_parts(text as *const u8, len) };
+    let s = std::str::from_utf8(bytes).unwrap_or("").to_string();
+    let _ = tx.send(WriteOutput::Done(s));
+}
+
+fn call_transcribe(
+    syms: &'static SttSyms,
+    handle: *mut c_void,
     audio_path: &str,
-    output_tx: &tokio::sync::mpsc::UnboundedSender<WriteOutput>,
+    output_tx: tokio::sync::mpsc::UnboundedSender<WriteOutput>,
 ) {
-    let samples = match load_audio(audio_path, 16000) {
+    let audio_cstr = match CString::new(audio_path) {
         Ok(s) => s,
-        Err(_) => return,
+        Err(e) => {
+            error!(error = %e, "Invalid audio path");
+            return;
+        }
     };
 
-    let mut params = build_whisper_params(config);
-    let tx = output_tx.clone();
-    params.set_segment_callback_safe_lossy(move |data: SegmentCallbackData| {
-        let _ = tx.send(WriteOutput::Token(data.text));
-    });
+    // SAFETY: output_tx lives on this stack frame for the entire blocking call.
+    // Callbacks only fire during stt_module_transcribe, so the pointer is valid.
+    let userdata = &output_tx as *const _ as *mut c_void;
 
-    if state.full(params, &samples).is_err() {
-        return;
-    }
-
-    let _ = output_tx.send(WriteOutput::Done(collect_transcript(state)));
-}
-
-fn build_whisper_params(config: &'_ SpeechToTextConfig) -> FullParams<'_, '_> {
-    let n_threads = std::thread::available_parallelism()
-        .map(|p| p.get() as i32)
-        .unwrap_or(4);
-    let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 5 });
-    params.set_n_threads(n_threads);
-    params.set_translate(config.translate);
-    params.set_language(config.language.as_deref());
-    params.set_print_progress(false);
-    params.set_print_realtime(false);
-    params.set_print_special(false);
-    if let Some(ref prompt) = config.initial_prompt {
-        params.set_initial_prompt(prompt);
-    }
-    params
-}
-
-fn collect_transcript(state: &whisper_rs::WhisperState) -> String {
-    (0..state.full_n_segments())
-        .filter_map(|i| state.get_segment(i))
-        .map(|seg| seg.to_string())
-        .collect::<String>()
-        .trim()
-        .to_string()
-}
-
-// -- Audio loading --
-
-fn load_audio(path: &str, target_rate: u32) -> Result<Vec<f32>, SpeechToTextError> {
-    let mut format_reader = open_format_reader(path)?;
-    let (track_id, sample_rate, n_channels, codec_params) =
-        read_track_info(format_reader.as_ref(), path)?;
-    let mut decoder = make_decoder(codec_params)?;
-    let interleaved = collect_samples(&mut format_reader, &mut decoder, track_id)?;
-    let mono = to_mono(interleaved, n_channels);
-
-    if sample_rate == target_rate {
-        Ok(mono)
-    } else {
-        resample(mono, sample_rate, target_rate)
-    }
-}
-
-fn open_format_reader(path: &str) -> Result<Box<dyn FormatReader>, SpeechToTextError> {
-    let file = std::fs::File::open(path)
-        .map_err(|e| SpeechToTextError::AudioDecode(format!("Could not open '{}': {}", path, e)))?;
-
-    let mss = MediaSourceStream::new(Box::new(file), Default::default());
-
-    let mut hint = Hint::new();
-    if let Some(ext) = std::path::Path::new(path)
-        .extension()
-        .and_then(|e| e.to_str())
-    {
-        hint.with_extension(ext);
-    }
-
-    symphonia::default::get_probe()
-        .format(
-            &hint,
-            mss,
-            &FormatOptions::default(),
-            &MetadataOptions::default(),
+    let ret = unsafe {
+        (syms.transcribe)(
+            handle,
+            audio_cstr.as_ptr(),
+            Some(segment_cb),
+            Some(done_cb),
+            userdata,
         )
-        .map(|p| p.format)
-        .map_err(|e| SpeechToTextError::AudioDecode(format!("Could not probe format: {}", e)))
-}
+    };
 
-fn read_track_info(
-    format_reader: &dyn FormatReader,
-    path: &str,
-) -> Result<(u32, u32, usize, CodecParameters), SpeechToTextError> {
-    let track = format_reader
-        .tracks()
-        .iter()
-        .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
-        .ok_or_else(|| SpeechToTextError::AudioDecode(format!("No audio track in '{}'", path)))?;
-
-    let track_id = track.id;
-    let sample_rate = track
-        .codec_params
-        .sample_rate
-        .ok_or_else(|| SpeechToTextError::AudioDecode("Unknown sample rate".into()))?;
-    let n_channels = track.codec_params.channels.map(|c| c.count()).unwrap_or(1);
-    let codec_params = track.codec_params.clone();
-
-    Ok((track_id, sample_rate, n_channels, codec_params))
-}
-
-fn make_decoder(codec_params: CodecParameters) -> Result<Box<dyn Decoder>, SpeechToTextError> {
-    symphonia::default::get_codecs()
-        .make(&codec_params, &DecoderOptions::default())
-        .map_err(|e| SpeechToTextError::AudioDecode(format!("Could not create decoder: {}", e)))
-}
-
-fn collect_samples(
-    format_reader: &mut Box<dyn FormatReader>,
-    decoder: &mut Box<dyn Decoder>,
-    track_id: u32,
-) -> Result<Vec<f32>, SpeechToTextError> {
-    let mut interleaved: Vec<f32> = Vec::new();
-
-    loop {
-        let packet = match format_reader.next_packet() {
-            Ok(p) => p,
-            Err(IoError(ref e)) if e.kind() == std::io::ErrorKind::UnexpectedEof => break,
-            Err(e) => return Err(SpeechToTextError::AudioDecode(e.to_string())),
+    if ret != 0 {
+        let msg = unsafe {
+            let ptr = (syms.last_error)();
+            if ptr.is_null() {
+                "unknown transcription error".to_string()
+            } else {
+                std::ffi::CStr::from_ptr(ptr).to_string_lossy().into_owned()
+            }
         };
-
-        if packet.track_id() != track_id {
-            continue;
-        }
-
-        let decoded = match decoder.decode(&packet) {
-            Ok(d) => d,
-            Err(IoError(_) | DecodeError(_)) => continue,
-            Err(e) => return Err(SpeechToTextError::AudioDecode(e.to_string())),
-        };
-
-        let mut sample_buf = SampleBuffer::<f32>::new(decoded.capacity() as u64, *decoded.spec());
-        sample_buf.copy_interleaved_ref(decoded);
-        interleaved.extend_from_slice(sample_buf.samples());
+        error!(error = %msg, "Transcription failed");
     }
-
-    Ok(interleaved)
-}
-
-fn to_mono(interleaved: Vec<f32>, n_channels: usize) -> Vec<f32> {
-    if n_channels == 1 {
-        return interleaved;
-    }
-    interleaved
-        .chunks_exact(n_channels)
-        .map(|frame| frame.iter().sum::<f32>() / n_channels as f32)
-        .collect()
-}
-
-// -- Resampling --
-
-fn resample(
-    samples: Vec<f32>,
-    from_rate: u32,
-    to_rate: u32,
-) -> Result<Vec<f32>, SpeechToTextError> {
-    let n_input = samples.len();
-    let expected_output = (n_input as f64 * to_rate as f64 / from_rate as f64).ceil() as usize;
-
-    let mut resampler = FftFixedIn::<f32>::new(
-        from_rate as usize,
-        to_rate as usize,
-        RESAMPLE_CHUNK_SIZE,
-        2,
-        1,
-    )
-    .map_err(|e| SpeechToTextError::Resample(e.to_string()))?;
-
-    let mut output = Vec::with_capacity(expected_output);
-
-    for chunk in samples.chunks(RESAMPLE_CHUNK_SIZE) {
-        let resampled = process_chunk(&mut resampler, chunk)?;
-        output.extend_from_slice(&resampled);
-    }
-
-    output.truncate(expected_output);
-    Ok(output)
-}
-
-fn process_chunk(
-    resampler: &mut FftFixedIn<f32>,
-    chunk: &[f32],
-) -> Result<Vec<f32>, SpeechToTextError> {
-    let mut padded = vec![0.0f32; RESAMPLE_CHUNK_SIZE];
-    padded[..chunk.len()].copy_from_slice(chunk);
-
-    resampler
-        .process(&[&padded], None)
-        .map(|out| out.into_iter().next().unwrap_or_default())
-        .map_err(|e| SpeechToTextError::Resample(e.to_string()))
 }

@@ -11,6 +11,7 @@ let
   pyprojectToml = builtins.fromTOML (builtins.readFile ./pyproject.toml);
   # Phase 1: the .so is already built by crate2nix via workspace
   nobodywho-python-rs = workspace.workspaceMembers.nobodywho-python.build;
+  nobodywho-stt = workspace.workspaceMembers.nobodywho-stt.build;
 in
 python3Packages.buildPythonPackage {
   pname = "nobodywho";
@@ -25,6 +26,8 @@ python3Packages.buildPythonPackage {
     mkdir -p $out/${python3.sitePackages}
     cp ${nobodywho-python-rs.lib}/lib/libnobodywho_python.so \
        $out/${python3.sitePackages}/nobodywho.abi3.so
+    cp ${nobodywho-stt.lib}/lib/libnobodywho_stt.so \
+       $out/${python3.sitePackages}/libnobodywho_stt.so
     runHook postInstall
   '';
 
