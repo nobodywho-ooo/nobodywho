@@ -104,7 +104,13 @@ impl Message {
     }
 
     pub fn has_tool_calls(&self) -> bool {
-        matches!(self, Message::Assistant { tool_calls: Some(_), .. })
+        matches!(
+            self,
+            Message::Assistant {
+                tool_calls: Some(_),
+                ..
+            }
+        )
     }
 
     pub fn content(&self) -> &str {
@@ -1294,15 +1300,11 @@ impl Worker<'_, ChatWorker> {
     }
 
     pub fn add_assistant_message(&mut self, content: String) {
-        self.extra
-            .messages
-            .push(Message::new_assistant(content));
+        self.extra.messages.push(Message::new_assistant(content));
     }
 
     pub fn add_user_message(&mut self, content: String, assets: Vec<Asset>) {
-        self.extra
-            .messages
-            .push(Message::User { content, assets });
+        self.extra.messages.push(Message::User { content, assets });
     }
 
     pub fn add_tool_calls(&mut self, tool_calls: Vec<ToolCall>) {
@@ -1372,11 +1374,7 @@ impl Worker<'_, ChatWorker> {
         let mut messages = self.extra.messages.clone();
 
         // Find indices to preserve
-        let system_end = if messages[0].is_system() {
-            1
-        } else {
-            0
-        };
+        let system_end = if messages[0].is_system() { 1 } else { 0 };
         let first_user_message_index =
             self.find_next_user_message(&messages, system_end)
                 .ok_or(ShiftError::Message(
@@ -2383,20 +2381,14 @@ mod tests {
         );
 
         // 3. Count remaining user messages - should have at least 3 (first + last 2)
-        let user_count = messages_after
-            .iter()
-            .filter(|m| m.is_user())
-            .count();
+        let user_count = messages_after.iter().filter(|m| m.is_user()).count();
         assert!(
             user_count >= 3,
             "Should preserve first user message and last 2 user messages"
         );
 
         // 4. Verify the last user message is there
-        let last_user = messages_after
-            .iter()
-            .rev()
-            .find(|m| m.is_user());
+        let last_user = messages_after.iter().rev().find(|m| m.is_user());
 
         if let Some(Message::User { content, .. }) = last_user {
             assert!(
@@ -2503,20 +2495,14 @@ mod tests {
         );
 
         // 3. Count remaining user messages - should have at least 3 (first + last 2)
-        let user_count = messages_after
-            .iter()
-            .filter(|m| m.is_user())
-            .count();
+        let user_count = messages_after.iter().filter(|m| m.is_user()).count();
         assert!(
             user_count >= 3,
             "Should preserve first user message and last 2 user messages"
         );
 
         // 4. Verify the last user message is there
-        let last_user = messages_after
-            .iter()
-            .rev()
-            .find(|m| m.is_user());
+        let last_user = messages_after.iter().rev().find(|m| m.is_user());
 
         if let Some(Message::User { content, .. }) = last_user {
             assert!(
@@ -2619,10 +2605,7 @@ mod tests {
         );
 
         // 3. Verify the last user message is there (the one that triggered the shift)
-        let last_user = messages_after
-            .iter()
-            .rev()
-            .find(|m| m.is_user());
+        let last_user = messages_after.iter().rev().find(|m| m.is_user());
 
         if let Some(Message::User { content, .. }) = last_user {
             assert!(
@@ -2702,10 +2685,7 @@ mod tests {
         );
 
         // 3. Verify the last user message is there (the one that triggered the shift)
-        let last_user = messages_after
-            .iter()
-            .rev()
-            .find(|m| m.is_user());
+        let last_user = messages_after.iter().rev().find(|m| m.is_user());
 
         if let Some(Message::User { content, .. }) = last_user {
             assert!(

@@ -5,11 +5,7 @@ use llama_cpp_2::mtmd::MtmdBitmap;
 use minijinja::{Environment, Template, Value};
 use tracing::{debug, trace, warn};
 
-use crate::{
-    chat::Message,
-    errors::SelectTemplateError,
-    tool_calling::Tool,
-};
+use crate::{chat::Message, errors::SelectTemplateError, tool_calling::Tool};
 
 fn strftime_now(format_str: &str) -> String {
     chrono::Local::now().format(format_str).to_string()
@@ -78,9 +74,9 @@ impl ChatTemplate {
         messages: &[Message],
         ctx: &ChatTemplateContext,
     ) -> Result<String, minijinja::Error> {
-        let add_generation_prompt = messages.last().is_some_and(|msg| {
-            matches!(msg, Message::User { .. } | Message::Tool { .. })
-        });
+        let add_generation_prompt = messages
+            .last()
+            .is_some_and(|msg| matches!(msg, Message::User { .. } | Message::Tool { .. }));
 
         let template = self.get_template()?;
 

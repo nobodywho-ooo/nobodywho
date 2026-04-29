@@ -151,9 +151,8 @@ fn uniffi_message_to_core(m: &Message) -> Result<nobodywho::chat::Message, Nobod
                 .map(|tcs| {
                     tcs.iter()
                         .map(|tc| {
-                            let args: serde_json::Value =
-                                serde_json::from_str(&tc.arguments_json)
-                                    .map_err(|e| format!("Invalid tool call arguments JSON: {e}"))?;
+                            let args: serde_json::Value = serde_json::from_str(&tc.arguments_json)
+                                .map_err(|e| format!("Invalid tool call arguments JSON: {e}"))?;
                             Ok(nobodywho::tool_calling::ToolCall {
                                 name: tc.name.clone(),
                                 arguments: args,
