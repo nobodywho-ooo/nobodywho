@@ -70,9 +70,7 @@ jobs:
     container:
       image: quay.io/pypa/${{ matrix.manylinux_target }}
     env:
-      # -C link-arg=-Wl,--allow-multiple-definition: both whisper-rs-sys and llama-cpp-sys-2
-      # bundle their own ggml.c; tell the linker to silently pick one definition.
-      RUSTFLAGS: ${{ matrix.runner == 'ubuntu-24.04' && '-C target-cpu=x86-64-v3 -C link-arg=-Wl,--allow-multiple-definition' || '-C link-arg=-Wl,--allow-multiple-definition' }}
+      RUSTFLAGS: ${{ matrix.runner == 'ubuntu-24.04' && '-C target-cpu=x86-64-v3' || '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -137,6 +135,24 @@ jobs:
           maturin build --verbose --release --locked
         working-directory: ./nobodywho/python
 
+      - name: Build STT module
+        run: |
+          source "$HOME/.cargo/env"
+          cargo build -p nobodywho-stt --release --locked
+        working-directory: ./nobodywho
+
+      - name: Inject STT module into wheel
+        shell: bash
+        run: |
+          pip install wheel
+          WHEEL=$(ls nobodywho/target/wheels/nobodywho*.whl)
+          TMP=$(mktemp -d)
+          wheel unpack "$WHEEL" -d "$TMP"
+          DIR=$(ls "$TMP")
+          cp nobodywho/target/release/libnobodywho_stt.so "$TMP/$DIR/nobodywho/"
+          rm "$WHEEL"
+          wheel pack "$TMP/$DIR" -d nobodywho/target/wheels/
+
       - name: Repair wheel to use manylinux
         # auditwheel bundles external libraries and verifies manylinux compliance
         run: auditwheel repair --plat ${{ matrix.manylinux_target }} nobodywho/target/wheels/nobodywho*.whl
@@ -190,6 +206,23 @@ jobs:
           # install step fails to find cmake_install.cmake with the VS generator.
           # Ninja's simpler build structure avoids this problem entirely.
           CMAKE_GENERATOR: "Ninja"
+      - name: "Build STT module"
+        run: |
+          cd C:/
+          cargo build -p nobodywho-stt --release --locked --target ${{ matrix.target }}
+        env:
+          CMAKE_GENERATOR: "Ninja"
+      - name: "Inject STT module into wheel"
+        shell: pwsh
+        run: |
+          pip install wheel
+          $WHEEL = (Get-ChildItem "C:/target/wheels/nobodywho*.whl")[0].FullName
+          $TMP = New-TemporaryFile | ForEach-Object { Remove-Item $_; New-Item -ItemType Directory $_ }
+          wheel unpack "$WHEEL" -d "$TMP"
+          $DIR = (Get-ChildItem "$TMP")[0].Name
+          Copy-Item "C:/target/${{ matrix.target }}/release/nobodywho_stt.dll" "$TMP/$DIR/nobodywho/"
+          Remove-Item "$WHEEL"
+          wheel pack "$TMP/$DIR" -d "C:/target/wheels/"
       - name: "Upload wheel artifact"
         uses: actions/upload-artifact@v4
         with:
@@ -211,6 +244,22 @@ jobs:
       - name: "Build macos python wheel"
         run: maturin build --verbose --release --locked --target aarch64-apple-darwin
         working-directory: ./nobodywho/python
+
+      - name: "Build STT module"
+        run: cargo build -p nobodywho-stt --release --locked --target aarch64-apple-darwin
+        working-directory: ./nobodywho
+
+      - name: "Inject STT module into wheel"
+        shell: bash
+        run: |
+          pip install wheel
+          WHEEL=$(ls nobodywho/target/wheels/nobodywho*.whl)
+          TMP=$(mktemp -d)
+          wheel unpack "$WHEEL" -d "$TMP"
+          DIR=$(ls "$TMP")
+          cp nobodywho/target/aarch64-apple-darwin/release/libnobodywho_stt.dylib "$TMP/$DIR/nobodywho/"
+          rm "$WHEEL"
+          wheel pack "$TMP/$DIR" -d nobodywho/target/wheels/
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v4
@@ -241,6 +290,7 @@ jobs:
           curl -L --fail --progress-bar https://huggingface.co/gpustack/bge-reranker-v2-m3-GGUF/resolve/main/bge-reranker-v2-m3-Q8_0.gguf -o models/bge-reranker-v2-m3-Q8_0.gguf
           curl -L --fail --progress-bar https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q4_K_M.gguf -o models/gemma-3-4b-it-Q4_K_M.gguf
           curl -L --fail --progress-bar https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/mmproj-F16.gguf -o models/mmproj-gemma-3-f16.gguf
+          curl -L --fail --progress-bar https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin -o models/ggml-base.en.bin
       - name: Set up virtualenv and install dependencies
         working-directory: ./nobodywho/python
         run: |
@@ -257,6 +307,7 @@ jobs:
           TEST_CROSSENCODER_MODEL: ${{ github.workspace }}/models/bge-reranker-v2-m3-Q8_0.gguf
           TEST_VISION_MODEL: ${{ github.workspace }}/models/gemma-3-4b-it-Q4_K_M.gguf
           TEST_MMPROJ_MODEL: ${{ github.workspace }}/models/mmproj-gemma-3-f16.gguf
+          TEST_WHISPER_MODEL: ${{ github.workspace }}/models/ggml-base.en.bin
         run: |
           source .venv/bin/activate
           # python bindings tests

@@ -23,6 +23,13 @@ jobs:
             mkdir -p nobodywho-release/bin/addons/nobodywho
             # copy in nobodywho libs
             cp ./artifacts/*/*nobodywho-godot* ./nobodywho-release/bin/addons/nobodywho/
+            # copy in STT module libs (sibling discovery finds them alongside the godot .so)
+            find ./artifacts -name '*nobodywho-stt*' -exec cp {} ./nobodywho-release/bin/addons/nobodywho/ \;
+            # copy in GGML shared libs and backend modules (renamed with target suffix,
+            # so x86_64 and aarch64 variants coexist without filename conflicts)
+            find ./artifacts \( -name 'libggml-*' -o -name 'libllama-*' -o -name 'ggml-*.dll' -o -name 'llama-*.dll' \) \
+              ! -name '*nobodywho*' \
+              -exec cp {} ./nobodywho-release/bin/addons/nobodywho/ \;
             # copy in gdextension metadata
             cp ./nobodywho/godot/nobodywho.gdextension ./nobodywho-release/bin/addons/nobodywho/
             cp ./assets/icon.svg ./nobodywho-release/bin/addons/nobodywho/
@@ -155,6 +162,13 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: nobodywho-flutter-*
+          merge-multiple: true
+          path: ./nobodywho-flutter-release
+
+      - name: "Download STT module artifacts for Flutter"
+        uses: actions/download-artifact@v4
+        with:
+          pattern: nobodywho-stt-*
           merge-multiple: true
           path: ./nobodywho-flutter-release
 

@@ -41,6 +41,7 @@
         nobodywho-flutter = workspace.workspaceMembers.nobodywho-flutter.build;
         flutter_tests = pkgs.callPackage ./nobodywho/flutter/nobodywho {
           nobodywho_flutter_rust = nobodywho-flutter;
+          inherit nobodywho-stt;
         };
 
         # cargo tests
@@ -54,10 +55,13 @@
           '';
         };
 
+        # STT module
+        nobodywho-stt = workspace.workspaceMembers.nobodywho-stt.build;
+
         # godot stuff
         nobodywho-godot = workspace.workspaceMembers.nobodywho-godot.build;
         godot-integration-test = pkgs.callPackage ./nobodywho/godot/integration-test {
-          inherit nobodywho-godot;
+          inherit nobodywho-godot nobodywho-stt;
         };
         run-godot-integration-test =
           pkgs.runCommand "checkgame"
@@ -95,6 +99,7 @@
 
         # python stuff
         packages.nobodywho-python = nobodywho-python;
+        packages.nobodywho-stt = nobodywho-stt;
         devShells.nobodywho-python = pkgs.mkShell {
           # a devshell that includes the built python package
           # useful for testing local changes in repl or pytest

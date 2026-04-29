@@ -55,7 +55,7 @@ jobs:
         if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'aarch64-unknown-linux-gnu'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libclang-dev cmake
+          sudo apt-get install -y libclang-dev cmake patchelf
           sudo apt-get install libshaderc-dev libvulkan-dev glslc
 
       - name: "Setup Flutter SDK (manual for ARM64)"
@@ -76,15 +76,68 @@ jobs:
         run: cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: ./nobodywho
 
+      - name: "Build STT module"
+        if: matrix.integration == 'godot'
+        run: cargo build -p nobodywho-stt --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
+        working-directory: ./nobodywho
+
       - name: "Rename built file"
         run: |
           cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.so ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
 
+      - name: "Collect GGML libs (Linux, Godot)"
+        if: matrix.integration == 'godot'
+        run: |
+          TARGET_DIR=./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}
+          SUFFIX="${{ matrix.target }}-${{ matrix.profile }}"
+          MAIN_LIB="./libnobodywho-godot-${SUFFIX}.so"
+
+          # Search $ORIGIN at runtime so sibling libs in the addon directory are found.
+          patchelf --set-rpath '$ORIGIN' "$MAIN_LIB"
+
+          # Rename libggml-base and libllama with target suffix (prevents conflicts when
+          # x86_64 and aarch64 libs coexist in addons/nobodywho/) and update DT_NEEDED.
+          for libname in libggml-base libllama; do
+            if [ -f "$TARGET_DIR/${libname}.so" ]; then
+              cp "$TARGET_DIR/${libname}.so" "./${libname}-${SUFFIX}.so"
+              patchelf --replace-needed "${libname}.so" "${libname}-${SUFFIX}.so" "$MAIN_LIB"
+            fi
+          done
+
+          # Backend modules: rename with target suffix so wrong-arch files can coexist.
+          find "$TARGET_DIR" -maxdepth 1 -name 'libggml-*.so' ! -name 'libggml-base.so' | \
+            while read f; do
+              base=$(basename "${f%.so}")
+              cp "$f" "./${base}-${SUFFIX}.so"
+            done
+
       - name: "Upload build artifact"
+        if: matrix.integration == 'flutter'
         uses: actions/upload-artifact@v4
         with:
           name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
           path: ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
+
+      - name: "Upload build artifact (with GGML libs)"
+        if: matrix.integration == 'godot'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
+          path: ./*-${{ matrix.target }}-${{ matrix.profile }}.so
+          if-no-files-found: error
+
+      - name: "Rename STT module"
+        if: matrix.integration == 'godot'
+        run: |
+          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_stt.so \
+             ./libnobodywho_stt-${{ matrix.target }}-${{ matrix.profile }}.so
+
+      - name: "Upload STT module artifact"
+        if: matrix.integration == 'godot'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nobodywho-stt-${{ matrix.target }}-${{ matrix.profile }}
+          path: ./libnobodywho_stt-${{ matrix.target }}-${{ matrix.profile }}.so
 
   cargo-build-windows:
     if: inputs.full_ci
@@ -159,18 +212,65 @@ jobs:
           # Ninja's simpler build structure avoids this problem entirely.
           CMAKE_GENERATOR: "Ninja"
 
+      - name: "Build STT module"
+        if: matrix.integration == 'godot'
+        run: |
+          cd C:/
+          cargo build -p nobodywho-stt --target ${{ matrix.target }} --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked --target-dir C:/t
+        env:
+          CMAKE_GENERATOR: "Ninja"
+
       - name: "Rename built files"
         run: |
           cp C:/t/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.dll ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dll
           cp C:/t/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.pdb ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
 
+      - name: "Collect GGML libs (Windows, Godot)"
+        if: matrix.integration == 'godot'
+        run: |
+          $targetDir = "C:/t/${{ matrix.target }}/${{ matrix.profile }}"
+          $suffix = "${{ matrix.target }}-${{ matrix.profile }}"
+          foreach ($lib in @("ggml-base", "llama")) {
+            $src = Join-Path $targetDir "$lib.dll"
+            if (Test-Path $src) { Copy-Item $src ".\$lib-$suffix.dll" }
+          }
+          Get-ChildItem $targetDir -Filter "ggml-*.dll" |
+            Where-Object { $_.Name -ne "ggml-base.dll" } |
+            ForEach-Object { Copy-Item $_.FullName ".\$($_.BaseName)-$suffix.dll" }
+        shell: pwsh
+
       - name: "Upload build artifacts"
+        if: matrix.integration == 'flutter'
         uses: actions/upload-artifact@v4
         with:
           name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
           path: |
             ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dll
             ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
+
+      - name: "Upload build artifacts (with GGML libs)"
+        if: matrix.integration == 'godot'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
+          path: |
+            ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dll
+            ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
+            ./*-${{ matrix.target }}-${{ matrix.profile }}.dll
+          if-no-files-found: ignore
+
+      - name: "Rename STT module"
+        if: matrix.integration == 'godot'
+        run: |
+          cp C:/t/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_stt.dll `
+             ./nobodywho_stt-${{ matrix.target }}-${{ matrix.profile }}.dll
+
+      - name: "Upload STT module artifact"
+        if: matrix.integration == 'godot'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nobodywho-stt-${{ matrix.target }}-${{ matrix.profile }}
+          path: ./nobodywho_stt-${{ matrix.target }}-${{ matrix.profile }}.dll
 
   cargo-build-macos:
     if: inputs.full_ci
@@ -215,17 +315,78 @@ jobs:
         env:
           IPHONEOS_DEPLOYMENT_TARGET: "18.5"
 
+      - name: "Build STT module"
+        if: matrix.integration == 'godot'
+        run: cargo build -p nobodywho-stt --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
+        working-directory: ./nobodywho
+        env:
+          IPHONEOS_DEPLOYMENT_TARGET: "18.5"
+
       - name: "Rename built file"
         run: |
           # .dylib: dynamically linkable shared object
           cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
 
+      - name: "Collect GGML libs (macOS darwin, Godot)"
+        if: matrix.integration == 'godot' && contains(matrix.target, 'apple-darwin')
+        run: |
+          TARGET_DIR=./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}
+          SUFFIX="${{ matrix.target }}-${{ matrix.profile }}"
+          MAIN_LIB="./libnobodywho-godot-${SUFFIX}.dylib"
+
+          install_name_tool -add_rpath "@loader_path" "$MAIN_LIB"
+
+          for libname in libggml-base libllama; do
+            SRC=$(find "$TARGET_DIR" -maxdepth 1 -name "${libname}.dylib" | head -1)
+            if [ -n "$SRC" ]; then
+              DEST="./${libname}-${SUFFIX}.dylib"
+              cp "$SRC" "$DEST"
+              install_name_tool -id "@rpath/${libname}-${SUFFIX}.dylib" "$DEST"
+              OLD_REF=$(otool -L "$MAIN_LIB" | awk '{print $1}' | grep "${libname}")
+              if [ -n "$OLD_REF" ]; then
+                install_name_tool -change "$OLD_REF" "@rpath/${libname}-${SUFFIX}.dylib" "$MAIN_LIB"
+              fi
+            fi
+          done
+
+          # Backend modules are .so even on macOS (CMake MODULE target)
+          find "$TARGET_DIR" -maxdepth 1 -name 'libggml-*.so' | \
+            while read f; do
+              base=$(basename "${f%.so}")
+              cp "$f" "./${base}-${SUFFIX}.so"
+            done
+
       - name: "Upload build artifact"
+        if: matrix.integration == 'flutter' || contains(matrix.target, 'apple-ios')
         uses: actions/upload-artifact@v4
         with:
           name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
           # wildcard path to match both .dylib and .a
           path: ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.*
+
+      - name: "Upload build artifact (with GGML libs)"
+        if: matrix.integration == 'godot' && contains(matrix.target, 'apple-darwin')
+        uses: actions/upload-artifact@v4
+        with:
+          name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
+          path: |
+            ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
+            ./*-${{ matrix.target }}-${{ matrix.profile }}.dylib
+            ./*-${{ matrix.target }}-${{ matrix.profile }}.so
+          if-no-files-found: ignore
+
+      - name: "Rename STT module"
+        if: matrix.integration == 'godot'
+        run: |
+          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_stt.dylib \
+             ./libnobodywho_stt-${{ matrix.target }}-${{ matrix.profile }}.dylib
+
+      - name: "Upload STT module artifact"
+        if: matrix.integration == 'godot'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nobodywho-stt-${{ matrix.target }}-${{ matrix.profile }}
+          path: ./libnobodywho_stt-${{ matrix.target }}-${{ matrix.profile }}.dylib
 
   # builds an "xcframework"
   # which is an apple thing that contains binaries for multiple systems
@@ -345,7 +506,7 @@ jobs:
       - name: "Install distro dependencies"
         run: |
           sudo apt-get update
-          sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc gcc-multilib
+          sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc gcc-multilib patchelf
 
       - name: "Install Android NDK"
         uses: nttld/setup-ndk@v1
@@ -379,12 +540,73 @@ jobs:
           CXX_x86_64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android31-clang++"
           AR_x86_64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
 
+      - name: "Build STT module for android"
+        if: matrix.integration == 'godot'
+        run: cargo build -p nobodywho-stt --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
+        working-directory: ./nobodywho
+        env:
+          ANDROID_NDK: "${{ steps.setup-ndk.outputs.ndk-path }}"
+          CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang"
+          CARGO_TARGET_AARCH64_LINUX_ANDROID_AR: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+          CC_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang"
+          CXX_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang++"
+          AR_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+          CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android34-clang"
+          CARGO_TARGET_X86_64_LINUX_ANDROID_AR: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+          CC_x86_64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android31-clang"
+          CXX_x86_64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android31-clang++"
+          AR_x86_64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+
         # XXX: .so files for android in godot MUST start with "lib"
       - name: "Rename built file"
         run: cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.so ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
 
+      - name: "Collect GGML libs (Android, Godot)"
+        if: matrix.integration == 'godot'
+        run: |
+          TARGET_DIR=./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}
+          SUFFIX="${{ matrix.target }}-${{ matrix.profile }}"
+          MAIN_LIB="./libnobodywho-godot-${SUFFIX}.so"
+
+          patchelf --set-rpath '$ORIGIN' "$MAIN_LIB"
+
+          for libname in libggml-base libllama; do
+            if [ -f "$TARGET_DIR/${libname}.so" ]; then
+              cp "$TARGET_DIR/${libname}.so" "./${libname}-${SUFFIX}.so"
+              patchelf --replace-needed "${libname}.so" "${libname}-${SUFFIX}.so" "$MAIN_LIB"
+            fi
+          done
+
+          find "$TARGET_DIR" -maxdepth 1 -name 'libggml-*.so' ! -name 'libggml-base.so' | \
+            while read f; do
+              base=$(basename "${f%.so}")
+              cp "$f" "./${base}-${SUFFIX}.so"
+            done
+
       - name: "Upload build artifact"
+        if: matrix.integration == 'flutter'
         uses: actions/upload-artifact@v4
         with:
           name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
           path: ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
+
+      - name: "Upload build artifact (with GGML libs)"
+        if: matrix.integration == 'godot'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
+          path: ./*-${{ matrix.target }}-${{ matrix.profile }}.so
+          if-no-files-found: error
+
+      - name: "Rename STT module"
+        if: matrix.integration == 'godot'
+        run: |
+          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_stt.so \
+             ./libnobodywho_stt-${{ matrix.target }}-${{ matrix.profile }}.so
+
+      - name: "Upload STT module artifact"
+        if: matrix.integration == 'godot'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nobodywho-stt-${{ matrix.target }}-${{ matrix.profile }}
+          path: ./libnobodywho_stt-${{ matrix.target }}-${{ matrix.profile }}.so
