@@ -264,6 +264,7 @@ void main() {
     test('index.md:38', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
+        templateVariables: {"enable_thinking": false}
       );
       final msg = await chat.ask('Is water wet?').completed();
       print(msg); // Yes, indeed, water is wet!
@@ -273,7 +274,7 @@ void main() {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
         onDownloadProgress: (downloaded, total) {
-          print('$downloaded / $total bytes');
+          print('$downloaded / $total bytes', templateVariables: {"enable_thinking": false});
         },
       );
     });
