@@ -67,7 +67,7 @@ class NobodyWho
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 1629052597;
+  int get rustContentHash => -453489807;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -81,6 +81,8 @@ class NobodyWho
 abstract class NobodyWhoApi extends BaseApi {
   Future<CrossEncoder> crateCrossEncoderFromPath({
     required String modelPath,
+    FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
+        noopOnDownloadProgress,
     int nCtx = 4096,
     bool useGpu = true,
   });
@@ -106,6 +108,8 @@ abstract class NobodyWhoApi extends BaseApi {
 
   Future<Encoder> crateEncoderFromPath({
     required String modelPath,
+    FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
+        noopOnDownloadProgress,
     int nCtx = 4096,
     bool useGpu = true,
   });
@@ -114,6 +118,8 @@ abstract class NobodyWhoApi extends BaseApi {
 
   Future<Model> crateModelLoad({
     required String modelPath,
+    FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
+        noopOnDownloadProgress,
     bool useGpu = true,
     String? projectionModelPath = null,
   });
@@ -130,6 +136,8 @@ abstract class NobodyWhoApi extends BaseApi {
 
   Future<RustChat> crateRustChatFromPath({
     required String modelPath,
+    FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
+        noopOnDownloadProgress,
     String? projectionModelPath = null,
     String? systemPrompt = null,
     int contextSize = 4096,
@@ -351,6 +359,11 @@ abstract class NobodyWhoApi extends BaseApi {
     required Map<String, String> parameterDescriptions,
   });
 
+  void crateNoopOnDownloadProgress({
+    required PlatformInt64 downloaded,
+    required PlatformInt64 total,
+  });
+
   String crateToolCallArgumentsJson({required ToolCall toolCall});
 
   RustArcIncrementStrongCountFnType get rust_arc_increment_strong_count_Asset;
@@ -510,6 +523,8 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   @override
   Future<CrossEncoder> crateCrossEncoderFromPath({
     required String modelPath,
+    FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
+        noopOnDownloadProgress,
     int nCtx = 4096,
     bool useGpu = true,
   }) {
@@ -518,6 +533,10 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(modelPath, serializer);
+          sse_encode_DartFn_Inputs_i_64_i_64_Output_unit_AnyhowException(
+            onDownloadProgress,
+            serializer,
+          );
           sse_encode_u_32(nCtx, serializer);
           sse_encode_bool(useGpu, serializer);
           pdeCallFfi(
@@ -533,7 +552,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateCrossEncoderFromPathConstMeta,
-        argValues: [modelPath, nCtx, useGpu],
+        argValues: [modelPath, onDownloadProgress, nCtx, useGpu],
         apiImpl: this,
       ),
     );
@@ -541,7 +560,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 
   TaskConstMeta get kCrateCrossEncoderFromPathConstMeta => const TaskConstMeta(
     debugName: "CrossEncoder_from_path",
-    argNames: ["modelPath", "nCtx", "useGpu"],
+    argNames: ["modelPath", "onDownloadProgress", "nCtx", "useGpu"],
   );
 
   @override
@@ -696,6 +715,8 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   @override
   Future<Encoder> crateEncoderFromPath({
     required String modelPath,
+    FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
+        noopOnDownloadProgress,
     int nCtx = 4096,
     bool useGpu = true,
   }) {
@@ -704,6 +725,10 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(modelPath, serializer);
+          sse_encode_DartFn_Inputs_i_64_i_64_Output_unit_AnyhowException(
+            onDownloadProgress,
+            serializer,
+          );
           sse_encode_u_32(nCtx, serializer);
           sse_encode_bool(useGpu, serializer);
           pdeCallFfi(
@@ -719,7 +744,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateEncoderFromPathConstMeta,
-        argValues: [modelPath, nCtx, useGpu],
+        argValues: [modelPath, onDownloadProgress, nCtx, useGpu],
         apiImpl: this,
       ),
     );
@@ -727,7 +752,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 
   TaskConstMeta get kCrateEncoderFromPathConstMeta => const TaskConstMeta(
     debugName: "Encoder_from_path",
-    argNames: ["modelPath", "nCtx", "useGpu"],
+    argNames: ["modelPath", "onDownloadProgress", "nCtx", "useGpu"],
   );
 
   @override
@@ -763,6 +788,8 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   @override
   Future<Model> crateModelLoad({
     required String modelPath,
+    FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
+        noopOnDownloadProgress,
     bool useGpu = true,
     String? projectionModelPath = null,
   }) {
@@ -771,6 +798,10 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(modelPath, serializer);
+          sse_encode_DartFn_Inputs_i_64_i_64_Output_unit_AnyhowException(
+            onDownloadProgress,
+            serializer,
+          );
           sse_encode_bool(useGpu, serializer);
           sse_encode_opt_String(projectionModelPath, serializer);
           pdeCallFfi(
@@ -786,7 +817,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateModelLoadConstMeta,
-        argValues: [modelPath, useGpu, projectionModelPath],
+        argValues: [modelPath, onDownloadProgress, useGpu, projectionModelPath],
         apiImpl: this,
       ),
     );
@@ -794,7 +825,12 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 
   TaskConstMeta get kCrateModelLoadConstMeta => const TaskConstMeta(
     debugName: "Model_load",
-    argNames: ["modelPath", "useGpu", "projectionModelPath"],
+    argNames: [
+      "modelPath",
+      "onDownloadProgress",
+      "useGpu",
+      "projectionModelPath",
+    ],
   );
 
   @override
@@ -866,6 +902,8 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   @override
   Future<RustChat> crateRustChatFromPath({
     required String modelPath,
+    FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
+        noopOnDownloadProgress,
     String? projectionModelPath = null,
     String? systemPrompt = null,
     int contextSize = 4096,
@@ -880,6 +918,10 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(modelPath, serializer);
+          sse_encode_DartFn_Inputs_i_64_i_64_Output_unit_AnyhowException(
+            onDownloadProgress,
+            serializer,
+          );
           sse_encode_opt_String(projectionModelPath, serializer);
           sse_encode_opt_String(systemPrompt, serializer);
           sse_encode_u_32(contextSize, serializer);
@@ -909,6 +951,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         constMeta: kCrateRustChatFromPathConstMeta,
         argValues: [
           modelPath,
+          onDownloadProgress,
           projectionModelPath,
           systemPrompt,
           contextSize,
@@ -927,6 +970,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     debugName: "RustChat_from_path",
     argNames: [
       "modelPath",
+      "onDownloadProgress",
       "projectionModelPath",
       "systemPrompt",
       "contextSize",
@@ -2727,6 +2771,36 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   );
 
   @override
+  void crateNoopOnDownloadProgress({
+    required PlatformInt64 downloaded,
+    required PlatformInt64 total,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_64(downloaded, serializer);
+          sse_encode_i_64(total, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 64)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateNoopOnDownloadProgressConstMeta,
+        argValues: [downloaded, total],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateNoopOnDownloadProgressConstMeta =>
+      const TaskConstMeta(
+        debugName: "noop_on_download_progress",
+        argNames: ["downloaded", "total"],
+      );
+
+  @override
   String crateToolCallArgumentsJson({required ToolCall toolCall}) {
     return handler.executeSync(
       SyncTask(
@@ -2736,7 +2810,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             toolCall,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 64)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 65)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -2774,6 +2848,42 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       if (rawOutput != null) {
         serializer.buffer.putUint8(0);
         sse_encode_String(rawOutput.value, serializer);
+      } else {
+        serializer.buffer.putUint8(1);
+        sse_encode_AnyhowException(rawError!.value, serializer);
+      }
+      final output = serializer.intoRaw();
+
+      generalizedFrbRustBinding.dartFnDeliverOutput(
+        callId: callId,
+        ptr: output.ptr,
+        rustVecLen: output.rustVecLen,
+        dataLen: output.dataLen,
+      );
+    };
+  }
+
+  Future<void> Function(int, dynamic, dynamic)
+  encode_DartFn_Inputs_i_64_i_64_Output_unit_AnyhowException(
+    FutureOr<void> Function(PlatformInt64, PlatformInt64) raw,
+  ) {
+    return (callId, rawArg0, rawArg1) async {
+      final arg0 = dco_decode_i_64(rawArg0);
+      final arg1 = dco_decode_i_64(rawArg1);
+
+      Box<void>? rawOutput;
+      Box<AnyhowException>? rawError;
+      try {
+        rawOutput = Box(await raw(arg0, arg1));
+      } catch (e, s) {
+        rawError = Box(AnyhowException("$e\n\n$s"));
+      }
+
+      final serializer = SseSerializer(generalizedFrbRustBinding);
+      assert((rawOutput != null) ^ (rawError != null));
+      if (rawOutput != null) {
+        serializer.buffer.putUint8(0);
+        sse_encode_unit(rawOutput.value, serializer);
       } else {
         serializer.buffer.putUint8(1);
         sse_encode_AnyhowException(rawError!.value, serializer);
@@ -3201,6 +3311,13 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  FutureOr<void> Function(PlatformInt64, PlatformInt64)
+  dco_decode_DartFn_Inputs_i_64_i_64_Output_unit_AnyhowException(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    throw UnimplementedError('');
+  }
+
+  @protected
   Object dco_decode_DartOpaque(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return decodeDartOpaque(raw, generalizedFrbRustBinding);
@@ -3445,6 +3562,12 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   int dco_decode_i_32(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as int;
+  }
+
+  @protected
+  PlatformInt64 dco_decode_i_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dcoDecodeI64(raw);
   }
 
   @protected
@@ -4344,6 +4467,12 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  PlatformInt64 sse_decode_i_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getPlatformInt64();
+  }
+
+  @protected
   PlatformInt64 sse_decode_isize(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getPlatformInt64();
@@ -5077,6 +5206,18 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  void sse_encode_DartFn_Inputs_i_64_i_64_Output_unit_AnyhowException(
+    FutureOr<void> Function(PlatformInt64, PlatformInt64) self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_DartOpaque(
+      encode_DartFn_Inputs_i_64_i_64_Output_unit_AnyhowException(self),
+      serializer,
+    );
+  }
+
+  @protected
   void sse_encode_DartOpaque(Object self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_isize(
@@ -5419,6 +5560,12 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   void sse_encode_i_32(int self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putInt32(self);
+  }
+
+  @protected
+  void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putPlatformInt64(self);
   }
 
   @protected

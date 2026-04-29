@@ -1,8 +1,7 @@
-use std::time::Duration;
-
 use pyo3::prelude::*;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::time::Duration;
 
 mod parse;
 
@@ -21,6 +20,37 @@ pub struct Model {
     model: Arc<nobodywho::llm::Model>,
 }
 
+/// Wrap a Python `on_download_progress` argument into a core `DownloadProgressCallback`.
+///
+/// - `Some(py_callable)` → wraps it so the Python function is invoked on each chunk
+///   with `(downloaded_bytes, total_bytes)`. Exceptions are printed and swallowed.
+/// - `None` → returns `None`; core installs its own default terminal progress bar.
+///
+/// Returns `TypeError` if `py_callback` is not callable, so a non-callable argument
+/// fails fast at construction rather than per-chunk during download.
+fn resolve_on_download_progress(
+    py_callback: Option<Py<PyAny>>,
+) -> PyResult<Option<nobodywho::llm::DownloadProgressCallback>> {
+    let Some(cb) = py_callback else {
+        return Ok(None);
+    };
+    Python::attach(|py| {
+        if !cb.bind(py).is_callable() {
+            return Err(pyo3::exceptions::PyTypeError::new_err(
+                "on_download_progress must be callable, taking (downloaded_bytes, total_bytes)",
+            ));
+        }
+        Ok(())
+    })?;
+    Ok(Some(Arc::new(move |downloaded: u64, total: u64| {
+        Python::attach(|py| {
+            if let Err(e) = cb.call1(py, (downloaded, total)) {
+                e.print(py);
+            }
+        });
+    }) as nobodywho::llm::DownloadProgressCallback))
+}
+
 #[pymethods]
 impl Model {
     /// Create a new Model from a GGUF file.
@@ -29,6 +59,7 @@ impl Model {
     ///     model_path: Path or URL to a GGUF model file. Accepts a local file path (e.g. `./model.gguf`), a `huggingface:` path (e.g. `huggingface:owner/repo/file.gguf`), or an `https://` URL. Remote models are downloaded and cached automatically.
     ///     use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
     ///     projection_model_path: Path or URL to a multimodal projector file for vision models. Accepts the same formats as model_path. Defaults to None.
+    ///     on_download_progress: Optional callable invoked during model downloads with `(downloaded_bytes, total_bytes)`. Not called for locally cached models. If a projection model is also downloaded, the callback fires for each download sequentially, so `total_bytes` resets between them. Defaults to None.
     ///
     /// Returns:
     ///     A Model instance
@@ -36,11 +67,12 @@ impl Model {
     /// Raises:
     ///     RuntimeError: If the model file cannot be loaded
     #[new]
-    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, projection_model_path: "os.PathLike | str | None" = None) -> "Model")]
+    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, projection_model_path: "os.PathLike | str | None" = None, on_download_progress: "typing.Callable[[int, int], None] | None" = None) -> "Model")]
     pub fn new(
         model_path: std::path::PathBuf,
         use_gpu_if_available: bool,
         projection_model_path: Option<std::path::PathBuf>,
+        on_download_progress: Option<Py<PyAny>>,
     ) -> PyResult<Self> {
         let path_str = model_path.to_str().ok_or_else(|| {
             pyo3::exceptions::PyValueError::new_err(format!(
@@ -59,7 +91,9 @@ impl Model {
                 })
             })
             .transpose()?;
-        let model_result = nobodywho::llm::get_model(path_str, use_gpu_if_available, mmproj_str);
+        let progress = resolve_on_download_progress(on_download_progress)?;
+        let model_result =
+            nobodywho::llm::get_model(path_str, use_gpu_if_available, mmproj_str, progress);
         match model_result {
             Ok(model) => Ok(Self {
                 model: Arc::new(model),
@@ -78,6 +112,7 @@ impl Model {
     ///     model_path: Path or URL to a GGUF model file. Accepts a local file path (e.g. `./model.gguf`), a `huggingface:` path (e.g. `huggingface:owner/repo/file.gguf`), or an `https://` URL. Remote models are downloaded and cached automatically.
     ///     use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
     ///     projection_model_path: Path or URL to a multimodal projector file for vision models. Accepts the same formats as model_path. Defaults to None.
+    ///     on_download_progress: Optional callable invoked during model downloads with `(downloaded_bytes, total_bytes)`. Not called for locally cached models. If a projection model is also downloaded, the callback fires for each download sequentially, so `total_bytes` resets between them. Defaults to None.
     ///
     /// Returns:
     ///     A Model instance wrapped in an awaitable (async function returns a coroutine)
@@ -85,11 +120,12 @@ impl Model {
     /// Raises:
     ///     RuntimeError: If the model file cannot be loaded
     #[staticmethod]
-    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, projection_model_path: "os.PathLike | str | None" = None) -> "Model")]
+    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, projection_model_path: "os.PathLike | str | None" = None, on_download_progress: "typing.Callable[[int, int], None] | None" = None) -> "Model")]
     pub async fn load_model_async(
         model_path: std::path::PathBuf,
         use_gpu_if_available: bool,
         projection_model_path: Option<std::path::PathBuf>,
+        on_download_progress: Option<Py<PyAny>>,
     ) -> PyResult<Self> {
         let path_str = model_path.to_str().ok_or_else(|| {
             pyo3::exceptions::PyValueError::new_err(format!(
@@ -108,10 +144,12 @@ impl Model {
                 })
             })
             .transpose()?;
+        let progress = resolve_on_download_progress(on_download_progress)?;
         let model_result = nobodywho::llm::get_model_async(
             path_str.to_owned(),
             use_gpu_if_available,
             mmproj_str.map(str::to_owned),
+            progress,
         )
         .await;
         match model_result {
@@ -146,7 +184,7 @@ impl<'py> ModelOrPath<'py> {
                         path.display()
                     ))
                 })?;
-                nobodywho::llm::get_model(path_str, true, None)
+                nobodywho::llm::get_model(path_str, true, None, None)
                     .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
                     .map(Arc::new)
             }

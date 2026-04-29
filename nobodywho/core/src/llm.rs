@@ -1,6 +1,7 @@
 use crate::errors::{InitWorkerError, LoadModelError, ReadError};
 use crate::memory;
 use crate::tokenizer::{ProjectionModel, Tokenizer, TokenizerChunk, TokenizerChunks};
+use indicatif::{ProgressBar, ProgressStyle};
 use lazy_static::lazy_static;
 use llama_cpp_2::context::kv_cache::KvCacheConversionError;
 use llama_cpp_2::context::params::{LlamaContextParams, LlamaPoolingType};
@@ -15,8 +16,9 @@ use llama_cpp_2::token::LlamaToken;
 use std::io::{Read, Write};
 use std::pin::pin;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
+use std::time::Duration;
 use tracing::{debug, debug_span, error, info, info_span, warn};
 
 #[derive(Debug)]
@@ -28,6 +30,83 @@ lazy_static! {
 
 static LLAMA_BACKEND: LazyLock<LlamaBackend> =
     LazyLock::new(|| LlamaBackend::init().expect("Failed to initialize llama backend"));
+
+/// Callback invoked during model downloads with `(downloaded_bytes, total_bytes)`.
+///
+/// Invoked on each read chunk from the single download thread. If the same callback
+/// is shared across concurrent downloads, the closure is responsible for its own
+/// synchronization (hence the `Sync` bound).
+pub type DownloadProgressCallback = Arc<dyn Fn(u64, u64) + Send + Sync>;
+
+/// Default terminal progress bar shown when the user doesn't pass their own callback.
+///
+/// Renders an `indicatif` bar with spinner, elapsed time, wide bar, binary byte counts,
+/// throughput, and ETA. indicatif auto-disables on non-TTY stderr, so this is safe to use
+/// unconditionally — GUI bindings (Godot, Flutter mobile) won't see output in production.
+/// Detects a new download (model → mmproj transition) by watching for `total` to change,
+/// finishes the previous bar, and starts a fresh one.
+pub fn default_progress_callback() -> DownloadProgressCallback {
+    let style = ProgressStyle::with_template(
+        "{spinner:.green} [{elapsed_precise}] {wide_bar:.cyan/blue} \
+         {binary_bytes}/{binary_total_bytes} ({binary_bytes_per_sec}, {eta})",
+    )
+    .expect("static progress bar template is valid")
+    .progress_chars("█▉▊▋▌▍▎▏ ");
+
+    let state: Arc<Mutex<(Option<ProgressBar>, u64)>> = Arc::new(Mutex::new((None, 0)));
+
+    Arc::new(move |downloaded: u64, total: u64| {
+        let mut s = state.lock().expect("progress bar mutex poisoned");
+        if s.0.is_none() || s.1 != total {
+            if let Some(old) = s.0.take() {
+                old.finish_and_clear();
+            }
+            let bar = ProgressBar::new(total);
+            bar.set_style(style.clone());
+            bar.enable_steady_tick(Duration::from_millis(100));
+            s.0 = Some(bar);
+            s.1 = total;
+        }
+        let bar = s.0.as_ref().unwrap();
+        bar.set_position(downloaded);
+        if downloaded >= total {
+            bar.finish();
+            s.0 = None;
+        }
+    })
+}
+
+/// Wrap a progress callback so it fires at most ~10 Hz, with a guaranteed
+/// final emit on completion.
+///
+/// Use this when each invocation of the user-provided callback is expensive —
+/// typically because it crosses a language boundary (Dart isolate hop, JSI
+/// hop, etc.). Without throttling, a fast download (thousands of chunks/sec)
+/// would saturate the cross-language bridge. The Python binding does NOT need
+/// this since a PyO3 callable invocation is cheap; it forwards every chunk.
+///
+/// Lock-free: nanoseconds since a process-wide epoch in an `AtomicU64`, with `0`
+/// as the never-emitted sentinel. The load/check/store can race, but an extra
+/// emit per ~100ms window is harmless and downloads are single-threaded anyway.
+pub fn throttled_progress_callback<F>(callback: F) -> DownloadProgressCallback
+where
+    F: Fn(u64, u64) + Send + Sync + 'static,
+{
+    static EPOCH: LazyLock<std::time::Instant> = LazyLock::new(std::time::Instant::now);
+    const THROTTLE_NS: u64 = 100_000_000;
+
+    let last_emit_ns = AtomicU64::new(0);
+    Arc::new(move |downloaded: u64, total: u64| {
+        let is_done = total > 0 && downloaded >= total;
+        let now_ns = EPOCH.elapsed().as_nanos() as u64;
+        let prev = last_emit_ns.load(Ordering::Relaxed);
+        let due = prev == 0 || now_ns.saturating_sub(prev) >= THROTTLE_NS;
+        if is_done || due {
+            last_emit_ns.store(now_ns, Ordering::Relaxed);
+            callback(downloaded, total);
+        }
+    })
+}
 
 #[derive(Debug)]
 pub struct Model {
@@ -130,13 +209,14 @@ fn parse_model_path(
 /// on the filesystem
 fn resolve_fancy_path_to_fs(
     parsed_path: ParsedModelPath,
+    progress: &DownloadProgressCallback,
 ) -> Result<std::path::PathBuf, LoadModelError> {
     let fs_model_path = match parsed_path {
         ParsedModelPath::HuggingFaceUrl(owner, repo, filename) => {
-            download_model_from_hf(&owner, &repo, &filename)?
+            download_model_from_hf(&owner, &repo, &filename, progress)?
         }
         ParsedModelPath::FilesystemPath(path) => path,
-        ParsedModelPath::HttpUrl(url) => download_model_from_url(&url)?,
+        ParsedModelPath::HttpUrl(url) => download_model_from_url(&url, progress)?,
     };
 
     if !fs_model_path.exists() {
@@ -148,17 +228,19 @@ fn resolve_fancy_path_to_fs(
     Ok(fs_model_path)
 }
 
-#[tracing::instrument(level = "info")]
+#[tracing::instrument(level = "info", skip(progress))]
 pub fn get_model(
     model_path: &str,
     use_gpu_if_available: bool,
     mmproj_path: Option<&str>,
+    progress: Option<DownloadProgressCallback>,
 ) -> Result<Model, LoadModelError> {
-    let real_model_path = resolve_fancy_path_to_fs(parse_model_path(model_path)?)?;
+    let progress = progress.unwrap_or_else(default_progress_callback);
+    let real_model_path = resolve_fancy_path_to_fs(parse_model_path(model_path)?, &progress)?;
     let real_mmproj_path = mmproj_path
         .map(parse_model_path) // parse inside option
         .transpose()? // return early if parse fails
-        .map(resolve_fancy_path_to_fs) // download the file if needed
+        .map(|p| resolve_fancy_path_to_fs(p, &progress)) // download the file if needed
         .transpose()?; // return early if download fails
 
     // TODO: `LlamaModelParams` uses all devices by default. Set it to an empty list once an upstream device API is available.
@@ -224,11 +306,12 @@ pub fn get_model(
 /// * The model file is not found (`LoadModelError::ModelNotFound`)
 /// * The model file is invalid or unsupported (`LoadModelError::InvalidModel`)
 /// * The communication channel closes unexpectedly (`LoadModelError::ModelChannelError`)
-#[tracing::instrument(level = "info")]
+#[tracing::instrument(level = "info", skip(progress))]
 pub async fn get_model_async(
     model_path: String,
     use_gpu_if_available: bool,
     mmproj_path: Option<String>,
+    progress: Option<DownloadProgressCallback>,
 ) -> Result<Model, LoadModelError> {
     let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(4096);
     std::thread::spawn(move || {
@@ -236,6 +319,7 @@ pub async fn get_model_async(
             &model_path,
             use_gpu_if_available,
             mmproj_path.as_deref(),
+            progress,
         ))
     });
 
@@ -307,6 +391,7 @@ fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadMod
 fn download_file(
     url: &str,
     target_path: &std::path::Path,
+    progress: &DownloadProgressCallback,
 ) -> Result<(), crate::errors::LoadModelError> {
     for component in target_path.components() {
         if component == std::path::Component::ParentDir {
@@ -393,6 +478,8 @@ fn download_file(
             })?;
             downloaded += n as u64;
 
+            progress(downloaded, content_length.get());
+
             let pct = (downloaded * 100) / content_length;
             if pct >= last_logged_pct + 5 {
                 info!(
@@ -437,25 +524,29 @@ fn download_model_from_hf(
     owner: &str,
     repo: &str,
     filename: &str,
+    progress: &DownloadProgressCallback,
 ) -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
     let cache_dir = get_cache_dir()?;
     let target_path = cache_dir.join(owner).join(repo).join(filename);
     let url = format!("https://huggingface.co/{owner}/{repo}/resolve/main/{filename}");
-    download_file(&url, &target_path)?;
+    download_file(&url, &target_path, progress)?;
     Ok(target_path)
 }
 
 /// Download a model from a generic HTTP(S) URL and return the local path to it.
 ///
 /// The file is cached by its URL path components under the cache directory.
-fn download_model_from_url(url: &str) -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
+fn download_model_from_url(
+    url: &str,
+    progress: &DownloadProgressCallback,
+) -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
     let cache_dir = get_cache_dir()?;
     // Derive a cache path from the URL: strip scheme, use the rest as path components
     let path_part = url
         .trim_start_matches("https://")
         .trim_start_matches("http://");
     let target_path = cache_dir.join("http").join(path_part);
-    download_file(url, &target_path)?;
+    download_file(url, &target_path, progress)?;
     Ok(target_path)
 }
 
@@ -781,4 +872,37 @@ impl<T> Drop for WorkerGuard<T> {
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn throttled_callback_drops_intermediate_calls_within_window() {
+        let count = Arc::new(AtomicUsize::new(0));
+        let count_inner = Arc::clone(&count);
+        let cb = throttled_progress_callback(move |_d, _t| {
+            count_inner.fetch_add(1, Ordering::Relaxed);
+        });
+
+        // First call always emits; subsequent calls within 100ms are dropped.
+        for i in 0..1000 {
+            cb(i, 10_000);
+        }
+        let n = count.load(Ordering::Relaxed);
+        assert!(n >= 1 && n <= 5, "expected 1–5 emits, got {}", n);
+    }
+
+    #[test]
+    fn throttled_callback_always_emits_on_completion() {
+        let count = Arc::new(AtomicUsize::new(0));
+        let count_inner = Arc::clone(&count);
+        let cb = throttled_progress_callback(move |_d, _t| {
+            count_inner.fetch_add(1, Ordering::Relaxed);
+        });
+
+        // First call: emits. Second call inside the window but is_done=true: emits.
+        cb(50, 100);
+        cb(100, 100);
+        assert_eq!(count.load(Ordering::Relaxed), 2);
+    }
+}

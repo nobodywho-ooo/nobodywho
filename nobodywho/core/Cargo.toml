@@ -37,6 +37,7 @@ futures = "0.3.31"
 ahash = "0.8.12"
 indexmap = "2.13.0"
 ureq = { version = "3", features = ["rustls"] }
+indicatif = "0.18"
 
 [target.'cfg(target_os = "android")'.dependencies]
 libc = "0.2"

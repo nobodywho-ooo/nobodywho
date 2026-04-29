@@ -56,6 +56,18 @@ The `model_path` field (and `projection_model_path` for vision models) accepts s
 
 Remote models are downloaded to the platform cache directory on the first load and re-used on subsequent runs. Downloads happen on a background thread — the Godot main loop stays responsive while a multi-GB model is fetched.
 
+### Showing download progress
+
+`NobodyWhoModel` emits a `download_progress(downloaded, total)` signal while a remote model is downloading, throttled to roughly 10 Hz with a guaranteed final emit on completion. Connect it if you'd like to drive a progress bar:
+
+```gdscript
+model.download_progress.connect(func(downloaded: int, total: int):
+    print("%d / %d bytes" % [downloaded, total])
+)
+```
+
+The signal is not emitted for local files or already-cached downloads.
+
 ### Knowing when the worker is ready
 
 `start_worker()` returns immediately. The worker finishes loading in the background (including any download). Connect to the new signals if your game logic needs to wait:
