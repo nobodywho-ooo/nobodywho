@@ -9,7 +9,7 @@ jobs:
     if: >-
       github.event.issue.pull_request
       && github.event.comment.body == '/full-ci'
-    runs-on: depot-ubuntu-latest
+    runs-on: ubuntu-latest
     permissions:
       actions: write
       pull-requests: read

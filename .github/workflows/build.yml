@@ -24,13 +24,13 @@ jobs:
           - "flutter"
         include:
           - target: x86_64-unknown-linux-gnu
-            runner: depot-ubuntu-24.04
+            runner: ubuntu-24.04
           - target: aarch64-unknown-linux-gnu
-            runner: depot-ubuntu-24.04-arm
+            runner: ubuntu-24.04-arm
 
     runs-on: ${{ matrix.runner }}
     env:
-      RUSTFLAGS: ${{ matrix.runner == 'depot-ubuntu-24.04' && '-C target-cpu=x86-64-v3' || '' }}
+      RUSTFLAGS: ${{ matrix.runner == 'ubuntu-24.04' && '-C target-cpu=x86-64-v3' || '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -88,7 +88,7 @@ jobs:
 
   cargo-build-windows:
     if: inputs.full_ci
-    runs-on: depot-windows-latest
+    runs-on: windows-latest
     strategy:
       fail-fast: false
       matrix:
@@ -358,7 +358,7 @@ jobs:
 
   cargo-build-android:
     if: inputs.full_ci
-    runs-on: depot-ubuntu-24.04
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
