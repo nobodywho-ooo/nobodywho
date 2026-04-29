@@ -81,7 +81,7 @@ import { Chat, SamplerBuilder } from "react-native-nobodywho";
 
 const chat = await Chat.fromPath({
   modelPath: "/path/to/model.gguf",
-  sampler: new SamplerBuilder().temperature(0.8).topK(5).dist(),
+  sampler: new SamplerBuilder().temperature(0.8).topK(5).dist() as SamplerConfig,
 });
 ```
 
@@ -95,7 +95,10 @@ to always end the chain with one of the sampling steps (e.g. `dist()`, `greedy()
 You can also change the sampler configuration on an existing chat instance:
 
 ```typescript
-const sampler = new SamplerBuilder().temperature(0.8).topK(5).dist();
+const sampler = new SamplerBuilder()
+  .temperature(0.8)
+  .topK(5)
+  .dist() as SamplerConfig;
 
 await chat.setSamplerConfig(sampler);
 ```

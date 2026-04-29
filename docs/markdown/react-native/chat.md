@@ -46,7 +46,7 @@ Each token is either an individual word or a fragment of a word.
 
 ```typescript
 for await (const token of response) {
-  process.stdout.write(token);
+  console.log(token);
 }
 ```
 
@@ -164,7 +164,7 @@ You can set template variables when creating a chat or modify them on existing i
 ```typescript
 const chat = await Chat.fromPath({
   modelPath: "/path/to/model.gguf",
-  templateVariables: new Map([["enable_thinking", true]]),
+  templateVariables: { enable_thinking: true },
 });
 ```
 
@@ -187,8 +187,8 @@ The Qwen3 and Qwen3.5 model families support the `enable_thinking` template vari
 
 ```typescript
 const chat = await Chat.fromPath({
-  modelPath: "/path/to/model.gguf",
-  templateVariables: new Map([["enable_thinking", true]]),
+  modelPath: '/path/to/model.gguf',
+  templateVariables: { enable_thinking: true },
 });
 const response = chat.ask("Solve this logic puzzle: ...");
 ```

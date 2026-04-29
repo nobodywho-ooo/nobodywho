@@ -119,14 +119,14 @@ See the [Sampling documentation](https://docs.nobodywho.ooo/react-native/samplin
 
 ---
 
-## Vision
+## Vision & Hearing
 
-Vision support lets you include images in your prompts, so the model can analyze and describe visual content alongside text.
+Provide image and audio information to your LLM.
 
 To enable this, you need two model files:
 
-- A **vision-language LLM** (usually has `VL` in the name)
-- A matching **projection model** that converts images into tokens the LLM can process (usually has `mmproj` in the name)
+- A multimodal LLM, so the LLM can consume image-tokens or/and audio-tokens
+- A matching projection model, which converts images to image-tokens or/and audio to audio-tokens (usually has `mmproj` in the name)
 
 Pass the projection model when loading your model, then use `Prompt` to compose prompts that mix text and images:
 
@@ -135,17 +135,20 @@ import { Chat, Prompt } from "react-native-nobodywho";
 
 const chat = await Chat.fromPath({
   modelPath: "/path/to/vision-model.gguf",
-  imageModelPath: "/path/to/mmproj.gguf",
+  projectionModelPath: "/path/to/mmproj.gguf",
 });
 
-const prompt = new Prompt([
-  Prompt.Text("What do you see in this image?"),
-  Prompt.Image("/path/to/photo.png"),
-]);
-
-const response = await chat.ask(prompt).completed();
+const response = await chat
+  .ask(
+    new Prompt([
+      Prompt.Text("Tell me what you see in the image and what you hear in the audio."),
+      Prompt.Image("/path/to/dog.png"),
+      Prompt.Audio("/path/to/sound.mp3"),
+    ]),
+  )
+  .completed();
 ```
 
-You can pass multiple images and interleave text between them. If the model performs poorly, try reordering the text and image parts — this can make a noticeable difference. If images consume too much context, increase `contextSize` or preprocess images with compression.
+You can pass multiple images/audio files and interleave text between them. If the model performs poorly, try reordering the text, audio and image parts — this can make a noticeable difference. If images consume too much context, increase `contextSize` or preprocess images with compression.
 
-See the [Vision documentation](https://docs.nobodywho.ooo/react-native/vision/) for model recommendations and advanced tips.
+See the [Vision & Hearing documentation](https://docs.nobodywho.ooo/react-native/vision/) for model recommendations and advanced tips.

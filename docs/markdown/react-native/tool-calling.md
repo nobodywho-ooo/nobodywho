@@ -19,18 +19,18 @@ Any regular function can be used as a tool — arguments from the LLM are passed
 in the same order as the `parameters` array:
 
 ```typescript
-import { Tool } from "react-native-nobodywho";
+import { Tool } from 'react-native-nobodywho';
 
-function circleArea(radius: number): string {
+const circleArea = (radius: number): string => {
   const area = Math.PI * radius * radius;
   return `Circle with radius ${radius} has area ${area.toFixed(2)}`;
-}
+};
 
 const circleAreaTool = new Tool({
-  name: "circle_area",
-  description: "Calculates the area of a circle given its radius",
+  name: 'circle_area',
+  description: 'Calculates the area of a circle given its radius',
   parameters: [
-    { name: "radius", type: "number", description: "The radius of the circle" },
+    { name: 'radius', type: 'number', description: 'The radius of the circle' },
   ],
   call: circleArea,
 });
@@ -56,19 +56,14 @@ Naturally, more tools can be defined and the model can chain the calls for them:
 ```typescript
 import { Chat, Tool } from "react-native-nobodywho";
 
-function getCurrentDir(): string {
-  return "/home/user/documents";
-}
+const getCurrentDir = (): string => '/home/user/documents';
 
-function listFiles(path: string): string {
-  // In a real app, you'd read the filesystem here
-  return "Files: report.pdf, notes.txt, model.gguf";
-}
+// In a real app, you'd read the filesystem here
+const listFiles = (path: string): string =>
+  'Files: report.pdf, notes.txt, model.gguf';
 
-function getFileSize(filepath: string): string {
-  // In a real app, you'd check the actual file size
-  return `File size: 1024 bytes`;
-}
+// In a real app, you'd check the actual file size
+const getFileSize = (filepath: string): string => 'File size: 1024 bytes';
 
 const getCurrentDirTool = new Tool({
   name: "get_current_dir",
