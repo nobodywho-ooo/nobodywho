@@ -71,6 +71,10 @@
             ''
               cd ${godot-integration-test}
               export HOME=$TMPDIR
+              # Point the model-download cache at the symlink tree created in
+              # the godot-integration-test derivation. Mirrors docs/conftest.py
+              # so the hf_path_test runs offline.
+              export XDG_CACHE_HOME=${godot-integration-test}/hf-cache
               ./game --headless
               touch $out
             '';
@@ -87,6 +91,17 @@
 
         checks.cargo-test = nobodywho-tested;
         checks.nobodywho-python = nobodywho-python;
+
+        checks.react-native-jest = pkgs.buildNpmPackage {
+          pname = "react-native-jest";
+          version = "0.0.0"; # nix derivation metadata only, does not need to match the npm package version
+          src = ./nobodywho/react-native;
+          npmDepsHash = "sha256-g33a0LC+46R+cE2f7Sqy/qzfz9h8xm/GaUp+b7Jb4Ek=";
+          dontNpmBuild = true;
+          checkPhase = "npx jest";
+          doCheck = true;
+          installPhase = "touch $out";
+        };
 
         # the Everything devshell
         devShells.default = pkgs.callPackage ./nobodywho/shell.nix { inherit android-nixpkgs; };

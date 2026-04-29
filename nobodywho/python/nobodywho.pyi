@@ -6,6 +6,19 @@ from typing import final
 T = typing.TypeVar('T', str, typing.Awaitable[str])  # Type variable for tool return types (sync str or async Awaitable[str])
 
 @final
+class Audio:
+    """
+    An `Audio` prompt part, used to build multimodal `Prompt`s.
+    
+    Example:
+        prompt = Prompt([Text("Transcribe this:"), Audio("./clip.wav")])
+    """
+    def __new__(cls, /, path: "os.PathLike | str") -> "Audio": ...
+    def __repr__(self, /) -> str: ...
+    @property
+    def path(self, /) -> str: ...
+
+@final
 class Chat:
     """
     `Chat` is a general-purpose class for interacting with instruction-tuned conversational LLMs.
@@ -23,7 +36,7 @@ class Chat:
         Create a new Chat instance for conversational text generation.
         
         Args:
-            model: A chat model (Model instance or path to GGUF file)
+            model: A chat model (Model instance, local path, `huggingface:` path, or `https://` URL to a GGUF file)
             n_ctx: Context size (maximum conversation length in tokens). Defaults to 4096.
             system_prompt: System message to guide the model's behavior. Defaults to empty string.
             template_variables: Dict of template variables to pass to the chat template (e.g., {"enable_thinking": True}). Defaults to empty dict.
@@ -36,7 +49,6 @@ class Chat:
         
         Raises:
             RuntimeError: If the model cannot be loaded
-            ValueError: If the path contains invalid UTF-8
         """
     def ask(self, /, prompt: "str | Prompt") -> "TokenStream":
         """
@@ -201,7 +213,7 @@ class ChatAsync:
         Create a new async Chat instance for conversational text generation.
         
         Args:
-            model: A chat model (Model instance or path to GGUF file)
+            model: A chat model (Model instance, local path, `huggingface:` path, or `https://` URL to a GGUF file)
             n_ctx: Context size (maximum conversation length in tokens). Defaults to 4096.
             system_prompt: System message to guide the model's behavior. Defaults to empty string.
             template_variables: Dict of template variables to pass to the chat template (e.g., {"enable_thinking": True}). Defaults to empty dict.
@@ -214,7 +226,6 @@ class ChatAsync:
         
         Raises:
             RuntimeError: If the model cannot be loaded
-            ValueError: If the path contains invalid UTF-8
         """
     def ask(self, /, prompt: "str | Prompt") -> "TokenStreamAsync":
         """
@@ -381,7 +392,7 @@ class CrossEncoder:
         Create a new CrossEncoder for comparing text similarity.
         
         Args:
-            model: A cross-encoder model (Model instance or path to GGUF file)
+            model: A cross-encoder model (Model instance, local path, `huggingface:` path, or `https://` URL to a GGUF file)
             n_ctx: Context size (maximum sequence length). Defaults to 4096.
         
         Returns:
@@ -389,7 +400,6 @@ class CrossEncoder:
         
         Raises:
             RuntimeError: If the model cannot be loaded
-            ValueError: If the path contains invalid UTF-8
         """
     def rank(self, /, query: str, documents: Sequence[str]) -> list[float]:
         """
@@ -431,7 +441,7 @@ class CrossEncoderAsync:
         Create a new async CrossEncoder for comparing text similarity.
         
         Args:
-            model: A cross-encoder model (Model instance or path to GGUF file)
+            model: A cross-encoder model (Model instance, local path, `huggingface:` path, or `https://` URL to a GGUF file)
             n_ctx: Context size (maximum sequence length). Defaults to 4096.
         
         Returns:
@@ -439,7 +449,6 @@ class CrossEncoderAsync:
         
         Raises:
             RuntimeError: If the model cannot be loaded
-            ValueError: If the path contains invalid UTF-8
         """
     async def rank(self, /, query: str, documents: Sequence[str]) -> list[float]:
         """
@@ -484,7 +493,7 @@ class Encoder:
         Create a new Encoder for generating text embeddings.
         
         Args:
-            model: An embedding model (Model instance or path to GGUF file)
+            model: An embedding model (Model instance, local path, `huggingface:` path, or `https://` URL to a GGUF file)
             n_ctx: Context size (maximum sequence length). Defaults to 4096.
         
         Returns:
@@ -492,7 +501,6 @@ class Encoder:
         
         Raises:
             RuntimeError: If the model cannot be loaded
-            ValueError: If the path contains invalid UTF-8
         """
     def encode(self, /, text: str) -> list[float]:
         """
@@ -518,7 +526,7 @@ class EncoderAsync:
         Create a new async Encoder for generating text embeddings.
         
         Args:
-            model: An embedding model (Model instance or path to GGUF file)
+            model: An embedding model (Model instance, local path, `huggingface:` path, or `https://` URL to a GGUF file)
             n_ctx: Context size (maximum sequence length). Defaults to 4096.
         
         Returns:
@@ -526,7 +534,6 @@ class EncoderAsync:
         
         Raises:
             RuntimeError: If the model cannot be loaded
-            ValueError: If the path contains invalid UTF-8
         """
     async def encode(self, /, text: str) -> list[float]:
         """
@@ -563,14 +570,15 @@ class Model:
     Sharing is efficient because the underlying model data is reference-counted.
     There is no `ModelAsync` variant. A regular `Model` can be used with both `Chat` and `ChatAsync`.
     """
-    def __new__(cls, /, model_path: "os.PathLike | str", use_gpu_if_available: bool = True, image_model_path: "os.PathLike | str | None" = None) -> "Model":
+    def __new__(cls, /, model_path: "os.PathLike | str", use_gpu_if_available: bool = True, projection_model_path: "os.PathLike | str | None" = None, on_download_progress: "typing.Callable[[int, int], None] | None" = None) -> "Model":
         """
         Create a new Model from a GGUF file.
         
         Args:
-            model_path: Path to the GGUF model file
+            model_path: Path or URL to a GGUF model file. Accepts a local file path (e.g. `./model.gguf`), a `huggingface:` path (e.g. `huggingface:owner/repo/file.gguf`), or an `https://` URL. Remote models are downloaded and cached automatically.
             use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
-            image_model_path: Path to a multimodal projector file for vision models. Defaults to None.
+            projection_model_path: Path or URL to a multimodal projector file for vision models. Accepts the same formats as model_path. Defaults to None.
+            on_download_progress: Optional callable invoked during model downloads with `(downloaded_bytes, total_bytes)`. Not called for locally cached models. If a projection model is also downloaded, the callback fires for each download sequentially, so `total_bytes` resets between them. Defaults to None.
         
         Returns:
             A Model instance
@@ -579,7 +587,7 @@ class Model:
             RuntimeError: If the model file cannot be loaded
         """
     @staticmethod
-    async def load_model_async(model_path: "os.PathLike | str", use_gpu_if_available: bool = True, image_model_path: "os.PathLike | str | None" = None) -> "Model":
+    async def load_model_async(model_path: "os.PathLike | str", use_gpu_if_available: bool = True, projection_model_path: "os.PathLike | str | None" = None, on_download_progress: "typing.Callable[[int, int], None] | None" = None) -> "Model":
         """
         Asynchronously load a model from a GGUF file.
         
@@ -588,27 +596,27 @@ class Model:
         a background thread, allowing other async tasks to continue running.
         
         Args:
-            model_path: Path to the GGUF model file
+            model_path: Path or URL to a GGUF model file. Accepts a local file path (e.g. `./model.gguf`), a `huggingface:` path (e.g. `huggingface:owner/repo/file.gguf`), or an `https://` URL. Remote models are downloaded and cached automatically.
             use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
-            image_model_path: Path to a multimodal projector file for vision models. Defaults to None.
+            projection_model_path: Path or URL to a multimodal projector file for vision models. Accepts the same formats as model_path. Defaults to None.
+            on_download_progress: Optional callable invoked during model downloads with `(downloaded_bytes, total_bytes)`. Not called for locally cached models. If a projection model is also downloaded, the callback fires for each download sequentially, so `total_bytes` resets between them. Defaults to None.
         
         Returns:
             A Model instance wrapped in an awaitable (async function returns a coroutine)
         
         Raises:
-            ValueError: If the path contains invalid UTF-8
             RuntimeError: If the model file cannot be loaded
         """
 
 @final
 class Prompt:
     """
-    A multimodal prompt consisting of interleaved `Text` and `Image` parts.
+    A multimodal prompt consisting of interleaved `Text`, `Image`, and `Audio` parts.
     
     Example:
         prompt = Prompt([Text("Tell me what's in the image"), Image("./img.jpg")])
     """
-    def __new__(cls, /, parts: "list[Text | Image]" = ...) -> "Prompt": ...
+    def __new__(cls, /, parts: "list[Text | Image | Audio]" = ...) -> "Prompt": ...
 
 @final
 class SamplerBuilder:

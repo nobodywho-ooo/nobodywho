@@ -44,7 +44,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -610755557;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1117273700;
 
 // Section: executor
 
@@ -75,13 +75,21 @@ fn wire__crate__CrossEncoder_from_path_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_model_path = <String>::sse_decode(&mut deserializer);
+            let api_on_download_progress =
+                decode_DartFn_Inputs_i_64_i_64_Output_unit_AnyhowException(
+                    <flutter_rust_bridge::DartOpaque>::sse_decode(&mut deserializer),
+                );
             let api_n_ctx = <u32>::sse_decode(&mut deserializer);
             let api_use_gpu = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, String>((move || {
-                    let output_ok =
-                        crate::CrossEncoder::from_path(&api_model_path, api_n_ctx, api_use_gpu)?;
+                    let output_ok = crate::CrossEncoder::from_path(
+                        &api_model_path,
+                        api_on_download_progress,
+                        api_n_ctx,
+                        api_use_gpu,
+                    )?;
                     Ok(output_ok)
                 })())
             }
@@ -336,13 +344,21 @@ fn wire__crate__Encoder_from_path_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_model_path = <String>::sse_decode(&mut deserializer);
+            let api_on_download_progress =
+                decode_DartFn_Inputs_i_64_i_64_Output_unit_AnyhowException(
+                    <flutter_rust_bridge::DartOpaque>::sse_decode(&mut deserializer),
+                );
             let api_n_ctx = <u32>::sse_decode(&mut deserializer);
             let api_use_gpu = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, String>((move || {
-                    let output_ok =
-                        crate::Encoder::from_path(&api_model_path, api_n_ctx, api_use_gpu)?;
+                    let output_ok = crate::Encoder::from_path(
+                        &api_model_path,
+                        api_on_download_progress,
+                        api_n_ctx,
+                        api_use_gpu,
+                    )?;
                     Ok(output_ok)
                 })())
             }
@@ -420,13 +436,21 @@ fn wire__crate__Model_load_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_model_path = <String>::sse_decode(&mut deserializer);
+            let api_on_download_progress =
+                decode_DartFn_Inputs_i_64_i_64_Output_unit_AnyhowException(
+                    <flutter_rust_bridge::DartOpaque>::sse_decode(&mut deserializer),
+                );
             let api_use_gpu = <bool>::sse_decode(&mut deserializer);
-            let api_image_ingestion = <Option<String>>::sse_decode(&mut deserializer);
+            let api_projection_model_path = <Option<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, String>((move || {
-                    let output_ok =
-                        crate::Model::load(&api_model_path, api_use_gpu, api_image_ingestion)?;
+                    let output_ok = crate::Model::load(
+                        &api_model_path,
+                        api_on_download_progress,
+                        api_use_gpu,
+                        api_projection_model_path,
+                    )?;
                     Ok(output_ok)
                 })())
             }
@@ -554,7 +578,11 @@ fn wire__crate__RustChat_from_path_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_model_path = <String>::sse_decode(&mut deserializer);
-            let api_image_ingestion = <Option<String>>::sse_decode(&mut deserializer);
+            let api_on_download_progress =
+                decode_DartFn_Inputs_i_64_i_64_Output_unit_AnyhowException(
+                    <flutter_rust_bridge::DartOpaque>::sse_decode(&mut deserializer),
+                );
+            let api_projection_model_path = <Option<String>>::sse_decode(&mut deserializer);
             let api_system_prompt = <Option<String>>::sse_decode(&mut deserializer);
             let api_context_size = <u32>::sse_decode(&mut deserializer);
             let api_allow_thinking = <Option<bool>>::sse_decode(&mut deserializer);
@@ -568,7 +596,8 @@ fn wire__crate__RustChat_from_path_impl(
                 transform_result_sse::<_, String>((move || {
                     let output_ok = crate::RustChat::from_path(
                         &api_model_path,
-                        api_image_ingestion,
+                        api_on_download_progress,
+                        api_projection_model_path,
                         api_system_prompt,
                         api_context_size,
                         api_allow_thinking,
@@ -3144,6 +3173,39 @@ fn wire__crate__new_tool_impl_impl(
         },
     )
 }
+fn wire__crate__noop_on_download_progress_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "noop_on_download_progress",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api__downloaded = <i64>::sse_decode(&mut deserializer);
+            let api__total = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Result::<_, ()>::Ok({
+                    crate::noop_on_download_progress(api__downloaded, api__total);
+                })?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__tool_call_arguments_json_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -3257,6 +3319,42 @@ fn decode_DartFn_Inputs_String_Output_String_AnyhowException(
         flutter_rust_bridge::for_generated::convert_into_dart_fn_future(body(
             dart_opaque.clone(),
             arg0,
+        ))
+    }
+}
+fn decode_DartFn_Inputs_i_64_i_64_Output_unit_AnyhowException(
+    dart_opaque: flutter_rust_bridge::DartOpaque,
+) -> impl Fn(i64, i64) -> flutter_rust_bridge::DartFnFuture<()> {
+    use flutter_rust_bridge::IntoDart;
+
+    async fn body(dart_opaque: flutter_rust_bridge::DartOpaque, arg0: i64, arg1: i64) -> () {
+        let args = vec![
+            arg0.into_into_dart().into_dart(),
+            arg1.into_into_dart().into_dart(),
+        ];
+        let message = FLUTTER_RUST_BRIDGE_HANDLER
+            .dart_fn_invoke(dart_opaque, args)
+            .await;
+
+        let mut deserializer = flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+        let action = deserializer.cursor.read_u8().unwrap();
+        let ans = match action {
+            0 => std::result::Result::Ok(<()>::sse_decode(&mut deserializer)),
+            1 => std::result::Result::Err(
+                <flutter_rust_bridge::for_generated::anyhow::Error>::sse_decode(&mut deserializer),
+            ),
+            _ => unreachable!(),
+        };
+        deserializer.end();
+        let ans = ans.expect("Dart throws exception but Rust side assume it is not failable");
+        ans
+    }
+
+    move |arg0: i64, arg1: i64| {
+        flutter_rust_bridge::for_generated::convert_into_dart_fn_future(body(
+            dart_opaque.clone(),
+            arg0,
+            arg1,
         ))
     }
 }
@@ -3763,6 +3861,13 @@ impl SseDecode for i32 {
     }
 }
 
+impl SseDecode for i64 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        deserializer.cursor.read_i64::<NativeEndian>().unwrap()
+    }
+}
+
 impl SseDecode for isize {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -4014,6 +4119,10 @@ impl SseDecode for crate::PromptPart {
                 let mut var_path = <String>::sse_decode(deserializer);
                 return crate::PromptPart::Image { path: var_path };
             }
+            2 => {
+                let mut var_path = <String>::sse_decode(deserializer);
+                return crate::PromptPart::Audio { path: var_path };
+            }
             _ => {
                 unimplemented!("");
             }
@@ -4181,7 +4290,8 @@ fn pde_ffi_dispatcher_sync_impl(
         63 => wire__crate__new_bash_tool_impl(ptr, rust_vec_len, data_len),
         64 => wire__crate__new_python_tool_impl(ptr, rust_vec_len, data_len),
         65 => wire__crate__new_tool_impl_impl(ptr, rust_vec_len, data_len),
-        66 => wire__crate__tool_call_arguments_json_impl(ptr, rust_vec_len, data_len),
+        66 => wire__crate__noop_on_download_progress_impl(ptr, rust_vec_len, data_len),
+        67 => wire__crate__tool_call_arguments_json_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -4542,6 +4652,9 @@ impl flutter_rust_bridge::IntoDart for crate::PromptPart {
             }
             crate::PromptPart::Image { path } => {
                 [1.into_dart(), path.into_into_dart().into_dart()].into_dart()
+            }
+            crate::PromptPart::Audio { path } => {
+                [2.into_dart(), path.into_into_dart().into_dart()].into_dart()
             }
             _ => {
                 unimplemented!("");
@@ -4987,6 +5100,13 @@ impl SseEncode for i32 {
     }
 }
 
+impl SseEncode for i64 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        serializer.cursor.write_i64::<NativeEndian>(self).unwrap();
+    }
+}
+
 impl SseEncode for isize {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -5208,6 +5328,10 @@ impl SseEncode for crate::PromptPart {
             }
             crate::PromptPart::Image { path } => {
                 <i32>::sse_encode(1, serializer);
+                <String>::sse_encode(path, serializer);
+            }
+            crate::PromptPart::Audio { path } => {
+                <i32>::sse_encode(2, serializer);
                 <String>::sse_encode(path, serializer);
             }
             _ => {

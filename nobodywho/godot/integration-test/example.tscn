@@ -1,10 +1,11 @@
-[gd_scene load_steps=6 format=3 uid="uid://qir8gkg0qx5w"]
+[gd_scene load_steps=7 format=3 uid="uid://qir8gkg0qx5w"]
 
 [ext_resource type="Script" uid="uid://dkqdgp3feonn7" path="res://chat.gd" id="1_178kq"]
 [ext_resource type="Script" uid="uid://tt6o1gsow6qw" path="res://run_tests.gd" id="1_mssk2"]
 [ext_resource type="Script" uid="uid://c0hh4s85r0jqj" path="res://encoder.gd" id="2_rcagm"]
 [ext_resource type="PackedScene" uid="uid://riqfmggkqpfd" path="res://grammar_test.tscn" id="4_vpjjx"]
 [ext_resource type="Script" uid="uid://gqlok46cfxc4" path="res://crossencoder_test.gd" id="5_crossencoder"]
+[ext_resource type="Script" path="res://hf_path_test.gd" id="6_hfpath"]
 
 [node name="Control" type="Control"]
 layout_mode = 3
@@ -36,3 +37,6 @@ script = ExtResource("2_rcagm")
 [node name="CrossEncoder" type="NobodyWhoCrossEncoder" parent="." node_paths=PackedStringArray("model_node")]
 model_node = NodePath("../CrossEncoderModel")
 script = ExtResource("5_crossencoder")
+
+[node name="HfPath" type="Node" parent="."]
+script = ExtResource("6_hfpath")

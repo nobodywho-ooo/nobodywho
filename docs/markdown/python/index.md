@@ -14,14 +14,14 @@ First, install `nobodywho`.
 pip install nobodywho
 ```
 
-Next, download a GGUF model you like - if you don't have a specific model in mind, try [this one](https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf). Read more about [model selection](../model-selection.md).
+Next, pick a model. NobodyWho can download GGUF models directly from Hugging Face — just pass a `huggingface:` path. See [model selection](../model-selection.md) for recommendations.
 
-Once you have the `.gguf` file, make a `Chat` object and call `.ask()`!
+Then make a `Chat` object and call `.ask()`!
 
 ```python
 from nobodywho import Chat
 
-chat = Chat('./model.gguf')
+chat = Chat('huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf')
 response = chat.ask('Is water wet?')
 
 # print each token as it is generated
@@ -34,5 +34,18 @@ print(full_response)
 ```
 
 This is a super simple example, but we believe that examples which do simple things, should be simple!
+
+## Tracking download progress
+
+When loading a remote model, pass an `on_download_progress` callback to observe the download. It receives `(downloaded_bytes, total_bytes)` and is not called for cached or local files. If you don't pass anything, NobodyWho prints a default terminal progress bar.
+
+```python
+from nobodywho import Model
+
+model = Model(
+    'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
+    on_download_progress=lambda downloaded, total: print(f"{downloaded}/{total} bytes"),
+)
+```
 
 To get a full overview of the functionality provided by NobodyWho, simply keep reading.

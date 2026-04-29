@@ -7,3 +7,14 @@ __pycache__/
 .mypy_cache/
 .venv/
 */result
+
+# Swift and Kotlin standalone packages (not yet released)
+swift/
+kotlin/
+
+# React Native (uniffi-bindgen-react-native)
+react-native/node_modules/
+react-native/android/build/
+react-native/android/.cxx/
+react-native/android/src/main/jniLibs/
+react-native/test-app/

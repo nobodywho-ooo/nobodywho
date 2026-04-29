@@ -18,7 +18,7 @@ void main() {
 
       final chat = await nobodywho.Chat.fromPath(
         modelPath: modelPath,
-        imageIngestion: mmprojPath,
+        projectionModelPath: mmprojPath,
         systemPrompt: "",
         contextSize: 2048,
         templateVariables: {"enable_thinking" : false},
@@ -37,7 +37,7 @@ void main() {
 
       final chat = await nobodywho.Chat.fromPath(
         modelPath: modelPath,
-        imageIngestion: mmprojPath,
+        projectionModelPath: mmprojPath,
         systemPrompt: "",
         contextSize: 4096,
         templateVariables: {"enable_thinking" : false},

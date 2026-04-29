@@ -10,7 +10,8 @@ export 'src/rust/lib.dart'
         RustTool, // Users should use Tool
         newToolImpl, // Internal helper
         toolCallArgumentsJson, // Internal helper
-        PromptPart; // Users should use the hand-written PromptPart sealed class
+        PromptPart, // Users should use the hand-written PromptPart sealed class
+        noopOnDownloadProgress; // Internal default for onDownloadProgress parameters
 export 'src/rust/frb_generated.dart' show NobodyWho;
 
 import 'src/rust/lib.dart' as nobodywho;
@@ -32,7 +33,13 @@ final class ImagePart extends PromptPart {
   const ImagePart(this.path);
 }
 
-/// A multimodal prompt consisting of one or more [PromptPart]s (text and/or images).
+/// An audio part of a prompt, identified by file path.
+final class AudioPart extends PromptPart {
+  final String path;
+  const AudioPart(this.path);
+}
+
+/// A multimodal prompt consisting of one or more [PromptPart]s (text, images, and/or audio).
 ///
 /// Example:
 /// ```dart
@@ -52,6 +59,7 @@ List<nobodywho.PromptPart> _convertPromptParts(List<PromptPart> parts) {
   return parts.map((p) => switch (p) {
     TextPart(:final text) => nobodywho.PromptPart.text(content: text),
     ImagePart(:final path) => nobodywho.PromptPart.image(path: path),
+    AudioPart(:final path) => nobodywho.PromptPart.audio(path: path),
   }).toList();
 }
 
@@ -549,7 +557,7 @@ class Chat {
   ///
   /// For vision/multimodal models, the model should be loaded with image ingestion enabled:
   /// ```dart
-  /// final model = Model.load("model.gguf", imageIngestion: "mmproj.gguf");
+  /// final model = Model.load("model.gguf", projectionModelPath: "mmproj.gguf");
   /// final chat = Chat(model: model);
   /// ```
   factory Chat({
@@ -575,11 +583,19 @@ class Chat {
 
   /// Create chat directly from a model path.
   ///
-  /// [imageIngestion] is an optional path to a `.mmproj` projection model file,
+  /// [projectionModelPath] is an optional path to a `.mmproj` projection model file,
   /// required for vision/multimodal models (e.g. LLaVA, Qwen-VL).
+  ///
+  /// [onDownloadProgress] is invoked while a remote model is being downloaded
+  /// (HuggingFace or HTTPS URLs). It receives `(downloadedBytes, totalBytes)`
+  /// and is throttled in Rust to roughly 10 Hz, with mandatory emits on the
+  /// first chunk, on a new file (e.g. mmproj following the model), and on
+  /// completion. It is not invoked for cached/local files. The callback may
+  /// be sync or async; awaiting slow work inside it will stall the download
+  /// thread.
   static Future<Chat> fromPath({
     required String modelPath,
-    String? imageIngestion,
+    String? projectionModelPath,
     String? systemPrompt,
     int contextSize = 4096,
     bool? allowThinking = null,
@@ -587,10 +603,13 @@ class Chat {
     List<Tool> tools = const [],
     nobodywho.SamplerConfig? sampler,
     bool useGpu = true,
+    FutureOr<void> Function(int downloaded, int total) onDownloadProgress =
+        nobodywho.noopOnDownloadProgress,
   }) async {
     final chat = await nobodywho.RustChat.fromPath(
       modelPath: modelPath,
-      imageIngestion: imageIngestion,
+      onDownloadProgress: onDownloadProgress,
+      projectionModelPath: projectionModelPath,
       systemPrompt: systemPrompt,
       contextSize: contextSize,
       allowThinking: allowThinking,

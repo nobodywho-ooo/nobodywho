@@ -11,11 +11,34 @@ mod parse;
 pub use nobodywho::chat::{Message, Role};
 pub use nobodywho::tool_calling::ToolCall;
 
-/// A part of a multimodal prompt. Use [`PromptPart::Text`] for text and
-/// [`PromptPart::Image`] for images.
+/// A part of a multimodal prompt. Use [`PromptPart::Text`] for text,
+/// [`PromptPart::Image`] for images, and [`PromptPart::Audio`] for audio clips.
 pub enum PromptPart {
     Text { content: String },
     Image { path: String },
+    Audio { path: String },
+}
+
+/// No-op default for `onDownloadProgress` callbacks. Not meant to be called by
+/// users — it exists so we can reference it as a const tear-off in the Dart
+/// `#[frb(default = "noopOnDownloadProgress")]` attribute (closure literals
+/// aren't const in Dart, but top-level function tear-offs are).
+#[flutter_rust_bridge::frb(sync, positional)]
+pub fn noop_on_download_progress(_downloaded: i64, _total: i64) {}
+
+/// Bridge a Dart async progress callback into the synchronous closure core
+/// expects, with ~10 Hz throttling provided by `throttled_progress_callback`.
+///
+/// The Dart callback takes `(i64, i64)` rather than `(u64, u64)` so that frb
+/// generates a plain `int` Dart parameter; i64::MAX is ~9.2 EB which is far
+/// beyond any practical model file size.
+fn wrap_progress<F>(callback: F) -> nobodywho::llm::DownloadProgressCallback
+where
+    F: Fn(i64, i64) -> flutter_rust_bridge::DartFnFuture<()> + Send + Sync + 'static,
+{
+    nobodywho::llm::throttled_progress_callback(move |downloaded, total| {
+        futures::executor::block_on(callback(downloaded as i64, total as i64));
+    })
 }
 
 #[flutter_rust_bridge::frb(mirror(ToolCall))]
@@ -64,14 +87,33 @@ pub struct Model {
 }
 
 impl Model {
+    /// Load a model from a local path, HuggingFace path (`huggingface:owner/repo/file.gguf`),
+    /// or HTTPS URL. Remote models are downloaded and cached automatically.
+    ///
+    /// Args:
+    ///     model_path: Path or URL to a GGUF model file.
+    ///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while a
+    ///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
+    ///         final emit on completion. Not invoked for cached/local files.
+    ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
+    ///     projection_model_path: Optional path to a `.mmproj` file for vision/multimodal models.
     #[flutter_rust_bridge::frb]
     pub fn load(
         model_path: &str,
+        #[frb(default = "noopOnDownloadProgress")] on_download_progress: impl Fn(i64, i64) -> DartFnFuture<()>
+            + Send
+            + Sync
+            + 'static,
         #[frb(default = true)] use_gpu: bool,
-        #[frb(default = "null")] image_ingestion: Option<String>,
+        #[frb(default = "null")] projection_model_path: Option<String>,
     ) -> Result<Self, String> {
-        let model = nobodywho::llm::get_model(model_path, use_gpu, image_ingestion.as_deref())
-            .map_err(|e| e.to_string())?;
+        let model = nobodywho::llm::get_model(
+            model_path,
+            use_gpu,
+            projection_model_path.as_deref(),
+            Some(wrap_progress(on_download_progress)),
+        )
+        .map_err(|e| e.to_string())?;
         Ok(Self {
             model: Arc::new(model),
         })
@@ -88,7 +130,7 @@ impl RustChat {
     ///
     /// For vision/multimodal models, load the model with image ingestion enabled first:
     /// ```dart
-    /// final model = Model.load("model.gguf", imageIngestion: "mmproj.gguf");
+    /// final model = Model.load("model.gguf", projectionModelPath: "mmproj.gguf");
     /// final chat = Chat(model: model);
     /// ```
     ///
@@ -135,7 +177,10 @@ impl RustChat {
     ///
     /// Args:
     ///     model_path: Path to GGUF model file
-    ///     image_ingestion: Path to a .mmproj file for vision/multimodal models
+    ///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while a
+    ///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
+    ///         final emit on completion. Not invoked for cached/local files.
+    ///     projection_model_path: Path to a .mmproj file for vision/multimodal models
     ///     system_prompt: System message to guide the model's behavior
     ///     context_size: Context size (maximum conversation length in tokens)
     ///     tools: List of Tool instances the model can call
@@ -145,7 +190,11 @@ impl RustChat {
     #[allow(clippy::too_many_arguments)]
     pub fn from_path(
         model_path: &str,
-        #[frb(default = "null")] image_ingestion: Option<String>,
+        #[frb(default = "noopOnDownloadProgress")] on_download_progress: impl Fn(i64, i64) -> DartFnFuture<()>
+            + Send
+            + Sync
+            + 'static,
+        #[frb(default = "null")] projection_model_path: Option<String>,
         #[frb(default = "null")] system_prompt: Option<String>,
         #[frb(default = 4096)] context_size: u32,
         #[frb(default = "null")] allow_thinking: Option<bool>,
@@ -154,8 +203,13 @@ impl RustChat {
         #[frb(default = "null")] sampler: Option<SamplerConfig>,
         #[frb(default = true)] use_gpu: bool,
     ) -> Result<Self, String> {
-        let model = nobodywho::llm::get_model(model_path, use_gpu, image_ingestion.as_deref())
-            .map_err(|e| e.to_string())?;
+        let model = nobodywho::llm::get_model(
+            model_path,
+            use_gpu,
+            projection_model_path.as_deref(),
+            Some(wrap_progress(on_download_progress)),
+        )
+        .map_err(|e| e.to_string())?;
         let sampler_config = sampler.map(|s| s.sampler_config).unwrap_or_default();
 
         // Handle deprecated allow_thinking parameter
@@ -196,6 +250,7 @@ impl RustChat {
             match part {
                 PromptPart::Text { content } => prompt.push_text(content),
                 PromptPart::Image { path } => prompt.push_image(path.as_ref()),
+                PromptPart::Audio { path } => prompt.push_audio(path.as_ref()),
             }
         }
 
@@ -374,14 +429,32 @@ impl Encoder {
         Self { handle }
     }
 
+    /// Load an embedding model from a local path, HuggingFace path, or HTTPS URL.
+    ///
+    /// Args:
+    ///     model_path: Path or URL to a GGUF embedding model file.
+    ///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while a
+    ///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
+    ///         final emit on completion. Not invoked for cached/local files.
+    ///     n_ctx: Context size for the encoder. Defaults to 4096.
+    ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
     #[flutter_rust_bridge::frb]
     pub fn from_path(
         model_path: &str,
+        #[frb(default = "noopOnDownloadProgress")] on_download_progress: impl Fn(i64, i64) -> DartFnFuture<()>
+            + Send
+            + Sync
+            + 'static,
         #[frb(default = 4096)] n_ctx: u32,
         #[frb(default = true)] use_gpu: bool,
     ) -> Result<Self, String> {
-        let model =
-            nobodywho::llm::get_model(model_path, use_gpu, None).map_err(|e| e.to_string())?;
+        let model = nobodywho::llm::get_model(
+            model_path,
+            use_gpu,
+            None,
+            Some(wrap_progress(on_download_progress)),
+        )
+        .map_err(|e| e.to_string())?;
         let handle = nobodywho::encoder::EncoderAsync::new(Arc::new(model), n_ctx);
 
         Ok(Self { handle })
@@ -408,14 +481,32 @@ impl CrossEncoder {
         Self { handle }
     }
 
+    /// Load a cross-encoder model from a local path, HuggingFace path, or HTTPS URL.
+    ///
+    /// Args:
+    ///     model_path: Path or URL to a GGUF cross-encoder model file.
+    ///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while a
+    ///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
+    ///         final emit on completion. Not invoked for cached/local files.
+    ///     n_ctx: Context size for the cross-encoder. Defaults to 4096.
+    ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
     #[flutter_rust_bridge::frb]
     pub fn from_path(
         model_path: &str,
+        #[frb(default = "noopOnDownloadProgress")] on_download_progress: impl Fn(i64, i64) -> DartFnFuture<()>
+            + Send
+            + Sync
+            + 'static,
         #[frb(default = 4096)] n_ctx: u32,
         #[frb(default = true)] use_gpu: bool,
     ) -> Result<Self, String> {
-        let model =
-            nobodywho::llm::get_model(model_path, use_gpu, None).map_err(|e| e.to_string())?;
+        let model = nobodywho::llm::get_model(
+            model_path,
+            use_gpu,
+            None,
+            Some(wrap_progress(on_download_progress)),
+        )
+        .map_err(|e| e.to_string())?;
         let handle = nobodywho::crossencoder::CrossEncoderAsync::new(Arc::new(model), n_ctx);
         Ok(Self { handle })
     }

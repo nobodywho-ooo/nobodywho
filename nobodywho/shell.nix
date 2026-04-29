@@ -46,6 +46,9 @@ pkgs.mkShell {
     pkgs.python3Packages.uv
     pkgs.python3Packages.pytest
     pkgs.python3Packages.pytest-asyncio
+
+    # node.js (for napi-rs bindings)
+    pkgs.nodejs
   ];
   shellHook = ''
     ulimit -n 2048

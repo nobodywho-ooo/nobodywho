@@ -31,19 +31,32 @@ We suggest you make it as early and as close to the root of your app as possible
 With that setup done we can move on to the exiting stuff! We will in the rest of the docs that 
 you have imported NobodyWho using namespacing and that `.init()` has been called. 
 
-Now you are ready to download a GGUF model you like - if you don't have a specific model in mind, try [this one](https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf). Read more about [model selection](../model-selection.md).
+Now you are ready to pick a model. NobodyWho can download GGUF models directly from Hugging Face — just pass a `huggingface:` path. See [model selection](../model-selection.md) for recommendations.
 
-Once you have the `.gguf` file, the next step is to create a `Chat` object and call `.ask`!
+Then create a `Chat` object and call `.ask`!
 
-
-``` dart
-
-final chat = await nobodywho.Chat.fromPath(modelPath: './model.gguf');
+```dart
+final chat = await nobodywho.Chat.fromPath(
+  modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
+);
 final msg = await chat.ask('Is water wet?').completed();
 print(msg); // Yes, indeed, water is wet!
 ```
 
 This is a super simple example, but we believe that examples which do simple things, should be simple!
+
+## Tracking download progress
+
+When loading a remote model, pass an `onDownloadProgress` callback to observe the download. It receives `(downloadedBytes, totalBytes)`, is throttled to roughly 10 Hz with a guaranteed final emit on completion, and is not called for cached or local files.
+
+```dart
+final chat = await nobodywho.Chat.fromPath(
+  modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
+  onDownloadProgress: (downloaded, total) {
+    print('$downloaded / $total bytes');
+  },
+);
+```
 
 To get a full overview of the functionality provided by NobodyWho, simply keep reading. You can also have a look at our [flutter starter app repository](https://github.com/nobodywho-ooo/flutter-starter-example).
 

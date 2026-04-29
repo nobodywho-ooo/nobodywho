@@ -11,7 +11,7 @@
 //! use std::sync::Arc;
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! let model = Arc::new(llm::get_model("model.gguf", true, None)?);
+//! let model = Arc::new(llm::get_model("model.gguf", true, None, None)?);
 //!
 //! let chat = ChatBuilder::new(model)
 //!     .with_system_prompt(Some("You are a helpful assistant"))
@@ -28,10 +28,11 @@ use crate::errors::{
     MultimodalError, RenderError, SayError, SelectTemplateError, SetToolsError, ShiftError,
     WrappedResponseError,
 };
-use crate::llm::{self, read_sampler_from_metadata};
+use crate::llm;
 use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
 use crate::llm::{TokenStream, TokenStreamAsync};
 use crate::llm::{Worker, WorkerGuard, WriteOutput};
+use crate::sampler_config::read_sampler_from_metadata;
 use crate::sampler_config::{SamplerConfig, ShiftStep};
 use crate::template::{select_template, ChatTemplate, ChatTemplateContext};
 use crate::tokenizer::{
@@ -65,8 +66,8 @@ pub enum Role {
 
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Asset {
-    id: String,
-    path: PathBuf,
+    pub id: String,
+    pub path: PathBuf,
 }
 
 // deny_unknown_fields is required because assets has a serde default, making the
@@ -191,7 +192,7 @@ impl Default for ChatConfig {
 /// use std::sync::Arc;
 ///
 /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// let model = Arc::new(llm::get_model("model.gguf", true, None)?);
+/// let model = Arc::new(llm::get_model("model.gguf", true, None, None)?);
 ///
 /// let my_tool = Tool::new(
 ///     "example".to_string(),
@@ -528,7 +529,7 @@ impl ChatHandle {
     /// # use nobodywho::chat::ChatBuilder;
     /// # use nobodywho::llm::get_model;
     /// # use std::sync::Arc;
-    /// # let model = Arc::new(get_model("model.gguf", true, None).unwrap());
+    /// # let model = Arc::new(get_model("model.gguf", true, None, None).unwrap());
     /// # let chat = ChatBuilder::new(model).build();
     /// chat.set_system_prompt(Some("You are a helpful coding assistant.".to_string()))?;
     /// # Ok::<(), nobodywho::errors::SetterError>(())
@@ -810,7 +811,7 @@ impl ChatHandleAsync {
     /// # use nobodywho::chat::ChatBuilder;
     /// # use nobodywho::llm::get_model;
     /// # use std::sync::Arc;
-    /// # let model = Arc::new(get_model("model.gguf", true, None).unwrap());
+    /// # let model = Arc::new(get_model("model.gguf", true, None, None).unwrap());
     /// # let chat = ChatBuilder::new(model).build_async();
     /// # chat.set_system_prompt(Some("You are a helpful coding assistant.".to_string())).await?;
     /// # Ok::<(), nobodywho::errors::SetterError>(())

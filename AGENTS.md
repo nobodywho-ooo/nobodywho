@@ -12,10 +12,14 @@ NobodyWho is a Rust-based library for running LLMs locally with offline inferenc
 
 The main implementation is in `nobodywho/core/src/`:
 
-- [`chat.rs`](nobodywho/core/src/chat.rs) - Chat API with conversation management (main file, 3000+ lines)
+- [`chat.rs`](nobodywho/core/src/chat.rs) - Chat API with conversation management
 - [`llm.rs`](nobodywho/core/src/llm.rs) - Model loading and worker management
 - [`encoder.rs`](nobodywho/core/src/encoder.rs) - Embeddings generation
 - [`crossencoder.rs`](nobodywho/core/src/crossencoder.rs) - Cross-encoder for reranking
+- [`memory.rs`](nobodywho/core/src/memory.rs) - Memory estimation
+- [`template.rs`](nobodywho/core/src/template.rs) - Chat template rendering
+- [`tokenizer.rs`](nobodywho/core/src/tokenizer.rs) - Tokenizer utilities
+- [`tool_calling/`](nobodywho/core/src/tool_calling) - Grammar-based tool calling
 - [`errors.rs`](nobodywho/core/src/errors.rs) - Error types using `thiserror`
 - [`sampler_config.rs`](nobodywho/core/src/sampler_config.rs) - Sampling configuration
 
@@ -91,9 +95,10 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for detailed setup instructions.
 
 ### Platform Support
 
-- Supported: Windows, Linux, macOS, Android
+- Desktop (all bindings): Windows, Linux, macOS
+- Android: Godot and Flutter bindings
+- iOS: Flutter binding
 - GPU acceleration: Vulkan (x86/x86_64), Metal (macOS/iOS)
-- Future: iOS support planned (see issue #114)
 
 ### Integration Patterns
 

@@ -1,8 +1,8 @@
 use crate::errors::{InitWorkerError, LoadModelError, ReadError};
 use crate::memory;
 use crate::platform::get_backends_path;
-use crate::sampler_config::SamplerConfig;
 use crate::tokenizer::{ProjectionModel, Tokenizer, TokenizerChunk, TokenizerChunks};
+use indicatif::{ProgressBar, ProgressStyle};
 use lazy_static::lazy_static;
 use llama_cpp_2::context::kv_cache::KvCacheConversionError;
 use llama_cpp_2::context::params::{LlamaContextParams, LlamaPoolingType};
@@ -14,10 +14,12 @@ use llama_cpp_2::model::AddBos;
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::mtmd::MtmdInputChunks;
 use llama_cpp_2::token::LlamaToken;
+use std::io::{Read, Write};
 use std::pin::pin;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
+use std::time::Duration;
 use tracing::{debug, debug_span, error, info, info_span, warn};
 
 #[derive(Debug)]
@@ -34,6 +36,83 @@ static LLAMA_BACKEND: LazyLock<LlamaBackend> = LazyLock::new(|| {
     }
     LlamaBackend::init().expect("Failed to initialize llama backend")
 });
+
+/// Callback invoked during model downloads with `(downloaded_bytes, total_bytes)`.
+///
+/// Invoked on each read chunk from the single download thread. If the same callback
+/// is shared across concurrent downloads, the closure is responsible for its own
+/// synchronization (hence the `Sync` bound).
+pub type DownloadProgressCallback = Arc<dyn Fn(u64, u64) + Send + Sync>;
+
+/// Default terminal progress bar shown when the user doesn't pass their own callback.
+///
+/// Renders an `indicatif` bar with spinner, elapsed time, wide bar, binary byte counts,
+/// throughput, and ETA. indicatif auto-disables on non-TTY stderr, so this is safe to use
+/// unconditionally — GUI bindings (Godot, Flutter mobile) won't see output in production.
+/// Detects a new download (model → mmproj transition) by watching for `total` to change,
+/// finishes the previous bar, and starts a fresh one.
+pub fn default_progress_callback() -> DownloadProgressCallback {
+    let style = ProgressStyle::with_template(
+        "{spinner:.green} [{elapsed_precise}] {wide_bar:.cyan/blue} \
+         {binary_bytes}/{binary_total_bytes} ({binary_bytes_per_sec}, {eta})",
+    )
+    .expect("static progress bar template is valid")
+    .progress_chars("█▉▊▋▌▍▎▏ ");
+
+    let state: Arc<Mutex<(Option<ProgressBar>, u64)>> = Arc::new(Mutex::new((None, 0)));
+
+    Arc::new(move |downloaded: u64, total: u64| {
+        let mut s = state.lock().expect("progress bar mutex poisoned");
+        if s.0.is_none() || s.1 != total {
+            if let Some(old) = s.0.take() {
+                old.finish_and_clear();
+            }
+            let bar = ProgressBar::new(total);
+            bar.set_style(style.clone());
+            bar.enable_steady_tick(Duration::from_millis(100));
+            s.0 = Some(bar);
+            s.1 = total;
+        }
+        let bar = s.0.as_ref().unwrap();
+        bar.set_position(downloaded);
+        if downloaded >= total {
+            bar.finish();
+            s.0 = None;
+        }
+    })
+}
+
+/// Wrap a progress callback so it fires at most ~10 Hz, with a guaranteed
+/// final emit on completion.
+///
+/// Use this when each invocation of the user-provided callback is expensive —
+/// typically because it crosses a language boundary (Dart isolate hop, JSI
+/// hop, etc.). Without throttling, a fast download (thousands of chunks/sec)
+/// would saturate the cross-language bridge. The Python binding does NOT need
+/// this since a PyO3 callable invocation is cheap; it forwards every chunk.
+///
+/// Lock-free: nanoseconds since a process-wide epoch in an `AtomicU64`, with `0`
+/// as the never-emitted sentinel. The load/check/store can race, but an extra
+/// emit per ~100ms window is harmless and downloads are single-threaded anyway.
+pub fn throttled_progress_callback<F>(callback: F) -> DownloadProgressCallback
+where
+    F: Fn(u64, u64) + Send + Sync + 'static,
+{
+    static EPOCH: LazyLock<std::time::Instant> = LazyLock::new(std::time::Instant::now);
+    const THROTTLE_NS: u64 = 100_000_000;
+
+    let last_emit_ns = AtomicU64::new(0);
+    Arc::new(move |downloaded: u64, total: u64| {
+        let is_done = total > 0 && downloaded >= total;
+        let now_ns = EPOCH.elapsed().as_nanos() as u64;
+        let prev = last_emit_ns.load(Ordering::Relaxed);
+        let due = prev == 0 || now_ns.saturating_sub(prev) >= THROTTLE_NS;
+        if is_done || due {
+            last_emit_ns.store(now_ns, Ordering::Relaxed);
+            callback(downloaded, total);
+        }
+    })
+}
 
 #[derive(Debug)]
 pub struct Model {
@@ -80,21 +159,100 @@ pub fn has_gpu_backend() -> bool {
     false
 }
 
-#[tracing::instrument(level = "info")]
-pub fn get_model(
+#[derive(Clone)]
+enum ParsedModelPath {
+    HuggingFaceUrl(String, String, String), // e.g. hf://owner/repo/model.gguf -> (owner, repo, filename)
+    HttpUrl(String),                        // e.g. https://example.com/lol/qwen3.gguf
+    FilesystemPath(std::path::PathBuf),     // e.g. ./qwen3.gguf
+}
+
+fn parse_model_path(
     model_path: &str,
-    use_gpu_if_available: bool,
-    mmproj_path: Option<&str>,
-) -> Result<Model, LoadModelError> {
-    if !std::path::Path::new(model_path).exists() {
-        let e = LoadModelError::ModelNotFound(model_path.into());
+) -> Result<ParsedModelPath, nom::Err<nom::error::Error<String>>> {
+    use nom::branch::alt;
+    use nom::bytes::complete::{tag, tag_no_case, take_until};
+    use nom::combinator::{cut, map, rest, verify};
+    use nom::sequence::{preceded, terminated};
+    use nom::Parser;
+
+    let mut parser = alt((
+        // hf://owner/repo/filename.gguf (also hf:, huggingface:, huggingface://)
+        map(
+            preceded(
+                alt((
+                    tag_no_case("huggingface://"),
+                    tag_no_case("huggingface:"),
+                    tag_no_case("hf://"),
+                    tag_no_case("hf:"),
+                )),
+                cut((
+                    terminated(take_until("/"), tag("/")),
+                    terminated(take_until("/"), tag("/")),
+                    verify(rest, |s: &str| !s.is_empty()),
+                )),
+            ),
+            |(owner, repo, filename): (&str, &str, &str)| {
+                ParsedModelPath::HuggingFaceUrl(owner.into(), repo.into(), filename.into())
+            },
+        ),
+        // https://... or http://...
+        map(
+            (alt((tag_no_case("https://"), tag_no_case("http://"))), rest),
+            |(scheme, path): (&str, &str)| ParsedModelPath::HttpUrl(format!("{}{}", scheme, path)),
+        ),
+        // Anything else is a filesystem path
+        map(rest, |p: &str| {
+            ParsedModelPath::FilesystemPath(std::path::PathBuf::from(p))
+        }),
+    ));
+    let result: nom::IResult<&str, ParsedModelPath> = parser.parse(model_path);
+    result
+        .map(|(_, parsed)| parsed)
+        .map_err(|e| e.map(|e| e.cloned()))
+}
+
+/// takes a fancy path (possibly with hf: or https:// in front), and resolve it to a realized path
+/// on the filesystem
+fn resolve_fancy_path_to_fs(
+    parsed_path: ParsedModelPath,
+    progress: &DownloadProgressCallback,
+) -> Result<std::path::PathBuf, LoadModelError> {
+    let fs_model_path = match parsed_path {
+        ParsedModelPath::HuggingFaceUrl(owner, repo, filename) => {
+            download_model_from_hf(&owner, &repo, &filename, progress)?
+        }
+        ParsedModelPath::FilesystemPath(path) => path,
+        ParsedModelPath::HttpUrl(url) => download_model_from_url(&url, progress)?,
+    };
+
+    if !fs_model_path.exists() {
+        let e = LoadModelError::ModelNotFound(fs_model_path.to_string_lossy().into());
         error!(error = %e, "Model file not found");
         return Err(e);
     }
 
+    Ok(fs_model_path)
+}
+
+#[tracing::instrument(level = "info", skip(progress))]
+pub fn get_model(
+    model_path: &str,
+    use_gpu_if_available: bool,
+    mmproj_path: Option<&str>,
+    progress: Option<DownloadProgressCallback>,
+) -> Result<Model, LoadModelError> {
+    let progress = progress.unwrap_or_else(default_progress_callback);
+    let real_model_path = resolve_fancy_path_to_fs(parse_model_path(model_path)?, &progress)?;
+    let real_mmproj_path = mmproj_path
+        .map(parse_model_path) // parse inside option
+        .transpose()? // return early if parse fails
+        .map(|p| resolve_fancy_path_to_fs(p, &progress)) // download the file if needed
+        .transpose()?; // return early if download fails
+
     // TODO: `LlamaModelParams` uses all devices by default. Set it to an empty list once an upstream device API is available.
     let use_gpu = use_gpu_if_available && has_gpu_backend();
-    let loading_plan = memory::plan_model_loading(model_path, mmproj_path, use_gpu);
+    let loading_plan =
+        memory::plan_model_loading(&real_model_path, real_mmproj_path.as_deref(), use_gpu);
     let gpu_layers = loading_plan.gpu_layers;
     for warning in &loading_plan.warnings {
         warn!("{}", warning);
@@ -105,18 +263,25 @@ pub fn get_model(
     let model_params = LlamaModelParams::default().with_n_gpu_layers(gpu_layers);
 
     let model_params = pin!(model_params);
-    let load_span = info_span!("model_load", path = model_path);
+    let load_span = info_span!("model_load", path = %real_model_path.display());
     let _guard = load_span.enter();
 
-    let language_model = LlamaModel::load_from_file(&LLAMA_BACKEND, model_path, &model_params)
-        .map_err(|e| {
-            let error_msg = format!("Bad model path: {} - Llama.cpp error: {}", model_path, e);
-            error!(error = %error_msg, "Failed to load model");
-            LoadModelError::InvalidModel(error_msg)
-        })?;
+    let language_model =
+        LlamaModel::load_from_file(&LLAMA_BACKEND, &real_model_path, &model_params).map_err(
+            |e| {
+                let error_msg = format!(
+                    "Bad model path: {} - Llama.cpp error: {}",
+                    real_model_path.display(),
+                    e
+                );
+                error!(error = %error_msg, "Failed to load model");
+                LoadModelError::InvalidModel(error_msg)
+            },
+        )?;
 
     info!("Model loaded successfully");
-    let projection_model = mmproj_path
+    let projection_model = real_mmproj_path
+        .as_ref()
         .map(|path| ProjectionModel::from_path(path, &language_model, use_gpu))
         .transpose()?;
 
@@ -147,11 +312,12 @@ pub fn get_model(
 /// * The model file is not found (`LoadModelError::ModelNotFound`)
 /// * The model file is invalid or unsupported (`LoadModelError::InvalidModel`)
 /// * The communication channel closes unexpectedly (`LoadModelError::ModelChannelError`)
-#[tracing::instrument(level = "info")]
+#[tracing::instrument(level = "info", skip(progress))]
 pub async fn get_model_async(
     model_path: String,
     use_gpu_if_available: bool,
     mmproj_path: Option<String>,
+    progress: Option<DownloadProgressCallback>,
 ) -> Result<Model, LoadModelError> {
     let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(4096);
     std::thread::spawn(move || {
@@ -159,6 +325,7 @@ pub async fn get_model_async(
             &model_path,
             use_gpu_if_available,
             mmproj_path.as_deref(),
+            progress,
         ))
     });
 
@@ -166,6 +333,227 @@ pub async fn get_model_async(
         Some(model) => return model,
         None => Err(LoadModelError::ModelChannelError),
     }
+}
+
+/// Get the cache directory for downloaded models.
+///
+/// On Android, the package name is read from `/proc/self/cmdline` and the user ID
+/// is derived from the UID (`uid / 100000`). This avoids needing JNI or an Android
+/// Context object, which isn't reliably available — Flutter loads native libraries
+/// via `dlopen` (not `System.loadLibrary`), so `JNI_OnLoad` is never called.
+///
+/// On other platforms, uses the `dirs` crate to find the standard cache directory.
+fn get_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
+    let base = get_platform_cache_dir()?;
+    Ok(base.join("nobodywho").join("models"))
+}
+
+#[cfg(target_os = "android")]
+fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
+    // Read the package name from /proc/self/cmdline. This file contains the process
+    // name as a null-terminated string. On Android this is the package name
+    // (e.g. "com.example.app"), possibly with a colon suffix for multi-process apps
+    // (e.g. "com.example.app:remote").
+    let cmdline = std::fs::read("/proc/self/cmdline").map_err(|e| {
+        crate::errors::LoadModelError::DownloadError(format!(
+            "Failed to read /proc/self/cmdline: {e}"
+        ))
+    })?;
+
+    let package_name = cmdline
+        .split(|&b| b == 0)
+        .next()
+        .and_then(|bytes| std::str::from_utf8(bytes).ok())
+        .map(|s| s.split(':').next().unwrap_or(s))
+        .ok_or_else(|| {
+            crate::errors::LoadModelError::DownloadError(
+                "Could not determine Android package name from /proc/self/cmdline".into(),
+            )
+        })?;
+
+    // Derive the Android user ID from the Unix UID. Android assigns UIDs as:
+    //   uid = user_id * 100000 + app_id
+    // This gives the correct path on multi-user devices (e.g. GrapheneOS work
+    // profiles), where /data/data/ is a symlink only valid for user 0.
+    let uid = unsafe { libc::getuid() };
+    let user_id = uid / 100000;
+
+    Ok(std::path::PathBuf::from(format!(
+        "/data/user/{user_id}/{package_name}/cache"
+    )))
+}
+
+#[cfg(not(target_os = "android"))]
+fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
+    dirs::cache_dir().ok_or_else(|| {
+        crate::errors::LoadModelError::DownloadError("Could not determine cache directory".into())
+    })
+}
+
+/// Download a file from a URL to a local path, streaming to disk with progress logging.
+///
+/// Returns early if the file already exists at the target path.
+/// Rejects paths containing `..` to prevent path traversal attacks.
+fn download_file(
+    url: &str,
+    target_path: &std::path::Path,
+    progress: &DownloadProgressCallback,
+) -> Result<(), crate::errors::LoadModelError> {
+    for component in target_path.components() {
+        if component == std::path::Component::ParentDir {
+            return Err(crate::errors::LoadModelError::DownloadError(
+                "Path traversal detected: '..' is not allowed in model paths".into(),
+            ));
+        }
+    }
+
+    if target_path.exists() {
+        info!("Using cached file: {}", target_path.display());
+        return Ok(());
+    }
+
+    // Create parent directories
+    if let Some(parent) = target_path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| {
+            crate::errors::LoadModelError::DownloadError(format!(
+                "Failed to create cache directory {}: {e}",
+                parent.display()
+            ))
+        })?;
+    }
+
+    info!("Downloading {} -> {}", url, target_path.display());
+
+    let response = ureq::get(url).call().map_err(|e| {
+        crate::errors::LoadModelError::DownloadError(format!("HTTP request failed: {e}"))
+    })?;
+
+    let content_length: std::num::NonZeroU64 = response
+        .headers()
+        .get("content-length")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse::<std::num::NonZeroU64>().ok())
+        .ok_or_else(|| {
+            crate::errors::LoadModelError::DownloadError(format!(
+                "Server returned missing or zero Content-Length for {url}"
+            ))
+        })?;
+
+    info!(
+        "Download size: {:.1} GB",
+        content_length.get() as f64 / 1_073_741_824.0
+    );
+
+    // Write to a temp file first, then rename — avoids partial files on failure.
+    let tmp_path = target_path.with_file_name(format!(
+        "{}.{:x}.part",
+        target_path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy(),
+        rand::random::<u32>(),
+    ));
+
+    let download_result: Result<(), crate::errors::LoadModelError> = (|| {
+        let mut file = std::fs::File::create(&tmp_path).map_err(|e| {
+            crate::errors::LoadModelError::DownloadError(format!(
+                "Failed to create temp file {}: {e}",
+                tmp_path.display()
+            ))
+        })?;
+
+        let body = response.into_body();
+        let mut reader = body.into_reader();
+        let mut downloaded: u64 = 0;
+        let mut last_logged_pct: u64 = 0;
+        let mut buf = vec![0u8; 256 * 1024]; // 256 KB chunks
+
+        loop {
+            let n = reader.read(&mut buf).map_err(|e| {
+                crate::errors::LoadModelError::DownloadError(format!(
+                    "Read error during download: {e}"
+                ))
+            })?;
+            if n == 0 {
+                break;
+            }
+            file.write_all(&buf[..n]).map_err(|e| {
+                crate::errors::LoadModelError::DownloadError(format!(
+                    "Write error during download: {e}"
+                ))
+            })?;
+            downloaded += n as u64;
+
+            progress(downloaded, content_length.get());
+
+            let pct = (downloaded * 100) / content_length;
+            if pct >= last_logged_pct + 5 {
+                info!(
+                    "Download progress: {pct}% ({downloaded}/{} bytes)",
+                    content_length
+                );
+                last_logged_pct = pct;
+            }
+        }
+        if downloaded != content_length.get() {
+            return Err(crate::errors::LoadModelError::DownloadError(format!(
+                "Download incomplete: got {downloaded}/{} bytes",
+                content_length
+            )));
+        }
+        Ok(())
+    })();
+
+    if download_result.is_err() {
+        if let Err(e) = std::fs::remove_file(&tmp_path) {
+            warn!("Failed to clean up temp file {}: {e}", tmp_path.display());
+        }
+        return download_result;
+    }
+
+    // Rename temp file to final path
+    std::fs::rename(&tmp_path, target_path).map_err(|e| {
+        crate::errors::LoadModelError::DownloadError(format!(
+            "Failed to rename temp file to {}: {e}",
+            target_path.display()
+        ))
+    })?;
+
+    info!("Download complete: {}", target_path.display());
+    Ok(())
+}
+
+/// Download a GGUF model from HuggingFace Hub and return the local path to it.
+///
+/// If the model is already cached locally, the cached path is returned without downloading.
+fn download_model_from_hf(
+    owner: &str,
+    repo: &str,
+    filename: &str,
+    progress: &DownloadProgressCallback,
+) -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
+    let cache_dir = get_cache_dir()?;
+    let target_path = cache_dir.join(owner).join(repo).join(filename);
+    let url = format!("https://huggingface.co/{owner}/{repo}/resolve/main/{filename}");
+    download_file(&url, &target_path, progress)?;
+    Ok(target_path)
+}
+
+/// Download a model from a generic HTTP(S) URL and return the local path to it.
+///
+/// The file is cached by its URL path components under the cache directory.
+fn download_model_from_url(
+    url: &str,
+    progress: &DownloadProgressCallback,
+) -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
+    let cache_dir = get_cache_dir()?;
+    // Derive a cache path from the URL: strip scheme, use the rest as path components
+    let path_part = url
+        .trim_start_matches("https://")
+        .trim_start_matches("http://");
+    let target_path = cache_dir.join("http").join(path_part);
+    download_file(url, &target_path, progress)?;
+    Ok(target_path)
 }
 
 fn read_add_bos_metadata(model: &LlamaModel) -> Result<AddBos, InitWorkerError> {
@@ -190,23 +578,6 @@ fn read_add_bos_metadata(model: &LlamaModel) -> Result<AddBos, InitWorkerError> 
     }
 }
 
-pub(crate) fn read_sampler_from_metadata(model: &LlamaModel) -> Option<SamplerConfig> {
-    match model.meta_val_str("sampler.chain.recommended") {
-        Ok(val) => match serde_json::from_str::<SamplerConfig>(val.as_str()) {
-            Ok(sampler) => Some(sampler),
-            Err(_) => {
-                warn!(
-                    "Error parsing sampler: {}. Example of sampler serialization: {}",
-                    val.as_str(),
-                    serde_json::to_string(&SamplerConfig::default()).unwrap()
-                );
-                None
-            }
-        },
-        Err(_) => None,
-    }
-}
-
 #[derive(Debug)]
 pub(crate) struct Worker<'a, S> {
     pub(crate) n_past: i32,
@@ -215,6 +586,7 @@ pub(crate) struct Worker<'a, S> {
     pub(crate) small_batch: LlamaBatch<'a>,
     pub(crate) projection_model: Option<&'a ProjectionModel>,
     pub(crate) tokenizer: Tokenizer<'a>,
+    pub(crate) use_embeddings: bool,
 
     pub(crate) extra: S,
 }
@@ -300,6 +672,7 @@ where
             projection_model,
             extra,
             tokenizer,
+            use_embeddings,
         };
         Ok(state)
     }
@@ -398,8 +771,12 @@ where
             self.big_batch.clear();
             let seq_ids = &[0];
             for (i, token) in (0..).zip(tokens.iter()) {
-                // Only compute logits for the last token to save computation
-                let output_logits = i == n_tokens - 1;
+                // For LLM workers only the last token's logits are needed (sampling).
+                // For encoder workers every token must be marked as an output so the
+                // pooling layer has hidden states to work with — otherwise llama.cpp
+                // logs "embeddings required but some input tokens were not marked as
+                // outputs -> overriding" and silently flips them on for us.
+                let output_logits = self.use_embeddings || i == n_tokens - 1;
                 self.big_batch
                     .add(*token, self.n_past + i as i32, seq_ids, output_logits)?;
             }
@@ -599,4 +976,37 @@ impl<T> Drop for WorkerGuard<T> {
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn throttled_callback_drops_intermediate_calls_within_window() {
+        let count = Arc::new(AtomicUsize::new(0));
+        let count_inner = Arc::clone(&count);
+        let cb = throttled_progress_callback(move |_d, _t| {
+            count_inner.fetch_add(1, Ordering::Relaxed);
+        });
+
+        // First call always emits; subsequent calls within 100ms are dropped.
+        for i in 0..1000 {
+            cb(i, 10_000);
+        }
+        let n = count.load(Ordering::Relaxed);
+        assert!(n >= 1 && n <= 5, "expected 1–5 emits, got {}", n);
+    }
+
+    #[test]
+    fn throttled_callback_always_emits_on_completion() {
+        let count = Arc::new(AtomicUsize::new(0));
+        let count_inner = Arc::clone(&count);
+        let cb = throttled_progress_callback(move |_d, _t| {
+            count_inner.fetch_add(1, Ordering::Relaxed);
+        });
+
+        // First call: emits. Second call inside the window but is_done=true: emits.
+        cb(50, 100);
+        cb(100, 100);
+        assert_eq!(count.load(Ordering::Relaxed), 2);
+    }
+}

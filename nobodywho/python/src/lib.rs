@@ -1,8 +1,7 @@
-use std::time::Duration;
-
 use pyo3::prelude::*;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::time::Duration;
 
 mod parse;
 
@@ -21,14 +20,46 @@ pub struct Model {
     model: Arc<nobodywho::llm::Model>,
 }
 
+/// Wrap a Python `on_download_progress` argument into a core `DownloadProgressCallback`.
+///
+/// - `Some(py_callable)` → wraps it so the Python function is invoked on each chunk
+///   with `(downloaded_bytes, total_bytes)`. Exceptions are printed and swallowed.
+/// - `None` → returns `None`; core installs its own default terminal progress bar.
+///
+/// Returns `TypeError` if `py_callback` is not callable, so a non-callable argument
+/// fails fast at construction rather than per-chunk during download.
+fn resolve_on_download_progress(
+    py_callback: Option<Py<PyAny>>,
+) -> PyResult<Option<nobodywho::llm::DownloadProgressCallback>> {
+    let Some(cb) = py_callback else {
+        return Ok(None);
+    };
+    Python::attach(|py| {
+        if !cb.bind(py).is_callable() {
+            return Err(pyo3::exceptions::PyTypeError::new_err(
+                "on_download_progress must be callable, taking (downloaded_bytes, total_bytes)",
+            ));
+        }
+        Ok(())
+    })?;
+    Ok(Some(Arc::new(move |downloaded: u64, total: u64| {
+        Python::attach(|py| {
+            if let Err(e) = cb.call1(py, (downloaded, total)) {
+                e.print(py);
+            }
+        });
+    }) as nobodywho::llm::DownloadProgressCallback))
+}
+
 #[pymethods]
 impl Model {
     /// Create a new Model from a GGUF file.
     ///
     /// Args:
-    ///     model_path: Path to the GGUF model file
+    ///     model_path: Path or URL to a GGUF model file. Accepts a local file path (e.g. `./model.gguf`), a `huggingface:` path (e.g. `huggingface:owner/repo/file.gguf`), or an `https://` URL. Remote models are downloaded and cached automatically.
     ///     use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
-    ///     image_model_path: Path to a multimodal projector file for vision models. Defaults to None.
+    ///     projection_model_path: Path or URL to a multimodal projector file for vision models. Accepts the same formats as model_path. Defaults to None.
+    ///     on_download_progress: Optional callable invoked during model downloads with `(downloaded_bytes, total_bytes)`. Not called for locally cached models. If a projection model is also downloaded, the callback fires for each download sequentially, so `total_bytes` resets between them. Defaults to None.
     ///
     /// Returns:
     ///     A Model instance
@@ -36,11 +67,12 @@ impl Model {
     /// Raises:
     ///     RuntimeError: If the model file cannot be loaded
     #[new]
-    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, image_model_path: "os.PathLike | str | None" = None) -> "Model")]
+    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, projection_model_path: "os.PathLike | str | None" = None, on_download_progress: "typing.Callable[[int, int], None] | None" = None) -> "Model")]
     pub fn new(
         model_path: std::path::PathBuf,
         use_gpu_if_available: bool,
-        image_model_path: Option<std::path::PathBuf>,
+        projection_model_path: Option<std::path::PathBuf>,
+        on_download_progress: Option<Py<PyAny>>,
     ) -> PyResult<Self> {
         let path_str = model_path.to_str().ok_or_else(|| {
             pyo3::exceptions::PyValueError::new_err(format!(
@@ -48,7 +80,7 @@ impl Model {
                 model_path.display()
             ))
         })?;
-        let mmproj_str = image_model_path
+        let mmproj_str = projection_model_path
             .as_ref()
             .map(|p| {
                 p.to_str().ok_or_else(|| {
@@ -59,7 +91,9 @@ impl Model {
                 })
             })
             .transpose()?;
-        let model_result = nobodywho::llm::get_model(path_str, use_gpu_if_available, mmproj_str);
+        let progress = resolve_on_download_progress(on_download_progress)?;
+        let model_result =
+            nobodywho::llm::get_model(path_str, use_gpu_if_available, mmproj_str, progress);
         match model_result {
             Ok(model) => Ok(Self {
                 model: Arc::new(model),
@@ -75,22 +109,23 @@ impl Model {
     /// a background thread, allowing other async tasks to continue running.
     ///
     /// Args:
-    ///     model_path: Path to the GGUF model file
+    ///     model_path: Path or URL to a GGUF model file. Accepts a local file path (e.g. `./model.gguf`), a `huggingface:` path (e.g. `huggingface:owner/repo/file.gguf`), or an `https://` URL. Remote models are downloaded and cached automatically.
     ///     use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
-    ///     image_model_path: Path to a multimodal projector file for vision models. Defaults to None.
+    ///     projection_model_path: Path or URL to a multimodal projector file for vision models. Accepts the same formats as model_path. Defaults to None.
+    ///     on_download_progress: Optional callable invoked during model downloads with `(downloaded_bytes, total_bytes)`. Not called for locally cached models. If a projection model is also downloaded, the callback fires for each download sequentially, so `total_bytes` resets between them. Defaults to None.
     ///
     /// Returns:
     ///     A Model instance wrapped in an awaitable (async function returns a coroutine)
     ///
     /// Raises:
-    ///     ValueError: If the path contains invalid UTF-8
     ///     RuntimeError: If the model file cannot be loaded
     #[staticmethod]
-    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, image_model_path: "os.PathLike | str | None" = None) -> "Model")]
+    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, projection_model_path: "os.PathLike | str | None" = None, on_download_progress: "typing.Callable[[int, int], None] | None" = None) -> "Model")]
     pub async fn load_model_async(
         model_path: std::path::PathBuf,
         use_gpu_if_available: bool,
-        image_model_path: Option<std::path::PathBuf>,
+        projection_model_path: Option<std::path::PathBuf>,
+        on_download_progress: Option<Py<PyAny>>,
     ) -> PyResult<Self> {
         let path_str = model_path.to_str().ok_or_else(|| {
             pyo3::exceptions::PyValueError::new_err(format!(
@@ -98,7 +133,7 @@ impl Model {
                 model_path.display()
             ))
         })?;
-        let mmproj_str = image_model_path
+        let mmproj_str = projection_model_path
             .as_ref()
             .map(|p| {
                 p.to_str().ok_or_else(|| {
@@ -109,10 +144,12 @@ impl Model {
                 })
             })
             .transpose()?;
+        let progress = resolve_on_download_progress(on_download_progress)?;
         let model_result = nobodywho::llm::get_model_async(
-            path_str.into(),
+            path_str.to_owned(),
             use_gpu_if_available,
             mmproj_str.map(str::to_owned),
+            progress,
         )
         .await;
         match model_result {
@@ -147,9 +184,9 @@ impl<'py> ModelOrPath<'py> {
                         path.display()
                     ))
                 })?;
-                nobodywho::llm::get_model(path_str, true, None)
-                    .map(Arc::new)
+                nobodywho::llm::get_model(path_str, true, None, None)
                     .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+                    .map(Arc::new)
             }
         }
     }
@@ -285,7 +322,7 @@ impl Encoder {
     /// Create a new Encoder for generating text embeddings.
     ///
     /// Args:
-    ///     model: An embedding model (Model instance or path to GGUF file)
+    ///     model: An embedding model (Model instance, local path, `huggingface:` path, or `https://` URL to a GGUF file)
     ///     n_ctx: Context size (maximum sequence length). Defaults to 4096.
     ///
     /// Returns:
@@ -293,7 +330,7 @@ impl Encoder {
     ///
     /// Raises:
     ///     RuntimeError: If the model cannot be loaded
-    ///     ValueError: If the path contains invalid UTF-8
+
     #[new]
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096) -> "Encoder")]
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
@@ -349,7 +386,7 @@ impl EncoderAsync {
     /// Create a new async Encoder for generating text embeddings.
     ///
     /// Args:
-    ///     model: An embedding model (Model instance or path to GGUF file)
+    ///     model: An embedding model (Model instance, local path, `huggingface:` path, or `https://` URL to a GGUF file)
     ///     n_ctx: Context size (maximum sequence length). Defaults to 4096.
     ///
     /// Returns:
@@ -357,7 +394,7 @@ impl EncoderAsync {
     ///
     /// Raises:
     ///     RuntimeError: If the model cannot be loaded
-    ///     ValueError: If the path contains invalid UTF-8
+
     #[new]
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096) -> "EncoderAsync")]
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
@@ -416,7 +453,7 @@ impl CrossEncoder {
     /// Create a new CrossEncoder for comparing text similarity.
     ///
     /// Args:
-    ///     model: A cross-encoder model (Model instance or path to GGUF file)
+    ///     model: A cross-encoder model (Model instance, local path, `huggingface:` path, or `https://` URL to a GGUF file)
     ///     n_ctx: Context size (maximum sequence length). Defaults to 4096.
     ///
     /// Returns:
@@ -424,7 +461,7 @@ impl CrossEncoder {
     ///
     /// Raises:
     ///     RuntimeError: If the model cannot be loaded
-    ///     ValueError: If the path contains invalid UTF-8
+
     #[new]
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096) -> "CrossEncoder")]
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
@@ -506,7 +543,7 @@ impl CrossEncoderAsync {
     /// Create a new async CrossEncoder for comparing text similarity.
     ///
     /// Args:
-    ///     model: A cross-encoder model (Model instance or path to GGUF file)
+    ///     model: A cross-encoder model (Model instance, local path, `huggingface:` path, or `https://` URL to a GGUF file)
     ///     n_ctx: Context size (maximum sequence length). Defaults to 4096.
     ///
     /// Returns:
@@ -514,7 +551,7 @@ impl CrossEncoderAsync {
     ///
     /// Raises:
     ///     RuntimeError: If the model cannot be loaded
-    ///     ValueError: If the path contains invalid UTF-8
+
     #[new]
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096) -> "CrossEncoderAsync")]
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
@@ -601,7 +638,7 @@ impl Chat {
     /// Create a new Chat instance for conversational text generation.
     ///
     /// Args:
-    ///     model: A chat model (Model instance or path to GGUF file)
+    ///     model: A chat model (Model instance, local path, `huggingface:` path, or `https://` URL to a GGUF file)
     ///     n_ctx: Context size (maximum conversation length in tokens). Defaults to 4096.
     ///     system_prompt: System message to guide the model's behavior. Defaults to empty string.
     ///     template_variables: Dict of template variables to pass to the chat template (e.g., {"enable_thinking": True}). Defaults to empty dict.
@@ -614,7 +651,7 @@ impl Chat {
     ///
     /// Raises:
     ///     RuntimeError: If the model cannot be loaded
-    ///     ValueError: If the path contains invalid UTF-8
+
     #[new]
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = Vec::<Tool>::new(), sampler = SamplerConfig::default(), allow_thinking: "bool | None" = None) -> "Chat")]
     pub fn new(
@@ -946,7 +983,7 @@ impl ChatAsync {
     /// Create a new async Chat instance for conversational text generation.
     ///
     /// Args:
-    ///     model: A chat model (Model instance or path to GGUF file)
+    ///     model: A chat model (Model instance, local path, `huggingface:` path, or `https://` URL to a GGUF file)
     ///     n_ctx: Context size (maximum conversation length in tokens). Defaults to 4096.
     ///     system_prompt: System message to guide the model's behavior. Defaults to empty string.
     ///     template_variables: Dict of template variables to pass to the chat template (e.g., {"enable_thinking": True}). Defaults to empty dict.
@@ -959,7 +996,7 @@ impl ChatAsync {
     ///
     /// Raises:
     ///     RuntimeError: If the model cannot be loaded
-    ///     ValueError: If the path contains invalid UTF-8
+
     #[new]
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = vec![], sampler = SamplerConfig::default(), allow_thinking: "bool | None" = None) -> "ChatAsync")]
     pub fn new(
@@ -1913,7 +1950,43 @@ impl Image {
     }
 }
 
-/// A multimodal prompt consisting of interleaved `Text` and `Image` parts.
+/// An `Audio` prompt part, used to build multimodal `Prompt`s.
+///
+/// Example:
+///     prompt = Prompt([Text("Transcribe this:"), Audio("./clip.wav")])
+#[pyclass(from_py_object)]
+#[derive(Clone)]
+pub struct Audio {
+    path: String,
+}
+
+#[pymethods]
+impl Audio {
+    #[new]
+    #[pyo3(signature = (path: "os.PathLike | str") -> "Audio")]
+    pub fn new(path: std::path::PathBuf) -> PyResult<Self> {
+        let path_str = path.to_str().ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "Path contains invalid UTF-8: {}",
+                path.display()
+            ))
+        })?;
+        Ok(Self {
+            path: path_str.to_string(),
+        })
+    }
+
+    #[getter]
+    pub fn path(&self) -> String {
+        self.path.clone()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("Audio({:?})", self.path)
+    }
+}
+
+/// A multimodal prompt consisting of interleaved `Text`, `Image`, and `Audio` parts.
 ///
 /// Example:
 ///     prompt = Prompt([Text("Tell me what's in the image"), Image("./img.jpg")])
@@ -1926,7 +1999,7 @@ pub struct Prompt {
 #[pymethods]
 impl Prompt {
     #[new]
-    #[pyo3(signature = (parts: "list[Text | Image]" = Vec::<Py<PyAny>>::new()) -> "Prompt")]
+    #[pyo3(signature = (parts: "list[Text | Image | Audio]" = Vec::<Py<PyAny>>::new()) -> "Prompt")]
     pub fn new(parts: Vec<Py<PyAny>>, py: Python) -> PyResult<Self> {
         let mut prompt = nobodywho::tokenizer::Prompt::new();
 
@@ -1944,8 +2017,14 @@ impl Prompt {
                 continue;
             }
 
+            if let Ok(audio_part) = part.extract::<Bound<Audio>>() {
+                let audio_ref = audio_part.borrow();
+                prompt.push_audio(audio_ref.path.as_ref());
+                continue;
+            }
+
             return Err(pyo3::exceptions::PyTypeError::new_err(
-                "Prompt parts must be Text(...) or Image(...)",
+                "Prompt parts must be Text(...), Image(...), or Audio(...)",
             ));
         }
 
@@ -2592,6 +2671,8 @@ pub mod nobodywhopython {
     use super::python_tool;
     #[pymodule_export]
     use super::tool;
+    #[pymodule_export]
+    use super::Audio;
     #[pymodule_export]
     use super::Chat;
     #[pymodule_export]

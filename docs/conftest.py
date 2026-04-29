@@ -8,6 +8,25 @@ VISION_MODEL_SYMLINK = Path("./vision-model.gguf")
 PROJECTION_MODEL_SYMLINK = Path("./projection_model.gguf")
 DOG_IMAGE_SYMLINK = Path("./dog.png")
 PENGUIN_IMAGE_SYMLINK = Path("./penguin.png")
+SOUND_SYMLINK = Path("./sound.mp3")
+
+# Cache symlinks for huggingface: paths used in doc examples.
+# These let doctests use huggingface: paths without network access,
+# by placing symlinks where the download cache would expect the files.
+HF_CACHE_DIR = Path(
+    os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
+) / "nobodywho" / "models"
+
+HF_CACHE_SYMLINKS: list[Path] = []
+
+
+def _setup_hf_cache_symlink(owner: str, repo: str, filename: str, target: str):
+    """Create a symlink in the huggingface download cache directory."""
+    cache_path = HF_CACHE_DIR / owner / repo / filename
+    if not cache_path.exists():
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        os.symlink(target, cache_path)
+    HF_CACHE_SYMLINKS.append(cache_path)
 
 
 def pytest_markdown_docs_globals():
@@ -19,6 +38,12 @@ def pytest_markdown_docs_globals():
 
     if not MODEL_SYMLINK.exists():
         os.symlink(model_path, MODEL_SYMLINK)
+
+    # populate the download cache so huggingface: paths in docs work offline
+    _setup_hf_cache_symlink(
+        "NobodyWho", "Qwen_Qwen3-0.6B-GGUF", "Qwen_Qwen3-0.6B-Q4_K_M.gguf",
+        model_path,
+    )
 
     # make symlink to TEST_EMBEDDING_MODEL, so we can use "./embedding-model.gguf" literal in docs
     embedding_model_path = os.environ.get("TEST_EMBEDDINGS_MODEL")
@@ -47,6 +72,11 @@ def pytest_markdown_docs_globals():
     if (tests_img_dir / "penguin.png").exists() and not PENGUIN_IMAGE_SYMLINK.exists():
         os.symlink(tests_img_dir / "penguin.png", PENGUIN_IMAGE_SYMLINK)
 
+    # make symlink for test audio used in vision docs
+    tests_audio_dir = Path(__file__).parent.parent / "nobodywho" / "python" / "tests" / "audio"
+    if (tests_audio_dir / "sound.mp3").exists() and not SOUND_SYMLINK.exists():
+        os.symlink(tests_audio_dir / "sound.mp3", SOUND_SYMLINK)
+
     return {
         "nobodywho": nobodywho,
         "Chat": nobodywho.Chat,
@@ -61,6 +91,7 @@ def pytest_markdown_docs_globals():
         "tool": nobodywho.tool,
         "Text": nobodywho.Text,
         "Image": nobodywho.Image,
+        "Audio": nobodywho.Audio,
         "Prompt": nobodywho.Prompt,
     }
 
@@ -75,6 +106,8 @@ def pytest_sessionfinish(session, exitstatus):
         PROJECTION_MODEL_SYMLINK,
         DOG_IMAGE_SYMLINK,
         PENGUIN_IMAGE_SYMLINK,
+        SOUND_SYMLINK,
+        *HF_CACHE_SYMLINKS,
     ]:
         if os.path.islink(symlink):
             os.unlink(symlink)

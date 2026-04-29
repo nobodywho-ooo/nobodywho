@@ -353,7 +353,7 @@ pub struct ProjectionModel {
 
 impl ProjectionModel {
     pub fn from_path(
-        path: &str,
+        path: &std::path::Path,
         parent_model: &LlamaModel,
         use_gpu: bool,
     ) -> Result<Self, MultimodalError> {
@@ -371,7 +371,7 @@ impl ProjectionModel {
                 .expect("Failed to create CString for marker"),
         };
 
-        match MtmdContext::init_from_file(path, parent_model, &mtmd_params) {
+        match MtmdContext::init_from_file(&path.to_string_lossy(), parent_model, &mtmd_params) {
             Ok(ctx) => {
                 info!("MTMD context initialized successfully");
                 Ok(Self { ctx })
