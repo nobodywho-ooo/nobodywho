@@ -1,0 +1,84 @@
+{
+  "name": "@napi-rs/cross-toolchain",
+  "version": "1.0.3",
+  "license": "MIT",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "workspaces": [
+    ".",
+    "arm64/*",
+    "x64/*"
+  ],
+  "author": {
+    "name": "LongYinan",
+    "email": "github@lyn.one",
+    "url": "https://lyn.one"
+  },
+  "repository": "https://github.com/napi-rs/cross-toolchain",
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "packageManager": "yarn@4.9.2",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "LICENSE"
+  ],
+  "scripts": {
+    "prepublishOnly": "node update-peer.mjs"
+  },
+  "peerDependencies": {
+    "@napi-rs/cross-toolchain-arm64-target-aarch64": "^1.0.3",
+    "@napi-rs/cross-toolchain-arm64-target-armv7": "^1.0.3",
+    "@napi-rs/cross-toolchain-arm64-target-ppc64le": "^1.0.3",
+    "@napi-rs/cross-toolchain-arm64-target-s390x": "^1.0.3",
+    "@napi-rs/cross-toolchain-arm64-target-x86_64": "^1.0.3",
+    "@napi-rs/cross-toolchain-x64-target-aarch64": "^1.0.3",
+    "@napi-rs/cross-toolchain-x64-target-armv7": "^1.0.3",
+    "@napi-rs/cross-toolchain-x64-target-ppc64le": "^1.0.3",
+    "@napi-rs/cross-toolchain-x64-target-s390x": "^1.0.3",
+    "@napi-rs/cross-toolchain-x64-target-x86_64": "^1.0.3"
+  },
+  "peerDependenciesMeta": {
+    "@napi-rs/cross-toolchain-arm64-target-aarch64": {
+      "optional": true
+    },
+    "@napi-rs/cross-toolchain-arm64-target-armv7": {
+      "optional": true
+    },
+    "@napi-rs/cross-toolchain-arm64-target-ppc64le": {
+      "optional": true
+    },
+    "@napi-rs/cross-toolchain-arm64-target-s390x": {
+      "optional": true
+    },
+    "@napi-rs/cross-toolchain-arm64-target-x86_64": {
+      "optional": true
+    },
+    "@napi-rs/cross-toolchain-x64-target-aarch64": {
+      "optional": true
+    },
+    "@napi-rs/cross-toolchain-x64-target-armv7": {
+      "optional": true
+    },
+    "@napi-rs/cross-toolchain-x64-target-ppc64le": {
+      "optional": true
+    },
+    "@napi-rs/cross-toolchain-x64-target-s390x": {
+      "optional": true
+    },
+    "@napi-rs/cross-toolchain-x64-target-x86_64": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "lerna": "^8.2.3",
+    "lodash-es": "^4.17.21"
+  },
+  "dependencies": {
+    "@napi-rs/lzma": "^1.4.5",
+    "@napi-rs/tar": "^1.1.0",
+    "debug": "^4.4.1"
+  }
+}

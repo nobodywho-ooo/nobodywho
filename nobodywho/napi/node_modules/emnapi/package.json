@@ -1,0 +1,53 @@
+{
+  "name": "emnapi",
+  "version": "1.9.1",
+  "description": "Node-API implementation for Emscripten",
+  "main": "index.js",
+  "gypfile": false,
+  "peerDependencies": {
+    "node-addon-api": ">= 6.1.0"
+  },
+  "peerDependenciesMeta": {
+    "node-addon-api": {
+      "optional": true
+    }
+  },
+  "scripts": {
+    "build": "node ./script/build.js",
+    "version": "node ./script/version.js",
+    "generate-struct-info-wasm32": "node -e \"fs.mkdirSync('script/out',{recursive:true})\" && emcc -Iinclude/node -pthread script/generate_struct_info.c -sNODERAWFS -o script/out/generate_struct_info_wasm32.js && node ./script/out/generate_struct_info_wasm32.js",
+    "generate-struct-info-wasm64": "node -e \"fs.mkdirSync('script/out',{recursive:true})\" && emcc -Iinclude/node -pthread script/generate_struct_info.c -sNODERAWFS -sMEMORY64 -o script/out/generate_struct_info_wasm64.js && node ./script/out/generate_struct_info_wasm64.js",
+    "generate-struct-info": "npm run generate-struct-info-wasm32 && npm run generate-struct-info-wasm64"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/toyobayashi/emnapi.git"
+  },
+  "keywords": [
+    "emscripten",
+    "wasm",
+    "emcc",
+    "webassembly",
+    "binding",
+    "clang",
+    "c",
+    "c++",
+    "cpp",
+    "n-api",
+    "napi",
+    "node-addon-api",
+    "napi-rs",
+    "rust",
+    "wasi-sdk",
+    "wasi"
+  ],
+  "author": "toyobayashi",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/toyobayashi/emnapi/issues"
+  },
+  "homepage": "https://github.com/toyobayashi/emnapi#readme",
+  "publishConfig": {
+    "access": "public"
+  }
+}

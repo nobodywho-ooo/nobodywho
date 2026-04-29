@@ -1,0 +1,38 @@
+{
+  "name": "@napi-rs/wasm-tools-linux-x64-gnu",
+  "version": "1.0.1",
+  "cpu": [
+    "x64"
+  ],
+  "main": "walrus.linux-x64-gnu.node",
+  "files": [
+    "walrus.linux-x64-gnu.node"
+  ],
+  "description": "https://github.com/rustwasm/walrus bindings",
+  "keywords": [
+    "napi-rs",
+    "NAPI",
+    "N-API",
+    "Rust",
+    "node-addon",
+    "node-addon-api"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">= 10"
+  },
+  "repository": {
+    "url": "git+ssh://git@github.com/napi-rs/wasm-tools.git",
+    "type": "git"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "os": [
+    "linux"
+  ],
+  "libc": [
+    "glibc"
+  ]
+}

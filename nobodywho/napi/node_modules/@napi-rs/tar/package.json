@@ -1,0 +1,137 @@
+{
+  "name": "@napi-rs/tar",
+  "version": "1.1.0",
+  "description": "Node.js tar binding https://docs.rs/tar/latest/tar/",
+  "main": "index.js",
+  "browser": "browser.js",
+  "repository": "git@github.com:napi-rs/tar.git",
+  "license": "MIT",
+  "keywords": [
+    "napi-rs",
+    "NAPI",
+    "N-API",
+    "Rust",
+    "node-addon",
+    "node-addon-api"
+  ],
+  "files": [
+    "index.d.ts",
+    "index.js",
+    "browser.js"
+  ],
+  "napi": {
+    "binaryName": "tar",
+    "targets": [
+      "x86_64-pc-windows-msvc",
+      "x86_64-apple-darwin",
+      "x86_64-unknown-linux-gnu",
+      "x86_64-unknown-linux-musl",
+      "aarch64-unknown-linux-gnu",
+      "i686-pc-windows-msvc",
+      "armv7-unknown-linux-gnueabihf",
+      "aarch64-apple-darwin",
+      "aarch64-linux-android",
+      "x86_64-unknown-freebsd",
+      "aarch64-unknown-linux-musl",
+      "aarch64-pc-windows-msvc",
+      "armv7-linux-androideabi",
+      "powerpc64le-unknown-linux-gnu",
+      "s390x-unknown-linux-gnu",
+      "wasm32-wasip1-threads"
+    ]
+  },
+  "engines": {
+    "node": ">= 10"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "scripts": {
+    "artifacts": "napi artifacts",
+    "bench": "node --import @oxc-node/core/register benchmark/bench.ts",
+    "build": "napi build --platform --release",
+    "build:debug": "napi build --platform",
+    "format": "run-p format:prettier format:rs format:toml",
+    "format:prettier": "prettier . -w",
+    "format:toml": "taplo format",
+    "format:rs": "cargo fmt",
+    "lint": "oxlint .",
+    "prepublishOnly": "napi pre-publish -t npm",
+    "test": "ava",
+    "version": "napi version"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^3.1.3",
+    "@napi-rs/lzma": "^1.4.4",
+    "@napi-rs/wasm-runtime": "^1.0.3",
+    "@oxc-node/core": "^0.0.32",
+    "@taplo/cli": "^0.7.0",
+    "@types/node": "^24.2.1",
+    "@types/tar": "^6",
+    "ava": "^6.4.1",
+    "chalk": "^5.5.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.1.5",
+    "npm-run-all2": "^8.0.4",
+    "oxlint": "^1.11.1",
+    "prettier": "^3.6.2",
+    "tar": "^7.4.3",
+    "tinybench": "^4.0.1",
+    "typescript": "^5.9.2"
+  },
+  "lint-staged": {
+    "*.@(js|ts|tsx)": [
+      "eslint -c .eslintrc.yml --fix"
+    ],
+    "*.@(js|ts|tsx|yml|yaml|md|json)": [
+      "prettier --write"
+    ],
+    "*.toml": [
+      "taplo format"
+    ]
+  },
+  "ava": {
+    "extensions": {
+      "ts": "module"
+    },
+    "timeout": "2m",
+    "workerThreads": false,
+    "nodeArguments": [
+      "--import",
+      "@oxc-node/core/register"
+    ],
+    "environmentVariables": {
+      "TS_NODE_PROJECT": "./tsconfig.json"
+    }
+  },
+  "prettier": {
+    "printWidth": 120,
+    "semi": false,
+    "trailingComma": "all",
+    "singleQuote": true,
+    "arrowParens": "always"
+  },
+  "packageManager": "yarn@4.9.2",
+  "resolutions": {
+    "@napi-rs/tar": "workspace:*"
+  },
+  "optionalDependencies": {
+    "@napi-rs/tar-win32-x64-msvc": "1.1.0",
+    "@napi-rs/tar-darwin-x64": "1.1.0",
+    "@napi-rs/tar-linux-x64-gnu": "1.1.0",
+    "@napi-rs/tar-linux-x64-musl": "1.1.0",
+    "@napi-rs/tar-linux-arm64-gnu": "1.1.0",
+    "@napi-rs/tar-win32-ia32-msvc": "1.1.0",
+    "@napi-rs/tar-linux-arm-gnueabihf": "1.1.0",
+    "@napi-rs/tar-darwin-arm64": "1.1.0",
+    "@napi-rs/tar-android-arm64": "1.1.0",
+    "@napi-rs/tar-freebsd-x64": "1.1.0",
+    "@napi-rs/tar-linux-arm64-musl": "1.1.0",
+    "@napi-rs/tar-win32-arm64-msvc": "1.1.0",
+    "@napi-rs/tar-android-arm-eabi": "1.1.0",
+    "@napi-rs/tar-linux-ppc64-gnu": "1.1.0",
+    "@napi-rs/tar-linux-s390x-gnu": "1.1.0",
+    "@napi-rs/tar-wasm32-wasi": "1.1.0"
+  }
+}

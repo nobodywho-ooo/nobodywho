@@ -1,0 +1,35 @@
+{
+  "name": "@napi-rs/tar-linux-x64-gnu",
+  "version": "1.1.0",
+  "cpu": [
+    "x64"
+  ],
+  "main": "tar.linux-x64-gnu.node",
+  "files": [
+    "tar.linux-x64-gnu.node"
+  ],
+  "description": "Node.js tar binding https://docs.rs/tar/latest/tar/",
+  "keywords": [
+    "napi-rs",
+    "NAPI",
+    "N-API",
+    "Rust",
+    "node-addon",
+    "node-addon-api"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">= 10"
+  },
+  "repository": "git@github.com:napi-rs/tar.git",
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "os": [
+    "linux"
+  ],
+  "libc": [
+    "glibc"
+  ]
+}

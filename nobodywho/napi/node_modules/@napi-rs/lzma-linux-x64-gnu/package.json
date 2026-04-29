@@ -1,0 +1,39 @@
+{
+  "name": "@napi-rs/lzma-linux-x64-gnu",
+  "version": "1.4.5",
+  "cpu": [
+    "x64"
+  ],
+  "main": "lzma.linux-x64-gnu.node",
+  "files": [
+    "lzma.linux-x64-gnu.node"
+  ],
+  "description": "https://docs.rs/lzma-rs binding to Node.js via https://napi.rs",
+  "keywords": [
+    "Node-API",
+    "napi",
+    "lzma",
+    "compress",
+    "decompress",
+    "xz",
+    "napi-rs"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">= 10"
+  },
+  "repository": {
+    "url": "git+https://github.com/Brooooooklyn/lzma.git",
+    "type": "git"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "os": [
+    "linux"
+  ],
+  "libc": [
+    "glibc"
+  ]
+}

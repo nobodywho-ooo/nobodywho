@@ -719,8 +719,7 @@ where
         let n_tokens = embeddings.as_ref().total_tokens();
         debug!(n_tokens, "Reading media embeddings:");
 
-        let decode_span = debug_span!("read media embeddings", n_tokens = n_tokens);
-        let decode_guard = decode_span.enter();
+        let _decode_span = debug_span!("llm::prefill_media_decode", n_tokens = n_tokens).entered();
         let n_ctx = self.ctx.n_ctx() as i32;
         self.n_past = embeddings.eval_chunks(
             &projection_model.ctx,
@@ -731,7 +730,7 @@ where
             true,
         )?;
 
-        drop(decode_guard);
+        drop(_decode_span);
         debug!(
             "Completed read media embeddings operation, n_past: {}",
             self.n_past
@@ -777,10 +776,9 @@ where
         }
 
         // llm go brr
-        let decode_span = debug_span!("read decode", n_tokens = n_tokens);
-        let decode_guard = decode_span.enter();
+        let _decode_span = debug_span!("llm::prefill_decode", n_tokens = n_tokens).entered();
         self.ctx.decode(&mut self.big_batch)?;
-        drop(decode_guard);
+        drop(_decode_span);
         // brrr
 
         self.n_past += tokens.len() as i32;

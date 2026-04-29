@@ -52,7 +52,7 @@ use std::hash::Hasher;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, MutexGuard};
-use tracing::{debug, error, info, trace, trace_span};
+use tracing::{debug, debug_span, error, info, trace, trace_span};
 
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq, Debug)]
 #[serde(rename_all = "lowercase")]
@@ -1351,7 +1351,22 @@ impl Worker<'_, ChatWorker> {
             chunks = self.render_as_chunks(true)?;
         }
 
-        let prefix_index = find_chunks_prefix_difference(&self.extra.context.chunks, &chunks);
+        let (prefix_index, n_new_tokens) = {
+            let _span = debug_span!(
+                "chat::chunk_diff",
+                n_total_tokens = chunks.n_tokens(),
+                prefix_reused = tracing::field::Empty,
+                n_new_tokens = tracing::field::Empty,
+            )
+            .entered();
+            let prefix_index =
+                find_chunks_prefix_difference(&self.extra.context.chunks, &chunks);
+            let n_new = chunks.n_tokens().saturating_sub(prefix_index);
+            _span.record("prefix_reused", prefix_index);
+            _span.record("n_new_tokens", n_new);
+            (prefix_index, n_new)
+        };
+        debug!(prefix_reused = prefix_index, n_new_tokens, "Context sync diff");
 
         // We should never try to sync with an empty render
         debug_assert!(!chunks.is_empty());
@@ -1388,6 +1403,10 @@ impl Worker<'_, ChatWorker> {
     }
 
     fn context_shift(&mut self) -> Result<(), ShiftError> {
+        let _span = debug_span!("chat::context_shift",
+            n_messages_before = self.extra.messages.len(),
+            n_messages_after = tracing::field::Empty,
+        ).entered();
         info!("Context shift happens!");
         let target_token_size = (self.ctx.n_ctx() / 2) as usize;
         let mut messages = self.extra.messages.clone();
@@ -1456,6 +1475,7 @@ impl Worker<'_, ChatWorker> {
         }
 
         self.extra.messages = messages;
+        _span.record("n_messages_after", self.extra.messages.len());
         Ok(())
     }
 
@@ -1495,6 +1515,9 @@ impl Worker<'_, ChatWorker> {
     where
         F: FnMut(WriteOutput),
     {
+        let _gen_span =
+            debug_span!("chat::generate_response", n_generated = tracing::field::Empty).entered();
+
         // Token generation loop
         info!("Worker writing until done");
 
@@ -1578,6 +1601,7 @@ impl Worker<'_, ChatWorker> {
         }
 
         // we're done!
+        _gen_span.record("n_generated", tokens_written_until_now.n_tokens());
         debug!(%full_response, "Sending out");
         respond(WriteOutput::Done(full_response));
         Ok(self)
@@ -1587,18 +1611,19 @@ impl Worker<'_, ChatWorker> {
         &mut self,
         sampler: &mut LlamaSampler,
     ) -> Result<LlamaToken, DecodingError> {
-        trace!("Applying sampler");
-        let new_token: LlamaToken = sampler.sample(&self.ctx, -1);
+        let new_token: LlamaToken = {
+            let _span = debug_span!("llm::sample").entered();
+            sampler.sample(&self.ctx, -1)
+        };
 
         // batch of one
         self.small_batch.clear();
         self.small_batch.add(new_token, self.n_past, &[0], true)?;
 
         // llm go brr
-        let decode_span = trace_span!("write decode", n_past = self.n_past);
-        let decode_guard = decode_span.enter();
+        let _decode_span = debug_span!("llm::write_decode", n_past = self.n_past).entered();
         self.ctx.decode(&mut self.small_batch)?;
-        drop(decode_guard);
+        drop(_decode_span);
         self.n_past += 1; // keep count
 
         Ok(new_token)
@@ -1608,6 +1633,8 @@ impl Worker<'_, ChatWorker> {
     where
         F: Fn(llm::WriteOutput) + Clone,
     {
+        let _ask_span = debug_span!("chat::ask").entered();
+
         // reset the stop flag
         self.extra
             .should_stop
@@ -1701,8 +1728,11 @@ impl Worker<'_, ChatWorker> {
                     };
 
                     // call the tool
-                    debug!("Calling the tool now!");
-                    let response = (tool.function)(tool_call.arguments);
+                    let response = {
+                        let _span =
+                            debug_span!("chat::tool_call", tool_name = %tool_call.name).entered();
+                        (tool.function)(tool_call.arguments)
+                    };
                     debug!(%tool_call.name, %response, "Tool call result:");
 
                     // add to chat history
@@ -1732,26 +1762,36 @@ impl Worker<'_, ChatWorker> {
     /// That is for avoiding the render will concat system message with the first user message.
     /// Otherwise please handle stuff.
     fn render_as_chunks(&mut self, handled: bool) -> Result<TokenizerChunks, RenderError> {
-        let messages = &self.extra.messages;
-        let template_context = ChatTemplateContext::new(
-            self.extra.template_variables.clone(),
-            if self.extra.tools.is_empty() {
-                None
-            } else {
-                Some(self.extra.tools.clone())
-            },
-        );
+        let n_messages = self.extra.messages.len();
 
-        let rendered_chat = if handled {
-            self.extra
-                .chat_template
-                .render(messages, &template_context)?
-        } else {
-            self.extra
-                .chat_template
-                .render_unhandled(messages, &template_context)?
+        let rendered_chat = {
+            let _span =
+                debug_span!("chat::template_render", n_messages, n_chars = tracing::field::Empty)
+                    .entered();
+            let messages = &self.extra.messages;
+            let template_context = ChatTemplateContext::new(
+                self.extra.template_variables.clone(),
+                if self.extra.tools.is_empty() {
+                    None
+                } else {
+                    Some(self.extra.tools.clone())
+                },
+            );
+
+            let result = if handled {
+                self.extra
+                    .chat_template
+                    .render(messages, &template_context)?
+            } else {
+                self.extra
+                    .chat_template
+                    .render_unhandled(messages, &template_context)?
+            };
+            _span.record("n_chars", result.len());
+            result
         };
 
+        let _span = debug_span!("chat::tokenize", n_chars = rendered_chat.len()).entered();
         let bitmaps: Vec<&MtmdBitmap> = self
             .extra
             .messages
