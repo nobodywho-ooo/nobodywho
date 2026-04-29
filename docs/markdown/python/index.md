@@ -44,7 +44,7 @@ from nobodywho import Model
 
 model = Model(
     'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
-    on_download_progress=lambda d, t: print(f"{d}/{t} bytes"),
+    on_download_progress=lambda downloaded, total: print(f"{downloaded}/{total} bytes"),
 )
 ```
 
