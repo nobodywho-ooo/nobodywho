@@ -101,7 +101,7 @@ fn get_bench_state() -> &'static BenchState {
         eprintln!("GPU: {}", if use_gpu { "enabled" } else { "disabled" });
 
         let model = Arc::new(
-            llm::get_model(&model_path, use_gpu, None)
+            llm::get_model(&model_path, use_gpu, None, None)
                 .unwrap_or_else(|e| panic!("Failed to load model {model_path}: {e:?}")),
         );
 
