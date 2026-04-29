@@ -8,6 +8,7 @@
 
 - **Embeddings**: pooling type is now read from GGUF metadata, fixing incorrect embeddings for models that specify a non-default pooling type. (#500)
 - **Embeddings**: explicitly mark all tokens as output during encoder runs, silencing a spurious llama.cpp warning. (Behavioral no-op — llama.cpp was already enabling outputs on all tokens for embeddings; this just suppresses the warning.) (#500)
+- **GPU memory estimation**: account for the output/embedding layer when computing the GPU/CPU split. Previously the layer count was off by one, leaving layer 0 on CPU and forcing a CPU↔GPU round-trip per token — which could degrade inference speed by 3–30× depending on model size. (#504)
 
 ### Documentation
 
