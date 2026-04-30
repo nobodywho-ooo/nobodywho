@@ -1,3 +1,23 @@
+## 2.0.0
+
+### Breaking Changes
+
+- **Refactored `Message` enum** — The `Message` type has been restructured into four distinct variants: `Message.User`, `Message.Assistant`, `Message.System`, and `Message.Tool`. The previous `Message.Message`, `Message.ToolCalls`, and `Message.ToolResp` variants have been removed. Tool calls are now represented as an optional `toolCalls` field on `Message.Assistant` instead of a separate variant. Update call sites:
+  ```dart
+  // Before
+  Message.message(role: Role.user, content: "Hello")
+  Message.toolCalls(role: Role.assistant, content: "", toolCalls: [...])
+  Message.toolResp(role: Role.tool, name: "get_weather", content: "22°C")
+
+  // After
+  Message.user(content: "Hello")
+  Message.assistant(content: "Hi!")
+  Message.assistant(content: "", toolCalls: [...])
+  Message.tool(name: "get_weather", content: "22°C")
+  Message.system(content: "You are helpful.")
+  ```
+- **Removed `Role` enum** — The `Role` enum is no longer needed since the role is now encoded in the `Message` variant itself.
+
 ## 1.2.0
 
 ### Features
