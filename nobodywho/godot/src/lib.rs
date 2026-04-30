@@ -1,6 +1,6 @@
 use godot::classes::{INode, ProjectSettings};
 use godot::prelude::*;
-use nobodywho::chat::{ChatConfig, Message, Role};
+use nobodywho::chat::{ChatConfig, Message};
 use nobodywho::sampler_config::{SamplerConfig, SamplerPresets};
 use nobodywho::{errors, llm, tokenizer};
 use std::collections::HashMap;
@@ -653,7 +653,7 @@ impl NobodyWhoChat {
         };
 
         // Check if last message is from user and warn
-        if msg_vec.last().is_some_and(|msg| msg.role() == &Role::User) {
+        if msg_vec.last().is_some_and(|msg| msg.is_user()) {
             godot_warn!("Chat history ends with a user message. This may cause unexpected behavior during generation.");
         }
 

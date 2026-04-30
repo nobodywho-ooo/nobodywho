@@ -619,38 +619,39 @@ const FfiConverterString = uniffiCreateFfiConverterString(stringConverter);
 
 // Enum: Message
 export enum Message_Tags {
-    Message = "Message",
-    ToolCalls = "ToolCalls",
-    ToolResp = "ToolResp"
+    User = "User",
+    Assistant = "Assistant",
+    System = "System",
+    Tool = "Tool"
 }
 export const Message = (() => {
     
 
-    type Message__interface = {
-        tag: Message_Tags.Message;
-        inner: Readonly<{role: Role; content: string; assets: Array<Asset>}>
+    type User__interface = {
+        tag: Message_Tags.User;
+        inner: Readonly<{content: string; assets: Array<Asset>}>
     };
 
     
-    class Message_ extends UniffiEnum implements Message__interface {
+    class User_ extends UniffiEnum implements User__interface {
         /**
          * @private
          * This field is private and should not be used, use `tag` instead.
          */
         readonly [uniffiTypeNameSymbol] = "Message";
-        readonly tag = Message_Tags.Message;
-        readonly inner: Readonly<{role: Role; content: string; assets: Array<Asset>}>;
-        constructor(inner: { role: Role, content: string, assets: Array<Asset> }) {
-            super("Message", "Message");
+        readonly tag = Message_Tags.User;
+        readonly inner: Readonly<{content: string; assets: Array<Asset>}>;
+        constructor(inner: { content: string, assets: Array<Asset> }) {
+            super("Message", "User");
             this.inner = Object.freeze(inner);
         }
 
-        static new(inner: { role: Role, content: string, assets: Array<Asset> }): Message_ {
-            return new Message_(inner);
+        static new(inner: { content: string, assets: Array<Asset> }): User_ {
+            return new User_(inner);
         }
 
-        static instanceOf(obj: any): obj is Message_ {
-            return obj.tag === Message_Tags.Message;
+        static instanceOf(obj: any): obj is User_ {
+            return obj.tag === Message_Tags.User;
         }
         
 
@@ -659,31 +660,31 @@ export const Message = (() => {
     }
     
 
-    type ToolCalls__interface = {
-        tag: Message_Tags.ToolCalls;
-        inner: Readonly<{role: Role; content: string; toolCalls: Array<ToolCall>}>
+    type Assistant__interface = {
+        tag: Message_Tags.Assistant;
+        inner: Readonly<{content: string; toolCalls: Array<ToolCall> | undefined}>
     };
 
     
-    class ToolCalls_ extends UniffiEnum implements ToolCalls__interface {
+    class Assistant_ extends UniffiEnum implements Assistant__interface {
         /**
          * @private
          * This field is private and should not be used, use `tag` instead.
          */
         readonly [uniffiTypeNameSymbol] = "Message";
-        readonly tag = Message_Tags.ToolCalls;
-        readonly inner: Readonly<{role: Role; content: string; toolCalls: Array<ToolCall>}>;
-        constructor(inner: { role: Role, content: string, toolCalls: Array<ToolCall> }) {
-            super("Message", "ToolCalls");
+        readonly tag = Message_Tags.Assistant;
+        readonly inner: Readonly<{content: string; toolCalls: Array<ToolCall> | undefined}>;
+        constructor(inner: { content: string, toolCalls: Array<ToolCall> | undefined }) {
+            super("Message", "Assistant");
             this.inner = Object.freeze(inner);
         }
 
-        static new(inner: { role: Role, content: string, toolCalls: Array<ToolCall> }): ToolCalls_ {
-            return new ToolCalls_(inner);
+        static new(inner: { content: string, toolCalls: Array<ToolCall> | undefined }): Assistant_ {
+            return new Assistant_(inner);
         }
 
-        static instanceOf(obj: any): obj is ToolCalls_ {
-            return obj.tag === Message_Tags.ToolCalls;
+        static instanceOf(obj: any): obj is Assistant_ {
+            return obj.tag === Message_Tags.Assistant;
         }
         
 
@@ -692,31 +693,64 @@ export const Message = (() => {
     }
     
 
-    type ToolResp__interface = {
-        tag: Message_Tags.ToolResp;
-        inner: Readonly<{role: Role; name: string; content: string}>
+    type System__interface = {
+        tag: Message_Tags.System;
+        inner: Readonly<{content: string}>
     };
 
     
-    class ToolResp_ extends UniffiEnum implements ToolResp__interface {
+    class System_ extends UniffiEnum implements System__interface {
         /**
          * @private
          * This field is private and should not be used, use `tag` instead.
          */
         readonly [uniffiTypeNameSymbol] = "Message";
-        readonly tag = Message_Tags.ToolResp;
-        readonly inner: Readonly<{role: Role; name: string; content: string}>;
-        constructor(inner: { role: Role, name: string, content: string }) {
-            super("Message", "ToolResp");
+        readonly tag = Message_Tags.System;
+        readonly inner: Readonly<{content: string}>;
+        constructor(inner: { content: string }) {
+            super("Message", "System");
             this.inner = Object.freeze(inner);
         }
 
-        static new(inner: { role: Role, name: string, content: string }): ToolResp_ {
-            return new ToolResp_(inner);
+        static new(inner: { content: string }): System_ {
+            return new System_(inner);
         }
 
-        static instanceOf(obj: any): obj is ToolResp_ {
-            return obj.tag === Message_Tags.ToolResp;
+        static instanceOf(obj: any): obj is System_ {
+            return obj.tag === Message_Tags.System;
+        }
+        
+
+        
+
+    }
+    
+
+    type Tool__interface = {
+        tag: Message_Tags.Tool;
+        inner: Readonly<{name: string; content: string}>
+    };
+
+    
+    class Tool_ extends UniffiEnum implements Tool__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "Message";
+        readonly tag = Message_Tags.Tool;
+        readonly inner: Readonly<{name: string; content: string}>;
+        constructor(inner: { name: string, content: string }) {
+            super("Message", "Tool");
+            this.inner = Object.freeze(inner);
+        }
+
+        static new(inner: { name: string, content: string }): Tool_ {
+            return new Tool_(inner);
+        }
+
+        static instanceOf(obj: any): obj is Tool_ {
+            return obj.tag === Message_Tags.Tool;
         }
         
 
@@ -730,9 +764,10 @@ export const Message = (() => {
 
     return Object.freeze({
         instanceOf,
-  Message: Message_, 
-  ToolCalls: ToolCalls_, 
-  ToolResp: ToolResp_
+  User: User_, 
+  Assistant: Assistant_, 
+  System: System_, 
+  Tool: Tool_
     });
 
 })();
@@ -750,34 +785,38 @@ const FfiConverterTypeMessage = (() => {
     class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
         read(from: RustBuffer): TypeName {
             switch (ordinalConverter.read(from)) {
-                case 1: return new Message.Message({role: FfiConverterTypeRole.read(from), content: FfiConverterString.read(from), assets: FfiConverterArrayTypeAsset.read(from) });
-                case 2: return new Message.ToolCalls({role: FfiConverterTypeRole.read(from), content: FfiConverterString.read(from), toolCalls: FfiConverterArrayTypeToolCall.read(from) });
-                case 3: return new Message.ToolResp({role: FfiConverterTypeRole.read(from), name: FfiConverterString.read(from), content: FfiConverterString.read(from) });
+                case 1: return new Message.User({content: FfiConverterString.read(from), assets: FfiConverterArrayTypeAsset.read(from) });
+                case 2: return new Message.Assistant({content: FfiConverterString.read(from), toolCalls: FfiConverterOptionalArrayTypeToolCall.read(from) });
+                case 3: return new Message.System({content: FfiConverterString.read(from) });
+                case 4: return new Message.Tool({name: FfiConverterString.read(from), content: FfiConverterString.read(from) });
                 default: throw new UniffiInternalError.UnexpectedEnumCase();
             }
         }
         write(value: TypeName, into: RustBuffer): void {
             switch (value.tag) {
-                case Message_Tags.Message: {
+                case Message_Tags.User: {
                     ordinalConverter.write(1, into);
                     const inner = value.inner;
-                    FfiConverterTypeRole.write(inner.role, into);
                     FfiConverterString.write(inner.content, into);
                     FfiConverterArrayTypeAsset.write(inner.assets, into);
                     return;
                 }
-                case Message_Tags.ToolCalls: {
+                case Message_Tags.Assistant: {
                     ordinalConverter.write(2, into);
                     const inner = value.inner;
-                    FfiConverterTypeRole.write(inner.role, into);
                     FfiConverterString.write(inner.content, into);
-                    FfiConverterArrayTypeToolCall.write(inner.toolCalls, into);
+                    FfiConverterOptionalArrayTypeToolCall.write(inner.toolCalls, into);
                     return;
                 }
-                case Message_Tags.ToolResp: {
+                case Message_Tags.System: {
                     ordinalConverter.write(3, into);
                     const inner = value.inner;
-                    FfiConverterTypeRole.write(inner.role, into);
+                    FfiConverterString.write(inner.content, into);
+                    return;
+                }
+                case Message_Tags.Tool: {
+                    ordinalConverter.write(4, into);
+                    const inner = value.inner;
                     FfiConverterString.write(inner.name, into);
                     FfiConverterString.write(inner.content, into);
                     return;
@@ -789,26 +828,29 @@ const FfiConverterTypeMessage = (() => {
         }
         allocationSize(value: TypeName): number {
             switch (value.tag) {
-                case Message_Tags.Message: {
+                case Message_Tags.User: {
                     const inner = value.inner;
                     let size = ordinalConverter.allocationSize(1);
-                    size += FfiConverterTypeRole.allocationSize(inner.role);
                     size += FfiConverterString.allocationSize(inner.content);
                     size += FfiConverterArrayTypeAsset.allocationSize(inner.assets);
                     return size;
                 }
-                case Message_Tags.ToolCalls: {
+                case Message_Tags.Assistant: {
                     const inner = value.inner;
                     let size = ordinalConverter.allocationSize(2);
-                    size += FfiConverterTypeRole.allocationSize(inner.role);
                     size += FfiConverterString.allocationSize(inner.content);
-                    size += FfiConverterArrayTypeToolCall.allocationSize(inner.toolCalls);
+                    size += FfiConverterOptionalArrayTypeToolCall.allocationSize(inner.toolCalls);
                     return size;
                 }
-                case Message_Tags.ToolResp: {
+                case Message_Tags.System: {
                     const inner = value.inner;
                     let size = ordinalConverter.allocationSize(3);
-                    size += FfiConverterTypeRole.allocationSize(inner.role);
+                    size += FfiConverterString.allocationSize(inner.content);
+                    return size;
+                }
+                case Message_Tags.Tool: {
+                    const inner = value.inner;
+                    let size = ordinalConverter.allocationSize(4);
                     size += FfiConverterString.allocationSize(inner.name);
                     size += FfiConverterString.allocationSize(inner.content);
                     return size;
@@ -1091,45 +1133,6 @@ const FfiConverterTypePromptPart = (() => {
     }
     return new FFIConverter();
 })();
-
-
-
-export enum Role {
-    User,
-    Assistant,
-    System,
-    Tool
-}
-
-const FfiConverterTypeRole = (() => {
-    const ordinalConverter = FfiConverterInt32;
-    type TypeName = Role;
-    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
-        read(from: RustBuffer): TypeName {
-            switch (ordinalConverter.read(from)) {
-                case 1: return Role.User;
-                case 2: return Role.Assistant;
-                case 3: return Role.System;
-                case 4: return Role.Tool;
-                default: throw new UniffiInternalError.UnexpectedEnumCase();
-            }
-        }
-        write(value: TypeName, into: RustBuffer): void {
-            switch (value) {
-                case Role.User: return ordinalConverter.write(1, into);
-                case Role.Assistant: return ordinalConverter.write(2, into);
-                case Role.System: return ordinalConverter.write(3, into);
-                case Role.Tool: return ordinalConverter.write(4, into);
-            }
-        }
-        allocationSize(value: TypeName): number {
-            return ordinalConverter.allocationSize(0);
-        }
-    }
-    return new FFIConverter();
-})();
-
-
 
 
 
@@ -2999,6 +3002,10 @@ const FfiConverterOptionalMapStringBool = new FfiConverterOptional(FfiConverterM
 const FfiConverterOptionalTypeSamplerConfig = new FfiConverterOptional(FfiConverterTypeSamplerConfig);
 
 
+// FfiConverter for Array<ToolCall> | undefined
+const FfiConverterOptionalArrayTypeToolCall = new FfiConverterOptional(FfiConverterArrayTypeToolCall);
+
+
 // FfiConverter for Array<Message>
 const FfiConverterArrayTypeMessage = new FfiConverterArray(FfiConverterTypeMessage);
 
@@ -3210,7 +3217,6 @@ export default Object.freeze({
     FfiConverterTypeNobodyWhoError,
     FfiConverterTypePendingToolCall,
     FfiConverterTypePromptPart,
-    FfiConverterTypeRole,
     FfiConverterTypeRustChat,
     FfiConverterTypeRustCrossEncoder,
     FfiConverterTypeRustEncoder,

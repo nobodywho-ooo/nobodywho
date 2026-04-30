@@ -488,6 +488,12 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   BigInt? dco_decode_opt_box_autoadd_usize(dynamic raw);
 
   @protected
+  List<ToolCall>?
+  dco_decode_opt_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
+    dynamic raw,
+  );
+
+  @protected
   PromptPart dco_decode_prompt_part(dynamic raw);
 
   @protected
@@ -498,9 +504,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   (String, String) dco_decode_record_string_string(dynamic raw);
-
-  @protected
-  Role dco_decode_role(dynamic raw);
 
   @protected
   int dco_decode_u_32(dynamic raw);
@@ -920,6 +923,12 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   BigInt? sse_decode_opt_box_autoadd_usize(SseDeserializer deserializer);
 
   @protected
+  List<ToolCall>?
+  sse_decode_opt_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   PromptPart sse_decode_prompt_part(SseDeserializer deserializer);
 
   @protected
@@ -932,9 +941,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   (String, String) sse_decode_record_string_string(
     SseDeserializer deserializer,
   );
-
-  @protected
-  Role sse_decode_role(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_32(SseDeserializer deserializer);
@@ -1438,6 +1444,13 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   void sse_encode_opt_box_autoadd_usize(BigInt? self, SseSerializer serializer);
 
   @protected
+  void
+  sse_encode_opt_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
+    List<ToolCall>? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_prompt_part(PromptPart self, SseSerializer serializer);
 
   @protected
@@ -1457,9 +1470,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
     (String, String) self,
     SseSerializer serializer,
   );
-
-  @protected
-  void sse_encode_role(Role self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_32(int self, SseSerializer serializer);

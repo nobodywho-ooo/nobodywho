@@ -3674,28 +3674,27 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     // Codec=Dco (DartCObject based), see doc to use other codecs
     switch (raw[0]) {
       case 0:
-        return Message_Message(
-          role: dco_decode_role(raw[1]),
-          content: dco_decode_String(raw[2]),
+        return Message_User(
+          content: dco_decode_String(raw[1]),
           assets:
               dco_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
-                raw[3],
+                raw[2],
               ),
         );
       case 1:
-        return Message_ToolCalls(
-          role: dco_decode_role(raw[1]),
-          content: dco_decode_String(raw[2]),
+        return Message_Assistant(
+          content: dco_decode_String(raw[1]),
           toolCalls:
-              dco_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
-                raw[3],
+              dco_decode_opt_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
+                raw[2],
               ),
         );
       case 2:
-        return Message_ToolResp(
-          role: dco_decode_role(raw[1]),
-          name: dco_decode_String(raw[2]),
-          content: dco_decode_String(raw[3]),
+        return Message_System(content: dco_decode_String(raw[1]));
+      case 3:
+        return Message_Tool(
+          name: dco_decode_String(raw[1]),
+          content: dco_decode_String(raw[2]),
         );
       default:
         throw Exception("unreachable");
@@ -3737,6 +3736,19 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   BigInt? dco_decode_opt_box_autoadd_usize(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_usize(raw);
+  }
+
+  @protected
+  List<ToolCall>?
+  dco_decode_opt_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null
+        ? null
+        : dco_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
+            raw,
+          );
   }
 
   @protected
@@ -3782,12 +3794,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       throw Exception('Expected 2 elements, got ${arr.length}');
     }
     return (dco_decode_String(arr[0]), dco_decode_String(arr[1]));
-  }
-
-  @protected
-  Role dco_decode_role(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return Role.values[raw as int];
   }
 
   @protected
@@ -4641,38 +4647,29 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     var tag_ = sse_decode_i_32(deserializer);
     switch (tag_) {
       case 0:
-        var var_role = sse_decode_role(deserializer);
         var var_content = sse_decode_String(deserializer);
         var var_assets =
             sse_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
               deserializer,
             );
-        return Message_Message(
-          role: var_role,
-          content: var_content,
-          assets: var_assets,
-        );
+        return Message_User(content: var_content, assets: var_assets);
       case 1:
-        var var_role = sse_decode_role(deserializer);
         var var_content = sse_decode_String(deserializer);
         var var_toolCalls =
-            sse_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
+            sse_decode_opt_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
               deserializer,
             );
-        return Message_ToolCalls(
-          role: var_role,
+        return Message_Assistant(
           content: var_content,
           toolCalls: var_toolCalls,
         );
       case 2:
-        var var_role = sse_decode_role(deserializer);
+        var var_content = sse_decode_String(deserializer);
+        return Message_System(content: var_content);
+      case 3:
         var var_name = sse_decode_String(deserializer);
         var var_content = sse_decode_String(deserializer);
-        return Message_ToolResp(
-          role: var_role,
-          name: var_name,
-          content: var_content,
-        );
+        return Message_Tool(name: var_name, content: var_content);
       default:
         throw UnimplementedError('');
     }
@@ -4739,6 +4736,22 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  List<ToolCall>?
+  sse_decode_opt_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
+        deserializer,
+      ));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   PromptPart sse_decode_prompt_part(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -4782,13 +4795,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     var var_field0 = sse_decode_String(deserializer);
     var var_field1 = sse_decode_String(deserializer);
     return (var_field0, var_field1);
-  }
-
-  @protected
-  Role sse_decode_role(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var inner = sse_decode_i_32(deserializer);
-    return Role.values[inner];
   }
 
   @protected
@@ -5724,37 +5730,28 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   void sse_encode_message(Message self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     switch (self) {
-      case Message_Message(
-        role: final role,
-        content: final content,
-        assets: final assets,
-      ):
+      case Message_User(content: final content, assets: final assets):
         sse_encode_i_32(0, serializer);
-        sse_encode_role(role, serializer);
         sse_encode_String(content, serializer);
         sse_encode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
           assets,
           serializer,
         );
-      case Message_ToolCalls(
-        role: final role,
+      case Message_Assistant(
         content: final content,
         toolCalls: final toolCalls,
       ):
         sse_encode_i_32(1, serializer);
-        sse_encode_role(role, serializer);
         sse_encode_String(content, serializer);
-        sse_encode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
+        sse_encode_opt_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
           toolCalls,
           serializer,
         );
-      case Message_ToolResp(
-        role: final role,
-        name: final name,
-        content: final content,
-      ):
+      case Message_System(content: final content):
         sse_encode_i_32(2, serializer);
-        sse_encode_role(role, serializer);
+        sse_encode_String(content, serializer);
+      case Message_Tool(name: final name, content: final content):
+        sse_encode_i_32(3, serializer);
         sse_encode_String(name, serializer);
         sse_encode_String(content, serializer);
     }
@@ -5821,6 +5818,23 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  void
+  sse_encode_opt_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
+    List<ToolCall>? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
+        self,
+        serializer,
+      );
+    }
+  }
+
+  @protected
   void sse_encode_prompt_part(PromptPart self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     switch (self) {
@@ -5864,12 +5878,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.$1, serializer);
     sse_encode_String(self.$2, serializer);
-  }
-
-  @protected
-  void sse_encode_role(Role self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_i_32(self.index, serializer);
   }
 
   @protected

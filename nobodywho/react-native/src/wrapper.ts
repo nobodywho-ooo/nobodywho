@@ -3,8 +3,8 @@
  *
  * This is the public entry point. It re-exports the public API:
  * - Wrapper classes: Model, Chat, Encoder, CrossEncoder, Tool, TokenStream, Prompt
- * - Direct re-exports: SamplerBuilder, SamplerConfig, Role
- * - Types: ChatMessage, Asset, ToolCall
+ * - Direct re-exports: SamplerBuilder, SamplerConfig
+ * - Types: Message, Asset, ToolCall
  * - Utilities: SamplerPresets, cosineSimilarity
  *
  * This file is NOT generated — it is safe to edit.
@@ -20,13 +20,12 @@ export { Tool } from "./tool";
 export { TokenStream } from "./streaming";
 
 // Message types
-export type { ChatMessage } from "./message";
+export type { Message } from "./message";
 
 // Re-export types that don't need wrapping.
 export {
   SamplerBuilder,
   SamplerConfig,
-  Role,
   cosineSimilarity,
 } from "./index";
 
