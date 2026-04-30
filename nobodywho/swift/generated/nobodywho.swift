@@ -457,6 +457,22 @@ fileprivate struct FfiConverterInt32: FfiConverterPrimitive {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterUInt64: FfiConverterPrimitive {
+    typealias FfiType = UInt64
+    typealias SwiftType = UInt64
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UInt64 {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterFloat: FfiConverterPrimitive {
     typealias FfiType = Float
     typealias SwiftType = Float
@@ -2428,11 +2444,13 @@ public func FfiConverterTypeToolParameter_lower(_ value: ToolParameter) -> RustB
 
 public enum Message: Equatable, Hashable {
     
-    case message(role: Role, content: String, assets: [Asset]
+    case user(content: String, assets: [Asset]
     )
-    case toolCalls(role: Role, content: String, toolCalls: [ToolCall]
+    case assistant(content: String, toolCalls: [ToolCall]?
     )
-    case toolResp(role: Role, name: String, content: String
+    case system(content: String
+    )
+    case tool(name: String, content: String
     )
 
 
@@ -2453,13 +2471,16 @@ public struct FfiConverterTypeMessage: FfiConverterRustBuffer {
         let variant: Int32 = try readInt(&buf)
         switch variant {
         
-        case 1: return .message(role: try FfiConverterTypeRole.read(from: &buf), content: try FfiConverterString.read(from: &buf), assets: try FfiConverterSequenceTypeAsset.read(from: &buf)
+        case 1: return .user(content: try FfiConverterString.read(from: &buf), assets: try FfiConverterSequenceTypeAsset.read(from: &buf)
         )
         
-        case 2: return .toolCalls(role: try FfiConverterTypeRole.read(from: &buf), content: try FfiConverterString.read(from: &buf), toolCalls: try FfiConverterSequenceTypeToolCall.read(from: &buf)
+        case 2: return .assistant(content: try FfiConverterString.read(from: &buf), toolCalls: try FfiConverterOptionSequenceTypeToolCall.read(from: &buf)
         )
         
-        case 3: return .toolResp(role: try FfiConverterTypeRole.read(from: &buf), name: try FfiConverterString.read(from: &buf), content: try FfiConverterString.read(from: &buf)
+        case 3: return .system(content: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 4: return .tool(name: try FfiConverterString.read(from: &buf), content: try FfiConverterString.read(from: &buf)
         )
         
         default: throw UniffiInternalError.unexpectedEnumCase
@@ -2470,23 +2491,25 @@ public struct FfiConverterTypeMessage: FfiConverterRustBuffer {
         switch value {
         
         
-        case let .message(role,content,assets):
+        case let .user(content,assets):
             writeInt(&buf, Int32(1))
-            FfiConverterTypeRole.write(role, into: &buf)
             FfiConverterString.write(content, into: &buf)
             FfiConverterSequenceTypeAsset.write(assets, into: &buf)
             
         
-        case let .toolCalls(role,content,toolCalls):
+        case let .assistant(content,toolCalls):
             writeInt(&buf, Int32(2))
-            FfiConverterTypeRole.write(role, into: &buf)
             FfiConverterString.write(content, into: &buf)
-            FfiConverterSequenceTypeToolCall.write(toolCalls, into: &buf)
+            FfiConverterOptionSequenceTypeToolCall.write(toolCalls, into: &buf)
             
         
-        case let .toolResp(role,name,content):
+        case let .system(content):
             writeInt(&buf, Int32(3))
-            FfiConverterTypeRole.write(role, into: &buf)
+            FfiConverterString.write(content, into: &buf)
+            
+        
+        case let .tool(name,content):
+            writeInt(&buf, Int32(4))
             FfiConverterString.write(name, into: &buf)
             FfiConverterString.write(content, into: &buf)
             
@@ -2666,66 +2689,120 @@ public func FfiConverterTypePromptPart_lower(_ value: PromptPart) -> RustBuffer 
 }
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 
-public enum Role: Equatable, Hashable {
+
+
+/**
+ * Callback interface for download progress reporting. Implement this in your
+ * language to receive `(downloadedBytes, totalBytes)` events while a remote
+ * model is being downloaded. Throttled to ~10 Hz with a guaranteed final emit
+ * on completion. Not invoked for cached/local files.
+ */
+public protocol RustDownloadProgressCallback: AnyObject, Sendable {
     
-    case user
-    case assistant
-    case system
-    case tool
-
-
-
+    func onDownloadProgress(downloaded: UInt64, total: UInt64) 
+    
 }
 
-#if compiler(>=6)
-extension Role: Sendable {}
+
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfaceRustDownloadProgressCallback {
+
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    //
+    // This creates 1-element array, since this seems to be the only way to construct a const
+    // pointer that we can pass to the Rust code.
+    static let vtable: [UniffiVTableCallbackInterfaceRustDownloadProgressCallback] = [UniffiVTableCallbackInterfaceRustDownloadProgressCallback(
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            do {
+                try FfiConverterCallbackInterfaceRustDownloadProgressCallback.handleMap.remove(handle: uniffiHandle)
+            } catch {
+                print("Uniffi callback interface RustDownloadProgressCallback: handle missing in uniffiFree")
+            }
+        },
+        uniffiClone: { (uniffiHandle: UInt64) -> UInt64 in
+            do {
+                return try FfiConverterCallbackInterfaceRustDownloadProgressCallback.handleMap.clone(handle: uniffiHandle)
+            } catch {
+                fatalError("Uniffi callback interface RustDownloadProgressCallback: handle missing in uniffiClone")
+            }
+        },
+        onDownloadProgress: { (
+            uniffiHandle: UInt64,
+            downloaded: UInt64,
+            total: UInt64,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let makeCall = {
+                () throws -> () in
+                guard let uniffiObj = try? FfiConverterCallbackInterfaceRustDownloadProgressCallback.handleMap.get(handle: uniffiHandle) else {
+                    throw UniffiInternalError.unexpectedStaleHandle
+                }
+                return uniffiObj.onDownloadProgress(
+                     downloaded: try FfiConverterUInt64.lift(downloaded),
+                     total: try FfiConverterUInt64.lift(total)
+                )
+            }
+
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        }
+    )]
+}
+
+private func uniffiCallbackInitRustDownloadProgressCallback() {
+    uniffi_nobodywho_uniffi_fn_init_callback_vtable_rustdownloadprogresscallback(UniffiCallbackInterfaceRustDownloadProgressCallback.vtable)
+}
+
+// FfiConverter protocol for callback interfaces
+#if swift(>=5.8)
+@_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterCallbackInterfaceRustDownloadProgressCallback {
+    fileprivate static let handleMap = UniffiHandleMap<RustDownloadProgressCallback>()
+}
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeRole: FfiConverterRustBuffer {
-    typealias SwiftType = Role
+extension FfiConverterCallbackInterfaceRustDownloadProgressCallback : FfiConverter {
+    typealias SwiftType = RustDownloadProgressCallback
+    typealias FfiType = UInt64
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Role {
-        let variant: Int32 = try readInt(&buf)
-        switch variant {
-        
-        case 1: return .user
-        
-        case 2: return .assistant
-        
-        case 3: return .system
-        
-        case 4: return .tool
-        
-        default: throw UniffiInternalError.unexpectedEnumCase
-        }
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
     }
 
-    public static func write(_ value: Role, into buf: inout [UInt8]) {
-        switch value {
-        
-        
-        case .user:
-            writeInt(&buf, Int32(1))
-        
-        
-        case .assistant:
-            writeInt(&buf, Int32(2))
-        
-        
-        case .system:
-            writeInt(&buf, Int32(3))
-        
-        
-        case .tool:
-            writeInt(&buf, Int32(4))
-        
-        }
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public static func lower(_ v: SwiftType) -> UInt64 {
+        return handleMap.insert(obj: v)
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public static func write(_ v: SwiftType, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(v))
     }
 }
 
@@ -2733,17 +2810,16 @@ public struct FfiConverterTypeRole: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeRole_lift(_ buf: RustBuffer) throws -> Role {
-    return try FfiConverterTypeRole.lift(buf)
+public func FfiConverterCallbackInterfaceRustDownloadProgressCallback_lift(_ handle: UInt64) throws -> RustDownloadProgressCallback {
+    return try FfiConverterCallbackInterfaceRustDownloadProgressCallback.lift(handle)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeRole_lower(_ value: Role) -> RustBuffer {
-    return FfiConverterTypeRole.lower(value)
+public func FfiConverterCallbackInterfaceRustDownloadProgressCallback_lower(_ v: RustDownloadProgressCallback) -> UInt64 {
+    return FfiConverterCallbackInterfaceRustDownloadProgressCallback.lower(v)
 }
-
 
 
 
@@ -2974,6 +3050,30 @@ fileprivate struct FfiConverterOptionTypePendingToolCall: FfiConverterRustBuffer
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionCallbackInterfaceRustDownloadProgressCallback: FfiConverterRustBuffer {
+    typealias SwiftType = RustDownloadProgressCallback?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterCallbackInterfaceRustDownloadProgressCallback.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterCallbackInterfaceRustDownloadProgressCallback.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionSequenceTypeRustTool: FfiConverterRustBuffer {
     typealias SwiftType = [RustTool]?
 
@@ -2990,6 +3090,30 @@ fileprivate struct FfiConverterOptionSequenceTypeRustTool: FfiConverterRustBuffe
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterSequenceTypeRustTool.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionSequenceTypeToolCall: FfiConverterRustBuffer {
+    typealias SwiftType = [ToolCall]?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterSequenceTypeToolCall.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterSequenceTypeToolCall.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -3313,11 +3437,11 @@ public func cosineSimilarity(a: [Float], b: [Float]) -> Float  {
  * uniffi-bindgen-react-native generates invalid JS (`async static` instead
  * of `static async`) for async constructors.
  */
-public func loadModel(modelPath: String, useGpu: Bool, projectionModelPath: String?)async throws  -> RustModel  {
+public func loadModel(modelPath: String, useGpu: Bool, projectionModelPath: String?, onDownloadProgress: RustDownloadProgressCallback?)async throws  -> RustModel  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
-                uniffi_nobodywho_uniffi_fn_func_load_model(FfiConverterString.lower(modelPath),FfiConverterBool.lower(useGpu),FfiConverterOptionString.lower(projectionModelPath)
+                uniffi_nobodywho_uniffi_fn_func_load_model(FfiConverterString.lower(modelPath),FfiConverterBool.lower(useGpu),FfiConverterOptionString.lower(projectionModelPath),FfiConverterOptionCallbackInterfaceRustDownloadProgressCallback.lower(onDownloadProgress)
                 )
             },
             pollFunc: ffi_nobodywho_uniffi_rust_future_poll_u64,
@@ -3422,7 +3546,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_func_cosine_similarity() != 63439) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_func_load_model() != 63144) {
+    if (uniffi_nobodywho_uniffi_checksum_func_load_model() != 33587) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_func_sampler_preset_default() != 10834) {
@@ -3578,10 +3702,14 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_constructor_samplerconfig_from_json() != 6867) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_nobodywho_uniffi_checksum_method_rustdownloadprogresscallback_on_download_progress() != 28617) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_nobodywho_uniffi_checksum_method_rusttoolcallback_call() != 43958) {
         return InitializationResult.apiChecksumMismatch
     }
 
+    uniffiCallbackInitRustDownloadProgressCallback()
     uniffiCallbackInitRustToolCallback()
     return InitializationResult.ok
 }()
