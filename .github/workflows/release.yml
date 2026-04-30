@@ -191,7 +191,7 @@ jobs:
 
   # Create GitHub Release with native binaries, then publish to npm.
   create-github-release-react-native:
-    if: startsWith(github.ref, 'refs/tags/nobodywho-react-native-')
+    if: startsWith(github.ref, 'refs/tags/nobodywho-react-native-v')
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -229,7 +229,7 @@ jobs:
 
   publish-react-native-npm:
     needs: [create-github-release-react-native]
-    if: startsWith(github.ref, 'refs/tags/nobodywho-react-native-')
+    if: startsWith(github.ref, 'refs/tags/nobodywho-react-native-v')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4

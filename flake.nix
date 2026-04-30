@@ -92,7 +92,7 @@
           pname = "react-native-jest";
           version = "0.0.0"; # nix derivation metadata only, does not need to match the npm package version
           src = ./nobodywho/react-native;
-          npmDepsHash = "sha256-g33a0LC+46R+cE2f7Sqy/qzfz9h8xm/GaUp+b7Jb4Ek=";
+          npmDepsHash = "sha256-9l1opUuR0/2Z7NS5YbH4f9thUyNkg14eZVx/KRi4ZpA=";
           dontNpmBuild = true;
           checkPhase = "npx jest";
           doCheck = true;
