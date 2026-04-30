@@ -10,7 +10,7 @@ framework_name = "NobodywhoFramework.xcframework"
 framework_dir = File.join(__dir__, framework_name)
 zip_name = "#{framework_name}.zip"
 zip_path = File.join(__dir__, zip_name)
-url = "https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-react-native-#{version}/#{zip_name}"
+url = "https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-react-native-v#{version}/#{zip_name}"
 
 # Always download a fresh xcframework to ensure it matches the package version.
 FileUtils.rm_rf(framework_dir) if File.exist?(framework_dir)
@@ -20,7 +20,7 @@ puts "[NobodyWho] Downloading xcframework from #{url}"
 system("curl", "-L", "-f", "-o", zip_path, url) or
   raise "Failed to download NobodyWho xcframework.\n" \
         "URL: #{url}\n" \
-        "Check that the release exists: https://github.com/nobodywho-ooo/nobodywho/releases/tag/nobodywho-react-native-#{version}\n" \
+        "Check that the release exists: https://github.com/nobodywho-ooo/nobodywho/releases/tag/nobodywho-react-native-v#{version}\n" \
         "For local development, manually place the xcframework at: #{framework_dir}"
 
 puts "[NobodyWho] Extracting xcframework..."
