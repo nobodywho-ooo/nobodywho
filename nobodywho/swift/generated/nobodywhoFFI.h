@@ -243,11 +243,27 @@ typedef void (*UniffiForeignFutureCompleteVoid)(uint64_t, UniffiForeignFutureRes
     );
 
 #endif
+#ifndef UNIFFI_FFIDEF_CALLBACK_INTERFACE_RUST_DOWNLOAD_PROGRESS_CALLBACK_METHOD0
+#define UNIFFI_FFIDEF_CALLBACK_INTERFACE_RUST_DOWNLOAD_PROGRESS_CALLBACK_METHOD0
+typedef void (*UniffiCallbackInterfaceRustDownloadProgressCallbackMethod0)(uint64_t, uint64_t, uint64_t, void* _Nonnull, 
+        RustCallStatus *_Nonnull uniffiCallStatus
+    );
+
+#endif
 #ifndef UNIFFI_FFIDEF_CALLBACK_INTERFACE_RUST_TOOL_CALLBACK_METHOD0
 #define UNIFFI_FFIDEF_CALLBACK_INTERFACE_RUST_TOOL_CALLBACK_METHOD0
 typedef void (*UniffiCallbackInterfaceRustToolCallbackMethod0)(uint64_t, RustBuffer, RustBuffer* _Nonnull, 
         RustCallStatus *_Nonnull uniffiCallStatus
     );
+
+#endif
+#ifndef UNIFFI_FFIDEF_V_TABLE_CALLBACK_INTERFACE_RUST_DOWNLOAD_PROGRESS_CALLBACK
+#define UNIFFI_FFIDEF_V_TABLE_CALLBACK_INTERFACE_RUST_DOWNLOAD_PROGRESS_CALLBACK
+typedef struct UniffiVTableCallbackInterfaceRustDownloadProgressCallback {
+    UniffiCallbackInterfaceFree _Nonnull uniffiFree;
+    UniffiCallbackInterfaceClone _Nonnull uniffiClone;
+    UniffiCallbackInterfaceRustDownloadProgressCallbackMethod0 _Nonnull onDownloadProgress;
+} UniffiVTableCallbackInterfaceRustDownloadProgressCallback;
 
 #endif
 #ifndef UNIFFI_FFIDEF_V_TABLE_CALLBACK_INTERFACE_RUST_TOOL_CALLBACK
@@ -555,6 +571,11 @@ uint64_t uniffi_nobodywho_uniffi_fn_constructor_samplerconfig_from_json(RustBuff
 RustBuffer uniffi_nobodywho_uniffi_fn_method_samplerconfig_to_json(uint64_t ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_INIT_CALLBACK_VTABLE_RUSTDOWNLOADPROGRESSCALLBACK
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_INIT_CALLBACK_VTABLE_RUSTDOWNLOADPROGRESSCALLBACK
+void uniffi_nobodywho_uniffi_fn_init_callback_vtable_rustdownloadprogresscallback(const UniffiVTableCallbackInterfaceRustDownloadProgressCallback* _Nonnull vtable
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_INIT_CALLBACK_VTABLE_RUSTTOOLCALLBACK
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_INIT_CALLBACK_VTABLE_RUSTTOOLCALLBACK
 void uniffi_nobodywho_uniffi_fn_init_callback_vtable_rusttoolcallback(const UniffiVTableCallbackInterfaceRustToolCallback* _Nonnull vtable
@@ -567,7 +588,7 @@ float uniffi_nobodywho_uniffi_fn_func_cosine_similarity(RustBuffer a, RustBuffer
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_LOAD_MODEL
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_LOAD_MODEL
-uint64_t uniffi_nobodywho_uniffi_fn_func_load_model(RustBuffer model_path, int8_t use_gpu, RustBuffer projection_model_path
+uint64_t uniffi_nobodywho_uniffi_fn_func_load_model(RustBuffer model_path, int8_t use_gpu, RustBuffer projection_model_path, RustBuffer on_download_progress
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_SAMPLER_PRESET_DEFAULT
@@ -1189,6 +1210,12 @@ uint16_t uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_CONSTRUCTOR_SAMPLERCONFIG_FROM_JSON
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_CONSTRUCTOR_SAMPLERCONFIG_FROM_JSON
 uint16_t uniffi_nobodywho_uniffi_checksum_constructor_samplerconfig_from_json(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTDOWNLOADPROGRESSCALLBACK_ON_DOWNLOAD_PROGRESS
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTDOWNLOADPROGRESSCALLBACK_ON_DOWNLOAD_PROGRESS
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rustdownloadprogresscallback_on_download_progress(void
     
 );
 #endif

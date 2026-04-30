@@ -4,8 +4,9 @@
 // The NobodyWhoGenerated module is NOT a product, so consumers cannot
 // import it directly. Only types listed here are visible to users.
 
+import NobodyWhoGenerated
+
 public typealias Message = NobodyWhoGenerated.Message
-public typealias Role = NobodyWhoGenerated.Role
 public typealias PromptPart = NobodyWhoGenerated.PromptPart
 public typealias SamplerConfig = NobodyWhoGenerated.SamplerConfig
 public typealias SamplerBuilder = NobodyWhoGenerated.SamplerBuilder

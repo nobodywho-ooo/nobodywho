@@ -16,22 +16,39 @@ public class Model {
         self.inner = inner
     }
 
-    /// Load a GGUF model from disk.
+    /// Load a GGUF model from disk or remote URL.
     ///
     /// - Parameters:
-    ///   - modelPath: Path to the .gguf model file.
+    ///   - modelPath: Path to the .gguf model file, `hf://owner/repo/file.gguf`, or an `https://` URL.
     ///   - useGpu: Enable GPU acceleration (default: true).
     ///   - projectionModelPath: Optional path to an mmproj file for vision models.
+    ///   - onDownloadProgress: Optional callback receiving `(downloadedBytes, totalBytes)` during download.
     public static func load(
         modelPath: String,
         useGpu: Bool = true,
-        projectionModelPath: String? = nil
+        projectionModelPath: String? = nil,
+        onDownloadProgress: ((UInt64, UInt64) -> Void)? = nil
     ) async throws -> Model {
+        let callback = onDownloadProgress.map { DownloadProgressCallbackImpl($0) }
         let inner = try await NobodyWhoGenerated.loadModel(
             modelPath: modelPath,
             useGpu: useGpu,
-            projectionModelPath: projectionModelPath
+            projectionModelPath: projectionModelPath,
+            onDownloadProgress: callback
         )
         return Model(inner: inner)
+    }
+}
+
+/// Bridges a Swift closure to the `RustDownloadProgressCallback` protocol.
+private class DownloadProgressCallbackImpl: RustDownloadProgressCallback {
+    let handler: (UInt64, UInt64) -> Void
+
+    init(_ handler: @escaping (UInt64, UInt64) -> Void) {
+        self.handler = handler
+    }
+
+    func onDownloadProgress(downloaded: UInt64, total: UInt64) {
+        handler(downloaded, total)
     }
 }

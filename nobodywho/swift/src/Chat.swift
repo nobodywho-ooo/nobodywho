@@ -43,12 +43,14 @@ public class Chat {
         contextSize: UInt32 = 4096,
         templateVariables: [String: Bool]? = nil,
         tools: [Tool]? = nil,
-        sampler: SamplerConfig? = nil
+        sampler: SamplerConfig? = nil,
+        onDownloadProgress: ((UInt64, UInt64) -> Void)? = nil
     ) async throws -> Chat {
         let model = try await Model.load(
             modelPath: modelPath,
             useGpu: useGpu,
-            projectionModelPath: projectionModelPath
+            projectionModelPath: projectionModelPath,
+            onDownloadProgress: onDownloadProgress
         )
         return Chat(
             model: model,
