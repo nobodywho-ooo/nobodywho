@@ -1,3 +1,7 @@
+## 1.2.1-rc1
+
+- Add metal feature to llama-cpp-rs
+
 ## 1.2.0
 
 ### Features
