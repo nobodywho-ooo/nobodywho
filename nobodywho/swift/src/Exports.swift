@@ -11,7 +11,6 @@ public typealias PromptPart = NobodyWhoGenerated.PromptPart
 public typealias SamplerConfig = NobodyWhoGenerated.SamplerConfig
 public typealias SamplerBuilder = NobodyWhoGenerated.SamplerBuilder
 public typealias Asset = NobodyWhoGenerated.Asset
-public typealias ToolParameter = NobodyWhoGenerated.ToolParameter
 public typealias ToolCall = NobodyWhoGenerated.ToolCall
 public typealias NobodyWhoError = NobodyWhoGenerated.NobodyWhoError
 

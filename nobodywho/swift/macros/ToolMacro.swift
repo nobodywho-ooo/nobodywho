@@ -2,8 +2,8 @@ import SwiftSyntax
 import SwiftSyntaxMacros
 import SwiftCompilerPlugin
 
-/// Maps Swift type names to JSON Schema type strings.
-private func jsonSchemaType(for swiftType: String) -> String {
+/// Maps Swift type names to the parameter type strings used by Tool's tuple API.
+private func paramType(for swiftType: String) -> String {
     switch swiftType {
     case "String":
         return "string"
@@ -19,17 +19,41 @@ private func jsonSchemaType(for swiftType: String) -> String {
     }
 }
 
-/// Generates a cast expression to extract a typed value from parsed JSON.
-private func castExpression(name: String, schemaType: String) -> String {
-    switch schemaType {
-    case "integer":
-        return "(parsed[\"\(name)\"] as? NSNumber)?.intValue ?? 0"
-    case "number":
-        return "(parsed[\"\(name)\"] as? NSNumber)?.doubleValue ?? 0.0"
-    case "boolean":
-        return "(parsed[\"\(name)\"] as? Bool) ?? false"
+/// Generates a cast expression to extract a typed value from the args array.
+/// The args array contains values pre-converted by Tool's internal parseArgs:
+///   "string" → String, "integer" → Int, "number" → Double, "boolean" → Bool
+private func argCast(index: Int, swiftType: String) -> String {
+    switch swiftType {
+    case "Float", "Float32":
+        return "Float(args[\(index)] as! Double)"
+    case "CGFloat":
+        return "CGFloat(args[\(index)] as! Double)"
+    case "Int8":
+        return "Int8(args[\(index)] as! Int)"
+    case "Int16":
+        return "Int16(args[\(index)] as! Int)"
+    case "Int32":
+        return "Int32(args[\(index)] as! Int)"
+    case "Int64":
+        return "Int64(args[\(index)] as! Int)"
+    case "UInt":
+        return "UInt(args[\(index)] as! Int)"
+    case "UInt8":
+        return "UInt8(args[\(index)] as! Int)"
+    case "UInt16":
+        return "UInt16(args[\(index)] as! Int)"
+    case "UInt32":
+        return "UInt32(args[\(index)] as! Int)"
+    case "UInt64":
+        return "UInt64(args[\(index)] as! Int)"
+    case "Int":
+        return "args[\(index)] as! Int"
+    case "Double", "Float64":
+        return "args[\(index)] as! Double"
+    case "Bool":
+        return "args[\(index)] as! Bool"
     default:
-        return "(parsed[\"\(name)\"] as? String) ?? \"\""
+        return "args[\(index)] as! String"
     }
 }
 
@@ -43,7 +67,7 @@ public struct ToolMacro: PeerMacro {
             throw ToolMacroError.onlyApplicableToFunction
         }
 
-        // Extract description from @Tool("...")
+        // Extract description from @DeclareTool("...")
         guard let arguments = node.arguments?.as(LabeledExprListSyntax.self),
               let firstArg = arguments.first,
               let descriptionLiteral = firstArg.expression.as(StringLiteralExprSyntax.self),
@@ -56,21 +80,16 @@ public struct ToolMacro: PeerMacro {
         let parameters = funcDecl.signature.parameterClause.parameters
         let isAsync = funcDecl.signature.effectSpecifiers?.asyncSpecifier != nil
 
-        // Build ToolParameter array entries and argument extraction lines
-        var toolParamEntries: [String] = []
+        // Build parameter tuples and argument extraction lines
+        var paramTuples: [String] = []
         var argLetBindings: [String] = []
 
-        for param in parameters {
+        for (index, param) in parameters.enumerated() {
             let internalName = param.secondName?.text ?? param.firstName.text
             let typeText = param.type.description.trimmingCharacters(in: .whitespaces)
-            let schemaType = jsonSchemaType(for: typeText)
 
-            toolParamEntries.append(
-                "ToolParameter(name: \"\(internalName)\", schema: #\"{\"type\": \"\(schemaType)\"}\"#)"
-            )
-            argLetBindings.append(
-                "let \(internalName) = \(castExpression(name: internalName, schemaType: schemaType))"
-            )
+            paramTuples.append("(\"\(internalName)\", \"\(paramType(for: typeText))\")")
+            argLetBindings.append("let \(internalName) = \(argCast(index: index, swiftType: typeText))")
         }
 
         // Build the function call expression with named arguments
@@ -84,52 +103,34 @@ public struct ToolMacro: PeerMacro {
         }.joined(separator: ", ")
 
         let paramListCode: String
-        if toolParamEntries.isEmpty {
+        if paramTuples.isEmpty {
             paramListCode = "[]"
         } else {
-            paramListCode = "[\n            \(toolParamEntries.joined(separator: ",\n            "))\n        ]"
+            paramListCode = "[\(paramTuples.joined(separator: ", "))]"
         }
-
-        let argBindingsCode = argLetBindings.joined(separator: "\n            ")
 
         let callExpr = isAsync
             ? "await \(funcName)(\(callArgs))"
             : "\(funcName)(\(callArgs))"
 
-        let callbackType = isAsync ? "AsyncToolCallbackClosure" : "ToolCallbackClosure"
+        let closureParam = parameters.isEmpty ? "_ in" : "args in"
+        let argBindingsCode = argLetBindings.map { "    \($0)" }.joined(separator: "\n")
 
         let closureBody: String
-        if isAsync {
-            closureBody = """
-            \(callbackType) { argumentsJson async in
-                            guard let data = argumentsJson.data(using: .utf8),
-                                  let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                                return "Error: Failed to parse arguments"
-                            }
-                            \(argBindingsCode)
-                            return \(callExpr)
-                        }
-            """
+        if argLetBindings.isEmpty {
+            closureBody = "    return \(callExpr)"
         } else {
-            closureBody = """
-            \(callbackType) { argumentsJson in
-                            guard let data = argumentsJson.data(using: .utf8),
-                                  let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                                return "Error: Failed to parse arguments"
-                            }
-                            \(argBindingsCode)
-                            return \(callExpr)
-                        }
-            """
+            closureBody = "\(argBindingsCode)\n    return \(callExpr)"
         }
 
         let generated = """
         let \(funcName)Tool = Tool(
             name: "\(funcName)",
             description: "\(description)",
-            parameters: \(paramListCode),
-            callback: \(closureBody)
-        )
+            parameters: \(paramListCode)
+        ) { \(closureParam)
+        \(closureBody)
+        }
         """
 
         return [DeclSyntax(stringLiteral: generated)]
