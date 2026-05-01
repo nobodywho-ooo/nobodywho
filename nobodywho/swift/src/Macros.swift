@@ -22,5 +22,5 @@
 ///   It does not work inside function bodies due to a Swift peer macro limitation.
 ///   To define tools inside a function body (e.g. to capture local variables),
 ///   use the ``Tool`` initializer directly instead.
-@attached(peer, names: arbitrary)
+@attached(peer, names: suffixed(Tool))
 public macro DeclareTool(_ description: String) = #externalMacro(module: "NobodyWhoMacros", type: "ToolMacro")
