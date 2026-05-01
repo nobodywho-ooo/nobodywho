@@ -46,7 +46,10 @@ let package = Package(
             name: "NobodyWhoGenerated",
             dependencies: ["NobodyWhoNative"],
             path: "generated",
-            sources: ["nobodywho.swift"]
+            sources: ["nobodywho.swift"],
+            linkerSettings: [
+                .linkedFramework("Accelerate"),
+            ]
         ),
         .testTarget(
             name: "NobodyWhoMacroTests",
