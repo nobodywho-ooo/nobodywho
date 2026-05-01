@@ -53,3 +53,10 @@ llama-cpp-2 = { git = "https://github.com/marek-hradil/llama-cpp-rs", branch = "
     "mtmd",
     "android-static-stdcxx",
 ] }
+
+# Enable Metal on iOS. (macOS aarch64 gets Metal automatically from llama-cpp-2's own target-cfg upstream.)
+[target.'cfg(target_os = "ios")'.dependencies]
+llama-cpp-2 = { git = "https://github.com/marek-hradil/llama-cpp-rs", branch = "main", default-features = false, features = [
+    "metal",
+    "mtmd",
+] }
