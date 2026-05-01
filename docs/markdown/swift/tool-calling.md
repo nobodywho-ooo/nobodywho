@@ -34,7 +34,7 @@ let chat = try await Chat.fromPath(
 
 The generated variable is named `<functionName>Tool` — so `circleArea` becomes `circleAreaTool`.
 
-Supported parameter types: `String`, `Int`, `Double`, `Float`, `Bool`.
+Supported parameter types: `String`, `Int`, `Double`, `Float`, `Bool`, and collections like `[String]` or `[String: Int]`.
 
 ### Async tools
 
@@ -59,20 +59,68 @@ let chat = try await Chat.fromPath(
 )
 ```
 
+### Scope limitation
+
+`@DeclareTool` is a Swift peer macro, which means it can only introduce new declarations at **top-level** or **type-member** scope. It **does not work inside function bodies**:
+
+```swift
+// ✅ Works — top-level scope
+@DeclareTool("Ping the server")
+func ping() -> String { return "pong" }
+
+class MyApp {
+    // ✅ Works — type-member scope
+    @DeclareTool("Get status")
+    static func status() -> String { return "ok" }
+}
+
+func example() {
+    // ❌ Does NOT work — local scope
+    @DeclareTool("Ping the server")
+    func ping() -> String { return "pong" }
+    _ = pingTool // error: cannot find 'pingTool' in scope
+}
+```
+
+If you need to define a tool inside a function body (for example, to capture local variables), use the manual `Tool` initializer described below.
+
 ## Creating tools manually
 
-You can also create tools without the macro, using the `Tool` initializer directly.
-Arguments from the LLM are passed positionally in the same order as the `parameters` array:
+You can also create tools without the macro, using the `Tool` initializer directly. This works in any scope, including inside function bodies where the macro cannot be used. Each parameter is a `(name, jsonSchema)` tuple, and arguments from the LLM are passed positionally in the same order as the `parameters` array:
 
 ```swift
 let circleAreaTool = Tool(
     name: "circle_area",
     description: "Calculates the area of a circle given its radius",
-    parameters: [("radius", "number")]
+    parameters: [("radius", #"{"type": "number"}"#)]
 ) { args in
     let radius = args[0] as! Double
     let area = Double.pi * radius * radius
     return "Circle with radius \(radius) has area \(String(format: "%.2f", area))"
+}
+```
+
+This is especially useful when you need to capture local state:
+
+```swift
+func runChat() async throws {
+    var callCount = 0
+
+    let pingTool = Tool(
+        name: "ping",
+        description: "Ping the server",
+        parameters: []
+    ) { _ in
+        callCount += 1
+        return "pong"
+    }
+
+    let chat = try await Chat.fromPath(
+        modelPath: "/path/to/model.gguf",
+        tools: [pingTool]
+    )
+    let _ = try await chat.ask("Ping the server").completed()
+    print("Tool was called \(callCount) time(s)")
 }
 ```
 
@@ -82,12 +130,25 @@ For async callbacks, there's a separate initializer:
 let searchTool = Tool(
     name: "search",
     description: "Search the knowledge base",
-    parameters: [("query", "string")]
+    parameters: [("query", #"{"type": "string"}"#)]
 ) { args async in
     let query = args[0] as! String
     return await knowledgeBase.search(query)
 }
 ```
+
+### Parameter schema reference
+
+Each parameter schema is a JSON Schema string. Common types:
+
+| Swift type | JSON Schema |
+|---|---|
+| `String` | `#"{"type": "string"}"#` |
+| `Int` | `#"{"type": "integer"}"#` |
+| `Double`, `Float` | `#"{"type": "number"}"#` |
+| `Bool` | `#"{"type": "boolean"}"#` |
+| `[String]` | `#"{"type": "array", "items": {"type": "string"}}"#` |
+| `[String: Int]` | `#"{"type": "object", "additionalProperties": {"type": "integer"}}"#` |
 
 ## Multiple tools
 

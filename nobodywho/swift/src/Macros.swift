@@ -15,6 +15,12 @@
 /// The generated variable is named `<functionName>Tool`. For example,
 /// `getWeather` becomes `getWeatherTool`.
 ///
-/// Supported parameter types: `String`, `Int`, `Double`, `Float`, `Bool`.
+/// Supported parameter types: `String`, `Int`, `Double`, `Float`, `Bool`,
+/// and collections like `[String]` or `[String: Int]`.
+///
+/// - Important: This macro must be used at **top-level** or **type-member** scope.
+///   It does not work inside function bodies due to a Swift peer macro limitation.
+///   To define tools inside a function body (e.g. to capture local variables),
+///   use the ``Tool`` initializer directly instead.
 @attached(peer, names: arbitrary)
 public macro DeclareTool(_ description: String) = #externalMacro(module: "NobodyWhoMacros", type: "ToolMacro")

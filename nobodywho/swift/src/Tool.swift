@@ -3,21 +3,19 @@ import NobodyWhoGenerated
 
 /// A tool that the model can call during inference.
 ///
-/// The easiest way to create a tool is with the `@DeclareTool` macro.
-/// It works with both sync and async functions:
+/// The easiest way to create a tool is with the ``DeclareTool(_:)`` macro
+/// at top-level or type-member scope:
 /// ```swift
 /// @DeclareTool("Get the current weather for a city")
 /// func getWeather(city: String, unit: String) -> String {
 ///     return "{\"temp\": 22, \"unit\": \"\(unit)\"}"
 /// }
-///
-/// @DeclareTool("Search the knowledge base")
-/// func search(query: String) async -> String {
-///     return await knowledgeBase.search(query)
-/// }
+/// // Generates: let getWeatherTool: Tool = ...
 /// ```
 ///
-/// You can also create tools manually with JSON Schema type strings:
+/// The macro does not work inside function bodies (a Swift peer macro limitation).
+/// For local-scope tools, or when you need to capture local variables, use the
+/// initializer directly with JSON Schema type strings:
 /// ```swift
 /// let weatherTool = Tool(
 ///     name: "get_weather",

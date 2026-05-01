@@ -12,6 +12,13 @@ import NobodyWho
 /// - `TEST_MMPROJ` — path to a multimodal projector GGUF (optional, for vision test)
 ///
 /// Run: TEST_MODEL=/path/to/model.gguf swift test --filter NobodyWhoTests
+
+// Top-level tool declaration using the macro (peer macros don't work inside function bodies)
+@DeclareTool("Echo back the input")
+func echo(message: String) -> String {
+    return message
+}
+
 final class NobodyWhoTests: XCTestCase {
 
     private func requireEnv(_ name: String) throws -> String {
@@ -42,14 +49,26 @@ final class NobodyWhoTests: XCTestCase {
 
     // MARK: - Tool calling
 
+    func testMacroTool() async throws {
+        let modelPath = try requireEnv("TEST_MODEL")
+        let model = try await Model.load(modelPath: modelPath)
+
+        let chat = Chat(model: model, systemPrompt: "Use the echo tool to echo back exactly what the user says.", tools: [echoTool])
+        let response = try await chat.ask("Echo: hello").completed()
+        XCTAssertFalse(response.isEmpty)
+    }
+
     func testSyncTool() async throws {
         let modelPath = try requireEnv("TEST_MODEL")
         let model = try await Model.load(modelPath: modelPath)
 
         var called = false
 
-        @DeclareTool("Ping the server")
-        func ping() -> String {
+        let pingTool = Tool(
+            name: "ping",
+            description: "Ping the server",
+            parameters: []
+        ) { _ in
             called = true
             return "pong"
         }
@@ -65,10 +84,13 @@ final class NobodyWhoTests: XCTestCase {
 
         var called = false
 
-        @DeclareTool("Get the current time")
-        func getTime(timezone: String) async -> String {
+        let getTimeTool = Tool(
+            name: "getTime",
+            description: "Get the current time",
+            parameters: [("timezone", #"{"type": "string"}"#)]
+        ) { args in
             called = true
-            try? await Task.sleep(nanoseconds: 10_000_000)
+            let timezone = args[0] as! String
             return "{\"time\": \"12:00\", \"timezone\": \"\(timezone)\"}"
         }
 

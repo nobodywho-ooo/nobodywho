@@ -54,7 +54,7 @@ final class ToolMacroTests: XCTestCase {
             let getWeatherTool = Tool(
                 name: "getWeather",
                 description: "Get the weather",
-                parameters: [("city", #"{"type": "string"}"#), ("unit", #"{"type": "string"}"#)]
+                parameters: [("city", "{\\"type\\": \\"string\\"}"), ("unit", "{\\"type\\": \\"string\\"}")]
             ) { args in
                 let city = args[0] as! String
                 let unit = args[1] as! String
@@ -81,7 +81,7 @@ final class ToolMacroTests: XCTestCase {
             let searchTool = Tool(
                 name: "search",
                 description: "Search the database",
-                parameters: [("query", #"{"type": "string"}"#)]
+                parameters: [("query", "{\\"type\\": \\"string\\"}")]
             ) { args in
                 let query = args[0] as! String
                 return await search(query: query)
@@ -107,7 +107,7 @@ final class ToolMacroTests: XCTestCase {
             let setVolumeTool = Tool(
                 name: "setVolume",
                 description: "Set volume",
-                parameters: [("level", #"{"type": "integer"}"#), ("muted", #"{"type": "boolean"}"#)]
+                parameters: [("level", "{\\"type\\": \\"integer\\"}"), ("muted", "{\\"type\\": \\"boolean\\"}")]
             ) { args in
                 let level = args[0] as! Int
                 let muted = args[1] as! Bool
@@ -161,9 +161,11 @@ final class ToolMacroTests: XCTestCase {
             let processTool = Tool(
                 name: "process",
                 description: "Process items",
-                parameters: [("items", #"{"type": "array", "items": {"type": "string"}}"#)]
+                parameters: [("items", "{\\"type\\": \\"array\\", \\"items\\": {\\"type\\": \\"string\\"}}")]
             ) { args in
-                let items = (args[0] as! [Any]).map { $0 as! String }
+                let items = (args[0] as! [Any]).map {
+                    $0 as! String
+                }
                 return process(items: items)
             }
             """,
@@ -189,9 +191,11 @@ final class ToolMacroTests: XCTestCase {
             let storeTool = Tool(
                 name: "store",
                 description: "Store data",
-                parameters: [("data", #"{"type": "object", "additionalProperties": {"type": "integer"}}"#)]
+                parameters: [("data", "{\\"type\\": \\"object\\", \\"additionalProperties\\": {\\"type\\": \\"integer\\"}}")]
             ) { args in
-                let data = (args[0] as! [String: Any]).mapValues { $0 as! Int }
+                let data = (args[0] as! [String: Any]).mapValues {
+                    $0 as! Int
+                }
                 return store(data: data)
             }
             """,
@@ -217,9 +221,13 @@ final class ToolMacroTests: XCTestCase {
             let processTool = Tool(
                 name: "process",
                 description: "Process matrix",
-                parameters: [("matrix", #"{"type": "array", "items": {"type": "array", "items": {"type": "integer"}}}"#)]
+                parameters: [("matrix", "{\\"type\\": \\"array\\", \\"items\\": {\\"type\\": \\"array\\", \\"items\\": {\\"type\\": \\"integer\\"}}}")]
             ) { args in
-                let matrix = (args[0] as! [Any]).map { ($0 as! [Any]).map { $0 as! Int } }
+                let matrix = (args[0] as! [Any]).map {
+                    ($0 as! [Any]).map {
+                        $0 as! Int
+                    }
+                }
                 return process(matrix: matrix)
             }
             """,
@@ -243,9 +251,13 @@ final class ToolMacroTests: XCTestCase {
             let updateTool = Tool(
                 name: "update",
                 description: "Update config",
-                parameters: [("config", #"{"type": "object", "additionalProperties": {"type": "array", "items": {"type": "string"}}}"#)]
+                parameters: [("config", "{\\"type\\": \\"object\\", \\"additionalProperties\\": {\\"type\\": \\"array\\", \\"items\\": {\\"type\\": \\"string\\"}}}")]
             ) { args in
-                let config = (args[0] as! [String: Any]).mapValues { ($0 as! [Any]).map { $0 as! String } }
+                let config = (args[0] as! [String: Any]).mapValues {
+                    ($0 as! [Any]).map {
+                        $0 as! String
+                    }
+                }
                 return update(config: config)
             }
             """,
