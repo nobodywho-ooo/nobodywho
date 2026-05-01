@@ -2,58 +2,129 @@ import SwiftSyntax
 import SwiftSyntaxMacros
 import SwiftCompilerPlugin
 
-/// Maps Swift type names to the parameter type strings used by Tool's tuple API.
-private func paramType(for swiftType: String) -> String {
-    switch swiftType {
+/// Recursively generates a JSON Schema string from a Swift type syntax node.
+private func jsonSchema(for type: TypeSyntax) -> String {
+    // [T] shorthand syntax
+    if let array = type.as(ArrayTypeSyntax.self) {
+        let itemSchema = jsonSchema(for: array.element)
+        return "{\"type\": \"array\", \"items\": \(itemSchema)}"
+    }
+
+    // [K: V] shorthand syntax
+    if let dict = type.as(DictionaryTypeSyntax.self) {
+        let valueSchema = jsonSchema(for: dict.value)
+        return "{\"type\": \"object\", \"additionalProperties\": \(valueSchema)}"
+    }
+
+    // Named types: primitives, Array<T>, Dictionary<K, V>
+    if let ident = type.as(IdentifierTypeSyntax.self) {
+        let name = ident.name.text
+
+        if name == "Array", let args = ident.genericArgumentClause {
+            let itemSchema = jsonSchema(for: args.arguments.first!.argument)
+            return "{\"type\": \"array\", \"items\": \(itemSchema)}"
+        }
+
+        if name == "Dictionary", let args = ident.genericArgumentClause {
+            let argsArray = Array(args.arguments)
+            let valueSchema = jsonSchema(for: argsArray[1].argument)
+            return "{\"type\": \"object\", \"additionalProperties\": \(valueSchema)}"
+        }
+
+        return primitiveSchema(for: name)
+    }
+
+    return "{\"type\": \"string\"}"
+}
+
+/// Maps a Swift primitive type name to a JSON Schema string.
+private func primitiveSchema(for name: String) -> String {
+    switch name {
     case "String":
-        return "string"
+        return "{\"type\": \"string\"}"
     case "Int", "Int8", "Int16", "Int32", "Int64",
          "UInt", "UInt8", "UInt16", "UInt32", "UInt64":
-        return "integer"
+        return "{\"type\": \"integer\"}"
     case "Double", "Float", "Float32", "Float64", "CGFloat":
-        return "number"
+        return "{\"type\": \"number\"}"
     case "Bool":
-        return "boolean"
+        return "{\"type\": \"boolean\"}"
     default:
-        return "string"
+        return "{\"type\": \"string\"}"
     }
 }
 
-/// Generates a cast expression to extract a typed value from the args array.
-/// The args array contains values pre-converted by Tool's internal parseArgs:
-///   "string" → String, "integer" → Int, "number" → Double, "boolean" → Bool
-private func argCast(index: Int, swiftType: String) -> String {
-    switch swiftType {
-    case "Float", "Float32":
-        return "Float(args[\(index)] as! Double)"
-    case "CGFloat":
-        return "CGFloat(args[\(index)] as! Double)"
-    case "Int8":
-        return "Int8(args[\(index)] as! Int)"
-    case "Int16":
-        return "Int16(args[\(index)] as! Int)"
-    case "Int32":
-        return "Int32(args[\(index)] as! Int)"
-    case "Int64":
-        return "Int64(args[\(index)] as! Int)"
-    case "UInt":
-        return "UInt(args[\(index)] as! Int)"
-    case "UInt8":
-        return "UInt8(args[\(index)] as! Int)"
-    case "UInt16":
-        return "UInt16(args[\(index)] as! Int)"
-    case "UInt32":
-        return "UInt32(args[\(index)] as! Int)"
-    case "UInt64":
-        return "UInt64(args[\(index)] as! Int)"
+/// Recursively generates a cast expression to convert a value from `[Any]`/`[String: Any]`
+/// back to the expected Swift type. `expr` is the expression to cast (e.g. "args[0]" or "$0").
+private func castExpression(for type: TypeSyntax, from expr: String) -> String {
+    // [T]
+    if let array = type.as(ArrayTypeSyntax.self) {
+        let inner = castExpression(for: array.element, from: "$0")
+        return "(\(expr) as! [Any]).map { \(inner) }"
+    }
+
+    // [K: V]
+    if let dict = type.as(DictionaryTypeSyntax.self) {
+        let inner = castExpression(for: dict.value, from: "$0")
+        return "(\(expr) as! [String: Any]).mapValues { \(inner) }"
+    }
+
+    // Named types
+    if let ident = type.as(IdentifierTypeSyntax.self) {
+        let name = ident.name.text
+
+        if name == "Array", let args = ident.genericArgumentClause {
+            let inner = castExpression(for: args.arguments.first!.argument, from: "$0")
+            return "(\(expr) as! [Any]).map { \(inner) }"
+        }
+
+        if name == "Dictionary", let args = ident.genericArgumentClause {
+            let argsArray = Array(args.arguments)
+            let inner = castExpression(for: argsArray[1].argument, from: "$0")
+            return "(\(expr) as! [String: Any]).mapValues { \(inner) }"
+        }
+
+        return primitiveCast(for: name, from: expr)
+    }
+
+    return "\(expr) as! String"
+}
+
+/// Generates a cast expression for a primitive Swift type.
+private func primitiveCast(for name: String, from expr: String) -> String {
+    switch name {
+    case "String":
+        return "\(expr) as! String"
     case "Int":
-        return "args[\(index)] as! Int"
+        return "\(expr) as! Int"
     case "Double", "Float64":
-        return "args[\(index)] as! Double"
+        return "\(expr) as! Double"
     case "Bool":
-        return "args[\(index)] as! Bool"
+        return "\(expr) as! Bool"
+    case "Float", "Float32":
+        return "Float(\(expr) as! Double)"
+    case "CGFloat":
+        return "CGFloat(\(expr) as! Double)"
+    case "Int8":
+        return "Int8(\(expr) as! Int)"
+    case "Int16":
+        return "Int16(\(expr) as! Int)"
+    case "Int32":
+        return "Int32(\(expr) as! Int)"
+    case "Int64":
+        return "Int64(\(expr) as! Int)"
+    case "UInt":
+        return "UInt(\(expr) as! Int)"
+    case "UInt8":
+        return "UInt8(\(expr) as! Int)"
+    case "UInt16":
+        return "UInt16(\(expr) as! Int)"
+    case "UInt32":
+        return "UInt32(\(expr) as! Int)"
+    case "UInt64":
+        return "UInt64(\(expr) as! Int)"
     default:
-        return "args[\(index)] as! String"
+        return "\(expr) as! String"
     }
 }
 
@@ -86,10 +157,13 @@ public struct ToolMacro: PeerMacro {
 
         for (index, param) in parameters.enumerated() {
             let internalName = param.secondName?.text ?? param.firstName.text
-            let typeText = param.type.description.trimmingCharacters(in: .whitespaces)
+            let type = param.type
+            let schema = jsonSchema(for: type)
 
-            paramTuples.append("(\"\(internalName)\", \"\(paramType(for: typeText))\")")
-            argLetBindings.append("let \(internalName) = \(argCast(index: index, swiftType: typeText))")
+            let escapedSchema = schema.replacingOccurrences(of: "\\", with: "\\\\")
+                                      .replacingOccurrences(of: "\"", with: "\\\"")
+            paramTuples.append("(\"\(internalName)\", \"\(escapedSchema)\")")
+            argLetBindings.append("let \(internalName) = \(castExpression(for: type, from: "args[\(index)]"))")
         }
 
         // Build the function call expression with named arguments

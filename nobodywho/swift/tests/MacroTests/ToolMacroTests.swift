@@ -54,7 +54,7 @@ final class ToolMacroTests: XCTestCase {
             let getWeatherTool = Tool(
                 name: "getWeather",
                 description: "Get the weather",
-                parameters: [("city", "string"), ("unit", "string")]
+                parameters: [("city", #"{"type": "string"}"#), ("unit", #"{"type": "string"}"#)]
             ) { args in
                 let city = args[0] as! String
                 let unit = args[1] as! String
@@ -81,7 +81,7 @@ final class ToolMacroTests: XCTestCase {
             let searchTool = Tool(
                 name: "search",
                 description: "Search the database",
-                parameters: [("query", "string")]
+                parameters: [("query", #"{"type": "string"}"#)]
             ) { args in
                 let query = args[0] as! String
                 return await search(query: query)
@@ -107,7 +107,7 @@ final class ToolMacroTests: XCTestCase {
             let setVolumeTool = Tool(
                 name: "setVolume",
                 description: "Set volume",
-                parameters: [("level", "integer"), ("muted", "boolean")]
+                parameters: [("level", #"{"type": "integer"}"#), ("muted", #"{"type": "boolean"}"#)]
             ) { args in
                 let level = args[0] as! Int
                 let muted = args[1] as! Bool
@@ -137,6 +137,116 @@ final class ToolMacroTests: XCTestCase {
                 parameters: []
             ) { _ in
                 return await ping()
+            }
+            """,
+            macros: testMacros
+        )
+    }
+
+    // MARK: - Array parameters
+
+    func testArrayParam() throws {
+        assertMacroExpansion(
+            """
+            @DeclareTool("Process items")
+            func process(items: [String]) -> String {
+                return "done"
+            }
+            """,
+            expandedSource: """
+            func process(items: [String]) -> String {
+                return "done"
+            }
+
+            let processTool = Tool(
+                name: "process",
+                description: "Process items",
+                parameters: [("items", #"{"type": "array", "items": {"type": "string"}}"#)]
+            ) { args in
+                let items = (args[0] as! [Any]).map { $0 as! String }
+                return process(items: items)
+            }
+            """,
+            macros: testMacros
+        )
+    }
+
+    // MARK: - Map parameters
+
+    func testMapParam() throws {
+        assertMacroExpansion(
+            """
+            @DeclareTool("Store data")
+            func store(data: [String: Int]) -> String {
+                return "stored"
+            }
+            """,
+            expandedSource: """
+            func store(data: [String: Int]) -> String {
+                return "stored"
+            }
+
+            let storeTool = Tool(
+                name: "store",
+                description: "Store data",
+                parameters: [("data", #"{"type": "object", "additionalProperties": {"type": "integer"}}"#)]
+            ) { args in
+                let data = (args[0] as! [String: Any]).mapValues { $0 as! Int }
+                return store(data: data)
+            }
+            """,
+            macros: testMacros
+        )
+    }
+
+    // MARK: - Nested parameters
+
+    func testNestedArrayParam() throws {
+        assertMacroExpansion(
+            """
+            @DeclareTool("Process matrix")
+            func process(matrix: [[Int]]) -> String {
+                return "done"
+            }
+            """,
+            expandedSource: """
+            func process(matrix: [[Int]]) -> String {
+                return "done"
+            }
+
+            let processTool = Tool(
+                name: "process",
+                description: "Process matrix",
+                parameters: [("matrix", #"{"type": "array", "items": {"type": "array", "items": {"type": "integer"}}}"#)]
+            ) { args in
+                let matrix = (args[0] as! [Any]).map { ($0 as! [Any]).map { $0 as! Int } }
+                return process(matrix: matrix)
+            }
+            """,
+            macros: testMacros
+        )
+    }
+
+    func testNestedMapParam() throws {
+        assertMacroExpansion(
+            """
+            @DeclareTool("Update config")
+            func update(config: [String: [String]]) -> String {
+                return "updated"
+            }
+            """,
+            expandedSource: """
+            func update(config: [String: [String]]) -> String {
+                return "updated"
+            }
+
+            let updateTool = Tool(
+                name: "update",
+                description: "Update config",
+                parameters: [("config", #"{"type": "object", "additionalProperties": {"type": "array", "items": {"type": "string"}}}"#)]
+            ) { args in
+                let config = (args[0] as! [String: Any]).mapValues { ($0 as! [Any]).map { $0 as! String } }
+                return update(config: config)
             }
             """,
             macros: testMacros

