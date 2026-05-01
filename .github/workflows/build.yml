@@ -591,7 +591,7 @@ jobs:
           AR_x86_64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
 
       - name: "Build STT module for android"
-        if: matrix.integration == 'godot'
+        if: matrix.integration == 'godot' || matrix.integration == 'uniffi'
         run: cargo build -p nobodywho-stt --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: ./nobodywho
         env:
@@ -643,12 +643,49 @@ jobs:
               cp "$f" "./${base}-${SUFFIX}.so"
             done
 
+      - name: "Collect GGML libs and STT (Android, uniffi)"
+        if: matrix.integration == 'uniffi'
+        run: |
+          TARGET_DIR=./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}
+          SUFFIX="${{ matrix.target }}-${{ matrix.profile }}"
+
+          for libname in libggml-base libllama; do
+            [ -f "$TARGET_DIR/${libname}.so" ] && cp "$TARGET_DIR/${libname}.so" "./${libname}-${SUFFIX}.so"
+          done
+
+          find "$TARGET_DIR" -maxdepth 1 -name 'libggml-*.so' ! -name 'libggml-base.so' | \
+            while read f; do
+              base=$(basename "${f%.so}")
+              cp "$f" "./${base}-${SUFFIX}.so"
+            done
+
+          STT="$TARGET_DIR/libnobodywho_stt.so"
+          [ -f "$STT" ] && cp "$STT" "./libnobodywho_stt-${SUFFIX}.so"
+
       - name: "Upload build artifact"
         if: matrix.integration == 'flutter'
         uses: actions/upload-artifact@v4
         with:
           name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
           path: ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.*
+
+      - name: "Upload build artifact (uniffi)"
+        if: matrix.integration == 'uniffi'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nobodywho-uniffi-${{ matrix.target }}-${{ matrix.profile }}
+          path: ./libnobodywho-uniffi-${{ matrix.target }}-${{ matrix.profile }}.*
+          if-no-files-found: error
+
+      - name: "Upload GGML + STT artifacts (uniffi)"
+        if: matrix.integration == 'uniffi'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nobodywho-android-extras-uniffi-${{ matrix.target }}-${{ matrix.profile }}
+          path: |
+            ./*-${{ matrix.target }}-${{ matrix.profile }}.so
+            !./libnobodywho-uniffi-*.so
+          if-no-files-found: warn
 
       - name: "Upload build artifact (with GGML libs)"
         if: matrix.integration == 'godot'

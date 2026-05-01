@@ -484,7 +484,7 @@ impl RustChat {
 pub struct RustTokenStream {
     // Mutex needed because UniFFI wraps objects in Arc (giving &self),
     // but TokenStreamAsync methods require &mut self.
-    inner: tokio::sync::Mutex<nobodywho::chat::TokenStreamAsync>,
+    inner: tokio::sync::Mutex<nobodywho::llm::TokenStreamAsync>,
 }
 
 #[uniffi::export]
@@ -1017,6 +1017,50 @@ pub fn sampler_preset_dry() -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {
         inner: nobodywho::sampler_config::SamplerPresets::dry(),
     })
+}
+
+// ---------- RustSpeechToText ----------
+
+#[derive(uniffi::Object)]
+pub struct RustSpeechToText {
+    stt: nobodywho::speech_to_text::SpeechToTextAsync,
+}
+
+/// Load a Whisper speech-to-text model from a .bin file.
+#[uniffi::export]
+pub async fn load_speech_to_text(
+    model_path: String,
+    language: Option<String>,
+    translate: bool,
+    initial_prompt: Option<String>,
+) -> Result<Arc<RustSpeechToText>, NobodyWhoError> {
+    init_logging();
+    tokio::task::spawn_blocking(move || {
+        let config = nobodywho::speech_to_text::SpeechToTextConfig {
+            language,
+            translate,
+            initial_prompt,
+        };
+        nobodywho::speech_to_text::SpeechToTextAsync::new(model_path, config)
+            .map(|stt| Arc::new(RustSpeechToText { stt }))
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })
+    })
+    .await
+    .map_err(|e| NobodyWhoError::Error {
+        message: e.to_string(),
+    })?
+}
+
+#[uniffi::export]
+impl RustSpeechToText {
+    pub fn transcribe(&self, audio_path: String) -> Arc<RustTokenStream> {
+        let stream = self.stt.transcribe(audio_path);
+        Arc::new(RustTokenStream {
+            inner: tokio::sync::Mutex::new(stream),
+        })
+    }
 }
 
 /// Create a sampler configured for JSON output generation.

@@ -222,6 +222,18 @@ jobs:
           name: nobodywho-uniffi-x86_64-linux-android-release
           path: ./nobodywho-react-native-release
 
+      - name: "Download Android ARM64 GGML + STT extras"
+        uses: actions/download-artifact@v4
+        with:
+          name: nobodywho-android-extras-uniffi-aarch64-linux-android-release
+          path: ./nobodywho-react-native-release
+
+      - name: "Download Android x86_64 GGML + STT extras"
+        uses: actions/download-artifact@v4
+        with:
+          name: nobodywho-android-extras-uniffi-x86_64-linux-android-release
+          path: ./nobodywho-react-native-release
+
       - name: "Download iOS XCFramework"
         uses: actions/download-artifact@v4
         with:

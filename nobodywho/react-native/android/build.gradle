@@ -128,6 +128,65 @@ task resolveNativeLibraries {
   }
 }
 
+// Download GGML backend libraries and STT module from GitHub Releases if not already present.
+// All files are optional: 404 responses are silently skipped, so builds work without GPU
+// backends or STT. Files are named without the target/profile suffix so Android's linker
+// resolves them as plain DT_NEEDED dependencies (all libs land in the same ABI directory).
+task resolveGgmlAndStt {
+  description = "Downloads NobodyWho GGML backend libraries and STT module from GitHub Releases"
+
+  doLast {
+    def downloadOptional = { String downloadUrl, File destFile, String label ->
+      def url = downloadUrl
+      def maxRedirects = 5
+      for (int i = 0; i < maxRedirects; i++) {
+        def connection = (java.net.HttpURLConnection) new URL(url).openConnection()
+        connection.setInstanceFollowRedirects(false)
+        connection.connect()
+        def code = connection.responseCode
+        if (code == 200) {
+          destFile.withOutputStream { out -> out << connection.inputStream }
+          logger.lifecycle("[NobodyWho] Downloaded ${label} (${destFile.length()} bytes)")
+          return
+        } else if (code == 301 || code == 302 || code == 307 || code == 308) {
+          url = connection.getHeaderField("Location")
+          connection.disconnect()
+        } else if (code == 404) {
+          logger.lifecycle("[NobodyWho] ${label} not available (404), skipping")
+          return
+        } else {
+          logger.warn("[NobodyWho] ${label}: HTTP ${code}, skipping")
+          return
+        }
+      }
+      logger.warn("[NobodyWho] Too many redirects for ${label}, skipping")
+    }
+
+    def libs = ["libggml-base", "libllama", "libggml-vulkan", "libnobodywho_stt"]
+
+    abiToTriple.each { abi, triple ->
+      def abiDir = new File(nativeLibsDir, abi)
+      abiDir.mkdirs()
+
+      libs.each { libname ->
+        def destFile = new File(abiDir, "${libname}.so")
+        if (destFile.exists()) {
+          logger.lifecycle("[NobodyWho] ${abi}: Using existing ${libname}.so")
+          return
+        }
+        def srcName = "${libname}-${triple}-release.so"
+        def url = "https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-react-native-${nobodywhoVersion}/${srcName}"
+        logger.lifecycle("[NobodyWho] ${abi}: Downloading ${libname}.so")
+        try {
+          downloadOptional(url, destFile, "${abi}/${libname}.so")
+        } catch (Exception e) {
+          logger.warn("[NobodyWho] Failed to download ${abi}/${libname}.so: ${e.message}")
+        }
+      }
+    }
+  }
+}
+
 android {
   if (supportsNamespace()) {
     namespace "ooo.nobodywho"
@@ -211,7 +270,7 @@ tasks.configureEach { task ->
   if (task.name.contains("configureCMake") ||
       task.name.contains("externalNativeBuild") ||
       task.name.contains("ergeJniLibFolders")) {
-    task.dependsOn(resolveNativeLibraries)
+    task.dependsOn(resolveNativeLibraries, resolveGgmlAndStt)
   }
 }
 

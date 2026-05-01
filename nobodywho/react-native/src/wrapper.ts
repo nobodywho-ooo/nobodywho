@@ -37,3 +37,4 @@ export type {
 
 // Ergonomic wrapper additions.
 export { SamplerPresets } from "./sampler_presets";
+export { SpeechToText } from "./speech_to_text";
