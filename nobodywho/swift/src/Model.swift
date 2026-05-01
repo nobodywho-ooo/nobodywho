@@ -41,7 +41,7 @@ public class Model {
 }
 
 /// Bridges a Swift closure to the `RustDownloadProgressCallback` protocol.
-private class DownloadProgressCallbackImpl: RustDownloadProgressCallback {
+private final class DownloadProgressCallbackImpl: @unchecked Sendable, RustDownloadProgressCallback {
     let handler: (UInt64, UInt64) -> Void
 
     init(_ handler: @escaping (UInt64, UInt64) -> Void) {
