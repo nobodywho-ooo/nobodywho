@@ -74,7 +74,7 @@ public class Tool {
 
 /// A simple callback wrapper that bridges a closure to `RustToolCallback`.
 /// Used by the `@DeclareTool` macro for sync functions.
-public class ToolCallbackClosure: RustToolCallback {
+public final class ToolCallbackClosure: @unchecked Sendable, RustToolCallback {
     let handler: (String) -> String
 
     public init(_ handler: @escaping (String) -> String) {
@@ -88,7 +88,7 @@ public class ToolCallbackClosure: RustToolCallback {
 
 /// A callback wrapper that bridges an async closure to `RustToolCallback`.
 /// Used by the `@DeclareTool` macro for async functions.
-public class AsyncToolCallbackClosure: RustToolCallback {
+public final class AsyncToolCallbackClosure: @unchecked Sendable, RustToolCallback {
     let handler: (String) async -> String
 
     public init(_ handler: @escaping (String) async -> String) {
@@ -142,7 +142,7 @@ private func parseArgs(_ argumentsJson: String, parameters: [(String, String)]) 
 }
 
 /// Sync callback implementation for the manual Tool API.
-private class ToolCallbackImpl: RustToolCallback {
+private final class ToolCallbackImpl: @unchecked Sendable, RustToolCallback {
     let parameters: [(String, String)]
     let callHandler: ([Any]) -> String
 
@@ -160,7 +160,7 @@ private class ToolCallbackImpl: RustToolCallback {
 }
 
 /// Async callback implementation for the manual Tool API.
-private class AsyncToolCallbackImpl: RustToolCallback {
+private final class AsyncToolCallbackImpl: @unchecked Sendable, RustToolCallback {
     let parameters: [(String, String)]
     let callHandler: ([Any]) async -> String
 
