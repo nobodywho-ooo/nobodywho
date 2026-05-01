@@ -1623,9 +1623,9 @@ rec {
       };
       "cc" = rec {
         crateName = "cc";
-        version = "1.2.60";
+        version = "1.2.61";
         edition = "2018";
-        sha256 = "084a8ziprdlyrj865f3303qr0b7aaggilkl18slncss6m4yp1ia3";
+        sha256 = "0vawvnrrsmi8dygavq3wx085cmlp10sp3fhld5842rlqkqsr0vfi";
         authors = [
           "Alex Crichton <alex@alexcrichton.com>"
         ];
@@ -7139,14 +7139,9 @@ rec {
       };
       "llama-cpp-2" = rec {
         crateName = "llama-cpp-2";
-        version = "0.1.144";
+        version = "0.1.146";
         edition = "2021";
-        workspace_member = null;
-        src = pkgs.fetchgit {
-          url = "https://github.com/marek-hradil/llama-cpp-rs";
-          rev = "8ed773394865138a94ac62931d4e60814d315a65";
-          sha256 = "0nssdjbsrck4l65pcm980i5i1pcc7wwwdpk7wifi7rqs8gnmv3gp";
-        };
+        sha256 = "15z37vy662gx7r81z2ylkdbddq39qbpawmw2br3zxh3cqxlg7c7k";
         libName = "llama_cpp_2";
         dependencies = [
           {
@@ -7192,6 +7187,7 @@ rec {
           "cuda" = [ "llama-cpp-sys-2/cuda" ];
           "cuda-no-vmm" = [ "cuda" "llama-cpp-sys-2/cuda-no-vmm" ];
           "default" = [ "openmp" "android-shared-stdcxx" ];
+          "dynamic-backends" = [ "llama-cpp-sys-2/dynamic-backends" ];
           "dynamic-link" = [ "llama-cpp-sys-2/dynamic-link" ];
           "llguidance" = [ "dep:llguidance" "dep:toktrie" ];
           "metal" = [ "llama-cpp-sys-2/metal" ];
@@ -7206,15 +7202,10 @@ rec {
       };
       "llama-cpp-sys-2" = rec {
         crateName = "llama-cpp-sys-2";
-        version = "0.1.144";
+        version = "0.1.146";
         edition = "2021";
         links = "llama";
-        workspace_member = null;
-        src = pkgs.fetchgit {
-          url = "https://github.com/marek-hradil/llama-cpp-rs";
-          rev = "8ed773394865138a94ac62931d4e60814d315a65";
-          sha256 = "0nssdjbsrck4l65pcm980i5i1pcc7wwwdpk7wifi7rqs8gnmv3gp";
-        };
+        sha256 = "1pb5v6qmsfkm18wfr5pm4nqkrjq4c6dx85pcip6l636iq95iwacv";
         libName = "llama_cpp_sys_2";
         buildDependencies = [
           {
@@ -7245,6 +7236,7 @@ rec {
         ];
         features = {
           "cuda-no-vmm" = [ "cuda" ];
+          "dynamic-backends" = [ "dynamic-link" ];
           "system-ggml-static" = [ "system-ggml" ];
         };
         resolvedDefaultFeatures = [ "metal" "mtmd" "openmp" "static-stdcxx" "vulkan" ];
@@ -9253,7 +9245,7 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/PyO3/pyo3";
-          rev = "dd63a6ae3ec3aa1856c2a0ef906f389e50a52fdc";
+          rev = "a2fd837fc84fb30b4ea147e0fe9acbe19b28997e";
           sha256 = "0l3brckbbw8mcq36isqs00mbx49h6dn8y6614gn68kcmfm0rvkvv";
         };
         authors = [
@@ -9435,7 +9427,7 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/PyO3/pyo3";
-          rev = "dd63a6ae3ec3aa1856c2a0ef906f389e50a52fdc";
+          rev = "a2fd837fc84fb30b4ea147e0fe9acbe19b28997e";
           sha256 = "0l3brckbbw8mcq36isqs00mbx49h6dn8y6614gn68kcmfm0rvkvv";
         };
         libName = "pyo3_build_config";
@@ -9473,7 +9465,7 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/PyO3/pyo3";
-          rev = "dd63a6ae3ec3aa1856c2a0ef906f389e50a52fdc";
+          rev = "a2fd837fc84fb30b4ea147e0fe9acbe19b28997e";
           sha256 = "0l3brckbbw8mcq36isqs00mbx49h6dn8y6614gn68kcmfm0rvkvv";
         };
         libName = "pyo3_ffi";
@@ -9514,7 +9506,7 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/PyO3/pyo3";
-          rev = "dd63a6ae3ec3aa1856c2a0ef906f389e50a52fdc";
+          rev = "a2fd837fc84fb30b4ea147e0fe9acbe19b28997e";
           sha256 = "0l3brckbbw8mcq36isqs00mbx49h6dn8y6614gn68kcmfm0rvkvv";
         };
         libName = "pyo3_introspection";
@@ -9587,7 +9579,7 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/PyO3/pyo3";
-          rev = "dd63a6ae3ec3aa1856c2a0ef906f389e50a52fdc";
+          rev = "a2fd837fc84fb30b4ea147e0fe9acbe19b28997e";
           sha256 = "0l3brckbbw8mcq36isqs00mbx49h6dn8y6614gn68kcmfm0rvkvv";
         };
         procMacro = true;
@@ -9628,7 +9620,7 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/PyO3/pyo3";
-          rev = "dd63a6ae3ec3aa1856c2a0ef906f389e50a52fdc";
+          rev = "a2fd837fc84fb30b4ea147e0fe9acbe19b28997e";
           sha256 = "0l3brckbbw8mcq36isqs00mbx49h6dn8y6614gn68kcmfm0rvkvv";
         };
         libName = "pyo3_macros_backend";
