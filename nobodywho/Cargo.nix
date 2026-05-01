@@ -9247,8 +9247,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/PyO3/pyo3";
-          rev = "a2fd837fc84fb30b4ea147e0fe9acbe19b28997e";
-          sha256 = "1c7312047cwg6cidigy93d04058d92yapf1k84kgkaf10w6ikj0h";
+          rev = "8a00673a6f534425461d0e16c5b9824f42ad0a03";
+          sha256 = "03lm8b3i1ab7q0q2m7z1n5id89ncbrhq8lf681mj9dxhqaghi9ff";
         };
         authors = [
           "PyO3 Project and Contributors <https://github.com/PyO3>"
@@ -9429,8 +9429,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/PyO3/pyo3";
-          rev = "a2fd837fc84fb30b4ea147e0fe9acbe19b28997e";
-          sha256 = "1c7312047cwg6cidigy93d04058d92yapf1k84kgkaf10w6ikj0h";
+          rev = "8a00673a6f534425461d0e16c5b9824f42ad0a03";
+          sha256 = "03lm8b3i1ab7q0q2m7z1n5id89ncbrhq8lf681mj9dxhqaghi9ff";
         };
         libName = "pyo3_build_config";
         authors = [
@@ -9467,8 +9467,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/PyO3/pyo3";
-          rev = "a2fd837fc84fb30b4ea147e0fe9acbe19b28997e";
-          sha256 = "1c7312047cwg6cidigy93d04058d92yapf1k84kgkaf10w6ikj0h";
+          rev = "8a00673a6f534425461d0e16c5b9824f42ad0a03";
+          sha256 = "03lm8b3i1ab7q0q2m7z1n5id89ncbrhq8lf681mj9dxhqaghi9ff";
         };
         libName = "pyo3_ffi";
         authors = [
@@ -9508,8 +9508,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/PyO3/pyo3";
-          rev = "a2fd837fc84fb30b4ea147e0fe9acbe19b28997e";
-          sha256 = "1c7312047cwg6cidigy93d04058d92yapf1k84kgkaf10w6ikj0h";
+          rev = "8a00673a6f534425461d0e16c5b9824f42ad0a03";
+          sha256 = "03lm8b3i1ab7q0q2m7z1n5id89ncbrhq8lf681mj9dxhqaghi9ff";
         };
         libName = "pyo3_introspection";
         authors = [
@@ -9581,8 +9581,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/PyO3/pyo3";
-          rev = "a2fd837fc84fb30b4ea147e0fe9acbe19b28997e";
-          sha256 = "1c7312047cwg6cidigy93d04058d92yapf1k84kgkaf10w6ikj0h";
+          rev = "8a00673a6f534425461d0e16c5b9824f42ad0a03";
+          sha256 = "03lm8b3i1ab7q0q2m7z1n5id89ncbrhq8lf681mj9dxhqaghi9ff";
         };
         procMacro = true;
         libName = "pyo3_macros";
@@ -9622,8 +9622,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/PyO3/pyo3";
-          rev = "a2fd837fc84fb30b4ea147e0fe9acbe19b28997e";
-          sha256 = "1c7312047cwg6cidigy93d04058d92yapf1k84kgkaf10w6ikj0h";
+          rev = "8a00673a6f534425461d0e16c5b9824f42ad0a03";
+          sha256 = "03lm8b3i1ab7q0q2m7z1n5id89ncbrhq8lf681mj9dxhqaghi9ff";
         };
         libName = "pyo3_macros_backend";
         authors = [
