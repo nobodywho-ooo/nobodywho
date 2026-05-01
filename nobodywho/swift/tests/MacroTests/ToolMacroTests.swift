@@ -29,16 +29,10 @@ final class ToolMacroTests: XCTestCase {
             let getTimeTool = Tool(
                 name: "getTime",
                 description: "Get the current time",
-                parameters: [],
-                callback: ToolCallbackClosure { argumentsJson in
-                    guard let data = argumentsJson.data(using: .utf8),
-                          let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                        return "Error: Failed to parse arguments"
-                    }
-
-                    return getTime()
-                }
-            )
+                parameters: []
+            ) { _ in
+                return getTime()
+            }
             """,
             macros: testMacros
         )
@@ -60,20 +54,12 @@ final class ToolMacroTests: XCTestCase {
             let getWeatherTool = Tool(
                 name: "getWeather",
                 description: "Get the weather",
-                parameters: [
-                    ToolParameter(name: "city", schema: #"{"type": "string"}"#),
-                    ToolParameter(name: "unit", schema: #"{"type": "string"}"#)
-                ],
-                callback: ToolCallbackClosure { argumentsJson in
-                    guard let data = argumentsJson.data(using: .utf8),
-                          let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                        return "Error: Failed to parse arguments"
-                    }
-                    let city = (parsed["city"] as? String) ?? ""
-                    let unit = (parsed["unit"] as? String) ?? ""
-                    return getWeather(city: city, unit: unit)
-                }
-            )
+                parameters: [("city", "string"), ("unit", "string")]
+            ) { args in
+                let city = args[0] as! String
+                let unit = args[1] as! String
+                return getWeather(city: city, unit: unit)
+            }
             """,
             macros: testMacros
         )
@@ -95,18 +81,11 @@ final class ToolMacroTests: XCTestCase {
             let searchTool = Tool(
                 name: "search",
                 description: "Search the database",
-                parameters: [
-                    ToolParameter(name: "query", schema: #"{"type": "string"}"#)
-                ],
-                callback: AsyncToolCallbackClosure { argumentsJson async in
-                    guard let data = argumentsJson.data(using: .utf8),
-                          let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                        return "Error: Failed to parse arguments"
-                    }
-                    let query = (parsed["query"] as? String) ?? ""
-                    return await search(query: query)
-                }
-            )
+                parameters: [("query", "string")]
+            ) { args in
+                let query = args[0] as! String
+                return await search(query: query)
+            }
             """,
             macros: testMacros
         )
@@ -128,20 +107,12 @@ final class ToolMacroTests: XCTestCase {
             let setVolumeTool = Tool(
                 name: "setVolume",
                 description: "Set volume",
-                parameters: [
-                    ToolParameter(name: "level", schema: #"{"type": "integer"}"#),
-                    ToolParameter(name: "muted", schema: #"{"type": "boolean"}"#)
-                ],
-                callback: ToolCallbackClosure { argumentsJson in
-                    guard let data = argumentsJson.data(using: .utf8),
-                          let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                        return "Error: Failed to parse arguments"
-                    }
-                    let level = (parsed["level"] as? NSNumber)?.intValue ?? 0
-                    let muted = (parsed["muted"] as? Bool) ?? false
-                    return setVolume(level: level, muted: muted)
-                }
-            )
+                parameters: [("level", "integer"), ("muted", "boolean")]
+            ) { args in
+                let level = args[0] as! Int
+                let muted = args[1] as! Bool
+                return setVolume(level: level, muted: muted)
+            }
             """,
             macros: testMacros
         )
@@ -163,16 +134,10 @@ final class ToolMacroTests: XCTestCase {
             let pingTool = Tool(
                 name: "ping",
                 description: "Ping the server",
-                parameters: [],
-                callback: AsyncToolCallbackClosure { argumentsJson async in
-                    guard let data = argumentsJson.data(using: .utf8),
-                          let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                        return "Error: Failed to parse arguments"
-                    }
-
-                    return await ping()
-                }
-            )
+                parameters: []
+            ) { _ in
+                return await ping()
+            }
             """,
             macros: testMacros
         )

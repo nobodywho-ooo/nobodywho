@@ -10,7 +10,10 @@ import NobodyWhoGenerated
 public class Encoder {
     private let inner: NobodyWhoGenerated.RustEncoder
 
-    public init(model: Model, contextSize: UInt32 = 4096) {
+    /// - Parameters:
+    ///   - model: A loaded model to use for encoding.
+    ///   - contextSize: Maximum context size in tokens. Defaults to 4096 if nil.
+    public init(model: Model, contextSize: UInt32? = nil) {
         self.inner = NobodyWhoGenerated.RustEncoder(model: model.inner, contextSize: contextSize)
     }
 
@@ -18,7 +21,7 @@ public class Encoder {
     public static func fromPath(
         modelPath: String,
         useGpu: Bool = true,
-        contextSize: UInt32 = 4096
+        contextSize: UInt32? = nil
     ) async throws -> Encoder {
         let model = try await Model.load(modelPath: modelPath, useGpu: useGpu)
         return Encoder(model: model, contextSize: contextSize)

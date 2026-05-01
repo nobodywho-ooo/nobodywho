@@ -56,54 +56,9 @@ public class Tool {
         self.inner = RustTool(name: name, description: description, parameters: toolParams, callback: callback)
     }
 
-    /// Create a tool from ToolParameter values and a callback (used by @DeclareTool macro).
-    public init(
-        name: String,
-        description: String,
-        parameters: [ToolParameter],
-        callback: RustToolCallback
-    ) {
-        self.inner = RustTool(name: name, description: description, parameters: parameters, callback: callback)
-    }
-
     /// Get the JSON schema for this tool's parameters.
     public func getSchemaJson() -> String {
         return inner.getSchemaJson()
-    }
-}
-
-/// A simple callback wrapper that bridges a closure to `RustToolCallback`.
-/// Used by the `@DeclareTool` macro for sync functions.
-public final class ToolCallbackClosure: @unchecked Sendable, RustToolCallback {
-    let handler: (String) -> String
-
-    public init(_ handler: @escaping (String) -> String) {
-        self.handler = handler
-    }
-
-    public func call(argumentsJson: String) -> String {
-        return handler(argumentsJson)
-    }
-}
-
-/// A callback wrapper that bridges an async closure to `RustToolCallback`.
-/// Used by the `@DeclareTool` macro for async functions.
-public final class AsyncToolCallbackClosure: @unchecked Sendable, RustToolCallback {
-    let handler: (String) async -> String
-
-    public init(_ handler: @escaping (String) async -> String) {
-        self.handler = handler
-    }
-
-    public func call(argumentsJson: String) -> String {
-        let semaphore = DispatchSemaphore(value: 0)
-        var result = "Error: async tool call did not complete"
-        Task {
-            result = await handler(argumentsJson)
-            semaphore.signal()
-        }
-        semaphore.wait()
-        return result
     }
 }
 
