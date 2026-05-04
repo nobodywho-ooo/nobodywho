@@ -41,8 +41,10 @@ To get a full overview of the functionality provided by NobodyWho, simply keep r
 
 - **iOS**: iPhone 11 or newer with at least 4 GB of RAM. Requires iOS 15+.
 - **macOS**: Apple Silicon or Intel Mac with at least 8 GB of RAM. Requires macOS 13+.
+- **visionOS**: Apple Vision Pro. Requires visionOS 1.0+.
+- **watchOS**: Requires watchOS 10+. Due to limited memory on Apple Watch, your mileage may vary.
 
-GPU acceleration is enabled by default using Metal on Apple platforms.
+GPU acceleration is enabled by default using Metal on all Apple platforms.
 
 ## Feedback & Contributions
 
