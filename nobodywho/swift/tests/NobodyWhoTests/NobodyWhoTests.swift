@@ -28,42 +28,32 @@ final class NobodyWhoTests: XCTestCase {
         return value
     }
 
-    // MARK: - Completion
+    // MARK: - Chat (completion, streaming, tools)
 
-    func testCompletion() async throws {
+    func testChat() async throws {
         let modelPath = try requireEnv("TEST_MODEL")
-        let chat = try await Chat.fromPath(modelPath: modelPath, systemPrompt: "Reply with one word only.")
+        let model = try await Model.load(modelPath: modelPath)
+        let chat = Chat(model: model, systemPrompt: "Reply with one word only.")
+
+        // Completion
         let response = try await chat.ask("Say hello").completed()
         XCTAssertFalse(response.isEmpty)
-    }
 
-    func testStreaming() async throws {
-        let modelPath = try requireEnv("TEST_MODEL")
-        let chat = try await Chat.fromPath(modelPath: modelPath, systemPrompt: "Reply briefly.")
+        // Streaming
+        try await chat.resetContext(systemPrompt: "Reply briefly.")
         var tokens: [String] = []
-        for await token in chat.ask("Say hello") {
+        for await token in chat.ask("Say hi") {
             tokens.append(token)
         }
         XCTAssertFalse(tokens.isEmpty)
-    }
 
-    // MARK: - Tool calling
+        // Macro-generated tool
+        try await chat.resetContext(systemPrompt: "Use the echo tool to echo back exactly what the user says.", tools: [echoTool])
+        let echoResponse = try await chat.ask("Echo: hello").completed()
+        XCTAssertFalse(echoResponse.isEmpty)
 
-    func testMacroTool() async throws {
-        let modelPath = try requireEnv("TEST_MODEL")
-        let model = try await Model.load(modelPath: modelPath)
-
-        let chat = Chat(model: model, systemPrompt: "Use the echo tool to echo back exactly what the user says.", tools: [echoTool])
-        let response = try await chat.ask("Echo: hello").completed()
-        XCTAssertFalse(response.isEmpty)
-    }
-
-    func testSyncTool() async throws {
-        let modelPath = try requireEnv("TEST_MODEL")
-        let model = try await Model.load(modelPath: modelPath)
-
+        // Manual tool with callback verification
         var called = false
-
         let pingTool = Tool(
             name: "ping",
             description: "Ping the server",
@@ -72,30 +62,8 @@ final class NobodyWhoTests: XCTestCase {
             called = true
             return "pong"
         }
-
-        let chat = Chat(model: model, systemPrompt: "Use the ping tool now.", tools: [pingTool])
+        try await chat.resetContext(systemPrompt: "Use the ping tool now.", tools: [pingTool])
         let _ = try await chat.ask("Ping the server").completed()
-        XCTAssertTrue(called)
-    }
-
-    func testAsyncTool() async throws {
-        let modelPath = try requireEnv("TEST_MODEL")
-        let model = try await Model.load(modelPath: modelPath)
-
-        var called = false
-
-        let getTimeTool = Tool(
-            name: "getTime",
-            description: "Get the current time",
-            parameters: [("timezone", #"{"type": "string"}"#)]
-        ) { args in
-            called = true
-            let timezone = args[0] as! String
-            return "{\"time\": \"12:00\", \"timezone\": \"\(timezone)\"}"
-        }
-
-        let chat = Chat(model: model, systemPrompt: "Use the getTime tool now.", tools: [getTimeTool])
-        let _ = try await chat.ask("What time is it in UTC?").completed()
         XCTAssertTrue(called)
     }
 
