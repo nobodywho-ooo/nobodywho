@@ -288,12 +288,14 @@ jobs:
           cd mirror
 
           # Clear and copy sources
-          rm -rf src generated macros Package.swift
+          rm -rf src generated macros tests Package.swift README.md
           cp -r ../nobodywho/swift/src .
           mkdir -p generated
           cp ../nobodywho/swift/generated/nobodywho.swift generated/
           cp -r ../nobodywho/swift/macros .
+          cp -r ../nobodywho/swift/tests .
           cp ../nobodywho/swift/Package.swift .
+          cp ../nobodywho/swift/README.md .
 
           # Patch Package.swift: replace path: with url: + checksum:
           sed -i '' "s|path: \"Frameworks/NobodyWhoNative.xcframework\"|url: \"${URL}\",\n            checksum: \"${CHECKSUM}\"|" Package.swift
