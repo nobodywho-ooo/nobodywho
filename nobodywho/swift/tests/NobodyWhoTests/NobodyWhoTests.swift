@@ -33,7 +33,8 @@ final class NobodyWhoTests: XCTestCase {
     func testChat() async throws {
         let modelPath = try requireEnv("TEST_MODEL")
         let model = try await Model.load(modelPath: modelPath)
-        let chat = Chat(model: model, systemPrompt: "Reply with one word only.")
+        let noThinking = ["enable_thinking": false]
+        let chat = Chat(model: model, systemPrompt: "Reply with one word only.", templateVariables: noThinking)
 
         // Completion
         let response = try await chat.ask("Say hello").completed()
