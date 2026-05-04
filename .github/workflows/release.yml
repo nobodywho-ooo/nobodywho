@@ -8,6 +8,8 @@ on:
         required: true
       NPM_TOKEN:
         required: true
+      SWIFT_MIRROR_TOKEN:
+        required: true
 
 jobs:
   godot-distributable:
