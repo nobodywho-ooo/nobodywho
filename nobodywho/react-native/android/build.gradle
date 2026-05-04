@@ -82,7 +82,7 @@ task resolveNativeLibraries {
       abiDir.mkdirs()
 
       def fileName = "libnobodywho-uniffi-${triple}-release.so"
-      def downloadUrl = "https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-react-native-${nobodywhoVersion}/${fileName}"
+      def downloadUrl = "https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-react-native-v${nobodywhoVersion}/${fileName}"
 
       logger.lifecycle("[NobodyWho] ${abi}: Downloading from ${downloadUrl}")
 
@@ -110,7 +110,7 @@ task resolveNativeLibraries {
             throw new GradleException(
               "Failed to download NobodyWho library for ${abi}: HTTP ${code}\n" +
               "URL: ${downloadUrl}\n" +
-              "Check that the release exists: https://github.com/nobodywho-ooo/nobodywho/releases/tag/nobodywho-react-native-${nobodywhoVersion}"
+              "Check that the release exists: https://github.com/nobodywho-ooo/nobodywho/releases/tag/nobodywho-react-native-v${nobodywhoVersion}"
             )
           }
         }
