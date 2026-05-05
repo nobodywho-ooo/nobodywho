@@ -8,9 +8,11 @@
 //! - Gemma4: `<|tool_call>call:name{key:<|"|>val<|"|>}<tool_call|>`
 //! - Ministral3: `[TOOL_CALLS][{"name": "...", "arguments": {...}}]`
 //! - Llama-3.x: `<|python_tag|>{"name"|"function": "...", "parameters": {...}}<|eot_id|>` (prefix optional in extraction; model often omits it)
+//! - LFM2.5: `<|tool_call_start|>[fn1(arg=val), fn2(arg=val)]<|tool_call_end|>` Pythonic call list — handler runs in parser-only mode (no GBNF), mirroring llama.cpp's pre-autoparser working configuration
 
 mod functiongemma;
 mod gemma4;
+mod lfm2_5;
 mod llama32;
 mod ministral3;
 mod qwen3;
@@ -25,6 +27,7 @@ use tracing::debug;
 
 pub use functiongemma::FunctionGemmaHandler;
 pub use gemma4::Gemma4Handler;
+pub use lfm2_5::Lfm2_5Handler;
 pub use llama32::Llama32Handler;
 pub use ministral3::Ministral3Handler;
 pub use qwen3::Qwen3Handler;
@@ -275,6 +278,7 @@ pub enum ToolFormat {
     Gemma4(Gemma4Handler),
     Ministral3(Ministral3Handler),
     Llama32(Llama32Handler),
+    Lfm2_5(Lfm2_5Handler),
 }
 
 impl ToolFormat {
@@ -286,6 +290,7 @@ impl ToolFormat {
             ToolFormat::Gemma4(h) => h,
             ToolFormat::Ministral3(h) => h,
             ToolFormat::Llama32(h) => h,
+            ToolFormat::Lfm2_5(h) => h,
         }
     }
 
@@ -434,6 +439,18 @@ pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatEr
             debug!("Detected Llama-3.x format from model name");
             return Ok(ToolFormat::Llama32(Llama32Handler));
         }
+
+        // LFM2.5 by name. `general.name` for LFM2.5-350M is "LFM2.5-350M"
+        // (verified via GGUF strings dump). `general.basename` is "LFM2.5"
+        // by Liquid AI's convention. Architecture metadata is "lfm2" — shared
+        // with LFM2 v1, so name match (not arch match) distinguishes the family.
+        // Other LFM2.5 GGUFs (LFM2.5-1.2B-Instruct, LFM2.5-1.2B-Tool, etc.)
+        // are expected to share this naming convention but should have their
+        // metadata verified before relying on the same handler.
+        if name_lower.contains("lfm2.5") {
+            debug!("Detected LFM2.5 format from model name");
+            return Ok(ToolFormat::Lfm2_5(Lfm2_5Handler));
+        }
     }
 
     Err(ToolFormatError::UnsupportedFormat(
@@ -542,6 +559,7 @@ mod tests {
             ToolFormat::Gemma4(_) => "Gemma4",
             ToolFormat::Ministral3(_) => "Ministral3",
             ToolFormat::Llama32(_) => "Llama32",
+            ToolFormat::Lfm2_5(_) => "Lfm2_5",
         };
         eprintln!("detected handler     = {variant}");
     }
@@ -584,6 +602,7 @@ mod tests {
             ToolFormat::Gemma4(_) => "Gemma4",
             ToolFormat::Ministral3(_) => "Ministral3",
             ToolFormat::Llama32(_) => "Llama32",
+            ToolFormat::Lfm2_5(_) => "Lfm2_5",
         };
         eprintln!("detected handler     = {variant}");
         assert_eq!(
