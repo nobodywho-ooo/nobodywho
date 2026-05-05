@@ -1,0 +1,35 @@
+# Both whisper-rs-sys and llama-cpp-sys-2 bundle their own copy of ggml.
+# Until WHISPER_USE_SYSTEM_GGML is wired up end-to-end, allow the linker to
+# pick one copy. The CI integration test catches any ABI regression.
+#
+# To build with a single shared ggml instead (preferred for production):
+#   1. Build once to get the ggml cmake package:
+#        cargo build -p nobodywho
+#   2. Find the installed ggml-config.cmake:
+#        GGML_DIR=$(find target -name ggml-config.cmake | head -1 | xargs dirname)
+#   3. Rebuild with shared ggml:
+#        WHISPER_USE_SYSTEM_GGML=ON CMAKE_PREFIX_PATH=$GGML_DIR cargo build
+
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "link-arg=-Wl,--allow-multiple-definition"]
+
+[target.aarch64-unknown-linux-gnu]
+rustflags = ["-C", "link-arg=-Wl,--allow-multiple-definition"]
+
+[target.aarch64-linux-android]
+rustflags = ["-C", "link-arg=-Wl,--allow-multiple-definition"]
+
+[target.x86_64-linux-android]
+rustflags = ["-C", "link-arg=-Wl,--allow-multiple-definition"]
+
+[target.x86_64-apple-darwin]
+rustflags = ["-C", "link-arg=-Wl,-multiply_defined,suppress"]
+
+[target.aarch64-apple-darwin]
+rustflags = ["-C", "link-arg=-Wl,-multiply_defined,suppress"]
+
+[target.aarch64-apple-ios]
+rustflags = ["-C", "link-arg=-Wl,-multiply_defined,suppress"]
+
+[target.aarch64-apple-ios-sim]
+rustflags = ["-C", "link-arg=-Wl,-multiply_defined,suppress"]

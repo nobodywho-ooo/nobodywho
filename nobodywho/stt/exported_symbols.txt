@@ -1,0 +1,5 @@
+_stt_module_version
+_stt_module_create
+_stt_module_destroy
+_stt_module_transcribe
+_stt_module_last_error
