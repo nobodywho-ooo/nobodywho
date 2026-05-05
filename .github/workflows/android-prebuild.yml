@@ -1,0 +1,84 @@
+name: android-prebuild
+
+on:
+  push:
+    branches:
+      - feat/llama32-handler
+  workflow_dispatch: {}
+
+jobs:
+  build-aarch64-linux-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Cache cargo registry + git
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            nobodywho/target
+          key: cargo-android-${{ hashFiles('nobodywho/Cargo.lock') }}
+
+      - name: Setup Android NDK r28
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r28
+          add-to-path: false
+
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk
+
+      - name: Apply Bionic POSIX_MADV shim
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          # Force a one-time cargo fetch so the llama-cpp-sys-2 git checkout
+          # exists before we patch its bundled llama.cpp source.
+          cd nobodywho
+          cargo fetch --target aarch64-linux-android
+          patch_target=$(find ~/.cargo/git/checkouts -path '*/llama-cpp-sys-2-*/llama.cpp/src/llama-mmap.cpp' | head -1)
+          if [ -z "$patch_target" ]; then
+            echo "could not locate llama-mmap.cpp in cargo git checkout"
+            find ~/.cargo/git/checkouts -name 'llama-mmap.cpp' -print
+            exit 1
+          fi
+          echo "Patching $patch_target"
+          patch -p2 "$patch_target" < ../reports/llama-mmap-bionic-android.patch || \
+            patch "$patch_target" < ../reports/llama-mmap-bionic-android.patch
+
+      - name: Build aarch64-linux-android release .so
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        working-directory: nobodywho
+        run: cargo ndk -t arm64-v8a build --release -p nobodywho_flutter
+
+      - name: Locate built artifact
+        id: artifact
+        run: |
+          path=$(find nobodywho/target/aarch64-linux-android/release -name 'libnobodywho_flutter.so' -print -quit)
+          if [ -z "$path" ]; then
+            echo "build artifact not found"
+            find nobodywho/target -name '*.so'
+            exit 1
+          fi
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+          ls -la "$path"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libnobodywho_flutter-arm64-v8a-${{ github.sha }}
+          path: ${{ steps.artifact.outputs.path }}
+          retention-days: 30
+
+      - name: Smoke-test cargo unit tests on host
+        working-directory: nobodywho/core
+        run: cargo test --lib tool_calling
