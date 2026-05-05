@@ -1,11 +1,15 @@
 //! Text-to-speech synthesis supporting multiple backends.
 //!
-//! | Backend      | Quality       | Voice cloning | Languages                 | File cue             |
-//! |--------------|---------------|---------------|---------------------------|----------------------|
-//! | Kokoro       | High          | No            | English, Chinese          | `voices-*.bin`       |
-//! | Piper        | Medium        | No            | 80+ (espeak-ng backed)    | `*.onnx.json` config |
-//! | Chatterbox   | High          | Yes (WAV)     | 23 (incl. Danish)         | model directory      |
-//! | Røst         | High (Danish) | Preset        | Danish (finetune)         | model directory      |
+//! Every backend takes a single model directory ([`TtsConfig::kokoro`] /
+//! [`piper`][TtsConfig::piper] / [`chatterbox`][TtsConfig::chatterbox] /
+//! [`roest`][TtsConfig::roest]); see each `*Config` for the expected layout.
+//!
+//! | Backend      | Quality       | Voice cloning | Languages              |
+//! |--------------|---------------|---------------|------------------------|
+//! | Kokoro       | High          | No            | English, Chinese       |
+//! | Piper        | Medium        | No            | 80+ (espeak-ng backed) |
+//! | Chatterbox   | High          | Yes (WAV)     | 23 (incl. Danish)      |
+//! | Røst         | High (Danish) | Preset        | Danish (finetune)      |
 //!
 //! Use [`TtsBuilder`] with an explicit [`TtsConfig`] variant to load a backend.
 //! Synchronous handles take text and return WAV bytes:
@@ -49,10 +53,7 @@ pub use sampling_config::TtsSampling;
 use std::sync::Arc;
 use worker::TtsWorker;
 
-/// Hardware target for ONNX Runtime execution.
-///
-/// Kokoro is always CPU (its `kokoros` dependency manages its own runtime
-/// internally); Piper, Chatterbox, and Røst honor this setting.
+/// Hardware target for ONNX Runtime execution. All backends honor this.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TtsDevice {
     /// Prefer CUDA, silently fall back to CPU if unavailable.
@@ -119,12 +120,8 @@ impl Tts {
 mod tests {
     use super::*;
 
-    fn test_kokoro_model_path() -> String {
-        std::env::var("TEST_KOKORO_MODEL").unwrap_or_else(|_| "kokoro-v1.0.onnx".to_string())
-    }
-
-    fn test_kokoro_voices_path() -> String {
-        std::env::var("TEST_KOKORO_VOICES").unwrap_or_else(|_| "voices-v1.0.bin".to_string())
+    fn test_kokoro_dir() -> String {
+        std::env::var("TEST_KOKORO_DIR").unwrap_or_else(|_| "kokoro".to_string())
     }
 
     #[test]
@@ -158,13 +155,9 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "requires TEST_KOKORO_MODEL and TEST_KOKORO_VOICES files"]
+    #[ignore = "requires TEST_KOKORO_DIR with model.onnx and voices/<voice>.bin"]
     fn kokoro_synthesize_smoke() -> Result<(), Box<dyn std::error::Error>> {
-        let tts = TtsBuilder::new(TtsConfig::kokoro(
-            test_kokoro_model_path(),
-            test_kokoro_voices_path(),
-        ))
-        .build()?;
+        let tts = TtsBuilder::new(TtsConfig::kokoro(test_kokoro_dir())).build()?;
         let wav_bytes = tts.synthesize("Hello world")?;
         assert!(!wav_bytes.is_empty());
 
@@ -175,12 +168,10 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "requires Piper ONNX model files"]
+    #[ignore = "requires TEST_PIPER_DIR with model.onnx and model.onnx.json"]
     fn piper_synthesize_smoke() -> Result<(), Box<dyn std::error::Error>> {
-        let model = std::env::var("TEST_PIPER_MODEL")
-            .unwrap_or_else(|_| "da_DK-talesyntese-medium.onnx".to_string());
-        let config = format!("{model}.json");
-        let tts = TtsBuilder::new(TtsConfig::piper(&model, &config)).build()?;
+        let dir = std::env::var("TEST_PIPER_DIR").unwrap_or_else(|_| "piper".to_string());
+        let tts = TtsBuilder::new(TtsConfig::piper(dir)).build()?;
         let wav_bytes = tts.synthesize("Hej verden")?;
         assert!(!wav_bytes.is_empty());
 

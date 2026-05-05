@@ -1,6 +1,5 @@
 use crate::errors::TtsError;
 use crate::tts::{chatterbox, chatterbox_roest, kokoro, piper, TtsConfig, TtsDevice};
-use kokoros::tts::koko::TTSKoko;
 use std::path::Path;
 use std::time::Instant;
 use tracing::info;
@@ -20,21 +19,19 @@ pub(super) fn load_backend(
     match config {
         TtsConfig::Kokoro(config) => {
             let init_start = Instant::now();
-            let koko = load_kokoro(
-                &config.model_path.to_string_lossy(),
-                &config.voices_path.to_string_lossy(),
-            )?;
-            info!(elapsed = ?init_start.elapsed(), "Initialized Kokoro TTS");
-            Ok(Box::new(kokoro::KokoroBackend::new(
-                koko,
+            let backend = kokoro::KokoroBackend::new(
+                &config.model_dir,
                 config.voice,
                 config.language,
                 config.speed,
-            )))
+                device,
+            )?;
+            info!(elapsed = ?init_start.elapsed(), "Initialized Kokoro TTS");
+            Ok(Box::new(backend))
         }
         TtsConfig::Piper(config) => {
             let init_start = Instant::now();
-            let model = piper::PiperModel::new(&config.model_path, &config.config_path, device)?;
+            let model = piper::PiperModel::new(&config.model_dir, config.speaker_id, device)?;
             info!(elapsed = ?init_start.elapsed(), "Initialized Piper TTS");
             Ok(Box::new(piper::PiperBackend::new(model)))
         }
@@ -108,20 +105,6 @@ fn encode_wav(pcm: &[f32], sample_rate: u32) -> Result<Vec<u8>, TtsError> {
     }
 
     Ok(buffer)
-}
-
-/// Kokoro's initializer is async. We have two callers: sync code and code
-/// already inside a tokio runtime.
-fn load_kokoro(model_path: &str, voices_path: &str) -> Result<TTSKoko, TtsError> {
-    if let Ok(handle) = tokio::runtime::Handle::try_current() {
-        Ok(tokio::task::block_in_place(|| {
-            handle.block_on(TTSKoko::new(model_path, voices_path))
-        }))
-    } else {
-        let rt = tokio::runtime::Runtime::new()
-            .map_err(|e| TtsError::Init(format!("failed to create tokio runtime: {e}")))?;
-        Ok(rt.block_on(TTSKoko::new(model_path, voices_path)))
-    }
 }
 
 fn load_chatterbox_reference(

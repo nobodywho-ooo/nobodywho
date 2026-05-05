@@ -13,7 +13,7 @@ use serde::Deserialize;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::Path;
-use tracing::info;
+use tracing::{info, warn};
 
 pub(super) struct PiperBackend {
     model: PiperModel,
@@ -63,29 +63,60 @@ pub(crate) struct InferenceConfig {
 pub(crate) struct PiperModel {
     session: Session,
     config: PiperConfig,
+    speaker_id: i64,
 }
+
+const MODEL_FILE: &str = "model.onnx";
+const CONFIG_FILE: &str = "model.onnx.json";
 
 const PAD_ID: i64 = 0; // "_"
 const BOS_ID: i64 = 1; // "^"
 const EOS_ID: i64 = 2; // "$"
 
 impl PiperModel {
-    pub fn new(model_path: &Path, config_path: &Path, device: TtsDevice) -> Result<Self, TtsError> {
-        let config_str = std::fs::read_to_string(config_path)
+    pub fn new(
+        model_dir: &Path,
+        speaker_id: u32,
+        device: TtsDevice,
+    ) -> Result<Self, TtsError> {
+        let model_path = model_dir.join(MODEL_FILE);
+        let config_path = model_dir.join(CONFIG_FILE);
+
+        let config_str = std::fs::read_to_string(&config_path)
             .map_err(|e| TtsError::Init(format!("failed to read piper config: {e}")))?;
         let config: PiperConfig = serde_json::from_str(&config_str)
             .map_err(|e| TtsError::Init(format!("failed to parse piper config: {e}")))?;
 
-        let session = ort_util::load_session(model_path, device, false)?;
+        if config.num_speakers > 1 && speaker_id >= config.num_speakers {
+            return Err(TtsError::Init(format!(
+                "piper speaker_id {speaker_id} out of range; voice has {} speakers (0..{})",
+                config.num_speakers,
+                config.num_speakers - 1,
+            )));
+        }
+        if config.num_speakers <= 1 && speaker_id != 0 {
+            warn!(
+                speaker_id,
+                num_speakers = config.num_speakers,
+                "piper voice is single-speaker; ignoring requested speaker_id"
+            );
+        }
+
+        let session = ort_util::load_session(&model_path, device, false)?;
 
         info!(
             sample_rate = config.audio.sample_rate,
             voice = config.espeak.voice,
             num_speakers = config.num_speakers,
+            speaker_id,
             "Loaded Piper model"
         );
 
-        Ok(Self { session, config })
+        Ok(Self {
+            session,
+            config,
+            speaker_id: speaker_id as i64,
+        })
     }
 
     pub fn sample_rate(&self) -> u32 {
@@ -163,7 +194,7 @@ impl PiperModel {
         ];
 
         if self.config.num_speakers > 1 {
-            let sid_tensor = Tensor::from_array(([1], vec![0i64]))
+            let sid_tensor = Tensor::from_array(([1], vec![self.speaker_id]))
                 .map_err(|e| TtsError::Synthesis(format!("sid tensor: {e}")))?;
             inputs.push((
                 Cow::Borrowed("sid"),
