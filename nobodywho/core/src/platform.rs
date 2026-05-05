@@ -4,6 +4,9 @@ use std::path::{Path, PathBuf};
 /// 1. `GGML_BACKEND_DIR` env var (explicit override)
 /// 2. Directory of the currently-loaded shared library (production: Python wheel, Godot addon, Flutter)
 /// 3. Compile-time OUT_DIR built by llama-cpp-sys-2 (development: cargo run, cargo test)
+///
+/// iOS uses static-only linkage (no `dynamic-backends` feature), so this isn't compiled there.
+#[cfg(not(target_os = "ios"))]
 pub(crate) fn get_backends_path() -> Option<PathBuf> {
     if let Ok(dir) = std::env::var("GGML_BACKEND_DIR") {
         return Some(PathBuf::from(dir));
@@ -16,6 +19,7 @@ pub(crate) fn get_backends_path() -> Option<PathBuf> {
     llama_cpp_2::llama_backend::BACKENDS_DIR.map(PathBuf::from)
 }
 
+#[cfg(not(target_os = "ios"))]
 fn has_backend_files(dir: &Path) -> bool {
     // Backend MODULE files are always .so (CMake MODULE target), even on macOS where regular
     // shared libs use .dylib. On Windows they're .dll. Match only the MODULE extension so we

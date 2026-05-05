@@ -481,6 +481,90 @@ jobs:
           name: nobodywho-flutter-xcframework
           path: ./nobodywho_flutter.xcframework.zip
 
+  # Wraps the stt cdylib slices (built by cargo-build-macos under the godot matrix
+  # row) into a dynamic-framework xcframework. This is what the Flutter / RN iOS
+  # podspecs embed as a separate framework so it can be dlopen'd at runtime —
+  # whisper's bundled ggml stays in its own dyld two-level namespace and never
+  # collides with llama's ggml inside the main nobodywho_flutter framework.
+  build-stt-xcframework:
+    if: inputs.full_ci
+    runs-on: macos-15
+    needs: [cargo-build-macos]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Download stt Apple artifacts"
+        uses: actions/download-artifact@v4
+        with:
+          # Matches both apple-ios{,-sim} and apple-darwin slices uploaded by
+          # the godot matrix row of cargo-build-macos.
+          pattern: nobodywho-stt-*-apple-*-release
+          merge-multiple: true
+
+      - name: "Build STT XCFramework"
+        run: |
+          cat > Info.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+            "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleExecutable</key>
+              <string>nobodywho_stt</string>
+              <key>CFBundleIdentifier</key>
+              <string>ooo.nobodywho.stt</string>
+              <key>CFBundleInfoDictionaryVersion</key>
+              <string>6.0</string>
+              <key>CFBundleName</key>
+              <string>nobodywho_stt</string>
+              <key>CFBundlePackageType</key>
+              <string>FMWK</string>
+              <key>CFBundleVersion</key>
+              <string>1</string>
+          </dict>
+          </plist>
+          EOF
+
+          # iOS device (flat framework layout)
+          mkdir -p ios-device/nobodywho_stt.framework
+          cp libnobodywho_stt-aarch64-apple-ios-release.dylib ios-device/nobodywho_stt.framework/nobodywho_stt
+          install_name_tool -id @rpath/nobodywho_stt.framework/nobodywho_stt ios-device/nobodywho_stt.framework/nobodywho_stt
+          cp Info.plist ios-device/nobodywho_stt.framework/
+
+          # iOS simulator (aarch64)
+          mkdir -p ios-sim/nobodywho_stt.framework
+          cp libnobodywho_stt-aarch64-apple-ios-sim-release.dylib ios-sim/nobodywho_stt.framework/nobodywho_stt
+          install_name_tool -id @rpath/nobodywho_stt.framework/nobodywho_stt ios-sim/nobodywho_stt.framework/nobodywho_stt
+          cp Info.plist ios-sim/nobodywho_stt.framework/
+
+          # macOS universal (arm64 + x86_64) in versioned bundle layout — required for
+          # macOS deep bundles to be valid under code signing.
+          lipo -create -output macos-universal.dylib \
+            libnobodywho_stt-aarch64-apple-darwin-release.dylib \
+            libnobodywho_stt-x86_64-apple-darwin-release.dylib
+          mkdir -p macos/nobodywho_stt.framework/Versions/A/Resources
+          cp macos-universal.dylib macos/nobodywho_stt.framework/Versions/A/nobodywho_stt
+          install_name_tool -id @rpath/nobodywho_stt.framework/nobodywho_stt macos/nobodywho_stt.framework/Versions/A/nobodywho_stt
+          cp Info.plist macos/nobodywho_stt.framework/Versions/A/Resources/
+          ln -sf A macos/nobodywho_stt.framework/Versions/Current
+          ln -sf Versions/Current/nobodywho_stt macos/nobodywho_stt.framework/nobodywho_stt
+          ln -sf Versions/Current/Resources macos/nobodywho_stt.framework/Resources
+
+          xcodebuild -create-xcframework \
+                  -framework ios-device/nobodywho_stt.framework \
+                  -framework ios-sim/nobodywho_stt.framework \
+                  -framework macos/nobodywho_stt.framework \
+                  -output nobodywho_stt.xcframework
+
+      - name: "Zip STT XCFramework"
+        run: zip -y -r nobodywho_stt.xcframework.zip nobodywho_stt.xcframework
+
+      - name: "Upload STT xcframework artifact"
+        uses: actions/upload-artifact@v4
+        with:
+          name: nobodywho-stt-xcframework
+          path: ./nobodywho_stt.xcframework.zip
+
   # builds an xcframework containing static libraries for React Native iOS
   build-react-native-xcframework:
     if: inputs.full_ci

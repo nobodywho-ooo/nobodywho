@@ -13,7 +13,12 @@ const EXPECTED_ABI_VERSION: u32 = 1;
 const LIB_NAME: &str = "nobodywho_stt.dll";
 #[cfg(target_os = "macos")]
 const LIB_NAME: &str = "libnobodywho_stt.dylib";
-#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+// On iOS the dylib is shipped inside an embedded framework bundle. dlopen can resolve a
+// path relative to the host executable; the framework name is fixed, so this constant is
+// the relative path from the app bundle root.
+#[cfg(target_os = "ios")]
+const LIB_NAME: &str = "Frameworks/nobodywho_stt.framework/nobodywho_stt";
+#[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios")))]
 const LIB_NAME: &str = "libnobodywho_stt.so";
 
 // Target-triple-specific filename — used in multi-arch release bundles (Godot addon zip,
@@ -43,6 +48,19 @@ const LIB_NAME_RELEASE: &str = "libnobodywho_stt-x86_64-linux-android-release.so
     all(target_os = "android", target_arch = "x86_64"),
 )))]
 const LIB_NAME_RELEASE: &str = LIB_NAME; // fallback to plain name for unknown targets
+
+// Extra relative paths to probe for the stt framework binary on macOS, where the dylib
+// can live inside a versioned framework bundle when shipped through a Flutter app.
+// Tried in addition to LIB_NAME / LIB_NAME_RELEASE.
+#[cfg(target_os = "macos")]
+const EXTRA_CANDIDATES: &[&str] = &[
+    "nobodywho_stt.framework/nobodywho_stt",
+    "Frameworks/nobodywho_stt.framework/nobodywho_stt",
+    "../Frameworks/nobodywho_stt.framework/nobodywho_stt",
+];
+
+#[cfg(not(target_os = "macos"))]
+const EXTRA_CANDIDATES: &[&str] = &[];
 
 // -- STT dylib symbol table --
 
@@ -127,6 +145,19 @@ fn try_load_stt() -> Result<(Library, SttSyms), String> {
     Ok((lib, syms))
 }
 
+/// Try each candidate relative path inside `dir`. Returns the first successfully loaded library.
+fn try_open_in(dir: &std::path::Path) -> Result<Library, ()> {
+    for name in [LIB_NAME_RELEASE, LIB_NAME].iter().chain(EXTRA_CANDIDATES) {
+        let candidate = dir.join(name);
+        if candidate.exists() {
+            if let Ok(lib) = unsafe { Library::new(&candidate) } {
+                return Ok(lib);
+            }
+        }
+    }
+    Err(())
+}
+
 fn open_stt_library() -> Result<Library, String> {
     // 1. Explicit override via environment variable.
     if let Ok(path) = std::env::var("NOBODYWHO_STT_MODULE_PATH") {
@@ -136,28 +167,20 @@ fn open_stt_library() -> Result<Library, String> {
 
     // 2. Sibling to the current shared library (covers Python site-packages, Godot addon dir).
     //    Try the arch-specific release name first (multi-arch bundles like the Godot addon zip
-    //    where x86_64 and aarch64 files coexist), then fall back to the plain name.
+    //    where x86_64 and aarch64 files coexist), then the plain name, then any platform-specific
+    //    extras (e.g. the framework path inside a Flutter app's Frameworks/).
     if let Some(dir) = self_dir() {
-        for name in &[LIB_NAME_RELEASE, LIB_NAME] {
-            let candidate = dir.join(name);
-            if candidate.exists() {
-                if let Ok(lib) = unsafe { Library::new(&candidate) } {
-                    return Ok(lib);
-                }
-            }
+        if let Ok(lib) = try_open_in(&dir) {
+            return Ok(lib);
         }
     }
 
-    // 3. Sibling to the running executable (covers standalone binaries, test wrappers).
+    // 3. Sibling to the running executable (covers standalone binaries, test wrappers,
+    //    and macOS Flutter apps where the host binary lives in MyApp.app/Contents/MacOS).
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
-            for name in &[LIB_NAME_RELEASE, LIB_NAME] {
-                let candidate = dir.join(name);
-                if candidate.exists() {
-                    if let Ok(lib) = unsafe { Library::new(&candidate) } {
-                        return Ok(lib);
-                    }
-                }
+            if let Ok(lib) = try_open_in(dir) {
+                return Ok(lib);
             }
         }
     }

@@ -46,25 +46,39 @@ void main(List<String> arguments) async {
     stdout.writeln(resolvedPath);
     exit(0);
   } catch (e) {
+    if (parseArgumentsSafe(arguments)?.optional == true) {
+      // --optional: failure to resolve is not an error. Empty stdout signals "skip".
+      stderr.writeln('Optional component unresolved: $e');
+      exit(0);
+    }
     stderr.writeln('Error: $e');
     exit(1);
   }
 }
 
 class Config {
+  /// 'main' = the primary nobodywho_flutter library / xcframework (default).
+  /// 'stt' = the optional nobodywho_stt xcframework (Apple only for now).
+  final String component;
   final String platform;
   final String? arch;
   final String buildType;
   final String cacheDir;
+  /// When true, failure to resolve exits 0 with empty stdout instead of throwing.
+  /// Used for the stt component, which may be absent in older releases.
+  final bool optional;
 
   Config({
     required this.platform,
     this.arch,
     required this.buildType,
     required this.cacheDir,
+    this.component = 'main',
+    this.optional = false,
   });
 
   bool get isApplePlatform => platform == 'ios' || platform == 'macos';
+  bool get isStt => component == 'stt';
 }
 
 Config parseArguments(List<String> args) {
@@ -72,11 +86,18 @@ Config parseArguments(List<String> args) {
   String? arch;
   String? buildType;
   String? cacheDir;
+  String component = 'main';
+  bool optional = false;
 
   for (int i = 0; i < args.length; i++) {
     if (args[i].startsWith('--')) {
       final parts = args[i].substring(2).split('=');
       final key = parts[0];
+      // --optional is a boolean flag with no value
+      if (key == 'optional') {
+        optional = true;
+        continue;
+      }
       final value = parts.length > 1 ? parts[1] : (i + 1 < args.length ? args[++i] : null);
 
       switch (key) {
@@ -92,6 +113,9 @@ Config parseArguments(List<String> args) {
         case 'cache-dir':
           cacheDir = value;
           break;
+        case 'component':
+          if (value != null) component = value;
+          break;
       }
     }
   }
@@ -105,10 +129,19 @@ Config parseArguments(List<String> args) {
   if (cacheDir == null) {
     throw ArgumentError('Missing required argument: --cache-dir');
   }
+  if (!['main', 'stt'].contains(component)) {
+    throw ArgumentError('Invalid component: $component (must be main or stt)');
+  }
 
-  // Arch is not required for iOS/macOS (they use xcframework)
-  if (platform != 'ios' && platform != 'macos' && arch == null) {
+  // Arch is not required for iOS/macOS (they use xcframework). For the stt component
+  // we currently only support Apple platforms — non-Apple stt distribution isn't wired
+  // through the resolver yet (the per-arch dylibs ship as separate release assets but
+  // are placed by the per-platform Flutter build system, not this script).
+  if (component == 'main' && platform != 'ios' && platform != 'macos' && arch == null) {
     throw ArgumentError('Missing required argument: --arch (required for $platform)');
+  }
+  if (component == 'stt' && platform != 'ios' && platform != 'macos') {
+    throw ArgumentError('--component=stt is only supported for ios/macos at this time');
   }
 
   if (!['debug', 'release'].contains(buildType)) {
@@ -120,7 +153,28 @@ Config parseArguments(List<String> args) {
     arch: arch,
     buildType: buildType,
     cacheDir: cacheDir,
+    component: component,
+    optional: optional,
   );
+}
+
+/// Re-parse arguments without throwing — used by main() to detect --optional after
+/// a resolution failure has already been raised by the strict parse.
+Config? parseArgumentsSafe(List<String> args) {
+  try {
+    return parseArguments(args);
+  } catch (_) {
+    // Fall back to scanning just for --optional so we still respect it on partial input.
+    if (args.contains('--optional')) {
+      return Config(
+        platform: '?',
+        buildType: 'release',
+        cacheDir: '/tmp',
+        optional: true,
+      );
+    }
+    return null;
+  }
 }
 
 Future<String> resolveBinary(Config config) async {
@@ -148,8 +202,11 @@ Future<String> resolveBinary(Config config) async {
 
 String? checkEnvironmentOverride(Config config) {
   if (config.isApplePlatform) {
-    // For iOS/macOS, check for xcframework path
-    final xcframeworkPath = Platform.environment['NOBODYWHO_FLUTTER_XCFRAMEWORK_PATH'];
+    // For iOS/macOS, check for xcframework path. The env var differs by component.
+    final envName = config.isStt
+        ? 'NOBODYWHO_STT_XCFRAMEWORK_PATH'
+        : 'NOBODYWHO_FLUTTER_XCFRAMEWORK_PATH';
+    final xcframeworkPath = Platform.environment[envName];
     if (xcframeworkPath != null && xcframeworkPath.isNotEmpty) {
       final xcframeworkDir = Directory(xcframeworkPath);
       if (xcframeworkDir.existsSync()) {
@@ -157,7 +214,7 @@ String? checkEnvironmentOverride(Config config) {
         return xcframeworkPath;
       } else {
         throw Exception(
-          'NOBODYWHO_FLUTTER_XCFRAMEWORK_PATH is set but path does not exist: $xcframeworkPath'
+          '$envName is set but path does not exist: $xcframeworkPath'
         );
       }
     }
@@ -193,9 +250,17 @@ String? checkLocalBuild(Config config) {
   }
 
   if (config.isApplePlatform) {
-    // For iOS/macOS, we can't easily construct xcframework from local builds
-    // User should use environment variable for local development
-    // Check if any .dylib files exist to give a helpful error
+    // For iOS/macOS, the build scripts (build_ios.sh / build_macos.sh / build_stt_apple.sh)
+    // produce a finished xcframework under target/xcframework/. Pick it up directly.
+    final xcframeworkName = config.isStt ? 'nobodywho_stt' : 'nobodywho_flutter';
+    final localXcf = Directory('${targetDir.path}/xcframework/$xcframeworkName.xcframework');
+    if (localXcf.existsSync()) {
+      stderr.writeln('Using local xcframework: ${localXcf.path}');
+      return localXcf.path;
+    }
+
+    // No xcframework yet — see if loose dylibs exist and tell the user how to wrap them.
+    final libBaseName = config.isStt ? 'libnobodywho_stt' : 'libnobodywho_flutter';
     final triples = [
       'aarch64-apple-darwin',
       'x86_64-apple-darwin',
@@ -203,14 +268,19 @@ String? checkLocalBuild(Config config) {
       'aarch64-apple-ios-sim',
       'x86_64-apple-ios',
     ];
-
     for (final triple in triples) {
-      final dylibFile = File('${targetDir.path}/$triple/${config.buildType}/libnobodywho_flutter.dylib');
+      final dylibFile = File('${targetDir.path}/$triple/${config.buildType}/$libBaseName.dylib');
       if (dylibFile.existsSync()) {
+        final scriptHint = config.isStt
+            ? 'flutter/scripts/build_stt_apple.sh'
+            : 'flutter/scripts/build_macos.sh or flutter/scripts/build_ios.sh';
+        final envHint = config.isStt
+            ? 'NOBODYWHO_STT_XCFRAMEWORK_PATH'
+            : 'NOBODYWHO_FLUTTER_XCFRAMEWORK_PATH';
         throw Exception(
           'Found local .dylib files but xcframework is not built.\n'
-          'Run scripts/build_macos.sh or scripts/build_ios.sh to create the xcframework.\n'
-          'Or set NOBODYWHO_FLUTTER_XCFRAMEWORK_PATH to point to your xcframework.'
+          'Run $scriptHint to create the xcframework.\n'
+          'Or set $envHint to point to your xcframework.'
         );
       }
     }
@@ -240,8 +310,11 @@ String? checkCachedDownload(Config config) {
   final cacheBasePath = '${config.cacheDir}/nobodywho/$version';
 
   if (config.isApplePlatform) {
-    // Check for cached xcframework
-    final xcframeworkPath = '$cacheBasePath/xcframework/nobodywho_flutter.xcframework';
+    // Cached xcframework lives in a component-specific subdir so main and stt
+    // don't collide on disk.
+    final subdir = config.isStt ? 'xcframework-stt' : 'xcframework';
+    final xcframeworkName = config.isStt ? 'nobodywho_stt' : 'nobodywho_flutter';
+    final xcframeworkPath = '$cacheBasePath/$subdir/$xcframeworkName.xcframework';
     final xcframeworkDir = Directory(xcframeworkPath);
     if (xcframeworkDir.existsSync()) {
       stderr.writeln('Using cached xcframework: $xcframeworkPath');
@@ -340,18 +413,20 @@ Future<String> downloadLibrary(Config config, String version) async {
 }
 
 Future<String> downloadXCFramework(Config config, String version) async {
-  // Download URL for xcframework
-  final fileName = 'nobodywho_flutter.xcframework.zip';
+  // The stt component ships as a separate asset under the same release tag.
+  final xcframeworkName = config.isStt ? 'nobodywho_stt' : 'nobodywho_flutter';
+  final subdir = config.isStt ? 'xcframework-stt' : 'xcframework';
+  final fileName = '$xcframeworkName.xcframework.zip';
   final url = 'https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-flutter-v$version/$fileName';
 
   // Prepare cache directory
-  final cacheDir = '${config.cacheDir}/nobodywho/$version/xcframework';
+  final cacheDir = '${config.cacheDir}/nobodywho/$version/$subdir';
   final cacheDirObj = Directory(cacheDir);
   await cacheDirObj.create(recursive: true);
 
   final zipPath = '$cacheDir/$fileName';
   final zipFile = File(zipPath);
-  final xcframeworkPath = '$cacheDir/nobodywho_flutter.xcframework';
+  final xcframeworkPath = '$cacheDir/$xcframeworkName.xcframework';
 
   stderr.writeln('Downloading: $url');
 

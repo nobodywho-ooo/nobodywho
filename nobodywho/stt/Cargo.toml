@@ -17,3 +17,6 @@ whisper-rs = { version = "0.16", default-features = false, features = ["tracing_
 
 [target.'cfg(target_os = "macos")'.dependencies]
 whisper-rs = { version = "0.16", default-features = false, features = ["tracing_backend", "metal"] }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+whisper-rs = { version = "0.16", default-features = false, features = ["tracing_backend", "metal"] }

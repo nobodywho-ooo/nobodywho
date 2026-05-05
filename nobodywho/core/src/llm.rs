@@ -1,5 +1,6 @@
 use crate::errors::{InitWorkerError, LoadModelError, ReadError};
 use crate::memory;
+#[cfg(not(target_os = "ios"))]
 use crate::platform::get_backends_path;
 use crate::tokenizer::{ProjectionModel, Tokenizer, TokenizerChunk, TokenizerChunks};
 use indicatif::{ProgressBar, ProgressStyle};
@@ -30,6 +31,9 @@ lazy_static! {
 }
 
 static LLAMA_BACKEND: LazyLock<LlamaBackend> = LazyLock::new(|| {
+    // Dynamic backend loading is only available when llama-cpp-2 is built with the
+    // dynamic-backends feature. iOS uses the static-only build path.
+    #[cfg(not(target_os = "ios"))]
     match get_backends_path() {
         Some(path) => llama_cpp_2::llama_backend::load_backends_from_path(&path),
         None => warn!("No GGML backend directory found; hardware acceleration backends (Vulkan, CPU variants) will not be loaded"),

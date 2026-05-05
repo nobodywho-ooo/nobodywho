@@ -240,6 +240,12 @@ jobs:
           name: nobodywho-react-native-xcframework
           path: ./nobodywho-react-native-release
 
+      - name: "Download STT XCFramework"
+        uses: actions/download-artifact@v4
+        with:
+          name: nobodywho-stt-xcframework
+          path: ./nobodywho-react-native-release
+
       - name: "Keep only React Native artifacts (.so and xcframework)"
         run: |
           cd nobodywho-react-native-release
