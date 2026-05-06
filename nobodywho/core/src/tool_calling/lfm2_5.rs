@@ -95,6 +95,11 @@ impl ToolFormatHandler for Lfm2_5Handler {
 /// individual top-level chunks, respecting `(` / `)` nesting and string
 /// quoting so commas inside args / strings are not separators.
 fn split_top_level_calls(s: &str) -> Vec<&str> {
+    // Split on top-level commas while respecting string quotes and ALL three
+    // bracket pairs Python uses inside arg literals: `(...)`, `[...]`, `{...}`.
+    // Without `[`/`{` tracking, model emissions like
+    //     set_intersection(set1={12, 5, 7, 3, 4}, set2={12, 9, 5, 3})
+    // get split inside the set literal and lose all kwargs.
     let bytes = s.as_bytes();
     let mut depth: i32 = 0;
     let mut start: usize = 0;
@@ -106,8 +111,8 @@ fn split_top_level_calls(s: &str) -> Vec<&str> {
             (Some(_), _) => {}
             (None, b'"') => in_str = Some(b'"'),
             (None, b'\'') => in_str = Some(b'\''),
-            (None, b'(') => depth += 1,
-            (None, b')') => depth -= 1,
+            (None, b'(') | (None, b'[') | (None, b'{') => depth += 1,
+            (None, b')') | (None, b']') | (None, b'}') => depth -= 1,
             (None, b',') if depth == 0 => {
                 out.push(&s[start..i]);
                 start = i + 1;
@@ -119,6 +124,27 @@ fn split_top_level_calls(s: &str) -> Vec<&str> {
         out.push(&s[start..]);
     }
     out
+}
+
+/// True if `s` contains a top-level `:` (used to discriminate dict literal
+/// `{k: v, ...}` from set literal `{1, 2, 3}`).
+fn has_top_level_colon(s: &str) -> bool {
+    let bytes = s.as_bytes();
+    let mut depth: i32 = 0;
+    let mut in_str: Option<u8> = None;
+    for &b in bytes {
+        match (in_str, b) {
+            (Some(q), c) if c == q => in_str = None,
+            (Some(_), _) => {}
+            (None, b'"') => in_str = Some(b'"'),
+            (None, b'\'') => in_str = Some(b'\''),
+            (None, b'(') | (None, b'[') | (None, b'{') => depth += 1,
+            (None, b')') | (None, b']') | (None, b'}') => depth -= 1,
+            (None, b':') if depth == 0 => return true,
+            _ => {}
+        }
+    }
+    false
 }
 
 fn parse_pythonic_call(s: &str) -> Option<ToolCall> {
@@ -158,17 +184,71 @@ fn parse_pythonic_value(s: &str) -> Option<Value> {
     if s.is_empty() {
         return None;
     }
+    // String literals: "..." or '...'
     if (s.starts_with('"') && s.ends_with('"')) || (s.starts_with('\'') && s.ends_with('\'')) {
         if s.len() < 2 {
             return None;
         }
         return Some(Value::String(s[1..s.len() - 1].to_string()));
     }
+    // Bool / null
     match s {
         "true" | "True" => return Some(Value::Bool(true)),
         "false" | "False" => return Some(Value::Bool(false)),
         "null" | "None" => return Some(Value::Null),
         _ => {}
+    }
+    // List or tuple literal: `[...]` / `(...)` -> JSON array.
+    if (s.starts_with('[') && s.ends_with(']')) || (s.starts_with('(') && s.ends_with(')')) {
+        let inner = s[1..s.len() - 1].trim();
+        if inner.is_empty() {
+            return Some(Value::Array(Vec::new()));
+        }
+        let items: Vec<Value> = split_top_level_calls(inner)
+            .into_iter()
+            .map(|p| p.trim())
+            .filter(|p| !p.is_empty())
+            .filter_map(parse_pythonic_value)
+            .collect();
+        return Some(Value::Array(items));
+    }
+    // Set / dict literal: `{...}`. Discriminate by top-level colon.
+    if s.starts_with('{') && s.ends_with('}') {
+        let inner = s[1..s.len() - 1].trim();
+        if inner.is_empty() {
+            return Some(Value::Array(Vec::new()));
+        }
+        let parts: Vec<&str> = split_top_level_calls(inner)
+            .into_iter()
+            .map(|p| p.trim())
+            .filter(|p| !p.is_empty())
+            .collect();
+        let is_dict = parts.iter().any(|p| has_top_level_colon(p));
+        if is_dict {
+            let mut obj = serde_json::Map::new();
+            for p in parts {
+                let Some(colon) = p.find(':') else { continue };
+                let key_raw = p[..colon].trim();
+                let val_raw = p[colon + 1..].trim();
+                let key = if (key_raw.starts_with('"') && key_raw.ends_with('"'))
+                    || (key_raw.starts_with('\'') && key_raw.ends_with('\''))
+                {
+                    if key_raw.len() < 2 {
+                        continue;
+                    }
+                    key_raw[1..key_raw.len() - 1].to_string()
+                } else {
+                    key_raw.to_string()
+                };
+                let val =
+                    parse_pythonic_value(val_raw).unwrap_or(Value::String(val_raw.to_string()));
+                obj.insert(key, val);
+            }
+            return Some(Value::Object(obj));
+        }
+        // Set literal -> JSON array (JSON has no native set; consumers map back)
+        let items: Vec<Value> = parts.into_iter().filter_map(parse_pythonic_value).collect();
+        return Some(Value::Array(items));
     }
     if let Ok(i) = s.parse::<i64>() {
         return Some(json!(i));
