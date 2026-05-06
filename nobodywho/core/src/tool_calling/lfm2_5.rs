@@ -276,6 +276,21 @@ mod tests {
     }
 
     #[test]
+    fn double_wrap_emit_extracts_first_call() {
+        // LFM2.5-1.2B-Instruct empirically emits a double-wrap on multi-turn weather:
+        //   <|tool_call_start|>[get_weather(city="Cairo")]<|tool_call_end|>[get_weather(city="Cairo")]<|tool_call_end|>
+        // Parser should still extract the first valid call (between begin and FIRST end token).
+        let input = concat!(
+            "<|tool_call_start|>[get_weather(city=\"Cairo\")]<|tool_call_end|>",
+            "[get_weather(city=\"Cairo\")]<|tool_call_end|>"
+        );
+        let calls = handler().extract_tool_calls(input).unwrap();
+        assert_eq!(calls.len(), 1, "should extract first call only, ignore tail");
+        assert_eq!(calls[0].name, "get_weather");
+        assert_eq!(calls[0].arguments, json!({"city": "Cairo"}));
+    }
+
+    #[test]
     fn tail_text_after_end_token_is_ignored() {
         // Per LFM2.5 model card: assistant turn can be
         //   <|tool_call_start|>[fn(...)]<|tool_call_end|>{NL summary}
