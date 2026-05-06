@@ -190,20 +190,51 @@ impl Tool {
 }
 
 // Serialize tools according to https://huggingface.co/blog/unified-tool-use
+//
+// IMPORTANT: emit keys in EXPLICIT INSERTION ORDER (`type` before `function`,
+// inner `name` -> `description` -> `parameters`). The default `serde_json::json!`
+// path materialises a `Value::Object` backed by `BTreeMap`, which re-sorts keys
+// alphabetically. LFM2.5-350M is sensitive to that order — when fed
+// `{"function":{...},"type":"function"}` (alphabetical), it hallucinates extra
+// Pythonic kwargs (`parameters=`, `type=`) in the tool call. Using `serialize_map`
+// directly with nested helpers preserves the canonical OpenAI key order and
+// avoids forcing the `serde_json/preserve_order` cargo feature globally.
 impl Serialize for Tool {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        serde_json::json!({
-            "type": "function",
-            "function": {
-                "name": &self.name,
-                "description": &self.description,
-                "parameters": &self.json_schema,
+        use serde::ser::SerializeMap;
+
+        struct OrderedFunction<'a> {
+            name: &'a str,
+            description: &'a str,
+            parameters: &'a serde_json::Value,
+        }
+
+        impl Serialize for OrderedFunction<'_> {
+            fn serialize<S2>(&self, serializer: S2) -> Result<S2::Ok, S2::Error>
+            where
+                S2: Serializer,
+            {
+                let mut m = serializer.serialize_map(Some(3))?;
+                m.serialize_entry("name", self.name)?;
+                m.serialize_entry("description", self.description)?;
+                m.serialize_entry("parameters", self.parameters)?;
+                m.end()
             }
-        })
-        .serialize(serializer)
+        }
+
+        let function = OrderedFunction {
+            name: &self.name,
+            description: &self.description,
+            parameters: &self.json_schema,
+        };
+
+        let mut map = serializer.serialize_map(Some(2))?;
+        map.serialize_entry("type", "function")?;
+        map.serialize_entry("function", &function)?;
+        map.end()
     }
 }
 
@@ -215,6 +246,7 @@ pub struct ToolCall {
 }
 
 // Serialize tools according to https://huggingface.co/blog/unified-tool-use
+// (insertion-order preserved — see Serialize for Tool above for rationale).
 impl Serialize for ToolCall {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
