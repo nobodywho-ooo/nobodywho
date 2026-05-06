@@ -613,13 +613,18 @@ fn dart_function_type_to_json_schema(
         properties.insert(parameter_name.into(), parameter_type);
     }
 
+    // NOTE: do NOT add `additionalProperties: false` here. LFM2.5-350M (and likely
+    // other small models trained on plain JSON Schema, not OpenAI strict-mode) treats
+    // that field as a literal kwarg name and echoes it back in Pythonic tool calls,
+    // breaking the parser. JSON Schema's default (additional allowed) is fine — no
+    // enforcement happens client-side anyway, and Qwen3/Llama-3.2 tolerated either
+    // form on r5.
     tracing::debug!(
         "\n\n{}\n\n",
         serde_json::json!({
             "type": "object",
             "properties": properties,
             "required": required,
-            "additionalProperties": false
         })
     );
 
@@ -627,7 +632,6 @@ fn dart_function_type_to_json_schema(
         "type": "object",
         "properties": properties,
         "required": required,
-        "additionalProperties": false
     }))
 }
 
@@ -1055,7 +1059,6 @@ mod tests {
                 }
             },
             "required": ["name", "age", "tags"],
-            "additionalProperties": false
         });
         assert_eq!(schema, expected);
     }
@@ -1069,7 +1072,6 @@ mod tests {
             "type": "object",
             "properties": {},
             "required": [],
-            "additionalProperties": false
         });
         assert_eq!(schema, expected);
     }
@@ -1084,7 +1086,6 @@ mod tests {
             "type": "object",
             "properties": { "text": { "type": "string" } },
             "required": [ "text" ],
-            "additionalProperties": false,
         });
         assert_eq!(json_schema, expected);
     }
@@ -1099,7 +1100,6 @@ mod tests {
             "type": "object",
             "properties": {},
             "required": [],
-            "additionalProperties": false
         });
         assert_eq!(json_schema, expected);
     }
@@ -1114,7 +1114,6 @@ mod tests {
             "type": "object",
             "properties": {},
             "required": [],
-            "additionalProperties": false
         });
         assert_eq!(json_schema, expected);
     }
