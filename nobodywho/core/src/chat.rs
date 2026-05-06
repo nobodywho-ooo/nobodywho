@@ -1698,9 +1698,22 @@ impl Worker<'_, ChatWorker> {
         debug_assert!(tool_call_begin
             .as_ref()
             .is_none_or(|t| !response.contains(t.as_str())));
-        self.add_assistant_message(response);
+        self.add_assistant_message(response.clone());
 
         self.extra.context.chunks = self.render_as_chunks(true)?;
+
+        // Terminal Done. Guarantees the consumer's TokenStream::completed
+        // (or any Fn(WriteOutput) callback) ALWAYS receives a final Done
+        // event, even when the chat-loop exits early because
+        // `extract_tool_calls` returned None on a parser-only path that
+        // never produced an iter-2 generation. `wrap_respond` suppresses
+        // Done after the begin_token in iter 1, which used to surface as
+        // `WorkerCrashed` for LFM2.5 and other parser-only handlers.
+        // `TokenStream::next_token` short-circuits when
+        // `completed_response.is_some()`, so a multi-iteration flow
+        // (Qwen3 etc.) that already received its iter-N Done simply
+        // ignores this one — no double-process.
+        respond(llm::WriteOutput::Done(response));
 
         Ok(self)
     }
@@ -2292,6 +2305,129 @@ mod tests {
         println!("{}", result);
         assert!(result.contains("13.37"));
         assert!(result.contains("0.15"));
+    }
+
+    /// Mirrors the python `test_tool_with_sets` failure that crashed
+    /// LFM2.5-350M and LFM2.5-1.2B-Instruct on host pytest with
+    /// `Worker thread terminated before completing the response`.
+    /// Single tool with a set-of-int schema; prompt contains literal
+    /// Python set syntax `{12,5,7,3,4}` to force the crash path.
+    /// Ignored by default — invoke with:
+    ///   TEST_MODEL=…/LFM2.5-1.2B-Instruct-Q4_K_M.gguf \
+    ///     cargo test --release --lib chat::tests::test_lfm2_5_set_tool_repro -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn test_lfm2_5_set_tool_repro() {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+
+        fn set_intersection_tool() -> Tool {
+            Tool {
+                name: "set_intersection".into(),
+                description: "Returns the intersection of set1 and set2".into(),
+                json_schema: serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "set1": {
+                            "type": "array",
+                            "items": {"type": "integer"},
+                            "uniqueItems": true,
+                        },
+                        "set2": {
+                            "type": "array",
+                            "items": {"type": "integer"},
+                            "uniqueItems": true,
+                        },
+                    },
+                    "required": ["set1", "set2"],
+                }),
+                function: Arc::new(|args: serde_json::Value| {
+                    let s1: std::collections::HashSet<i64> = args
+                        .get("set1")
+                        .and_then(|v| v.as_array())
+                        .map(|a| a.iter().filter_map(|x| x.as_i64()).collect())
+                        .unwrap_or_default();
+                    let s2: std::collections::HashSet<i64> = args
+                        .get("set2")
+                        .and_then(|v| v.as_array())
+                        .map(|a| a.iter().filter_map(|x| x.as_i64()).collect())
+                        .unwrap_or_default();
+                    let inter: Vec<i64> = s1.intersection(&s2).copied().collect();
+                    format!("{:?}", inter)
+                }),
+            }
+        }
+
+        // Mirror python fixture: 6 tools registered, model picks one.
+        fn dummy_tool(name: &str, description: &str, prop: &str, json_type: &str) -> Tool {
+            let prop_owned = prop.to_string();
+            Tool {
+                name: name.into(),
+                description: description.into(),
+                json_schema: serde_json::json!({
+                    "type": "object",
+                    "properties": { prop: {"type": json_type} },
+                    "required": [prop],
+                }),
+                function: Arc::new(move |args: serde_json::Value| {
+                    format!("dummy({}={:?})", prop_owned, args.get(&prop_owned))
+                }),
+            }
+        }
+
+        let mut worker = Worker::new_chat_worker(
+            &model,
+            ChatConfig {
+                system_prompt: Some("You are a helpful assistant".into()),
+                n_ctx: 4096,
+                tools: vec![
+                    set_intersection_tool(),
+                    dummy_tool("multiply_strings", "Multiply a string by an integer N times", "pair", "object"),
+                    dummy_tool("sparklify", "Add sparkles to text", "text", "string"),
+                    dummy_tool("reflarbicator", "Boop foob", "reflarb", "integer"),
+                    dummy_tool("add_list_of_vectors", "Add a list of vectors", "list_of_vectors", "array"),
+                    dummy_tool("calculate_volume", "Compute volume of a cube", "dimensions", "object"),
+                ],
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )
+        .expect("Failed making worker");
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let f = move |x| {
+            if let llm::WriteOutput::Done(resp) = x {
+                let _ = sender.send(resp);
+            }
+        };
+
+        let ask_result = worker.ask(
+            "Please use the provided tool to find the intersection between the sets {12,5,7,3,4} and {12,9,5,3}".into(),
+            f,
+        );
+
+        match ask_result {
+            Ok(_) => {
+                let resp = receiver.recv_timeout(std::time::Duration::from_secs(120));
+                println!("=== ask returned Ok, response ===");
+                match resp {
+                    Ok(s) => println!("{s}"),
+                    Err(e) => println!("recv error (worker dropped without Done?): {e}"),
+                }
+            }
+            Err(e) => {
+                println!("=== ask returned Err ===");
+                println!("{e:?}");
+            }
+        }
+
+        // Debug: dump chat history to see what the model emitted + how the
+        // engine responded — extract_tool_calls return shape, dispatched
+        // tool result, regen content, etc.
+        println!("=== chat history ===");
+        for (i, m) in worker.extra.messages.iter().enumerate() {
+            println!("[{i}] role={:?}", m);
+        }
     }
 
     #[test]
