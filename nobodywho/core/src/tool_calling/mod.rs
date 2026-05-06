@@ -468,6 +468,18 @@ pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatEr
         return Ok(ToolFormat::Ministral3(Ministral3Handler));
     }
 
+    // LFM2.5 family — uniquely identifiable by the `keep_past_thinking` jinja
+    // variable in the chat template. LFM2 v1 templates use `<|tool_list_start|>`
+    // wrappers and lack `keep_past_thinking`. We must NOT rely on `general.name`
+    // for the 1.2B variants because their GGUFs ship with `general.name` set
+    // to a git-commit SHA (e.g. "4cd563d5...", "E7Ae5Ebc..."), bypassing the
+    // name-substring fallback below. Template-marker detection covers all
+    // LFM2.5 GGUFs regardless of the metadata-naming bug.
+    if template_str.contains("keep_past_thinking") {
+        debug!("Detected LFM2.5 format from chat template marker (keep_past_thinking)");
+        return Ok(ToolFormat::Lfm2_5(Lfm2_5Handler));
+    }
+
     // Fall back to model metadata.
     if let Ok(arch) = model.meta_val_str("general.architecture") {
         debug!(architecture = %arch, "Checking model architecture for format hints");
