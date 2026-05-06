@@ -56,8 +56,13 @@ fn read_gguf_model_info(path: &Path) -> Option<GgufModelInfo> {
             .map(|i| ctx.val_u32(i))
     };
 
+    // llama.cpp counts offloadable layers as block_count + 1. The extra layer
+    // is the output/embedding layer. If we only offload block_count layers,
+    // layer 0 stays on CPU and every token requires a CPU<->GPU round-trip,
+    // which can degrade performance by 3-30x depending on model size.
+    let block_count = find_u32(".block_count")?;
     Some(GgufModelInfo {
-        n_layers: find_u32(".block_count")?,
+        n_layers: block_count + 1,
         file_size,
     })
 }

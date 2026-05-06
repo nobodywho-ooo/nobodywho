@@ -71,10 +71,8 @@ console.log(msgs[0]); // The first message
 Similarly, if you want to edit what messages are in the context, you can use `setChatHistory`:
 
 ```typescript
-import { Role } from "react-native-nobodywho";
-
 await chat.setChatHistory([
-  { role: Role.User, content: "What is water?" },
+  { role: "user", content: "What is water?" },
 ]);
 ```
 

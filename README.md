@@ -1,5 +1,3 @@
-![Nobody Who](./assets/banner.png)
-
 [![Discord](https://img.shields.io/discord/1308812521456799765?logo=discord&style=flat-square)](https://discord.gg/qhaMc2qCYB)
 [![Matrix](https://img.shields.io/badge/Matrix-000?logo=matrix&logoColor=fff)](https://matrix.to/#/#nobodywho:matrix.org)
 [![Mastodon](https://img.shields.io/badge/Mastodon-6364FF?logo=mastodon&logoColor=fff&style=flat-square)](https://mastodon.gamedev.place/@nobodywho)
@@ -10,67 +8,50 @@
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg?style=flat-square)](CODE_OF_CONDUCT.md) 
 [![Docs](https://img.shields.io/badge/Docs-lightblue?style=flat-square)](https://docs.nobodywho.ooo)
 
+<p align="center">
+  <img src="assets/logo-nobodywho.png" alt="NobodyWho Logo" width="150"/>
+</p>
 
-NobodyWho is a library that lets you run LLMs locally and efficiently on any device.
+<h1 align="center">NobodyWho</h1>
 
-We currently support Python, Flutter, React Native and Godot, with more integrations on the way.
+<p align="center">
+  <strong> On-device AI for any device.</strong><br/>
+  NobodyWho is an inference engine that lets you run LLMs locally and efficiently.
+</p>
 
+---
 
-## At a Glance
+## ✨ Features
 
-* 🏃 Run any LLM locally, offline, for free
-* ⚒️ Fast, simple tool calling - just pass a normal function
-* 👌 Guaranteed perfect tool calling every time, automatically derives a grammar from your function signature
-* 🗨️ Conversation-aware preemptive context shifting, for lobotomy-free conversations of infinite length
-* 💻 Ship optimized native code for multiple platforms: Windows, Linux, macOS, Android, iOS
-* ⚡ Super fast inference on GPU powered by Vulkan or Metal
-* 🤖 Compatible with thousands of pre-trained LLMs - use any LLM in the GGUF format
-* 🦙 Powered by the wonderful [llama.cpp](https://github.com/ggml-org/llama.cpp)
-* 🏞️ Vision capabilites - provide image information to your LLM
-* 🎧 Hearing capabilites - provide audio information to your LLM
-* 🌐 Model downloading — Load models directly from Hugging Face or any URL
+* **Run locally, offline** — no API keys needed or hidden fees
+* **Run any chat LLM** — Gemma, Qwen, Mistral and more
+* **Fast, type-safe tool calling** — automatically generates structured grammars from your function signatures, no schema writing needed
+* **Multimodal input** — provide image and audio information to your LLM
+* **Model downloading** — load models directly from [Hugging Face](https://huggingface.co/models?library=gguf&sort=trending) or any URL
 
-## Flutter
+## ⚡️ Under the Hood
 
-### Quick Start
+* Conversation-aware preemptive context shifting — retain full conversation memory without any message length limits
+* GPU-accelerated inference via Vulkan or Metal — runs fast on any OS
+* Compatible with thousands of pre-trained LLMs — use any LLM in the GGUF format
+* Powered by the wonderful [llama.cpp](https://github.com/ggml-org/llama.cpp)
 
-Install the library:
+---
 
-```
-flutter pub add nobodywho
-```
+## Platforms
 
-Then start chatting with a model — NobodyWho downloads it automatically from Hugging Face:
+We support Python, Flutter, React Native and Godot, with more integrations on the way.
 
-```dart
-import 'package:nobodywho/nobodywho.dart' as nobodywho;
+| Platform | Installation | Documentation |
+|----------|-------------|---------------|
+| **React Native** | [npm](#react-native) | [docs.nobodywho.ooo/react-native](https://docs.nobodywho.ooo/react-native/) |
+| **Flutter** | [pub.dev](#flutter) | [docs.nobodywho.ooo/flutter](https://docs.nobodywho.ooo/flutter/) |
+| **Python** | [pypi](#python) | [docs.nobodywho.ooo/python](https://docs.nobodywho.ooo/python/) |
+| **Godot** | [AssetLib](#godot) | [docs.nobodywho.ooo/godot](https://docs.nobodywho.ooo/godot/install/) |
 
-void main() async {
-  await nobodywho.NobodyWho.init();
-  final chat = await nobodywho.Chat.fromPath(
-    modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
-  );
-  final msg = await chat.ask('Is water wet?').completed();
-  print(msg); // Yes, indeed, water is wet!
-}
-```
+## Quick Start
 
-Check out the [starter example app](https://github.com/nobodywho-ooo/flutter-starter-example) to test the library in 2 minutes and explore advanced features like embeddings, tool calling, and RAG.
-
-See our [Flutter documentation](https://docs.nobodywho.ooo/flutter/) and [pub.dev](https://pub.dev/packages/nobodywho) for more.
-
-
-## React Native
-
-### Quick Start
-
-Install the library:
-
-```
-npm install react-native-nobodywho
-```
-
-Then start chatting with a model — NobodyWho downloads it automatically from Hugging Face:
+### React Native
 
 ```typescript
 import { Chat } from "react-native-nobodywho";
@@ -79,73 +60,67 @@ const chat = await Chat.fromPath({
   modelPath: "hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf",
 });
 
-const msg = await chat.ask("Is water wet?").completed();
-console.log(msg); // Yes, indeed, water is wet!
+const msg = await chat.ask("What is the capital of Denmark?").completed();
+console.log(msg); // The capital of Denmark is Copenhagen.
 ```
 
-Check out the [starter example app](https://github.com/nobodywho-ooo/react-native-starter-example) to test the library in 5 minutes and explore advanced features like embeddings, tool calling, and vision.
+Install via npm:
 
-See our [React Native documentation](https://docs.nobodywho.ooo/react-native/) and [npm](https://www.npmjs.com/package/react-native-nobodywho) for more.
+```
+npm install react-native-nobodywho
+```
 
+[React Native documentation](https://docs.nobodywho.ooo/react-native/) - [npm](https://www.npmjs.com/package/react-native-nobodywho) - [starter example app](https://github.com/nobodywho-ooo/react-native-starter-example)
 
-## Python
+---
 
-### Quick Start
+### Flutter
 
-Start by installing NobodyWho. This is simply
+```dart
+import 'package:nobodywho/nobodywho.dart' as nobodywho;
+
+void main() async {
+  await nobodywho.NobodyWho.init();
+
+  final chat = await nobodywho.Chat.fromPath(
+    modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
+  );
+
+  final msg = await chat.ask('What is the capital of Denmark?').completed();
+  print(msg); // The capital of Denmark is Copenhagen.
+}
+```
+
+Install via pub.dev:
+
+```
+flutter pub add nobodywho
+```
+
+[Flutter documentation](https://docs.nobodywho.ooo/flutter/) - [pub.dev](https://pub.dev/packages/nobodywho) - [starter example app](https://github.com/nobodywho-ooo/flutter-starter-example)
+
+---
+
+### Python
+
+```python
+from nobodywho import Chat
+
+chat = Chat("huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf")
+
+response = chat.ask("What is the capital of Denmark?").completed()
+print(response) // The capital of Denmark is Copenhagen.
+```
+
+Install via pip:
 
 ```sh
 pip install nobodywho
 ```
 
-Then start chatting with a model — NobodyWho downloads it automatically from Hugging Face:
+[Python documentation](https://docs.nobodywho.ooo/python/) - [pypi](https://pypi.org/project/nobodywho/)
 
-```python
-from nobodywho import Chat
-chat = Chat("huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf")
-response = chat.ask("Is water wet?")
-for token in response:
-    print(token, end="", flush=True)
-```
-
-If you want to block and wait for the complete response as a string, you can use `.completed()`:
-
-```python
-full_response = chat.ask("Is water wet?").completed()
-```
-
-You can also setup a basic interactive chatbot very quickly with the code snippet below: 
-
-```python
-from nobodywho import Chat, TokenStream
-chat = Chat("huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf")
-while True:
-    prompt = input("Enter your prompt: ")
-    response: TokenStream = chat.ask(prompt)
-    for token in response:
-        print(token, end="", flush=True)
-    print()
-
-```
-
-### Tool calling
-
-Once you have a chat up and running you will likely want to give it access to tools. This is very easy in NobodyWho:
-
-```python
-import math
-from nobodywho import tool, Chat
-
-@tool(description="Calculates the area of a circle given its radius")
-def circle_area(radius: float) -> str:
-    area = math.pi * radius ** 2
-    return f"Circle with radius {radius} has area {area:.2f}"
-
-chat = Chat("./path/to/your/model.gguf", tools=[circle_area])
-```
-
-Adding tools to your chat like above will automatically make these available to the model.
-There plenty of things you can do with tools and many of these are coverend in our docs.
+---
 
 ## Godot
 
@@ -155,7 +130,9 @@ You can install it from inside the Godot editor: In Godot 4.5+, go to AssetLib a
 
 Make sure that the ignore asset root option is set in the import dialogue.
 
-For further instructions on how to setup NobodyWho in Godot please refer to our docs.
+For further instructions on how to setup NobodyWho in Godot please refer to our [docs](https://docs.nobodywho.ooo/godot/install/).
+
+---
 
 ## Documentation
 
@@ -167,7 +144,7 @@ For further instructions on how to setup NobodyWho in Godot please refer to our 
 * Join our [Discord](https://discord.gg/qhaMc2qCYB) or [Matrix](https://matrix.to/#/#nobodywho:matrix.org) communities
 * Found a bug? Open an issue!
 * Submit your own PR - contributions welcome
-* Help improve docs or write tutorials
+* Help improve docs, write tutorials and demos
 
 
 ### Can I export to HTML5 or iOS?

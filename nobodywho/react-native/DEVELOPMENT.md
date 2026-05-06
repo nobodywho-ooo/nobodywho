@@ -27,7 +27,7 @@ react-native/
 │   ├── streaming.ts             # TokenStream with AsyncIterable support
 │   ├── tool.ts                  # Tool with declarative parameter API
 │   ├── prompt.ts                # Prompt with Text/Image/Audio factories
-│   ├── message.ts               # ChatMessage type + internal conversion
+│   ├── message.ts               # Message type + internal conversion
 │   ├── sampler_presets.ts       # SamplerPresets static class
 │   ├── index.tsx                # Native init + generated re-exports (generated, do not edit)
 │   └── NativeNobodywho.ts      # TurboModule spec (generated, do not edit)

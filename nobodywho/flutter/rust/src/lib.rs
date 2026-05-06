@@ -8,7 +8,7 @@ use std::sync::Arc;
 mod frb_generated;
 mod parse;
 
-pub use nobodywho::chat::{Message, Role};
+pub use nobodywho::chat::Message;
 pub use nobodywho::tool_calling::ToolCall;
 
 /// A part of a multimodal prompt. Use [`PromptPart::Text`] for text,
@@ -53,29 +53,22 @@ pub struct _ToolCall {
 pub fn tool_call_arguments_json(tool_call: &ToolCall) -> Result<String, String> {
     serde_json::to_string(&tool_call.arguments).map_err(|e| e.to_string())
 }
-#[flutter_rust_bridge::frb(mirror(Role))]
-pub enum _Role {
-    User,
-    Assistant,
-    System,
-    Tool,
-}
-
 #[flutter_rust_bridge::frb(mirror(Message))]
 pub enum _Message {
-    Message {
-        role: Role,
+    User {
         content: String,
         #[frb(default = "const []")]
         assets: Vec<Asset>,
     },
-    ToolCalls {
-        role: Role,
+    Assistant {
         content: String,
-        tool_calls: Vec<ToolCall>,
+        #[frb(default = "null")]
+        tool_calls: Option<Vec<ToolCall>>,
     },
-    ToolResp {
-        role: Role,
+    System {
+        content: String,
+    },
+    Tool {
         name: String,
         content: String,
     },

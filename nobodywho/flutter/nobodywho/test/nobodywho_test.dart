@@ -200,7 +200,7 @@ void main() {
           )
           .completed();
       final history = await chat!.getChatHistory();
-      final toolCall = history.firstWhere((m) => m.role == nobodywho.Role.tool);
+      final toolCall = history.firstWhere((m) => m is nobodywho.Message_Tool);
 
       expect(toolCall.content, contains("This function has no args!"));
     });
@@ -210,7 +210,7 @@ void main() {
           .ask("Please use the provided tool to add the numbers 13 and 17")
           .completed();
       final history = await chat!.getChatHistory();
-      final toolCall = history.firstWhere((m) => m.role == nobodywho.Role.tool);
+      final toolCall = history.firstWhere((m) => m is nobodywho.Message_Tool);
 
       expect(toolCall.content, contains("30"));
     });
@@ -222,7 +222,7 @@ void main() {
           )
           .completed();
       final history = await chat!.getChatHistory();
-      final toolCall = history.firstWhere((m) => m.role == nobodywho.Role.tool);
+      final toolCall = history.firstWhere((m) => m is nobodywho.Message_Tool);
 
       expect(toolCall.content, contains("[12, 15, 18]"));
     });
@@ -234,7 +234,7 @@ void main() {
           )
           .completed();
       final history = await chat!.getChatHistory();
-      final toolCall = history.firstWhere((m) => m.role == nobodywho.Role.tool);
+      final toolCall = history.firstWhere((m) => m is nobodywho.Message_Tool);
 
       expect(toolCall.content, contains("[[118.0, 87.0], [327.0, 223.0]]"));
     });
@@ -246,7 +246,7 @@ void main() {
           )
           .completed();
       final history = await chat!.getChatHistory();
-      final toolCall = history.firstWhere((m) => m.role == nobodywho.Role.tool);
+      final toolCall = history.firstWhere((m) => m is nobodywho.Message_Tool);
 
       expect(toolCall.content, contains("BingBongBingBongBingBong"));
     });
@@ -258,7 +258,7 @@ void main() {
           )
           .completed();
       final history = await chat!.getChatHistory();
-      final toolCall = history.firstWhere((m) => m.role == nobodywho.Role.tool);
+      final toolCall = history.firstWhere((m) => m is nobodywho.Message_Tool);
 
       expect(toolCall.content, contains("{12, 4, 7}"));
     });
@@ -280,20 +280,17 @@ void main() {
       // Find the tool calls message (assistant requesting tool call)
       final toolCallsMessage =
           messages.firstWhere(
-                (m) => m is nobodywho.Message_ToolCalls,
+                (m) => m is nobodywho.Message_Assistant && m.toolCalls != null,
                 orElse: () =>
                     throw Exception('No tool calls message found in history'),
               )
-              as nobodywho.Message_ToolCalls;
-
-      // Check the role is assistant
-      expect(toolCallsMessage.role, equals(nobodywho.Role.assistant));
+              as nobodywho.Message_Assistant;
 
       // Check there's at least one tool call
-      expect(toolCallsMessage.toolCalls, isNotEmpty);
+      expect(toolCallsMessage.toolCalls!, isNotEmpty);
 
       // Get the first tool call and verify its properties
-      final toolCall = toolCallsMessage.toolCalls.first;
+      final toolCall = toolCallsMessage.toolCalls!.first;
       expect(toolCall.name, equals('sparklify'));
 
       // The arguments should contain the text parameter
@@ -314,15 +311,14 @@ void main() {
       // Find the tool response message
       final toolRespMessage =
           messages.firstWhere(
-                (m) => m is nobodywho.Message_ToolResp,
+                (m) => m is nobodywho.Message_Tool,
                 orElse: () => throw Exception(
                   'No tool response message found in history',
                 ),
               )
-              as nobodywho.Message_ToolResp;
+              as nobodywho.Message_Tool;
 
       // Check the tool response
-      expect(toolRespMessage.role, equals(nobodywho.Role.tool));
       expect(toolRespMessage.name, equals('sparklify'));
       expect(toolRespMessage.content, contains('✨test✨'));
     });
@@ -455,11 +451,12 @@ void main() {
 
       final history = await pythonChat.getChatHistory();
       final toolCalls = history
-          .whereType<nobodywho.Message_ToolCalls>()
-          .expand((m) => m.toolCalls)
+          .whereType<nobodywho.Message_Assistant>()
+          .where((m) => m.toolCalls != null)
+          .expand((m) => m.toolCalls!)
           .toList();
       final toolResponses = history
-          .whereType<nobodywho.Message_ToolResp>()
+          .whereType<nobodywho.Message_Tool>()
           .toList();
       expect(toolCalls.length, greaterThanOrEqualTo(1));
       expect(toolCalls[0].name, equals('run_python'));
@@ -521,140 +518,101 @@ void main() {
   });
 
   group('Message struct tests', () {
-    test('Message.message constructor creates correct instance', () {
-      final msg = nobodywho.Message.message(
-        role: nobodywho.Role.user,
+    test('Message.user constructor creates correct instance', () {
+      final msg = nobodywho.Message.user(
         content: 'Hello, world!',
       );
 
-      expect(msg, isA<nobodywho.Message_Message>());
-      expect(
-        (msg as nobodywho.Message_Message).role,
-        equals(nobodywho.Role.user),
-      );
-      expect(msg.content, equals('Hello, world!'));
+      expect(msg, isA<nobodywho.Message_User>());
+      expect((msg as nobodywho.Message_User).content, equals('Hello, world!'));
     });
 
-    test('Message.message with different roles', () {
-      final userMsg = nobodywho.Message.message(
-        role: nobodywho.Role.user,
+    test('Message constructors for different roles', () {
+      final userMsg = nobodywho.Message.user(
         content: 'User message',
       );
-      final assistantMsg = nobodywho.Message.message(
-        role: nobodywho.Role.assistant,
+      final assistantMsg = nobodywho.Message.assistant(
         content: 'Assistant message',
       );
-      final systemMsg = nobodywho.Message.message(
-        role: nobodywho.Role.system,
+      final systemMsg = nobodywho.Message.system(
         content: 'System message',
       );
 
-      expect(
-        (userMsg as nobodywho.Message_Message).role,
-        equals(nobodywho.Role.user),
-      );
-      expect(
-        (assistantMsg as nobodywho.Message_Message).role,
-        equals(nobodywho.Role.assistant),
-      );
-      expect(
-        (systemMsg as nobodywho.Message_Message).role,
-        equals(nobodywho.Role.system),
-      );
+      expect(userMsg, isA<nobodywho.Message_User>());
+      expect(assistantMsg, isA<nobodywho.Message_Assistant>());
+      expect(systemMsg, isA<nobodywho.Message_System>());
     });
 
-    test('Message.message with empty content', () {
-      final msg = nobodywho.Message.message(
-        role: nobodywho.Role.assistant,
+    test('Message.assistant with empty content', () {
+      final msg = nobodywho.Message.assistant(
         content: '',
       );
 
-      expect((msg as nobodywho.Message_Message).content, equals(''));
+      expect((msg as nobodywho.Message_Assistant).content, equals(''));
     });
 
-    test('Message.message with multiline content', () {
+    test('Message.user with multiline content', () {
       final content = 'Line 1\nLine 2\nLine 3';
-      final msg = nobodywho.Message.message(
-        role: nobodywho.Role.user,
+      final msg = nobodywho.Message.user(
         content: content,
       );
 
-      expect((msg as nobodywho.Message_Message).content, equals(content));
+      expect((msg as nobodywho.Message_User).content, equals(content));
     });
 
-    test('Message.message with special characters', () {
+    test('Message.user with special characters', () {
       final content = 'Hello! 🎉 Special chars: <>&"\'';
-      final msg = nobodywho.Message.message(
-        role: nobodywho.Role.user,
+      final msg = nobodywho.Message.user(
         content: content,
       );
 
-      expect((msg as nobodywho.Message_Message).content, equals(content));
+      expect((msg as nobodywho.Message_User).content, equals(content));
     });
 
-    test('Message.toolResp constructor creates correct instance', () {
-      final msg = nobodywho.Message.toolResp(
-        role: nobodywho.Role.tool,
+    test('Message.tool constructor creates correct instance', () {
+      final msg = nobodywho.Message.tool(
         name: 'calculator',
         content: '42',
       );
 
-      expect(msg, isA<nobodywho.Message_ToolResp>());
-      expect(
-        (msg as nobodywho.Message_ToolResp).role,
-        equals(nobodywho.Role.tool),
-      );
-      expect(msg.name, equals('calculator'));
+      expect(msg, isA<nobodywho.Message_Tool>());
+      expect((msg as nobodywho.Message_Tool).name, equals('calculator'));
       expect(msg.content, equals('42'));
     });
 
-    test('Message.toolResp with JSON content', () {
+    test('Message.tool with JSON content', () {
       final jsonContent = '{"result": 42, "status": "success"}';
-      final msg = nobodywho.Message.toolResp(
-        role: nobodywho.Role.tool,
+      final msg = nobodywho.Message.tool(
         name: 'api_call',
         content: jsonContent,
       );
 
-      expect((msg as nobodywho.Message_ToolResp).content, equals(jsonContent));
-    });
-
-    test('Role enum has all expected values', () {
-      expect(nobodywho.Role.values, contains(nobodywho.Role.user));
-      expect(nobodywho.Role.values, contains(nobodywho.Role.assistant));
-      expect(nobodywho.Role.values, contains(nobodywho.Role.system));
-      expect(nobodywho.Role.values, contains(nobodywho.Role.tool));
-      expect(nobodywho.Role.values.length, equals(4));
+      expect((msg as nobodywho.Message_Tool).content, equals(jsonContent));
     });
 
     test('Message variants are distinguishable', () {
-      final textMsg = nobodywho.Message.message(
-        role: nobodywho.Role.user,
+      final textMsg = nobodywho.Message.user(
         content: 'Hello',
       );
-      final toolRespMsg = nobodywho.Message.toolResp(
-        role: nobodywho.Role.tool,
+      final toolRespMsg = nobodywho.Message.tool(
         name: 'test_tool',
         content: 'result',
       );
 
-      expect(textMsg, isA<nobodywho.Message_Message>());
-      expect(textMsg, isNot(isA<nobodywho.Message_ToolResp>()));
-      expect(toolRespMsg, isA<nobodywho.Message_ToolResp>());
-      expect(toolRespMsg, isNot(isA<nobodywho.Message_Message>()));
+      expect(textMsg, isA<nobodywho.Message_User>());
+      expect(textMsg, isNot(isA<nobodywho.Message_Tool>()));
+      expect(toolRespMsg, isA<nobodywho.Message_Tool>());
+      expect(toolRespMsg, isNot(isA<nobodywho.Message_User>()));
     });
 
     test('Message equality works correctly', () {
-      final msg1 = nobodywho.Message.message(
-        role: nobodywho.Role.user,
+      final msg1 = nobodywho.Message.user(
         content: 'Hello',
       );
-      final msg2 = nobodywho.Message.message(
-        role: nobodywho.Role.user,
+      final msg2 = nobodywho.Message.user(
         content: 'Hello',
       );
-      final msg3 = nobodywho.Message.message(
-        role: nobodywho.Role.user,
+      final msg3 = nobodywho.Message.user(
         content: 'Different',
       );
 
@@ -663,12 +621,10 @@ void main() {
     });
 
     test('Message hashCode is consistent', () {
-      final msg1 = nobodywho.Message.message(
-        role: nobodywho.Role.user,
+      final msg1 = nobodywho.Message.user(
         content: 'Hello',
       );
-      final msg2 = nobodywho.Message.message(
-        role: nobodywho.Role.user,
+      final msg2 = nobodywho.Message.user(
         content: 'Hello',
       );
 
@@ -677,52 +633,45 @@ void main() {
 
     test('Message can be used in collections', () {
       final messages = <nobodywho.Message>[
-        nobodywho.Message.message(
-          role: nobodywho.Role.system,
+        nobodywho.Message.system(
           content: 'You are helpful',
         ),
-        nobodywho.Message.message(role: nobodywho.Role.user, content: 'Hi'),
-        nobodywho.Message.message(
-          role: nobodywho.Role.assistant,
+        nobodywho.Message.user(content: 'Hi'),
+        nobodywho.Message.assistant(
           content: 'Hello!',
         ),
       ];
 
       expect(messages.length, equals(3));
-      expect(messages[0], isA<nobodywho.Message_Message>());
-      expect(
-        (messages[1] as nobodywho.Message_Message).role,
-        equals(nobodywho.Role.user),
-      );
+      expect(messages[0], isA<nobodywho.Message_System>());
+      expect(messages[1], isA<nobodywho.Message_User>());
     });
 
-    test('Message copyWith works for Message_Message', () {
+    test('Message copyWith works for Message_User', () {
       final original =
-          nobodywho.Message.message(
-                role: nobodywho.Role.user,
+          nobodywho.Message.user(
                 content: 'Original',
               )
-              as nobodywho.Message_Message;
+              as nobodywho.Message_User;
 
       final modified = original.copyWith(content: 'Modified');
 
-      expect(modified.role, equals(nobodywho.Role.user));
+      expect(modified, isA<nobodywho.Message_User>());
       expect(modified.content, equals('Modified'));
       expect(original.content, equals('Original')); // Original unchanged
     });
 
-    test('Message copyWith works for Message_ToolResp', () {
+    test('Message copyWith works for Message_Tool', () {
       final original =
-          nobodywho.Message.toolResp(
-                role: nobodywho.Role.tool,
+          nobodywho.Message.tool(
                 name: 'original_tool',
                 content: 'result',
               )
-              as nobodywho.Message_ToolResp;
+              as nobodywho.Message_Tool;
 
       final modified = original.copyWith(name: 'new_tool');
 
-      expect(modified.role, equals(nobodywho.Role.tool));
+      expect(modified, isA<nobodywho.Message_Tool>());
       expect(modified.name, equals('new_tool'));
       expect(modified.content, equals('result'));
       expect(original.name, equals('original_tool')); // Original unchanged

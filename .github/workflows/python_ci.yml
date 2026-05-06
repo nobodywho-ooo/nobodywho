@@ -196,7 +196,7 @@ jobs:
 
   mac-os-build:
     if: inputs.full_ci
-    runs-on: macos-latest
+    runs-on: warp-macos-latest-arm64-6x
     strategy:
       fail-fast: false
     steps:
@@ -513,7 +513,7 @@ jobs:
   mac-os-pip-install-test:
     if: inputs.full_ci
     needs: [mac-os-build]
-    runs-on: macos-latest
+    runs-on: warp-macos-latest-arm64-6x
     strategy:
       fail-fast: false
       matrix:

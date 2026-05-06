@@ -75,3 +75,12 @@ llama-cpp-2 = { git = "https://github.com/marek-hradil/llama-cpp-rs", branch = "
     "android-static-stdcxx",
     "mtmd",
 ] }
+
+# Enable Metal on iOS. Static linkage — no dynamic-backends because dlopen of arbitrary
+# dylibs is forbidden on iOS. STT lives in a separate embedded framework so its bundled
+# ggml stays in its own dyld two-level namespace.
+[target.'cfg(target_os = "ios")'.dependencies]
+llama-cpp-2 = { git = "https://github.com/marek-hradil/llama-cpp-rs", branch = "main", default-features = false, features = [
+    "metal",
+    "mtmd",
+] }

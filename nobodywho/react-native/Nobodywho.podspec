@@ -10,7 +10,7 @@ framework_name = "NobodywhoFramework.xcframework"
 framework_dir = File.join(__dir__, framework_name)
 zip_name = "#{framework_name}.zip"
 zip_path = File.join(__dir__, zip_name)
-release_base = "https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-react-native-#{version}"
+release_base = "https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-react-native-v#{version}"
 url = "#{release_base}/#{zip_name}"
 
 # STT module: separately-loaded dynamic framework. Whisper's bundled ggml lives in
@@ -32,7 +32,7 @@ puts "[NobodyWho] Downloading xcframework from #{url}"
 system("curl", "-L", "-f", "-o", zip_path, url) or
   raise "Failed to download NobodyWho xcframework.\n" \
         "URL: #{url}\n" \
-        "Check that the release exists: https://github.com/nobodywho-ooo/nobodywho/releases/tag/nobodywho-react-native-#{version}\n" \
+        "Check that the release exists: https://github.com/nobodywho-ooo/nobodywho/releases/tag/nobodywho-react-native-v#{version}\n" \
         "For local development, manually place the xcframework at: #{framework_dir}"
 
 puts "[NobodyWho] Extracting xcframework..."

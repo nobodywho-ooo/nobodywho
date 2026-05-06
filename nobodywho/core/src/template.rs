@@ -5,11 +5,7 @@ use llama_cpp_2::mtmd::MtmdBitmap;
 use minijinja::{Environment, Template, Value};
 use tracing::{debug, trace, warn};
 
-use crate::{
-    chat::{Message, Role},
-    errors::SelectTemplateError,
-    tool_calling::Tool,
-};
+use crate::{chat::Message, errors::SelectTemplateError, tool_calling::Tool};
 
 fn strftime_now(format_str: &str) -> String {
     chrono::Local::now().format(format_str).to_string()
@@ -78,15 +74,9 @@ impl ChatTemplate {
         messages: &[Message],
         ctx: &ChatTemplateContext,
     ) -> Result<String, minijinja::Error> {
-        let add_generation_prompt = messages.last().is_some_and(|msg| {
-            matches!(
-                msg,
-                Message::Message {
-                    role: Role::User,
-                    ..
-                } | Message::ToolResp { .. }
-            )
-        });
+        let add_generation_prompt = messages
+            .last()
+            .is_some_and(|msg| matches!(msg, Message::User { .. } | Message::Tool { .. }));
 
         let template = self.get_template()?;
 
@@ -123,23 +113,15 @@ impl ChatTemplate {
     ) -> Result<Vec<Message>, minijinja::Error> {
         warn!("System role not supported by this chat template. Concatenating first user message and system prompt.");
         match messages {
-            [Message::Message {
-                role: Role::System,
+            [Message::System {
                 content: first_content,
-                assets: first_assets,
-            }, Message::Message {
-                role: Role::User,
+            }, Message::User {
                 content: second_content,
                 assets: second_assets,
             }, rest @ ..] => {
-                let new_first_message = Message::Message {
-                    role: Role::User,
+                let new_first_message = Message::User {
                     content: format!("{}\n\n{}", first_content, second_content),
-                    assets: first_assets
-                        .iter()
-                        .chain(second_assets.iter())
-                        .cloned()
-                        .collect(),
+                    assets: second_assets.clone(),
                 };
                 let new_messages = vec![new_first_message]
                     .into_iter()

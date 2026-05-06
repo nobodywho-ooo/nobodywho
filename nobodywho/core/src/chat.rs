@@ -55,98 +55,97 @@ use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, MutexGuard};
 use tracing::{debug, error, info, trace, trace_span};
 
-#[derive(Deserialize, Serialize, Clone, PartialEq, Eq, Debug)]
-#[serde(rename_all = "lowercase")]
-pub enum Role {
-    User,
-    Assistant,
-    System,
-    Tool,
-}
-
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Asset {
     pub id: String,
     pub path: PathBuf,
 }
 
-// deny_unknown_fields is required because assets has a serde default, making the
-// Message variant so permissive it would greedily match ToolCalls/ToolResp JSON
-// before they get a chance (serde untagged tries variants in declaration order
-// and ignores unknown fields by default).
 #[derive(Deserialize, Serialize, Clone, Debug)]
-#[serde(untagged, deny_unknown_fields)]
+#[serde(tag = "role", rename_all = "lowercase")]
 pub enum Message {
-    Message {
-        role: Role,
+    User {
         content: String,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         assets: Vec<Asset>,
     },
-    // it's kind of weird to have the content field in here
-    // but according to the qwen3 docs, it should be an empty field on tool call messages
+    // The optional tool_calls field distinguishes a plain assistant response
+    // from one that includes tool calls. When tool_calls is Some, the content
+    // field is typically empty (required by qwen3 chat templates).
     // https://github.com/QwenLM/Qwen3/blob/e5a1d326/docs/source/framework/function_call.md
-    // this also causes a crash when rendering qwen3 chat template, because it tries to get the
-    // length of the content field, which is otherwise undefined
-    ToolCalls {
-        role: Role,
+    Assistant {
         content: String,
-        tool_calls: Vec<ToolCall>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        tool_calls: Option<Vec<ToolCall>>,
     },
-    ToolResp {
-        role: Role,
+    System {
+        content: String,
+    },
+    Tool {
         name: String,
         content: String,
     },
 }
 
 impl Message {
-    pub fn role(&self) -> &Role {
-        match self {
-            Message::Message { role, .. }
-            | Message::ToolCalls { role, .. }
-            | Message::ToolResp { role, .. } => role,
-        }
+    pub fn is_user(&self) -> bool {
+        matches!(self, Message::User { .. })
+    }
+
+    pub fn is_assistant(&self) -> bool {
+        matches!(self, Message::Assistant { .. })
+    }
+
+    pub fn is_system(&self) -> bool {
+        matches!(self, Message::System { .. })
+    }
+
+    pub fn is_tool(&self) -> bool {
+        matches!(self, Message::Tool { .. })
+    }
+
+    pub fn has_tool_calls(&self) -> bool {
+        matches!(
+            self,
+            Message::Assistant {
+                tool_calls: Some(_),
+                ..
+            }
+        )
     }
 
     pub fn content(&self) -> &str {
         match self {
-            Message::Message { content, .. }
-            | Message::ToolCalls { content, .. }
-            | Message::ToolResp { content, .. } => content,
+            Message::User { content, .. }
+            | Message::Assistant { content, .. }
+            | Message::System { content, .. }
+            | Message::Tool { content, .. } => content,
         }
     }
 
     pub fn assets(&self) -> Vec<Asset> {
         match self {
-            Message::Message { assets, .. } => assets.clone(),
-            Message::ToolCalls { .. } => vec![],
-            Message::ToolResp { .. } => vec![],
+            Message::User { assets, .. } => assets.clone(),
+            _ => vec![],
         }
     }
 
     pub fn new_user(content: String) -> Self {
-        Self::Message {
-            role: Role::User,
+        Self::User {
             content,
             assets: vec![],
         }
     }
 
     pub fn new_assistant(content: String) -> Self {
-        Self::Message {
-            role: Role::Assistant,
+        Self::Assistant {
             content,
-            assets: vec![],
+            tool_calls: None,
         }
     }
 
     pub fn new_system(content: String) -> Self {
-        Self::Message {
-            role: Role::System,
-            content,
-            assets: vec![],
-        }
+        Self::System { content }
     }
 }
 
@@ -1178,11 +1177,7 @@ impl Worker<'_, ChatWorker> {
                 tool_format,
                 sampler_config,
                 messages: match config.system_prompt {
-                    Some(msg) => vec![Message::Message {
-                        role: Role::System,
-                        content: msg,
-                        assets: vec![],
-                    }],
+                    Some(msg) => vec![Message::System { content: msg }],
                     None => vec![],
                 },
                 chat_template: template,
@@ -1200,40 +1195,26 @@ impl Worker<'_, ChatWorker> {
     }
 
     pub fn add_system_message(&mut self, content: String) {
-        // Todo: Should we allow adding media into the system prompt?
-        self.add_message(Role::System, content, vec![])
+        self.extra.messages.push(Message::System { content });
     }
 
     pub fn add_assistant_message(&mut self, content: String) {
-        self.add_message(Role::Assistant, content, vec![])
+        self.extra.messages.push(Message::new_assistant(content));
     }
 
     pub fn add_user_message(&mut self, content: String, assets: Vec<Asset>) {
-        self.add_message(Role::User, content, assets)
-    }
-
-    fn add_message(&mut self, role: Role, content: String, assets: Vec<Asset>) {
-        self.extra.messages.push(Message::Message {
-            role,
-            content,
-            assets,
-        });
+        self.extra.messages.push(Message::User { content, assets });
     }
 
     pub fn add_tool_calls(&mut self, tool_calls: Vec<ToolCall>) {
-        self.extra.messages.push(Message::ToolCalls {
-            role: Role::Assistant,
+        self.extra.messages.push(Message::Assistant {
             content: "".into(),
-            tool_calls,
+            tool_calls: Some(tool_calls),
         });
     }
 
     pub fn add_tool_resp(&mut self, name: String, content: String) {
-        self.extra.messages.push(Message::ToolResp {
-            role: Role::Tool,
-            name,
-            content,
-        });
+        self.extra.messages.push(Message::Tool { name, content });
     }
 
     /// Compare tokens from a template-rendered chat history with the tokens in the LLM's context,
@@ -1292,11 +1273,7 @@ impl Worker<'_, ChatWorker> {
         let mut messages = self.extra.messages.clone();
 
         // Find indices to preserve
-        let system_end = if matches!(messages[0].role(), Role::System) {
-            1
-        } else {
-            0
-        };
+        let system_end = if messages[0].is_system() { 1 } else { 0 };
         let first_user_message_index =
             self.find_next_user_message(&messages, system_end)
                 .ok_or(ShiftError::Message(
@@ -1361,7 +1338,7 @@ impl Worker<'_, ChatWorker> {
     fn find_next_user_message(&self, messages: &[Message], start_index: usize) -> Option<usize> {
         messages[start_index..]
             .iter()
-            .position(|msg| msg.role() == &Role::User)
+            .position(|msg| msg.is_user())
             .map(|pos| pos + start_index)
     }
 
@@ -1369,7 +1346,7 @@ impl Worker<'_, ChatWorker> {
         let user_indices: Vec<usize> = messages
             .iter()
             .enumerate()
-            .filter(|(_, msg)| msg.role() == &Role::User)
+            .filter(|(_, msg)| msg.is_user())
             .map(|(idx, _)| idx)
             .collect();
 
@@ -1763,22 +1740,17 @@ impl Worker<'_, ChatWorker> {
     ) -> Result<(), ContextSyncError> {
         match system_prompt {
             Some(sys_msg) => {
-                let system_message = Message::Message {
-                    role: Role::System,
-                    content: sys_msg,
-                    assets: vec![],
-                };
+                let system_message = Message::System { content: sys_msg };
                 if self.extra.messages.is_empty() {
                     self.extra.messages.push(system_message);
-                } else if *self.extra.messages[0].role() == Role::System {
+                } else if self.extra.messages[0].is_system() {
                     self.extra.messages[0] = system_message;
                 } else {
                     self.extra.messages.insert(0, system_message);
                 }
             }
             None => {
-                if !self.extra.messages.is_empty() && *self.extra.messages[0].role() == Role::System
-                {
+                if !self.extra.messages.is_empty() && self.extra.messages[0].is_system() {
                     self.extra.messages.remove(0);
                 }
             }
@@ -1798,11 +1770,7 @@ impl Worker<'_, ChatWorker> {
             return None;
         };
         match &self.extra.messages[0] {
-            Message::Message {
-                role: Role::System,
-                content,
-                assets: _,
-            } => Some(content.clone()),
+            Message::System { content } => Some(content.clone()),
             _ => None,
         }
     }
@@ -1852,9 +1820,7 @@ impl Worker<'_, ChatWorker> {
     pub fn set_chat_history(&mut self, messages: Vec<Message>) -> Result<(), ContextSyncError> {
         // get system prompt, if it is there
         let system_msg: Option<Message> = match self.extra.messages.as_slice() {
-            [msg @ Message::Message {
-                role: Role::System, ..
-            }, ..] => Some(msg.clone()),
+            [msg @ Message::System { .. }, ..] => Some(msg.clone()),
             _ => None,
         };
 
@@ -1875,9 +1841,7 @@ impl Worker<'_, ChatWorker> {
 
     pub fn get_chat_history(&self) -> Vec<Message> {
         match self.extra.messages.as_slice() {
-            [Message::Message {
-                role: Role::System, ..
-            }, rest @ ..] => rest.to_vec(),
+            [Message::System { .. }, rest @ ..] => rest.to_vec(),
             _ => self.extra.messages.clone(),
         }
     }
@@ -1933,47 +1897,40 @@ mod tests {
         for i in 1..messages.len() {
             let prev_msg = &messages[i - 1];
             let curr_msg = &messages[i];
-            let prev_role = prev_msg.role();
-            let curr_role = curr_msg.role();
 
             // Skip system message
-            if prev_role == &Role::System {
-                assert_eq!(curr_role, &Role::User, "After system should come user");
+            if prev_msg.is_system() {
+                assert!(curr_msg.is_user(), "After system should come user");
                 continue;
             }
 
-            // User should be followed by assistant role (either tool calls or assistant message)
-            if prev_role == &Role::User {
-                assert_eq!(
-                    curr_role,
-                    &Role::Assistant,
-                    "User message should be followed by assistant role"
+            // User should be followed by assistant
+            if prev_msg.is_user() {
+                assert!(
+                    curr_msg.is_assistant(),
+                    "User message should be followed by assistant"
                 );
             }
 
-            // Assistant role: check if it's tool calls or assistant message
-            if prev_role == &Role::Assistant {
-                if matches!(prev_msg, Message::ToolCalls { .. }) {
-                    // Tool calls should be followed by tool response
-                    assert_eq!(
-                        curr_role,
-                        &Role::Tool,
+            // Assistant: check if it's tool calls or plain assistant message
+            if prev_msg.is_assistant() {
+                if prev_msg.has_tool_calls() {
+                    assert!(
+                        curr_msg.is_tool(),
                         "Tool calls should be followed by tool response"
                     );
                 } else {
-                    // Assistant message should be followed by user
-                    assert_eq!(
-                        curr_role,
-                        &Role::User,
+                    assert!(
+                        curr_msg.is_user(),
                         "Assistant message should be followed by user"
                     );
                 }
             }
 
             // Tool response should be followed by either another tool response or assistant
-            if prev_role == &Role::Tool {
+            if prev_msg.is_tool() {
                 assert!(
-                    curr_role == &Role::Tool || curr_role == &Role::Assistant,
+                    curr_msg.is_tool() || curr_msg.is_assistant(),
                     "Tool response should be followed by another tool response or assistant"
                 );
             }
@@ -2303,13 +2260,12 @@ mod tests {
 
         // Verify essential messages are preserved:
         // 1. System prompt should be first
-        assert_eq!(
-            messages_after[0].role(),
-            &Role::System,
+        assert!(
+            messages_after[0].is_system(),
             "System message should remain"
         );
 
-        if let Message::Message { content, .. } = &messages_after[0] {
+        if let Message::System { content, .. } = &messages_after[0] {
             assert!(
                 content.contains("helpful assistant"),
                 "System prompt should be preserved"
@@ -2317,29 +2273,23 @@ mod tests {
         }
 
         // 2. Should have first user message
-        let first_user_idx = messages_after.iter().position(|m| m.role() == &Role::User);
+        let first_user_idx = messages_after.iter().position(|m| m.is_user());
         assert!(
             first_user_idx.is_some(),
             "First user message should be preserved"
         );
 
         // 3. Count remaining user messages - should have at least 3 (first + last 2)
-        let user_count = messages_after
-            .iter()
-            .filter(|m| m.role() == &Role::User)
-            .count();
+        let user_count = messages_after.iter().filter(|m| m.is_user()).count();
         assert!(
             user_count >= 3,
             "Should preserve first user message and last 2 user messages"
         );
 
         // 4. Verify the last user message is there
-        let last_user = messages_after
-            .iter()
-            .rev()
-            .find(|m| m.role() == &Role::User);
+        let last_user = messages_after.iter().rev().find(|m| m.is_user());
 
-        if let Some(Message::Message { content, .. }) = last_user {
+        if let Some(Message::User { content, .. }) = last_user {
             assert!(
                 content.contains("Hello!"),
                 "Last user message should be preserved"
@@ -2434,32 +2384,26 @@ mod tests {
 
         // Verify essential messages are preserved:
         // 1. System prompt should be first
-        assert_eq!(messages_after[0].role(), &Role::System);
+        assert!(messages_after[0].is_system());
 
         // 2. Should have first user message
-        let first_user_idx = messages_after.iter().position(|m| m.role() == &Role::User);
+        let first_user_idx = messages_after.iter().position(|m| m.is_user());
         assert!(
             first_user_idx.is_some(),
             "First user message should be preserved"
         );
 
         // 3. Count remaining user messages - should have at least 3 (first + last 2)
-        let user_count = messages_after
-            .iter()
-            .filter(|m| m.role() == &Role::User)
-            .count();
+        let user_count = messages_after.iter().filter(|m| m.is_user()).count();
         assert!(
             user_count >= 3,
             "Should preserve first user message and last 2 user messages"
         );
 
         // 4. Verify the last user message is there
-        let last_user = messages_after
-            .iter()
-            .rev()
-            .find(|m| m.role() == &Role::User);
+        let last_user = messages_after.iter().rev().find(|m| m.is_user());
 
-        if let Some(Message::Message { content, .. }) = last_user {
+        if let Some(Message::User { content, .. }) = last_user {
             assert!(
                 content.contains("Final question!"),
                 "Last user message should be preserved"
@@ -2550,22 +2494,19 @@ mod tests {
 
         // Verify essential messages are preserved
         // 1. System prompt should be first
-        assert_eq!(messages_after[0].role(), &Role::System);
+        assert!(messages_after[0].is_system());
 
         // 2. Should have first user message
-        let first_user_idx = messages_after.iter().position(|m| m.role() == &Role::User);
+        let first_user_idx = messages_after.iter().position(|m| m.is_user());
         assert!(
             first_user_idx.is_some(),
             "First user message should be preserved"
         );
 
         // 3. Verify the last user message is there (the one that triggered the shift)
-        let last_user = messages_after
-            .iter()
-            .rev()
-            .find(|m| m.role() == &Role::User);
+        let last_user = messages_after.iter().rev().find(|m| m.is_user());
 
-        if let Some(Message::Message { content, .. }) = last_user {
+        if let Some(Message::User { content, .. }) = last_user {
             assert!(
                 content.contains("new question"),
                 "Last user message should be preserved"
@@ -2633,22 +2574,19 @@ mod tests {
 
         // Verify essential messages are preserved
         // 1. System prompt should be first
-        assert_eq!(messages_after[0].role(), &Role::System);
+        assert!(messages_after[0].is_system());
 
         // 2. Should have first user message
-        let first_user_idx = messages_after.iter().position(|m| m.role() == &Role::User);
+        let first_user_idx = messages_after.iter().position(|m| m.is_user());
         assert!(
             first_user_idx.is_some(),
             "First user message should be preserved"
         );
 
         // 3. Verify the last user message is there (the one that triggered the shift)
-        let last_user = messages_after
-            .iter()
-            .rev()
-            .find(|m| m.role() == &Role::User);
+        let last_user = messages_after.iter().rev().find(|m| m.is_user());
 
-        if let Some(Message::Message { content, .. }) = last_user {
+        if let Some(Message::User { content, .. }) = last_user {
             assert!(
                 content.contains("What is"),
                 "Last user message should be preserved"

@@ -1,3 +1,39 @@
+## 2.0.0
+
+### Breaking Changes
+
+- **Refactored `Message` enum** — The `Message` type has been restructured into four distinct variants: `Message.User`, `Message.Assistant`, `Message.System`, and `Message.Tool`. The previous `Message.Message`, `Message.ToolCalls`, and `Message.ToolResp` variants have been removed. Tool calls are now represented as an optional `toolCalls` field on `Message.Assistant` instead of a separate variant. Update call sites:
+  ```dart
+  // Before
+  Message.message(role: Role.user, content: "Hello")
+  Message.toolCalls(role: Role.assistant, content: "", toolCalls: [...])
+  Message.toolResp(role: Role.tool, name: "get_weather", content: "22°C")
+
+  // After
+  Message.user(content: "Hello")
+  Message.assistant(content: "Hi!")
+  Message.assistant(content: "", toolCalls: [...])
+  Message.tool(name: "get_weather", content: "22°C")
+  Message.system(content: "You are helpful.")
+  ```
+- **Removed `Role` enum** — The `Role` enum is no longer needed since the role is now encoded in the `Message` variant itself.
+
+## 1.2.0
+
+### Features
+
+- **Download progress callback** — Remote model loads (`hf://` and `https://`) now report progress via an `onDownloadProgress(downloaded, total)` callback so you can drive a progress UI during multi-GB downloads. (#498)
+
+### Bug Fixes
+
+- **Embeddings**: pooling type is now read from GGUF metadata, fixing incorrect embeddings for models that specify a non-default pooling type. (#500)
+- **Embeddings**: explicitly mark all tokens as output during encoder runs, silencing a spurious llama.cpp warning. (Behavioral no-op — llama.cpp was already enabling outputs on all tokens for embeddings; this just suppresses the warning.) (#500)
+- **GPU memory estimation**: account for the output/embedding layer when computing the GPU/CPU split. Previously the layer count was off by one, leaving layer 0 on CPU and forcing a CPU↔GPU round-trip per token — which could degrade inference speed by 3–30× depending on model size. (#504)
+
+### Documentation
+
+- Improved vision and audio (hearing) docs and examples. (#489)
+
 ## 1.1.0
 
 - Add support for Qwen3.5 and Qwen3.6 tool calling
