@@ -54,6 +54,22 @@ let
             vulkan-tools
             mesa
           ];
+
+          # crate2nix preserves the entire cmake OUT_DIR in $out, including the transient
+          # build/ subdir. That subdir contains shadow copies of every .so produced by
+          # cmake (libllama, libggml, libggml-cpu-*, libggml-vulkan, …) whose RPATHs
+          # still point at /build/llama-cpp-rs-…/build, which Nix's fixup phase rejects
+          # via the "disallowedReferences" check on /build. The installed copies live in
+          # $out/lib/llama-cpp-sys-2.out/{backends,lib64,…} with proper RPATHs and are
+          # what the consuming crates link against — the build/ tree is dead weight.
+          # Drop it before fixupPhase runs.
+          preFixup = ''
+            for d in $out $lib; do
+              if [ -d "$d/lib/llama-cpp-sys-2.out/build" ]; then
+                rm -rf "$d/lib/llama-cpp-sys-2.out/build"
+              fi
+            done
+          '';
         };
 
         # whisper-rs build.rs reads DEP_WHISPER_WHISPER_CPP_VERSION (set by whisper-rs-sys

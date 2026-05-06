@@ -131,6 +131,34 @@ export async function loadModel(modelPath: string, useGpu: boolean, projectionMo
     }
     }
 /**
+ * Load a Whisper speech-to-text model from a .bin file.
+ */
+export async function loadSpeechToText(modelPath: string, language: string | undefined, translate: boolean, initialPrompt: string | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<RustSpeechToTextInterface> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_load_speech_to_text(FfiConverterString.lower(modelPath),FfiConverterOptionalString.lower(language),FfiConverterBool.lower(translate),FfiConverterOptionalString.lower(initialPrompt)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_u64,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_u64,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_u64,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_u64,
+            /*liftFunc:*/ FfiConverterTypeRustSpeechToText.lift.bind(FfiConverterTypeRustSpeechToText),
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+/**
  * Get the default sampler configuration.
  */
 export function samplerPresetDefault(): SamplerConfigInterface {
@@ -2111,6 +2139,113 @@ const uniffiTypeRustModelObjectFactory: UniffiObjectFactory<RustModelInterface> 
 const FfiConverterTypeRustModel =  new FfiConverterObject(uniffiTypeRustModelObjectFactory);
 
 
+export interface RustSpeechToTextInterface {
+    
+    transcribe(audioPath: string) : RustTokenStreamInterface;
+}
+
+
+export class RustSpeechToText extends UniffiAbstractObject implements RustSpeechToTextInterface {
+
+    readonly [uniffiTypeNameSymbol] = "RustSpeechToText";
+    readonly [destructorGuardSymbol]: UniffiGcObject;
+    readonly [pointerLiteralSymbol]: UniffiHandle;
+    // No primary constructor declared for this class.
+private constructor(pointer: UniffiHandle) {
+    super();
+    this[pointerLiteralSymbol] = pointer;
+    this[destructorGuardSymbol] = uniffiTypeRustSpeechToTextObjectFactory.bless(pointer);
+}
+
+    
+
+    
+ transcribe(audioPath: string): RustTokenStreamInterface {
+    return FfiConverterTypeRustTokenStream.lift(uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustspeechtotext_transcribe(uniffiTypeRustSpeechToTextObjectFactory.clonePointer(this), 
+        FfiConverterString.lower(audioPath),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    ));
+    }
+    
+
+    /**
+     * {@inheritDoc uniffi-bindgen-react-native#UniffiAbstractObject.uniffiDestroy}
+     */
+    uniffiDestroy(): void {
+        const ptr = (this as any)[destructorGuardSymbol];
+        if (ptr !== undefined) {
+            const pointer = uniffiTypeRustSpeechToTextObjectFactory.pointer(this);
+            uniffiTypeRustSpeechToTextObjectFactory.freePointer(pointer);
+            uniffiTypeRustSpeechToTextObjectFactory.unbless(ptr);
+            delete (this as any)[destructorGuardSymbol];
+        }
+    }
+
+    static instanceOf(obj: any): obj is RustSpeechToText {
+        return uniffiTypeRustSpeechToTextObjectFactory.isConcreteType(obj);
+    }
+
+    
+}
+
+const uniffiTypeRustSpeechToTextObjectFactory: UniffiObjectFactory<RustSpeechToTextInterface> = (() => {
+    
+    return {
+    create(pointer: UniffiHandle): RustSpeechToTextInterface {
+        const instance = Object.create(RustSpeechToText.prototype);
+        instance[pointerLiteralSymbol] = pointer;
+        instance[destructorGuardSymbol] = this.bless(pointer);
+        instance[uniffiTypeNameSymbol] = "RustSpeechToText";
+        return instance;
+    },
+
+    
+    bless(p: UniffiHandle): UniffiGcObject {
+        return uniffiCaller.rustCall(
+            /*caller:*/ (status) =>
+                nativeModule().ubrn_uniffi_internal_fn_method_rustspeechtotext_ffi__bless_pointer(p, status),
+            /*liftString:*/ FfiConverterString.lift
+        );
+    },
+
+    unbless(ptr: UniffiGcObject) {
+        ptr.markDestroyed();
+    },
+
+    pointer(obj: RustSpeechToTextInterface): UniffiHandle {
+        if ((obj as any)[destructorGuardSymbol] === undefined) {
+            throw new UniffiInternalError.UnexpectedNullPointer();
+        }
+        return (obj as any)[pointerLiteralSymbol];
+    },
+
+    clonePointer(obj: RustSpeechToTextInterface): UniffiHandle {
+        const pointer = this.pointer(obj);
+        return uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_clone_rustspeechtotext(pointer, callStatus),
+            /*liftString:*/ FfiConverterString.lift
+        );
+    },
+
+    freePointer(pointer: UniffiHandle): void {
+        uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_free_rustspeechtotext(pointer, callStatus),
+            /*liftString:*/ FfiConverterString.lift
+        );
+    },
+
+    isConcreteType(obj: any): obj is RustSpeechToTextInterface {
+        return obj[destructorGuardSymbol] && obj[uniffiTypeNameSymbol] === "RustSpeechToText";
+    },
+}})();
+// FfiConverter for RustSpeechToTextInterface
+const FfiConverterTypeRustSpeechToText =  new FfiConverterObject(uniffiTypeRustSpeechToTextObjectFactory);
+
+
 export interface RustTokenStreamInterface {
     
     /**
@@ -3045,6 +3180,9 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model() !== 33587) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_load_model");
     }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_speech_to_text() !== 10947) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_load_speech_to_text");
+    }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_default() !== 10834) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_sampler_preset_default");
     }
@@ -3119,6 +3257,9 @@ function uniffiEnsureInitialized() {
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode() !== 52601) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustspeechtotext_transcribe() !== 36836) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustspeechtotext_transcribe");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_completed() !== 26060) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_completed");
@@ -3221,6 +3362,7 @@ export default Object.freeze({
     FfiConverterTypeRustCrossEncoder,
     FfiConverterTypeRustEncoder,
     FfiConverterTypeRustModel,
+    FfiConverterTypeRustSpeechToText,
     FfiConverterTypeRustTokenStream,
     FfiConverterTypeRustTool,
     FfiConverterTypeSamplerBuilder,
