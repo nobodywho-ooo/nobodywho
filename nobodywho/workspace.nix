@@ -55,6 +55,21 @@ let
             mesa
           ];
 
+          # llama-cpp-sys-2's build.rs hard-links the just-built .dylib/.so files into
+          # `target_dir/deps/` (computed as 3 ancestors up from OUT_DIR) so that cargo
+          # tests in downstream crates can resolve them at runtime. In a normal cargo
+          # invocation, `target/<profile>/deps/` already exists. In the crate2nix Nix
+          # sandbox on macOS the directory hasn't been created when the build script
+          # runs (Linux's `target/` layout differs slightly), and `std::fs::hard_link`
+          # panics with NotFound at build.rs:1126. Patch the .unwrap() calls to first
+          # create the parent dir and then ignore link errors so the build script no
+          # longer depends on cargo's directory layout being pre-populated.
+          postPatch = (attrs.postPatch or "") + ''
+            substituteInPlace llama-cpp-sys-2/build.rs \
+              --replace-fail 'std::fs::hard_link(asset.clone(), dst).unwrap();' \
+                'if let Some(p) = dst.parent() { let _ = std::fs::create_dir_all(p); } let _ = std::fs::hard_link(asset.clone(), dst);'
+          '';
+
           # crate2nix preserves the entire cmake OUT_DIR in $out, including the transient
           # build/ subdir. That subdir contains shadow copies of every .so produced by
           # cmake (libllama, libggml, libggml-cpu-*, libggml-vulkan, …) whose RPATHs
@@ -113,6 +128,13 @@ let
           nativeBuildInputs = [
             # this needs to be available at link-time
             vulkan-loader
+          ] ++ lib.optionals pkgs.stdenv.isDarwin [
+            # The test phase of cargo-test runs install_name_tool + codesign in
+            # testPreRun (see flake.nix) to add an LC_RPATH to the Mach-O test
+            # binary so dyld can resolve @rpath/libggml-base.dylib at runtime.
+            # Without these on PATH the patch is skipped silently and tests abort.
+            pkgs.darwin.cctools
+            pkgs.darwin.sigtool
           ];
         };
 
