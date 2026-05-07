@@ -3,6 +3,7 @@ name = "nobodywho-python"
 version = "1.2.0"
 edition = "2021"
 
+
 [lib]
 # "cdylib" is necessary to produce a shared library for Python to import from.
 crate-type = ["cdylib"]

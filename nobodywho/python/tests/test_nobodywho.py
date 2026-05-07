@@ -372,3 +372,55 @@ def test_stop_generation(chat):
     # The generation should have stopped, so we shouldn't get many more tokens
     full_response = "".join(tokens + remaining_tokens)
     assert len(full_response) < 200, "Generation should have been stopped early"
+
+
+# ---- llguidance constraint tests ----
+
+def test_constrain_with_json_schema(model):
+    """constrain_with_json_schema() forces output to be a JSON object with string values."""
+    import json
+
+    schema = json.dumps({
+        "type": "object",
+        "properties": {"answer": {"type": "string"}},
+        "required": ["answer"],
+        "additionalProperties": False,
+    })
+    chat = nobodywho.Chat(
+        model,
+        sampler=nobodywho.SamplerPresets.constrain_with_json_schema(schema),
+        system_prompt="You are a helpful assistant.",
+        template_variables={"enable_thinking": False},
+    )
+    response = chat.ask("What is the capital of France? Answer in JSON.").completed()
+    parsed = json.loads(response)
+    assert isinstance(parsed, dict), f"Expected JSON object, got: {response!r}"
+    assert all(isinstance(v, str) for v in parsed.values()), f"All values should be strings: {response!r}"
+
+
+def test_constrain_with_regex(model):
+    """constrain_with_regex() forces output to match the given regular expression."""
+    import re
+
+    chat = nobodywho.Chat(
+        model,
+        sampler=nobodywho.SamplerPresets.constrain_with_regex(r"yes|no"),
+        system_prompt="Answer only with 'yes' or 'no'.",
+        template_variables={"enable_thinking": False},
+    )
+    response = chat.ask("Is Paris the capital of France?").completed()
+    assert re.fullmatch(r"yes|no", response), f"Expected 'yes' or 'no', got: {response!r}"
+
+
+def test_constrain_with_grammar(model):
+    """constrain_with_grammar() forces output to match the given Lark grammar."""
+    # Lark grammar with string literals — note: llguidance uses "start" not "root"
+    lark = 'start: "yes" | "no"'
+    chat = nobodywho.Chat(
+        model,
+        sampler=nobodywho.SamplerPresets.constrain_with_grammar(lark),
+        system_prompt="Answer only with 'yes' or 'no'.",
+        template_variables={"enable_thinking": False},
+    )
+    response = chat.ask("Is the sky blue?").completed()
+    assert response in ("yes", "no"), f"Expected 'yes' or 'no', got: {response!r}"

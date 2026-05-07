@@ -1103,18 +1103,42 @@ impl NobodyWhoChat {
         self.set_sampler_preset_impl(SamplerPresets::dry());
     }
 
-    /// Sets the sampler to enforce JSON output format.
-    /// Constrains the model to generate valid JSON.
-    /// Useful when you need structured data from the LLM.
+    /// Constrains the model output to a JSON schema via llguidance.
+    ///
+    /// Prefer this over set_sampler_preset_json for new code.
     #[func]
+    fn set_sampler_preset_constrain_with_json_schema(&mut self, schema: String) {
+        self.set_sampler_preset_impl(
+            nobodywho::sampler_config::SamplerPresets::constrain_with_json_schema(schema),
+        );
+    }
+
+    /// Constrains the model output to a regular expression via llguidance.
+    #[func]
+    fn set_sampler_preset_constrain_with_regex(&mut self, pattern: String) {
+        self.set_sampler_preset_impl(
+            nobodywho::sampler_config::SamplerPresets::constrain_with_regex(pattern),
+        );
+    }
+
+    /// Constrains the model output using a Lark context-free grammar via llguidance.
+    #[func]
+    fn set_sampler_preset_constrain_with_grammar(&mut self, grammar: String) {
+        self.set_sampler_preset_impl(
+            nobodywho::sampler_config::SamplerPresets::constrain_with_grammar(grammar),
+        );
+    }
+
+    /// Deprecated: Use set_sampler_preset_constrain_with_json_schema() instead.
+    #[func]
+    #[deprecated(note = "Use set_sampler_preset_constrain_with_json_schema() instead")]
     fn set_sampler_preset_json(&mut self) {
         self.set_sampler_preset_impl(SamplerPresets::json());
     }
 
-    /// Sets the sampler to use a custom GBNF grammar.
-    /// Constrains the model output to match the provided grammar specification.
-    /// Use GBNF format (similar to EBNF) to define the structure of valid output.
+    /// Deprecated: Use set_sampler_preset_constrain_with_grammar() instead.
     #[func]
+    #[deprecated(note = "Use set_sampler_preset_constrain_with_grammar() instead")]
     fn set_sampler_preset_grammar(&mut self, grammar: String) {
         self.set_sampler_preset_impl(SamplerPresets::grammar(grammar));
     }
