@@ -103,6 +103,41 @@ val resolveNativeLibraries by tasks.registering {
                 into(abiOutputDir)
                 rename { "libnobodywho_flutter.so" }
             }
+
+            val resolvedLibDir = File(resolvedLibPath).parentFile
+
+            // Whisper module (optional – STT falls back to runtime discovery if absent).
+            val whisperModulePath = File(resolvedLibDir, "libnobodywho_stt.so")
+            if (whisperModulePath.exists()) {
+                logger.lifecycle("[$abi] Bundling STT module: ${whisperModulePath.absolutePath}")
+                copy {
+                    from(whisperModulePath)
+                    into(abiOutputDir)
+                    rename { "libnobodywho_stt.so" }
+                }
+            } else {
+                logger.lifecycle("[$abi] Whisper module not found at ${whisperModulePath.absolutePath}; STT will use runtime discovery")
+            }
+
+            // GGML shared libs – hard runtime deps when built with dynamic-backends.
+            listOf("libggml-base.so", "libllama.so").forEach { libName ->
+                val libFile = File(resolvedLibDir, libName)
+                if (libFile.exists()) {
+                    logger.lifecycle("[$abi] Bundling GGML lib: ${libFile.absolutePath}")
+                    copy { from(libFile); into(abiOutputDir) }
+                }
+            }
+
+            // GGML backend modules – dlopen'd at runtime for hardware selection.
+            // Broad pattern catches CPU variants, Vulkan, QNN (Qualcomm), OpenCL, RPC, CANN, etc.
+            resolvedLibDir.listFiles { f ->
+                f.name.endsWith(".so") &&
+                (f.name.startsWith("libggml-") || f.name.startsWith("ggml-")) &&
+                f.name != "libggml-base.so"
+            }?.forEach { module ->
+                logger.lifecycle("[$abi] Bundling GGML backend module: ${module.name}")
+                copy { from(module); into(abiOutputDir) }
+            }
         }
     }
 }

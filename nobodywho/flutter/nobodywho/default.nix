@@ -3,6 +3,7 @@
   flutter,
   callPackage,
   nobodywho_flutter_rust,
+  nobodywho-stt,
 }:
 
 let
@@ -44,7 +45,7 @@ flutter.buildFlutterApplication {
     flutter analyze --no-fatal-warnings
 
     echo "Testing the nobodywho dart wrapper package"
-    export LD_LIBRARY_PATH="${nobodywho_flutter_rust.lib}/lib"
+    export LD_LIBRARY_PATH="${nobodywho_flutter_rust.lib}/lib:${nobodywho-stt.lib}/lib"
     export TEST_MODEL="${models.TEST_MODEL}"
     export TEST_EMBEDDINGS_MODEL="${models.TEST_EMBEDDINGS_MODEL}"
     export TEST_CROSSENCODER_MODEL="${models.TEST_CROSSENCODER_MODEL}"

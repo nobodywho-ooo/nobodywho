@@ -41,6 +41,7 @@
         nobodywho-flutter = workspace.workspaceMembers.nobodywho-flutter.build;
         flutter_tests = pkgs.callPackage ./nobodywho/flutter/nobodywho {
           nobodywho_flutter_rust = nobodywho-flutter;
+          inherit nobodywho-stt;
         };
 
         # cargo tests
@@ -48,16 +49,79 @@
         nobodywho-tested = workspace.workspaceMembers.nobodywho.build.override {
           runTests = true;
           testPreRun = ''
+            # buildRustCrate's run-tests derivation does NOT inherit nativeBuildInputs
+            # from the crate override, so install_name_tool / codesign aren't on PATH
+            # by default on macOS. Inject them explicitly. On non-Darwin these vars
+            # are no-ops since nothing references @rpath/... in a way ld.so can't
+            # resolve via LD_LIBRARY_PATH.
+            ${if pkgs.stdenv.isDarwin then ''
+              export PATH="${pkgs.darwin.cctools}/bin:${pkgs.darwin.sigtool}/bin:$PATH"
+            '' else ""}
+
             export TEST_MODEL=${test-models.TEST_MODEL}
             export TEST_EMBEDDINGS_MODEL=${test-models.TEST_EMBEDDINGS_MODEL}
             export TEST_CROSSENCODER_MODEL=${test-models.TEST_CROSSENCODER_MODEL}
+
+            # llama-cpp-2 bakes GGML_BACKENDS_DIR via option_env! at compile time. In
+            # the Nix sandbox that path is the llama-cpp-sys-2 build dir, which is
+            # destroyed when the sys derivation finishes — so the test process finds
+            # zero dynamic backends and llama_model_load_from_file returns NULL.
+            # The same closure path also has libllama/libggml/libggml-base under
+            # lib64/. The macOS test binary references @rpath/libggml-base.0.dylib but
+            # has no LC_RPATH entries (crate2nix doesn't add one), so dyld errors with
+            # "no LC_RPATH's found". Set DYLD_LIBRARY_PATH (and LD_LIBRARY_PATH on
+            # Linux) to point at lib64/, and GGML_BACKEND_DIR at backends/.
+            for d in /nix/store/*-rust_llama-cpp-sys-2-*-lib/lib/llama-cpp-sys-2.out; do
+              if [ -d "$d/backends" ] && ls "$d"/backends/libggml-* >/dev/null 2>&1; then
+                export GGML_BACKEND_DIR="$d/backends"
+                # llama-cpp-sys-2's cmake install drops the main shared libs in `lib/`
+                # on macOS and `lib64/` on Linux. Use whichever one actually exists.
+                libdir=""
+                for candidate in "$d/lib" "$d/lib64"; do
+                  if [ -d "$candidate" ] && ls "$candidate"/libggml-base.* >/dev/null 2>&1; then
+                    libdir="$candidate"
+                    break
+                  fi
+                done
+                if [ -n "$libdir" ]; then
+                  # Linux ld.so honors LD_LIBRARY_PATH for @rpath-style lookups.
+                  export LD_LIBRARY_PATH="$libdir''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+                  # macOS dyld does NOT consult DYLD_LIBRARY_PATH for @rpath/... refs —
+                  # @rpath resolves only through the binary's LC_RPATH commands. crate2nix
+                  # doesn't add one, so the test binary aborts with "no LC_RPATH's found".
+                  # Pre-patch every Mach-O test executable to add libdir as an rpath, then
+                  # ad-hoc re-sign on Apple Silicon (modification invalidates the
+                  # signature). The binaries live in this sandbox only — we don't ship
+                  # patched copies anywhere.
+                  if command -v install_name_tool >/dev/null 2>&1; then
+                    echo "test-runtime: patching test-binary rpaths in target/debug/ -> $libdir"
+                    found=0
+                    for bin in target/debug/* target/debug/deps/*; do
+                      [ -f "$bin" ] || continue
+                      file "$bin" 2>/dev/null | grep -q 'Mach-O.*executable' || continue
+                      found=$((found+1))
+                      install_name_tool -add_rpath "$libdir" "$bin" 2>&1 || true
+                      if command -v codesign >/dev/null 2>&1; then
+                        codesign -fs - "$bin" 2>&1 || true
+                      fi
+                    done
+                    echo "test-runtime: patched $found Mach-O test executables"
+                  fi
+                fi
+                echo "test-runtime: GGML_BACKEND_DIR=$GGML_BACKEND_DIR libdir=$libdir"
+                break
+              fi
+            done
           '';
         };
+
+        # STT module
+        nobodywho-stt = workspace.workspaceMembers.nobodywho-stt.build;
 
         # godot stuff
         nobodywho-godot = workspace.workspaceMembers.nobodywho-godot.build;
         godot-integration-test = pkgs.callPackage ./nobodywho/godot/integration-test {
-          inherit nobodywho-godot;
+          inherit nobodywho-godot nobodywho-stt;
         };
         run-godot-integration-test =
           pkgs.runCommand "checkgame"
@@ -92,7 +156,7 @@
           pname = "react-native-jest";
           version = "0.0.0"; # nix derivation metadata only, does not need to match the npm package version
           src = ./nobodywho/react-native;
-          npmDepsHash = "sha256-9l1opUuR0/2Z7NS5YbH4f9thUyNkg14eZVx/KRi4ZpA=";
+          npmDepsHash = "sha256-CJ6r3KQMDNOpVx4uvNz/jWzmipJVRF9IpqE0gkg1c9o=";
           dontNpmBuild = true;
           checkPhase = "npx jest";
           doCheck = true;
@@ -110,6 +174,7 @@
 
         # python stuff
         packages.nobodywho-python = nobodywho-python;
+        packages.nobodywho-stt = nobodywho-stt;
         devShells.nobodywho-python = pkgs.mkShell {
           # a devshell that includes the built python package
           # useful for testing local changes in repl or pytest

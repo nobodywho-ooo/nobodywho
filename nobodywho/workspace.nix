@@ -54,12 +54,87 @@ let
             vulkan-tools
             mesa
           ];
+
+          # llama-cpp-sys-2's build.rs hard-links the just-built .dylib/.so files into
+          # `target_dir/deps/` (computed as 3 ancestors up from OUT_DIR) so that cargo
+          # tests in downstream crates can resolve them at runtime. In a normal cargo
+          # invocation, `target/<profile>/deps/` already exists. In the crate2nix Nix
+          # sandbox on macOS the directory hasn't been created when the build script
+          # runs (Linux's `target/` layout differs slightly), and `std::fs::hard_link`
+          # panics with NotFound at build.rs:1126. Patch the .unwrap() calls to first
+          # create the parent dir and then ignore link errors so the build script no
+          # longer depends on cargo's directory layout being pre-populated.
+          postPatch = (attrs.postPatch or "") + ''
+            substituteInPlace llama-cpp-sys-2/build.rs \
+              --replace-fail 'std::fs::hard_link(asset.clone(), dst).unwrap();' \
+                'if let Some(p) = dst.parent() { let _ = std::fs::create_dir_all(p); } let _ = std::fs::hard_link(asset.clone(), dst);'
+          '';
+
+          # crate2nix preserves the entire cmake OUT_DIR in $out, including the transient
+          # build/ subdir. That subdir contains shadow copies of every .so produced by
+          # cmake (libllama, libggml, libggml-cpu-*, libggml-vulkan, …) whose RPATHs
+          # still point at /build/llama-cpp-rs-…/build, which Nix's fixup phase rejects
+          # via the "disallowedReferences" check on /build. The installed copies live in
+          # $out/lib/llama-cpp-sys-2.out/{backends,lib64,…} with proper RPATHs and are
+          # what the consuming crates link against — the build/ tree is dead weight.
+          # Drop it before fixupPhase runs.
+          preFixup = ''
+            for d in $out $lib; do
+              if [ -d "$d/lib/llama-cpp-sys-2.out/build" ]; then
+                rm -rf "$d/lib/llama-cpp-sys-2.out/build"
+              fi
+            done
+          '';
+        };
+
+        # whisper-rs build.rs reads DEP_WHISPER_WHISPER_CPP_VERSION (set by whisper-rs-sys
+        # via `cargo:WHISPER_CPP_VERSION=…`). crate2nix builds each crate in isolation so
+        # the output isn't propagated automatically — hard-code it here.
+        whisper-rs = attrs: {
+          env.DEP_WHISPER_WHISPER_CPP_VERSION = "1.8.3";
+        };
+
+        whisper-rs-sys = attrs: {
+          env.LIBCLANG_PATH = "${pkgs.libclang.lib}/lib/libclang.so";
+
+          nativeBuildInputs = [
+            llvmPackages.bintools
+            cmake
+            rustPlatform.bindgenHook
+            vulkan-headers
+            vulkan-loader
+            shaderc
+            vulkan-tools
+            mesa
+            git
+          ];
+          propagatedBuildInputs = [
+            vulkan-loader
+            vulkan-headers
+            shaderc
+            vulkan-tools
+            mesa
+          ];
+
+        };
+
+        nobodywho-stt = attrs: {
+          nativeBuildInputs = [
+            vulkan-loader
+          ];
         };
 
         nobodywho = attrs: {
           nativeBuildInputs = [
             # this needs to be available at link-time
             vulkan-loader
+          ] ++ lib.optionals pkgs.stdenv.isDarwin [
+            # The test phase of cargo-test runs install_name_tool + codesign in
+            # testPreRun (see flake.nix) to add an LC_RPATH to the Mach-O test
+            # binary so dyld can resolve @rpath/libggml-base.dylib at runtime.
+            # Without these on PATH the patch is skipped silently and tests abort.
+            pkgs.darwin.cctools
+            pkgs.darwin.sigtool
           ];
         };
 

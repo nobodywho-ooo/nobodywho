@@ -10,10 +10,22 @@ framework_name = "NobodywhoFramework.xcframework"
 framework_dir = File.join(__dir__, framework_name)
 zip_name = "#{framework_name}.zip"
 zip_path = File.join(__dir__, zip_name)
-url = "https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-react-native-v#{version}/#{zip_name}"
+release_base = "https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-react-native-v#{version}"
+url = "#{release_base}/#{zip_name}"
+
+# STT module: separately-loaded dynamic framework. Whisper's bundled ggml lives in
+# its own dyld two-level namespace so it can never collide with llama's ggml inside
+# the main NobodywhoFramework. If the release predates STT support, the curl below
+# falls through silently and STT just isn't available at runtime.
+stt_framework_name = "nobodywho_stt.xcframework"
+stt_framework_dir = File.join(__dir__, stt_framework_name)
+stt_zip_name = "#{stt_framework_name}.zip"
+stt_zip_path = File.join(__dir__, stt_zip_name)
+stt_url = "#{release_base}/#{stt_zip_name}"
 
 # Always download a fresh xcframework to ensure it matches the package version.
 FileUtils.rm_rf(framework_dir) if File.exist?(framework_dir)
+FileUtils.rm_rf(stt_framework_dir) if File.exist?(stt_framework_dir)
 
 puts "[NobodyWho] Downloading xcframework from #{url}"
 
@@ -35,6 +47,25 @@ end
 
 puts "[NobodyWho] xcframework ready at #{framework_dir}"
 
+# Optional: download the STT xcframework. Skip silently on failure so older releases
+# (and local dev placing the framework manually) still install.
+puts "[NobodyWho] Downloading STT xcframework from #{stt_url}"
+stt_downloaded = system("curl", "-L", "-f", "-o", stt_zip_path, stt_url)
+if stt_downloaded
+  if system("unzip", "-o", "-q", stt_zip_path, "-d", __dir__) && File.exist?(stt_framework_dir)
+    File.delete(stt_zip_path) if File.exist?(stt_zip_path)
+    puts "[NobodyWho] STT xcframework ready at #{stt_framework_dir}"
+  else
+    puts "[NobodyWho] WARNING: failed to extract STT xcframework — STT will be unavailable."
+    File.delete(stt_zip_path) if File.exist?(stt_zip_path)
+  end
+elsif File.exist?(stt_framework_dir)
+  puts "[NobodyWho] Using existing STT xcframework at #{stt_framework_dir}"
+else
+  puts "[NobodyWho] STT xcframework not in this release — STT will be unavailable at runtime. " \
+       "Place a built nobodywho_stt.xcframework at #{stt_framework_dir} for local development."
+end
+
 Pod::Spec.new do |s|
   s.name         = "Nobodywho"
   s.version      = package["version"]
@@ -47,7 +78,11 @@ Pod::Spec.new do |s|
   s.source       = { :git => "https://github.com/nobodywho-ooo/nobodywho.git", :tag => "#{s.version}" }
 
   s.source_files = "ios/**/*.{h,m,mm,swift}", "ios/generated/**/*.{h,m,mm}", "cpp/**/*.{hpp,cpp,c,h}", "generated/cpp/**/*.{hpp,cpp,c,h}"
-  s.vendored_frameworks = framework_name
+  if File.exist?(stt_framework_dir)
+    s.vendored_frameworks = [framework_name, stt_framework_name]
+  else
+    s.vendored_frameworks = framework_name
+  end
   s.libraries = 'c++'
   s.frameworks = 'Accelerate'
   s.dependency    "uniffi-bindgen-react-native", "0.30.0-1"

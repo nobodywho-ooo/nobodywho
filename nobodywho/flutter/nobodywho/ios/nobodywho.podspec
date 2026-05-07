@@ -1,4 +1,5 @@
 framework_name = "nobodywho_flutter.xcframework"
+stt_framework_name = "nobodywho_stt.xcframework"
 
 # Resolve xcframework using Dart script
 # This supports multiple resolution strategies:
@@ -42,6 +43,33 @@ echo "Copying framework from #{xcframework_path}..."
 cp -R "#{xcframework_path}" "./#{framework_name}"
 `
 
+# Resolve the optional STT xcframework. STT is a separately-loaded module: it ships
+# whisper.cpp + its own bundled ggml inside an embedded framework that the host app
+# dlopens at runtime. Two-level namespacing keeps whisper's ggml from colliding with
+# llama's ggml inside the main nobodywho_flutter framework.
+#
+# If the user hasn't built / downloaded the STT framework, the pod still installs —
+# nobodywho returns SpeechToTextError::ModuleLoad at runtime when STT is invoked.
+# Same Dart resolver as the main framework, just with --component=stt --optional. The
+# --optional flag turns "asset not in this release" into a clean exit-0-with-empty-stdout
+# so the pod still installs against older releases.
+stt_resolve_output = `dart run "#{script_path}" --platform=ios --build-type=release --cache-dir="#{cache_dir}" --component=stt --optional 2>/dev/null`
+stt_xcframework_path = stt_resolve_output.strip.split("\n").last
+
+stt_vendored = nil
+if stt_xcframework_path && !stt_xcframework_path.empty? && File.exist?(stt_xcframework_path)
+  `
+  cd "#{frameworks_dir}"
+  if [ -d "#{stt_framework_name}" ]; then rm -rf "#{stt_framework_name}"; fi
+  echo "Copying STT framework from #{stt_xcframework_path}..."
+  cp -R "#{stt_xcframework_path}" "./#{stt_framework_name}"
+  `
+  stt_vendored = "Frameworks/#{stt_framework_name}"
+else
+  Pod::UI.warn "NobodyWho: stt xcframework not found, STT will be unavailable at runtime. " \
+    "Build via flutter/scripts/build_stt_apple.sh or set NOBODYWHO_STT_XCFRAMEWORK_PATH."
+end
+
 Pod::Spec.new do |s|
   s.name             = 'nobodywho'
   s.version          = '0.1.0'
@@ -76,5 +104,9 @@ Flutter FFI plugin for NobodyWho - local LLM inference with tool calling, embedd
   s.swift_version = '5.0'
 
   # this is where we include the pre-compiled nobodywho code
-  s.vendored_frameworks = "Frameworks/#{framework_name}"
+  if stt_vendored
+    s.vendored_frameworks = ["Frameworks/#{framework_name}", stt_vendored]
+  else
+    s.vendored_frameworks = "Frameworks/#{framework_name}"
+  end
 end

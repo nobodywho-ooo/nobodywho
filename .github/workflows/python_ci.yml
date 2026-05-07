@@ -239,6 +239,7 @@ jobs:
           curl -L --fail --progress-bar https://huggingface.co/gpustack/bge-reranker-v2-m3-GGUF/resolve/main/bge-reranker-v2-m3-Q8_0.gguf -o models/bge-reranker-v2-m3-Q8_0.gguf
           curl -L --fail --progress-bar https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/google_gemma-4-E2B-it-Q4_K_M.gguf -o models/google_gemma-4-E2B-it-Q4_K_M.gguf
           curl -L --fail --progress-bar https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/mmproj-google_gemma-4-E2B-it-f16.gguf -o models/mmproj-google_gemma-4-E2B-it-f16.gguf
+          curl -L --fail --progress-bar https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin -o models/ggml-base.en.bin
       - name: Set up virtualenv and install dependencies
         working-directory: ./nobodywho/python
         run: |
@@ -255,6 +256,7 @@ jobs:
           TEST_CROSSENCODER_MODEL: ${{ github.workspace }}/models/bge-reranker-v2-m3-Q8_0.gguf
           TEST_VISION_MODEL: ${{ github.workspace }}/models/google_gemma-4-E2B-it-Q4_K_M.gguf
           TEST_MMPROJ_MODEL: ${{ github.workspace }}/models/mmproj-google_gemma-4-E2B-it-f16.gguf
+          TEST_WHISPER_MODEL: ${{ github.workspace }}/models/ggml-base.en.bin
         run: |
           source .venv/bin/activate
           # python bindings tests (model downloading has its own dedicated job)

@@ -1,0 +1,6 @@
+{
+    global:
+        stt_module_*;
+    local:
+        *;
+};

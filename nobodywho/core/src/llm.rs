@@ -1,5 +1,7 @@
 use crate::errors::{InitWorkerError, LoadModelError, ReadError};
 use crate::memory;
+#[cfg(not(target_os = "ios"))]
+use crate::platform::get_backends_path;
 use crate::tokenizer::{ProjectionModel, Tokenizer, TokenizerChunk, TokenizerChunks};
 use indicatif::{ProgressBar, ProgressStyle};
 use lazy_static::lazy_static;
@@ -28,8 +30,16 @@ lazy_static! {
         Mutex::new(GlobalInferenceLockToken);
 }
 
-static LLAMA_BACKEND: LazyLock<LlamaBackend> =
-    LazyLock::new(|| LlamaBackend::init().expect("Failed to initialize llama backend"));
+static LLAMA_BACKEND: LazyLock<LlamaBackend> = LazyLock::new(|| {
+    // Dynamic backend loading is only available when llama-cpp-2 is built with the
+    // dynamic-backends feature. iOS uses the static-only build path.
+    #[cfg(not(target_os = "ios"))]
+    match get_backends_path() {
+        Some(path) => llama_cpp_2::llama_backend::load_backends_from_path(&path),
+        None => warn!("No GGML backend directory found; hardware acceleration backends (Vulkan, CPU variants) will not be loaded"),
+    }
+    LlamaBackend::init().expect("Failed to initialize llama backend")
+});
 
 /// Callback invoked during model downloads with `(downloaded_bytes, total_bytes)`.
 ///
@@ -817,6 +827,104 @@ where
         }
 
         Ok(())
+    }
+}
+
+/// A stream of tokens from the model.
+pub struct TokenStream {
+    rx: tokio::sync::mpsc::UnboundedReceiver<WriteOutput>,
+    completed_response: Option<String>,
+}
+
+impl TokenStream {
+    pub(crate) fn new(rx: tokio::sync::mpsc::UnboundedReceiver<WriteOutput>) -> Self {
+        Self {
+            rx,
+            completed_response: None,
+        }
+    }
+
+    /// Get the next token from the stream.
+    pub fn next_token(&mut self) -> Option<String> {
+        if self.completed_response.is_some() {
+            return None;
+        }
+
+        if let Some(output) = self.rx.blocking_recv() {
+            match output {
+                WriteOutput::Token(token) => return Some(token),
+                WriteOutput::Done(completed_response) => {
+                    self.completed_response = Some(completed_response);
+                    return None;
+                }
+            }
+        }
+        None
+    }
+
+    /// Blocks until the entire response is completed. Does not consume the response, so this
+    /// method is idempotent.
+    pub fn completed(&mut self) -> Result<String, crate::errors::CompletionError> {
+        loop {
+            match self.next_token() {
+                Some(_) => continue,
+                None => {
+                    return self
+                        .completed_response
+                        .clone()
+                        .ok_or(crate::errors::CompletionError::WorkerCrashed);
+                }
+            }
+        }
+    }
+}
+
+/// A stream of tokens from the model, async version.
+pub struct TokenStreamAsync {
+    rx: tokio::sync::mpsc::UnboundedReceiver<WriteOutput>,
+    completed_response: Option<String>,
+}
+
+impl TokenStreamAsync {
+    pub fn new(rx: tokio::sync::mpsc::UnboundedReceiver<WriteOutput>) -> Self {
+        Self {
+            rx,
+            completed_response: None,
+        }
+    }
+
+    /// Waits for the next token in the stream.
+    pub async fn next_token(&mut self) -> Option<String> {
+        if self.completed_response.is_some() {
+            return None;
+        }
+
+        if let Some(output) = self.rx.recv().await {
+            match output {
+                WriteOutput::Token(token) => return Some(token),
+                WriteOutput::Done(completed_response) => {
+                    self.completed_response = Some(completed_response);
+                    return None;
+                }
+            }
+        }
+        None
+    }
+
+    /// Waits for the entire response to be completed. Does not consume the response, so this
+    /// method is idempotent.
+    pub async fn completed(&mut self) -> Result<String, crate::errors::CompletionError> {
+        loop {
+            match self.next_token().await {
+                Some(_) => continue,
+                None => {
+                    return self
+                        .completed_response
+                        .clone()
+                        .ok_or(crate::errors::CompletionError::WorkerCrashed);
+                }
+            }
+        }
     }
 }
 

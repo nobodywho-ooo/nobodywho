@@ -433,6 +433,17 @@ pub enum SetToolsError {
     Render(#[from] RenderError),
 }
 
+// SpeechToText errors
+
+#[derive(Debug, thiserror::Error)]
+pub enum SpeechToTextError {
+    #[error("Failed to load whisper model: {0}")]
+    LoadModel(String),
+
+    #[error("Whisper module not found or failed to load: {0}")]
+    ModuleLoad(String),
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum CompletionError {
     #[error("Worker thread terminated before completing the response. This usually indicates an error occurred during token generation (e.g., context shift failure, sampling error, or token decoding issue).")]

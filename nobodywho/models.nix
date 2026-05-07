@@ -3,7 +3,7 @@
   TEST_MODEL = fetchurl {
     name = "Qwen_Qwen3-0.6B-Q4_K_M.gguf";
     url = "https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf";
-    sha256 = "sha256-O4uyOUO46rbaVNofuB/xKMQsFTxfmAc/GzSfTeuflUQ=";
+    sha256 = "sha256-Fopf1gkSVBieJZR2TbHGbdaymE8AkfkqhvOIvd0dm7I=";
   };
   TEST_EMBEDDINGS_MODEL = fetchurl {
     name = "bge-small-en-v1.5-q8_0.gguf";
@@ -14,6 +14,11 @@
     name = "bge-reranker-v2-m3-Q8_0.gguf";
     url = "https://huggingface.co/gpustack/bge-reranker-v2-m3-GGUF/resolve/main/bge-reranker-v2-m3-Q8_0.gguf";
     sha256 = "sha256-pDx8mxGkwVF+W/lRUZYOFiHRty96STNksB44bPGqodM=";
+  };
+  TEST_WHISPER_MODEL = fetchurl {
+    name = "ggml-base.en.bin";
+    url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin";
+    sha256 = "sha256-oDd5yG3zMjB19eeWyyzlAp8A7Ihp7uP9+4l6/jbG0AI=";
   };
   TEST_VISION_MODEL = fetchurl {
     name = "gemma-3-4b-it-Q4_K_M.gguf";

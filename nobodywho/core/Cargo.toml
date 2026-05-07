@@ -36,25 +36,49 @@ rand = "0.9.3"
 futures = "0.3.31"
 ahash = "0.8.12"
 indexmap = "2.13.0"
+libloading = "0.8"
+libc = "0.2"
 ureq = { version = "3", features = ["rustls"] }
 indicatif = "0.18"
-
-[target.'cfg(target_os = "android")'.dependencies]
-libc = "0.2"
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 dirs = "6"
 
-# Enable Vulkan for x86_64, x86, and aarch64 targets (excluding macOS, iOS, Android)
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_LibraryLoader"] }
+
+# Enable dynamic backends + Vulkan for x86_64, x86, and aarch64 targets (excluding macOS, iOS, Android)
 [target.'cfg(all(not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android"), any(target_arch = "x86_64", target_arch = "x86", target_arch = "aarch64")))'.dependencies]
 llama-cpp-2 = { git = "https://github.com/marek-hradil/llama-cpp-rs", branch = "main", default-features = false, features = [
+    "dynamic-backends",
     "openmp",
     "vulkan",
     "mtmd",
     "android-static-stdcxx",
 ] }
 
-# Enable Metal on iOS. (macOS aarch64 gets Metal automatically from llama-cpp-2's own target-cfg upstream.)
+# Enable dynamic backends on macOS (Metal is added automatically by llama-cpp-2 for Apple Silicon)
+[target.'cfg(target_os = "macos")'.dependencies]
+llama-cpp-2 = { git = "https://github.com/marek-hradil/llama-cpp-rs", branch = "main", default-features = false, features = [
+    "dynamic-backends",
+    "openmp",
+    "mtmd",
+    "android-static-stdcxx",
+] }
+
+# Enable dynamic backends on Android (Vulkan + QNN backends loaded at runtime per device)
+[target.'cfg(target_os = "android")'.dependencies]
+llama-cpp-2 = { git = "https://github.com/marek-hradil/llama-cpp-rs", branch = "main", default-features = false, features = [
+    "dynamic-backends",
+    "openmp",
+    "vulkan",
+    "android-static-stdcxx",
+    "mtmd",
+] }
+
+# Enable Metal on iOS. Static linkage — no dynamic-backends because dlopen of arbitrary
+# dylibs is forbidden on iOS. STT lives in a separate embedded framework so its bundled
+# ggml stays in its own dyld two-level namespace.
 [target.'cfg(target_os = "ios")'.dependencies]
 llama-cpp-2 = { git = "https://github.com/marek-hradil/llama-cpp-rs", branch = "main", default-features = false, features = [
     "metal",

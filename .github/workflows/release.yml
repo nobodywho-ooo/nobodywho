@@ -25,6 +25,13 @@ jobs:
             mkdir -p nobodywho-release/bin/addons/nobodywho
             # copy in nobodywho libs
             cp ./artifacts/*/*nobodywho-godot* ./nobodywho-release/bin/addons/nobodywho/
+            # copy in STT module libs (sibling discovery finds them alongside the godot .so)
+            find ./artifacts -name '*nobodywho-stt*' -exec cp {} ./nobodywho-release/bin/addons/nobodywho/ \;
+            # copy in GGML shared libs and backend modules (renamed with target suffix,
+            # so x86_64 and aarch64 variants coexist without filename conflicts)
+            find ./artifacts \( -name 'libggml-*' -o -name 'libllama-*' -o -name 'ggml-*.dll' -o -name 'llama-*.dll' \) \
+              ! -name '*nobodywho*' \
+              -exec cp {} ./nobodywho-release/bin/addons/nobodywho/ \;
             # copy in gdextension metadata
             cp ./nobodywho/godot/nobodywho.gdextension ./nobodywho-release/bin/addons/nobodywho/
             cp ./assets/icon.svg ./nobodywho-release/bin/addons/nobodywho/
@@ -160,6 +167,13 @@ jobs:
           merge-multiple: true
           path: ./nobodywho-flutter-release
 
+      - name: "Download STT module artifacts for Flutter"
+        uses: actions/download-artifact@v4
+        with:
+          pattern: nobodywho-stt-*
+          merge-multiple: true
+          path: ./nobodywho-flutter-release
+
       - name: "List artifacts to include in release"
         run: ls -la ./nobodywho-flutter-release/
 
@@ -208,10 +222,28 @@ jobs:
           name: nobodywho-uniffi-x86_64-linux-android-release
           path: ./nobodywho-react-native-release
 
+      - name: "Download Android ARM64 GGML + STT extras"
+        uses: actions/download-artifact@v4
+        with:
+          name: nobodywho-android-extras-uniffi-aarch64-linux-android-release
+          path: ./nobodywho-react-native-release
+
+      - name: "Download Android x86_64 GGML + STT extras"
+        uses: actions/download-artifact@v4
+        with:
+          name: nobodywho-android-extras-uniffi-x86_64-linux-android-release
+          path: ./nobodywho-react-native-release
+
       - name: "Download iOS XCFramework"
         uses: actions/download-artifact@v4
         with:
           name: nobodywho-react-native-xcframework
+          path: ./nobodywho-react-native-release
+
+      - name: "Download STT XCFramework"
+        uses: actions/download-artifact@v4
+        with:
+          name: nobodywho-stt-xcframework
           path: ./nobodywho-react-native-release
 
       - name: "Keep only React Native artifacts (.so and xcframework)"
