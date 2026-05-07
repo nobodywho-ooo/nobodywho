@@ -375,9 +375,15 @@ def test_stop_generation(chat):
 
 
 # ---- llguidance constraint tests ----
+#
+# These tests deliberately use prompts that would produce long, complex responses
+# without a constraint (e.g. "Explain X in detail"), with no system prompt that
+# nudges the model toward the constrained output. That way a passing test proves
+# the constraint mechanism is working, not just that the model happened to guess right.
 
 def test_constrain_with_json_schema(model):
-    """constrain_with_json_schema() forces output to be a JSON object with string values."""
+    """constrain_with_json_schema() forces output to be a JSON object even when the
+    model would naturally produce a long prose answer."""
     import json
 
     schema = json.dumps({
@@ -389,38 +395,39 @@ def test_constrain_with_json_schema(model):
     chat = nobodywho.Chat(
         model,
         sampler=nobodywho.SamplerPresets.constrain_with_json_schema(schema),
-        system_prompt="You are a helpful assistant.",
         template_variables={"enable_thinking": False},
     )
-    response = chat.ask("What is the capital of France? Answer in JSON.").completed()
+    # Without a constraint the model would produce a multi-sentence prose explanation.
+    response = chat.ask("Explain in detail why the sky appears blue.").completed()
     parsed = json.loads(response)
     assert isinstance(parsed, dict), f"Expected JSON object, got: {response!r}"
     assert all(isinstance(v, str) for v in parsed.values()), f"All values should be strings: {response!r}"
 
 
 def test_constrain_with_regex(model):
-    """constrain_with_regex() forces output to match the given regular expression."""
+    """constrain_with_regex() forces output to exactly match the pattern even when
+    the model would naturally produce a long explanation."""
     import re
 
     chat = nobodywho.Chat(
         model,
         sampler=nobodywho.SamplerPresets.constrain_with_regex(r"yes|no"),
-        system_prompt="Answer only with 'yes' or 'no'.",
         template_variables={"enable_thinking": False},
     )
-    response = chat.ask("Is Paris the capital of France?").completed()
+    # Without a constraint the model would write paragraphs about Rayleigh scattering.
+    response = chat.ask("Explain in detail why the sky appears blue.").completed()
     assert re.fullmatch(r"yes|no", response), f"Expected 'yes' or 'no', got: {response!r}"
 
 
 def test_constrain_with_grammar(model):
-    """constrain_with_grammar() forces output to match the given Lark grammar."""
-    # Lark grammar with string literals — note: llguidance uses "start" not "root"
+    """constrain_with_grammar() forces output to match the Lark grammar even when
+    the model would naturally produce a long explanation."""
     lark = 'start: "yes" | "no"'
     chat = nobodywho.Chat(
         model,
         sampler=nobodywho.SamplerPresets.constrain_with_grammar(lark),
-        system_prompt="Answer only with 'yes' or 'no'.",
         template_variables={"enable_thinking": False},
     )
-    response = chat.ask("Is the sky blue?").completed()
+    # Without a constraint the model would write paragraphs about Rayleigh scattering.
+    response = chat.ask("Explain in detail why the sky appears blue.").completed()
     assert response in ("yes", "no"), f"Expected 'yes' or 'no', got: {response!r}"

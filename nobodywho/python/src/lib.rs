@@ -1360,51 +1360,6 @@ impl SamplerConfig {
     }
 }
 
-/// A grammar constraint for structured output generation via llguidance.
-///
-/// Pass to `SamplerBuilder.constrain()` or use one of the `SamplerPresets.constrain_with_*` helpers.
-#[pyclass(from_py_object)]
-#[derive(Clone)]
-pub struct Constraint {
-    inner: nobodywho::sampler_config::GrammarConstraint,
-}
-
-#[pymethods]
-impl Constraint {
-    /// Constrain output to a JSON schema.
-    ///
-    /// Args:
-    ///     schema: JSON schema string
-    #[staticmethod]
-    pub fn json_schema(schema: String) -> Self {
-        Self {
-            inner: nobodywho::sampler_config::GrammarConstraint::json_schema(schema),
-        }
-    }
-
-    /// Constrain output to a regular expression.
-    ///
-    /// Args:
-    ///     pattern: Regular expression pattern
-    #[staticmethod]
-    pub fn regex(pattern: String) -> Self {
-        Self {
-            inner: nobodywho::sampler_config::GrammarConstraint::regex(pattern),
-        }
-    }
-
-    /// Constrain output using a Lark context-free grammar.
-    ///
-    /// Args:
-    ///     grammar: Lark grammar string
-    #[staticmethod]
-    pub fn grammar(grammar: String) -> Self {
-        Self {
-            inner: nobodywho::sampler_config::GrammarConstraint::grammar(grammar),
-        }
-    }
-}
-
 /// `SamplerBuilder` is used to manually construct a sampler chain.
 /// A sampler chain consists of any number of probability-shifting steps, and a single sampling step.
 /// Probability-shifting steps are operations that transform the probability distribution of next
@@ -1499,16 +1454,6 @@ impl SamplerBuilder {
             self.clone(),
             nobodywho::sampler_config::ShiftStep::TypicalP { typ_p, min_keep },
         )
-    }
-
-    /// Add a grammar constraint for structured output generation via llguidance.
-    ///
-    /// Args:
-    ///     constraint: A `Constraint` object (use `Constraint.json_schema()`, `.regex()`, or `.grammar()`)
-    pub fn constrain(&self, constraint: &Constraint) -> Self {
-        Self {
-            sampler_config: self.sampler_config.clone().constrain(constraint.inner.clone()),
-        }
     }
 
     /// Apply a GBNF grammar constraint to enforce structured output.

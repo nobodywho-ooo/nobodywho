@@ -730,41 +730,6 @@ impl SamplerConfig {
     }
 }
 
-// ---------- GrammarConstraint ----------
-
-/// A grammar constraint for structured output generation via llguidance.
-#[derive(uniffi::Object, Clone)]
-pub struct GrammarConstraint {
-    inner: nobodywho::sampler_config::GrammarConstraint,
-}
-
-#[uniffi::export]
-impl GrammarConstraint {
-    /// Constrain output to a JSON schema.
-    #[uniffi::constructor]
-    pub fn json_schema(schema: String) -> Arc<Self> {
-        Arc::new(Self {
-            inner: nobodywho::sampler_config::GrammarConstraint::json_schema(schema),
-        })
-    }
-
-    /// Constrain output to a regular expression.
-    #[uniffi::constructor]
-    pub fn regex(pattern: String) -> Arc<Self> {
-        Arc::new(Self {
-            inner: nobodywho::sampler_config::GrammarConstraint::regex(pattern),
-        })
-    }
-
-    /// Constrain output using a Lark context-free grammar.
-    #[uniffi::constructor]
-    pub fn grammar(lark: String) -> Arc<Self> {
-        Arc::new(Self {
-            inner: nobodywho::sampler_config::GrammarConstraint::grammar(lark),
-        })
-    }
-}
-
 // ---------- SamplerBuilder ----------
 
 #[derive(uniffi::Object)]
@@ -853,14 +818,7 @@ impl SamplerBuilder {
         })
     }
 
-    /// Add a grammar constraint for structured output generation via llguidance.
-    pub fn constrain(&self, constraint: Arc<GrammarConstraint>) -> Arc<SamplerBuilder> {
-        Arc::new(SamplerBuilder {
-            inner: self.inner.clone().constrain(constraint.inner.clone()),
-        })
-    }
-
-    /// Deprecated: Use `SamplerBuilder.constrain()` with a `GrammarConstraint` instead.
+    /// Deprecated: Use `sampler_preset_constrain_with_grammar()` with a Lark grammar string instead.
     #[deprecated(note = "Use SamplerBuilder.constrain() with a GrammarConstraint instead")]
     pub fn grammar(
         &self,

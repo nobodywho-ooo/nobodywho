@@ -688,41 +688,6 @@ fn sample_step(
     }
 }
 
-/// A grammar constraint for structured output generation via llguidance.
-///
-/// Pass to `SamplerBuilder.constrain()` or use one of the `SamplerPresets.constrain_with_*` helpers.
-#[flutter_rust_bridge::frb(opaque)]
-#[derive(Clone)]
-pub struct Constraint {
-    pub(crate) inner: nobodywho::sampler_config::GrammarConstraint,
-}
-
-impl Constraint {
-    /// Constrain output to a JSON schema.
-    #[flutter_rust_bridge::frb(sync)]
-    pub fn json_schema(schema: String) -> Self {
-        Self {
-            inner: nobodywho::sampler_config::GrammarConstraint::json_schema(schema),
-        }
-    }
-
-    /// Constrain output to a regular expression.
-    #[flutter_rust_bridge::frb(sync)]
-    pub fn regex(pattern: String) -> Self {
-        Self {
-            inner: nobodywho::sampler_config::GrammarConstraint::regex(pattern),
-        }
-    }
-
-    /// Constrain output using a Lark context-free grammar.
-    #[flutter_rust_bridge::frb(sync)]
-    pub fn grammar(grammar: String) -> Self {
-        Self {
-            inner: nobodywho::sampler_config::GrammarConstraint::grammar(grammar),
-        }
-    }
-}
-
 /// `SamplerBuilder` is used to manually construct a sampler chain.
 /// A sampler chain consists of any number of probability-shifting steps, and a single sampling step.
 /// Probability-shifting steps are operations that transform the probability distribution of next
@@ -829,15 +794,7 @@ impl SamplerBuilder {
         )
     }
 
-    /// Add a grammar constraint for structured output generation via llguidance.
-    #[flutter_rust_bridge::frb(sync)]
-    pub fn constrain(&self, constraint: &Constraint) -> Self {
-        Self {
-            sampler_config: self.sampler_config.clone().constrain(constraint.inner.clone()),
-        }
-    }
-
-    /// Deprecated: Use `SamplerBuilder.constrain()` with a `Constraint` object instead.
+    /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` with a Lark grammar string instead.
     #[flutter_rust_bridge::frb(sync)]
     #[deprecated(note = "Use SamplerBuilder.constrain() with a Constraint object instead")]
     pub fn grammar(&self, grammar: String, trigger_on: Option<String>, root: String) -> Self {

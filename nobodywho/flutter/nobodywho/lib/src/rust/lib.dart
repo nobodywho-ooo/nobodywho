@@ -61,21 +61,6 @@ abstract class Asset implements RustOpaqueInterface {}
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CompletionError>>
 abstract class CompletionError implements RustOpaqueInterface {}
 
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Constraint>>
-abstract class Constraint implements RustOpaqueInterface {
-  /// Constrain output using a Lark context-free grammar.
-  static Constraint grammar({required String grammar}) =>
-      NobodyWho.instance.api.crateConstraintGrammar(grammar: grammar);
-
-  /// Constrain output to a JSON schema.
-  static Constraint jsonSchema({required String schema}) =>
-      NobodyWho.instance.api.crateConstraintJsonSchema(schema: schema);
-
-  /// Constrain output to a regular expression.
-  static Constraint regex({required String pattern}) =>
-      NobodyWho.instance.api.crateConstraintRegex(pattern: pattern);
-}
-
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CrossEncoder>>
 abstract class CrossEncoder implements RustOpaqueInterface {
   /// Load a cross-encoder model from a local path, HuggingFace path, or HTTPS URL.
@@ -311,9 +296,6 @@ abstract class RustTool implements RustOpaqueInterface {
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerBuilder>>
 abstract class SamplerBuilder implements RustOpaqueInterface {
-  /// Add a grammar constraint for structured output generation via llguidance.
-  SamplerBuilder constrain({required Constraint constraint});
-
   /// Sample from the probability distribution (weighted random selection).
   ///
   /// Returns:
@@ -336,7 +318,7 @@ abstract class SamplerBuilder implements RustOpaqueInterface {
     required List<String> seqBreakers,
   });
 
-  /// Deprecated: Use `SamplerBuilder.constrain()` with a `Constraint` object instead.
+  /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` with a Lark grammar string instead.
   SamplerBuilder grammar({
     required String grammar,
     String? triggerOn,
