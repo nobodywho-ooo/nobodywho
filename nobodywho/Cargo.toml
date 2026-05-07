@@ -17,8 +17,8 @@ resolver = "2"
 # in generated type stubs (PR #5782) landed on main but hasn't been released yet.
 # Remove this once pyo3 0.29 (or whichever release includes it) is published.
 [patch."https://github.com/utilityai/llama-cpp-rs"]
-llama-cpp-2     = { git = "https://github.com/marek-hradil/llama-cpp-rs", branch = "main" }
-llama-cpp-sys-2 = { git = "https://github.com/marek-hradil/llama-cpp-rs", branch = "main" }
+llama-cpp-2     = { git = "https://github.com/marek-hradil/llama-cpp-rs", branch = "llguidance" }
+llama-cpp-sys-2 = { git = "https://github.com/marek-hradil/llama-cpp-rs", branch = "llguidance" }
 
 [patch.crates-io]
 pyo3 = { git = "https://github.com/PyO3/pyo3", branch = "main" }

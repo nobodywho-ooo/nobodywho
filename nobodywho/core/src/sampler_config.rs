@@ -5,6 +5,53 @@ use tracing::warn;
 
 use crate::errors::SamplerError;
 
+// ---- Grammar constraint type ----
+
+/// A grammar constraint for structured output generation via llguidance.
+///
+/// Use with [`SamplerConfig::constrain`] or the `constrain_with_*` presets.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", content = "value", rename_all = "snake_case")]
+pub enum GrammarConstraint {
+    /// Constrain output to a JSON schema.
+    JsonSchema(String),
+    /// Constrain output to a regular expression.
+    Regex(String),
+    /// Constrain output using a Lark context-free grammar.
+    Lark(String),
+}
+
+impl GrammarConstraint {
+    pub fn json_schema(schema: String) -> Self {
+        Self::JsonSchema(schema)
+    }
+
+    pub fn regex(pattern: String) -> Self {
+        Self::Regex(pattern)
+    }
+
+    /// Lark context-free grammar format (as used by llguidance).
+    pub fn grammar(lark: String) -> Self {
+        Self::Lark(lark)
+    }
+}
+
+impl From<GrammarConstraint> for ShiftStep {
+    fn from(g: GrammarConstraint) -> Self {
+        let (kind, data) = match g {
+            GrammarConstraint::JsonSchema(s) => ("json_schema".to_string(), s),
+            GrammarConstraint::Regex(s) => ("regex".to_string(), s),
+            GrammarConstraint::Lark(s) => ("lark".to_string(), s),
+        };
+        ShiftStep::LlguidanceGrammar {
+            grammar_kind: kind,
+            grammar_data: data,
+        }
+    }
+}
+
+// ---- Presets ----
+
 /// Some simple presets, that can be useful for basic sampling.
 pub struct SamplerPresets;
 
@@ -51,6 +98,22 @@ impl SamplerPresets {
             .sample(SampleStep::Dist)
     }
 
+    /// Constrain output to a JSON schema using llguidance.
+    pub fn constrain_with_json_schema(schema: String) -> SamplerConfig {
+        SamplerConfig::default().constrain(GrammarConstraint::json_schema(schema))
+    }
+
+    /// Constrain output to a regular expression using llguidance.
+    pub fn constrain_with_regex(pattern: String) -> SamplerConfig {
+        SamplerConfig::default().constrain(GrammarConstraint::regex(pattern))
+    }
+
+    /// Constrain output using a Lark context-free grammar via llguidance.
+    pub fn constrain_with_grammar(lark: String) -> SamplerConfig {
+        SamplerConfig::default().constrain(GrammarConstraint::grammar(lark))
+    }
+
+    #[deprecated(note = "Use SamplerPresets::constrain_with_json_schema() instead")]
     pub fn json() -> SamplerConfig {
         SamplerConfig::default().shift(ShiftStep::Grammar {
             trigger_on: None,
@@ -59,6 +122,7 @@ impl SamplerPresets {
         })
     }
 
+    #[deprecated(note = "Use SamplerPresets::constrain_with_grammar() instead")]
     pub fn grammar(grammar: String) -> SamplerConfig {
         SamplerConfig::default().shift(ShiftStep::Grammar {
             trigger_on: None,
@@ -105,6 +169,12 @@ impl SamplerConfig {
 
     pub fn sample(mut self, step: SampleStep) -> Self {
         self.sample_step = Some(step);
+        self
+    }
+
+    /// Add a grammar constraint step using llguidance (JSON schema, regex, or Lark CFG).
+    pub fn constrain(mut self, constraint: GrammarConstraint) -> Self {
+        self.steps.push(constraint.into());
         self
     }
 
@@ -194,6 +264,11 @@ impl SamplerConfig {
                 penalty_present,
             )),
             ShiftStep::Temperature { temperature } => Ok(LlamaSampler::temp(temperature)),
+            ShiftStep::LlguidanceGrammar {
+                grammar_kind,
+                grammar_data,
+            } => LlamaSampler::llguidance(model, &grammar_kind, &grammar_data)
+                .map_err(SamplerError::LlguidanceGrammarError),
         }
     }
 
@@ -300,10 +375,16 @@ pub enum ShiftStep {
         typ_p: f32,
         min_keep: u32,
     },
+    /// Deprecated: use [`GrammarConstraint`] with [`SamplerConfig::constrain`] instead.
     Grammar {
         trigger_on: Option<String>,
         root: String,
         grammar: String,
+    },
+    /// Internal variant produced by [`GrammarConstraint`]. Use [`SamplerConfig::constrain`].
+    LlguidanceGrammar {
+        grammar_kind: String,
+        grammar_data: String,
     },
     #[serde(rename = "dry")]
     DRY {
