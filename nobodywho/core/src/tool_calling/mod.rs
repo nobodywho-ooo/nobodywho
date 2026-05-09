@@ -315,6 +315,19 @@ pub trait ToolFormatHandler {
     /// Returns the token that ends a tool call (e.g., "</tool_call>")
     fn end_token(&self) -> &str;
 
+    /// Optional list of regex patterns that activate the tool-call grammar in
+    /// the sampler. Returning `Some(_)` selects llama.cpp's pattern-based lazy
+    /// grammar (`grammar_lazy_patterns`); returning `None` falls back to the
+    /// single-token trigger keyed on `begin_token()`. Pattern triggers are
+    /// needed by handlers whose chat templates do not deterministically force
+    /// the begin token on every tool-call turn — Llama-3.x is the canonical
+    /// case: `<|python_tag|>` is emitted on the first tool-call turn but
+    /// omitted on post-tool-response turns, so the model emits raw `{...}`
+    /// JSON and a single-token trigger never re-fires.
+    fn grammar_trigger_patterns(&self) -> Option<Vec<String>> {
+        None
+    }
+
     /// Generates a GBNF grammar for constrained sampling of tool calls.
     fn generate_grammar(&self, tools: &[Tool]) -> Result<gbnf::GbnfGrammar, ToolFormatError>;
 
@@ -349,6 +362,10 @@ impl ToolFormat {
 
     pub fn end_token(&self) -> &str {
         self.handler().end_token()
+    }
+
+    pub fn grammar_trigger_patterns(&self) -> Option<Vec<String>> {
+        self.handler().grammar_trigger_patterns()
     }
 
     pub fn generate_grammar(&self, tools: &[Tool]) -> Result<gbnf::GbnfGrammar, ToolFormatError> {

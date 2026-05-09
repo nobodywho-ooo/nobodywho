@@ -1628,18 +1628,32 @@ impl Worker<'_, ChatWorker> {
 
         self.add_user_message(prompt.to_string(), assets);
 
-        // Modify sampler with tool grammar if we have tools
+        // Modify sampler with tool grammar if we have tools. Handlers that
+        // supply `grammar_trigger_patterns()` (e.g. Llama-3.x) get the
+        // pattern-based lazy grammar so the trigger re-fires on every
+        // tool-call turn; the rest fall through to the single-token trigger
+        // keyed on `begin_token()`.
+        let trigger_patterns = self
+            .extra
+            .tool_format
+            .as_ref()
+            .and_then(|fmt| fmt.grammar_trigger_patterns());
         let sampler = self.extra.tool_grammar.as_ref().map_or(
             self.extra.sampler_config.clone(),
             |tool_grammar| {
-                self.extra
-                    .sampler_config
-                    .clone()
-                    .prepend(ShiftStep::Grammar {
+                let grammar_step = match trigger_patterns {
+                    Some(patterns) => ShiftStep::GrammarPattern {
+                        trigger_patterns: patterns,
+                        root: tool_grammar.root_name.to_string(),
+                        grammar: tool_grammar.as_str().into(),
+                    },
+                    None => ShiftStep::Grammar {
                         trigger_on: tool_call_begin.clone(),
                         root: tool_grammar.root_name.to_string(),
                         grammar: tool_grammar.as_str().into(),
-                    })
+                    },
+                };
+                self.extra.sampler_config.clone().prepend(grammar_step)
             },
         );
 
