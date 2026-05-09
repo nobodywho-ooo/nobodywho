@@ -1380,15 +1380,37 @@ impl Worker<'_, ChatWorker> {
                 .ok_or(ShiftError::Message(
                     "No first user message in chat history".into(),
                 ))?;
-        let first_deletable_index = self
+
+        // The standard rolling-pair strategy preserves the last 2 user messages
+        // and shifts older user/assistant pairs out. When the chat has only one
+        // user message — for example a tool-call loop where the model dispatched
+        // the same tool many times without further user input, exhausting n_ctx —
+        // there is no second user message and the previous implementation hard
+        // -failed with "No deletable messages". Fall back to a simpler scheme:
+        // drain the older assistant/tool turns between the first user message
+        // and the most recent message, preserving the in-progress tail.
+        let (first_deletable_index, mut last_deletable_index) = match self
             .find_next_user_message(&messages, first_user_message_index + 1)
-            .ok_or(ShiftError::Message("No deletable messages".into()))?; // Assuming assistant after user
-        let mut last_deletable_index = self
-            .find_start_of_last_n_user_messages(&messages, 2)
-            .ok_or(ShiftError::Message(
-                "Less than two user messages in chat history.".into(),
-            ))?
-            - 1;
+        {
+            Some(second_user_idx) => (
+                second_user_idx,
+                self.find_start_of_last_n_user_messages(&messages, 2)
+                    .ok_or(ShiftError::Message(
+                        "Less than two user messages in chat history.".into(),
+                    ))?
+                    - 1,
+            ),
+            None => {
+                // Need at least: [system?, user, ...middle..., tail] for there to
+                // be anything safe to delete. If the history is too short, leave
+                // it intact and let the upstream caller decide what to do.
+                if messages.len() < first_user_message_index + 3 {
+                    self.extra.messages = messages;
+                    return Ok(());
+                }
+                (first_user_message_index + 1, messages.len() - 2)
+            }
+        };
 
         // Two is the smallest number of messages we can delete as we need to preserve the message structure.
         // There might be a better start guess here.
@@ -1414,16 +1436,17 @@ impl Worker<'_, ChatWorker> {
                 last_deletable_index,
             );
 
-            // Find the first user message after target delete index and choose the message before.
-            // This is to ensure that resulting chat history still follows the user then assistant format
-            let delete_index = min(
-                self.find_next_user_message(&messages, target_delete_index + 1)
-                    .ok_or(ShiftError::Message(
-                        "Could find user message supposed to be there".into(),
-                    ))?
-                    - 1,
-                last_deletable_index,
-            ); // should never fail
+            // Find the first user message after target delete index and choose
+            // the message before, so the resulting chat history still follows
+            // the user-then-assistant turn structure. In the single-user-message
+            // fallback there is no later user message to align with, so we
+            // delete up to `target_delete_index` directly.
+            let delete_index = match self
+                .find_next_user_message(&messages, target_delete_index + 1)
+            {
+                Some(next_user) => min(next_user - 1, last_deletable_index),
+                None => min(target_delete_index, last_deletable_index),
+            };
             messages.drain(first_deletable_index..=delete_index);
             messages_to_delete *= 2;
 
@@ -3111,4 +3134,55 @@ mod tests {
     }
 
     // Template rendering tests have been moved to template.rs module
+
+    #[test]
+    fn test_context_shift_with_only_one_user_message() -> Result<(), Box<dyn std::error::Error>> {
+        // Regression guard: a chat with one user message and many assistant /
+        // tool turns must not panic when context_shift is invoked. The previous
+        // implementation hard-failed at the "No deletable messages" predicate
+        // because it assumed at least two user messages were always present.
+        // This shape is the empirical failure mode of small Llama-3.x variants
+        // looping on a tool call until n_ctx is exhausted (chat.rs:318
+        // `Worker crashed: ... Missing expected message No deletable messages`).
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+
+        let mut worker = Worker::new_chat_worker(
+            &model,
+            ChatConfig {
+                system_prompt: Some("You are a helpful assistant.".into()),
+                n_ctx: 512,
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )?;
+
+        // One user message, then many assistant turns (the tool-call-loop shape).
+        worker.add_user_message(
+            "Use the provided tool to compute several things.".into(),
+            vec![],
+        );
+        for i in 0..30 {
+            worker.add_assistant_message(format!(
+                "Assistant turn {i} producing a long-ish synthetic response to fill context."
+            ));
+        }
+
+        let messages_before = worker.extra.messages.len();
+        worker.context_shift()?; // must not return Err here
+        let messages_after = worker.extra.messages.len();
+
+        assert!(
+            messages_after <= messages_before,
+            "context_shift must not grow the history (before={messages_before}, after={messages_after})"
+        );
+        // System prompt + first user message must be retained.
+        assert!(worker.extra.messages[0].is_system());
+        assert!(worker
+            .extra
+            .messages
+            .iter()
+            .any(|m| m.is_user()), "first user message must be preserved");
+        Ok(())
+    }
 }
