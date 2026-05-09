@@ -1628,19 +1628,29 @@ impl Worker<'_, ChatWorker> {
 
         self.add_user_message(prompt.to_string(), assets);
 
-        // Modify sampler with tool grammar if we have tools. Handlers that
-        // supply `grammar_trigger_patterns()` (e.g. Llama-3.x) get the
-        // pattern-based lazy grammar so the trigger re-fires on every
+        // Build two samplers:
+        //   - `base_sampler`: the user-configured sampler with no tool grammar.
+        //     Used for the text-only continuation when a handler disallows
+        //     repeated tool calls (so the model produces a final text answer
+        //     to the user instead of looping in tool-call shape).
+        //   - `sampler`: `base_sampler` with the tool grammar prepended, used
+        //     for the first generation (and subsequent generations when the
+        //     handler permits repeated tool calls).
+        // Handlers that supply `grammar_trigger_patterns()` (e.g. Llama-3.x)
+        // get the pattern-based lazy grammar so the trigger re-fires on every
         // tool-call turn; the rest fall through to the single-token trigger
         // keyed on `begin_token()`.
+        let base_sampler = self.extra.sampler_config.clone();
         let trigger_patterns = self
             .extra
             .tool_format
             .as_ref()
             .and_then(|fmt| fmt.grammar_trigger_patterns());
-        let sampler = self.extra.tool_grammar.as_ref().map_or(
-            self.extra.sampler_config.clone(),
-            |tool_grammar| {
+        let sampler = self
+            .extra
+            .tool_grammar
+            .as_ref()
+            .map_or(base_sampler.clone(), |tool_grammar| {
                 let grammar_step = match trigger_patterns {
                     Some(patterns) => ShiftStep::GrammarPattern {
                         trigger_patterns: patterns,
@@ -1653,9 +1663,8 @@ impl Worker<'_, ChatWorker> {
                         grammar: tool_grammar.as_str().into(),
                     },
                 };
-                self.extra.sampler_config.clone().prepend(grammar_step)
-            },
-        );
+                base_sampler.clone().prepend(grammar_step)
+            });
 
         // Tracks whether any iteration's Done event was forwarded to the outer
         // callback. Shared across every `wrap_respond` instance built below so
@@ -1677,6 +1686,13 @@ impl Worker<'_, ChatWorker> {
         // Process tool calls if tool format is configured
         // Clone to avoid borrow issues in the loop
         if let Some(tool_format) = self.extra.tool_format.clone() {
+            // When the handler disallows repeated tool calls (Llama-3.x), we
+            // dispatch the first set of calls and then re-generate WITHOUT
+            // the tool grammar so the model produces a plain-text answer to
+            // the user. Citing llama.cpp `common/chat.cpp:1626` and vLLM:
+            // "Parallel tool calls are not supported for Llama 3."
+            let allow_repeated = tool_format.allow_repeated_calls();
+
             while let Some(tool_calls) = tool_format.extract_tool_calls(&response) {
                 debug!(?tool_calls, "Got tool calls:");
 
@@ -1710,13 +1726,60 @@ impl Worker<'_, ChatWorker> {
                     self.add_tool_resp(tool_call.name, response);
                 }
 
-                // get the finished response
+                // Pick the sampler for the continuation generation: handlers
+                // that allow repeated calls keep the tool grammar active so
+                // any further tool calls are constrained; handlers that
+                // disallow repeated calls (Llama-3.x) drop the tool grammar
+                // so the model is free to produce a plain-text answer to the
+                // user.
+                //
+                // For the !allow_repeated continuation we ALSO pass `None` for
+                // the begin-token argument to `wrap_respond`. Otherwise, when
+                // small variants (Llama-3.2-1B in particular) reflexively emit
+                // `<|python_tag|>` again on the unconstrained continuation
+                // turn, `wrap_respond` flips its `emitting` flag to false and
+                // never forwards the terminal `Done(response)` event to the
+                // user-facing output channel — Python's `chat.ask().completed()`
+                // then waits indefinitely and ultimately reports "Worker thread
+                // terminated before completing the response." Suppressing the
+                // tool-call body in the stream is irrelevant here: this gen is
+                // the assistant's final word for this user turn.
+                let (continuation_sampler, continuation_begin) = if allow_repeated {
+                    (sampler.clone(), tool_call_begin.clone())
+                } else {
+                    (base_sampler.clone(), None)
+                };
                 response = self.wrapped_update_context_and_generate_response(
-                    sampler.clone(),
+                    continuation_sampler,
                     respond.clone(),
-                    tool_call_begin.clone(),
+                    continuation_begin,
                     done_forwarded.clone(),
                 )?;
+
+                // Llama-3.x policy: cap tool dispatches at one per user turn.
+                // The base sampler had no grammar so the model is unconstrained;
+                // small variants (1B/3B) sometimes still emit tool-call-shaped
+                // tokens (`<|python_tag|>{...}`) on the continuation turn from
+                // training bias, even though we asked for plain text. Strip
+                // the begin/end markers so the recorded assistant message is
+                // clean text rather than something that re-parses as a tool
+                // call on the next user turn (and so we don't trip the
+                // post-loop debug_assert that verifies the begin token is
+                // absent from the final response).
+                if !allow_repeated {
+                    if let (Some(begin), Some(fmt)) =
+                        (tool_call_begin.as_ref(), self.extra.tool_format.as_ref())
+                    {
+                        let end_marker = fmt.end_token().to_string();
+                        if let Some(rest) = response.trim_start().strip_prefix(begin.as_str()) {
+                            response = rest.trim_start().to_string();
+                        }
+                        if let Some(prefix) = response.trim_end().strip_suffix(&end_marker) {
+                            response = prefix.trim_end().to_string();
+                        }
+                    }
+                    break;
+                }
             }
         } // Close if let Some(tool_format)
 
