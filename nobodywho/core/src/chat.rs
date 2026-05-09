@@ -2430,9 +2430,14 @@ mod tests {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
 
-        // Use a very small context size to force shifting
+        // Use a very small context size to force shifting. Bumped n_messages
+        // from 10 -> 20 because passing tools to the chat template as
+        // pre-serialized JSON strings (see commit a26dfc79) reduced the
+        // per-render token count enough that 10 exchanges no longer overflow
+        // n_ctx=1024 with the test_chat-model GGUF — context_shift then
+        // skipped, leaving messages_after.len() == messages_before.
         let n_ctx = 1024;
-        let n_messages = 10;
+        let n_messages = 20;
         let mut worker = Worker::new_chat_worker(
             &model,
             ChatConfig {
