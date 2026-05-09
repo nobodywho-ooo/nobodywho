@@ -269,6 +269,22 @@ pub trait ToolFormatHandler {
         None
     }
 
+    /// Whether the model may emit additional tool calls after the first
+    /// dispatch in a single user turn. Default: `true` — the chat loop keeps
+    /// the tool-call grammar active and re-extracts on every regeneration.
+    /// Override to `false` for families that empirically loop on the same
+    /// tool dispatch instead of producing a final text response (Llama-3.x
+    /// is the canonical case; cf. llama.cpp `common/chat.cpp:1626`
+    /// `auto max_calls = 1; // parallel toolcalls are not supported` and
+    /// vLLM's "parallel tool calls are not supported for Llama 3"). When
+    /// `false`, the chat loop dispatches the first tool call, then forces
+    /// the next regeneration to use the base sampler (no tool grammar) so
+    /// the model produces a plain-text answer to the user, and exits the
+    /// dispatch loop.
+    fn allow_repeated_calls(&self) -> bool {
+        true
+    }
+
     /// Generates a GBNF grammar for constrained sampling of tool calls.
     fn generate_grammar(&self, tools: &[Tool]) -> Result<gbnf::GbnfGrammar, ToolFormatError>;
 
@@ -307,6 +323,10 @@ impl ToolFormat {
 
     pub fn grammar_trigger_patterns(&self) -> Option<Vec<String>> {
         self.handler().grammar_trigger_patterns()
+    }
+
+    pub fn allow_repeated_calls(&self) -> bool {
+        self.handler().allow_repeated_calls()
     }
 
     pub fn generate_grammar(&self, tools: &[Tool]) -> Result<gbnf::GbnfGrammar, ToolFormatError> {
