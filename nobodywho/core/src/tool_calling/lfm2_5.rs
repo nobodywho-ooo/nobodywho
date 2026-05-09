@@ -33,6 +33,18 @@ impl ToolFormatHandler for Lfm2_5Handler {
         END
     }
 
+    /// LFM2.5 runs parser-only (no GBNF). Without grammar enforcement, the
+    /// 350M and 1.2B variants empirically emit multiple `<|tool_call_start|>`
+    /// blocks across successive assistant turns when given a tool, which
+    /// breaks the strict `len(tool_calls) == 1` test assertions and burns
+    /// context with a runaway loop. Cap dispatches at one per user turn,
+    /// matching the upstream consensus for non-parallel tool-call families
+    /// (cf. llama.cpp `common/chat.cpp:1626` `auto max_calls = 1; // parallel
+    /// toolcalls are not supported`).
+    fn allow_repeated_calls(&self) -> bool {
+        false
+    }
+
     fn generate_grammar(&self, _tools: &[Tool]) -> Result<GbnfGrammar, ToolFormatError> {
         // INTENTIONAL Err — engine path (chat.rs:1240-1265) keeps
         // tool_format=Some(handler) and sets tool_grammar=None on Err.
