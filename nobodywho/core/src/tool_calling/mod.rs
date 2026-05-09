@@ -7,9 +7,11 @@
 //! - FunctionGemma: `<start_function_call>call:name{param:<escape>val<escape>}<end_function_call>`
 //! - Gemma4: `<|tool_call>call:name{key:<|"|>val<|"|>}<tool_call|>`
 //! - Ministral3: `[TOOL_CALLS][{"name": "...", "arguments": {...}}]`
+//! - Llama-3.x: `<|python_tag|>{"name"|"function": "...", "parameters": {...}}<|eot_id|>` (prefix optional in extraction; model often omits it)
 
 mod functiongemma;
 mod gemma4;
+mod llama32;
 mod ministral3;
 mod qwen3;
 mod qwen35_36;
@@ -23,6 +25,7 @@ use tracing::debug;
 
 pub use functiongemma::FunctionGemmaHandler;
 pub use gemma4::Gemma4Handler;
+pub use llama32::Llama32Handler;
 pub use ministral3::Ministral3Handler;
 pub use qwen3::Qwen3Handler;
 pub use qwen35_36::Qwen35_36Handler;
@@ -184,20 +187,51 @@ impl Tool {
 }
 
 // Serialize tools according to https://huggingface.co/blog/unified-tool-use
+//
+// IMPORTANT: emit keys in EXPLICIT INSERTION ORDER (`type` before `function`,
+// inner `name` -> `description` -> `parameters`). The default `serde_json::json!`
+// path materialises a `Value::Object` backed by `BTreeMap`, which re-sorts keys
+// alphabetically. LFM2.5-350M is sensitive to that order — when fed
+// `{"function":{...},"type":"function"}` (alphabetical), it hallucinates extra
+// Pythonic kwargs (`parameters=`, `type=`) in the tool call. Using `serialize_map`
+// directly with nested helpers preserves the canonical OpenAI key order and
+// avoids forcing the `serde_json/preserve_order` cargo feature globally.
 impl Serialize for Tool {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        serde_json::json!({
-            "type": "function",
-            "function": {
-                "name": &self.name,
-                "description": &self.description,
-                "parameters": &self.json_schema,
+        use serde::ser::SerializeMap;
+
+        struct OrderedFunction<'a> {
+            name: &'a str,
+            description: &'a str,
+            parameters: &'a serde_json::Value,
+        }
+
+        impl Serialize for OrderedFunction<'_> {
+            fn serialize<S2>(&self, serializer: S2) -> Result<S2::Ok, S2::Error>
+            where
+                S2: Serializer,
+            {
+                let mut m = serializer.serialize_map(Some(3))?;
+                m.serialize_entry("name", self.name)?;
+                m.serialize_entry("description", self.description)?;
+                m.serialize_entry("parameters", self.parameters)?;
+                m.end()
             }
-        })
-        .serialize(serializer)
+        }
+
+        let function = OrderedFunction {
+            name: &self.name,
+            description: &self.description,
+            parameters: &self.json_schema,
+        };
+
+        let mut map = serializer.serialize_map(Some(2))?;
+        map.serialize_entry("type", "function")?;
+        map.serialize_entry("function", &function)?;
+        map.end()
     }
 }
 
@@ -208,20 +242,48 @@ pub struct ToolCall {
     pub arguments: serde_json::Value,
 }
 
-// Serialize tools according to https://huggingface.co/blog/unified-tool-use
+// Serialize tool calls according to https://huggingface.co/blog/unified-tool-use
+// in canonical OpenAI key order (`type`, `function`, then within `function`:
+// `name`, `arguments`). Implemented via `serialize_map` rather than
+// `serde_json::json!({...}).serialize(serializer)` because the latter routes
+// through `serde_json::Value`'s default `BTreeMap` representation, which sorts
+// keys alphabetically (`{"function":{"arguments":...,"name":...},"type":...}`)
+// unless serde_json is built with the `preserve_order` feature — which is OFF
+// for the core/flutter/uniffi crates and which we cannot rely on downstream.
+// Same rationale as `Serialize for Tool` above.
 impl Serialize for ToolCall {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        serde_json::json!({
-            "type" : "function",
-            "function": {
-                "name": &self.name,
-                "arguments": &self.arguments,
+        use serde::ser::SerializeMap;
+
+        struct OrderedFunction<'a> {
+            name: &'a str,
+            arguments: &'a serde_json::Value,
+        }
+
+        impl Serialize for OrderedFunction<'_> {
+            fn serialize<S2>(&self, serializer: S2) -> Result<S2::Ok, S2::Error>
+            where
+                S2: Serializer,
+            {
+                let mut m = serializer.serialize_map(Some(2))?;
+                m.serialize_entry("name", self.name)?;
+                m.serialize_entry("arguments", self.arguments)?;
+                m.end()
             }
-        })
-        .serialize(serializer)
+        }
+
+        let function = OrderedFunction {
+            name: &self.name,
+            arguments: &self.arguments,
+        };
+
+        let mut map = serializer.serialize_map(Some(2))?;
+        map.serialize_entry("type", "function")?;
+        map.serialize_entry("function", &function)?;
+        map.end()
     }
 }
 
@@ -256,6 +318,35 @@ pub trait ToolFormatHandler {
     /// Returns the token that ends a tool call (e.g., "</tool_call>")
     fn end_token(&self) -> &str;
 
+    /// Optional list of regex patterns that activate the tool-call grammar in
+    /// the sampler. Returning `Some(_)` selects llama.cpp's pattern-based lazy
+    /// grammar (`grammar_lazy_patterns`); returning `None` falls back to the
+    /// single-token trigger keyed on `begin_token()`. Pattern triggers are
+    /// needed by handlers whose chat templates do not deterministically force
+    /// the begin token on every tool-call turn — Llama-3.x is the canonical
+    /// case: `<|python_tag|>` is emitted on the first tool-call turn but
+    /// omitted on post-tool-response turns, so the model emits raw `{...}`
+    /// JSON and a single-token trigger never re-fires.
+    fn grammar_trigger_patterns(&self) -> Option<Vec<String>> {
+        None
+    }
+
+    /// Whether the model may emit additional tool calls after the first
+    /// dispatch in a single user turn. Default: `true` — the chat loop keeps
+    /// the tool-call grammar active and re-extracts on every regeneration.
+    /// Override to `false` for families that empirically loop on the same
+    /// tool dispatch instead of producing a final text response (Llama-3.x
+    /// is the canonical case; cf. llama.cpp `common/chat.cpp:1626`
+    /// `auto max_calls = 1; // parallel toolcalls are not supported` and
+    /// vLLM's "parallel tool calls are not supported for Llama 3"). When
+    /// `false`, the chat loop dispatches the first tool call, then forces
+    /// the next regeneration to use the base sampler (no tool grammar) so
+    /// the model produces a plain-text answer to the user, and exits the
+    /// dispatch loop.
+    fn allow_repeated_calls(&self) -> bool {
+        true
+    }
+
     /// Generates a GBNF grammar for constrained sampling of tool calls.
     fn generate_grammar(&self, tools: &[Tool]) -> Result<gbnf::GbnfGrammar, ToolFormatError>;
 
@@ -271,6 +362,7 @@ pub enum ToolFormat {
     FunctionGemma(FunctionGemmaHandler),
     Gemma4(Gemma4Handler),
     Ministral3(Ministral3Handler),
+    Llama32(Llama32Handler),
 }
 
 impl ToolFormat {
@@ -281,6 +373,7 @@ impl ToolFormat {
             ToolFormat::FunctionGemma(h) => h,
             ToolFormat::Gemma4(h) => h,
             ToolFormat::Ministral3(h) => h,
+            ToolFormat::Llama32(h) => h,
         }
     }
 
@@ -290,6 +383,14 @@ impl ToolFormat {
 
     pub fn end_token(&self) -> &str {
         self.handler().end_token()
+    }
+
+    pub fn grammar_trigger_patterns(&self) -> Option<Vec<String>> {
+        self.handler().grammar_trigger_patterns()
+    }
+
+    pub fn allow_repeated_calls(&self) -> bool {
+        self.handler().allow_repeated_calls()
     }
 
     pub fn generate_grammar(&self, tools: &[Tool]) -> Result<gbnf::GbnfGrammar, ToolFormatError> {
@@ -367,6 +468,13 @@ pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatEr
         return Ok(ToolFormat::Ministral3(Ministral3Handler));
     }
 
+    // Check for Llama-3.x markers. Both signals are unique to Llama-3.1+
+    // tool-use templates; Llama-2 templates have neither.
+    if template_str.contains("Environment: ipython") || template_str.contains("<|python_tag|>") {
+        debug!("Detected Llama-3.x format from template markers");
+        return Ok(ToolFormat::Llama32(Llama32Handler));
+    }
+
     // Fall back to model metadata.
     if let Ok(arch) = model.meta_val_str("general.architecture") {
         debug!(architecture = %arch, "Checking model architecture for format hints");
@@ -378,6 +486,14 @@ pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatEr
         if arch_lower.starts_with("qwen3") {
             debug!("Detected Qwen3 format from architecture");
             return Ok(ToolFormat::Qwen3(Qwen3Handler));
+        }
+        // Llama-3.x architecture (after Qwen so Qwen-llama derivatives still
+        // match Qwen first). Llama-2 GGUFs have no tool-use template; the
+        // template marker check above already would have rejected them, so
+        // hitting this branch with arch="llama" implies a 3.x family.
+        if arch_lower.starts_with("llama") {
+            debug!("Detected Llama-3.x format from architecture");
+            return Ok(ToolFormat::Llama32(Llama32Handler));
         }
     }
 
@@ -404,6 +520,16 @@ pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatEr
             debug!("Detected Qwen3 format from model name");
             return Ok(ToolFormat::Qwen3(Qwen3Handler));
         }
+
+        // Llama-3.x by name. Require the "3" suffix to avoid grabbing
+        // Llama-2 GGUFs which don't speak tool-use.
+        if name_lower.contains("llama-3")
+            || name_lower.contains("llama 3")
+            || name_lower.contains("llama3")
+        {
+            debug!("Detected Llama-3.x format from model name");
+            return Ok(ToolFormat::Llama32(Llama32Handler));
+        }
     }
 
     Err(ToolFormatError::UnsupportedFormat(
@@ -422,6 +548,13 @@ mod tests {
         let format = ToolFormat::Qwen3(Qwen3Handler);
         assert_eq!(format.begin_token(), "<tool_call>");
         assert_eq!(format.end_token(), "</tool_call>");
+    }
+
+    #[test]
+    fn test_llama32_format() {
+        let format = ToolFormat::Llama32(Llama32Handler);
+        assert_eq!(format.begin_token(), "<|python_tag|>");
+        assert_eq!(format.end_token(), "<|eot_id|>");
     }
 
     #[test]
@@ -454,6 +587,29 @@ mod tests {
                     "parameters": {"type": "object"}
                 }
             })
+        );
+    }
+
+    #[test]
+    fn test_toolcall_serialization_preserves_canonical_key_order() {
+        // Regression guard for #519 review (gergelyvagujhelyi): the previous
+        // impl used `serde_json::json!({...}).serialize(serializer)`, which
+        // routes through `Value`'s default `BTreeMap` and emits keys in
+        // alphabetic order (`{"function":{"arguments":...,"name":...},...`)
+        // unless serde_json is built with `preserve_order` — OFF for the
+        // core/flutter/uniffi crates. Compare against the raw JSON string
+        // (NOT a Value) so any future regression to alphabetic ordering is
+        // caught even when a Value-equality check would still pass.
+        let call = ToolCall {
+            name: "circle_area".to_string(),
+            arguments: json!({"radius": 5}),
+        };
+        let serialized = serde_json::to_string(&call).expect("serialize ToolCall");
+        assert_eq!(
+            serialized,
+            r#"{"type":"function","function":{"name":"circle_area","arguments":{"radius":5}}}"#,
+            "ToolCall must serialize in canonical OpenAI key order \
+             (`type`, `function`, then `name`, `arguments`); got: {serialized}",
         );
     }
 
@@ -504,8 +660,55 @@ mod tests {
             ToolFormat::FunctionGemma(_) => "FunctionGemma",
             ToolFormat::Gemma4(_) => "Gemma4",
             ToolFormat::Ministral3(_) => "Ministral3",
+            ToolFormat::Llama32(_) => "Llama32",
         };
         eprintln!("detected handler     = {variant}");
+    }
+
+    #[test]
+    #[ignore = "requires LLAMA32_MODEL env var pointing at a Llama-3.x GGUF"]
+    fn diagnose_llama32_detection() {
+        let path = std::env::var("LLAMA32_MODEL").expect("set LLAMA32_MODEL");
+        let model = crate::llm::get_model(&path, false, None, None).expect("load model");
+
+        let name = model
+            .language_model
+            .meta_val_str("general.name")
+            .unwrap_or_else(|_| "<no general.name>".into());
+        let arch = model
+            .language_model
+            .meta_val_str("general.architecture")
+            .unwrap_or_else(|_| "<no arch>".into());
+        eprintln!("general.name         = {name}");
+        eprintln!("general.architecture = {arch}");
+
+        let default_tmpl: String = model
+            .language_model
+            .chat_template(None)
+            .ok()
+            .and_then(|t| t.to_string().ok())
+            .unwrap_or_default();
+        for marker in ["Environment: ipython", "<|python_tag|>", "<|eot_id|>"] {
+            eprintln!(
+                "default_tmpl contains {marker:>22}: {}",
+                default_tmpl.contains(marker)
+            );
+        }
+
+        let fmt = detect_tool_format(&model.language_model).expect("detect_tool_format failed");
+        let variant = match fmt {
+            ToolFormat::Qwen3(_) => "Qwen3",
+            ToolFormat::Qwen35_36(_) => "Qwen35_36",
+            ToolFormat::FunctionGemma(_) => "FunctionGemma",
+            ToolFormat::Gemma4(_) => "Gemma4",
+            ToolFormat::Ministral3(_) => "Ministral3",
+            ToolFormat::Llama32(_) => "Llama32",
+        };
+        eprintln!("detected handler     = {variant}");
+        assert_eq!(
+            variant, "Llama32",
+            "expected Llama32 handler for {path}, got {variant}"
+        );
     }
 
     #[test]
