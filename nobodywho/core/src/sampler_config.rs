@@ -168,6 +168,11 @@ impl SamplerConfig {
                 Some(trigger) => self.build_lazy_grammar(model, &grammar, &root, &trigger),
                 None => self.build_regular_grammar(model, &grammar, &root),
             },
+            ShiftStep::GrammarPattern {
+                grammar,
+                trigger_patterns,
+                root,
+            } => self.build_pattern_grammar(model, &grammar, &root, &trigger_patterns),
             ShiftStep::DRY {
                 multiplier,
                 base,
@@ -231,6 +236,22 @@ impl SamplerConfig {
         root: &str,
     ) -> Result<LlamaSampler, SamplerError> {
         Ok(LlamaSampler::grammar(model, grammar, root)?)
+    }
+
+    fn build_pattern_grammar(
+        &self,
+        model: &LlamaModel,
+        grammar: &str,
+        root: &str,
+        trigger_patterns: &[String],
+    ) -> Result<LlamaSampler, SamplerError> {
+        Ok(LlamaSampler::grammar_lazy_patterns(
+            model,
+            grammar,
+            root,
+            trigger_patterns,
+            &[],
+        )?)
     }
 }
 
@@ -302,6 +323,17 @@ pub enum ShiftStep {
     },
     Grammar {
         trigger_on: Option<String>,
+        root: String,
+        grammar: String,
+    },
+    /// Grammar variant that activates the sampler when the generation output
+    /// matches any of the supplied regex patterns from the start of generation.
+    /// Distinct from `Grammar { trigger_on: Some(_) }` which keys on a single
+    /// trigger token: pattern triggers can express alternation (e.g. accept
+    /// either `<|python_tag|>` or a bare `{` for Llama-3.x, where the chat
+    /// template forces the prefix only on the first tool-call turn).
+    GrammarPattern {
+        trigger_patterns: Vec<String>,
         root: String,
         grammar: String,
     },

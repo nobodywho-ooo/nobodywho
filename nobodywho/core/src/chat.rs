@@ -50,7 +50,7 @@ use std::cmp::min;
 use std::collections::HashSet;
 use std::hash::Hasher;
 use std::path::PathBuf;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, MutexGuard};
 use tracing::{debug, error, info, trace, trace_span};
 
@@ -1380,15 +1380,37 @@ impl Worker<'_, ChatWorker> {
                 .ok_or(ShiftError::Message(
                     "No first user message in chat history".into(),
                 ))?;
-        let first_deletable_index = self
+
+        // The standard rolling-pair strategy preserves the last 2 user messages
+        // and shifts older user/assistant pairs out. When the chat has only one
+        // user message — for example a tool-call loop where the model dispatched
+        // the same tool many times without further user input, exhausting n_ctx —
+        // there is no second user message and the previous implementation hard
+        // -failed with "No deletable messages". Fall back to a simpler scheme:
+        // drain the older assistant/tool turns between the first user message
+        // and the most recent message, preserving the in-progress tail.
+        let (first_deletable_index, mut last_deletable_index) = match self
             .find_next_user_message(&messages, first_user_message_index + 1)
-            .ok_or(ShiftError::Message("No deletable messages".into()))?; // Assuming assistant after user
-        let mut last_deletable_index = self
-            .find_start_of_last_n_user_messages(&messages, 2)
-            .ok_or(ShiftError::Message(
-                "Less than two user messages in chat history.".into(),
-            ))?
-            - 1;
+        {
+            Some(second_user_idx) => (
+                second_user_idx,
+                self.find_start_of_last_n_user_messages(&messages, 2)
+                    .ok_or(ShiftError::Message(
+                        "Less than two user messages in chat history.".into(),
+                    ))?
+                    - 1,
+            ),
+            None => {
+                // Need at least: [system?, user, ...middle..., tail] for there to
+                // be anything safe to delete. If the history is too short, leave
+                // it intact and let the upstream caller decide what to do.
+                if messages.len() < first_user_message_index + 3 {
+                    self.extra.messages = messages;
+                    return Ok(());
+                }
+                (first_user_message_index + 1, messages.len() - 2)
+            }
+        };
 
         // Two is the smallest number of messages we can delete as we need to preserve the message structure.
         // There might be a better start guess here.
@@ -1414,16 +1436,17 @@ impl Worker<'_, ChatWorker> {
                 last_deletable_index,
             );
 
-            // Find the first user message after target delete index and choose the message before.
-            // This is to ensure that resulting chat history still follows the user then assistant format
-            let delete_index = min(
-                self.find_next_user_message(&messages, target_delete_index + 1)
-                    .ok_or(ShiftError::Message(
-                        "Could find user message supposed to be there".into(),
-                    ))?
-                    - 1,
-                last_deletable_index,
-            ); // should never fail
+            // Find the first user message after target delete index and choose
+            // the message before, so the resulting chat history still follows
+            // the user-then-assistant turn structure. In the single-user-message
+            // fallback there is no later user message to align with, so we
+            // delete up to `target_delete_index` directly.
+            let delete_index = match self
+                .find_next_user_message(&messages, target_delete_index + 1)
+            {
+                Some(next_user) => min(next_user - 1, last_deletable_index),
+                None => min(target_delete_index, last_deletable_index),
+            };
             messages.drain(first_deletable_index..=delete_index);
             messages_to_delete *= 2;
 
@@ -1628,31 +1651,71 @@ impl Worker<'_, ChatWorker> {
 
         self.add_user_message(prompt.to_string(), assets);
 
-        // Modify sampler with tool grammar if we have tools
-        let sampler = self.extra.tool_grammar.as_ref().map_or(
-            self.extra.sampler_config.clone(),
-            |tool_grammar| {
-                self.extra
-                    .sampler_config
-                    .clone()
-                    .prepend(ShiftStep::Grammar {
+        // Build two samplers:
+        //   - `base_sampler`: the user-configured sampler with no tool grammar.
+        //     Used for the text-only continuation when a handler disallows
+        //     repeated tool calls (so the model produces a final text answer
+        //     to the user instead of looping in tool-call shape).
+        //   - `sampler`: `base_sampler` with the tool grammar prepended, used
+        //     for the first generation (and subsequent generations when the
+        //     handler permits repeated tool calls).
+        // Handlers that supply `grammar_trigger_patterns()` (e.g. Llama-3.x)
+        // get the pattern-based lazy grammar so the trigger re-fires on every
+        // tool-call turn; the rest fall through to the single-token trigger
+        // keyed on `begin_token()`.
+        let base_sampler = self.extra.sampler_config.clone();
+        let trigger_patterns = self
+            .extra
+            .tool_format
+            .as_ref()
+            .and_then(|fmt| fmt.grammar_trigger_patterns());
+        let sampler = self
+            .extra
+            .tool_grammar
+            .as_ref()
+            .map_or(base_sampler.clone(), |tool_grammar| {
+                let grammar_step = match trigger_patterns {
+                    Some(patterns) => ShiftStep::GrammarPattern {
+                        trigger_patterns: patterns,
+                        root: tool_grammar.root_name.to_string(),
+                        grammar: tool_grammar.as_str().into(),
+                    },
+                    None => ShiftStep::Grammar {
                         trigger_on: tool_call_begin.clone(),
                         root: tool_grammar.root_name.to_string(),
                         grammar: tool_grammar.as_str().into(),
-                    })
-            },
-        );
+                    },
+                };
+                base_sampler.clone().prepend(grammar_step)
+            });
+
+        // Tracks whether any iteration's Done event was forwarded to the outer
+        // callback. Shared across every `wrap_respond` instance built below so
+        // the terminal-Done epilogue can run only when no Done has reached the
+        // consumer yet (e.g. parser-only paths that exit before producing an
+        // iter-2 generation). Keeps raw `Fn(WriteOutput)` consumers — godot
+        // binding, direct ask_channel users — from receiving two Done events
+        // per `ask` call.
+        let done_forwarded = Arc::new(AtomicBool::new(false));
 
         // get the finished response
         let mut response: String = self.wrapped_update_context_and_generate_response(
             sampler.clone(),
             respond.clone(),
             tool_call_begin.clone(),
+            done_forwarded.clone(),
         )?;
 
         // Process tool calls if tool format is configured
         // Clone to avoid borrow issues in the loop
         if let Some(tool_format) = self.extra.tool_format.clone() {
+            // When the handler disallows repeated tool calls (Llama-3.x), we
+            // dispatch the first set of calls and then re-generate WITHOUT
+            // the tool grammar so the model produces a plain-text answer to
+            // the user. Citing llama.cpp `common/chat.cpp:1626` and vLLM:
+            // "Parallel tool calls are not supported for Llama 3."
+            let allow_repeated = tool_format.allow_repeated_calls();
+
             while let Some(tool_calls) = tool_format.extract_tool_calls(&response) {
                 debug!(?tool_calls, "Got tool calls:");
 
@@ -1686,21 +1749,82 @@ impl Worker<'_, ChatWorker> {
                     self.add_tool_resp(tool_call.name, response);
                 }
 
-                // get the finished response
+                // Pick the sampler for the continuation generation: handlers
+                // that allow repeated calls keep the tool grammar active so
+                // any further tool calls are constrained; handlers that
+                // disallow repeated calls (Llama-3.x) drop the tool grammar
+                // so the model is free to produce a plain-text answer to the
+                // user.
+                //
+                // For the !allow_repeated continuation we ALSO pass `None` for
+                // the begin-token argument to `wrap_respond`. Otherwise, when
+                // small variants (Llama-3.2-1B in particular) reflexively emit
+                // `<|python_tag|>` again on the unconstrained continuation
+                // turn, `wrap_respond` flips its `emitting` flag to false and
+                // never forwards the terminal `Done(response)` event to the
+                // user-facing output channel — Python's `chat.ask().completed()`
+                // then waits indefinitely and ultimately reports "Worker thread
+                // terminated before completing the response." Suppressing the
+                // tool-call body in the stream is irrelevant here: this gen is
+                // the assistant's final word for this user turn.
+                let (continuation_sampler, continuation_begin) = if allow_repeated {
+                    (sampler.clone(), tool_call_begin.clone())
+                } else {
+                    (base_sampler.clone(), None)
+                };
                 response = self.wrapped_update_context_and_generate_response(
-                    sampler.clone(),
+                    continuation_sampler,
                     respond.clone(),
-                    tool_call_begin.clone(),
+                    continuation_begin,
+                    done_forwarded.clone(),
                 )?;
+
+                // Llama-3.x policy: cap tool dispatches at one per user turn.
+                // The base sampler had no grammar so the model is unconstrained;
+                // small variants (1B/3B) sometimes still emit tool-call-shaped
+                // tokens (`<|python_tag|>{...}`) on the continuation turn from
+                // training bias, even though we asked for plain text. Strip
+                // the begin/end markers so the recorded assistant message is
+                // clean text rather than something that re-parses as a tool
+                // call on the next user turn (and so we don't trip the
+                // post-loop debug_assert that verifies the begin token is
+                // absent from the final response).
+                if !allow_repeated {
+                    if let (Some(begin), Some(fmt)) =
+                        (tool_call_begin.as_ref(), self.extra.tool_format.as_ref())
+                    {
+                        let end_marker = fmt.end_token().to_string();
+                        if let Some(rest) = response.trim_start().strip_prefix(begin.as_str()) {
+                            response = rest.trim_start().to_string();
+                        }
+                        if let Some(prefix) = response.trim_end().strip_suffix(&end_marker) {
+                            response = prefix.trim_end().to_string();
+                        }
+                    }
+                    break;
+                }
             }
         } // Close if let Some(tool_format)
 
         debug_assert!(tool_call_begin
             .as_ref()
             .is_none_or(|t| !response.contains(t.as_str())));
-        self.add_assistant_message(response);
+        self.add_assistant_message(response.clone());
 
         self.extra.context.chunks = self.render_as_chunks(true)?;
+
+        // Terminal Done failsafe. Fires only when no iteration forwarded a Done
+        // — i.e. parser-only paths where `extract_tool_calls` returned None
+        // after `wrap_respond` already suppressed iter-1's Done past the
+        // begin_token. That used to surface as `WorkerCrashed` for LFM2.5 and
+        // other parser-only handlers. Skipping this when a Done was already
+        // forwarded prevents a double Done for raw `Fn(WriteOutput)` consumers
+        // (godot binding, direct ask_channel users); `TokenStream` consumers
+        // were already shielded by the `completed_response.is_some()`
+        // short-circuit, but external callback users were not.
+        if !done_forwarded.load(Ordering::SeqCst) {
+            respond(llm::WriteOutput::Done(response));
+        }
 
         Ok(self)
     }
@@ -1744,6 +1868,7 @@ impl Worker<'_, ChatWorker> {
         sampler: SamplerConfig,
         respond: F,
         tool_call_begin_token: Option<String>,
+        done_forwarded: Arc<AtomicBool>,
     ) -> Result<String, WrappedResponseError>
     where
         F: Fn(llm::WriteOutput) + Clone,
@@ -1755,7 +1880,8 @@ impl Worker<'_, ChatWorker> {
 
         // wrap the response callback to keep a copy of the completed response
         // and to avoid emitting tool calls
-        let (wrapped_respond, resp_receiver) = wrap_respond(respond.clone(), tool_call_begin_token);
+        let (wrapped_respond, resp_receiver) =
+            wrap_respond(respond.clone(), tool_call_begin_token, done_forwarded);
 
         // llm go brrr
         self.generate_response_until_done(sampler, wrapped_respond, &inference_lock_token)?;
@@ -1952,12 +2078,15 @@ impl Worker<'_, ChatWorker> {
     }
 }
 
-/// wraps a response function in a closure to do two things:
+/// wraps a response function in a closure to do three things:
 /// 1. save a copy of the response (using a channel) before sending it out
 /// 2. skip emitting once a tool_call_begin_token has been seen
+/// 3. record whether a Done was forwarded to the outer callback (so the caller
+///    can decide whether a terminal-Done epilogue is still needed)
 fn wrap_respond<F>(
     respond: F,
     tool_call_begin_token: Option<String>,
+    done_forwarded: Arc<AtomicBool>,
 ) -> (
     impl FnMut(llm::WriteOutput),
     std::sync::mpsc::Receiver<String>,
@@ -1977,6 +2106,9 @@ where
                 resp_sender
                     .send(resp.clone())
                     .expect("Failed sending response");
+                if emitting {
+                    done_forwarded.store(true, Ordering::SeqCst);
+                }
             }
             llm::WriteOutput::Token(_) => (),
         }
@@ -2036,6 +2168,55 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// Regression test for the terminal-Done epilogue: `Worker::ask` must
+    /// emit exactly ONE Done event per call for raw `Fn(WriteOutput)`
+    /// callback consumers (godot binding, direct ask_channel users).
+    /// `TokenStream` consumers were already shielded by the
+    /// `completed_response.is_some()` short-circuit, but external callback
+    /// users were not — a second Done from the unconditional terminal
+    /// epilogue used to double-fire here.
+    #[test]
+    fn test_done_emitted_exactly_once_per_ask() -> Result<(), Box<dyn std::error::Error>> {
+        let model = test_utils::load_test_model();
+
+        let mut worker = Worker::new_chat_worker(
+            &model,
+            ChatConfig {
+                n_ctx: 1024,
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )?;
+
+        let done_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let count_inner = Arc::clone(&done_count);
+        let (sender, receiver) = std::sync::mpsc::channel();
+
+        let callback = move |x: llm::WriteOutput| {
+            if let llm::WriteOutput::Done(resp) = x {
+                count_inner.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                // tolerate a closed channel — count is the assertion target,
+                // recv-side just unblocks once.
+                let _ = sender.send(resp);
+            }
+        };
+
+        worker.ask("Say hi.".into(), callback)?;
+
+        // First Done: confirm a callback arrived (proves wiring).
+        let _ = receiver.recv_timeout(std::time::Duration::from_secs(60))?;
+
+        // `Worker::ask` returns synchronously after invoking its callback for
+        // the final time, so by here the count is final — no race window.
+        let count = done_count.load(std::sync::atomic::Ordering::SeqCst);
+        assert_eq!(
+            count, 1,
+            "Worker::ask should emit exactly ONE Done per call, observed {count}."
+        );
+
+        Ok(())
     }
 
     #[test]
@@ -2292,6 +2473,129 @@ mod tests {
         println!("{}", result);
         assert!(result.contains("13.37"));
         assert!(result.contains("0.15"));
+    }
+
+    /// Mirrors the python `test_tool_with_sets` failure that crashed
+    /// LFM2.5-350M and LFM2.5-1.2B-Instruct on host pytest with
+    /// `Worker thread terminated before completing the response`.
+    /// Single tool with a set-of-int schema; prompt contains literal
+    /// Python set syntax `{12,5,7,3,4}` to force the crash path.
+    /// Ignored by default — invoke with:
+    ///   TEST_MODEL=…/LFM2.5-1.2B-Instruct-Q4_K_M.gguf \
+    ///     cargo test --release --lib chat::tests::test_lfm2_5_set_tool_repro -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn test_lfm2_5_set_tool_repro() {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+
+        fn set_intersection_tool() -> Tool {
+            Tool {
+                name: "set_intersection".into(),
+                description: "Returns the intersection of set1 and set2".into(),
+                json_schema: serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "set1": {
+                            "type": "array",
+                            "items": {"type": "integer"},
+                            "uniqueItems": true,
+                        },
+                        "set2": {
+                            "type": "array",
+                            "items": {"type": "integer"},
+                            "uniqueItems": true,
+                        },
+                    },
+                    "required": ["set1", "set2"],
+                }),
+                function: Arc::new(|args: serde_json::Value| {
+                    let s1: std::collections::HashSet<i64> = args
+                        .get("set1")
+                        .and_then(|v| v.as_array())
+                        .map(|a| a.iter().filter_map(|x| x.as_i64()).collect())
+                        .unwrap_or_default();
+                    let s2: std::collections::HashSet<i64> = args
+                        .get("set2")
+                        .and_then(|v| v.as_array())
+                        .map(|a| a.iter().filter_map(|x| x.as_i64()).collect())
+                        .unwrap_or_default();
+                    let inter: Vec<i64> = s1.intersection(&s2).copied().collect();
+                    format!("{:?}", inter)
+                }),
+            }
+        }
+
+        // Mirror python fixture: 6 tools registered, model picks one.
+        fn dummy_tool(name: &str, description: &str, prop: &str, json_type: &str) -> Tool {
+            let prop_owned = prop.to_string();
+            Tool {
+                name: name.into(),
+                description: description.into(),
+                json_schema: serde_json::json!({
+                    "type": "object",
+                    "properties": { prop: {"type": json_type} },
+                    "required": [prop],
+                }),
+                function: Arc::new(move |args: serde_json::Value| {
+                    format!("dummy({}={:?})", prop_owned, args.get(&prop_owned))
+                }),
+            }
+        }
+
+        let mut worker = Worker::new_chat_worker(
+            &model,
+            ChatConfig {
+                system_prompt: Some("You are a helpful assistant".into()),
+                n_ctx: 4096,
+                tools: vec![
+                    set_intersection_tool(),
+                    dummy_tool("multiply_strings", "Multiply a string by an integer N times", "pair", "object"),
+                    dummy_tool("sparklify", "Add sparkles to text", "text", "string"),
+                    dummy_tool("reflarbicator", "Boop foob", "reflarb", "integer"),
+                    dummy_tool("add_list_of_vectors", "Add a list of vectors", "list_of_vectors", "array"),
+                    dummy_tool("calculate_volume", "Compute volume of a cube", "dimensions", "object"),
+                ],
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )
+        .expect("Failed making worker");
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let f = move |x| {
+            if let llm::WriteOutput::Done(resp) = x {
+                let _ = sender.send(resp);
+            }
+        };
+
+        let ask_result = worker.ask(
+            "Please use the provided tool to find the intersection between the sets {12,5,7,3,4} and {12,9,5,3}".into(),
+            f,
+        );
+
+        match ask_result {
+            Ok(_) => {
+                let resp = receiver.recv_timeout(std::time::Duration::from_secs(120));
+                println!("=== ask returned Ok, response ===");
+                match resp {
+                    Ok(s) => println!("{s}"),
+                    Err(e) => println!("recv error (worker dropped without Done?): {e}"),
+                }
+            }
+            Err(e) => {
+                println!("=== ask returned Err ===");
+                println!("{e:?}");
+            }
+        }
+
+        // Debug: dump chat history to see what the model emitted + how the
+        // engine responded — extract_tool_calls return shape, dispatched
+        // tool result, regen content, etc.
+        println!("=== chat history ===");
+        for (i, m) in worker.extra.messages.iter().enumerate() {
+            println!("[{i}] role={:?}", m);
+        }
     }
 
     #[test]
@@ -2825,4 +3129,55 @@ mod tests {
     }
 
     // Template rendering tests have been moved to template.rs module
+
+    #[test]
+    fn test_context_shift_with_only_one_user_message() -> Result<(), Box<dyn std::error::Error>> {
+        // Regression guard: a chat with one user message and many assistant /
+        // tool turns must not panic when context_shift is invoked. The previous
+        // implementation hard-failed at the "No deletable messages" predicate
+        // because it assumed at least two user messages were always present.
+        // This shape is the empirical failure mode of small Llama-3.x variants
+        // looping on a tool call until n_ctx is exhausted (chat.rs:318
+        // `Worker crashed: ... Missing expected message No deletable messages`).
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+
+        let mut worker = Worker::new_chat_worker(
+            &model,
+            ChatConfig {
+                system_prompt: Some("You are a helpful assistant.".into()),
+                n_ctx: 512,
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )?;
+
+        // One user message, then many assistant turns (the tool-call-loop shape).
+        worker.add_user_message(
+            "Use the provided tool to compute several things.".into(),
+            vec![],
+        );
+        for i in 0..30 {
+            worker.add_assistant_message(format!(
+                "Assistant turn {i} producing a long-ish synthetic response to fill context."
+            ));
+        }
+
+        let messages_before = worker.extra.messages.len();
+        worker.context_shift()?; // must not return Err here
+        let messages_after = worker.extra.messages.len();
+
+        assert!(
+            messages_after <= messages_before,
+            "context_shift must not grow the history (before={messages_before}, after={messages_after})"
+        );
+        // System prompt + first user message must be retained.
+        assert!(worker.extra.messages[0].is_system());
+        assert!(worker
+            .extra
+            .messages
+            .iter()
+            .any(|m| m.is_user()), "first user message must be preserved");
+        Ok(())
+    }
 }
