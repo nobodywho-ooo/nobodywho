@@ -1,5 +1,5 @@
 use super::{Tool, ToolCall, ToolFormatError, ToolFormatHandler};
-use gbnf::builder::{nt, seq, t, GrammarBuilder};
+use gbnf::builder::{alt, nt, seq, t, GrammarBuilder};
 use gbnf::json::json_schema_to_grammar;
 use gbnf::GbnfGrammar;
 use serde_json::json;
@@ -27,6 +27,29 @@ impl ToolFormatHandler for Llama32Handler {
         END
     }
 
+    /// Match either the `<|python_tag|>` prefix (turn 1, when chat template
+    /// hints the builtin Python interpreter path) or a bare `{` opening a JSON
+    /// object (turn 2+, when the model has dropped the prefix). The pattern
+    /// alternation is what allows the lazy grammar to re-fire on subsequent
+    /// tool-call turns; a single-token trigger keyed on `<|python_tag|>` only
+    /// fires the first time.
+    fn grammar_trigger_patterns(&self) -> Option<Vec<String>> {
+        Some(vec![r"<\|python_tag\|>".to_string(), r"\{".to_string()])
+    }
+
+    /// Llama-3.x small variants empirically loop on the same tool dispatch
+    /// instead of producing a final text answer once the tool result is in
+    /// scope (observed on `Llama-3.2-1B-Instruct-Q4_K_M.gguf` and
+    /// `Llama-3.2-3B-Instruct-Q4_K_M.gguf`). Matches Meta's tool-calling
+    /// spec and upstream consensus: llama.cpp `common/chat.cpp:1626`
+    /// hard-codes `auto max_calls = 1; // parallel toolcalls are not
+    /// supported` for Llama-3.x's JSON tool-call form, and vLLM documents
+    /// "Parallel tool calls are not supported for Llama 3, but it is
+    /// supported in Llama 4 models."
+    fn allow_repeated_calls(&self) -> bool {
+        false
+    }
+
     fn generate_grammar(&self, tools: &[Tool]) -> Result<GbnfGrammar, ToolFormatError> {
         let tool_call_schemas: serde_json::Value = tools
             .iter()
@@ -47,10 +70,16 @@ impl ToolFormatHandler for Llama32Handler {
         let tool_call_schema = json!({ "oneOf": tool_call_schemas });
         let json_grammar = json_schema_to_grammar(tool_call_schema, "root")?;
 
+        // Pattern-based lazy trigger fires on either `<|python_tag|>` (turn 1)
+        // or a bare `{` (turn 2+). The grammar must accept both shapes since
+        // the matched portion is what the sampler feeds back into the grammar.
         let grammar = GrammarBuilder::from_existing(json_grammar)
             .rule(
                 "toolcall",
-                seq(&[t(BEGIN), nt("ws"), nt("root"), nt("ws")]),
+                alt(&[
+                    seq(&[t(BEGIN), nt("ws"), nt("root"), nt("ws")]),
+                    seq(&[nt("root"), nt("ws")]),
+                ]),
             )
             .rule("superroot", nt("toolcall"))
             .root("superroot")
