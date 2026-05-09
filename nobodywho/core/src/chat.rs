@@ -50,7 +50,7 @@ use std::cmp::min;
 use std::collections::HashSet;
 use std::hash::Hasher;
 use std::path::PathBuf;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, MutexGuard};
 use tracing::{debug, error, info, trace, trace_span};
 
@@ -1643,11 +1643,21 @@ impl Worker<'_, ChatWorker> {
             },
         );
 
+        // Tracks whether any iteration's Done event was forwarded to the outer
+        // callback. Shared across every `wrap_respond` instance built below so
+        // the terminal-Done epilogue can run only when no Done has reached the
+        // consumer yet (e.g. parser-only paths that exit before producing an
+        // iter-2 generation). Keeps raw `Fn(WriteOutput)` consumers — godot
+        // binding, direct ask_channel users — from receiving two Done events
+        // per `ask` call.
+        let done_forwarded = Arc::new(AtomicBool::new(false));
+
         // get the finished response
         let mut response: String = self.wrapped_update_context_and_generate_response(
             sampler.clone(),
             respond.clone(),
             tool_call_begin.clone(),
+            done_forwarded.clone(),
         )?;
 
         // Process tool calls if tool format is configured
@@ -1691,6 +1701,7 @@ impl Worker<'_, ChatWorker> {
                     sampler.clone(),
                     respond.clone(),
                     tool_call_begin.clone(),
+                    done_forwarded.clone(),
                 )?;
             }
         } // Close if let Some(tool_format)
@@ -1702,18 +1713,18 @@ impl Worker<'_, ChatWorker> {
 
         self.extra.context.chunks = self.render_as_chunks(true)?;
 
-        // Terminal Done. Guarantees the consumer's TokenStream::completed
-        // (or any Fn(WriteOutput) callback) ALWAYS receives a final Done
-        // event, even when the chat-loop exits early because
-        // `extract_tool_calls` returned None on a parser-only path that
-        // never produced an iter-2 generation. `wrap_respond` suppresses
-        // Done after the begin_token in iter 1, which used to surface as
-        // `WorkerCrashed` for LFM2.5 and other parser-only handlers.
-        // `TokenStream::next_token` short-circuits when
-        // `completed_response.is_some()`, so a multi-iteration flow
-        // (Qwen3 etc.) that already received its iter-N Done simply
-        // ignores this one — no double-process.
-        respond(llm::WriteOutput::Done(response));
+        // Terminal Done failsafe. Fires only when no iteration forwarded a Done
+        // — i.e. parser-only paths where `extract_tool_calls` returned None
+        // after `wrap_respond` already suppressed iter-1's Done past the
+        // begin_token. That used to surface as `WorkerCrashed` for LFM2.5 and
+        // other parser-only handlers. Skipping this when a Done was already
+        // forwarded prevents a double Done for raw `Fn(WriteOutput)` consumers
+        // (godot binding, direct ask_channel users); `TokenStream` consumers
+        // were already shielded by the `completed_response.is_some()`
+        // short-circuit, but external callback users were not.
+        if !done_forwarded.load(Ordering::SeqCst) {
+            respond(llm::WriteOutput::Done(response));
+        }
 
         Ok(self)
     }
@@ -1757,6 +1768,7 @@ impl Worker<'_, ChatWorker> {
         sampler: SamplerConfig,
         respond: F,
         tool_call_begin_token: Option<String>,
+        done_forwarded: Arc<AtomicBool>,
     ) -> Result<String, WrappedResponseError>
     where
         F: Fn(llm::WriteOutput) + Clone,
@@ -1768,7 +1780,8 @@ impl Worker<'_, ChatWorker> {
 
         // wrap the response callback to keep a copy of the completed response
         // and to avoid emitting tool calls
-        let (wrapped_respond, resp_receiver) = wrap_respond(respond.clone(), tool_call_begin_token);
+        let (wrapped_respond, resp_receiver) =
+            wrap_respond(respond.clone(), tool_call_begin_token, done_forwarded);
 
         // llm go brrr
         self.generate_response_until_done(sampler, wrapped_respond, &inference_lock_token)?;
@@ -1965,12 +1978,15 @@ impl Worker<'_, ChatWorker> {
     }
 }
 
-/// wraps a response function in a closure to do two things:
+/// wraps a response function in a closure to do three things:
 /// 1. save a copy of the response (using a channel) before sending it out
 /// 2. skip emitting once a tool_call_begin_token has been seen
+/// 3. record whether a Done was forwarded to the outer callback (so the caller
+///    can decide whether a terminal-Done epilogue is still needed)
 fn wrap_respond<F>(
     respond: F,
     tool_call_begin_token: Option<String>,
+    done_forwarded: Arc<AtomicBool>,
 ) -> (
     impl FnMut(llm::WriteOutput),
     std::sync::mpsc::Receiver<String>,
@@ -1990,6 +2006,9 @@ where
                 resp_sender
                     .send(resp.clone())
                     .expect("Failed sending response");
+                if emitting {
+                    done_forwarded.store(true, Ordering::SeqCst);
+                }
             }
             llm::WriteOutput::Token(_) => (),
         }
@@ -2049,6 +2068,55 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// Regression test for the terminal-Done epilogue: `Worker::ask` must
+    /// emit exactly ONE Done event per call for raw `Fn(WriteOutput)`
+    /// callback consumers (godot binding, direct ask_channel users).
+    /// `TokenStream` consumers were already shielded by the
+    /// `completed_response.is_some()` short-circuit, but external callback
+    /// users were not — a second Done from the unconditional terminal
+    /// epilogue used to double-fire here.
+    #[test]
+    fn test_done_emitted_exactly_once_per_ask() -> Result<(), Box<dyn std::error::Error>> {
+        let model = test_utils::load_test_model();
+
+        let mut worker = Worker::new_chat_worker(
+            &model,
+            ChatConfig {
+                n_ctx: 1024,
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )?;
+
+        let done_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let count_inner = Arc::clone(&done_count);
+        let (sender, receiver) = std::sync::mpsc::channel();
+
+        let callback = move |x: llm::WriteOutput| {
+            if let llm::WriteOutput::Done(resp) = x {
+                count_inner.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                // tolerate a closed channel — count is the assertion target,
+                // recv-side just unblocks once.
+                let _ = sender.send(resp);
+            }
+        };
+
+        worker.ask("Say hi.".into(), callback)?;
+
+        // First Done: confirm a callback arrived (proves wiring).
+        let _ = receiver.recv_timeout(std::time::Duration::from_secs(60))?;
+
+        // `Worker::ask` returns synchronously after invoking its callback for
+        // the final time, so by here the count is final — no race window.
+        let count = done_count.load(std::sync::atomic::Ordering::SeqCst);
+        assert_eq!(
+            count, 1,
+            "Worker::ask should emit exactly ONE Done per call, observed {count}."
+        );
+
+        Ok(())
     }
 
     #[test]
