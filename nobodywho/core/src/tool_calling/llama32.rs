@@ -80,9 +80,10 @@ impl ToolFormatHandler for Llama32Handler {
                     );
                 }
                 debug!(tool_name = %call.name, "Successfully parsed Llama tool call");
+                let arguments = repair_string_encoded_structures(call.parameters);
                 Some(vec![ToolCall {
                     name: call.name,
-                    arguments: call.parameters,
+                    arguments,
                 }])
             }
             Err(e) => {
@@ -90,6 +91,47 @@ impl ToolFormatHandler for Llama32Handler {
                 None
             }
         }
+    }
+}
+
+/// Llama-3.x chat templates emit `<|python_tag|>` only on the first tool-call turn;
+/// post-tool-response turns omit the prefix, so the lazy grammar (keyed on that
+/// prefix) never re-fires and the sampler runs unconstrained. Empirically the 1B
+/// and 3B variants then emit complex parameters as JSON-encoded strings instead of
+/// structured values: `{"set1": "[1,2,3]"}` instead of `{"set1": [1,2,3]}`. This
+/// post-process walks the parsed parameters and, when a `Value::String` round-trips
+/// through `serde_json::from_str` to an `Array` or `Object`, replaces the string
+/// with the parsed structure. Scalars (Number, Bool, Null) are deliberately NOT
+/// re-parsed: coercing `"42"` to `42` would silently break tools whose parameter is
+/// genuinely `str`.
+fn repair_string_encoded_structures(value: serde_json::Value) -> serde_json::Value {
+    match value {
+        serde_json::Value::Object(map) => {
+            let repaired = map
+                .into_iter()
+                .map(|(k, v)| (k, repair_string_encoded_structures(v)))
+                .collect();
+            serde_json::Value::Object(repaired)
+        }
+        serde_json::Value::Array(items) => serde_json::Value::Array(
+            items.into_iter().map(repair_string_encoded_structures).collect(),
+        ),
+        serde_json::Value::String(ref s) => {
+            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(s) {
+                if matches!(
+                    parsed,
+                    serde_json::Value::Array(_) | serde_json::Value::Object(_)
+                ) {
+                    debug!(
+                        original = %s,
+                        "Repaired string-encoded structure into structured JSON"
+                    );
+                    return repair_string_encoded_structures(parsed);
+                }
+            }
+            value
+        }
+        other => other,
     }
 }
 
@@ -241,6 +283,68 @@ mod tests {
             s.contains("<|python_tag|>"),
             "expected begin token literal in grammar:\n{}",
             s
+        );
+    }
+
+    #[test]
+    fn extract_repairs_string_encoded_array_argument() {
+        // Direct reproduction of the empirical Llama-3.2-3B failure on
+        // test_tool_with_tuple: post-tool-response turns omit `<|python_tag|>`
+        // so the lazy grammar never re-fires; the sampler runs unconstrained and
+        // the model emits `string_int_pair` as a JSON-encoded string instead of
+        // an array. The handler recovers by walking parameters and re-parsing
+        // any String that round-trips to an Array or Object.
+        let input = r#"{"name":"multiply_strings","parameters":{"string_int_pair":"[\"BingBong\", 3]"}}"#;
+        let calls = handler().extract_tool_calls(input).unwrap();
+        assert_eq!(calls[0].name, "multiply_strings");
+        assert_eq!(
+            calls[0].arguments,
+            json!({"string_int_pair": ["BingBong", 3]}),
+            "string-encoded array must be repaired into a real array"
+        );
+    }
+
+    #[test]
+    fn extract_repairs_string_encoded_object_argument() {
+        let input = r#"{"name":"calculate_volume","parameters":{"dimensions":"{\"width\":30,\"height\":20,\"depth\":10}"}}"#;
+        let calls = handler().extract_tool_calls(input).unwrap();
+        assert_eq!(
+            calls[0].arguments,
+            json!({"dimensions": {"width": 30, "height": 20, "depth": 10}}),
+        );
+    }
+
+    #[test]
+    fn extract_does_not_coerce_legitimate_string_args() {
+        // Critical: the repair must NOT touch genuine string parameters even when
+        // they happen to round-trip through serde_json::from_str as a scalar.
+        // "42" parses as a number; coercing it would break tools whose parameter
+        // is actually `text: str`. Only Array/Object outputs should be repaired.
+        let input = r#"{"name":"sparklify","parameters":{"text":"42"}}"#;
+        let calls = handler().extract_tool_calls(input).unwrap();
+        assert_eq!(
+            calls[0].arguments,
+            json!({"text": "42"}),
+            "scalar string args must remain strings even when JSON-parseable as number"
+        );
+
+        let input = r#"{"name":"sparklify","parameters":{"text":"true"}}"#;
+        let calls = handler().extract_tool_calls(input).unwrap();
+        assert_eq!(calls[0].arguments, json!({"text": "true"}));
+
+        let input = r#"{"name":"sparklify","parameters":{"text":"julemand"}}"#;
+        let calls = handler().extract_tool_calls(input).unwrap();
+        assert_eq!(calls[0].arguments, json!({"text": "julemand"}));
+    }
+
+    #[test]
+    fn extract_repairs_recursively_nested_string_encoding() {
+        // Some small variants double-encode. Walk the value tree.
+        let input = r#"{"name":"add_list_of_vectors","parameters":{"list_of_vectors":"[[1,2,3],[4,5,6]]"}}"#;
+        let calls = handler().extract_tool_calls(input).unwrap();
+        assert_eq!(
+            calls[0].arguments,
+            json!({"list_of_vectors": [[1, 2, 3], [4, 5, 6]]}),
         );
     }
 }
