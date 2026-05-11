@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -e
+
+if ! command -v pre-commit &>/dev/null; then
+    echo ""
+    echo "WARNING: pre-commit is not installed. Lint and format checks will not run locally."
+    echo "Install it with:  pip install pre-commit  (or  nix-shell -p pre-commit)"
+    echo "Then run:         pre-commit install"
+    echo ""
+    exit 0
+fi
+
+exec pre-commit run --hook-stage pre-commit

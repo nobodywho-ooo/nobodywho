@@ -1,0 +1,25 @@
+repos:
+  - repo: local
+    hooks:
+      - id: rustfmt
+        name: rustfmt
+        language: system
+        entry: bash -c 'cd nobodywho && cargo fmt --all --check'
+        pass_filenames: false
+        types: [rust]
+
+      - id: clippy
+        name: clippy
+        language: system
+        entry: bash -c 'cd nobodywho/core && cargo clippy --no-deps -- -D warnings'
+        pass_filenames: false
+        types: [rust]
+
+      - id: ruff
+        name: ruff
+        language: system
+        entry: bash -c 'cd nobodywho/python && uvx ruff check'
+        pass_filenames: false
+        types: [python]
+
+      # Ty fucks up on a lotta pytests in general, false positives and whatnot, thats why it is excluded
