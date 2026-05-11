@@ -1680,14 +1680,23 @@ impl SamplerPresets {
     /// Create a sampler that constrains output to a JSON schema via llguidance.
     ///
     /// Args:
-    ///     schema: JSON schema string
+    ///     schema: JSON schema as a dict or a JSON string
     #[staticmethod]
-    pub fn constrain_with_json_schema(schema: String) -> SamplerConfig {
-        SamplerConfig {
+    pub fn constrain_with_json_schema(schema: &Bound<'_, PyAny>) -> PyResult<SamplerConfig> {
+        let schema_str: String = if let Ok(s) = schema.extract::<String>() {
+            s
+        } else {
+            schema
+                .py()
+                .import("json")?
+                .call_method1("dumps", (schema,))?
+                .extract::<String>()?
+        };
+        Ok(SamplerConfig {
             sampler_config: nobodywho::sampler_config::SamplerPresets::constrain_with_json_schema(
-                schema,
+                schema_str,
             ),
-        }
+        })
     }
 
     /// Create a sampler that constrains output to a regular expression via llguidance.

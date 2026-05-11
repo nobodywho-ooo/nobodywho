@@ -655,7 +655,9 @@ class SamplerBuilder:
         """
     def grammar(self, /, grammar: str, trigger_on: str | None, root: str) -> SamplerBuilder:
         """
-        Apply a grammar constraint to enforce structured output.
+        Apply a GBNF grammar constraint to enforce structured output.
+        
+        Deprecated: Use `SamplerBuilder.constrain()` with a `Constraint` object instead.
         
         Args:
             grammar: Grammar specification in GBNF format (GGML BNF, a variant of BNF used by llama.cpp)
@@ -800,6 +802,30 @@ class SamplerPresets:
     E.g. `SamplerPresets.temperature(0.8)` will return a `SamplerConfig` with temperature=0.8.
     """
     @staticmethod
+    def constrain_with_grammar(grammar: str) -> SamplerConfig:
+        """
+        Create a sampler that constrains output using a Lark grammar via llguidance.
+        
+        Args:
+            grammar: Lark grammar string
+        """
+    @staticmethod
+    def constrain_with_json_schema(schema: str | dict) -> SamplerConfig:
+        """
+        Create a sampler that constrains output to a JSON schema via llguidance.
+        
+        Args:
+            schema: JSON schema string
+        """
+    @staticmethod
+    def constrain_with_regex(pattern: str) -> SamplerConfig:
+        """
+        Create a sampler that constrains output to a regular expression via llguidance.
+        
+        Args:
+            pattern: Regular expression pattern
+        """
+    @staticmethod
     def default() -> SamplerConfig:
         """
         Get the default sampler configuration.
@@ -812,10 +838,7 @@ class SamplerPresets:
     @staticmethod
     def grammar(grammar: str) -> SamplerConfig:
         """
-        Create a sampler with a custom grammar constraint.
-        
-        Args:
-            grammar: Grammar specification in GBNF format (GGML BNF, a variant of BNF used by llama.cpp)
+        Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
         """
     @staticmethod
     def greedy() -> SamplerConfig:
@@ -825,8 +848,9 @@ class SamplerPresets:
     @staticmethod
     def json() -> SamplerConfig:
         """
-        Create a sampler configured for JSON output generation.
-        Uses a grammar constraint to ensure the model outputs only valid JSON.
+        Create a sampler that constrains output to valid JSON (any structure) using GBNF.
+        
+        For schema-validated JSON, use `constrain_with_json_schema()` instead.
         """
     @staticmethod
     def temperature(temperature: float) -> SamplerConfig:

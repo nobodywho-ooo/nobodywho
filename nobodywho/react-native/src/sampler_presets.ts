@@ -60,14 +60,16 @@ export class SamplerPresets {
     return samplerPresetJson() as SamplerConfig;
   }
 
-  /** Constrain output to a JSON schema via llguidance. */
-  static constrainWithJsonSchema(schema: string): SamplerConfig {
-    return samplerPresetConstrainWithJsonSchema(schema) as SamplerConfig;
+  /** Constrain output to a JSON schema via llguidance. Accepts a schema object or a JSON string. */
+  static constrainWithJsonSchema(schema: object | string): SamplerConfig {
+    const schemaStr = typeof schema === "string" ? schema : JSON.stringify(schema);
+    return samplerPresetConstrainWithJsonSchema(schemaStr) as SamplerConfig;
   }
 
-  /** Constrain output to a regular expression via llguidance. */
-  static constrainWithRegex(pattern: string): SamplerConfig {
-    return samplerPresetConstrainWithRegex(pattern) as SamplerConfig;
+  /** Constrain output to a regular expression via llguidance. Accepts a RegExp or a pattern string. */
+  static constrainWithRegex(pattern: RegExp | string): SamplerConfig {
+    const patternStr = pattern instanceof RegExp ? pattern.source : pattern;
+    return samplerPresetConstrainWithRegex(patternStr) as SamplerConfig;
   }
 
   /**
