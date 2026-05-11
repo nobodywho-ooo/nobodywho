@@ -8,8 +8,8 @@ __pycache__/
 .venv/
 */result
 
-# Kotlin standalone package (not yet released)
-kotlin/
+# Swift standalone package (not yet released)
+swift/
 
 # React Native (uniffi-bindgen-react-native)
 react-native/node_modules/
