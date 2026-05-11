@@ -10,7 +10,7 @@ Add NobodyWho to your project using Swift Package Manager:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/nobodywho-ooo/nobodywho-swift.git", from: "0.1.0"),
+    .package(url: "https://github.com/nobodywho-ooo/nobodywho-swift.git", from: "0.2.0"),
 ]
 ```
 
@@ -25,7 +25,7 @@ Or in Xcode: **File > Add Package Dependencies** and enter `https://github.com/n
 | visionOS | 1.0            |
 | watchOS  | 10.0           |
 
-GPU acceleration is available via Metal on all supported platforms.
+GPU acceleration is available via Metal on iOS, macOS, and visionOS. watchOS runs on CPU only.
 
 ## Quick Start
 
