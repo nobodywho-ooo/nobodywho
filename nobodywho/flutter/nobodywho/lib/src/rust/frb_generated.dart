@@ -6439,7 +6439,7 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
     seqBreakers: seqBreakers,
   );
 
-  /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` with a Lark grammar string instead.
+  /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
   SamplerBuilder grammar({
     required String grammar,
     String? triggerOn,

@@ -74,7 +74,6 @@ impl SamplerPresets {
             .sample(SampleStep::Dist)
     }
 
-    #[deprecated(note = "Use SamplerPresets::constrain_with_json_schema() instead")]
     pub fn json() -> SamplerConfig {
         SamplerConfig::default().shift(ShiftStep::Grammar {
             trigger_on: None,
@@ -225,8 +224,12 @@ impl SamplerConfig {
             }
             ShiftStep::Regex(pattern) => LlamaSampler::llguidance(model, "regex", &pattern)
                 .map_err(SamplerError::LlguidanceGrammarError),
-            ShiftStep::Lark(lark) => LlamaSampler::llguidance(model, "lark", &lark)
-                .map_err(SamplerError::LlguidanceGrammarError),
+            ShiftStep::Lark(lark) => {
+                let lark = gbnf::gbnf_to_lark::any_to_lark(&lark)
+                    .map_err(|e| SamplerError::GbnfConversionError(e.to_string()))?;
+                LlamaSampler::llguidance(model, "lark", &lark)
+                    .map_err(SamplerError::LlguidanceGrammarError)
+            }
         }
     }
 

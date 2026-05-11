@@ -1129,9 +1129,11 @@ impl NobodyWhoChat {
         );
     }
 
-    /// Deprecated: Use set_sampler_preset_constrain_with_json_schema() instead.
+    /// Constrain output to valid JSON (any structure) using GBNF.
+    ///
+    /// For schema-validated JSON, use set_sampler_preset_constrain_with_json_schema() instead.
     #[func]
-    #[deprecated(note = "Use set_sampler_preset_constrain_with_json_schema() instead")]
+    #[allow(deprecated)]
     fn set_sampler_preset_json(&mut self) {
         self.set_sampler_preset_impl(SamplerPresets::json());
     }

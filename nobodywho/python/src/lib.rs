@@ -1465,7 +1465,7 @@ impl SamplerBuilder {
     ///     trigger_on: Optional string that, when generated, activates the grammar constraint.
     ///                 Useful for letting the model generate free-form text until a specific marker.
     ///     root: Name of the root grammar rule to start parsing from
-    #[deprecated(note = "Use SamplerBuilder.constrain() with a Constraint object instead")]
+    #[allow(deprecated)]
     pub fn grammar(&self, grammar: String, trigger_on: Option<String>, root: String) -> Self {
         shift_step(
             self.clone(),
@@ -1716,21 +1716,20 @@ impl SamplerPresets {
         }
     }
 
-    /// Deprecated: Use `SamplerPresets.constrain_with_json_schema()` instead.
+    /// Create a sampler that constrains output to valid JSON (any structure) using GBNF.
+    ///
+    /// For schema-validated JSON, use `constrain_with_json_schema()` instead.
     #[staticmethod]
-    #[deprecated(note = "Use SamplerPresets.constrain_with_json_schema() instead")]
+    #[allow(deprecated)]
     pub fn json() -> SamplerConfig {
         SamplerConfig {
             sampler_config: nobodywho::sampler_config::SamplerPresets::json(),
         }
     }
 
-    /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead.
-    ///
-    /// Args:
-    ///     grammar: Grammar specification in GBNF format
+    /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
     #[staticmethod]
-    #[deprecated(note = "Use SamplerPresets.constrain_with_grammar() instead")]
+    #[allow(deprecated)]
     pub fn grammar(grammar: String) -> SamplerConfig {
         SamplerConfig {
             sampler_config: nobodywho::sampler_config::SamplerPresets::grammar(grammar),

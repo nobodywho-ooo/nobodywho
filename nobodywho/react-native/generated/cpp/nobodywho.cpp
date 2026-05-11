@@ -271,6 +271,15 @@ float uniffi_nobodywho_uniffi_fn_func_cosine_similarity(
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_func_load_model(
     RustBuffer model_path, int8_t use_gpu, RustBuffer projection_model_path,
     RustBuffer on_download_progress);
+/*handle*/ uint64_t
+uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(
+    RustBuffer grammar, RustCallStatus *uniffi_out_err);
+/*handle*/ uint64_t
+uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_json_schema(
+    RustBuffer schema, RustCallStatus *uniffi_out_err);
+/*handle*/ uint64_t
+uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_regex(
+    RustBuffer pattern, RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_func_sampler_preset_default(
     RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_func_sampler_preset_dry(
@@ -408,6 +417,12 @@ void ffi_nobodywho_uniffi_rust_future_complete_void(
     /*handle*/ uint64_t handle, RustCallStatus *uniffi_out_err);
 uint16_t uniffi_nobodywho_uniffi_checksum_func_cosine_similarity();
 uint16_t uniffi_nobodywho_uniffi_checksum_func_load_model();
+uint16_t
+uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar();
+uint16_t
+uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_json_schema();
+uint16_t
+uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_regex();
 uint16_t uniffi_nobodywho_uniffi_checksum_func_sampler_preset_default();
 uint16_t uniffi_nobodywho_uniffi_checksum_func_sampler_preset_dry();
 uint16_t uniffi_nobodywho_uniffi_checksum_func_sampler_preset_grammar();
@@ -3368,6 +3383,43 @@ NativeNobodywho::NativeNobodywho(
             return this->cpp_uniffi_nobodywho_uniffi_fn_func_load_model(
                 rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_"
+        "grammar"] = jsi::Function::createFromHostFunction(
+      rt,
+      jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_fn_func_"
+                                    "sampler_preset_constrain_with_grammar"),
+      1,
+      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+             const jsi::Value *args, size_t count) -> jsi::Value {
+        return this
+            ->cpp_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(
+                rt, thisVal, args, count);
+      });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_"
+        "json_schema"] = jsi::Function::createFromHostFunction(
+      rt,
+      jsi::PropNameID::forAscii(rt,
+                                "ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_"
+                                "preset_constrain_with_json_schema"),
+      1,
+      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+             const jsi::Value *args, size_t count) -> jsi::Value {
+        return this
+            ->cpp_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_json_schema(
+                rt, thisVal, args, count);
+      });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_"
+        "regex"] = jsi::Function::createFromHostFunction(
+      rt,
+      jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_fn_func_"
+                                    "sampler_preset_constrain_with_regex"),
+      1,
+      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+             const jsi::Value *args, size_t count) -> jsi::Value {
+        return this
+            ->cpp_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_regex(
+                rt, thisVal, args, count);
+      });
   props["ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_default"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -4019,6 +4071,44 @@ NativeNobodywho::NativeNobodywho(
             return this->cpp_uniffi_nobodywho_uniffi_checksum_func_load_model(
                 rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_"
+        "with_grammar"] = jsi::Function::createFromHostFunction(
+      rt,
+      jsi::PropNameID::forAscii(rt,
+                                "ubrn_uniffi_nobodywho_uniffi_checksum_func_"
+                                "sampler_preset_constrain_with_grammar"),
+      0,
+      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+             const jsi::Value *args, size_t count) -> jsi::Value {
+        return this
+            ->cpp_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar(
+                rt, thisVal, args, count);
+      });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_"
+        "with_json_schema"] = jsi::Function::createFromHostFunction(
+      rt,
+      jsi::PropNameID::forAscii(rt,
+                                "ubrn_uniffi_nobodywho_uniffi_checksum_func_"
+                                "sampler_preset_constrain_with_json_schema"),
+      0,
+      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+             const jsi::Value *args, size_t count) -> jsi::Value {
+        return this
+            ->cpp_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_json_schema(
+                rt, thisVal, args, count);
+      });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_"
+        "with_regex"] = jsi::Function::createFromHostFunction(
+      rt,
+      jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
+                                    "func_sampler_preset_constrain_with_regex"),
+      0,
+      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+             const jsi::Value *args, size_t count) -> jsi::Value {
+        return this
+            ->cpp_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_regex(
+                rt, thisVal, args, count);
+      });
   props["ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_default"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -5920,6 +6010,57 @@ jsi::Value NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_func_load_model(
   return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
                                                          value);
 }
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  RustCallStatus status =
+      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
+  auto value =
+      uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(
+          uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                          args[0]),
+          &status);
+  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_json_schema(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  RustCallStatus status =
+      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
+  auto value =
+      uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_json_schema(
+          uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                          args[0]),
+          &status);
+  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_regex(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  RustCallStatus status =
+      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
+  auto value =
+      uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_regex(
+          uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                          args[0]),
+          &status);
+  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
 jsi::Value
 NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_func_sampler_preset_default(
     jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
@@ -6586,6 +6727,33 @@ NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_func_load_model(
     jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
     size_t count) {
   auto value = uniffi_nobodywho_uniffi_checksum_func_load_model();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value =
+      uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_json_schema(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value =
+      uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_json_schema();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_regex(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value =
+      uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_regex();
 
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }

@@ -278,6 +278,9 @@ pub enum SamplerError {
 
     #[error("Could not initialize llguidance grammar: {0}")]
     LlguidanceGrammarError(llama_cpp_2::GrammarError),
+
+    #[error("Could not convert GBNF grammar to Lark: {0}")]
+    GbnfConversionError(String),
 }
 
 #[derive(Debug, thiserror::Error)]

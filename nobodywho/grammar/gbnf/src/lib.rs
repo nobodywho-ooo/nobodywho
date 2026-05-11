@@ -8,6 +8,7 @@
 
 pub mod builder;
 pub mod compose;
+pub mod gbnf_to_lark;
 pub mod json;
 
 /// A complete GBNF grammar containing multiple declarations

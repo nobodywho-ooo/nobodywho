@@ -794,9 +794,10 @@ impl SamplerBuilder {
         )
     }
 
-    /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` with a Lark grammar string instead.
+    /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
     #[flutter_rust_bridge::frb(sync)]
-    #[deprecated(note = "Use SamplerBuilder.constrain() with a Constraint object instead")]
+    #[deprecated(note = "Use SamplerPresets.constrainWithGrammar() instead. It accepts both Lark and GBNF strings.")]
+    #[allow(deprecated)]
     pub fn grammar(&self, grammar: String, trigger_on: Option<String>, root: String) -> Self {
         shift_step(
             self.clone(),
@@ -1017,7 +1018,7 @@ impl SamplerPresets {
 
     /// Deprecated: Use `SamplerPresets.constrain_with_json_schema()` instead.
     #[flutter_rust_bridge::frb(sync)]
-    #[deprecated(note = "Use SamplerPresets.constrain_with_json_schema() instead")]
+    #[allow(deprecated)]
     pub fn json() -> SamplerConfig {
         SamplerConfig {
             sampler_config: nobodywho::sampler_config::SamplerPresets::json(),
@@ -1027,6 +1028,7 @@ impl SamplerPresets {
     /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead.
     #[flutter_rust_bridge::frb(sync)]
     #[deprecated(note = "Use SamplerPresets.constrain_with_grammar() instead")]
+    #[allow(deprecated)]
     pub fn grammar(grammar: String) -> SamplerConfig {
         SamplerConfig {
             sampler_config: nobodywho::sampler_config::SamplerPresets::grammar(grammar),

@@ -818,8 +818,8 @@ impl SamplerBuilder {
         })
     }
 
-    /// Deprecated: Use `sampler_preset_constrain_with_grammar()` with a Lark grammar string instead.
-    #[deprecated(note = "Use SamplerBuilder.constrain() with a GrammarConstraint instead")]
+    /// Deprecated: Use `sampler_preset_constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
+    #[deprecated(note = "Use sampler_preset_constrain_with_grammar() instead. It accepts both Lark and GBNF strings.")]
     pub fn grammar(
         &self,
         grammar: String,
@@ -1001,49 +1001,6 @@ pub fn sampler_preset_constrain_with_grammar(grammar: String) -> Arc<SamplerConf
     })
 }
 
-// ---------- RustSpeechToText ----------
-
-#[derive(uniffi::Object)]
-pub struct RustSpeechToText {
-    stt: nobodywho::speech_to_text::SpeechToTextAsync,
-}
-
-/// Load a Whisper speech-to-text model from a .bin file.
-#[uniffi::export]
-pub async fn load_speech_to_text(
-    model_path: String,
-    language: Option<String>,
-    translate: bool,
-    initial_prompt: Option<String>,
-) -> Result<Arc<RustSpeechToText>, NobodyWhoError> {
-    init_logging();
-    tokio::task::spawn_blocking(move || {
-        let config = nobodywho::speech_to_text::SpeechToTextConfig {
-            language,
-            translate,
-            initial_prompt,
-        };
-        nobodywho::speech_to_text::SpeechToTextAsync::new(model_path, config)
-            .map(|stt| Arc::new(RustSpeechToText { stt }))
-            .map_err(|e| NobodyWhoError::Error {
-                message: e.to_string(),
-            })
-    })
-    .await
-    .map_err(|e| NobodyWhoError::Error {
-        message: e.to_string(),
-    })?
-}
-
-#[uniffi::export]
-impl RustSpeechToText {
-    pub fn transcribe(&self, audio_path: String) -> Arc<RustTokenStream> {
-        let stream = self.stt.transcribe(audio_path);
-        Arc::new(RustTokenStream {
-            inner: tokio::sync::Mutex::new(stream),
-        })
-    }
-}
 
 #[uniffi::export]
 pub fn sampler_preset_json() -> Arc<SamplerConfig> {
