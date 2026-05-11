@@ -12,3 +12,5 @@ docs/__pycache__
 result
 target/
 .env
+mlruns/
+mlflow.db
