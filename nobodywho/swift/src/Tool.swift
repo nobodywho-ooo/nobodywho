@@ -144,6 +144,13 @@ private final class ToolCallbackImpl: @unchecked Sendable, RustToolCallback {
 }
 
 /// Async callback implementation for the manual Tool API.
+///
+/// Safety: The `call` method blocks the current thread using a semaphore while
+/// a `Task` executes the async handler on Swift's cooperative thread pool.
+/// This is safe because `call` is only ever invoked from the Rust inference
+/// thread (a plain OS thread), never from the cooperative pool. A single
+/// inference thread means at most one semaphore is blocked at a time, so
+/// the cooperative pool always has threads available to run the Task.
 private final class AsyncToolCallbackImpl: @unchecked Sendable, RustToolCallback {
     let parameters: [(String, String)]
     let callHandler: ([Any]) async -> String
