@@ -63,6 +63,7 @@ Chat('./model.gguf', sampler=SamplerPresets.json())
 Or utilizing JSON schemas to really force the LLM to give you the specific object shapes
 that you want:
 ```python
+import json
 chat = Chat('./model.gguf', sampler=SamplerPresets.constrain_with_json_schema({
     "type": "object",
     "properties": {
