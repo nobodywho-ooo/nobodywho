@@ -1,3 +1,50 @@
+## 2.1.0
+
+### Grammar sampling revamp (#524)
+
+Structured output generation has been rebuilt on top of the [llguidance](https://github.com/microsoft/llguidance) backend, replacing the previous GBNF-only pipeline. The new API is faster, supports richer grammar formats, and gives clearer errors when a constraint fails to compile.
+
+**New `SamplerPresets` constructors** for constrained generation:
+
+- `SamplerPresets.constrainWithJsonSchema(schema: ...)` — constrain output to a JSON Schema. Accepts either a `Map` (encoded for you) or a JSON string.
+- `SamplerPresets.constrainWithRegex(pattern: ...)` — constrain output to a regular expression.
+- `SamplerPresets.constrainWithGrammar(grammar: ...)` — constrain output to a context-free grammar. Accepts **both Lark and GBNF** strings; GBNF is converted internally, so existing grammars keep working.
+
+Examples:
+
+```dart
+// Regex — force the model to answer with exactly "yes" or "no"
+final yesNo = SamplerPresets.constrainWithRegex(pattern: r'yes|no');
+
+// JSON Schema — always-valid JSON matching the schema
+final person = SamplerPresets.constrainWithJsonSchema(schema: {
+  'type': 'object',
+  'properties': {
+    'name': {'type': 'string'},
+    'age':  {'type': 'integer'},
+  },
+});
+
+// Lark CFG — context-free grammar (CSV-like)
+final lark = SamplerPresets.constrainWithGrammar(grammar: """
+  start: record (NEWLINE record)* NEWLINE?
+  record: field ("," field)*
+  field: /[^,"\\n\\r]+/
+  NEWLINE: /\\r?\\n/
+""");
+
+// GBNF — same constructor also accepts GBNF strings
+final gbnf = SamplerPresets.constrainWithGrammar(grammar: 'root ::= "yes" | "no"');
+```
+
+### Deprecations
+
+- `SamplerPresets.json()` → use `SamplerPresets.constrainWithJsonSchema()` for schema-validated JSON.
+- `SamplerPresets.grammar(grammar: ...)` → use `SamplerPresets.constrainWithGrammar()` (accepts both Lark and GBNF).
+- `SamplerBuilder.grammar(...)` (the builder-style grammar step) is deprecated in favor of the preset constructors above.
+
+The deprecated methods continue to work for this release, but will be removed in a future major version.
+
 ## 2.0.0
 
 ### Breaking Changes
