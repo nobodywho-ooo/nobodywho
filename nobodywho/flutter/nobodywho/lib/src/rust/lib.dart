@@ -318,13 +318,7 @@ abstract class SamplerBuilder implements RustOpaqueInterface {
     required List<String> seqBreakers,
   });
 
-  /// Apply a grammar constraint to enforce structured output.
-  ///
-  /// Args:
-  ///     grammar: Grammar specification in GBNF format (GGML BNF, a variant of BNF used by llama.cpp)
-  ///     trigger_on: Optional string that, when generated, activates the grammar constraint.
-  ///                 Useful for letting the model generate free-form text until a specific marker.
-  ///     root: Name of the root grammar rule to start parsing from
+  /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
   SamplerBuilder grammar({
     required String grammar,
     String? triggerOn,
@@ -445,6 +439,24 @@ abstract class SamplerConfig implements RustOpaqueInterface {
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerPresets>>
 abstract class SamplerPresets implements RustOpaqueInterface {
+  /// Create a sampler that constrains output using a Lark grammar via llguidance.
+  static SamplerConfig constrainWithGrammar({required String grammar}) =>
+      NobodyWho.instance.api.crateSamplerPresetsConstrainWithGrammar(
+        grammar: grammar,
+      );
+
+  /// Create a sampler that constrains output to a JSON schema via llguidance.
+  static SamplerConfig constrainWithJsonSchema({required String schema}) =>
+      NobodyWho.instance.api.crateSamplerPresetsConstrainWithJsonSchema(
+        schema: schema,
+      );
+
+  /// Create a sampler that constrains output to a regular expression via llguidance.
+  static SamplerConfig constrainWithRegex({required String pattern}) =>
+      NobodyWho.instance.api.crateSamplerPresetsConstrainWithRegex(
+        pattern: pattern,
+      );
+
   /// Get the default sampler configuration.
   static SamplerConfig defaultSampler() =>
       NobodyWho.instance.api.crateSamplerPresetsDefaultSampler();
@@ -452,10 +464,7 @@ abstract class SamplerPresets implements RustOpaqueInterface {
   /// Create a DRY sampler preset to reduce repetition.
   static SamplerConfig dry() => NobodyWho.instance.api.crateSamplerPresetsDry();
 
-  /// Create a sampler with a custom grammar constraint.
-  ///
-  /// Args:
-  ///     grammar: Grammar specification in GBNF format (GGML BNF, a variant of BNF used by llama.cpp)
+  /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead.
   static SamplerConfig grammar({required String grammar}) =>
       NobodyWho.instance.api.crateSamplerPresetsGrammar(grammar: grammar);
 
@@ -463,8 +472,7 @@ abstract class SamplerPresets implements RustOpaqueInterface {
   static SamplerConfig greedy() =>
       NobodyWho.instance.api.crateSamplerPresetsGreedy();
 
-  /// Create a sampler configured for JSON output generation.
-  /// Uses a grammar constraint to ensure the model outputs only valid JSON.
+  /// Deprecated: Use `SamplerPresets.constrain_with_json_schema()` instead.
   static SamplerConfig json() =>
       NobodyWho.instance.api.crateSamplerPresetsJson();
 

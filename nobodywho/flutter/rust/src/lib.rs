@@ -794,14 +794,12 @@ impl SamplerBuilder {
         )
     }
 
-    /// Apply a grammar constraint to enforce structured output.
-    ///
-    /// Args:
-    ///     grammar: Grammar specification in GBNF format (GGML BNF, a variant of BNF used by llama.cpp)
-    ///     trigger_on: Optional string that, when generated, activates the grammar constraint.
-    ///                 Useful for letting the model generate free-form text until a specific marker.
-    ///     root: Name of the root grammar rule to start parsing from
+    /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
     #[flutter_rust_bridge::frb(sync)]
+    #[deprecated(
+        note = "Use SamplerPresets.constrainWithGrammar() instead. It accepts both Lark and GBNF strings."
+    )]
+    #[allow(deprecated)]
     pub fn grammar(&self, grammar: String, trigger_on: Option<String>, root: String) -> Self {
         shift_step(
             self.clone(),
@@ -990,20 +988,49 @@ impl SamplerPresets {
         }
     }
 
-    /// Create a sampler configured for JSON output generation.
-    /// Uses a grammar constraint to ensure the model outputs only valid JSON.
+    /// Create a sampler that constrains output to a JSON schema via llguidance.
     #[flutter_rust_bridge::frb(sync)]
+    pub fn constrain_with_json_schema(schema: String) -> SamplerConfig {
+        SamplerConfig {
+            sampler_config: nobodywho::sampler_config::SamplerPresets::constrain_with_json_schema(
+                schema,
+            ),
+        }
+    }
+
+    /// Create a sampler that constrains output to a regular expression via llguidance.
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn constrain_with_regex(pattern: String) -> SamplerConfig {
+        SamplerConfig {
+            sampler_config: nobodywho::sampler_config::SamplerPresets::constrain_with_regex(
+                pattern,
+            ),
+        }
+    }
+
+    /// Create a sampler that constrains output using a Lark grammar via llguidance.
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn constrain_with_grammar(grammar: String) -> SamplerConfig {
+        SamplerConfig {
+            sampler_config: nobodywho::sampler_config::SamplerPresets::constrain_with_grammar(
+                grammar,
+            ),
+        }
+    }
+
+    /// Deprecated: Use `SamplerPresets.constrain_with_json_schema()` instead.
+    #[flutter_rust_bridge::frb(sync)]
+    #[allow(deprecated)]
     pub fn json() -> SamplerConfig {
         SamplerConfig {
             sampler_config: nobodywho::sampler_config::SamplerPresets::json(),
         }
     }
 
-    /// Create a sampler with a custom grammar constraint.
-    ///
-    /// Args:
-    ///     grammar: Grammar specification in GBNF format (GGML BNF, a variant of BNF used by llama.cpp)
+    /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead.
     #[flutter_rust_bridge::frb(sync)]
+    #[deprecated(note = "Use SamplerPresets.constrain_with_grammar() instead")]
+    #[allow(deprecated)]
     pub fn grammar(grammar: String) -> SamplerConfig {
         SamplerConfig {
             sampler_config: nobodywho::sampler_config::SamplerPresets::grammar(grammar),

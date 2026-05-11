@@ -204,6 +204,7 @@ String generateTestFile(List<CodeGroup> groups, String testName) {
 
   // First pass: collect all imports
   allImports.add("import 'dart:io';");
+  allImports.add("import 'dart:convert';");
   allImports.add("import 'dart:typed_data';");
   allImports.add("import 'package:test/test.dart';");
   allImports.add("import 'package:nobodywho/nobodywho.dart' as nobodywho;");

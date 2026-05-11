@@ -2,7 +2,7 @@ import os
 
 import nobodywho
 import pytest
-
+import json
 import logging
 
 logging.addLevelName(5, "TRACE")
@@ -20,14 +20,18 @@ def model():
 @pytest.fixture
 def chat(model):
     return nobodywho.Chat(
-        model, system_prompt="You are a helpful assistant", template_variables={"enable_thinking" : False}
+        model,
+        system_prompt="You are a helpful assistant",
+        template_variables={"enable_thinking": False},
     )
 
 
 @pytest.fixture
 def chat_async(model):
     return nobodywho.ChatAsync(
-        model, system_prompt="You are a helpful assistant", template_variables={"enable_thinking" : False}
+        model,
+        system_prompt="You are a helpful assistant",
+        template_variables={"enable_thinking": False},
     )
 
 
@@ -261,10 +265,12 @@ def test_load_chat_from_path():
     model_path = os.environ.get("TEST_MODEL")
     assert isinstance(model_path, str)
 
-    new_chat = nobodywho.Chat(model_path, template_variables={"enable_thinking" : False})
+    new_chat = nobodywho.Chat(model_path, template_variables={"enable_thinking": False})
     assert isinstance(new_chat, nobodywho.Chat)
 
-    new_async_chat = nobodywho.ChatAsync(model_path, template_variables={"enable_thinking" : False})
+    new_async_chat = nobodywho.ChatAsync(
+        model_path, template_variables={"enable_thinking": False}
+    )
     assert isinstance(new_async_chat, nobodywho.ChatAsync)
 
 
@@ -332,7 +338,9 @@ def test_reset_chat_history(chat):
 def test_set_system_prompt(model):
     """Test that set_system_prompt changes behavior and persists after reset_history"""
     chat = nobodywho.Chat(
-        model, system_prompt="You are a helpful assistant.", template_variables={"enable_thinking" : False}
+        model,
+        system_prompt="You are a helpful assistant.",
+        template_variables={"enable_thinking": False},
     )
 
     # Have a conversation
@@ -372,3 +380,77 @@ def test_stop_generation(chat):
     # The generation should have stopped, so we shouldn't get many more tokens
     full_response = "".join(tokens + remaining_tokens)
     assert len(full_response) < 200, "Generation should have been stopped early"
+
+
+# ---- llguidance constraint tests ----
+#
+# These tests deliberately use prompts that would produce long, complex responses
+# without a constraint (e.g. "Explain X in detail"), with no system prompt that
+# nudges the model toward the constrained output. That way a passing test proves
+# the constraint mechanism is working, not just that the model happened to guess right.
+
+
+def test_constrain_with_json_schema(model):
+    """constrain_with_json_schema() forces output to be a JSON object even when the
+    model would naturally produce a long prose answer."""
+
+    chat = nobodywho.Chat(
+        model,
+        sampler=nobodywho.SamplerPresets.constrain_with_json_schema({
+            "type": "object",
+            "properties": {"answer": {"type": "string"}},
+            "required": ["answer"],
+            "additionalProperties": False,
+        }),
+        template_variables={"enable_thinking": False},
+    )
+    # Without a constraint the model would produce a multi-sentence prose explanation.
+    response = chat.ask("Explain in detail why the sky appears blue.").completed()
+    parsed = json.loads(response)
+    assert isinstance(parsed, dict), f"Expected JSON object, got: {response!r}"
+    assert all(isinstance(v, str) for v in parsed.values()), (
+        f"All values should be strings: {response!r}"
+    )
+
+
+def test_constrain_with_regex(model):
+    """constrain_with_regex() forces output to exactly match the pattern even when
+    the model would naturally produce a long explanation."""
+    import re
+
+    chat = nobodywho.Chat(
+        model,
+        sampler=nobodywho.SamplerPresets.constrain_with_regex(r"yes|no"),
+        template_variables={"enable_thinking": False},
+    )
+    # Without a constraint the model would write paragraphs about Rayleigh scattering.
+    response = chat.ask("Explain in detail why the sky appears blue.").completed()
+    assert re.fullmatch(r"yes|no", response), (
+        f"Expected 'yes' or 'no', got: {response!r}"
+    )
+
+
+def test_constrain_with_grammar(model):
+    """constrain_with_grammar() forces output to match the Lark grammar even when
+    the model would naturally produce a long explanation."""
+    lark = 'start: "yes" | "no"'
+    chat = nobodywho.Chat(
+        model,
+        sampler=nobodywho.SamplerPresets.constrain_with_grammar(lark),
+        template_variables={"enable_thinking": False},
+    )
+    # Without a constraint the model would write paragraphs about Rayleigh scattering.
+    response = chat.ask("Explain in detail why the sky appears blue.").completed()
+    assert response in ("yes", "no"), f"Expected 'yes' or 'no', got: {response!r}"
+
+
+def test_constrain_with_grammar_gbnf(model):
+    """constrain_with_grammar() also accepts GBNF strings (auto-converted to Lark)."""
+    gbnf = 'root ::= "yes" | "no"'
+    chat = nobodywho.Chat(
+        model,
+        sampler=nobodywho.SamplerPresets.constrain_with_grammar(gbnf),
+        template_variables={"enable_thinking": False},
+    )
+    response = chat.ask("Explain in detail why the sky appears blue.").completed()
+    assert response in ("yes", "no"), f"Expected 'yes' or 'no', got: {response!r}"

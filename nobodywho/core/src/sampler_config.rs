@@ -5,6 +5,8 @@ use tracing::warn;
 
 use crate::errors::SamplerError;
 
+// ---- Presets ----
+
 /// Some simple presets, that can be useful for basic sampling.
 pub struct SamplerPresets;
 
@@ -51,6 +53,27 @@ impl SamplerPresets {
             .sample(SampleStep::Dist)
     }
 
+    /// Constrain output to a JSON schema using llguidance.
+    pub fn constrain_with_json_schema(schema: String) -> SamplerConfig {
+        SamplerConfig::new()
+            .shift(ShiftStep::JsonSchema(schema))
+            .sample(SampleStep::Dist)
+    }
+
+    /// Constrain output to a regular expression using llguidance.
+    pub fn constrain_with_regex(pattern: String) -> SamplerConfig {
+        SamplerConfig::new()
+            .shift(ShiftStep::Regex(pattern))
+            .sample(SampleStep::Dist)
+    }
+
+    /// Constrain output using a Lark context-free grammar via llguidance.
+    pub fn constrain_with_grammar(lark: String) -> SamplerConfig {
+        SamplerConfig::new()
+            .shift(ShiftStep::Lark(lark))
+            .sample(SampleStep::Dist)
+    }
+
     pub fn json() -> SamplerConfig {
         SamplerConfig::default().shift(ShiftStep::Grammar {
             trigger_on: None,
@@ -59,6 +82,7 @@ impl SamplerPresets {
         })
     }
 
+    #[deprecated(note = "Use SamplerPresets::constrain_with_grammar() instead")]
     pub fn grammar(grammar: String) -> SamplerConfig {
         SamplerConfig::default().shift(ShiftStep::Grammar {
             trigger_on: None,
@@ -194,6 +218,18 @@ impl SamplerConfig {
                 penalty_present,
             )),
             ShiftStep::Temperature { temperature } => Ok(LlamaSampler::temp(temperature)),
+            ShiftStep::JsonSchema(schema) => {
+                LlamaSampler::llguidance(model, "json_schema", &schema)
+                    .map_err(SamplerError::LlguidanceGrammarError)
+            }
+            ShiftStep::Regex(pattern) => LlamaSampler::llguidance(model, "regex", &pattern)
+                .map_err(SamplerError::LlguidanceGrammarError),
+            ShiftStep::Lark(lark) => {
+                let lark = gbnf::gbnf_to_lark::any_to_lark(&lark)
+                    .map_err(|e| SamplerError::GbnfConversionError(e.to_string()))?;
+                LlamaSampler::llguidance(model, "lark", &lark)
+                    .map_err(SamplerError::LlguidanceGrammarError)
+            }
         }
     }
 
@@ -300,11 +336,18 @@ pub enum ShiftStep {
         typ_p: f32,
         min_keep: u32,
     },
+    /// Deprecated: use [`GrammarConstraint`] with [`SamplerConfig::constrain`] instead.
     Grammar {
         trigger_on: Option<String>,
         root: String,
         grammar: String,
     },
+    /// Constrain output to a JSON schema via llguidance.
+    JsonSchema(String),
+    /// Constrain output to a regular expression via llguidance.
+    Regex(String),
+    /// Constrain output using a Lark context-free grammar via llguidance.
+    Lark(String),
     #[serde(rename = "dry")]
     DRY {
         multiplier: f32,

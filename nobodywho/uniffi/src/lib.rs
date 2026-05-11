@@ -818,7 +818,10 @@ impl SamplerBuilder {
         })
     }
 
-    /// Apply a grammar constraint to enforce structured output.
+    /// Deprecated: Use `sampler_preset_constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
+    #[deprecated(
+        note = "Use sampler_preset_constrain_with_grammar() instead. It accepts both Lark and GBNF strings."
+    )]
     pub fn grammar(
         &self,
         grammar: String,
@@ -976,7 +979,30 @@ pub fn sampler_preset_dry() -> Arc<SamplerConfig> {
     })
 }
 
-/// Create a sampler configured for JSON output generation.
+/// Create a sampler that constrains output to a JSON schema via llguidance.
+#[uniffi::export]
+pub fn sampler_preset_constrain_with_json_schema(schema: String) -> Arc<SamplerConfig> {
+    Arc::new(SamplerConfig {
+        inner: nobodywho::sampler_config::SamplerPresets::constrain_with_json_schema(schema),
+    })
+}
+
+/// Create a sampler that constrains output to a regular expression via llguidance.
+#[uniffi::export]
+pub fn sampler_preset_constrain_with_regex(pattern: String) -> Arc<SamplerConfig> {
+    Arc::new(SamplerConfig {
+        inner: nobodywho::sampler_config::SamplerPresets::constrain_with_regex(pattern),
+    })
+}
+
+/// Create a sampler that constrains output using a Lark grammar via llguidance.
+#[uniffi::export]
+pub fn sampler_preset_constrain_with_grammar(grammar: String) -> Arc<SamplerConfig> {
+    Arc::new(SamplerConfig {
+        inner: nobodywho::sampler_config::SamplerPresets::constrain_with_grammar(grammar),
+    })
+}
+
 #[uniffi::export]
 pub fn sampler_preset_json() -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {

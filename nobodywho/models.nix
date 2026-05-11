@@ -3,7 +3,7 @@
   TEST_MODEL = fetchurl {
     name = "Qwen_Qwen3-0.6B-Q4_K_M.gguf";
     url = "https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf";
-    sha256 = "sha256-O4uyOUO46rbaVNofuB/xKMQsFTxfmAc/GzSfTeuflUQ=";
+    sha256 = "sha256-Fopf1gkSVBieJZR2TbHGbdaymE8AkfkqhvOIvd0dm7I=";
   };
   TEST_EMBEDDINGS_MODEL = fetchurl {
     name = "bge-small-en-v1.5-q8_0.gguf";

@@ -25,6 +25,11 @@ const EXCEPTIONS_TO_REPLACE: &[(&str, &str)] = &[
         "def __anext__(self, /) -> Any: ...",
         "def __anext__(self, /) -> typing.Awaitable[str]: ...",
     ),
+    // constrain_with_json_schema accepts a dict or a JSON string; pyo3 infers Any from PyAny
+    (
+        "def constrain_with_json_schema(schema: Any) -> SamplerConfig:",
+        "def constrain_with_json_schema(schema: str | dict) -> SamplerConfig:",
+    ),
     // Remove Incomplete import and __getattr__ stub
     ("from _typeshed import Incomplete\n", ""),
     ("def __getattr__(name: str) -> Incomplete: ...\n", ""),

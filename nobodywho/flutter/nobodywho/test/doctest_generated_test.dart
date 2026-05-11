@@ -7,6 +7,7 @@
 @Timeout(Duration(seconds: 600))
 library;
 
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -283,27 +284,57 @@ void main() {
       );
     });
 
-    test('sampling.md:46', () async {
+    test('sampling.md:52', () async {
+      // Force the model to answer with exactly "yes" or "no"
       final chat = await nobodywho.Chat.fromPath(
         modelPath: './model.gguf',
-        sampler: nobodywho.SamplerPresets.json()
+        sampler: nobodywho.SamplerPresets.constrainWithRegex(pattern: r'yes|no'),
+      );
+      final answer = await chat.ask("Is the sky blue?").completed();
+    });
+
+    test('sampling.md:65', () async {
+      final chat = await nobodywho.Chat.fromPath(
+        modelPath: './model.gguf',
+        sampler: nobodywho.SamplerPresets.json(),
       );
     });
 
-    test('sampling.md:54', () async {
-      final sampler = nobodywho.SamplerPresets.grammar(grammar: """
-          file ::= record (newline record)* newline?
-          record ::= field ("," field)*
-          field ::= quoted_field | unquoted_field
-          unquoted_field ::= unquoted_char*
-          unquoted_char ::= [^,"\n\r]
-          quoted_field ::= "\"" quoted_char* "\""
-          quoted_char ::= [^"] | "\"\""
-          newline ::= "\r\n" | "\n"
+    test('sampling.md:74', () async {
+      final chat = await nobodywho.Chat.fromPath(
+        modelPath: './model.gguf',
+        sampler: nobodywho.SamplerPresets.constrainWithJsonSchema(schema: {
+          'type': 'object',
+          'properties': {
+            'name': {'type': 'string'},
+            'age':  {'type': 'integer'},
+          },
+          'required': ['name', 'age'],
+        }),
+      );
+      final response = await chat.ask("Give me a person.").completed();
+      final person = jsonDecode(response); // always valid JSON matching the schema
+    });
+
+    test('sampling.md:97', () async {
+      final sampler = nobodywho.SamplerPresets.constrainWithGrammar(grammar: """
+          start: record (NEWLINE record)* NEWLINE?
+          record: field ("," field)*
+          field: /[^,"\\n\\r]+/
+          NEWLINE: /\\r?\\n/
       """);
     });
 
-    test('sampling.md:75', () async {
+    test('sampling.md:107', () async {
+      final sampler = nobodywho.SamplerPresets.constrainWithGrammar(grammar: """
+          file   ::= record (newline record)* newline?
+          record ::= field ("," field)*
+          field  ::= /[^,"\\n\\r]+/
+          newline ::= "\\r\\n" | "\\n"
+      """);
+    });
+
+    test('sampling.md:130', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         sampler: nobodywho.SamplerBuilder()

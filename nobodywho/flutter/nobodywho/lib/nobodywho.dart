@@ -11,7 +11,8 @@ export 'src/rust/lib.dart'
         newToolImpl, // Internal helper
         toolCallArgumentsJson, // Internal helper
         PromptPart, // Users should use the hand-written PromptPart sealed class
-        noopOnDownloadProgress; // Internal default for onDownloadProgress parameters
+        noopOnDownloadProgress, // Internal default for onDownloadProgress parameters
+        SamplerPresets; // Users should use the hand-written SamplerPresets wrapper
 export 'src/rust/frb_generated.dart' show NobodyWho;
 
 import 'src/rust/lib.dart' as nobodywho;
@@ -696,4 +697,47 @@ class Chat {
 
   /// Stop the current generation.
   void stopGeneration() => _chat.stopGeneration();
+}
+
+/// Sampler preset factory methods.
+///
+/// [constrainWithJsonSchema] accepts either a [Map] or a JSON string.
+class SamplerPresets {
+  SamplerPresets._();
+
+  static nobodywho.SamplerConfig constrainWithJsonSchema({required dynamic schema}) {
+    final String schemaStr = schema is String ? schema : jsonEncode(schema);
+    return nobodywho.SamplerPresets.constrainWithJsonSchema(schema: schemaStr);
+  }
+
+  static nobodywho.SamplerConfig constrainWithRegex({required String pattern}) =>
+      nobodywho.SamplerPresets.constrainWithRegex(pattern: pattern);
+
+  static nobodywho.SamplerConfig constrainWithGrammar({required String grammar}) =>
+      nobodywho.SamplerPresets.constrainWithGrammar(grammar: grammar);
+
+  static nobodywho.SamplerConfig defaultSampler() =>
+      nobodywho.SamplerPresets.defaultSampler();
+
+  static nobodywho.SamplerConfig dry() => nobodywho.SamplerPresets.dry();
+
+  /// Deprecated: Use [constrainWithJsonSchema] for schema-validated JSON.
+  @Deprecated('Use constrainWithJsonSchema() for schema-validated JSON.')
+  static nobodywho.SamplerConfig json() => nobodywho.SamplerPresets.json();
+
+  static nobodywho.SamplerConfig greedy() => nobodywho.SamplerPresets.greedy();
+
+  static nobodywho.SamplerConfig temperature({required double temperature}) =>
+      nobodywho.SamplerPresets.temperature(temperature: temperature);
+
+  static nobodywho.SamplerConfig topK({required int topK}) =>
+      nobodywho.SamplerPresets.topK(topK: topK);
+
+  static nobodywho.SamplerConfig topP({required double topP}) =>
+      nobodywho.SamplerPresets.topP(topP: topP);
+
+  /// Deprecated: Use [constrainWithGrammar] instead.
+  @Deprecated('Use constrainWithGrammar() instead. It accepts both Lark and GBNF strings.')
+  static nobodywho.SamplerConfig grammar({required String grammar}) =>
+      nobodywho.SamplerPresets.grammar(grammar: grammar);
 }

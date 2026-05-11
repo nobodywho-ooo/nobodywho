@@ -1,5 +1,8 @@
 import {
   type SamplerConfig,
+  samplerPresetConstrainWithGrammar,
+  samplerPresetConstrainWithJsonSchema,
+  samplerPresetConstrainWithRegex,
   samplerPresetDefault,
   samplerPresetDry,
   samplerPresetGrammar,
@@ -52,12 +55,35 @@ export class SamplerPresets {
     return samplerPresetDry() as SamplerConfig;
   }
 
-  /** Create a sampler configured for JSON output generation. */
+  /** Create a sampler configured for JSON output generation (any valid JSON, GBNF-based). */
   static json(): SamplerConfig {
     return samplerPresetJson() as SamplerConfig;
   }
 
-  /** Create a sampler with a custom grammar constraint. */
+  /** Constrain output to a JSON schema via llguidance. Accepts a schema object or a JSON string. */
+  static constrainWithJsonSchema(schema: object | string): SamplerConfig {
+    const schemaStr = typeof schema === "string" ? schema : JSON.stringify(schema);
+    return samplerPresetConstrainWithJsonSchema(schemaStr) as SamplerConfig;
+  }
+
+  /** Constrain output to a regular expression via llguidance. Accepts a RegExp or a pattern string. */
+  static constrainWithRegex(pattern: RegExp | string): SamplerConfig {
+    const patternStr = pattern instanceof RegExp ? pattern.source : pattern;
+    return samplerPresetConstrainWithRegex(patternStr) as SamplerConfig;
+  }
+
+  /**
+   * Constrain output using a grammar via llguidance.
+   * Accepts both Lark syntax (`start: "yes" | "no"`) and GBNF (`root ::= "yes" | "no"`).
+   * GBNF is automatically converted to Lark before use.
+   */
+  static constrainWithGrammar(grammar: string): SamplerConfig {
+    return samplerPresetConstrainWithGrammar(grammar) as SamplerConfig;
+  }
+
+  /**
+   * @deprecated Use {@link constrainWithGrammar} instead. It accepts both Lark and GBNF strings.
+   */
   static grammar(grammar: string): SamplerConfig {
     return samplerPresetGrammar(grammar) as SamplerConfig;
   }

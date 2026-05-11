@@ -194,7 +194,7 @@ fn parse_model_path(
             (alt((tag_no_case("https://"), tag_no_case("http://"))), rest),
             |(scheme, path): (&str, &str)| ParsedModelPath::HttpUrl(format!("{}{}", scheme, path)),
         ),
-        // Anything else is a filesystem path
+        // Anything else is a filesystem path (expand leading ~ on non-Android)
         map(rest, |p: &str| {
             ParsedModelPath::FilesystemPath(std::path::PathBuf::from(p))
         }),

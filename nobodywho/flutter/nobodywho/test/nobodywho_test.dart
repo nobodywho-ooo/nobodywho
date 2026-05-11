@@ -358,6 +358,28 @@ void main() {
       expect(response1, equals(response2)); // Should be identical with greedy
     });
 
+    test('constrain_with_grammar enforces Lark grammar', () async {
+      final sampler = nobodywho.SamplerPresets.constrainWithGrammar(
+        grammar: 'start: "yes" | "no"',
+      );
+      await chat!.setSamplerConfig(sampler);
+      final response = await chat!
+          .ask("Explain in detail why the sky appears blue.")
+          .completed();
+      expect(response, anyOf(equals("yes"), equals("no")));
+    });
+
+    test('constrain_with_grammar also accepts GBNF input', () async {
+      final sampler = nobodywho.SamplerPresets.constrainWithGrammar(
+        grammar: 'root ::= "yes" | "no"',
+      );
+      await chat!.setSamplerConfig(sampler);
+      final response = await chat!
+          .ask("Explain in detail why the sky appears blue.")
+          .completed();
+      expect(response, anyOf(equals("yes"), equals("no")));
+    });
+
     test('Cosine similarity works', () {
       // Test with simple vectors
       final vec1 = [1.0, 2.0, 3.0];

@@ -27,44 +27,99 @@ To see the whole list of presets, check out the `SamplerPresets` class:
 class SamplerPresets {
   static SamplerConfig defaultSampler();
   static SamplerConfig dry();
-  static SamplerConfig grammar({required String grammar});
   static SamplerConfig greedy();
   static SamplerConfig json();
   static SamplerConfig temperature({required double temperature});
   static SamplerConfig topK({required int topK});
   static SamplerConfig topP({required double topP});
-  ...
+
+  // Constrain output to a specific format:
+  static SamplerConfig constrainWithJsonSchema({required String schema});
+  static SamplerConfig constrainWithRegex({required String pattern});
+  static SamplerConfig constrainWithGrammar({required String grammar});
 }
 ```
 
 ## Structured output
 
-One of the most useful presets to have, is to be able to generate structured output,
-such as JSON. This way, you dont have to rely on your model being clever enough to
-generate syntactically valid JSON, but instead you are strictly guaranteed that the
-output will be right. For plain JSON, it suffices to:
+One of the most useful features is constraining the model to produce structured output —
+this gives you a hard guarantee that the output matches a specific format, rather than
+relying on the model to get it right on its own.
+
+### Regular expressions
+
+For simpler patterns, you can constrain the output with a regex:
+```dart
+// Force the model to answer with exactly "yes" or "no"
+final chat = await nobodywho.Chat.fromPath(
+  modelPath: './model.gguf',
+  sampler: nobodywho.SamplerPresets.constrainWithRegex(pattern: r'yes|no'),
+);
+final answer = await chat.ask("Is the sky blue?").completed();
+```
+
+### JSON schema
+
+In some use-cases it might be useful to let the LLM generate JSON output.
+This could be done either in the simple way, just enforcing any JSON by the preset:
 ```dart
 final chat = await nobodywho.Chat.fromPath(
   modelPath: './model.gguf',
-  sampler: nobodywho.SamplerPresets.json()
+  sampler: nobodywho.SamplerPresets.json(),
 );
 ```
 
-Still, you might have more advanced needs, such as generating CSVs or JSON with some specific keys. This can be supported by creating custom grammars, such as this one for CSV:
+Or utilizing JSON schemas to really force the LLM to give you the specific object shapes
+that you want:
 ```dart
-final sampler = nobodywho.SamplerPresets.grammar(grammar: """
-    file ::= record (newline record)* newline?
-    record ::= field ("," field)*
-    field ::= quoted_field | unquoted_field
-    unquoted_field ::= unquoted_char*
-    unquoted_char ::= [^,"\n\r]
-    quoted_field ::= "\"" quoted_char* "\""
-    quoted_char ::= [^"] | "\"\""
-    newline ::= "\r\n" | "\n"
+final chat = await nobodywho.Chat.fromPath(
+  modelPath: './model.gguf',
+  sampler: nobodywho.SamplerPresets.constrainWithJsonSchema(schema: {
+    'type': 'object',
+    'properties': {
+      'name': {'type': 'string'},
+      'age':  {'type': 'integer'},
+    },
+    'required': ['name', 'age'],
+  }),
+);
+final response = await chat.ask("Give me a person.").completed();
+final person = jsonDecode(response); // always valid JSON matching the schema
+```
+
+### Custom grammars (advanced)
+
+For cases where JSON schema and regex are not expressive enough, you can supply a custom grammar.
+`constrainWithGrammar` accepts both **Lark** syntax and **GBNF** (llama.cpp format) —
+NobodyWho automatically converts GBNF to Lark before passing it to the inference engine.
+
+**Lark syntax** (recommended):
+```dart
+final sampler = nobodywho.SamplerPresets.constrainWithGrammar(grammar: """
+    start: record (NEWLINE record)* NEWLINE?
+    record: field ("," field)*
+    field: /[^,"\\n\\r]+/
+    NEWLINE: /\\r?\\n/
 """);
 ```
-The format that NobodyWho utilizes is called GBNF, which is a Llama.cpp native format.
-See the [GBNF specification](https://github.com/ggml-org/llama.cpp/blob/master/grammars/README.md).
+
+**GBNF syntax** (also accepted):
+```dart
+final sampler = nobodywho.SamplerPresets.constrainWithGrammar(grammar: """
+    file   ::= record (newline record)* newline?
+    record ::= field ("," field)*
+    field  ::= /[^,"\\n\\r]+/
+    newline ::= "\\r\\n" | "\\n"
+""");
+```
+
+See the [Lark documentation](https://lark-parser.readthedocs.io/en/latest/grammar.html) and the
+[GBNF specification](https://github.com/ggml-org/llama.cpp/blob/master/grammars/README.md) for the
+full grammar syntax.
+
+!!! info ""
+    The older `SamplerPresets.grammar()` method is deprecated. Use
+    `SamplerPresets.constrainWithGrammar()` instead — it accepts both Lark and GBNF strings.
 
 
 ## Defining your own samplers

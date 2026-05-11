@@ -1456,13 +1456,16 @@ impl SamplerBuilder {
         )
     }
 
-    /// Apply a grammar constraint to enforce structured output.
+    /// Apply a GBNF grammar constraint to enforce structured output.
+    ///
+    /// Deprecated: Use `SamplerBuilder.constrain()` with a `Constraint` object instead.
     ///
     /// Args:
     ///     grammar: Grammar specification in GBNF format (GGML BNF, a variant of BNF used by llama.cpp)
     ///     trigger_on: Optional string that, when generated, activates the grammar constraint.
     ///                 Useful for letting the model generate free-form text until a specific marker.
     ///     root: Name of the root grammar rule to start parsing from
+    #[allow(deprecated)]
     pub fn grammar(&self, grammar: String, trigger_on: Option<String>, root: String) -> Self {
         shift_step(
             self.clone(),
@@ -1674,20 +1677,68 @@ impl SamplerPresets {
         }
     }
 
-    /// Create a sampler configured for JSON output generation.
-    /// Uses a grammar constraint to ensure the model outputs only valid JSON.
+    /// Create a sampler that constrains output to a JSON schema via llguidance.
+    ///
+    /// Args:
+    ///     schema: JSON schema as a dict or a JSON string
     #[staticmethod]
+    pub fn constrain_with_json_schema(schema: &Bound<'_, PyAny>) -> PyResult<SamplerConfig> {
+        let schema_str: String = if let Ok(s) = schema.extract::<String>() {
+            s
+        } else {
+            schema
+                .py()
+                .import("json")?
+                .call_method1("dumps", (schema,))?
+                .extract::<String>()?
+        };
+        Ok(SamplerConfig {
+            sampler_config: nobodywho::sampler_config::SamplerPresets::constrain_with_json_schema(
+                schema_str,
+            ),
+        })
+    }
+
+    /// Create a sampler that constrains output to a regular expression via llguidance.
+    ///
+    /// Args:
+    ///     pattern: Regular expression pattern
+    #[staticmethod]
+    pub fn constrain_with_regex(pattern: String) -> SamplerConfig {
+        SamplerConfig {
+            sampler_config: nobodywho::sampler_config::SamplerPresets::constrain_with_regex(
+                pattern,
+            ),
+        }
+    }
+
+    /// Create a sampler that constrains output using a Lark grammar via llguidance.
+    ///
+    /// Args:
+    ///     grammar: Lark grammar string
+    #[staticmethod]
+    pub fn constrain_with_grammar(grammar: String) -> SamplerConfig {
+        SamplerConfig {
+            sampler_config: nobodywho::sampler_config::SamplerPresets::constrain_with_grammar(
+                grammar,
+            ),
+        }
+    }
+
+    /// Create a sampler that constrains output to valid JSON (any structure) using GBNF.
+    ///
+    /// For schema-validated JSON, use `constrain_with_json_schema()` instead.
+    #[staticmethod]
+    #[allow(deprecated)]
     pub fn json() -> SamplerConfig {
         SamplerConfig {
             sampler_config: nobodywho::sampler_config::SamplerPresets::json(),
         }
     }
 
-    /// Create a sampler with a custom grammar constraint.
-    ///
-    /// Args:
-    ///     grammar: Grammar specification in GBNF format (GGML BNF, a variant of BNF used by llama.cpp)
+    /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
     #[staticmethod]
+    #[allow(deprecated)]
     pub fn grammar(grammar: String) -> SamplerConfig {
         SamplerConfig {
             sampler_config: nobodywho::sampler_config::SamplerPresets::grammar(grammar),

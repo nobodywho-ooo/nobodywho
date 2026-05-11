@@ -131,6 +131,45 @@ export async function loadModel(modelPath: string, useGpu: boolean, projectionMo
     }
     }
 /**
+ * Create a sampler that constrains output using a Lark grammar via llguidance.
+ */
+export function samplerPresetConstrainWithGrammar(grammar: string): SamplerConfigInterface {
+    return FfiConverterTypeSamplerConfig.lift(uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(
+        FfiConverterString.lower(grammar),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    ));
+    }
+/**
+ * Create a sampler that constrains output to a JSON schema via llguidance.
+ */
+export function samplerPresetConstrainWithJsonSchema(schema: string): SamplerConfigInterface {
+    return FfiConverterTypeSamplerConfig.lift(uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_json_schema(
+        FfiConverterString.lower(schema),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    ));
+    }
+/**
+ * Create a sampler that constrains output to a regular expression via llguidance.
+ */
+export function samplerPresetConstrainWithRegex(pattern: string): SamplerConfigInterface {
+    return FfiConverterTypeSamplerConfig.lift(uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_regex(
+        FfiConverterString.lower(pattern),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    ));
+    }
+/**
  * Get the default sampler configuration.
  */
 export function samplerPresetDefault(): SamplerConfigInterface {
@@ -179,9 +218,6 @@ export function samplerPresetGreedy(): SamplerConfigInterface {
             /*liftString:*/ FfiConverterString.lift,
     ));
     }
-/**
- * Create a sampler configured for JSON output generation.
- */
 export function samplerPresetJson(): SamplerConfigInterface {
     return FfiConverterTypeSamplerConfig.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
@@ -2485,7 +2521,7 @@ export interface SamplerBuilderInterface {
      */
     dry(multiplier: /*f32*/number, base: /*f32*/number, allowedLength: /*i32*/number, penaltyLastN: /*i32*/number, seqBreakers: Array<string>) : SamplerBuilderInterface;
     /**
-     * Apply a grammar constraint to enforce structured output.
+     * Deprecated: Use `sampler_preset_constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
      */
     grammar(grammar: string, triggerOn: string | undefined, root: string) : SamplerBuilderInterface;
     /**
@@ -2588,7 +2624,7 @@ export class SamplerBuilder extends UniffiAbstractObject implements SamplerBuild
     }
     
     /**
-     * Apply a grammar constraint to enforce structured output.
+     * Deprecated: Use `sampler_preset_constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
      */
  grammar(grammar: string, triggerOn: string | undefined, root: string): SamplerBuilderInterface {
     return FfiConverterTypeSamplerBuilder.lift(uniffiCaller.rustCall(
@@ -3045,6 +3081,15 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model() !== 33587) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_load_model");
     }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar() !== 13698) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_json_schema() !== 4691) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_json_schema");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_regex() !== 25543) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_regex");
+    }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_default() !== 10834) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_sampler_preset_default");
     }
@@ -3057,7 +3102,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_greedy() !== 13219) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_sampler_preset_greedy");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_json() !== 40006) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_json() !== 8103) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_sampler_preset_json");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_temperature() !== 64803) {
@@ -3141,7 +3186,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dry() !== 35315) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dry");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_grammar() !== 24369) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_grammar() !== 3547) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_grammar");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy() !== 32898) {
