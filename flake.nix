@@ -52,31 +52,7 @@
             export TEST_EMBEDDINGS_MODEL=${test-models.TEST_EMBEDDINGS_MODEL}
             export TEST_CROSSENCODER_MODEL=${test-models.TEST_CROSSENCODER_MODEL}
 
-            # llama-cpp-2 bakes GGML_BACKENDS_DIR via option_env! at compile time. In
-            # Nix that compile-time path is the llama-cpp-sys-2 sandbox build dir, which
-            # is destroyed once the sys derivation finishes. Without this override the
-            # test process finds zero dynamic backends, llama_model_load_from_file
-            # returns NULL, and every model-loading test panics with "null result from
-            # llama cpp". Find the installed backends in the closure and point at them.
-            #
-            # Same store path also has the main shared libs (libllama, libggml,
-            # libggml-base) under lib64/. The test binary on macOS was linked with
-            # @rpath/libggml-base.dylib install names but no LC_RPATH was added by
-            # crate2nix's link step, so dyld fails to find them. Export
-            # DYLD_LIBRARY_PATH (linux: LD_LIBRARY_PATH) so dyld/ld.so resolves at
-            # runtime.
-            for d in /nix/store/*-rust_llama-cpp-sys-2-*-lib/lib/llama-cpp-sys-2.out; do
-              if [ -d "$d/backends" ] && ls "$d"/backends/libggml-* >/dev/null 2>&1; then
-                export GGML_BACKEND_DIR="$d/backends"
-                if [ -d "$d/lib64" ]; then
-                  export DYLD_LIBRARY_PATH="$d/lib64''${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
-                  export DYLD_FALLBACK_LIBRARY_PATH="$d/lib64''${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}"
-                  export LD_LIBRARY_PATH="$d/lib64''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-                fi
-                echo "test-runtime: GGML_BACKEND_DIR=$GGML_BACKEND_DIR"
-                break
-              fi
-            done
+
           '';
         };
 
