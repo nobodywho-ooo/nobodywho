@@ -226,7 +226,11 @@ impl Parser {
     }
 
     fn position_str(&self) -> String {
-        let line_no = self.chars[..self.pos].iter().filter(|&&c| c == '\n').count() + 1;
+        let line_no = self.chars[..self.pos]
+            .iter()
+            .filter(|&&c| c == '\n')
+            .count()
+            + 1;
         let ctx_start = self.pos.saturating_sub(20);
         let pref: String = self.chars[ctx_start..self.pos].iter().collect();
         let end = (self.pos + 20).min(self.chars.len());
@@ -607,8 +611,7 @@ fn resolve(rules: &mut Vec<Rule>) -> Result<(), GbnfToLarkError> {
     loop {
         let mut changed = false;
         for rule in rules.iter_mut() {
-            if rule.name != "start" && !rule.is_terminal && rule.body.is_terminal(&terminal_names)
-            {
+            if rule.name != "start" && !rule.is_terminal && rule.body.is_terminal(&terminal_names) {
                 rule.is_terminal = true;
                 terminal_names.insert(rule.name.clone());
                 changed = true;
@@ -717,8 +720,16 @@ mod tests {
     fn test_terminal_char_class() {
         let gbnf = "digit ::= [0-9]\nroot ::= digit+";
         let lark = gbnf_to_lark(gbnf).unwrap();
-        assert!(lark.contains("DIGIT:"), "Expected DIGIT terminal rule:\n{}", lark);
-        assert!(lark.contains("DIGIT+"), "Expected DIGIT+ in start:\n{}", lark);
+        assert!(
+            lark.contains("DIGIT:"),
+            "Expected DIGIT terminal rule:\n{}",
+            lark
+        );
+        assert!(
+            lark.contains("DIGIT+"),
+            "Expected DIGIT+ in start:\n{}",
+            lark
+        );
     }
 
     #[test]
@@ -726,7 +737,11 @@ mod tests {
         // jsonValue ::= "x"  →  body is a literal, so it's terminal  →  JSON_VALUE
         let gbnf = "jsonValue ::= \"x\"\nroot ::= jsonValue";
         let lark = gbnf_to_lark(gbnf).unwrap();
-        assert!(lark.contains("JSON_VALUE:"), "Expected JSON_VALUE (camelCase+terminal):\n{}", lark);
+        assert!(
+            lark.contains("JSON_VALUE:"),
+            "Expected JSON_VALUE (camelCase+terminal):\n{}",
+            lark
+        );
     }
 
     #[test]
@@ -734,7 +749,11 @@ mod tests {
         // jsonArray wraps root (start), which is never terminal → json_array stays non-terminal
         let gbnf = "jsonArray ::= \"(\" root \")\"\nroot ::= [a-z]+";
         let lark = gbnf_to_lark(gbnf).unwrap();
-        assert!(lark.contains("json_array:"), "Expected json_array (camelCase+non-terminal):\n{}", lark);
+        assert!(
+            lark.contains("json_array:"),
+            "Expected json_array (camelCase+non-terminal):\n{}",
+            lark
+        );
     }
 
     #[test]
@@ -826,7 +845,7 @@ mod tests {
     fn test_dot_becomes_regex() {
         let gbnf = "root ::= .+";
         let lark = gbnf_to_lark(gbnf).unwrap();
-        assert!(lark.contains("/./" ), "{}", lark);
+        assert!(lark.contains("/./"), "{}", lark);
     }
 
     #[test]
@@ -848,7 +867,15 @@ mod tests {
         let gbnf = "root     ::= object\nobject   ::= \"{\" ws \"}\"\nws       ::= [ \\t\\n]*";
         let lark = gbnf_to_lark(gbnf).unwrap();
         assert!(lark.contains("start:"), "{}", lark);
-        assert!(lark.contains("WS:"), "ws should become terminal WS:\n{}", lark);
-        assert!(lark.contains("OBJECT:"), "object should become terminal OBJECT:\n{}", lark);
+        assert!(
+            lark.contains("WS:"),
+            "ws should become terminal WS:\n{}",
+            lark
+        );
+        assert!(
+            lark.contains("OBJECT:"),
+            "object should become terminal OBJECT:\n{}",
+            lark
+        );
     }
 }

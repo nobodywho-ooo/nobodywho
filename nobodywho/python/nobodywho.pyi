@@ -815,7 +815,7 @@ class SamplerPresets:
         Create a sampler that constrains output to a JSON schema via llguidance.
         
         Args:
-            schema: JSON schema string
+            schema: JSON schema as a dict or a JSON string
         """
     @staticmethod
     def constrain_with_regex(pattern: str) -> SamplerConfig:

@@ -796,7 +796,9 @@ impl SamplerBuilder {
 
     /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
     #[flutter_rust_bridge::frb(sync)]
-    #[deprecated(note = "Use SamplerPresets.constrainWithGrammar() instead. It accepts both Lark and GBNF strings.")]
+    #[deprecated(
+        note = "Use SamplerPresets.constrainWithGrammar() instead. It accepts both Lark and GBNF strings."
+    )]
     #[allow(deprecated)]
     pub fn grammar(&self, grammar: String, trigger_on: Option<String>, root: String) -> Self {
         shift_step(

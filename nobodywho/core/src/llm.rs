@@ -195,7 +195,9 @@ fn parse_model_path(
             |(scheme, path): (&str, &str)| ParsedModelPath::HttpUrl(format!("{}{}", scheme, path)),
         ),
         // Anything else is a filesystem path (expand leading ~ on non-Android)
-        map(rest, |p: &str| ParsedModelPath::FilesystemPath(std::path::PathBuf::from(p))),
+        map(rest, |p: &str| {
+            ParsedModelPath::FilesystemPath(std::path::PathBuf::from(p))
+        }),
     ));
     let result: nom::IResult<&str, ParsedModelPath> = parser.parse(model_path);
     result

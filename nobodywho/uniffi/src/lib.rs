@@ -819,7 +819,9 @@ impl SamplerBuilder {
     }
 
     /// Deprecated: Use `sampler_preset_constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
-    #[deprecated(note = "Use sampler_preset_constrain_with_grammar() instead. It accepts both Lark and GBNF strings.")]
+    #[deprecated(
+        note = "Use sampler_preset_constrain_with_grammar() instead. It accepts both Lark and GBNF strings."
+    )]
     pub fn grammar(
         &self,
         grammar: String,
@@ -1000,7 +1002,6 @@ pub fn sampler_preset_constrain_with_grammar(grammar: String) -> Arc<SamplerConf
         inner: nobodywho::sampler_config::SamplerPresets::constrain_with_grammar(grammar),
     })
 }
-
 
 #[uniffi::export]
 pub fn sampler_preset_json() -> Arc<SamplerConfig> {
