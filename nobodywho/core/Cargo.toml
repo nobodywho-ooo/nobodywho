@@ -19,12 +19,6 @@ llama-cpp-2 = { git = "https://github.com/marek-hradil/llama-cpp-rs", branch = "
     "llguidance",
 ] }
 lazy_static = "1.5.0"
-tokio = { version = "1.43.0", features = [
-    "sync",
-    "rt",
-    "rt-multi-thread",
-    "macros",
-] }
 tokio-stream = "0.1.17"
 tracing = { version = "0.1.41", features = ["log"] }
 tracing-subscriber = "0.3.19"
@@ -37,13 +31,31 @@ rand = "0.9.3"
 futures = "0.3.31"
 ahash = "0.8.12"
 indexmap = "2.13.0"
+
+# Native-only deps:
+# - `tokio` with `rt-multi-thread`: background workers spawn real OS threads.
+#   wasm32 has only a single-threaded JS event loop, so it gets `rt` (no
+#   multi-thread). See `nobodywho/wasm/README.md` for the worker-refactor
+#   follow-up that actually makes wasm32 builds run.
+# - `ureq` does raw TCP/TLS; not available in a browser sandbox. wasm32 fetches
+#   model bytes on the JS side via `fetch` and hands them to a future
+#   `Model::load_bytes` API instead.
+# - `indicatif` renders terminal progress bars. No terminal in a browser.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { version = "1.43.0", features = ["sync", "rt", "rt-multi-thread", "macros"] }
 ureq = { version = "3", features = ["rustls"] }
 indicatif = "0.18"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+tokio = { version = "1.43.0", features = ["sync", "rt", "macros"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 libc = "0.2"
 
-[target.'cfg(not(target_os = "android"))'.dependencies]
+# `dirs` resolves OS-standard cache/config paths. Neither Android nor wasm32
+# fits that model: Android reads /proc/self/cmdline directly (see llm.rs),
+# wasm32 has no filesystem at all.
+[target.'cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))'.dependencies]
 dirs = "6"
 
 # Enable Vulkan for x86_64, x86, and aarch64 targets (excluding macOS, iOS, Android)

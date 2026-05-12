@@ -8,29 +8,55 @@ Flutter, Godot, and Uniffi bindings.
 
 This crate establishes the binding's public API and workspace integration. It
 **compiles cleanly on native** (so `cargo check` at the workspace root keeps
-working), but `wasm-pack build --target web` will fail until two upstream
-prerequisites land:
+working), but `wasm-pack build --target web` will fail until the three
+prerequisites below land.
 
-1. **`llama-cpp-2` needs a wasm32 build path.**
-   `nobodywho/core/Cargo.toml:15` pins the `marek-hradil/llama-cpp-rs` fork.
-   The fork's `build.rs` invokes CMake against llama.cpp's C++ source, which
-   has no wasm32 toolchain configured. The plan (Option 1 / Step 1 of the
-   WASM rollout) is to maintain our own fork on top of Marek's that adds an
-   Emscripten cmake branch and feature-gates out `openmp`, `mtmd`, `cuda`,
-   `vulkan`, and `metal` for `target_arch = "wasm32"`.
+### Step 1 — `llama-cpp-2` needs a wasm32 build path
 
-2. **`nobodywho/core` needs `cfg(target_arch = "wasm32")` gating.**
-   Specifically:
-   - `core/Cargo.toml:22-27` — split tokio features so wasm gets `rt` only,
-     not `rt-multi-thread`.
-   - `core/Cargo.toml:40` — gate the `ureq` HTTP download dependency to
-     non-wasm targets; add a bytes-based `Model::load_bytes` API for wasm.
-   - `core/src/chat.rs:307`, `core/src/llm.rs` Worker setup — replace
-     `std::thread::spawn` with `wasm_bindgen_futures::spawn_local` on wasm.
-   - `core/src/llm.rs` `default_progress_callback` (`indicatif`) — gate to
-     non-wasm.
+`nobodywho/core/Cargo.toml:15` pins the `marek-hradil/llama-cpp-rs` fork.
+The fork's `build.rs` invokes CMake against llama.cpp's C++ source, which
+has no wasm32 toolchain configured. The plan is to maintain our own fork
+on top of Marek's that adds an Emscripten cmake branch and feature-gates
+out `openmp`, `mtmd`, `cuda`, `vulkan`, and `metal` for
+`target_arch = "wasm32"`.
 
-Neither change touches this crate; both unblock it.
+### Step 2a — `core/` dependency gates ✅ done
+
+Landed in commit following the scaffold:
+- `core/Cargo.toml` — `tokio` split: `rt-multi-thread` on native, plain
+  `rt` on wasm. `ureq` (raw sockets, not available in browser) and
+  `indicatif` (no terminal) gated to non-wasm. `dirs` gated to non-android,
+  non-wasm.
+- `core/src/llm.rs` — `default_progress_callback` and the `indicatif`
+  import gated to non-wasm.
+
+### Step 2b — Worker refactor (not yet done)
+
+The Worker pattern uses `std::thread::spawn` + blocking `std::sync::mpsc::recv`
+in five places:
+- `core/src/chat.rs:307` (`ChatHandle::new`)
+- `core/src/chat.rs:576` (`ChatHandleAsync::new`)
+- `core/src/encoder.rs:34` (`EncoderAsync::new`)
+- `core/src/crossencoder.rs:47` (`CrossEncoderAsync::new`)
+- `core/src/llm.rs:317` (`get_model_async`)
+
+`WorkerGuard` (`core/src/llm.rs:828`) stores a `std::thread::JoinHandle`.
+
+wasm32 has no OS threads. Each of these needs a cfg-gated alternative that
+uses `wasm_bindgen_futures::spawn_local` and `tokio::sync::mpsc` async
+channels instead. The `WorkerGuard` needs to grow a cfg-gated variant that
+holds a cancellation token instead of a `JoinHandle`. This is a real design
+change — needs maintainer alignment on whether wasm uses cooperative
+single-threaded inference (blocks the main thread during decode) or Web
+Workers for true parallelism.
+
+### Step 2c — Bytes-based model loading (not yet done)
+
+`core/src/llm.rs` `get_model` paths go through file I/O and `ureq`
+downloads. A new `Model::load_bytes(Vec<u8>) -> Result<Model, _>`
+constructor is needed for wasm (and is useful on native too — tests
+already have GGUF bytes in memory). The scaffold's
+`Model::loadBytes` JS API points to this.
 
 ## What's exposed
 
