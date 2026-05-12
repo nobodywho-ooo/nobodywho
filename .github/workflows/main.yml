@@ -37,6 +37,9 @@ jobs:
     with:
       full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
 
+  wasm_ci:
+    uses: ./.github/workflows/wasm_ci.yml
+
   test:
     uses: ./.github/workflows/test.yml
     with:

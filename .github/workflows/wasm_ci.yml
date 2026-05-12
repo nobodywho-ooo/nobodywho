@@ -1,0 +1,74 @@
+name: "Wasm CI"
+
+# Builds the wasm32-unknown-unknown target via wasi-sdk + wasm-bindgen and
+# runs the no-model smoke test in Node. Skips actually loading a GGUF —
+# that requires hosting a multi-MB model file somewhere.
+
+on:
+  workflow_call: {}
+
+jobs:
+  wasm-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Cache cargo registry + git deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            nobodywho/target
+          key: wasm-${{ runner.os }}-${{ hashFiles('nobodywho/Cargo.lock') }}
+          restore-keys: |
+            wasm-${{ runner.os }}-
+
+      - name: Install wasi-sdk
+        run: |
+          set -euo pipefail
+          cd ~
+          curl -L https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-33/wasi-sdk-33.0-x86_64-linux.tar.gz \
+            | tar -xz
+          echo "WASI_SDK_PATH=$HOME/wasi-sdk-33.0-x86_64-linux" >> "$GITHUB_ENV"
+
+      - name: Install rustup wasm target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Install wasm-bindgen-cli
+        run: cargo install wasm-bindgen-cli --version 0.2.121 --locked
+
+      - name: Build wasm32-unknown-unknown (release)
+        working-directory: nobodywho
+        run: cargo build --target wasm32-unknown-unknown --release -p nobodywho-wasm
+
+      - name: Run wasm-bindgen
+        working-directory: nobodywho
+        run: |
+          mkdir -p wasm/pkg-bundler
+          wasm-bindgen --target bundler \
+            target/wasm32-unknown-unknown/release/nobodywho_wasm.wasm \
+            --out-dir wasm/pkg-bundler/
+
+      - name: Smoke test under Node (no model)
+        working-directory: nobodywho
+        run: node wasm/examples/run.mjs
+
+      - name: Inspect artifact sizes
+        working-directory: nobodywho/wasm/pkg-bundler
+        run: |
+          ls -lh
+          echo ""
+          echo "Brotli-compressed size of wasm (target for npm distribution):"
+          brotli -k -q 11 nobodywho_wasm_bg.wasm -o /tmp/wasm.br || true
+          ls -lh /tmp/wasm.br || true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nobodywho-wasm-pkg
+          path: nobodywho/wasm/pkg-bundler/
+          retention-days: 14
