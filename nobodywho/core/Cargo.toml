@@ -3,6 +3,14 @@ name = "nobodywho"
 version = "2.2.0"
 edition = "2021"
 
+[features]
+default = ["mtmd"]
+# Multimodal (image / audio) input support, backed by llama.cpp's `mtmd`
+# C++ library. Default-on for native; the wasm binding opts out because
+# the underlying C++ pulls in libraries (miniaudio with pthread sched
+# APIs) that don't compile against wasi-libc.
+mtmd = ["llama-cpp-2/mtmd"]
+
 [dependencies]
 encoding_rs = "0.8.34"
 thiserror = "2.0.3"
@@ -18,7 +26,6 @@ chrono = "0.4.39"
 llama-cpp-2 = { git = "https://github.com/nobodywho-ooo/llama-cpp-rs", branch = "wasm", default-features = false, features = [
     "openmp",
     "android-static-stdcxx",
-    "mtmd",
     "llguidance",
 ] }
 lazy_static = "1.5.0"
@@ -72,7 +79,6 @@ dirs = "6"
 llama-cpp-2 = { git = "https://github.com/nobodywho-ooo/llama-cpp-rs", branch = "wasm", default-features = false, features = [
     "openmp",
     "vulkan",
-    "mtmd",
     "android-static-stdcxx",
     "llguidance",
 ] }
@@ -81,6 +87,5 @@ llama-cpp-2 = { git = "https://github.com/nobodywho-ooo/llama-cpp-rs", branch = 
 [target.'cfg(target_os = "ios")'.dependencies]
 llama-cpp-2 = { git = "https://github.com/nobodywho-ooo/llama-cpp-rs", branch = "wasm", default-features = false, features = [
     "metal",
-    "mtmd",
     "llguidance",
 ] }
