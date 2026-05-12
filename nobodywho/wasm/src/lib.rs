@@ -25,6 +25,48 @@ use std::sync::Arc;
 use futures::FutureExt;
 use wasm_bindgen::prelude::*;
 
+// Export `_initialize` so a WASI host can run static ctors via
+// wasi.initialize(). Body is empty — wasi-libc/libc++ ctors are emitted
+// into `__wasm_call_ctors`, which wasm-bindgen / node:wasi handle for us.
+#[cfg(target_arch = "wasm32")]
+#[no_mangle]
+pub extern "C" fn _initialize() {}
+
+// Override wasi-libc's `__cxa_atexit` to a no-op.
+//
+// The default rust-lld 22.1 wasm driver doesn't understand
+// `--mexec-model=reactor`, so it leaves the cdylib in the "command" exec
+// model: every wasm-bindgen export gets wrapped with __wasm_call_ctors +
+// __wasm_call_dtors. The dtor walk runs `__funcs_on_exit`, which iterates
+// `__cxa_atexit`-registered handlers and calls each. At least one of those
+// is registered with a wasm signature that doesn't match how
+// __funcs_on_exit invokes it, producing
+//
+//   RuntimeError: function signature mismatch
+//
+// on the FIRST export call after instantiation, before any of our code
+// runs. The handlers are global-destructor callbacks libc++ registers
+// during static init.
+//
+// Workaround: define `__cxa_atexit` ourselves and have it ignore the
+// registration. Global destructors won't run at module shutdown (which
+// is fine — the wasm instance lives for the lifetime of the JS process
+// anyway, and the OS reclaims the heap), but the dtor walk becomes a
+// no-op and the signature-mismatch goes away.
+//
+// `#[no_mangle]` puts the symbol at file scope; in the wasm link, ours
+// wins over wasi-libc's definition because rustc-emitted symbols are
+// resolved before sysroot archives.
+#[cfg(target_arch = "wasm32")]
+#[no_mangle]
+pub unsafe extern "C" fn __cxa_atexit(
+    _func: Option<unsafe extern "C" fn(*mut std::ffi::c_void)>,
+    _arg: *mut std::ffi::c_void,
+    _dso_handle: *mut std::ffi::c_void,
+) -> i32 {
+    0 // pretend the registration succeeded; never run anything at exit.
+}
+
 // ---------- Install panic hook & tracing ----------
 
 /// Install panic hook and tracing subscriber. Call once from JS before any
