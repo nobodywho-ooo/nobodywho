@@ -1098,6 +1098,18 @@ fn process_worker_msg(
         ChatMsg::Ask { prompt, output_tx } => {
             let should_stop = Arc::clone(&worker_state.extra.should_stop);
             let callback = move |out| {
+                // wasm32: also fan the token out through the synchronous streaming
+                // hook (if set). The wasm binding installs one that calls
+                // self.postMessage(token), which is non-blocking from the worker
+                // thread — the main thread sees tokens as they're produced,
+                // instead of all at once after inference completes (the latter is
+                // what you'd get from the tokio-mpsc channel alone on wasm
+                // because the inference loop is sync Rust and doesn't yield back
+                // to the JS event loop between tokens).
+                #[cfg(target_arch = "wasm32")]
+                if let crate::llm::WriteOutput::Token(ref t) = out {
+                    crate::llm::with_streaming_hook(|hook| hook(t));
+                }
                 if output_tx.send(out).is_err() {
                     // Receiver was dropped or the buffer is full with nobody consuming.
                     // Either way, stop generating immediately.
