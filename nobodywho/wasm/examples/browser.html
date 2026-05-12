@@ -85,7 +85,10 @@
         const inst = await WebAssembly.instantiate(mod, {
           './nobodywho_wasm_bg.js': bg,
           env: envStubs,
-          ...wasi.getImportObject(),
+          // @bjorn3/browser_wasi_shim exposes its import table as a property
+          // (`wasiImport`), whereas `node:wasi` uses `getImportObject()`.
+          // Both expose the wasi_snapshot_preview1 ABI.
+          wasi_snapshot_preview1: wasi.wasiImport,
         });
 
         // Reactor-style init: run _initialize once.
