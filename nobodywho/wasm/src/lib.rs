@@ -55,16 +55,16 @@ impl Model {
     /// There's no path-based loader in the wasm binding — the browser sandbox
     /// has no filesystem. For HuggingFace / URL fetching, do it on the JS side
     /// before calling this.
+    ///
+    /// CPU-only; the wasm32 target has no GPU concept. `gpu_layers` is fixed
+    /// at 0 internally.
     #[wasm_bindgen(js_name = loadBytes)]
-    pub async fn load_bytes(_bytes: Vec<u8>) -> Result<Model, JsError> {
-        // TODO(wasm-step-2): requires a `get_model_from_bytes` constructor in
-        // `nobodywho::llm` that bypasses both the ureq download path and the
-        // `LlamaModelParams` file-load assumption. Tracked in Step 2 of the
-        // WASM binding plan.
-        Err(JsError::new(
-            "Model.loadBytes is not implemented yet — requires core wasm cfg-gating (Step 2). \
-             See nobodywho/wasm/README.md.",
-        ))
+    pub async fn load_bytes(bytes: Vec<u8>) -> Result<Model, JsError> {
+        let model = nobodywho::llm::get_model_from_bytes(&bytes, 0)
+            .map_err(|e| JsError::new(&e.to_string()))?;
+        Ok(Model {
+            inner: Arc::new(model),
+        })
     }
 }
 
