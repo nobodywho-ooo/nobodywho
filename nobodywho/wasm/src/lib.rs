@@ -157,12 +157,65 @@ pub struct Chat {
 }
 
 /// Optional config passed to the `Chat` constructor. Pass as a plain JS object:
-/// `new Chat(model, { contextSize: 4096, systemPrompt: "You are helpful." })`.
+///
+/// ```js
+/// new Chat(model, {
+///   contextSize: 4096,
+///   systemPrompt: "You are helpful.",
+///   constraint: { jsonSchema: '{"type":"object","properties":{...}}' },
+/// });
+/// ```
 #[derive(serde::Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 struct ChatOptions {
     context_size: Option<u32>,
     system_prompt: Option<String>,
+    constraint: Option<ConstraintSpec>,
+}
+
+/// Grammar constraint for structured-output generation, via llguidance.
+///
+/// Exactly one of the fields should be set. JS-side examples:
+///
+/// ```js
+/// // JSON Schema:
+/// { jsonSchema: '{"type":"object","properties":{"answer":{"type":"string"}}}' }
+///
+/// // Regex:
+/// { regex: "[A-Z][a-z]+" }
+///
+/// // Lark CFG:
+/// { lark: 'start: "yes" | "no"' }
+/// ```
+///
+/// All three are documented in core's `GrammarConstraint`; this is just the
+/// JS-facing wire format.
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ConstraintSpec {
+    json_schema: Option<String>,
+    regex: Option<String>,
+    lark: Option<String>,
+}
+
+impl ConstraintSpec {
+    fn into_sampler(self) -> Result<nobodywho::sampler_config::SamplerConfig, JsError> {
+        use nobodywho::sampler_config::SamplerPresets;
+        let n_set =
+            self.json_schema.is_some() as u8 + self.regex.is_some() as u8 + self.lark.is_some() as u8;
+        if n_set != 1 {
+            return Err(JsError::new(
+                "constraint must set exactly one of jsonSchema / regex / lark",
+            ));
+        }
+        Ok(if let Some(s) = self.json_schema {
+            SamplerPresets::constrain_with_json_schema(s)
+        } else if let Some(p) = self.regex {
+            SamplerPresets::constrain_with_regex(p)
+        } else {
+            SamplerPresets::constrain_with_grammar(self.lark.unwrap())
+        })
+    }
 }
 
 #[wasm_bindgen]
@@ -182,6 +235,9 @@ impl Chat {
         }
         if let Some(sys) = opts.system_prompt {
             builder = builder.with_system_prompt(Some(sys));
+        }
+        if let Some(constraint) = opts.constraint {
+            builder = builder.with_sampler(constraint.into_sampler()?);
         }
 
         Ok(Chat {
