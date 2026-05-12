@@ -11,7 +11,11 @@ crate-type = ["cdylib", "rlib"]
 path = "src/lib.rs"
 
 [dependencies]
-nobodywho = { path = "../core" }
+# `default-features = false` drops the `mtmd` feature on core. mtmd (vision +
+# audio multimodal support) relies on llama.cpp's `tools/mtmd` library, which
+# pulls in `vendor/miniaudio` with pthread sched APIs wasi-libc doesn't ship.
+# The wasm binding doesn't currently expose multimodal assets either way.
+nobodywho = { path = "../core", default-features = false }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"

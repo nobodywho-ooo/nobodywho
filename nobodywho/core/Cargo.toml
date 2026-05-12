@@ -3,6 +3,14 @@ name = "nobodywho"
 version = "2.2.0"
 edition = "2021"
 
+[features]
+default = ["mtmd"]
+# Multimodal (image / audio) input support, backed by llama.cpp's `mtmd`
+# C++ library. Default-on for native; the wasm binding opts out because
+# the underlying C++ pulls in libraries (miniaudio with pthread sched
+# APIs) that don't compile against wasi-libc.
+mtmd = ["llama-cpp-2/mtmd"]
+
 [dependencies]
 encoding_rs = "0.8.34"
 thiserror = "2.0.3"
@@ -18,7 +26,6 @@ chrono = "0.4.39"
 llama-cpp-2 = { git = "https://github.com/nobodywho-ooo/llama-cpp-rs", branch = "wasm", default-features = false, features = [
     "openmp",
     "android-static-stdcxx",
-    "mtmd",
     "llguidance",
 ] }
 lazy_static = "1.5.0"
@@ -74,7 +81,16 @@ dirs = "6"
 llama-cpp-2 = { git = "https://github.com/nobodywho-ooo/llama-cpp-rs", branch = "wasm", default-features = false, features = [
     "openmp",
     "vulkan",
-    "mtmd",
     "android-static-stdcxx",
+    "llguidance",
+] }
+
+# Enable Metal on iOS. macOS aarch64 gets Metal automatically from llama-cpp-rs upstream.
+# Kept explicit until the nobodywho-ooo/llama-cpp-rs#wasm fork picks up the
+# upstream watchOS Metal-skip patch (PR #527 on marek-hradil's main); once
+# the wasm fork rebases on that, this block can be dropped to match main.
+[target.'cfg(target_os = "ios")'.dependencies]
+llama-cpp-2 = { git = "https://github.com/nobodywho-ooo/llama-cpp-rs", branch = "wasm", default-features = false, features = [
+    "metal",
     "llguidance",
 ] }

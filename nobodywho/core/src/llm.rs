@@ -12,6 +12,7 @@ use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::AddBos;
 use llama_cpp_2::model::LlamaModel;
+#[cfg(feature = "mtmd")]
 use llama_cpp_2::mtmd::MtmdInputChunks;
 use llama_cpp_2::token::LlamaToken;
 #[cfg(not(target_arch = "wasm32"))]
@@ -782,6 +783,7 @@ where
         Ok(self)
     }
 
+    #[cfg(feature = "mtmd")]
     #[tracing::instrument(level = "trace", skip(self))]
     fn read_media_embeddings(
         &mut self,
