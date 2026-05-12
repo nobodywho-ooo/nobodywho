@@ -696,6 +696,15 @@ where
 
         // Set up context parameters using available parallelism
         let ctx = {
+            // wasm32 has no concept of hardware threads (`available_parallelism`
+            // returns Err on wasm32-unknown-unknown). Single-thread the
+            // worker — llama.cpp will run inference sequentially on the
+            // wasm event loop, which matches how the wasm binding's
+            // chat/encoder/cross-encoder are structured anyway (spawn_local,
+            // no real threads).
+            #[cfg(target_arch = "wasm32")]
+            let n_threads: i32 = 1;
+            #[cfg(not(target_arch = "wasm32"))]
             let n_threads = std::thread::available_parallelism()?.get() as i32;
             let ctx_plan = memory::plan_context(
                 std::cmp::min(n_ctx, model.language_model.n_ctx_train()),

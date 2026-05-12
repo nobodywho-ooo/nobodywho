@@ -486,6 +486,14 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn tokenize_text(&self, text: &str) -> Result<Vec<TokenizerChunk>, TokenizationError> {
+        // On wasm32, `mtmd_default_marker` resolves to an unresolved env
+        // import (we don't compile the mtmd C++). Inline the same literal
+        // llama.cpp returns for it. Text tokenization splits on this marker
+        // to interleave media chunks; on wasm there's no media so the
+        // split always produces one entry covering the whole input.
+        #[cfg(target_arch = "wasm32")]
+        let media_marker = String::from("<__media__>");
+        #[cfg(not(target_arch = "wasm32"))]
         let media_marker = llama_cpp_2::mtmd::mtmd_default_marker().to_string();
         let splits = text
             .split(media_marker.as_str())
