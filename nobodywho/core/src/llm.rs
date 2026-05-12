@@ -159,6 +159,58 @@ pub fn has_gpu_backend() -> bool {
     false
 }
 
+/// Load a model directly from an in-memory GGUF byte slice.
+///
+/// Primarily intended for sandboxed environments without filesystem access
+/// (notably WebAssembly in a browser tab), where the caller fetches the GGUF
+/// from JS via `fetch` and hands the resulting `ArrayBuffer` over to Rust.
+///
+/// On native targets this also works and is useful for tests where the GGUF
+/// is already in memory. Unlike [`get_model`] this does not consult the
+/// `dirs` cache, does not do HTTP, and does not parse fancy paths — it's a
+/// pure "bytes in, model out" entry point.
+///
+/// GPU offloading is intentionally not exposed: the wasm32 target has no
+/// GPU concept, and on native the `get_model` path is the right one when
+/// you have a file path. Pass any `use_gpu_if_available` policy via the
+/// `gpu_layers` argument (`0` for CPU-only).
+///
+/// Multimodal (`projection_model`) support is not yet wired here — the
+/// mmproj path also needs a buffer-based loader; tracked in WASM.md.
+///
+/// # Platform support
+///
+/// Available everywhere except Windows MSVC, mirroring
+/// [`llama_cpp_2::model::LlamaModel::load_from_buffer`]. The underlying
+/// `fmemopen` is POSIX and not in the MSVC CRT; a Windows tempfile
+/// fallback can be added later if a caller needs it.
+#[cfg(not(all(target_os = "windows", target_env = "msvc")))]
+pub fn get_model_from_bytes(
+    bytes: &[u8],
+    gpu_layers: u32,
+) -> Result<Model, LoadModelError> {
+    info!(
+        bytes_len = bytes.len(),
+        gpu_layers, "Loading model from in-memory bytes"
+    );
+
+    let model_params = LlamaModelParams::default().with_n_gpu_layers(gpu_layers);
+    let model_params = pin!(model_params);
+
+    let language_model = LlamaModel::load_from_buffer(&LLAMA_BACKEND, bytes, &model_params)
+        .map_err(|e| {
+            let error_msg = format!("Failed to load model from in-memory bytes: {e}");
+            error!(error = %error_msg);
+            LoadModelError::InvalidModel(error_msg)
+        })?;
+
+    info!("Model loaded from buffer successfully");
+    Ok(Model {
+        language_model,
+        projection_model: None,
+    })
+}
+
 // --- Native-only model loaders -------------------------------------------
 // Everything below up to `read_add_bos_metadata` does HTTP downloads, hits
 // the filesystem, or asks the OS for a cache directory. None of that works
