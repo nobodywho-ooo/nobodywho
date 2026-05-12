@@ -57,6 +57,28 @@ jobs:
         working-directory: nobodywho
         run: node wasm/examples/run.mjs
 
+      - name: Download a tiny embedding GGUF
+        working-directory: /tmp
+        run: |
+          # Use a small embedding model so we can exercise Model.loadBytes +
+          # Encoder.encode end-to-end in CI without burning a lot of time
+          # downloading. bge-small-en-v1.5 Q8_0 is 35 MB.
+          curl -L --fail -o bge-small.gguf \
+            'https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf'
+          ls -lh bge-small.gguf
+
+      - name: End-to-end embedding test
+        working-directory: nobodywho
+        run: |
+          # Run encode, parse out the first dim, sanity-check it's a finite
+          # float (i.e. the model actually ran and produced an embedding).
+          output=$(node wasm/examples/run.mjs --encode /tmp/bge-small.gguf "the quick brown fox")
+          echo "$output"
+          echo "$output" | grep -q "embedding generated: 384 dimensions" \
+            || { echo "expected '384 dimensions' line in output"; exit 1; }
+          echo "$output" | grep -q "first 8: \[-\?[0-9]" \
+            || { echo "expected 'first 8: [<float>...' line"; exit 1; }
+
       - name: Inspect artifact sizes
         working-directory: nobodywho/wasm/pkg-bundler
         run: |
