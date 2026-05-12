@@ -11,11 +11,13 @@ crate-type = ["cdylib", "rlib"]
 path = "src/lib.rs"
 
 [dependencies]
-# `default-features = false` drops the `mtmd` feature on core. mtmd (vision +
-# audio multimodal support) relies on llama.cpp's `tools/mtmd` library, which
-# pulls in `vendor/miniaudio` with pthread sched APIs wasi-libc doesn't ship.
-# The wasm binding doesn't currently expose multimodal assets either way.
-nobodywho = { path = "../core", default-features = false }
+# Default features include `mtmd` for now, so the existing
+# wasm32-unknown-emscripten build (which uses Emscripten's own pthread
+# emulation for miniaudio) keeps working. Once core's chat.rs and
+# tokenizer.rs finish their mtmd cfg-gating, switch this to
+# `default-features = false` to enable the wasm32-unknown-unknown
+# build path (which can't compile miniaudio against wasi-libc).
+nobodywho = { path = "../core" }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
