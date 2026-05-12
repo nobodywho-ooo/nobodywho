@@ -251,3 +251,49 @@ jobs:
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # Mirror of publish-react-native-npm but for the wasm binding.
+  # Tag your release like `nobodywho-wasm-v0.1.0` to trigger.
+  publish-wasm-npm:
+    if: startsWith(github.ref, 'refs/tags/nobodywho-wasm-v')
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: "Setup Node.js"
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: "Install wasi-sdk"
+        run: |
+          set -euo pipefail
+          cd ~
+          curl -L https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-33/wasi-sdk-33.0-x86_64-linux.tar.gz \
+            | tar -xz
+          echo "WASI_SDK_PATH=$HOME/wasi-sdk-33.0-x86_64-linux" >> "$GITHUB_ENV"
+
+      - name: "Install rustc wasm target"
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: "Install wasm-bindgen-cli"
+        run: cargo install wasm-bindgen-cli --version 0.2.121 --locked
+
+      - name: "Build the npm package"
+        working-directory: ./nobodywho
+        run: bash wasm/scripts/build-pkg.sh
+
+      - name: "Verify Login"
+        working-directory: ./nobodywho/wasm/pkg-bundler
+        run: npm whoami
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: "Publish to npm"
+        working-directory: ./nobodywho/wasm/pkg-bundler
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -57,6 +57,23 @@ cp "$WASM_DIR/README.md" "$WASM_DIR/pkg-bundler/README.md"
 echo "==> Done."
 ls -lh "$WASM_DIR/pkg-bundler/"
 echo ""
+
+# `bash build-pkg.sh --link` runs `npm link` inside pkg-bundler/ so the
+# package becomes available to downstream projects via `npm link @nobodywho/wasm`
+# without going through a real npm publish. Mirrors maturin's `develop`
+# command — the Python binding equivalent.
+if [[ "${1:-}" == "--link" ]]; then
+  if ! command -v npm >/dev/null 2>&1; then
+    echo "error: 'npm' not on PATH. Install Node.js to use --link." >&2
+    exit 1
+  fi
+  echo "==> npm link…"
+  ( cd "$WASM_DIR/pkg-bundler" && npm link )
+  echo ""
+  echo "In a consumer project:  npm link @nobodywho/wasm"
+  echo ""
+fi
+
 echo "To smoke-test:"
 echo "  node $WASM_DIR/examples/run.mjs --encode /path/to/embedding.gguf 'text'"
 echo "  node $WASM_DIR/examples/run.mjs /path/to/chat.gguf 'prompt'"
