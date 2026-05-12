@@ -159,6 +159,14 @@ pub fn has_gpu_backend() -> bool {
     false
 }
 
+// --- Native-only model loaders -------------------------------------------
+// Everything below up to `read_add_bos_metadata` does HTTP downloads, hits
+// the filesystem, or asks the OS for a cache directory. None of that works
+// in a browser sandbox, so it's gated to non-wasm32 targets. wasm consumers
+// will load models from in-memory bytes via a future `Model::load_from_bytes`
+// API (tracked in nobodywho/wasm/README.md, Step 2c).
+
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Clone)]
 enum ParsedModelPath {
     HuggingFaceUrl(String, String, String), // e.g. hf://owner/repo/model.gguf -> (owner, repo, filename)
@@ -166,6 +174,7 @@ enum ParsedModelPath {
     FilesystemPath(std::path::PathBuf),     // e.g. ./qwen3.gguf
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn parse_model_path(
     model_path: &str,
 ) -> Result<ParsedModelPath, nom::Err<nom::error::Error<String>>> {
@@ -213,6 +222,7 @@ fn parse_model_path(
 
 /// takes a fancy path (possibly with hf: or https:// in front), and resolve it to a realized path
 /// on the filesystem
+#[cfg(not(target_arch = "wasm32"))]
 fn resolve_fancy_path_to_fs(
     parsed_path: ParsedModelPath,
     progress: &DownloadProgressCallback,
@@ -234,6 +244,7 @@ fn resolve_fancy_path_to_fs(
     Ok(fs_model_path)
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[tracing::instrument(level = "info", skip(progress))]
 pub fn get_model(
     model_path: &str,
@@ -312,6 +323,7 @@ pub fn get_model(
 /// * The model file is not found (`LoadModelError::ModelNotFound`)
 /// * The model file is invalid or unsupported (`LoadModelError::InvalidModel`)
 /// * The communication channel closes unexpectedly (`LoadModelError::ModelChannelError`)
+#[cfg(not(target_arch = "wasm32"))]
 #[tracing::instrument(level = "info", skip(progress))]
 pub async fn get_model_async(
     model_path: String,
@@ -343,12 +355,13 @@ pub async fn get_model_async(
 /// via `dlopen` (not `System.loadLibrary`), so `JNI_OnLoad` is never called.
 ///
 /// On other platforms, uses the `dirs` crate to find the standard cache directory.
+#[cfg(not(target_arch = "wasm32"))]
 fn get_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
     let base = get_platform_cache_dir()?;
     Ok(base.join("nobodywho").join("models"))
 }
 
-#[cfg(target_os = "android")]
+#[cfg(all(target_os = "android", not(target_arch = "wasm32")))]
 fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
     // Read the package name from /proc/self/cmdline. This file contains the process
     // name as a null-terminated string. On Android this is the package name
@@ -383,7 +396,7 @@ fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadMod
     )))
 }
 
-#[cfg(not(target_os = "android"))]
+#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
     dirs::cache_dir().ok_or_else(|| {
         crate::errors::LoadModelError::DownloadError("Could not determine cache directory".into())
@@ -394,6 +407,7 @@ fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadMod
 ///
 /// Returns early if the file already exists at the target path.
 /// Rejects paths containing `..` to prevent path traversal attacks.
+#[cfg(not(target_arch = "wasm32"))]
 fn download_file(
     url: &str,
     target_path: &std::path::Path,
@@ -526,6 +540,7 @@ fn download_file(
 /// Download a GGUF model from HuggingFace Hub and return the local path to it.
 ///
 /// If the model is already cached locally, the cached path is returned without downloading.
+#[cfg(not(target_arch = "wasm32"))]
 fn download_model_from_hf(
     owner: &str,
     repo: &str,
@@ -542,6 +557,7 @@ fn download_model_from_hf(
 /// Download a model from a generic HTTP(S) URL and return the local path to it.
 ///
 /// The file is cached by its URL path components under the cache directory.
+#[cfg(not(target_arch = "wasm32"))]
 fn download_model_from_url(
     url: &str,
     progress: &DownloadProgressCallback,

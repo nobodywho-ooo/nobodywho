@@ -8,8 +8,11 @@ encoding_rs = "0.8.34"
 thiserror = "2.0.3"
 minijinja = { version = "2.11.0", features = ["builtins", "json", "loader"] }
 minijinja-contrib = { version = "2.11.0", features = ["pycompat"] }
-monty = { git = "https://github.com/pydantic/monty", tag = "v0.0.7" }
-bashkit = { git = "https://github.com/everruns/bashkit", tag = "v0.1.10" }
+# `monty` (Python interpreter) and `bashkit` (virtual bash) back the
+# `Tool::python` and `Tool::bash` built-in tools. Both have native-only
+# dependencies (monty has no wasm32 target; bashkit forces `tokio/full`
+# which pulls `mio` + raw sockets). Moved to a target-conditional block
+# so wasm32 consumers can still use everything else in the crate.
 serde = { version = "1.0.215", features = ["derive"] }
 chrono = "0.4.39"
 llama-cpp-2 = { git = "https://github.com/nobodywho-ooo/llama-cpp-rs", branch = "wasm", default-features = false, features = [
@@ -45,6 +48,8 @@ indexmap = "2.13.0"
 tokio = { version = "1.43.0", features = ["sync", "rt", "rt-multi-thread", "macros"] }
 ureq = { version = "3", features = ["rustls"] }
 indicatif = "0.18"
+monty = { git = "https://github.com/pydantic/monty", tag = "v0.0.7" }
+bashkit = { git = "https://github.com/everruns/bashkit", tag = "v0.1.10" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 tokio = { version = "1.43.0", features = ["sync", "rt", "macros"] }
