@@ -2122,7 +2122,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-2"
 version = "0.1.147"
-source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=wasm#10d12300ff1f50a472c7cce5a5b834e2c83d29ef"
+source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=wasm#f41f97d584e0c740931d9e7718bf168473a6ab93"
 dependencies = [
  "encoding_rs",
  "enumflags2",
@@ -2137,7 +2137,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-sys-2"
 version = "0.1.147"
-source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=wasm#10d12300ff1f50a472c7cce5a5b834e2c83d29ef"
+source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=wasm#f41f97d584e0c740931d9e7718bf168473a6ab93"
 dependencies = [
  "bindgen",
  "cc",
