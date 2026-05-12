@@ -3,24 +3,29 @@
 //! Mirrors the Python binding's API for JS/TS consumers. Async-only, since a
 //! browser tab has no thread to block on. See `README.md` for build instructions.
 //!
-//! # Status: scaffold
+//! # Why everything returns `js_sys::Promise` instead of being `pub async fn`
 //!
-//! `wasm-pack build --target web` will fail until two upstream changes land:
+//! `#[wasm_bindgen] pub async fn` desugars through
+//! `wasm_bindgen_futures::future_to_promise`, which requires the future to be
+//! `UnwindSafe`. Several of our types (`tokio::sync::Mutex`,
+//! `tokio::sync::mpsc::Receiver`, etc.) aren't, so we'd hit
+//! E0277 on every async method.
 //!
-//! 1. The `llama-cpp-2` fork at `marek-hradil/llama-cpp-rs` (pinned at
-//!    `core/Cargo.toml:15`) gains a wasm32 build path. We'll carry our own
-//!    fork as a patch carrier until it's upstreamed.
-//! 2. `nobodywho/core` gates its `std::thread::spawn`, `ureq` downloads, and
-//!    tokio `rt-multi-thread` usage behind `cfg(not(target_arch = "wasm32"))`,
-//!    and exposes a `get_model_from_bytes` constructor (no filesystem in a
-//!    browser tab).
-//!
-//! The shape of the binding (this file) is independent of both blockers — it
-//! compiles natively as an `rlib` so the workspace stays healthy. Only the
-//! wasm32 build needs the upstream work.
+//! Instead, each exported method is a plain `pub fn` returning
+//! `js_sys::Promise`, with the body run through the [`promisify`] helper which
+//! wraps the body in [`std::panic::AssertUnwindSafe`] + `catch_unwind`. Since
+//! wasm is single-threaded and there's no real concurrent access to these
+//! types, the assertion is sound — any panic is caught and surfaced to JS as
+//! a rejected promise.
 
+use std::future::Future;
+use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
+
+use futures::FutureExt;
 use wasm_bindgen::prelude::*;
+
+// ---------- Install panic hook & tracing ----------
 
 /// Install panic hook and tracing subscriber. Call once from JS before any
 /// other API. Safe to call multiple times.
@@ -29,12 +34,33 @@ pub fn init() {
     console_error_panic_hook::set_once();
     #[cfg(target_arch = "wasm32")]
     {
-        // `set_as_global_default` wires the WASMLayer into a Registry for us
-        // and installs the result as the global tracing subscriber. It panics
-        // if called more than once, but we want idempotent init from JS, so
-        // use the non-panicking helper.
+        // `set_as_global_default` panics if called twice; the `try_*` variant
+        // returns Err which we discard, making this idempotent from JS.
         tracing_wasm::try_set_as_global_default().ok();
     }
+}
+
+// ---------- Promise helper ----------
+
+/// Wrap a `Future<Output = Result<T, JsError>>` into a `js_sys::Promise`,
+/// asserting it's unwind-safe and catching panics so they reject the promise
+/// rather than tearing down the whole wasm instance.
+fn promisify<F, T>(fut: F) -> js_sys::Promise
+where
+    F: Future<Output = Result<T, JsError>> + 'static,
+    T: Into<JsValue>,
+{
+    let safe = AssertUnwindSafe(async move {
+        match fut.await {
+            Ok(v) => Ok(v.into()),
+            Err(e) => Err(JsValue::from(e)),
+        }
+    })
+    .catch_unwind()
+    .map(|r| {
+        r.unwrap_or_else(|_| Err(JsValue::from_str("rust panic crossed wasm boundary")))
+    });
+    wasm_bindgen_futures::future_to_promise(safe)
 }
 
 // ---------- Model ----------
@@ -59,11 +85,13 @@ impl Model {
     /// CPU-only; the wasm32 target has no GPU concept. `gpu_layers` is fixed
     /// at 0 internally.
     #[wasm_bindgen(js_name = loadBytes)]
-    pub async fn load_bytes(bytes: Vec<u8>) -> Result<Model, JsError> {
-        let model = nobodywho::llm::get_model_from_bytes(&bytes, 0)
-            .map_err(|e| JsError::new(&e.to_string()))?;
-        Ok(Model {
-            inner: Arc::new(model),
+    pub fn load_bytes(bytes: Vec<u8>) -> js_sys::Promise {
+        promisify(async move {
+            let model = nobodywho::llm::get_model_from_bytes(&bytes, 0)
+                .map_err(|e| JsError::new(&e.to_string()))?;
+            Ok(Model {
+                inner: Arc::new(model),
+            })
         })
     }
 }
@@ -112,29 +140,40 @@ impl Chat {
     /// Send a prompt and receive a `TokenStream`. Tokens arrive as they're
     /// generated; await `nextToken()` in a loop, or call `completed()` to
     /// resolve to the full response.
-    pub async fn ask(&self, prompt: String) -> TokenStream {
-        let stream = self.handle.ask(prompt);
-        TokenStream {
-            inner: Arc::new(tokio::sync::Mutex::new(stream)),
-        }
+    pub fn ask(&self, prompt: String) -> js_sys::Promise {
+        let handle = self.handle.clone();
+        promisify(async move {
+            let stream = handle.ask(prompt);
+            Ok(TokenStream {
+                inner: Arc::new(tokio::sync::Mutex::new(stream)),
+            })
+        })
     }
 
     /// Reset the conversation. Optionally provide a new system prompt.
     /// Tools are cleared on reset.
-    pub async fn reset(&self, system_prompt: Option<String>) -> Result<(), JsError> {
-        self.handle
-            .reset_chat(system_prompt, vec![])
-            .await
-            .map_err(|e| JsError::new(&e.to_string()))
+    pub fn reset(&self, system_prompt: Option<String>) -> js_sys::Promise {
+        let handle = self.handle.clone();
+        promisify(async move {
+            handle
+                .reset_chat(system_prompt, vec![])
+                .await
+                .map_err(|e| JsError::new(&e.to_string()))?;
+            Ok(JsValue::UNDEFINED)
+        })
     }
 
     /// Clear the chat history, keeping the system prompt and tools.
     #[wasm_bindgen(js_name = resetHistory)]
-    pub async fn reset_history(&self) -> Result<(), JsError> {
-        self.handle
-            .reset_history()
-            .await
-            .map_err(|e| JsError::new(&e.to_string()))
+    pub fn reset_history(&self) -> js_sys::Promise {
+        let handle = self.handle.clone();
+        promisify(async move {
+            handle
+                .reset_history()
+                .await
+                .map_err(|e| JsError::new(&e.to_string()))?;
+            Ok(JsValue::UNDEFINED)
+        })
     }
 }
 
@@ -162,18 +201,30 @@ pub struct TokenStream {
 impl TokenStream {
     /// Resolves to the next token, or `undefined` when generation ends.
     #[wasm_bindgen(js_name = nextToken)]
-    pub async fn next_token(&self) -> Option<String> {
-        self.inner.lock().await.next_token().await
+    pub fn next_token(&self) -> js_sys::Promise {
+        let inner = self.inner.clone();
+        promisify(async move {
+            let token = inner.lock().await.next_token().await;
+            // Map `Option<String>` to JsValue: Some -> string, None -> undefined.
+            // This is how JS callers detect end-of-stream.
+            Ok(match token {
+                Some(s) => JsValue::from_str(&s),
+                None => JsValue::UNDEFINED,
+            })
+        })
     }
 
     /// Drain the stream and resolve to the full generated text.
-    pub async fn completed(&self) -> Result<String, JsError> {
-        self.inner
-            .lock()
-            .await
-            .completed()
-            .await
-            .map_err(|e| JsError::new(&e.to_string()))
+    pub fn completed(&self) -> js_sys::Promise {
+        let inner = self.inner.clone();
+        promisify(async move {
+            inner
+                .lock()
+                .await
+                .completed()
+                .await
+                .map_err(|e| JsError::new(&e.to_string()))
+        })
     }
 }
 
@@ -200,11 +251,19 @@ impl Encoder {
 
     /// Generate an embedding vector for the given text. Resolves to a
     /// `Float32Array` on the JS side.
-    pub async fn encode(&self, text: String) -> Result<Vec<f32>, JsError> {
-        self.inner
-            .encode(text)
-            .await
-            .map_err(|e| JsError::new(&e.to_string()))
+    pub fn encode(&self, text: String) -> js_sys::Promise {
+        let inner = self.inner.clone();
+        promisify(async move {
+            let embedding = inner
+                .encode(text)
+                .await
+                .map_err(|e| JsError::new(&e.to_string()))?;
+            // Convert Vec<f32> to Float32Array. The `js_sys::Float32Array::from`
+            // copies into a fresh wasm-allocated typed array.
+            Ok(JsValue::from(js_sys::Float32Array::from(
+                embedding.as_slice(),
+            )))
+        })
     }
 }
 
@@ -215,8 +274,7 @@ impl Encoder {
 //
 // - `CrossEncoder` / reranking — straightforward, follow the Encoder pattern.
 // - `Constraint` / structured output — depends on `core/src/sampler_config.rs`
-//   `GrammarConstraint`; pass-through via serde-wasm-bindgen, but llguidance
-//   needs to compile to wasm32 first (Step 1).
-// - Tool calling — same dependency on llguidance.
-// - Multimodal (image / audio assets) — `mtmd` doesn't build for wasm32 today.
+//   `GrammarConstraint`; pass-through via serde-wasm-bindgen.
+// - Tool calling — depends on llguidance behavior on wasm.
+// - Multimodal (image / audio assets) — `mtmd` is not currently enabled on wasm.
 // - Progress callbacks during model load — moot since we load from `Uint8Array`.
