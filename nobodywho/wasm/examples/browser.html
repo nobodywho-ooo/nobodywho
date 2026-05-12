@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>nobodywho-wasm — browser demo</title>
+  <style>
+    body { font: 14px/1.4 system-ui, sans-serif; max-width: 720px; margin: 2em auto; padding: 0 1em; }
+    pre  { background: #f4f4f4; padding: 1em; white-space: pre-wrap; word-break: break-word; max-height: 60vh; overflow: auto; }
+    .ok  { color: #0a7a0a; }
+    .err { color: #a00; }
+    input[type=file] { margin: 0.5em 0; }
+    button { padding: 0.4em 1em; }
+  </style>
+</head>
+<body>
+  <h1>nobodywho-wasm — browser demo</h1>
+  <p>
+    Serve this directory over HTTP (e.g. <code>python3 -m http.server 8000</code> in
+    <code>nobodywho/wasm/</code>) and open <code>examples/browser.html</code>. Pick a
+    GGUF (any embedding model — the demo calls <code>Encoder.encode</code>).
+  </p>
+
+  <p>
+    <label>GGUF file: <input id="model" type="file" accept=".gguf" /></label><br />
+    <label>Text: <input id="text" value="Hello from the browser." size="40" /></label><br />
+    <button id="go">Run</button>
+  </p>
+
+  <pre id="out"></pre>
+
+  <script type="module">
+    // Imports from CDN to keep the demo single-file.
+    import { WASI, OpenFile, File, ConsoleStdout } from
+      'https://esm.sh/@bjorn3/browser_wasi_shim@0.4.1';
+
+    const out = document.getElementById('out');
+    const log = (s, cls = '') => {
+      const span = document.createElement('span');
+      if (cls) span.className = cls;
+      span.textContent = s + '\n';
+      out.appendChild(span);
+      console.log(s);
+    };
+
+    // Stubs for the unresolved `env` imports: mtmd_* (we don't expose
+    // multimodal), _Unwind_* (legacy C++ EH, shouldn't fire), dlclose.
+    const envStubs = new Proxy({}, {
+      get: (_t, name) => (...args) => {
+        throw new Error(`unresolved env.${String(name)} called with [${args}]`);
+      },
+    });
+
+    async function run() {
+      out.textContent = '';
+
+      const modelInput = document.getElementById('model');
+      const text = document.getElementById('text').value;
+      const file = modelInput.files[0];
+      if (!file) {
+        log('Pick a GGUF file first.', 'err');
+        return;
+      }
+
+      try {
+        log('Fetching wasm + glue…');
+        const [wasmBytes, bg] = await Promise.all([
+          fetch('../pkg-bundler/nobodywho_wasm_bg.wasm').then((r) => r.arrayBuffer()),
+          import('../pkg-bundler/nobodywho_wasm_bg.js'),
+        ]);
+        log(`  wasm: ${(wasmBytes.byteLength / 1024 / 1024).toFixed(1)} MB`, 'ok');
+
+        log('Setting up WASI…');
+        const wasi = new WASI(
+          [],                       // argv
+          [],                       // env
+          [
+            new OpenFile(new File([])),                // stdin
+            ConsoleStdout.lineBuffered((m) => log(`[wasi stdout] ${m}`)),
+            ConsoleStdout.lineBuffered((m) => log(`[wasi stderr] ${m}`)),
+          ],
+        );
+
+        log('Instantiating wasm…');
+        const mod = await WebAssembly.compile(wasmBytes);
+        const inst = await WebAssembly.instantiate(mod, {
+          './nobodywho_wasm_bg.js': bg,
+          env: envStubs,
+          ...wasi.getImportObject(),
+        });
+
+        // Reactor-style init: run _initialize once.
+        if (inst.exports._initialize) {
+          wasi.initialize(inst);
+          log('  wasi.initialize ran _initialize', 'ok');
+        }
+
+        bg.__wbg_set_wasm(inst.exports);
+        if (inst.exports.__wbindgen_start) inst.exports.__wbindgen_start();
+        bg.init();  // panic hook + tracing
+        log('  ✓ wasm ready', 'ok');
+
+        log('Loading model bytes…');
+        const modelBytes = new Uint8Array(await file.arrayBuffer());
+        log(`  model: ${(modelBytes.byteLength / 1024 / 1024).toFixed(1)} MB`);
+        const model = await bg.Model.loadBytes(modelBytes);
+        log('  ✓ model loaded', 'ok');
+
+        log('Creating encoder…');
+        const encoder = new bg.Encoder(model, 512);
+        log('  ✓ encoder created', 'ok');
+
+        log(`Encoding: ${JSON.stringify(text)}…`);
+        const vec = await encoder.encode(text);
+        log(`  ✓ embedding: ${vec.length} dims`, 'ok');
+        log(`  first 8: [${Array.from(vec.slice(0, 8))
+          .map((v) => v.toFixed(4)).join(', ')}]`);
+        log('Done.', 'ok');
+      } catch (e) {
+        log(`FAILED: ${e}`, 'err');
+        console.error(e);
+      }
+    }
+
+    document.getElementById('go').addEventListener('click', run);
+  </script>
+</body>
+</html>
