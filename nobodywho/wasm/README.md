@@ -5,21 +5,24 @@ in a browser tab (or any wasm host) via llama.cpp compiled to wasm32.
 
 ## Status: working end-to-end
 
-Real embedding inference verified under Node:
+Real LLM inference verified under Node, both Encoder and Chat:
 
+**Embedding** with a 35 MB BGE-small GGUF:
 ```
 $ node wasm/examples/run.mjs --encode /tmp/bge-small.gguf "Hello"
-  ✓ wasi.initialize ran _initialize
-  ✓ wasm wired up
-  ✓ init() ok
-Loading model from /tmp/bge-small.gguf…
-  model size: 35.1 MB
-  ✓ model loaded
-  ✓ encoder created
-Encoding: "Hello"
+  ✓ model loaded                 ✓ encoder created
   ✓ embedding generated: 384 dimensions
   first 8: [-0.6244, -0.5940, 0.5545, -0.6085, -0.1348, 0.1800, 0.6621, 0.3490]
-Done.
+```
+
+**Chat** with a 379 MB Qwen 2.5 0.5B Instruct GGUF:
+```
+$ node wasm/examples/run.mjs /tmp/Qwen2.5-0.5B-Instruct-Q4_K_M.gguf "Hello"
+  ✓ model loaded                 ✓ chat created
+Asking: "Hello"
+Response: Hello! How can I assist you today? If you have any questions
+          or need help with something, feel free to ask.
+  ✓ produced 25 tokens
 ```
 
 The wasm binary contains all of llama.cpp (~9.5 MB release, ~21 MB debug)
@@ -28,8 +31,9 @@ and exposes the binding's full surface to JS via wasm-bindgen.
 | Surface | Status |
 |---|---|
 | `Model.loadBytes(uint8Array)` | ✅ verified — loads GGUF into a real `LlamaModel` via `fmemopen` + `llama_model_load_from_file_ptr` |
-| `Encoder.encode(text)` | ✅ verified — produces a real `Float32Array` embedding |
-| `Chat` / `TokenStream` API | wired up, identical worker pattern to Encoder; should work with a chat-style GGUF (not yet smoke-tested due to model-size download) |
+| `Encoder.encode(text)` → `Float32Array` | ✅ verified |
+| `Chat.ask(prompt)` → `TokenStream` → tokens | ✅ verified |
+| `TokenStream.nextToken()` / `completed()` | ✅ verified |
 | Multimodal (`MtmdBitmap` etc.) | not exposed — mtmd C++ doesn't compile against wasi-libc; the wasm has unresolved `mtmd_*` imports that JS replaces with stubs |
 | Structured output (`Constraint`) | not yet wired up to the JS surface (works inside core, no JS wrapping yet) |
 
