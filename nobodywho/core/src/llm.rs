@@ -1,6 +1,7 @@
 use crate::errors::{InitWorkerError, LoadModelError, ReadError};
 use crate::memory;
 use crate::tokenizer::{ProjectionModel, Tokenizer, TokenizerChunk, TokenizerChunks};
+#[cfg(not(target_arch = "wasm32"))]
 use indicatif::{ProgressBar, ProgressStyle};
 use lazy_static::lazy_static;
 use llama_cpp_2::context::kv_cache::KvCacheConversionError;
@@ -45,6 +46,11 @@ pub type DownloadProgressCallback = Arc<dyn Fn(u64, u64) + Send + Sync>;
 /// unconditionally — GUI bindings (Godot, Flutter mobile) won't see output in production.
 /// Detects a new download (model → mmproj transition) by watching for `total` to change,
 /// finishes the previous bar, and starts a fresh one.
+///
+/// Native-only: `indicatif` is not pulled in on wasm32 (no terminal). The wasm
+/// model-load path (`Model::load_bytes`, future) skips this entirely since
+/// bytes are already in memory.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn default_progress_callback() -> DownloadProgressCallback {
     let style = ProgressStyle::with_template(
         "{spinner:.green} [{elapsed_precise}] {wide_bar:.cyan/blue} \
