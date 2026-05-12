@@ -6,12 +6,24 @@ Flutter, Godot, and Uniffi bindings.
 
 ## Status
 
-The wasm32 build path is **real but untested end-to-end**. `cargo check
---target wasm32-unknown-emscripten -p nobodywho-wasm` exercises the full
-toolchain (bindgen + cc + cmake via Emscripten) and panics with a clear
-`Could not detect Emscripten sysroot. Ensure 'emcc' is on PATH...`
-message unless `emcc` is installed. Native (`cargo check --workspace`)
-is unaffected.
+**`cargo build --target wasm32-unknown-emscripten -p nobodywho-wasm`
+produces a working `nobodywho_wasm.wasm` artifact** (~113 MB debug,
+~10–20 MB release-stripped, including all of llama.cpp).
+
+The pipeline that runs end-to-end:
+
+```
+bindgen → cc::Build (em++) → cmake (llama.cpp via Emscripten) → wasm-bindgen
+        ↓                  ↓                                  ↓
+   FFI bindings.rs   wrapper static .a                  __wbindgen_* exports
+                                              ↓
+                                      emcc + wasm-ld
+                                              ↓
+                                   nobodywho_wasm.wasm
+```
+
+Native (`cargo check --workspace`) is unaffected and builds bit-for-bit
+the same as before the wasm branch.
 
 ### Build prerequisites
 
@@ -53,18 +65,90 @@ support (cherry-picked from his branch). Specifically:
 
 See `WASM.md` in the fork for the full build details and remaining gaps.
 
-### Outstanding work
+### Outstanding work — pick A or B
 
-1. **End-to-end build verification.** Asbjørn's commits are marked
-   "still untested". Someone with `emsdk` activated needs to run
-   `cargo build --target wasm32-unknown-emscripten` and shake out any
-   remaining flag tuning.
-2. **`Model::load_from_bytes`.** The current `Model::loadBytes` in
-   `src/lib.rs` returns a placeholder `JsError`. Wiring it up needs a
-   `LlamaModel::load_from_buffer` wrapper in the fork (Step 2c below).
-3. **Worker refactor.** `core/src/chat.rs:307` and similar use
-   `std::thread::spawn`, which wasm32 doesn't have. Needs cfg-gated
-   `wasm_bindgen_futures::spawn_local` path.
+#### Path A — drop wasm-bindgen, use Emscripten's JS glue (works today)
+
+Keep the existing `wasm32-unknown-emscripten` build. **Replace
+`#[wasm_bindgen]` with `#[no_mangle] extern "C"`** in `src/lib.rs`,
+marshaling types manually (string pointers via `Box::into_raw`, byte
+arrays as `(*mut u8, usize)`, async results as callback handles).
+Emscripten emits a JS loader via `MODULARIZE=1` that handles all libc
+imports automatically.
+
+Effort: ~1 day. Less type-safe than wasm-bindgen, but builds on the
+working pipeline and ships a usable npm package immediately.
+
+#### Path B — wasm32-unknown-unknown + wasi-sdk (C++ side done, Rust mtmd gating remains)
+
+The fork's `wasm` branch now has a full `wasm32-unknown-unknown` build
+path: `TargetOs::WasmUnknown` variant, wasi-sdk detection, parallel
+bindgen/cmake/cc config, and source-level patches to llama.cpp itself
+(cpp-httplib excision, `arg.cpp`/`console.cpp` removal, signal +
+process-clocks emulation, `fs_get_cache_directory` `__wasi__` case,
+`set_process_priority` no-op, mtmd's miniaudio skipped because it needs
+pthread sched APIs wasi-libc doesn't ship).
+
+**End-to-end C++ build works** for wasm32-unknown-unknown. The remaining
+blocker is in **`nobodywho/core` itself**: it imports
+`llama_cpp_2::mtmd::{MtmdInputChunks, MtmdBitmap, MtmdContext, ...}` and
+those types now don't exist on wasm32 (since the fork's mtmd Rust module
+is also gated off — the FFI symbols aren't there because the mtmd C++
+isn't compiled).
+
+`core/src/chat.rs` and `core/src/tokenizer.rs` use these types
+structurally (as struct fields, enum variants like `Asset::Image`,
+`TokenizerChunk::Image`/`Audio`, and `bitmaps: IndexMap<ChunkId,
+MtmdBitmap>` on the chat worker state). Gating them out for wasm is a
+mechanical-but-substantial refactor:
+
+```
+nobodywho/core/src/llm.rs       — gate MtmdInputChunks import + 1 field
+nobodywho/core/src/template.rs  — gate MtmdBitmap import + 1 field
+nobodywho/core/src/errors.rs    — gate one error variant
+nobodywho/core/src/chat.rs      — gate ~5 places (worker state, methods)
+nobodywho/core/src/tokenizer.rs — gate ~30 places (Chunk variants, all
+                                  match arms, multimodal init paths)
+```
+
+Roughly 1–2 hours of careful cfg-attribute application. Either
+`#[cfg(not(target_arch = "wasm32"))]` everywhere or adding a `mtmd`
+cargo feature to core (cleaner long-term — wasm just opts out).
+
+Effort estimate to finish B: ~half a day. Plus ongoing maintenance of
+the llama.cpp source patches as llama.cpp evolves (these should
+eventually go upstream — `LLAMA_BUILD_HTTPLIB=OFF`, `LLAMA_BUILD_AUDIO=OFF`).
+
+#### Path C — `wasm32-wasip2` + component model
+
+Future-proof but bleeding-edge tooling; not recommended for shipping
+this year.
+
+### Status of the fork's `wasm` branch
+
+The `wasm32-unknown-emscripten` build works end-to-end (113 MB .wasm
+artifact). The parallel `wasm32-unknown-unknown` path is partial as
+described above.
+
+2. **End-to-end smoke test.** Embed a small GGUF as bytes, call
+   `Model.loadBytes`, run one `Chat.ask`, log a token. Confirms the full
+   stack (FFI → llama.cpp → sampler → channel pump) works in a browser.
+
+3. **Release-mode build size.** Debug is 113 MB. Release should be
+   ~10–20 MB. Verify with `cargo build --release --target ...`. Brotli
+   compression brings the served size down further.
+
+### Done in earlier commits
+
+- ✅ `LlamaModel::load_from_buffer` wraps `llama_model_load_from_file_ptr`
+  via libc `fmemopen`. `nobodywho::llm::get_model_from_bytes` in core
+  exposes it. `Model.loadBytes(uint8Array)` in this binding wires it
+  through.
+- ✅ Worker refactor: `std::thread::spawn` + `std::sync::mpsc` swapped for
+  `tokio::sync::mpsc::unbounded_channel` on both targets;
+  `wasm_bindgen_futures::spawn_local` on wasm vs `std::thread::spawn` +
+  `blocking_recv` on native. See `core/src/chat.rs`, `encoder.rs`,
+  `crossencoder.rs`.
 
 ### Step 2a — `core/` dependency gates ✅ done
 
