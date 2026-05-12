@@ -4,31 +4,82 @@ WebAssembly binding for [NobodyWho](https://nobodywho.ooo), letting you run
 local LLMs in a browser tab via the same core engine that powers the Python,
 Flutter, Godot, and Uniffi bindings.
 
-## Status: scaffold, does not build to wasm yet
+## Status
 
-This crate establishes the binding's public API and workspace integration. It
-**compiles cleanly on native** (so `cargo check` at the workspace root keeps
-working), but `wasm-pack build --target web` will fail until the three
-prerequisites below land.
+The wasm32 build path is **real but untested end-to-end**. `cargo check
+--target wasm32-unknown-emscripten -p nobodywho-wasm` exercises the full
+toolchain (bindgen + cc + cmake via Emscripten) and panics with a clear
+`Could not detect Emscripten sysroot. Ensure 'emcc' is on PATH...`
+message unless `emcc` is installed. Native (`cargo check --workspace`)
+is unaffected.
 
-### Step 1 — `llama-cpp-2` needs a wasm32 build path
+### Build prerequisites
 
-`nobodywho/core/Cargo.toml:15` pins the `marek-hradil/llama-cpp-rs` fork.
-The fork's `build.rs` invokes CMake against llama.cpp's C++ source, which
-has no wasm32 toolchain configured. The plan is to maintain our own fork
-on top of Marek's that adds an Emscripten cmake branch and feature-gates
-out `openmp`, `mtmd`, `cuda`, `vulkan`, and `metal` for
-`target_arch = "wasm32"`.
+The wasm32 target is **`wasm32-unknown-emscripten`** (not
+`wasm32-unknown-unknown`). To produce a `.wasm` artifact you need:
+
+```bash
+# Install emsdk (one-time):
+git clone https://github.com/emscripten-core/emsdk.git
+cd emsdk
+./emsdk install latest
+./emsdk activate latest
+source ./emsdk_env.sh   # adds emcc, em++ to PATH
+
+# Add the rustc target:
+rustup target add wasm32-unknown-emscripten
+
+# Build:
+cd nobodywho/wasm
+cargo build --target wasm32-unknown-emscripten --release
+# or, for the JS-bundle output:
+wasm-pack build --target web
+```
+
+### What's wired up
+
+The `llama-cpp-2` fork at
+[`nobodywho-ooo/llama-cpp-rs` `wasm`](https://github.com/nobodywho-ooo/llama-cpp-rs/tree/wasm)
+inherits Marek's llguidance/EOS-fix patches and adds Asbjørn's Emscripten
+support (cherry-picked from his branch). Specifically:
+
+- `TargetOs::Emscripten` variant + sysroot/toolchain auto-detection from
+  `emcc --cflags` and `which emcc`.
+- Bindgen configured with the real sysroot + `--target=wasm32-unknown-emscripten`
+  + `-fvisibility=default` (workaround for bindgen #1941).
+- `cc` wrapper-shim build uses `em++` with `-fwasm-exceptions` (native wasm EH).
+- cmake disables every GPU backend (`GGML_VULKAN`/`GGML_CUDA`/`GGML_METAL`/etc.),
+  forces `BUILD_SHARED_LIBS=OFF` and `LLAMA_WASM_MEM64=OFF`.
+
+See `WASM.md` in the fork for the full build details and remaining gaps.
+
+### Outstanding work
+
+1. **End-to-end build verification.** Asbjørn's commits are marked
+   "still untested". Someone with `emsdk` activated needs to run
+   `cargo build --target wasm32-unknown-emscripten` and shake out any
+   remaining flag tuning.
+2. **`Model::load_from_bytes`.** The current `Model::loadBytes` in
+   `src/lib.rs` returns a placeholder `JsError`. Wiring it up needs a
+   `LlamaModel::load_from_buffer` wrapper in the fork (Step 2c below).
+3. **Worker refactor.** `core/src/chat.rs:307` and similar use
+   `std::thread::spawn`, which wasm32 doesn't have. Needs cfg-gated
+   `wasm_bindgen_futures::spawn_local` path.
 
 ### Step 2a — `core/` dependency gates ✅ done
 
-Landed in commit following the scaffold:
 - `core/Cargo.toml` — `tokio` split: `rt-multi-thread` on native, plain
   `rt` on wasm. `ureq` (raw sockets, not available in browser) and
   `indicatif` (no terminal) gated to non-wasm. `dirs` gated to non-android,
-  non-wasm.
-- `core/src/llm.rs` — `default_progress_callback` and the `indicatif`
-  import gated to non-wasm.
+  non-wasm. `monty` (Python interpreter) and `bashkit` (virtual bash) gated
+  to non-wasm.
+- `core/src/llm.rs` — `default_progress_callback` and the entire
+  model-loader infrastructure (`get_model`, `get_model_async`,
+  `download_*`, `ParsedModelPath`) gated to non-wasm.
+- `core/src/tool_calling/mod.rs` — `Tool::python` and `Tool::bash` gated
+  to non-wasm.
+- `grammar/gbnf` — `jsonschema` default features disabled (no HTTP/file
+  resolution needed), drops the entire `reqwest`/`hyper`/`mio` chain.
 
 ### Step 2b — Worker refactor (not yet done)
 
