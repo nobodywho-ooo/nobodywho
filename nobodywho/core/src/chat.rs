@@ -299,7 +299,7 @@ pub struct ChatHandle {
 impl ChatHandle {
     /// Create a new chat handle directly. Consider using [`ChatBuilder`] for a more ergonomic API.
     pub fn new(model: Arc<llm::Model>, config: ChatConfig) -> Self {
-        let (msg_tx, msg_rx) = std::sync::mpsc::channel();
+        let (msg_tx, mut msg_rx) = tokio::sync::mpsc::unbounded_channel();
 
         let should_stop = Arc::new(AtomicBool::new(false));
         let should_stop_clone = Arc::clone(&should_stop);
@@ -313,7 +313,10 @@ impl ChatHandle {
                 }
             };
 
-            while let Ok(msg) = msg_rx.recv() {
+            // `blocking_recv` on a tokio unbounded channel is safe outside a
+            // tokio runtime context (we're in a raw `std::thread::spawn`'d
+            // thread). Returns `None` when the channel is closed.
+            while let Some(msg) = msg_rx.blocking_recv() {
                 if let Err(e) = process_worker_msg(&mut worker_state, msg) {
                     return error!("Worker crashed: {e}");
                 }
@@ -568,11 +571,17 @@ pub struct ChatHandleAsync {
 impl ChatHandleAsync {
     /// Create a new chat handle directly. Consider using [`ChatBuilder`] for a more ergonomic API.
     pub fn new(model: Arc<llm::Model>, config: ChatConfig) -> Self {
-        let (msg_tx, msg_rx) = std::sync::mpsc::channel();
+        let (msg_tx, mut msg_rx) = tokio::sync::mpsc::unbounded_channel();
 
         let should_stop = Arc::new(AtomicBool::new(false));
         let should_stop_clone = Arc::clone(&should_stop);
 
+        // Native: spawn a real OS thread that drives a blocking loop, so the
+        // inference work doesn't tie up any tokio runtime thread. Wasm: spawn
+        // a future on the JS event loop (single-threaded cooperative); decode
+        // calls block the loop until each message is processed, which is
+        // acceptable for v1. A Web-Worker variant can come later.
+        #[cfg(not(target_arch = "wasm32"))]
         let join_handle = std::thread::spawn(move || {
             let worker = Worker::new_chat_worker(&model, config, should_stop_clone);
             let mut worker_state = match worker {
@@ -582,16 +591,36 @@ impl ChatHandleAsync {
                 }
             };
 
-            while let Ok(msg) = msg_rx.recv() {
+            while let Some(msg) = msg_rx.blocking_recv() {
                 if let Err(e) = process_worker_msg(&mut worker_state, msg) {
                     return error!("Worker crashed: {e}");
                 }
             }
         });
 
-        Self {
-            guard: Arc::new(WorkerGuard::new(msg_tx, join_handle, Some(should_stop))),
-        }
+        #[cfg(target_arch = "wasm32")]
+        wasm_bindgen_futures::spawn_local(async move {
+            let worker = Worker::new_chat_worker(&model, config, should_stop_clone);
+            let mut worker_state = match worker {
+                Ok(worker_state) => worker_state,
+                Err(errmsg) => {
+                    return error!("Could not set up the worker initial state: {errmsg}")
+                }
+            };
+
+            while let Some(msg) = msg_rx.recv().await {
+                if let Err(e) = process_worker_msg(&mut worker_state, msg) {
+                    return error!("Worker crashed: {e}");
+                }
+            }
+        });
+
+        #[cfg(not(target_arch = "wasm32"))]
+        let guard = Arc::new(WorkerGuard::new(msg_tx, join_handle, Some(should_stop)));
+        #[cfg(target_arch = "wasm32")]
+        let guard = Arc::new(WorkerGuard::new(msg_tx, Some(should_stop)));
+
+        Self { guard }
     }
 
     /// Send a message and get a tokio channel
