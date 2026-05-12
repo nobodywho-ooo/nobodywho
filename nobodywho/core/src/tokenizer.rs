@@ -18,6 +18,25 @@ use tracing::{info, warn};
 
 use crate::{errors::MultimodalError, errors::TokenizationError};
 
+/// Get the media-marker string used to split text from media in rendered
+/// chat templates. Native reads this from llama.cpp's
+/// `mtmd_default_marker()`. The cfg gate routes all wasm32 targets to the
+/// inlined literal (`"<__media__>"`) — necessary for wasm32-unknown-unknown
+/// (which can't resolve the mtmd C++ symbol) and harmless for the other
+/// wasm32 OSes like Emscripten, since the literal is the same string the
+/// FFI call would return.
+#[inline]
+fn mtmd_marker_string() -> String {
+    #[cfg(target_arch = "wasm32")]
+    {
+        "<__media__>".to_string()
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        llama_cpp_2::mtmd::mtmd_default_marker().to_string()
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Prompt {
     parts: Vec<PromptPart>,
@@ -25,7 +44,7 @@ pub struct Prompt {
 
 impl Display for Prompt {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let marker = llama_cpp_2::mtmd::mtmd_default_marker();
+        let marker = mtmd_marker_string();
         let result = self
             .parts
             .iter()
@@ -361,7 +380,7 @@ impl ProjectionModel {
             .map(|p| p.get() as i32)
             .unwrap_or(4);
 
-        let media_marker = llama_cpp_2::mtmd::mtmd_default_marker().to_string();
+        let media_marker = mtmd_marker_string();
 
         let mtmd_params = MtmdContextParams {
             use_gpu,
@@ -385,7 +404,7 @@ impl ProjectionModel {
     }
 
     pub fn tokenize(&self, bitmap: &MtmdBitmap) -> Result<TokenizerChunk, TokenizationError> {
-        let media_marker = llama_cpp_2::mtmd::mtmd_default_marker().to_string();
+        let media_marker = mtmd_marker_string();
         let mtmd_chunks = self
             .ctx
             .tokenize(
@@ -486,15 +505,7 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn tokenize_text(&self, text: &str) -> Result<Vec<TokenizerChunk>, TokenizationError> {
-        // On wasm32, `mtmd_default_marker` resolves to an unresolved env
-        // import (we don't compile the mtmd C++). Inline the same literal
-        // llama.cpp returns for it. Text tokenization splits on this marker
-        // to interleave media chunks; on wasm there's no media so the
-        // split always produces one entry covering the whole input.
-        #[cfg(target_arch = "wasm32")]
-        let media_marker = String::from("<__media__>");
-        #[cfg(not(target_arch = "wasm32"))]
-        let media_marker = llama_cpp_2::mtmd::mtmd_default_marker().to_string();
+        let media_marker = mtmd_marker_string();
         let splits = text
             .split(media_marker.as_str())
             .enumerate()
