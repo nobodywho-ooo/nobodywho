@@ -29,8 +29,12 @@ impl Encoder {
 
 impl EncoderAsync {
     pub fn new(model: Arc<llm::Model>, n_ctx: u32) -> Self {
-        let (msg_tx, msg_rx) = std::sync::mpsc::channel();
+        let (msg_tx, mut msg_rx) = tokio::sync::mpsc::unbounded_channel();
 
+        // Native: real OS thread with blocking_recv.
+        // wasm32: spawn_local async future. See ChatHandleAsync::new for the
+        // rationale and caveats.
+        #[cfg(not(target_arch = "wasm32"))]
         let join_handle = std::thread::spawn(move || {
             let worker = Worker::new_encoder_worker(&model, n_ctx);
             let mut worker_state = match worker {
@@ -40,16 +44,36 @@ impl EncoderAsync {
                 }
             };
 
-            while let Ok(msg) = msg_rx.recv() {
+            while let Some(msg) = msg_rx.blocking_recv() {
                 if let Err(e) = process_worker_msg(&mut worker_state, msg) {
                     return error!(error=%e, "Encoder Worker crashed");
                 }
             }
         });
 
-        Self {
-            guard: Arc::new(WorkerGuard::new(msg_tx, join_handle, None)),
-        }
+        #[cfg(target_arch = "wasm32")]
+        wasm_bindgen_futures::spawn_local(async move {
+            let worker = Worker::new_encoder_worker(&model, n_ctx);
+            let mut worker_state = match worker {
+                Ok(worker_state) => worker_state,
+                Err(errmsg) => {
+                    return error!(error=%errmsg, "Could not set up the worker initial state")
+                }
+            };
+
+            while let Some(msg) = msg_rx.recv().await {
+                if let Err(e) = process_worker_msg(&mut worker_state, msg) {
+                    return error!(error=%e, "Encoder Worker crashed");
+                }
+            }
+        });
+
+        #[cfg(not(target_arch = "wasm32"))]
+        let guard = Arc::new(WorkerGuard::new(msg_tx, join_handle, None));
+        #[cfg(target_arch = "wasm32")]
+        let guard = Arc::new(WorkerGuard::new(msg_tx, None));
+
+        Self { guard }
     }
 
     pub async fn encode(&self, text: String) -> Result<Vec<f32>, EncoderWorkerError> {

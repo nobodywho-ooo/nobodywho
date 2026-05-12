@@ -53,6 +53,10 @@ bashkit = { git = "https://github.com/everruns/bashkit", tag = "v0.1.10" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 tokio = { version = "1.43.0", features = ["sync", "rt", "macros"] }
+# Used by ChatHandleAsync::new / EncoderAsync::new / CrossEncoderAsync::new
+# to spawn the worker future on the JS event loop in place of
+# `std::thread::spawn`.
+wasm-bindgen-futures = "0.4"
 
 [target.'cfg(target_os = "android")'.dependencies]
 libc = "0.2"
