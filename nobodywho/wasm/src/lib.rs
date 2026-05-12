@@ -29,9 +29,11 @@ pub fn init() {
     console_error_panic_hook::set_once();
     #[cfg(target_arch = "wasm32")]
     {
-        let _ = tracing::subscriber::set_global_default(tracing_wasm::WASMLayer::new(
-            tracing_wasm::WASMLayerConfig::default(),
-        ));
+        // `set_as_global_default` wires the WASMLayer into a Registry for us
+        // and installs the result as the global tracing subscriber. It panics
+        // if called more than once, but we want idempotent init from JS, so
+        // use the non-panicking helper.
+        tracing_wasm::try_set_as_global_default().ok();
     }
 }
 
