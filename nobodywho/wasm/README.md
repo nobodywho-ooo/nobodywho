@@ -4,48 +4,87 @@ WebAssembly binding for [NobodyWho](https://nobodywho.ooo), letting you run
 local LLMs in a browser tab via the same core engine that powers the Python,
 Flutter, Godot, and Uniffi bindings.
 
-## Status
-
-**`cargo build --target wasm32-unknown-emscripten -p nobodywho-wasm`
-produces a working `nobodywho_wasm.wasm` artifact** (~113 MB debug,
-~10–20 MB release-stripped, including all of llama.cpp).
-
-The pipeline that runs end-to-end:
+## Status — Path B working end-to-end
 
 ```
-bindgen → cc::Build (em++) → cmake (llama.cpp via Emscripten) → wasm-bindgen
-        ↓                  ↓                                  ↓
-   FFI bindings.rs   wrapper static .a                  __wbindgen_* exports
-                                              ↓
-                                      emcc + wasm-ld
-                                              ↓
-                                   nobodywho_wasm.wasm
+cargo build --target wasm32-unknown-unknown -p nobodywho-wasm  ✅
+wasm-bindgen --target web ... --out-dir pkg/                   ✅
 ```
 
-Native (`cargo check --workspace`) is unaffected and builds bit-for-bit
+Produces a complete npm package shape in `pkg/`:
+
+```
+pkg/
+├── nobodywho_wasm.d.ts        9.1K  — TS typings for the public API
+├── nobodywho_wasm.js          37K   — JS loader / wasm-bindgen glue
+├── nobodywho_wasm_bg.wasm     21M   — compiled wasm (debug; ~5-7M release-stripped)
+└── nobodywho_wasm_bg.wasm.d.ts
+```
+
+The TS bindings expose `Model`, `Chat`, `TokenStream`, `Encoder` with
+full JSDoc and `Promise<any>` return types. JS consumers can
+`import init, { Model, Chat } from './pkg/nobodywho_wasm.js'`,
+`await init()`, then use the API.
+
+### Build pipeline
+```
+bindgen + cc::Build (wasi-sdk clang)
+  +
+cmake (llama.cpp targeting wasm32-wasip1 + wasi-libc, with the
+       fork's source-level patches: cpp-httplib excised, signal +
+       process-clocks emulation, __wasi__ cases, mtmd C++ skipped)
+                ↓
+        wasm-bindgen post-processor
+                ↓
+        pkg/ ready for npm publish
+```
+
+Native (`cargo check --workspace`) is unchanged and builds bit-for-bit
 the same as before the wasm branch.
+
+### Alternate target: wasm32-unknown-emscripten
+
+`cargo build --target wasm32-unknown-emscripten -p nobodywho-wasm` also
+works (produces a 113 MB debug .wasm). That artifact can't be processed
+by `wasm-bindgen-cli` (CLI doesn't understand Emscripten's section
+layout), so it's only useful for inspecting the Emscripten output or as
+a fallback for consumers who use Emscripten's own JS glue. The
+`wasm32-unknown-unknown` + wasm-bindgen path above is the recommended
+distribution.
 
 ### Build prerequisites
 
-The wasm32 target is **`wasm32-unknown-emscripten`** (not
-`wasm32-unknown-unknown`). To produce a `.wasm` artifact you need:
+1. **wasi-sdk** for the C/C++ side of llama.cpp:
+   ```bash
+   curl -L https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-33/wasi-sdk-33.0-arm64-macos.tar.gz | tar -xz -C ~
+   export WASI_SDK_PATH=~/wasi-sdk-33.0-arm64-macos
+   ```
+   (Or `/opt/wasi-sdk` if you prefer a system-wide install — the build
+   script probes that path automatically.)
+
+2. **Rust wasm target**:
+   ```bash
+   rustup target add wasm32-unknown-unknown
+   ```
+
+3. **wasm-bindgen-cli** (must match the `wasm-bindgen` crate version
+   you're building with — currently 0.2.121):
+   ```bash
+   cargo install wasm-bindgen-cli --version 0.2.121
+   ```
+
+### Build steps
 
 ```bash
-# Install emsdk (one-time):
-git clone https://github.com/emscripten-core/emsdk.git
-cd emsdk
-./emsdk install latest
-./emsdk activate latest
-source ./emsdk_env.sh   # adds emcc, em++ to PATH
-
-# Add the rustc target:
-rustup target add wasm32-unknown-emscripten
-
-# Build:
 cd nobodywho/wasm
-cargo build --target wasm32-unknown-emscripten --release
-# or, for the JS-bundle output:
-wasm-pack build --target web
+WASI_SDK_PATH=~/wasi-sdk-33.0-arm64-macos \
+  cargo build --target wasm32-unknown-unknown --release
+
+wasm-bindgen --target web \
+  ../target/wasm32-unknown-unknown/release/nobodywho_wasm.wasm \
+  --out-dir pkg/
+
+# pkg/ is the npm-publishable directory
 ```
 
 ### What's wired up
