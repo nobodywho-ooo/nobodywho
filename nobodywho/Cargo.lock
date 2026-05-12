@@ -2122,7 +2122,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-2"
 version = "0.1.147"
-source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=wasm#1843e08b678ca8b0e2bdcdd74e78d243686ffe21"
+source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=wasm#a8a8dddab63569accdd82b927cf1e30a804c8739"
 dependencies = [
  "encoding_rs",
  "enumflags2",
@@ -2137,7 +2137,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-sys-2"
 version = "0.1.147"
-source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=wasm#1843e08b678ca8b0e2bdcdd74e78d243686ffe21"
+source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=wasm#a8a8dddab63569accdd82b927cf1e30a804c8739"
 dependencies = [
  "bindgen",
  "cc",
@@ -4581,7 +4581,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]

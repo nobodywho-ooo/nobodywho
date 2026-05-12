@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>nobodywho-wasm — chat (Worker)</title>
+  <style>
+    body { font: 14px/1.4 system-ui, sans-serif; max-width: 760px; margin: 2em auto; padding: 0 1em; }
+    .status { background: #eef; padding: 0.5em 1em; border-radius: 4px; margin: 0.5em 0; }
+    .status.ready { background: #efe; }
+    .status.err { background: #fee; color: #a00; }
+    pre  { background: #f4f4f4; padding: 1em; white-space: pre-wrap; word-break: break-word; max-height: 50vh; overflow: auto; }
+    .tok { color: #0a3a7a; }
+    input[type=file] { margin: 0.5em 0; }
+    button { padding: 0.4em 1em; }
+    button:disabled { opacity: 0.5; cursor: wait; }
+    textarea { width: 100%; padding: 0.4em; font: inherit; box-sizing: border-box; min-height: 4em; }
+    .meta { font: 12px/1.4 system-ui; color: #666; }
+  </style>
+</head>
+<body>
+  <h1>nobodywho-wasm — chat (Worker version)</h1>
+  <p>
+    Same as <code>browser-chat.html</code> but the wasm runs in a Web Worker,
+    so the page stays responsive while llama.cpp grinds. Watch the status
+    line below to see what stage it's in.
+  </p>
+
+  <div id="status" class="status">Spinning up worker…</div>
+
+  <p>
+    <label>GGUF: <input id="model" type="file" accept=".gguf" disabled /></label>
+    <button id="load" disabled>Load model</button>
+    <span id="modelInfo" class="meta"></span>
+  </p>
+
+  <p>
+    <label>Context size: <input id="ctx" type="number" value="2048" min="256" max="8192" step="256" /></label><br />
+    <label>System prompt:<br />
+      <textarea id="sys">You are a concise, helpful assistant.</textarea>
+    </label><br />
+    <label>User prompt:<br />
+      <textarea id="prompt">What is 2 + 2? Answer in one sentence.</textarea>
+    </label><br />
+    <button id="ask" disabled>Ask</button>
+    <span id="askInfo" class="meta"></span>
+  </p>
+
+  <pre id="out"></pre>
+
+  <script type="module">
+    const $status = document.getElementById('status');
+    const $modelInput = document.getElementById('model');
+    const $modelInfo = document.getElementById('modelInfo');
+    const $loadBtn = document.getElementById('load');
+    const $askBtn = document.getElementById('ask');
+    const $askInfo = document.getElementById('askInfo');
+    const $out = document.getElementById('out');
+    const $sys = document.getElementById('sys');
+    const $prompt = document.getElementById('prompt');
+    const $ctx = document.getElementById('ctx');
+
+    const setStatus = (text, cls = '') => {
+      $status.textContent = text;
+      $status.className = 'status' + (cls ? ' ' + cls : '');
+    };
+    const writeTok = (s) => {
+      const span = document.createElement('span');
+      span.className = 'tok';
+      span.textContent = s;
+      $out.appendChild(span);
+      $out.scrollTop = $out.scrollHeight;
+    };
+
+    const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
+
+    worker.onmessage = (e) => {
+      const m = e.data;
+      switch (m.type) {
+        case 'progress':
+          setStatus(`Worker: ${m.stage}…`);
+          break;
+        case 'ready':
+          setStatus('Worker ready. Pick a GGUF and click "Load model".', 'ready');
+          $modelInput.disabled = false;
+          $loadBtn.disabled = false;
+          break;
+        case 'model-loaded':
+          setStatus('Model loaded.', 'ready');
+          $askBtn.disabled = false;
+          break;
+        case 'chat-ready':
+          setStatus('Chat ready. Click Ask.', 'ready');
+          break;
+        case 'token':
+          writeTok(m.token);
+          break;
+        case 'ask-done':
+          $askInfo.textContent =
+            ` (${m.count} tokens in ${m.seconds.toFixed(1)}s, ` +
+            `${(m.count / m.seconds).toFixed(1)} tok/s)`;
+          setStatus('Done. Ask another question to continue the conversation.', 'ready');
+          $askBtn.disabled = false;
+          break;
+        case 'error':
+          setStatus('Error: ' + m.message, 'err');
+          console.error(m);
+          $askBtn.disabled = false;
+          break;
+        default:
+          console.warn('Unknown msg from worker:', m);
+      }
+    };
+    worker.onerror = (e) => setStatus('Worker crashed: ' + e.message, 'err');
+
+    worker.postMessage({ type: 'init' });
+
+    $loadBtn.addEventListener('click', async () => {
+      const file = $modelInput.files[0];
+      if (!file) { setStatus('Pick a GGUF first.', 'err'); return; }
+      $loadBtn.disabled = true;
+      $modelInfo.textContent = `${(file.size / 1024 / 1024).toFixed(1)} MB`;
+      setStatus('Reading file…');
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      setStatus('Sending to worker…');
+      // Transfer the underlying buffer (zero-copy). After this, `bytes` on
+      // the main thread is empty — the worker now owns it.
+      worker.postMessage({ type: 'load-model', bytes }, [bytes.buffer]);
+    });
+
+    $askBtn.addEventListener('click', () => {
+      $askBtn.disabled = true;
+      $out.textContent = '';
+      $askInfo.textContent = '';
+      setStatus('Creating chat session…');
+      worker.postMessage({
+        type: 'create-chat',
+        options: {
+          contextSize: parseInt($ctx.value, 10) || 2048,
+          systemPrompt: $sys.value,
+        },
+      });
+      // After chat-ready fires we'll get a status update; chain the ask:
+      const onceChatReady = (e) => {
+        if (e.data.type === 'chat-ready') {
+          worker.removeEventListener('message', onceChatReady);
+          setStatus('Generating…');
+          worker.postMessage({ type: 'ask', prompt: $prompt.value });
+        }
+      };
+      worker.addEventListener('message', onceChatReady);
+    });
+  </script>
+</body>
+</html>

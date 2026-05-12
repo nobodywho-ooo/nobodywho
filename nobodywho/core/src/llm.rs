@@ -23,6 +23,46 @@ use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
 use std::time::Duration;
 use tracing::{debug, debug_span, error, info, info_span, warn};
 
+// --- Streaming hook (wasm32 only) ----------------------------------------
+//
+// Bindings can register a callback that gets fired synchronously per emitted
+// token, in addition to (not in place of) the normal `output_tx.send` path
+// that ChatHandleAsync uses. The wasm binding uses this to call back into JS
+// from inside the inference loop so the JS host can `postMessage(token)` to
+// the main thread while inference is still running — without this, the
+// inference loop holds the wasm worker thread until completion and tokens
+// only drain after.
+//
+// Single-threaded only by construction: wasm32 has one thread, the hook is
+// per-thread, and `Worker::ask` is the only consumer.
+#[cfg(target_arch = "wasm32")]
+mod streaming_hook {
+    use std::cell::RefCell;
+    type Hook = Box<dyn Fn(&str)>;
+    thread_local! {
+        static HOOK: RefCell<Option<Hook>> = const { RefCell::new(None) };
+    }
+
+    /// Install a streaming callback. Returns the previous one, if any —
+    /// callers (the wasm Chat binding) should save and restore it so nested
+    /// or concurrent asks each see their own hook.
+    pub fn set_streaming_hook(hook: Option<Hook>) -> Option<Hook> {
+        HOOK.with(|h| std::mem::replace(&mut *h.borrow_mut(), hook))
+    }
+
+    /// Call the installed hook with the given token, if one is set.
+    pub fn with_streaming_hook<F: FnOnce(&dyn Fn(&str))>(f: F) {
+        HOOK.with(|h| {
+            if let Some(hook) = h.borrow().as_ref() {
+                f(hook.as_ref());
+            }
+        });
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+pub use streaming_hook::{set_streaming_hook, with_streaming_hook};
+
 #[derive(Debug)]
 pub(crate) struct GlobalInferenceLockToken;
 lazy_static! {

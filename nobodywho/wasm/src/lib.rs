@@ -105,6 +105,30 @@ where
     wasm_bindgen_futures::future_to_promise(safe)
 }
 
+// ---------- Streaming hook RAII (wasm32 only) ----------
+//
+// Install a core::llm streaming hook on construction; restore the previous one
+// on drop. Lets `Chat::ask_streaming` thread a JS callback into the
+// (synchronous) chat-worker inference loop without leaking the hook past the
+// call's lifetime even if it's interrupted by an error.
+#[cfg(target_arch = "wasm32")]
+struct HookRestore {
+    previous: Option<Box<dyn Fn(&str)>>,
+}
+#[cfg(target_arch = "wasm32")]
+impl HookRestore {
+    fn install(hook: Box<dyn Fn(&str)>) -> Self {
+        let previous = nobodywho::llm::set_streaming_hook(Some(hook));
+        Self { previous }
+    }
+}
+#[cfg(target_arch = "wasm32")]
+impl Drop for HookRestore {
+    fn drop(&mut self) {
+        nobodywho::llm::set_streaming_hook(self.previous.take());
+    }
+}
+
 // ---------- Model ----------
 
 /// A loaded GGUF model. Share between `Chat` and `Encoder` instances; the
@@ -245,6 +269,45 @@ impl Chat {
             Ok(TokenStream {
                 inner: Arc::new(tokio::sync::Mutex::new(stream)),
             })
+        })
+    }
+
+    /// Send a prompt and stream tokens via a JS callback called per token,
+    /// rather than via the channel-based `TokenStream`. Returns a Promise that
+    /// resolves to the full response when generation completes.
+    ///
+    /// On wasm32, sync inference inside the wasm holds the worker thread
+    /// until completion, so a `chat.ask(...).then((stream) => stream.nextToken())`
+    /// loop only sees tokens AFTER the whole generation finishes. This method
+    /// instead installs a synchronous streaming hook that's called from inside
+    /// the inference loop — the JS callback runs there and can
+    /// `self.postMessage(token)` from a Web Worker, which is non-blocking, so
+    /// the main thread sees tokens as they're produced.
+    ///
+    /// JS usage from inside a Worker:
+    /// ```js
+    /// chat.askStreaming(prompt, (tok) => self.postMessage({type: 'token', token: tok}))
+    ///   .then((full) => self.postMessage({type: 'done', full}));
+    /// ```
+    #[wasm_bindgen(js_name = askStreaming)]
+    pub fn ask_streaming(&self, prompt: String, on_token: js_sys::Function) -> js_sys::Promise {
+        let handle = self.handle.clone();
+        promisify(async move {
+            // Install the streaming hook for the duration of this call.
+            // Save and restore so we don't clobber a nested caller's hook.
+            #[cfg(target_arch = "wasm32")]
+            let _restore = HookRestore::install(Box::new(move |tok| {
+                let _ = on_token.call1(&JsValue::null(), &JsValue::from_str(tok));
+            }));
+            #[cfg(not(target_arch = "wasm32"))]
+            let _ = &on_token;
+
+            let mut stream = handle.ask(prompt);
+            let full = stream
+                .completed()
+                .await
+                .map_err(|e| JsError::new(&e.to_string()))?;
+            Ok(JsValue::from_str(&full))
         })
     }
 
