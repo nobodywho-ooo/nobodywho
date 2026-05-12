@@ -279,6 +279,10 @@ impl ChatBuilder {
     }
 
     /// Build a blocking chat handle and start the background worker.
+    ///
+    /// Native-only. wasm32 has no real threads and no way to `.completed()`
+    /// the result; use `build_async` and await on the returned future instead.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn build(self) -> ChatHandle {
         ChatHandle::new(self.model, self.config)
     }
@@ -292,10 +296,13 @@ impl ChatBuilder {
 /// Interact with a ChatWorker in a blocking manner.
 ///
 /// Use [`ChatBuilder`] to create a new instance with a fluent API.
+/// Native-only synchronous chat handle. Use `ChatHandleAsync` on wasm.
+#[cfg(not(target_arch = "wasm32"))]
 pub struct ChatHandle {
     guard: WorkerGuard<ChatMsg>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl ChatHandle {
     /// Create a new chat handle directly. Consider using [`ChatBuilder`] for a more ergonomic API.
     pub fn new(model: Arc<llm::Model>, config: ChatConfig) -> Self {
