@@ -17,18 +17,42 @@ Or add it to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/nobodywho-ooo/nobodywho-swift.git", from: "1.0.0")
+    .package(url: "https://github.com/nobodywho-ooo/nobodywho-swift.git", from: "0.2.0")
 ]
 ```
 
-Now you are ready to download a GGUF model you like - if you don't have a specific model in mind, try [this one](https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf). Read more about [model selection](../model-selection.md).
-
-Once you have the `.gguf` file accessible to your app, the next step is to create a `Chat` and call `.ask`!
+Models can be loaded from a local file path, a Hugging Face repository using `hf://` URLs, or any `https://` URL. If you don't have a specific model in mind, try [this one](https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf). Read more about [model selection](../model-selection.md).
 
 ```swift
 import NobodyWho
 
+// From a Hugging Face repository
+let chat = try await Chat.fromPath(
+    modelPath: "hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
+)
+
+// From an HTTPS URL
+let chat = try await Chat.fromPath(
+    modelPath: "https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
+)
+
+// From a local file
 let chat = try await Chat.fromPath(modelPath: "/path/to/model.gguf")
+```
+
+When loading from a remote URL, you can track download progress:
+
+```swift
+let chat = try await Chat.fromPath(
+    modelPath: "hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
+) { downloaded, total in
+    print("Downloaded \(downloaded)/\(total) bytes")
+}
+```
+
+Once you have a `Chat`, call `.ask` to get a response!
+
+```swift
 let response = try await chat.ask("Is water wet?").completed()
 print(response) // Yes, indeed, water is wet!
 ```
@@ -42,7 +66,7 @@ To get a full overview of the functionality provided by NobodyWho, simply keep r
 - **iOS**: iPhone 11 or newer with at least 4 GB of RAM. Requires iOS 15+.
 - **macOS**: Apple Silicon or Intel Mac with at least 8 GB of RAM. Requires macOS 13+.
 - **visionOS**: Apple Vision Pro. Requires visionOS 1.0+.
-- **watchOS**: Requires watchOS 10+. Due to limited memory on Apple Watch, your mileage may vary.
+- **watchOS**: Requires watchOS 10+. CPU-only (Metal is not available). Due to limited memory on Apple Watch, only very small models are practical.
 
 GPU acceleration is enabled by default using Metal on all Apple platforms.
 

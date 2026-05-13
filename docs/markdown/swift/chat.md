@@ -19,6 +19,30 @@ import NobodyWho
 let chat = try await Chat.fromPath(modelPath: "/path/to/model.gguf")
 ```
 
+The `modelPath` parameter accepts a local file path, a Hugging Face `hf://` URL, or an `https://` URL:
+
+```swift
+// From a Hugging Face repository
+let chat = try await Chat.fromPath(
+    modelPath: "hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
+)
+
+// From an HTTPS URL
+let chat = try await Chat.fromPath(
+    modelPath: "https://example.com/model.gguf"
+)
+```
+
+When loading from a remote URL, you can track download progress with the `onDownloadProgress` callback:
+
+```swift
+let chat = try await Chat.fromPath(
+    modelPath: "hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
+) { downloaded, total in
+    print("Downloaded \(downloaded)/\(total) bytes")
+}
+```
+
 This function is async since loading a model can take a bit of time, but this should not block any of your UI.
 Another way to achieve the same thing is to load the model separately and then use the `Chat` constructor:
 
@@ -27,6 +51,16 @@ import NobodyWho
 
 let model = try await Model.load(modelPath: "/path/to/model.gguf")
 let chat = Chat(model: model)
+```
+
+The `Model.load` function also supports `hf://` and `https://` URLs, as well as `onDownloadProgress`:
+
+```swift
+let model = try await Model.load(
+    modelPath: "hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
+) { downloaded, total in
+    print("Downloaded \(downloaded)/\(total) bytes")
+}
 ```
 
 This allows for sharing the model between several `Chat` instances.
@@ -58,6 +92,16 @@ let fullResponse = try await response.completed()
 ```
 
 All of your messages and the model's responses are stored in the `Chat` object, so the next time you call `chat.ask()`, it will remember the previous messages.
+
+## Stopping generation
+
+If you need to cancel the model's response while it is still generating (for example, when the user taps a "Stop" button), call `stopGeneration()`:
+
+```swift
+chat.stopGeneration()
+```
+
+This immediately stops token generation. Any tokens already produced are still available in the stream. The partial response is added to the chat history, so the conversation remains coherent. Note that `stopGeneration()` is a synchronous call and can be invoked from any thread.
 
 ## Chat history
 

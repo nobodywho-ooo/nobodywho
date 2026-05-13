@@ -14,7 +14,7 @@ An `Encoder` converts text into a numerical vector (embedding) that captures its
 ```swift
 import NobodyWho
 
-let encoder = try await Encoder.fromPath(modelPath: "/path/to/embeddings.gguf")
+let encoder = try await Encoder.fromPath(modelPath: "/path/to/embeddings.gguf", contextSize: 512, useGpu: true)
 
 let embedding1 = try await encoder.encode("The cat sat on the mat")
 let embedding2 = try await encoder.encode("A feline rested on the rug")
@@ -27,8 +27,8 @@ let different = cosineSimilarity(a: embedding1, b: embedding3)  // Low similarit
 You can also create an encoder from an already-loaded model:
 
 ```swift
-let model = try await Model.load(modelPath: "/path/to/embeddings.gguf")
-let encoder = Encoder(model: model)
+let model = try await Model.load(modelPath: "/path/to/embeddings.gguf", useGpu: true)
+let encoder = Encoder(model: model, contextSize: 512)
 ```
 
 ## Cross-Encoder for reranking
@@ -36,7 +36,7 @@ let encoder = Encoder(model: model)
 A `CrossEncoder` takes a query and a list of documents and scores each document by its relevance to the query. Unlike embeddings (which are computed independently), a cross-encoder processes the query and document together, giving more accurate relevance scores.
 
 ```swift
-let crossEncoder = try await CrossEncoder.fromPath(modelPath: "/path/to/reranker.gguf")
+let crossEncoder = try await CrossEncoder.fromPath(modelPath: "/path/to/reranker.gguf", contextSize: 512, useGpu: true)
 
 let query = "How do I reset my password?"
 let documents = [
@@ -67,7 +67,7 @@ A typical RAG pipeline combines both tools:
 
 ```swift
 // 1. Embed your documents (do this once, store the results)
-let encoder = try await Encoder.fromPath(modelPath: "/path/to/embeddings.gguf")
+let encoder = try await Encoder.fromPath(modelPath: "/path/to/embeddings.gguf", contextSize: 512, useGpu: true)
 let docs = ["Document 1...", "Document 2...", "Document 3..."]
 let docEmbeddings = try await docs.asyncMap { try await encoder.encode($0) }
 
@@ -76,7 +76,7 @@ let queryEmbedding = try await encoder.encode("What is the return policy?")
 let similarities = docEmbeddings.map { cosineSimilarity(a: queryEmbedding, b: $0) }
 
 // 3. Rerank the top results
-let crossEncoder = try await CrossEncoder.fromPath(modelPath: "/path/to/reranker.gguf")
+let crossEncoder = try await CrossEncoder.fromPath(modelPath: "/path/to/reranker.gguf", contextSize: 512, useGpu: true)
 let topDocs = // ... select top N by similarity
 let ranked = try await crossEncoder.rankAndSort(query: "What is the return policy?", documents: topDocs)
 

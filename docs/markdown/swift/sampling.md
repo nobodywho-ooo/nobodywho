@@ -29,46 +29,93 @@ To see the whole list of presets, check out the `SamplerPresets` enum:
 enum SamplerPresets {
     static func `default`() -> SamplerConfig
     static func dry() -> SamplerConfig
-    static func grammar(_ grammar: String) -> SamplerConfig
     static func greedy() -> SamplerConfig
-    static func json() -> SamplerConfig
     static func temperature(_ temperature: Float) -> SamplerConfig
     static func topK(_ topK: Int32) -> SamplerConfig
     static func topP(_ topP: Float) -> SamplerConfig
+
+    // Constrain output to a specific format:
+    static func constrainWithJsonSchema(_ schema: String) -> SamplerConfig
+    static func constrainWithRegex(_ pattern: String) -> SamplerConfig
+    static func constrainWithGrammar(_ grammar: String) -> SamplerConfig
 }
 ```
 
 ## Structured output
 
-One of the most useful presets to have is to be able to generate structured output,
-such as JSON. This way, you don't have to rely on your model being clever enough to
-generate syntactically valid JSON, but instead you are strictly guaranteed that the
-output will be right. For plain JSON, it suffices to:
+One of the most useful features is constraining the model to produce structured output —
+this gives you a hard guarantee that the output matches a specific format, rather than
+relying on the model to get it right on its own.
+
+### Regular expressions
+
+For simpler patterns, you can constrain the output with a regex:
+```swift
+// Force the model to answer with exactly "yes" or "no"
+let chat = try await Chat.fromPath(
+    modelPath: "/path/to/model.gguf",
+    sampler: SamplerPresets.constrainWithRegex("yes|no")
+)
+let answer = try await chat.ask("Is the sky blue?").completed()
+```
+
+### JSON schema
+
+In some use-cases it might be useful to let the LLM generate JSON output.
+You can use a JSON schema to force the LLM to produce the exact object shape you need:
 
 ```swift
 let chat = try await Chat.fromPath(
     modelPath: "/path/to/model.gguf",
-    sampler: SamplerPresets.json()
+    sampler: SamplerPresets.constrainWithJsonSchema("""
+    {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "age":  { "type": "integer" }
+      },
+      "required": ["name", "age"]
+    }
+    """)
 )
+let response = try await chat.ask("Give me a person.").completed()
+// `response` is always valid JSON matching the schema
 ```
 
-Still, you might have more advanced needs, such as generating CSVs or JSON with some specific keys. This can be supported by creating custom grammars, such as this one for CSV:
+### Custom grammars (advanced)
 
+For cases where JSON schema and regex are not expressive enough, you can supply a custom grammar.
+`constrainWithGrammar` accepts both **Lark** syntax and **GBNF** (llama.cpp format) —
+NobodyWho automatically converts GBNF to Lark before passing it to the inference engine.
+
+**Lark syntax** (recommended):
 ```swift
-let sampler = SamplerPresets.grammar("""
-    file ::= record (newline record)* newline?
+let sampler = SamplerPresets.constrainWithGrammar("""
+    start: record (NEWLINE record)* NEWLINE?
+    record: field ("," field)*
+    field: /[^,"\\n\\r]+/
+    NEWLINE: /\\r?\\n/
+""")
+```
+
+**GBNF syntax** (also accepted):
+```swift
+let sampler = SamplerPresets.constrainWithGrammar("""
+    file   ::= record (newline record)* newline?
     record ::= field ("," field)*
-    field ::= quoted_field | unquoted_field
-    unquoted_field ::= unquoted_char*
-    unquoted_char ::= [^,"\\n\\r]
-    quoted_field ::= "\\"" quoted_char* "\\""
-    quoted_char ::= [^"] | "\\"\\""
+    field  ::= /[^,"\\n\\r]+/
     newline ::= "\\r\\n" | "\\n"
 """)
 ```
 
-The format that NobodyWho utilizes is called GBNF, which is a Llama.cpp native format.
-See the [GBNF specification](https://github.com/ggml-org/llama.cpp/blob/master/grammars/README.md).
+See the [Lark documentation](https://lark-parser.readthedocs.io/en/latest/grammar.html) and the
+[GBNF specification](https://github.com/ggml-org/llama.cpp/blob/master/grammars/README.md) for the
+full grammar syntax.
+
+!!! info ""
+    The older `SamplerPresets.json()` and `SamplerPresets.grammar()` methods are deprecated.
+    Use `SamplerPresets.constrainWithJsonSchema()` for JSON output or
+    `SamplerPresets.constrainWithGrammar()` for custom grammars — the latter accepts both Lark and GBNF strings.
 
 ## Defining your own samplers
 
