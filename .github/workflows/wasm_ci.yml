@@ -39,7 +39,12 @@ jobs:
         run: rustup target add wasm32-unknown-unknown
 
       - name: Install wasm-bindgen-cli
-        run: cargo install wasm-bindgen-cli --version 0.2.121 --locked
+        # Version is read from Cargo.lock so the CLI and the runtime glue
+        # baked into the .wasm always match. See wasm-bindgen-version.sh.
+        run: |
+          version=$(bash nobodywho/wasm/scripts/wasm-bindgen-version.sh)
+          echo "Installing wasm-bindgen-cli v$version (from Cargo.lock)"
+          cargo install wasm-bindgen-cli --version "$version" --locked
 
       - name: Build wasm32-unknown-unknown (release)
         working-directory: nobodywho

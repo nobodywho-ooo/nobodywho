@@ -1,6 +1,6 @@
 {
   "name": "@nobodywho/wasm",
-  "version": "0.1.0",
+  "version": "0.0.0-PLACEHOLDER",
   "description": "Run local LLMs in the browser via llama.cpp compiled to WebAssembly.",
   "license": "MIT",
   "repository": {
