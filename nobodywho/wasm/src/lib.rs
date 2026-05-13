@@ -57,9 +57,7 @@ where
         }
     })
     .catch_unwind()
-    .map(|r| {
-        r.unwrap_or_else(|_| Err(JsValue::from_str("rust panic crossed wasm boundary")))
-    });
+    .map(|r| r.unwrap_or_else(|_| Err(JsValue::from_str("rust panic crossed wasm boundary"))));
     wasm_bindgen_futures::future_to_promise(safe)
 }
 

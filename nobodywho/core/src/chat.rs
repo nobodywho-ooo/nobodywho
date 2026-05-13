@@ -878,11 +878,17 @@ impl ChatHandleAsync {
 }
 
 /// A stream of tokens from the model.
+///
+/// Native-only synchronous stream — `next_token` calls `blocking_recv`, which
+/// would deadlock the single-threaded JS event loop. Wasm consumers use
+/// [`TokenStreamAsync`] instead, returned from [`ChatHandleAsync::ask`].
+#[cfg(not(target_arch = "wasm32"))]
 pub struct TokenStream {
     rx: tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>,
     completed_response: Option<String>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl TokenStream {
     fn new(rx: tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>) -> Self {
         Self {

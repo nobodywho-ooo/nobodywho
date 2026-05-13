@@ -14,13 +14,19 @@ use llama_cpp_2::model::AddBos;
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::mtmd::MtmdInputChunks;
 use llama_cpp_2::token::LlamaToken;
+#[cfg(not(target_arch = "wasm32"))]
 use std::io::{Read, Write};
 use std::pin::pin;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
+#[cfg(not(target_arch = "wasm32"))]
 use std::time::Duration;
-use tracing::{debug, debug_span, error, info, info_span, warn};
+use tracing::{debug, debug_span, error, info, warn};
+// `info_span` is only used inside the native model-loader path; gate it so the
+// wasm build doesn't warn about an unused import.
+#[cfg(not(target_arch = "wasm32"))]
+use tracing::info_span;
 
 #[derive(Debug)]
 pub(crate) struct GlobalInferenceLockToken;
@@ -185,10 +191,7 @@ pub fn has_gpu_backend() -> bool {
 /// `fmemopen` is POSIX and not in the MSVC CRT; a Windows tempfile
 /// fallback can be added later if a caller needs it.
 #[cfg(not(all(target_os = "windows", target_env = "msvc")))]
-pub fn get_model_from_bytes(
-    bytes: &[u8],
-    gpu_layers: u32,
-) -> Result<Model, LoadModelError> {
+pub fn get_model_from_bytes(bytes: &[u8], gpu_layers: u32) -> Result<Model, LoadModelError> {
     info!(
         bytes_len = bytes.len(),
         gpu_layers, "Loading model from in-memory bytes"
@@ -1008,5 +1011,30 @@ mod tests {
         cb(50, 100);
         cb(100, 100);
         assert_eq!(count.load(Ordering::Relaxed), 2);
+    }
+
+    /// Error-path test for the bytes-based loader: feeding non-GGUF bytes
+    /// must return `LoadModelError::InvalidModel` (rather than panicking,
+    /// returning a different error variant, or — worst — silently succeeding).
+    ///
+    /// We deliberately don't test the success path here: under nix-sandbox
+    /// Linux, llama.cpp's `llama_model_load_from_buffer` (POSIX `fmemopen`
+    /// path) returns NULL for an otherwise-valid GGUF that loads fine via
+    /// the file-based path. Tracking the underlying llama.cpp issue is
+    /// out of scope for this PR; the bytes-loader's success path is
+    /// covered end-to-end by the wasm binding's CI smoke test, where
+    /// emscripten provides its own `fmemopen` that does work.
+    #[cfg(not(all(target_os = "windows", target_env = "msvc")))]
+    #[test]
+    fn get_model_from_bytes_rejects_invalid_data() {
+        use crate::test_utils::init_test_tracing;
+        init_test_tracing();
+        // Definitely not a valid GGUF — even the magic header is missing.
+        let bytes = vec![0u8; 4096];
+        let result = get_model_from_bytes(&bytes, 0);
+        assert!(
+            matches!(result, Err(LoadModelError::InvalidModel(_))),
+            "expected InvalidModel error, got {result:?}"
+        );
     }
 }
