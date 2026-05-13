@@ -226,10 +226,7 @@ pub fn has_gpu_backend() -> bool {
 /// `fmemopen` is POSIX and not in the MSVC CRT; a Windows tempfile
 /// fallback can be added later if a caller needs it.
 #[cfg(not(all(target_os = "windows", target_env = "msvc")))]
-pub fn get_model_from_bytes(
-    bytes: &[u8],
-    gpu_layers: u32,
-) -> Result<Model, LoadModelError> {
+pub fn get_model_from_bytes(bytes: &[u8], gpu_layers: u32) -> Result<Model, LoadModelError> {
     info!(
         bytes_len = bytes.len(),
         gpu_layers, "Loading model from in-memory bytes"

@@ -434,8 +434,8 @@ fn build_pkg_sh_no_version_path_exits_and_doesnt_lie() {
         .unwrap_or("");
     let bounded = else_branch.split("\nfi").next().unwrap_or(else_branch);
     let has_exit = bounded.contains("exit ") || bounded.contains("exit\n");
-    let has_allow_escape = code.contains("WASM_ALLOW_PLACEHOLDER")
-        || code.contains("ALLOW_PLACEHOLDER");
+    let has_allow_escape =
+        code.contains("WASM_ALLOW_PLACEHOLDER") || code.contains("ALLOW_PLACEHOLDER");
 
     assert!(
         has_exit && has_allow_escape,
@@ -445,7 +445,9 @@ fn build_pkg_sh_no_version_path_exits_and_doesnt_lie() {
          where the version doesn't matter.\n\n\
          else-branch found:\n{}\n\
          has_exit = {}, has_allow_escape = {}",
-        bounded, has_exit, has_allow_escape
+        bounded,
+        has_exit,
+        has_allow_escape
     );
 }
 
@@ -477,8 +479,7 @@ fn worker_chat_handler_cleans_up_on_error() {
         .expect("onceChatReady listener missing");
     let listener_block = &handler_body[listener_pos..];
 
-    let handles_error = listener_block.contains("'error'")
-        || listener_block.contains("\"error\"");
+    let handles_error = listener_block.contains("'error'") || listener_block.contains("\"error\"");
 
     assert!(
         handles_error,
@@ -508,9 +509,7 @@ fn build_pkg_sh_validates_version_before_sed() {
     // an unrelated `case "$PROFILE" in` elsewhere doesn't satisfy the check.
     let validates_pre = code.lines().any(|l| {
         l.contains("$VERSION")
-            && (l.contains("=~")
-                || l.contains("case \"$VERSION\"")
-                || l.contains("grep"))
+            && (l.contains("=~") || l.contains("case \"$VERSION\"") || l.contains("grep"))
     });
 
     assert!(

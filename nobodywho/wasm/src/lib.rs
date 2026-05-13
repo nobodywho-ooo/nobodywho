@@ -99,9 +99,7 @@ where
         }
     })
     .catch_unwind()
-    .map(|r| {
-        r.unwrap_or_else(|_| Err(JsValue::from_str("rust panic crossed wasm boundary")))
-    });
+    .map(|r| r.unwrap_or_else(|_| Err(JsValue::from_str("rust panic crossed wasm boundary"))));
     wasm_bindgen_futures::future_to_promise(safe)
 }
 
@@ -223,8 +221,9 @@ struct ConstraintSpec {
 impl ConstraintSpec {
     fn into_sampler(self) -> Result<nobodywho::sampler_config::SamplerConfig, JsError> {
         use nobodywho::sampler_config::SamplerPresets;
-        let n_set =
-            self.json_schema.is_some() as u8 + self.regex.is_some() as u8 + self.lark.is_some() as u8;
+        let n_set = self.json_schema.is_some() as u8
+            + self.regex.is_some() as u8
+            + self.lark.is_some() as u8;
         if n_set != 1 {
             return Err(JsError::new(
                 "constraint must set exactly one of jsonSchema / regex / lark",
