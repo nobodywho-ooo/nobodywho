@@ -1,4 +1,4 @@
-package com.nobodywho
+package ai.nobodywho
 
 import uniffi.nobodywho.SamplerBuilder
 import uniffi.nobodywho.SamplerConfig

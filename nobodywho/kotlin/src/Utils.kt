@@ -1,4 +1,4 @@
-package com.nobodywho
+package ai.nobodywho
 
 import uniffi.nobodywho.cosineSimilarity as internalCosineSimilarity
 

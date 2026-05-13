@@ -1,7 +1,7 @@
-package com.nobodywho
+package ai.nobodywho
 
 // Re-export uniffi types that are part of the public API so consumers
-// only need to import from com.nobodywho.
+// only need to import from ai.nobodywho.
 typealias SamplerConfig = uniffi.nobodywho.SamplerConfig
 typealias Asset = uniffi.nobodywho.Asset
 typealias ToolCall = uniffi.nobodywho.ToolCall

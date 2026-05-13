@@ -1,4 +1,4 @@
-package com.nobodywho
+package ai.nobodywho
 
 import java.io.Closeable
 import uniffi.nobodywho.RustModel as InternalModel
