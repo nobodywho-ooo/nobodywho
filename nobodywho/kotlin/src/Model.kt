@@ -1,7 +1,7 @@
 package com.nobodywho
 
 import java.io.Closeable
-import uniffi.nobodywho.Model as InternalModel
+import uniffi.nobodywho.RustModel as InternalModel
 import uniffi.nobodywho.loadModel
 import uniffi.nobodywho.RustDownloadProgressCallback
 

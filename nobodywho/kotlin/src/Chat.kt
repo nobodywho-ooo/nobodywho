@@ -3,7 +3,6 @@ package com.nobodywho
 import java.io.Closeable
 import uniffi.nobodywho.RustChat as InternalRustChat
 import uniffi.nobodywho.SamplerConfig
-import uniffi.nobodywho.Message
 
 /**
  * A chat session for local LLM inference.
@@ -64,8 +63,12 @@ class Chat(
     suspend fun resetContext(systemPrompt: String? = null, tools: List<Tool>? = null) =
         inner.resetContext(systemPrompt, tools?.map { it.inner })
     suspend fun resetHistory() = inner.resetHistory()
-    suspend fun getChatHistory(): List<Message> = inner.getChatHistory()
-    suspend fun setChatHistory(messages: List<Message>) = inner.setChatHistory(messages)
+    // getChatHistory/setChatHistory convert between our Message wrapper and the
+    // uniffi-generated Message. We wrap Message so that consumers only import from
+    // com.nobodywho — the generated uniffi.nobodywho.Message.Tool variant would
+    // otherwise clash with the top-level com.nobodywho.Tool class.
+    suspend fun getChatHistory(): List<Message> = inner.getChatHistory().map { Message.fromUniFFI(it) }
+    suspend fun setChatHistory(messages: List<Message>) = inner.setChatHistory(messages.map { Message.toUniFFI(it) })
     suspend fun getSystemPrompt(): String? = inner.getSystemPrompt()
     suspend fun setSystemPrompt(systemPrompt: String?) = inner.setSystemPrompt(systemPrompt)
     suspend fun setTools(tools: List<Tool>) = inner.setTools(tools.map { it.inner })
