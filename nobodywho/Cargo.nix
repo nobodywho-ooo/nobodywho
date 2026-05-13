@@ -7359,21 +7359,21 @@ rec {
             name = "llama-cpp-2";
             packageId = "llama-cpp-2";
             usesDefaultFeatures = false;
-            features = [ "openmp" "android-static-stdcxx" "mtmd" "llguidance" ];
+            features = [ "openmp" "android-static-stdcxx" "llguidance" ];
           }
           {
             name = "llama-cpp-2";
             packageId = "llama-cpp-2";
             usesDefaultFeatures = false;
             target = { target, features }: ((!("macos" == target."os" or null)) && (!("ios" == target."os" or null)) && (!("visionos" == target."os" or null)) && (!("watchos" == target."os" or null)) && (!("android" == target."os" or null)) && (("x86_64" == target."arch" or null) || ("x86" == target."arch" or null) || ("aarch64" == target."arch" or null)));
-            features = [ "openmp" "vulkan" "mtmd" "android-static-stdcxx" "llguidance" ];
+            features = [ "openmp" "vulkan" "android-static-stdcxx" "llguidance" ];
           }
           {
             name = "llama-cpp-2";
             packageId = "llama-cpp-2";
             usesDefaultFeatures = false;
             target = { target, features }: ("ios" == target."os" or null);
-            features = [ "metal" "mtmd" "llguidance" ];
+            features = [ "metal" "llguidance" ];
           }
           {
             name = "minijinja";
@@ -7452,7 +7452,11 @@ rec {
             target = { target, features }: ("wasm32" == target."arch" or null);
           }
         ];
-
+        features = {
+          "default" = [ "mtmd" ];
+          "mtmd" = [ "llama-cpp-2/mtmd" ];
+        };
+        resolvedDefaultFeatures = [ "default" "mtmd" ];
       };
       "nobodywho-flutter" = rec {
         crateName = "nobodywho-flutter";
