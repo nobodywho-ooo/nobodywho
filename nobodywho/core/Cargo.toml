@@ -46,20 +46,14 @@ libc = "0.2"
 [target.'cfg(not(target_os = "android"))'.dependencies]
 dirs = "6"
 
-# Enable Vulkan for x86_64, x86, and aarch64 targets (excluding macOS, iOS, Android)
-[target.'cfg(all(not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android"), any(target_arch = "x86_64", target_arch = "x86", target_arch = "aarch64")))'.dependencies]
+# Enable Vulkan for x86_64, x86, and aarch64 targets (excluding Apple platforms and Android).
+# Apple platforms use Metal, which is auto-enabled by llama-cpp-rs for all Apple targets
+# (except watchOS which has no Metal support — handled in llama-cpp-rs build.rs).
+[target.'cfg(all(not(target_os = "macos"), not(target_os = "ios"), not(target_os = "visionos"), not(target_os = "watchos"), not(target_os = "android"), any(target_arch = "x86_64", target_arch = "x86", target_arch = "aarch64")))'.dependencies]
 llama-cpp-2 = { git = "https://github.com/marek-hradil/llama-cpp-rs", branch = "main", default-features = false, features = [
     "openmp",
     "vulkan",
     "mtmd",
     "android-static-stdcxx",
-    "llguidance",
-] }
-
-# Enable Metal on iOS. (macOS aarch64 gets Metal automatically from llama-cpp-2's own target-cfg upstream.)
-[target.'cfg(target_os = "ios")'.dependencies]
-llama-cpp-2 = { git = "https://github.com/marek-hradil/llama-cpp-rs", branch = "main", default-features = false, features = [
-    "metal",
-    "mtmd",
     "llguidance",
 ] }
