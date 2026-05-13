@@ -1,6 +1,8 @@
 package com.nobodywho
 
-import uniffi.nobodywho.SamplerConfig
+import uniffi.nobodywho.samplerPresetConstrainWithGrammar
+import uniffi.nobodywho.samplerPresetConstrainWithJsonSchema
+import uniffi.nobodywho.samplerPresetConstrainWithRegex
 import uniffi.nobodywho.samplerPresetDefault
 import uniffi.nobodywho.samplerPresetDry
 import uniffi.nobodywho.samplerPresetGrammar
@@ -26,5 +28,9 @@ object SamplerPresets {
     fun temperature(temperature: Float): SamplerConfig = samplerPresetTemperature(temperature)
     fun dry(): SamplerConfig = samplerPresetDry()
     fun json(): SamplerConfig = samplerPresetJson()
+    fun constrainWithJsonSchema(schema: String): SamplerConfig = samplerPresetConstrainWithJsonSchema(schema)
+    fun constrainWithRegex(pattern: String): SamplerConfig = samplerPresetConstrainWithRegex(pattern)
+    fun constrainWithGrammar(grammar: String): SamplerConfig = samplerPresetConstrainWithGrammar(grammar)
+    @Deprecated("Use constrainWithGrammar() instead", ReplaceWith("constrainWithGrammar(grammar)"))
     fun grammar(grammar: String): SamplerConfig = samplerPresetGrammar(grammar)
 }

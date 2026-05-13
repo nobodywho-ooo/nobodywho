@@ -689,6 +689,12 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_func_load_model(
     ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar(
+    ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_json_schema(
+    ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_regex(
+    ): Short
     external fun uniffi_nobodywho_uniffi_checksum_func_sampler_preset_default(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_func_sampler_preset_dry(
@@ -941,6 +947,12 @@ external fun uniffi_nobodywho_uniffi_fn_func_cosine_similarity(`a`: RustBuffer.B
 ): Float
 external fun uniffi_nobodywho_uniffi_fn_func_load_model(`modelPath`: RustBuffer.ByValue,`useGpu`: Byte,`projectionModelPath`: RustBuffer.ByValue,`onDownloadProgress`: RustBuffer.ByValue,
 ): Long
+external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(`grammar`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Long
+external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_json_schema(`schema`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Long
+external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_regex(`pattern`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Long
 external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_default(uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_dry(uniffi_out_err: UniffiRustCallStatus, 
@@ -1082,6 +1094,15 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_func_load_model() != 33587.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar() != 13698.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_json_schema() != 4691.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_regex() != 25543.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_default() != 10834.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1094,7 +1115,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_greedy() != 13219.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_json() != 40006.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_json() != 8103.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_temperature() != 64803.toShort()) {
@@ -1178,7 +1199,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dry() != 35315.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_grammar() != 24369.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_grammar() != 3547.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy() != 32898.toShort()) {
@@ -3838,7 +3859,7 @@ public interface SamplerBuilderInterface {
     fun `dry`(`multiplier`: kotlin.Float, `base`: kotlin.Float, `allowedLength`: kotlin.Int, `penaltyLastN`: kotlin.Int, `seqBreakers`: List<kotlin.String>): SamplerBuilder
     
     /**
-     * Apply a grammar constraint to enforce structured output.
+     * Deprecated: Use `sampler_preset_constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
      */
     fun `grammar`(`grammar`: kotlin.String, `triggerOn`: kotlin.String?, `root`: kotlin.String): SamplerBuilder
     
@@ -4036,7 +4057,7 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
 
     
     /**
-     * Apply a grammar constraint to enforce structured output.
+     * Deprecated: Use `sampler_preset_constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
      */override fun `grammar`(`grammar`: kotlin.String, `triggerOn`: kotlin.String?, `root`: kotlin.String): SamplerBuilder {
             return FfiConverterTypeSamplerBuilder.lift(
     callWithHandle {
@@ -5652,6 +5673,45 @@ public object FfiConverterMapStringBoolean: FfiConverterRustBuffer<Map<kotlin.St
     }
 
         /**
+         * Create a sampler that constrains output using a Lark grammar via llguidance.
+         */ fun `samplerPresetConstrainWithGrammar`(`grammar`: kotlin.String): SamplerConfig {
+            return FfiConverterTypeSamplerConfig.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(
+    
+        FfiConverterString.lower(`grammar`),_status)
+}
+    )
+    }
+    
+
+        /**
+         * Create a sampler that constrains output to a JSON schema via llguidance.
+         */ fun `samplerPresetConstrainWithJsonSchema`(`schema`: kotlin.String): SamplerConfig {
+            return FfiConverterTypeSamplerConfig.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_json_schema(
+    
+        FfiConverterString.lower(`schema`),_status)
+}
+    )
+    }
+    
+
+        /**
+         * Create a sampler that constrains output to a regular expression via llguidance.
+         */ fun `samplerPresetConstrainWithRegex`(`pattern`: kotlin.String): SamplerConfig {
+            return FfiConverterTypeSamplerConfig.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_regex(
+    
+        FfiConverterString.lower(`pattern`),_status)
+}
+    )
+    }
+    
+
+        /**
          * Get the default sampler configuration.
          */ fun `samplerPresetDefault`(): SamplerConfig {
             return FfiConverterTypeSamplerConfig.lift(
@@ -5702,10 +5762,7 @@ public object FfiConverterMapStringBoolean: FfiConverterRustBuffer<Map<kotlin.St
     )
     }
     
-
-        /**
-         * Create a sampler configured for JSON output generation.
-         */ fun `samplerPresetJson`(): SamplerConfig {
+ fun `samplerPresetJson`(): SamplerConfig {
             return FfiConverterTypeSamplerConfig.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_func_sampler_preset_json(
