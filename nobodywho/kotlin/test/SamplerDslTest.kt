@@ -1,4 +1,4 @@
-package com.nobodywho
+package ai.nobodywho
 
 import org.junit.Assert.*
 import org.junit.Test

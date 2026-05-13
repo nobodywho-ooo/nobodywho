@@ -4,11 +4,11 @@ plugins {
     id("maven-publish")
 }
 
-group = "ooo.nobodywho"
+group = "ai.nobodywho"
 version = "0.1.0"
 
 android {
-    namespace = "ooo.nobodywho"
+    namespace = "ai.nobodywho"
     compileSdk = 35
 
     defaultConfig {
@@ -65,7 +65,7 @@ tasks.withType<Test> {
 publishing {
     publications {
         register<MavenPublication>("release") {
-            groupId = "ooo.nobodywho"
+            groupId = "ai.nobodywho"
             artifactId = "nobodywho"
             version = project.version.toString()
 

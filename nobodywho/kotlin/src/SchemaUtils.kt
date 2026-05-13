@@ -1,4 +1,4 @@
-package com.nobodywho
+package ai.nobodywho
 
 import org.json.JSONArray
 import org.json.JSONObject

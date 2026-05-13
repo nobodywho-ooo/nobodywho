@@ -1,4 +1,4 @@
-package com.nobodywho
+package ai.nobodywho
 
 import java.io.Closeable
 import uniffi.nobodywho.RustChat as InternalRustChat
@@ -65,8 +65,8 @@ class Chat(
     suspend fun resetHistory() = inner.resetHistory()
     // getChatHistory/setChatHistory convert between our Message wrapper and the
     // uniffi-generated Message. We wrap Message so that consumers only import from
-    // com.nobodywho — the generated uniffi.nobodywho.Message.Tool variant would
-    // otherwise clash with the top-level com.nobodywho.Tool class.
+    // ai.nobodywho — the generated uniffi.nobodywho.Message.Tool variant would
+    // otherwise clash with the top-level ai.nobodywho.Tool class.
     suspend fun getChatHistory(): List<Message> = inner.getChatHistory().map { Message.fromUniFFI(it) }
     suspend fun setChatHistory(messages: List<Message>) = inner.setChatHistory(messages.map { Message.toUniFFI(it) })
     suspend fun getSystemPrompt(): String? = inner.getSystemPrompt()
