@@ -53,6 +53,24 @@ jobs:
             target/wasm32-unknown-unknown/release/nobodywho_wasm.wasm \
             --out-dir wasm/pkg-bundler/
 
+      # Node 26+ is required. wasi-sdk's libc++ STL emits both noexternref
+      # (WasmGC) and exn (wasm Exception Handling) types in functions like
+      # money_get<wchar_t>. Older Nodes flag these as experimental and
+      # refuse to compile without flags:
+      #   - Node 20.x: "invalid value type 'noexternref', enable with
+      #     --experimental-wasm-gc"
+      #   - Node 22.x: gets past compile but SIGSEGVs in V8 on Linux x86_64
+      #     once llama.cpp's compute path runs (likely SIMD128 codegen bug,
+      #     fixed in Node 24). Doesn't reproduce on macOS arm64.
+      #   - Node 24.x: "invalid value type 'exn', enable with
+      #     --experimental-wasm-exnref"
+      #   - Node 26.x: enables both by default — runs end-to-end with no
+      #     flag tweaking.
+      - name: Set up Node 26
+        uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+
       - name: Smoke test under Node (no model)
         working-directory: nobodywho
         run: node wasm/examples/run.mjs
