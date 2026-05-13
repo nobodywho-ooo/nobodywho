@@ -2,7 +2,7 @@ package com.nobodywho
 
 import java.io.Closeable
 import org.json.JSONArray
-import uniffi.nobodywho.CrossEncoder as InternalCrossEncoder
+import uniffi.nobodywho.RustCrossEncoder as InternalCrossEncoder
 
 /**
  * A cross-encoder for ranking documents by relevance to a query.
