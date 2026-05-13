@@ -9,7 +9,7 @@ version = "0.1.0"
 
 android {
     namespace = "ooo.nobodywho"
-    compileSdk = 36
+    compileSdk = 35
 
     defaultConfig {
         minSdk = 26
@@ -51,9 +51,15 @@ dependencies {
     // JSON library (provided by Android runtime, needed explicitly for unit tests)
     implementation("org.json:json:20240303")
 
-    // Unit tests
+    // Unit tests (JNA jar for host JVM, not @aar)
     testImplementation("junit:junit:4.13.2")
-    testImplementation("org.json:json:20240303")
+    testImplementation("net.java.dev.jna:jna:5.14.0")
+}
+
+tasks.withType<Test> {
+    val libDir = System.getenv("NOBODYWHO_LIB_DIR") ?: ""
+    systemProperty("java.library.path", libDir)
+    systemProperty("jna.library.path", libDir)
 }
 
 publishing {

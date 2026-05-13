@@ -25,7 +25,14 @@ import kotlin.reflect.full.valueParameters
  *     function = ::getWeather
  * )
  * ```
- * Lists and Maps are also supported as parameter types.
+ *
+ * Supported parameter types: `String`, `Int`, `Long`, `Double`, `Float`, `Boolean`,
+ * and collections like `List<String>` or `Map<String, Int>`.
+ *
+ * **Important:** The function must be a top-level function, a class method, or a
+ * companion object method. Local functions (defined inside other functions or lambdas)
+ * are not supported because Kotlin reflection cannot resolve their signatures after
+ * coroutine or closure compilation transforms them.
  */
 class Tool(
     name: String,

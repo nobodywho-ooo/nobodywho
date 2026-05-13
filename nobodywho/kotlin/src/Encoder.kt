@@ -1,7 +1,7 @@
 package com.nobodywho
 
 import java.io.Closeable
-import uniffi.nobodywho.Encoder as InternalEncoder
+import uniffi.nobodywho.RustEncoder as InternalEncoder
 
 /**
  * An embedding encoder for generating text embeddings.
