@@ -1,4 +1,4 @@
-package com.nobodywho
+package ai.nobodywho
 
 import org.json.JSONObject
 import uniffi.nobodywho.RustTool as InternalRustTool

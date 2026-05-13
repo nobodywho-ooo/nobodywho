@@ -1,4 +1,4 @@
-package com.nobodywho
+package ai.nobodywho
 
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
