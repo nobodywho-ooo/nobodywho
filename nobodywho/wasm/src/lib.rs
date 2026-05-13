@@ -179,8 +179,11 @@ pub struct Chat {
 ///   constraint: { jsonSchema: '{"type":"object","properties":{...}}' },
 /// });
 /// ```
+// `deny_unknown_fields` matches ConstraintSpec below and surfaces JS-side
+// typos / unsupported options (e.g. `tools: [...]`) as a JsError at
+// construction time, rather than serde silently dropping the field.
 #[derive(serde::Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ChatOptions {
     context_size: Option<u32>,
     system_prompt: Option<String>,
@@ -204,6 +207,11 @@ struct ChatOptions {
 ///
 /// All three are documented in core's `GrammarConstraint`; this is just the
 /// JS-facing wire format.
+///
+/// **Runtime caveat on wasm32-unknown-unknown:** llguidance currently panics
+/// on `std::time::Instant::now()` (no monotonic clock), so any constraint
+/// that reaches the grammar sampler will trip an upstream bug at generation
+/// time. Tracked upstream; the wire format here is stable.
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ConstraintSpec {
@@ -259,9 +267,16 @@ impl Chat {
         })
     }
 
-    /// Send a prompt and receive a `TokenStream`. Tokens arrive as they're
-    /// generated; await `nextToken()` in a loop, or call `completed()` to
-    /// resolve to the full response.
+    /// Send a prompt and receive a `TokenStream`. Await `nextToken()` in a
+    /// loop, or call `completed()` to resolve to the full response.
+    ///
+    /// **Wasm note: this does NOT stream in real time.** The Rust inference
+    /// loop holds the single JS thread until generation completes, so the
+    /// `nextToken()` loop only drains tokens AFTER the response is fully
+    /// generated. To see tokens arrive as they're produced, run the wasm in
+    /// a Web Worker and use [`Chat::ask_streaming`] (`askStreaming` in JS),
+    /// which calls a JS callback synchronously from inside the inference loop
+    /// — the callback can then `self.postMessage(token)` to the main thread.
     pub fn ask(&self, prompt: String) -> js_sys::Promise {
         let handle = self.handle.clone();
         promisify(async move {
@@ -434,8 +449,9 @@ impl Encoder {
 // API change or a wasm-specific design decision:
 //
 // - `CrossEncoder` / reranking — straightforward, follow the Encoder pattern.
-// - `Constraint` / structured output — depends on `core/src/sampler_config.rs`
-//   `GrammarConstraint`; pass-through via serde-wasm-bindgen.
 // - Tool calling — depends on llguidance behavior on wasm.
 // - Multimodal (image / audio assets) — `mtmd` is not currently enabled on wasm.
 // - Progress callbacks during model load — moot since we load from `Uint8Array`.
+//
+// Grammar-constrained generation IS wired through `Chat::new`'s options —
+// see `ConstraintSpec` above for the wire format and the runtime caveat.

@@ -35,7 +35,7 @@ and exposes the binding's full surface to JS via wasm-bindgen.
 | `Chat.ask(prompt)` → `TokenStream` → tokens | ✅ verified |
 | `TokenStream.nextToken()` / `completed()` | ✅ verified |
 | Multimodal (`MtmdBitmap` etc.) | not exposed — mtmd C++ doesn't compile against wasi-libc; the wasm has unresolved `mtmd_*` imports that JS replaces with stubs |
-| Structured output (`Constraint`) | not yet wired up to the JS surface (works inside core, no JS wrapping yet) |
+| Structured output (`Constraint`) | wire format exposed via `Chat`'s options (see `ConstraintSpec` in `wasm/src/lib.rs`); runtime is blocked on llguidance's `Instant::now` panic on `wasm32-unknown-unknown` (tracked upstream) |
 
 Native (`cargo check --workspace`) is unchanged.
 
@@ -74,8 +74,12 @@ export WASI_SDK_PATH=~/wasi-sdk-33.0-arm64-macos
 # Linux: replace arm64-macos with x86_64-linux or arm64-linux.
 
 # rustc target + wasm-bindgen-cli.
+# The CLI version must match the wasm-bindgen crate in Cargo.lock — the
+# helper script reads it from there so there's one source of truth.
 rustup target add wasm32-unknown-unknown
-cargo install wasm-bindgen-cli --version 0.2.121
+cargo install wasm-bindgen-cli \
+  --version "$(bash wasm/scripts/wasm-bindgen-version.sh)" \
+  --locked
 ```
 
 ### Build
@@ -196,17 +200,16 @@ And one workaround in the wasm crate itself (`wasm/src/lib.rs`):
 
 ## Outstanding
 
-- **Chat smoke test.** Encoder API verified; Chat uses the same worker
-  plumbing but needs a chat-style GGUF to actually invoke. The 35 MB
-  bge-small only does embeddings.
-- **Release-publishable npm package.** `pkg-bundler/` is the right shape;
-  needs a `package.json` (template at `wasm/package.json.tpl`) and a
-  `prepublish` step that does the cargo build + wasm-bindgen, plus CI.
-- **Browser polyfill bundling.** The `browser.html` example loads
-  `@bjorn3/browser_wasi_shim` from a CDN. For npm distribution we'd
-  bundle it (or add it as a peer dep, as the template `package.json`
-  already does).
-- **`Constraint` / structured output API surface.** Wired up in core, not
-  yet exposed from `wasm/src/lib.rs`. Mostly a serde-wasm-bindgen
-  pass-through.
-- **Upstream llama.cpp PRs** for the build-time patches.
+- **Browser polyfill bundling.** `browser.html` / `browser-chat.html`
+  / `worker.js` all load `@bjorn3/browser_wasi_shim` from a CDN. The
+  npm package leaves that as a peer dep (see `package.json.tpl`);
+  downstream bundlers resolve it. Worth verifying with at least one
+  real bundler integration (webpack + esbuild + vite) before 1.0.
+- **Structured-output generation at runtime.** The `Constraint` API is wired
+  through `Chat::new`'s options (see `ConstraintSpec` in `wasm/src/lib.rs`),
+  but constraints currently panic at generation time on
+  `wasm32-unknown-unknown` because llguidance calls `Instant::now`, which
+  isn't supported on that target. Tracked upstream.
+- **Upstream llama.cpp PRs** for the build-time patches in
+  `llama-cpp-sys-2` (`LLAMA_BUILD_HTTPLIB=OFF`, `LLAMA_BUILD_AUDIO=OFF`,
+  `__wasi__` arms in `common/common.cpp`).

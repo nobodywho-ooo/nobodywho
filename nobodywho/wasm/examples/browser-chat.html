@@ -15,11 +15,19 @@
   </style>
 </head>
 <body>
-  <h1>nobodywho-wasm — chat in the browser</h1>
+  <h1>nobodywho-wasm — chat in the browser (main-thread demo)</h1>
   <p>
-    Same wasm as <code>browser.html</code>, but exercises <code>Chat.ask</code>
-    and streams tokens. Pick a chat-style GGUF (e.g. Qwen2.5-0.5B-Instruct
-    or Qwen3-0.6B from <code>~/Downloads/</code>).
+    Minimal demo that runs <code>Chat.ask</code> on the main thread and
+    drains <code>TokenStream.nextToken()</code> into the page. Pick a
+    chat-style GGUF (e.g. Qwen2.5-0.5B-Instruct or Qwen3-0.6B from
+    <code>~/Downloads/</code>).
+  </p>
+  <p>
+    <strong>Note:</strong> tokens do NOT appear incrementally here. The
+    Rust inference loop holds the JS thread until generation completes,
+    so the whole response lands at once. For real-time streaming run
+    the wasm inside a Web Worker and use <code>askStreaming</code> — see
+    <a href="./browser-chat-worker.html"><code>browser-chat-worker.html</code></a>.
   </p>
 
   <p>
