@@ -1,8 +1,13 @@
+[![](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fnobodywho-ooo%2Fnobodywho-swift%2Fbadge%3Ftype%3Dswift-versions)](https://swiftpackageindex.com/nobodywho-ooo/nobodywho-swift)
+[![](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fnobodywho-ooo%2Fnobodywho-swift%2Fbadge%3Ftype%3Dplatforms)](https://swiftpackageindex.com/nobodywho-ooo/nobodywho-swift)
+
 # NobodyWho for Swift
 
 On-device AI inference for Swift apps. Run LLMs locally on iOS, macOS, visionOS, and watchOS with no API keys or network connection required.
 
 NobodyWho is powered by [llama.cpp](https://github.com/ggml-org/llama.cpp) and supports thousands of GGUF models from [Hugging Face](https://huggingface.co/models?library=gguf&sort=trending).
+
+You can see and contribute to NobodyWho inference engine code [here](https://github.com/nobodywho-ooo/nobodywho).
 
 ## Installation
 

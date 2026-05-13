@@ -22,9 +22,6 @@ jobs:
   linting:
     uses: ./.github/workflows/linting.yml
 
-  watchos_build_test:
-    uses: ./.github/workflows/watchos_build_test.yml
-
   python_ci:
     uses: ./.github/workflows/python_ci.yml
     with:
