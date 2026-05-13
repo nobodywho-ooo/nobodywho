@@ -1763,7 +1763,7 @@ public protocol SamplerBuilderProtocol: AnyObject, Sendable {
     func dry(multiplier: Float, base: Float, allowedLength: Int32, penaltyLastN: Int32, seqBreakers: [String])  -> SamplerBuilder
     
     /**
-     * Apply a grammar constraint to enforce structured output.
+     * Deprecated: Use `sampler_preset_constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
      */
     func grammar(grammar: String, triggerOn: String?, root: String)  -> SamplerBuilder
     
@@ -1904,7 +1904,7 @@ open func dry(multiplier: Float, base: Float, allowedLength: Int32, penaltyLastN
 }
     
     /**
-     * Apply a grammar constraint to enforce structured output.
+     * Deprecated: Use `sampler_preset_constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
      */
 open func grammar(grammar: String, triggerOn: String?, root: String) -> SamplerBuilder  {
     return try!  FfiConverterTypeSamplerBuilder_lift(try! rustCall() {
@@ -3452,6 +3452,36 @@ public func loadModel(modelPath: String, useGpu: Bool, projectionModelPath: Stri
         )
 }
 /**
+ * Create a sampler that constrains output using a Lark grammar via llguidance.
+ */
+public func samplerPresetConstrainWithGrammar(grammar: String) -> SamplerConfig  {
+    return try!  FfiConverterTypeSamplerConfig_lift(try! rustCall() {
+    uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(
+        FfiConverterString.lower(grammar),$0
+    )
+})
+}
+/**
+ * Create a sampler that constrains output to a JSON schema via llguidance.
+ */
+public func samplerPresetConstrainWithJsonSchema(schema: String) -> SamplerConfig  {
+    return try!  FfiConverterTypeSamplerConfig_lift(try! rustCall() {
+    uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_json_schema(
+        FfiConverterString.lower(schema),$0
+    )
+})
+}
+/**
+ * Create a sampler that constrains output to a regular expression via llguidance.
+ */
+public func samplerPresetConstrainWithRegex(pattern: String) -> SamplerConfig  {
+    return try!  FfiConverterTypeSamplerConfig_lift(try! rustCall() {
+    uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_regex(
+        FfiConverterString.lower(pattern),$0
+    )
+})
+}
+/**
  * Get the default sampler configuration.
  */
 public func samplerPresetDefault() -> SamplerConfig  {
@@ -3488,9 +3518,6 @@ public func samplerPresetGreedy() -> SamplerConfig  {
     )
 })
 }
-/**
- * Create a sampler configured for JSON output generation.
- */
 public func samplerPresetJson() -> SamplerConfig  {
     return try!  FfiConverterTypeSamplerConfig_lift(try! rustCall() {
     uniffi_nobodywho_uniffi_fn_func_sampler_preset_json($0
@@ -3549,6 +3576,15 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_func_load_model() != 33587) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar() != 13698) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_json_schema() != 4691) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_regex() != 25543) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_nobodywho_uniffi_checksum_func_sampler_preset_default() != 10834) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -3561,7 +3597,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_func_sampler_preset_greedy() != 13219) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_func_sampler_preset_json() != 40006) {
+    if (uniffi_nobodywho_uniffi_checksum_func_sampler_preset_json() != 8103) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_func_sampler_preset_temperature() != 64803) {
@@ -3645,7 +3681,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dry() != 35315) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_grammar() != 24369) {
+    if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_grammar() != 3547) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy() != 32898) {

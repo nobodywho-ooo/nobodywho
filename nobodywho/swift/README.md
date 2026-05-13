@@ -168,8 +168,11 @@ let chat = try await Chat.fromPath(
 // SamplerPresets.temperature(0.7)
 // SamplerPresets.topK(40)
 // SamplerPresets.topP(0.9)
-// SamplerPresets.json()          — constrain output to valid JSON
-// SamplerPresets.grammar("...")  — constrain output to a GBNF grammar
+//
+// Structured output constraints (via llguidance):
+// SamplerPresets.constrainWithJsonSchema("{...}")  — constrain to a JSON Schema
+// SamplerPresets.constrainWithRegex("[0-9]+")      — constrain to a regex pattern
+// SamplerPresets.constrainWithGrammar("...")        — constrain to a Lark or GBNF grammar
 ```
 
 ## Documentation

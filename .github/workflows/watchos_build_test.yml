@@ -1,0 +1,26 @@
+name: "watchOS build test"
+on: workflow_call
+
+jobs:
+  build-watchos:
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - "aarch64-apple-watchos"
+          - "aarch64-apple-watchos-sim"
+    runs-on: warp-macos-15-arm64-6x
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Setup Rust nightly (required for tier 3 watchOS targets)"
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          . "$HOME/.cargo/env"
+          rustup toolchain install nightly
+          rustup +nightly component add rust-src
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: "Build uniffi for ${{ matrix.target }}"
+        run: cargo +nightly build -p nobodywho-uniffi -Z build-std --verbose --target ${{ matrix.target }} --release
+        working-directory: ./nobodywho
