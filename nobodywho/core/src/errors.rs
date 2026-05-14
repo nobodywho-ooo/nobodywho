@@ -63,7 +63,9 @@ fn normalize_path(path: &std::path::Path) -> std::path::PathBuf {
     let mut result = std::path::PathBuf::new();
     for component in path.components() {
         match component {
-            Component::ParentDir => { result.pop(); }
+            Component::ParentDir => {
+                result.pop();
+            }
             Component::CurDir => {}
             c => result.push(c),
         }
@@ -94,7 +96,11 @@ impl LoadModelError {
         let path = fs_path.to_string_lossy().into_owned();
 
         let parent = fs_path.parent().unwrap_or(std::path::Path::new("."));
-        let parent = if parent.as_os_str().is_empty() { std::path::Path::new(".") } else { parent };
+        let parent = if parent.as_os_str().is_empty() {
+            std::path::Path::new(".")
+        } else {
+            parent
+        };
 
         if parent.exists() {
             let filename = fs_path
@@ -104,7 +110,11 @@ impl LoadModelError {
             let resolved = std::fs::canonicalize(parent)
                 .map(|p| p.join(&filename).display().to_string())
                 .unwrap_or_else(|_| path.clone());
-            LoadModelError::ModelNotFoundFile { path, filename, resolved }
+            LoadModelError::ModelNotFoundFile {
+                path,
+                filename,
+                resolved,
+            }
         } else {
             let resolved = std::path::absolute(fs_path)
                 .map(|p| normalize_path(&p).display().to_string())

@@ -109,7 +109,9 @@ impl Model {
             Ok(model) => Ok(Self {
                 model: Arc::new(model),
             }),
-            Err(err) => Err(pyo3::exceptions::PyRuntimeError::new_err(render_miette(&err))),
+            Err(err) => Err(pyo3::exceptions::PyRuntimeError::new_err(render_miette(
+                &err,
+            ))),
         }
     }
 
@@ -167,7 +169,9 @@ impl Model {
             Ok(model) => Ok(Self {
                 model: Arc::new(model),
             }),
-            Err(err) => Err(pyo3::exceptions::PyRuntimeError::new_err(render_miette(&err))),
+            Err(err) => Err(pyo3::exceptions::PyRuntimeError::new_err(render_miette(
+                &err,
+            ))),
         }
     }
 }
