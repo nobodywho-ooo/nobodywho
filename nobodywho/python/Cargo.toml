@@ -23,6 +23,7 @@ pyo3-introspection = "0.28.3"
 pyo3-log = "0.13.2"
 pythonize = "0.28.0"
 nom = "8.0.0"
+miette = { version = "5", features = ["fancy"] }
 
 
 [dependencies.pyo3]

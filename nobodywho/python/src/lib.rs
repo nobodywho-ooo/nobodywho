@@ -3,6 +3,17 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
 
+fn render_miette(err: &(dyn miette::Diagnostic + 'static)) -> String {
+    let mut out = String::new();
+    if miette::GraphicalReportHandler::new()
+        .render_report(&mut out, err)
+        .is_err()
+    {
+        out = err.to_string();
+    }
+    out
+}
+
 mod parse;
 
 /// Gate for forwarding tracing events to Python's logging module.
@@ -98,7 +109,7 @@ impl Model {
             Ok(model) => Ok(Self {
                 model: Arc::new(model),
             }),
-            Err(err) => Err(pyo3::exceptions::PyRuntimeError::new_err(err.to_string())),
+            Err(err) => Err(pyo3::exceptions::PyRuntimeError::new_err(render_miette(&err))),
         }
     }
 
@@ -156,7 +167,7 @@ impl Model {
             Ok(model) => Ok(Self {
                 model: Arc::new(model),
             }),
-            Err(err) => Err(pyo3::exceptions::PyRuntimeError::new_err(err.to_string())),
+            Err(err) => Err(pyo3::exceptions::PyRuntimeError::new_err(render_miette(&err))),
         }
     }
 }
@@ -185,7 +196,7 @@ impl<'py> ModelOrPath<'py> {
                     ))
                 })?;
                 nobodywho::llm::get_model(path_str, true, None, None)
-                    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+                    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))
                     .map(Arc::new)
             }
         }

@@ -220,9 +220,7 @@ fn resolve_fancy_path_to_fs(
     };
 
     if !fs_model_path.exists() {
-        let e = LoadModelError::ModelNotFound(fs_model_path.to_string_lossy().into());
-        error!(error = %e, "Model file not found");
-        return Err(e);
+        return Err(LoadModelError::from_missing_path(&fs_model_path));
     }
 
     Ok(fs_model_path)

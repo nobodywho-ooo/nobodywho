@@ -14,10 +14,27 @@ pub enum MemoryError {
 
 // Model errors
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum LoadModelError {
-    #[error("Model not found: {0}")]
-    ModelNotFound(String),
+    #[error("Model not found: {path}")]
+    #[diagnostic(
+        code(nobodywho::model_not_found),
+        help("Couldn't locate the directory - resolved to: {resolved}")
+    )]
+    ModelNotFoundDir { path: String, resolved: String },
+
+    #[error("Model not found: {path}")]
+    #[diagnostic(
+        code(nobodywho::model_not_found),
+        help(
+            "The directory exists, but '{filename}' could not be found - resolved to: {resolved}"
+        )
+    )]
+    ModelNotFoundFile {
+        path: String,
+        filename: String,
+        resolved: String,
+    },
     #[error("Invalid or unsupported GGUF model: {0}")]
     InvalidModel(String),
     #[error("Multimodal error: {0}")]
@@ -28,6 +45,44 @@ pub enum LoadModelError {
     FailedParsingModelPath(#[from] nom::Err<nom::error::Error<String>>),
     #[error("Failed to download model: {0}")]
     DownloadError(String),
+}
+
+fn normalize_path(path: &std::path::Path) -> std::path::PathBuf {
+    use std::path::Component;
+    let mut result = std::path::PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::ParentDir => { result.pop(); }
+            Component::CurDir => {}
+            c => result.push(c),
+        }
+    }
+    result
+}
+
+impl LoadModelError {
+    pub fn from_missing_path(fs_path: &std::path::Path) -> Self {
+        let path = fs_path.to_string_lossy().into_owned();
+
+        let parent = fs_path.parent().unwrap_or(std::path::Path::new("."));
+        let parent = if parent.as_os_str().is_empty() { std::path::Path::new(".") } else { parent };
+
+        if parent.exists() {
+            let filename = fs_path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            let resolved = std::fs::canonicalize(parent)
+                .map(|p| p.join(&filename).display().to_string())
+                .unwrap_or_else(|_| path.clone());
+            LoadModelError::ModelNotFoundFile { path, filename, resolved }
+        } else {
+            let resolved = std::path::absolute(fs_path)
+                .map(|p| normalize_path(&p).display().to_string())
+                .unwrap_or_else(|_| path.clone());
+            LoadModelError::ModelNotFoundDir { path, resolved }
+        }
+    }
 }
 
 // Worker errors
