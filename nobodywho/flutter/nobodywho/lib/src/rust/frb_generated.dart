@@ -67,7 +67,7 @@ class NobodyWho
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 1141766527;
+  int get rustContentHash => -1088055976;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -351,6 +351,13 @@ abstract class NobodyWhoApi extends BaseApi {
   double crateCosineSimilarity({
     required List<double> a,
     required List<double> b,
+  });
+
+  Future<String> crateDownloadModel({
+    required String modelPath,
+    Map<String, String> headers = const {},
+    FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
+        noopOnDownloadProgress,
   });
 
   Future<void> crateInitApp();
@@ -2734,6 +2741,46 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       const TaskConstMeta(debugName: "cosine_similarity", argNames: ["a", "b"]);
 
   @override
+  Future<String> crateDownloadModel({
+    required String modelPath,
+    Map<String, String> headers = const {},
+    FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
+        noopOnDownloadProgress,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(modelPath, serializer);
+          sse_encode_Map_String_String_None(headers, serializer);
+          sse_encode_DartFn_Inputs_i_64_i_64_Output_unit_AnyhowException(
+            onDownloadProgress,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 63,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateDownloadModelConstMeta,
+        argValues: [modelPath, headers, onDownloadProgress],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateDownloadModelConstMeta => const TaskConstMeta(
+    debugName: "download_model",
+    argNames: ["modelPath", "headers", "onDownloadProgress"],
+  );
+
+  @override
   Future<void> crateInitApp() {
     return handler.executeNormal(
       NormalTask(
@@ -2742,7 +2789,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 63,
+            funcId: 64,
             port: port_,
           );
         },
@@ -2767,7 +2814,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_opt_box_autoadd_usize(maxCommands, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 64)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 65)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2799,7 +2846,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_opt_box_autoadd_u_64(maxDurationSecs, serializer);
           sse_encode_opt_box_autoadd_usize(maxMemoryBytes, serializer);
           sse_encode_opt_box_autoadd_usize(maxRecursionDepth, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 65)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 66)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2838,7 +2885,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_String(description, serializer);
           sse_encode_String(runtimeType, serializer);
           sse_encode_Map_String_String_None(parameterDescriptions, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 66)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 67)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2880,7 +2927,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_i_64(downloaded, serializer);
           sse_encode_i_64(total, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 67)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 68)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -2909,7 +2956,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             toolCall,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 68)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 69)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,

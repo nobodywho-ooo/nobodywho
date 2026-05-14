@@ -113,6 +113,30 @@ impl Model {
     }
 }
 
+/// Download a model from a remote URL or HuggingFace path and return the local file path.
+///
+/// Use this when you need custom headers, e.g. for gated models that require authentication.
+/// For unauthenticated downloads, pass the URL directly to `Model.load`.
+///
+/// Args:
+///     model_path: Path or URL to a GGUF model file.
+///     headers: Optional HTTP headers (e.g. `{"Authorization": "Bearer hf_..."}`).
+///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while downloading.
+#[flutter_rust_bridge::frb]
+pub fn download_model(
+    model_path: String,
+    #[frb(default = "const {}")] headers: HashMap<String, String>,
+    #[frb(default = "noopOnDownloadProgress")] on_download_progress: impl Fn(i64, i64) -> DartFnFuture<()>
+        + Send
+        + Sync
+        + 'static,
+) -> Result<String, String> {
+    let headers_vec: Vec<(String, String)> = headers.into_iter().collect();
+    nobodywho::llm::download_model(&model_path, headers_vec, Some(wrap_progress(on_download_progress)))
+        .map(|p| p.to_string_lossy().into_owned())
+        .map_err(|e| e.to_string())
+}
+
 #[flutter_rust_bridge::frb(opaque)]
 pub struct RustChat {
     chat: nobodywho::chat::ChatHandleAsync,

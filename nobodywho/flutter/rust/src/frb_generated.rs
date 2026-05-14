@@ -44,7 +44,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1141766527;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1088055976;
 
 // Section: executor
 
@@ -3034,6 +3034,49 @@ fn wire__crate__cosine_similarity_impl(
         },
     )
 }
+fn wire__crate__download_model_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "download_model",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_model_path = <String>::sse_decode(&mut deserializer);
+            let api_headers =
+                <std::collections::HashMap<String, String>>::sse_decode(&mut deserializer);
+            let api_on_download_progress =
+                decode_DartFn_Inputs_i_64_i_64_Output_unit_AnyhowException(
+                    <flutter_rust_bridge::DartOpaque>::sse_decode(&mut deserializer),
+                );
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::download_model(
+                        api_model_path,
+                        api_headers,
+                        api_on_download_progress,
+                    )?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__init_app_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -4205,7 +4248,8 @@ fn pde_ffi_dispatcher_primary_impl(
         27 => wire__crate__RustTokenStream_completed_impl(port, ptr, rust_vec_len, data_len),
         28 => wire__crate__RustTokenStream_iter_impl(port, ptr, rust_vec_len, data_len),
         29 => wire__crate__RustTokenStream_next_token_impl(port, ptr, rust_vec_len, data_len),
-        63 => wire__crate__init_app_impl(port, ptr, rust_vec_len, data_len),
+        63 => wire__crate__download_model_impl(port, ptr, rust_vec_len, data_len),
+        64 => wire__crate__init_app_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -4259,11 +4303,11 @@ fn pde_ffi_dispatcher_sync_impl(
         60 => wire__crate__ToolCall_auto_accessor_set_arguments_impl(ptr, rust_vec_len, data_len),
         61 => wire__crate__ToolCall_auto_accessor_set_name_impl(ptr, rust_vec_len, data_len),
         62 => wire__crate__cosine_similarity_impl(ptr, rust_vec_len, data_len),
-        64 => wire__crate__new_bash_tool_impl(ptr, rust_vec_len, data_len),
-        65 => wire__crate__new_python_tool_impl(ptr, rust_vec_len, data_len),
-        66 => wire__crate__new_tool_impl_impl(ptr, rust_vec_len, data_len),
-        67 => wire__crate__noop_on_download_progress_impl(ptr, rust_vec_len, data_len),
-        68 => wire__crate__tool_call_arguments_json_impl(ptr, rust_vec_len, data_len),
+        65 => wire__crate__new_bash_tool_impl(ptr, rust_vec_len, data_len),
+        66 => wire__crate__new_python_tool_impl(ptr, rust_vec_len, data_len),
+        67 => wire__crate__new_tool_impl_impl(ptr, rust_vec_len, data_len),
+        68 => wire__crate__noop_on_download_progress_impl(ptr, rust_vec_len, data_len),
+        69 => wire__crate__tool_call_arguments_json_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }

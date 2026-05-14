@@ -210,13 +210,14 @@ fn parse_model_path(
 fn resolve_fancy_path_to_fs(
     parsed_path: ParsedModelPath,
     progress: &DownloadProgressCallback,
+    headers: &[(String, String)],
 ) -> Result<std::path::PathBuf, LoadModelError> {
     let fs_model_path = match parsed_path {
         ParsedModelPath::HuggingFaceUrl(owner, repo, filename) => {
-            download_model_from_hf(&owner, &repo, &filename, progress)?
+            download_model_from_hf(&owner, &repo, &filename, progress, headers)?
         }
         ParsedModelPath::FilesystemPath(path) => path,
-        ParsedModelPath::HttpUrl(url) => download_model_from_url(&url, progress)?,
+        ParsedModelPath::HttpUrl(url) => download_model_from_url(&url, progress, headers)?,
     };
 
     if !fs_model_path.exists() {
@@ -236,11 +237,11 @@ pub fn get_model(
     progress: Option<DownloadProgressCallback>,
 ) -> Result<Model, LoadModelError> {
     let progress = progress.unwrap_or_else(default_progress_callback);
-    let real_model_path = resolve_fancy_path_to_fs(parse_model_path(model_path)?, &progress)?;
+    let real_model_path = resolve_fancy_path_to_fs(parse_model_path(model_path)?, &progress, &[])?;
     let real_mmproj_path = mmproj_path
         .map(parse_model_path) // parse inside option
         .transpose()? // return early if parse fails
-        .map(|p| resolve_fancy_path_to_fs(p, &progress)) // download the file if needed
+        .map(|p| resolve_fancy_path_to_fs(p, &progress, &[])) // download the file if needed
         .transpose()?; // return early if download fails
 
     // TODO: `LlamaModelParams` uses all devices by default. Set it to an empty list once an upstream device API is available.
@@ -334,6 +335,15 @@ pub async fn get_model_async(
     }
 }
 
+pub fn download_model(
+    model_path: &str,
+    headers: Vec<(String, String)>,
+    progress: Option<DownloadProgressCallback>,
+) -> Result<std::path::PathBuf, LoadModelError> {
+    let progress = progress.unwrap_or_else(default_progress_callback);
+    resolve_fancy_path_to_fs(parse_model_path(model_path)?, &progress, &headers)
+}
+
 /// Get the cache directory for downloaded models.
 ///
 /// On Android, the package name is read from `/proc/self/cmdline` and the user ID
@@ -397,6 +407,7 @@ fn download_file(
     url: &str,
     target_path: &std::path::Path,
     progress: &DownloadProgressCallback,
+    headers: &[(String, String)],
 ) -> Result<(), crate::errors::LoadModelError> {
     for component in target_path.components() {
         if component == std::path::Component::ParentDir {
@@ -423,8 +434,13 @@ fn download_file(
 
     info!("Downloading {} -> {}", url, target_path.display());
 
-    let response = ureq::get(url).call().map_err(|e| {
-        crate::errors::LoadModelError::DownloadError(format!("HTTP request failed: {e}"))
+    let mut request = ureq::get(url);
+    for (name, value) in headers {
+        request = request.header(name.as_str(), value.as_str());
+    }
+    let response = request.call().map_err(|e| match e {
+        ureq::Error::StatusCode(status) => crate::errors::LoadModelError::from_http_status(url, status),
+        e => crate::errors::LoadModelError::DownloadError(format!("HTTP request failed: {e}")),
     })?;
 
     let content_length: std::num::NonZeroU64 = response
@@ -530,11 +546,12 @@ fn download_model_from_hf(
     repo: &str,
     filename: &str,
     progress: &DownloadProgressCallback,
+    headers: &[(String, String)],
 ) -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
     let cache_dir = get_cache_dir()?;
     let target_path = cache_dir.join(owner).join(repo).join(filename);
     let url = format!("https://huggingface.co/{owner}/{repo}/resolve/main/{filename}");
-    download_file(&url, &target_path, progress)?;
+    download_file(&url, &target_path, progress, headers)?;
     Ok(target_path)
 }
 
@@ -544,6 +561,7 @@ fn download_model_from_hf(
 fn download_model_from_url(
     url: &str,
     progress: &DownloadProgressCallback,
+    headers: &[(String, String)],
 ) -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
     let cache_dir = get_cache_dir()?;
     // Derive a cache path from the URL: strip scheme, use the rest as path components
@@ -551,7 +569,7 @@ fn download_model_from_url(
         .trim_start_matches("https://")
         .trim_start_matches("http://");
     let target_path = cache_dir.join("http").join(path_part);
-    download_file(url, &target_path, progress)?;
+    download_file(url, &target_path, progress, headers)?;
     Ok(target_path)
 }
 

@@ -1326,6 +1326,43 @@ fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> PyResult<f32> {
     Ok(nobodywho::encoder::cosine_similarity(&a, &b))
 }
 
+/// Download a model from a remote URL or HuggingFace path and return the local path.
+///
+/// This is useful when you need to pass custom headers (e.g. for authentication).
+/// For unauthenticated downloads, you can pass the path directly to `Chat` or `Model`.
+///
+/// Args:
+///     model_path: Path or URL to a GGUF model file. Accepts a local file path, a `huggingface:` path, or an `https://` URL.
+///     headers: Optional dict of HTTP headers to include in the download request (e.g. `{"Authorization": "Bearer hf_..."}`).
+///     on_download_progress: Optional callable invoked during downloads with `(downloaded_bytes, total_bytes)`.
+///
+/// Returns:
+///     Local path to the downloaded model file, which can be passed to `Model` or `Chat`.
+///
+/// Raises:
+///     RuntimeError: If the download fails
+#[pyfunction]
+#[pyo3(signature = (model_path, headers=None, on_download_progress=None))]
+fn download_model(
+    model_path: std::path::PathBuf,
+    headers: Option<std::collections::HashMap<String, String>>,
+    on_download_progress: Option<Py<PyAny>>,
+) -> PyResult<std::path::PathBuf> {
+    let path_str = model_path.to_str().ok_or_else(|| {
+        pyo3::exceptions::PyValueError::new_err(format!(
+            "Path contains invalid UTF-8: {}",
+            model_path.display()
+        ))
+    })?;
+    let headers_vec: Vec<(String, String)> = headers
+        .unwrap_or_default()
+        .into_iter()
+        .collect();
+    let progress = resolve_on_download_progress(on_download_progress)?;
+    nobodywho::llm::download_model(path_str, headers_vec, progress)
+        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))
+}
+
 /// `SamplerConfig` contains the configuration for a token sampler. The mechanism by which
 /// NobodyWho will sample a token from the probability distribution, to include in the
 /// generation result.
@@ -2567,6 +2604,8 @@ pub mod nobodywhopython {
         crate::PYTHON_LOGGING_AVAILABLE.store(false, std::sync::atomic::Ordering::Release);
     }
 
+    #[pymodule_export]
+    use super::download_model;
     #[pymodule_export]
     use super::bash_tool;
     #[pymodule_export]

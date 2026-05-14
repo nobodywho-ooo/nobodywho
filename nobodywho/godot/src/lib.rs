@@ -193,6 +193,121 @@ impl NobodyWhoModel {
     }
 }
 
+/// Downloads a GGUF model from a remote URL or HuggingFace path to the local cache.
+///
+/// Use this node when you need custom HTTP headers, e.g. for gated models that require
+/// a HuggingFace token. For unauthenticated downloads, set `model_path` directly on
+/// `NobodyWhoModel` — it downloads automatically.
+///
+/// Usage:
+/// ```gdscript
+/// var dl = NobodyWhoDownloader.new()
+/// dl.model_path = "hf://meta-llama/Llama-3.1-8B-Instruct-GGUF/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
+/// dl.headers = {"Authorization": "Bearer hf_xxx"}
+/// dl.download_complete.connect(func(path): print("Downloaded to: ", path))
+/// dl.download_failed.connect(func(err): print("Failed: ", err))
+/// dl.start_download()
+/// add_child(dl)
+/// ```
+#[derive(GodotClass)]
+#[class(base=Node)]
+struct NobodyWhoDownloader {
+    #[export]
+    model_path: GString,
+
+    #[export]
+    headers: VarDictionary,
+
+    base: Base<Node>,
+}
+
+#[godot_api]
+impl INode for NobodyWhoDownloader {
+    fn init(base: Base<Node>) -> Self {
+        Self {
+            model_path: GString::new(),
+            headers: VarDictionary::new(),
+            base,
+        }
+    }
+}
+
+#[godot_api]
+impl NobodyWhoDownloader {
+    #[signal]
+    fn download_progress(downloaded: i64, total: i64);
+
+    #[signal]
+    fn download_complete(local_path: GString);
+
+    #[signal]
+    fn download_failed(error: GString);
+
+    async fn download_detached(mut gd: Gd<Self>) -> Result<String, String> {
+        let (path, headers) = {
+            let b = gd.bind();
+            let path = resolve_godot_path(&b.model_path);
+            let headers: Vec<(String, String)> = b
+                .headers
+                .iter_shared()
+                .filter_map(|(k, v)| {
+                    Some((k.try_to::<GString>().ok()?.to_string(), v.try_to::<GString>().ok()?.to_string()))
+                })
+                .collect();
+            (path, headers)
+        };
+
+        let emit_node = gd.clone();
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<(u64, u64)>();
+        let progress = llm::throttled_progress_callback(move |d, t| {
+            let _ = tx.send((d, t));
+        });
+
+        let download_fut = tokio::task::spawn_blocking(move || {
+            llm::download_model(&path, headers, Some(progress))
+                .map(|p| p.to_string_lossy().into_owned())
+                .map_err(|e| e.to_string())
+        });
+        tokio::pin!(download_fut);
+
+        let local_path = loop {
+            tokio::select! {
+                event = rx.recv() => {
+                    if let Some((d, t)) = event {
+                        emit_node.signals().download_progress().emit(d as i64, t as i64);
+                    }
+                }
+                result = &mut download_fut => {
+                    break result.map_err(|e| e.to_string())??;
+                }
+            }
+        };
+
+        while let Ok((d, t)) = rx.try_recv() {
+            emit_node.signals().download_progress().emit(d as i64, t as i64);
+        }
+
+        Ok(local_path)
+    }
+
+    #[func]
+    /// Start downloading the model asynchronously. Returns immediately.
+    /// Connect to `download_complete(local_path)` or `download_failed(error)` for results.
+    fn start_download(&mut self) {
+        let me = self.to_gd();
+        godot::task::spawn(async move {
+            let me_emit = me.clone();
+            match Self::download_detached(me).await {
+                Ok(path) => me_emit.signals().download_complete().emit(&GString::from(path.as_str())),
+                Err(e) => {
+                    godot_error!("Download failed: {}", e);
+                    me_emit.signals().download_failed().emit(&GString::from(e.as_str()));
+                }
+            }
+        });
+    }
+}
+
 #[derive(GodotClass)]
 #[class(base=RefCounted)]
 /// A multimodal prompt consisting of interleaved text, image, and audio parts.

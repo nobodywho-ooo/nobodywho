@@ -227,6 +227,31 @@ pub async fn load_model(
     }))
 }
 
+/// Download a GGUF model from a remote URL or HuggingFace path and return the local file path.
+///
+/// Use this when you need custom headers, e.g. for gated models that require authentication.
+/// For unauthenticated downloads, pass the URL directly to `load_model`.
+#[uniffi::export]
+pub async fn download_model(
+    model_path: String,
+    headers: Option<HashMap<String, String>>,
+    on_download_progress: Option<Box<dyn RustDownloadProgressCallback>>,
+) -> Result<String, NobodyWhoError> {
+    init_logging();
+    let headers_vec: Vec<(String, String)> = headers
+        .unwrap_or_default()
+        .into_iter()
+        .collect();
+    let progress = on_download_progress.map(wrap_progress);
+    tokio::task::spawn_blocking(move || {
+        nobodywho::llm::download_model(&model_path, headers_vec, progress)
+            .map(|p| p.to_string_lossy().into_owned())
+            .map_err(|e| NobodyWhoError::Error { message: e.to_string() })
+    })
+    .await
+    .map_err(|e| NobodyWhoError::Error { message: e.to_string() })?
+}
+
 // ---------- RustChat ----------
 // Wrapper intended to be wrapped again in the target language (e.g. as `Chat`).
 

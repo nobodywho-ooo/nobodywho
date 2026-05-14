@@ -75,6 +75,48 @@ pub enum LoadModelError {
     ModelChannelError,
     #[error("Failed parsing model path: {0}")]
     FailedParsingModelPath(#[from] nom::Err<nom::error::Error<String>>),
+    #[error("Failed to download model: authentication required")]
+    #[diagnostic(
+        code(nobodywho::download_unauthorized),
+        help(
+            "This could mean:\n\
+             1. The repo or file does not exist - check the owner, repo, and filename\n\
+             2. The model is gated and requires authentication:\n\
+             \n\
+             download_model(\"hf://...\", headers={{\"Authorization\": \"Bearer YOUR_TOKEN\"}})\n\
+             \n\
+             Get a token at https://huggingface.co/settings/tokens"
+        )
+    )]
+    DownloadUnauthorized { url: String },
+
+    #[error("Failed to download model: access denied")]
+    #[diagnostic(
+        code(nobodywho::download_forbidden),
+        help(
+            "You need to accept this model's license AND authenticate to download it.\n\
+             Accept the license at: {model_page_url}\n\
+             \n\
+             Then pass your HuggingFace token as a header:\n\
+             \n\
+             download_model(\"hf://...\", headers={{\"Authorization\": \"Bearer YOUR_TOKEN\"}})\n\
+             \n\
+             Get a token at https://huggingface.co/settings/tokens"
+        )
+    )]
+    DownloadForbidden { url: String, model_page_url: String },
+
+    #[error("Failed to download model: not found")]
+    #[diagnostic(
+        code(nobodywho::download_not_found),
+        help(
+            "Check that the owner, repo, and filename are correct.\n\
+             Expected format: hf://owner/repo/filename.gguf\n\
+             Browse available GGUF models at https://huggingface.co/models?library=gguf"
+        )
+    )]
+    DownloadNotFound { url: String },
+
     #[error("Failed to download model: {0}")]
     DownloadError(String),
 }
@@ -94,7 +136,27 @@ fn normalize_path(path: &std::path::Path) -> std::path::PathBuf {
     result
 }
 
+fn extract_hf_model_page(url: &str) -> Option<String> {
+    let path = url.strip_prefix("https://huggingface.co/")?;
+    let mut parts = path.splitn(3, '/');
+    let owner = parts.next()?;
+    let repo = parts.next()?;
+    Some(format!("https://huggingface.co/{owner}/{repo}"))
+}
+
 impl LoadModelError {
+    pub fn from_http_status(url: &str, status: u16) -> Self {
+        match status {
+            401 => LoadModelError::DownloadUnauthorized { url: url.to_owned() },
+            403 => {
+                let model_page_url = extract_hf_model_page(url).unwrap_or_else(|| url.to_owned());
+                LoadModelError::DownloadForbidden { url: url.to_owned(), model_page_url }
+            }
+            404 => LoadModelError::DownloadNotFound { url: url.to_owned() },
+            _ => LoadModelError::DownloadError(format!("http status: {status}")),
+        }
+    }
+
     pub fn validate_model_file(fs_path: &std::path::Path) -> Result<(), Self> {
         use std::io::Read;
 
