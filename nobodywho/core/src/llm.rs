@@ -223,9 +223,7 @@ fn resolve_fancy_path_to_fs(
         return Err(LoadModelError::from_missing_path(&fs_model_path));
     }
 
-    if let Some(err) = LoadModelError::from_non_gguf_path(&fs_model_path) {
-        return Err(err);
-    }
+    LoadModelError::validate_model_file(&fs_model_path)?;
 
     Ok(fs_model_path)
 }
@@ -265,6 +263,11 @@ pub fn get_model(
     let language_model =
         LlamaModel::load_from_file(&LLAMA_BACKEND, &real_model_path, &model_params).map_err(
             |e| {
+                if e.to_string().contains("null result") {
+                    return LoadModelError::InsufficientMemoryForModel {
+                        path: real_model_path.display().to_string(),
+                    };
+                }
                 let error_msg = format!(
                     "Bad model path: {} - Llama.cpp error: {}",
                     real_model_path.display(),

@@ -39,12 +39,33 @@ pub enum LoadModelError {
     #[diagnostic(
         code(nobodywho::not_a_gguf_file),
         help(
-            "It seems '{filename}' is not a .gguf file — nobodywho only accepts GGUF models for LLMs.\n\
+            "It seems '{filename}' is not a .gguf file - nobodywho only accepts GGUF models for LLMs.\n\
              Search for a GGUF model on https://huggingface.co/models?library=gguf&sort=likes\n\
              or browse nobodywho's supported models at https://huggingface.co/NobodyWho"
         )
     )]
     NotAGgufFile { path: String, filename: String },
+
+    #[error("Cannot read model: {path} is a directory")]
+    #[diagnostic(
+        code(nobodywho::model_is_directory),
+        help("Pass a path to a .gguf file, not a directory")
+    )]
+    IsADirectory { path: String },
+
+    #[error("Permission denied reading model: {path}")]
+    #[diagnostic(
+        code(nobodywho::model_permission_denied),
+        help("Check that the file is readable by the current user")
+    )]
+    PermissionDenied { path: String },
+
+    #[error("Not enough memory to load model: {path}")]
+    #[diagnostic(
+        code(nobodywho::insufficient_memory_for_model),
+        help("The model is likely too large to fit in available memory. Try a smaller or more quantized version (e.g. Q4_K_M instead of Q8_0)")
+    )]
+    InsufficientMemoryForModel { path: String },
 
     #[error("Invalid or unsupported GGUF model: {0}")]
     InvalidModel(String),
@@ -74,22 +95,34 @@ fn normalize_path(path: &std::path::Path) -> std::path::PathBuf {
 }
 
 impl LoadModelError {
-    pub fn from_non_gguf_path(fs_path: &std::path::Path) -> Option<Self> {
-        let is_gguf = fs_path
-            .extension()
-            .map(|ext| ext.eq_ignore_ascii_case("gguf"))
-            .unwrap_or(false);
+    pub fn validate_model_file(fs_path: &std::path::Path) -> Result<(), Self> {
+        use std::io::Read;
 
-        if is_gguf {
-            return None;
+        if fs_path.is_dir() {
+            return Err(LoadModelError::IsADirectory {
+                path: fs_path.to_string_lossy().into_owned(),
+            });
         }
 
-        let path = fs_path.to_string_lossy().into_owned();
-        let filename = fs_path
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_else(|| path.clone());
-        Some(LoadModelError::NotAGgufFile { path, filename })
+        let mut file = std::fs::File::open(fs_path).map_err(|e| match e.kind() {
+            std::io::ErrorKind::PermissionDenied => LoadModelError::PermissionDenied {
+                path: fs_path.to_string_lossy().into_owned(),
+            },
+            _ => LoadModelError::from_missing_path(fs_path),
+        })?;
+
+        let mut magic = [0u8; 4];
+        let is_gguf = file.read_exact(&mut magic).is_ok() && &magic == b"GGUF";
+        if !is_gguf {
+            let path = fs_path.to_string_lossy().into_owned();
+            let filename = fs_path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| path.clone());
+            return Err(LoadModelError::NotAGgufFile { path, filename });
+        }
+
+        Ok(())
     }
 
     pub fn from_missing_path(fs_path: &std::path::Path) -> Self {
