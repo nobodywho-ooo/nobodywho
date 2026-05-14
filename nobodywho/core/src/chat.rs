@@ -1236,6 +1236,15 @@ impl Worker<'_, ChatWorker> {
         config: ChatConfig,
         should_stop: Arc<AtomicBool>,
     ) -> Result<Worker<'_, ChatWorker>, InitWorkerError> {
+        let pooling = llm::read_pooling_type_metadata(&model.language_model);
+        if pooling != llama_cpp_2::context::params::LlamaPoolingType::Unspecified {
+            let architecture = model
+                .language_model
+                .meta_val_str("general.architecture")
+                .unwrap_or_else(|_| "unknown".into());
+            return Err(InitWorkerError::NotAnLLM { architecture });
+        }
+
         let template = select_template(&model.language_model, !config.tools.is_empty())?;
 
         // Only detect tool calling format if tools are provided

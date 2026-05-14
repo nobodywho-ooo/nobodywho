@@ -4,7 +4,7 @@ use crate::llm::{Worker, WorkerGuard};
 use llama_cpp_2::context::params::LlamaPoolingType;
 use llama_cpp_2::model::LlamaModel;
 use std::sync::Arc;
-use tracing::{error, info, warn};
+use tracing::error;
 
 #[derive(Clone)]
 pub struct Encoder {
@@ -91,35 +91,8 @@ impl llm::PoolingType for EncoderWorker {
     }
 }
 
-/// Read `<arch>.pooling_type` from the GGUF metadata. Falls back to `Unspecified`
-/// (which makes llama.cpp resolve the pooling type itself) when the metadata is
-/// missing or unparseable, so models without an explicit pooling key still work.
 fn read_pooling_type_metadata(model: &LlamaModel) -> LlamaPoolingType {
-    let arch = match model.meta_val_str("general.architecture") {
-        Ok(arch) => arch,
-        Err(e) => {
-            warn!(error = %e, "general.architecture missing from GGUF; using Unspecified pooling");
-            return LlamaPoolingType::Unspecified;
-        }
-    };
-    let key = format!("{arch}.pooling_type");
-    match model.meta_val_str(&key) {
-        Ok(val) => match val.parse::<i32>() {
-            Ok(n) => {
-                let pt = LlamaPoolingType::from(n);
-                info!(?pt, %key, "Encoder pooling type from GGUF metadata");
-                pt
-            }
-            Err(e) => {
-                warn!(error = %e, %key, %val, "Couldn't parse pooling_type as i32; using Unspecified");
-                LlamaPoolingType::Unspecified
-            }
-        },
-        Err(e) => {
-            warn!(error = %e, %key, "pooling_type missing from GGUF; using Unspecified");
-            LlamaPoolingType::Unspecified
-        }
-    }
+    crate::llm::read_pooling_type_metadata(model)
 }
 
 impl<'a> Worker<'a, EncoderWorker> {

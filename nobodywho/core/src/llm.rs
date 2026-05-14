@@ -573,6 +573,26 @@ fn download_model_from_url(
     Ok(target_path)
 }
 
+/// Read `<arch>.pooling_type` from GGUF metadata, falling back to `Unspecified` if absent.
+///
+/// LLMs are autoregressive decoders — they never pool token representations, so
+/// `<arch>.pooling_type` is absent from their GGUF metadata, giving `Unspecified`.
+/// Encoder models (BERT, nomic-bert, etc.) always have this key set to CLS, Mean,
+/// or similar. A non-`Unspecified` result is therefore a reliable, architecture-agnostic
+/// signal that the model is not an LLM and cannot generate text.
+pub(crate) fn read_pooling_type_metadata(model: &LlamaModel) -> LlamaPoolingType {
+    let Ok(arch) = model.meta_val_str("general.architecture") else {
+        return LlamaPoolingType::Unspecified;
+    };
+    let key = format!("{arch}.pooling_type");
+    model
+        .meta_val_str(&key)
+        .ok()
+        .and_then(|val| val.parse::<i32>().ok())
+        .map(LlamaPoolingType::from)
+        .unwrap_or(LlamaPoolingType::Unspecified)
+}
+
 fn read_add_bos_metadata(model: &LlamaModel) -> Result<AddBos, InitWorkerError> {
     match model.meta_val_str("tokenizer.ggml.add_bos_token") {
         Ok(val) => match val.as_str() {

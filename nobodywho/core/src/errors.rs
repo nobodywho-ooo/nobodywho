@@ -225,6 +225,16 @@ impl LoadModelError {
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum InitWorkerError {
+    #[error("Model is not an LLM: {architecture}")]
+    #[diagnostic(
+        code(nobodywho::not_an_llm),
+        help(
+            "'{architecture}' models pool token representations into embeddings - they cannot generate text.\n\
+             Use nobodywho.Encoder() for embeddings, or load a generative model (e.g. Llama, Qwen, Gemma)."
+        )
+    )]
+    NotAnLLM { architecture: String },
+
     #[error("Could not determine number of threads available: {0}")]
     ThreadCount(#[from] std::io::Error),
 
