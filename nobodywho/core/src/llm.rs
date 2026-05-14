@@ -223,6 +223,10 @@ fn resolve_fancy_path_to_fs(
         return Err(LoadModelError::from_missing_path(&fs_model_path));
     }
 
+    if let Some(err) = LoadModelError::from_non_gguf_path(&fs_model_path) {
+        return Err(err);
+    }
+
     Ok(fs_model_path)
 }
 

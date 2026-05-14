@@ -35,6 +35,17 @@ pub enum LoadModelError {
         filename: String,
         resolved: String,
     },
+    #[error("Failed to load model metadata for: {path}")]
+    #[diagnostic(
+        code(nobodywho::not_a_gguf_file),
+        help(
+            "It seems '{filename}' is not a .gguf file — nobodywho only accepts GGUF models for LLMs.\n\
+             Search for a GGUF model on https://huggingface.co/models?library=gguf&sort=likes\n\
+             or browse nobodywho's supported models at https://huggingface.co/NobodyWho"
+        )
+    )]
+    NotAGgufFile { path: String, filename: String },
+
     #[error("Invalid or unsupported GGUF model: {0}")]
     InvalidModel(String),
     #[error("Multimodal error: {0}")]
@@ -61,6 +72,24 @@ fn normalize_path(path: &std::path::Path) -> std::path::PathBuf {
 }
 
 impl LoadModelError {
+    pub fn from_non_gguf_path(fs_path: &std::path::Path) -> Option<Self> {
+        let is_gguf = fs_path
+            .extension()
+            .map(|ext| ext.eq_ignore_ascii_case("gguf"))
+            .unwrap_or(false);
+
+        if is_gguf {
+            return None;
+        }
+
+        let path = fs_path.to_string_lossy().into_owned();
+        let filename = fs_path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| path.clone());
+        Some(LoadModelError::NotAGgufFile { path, filename })
+    }
+
     pub fn from_missing_path(fs_path: &std::path::Path) -> Self {
         let path = fs_path.to_string_lossy().into_owned();
 
