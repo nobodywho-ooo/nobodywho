@@ -697,13 +697,16 @@ impl Chat {
             template_vars.insert("enable_thinking".to_string(), allow);
         }
 
-        let chat_handle = nobodywho::chat::ChatBuilder::new(nw_model)
-            .with_context_size(n_ctx)
-            .with_tools(tools.into_iter().map(|t| t.tool).collect())
-            .with_template_variables(template_vars)
-            .with_system_prompt(system_prompt)
-            .with_sampler(sampler.sampler_config)
-            .build()
+        let build_result = py.detach(|| {
+            nobodywho::chat::ChatBuilder::new(nw_model)
+                .with_context_size(n_ctx)
+                .with_tools(tools.into_iter().map(|t| t.tool).collect())
+                .with_template_variables(template_vars)
+                .with_system_prompt(system_prompt)
+                .with_sampler(sampler.sampler_config)
+                .build()
+        });
+        let chat_handle = build_result
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))?;
 
         Ok(Self {
@@ -1043,13 +1046,16 @@ impl ChatAsync {
             template_vars.insert("enable_thinking".to_string(), allow);
         }
 
-        let chat_handle = nobodywho::chat::ChatBuilder::new(nw_model)
-            .with_context_size(n_ctx)
-            .with_tools(tools.into_iter().map(|t| t.tool).collect())
-            .with_template_variables(template_vars)
-            .with_system_prompt(system_prompt)
-            .with_sampler(sampler.sampler_config)
-            .build_async()
+        let build_result = py.detach(|| {
+            nobodywho::chat::ChatBuilder::new(nw_model)
+                .with_context_size(n_ctx)
+                .with_tools(tools.into_iter().map(|t| t.tool).collect())
+                .with_template_variables(template_vars)
+                .with_system_prompt(system_prompt)
+                .with_sampler(sampler.sampler_config)
+                .build_async()
+        });
+        let chat_handle = build_result
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))?;
         Ok(Self {
             chat_handle: Some(chat_handle),
