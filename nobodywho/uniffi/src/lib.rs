@@ -271,7 +271,7 @@ impl RustChat {
         template_variables: Option<HashMap<String, bool>>,
         tools: Option<Vec<Arc<RustTool>>>,
         sampler: Option<Arc<SamplerConfig>>,
-    ) -> Self {
+    ) -> Result<Arc<Self>, NobodyWhoError> {
         let core_tools: Vec<nobodywho::tool_calling::Tool> = tools
             .unwrap_or_default()
             .into_iter()
@@ -286,9 +286,10 @@ impl RustChat {
             .with_template_variables(template_variables.unwrap_or_default())
             .with_tools(core_tools)
             .with_sampler(sampler_config)
-            .build_async();
+            .build_async()
+            .map_err(|e| NobodyWhoError::Error { message: e.to_string() })?;
 
-        Self { inner: chat }
+        Ok(Arc::new(Self { inner: chat }))
     }
 
     /// Send a message and get a token stream for the response.

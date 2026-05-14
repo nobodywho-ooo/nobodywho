@@ -223,7 +223,7 @@ impl LoadModelError {
 
 // Generic worker errors
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum InitWorkerError {
     #[error("Could not determine number of threads available: {0}")]
     ThreadCount(#[from] std::io::Error),
@@ -231,7 +231,14 @@ pub enum InitWorkerError {
     #[error("Could not create context: {0}")]
     CreateContext(#[from] llama_cpp_2::LlamaContextLoadError),
 
-    #[error("Failed getting chat template from model: {0}")]
+    #[error("Chat template not found")]
+    #[diagnostic(
+        code(nobodywho::chat_template_not_found),
+        help(
+            "This is likely because you're using an older GGUF file that doesn't include a chat template.\n\
+             Most LLaMA2-based GGUF files don't have one. Try using a more recent GGUF model."
+        )
+    )]
     ChatTemplate(#[from] SelectTemplateError),
 
     #[error("Failed to tokenize eos or bos tokens: {0}")]
@@ -600,10 +607,10 @@ pub enum RenderError {
     Tokenize(#[from] TokenizationError),
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum SelectTemplateError {
-    #[error("Lama.cpp failed fetching chat template from the model file. This is likely because you're using an older GGUF file, which might not include a chat template. For example, this is the case for most LLaMA2-based GGUF files. Try using a more recent GGUF model file. If you want to check if a given model includes a chat template, you can use the gguf-dump script from llama.cpp. Here is a more technical detailed error: {0}")]
-    ChatTemplate(#[from] llama_cpp_2::ChatTemplateError),
+    #[error("{0}")]
+    ChatTemplate(String),
 
     #[error("Could not parse chat template as UTF8: {0}")]
     TemplateUtf8(#[from] std::str::Utf8Error),
@@ -616,6 +623,12 @@ pub enum SelectTemplateError {
 
     #[error("Tools were provided, but it looks like this model doesn't support tool calling.")]
     NoToolTemplate,
+}
+
+impl From<llama_cpp_2::ChatTemplateError> for SelectTemplateError {
+    fn from(e: llama_cpp_2::ChatTemplateError) -> Self {
+        SelectTemplateError::ChatTemplate(e.to_string())
+    }
 }
 
 #[derive(Debug, thiserror::Error)]

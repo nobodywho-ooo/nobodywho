@@ -703,7 +703,8 @@ impl Chat {
             .with_template_variables(template_vars)
             .with_system_prompt(system_prompt)
             .with_sampler(sampler.sampler_config)
-            .build();
+            .build()
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))?;
 
         Ok(Self {
             chat_handle: Some(chat_handle),
@@ -1048,7 +1049,8 @@ impl ChatAsync {
             .with_template_variables(template_vars)
             .with_system_prompt(system_prompt)
             .with_sampler(sampler.sampler_config)
-            .build_async();
+            .build_async()
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))?;
         Ok(Self {
             chat_handle: Some(chat_handle),
         })

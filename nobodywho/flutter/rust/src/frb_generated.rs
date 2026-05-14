@@ -867,7 +867,7 @@ fn wire__crate__RustChat_new_impl(
             let api_tools = <Vec<RustTool>>::sse_decode(&mut deserializer);
             let api_sampler = <Option<SamplerConfig>>::sse_decode(&mut deserializer);
             deserializer.end();
-            transform_result_sse::<_, ()>((move || {
+            transform_result_sse::<_, String>((move || {
                 let mut api_model_guard = None;
                 let decode_indices_ =
                     flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
@@ -882,7 +882,7 @@ fn wire__crate__RustChat_new_impl(
                     }
                 }
                 let api_model_guard = api_model_guard.unwrap();
-                let output_ok = Result::<_, ()>::Ok(crate::RustChat::new(
+                let output_ok = crate::RustChat::new(
                     &*api_model_guard,
                     api_system_prompt,
                     api_context_size,
@@ -890,7 +890,7 @@ fn wire__crate__RustChat_new_impl(
                     api_template_variables,
                     api_tools,
                     api_sampler,
-                ))?;
+                )?;
                 Ok(output_ok)
             })())
         },

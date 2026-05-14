@@ -469,7 +469,7 @@ impl NobodyWhoChat {
                 template_variables,
                 sampler_config: None,
             },
-        );
+        ).map_err(|e| GString::from(e.to_string().as_str()))?;
 
         // Safe: we're past an `.await`, so the caller's `&mut self` borrow is gone.
         // If a concurrent load raced us, prefer the existing handle.
