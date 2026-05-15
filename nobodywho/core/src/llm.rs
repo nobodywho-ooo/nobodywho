@@ -115,13 +115,13 @@ pub struct Model {
 }
 
 impl Model {
-    /// Returns true if this model is an autoregressive LLM capable of text generation.
+    /// Returns true if this model can generate text (i.e. is an autoregressive decoder).
     ///
-    /// LLMs never pool token representations, so `<arch>.pooling_type` is absent from
-    /// their GGUF metadata (giving `Unspecified`). Encoder models (BERT, nomic-bert, etc.)
-    /// always have this key set to CLS, Mean, or similar — a reliable, architecture-agnostic
-    /// signal that the model cannot generate text.
-    pub fn is_llm(&self) -> bool {
+    /// Generative models never pool token representations, so `<arch>.pooling_type` is absent
+    /// from their GGUF metadata (giving `Unspecified`). Encoder-only models (BERT, nomic-bert,
+    /// etc.) always have this key set to CLS, Mean, or similar — a reliable,
+    /// architecture-agnostic signal that the model cannot generate text.
+    pub fn is_generative_model(&self) -> bool {
         let Ok(arch) = self.language_model.meta_val_str("general.architecture") else {
             return true;
         };
@@ -287,7 +287,7 @@ pub fn get_model(
         LlamaModel::load_from_file(&LLAMA_BACKEND, &real_model_path, &model_params).map_err(
             |e| {
                 if e.to_string().contains("null result") {
-                    return LoadModelError::InsufficientMemoryForModel {
+                    return LoadModelError::ModelLoadFailed {
                         path: real_model_path.display().to_string(),
                     };
                 }

@@ -1266,7 +1266,7 @@ impl Worker<'_, ChatWorker> {
         config: ChatConfig,
         should_stop: Arc<AtomicBool>,
     ) -> Result<Worker<'_, ChatWorker>, InitWorkerError> {
-        if !model.is_llm() {
+        if !model.is_generative_model() {
             let architecture = model
                 .language_model
                 .meta_val_str("general.architecture")

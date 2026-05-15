@@ -61,12 +61,17 @@ pub enum LoadModelError {
     )]
     PermissionDenied { path: String },
 
-    #[error("Not enough memory to load model: {path}")]
+    #[error("Failed to load model: {path}")]
     #[diagnostic(
-        code(nobodywho::insufficient_memory_for_model),
-        help("The model is likely too large to fit in available memory. Try a smaller or more quantized version (e.g. Q4_K_M instead of Q8_0)")
+        code(nobodywho::model_load_failed),
+        help(
+            "llama.cpp could not load the model. Common causes:\n\
+             - The model is too large for available memory — try a smaller or more quantized version (e.g. Q4_K_M instead of Q8_0)\n\
+             - The model architecture is not supported by the current llama.cpp version\n\
+             - The model file is corrupted"
+        )
     )]
-    InsufficientMemoryForModel { path: String },
+    ModelLoadFailed { path: String },
 
     #[error("Invalid or unsupported GGUF model: {0}")]
     InvalidModel(String),
