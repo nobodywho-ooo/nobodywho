@@ -216,7 +216,7 @@ pub async fn load_model(
     )
     .await
     .map_err(|e| {
-        let msg = format!("Failed to load model '{}': {}", model_path, e);
+        let msg = nobodywho::render_miette(&e);
         log::error!("{}", msg);
         NobodyWhoError::Error { message: msg }
     })?;
@@ -244,12 +244,12 @@ pub async fn download_model(
         nobodywho::llm::download_model(&model_path, headers_vec, progress)
             .map(|p| p.to_string_lossy().into_owned())
             .map_err(|e| NobodyWhoError::Error {
-                message: e.to_string(),
+                message: nobodywho::render_miette(&e),
             })
     })
     .await
     .map_err(|e| NobodyWhoError::Error {
-        message: e.to_string(),
+        message: e.to_string(), // JoinError, not a miette diagnostic
     })?
 }
 
@@ -289,7 +289,7 @@ impl RustChat {
             .with_sampler(sampler_config)
             .build_async()
             .map_err(|e| NobodyWhoError::Error {
-                message: e.to_string(),
+                message: nobodywho::render_miette(&e),
             })?;
 
         Ok(Arc::new(Self { inner: chat }))

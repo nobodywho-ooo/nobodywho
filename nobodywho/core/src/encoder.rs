@@ -2,7 +2,6 @@ use crate::errors::{EncoderWorkerError, InitWorkerError};
 use crate::llm;
 use crate::llm::{Worker, WorkerGuard};
 use llama_cpp_2::context::params::LlamaPoolingType;
-use llama_cpp_2::model::LlamaModel;
 use std::sync::Arc;
 use tracing::error;
 
@@ -91,16 +90,23 @@ impl llm::PoolingType for EncoderWorker {
     }
 }
 
-fn read_pooling_type_metadata(model: &LlamaModel) -> LlamaPoolingType {
-    crate::llm::read_pooling_type_metadata(model)
-}
-
 impl<'a> Worker<'a, EncoderWorker> {
     pub fn new_encoder_worker(
         model: &llm::Model,
         n_ctx: u32,
     ) -> Result<Worker<'_, EncoderWorker>, InitWorkerError> {
-        let pooling = read_pooling_type_metadata(&model.language_model);
+        let arch = model
+            .language_model
+            .meta_val_str("general.architecture")
+            .unwrap_or_default();
+        let key = format!("{arch}.pooling_type");
+        let pooling = model
+            .language_model
+            .meta_val_str(&key)
+            .ok()
+            .and_then(|val| val.parse::<i32>().ok())
+            .map(LlamaPoolingType::from)
+            .unwrap_or(LlamaPoolingType::Unspecified);
         Worker::new_with_type(model, n_ctx, true, EncoderWorker { pooling })
     }
 

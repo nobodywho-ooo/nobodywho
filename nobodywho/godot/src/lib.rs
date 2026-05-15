@@ -269,7 +269,7 @@ impl NobodyWhoDownloader {
         let download_fut = tokio::task::spawn_blocking(move || {
             llm::download_model(&path, headers, Some(progress))
                 .map(|p| p.to_string_lossy().into_owned())
-                .map_err(|e| e.to_string())
+                .map_err(|e| nobodywho::render_miette(&e))
         });
         tokio::pin!(download_fut);
 
@@ -468,7 +468,7 @@ impl NobodyWhoChat {
     ) -> Result<nobodywho::chat::ChatHandleAsync, GString> {
         let model = NobodyWhoModel::load_model_detached(model_node)
             .await
-            .map_err(|e| GString::from(e.to_string().as_str()))?;
+            .map_err(|e| GString::from(nobodywho::render_miette(&e).as_str()))?;
 
         let mut template_variables = HashMap::new();
         template_variables.insert("enable_thinking".to_string(), allow_thinking);
@@ -647,7 +647,7 @@ impl NobodyWhoChat {
                         .response_finished()
                         .emit(&GString::from(resp.as_str())),
                     nobodywho::llm::WriteOutput::Error(e) => {
-                        let errmsg = e.to_string();
+                        let errmsg = nobodywho::render_miette(e.as_ref());
                         godot_error!("Error during generation: {}", errmsg);
                         emit_node.signals().worker_failed().emit(&errmsg);
                         return;
@@ -1512,7 +1512,7 @@ impl NobodyWhoEncoder {
     ) -> Result<nobodywho::encoder::EncoderAsync, GString> {
         let model = NobodyWhoModel::load_model_detached(model_node)
             .await
-            .map_err(|e| GString::from(e.to_string().as_str()))?;
+            .map_err(|e| GString::from(nobodywho::render_miette(&e).as_str()))?;
 
         // TODO: configurable n_ctx
         let handle = nobodywho::encoder::EncoderAsync::new(model, 4096);
@@ -1698,7 +1698,7 @@ impl NobodyWhoCrossEncoder {
     ) -> Result<nobodywho::crossencoder::CrossEncoderAsync, GString> {
         let model = NobodyWhoModel::load_model_detached(model_node)
             .await
-            .map_err(|e| GString::from(e.to_string().as_str()))?;
+            .map_err(|e| GString::from(nobodywho::render_miette(&e).as_str()))?;
 
         // TODO: configurable n_ctx like with the embeddings node
         let handle = nobodywho::crossencoder::CrossEncoderAsync::new(model, 4096);

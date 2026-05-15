@@ -3,16 +3,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
 
-fn render_miette(err: &(dyn miette::Diagnostic + 'static)) -> String {
-    let mut out = String::new();
-    if miette::GraphicalReportHandler::new()
-        .render_report(&mut out, err)
-        .is_err()
-    {
-        out = err.to_string();
-    }
-    out
-}
+use nobodywho::render_miette;
 
 mod parse;
 

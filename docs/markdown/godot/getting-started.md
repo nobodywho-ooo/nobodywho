@@ -68,6 +68,32 @@ model.download_progress.connect(func(downloaded: int, total: int):
 
 The signal is not emitted for local files or already-cached downloads.
 
+### Downloading a gated model
+
+Some HuggingFace models are either private or gated by a license that you need to accept.
+For both scenarios, you need to be authorized to download the model weights.
+
+In that case, you can resort to manually accessing the model page through your web browser,
+getting the GGUF file downloaded and then setting the model path to where you have stored it.
+
+Or you can use the `NobodyWhoDownloader` node, where you can pass in the authorization token:
+
+```gdscript
+var dl = NobodyWhoDownloader.new()
+dl.model_path = "huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
+dl.headers = {"Authorization": "Bearer your_hf_token"}
+dl.download_complete.connect(func(local_path: String):
+    get_node("../ChatModel").model_path = local_path
+)
+dl.download_failed.connect(func(error: String):
+    push_error("Download failed: " + error)
+)
+dl.start_download()
+add_child(dl)
+```
+
+The token can be then generated in [your account settings](https://huggingface.co/settings/tokens).
+
 ### Knowing when the worker is ready
 
 `start_worker()` returns immediately. The worker finishes loading in the background (including any download). Connect to the new signals if your game logic needs to wait:

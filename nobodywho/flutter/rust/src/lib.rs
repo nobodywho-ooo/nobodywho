@@ -106,7 +106,7 @@ impl Model {
             projection_model_path.as_deref(),
             Some(wrap_progress(on_download_progress)),
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| nobodywho::render_miette(&e))?;
         Ok(Self {
             model: Arc::new(model),
         })
@@ -138,7 +138,7 @@ pub fn download_model(
         Some(wrap_progress(on_download_progress)),
     )
     .map(|p| p.to_string_lossy().into_owned())
-    .map_err(|e| e.to_string())
+    .map_err(|e| nobodywho::render_miette(&e))
 }
 
 #[flutter_rust_bridge::frb(opaque)]
@@ -190,7 +190,7 @@ impl RustChat {
             .with_system_prompt(system_prompt)
             .with_sampler(sampler_config)
             .build_async()
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| nobodywho::render_miette(&e))?;
 
         Ok(Self { chat })
     }
@@ -231,7 +231,7 @@ impl RustChat {
             projection_model_path.as_deref(),
             Some(wrap_progress(on_download_progress)),
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| nobodywho::render_miette(&e))?;
         let sampler_config = sampler.map(|s| s.sampler_config).unwrap_or_default();
 
         // Handle deprecated allow_thinking parameter
@@ -251,7 +251,7 @@ impl RustChat {
             .with_system_prompt(system_prompt)
             .with_sampler(sampler_config)
             .build_async()
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| nobodywho::render_miette(&e))?;
         Ok(Self { chat })
     }
 
@@ -446,7 +446,7 @@ impl Encoder {
             None,
             Some(wrap_progress(on_download_progress)),
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| nobodywho::render_miette(&e))?;
         let handle = nobodywho::encoder::EncoderAsync::new(Arc::new(model), n_ctx);
 
         Ok(Self { handle })
@@ -498,7 +498,7 @@ impl CrossEncoder {
             None,
             Some(wrap_progress(on_download_progress)),
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| nobodywho::render_miette(&e))?;
         let handle = nobodywho::crossencoder::CrossEncoderAsync::new(Arc::new(model), n_ctx);
         Ok(Self { handle })
     }

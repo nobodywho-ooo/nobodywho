@@ -114,6 +114,28 @@ pub struct Model {
     pub(crate) projection_model: Option<ProjectionModel>,
 }
 
+impl Model {
+    /// Returns true if this model is an autoregressive LLM capable of text generation.
+    ///
+    /// LLMs never pool token representations, so `<arch>.pooling_type` is absent from
+    /// their GGUF metadata (giving `Unspecified`). Encoder models (BERT, nomic-bert, etc.)
+    /// always have this key set to CLS, Mean, or similar — a reliable, architecture-agnostic
+    /// signal that the model cannot generate text.
+    pub fn is_llm(&self) -> bool {
+        let Ok(arch) = self.language_model.meta_val_str("general.architecture") else {
+            return true;
+        };
+        let key = format!("{arch}.pooling_type");
+        self.language_model
+            .meta_val_str(&key)
+            .ok()
+            .and_then(|val| val.parse::<i32>().ok())
+            .map(LlamaPoolingType::from)
+            .unwrap_or(LlamaPoolingType::Unspecified)
+            == LlamaPoolingType::Unspecified
+    }
+}
+
 pub fn has_gpu_backend() -> bool {
     #[cfg(any(
         all(target_os = "ios", target_arch = "aarch64", target_abi = "sim"),
@@ -364,9 +386,7 @@ fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadMod
     // (e.g. "com.example.app"), possibly with a colon suffix for multi-process apps
     // (e.g. "com.example.app:remote").
     let cmdline = std::fs::read("/proc/self/cmdline").map_err(|e| {
-        crate::errors::LoadModelError::DownloadError(format!(
-            "Failed to read /proc/self/cmdline: {e}"
-        ))
+        LoadModelError::DownloadError(format!("Failed to read /proc/self/cmdline: {e}"))
     })?;
 
     let package_name = cmdline
@@ -375,7 +395,7 @@ fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadMod
         .and_then(|bytes| std::str::from_utf8(bytes).ok())
         .map(|s| s.split(':').next().unwrap_or(s))
         .ok_or_else(|| {
-            crate::errors::LoadModelError::DownloadError(
+            LoadModelError::DownloadError(
                 "Could not determine Android package name from /proc/self/cmdline".into(),
             )
         })?;
@@ -394,9 +414,8 @@ fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadMod
 
 #[cfg(not(target_os = "android"))]
 fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
-    dirs::cache_dir().ok_or_else(|| {
-        crate::errors::LoadModelError::DownloadError("Could not determine cache directory".into())
-    })
+    dirs::cache_dir()
+        .ok_or_else(|| LoadModelError::DownloadError("Could not determine cache directory".into()))
 }
 
 /// Download a file from a URL to a local path, streaming to disk with progress logging.
@@ -411,7 +430,7 @@ fn download_file(
 ) -> Result<(), crate::errors::LoadModelError> {
     for component in target_path.components() {
         if component == std::path::Component::ParentDir {
-            return Err(crate::errors::LoadModelError::DownloadError(
+            return Err(LoadModelError::DownloadError(
                 "Path traversal detected: '..' is not allowed in model paths".into(),
             ));
         }
@@ -425,7 +444,7 @@ fn download_file(
     // Create parent directories
     if let Some(parent) = target_path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| {
-            crate::errors::LoadModelError::DownloadError(format!(
+            LoadModelError::DownloadError(format!(
                 "Failed to create cache directory {}: {e}",
                 parent.display()
             ))
@@ -439,10 +458,8 @@ fn download_file(
         request = request.header(name.as_str(), value.as_str());
     }
     let response = request.call().map_err(|e| match e {
-        ureq::Error::StatusCode(status) => {
-            crate::errors::LoadModelError::from_http_status(url, status)
-        }
-        e => crate::errors::LoadModelError::DownloadError(format!("HTTP request failed: {e}")),
+        ureq::Error::StatusCode(status) => LoadModelError::from_http_status(url, status),
+        e => LoadModelError::DownloadError(format!("HTTP request failed: {e}")),
     })?;
 
     let content_length: std::num::NonZeroU64 = response
@@ -451,7 +468,7 @@ fn download_file(
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.parse::<std::num::NonZeroU64>().ok())
         .ok_or_else(|| {
-            crate::errors::LoadModelError::DownloadError(format!(
+            LoadModelError::DownloadError(format!(
                 "Server returned missing or zero Content-Length for {url}"
             ))
         })?;
@@ -473,7 +490,7 @@ fn download_file(
 
     let download_result: Result<(), crate::errors::LoadModelError> = (|| {
         let mut file = std::fs::File::create(&tmp_path).map_err(|e| {
-            crate::errors::LoadModelError::DownloadError(format!(
+            LoadModelError::DownloadError(format!(
                 "Failed to create temp file {}: {e}",
                 tmp_path.display()
             ))
@@ -487,17 +504,13 @@ fn download_file(
 
         loop {
             let n = reader.read(&mut buf).map_err(|e| {
-                crate::errors::LoadModelError::DownloadError(format!(
-                    "Read error during download: {e}"
-                ))
+                LoadModelError::DownloadError(format!("Read error during download: {e}"))
             })?;
             if n == 0 {
                 break;
             }
             file.write_all(&buf[..n]).map_err(|e| {
-                crate::errors::LoadModelError::DownloadError(format!(
-                    "Write error during download: {e}"
-                ))
+                LoadModelError::DownloadError(format!("Write error during download: {e}"))
             })?;
             downloaded += n as u64;
 
@@ -513,7 +526,7 @@ fn download_file(
             }
         }
         if downloaded != content_length.get() {
-            return Err(crate::errors::LoadModelError::DownloadError(format!(
+            return Err(LoadModelError::DownloadError(format!(
                 "Download incomplete: got {downloaded}/{} bytes",
                 content_length
             )));
@@ -530,7 +543,7 @@ fn download_file(
 
     // Rename temp file to final path
     std::fs::rename(&tmp_path, target_path).map_err(|e| {
-        crate::errors::LoadModelError::DownloadError(format!(
+        LoadModelError::DownloadError(format!(
             "Failed to rename temp file to {}: {e}",
             target_path.display()
         ))
@@ -573,26 +586,6 @@ fn download_model_from_url(
     let target_path = cache_dir.join("http").join(path_part);
     download_file(url, &target_path, progress, headers)?;
     Ok(target_path)
-}
-
-/// Read `<arch>.pooling_type` from GGUF metadata, falling back to `Unspecified` if absent.
-///
-/// LLMs are autoregressive decoders — they never pool token representations, so
-/// `<arch>.pooling_type` is absent from their GGUF metadata, giving `Unspecified`.
-/// Encoder models (BERT, nomic-bert, etc.) always have this key set to CLS, Mean,
-/// or similar. A non-`Unspecified` result is therefore a reliable, architecture-agnostic
-/// signal that the model is not an LLM and cannot generate text.
-pub(crate) fn read_pooling_type_metadata(model: &LlamaModel) -> LlamaPoolingType {
-    let Ok(arch) = model.meta_val_str("general.architecture") else {
-        return LlamaPoolingType::Unspecified;
-    };
-    let key = format!("{arch}.pooling_type");
-    model
-        .meta_val_str(&key)
-        .ok()
-        .and_then(|val| val.parse::<i32>().ok())
-        .map(LlamaPoolingType::from)
-        .unwrap_or(LlamaPoolingType::Unspecified)
 }
 
 fn read_add_bos_metadata(model: &LlamaModel) -> Result<AddBos, InitWorkerError> {
