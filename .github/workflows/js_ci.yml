@@ -93,12 +93,13 @@ jobs:
       - name: End-to-end embedding test
         working-directory: nobodywho
         run: |
-          # Run encode, parse out the first dim, sanity-check it's a finite
-          # float (i.e. the model actually ran and produced an embedding).
-          output=$(node js/examples/run.mjs --encode /tmp/bge-small.gguf "the quick brown fox")
+          # Run the encoder demo, parse out the dimension + first values to
+          # sanity-check it's finite floats (i.e. the model actually ran
+          # and produced an embedding).
+          output=$(node js/examples/encoder_demo.mjs /tmp/bge-small.gguf)
           echo "$output"
-          echo "$output" | grep -q "embedding generated: 384 dimensions" \
-            || { echo "expected '384 dimensions' line in output"; exit 1; }
+          echo "$output" | grep -q "Embedding dimension: 384" \
+            || { echo "expected 'Embedding dimension: 384' line in output"; exit 1; }
           echo "$output" | grep -q "first 8: \[-\?[0-9]" \
             || { echo "expected 'first 8: [<float>...' line"; exit 1; }
 

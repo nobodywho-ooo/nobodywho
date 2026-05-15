@@ -5,25 +5,35 @@ in a browser tab (or any wasm host) via llama.cpp compiled to wasm32.
 
 ## Status: working end-to-end
 
-Real LLM inference verified under Node, both Encoder and Chat:
+Real LLM inference verified under Node. The demos mirror the Python
+examples next door — load a model, call the API:
 
-**Embedding** with a 35 MB BGE-small GGUF:
-```
-$ node wasm/examples/run.mjs --encode /tmp/bge-small.gguf "Hello"
-  ✓ model loaded                 ✓ encoder created
-  ✓ embedding generated: 384 dimensions
-  first 8: [-0.6244, -0.5940, 0.5545, -0.6085, -0.1348, 0.1800, 0.6621, 0.3490]
+**Chat** (`chat_demo.mjs`, ~15 lines):
+```js
+import { readFileSync } from 'node:fs';
+import { Model, Chat } from './setup.mjs';
+
+const model = await Model.loadBytes(new Uint8Array(readFileSync(process.argv[2])));
+const chat = new Chat(model, { systemPrompt: 'You are a helpful assistant' });
+
+const result = await (await chat.ask('What is the capital of Denmark?')).completed();
+console.log(result);
 ```
 
-**Chat** with a 379 MB Qwen 2.5 0.5B Instruct GGUF:
+**Embedding** (`encoder_demo.mjs`, ~40 lines including cosine similarity):
+```js
+import { Model, Encoder } from './setup.mjs';
+
+const model = await Model.loadBytes(modelBytes);
+const encoder = new Encoder(model, 2048);
+const vec = await encoder.encode('the quick brown fox');
+// -> Float32Array(384) — pass to cosineSimilarity() etc.
 ```
-$ node wasm/examples/run.mjs /tmp/Qwen2.5-0.5B-Instruct-Q4_K_M.gguf "Hello"
-  ✓ model loaded                 ✓ chat created
-Asking: "Hello"
-Response: Hello! How can I assist you today? If you have any questions
-          or need help with something, feel free to ask.
-  ✓ produced 25 tokens
-```
+
+`setup.mjs` hides the WASI + wasm-bindgen wiring (~50 lines) so each demo
+stays focused on the API. The eventual `nobodywho-js` npm package will
+fold that bootstrap into its own entry point, at which point the demos
+collapse to `import { Model, Chat } from 'nobodywho-js'`.
 
 The wasm binary contains all of llama.cpp (~9.5 MB release, ~21 MB debug)
 and exposes the binding's full surface to JS via wasm-bindgen.
@@ -35,7 +45,7 @@ and exposes the binding's full surface to JS via wasm-bindgen.
 | `Chat.ask(prompt)` → `TokenStream` → tokens | ✅ verified |
 | `TokenStream.nextToken()` / `completed()` | ✅ verified |
 | Multimodal (`MtmdBitmap` etc.) | not exposed — mtmd C++ doesn't compile against wasi-libc; the wasm has unresolved `mtmd_*` imports that JS replaces with stubs |
-| Structured output (`Constraint`) | wire format exposed via `Chat`'s options (see `ConstraintSpec` in `wasm/src/lib.rs`); runtime is blocked on llguidance's `Instant::now` panic on `wasm32-unknown-unknown` (tracked upstream) |
+| Structured output (`Constraint`) | wire format exposed via `Chat`'s options (see `ConstraintSpec` in `js/src/lib.rs`); runtime is blocked on llguidance's `Instant::now` panic on `wasm32-unknown-unknown` (tracked upstream) |
 
 Native (`cargo check --workspace`) is unchanged.
 
@@ -78,7 +88,7 @@ export WASI_SDK_PATH=~/wasi-sdk-33.0-arm64-macos
 # helper script reads it from there so there's one source of truth.
 rustup target add wasm32-unknown-unknown
 cargo install wasm-bindgen-cli \
-  --version "$(bash wasm/scripts/wasm-bindgen-version.sh)" \
+  --version "$(bash js/scripts/wasm-bindgen-version.sh)" \
   --locked
 ```
 
@@ -92,25 +102,25 @@ WASI_SDK_PATH=$WASI_SDK_PATH \
 
 wasm-bindgen --target bundler \
   target/wasm32-unknown-unknown/release/nobodywho_js.wasm \
-  --out-dir wasm/pkg-bundler/
+  --out-dir js/pkg-bundler/
 ```
 
 The `pkg-bundler/` directory is the npm-publishable artifact (minus a
-hand-written `package.json` — see `wasm/package.json.tpl`).
+hand-written `package.json` — see `js/package.json.tpl`).
 
 ## Run it
 
 ### Under Node (uses `node:wasi` for WASI imports)
 
 ```bash
-# Smoke test (no model):
-node wasm/examples/run.mjs
+# Smoke test (no model — just verifies wasm loads):
+node js/examples/run.mjs
 
 # Real embedding inference with a GGUF:
-node wasm/examples/run.mjs --encode /path/to/embedding-model.gguf "your text"
+node js/examples/encoder_demo.mjs /path/to/embedding-model.gguf
 
 # Chat (when you have a chat-style GGUF):
-node wasm/examples/run.mjs /path/to/chat-model.gguf "your prompt"
+node js/examples/chat_demo.mjs /path/to/chat-model.gguf
 ```
 
 ### In a browser (uses `@bjorn3/browser_wasi_shim`)
@@ -122,7 +132,7 @@ python3 -m http.server 8000
 # pick a GGUF, click Run
 ```
 
-See `wasm/examples/browser.html` for a complete browser demo that loads the
+See `js/examples/browser.html` for a complete browser demo that loads the
 wasm, polyfills WASI via `@bjorn3/browser_wasi_shim`, and runs
 `Encoder.encode` on a user-uploaded GGUF.
 
@@ -189,7 +199,7 @@ A few cfg-gates in `nobodywho/core` for wasm32:
   for FFI declarations but the C++ implementation isn't compiled —
   `mtmd_*` symbols become wasm imports stubbed by the JS host.
 
-And one workaround in the wasm crate itself (`wasm/src/lib.rs`):
+And one workaround in the wasm crate itself (`js/src/lib.rs`):
 - `__cxa_atexit` overridden as a no-op. `rust-lld 22.1`'s wasm driver
   doesn't accept `--mexec-model=reactor`, so the linker stays in
   "command" mode and wraps every export in `__wasm_call_ctors` +
@@ -206,7 +216,7 @@ And one workaround in the wasm crate itself (`wasm/src/lib.rs`):
   downstream bundlers resolve it. Worth verifying with at least one
   real bundler integration (webpack + esbuild + vite) before 1.0.
 - **Structured-output generation at runtime.** The `Constraint` API is wired
-  through `Chat::new`'s options (see `ConstraintSpec` in `wasm/src/lib.rs`),
+  through `Chat::new`'s options (see `ConstraintSpec` in `js/src/lib.rs`),
   but constraints currently panic at generation time on
   `wasm32-unknown-unknown` because llguidance calls `Instant::now`, which
   isn't supported on that target. Tracked upstream.
