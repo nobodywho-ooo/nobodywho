@@ -38,6 +38,29 @@ public class Model {
         )
         return Model(inner: inner)
     }
+
+    /// Download a GGUF model from a remote URL or HuggingFace path and return the local file path.
+    ///
+    /// Use this when you need custom HTTP headers, e.g. for gated models that require
+    /// authentication. For unauthenticated downloads, pass the URL directly to `load`.
+    ///
+    /// - Parameters:
+    ///   - modelPath: Path or URL to a GGUF model file (`hf://owner/repo/file.gguf`, `https://`, or a local path).
+    ///   - headers: Optional HTTP headers (e.g. `["Authorization": "Bearer hf_..."]`).
+    ///   - onDownloadProgress: Optional callback receiving `(downloadedBytes, totalBytes)` during download.
+    /// - Returns: The local filesystem path where the model was cached.
+    public static func downloadModel(
+        modelPath: String,
+        headers: [String: String]? = nil,
+        onDownloadProgress: ((UInt64, UInt64) -> Void)? = nil
+    ) async throws -> String {
+        let callback = onDownloadProgress.map { DownloadProgressCallbackImpl($0) }
+        return try await NobodyWhoGenerated.downloadModel(
+            modelPath: modelPath,
+            headers: headers,
+            onDownloadProgress: callback
+        )
+    }
 }
 
 /// Bridges a Swift closure to the `RustDownloadProgressCallback` protocol.

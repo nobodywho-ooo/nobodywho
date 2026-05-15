@@ -672,9 +672,9 @@ open class RustChat: RustChatProtocol, @unchecked Sendable {
     /**
      * Create a new chat session.
      */
-public convenience init(model: RustModel, systemPrompt: String?, contextSize: UInt32, templateVariables: [String: Bool]?, tools: [RustTool]?, sampler: SamplerConfig?) {
+public convenience init(model: RustModel, systemPrompt: String?, contextSize: UInt32, templateVariables: [String: Bool]?, tools: [RustTool]?, sampler: SamplerConfig?)throws  {
     let handle =
-        try! rustCall() {
+        try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
     uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(
         FfiConverterTypeRustModel_lower(model),
         FfiConverterOptionString.lower(systemPrompt),
@@ -1415,9 +1415,9 @@ public protocol RustTokenStreamProtocol: AnyObject, Sendable {
     func completed() async throws  -> String
     
     /**
-     * Get the next token. Returns None when generation is complete.
+     * Get the next token. Returns None when generation is complete, or an error if generation failed.
      */
-    func nextToken() async  -> String?
+    func nextToken() async throws  -> String?
     
 }
 open class RustTokenStream: RustTokenStreamProtocol, @unchecked Sendable {
@@ -1489,11 +1489,11 @@ open func completed()async throws  -> String  {
 }
     
     /**
-     * Get the next token. Returns None when generation is complete.
+     * Get the next token. Returns None when generation is complete, or an error if generation failed.
      */
-open func nextToken()async  -> String?  {
+open func nextToken()async throws  -> String?  {
     return
-        try!  await uniffiRustCallAsync(
+        try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_nobodywho_uniffi_fn_method_rusttokenstream_next_token(
                     self.uniffiCloneHandle()
@@ -1504,8 +1504,7 @@ open func nextToken()async  -> String?  {
             completeFunc: ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterOptionString.lift,
-            errorHandler: nil
-            
+            errorHandler: FfiConverterTypeNobodyWhoError_lift
         )
 }
     
@@ -3146,6 +3145,30 @@ fileprivate struct FfiConverterOptionDictionaryStringBool: FfiConverterRustBuffe
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionDictionaryStringString: FfiConverterRustBuffer {
+    typealias SwiftType = [String: String]?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterDictionaryStringString.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterDictionaryStringString.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceFloat: FfiConverterRustBuffer {
     typealias SwiftType = [Float]
 
@@ -3368,6 +3391,32 @@ fileprivate struct FfiConverterDictionaryStringBool: FfiConverterRustBuffer {
         return dict
     }
 }
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterDictionaryStringString: FfiConverterRustBuffer {
+    public static func write(_ value: [String: String], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for (key, value) in value {
+            FfiConverterString.write(key, into: &buf)
+            FfiConverterString.write(value, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [String: String] {
+        let len: Int32 = try readInt(&buf)
+        var dict = [String: String]()
+        dict.reserveCapacity(Int(len))
+        for _ in 0..<len {
+            let key = try FfiConverterString.read(from: &buf)
+            let value = try FfiConverterString.read(from: &buf)
+            dict[key] = value
+        }
+        return dict
+    }
+}
 private let UNIFFI_RUST_FUTURE_POLL_READY: Int8 = 0
 private let UNIFFI_RUST_FUTURE_POLL_WAKE: Int8 = 1
 
@@ -3426,6 +3475,26 @@ public func cosineSimilarity(a: [Float], b: [Float]) -> Float  {
         FfiConverterSequenceFloat.lower(b),$0
     )
 })
+}
+/**
+ * Download a GGUF model from a remote URL or HuggingFace path and return the local file path.
+ *
+ * Use this when you need custom headers, e.g. for gated models that require authentication.
+ * For unauthenticated downloads, pass the URL directly to `load_model`.
+ */
+public func downloadModel(modelPath: String, headers: [String: String]?, onDownloadProgress: RustDownloadProgressCallback?)async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_nobodywho_uniffi_fn_func_download_model(FfiConverterString.lower(modelPath),FfiConverterOptionDictionaryStringString.lower(headers),FfiConverterOptionCallbackInterfaceRustDownloadProgressCallback.lower(onDownloadProgress)
+                )
+            },
+            pollFunc: ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeNobodyWhoError_lift
+        )
 }
 /**
  * Load a GGUF model from a local path or remote URL.
@@ -3573,6 +3642,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_func_cosine_similarity() != 63439) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_nobodywho_uniffi_checksum_func_download_model() != 31331) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_nobodywho_uniffi_checksum_func_load_model() != 33587) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -3663,7 +3735,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_completed() != 26060) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_next_token() != 44770) {
+    if (uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_next_token() != 59210) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_rusttool_get_schema_json() != 4679) {
@@ -3717,7 +3789,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json() != 51798) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 38902) {
+    if (uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 24505) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() != 9022) {

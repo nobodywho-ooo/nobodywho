@@ -4,11 +4,11 @@ import NobodyWhoGenerated
 /// A stream of response tokens from the model.
 ///
 /// Wraps the internal `RustTokenStream` and provides an `AsyncSequence` interface
-/// so it can be used with `for await`.
+/// so it can be used with `for try await`.
 ///
 /// ```swift
 /// let stream = chat.ask("Hello!")
-/// for await token in stream {
+/// for try await token in stream {
 ///     print(token, terminator: "")
 /// }
 /// // Or get the complete response:
@@ -23,9 +23,9 @@ public struct TokenStream: AsyncSequence {
         self.inner = inner
     }
 
-    /// Get the next token. Returns nil when generation is complete.
-    public func nextToken() async -> String? {
-        return await inner.nextToken()
+    /// Get the next token. Returns nil when generation is complete, or throws if generation failed.
+    public func nextToken() async throws -> String? {
+        return try await inner.nextToken()
     }
 
     /// Wait for the full response to complete and return it.
@@ -40,8 +40,8 @@ public struct TokenStream: AsyncSequence {
     public struct AsyncIterator: AsyncIteratorProtocol {
         let inner: RustTokenStream
 
-        public mutating func next() async -> String? {
-            return await inner.nextToken()
+        public mutating func next() async throws -> String? {
+            return try await inner.nextToken()
         }
     }
 }
