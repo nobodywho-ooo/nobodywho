@@ -67,7 +67,7 @@ class NobodyWho
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 1141766527;
+  int get rustContentHash => -1088055976;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -353,6 +353,13 @@ abstract class NobodyWhoApi extends BaseApi {
     required List<double> b,
   });
 
+  Future<String> crateDownloadModel({
+    required String modelPath,
+    Map<String, String> headers = const {},
+    FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
+        noopOnDownloadProgress,
+  });
+
   Future<void> crateInitApp();
 
   RustTool crateNewBashTool({BigInt? maxCommands});
@@ -438,15 +445,6 @@ abstract class NobodyWhoApi extends BaseApi {
   RustArcDecrementStrongCountFnType get rust_arc_decrement_strong_count_Model;
 
   CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_ModelPtr;
-
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_Rust2DartSendError;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_Rust2DartSendError;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_Rust2DartSendErrorPtr;
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_RustChat;
@@ -1174,7 +1172,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         codec: SseCodec(
           decodeSuccessData:
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustChat,
-          decodeErrorData: null,
+          decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateRustChatNewConstMeta,
         argValues: [
@@ -1649,8 +1647,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           },
           codec: SseCodec(
             decodeSuccessData: sse_decode_unit,
-            decodeErrorData:
-                sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRust2DartSendError,
+            decodeErrorData: sse_decode_String,
           ),
           constMeta: kCrateRustTokenStreamIterConstMeta,
           argValues: [that, sink],
@@ -1687,7 +1684,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_String,
-          decodeErrorData: null,
+          decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateRustTokenStreamNextTokenConstMeta,
         argValues: [that],
@@ -2734,6 +2731,46 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       const TaskConstMeta(debugName: "cosine_similarity", argNames: ["a", "b"]);
 
   @override
+  Future<String> crateDownloadModel({
+    required String modelPath,
+    Map<String, String> headers = const {},
+    FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
+        noopOnDownloadProgress,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(modelPath, serializer);
+          sse_encode_Map_String_String_None(headers, serializer);
+          sse_encode_DartFn_Inputs_i_64_i_64_Output_unit_AnyhowException(
+            onDownloadProgress,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 63,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateDownloadModelConstMeta,
+        argValues: [modelPath, headers, onDownloadProgress],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateDownloadModelConstMeta => const TaskConstMeta(
+    debugName: "download_model",
+    argNames: ["modelPath", "headers", "onDownloadProgress"],
+  );
+
+  @override
   Future<void> crateInitApp() {
     return handler.executeNormal(
       NormalTask(
@@ -2742,7 +2779,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 63,
+            funcId: 64,
             port: port_,
           );
         },
@@ -2767,7 +2804,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_opt_box_autoadd_usize(maxCommands, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 64)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 65)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2799,7 +2836,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_opt_box_autoadd_u_64(maxDurationSecs, serializer);
           sse_encode_opt_box_autoadd_usize(maxMemoryBytes, serializer);
           sse_encode_opt_box_autoadd_usize(maxRecursionDepth, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 65)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 66)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2838,7 +2875,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_String(description, serializer);
           sse_encode_String(runtimeType, serializer);
           sse_encode_Map_String_String_None(parameterDescriptions, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 66)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 67)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2880,7 +2917,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_i_64(downloaded, serializer);
           sse_encode_i_64(total, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 67)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 68)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -2909,7 +2946,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             toolCall,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 68)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 69)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -3063,14 +3100,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerModel;
 
   RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_Rust2DartSendError => wire
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRust2DartSendError;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_Rust2DartSendError => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRust2DartSendError;
-
-  RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_RustChat => wire
       .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustChat;
 
@@ -3220,15 +3249,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return ModelImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
-  Rust2DartSendError
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRust2DartSendError(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return Rust2DartSendErrorImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -3512,15 +3532,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return ModelImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
-  Rust2DartSendError
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRust2DartSendError(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return Rust2DartSendErrorImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -4029,18 +4040,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  Rust2DartSendError
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRust2DartSendError(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return Rust2DartSendErrorImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
   RustChat
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustChat(
     SseDeserializer deserializer,
@@ -4384,18 +4383,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return ModelImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  Rust2DartSendError
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRust2DartSendError(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return Rust2DartSendErrorImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -5040,19 +5027,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 
   @protected
   void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRust2DartSendError(
-    Rust2DartSendError self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as Rust2DartSendErrorImpl).frbInternalSseEncode(move: true),
-      serializer,
-    );
-  }
-
-  @protected
-  void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustChat(
     RustChat self,
     SseSerializer serializer,
@@ -5461,19 +5435,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
       (self as ModelImpl).frbInternalSseEncode(move: null),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRust2DartSendError(
-    Rust2DartSendError self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as Rust2DartSendErrorImpl).frbInternalSseEncode(move: null),
       serializer,
     );
   }
@@ -6206,34 +6167,6 @@ class ModelImpl extends RustOpaque implements Model {
         NobodyWho.instance.api.rust_arc_decrement_strong_count_Model,
     rustArcDecrementStrongCountPtr:
         NobodyWho.instance.api.rust_arc_decrement_strong_count_ModelPtr,
-  );
-}
-
-@sealed
-class Rust2DartSendErrorImpl extends RustOpaque implements Rust2DartSendError {
-  // Not to be used by end users
-  Rust2DartSendErrorImpl.frbInternalDcoDecode(List<dynamic> wire)
-    : super.frbInternalDcoDecode(wire, _kStaticData);
-
-  // Not to be used by end users
-  Rust2DartSendErrorImpl.frbInternalSseDecode(
-    BigInt ptr,
-    int externalSizeOnNative,
-  ) : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
-
-  static final _kStaticData = RustArcStaticData(
-    rustArcIncrementStrongCount: NobodyWho
-        .instance
-        .api
-        .rust_arc_increment_strong_count_Rust2DartSendError,
-    rustArcDecrementStrongCount: NobodyWho
-        .instance
-        .api
-        .rust_arc_decrement_strong_count_Rust2DartSendError,
-    rustArcDecrementStrongCountPtr: NobodyWho
-        .instance
-        .api
-        .rust_arc_decrement_strong_count_Rust2DartSendErrorPtr,
   );
 }
 

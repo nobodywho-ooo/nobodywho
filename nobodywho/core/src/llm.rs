@@ -114,6 +114,28 @@ pub struct Model {
     pub(crate) projection_model: Option<ProjectionModel>,
 }
 
+impl Model {
+    /// Returns true if this model can generate text (i.e. is an autoregressive decoder).
+    ///
+    /// Generative models never pool token representations, so `<arch>.pooling_type` is absent
+    /// from their GGUF metadata (giving `Unspecified`). Encoder-only models (BERT, nomic-bert,
+    /// etc.) always have this key set to CLS, Mean, or similar — a reliable,
+    /// architecture-agnostic signal that the model cannot generate text.
+    pub fn is_generative_model(&self) -> bool {
+        let Ok(arch) = self.language_model.meta_val_str("general.architecture") else {
+            return true;
+        };
+        let key = format!("{arch}.pooling_type");
+        self.language_model
+            .meta_val_str(&key)
+            .ok()
+            .and_then(|val| val.parse::<i32>().ok())
+            .map(LlamaPoolingType::from)
+            .unwrap_or(LlamaPoolingType::Unspecified)
+            == LlamaPoolingType::Unspecified
+    }
+}
+
 pub fn has_gpu_backend() -> bool {
     #[cfg(any(
         all(target_os = "ios", target_arch = "aarch64", target_abi = "sim"),
@@ -210,20 +232,21 @@ fn parse_model_path(
 fn resolve_fancy_path_to_fs(
     parsed_path: ParsedModelPath,
     progress: &DownloadProgressCallback,
+    headers: &[(String, String)],
 ) -> Result<std::path::PathBuf, LoadModelError> {
     let fs_model_path = match parsed_path {
         ParsedModelPath::HuggingFaceUrl(owner, repo, filename) => {
-            download_model_from_hf(&owner, &repo, &filename, progress)?
+            download_model_from_hf(&owner, &repo, &filename, progress, headers)?
         }
         ParsedModelPath::FilesystemPath(path) => path,
-        ParsedModelPath::HttpUrl(url) => download_model_from_url(&url, progress)?,
+        ParsedModelPath::HttpUrl(url) => download_model_from_url(&url, progress, headers)?,
     };
 
     if !fs_model_path.exists() {
-        let e = LoadModelError::ModelNotFound(fs_model_path.to_string_lossy().into());
-        error!(error = %e, "Model file not found");
-        return Err(e);
+        return Err(LoadModelError::from_missing_path(&fs_model_path));
     }
+
+    LoadModelError::validate_model_file(&fs_model_path)?;
 
     Ok(fs_model_path)
 }
@@ -236,11 +259,11 @@ pub fn get_model(
     progress: Option<DownloadProgressCallback>,
 ) -> Result<Model, LoadModelError> {
     let progress = progress.unwrap_or_else(default_progress_callback);
-    let real_model_path = resolve_fancy_path_to_fs(parse_model_path(model_path)?, &progress)?;
+    let real_model_path = resolve_fancy_path_to_fs(parse_model_path(model_path)?, &progress, &[])?;
     let real_mmproj_path = mmproj_path
         .map(parse_model_path) // parse inside option
         .transpose()? // return early if parse fails
-        .map(|p| resolve_fancy_path_to_fs(p, &progress)) // download the file if needed
+        .map(|p| resolve_fancy_path_to_fs(p, &progress, &[])) // download the file if needed
         .transpose()?; // return early if download fails
 
     // TODO: `LlamaModelParams` uses all devices by default. Set it to an empty list once an upstream device API is available.
@@ -263,6 +286,11 @@ pub fn get_model(
     let language_model =
         LlamaModel::load_from_file(&LLAMA_BACKEND, &real_model_path, &model_params).map_err(
             |e| {
+                if e.to_string().contains("null result") {
+                    return LoadModelError::ModelLoadFailed {
+                        path: real_model_path.display().to_string(),
+                    };
+                }
                 let error_msg = format!(
                     "Bad model path: {} - Llama.cpp error: {}",
                     real_model_path.display(),
@@ -329,6 +357,15 @@ pub async fn get_model_async(
     }
 }
 
+pub fn download_model(
+    model_path: &str,
+    headers: Vec<(String, String)>,
+    progress: Option<DownloadProgressCallback>,
+) -> Result<std::path::PathBuf, LoadModelError> {
+    let progress = progress.unwrap_or_else(default_progress_callback);
+    resolve_fancy_path_to_fs(parse_model_path(model_path)?, &progress, &headers)
+}
+
 /// Get the cache directory for downloaded models.
 ///
 /// On Android, the package name is read from `/proc/self/cmdline` and the user ID
@@ -349,9 +386,7 @@ fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadMod
     // (e.g. "com.example.app"), possibly with a colon suffix for multi-process apps
     // (e.g. "com.example.app:remote").
     let cmdline = std::fs::read("/proc/self/cmdline").map_err(|e| {
-        crate::errors::LoadModelError::DownloadError(format!(
-            "Failed to read /proc/self/cmdline: {e}"
-        ))
+        LoadModelError::DownloadError(format!("Failed to read /proc/self/cmdline: {e}"))
     })?;
 
     let package_name = cmdline
@@ -360,7 +395,7 @@ fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadMod
         .and_then(|bytes| std::str::from_utf8(bytes).ok())
         .map(|s| s.split(':').next().unwrap_or(s))
         .ok_or_else(|| {
-            crate::errors::LoadModelError::DownloadError(
+            LoadModelError::DownloadError(
                 "Could not determine Android package name from /proc/self/cmdline".into(),
             )
         })?;
@@ -379,9 +414,8 @@ fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadMod
 
 #[cfg(not(target_os = "android"))]
 fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
-    dirs::cache_dir().ok_or_else(|| {
-        crate::errors::LoadModelError::DownloadError("Could not determine cache directory".into())
-    })
+    dirs::cache_dir()
+        .ok_or_else(|| LoadModelError::DownloadError("Could not determine cache directory".into()))
 }
 
 /// Download a file from a URL to a local path, streaming to disk with progress logging.
@@ -392,10 +426,11 @@ fn download_file(
     url: &str,
     target_path: &std::path::Path,
     progress: &DownloadProgressCallback,
+    headers: &[(String, String)],
 ) -> Result<(), crate::errors::LoadModelError> {
     for component in target_path.components() {
         if component == std::path::Component::ParentDir {
-            return Err(crate::errors::LoadModelError::DownloadError(
+            return Err(LoadModelError::DownloadError(
                 "Path traversal detected: '..' is not allowed in model paths".into(),
             ));
         }
@@ -409,7 +444,7 @@ fn download_file(
     // Create parent directories
     if let Some(parent) = target_path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| {
-            crate::errors::LoadModelError::DownloadError(format!(
+            LoadModelError::DownloadError(format!(
                 "Failed to create cache directory {}: {e}",
                 parent.display()
             ))
@@ -418,8 +453,13 @@ fn download_file(
 
     info!("Downloading {} -> {}", url, target_path.display());
 
-    let response = ureq::get(url).call().map_err(|e| {
-        crate::errors::LoadModelError::DownloadError(format!("HTTP request failed: {e}"))
+    let mut request = ureq::get(url);
+    for (name, value) in headers {
+        request = request.header(name.as_str(), value.as_str());
+    }
+    let response = request.call().map_err(|e| match e {
+        ureq::Error::StatusCode(status) => LoadModelError::from_http_status(url, status),
+        e => LoadModelError::DownloadError(format!("HTTP request failed: {e}")),
     })?;
 
     let content_length: std::num::NonZeroU64 = response
@@ -428,7 +468,7 @@ fn download_file(
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.parse::<std::num::NonZeroU64>().ok())
         .ok_or_else(|| {
-            crate::errors::LoadModelError::DownloadError(format!(
+            LoadModelError::DownloadError(format!(
                 "Server returned missing or zero Content-Length for {url}"
             ))
         })?;
@@ -450,7 +490,7 @@ fn download_file(
 
     let download_result: Result<(), crate::errors::LoadModelError> = (|| {
         let mut file = std::fs::File::create(&tmp_path).map_err(|e| {
-            crate::errors::LoadModelError::DownloadError(format!(
+            LoadModelError::DownloadError(format!(
                 "Failed to create temp file {}: {e}",
                 tmp_path.display()
             ))
@@ -464,17 +504,13 @@ fn download_file(
 
         loop {
             let n = reader.read(&mut buf).map_err(|e| {
-                crate::errors::LoadModelError::DownloadError(format!(
-                    "Read error during download: {e}"
-                ))
+                LoadModelError::DownloadError(format!("Read error during download: {e}"))
             })?;
             if n == 0 {
                 break;
             }
             file.write_all(&buf[..n]).map_err(|e| {
-                crate::errors::LoadModelError::DownloadError(format!(
-                    "Write error during download: {e}"
-                ))
+                LoadModelError::DownloadError(format!("Write error during download: {e}"))
             })?;
             downloaded += n as u64;
 
@@ -490,7 +526,7 @@ fn download_file(
             }
         }
         if downloaded != content_length.get() {
-            return Err(crate::errors::LoadModelError::DownloadError(format!(
+            return Err(LoadModelError::DownloadError(format!(
                 "Download incomplete: got {downloaded}/{} bytes",
                 content_length
             )));
@@ -507,7 +543,7 @@ fn download_file(
 
     // Rename temp file to final path
     std::fs::rename(&tmp_path, target_path).map_err(|e| {
-        crate::errors::LoadModelError::DownloadError(format!(
+        LoadModelError::DownloadError(format!(
             "Failed to rename temp file to {}: {e}",
             target_path.display()
         ))
@@ -525,11 +561,12 @@ fn download_model_from_hf(
     repo: &str,
     filename: &str,
     progress: &DownloadProgressCallback,
+    headers: &[(String, String)],
 ) -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
     let cache_dir = get_cache_dir()?;
     let target_path = cache_dir.join(owner).join(repo).join(filename);
     let url = format!("https://huggingface.co/{owner}/{repo}/resolve/main/{filename}");
-    download_file(&url, &target_path, progress)?;
+    download_file(&url, &target_path, progress, headers)?;
     Ok(target_path)
 }
 
@@ -539,6 +576,7 @@ fn download_model_from_hf(
 fn download_model_from_url(
     url: &str,
     progress: &DownloadProgressCallback,
+    headers: &[(String, String)],
 ) -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
     let cache_dir = get_cache_dir()?;
     // Derive a cache path from the URL: strip scheme, use the rest as path components
@@ -546,7 +584,7 @@ fn download_model_from_url(
         .trim_start_matches("https://")
         .trim_start_matches("http://");
     let target_path = cache_dir.join("http").join(path_part);
-    download_file(url, &target_path, progress)?;
+    download_file(url, &target_path, progress, headers)?;
     Ok(target_path)
 }
 
@@ -581,6 +619,9 @@ pub(crate) struct Worker<'a, S> {
     pub(crate) projection_model: Option<&'a ProjectionModel>,
     pub(crate) tokenizer: Tokenizer<'a>,
     pub(crate) use_embeddings: bool,
+    // The configured n_batch (= planned n_ctx before llama.cpp's internal rounding).
+    // Used to guard against sending more tokens than the context can decode in one batch.
+    pub(crate) n_batch: usize,
 
     pub(crate) extra: S,
 }
@@ -595,10 +636,10 @@ impl<'a, T> PoolingType for Worker<'a, T> {
     }
 }
 
-#[derive(Debug)]
 pub enum WriteOutput {
     Token(String),
     Done(String),
+    Error(Box<dyn miette::Diagnostic + Send + Sync + 'static>),
 }
 
 // Common methods for any workstate type
@@ -617,7 +658,7 @@ where
         let projection_model = model.projection_model.as_ref();
 
         // Set up context parameters using available parallelism
-        let ctx = {
+        let (ctx, n_batch) = {
             let n_threads = std::thread::available_parallelism()?.get() as i32;
             let ctx_plan = memory::plan_context(
                 std::cmp::min(n_ctx, model.language_model.n_ctx_train()),
@@ -645,9 +686,10 @@ where
                 .with_pooling_type(extra.pooling_type());
 
             // Create inference context and sampler
-            model
+            let ctx = model
                 .language_model
-                .new_context(&LLAMA_BACKEND, ctx_params)?
+                .new_context(&LLAMA_BACKEND, ctx_params)?;
+            (ctx, n_ctx as usize)
         };
 
         let big_batch = LlamaBatch::new(ctx.n_ctx() as usize, 1);
@@ -664,6 +706,7 @@ where
             big_batch,
             small_batch,
             projection_model,
+            n_batch,
             extra,
             tokenizer,
             use_embeddings,
@@ -756,8 +799,13 @@ where
 
         // can't read nothing
         debug_assert!(!tokens.is_empty());
-        // can't read more than the context size
-        debug_assert!(tokens.len() < self.ctx.n_ctx() as usize);
+
+        if n_tokens > self.n_batch {
+            return Err(ReadError::InputExceedsContext {
+                n_tokens,
+                n_ctx: self.n_batch,
+            });
+        }
 
         {
             debug!("Populating batch");

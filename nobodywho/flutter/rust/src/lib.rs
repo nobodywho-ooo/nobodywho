@@ -1,4 +1,4 @@
-use flutter_rust_bridge::{DartFnFuture, Rust2DartSendError};
+use flutter_rust_bridge::DartFnFuture;
 use nobodywho::chat::Asset;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -106,11 +106,39 @@ impl Model {
             projection_model_path.as_deref(),
             Some(wrap_progress(on_download_progress)),
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| nobodywho::render_miette(&e))?;
         Ok(Self {
             model: Arc::new(model),
         })
     }
+}
+
+/// Download a model from a remote URL or HuggingFace path and return the local file path.
+///
+/// Use this when you need custom headers, e.g. for gated models that require authentication.
+/// For unauthenticated downloads, pass the URL directly to `Model.load`.
+///
+/// Args:
+///     model_path: Path or URL to a GGUF model file.
+///     headers: Optional HTTP headers (e.g. `{"Authorization": "Bearer hf_..."}`).
+///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while downloading.
+#[flutter_rust_bridge::frb]
+pub fn download_model(
+    model_path: String,
+    #[frb(default = "const {}")] headers: HashMap<String, String>,
+    #[frb(default = "noopOnDownloadProgress")] on_download_progress: impl Fn(i64, i64) -> DartFnFuture<()>
+        + Send
+        + Sync
+        + 'static,
+) -> Result<String, String> {
+    let headers_vec: Vec<(String, String)> = headers.into_iter().collect();
+    nobodywho::llm::download_model(
+        &model_path,
+        headers_vec,
+        Some(wrap_progress(on_download_progress)),
+    )
+    .map(|p| p.to_string_lossy().into_owned())
+    .map_err(|e| nobodywho::render_miette(&e))
 }
 
 #[flutter_rust_bridge::frb(opaque)]
@@ -142,7 +170,7 @@ impl RustChat {
         #[frb(default = "const {}")] template_variables: HashMap<String, bool>,
         #[frb(default = "const []")] tools: Vec<RustTool>,
         #[frb(default = "null")] sampler: Option<SamplerConfig>,
-    ) -> Self {
+    ) -> Result<Self, String> {
         let sampler_config = sampler.map(|s| s.sampler_config).unwrap_or_default();
 
         // Handle deprecated allow_thinking parameter
@@ -161,9 +189,10 @@ impl RustChat {
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
             .with_system_prompt(system_prompt)
             .with_sampler(sampler_config)
-            .build_async();
+            .build_async()
+            .map_err(|e| nobodywho::render_miette(&e))?;
 
-        Self { chat }
+        Ok(Self { chat })
     }
 
     /// Create chat directly from a model path. This is async as it loads a model
@@ -202,7 +231,7 @@ impl RustChat {
             projection_model_path.as_deref(),
             Some(wrap_progress(on_download_progress)),
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| nobodywho::render_miette(&e))?;
         let sampler_config = sampler.map(|s| s.sampler_config).unwrap_or_default();
 
         // Handle deprecated allow_thinking parameter
@@ -221,7 +250,8 @@ impl RustChat {
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
             .with_system_prompt(system_prompt)
             .with_sampler(sampler_config)
-            .build_async();
+            .build_async()
+            .map_err(|e| nobodywho::render_miette(&e))?;
         Ok(Self { chat })
     }
 
@@ -363,15 +393,22 @@ impl RustTokenStream {
     pub async fn iter(
         &mut self,
         sink: crate::frb_generated::StreamSink<String>,
-    ) -> Result<(), Rust2DartSendError> {
-        while let Some(token) = self.stream.next_token().await {
-            sink.add(token)?;
+    ) -> Result<(), String> {
+        loop {
+            match self.stream.next_token().await {
+                Ok(Some(token)) => sink.add(token).map_err(|e| e.to_string())?,
+                Ok(None) => break,
+                Err(e) => return Err(nobodywho::render_miette(&e)),
+            }
         }
         Ok(())
     }
 
-    pub async fn next_token(&mut self) -> Option<String> {
-        self.stream.next_token().await
+    pub async fn next_token(&mut self) -> Result<Option<String>, String> {
+        self.stream
+            .next_token()
+            .await
+            .map_err(|e| nobodywho::render_miette(&e))
     }
 
     pub async fn completed(&mut self) -> Result<String, nobodywho::errors::CompletionError> {
@@ -416,7 +453,7 @@ impl Encoder {
             None,
             Some(wrap_progress(on_download_progress)),
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| nobodywho::render_miette(&e))?;
         let handle = nobodywho::encoder::EncoderAsync::new(Arc::new(model), n_ctx);
 
         Ok(Self { handle })
@@ -468,7 +505,7 @@ impl CrossEncoder {
             None,
             Some(wrap_progress(on_download_progress)),
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| nobodywho::render_miette(&e))?;
         let handle = nobodywho::crossencoder::CrossEncoderAsync::new(Arc::new(model), n_ctx);
         Ok(Self { handle })
     }

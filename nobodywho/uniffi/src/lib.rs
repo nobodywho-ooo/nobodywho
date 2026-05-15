@@ -216,7 +216,7 @@ pub async fn load_model(
     )
     .await
     .map_err(|e| {
-        let msg = format!("Failed to load model '{}': {}", model_path, e);
+        let msg = nobodywho::render_miette(&e);
         log::error!("{}", msg);
         NobodyWhoError::Error { message: msg }
     })?;
@@ -225,6 +225,32 @@ pub async fn load_model(
     Ok(Arc::new(RustModel {
         inner: Arc::new(model),
     }))
+}
+
+/// Download a GGUF model from a remote URL or HuggingFace path and return the local file path.
+///
+/// Use this when you need custom headers, e.g. for gated models that require authentication.
+/// For unauthenticated downloads, pass the URL directly to `load_model`.
+#[uniffi::export]
+pub async fn download_model(
+    model_path: String,
+    headers: Option<HashMap<String, String>>,
+    on_download_progress: Option<Box<dyn RustDownloadProgressCallback>>,
+) -> Result<String, NobodyWhoError> {
+    init_logging();
+    let headers_vec: Vec<(String, String)> = headers.unwrap_or_default().into_iter().collect();
+    let progress = on_download_progress.map(wrap_progress);
+    tokio::task::spawn_blocking(move || {
+        nobodywho::llm::download_model(&model_path, headers_vec, progress)
+            .map(|p| p.to_string_lossy().into_owned())
+            .map_err(|e| NobodyWhoError::Error {
+                message: nobodywho::render_miette(&e),
+            })
+    })
+    .await
+    .map_err(|e| NobodyWhoError::Error {
+        message: e.to_string(), // JoinError, not a miette diagnostic
+    })?
 }
 
 // ---------- RustChat ----------
@@ -246,7 +272,7 @@ impl RustChat {
         template_variables: Option<HashMap<String, bool>>,
         tools: Option<Vec<Arc<RustTool>>>,
         sampler: Option<Arc<SamplerConfig>>,
-    ) -> Self {
+    ) -> Result<Arc<Self>, NobodyWhoError> {
         let core_tools: Vec<nobodywho::tool_calling::Tool> = tools
             .unwrap_or_default()
             .into_iter()
@@ -261,9 +287,12 @@ impl RustChat {
             .with_template_variables(template_variables.unwrap_or_default())
             .with_tools(core_tools)
             .with_sampler(sampler_config)
-            .build_async();
+            .build_async()
+            .map_err(|e| NobodyWhoError::Error {
+                message: nobodywho::render_miette(&e),
+            })?;
 
-        Self { inner: chat }
+        Ok(Arc::new(Self { inner: chat }))
     }
 
     /// Send a message and get a token stream for the response.
@@ -446,11 +475,13 @@ pub struct RustTokenStream {
 
 #[uniffi::export]
 impl RustTokenStream {
-    /// Get the next token. Returns None when generation is complete.
-    pub async fn next_token(&self) -> Option<String> {
-        let token = self.inner.lock().await.next_token().await;
-        log::debug!("next_token: {:?}", token);
-        token
+    /// Get the next token. Returns None when generation is complete, or an error if generation failed.
+    pub async fn next_token(&self) -> Result<Option<String>, NobodyWhoError> {
+        let result = self.inner.lock().await.next_token().await;
+        log::debug!("next_token: {:?}", result);
+        result.map_err(|e| NobodyWhoError::Error {
+            message: nobodywho::render_miette(&e),
+        })
     }
 
     /// Wait for the full response to complete and return it.

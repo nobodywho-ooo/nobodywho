@@ -96,6 +96,37 @@ export function cosineSimilarity(a: Array</*f32*/number>, b: Array</*f32*/number
     ));
     }
 /**
+ * Download a GGUF model from a remote URL or HuggingFace path and return the local file path.
+ *
+ * Use this when you need custom headers, e.g. for gated models that require authentication.
+ * For unauthenticated downloads, pass the URL directly to `load_model`.
+ */
+export async function downloadModel(modelPath: string, headers: Map<string, string> | undefined, onDownloadProgress: RustDownloadProgressCallback | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<string> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_download_model(FfiConverterString.lower(modelPath),FfiConverterOptionalMapStringString.lower(headers),FfiConverterOptionalTypeRustDownloadProgressCallback.lower(onDownloadProgress)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+            /*liftFunc:*/ FfiConverterString.lift.bind(FfiConverterString),
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+/**
  * Load a GGUF model from a local path or remote URL.
  *
  * Accepts local filesystem paths, `hf://owner/repo/file.gguf` for HuggingFace downloads,
@@ -1176,6 +1207,10 @@ const FfiConverterTypePromptPart = (() => {
 const FfiConverterMapStringBool = new FfiConverterMap(FfiConverterString, FfiConverterBool);
 
 
+// FfiConverter for Map<string, string>
+const FfiConverterMapStringString = new FfiConverterMap(FfiConverterString, FfiConverterString);
+
+
 export interface RustChatInterface {
     
     /**
@@ -1248,10 +1283,12 @@ export class RustChat extends UniffiAbstractObject implements RustChatInterface 
     /**
      * Create a new chat session.
      */
-    constructor(model: RustModelInterface, systemPrompt: string | undefined, contextSize: /*u32*/number, templateVariables: Map<string, boolean> | undefined, tools: Array<RustToolInterface> | undefined, sampler: SamplerConfigInterface | undefined) {
+    constructor(model: RustModelInterface, systemPrompt: string | undefined, contextSize: /*u32*/number, templateVariables: Map<string, boolean> | undefined, tools: Array<RustToolInterface> | undefined, sampler: SamplerConfigInterface | undefined) /*throws*/ {
         super();
         const pointer =
-            uniffiCaller.rustCall(
+            
+        uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError),
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(
         FfiConverterTypeRustModel.lower(model),
@@ -2154,9 +2191,9 @@ export interface RustTokenStreamInterface {
      */
     completed(asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<string>;
     /**
-     * Get the next token. Returns None when generation is complete.
+     * Get the next token. Returns None when generation is complete, or an error if generation failed.
      */
-    nextToken(asyncOpts_?: { signal: AbortSignal }) : Promise<string | undefined>;
+    nextToken(asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<string | undefined>;
 }
 
 
@@ -2207,9 +2244,9 @@ async  completed(asyncOpts_?: { signal: AbortSignal }): Promise<string> /*throws
     }
     
     /**
-     * Get the next token. Returns None when generation is complete.
+     * Get the next token. Returns None when generation is complete, or an error if generation failed.
      */
-async  nextToken(asyncOpts_?: { signal: AbortSignal }): Promise<string | undefined> {
+async  nextToken(asyncOpts_?: { signal: AbortSignal }): Promise<string | undefined> /*throws*/ {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
         return await uniffiRustCallAsync(
@@ -2227,7 +2264,7 @@ async  nextToken(asyncOpts_?: { signal: AbortSignal }): Promise<string | undefin
             /*liftFunc:*/ FfiConverterOptionalString.lift.bind(FfiConverterOptionalString),
             /*liftString:*/ FfiConverterString.lift,
             /*asyncOpts:*/ asyncOpts_,
-            
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
         );
     } catch (__error: any) {
         if (uniffiIsDebug && __error instanceof Error) {
@@ -3034,6 +3071,10 @@ const FfiConverterArrayString = new FfiConverterArray(FfiConverterString);
 const FfiConverterOptionalMapStringBool = new FfiConverterOptional(FfiConverterMapStringBool);
 
 
+// FfiConverter for Map<string, string> | undefined
+const FfiConverterOptionalMapStringString = new FfiConverterOptional(FfiConverterMapStringString);
+
+
 // FfiConverter for SamplerConfigInterface | undefined
 const FfiConverterOptionalTypeSamplerConfig = new FfiConverterOptional(FfiConverterTypeSamplerConfig);
 
@@ -3077,6 +3118,9 @@ function uniffiEnsureInitialized() {
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_cosine_similarity() !== 63439) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_cosine_similarity");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_download_model() !== 31331) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_download_model");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model() !== 33587) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_load_model");
@@ -3168,7 +3212,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_completed() !== 26060) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_completed");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_next_token() !== 44770) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_next_token() !== 59210) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_next_token");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttool_get_schema_json() !== 4679) {
@@ -3222,7 +3266,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json() !== 51798) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() !== 38902) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() !== 24505) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() !== 9022) {

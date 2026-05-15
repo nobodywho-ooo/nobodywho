@@ -373,7 +373,7 @@ impl Parser {
 
     fn parse_name(&mut self) -> Result<String, GbnfToLarkError> {
         let start = self.pos;
-        while self.current().map_or(false, Self::is_word_char) {
+        while self.current().is_some_and(Self::is_word_char) {
             self.advance(1);
         }
         if self.pos == start {
@@ -384,7 +384,7 @@ impl Parser {
 
     fn parse_int(&mut self) -> Result<u32, GbnfToLarkError> {
         let start = self.pos;
-        while self.current().map_or(false, |c| c.is_ascii_digit()) {
+        while self.current().is_some_and(|c| c.is_ascii_digit()) {
             self.advance(1);
         }
         if self.pos == start {
@@ -523,7 +523,7 @@ impl Parser {
                 } else if self.current() == Some(',') {
                     self.advance(1);
                     self.skip_space(true);
-                    let max = if self.current().map_or(false, |c| c.is_ascii_digit()) {
+                    let max = if self.current().is_some_and(|c| c.is_ascii_digit()) {
                         Some(self.parse_int()?)
                     } else {
                         None
@@ -583,7 +583,7 @@ fn to_lark_name(name: &str, is_terminal: bool) -> String {
     }
 }
 
-fn resolve(rules: &mut Vec<Rule>) -> Result<(), GbnfToLarkError> {
+fn resolve(rules: &mut [Rule]) -> Result<(), GbnfToLarkError> {
     // 1. Assign declaration order; simplify AST
     for (i, rule) in rules.iter_mut().enumerate() {
         rule.order = i;

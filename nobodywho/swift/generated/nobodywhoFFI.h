@@ -586,6 +586,11 @@ void uniffi_nobodywho_uniffi_fn_init_callback_vtable_rusttoolcallback(const Unif
 float uniffi_nobodywho_uniffi_fn_func_cosine_similarity(RustBuffer a, RustBuffer b, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_DOWNLOAD_MODEL
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_DOWNLOAD_MODEL
+uint64_t uniffi_nobodywho_uniffi_fn_func_download_model(RustBuffer model_path, RustBuffer headers, RustBuffer on_download_progress
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_LOAD_MODEL
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_LOAD_MODEL
 uint64_t uniffi_nobodywho_uniffi_fn_func_load_model(RustBuffer model_path, int8_t use_gpu, RustBuffer projection_model_path, RustBuffer on_download_progress
@@ -913,6 +918,12 @@ void ffi_nobodywho_uniffi_rust_future_complete_void(uint64_t handle, RustCallSta
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_COSINE_SIMILARITY
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_COSINE_SIMILARITY
 uint16_t uniffi_nobodywho_uniffi_checksum_func_cosine_similarity(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_DOWNLOAD_MODEL
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_DOWNLOAD_MODEL
+uint16_t uniffi_nobodywho_uniffi_checksum_func_download_model(void
     
 );
 #endif

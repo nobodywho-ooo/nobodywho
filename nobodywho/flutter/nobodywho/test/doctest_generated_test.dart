@@ -268,7 +268,22 @@ void main() {
       print(msg); // Yes, indeed, water is wet!
     });
 
-    test('index.md:52', () async {
+    test('index.md:55', () async {
+      final chat = await nobodywho.Chat.fromPath(
+        modelPath: './model.gguf',
+      );
+    });
+
+    test('index.md:62', () async {
+      final modelPath = await nobodywho.downloadModel(
+        modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
+        headers: {'Authorization': 'Bearer your_hf_token'},
+      );
+      
+      final chat = await nobodywho.Chat.fromPath(modelPath: modelPath);
+    });
+
+    test('index.md:79', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
         onDownloadProgress: (downloaded, total) {

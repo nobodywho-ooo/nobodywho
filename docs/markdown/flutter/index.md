@@ -45,6 +45,33 @@ print(msg); // Yes, indeed, water is wet!
 
 This is a super simple example, but we believe that examples which do simple things, should be simple!
 
+## Downloading gated model
+
+Some HuggingFace models are either private or gated by a license that you need to accept.
+For both scenarios, you need to be authorized to download the model weights.
+
+In that case, you can resort to manually accessing the model page through your web browser,
+getting the GGUF file downloaded and then pointing our chat instance to the path where you have stored it:
+```dart
+final chat = await nobodywho.Chat.fromPath(
+  modelPath: './model.gguf',
+);
+```
+
+Or you can use the `downloadModel` function, where you can pass in the authorization token:
+```dart
+import 'package:nobodywho/nobodywho.dart' as nobodywho;
+
+final modelPath = await nobodywho.downloadModel(
+  modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
+  headers: {'Authorization': 'Bearer your_hf_token'},
+);
+
+final chat = await nobodywho.Chat.fromPath(modelPath: modelPath);
+```
+
+The token can be then generated in [your account settings](https://huggingface.co/settings/tokens).
+
 ## Tracking download progress
 
 When loading a remote model, pass an `onDownloadProgress` callback to observe the download. It receives `(downloadedBytes, totalBytes)`, is throttled to roughly 10 Hz with a guaranteed final emit on completion, and is not called for cached or local files.

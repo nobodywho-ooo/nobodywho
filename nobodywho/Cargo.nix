@@ -928,6 +928,20 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" "std" ];
       };
+      "backtrace-ext" = rec {
+        crateName = "backtrace-ext";
+        version = "0.2.1";
+        edition = "2018";
+        sha256 = "0l4xacjnx4jrn9k14xbs2swks018mviq03sp7c1gn62apviywysk";
+        libName = "backtrace_ext";
+        dependencies = [
+          {
+            name = "backtrace";
+            packageId = "backtrace";
+          }
+        ];
+
+      };
       "base64" = rec {
         crateName = "base64";
         version = "0.22.1";
@@ -1028,7 +1042,7 @@ rec {
           }
           {
             name = "thiserror";
-            packageId = "thiserror";
+            packageId = "thiserror 2.0.18";
           }
           {
             name = "tokio";
@@ -1531,7 +1545,7 @@ rec {
           }
           {
             name = "thiserror";
-            packageId = "thiserror";
+            packageId = "thiserror 2.0.18";
           }
         ];
         features = {
@@ -1986,7 +2000,7 @@ rec {
         dependencies = [
           {
             name = "thiserror";
-            packageId = "thiserror";
+            packageId = "thiserror 2.0.18";
             usesDefaultFeatures = false;
           }
         ];
@@ -2167,7 +2181,7 @@ rec {
           }
           {
             name = "unicode-width";
-            packageId = "unicode-width";
+            packageId = "unicode-width 0.2.2";
             optional = true;
           }
           {
@@ -3039,7 +3053,7 @@ rec {
           }
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.52.0";
+            packageId = "windows-sys 0.61.2";
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_Foundation" "Win32_System_Diagnostics_Debug" ];
           }
@@ -4257,7 +4271,7 @@ rec {
         dependencies = [
           {
             name = "unicode-width";
-            packageId = "unicode-width";
+            packageId = "unicode-width 0.2.2";
             optional = true;
           }
         ];
@@ -6237,7 +6251,7 @@ rec {
           }
           {
             name = "unicode-width";
-            packageId = "unicode-width";
+            packageId = "unicode-width 0.2.2";
             optional = true;
           }
           {
@@ -6469,7 +6483,7 @@ rec {
           }
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.52.0";
+            packageId = "windows-sys 0.61.2";
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_Foundation" "Win32_Storage_FileSystem" "Win32_System_Console" ];
           }
@@ -6480,6 +6494,17 @@ rec {
             packageId = "libc";
             target = { target, features }: ((target."unix" or false) || ("wasi" == target."os" or null));
           }
+        ];
+
+      };
+      "is_ci" = rec {
+        crateName = "is_ci";
+        version = "1.2.0";
+        edition = "2018";
+        crateBin = [];
+        sha256 = "0ifwvxmrsj4r29agfzr71bjq6y1bihkx38fbzafq5vl0jn1wjmbn";
+        authors = [
+          "Kat Marchán <kzm@zkat.tech>"
         ];
 
       };
@@ -6730,7 +6755,7 @@ rec {
           }
           {
             name = "thiserror";
-            packageId = "thiserror";
+            packageId = "thiserror 2.0.18";
           }
           {
             name = "windows-link";
@@ -7243,8 +7268,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/marek-hradil/llama-cpp-rs";
-          rev = "8550f04e3dbc6eb1e30ed50466356a253d7bb652";
-          sha256 = "1cwbj0wiq9s3kbng5kbygg9ddg5xqgw4nazsv5zd4mbhcjykgzqz";
+          rev = "94e59043c4b0288dd752e0afc781d27e6ebd1124";
+          sha256 = "1mqshzkdkwkna4v5xs7p64lj5ac3j62fqjzw5anycf96j51ns07s";
         };
         libName = "llama_cpp_2";
         dependencies = [
@@ -7274,7 +7299,7 @@ rec {
           }
           {
             name = "thiserror";
-            packageId = "thiserror";
+            packageId = "thiserror 2.0.18";
           }
           {
             name = "toktrie";
@@ -7313,7 +7338,7 @@ rec {
           "system-ggml-static" = [ "llama-cpp-sys-2/system-ggml-static" ];
           "vulkan" = [ "llama-cpp-sys-2/vulkan" ];
         };
-        resolvedDefaultFeatures = [ "android-static-stdcxx" "llguidance" "metal" "mtmd" "openmp" "vulkan" ];
+        resolvedDefaultFeatures = [ "android-static-stdcxx" "llguidance" "mtmd" "openmp" "vulkan" ];
       };
       "llama-cpp-sys-2" = rec {
         crateName = "llama-cpp-sys-2";
@@ -7323,8 +7348,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/marek-hradil/llama-cpp-rs";
-          rev = "8550f04e3dbc6eb1e30ed50466356a253d7bb652";
-          sha256 = "1cwbj0wiq9s3kbng5kbygg9ddg5xqgw4nazsv5zd4mbhcjykgzqz";
+          rev = "94e59043c4b0288dd752e0afc781d27e6ebd1124";
+          sha256 = "1mqshzkdkwkna4v5xs7p64lj5ac3j62fqjzw5anycf96j51ns07s";
         };
         libName = "llama_cpp_sys_2";
         buildDependencies = [
@@ -7654,6 +7679,119 @@ rec {
         libName = "memo_map";
         authors = [
           "Armin Ronacher <armin.ronacher@active-4.com>"
+        ];
+
+      };
+      "miette" = rec {
+        crateName = "miette";
+        version = "5.10.0";
+        edition = "2018";
+        sha256 = "0vl5qvl3bgha6nnkdl7kiha6v4ypd6d51wyc4q1bvdpamr75ifsr";
+        authors = [
+          "Kat Marchán <kzm@zkat.tech>"
+        ];
+        dependencies = [
+          {
+            name = "backtrace";
+            packageId = "backtrace";
+            optional = true;
+          }
+          {
+            name = "backtrace-ext";
+            packageId = "backtrace-ext";
+            optional = true;
+          }
+          {
+            name = "is-terminal";
+            packageId = "is-terminal";
+            optional = true;
+          }
+          {
+            name = "miette-derive";
+            packageId = "miette-derive";
+          }
+          {
+            name = "once_cell";
+            packageId = "once_cell";
+          }
+          {
+            name = "owo-colors";
+            packageId = "owo-colors";
+            optional = true;
+          }
+          {
+            name = "supports-color";
+            packageId = "supports-color";
+            optional = true;
+          }
+          {
+            name = "supports-hyperlinks";
+            packageId = "supports-hyperlinks";
+            optional = true;
+          }
+          {
+            name = "supports-unicode";
+            packageId = "supports-unicode";
+            optional = true;
+          }
+          {
+            name = "terminal_size";
+            packageId = "terminal_size";
+            optional = true;
+          }
+          {
+            name = "textwrap";
+            packageId = "textwrap 0.15.2";
+            optional = true;
+          }
+          {
+            name = "thiserror";
+            packageId = "thiserror 1.0.69";
+          }
+          {
+            name = "unicode-width";
+            packageId = "unicode-width 0.1.14";
+          }
+        ];
+        features = {
+          "backtrace" = [ "dep:backtrace" ];
+          "backtrace-ext" = [ "dep:backtrace-ext" ];
+          "fancy" = [ "fancy-no-backtrace" "backtrace" "backtrace-ext" ];
+          "fancy-no-backtrace" = [ "owo-colors" "is-terminal" "textwrap" "terminal_size" "supports-hyperlinks" "supports-color" "supports-unicode" ];
+          "is-terminal" = [ "dep:is-terminal" ];
+          "owo-colors" = [ "dep:owo-colors" ];
+          "serde" = [ "dep:serde" ];
+          "supports-color" = [ "dep:supports-color" ];
+          "supports-hyperlinks" = [ "dep:supports-hyperlinks" ];
+          "supports-unicode" = [ "dep:supports-unicode" ];
+          "terminal_size" = [ "dep:terminal_size" ];
+          "textwrap" = [ "dep:textwrap" ];
+        };
+        resolvedDefaultFeatures = [ "backtrace" "backtrace-ext" "default" "fancy" "fancy-no-backtrace" "is-terminal" "owo-colors" "supports-color" "supports-hyperlinks" "supports-unicode" "terminal_size" "textwrap" ];
+      };
+      "miette-derive" = rec {
+        crateName = "miette-derive";
+        version = "5.10.0";
+        edition = "2018";
+        sha256 = "0p33msrngkxlp5ajm8nijamii9vcwwpy8gfh4m53qnmrc0avrrs9";
+        procMacro = true;
+        libName = "miette_derive";
+        authors = [
+          "Kat Marchán <kzm@zkat.tech>"
+        ];
+        dependencies = [
+          {
+            name = "proc-macro2";
+            packageId = "proc-macro2";
+          }
+          {
+            name = "quote";
+            packageId = "quote";
+          }
+          {
+            name = "syn";
+            packageId = "syn 2.0.117";
+          }
         ];
 
       };
@@ -8069,15 +8207,13 @@ rec {
             name = "llama-cpp-2";
             packageId = "llama-cpp-2";
             usesDefaultFeatures = false;
-            target = { target, features }: ((!("macos" == target."os" or null)) && (!("ios" == target."os" or null)) && (!("android" == target."os" or null)) && (("x86_64" == target."arch" or null) || ("x86" == target."arch" or null) || ("aarch64" == target."arch" or null)));
+            target = { target, features }: ((!("macos" == target."os" or null)) && (!("ios" == target."os" or null)) && (!("visionos" == target."os" or null)) && (!("watchos" == target."os" or null)) && (!("android" == target."os" or null)) && (("x86_64" == target."arch" or null) || ("x86" == target."arch" or null) || ("aarch64" == target."arch" or null)));
             features = [ "openmp" "vulkan" "mtmd" "android-static-stdcxx" "llguidance" ];
           }
           {
-            name = "llama-cpp-2";
-            packageId = "llama-cpp-2";
-            usesDefaultFeatures = false;
-            target = { target, features }: ("ios" == target."os" or null);
-            features = [ "metal" "mtmd" "llguidance" ];
+            name = "miette";
+            packageId = "miette";
+            features = [ "fancy" ];
           }
           {
             name = "minijinja";
@@ -8116,7 +8252,7 @@ rec {
           }
           {
             name = "thiserror";
-            packageId = "thiserror";
+            packageId = "thiserror 2.0.18";
           }
           {
             name = "tokio";
@@ -8146,7 +8282,7 @@ rec {
       };
       "nobodywho-flutter" = rec {
         crateName = "nobodywho-flutter";
-        version = "1.2.0";
+        version = "2.1.0";
         edition = "2021";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./flutter/rust; };
         libName = "nobodywho_flutter";type = [ "cdylib" ];
@@ -8194,7 +8330,7 @@ rec {
       };
       "nobodywho-godot" = rec {
         crateName = "nobodywho-godot";
-        version = "9.1.0";
+        version = "9.2.0";
         edition = "2021";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./godot; };
         libName = "nobodywho_godot";type = [ "cdylib" ];
@@ -8234,7 +8370,7 @@ rec {
       };
       "nobodywho-python" = rec {
         crateName = "nobodywho-python";
-        version = "1.2.0";
+        version = "1.3.0";
         edition = "2021";
         crateBin = [
           {
@@ -8342,7 +8478,7 @@ rec {
           }
           {
             name = "thiserror";
-            packageId = "thiserror";
+            packageId = "thiserror 2.0.18";
           }
           {
             name = "tokio";
@@ -8997,6 +9133,20 @@ rec {
         edition = "2021";
         sha256 = "03pzw9aj4qskqhh0fkagy2mkgfwgj5a1m67ajlba5hw80h68100s";
 
+      };
+      "owo-colors" = rec {
+        crateName = "owo-colors";
+        version = "3.5.0";
+        edition = "2018";
+        sha256 = "0vyvry6ba1xmpd45hpi6savd8mbx09jpmvnnwkf6z62pk6s4zc61";
+        libName = "owo_colors";
+        authors = [
+          "jam1garner <8260240+jam1garner@users.noreply.github.com>"
+        ];
+        features = {
+          "supports-color" = [ "dep:supports-color" ];
+          "supports-colors" = [ "supports-color" ];
+        };
       };
       "parking_lot" = rec {
         crateName = "parking_lot";
@@ -10275,7 +10425,7 @@ rec {
           }
           {
             name = "thiserror";
-            packageId = "thiserror";
+            packageId = "thiserror 2.0.18";
           }
         ];
         features = {
@@ -10951,7 +11101,7 @@ rec {
           }
           {
             name = "thiserror";
-            packageId = "thiserror";
+            packageId = "thiserror 2.0.18";
           }
         ];
         features = {
@@ -11240,7 +11390,7 @@ rec {
           }
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.52.0";
+            packageId = "windows-sys 0.61.2";
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_Foundation" "Win32_Networking_WinSock" ];
           }
@@ -11500,7 +11650,7 @@ rec {
           }
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.52.0";
+            packageId = "windows-sys 0.61.2";
             usesDefaultFeatures = false;
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_Foundation" "Win32_Security_Cryptography" ];
@@ -12793,6 +12943,61 @@ rec {
           "default" = [ "std" "i128" ];
         };
       };
+      "supports-color" = rec {
+        crateName = "supports-color";
+        version = "2.1.0";
+        edition = "2018";
+        sha256 = "12csf7chawxinaapm9rh718nha9hggk6ra86fdaw9hxdagg8qffn";
+        libName = "supports_color";
+        authors = [
+          "Kat Marchán <kzm@zkat.tech>"
+        ];
+        dependencies = [
+          {
+            name = "is-terminal";
+            packageId = "is-terminal";
+          }
+          {
+            name = "is_ci";
+            packageId = "is_ci";
+          }
+        ];
+
+      };
+      "supports-hyperlinks" = rec {
+        crateName = "supports-hyperlinks";
+        version = "2.1.0";
+        edition = "2021";
+        sha256 = "0g93nh1db3f9lyd0ry35bqjrxkg6sbysn36x9hgd9m5h5rlk2hpq";
+        libName = "supports_hyperlinks";
+        authors = [
+          "Kat Marchán <kzm@zkat.tech>"
+        ];
+        dependencies = [
+          {
+            name = "is-terminal";
+            packageId = "is-terminal";
+          }
+        ];
+
+      };
+      "supports-unicode" = rec {
+        crateName = "supports-unicode";
+        version = "2.1.0";
+        edition = "2018";
+        sha256 = "0yp703pvpzpmaw9mpncvwf0iqis4xmhs569ii1g20jhqvngc2l7q";
+        libName = "supports_unicode";
+        authors = [
+          "Kat Marchán <kzm@zkat.tech>"
+        ];
+        dependencies = [
+          {
+            name = "is-terminal";
+            packageId = "is-terminal";
+          }
+        ];
+
+      };
       "syn 1.0.109" = rec {
         crateName = "syn";
         version = "1.0.109";
@@ -12966,7 +13171,7 @@ rec {
           }
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.52.0";
+            packageId = "windows-sys 0.61.2";
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_Storage_FileSystem" "Win32_Foundation" ];
           }
@@ -12977,7 +13182,65 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" "getrandom" ];
       };
-      "textwrap" = rec {
+      "terminal_size" = rec {
+        crateName = "terminal_size";
+        version = "0.1.17";
+        edition = "2018";
+        sha256 = "1pq60ng1a7fjp597ifk1cqlz8fv9raz9xihddld1m1pfdia1lg33";
+        authors = [
+          "Andrew Chin <achin@eminence32.net>"
+        ];
+        dependencies = [
+          {
+            name = "libc";
+            packageId = "libc";
+            target = { target, features }: (!(target."windows" or false));
+          }
+          {
+            name = "winapi";
+            packageId = "winapi";
+            target = { target, features }: (target."windows" or false);
+            features = [ "handleapi" "processenv" "winbase" "wincon" "winnt" ];
+          }
+        ];
+
+      };
+      "textwrap 0.15.2" = rec {
+        crateName = "textwrap";
+        version = "0.15.2";
+        edition = "2018";
+        sha256 = "0galmidi6gpn308b1kv3r4qbb48j2926lcj0idwhdhlylhjybcxp";
+        authors = [
+          "Martin Geisler <martin@geisler.net>"
+        ];
+        dependencies = [
+          {
+            name = "smawk";
+            packageId = "smawk";
+            optional = true;
+          }
+          {
+            name = "unicode-linebreak";
+            packageId = "unicode-linebreak";
+            optional = true;
+          }
+          {
+            name = "unicode-width";
+            packageId = "unicode-width 0.1.14";
+            optional = true;
+          }
+        ];
+        features = {
+          "default" = [ "unicode-linebreak" "unicode-width" "smawk" ];
+          "hyphenation" = [ "dep:hyphenation" ];
+          "smawk" = [ "dep:smawk" ];
+          "terminal_size" = [ "dep:terminal_size" ];
+          "unicode-linebreak" = [ "dep:unicode-linebreak" ];
+          "unicode-width" = [ "dep:unicode-width" ];
+        };
+        resolvedDefaultFeatures = [ "default" "smawk" "unicode-linebreak" "unicode-width" ];
+      };
+      "textwrap 0.16.2" = rec {
         crateName = "textwrap";
         version = "0.16.2";
         edition = "2021";
@@ -13002,7 +13265,23 @@ rec {
         };
         resolvedDefaultFeatures = [ "smawk" ];
       };
-      "thiserror" = rec {
+      "thiserror 1.0.69" = rec {
+        crateName = "thiserror";
+        version = "1.0.69";
+        edition = "2021";
+        sha256 = "0lizjay08agcr5hs9yfzzj6axs53a2rgx070a1dsi3jpkcrzbamn";
+        authors = [
+          "David Tolnay <dtolnay@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "thiserror-impl";
+            packageId = "thiserror-impl 1.0.69";
+          }
+        ];
+
+      };
+      "thiserror 2.0.18" = rec {
         crateName = "thiserror";
         version = "2.0.18";
         edition = "2021";
@@ -13013,7 +13292,7 @@ rec {
         dependencies = [
           {
             name = "thiserror-impl";
-            packageId = "thiserror-impl";
+            packageId = "thiserror-impl 2.0.18";
           }
         ];
         features = {
@@ -13021,7 +13300,33 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" "std" ];
       };
-      "thiserror-impl" = rec {
+      "thiserror-impl 1.0.69" = rec {
+        crateName = "thiserror-impl";
+        version = "1.0.69";
+        edition = "2021";
+        sha256 = "1h84fmn2nai41cxbhk6pqf46bxqq1b344v8yz089w1chzi76rvjg";
+        procMacro = true;
+        libName = "thiserror_impl";
+        authors = [
+          "David Tolnay <dtolnay@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "proc-macro2";
+            packageId = "proc-macro2";
+          }
+          {
+            name = "quote";
+            packageId = "quote";
+          }
+          {
+            name = "syn";
+            packageId = "syn 2.0.117";
+          }
+        ];
+
+      };
+      "thiserror-impl 2.0.18" = rec {
         crateName = "thiserror-impl";
         version = "2.0.18";
         edition = "2021";
@@ -14291,6 +14596,17 @@ rec {
         ];
 
       };
+      "unicode-linebreak" = rec {
+        crateName = "unicode-linebreak";
+        version = "0.1.5";
+        edition = "2021";
+        sha256 = "07spj2hh3daajg335m4wdav6nfkl0f6c0q72lc37blr97hych29v";
+        libName = "unicode_linebreak";
+        authors = [
+          "Axel Forsman <axelsfor@gmail.com>"
+        ];
+
+      };
       "unicode-normalization" = rec {
         crateName = "unicode-normalization";
         version = "0.1.25";
@@ -14313,7 +14629,26 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" "std" ];
       };
-      "unicode-width" = rec {
+      "unicode-width 0.1.14" = rec {
+        crateName = "unicode-width";
+        version = "0.1.14";
+        edition = "2021";
+        sha256 = "1bzn2zv0gp8xxbxbhifw778a7fc93pa6a1kj24jgg9msj07f7mkx";
+        libName = "unicode_width";
+        authors = [
+          "kwantam <kwantam@gmail.com>"
+          "Manish Goregaokar <manishsmail@gmail.com>"
+        ];
+        features = {
+          "compiler_builtins" = [ "dep:compiler_builtins" ];
+          "core" = [ "dep:core" ];
+          "default" = [ "cjk" ];
+          "rustc-dep-of-std" = [ "std" "core" "compiler_builtins" ];
+          "std" = [ "dep:std" ];
+        };
+        resolvedDefaultFeatures = [ "cjk" "default" ];
+      };
+      "unicode-width 0.2.2" = rec {
         crateName = "unicode-width";
         version = "0.2.2";
         edition = "2021";
@@ -14528,7 +14863,7 @@ rec {
           }
           {
             name = "textwrap";
-            packageId = "textwrap";
+            packageId = "textwrap 0.16.2";
             usesDefaultFeatures = false;
             features = [ "smawk" ];
           }
@@ -14739,7 +15074,7 @@ rec {
           }
           {
             name = "textwrap";
-            packageId = "textwrap";
+            packageId = "textwrap 0.16.2";
             usesDefaultFeatures = false;
             features = [ "smawk" ];
           }
@@ -16052,7 +16387,7 @@ rec {
         features = {
           "debug" = [ "impl-debug" ];
         };
-        resolvedDefaultFeatures = [ "consoleapi" "processenv" "winbase" ];
+        resolvedDefaultFeatures = [ "consoleapi" "handleapi" "processenv" "winbase" "wincon" "winnt" ];
       };
       "winapi-i686-pc-windows-gnu" = rec {
         crateName = "winapi-i686-pc-windows-gnu";
@@ -16077,7 +16412,7 @@ rec {
         dependencies = [
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.48.0";
+            packageId = "windows-sys 0.61.2";
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_Foundation" "Win32_Storage_FileSystem" "Win32_System_Console" "Win32_System_SystemInformation" ];
           }
@@ -16524,7 +16859,7 @@ rec {
           "Win32_Web" = [ "Win32" ];
           "Win32_Web_InternetExplorer" = [ "Win32_Web" ];
         };
-        resolvedDefaultFeatures = [ "Win32" "Win32_Foundation" "Win32_Networking" "Win32_Networking_WinSock" "Win32_Security" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_Console" "Win32_System_IO" "Win32_System_Pipes" "Win32_System_SystemInformation" "Win32_System_Threading" "Win32_System_WindowsProgramming" "default" ];
+        resolvedDefaultFeatures = [ "Win32" "Win32_Foundation" "Win32_Networking" "Win32_Networking_WinSock" "Win32_Security" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_IO" "Win32_System_Pipes" "Win32_System_Threading" "Win32_System_WindowsProgramming" "default" ];
       };
       "windows-sys 0.52.0" = rec {
         crateName = "windows-sys";
@@ -16772,7 +17107,7 @@ rec {
           "Win32_Web" = [ "Win32" ];
           "Win32_Web_InternetExplorer" = [ "Win32_Web" ];
         };
-        resolvedDefaultFeatures = [ "Win32" "Win32_Foundation" "Win32_Networking" "Win32_Networking_WinSock" "Win32_Security" "Win32_Security_Cryptography" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_Console" "Win32_System_Diagnostics" "Win32_System_Diagnostics_Debug" "Win32_System_Threading" "default" ];
+        resolvedDefaultFeatures = [ "Win32" "Win32_Foundation" "Win32_System" "Win32_System_Threading" "default" ];
       };
       "windows-sys 0.61.2" = rec {
         crateName = "windows-sys";
@@ -17034,7 +17369,7 @@ rec {
           "Win32_Web" = [ "Win32" ];
           "Win32_Web_InternetExplorer" = [ "Win32_Web" ];
         };
-        resolvedDefaultFeatures = [ "Wdk" "Wdk_Foundation" "Wdk_Storage" "Wdk_Storage_FileSystem" "Wdk_System" "Wdk_System_IO" "Win32" "Win32_Foundation" "Win32_Globalization" "Win32_Networking" "Win32_Networking_WinSock" "Win32_Security" "Win32_Security_Authentication" "Win32_Security_Authentication_Identity" "Win32_Security_Credentials" "Win32_Security_Cryptography" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_Com" "Win32_System_Console" "Win32_System_IO" "Win32_System_LibraryLoader" "Win32_System_Memory" "Win32_System_Pipes" "Win32_System_SystemInformation" "Win32_System_SystemServices" "Win32_System_Threading" "Win32_System_WindowsProgramming" "Win32_UI" "Win32_UI_Input" "Win32_UI_Input_KeyboardAndMouse" "Win32_UI_Shell" "default" ];
+        resolvedDefaultFeatures = [ "Wdk" "Wdk_Foundation" "Wdk_Storage" "Wdk_Storage_FileSystem" "Wdk_System" "Wdk_System_IO" "Win32" "Win32_Foundation" "Win32_Globalization" "Win32_Networking" "Win32_Networking_WinSock" "Win32_Security" "Win32_Security_Authentication" "Win32_Security_Authentication_Identity" "Win32_Security_Credentials" "Win32_Security_Cryptography" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_Com" "Win32_System_Console" "Win32_System_Diagnostics" "Win32_System_Diagnostics_Debug" "Win32_System_IO" "Win32_System_LibraryLoader" "Win32_System_Memory" "Win32_System_Pipes" "Win32_System_SystemInformation" "Win32_System_SystemServices" "Win32_System_Threading" "Win32_System_WindowsProgramming" "Win32_UI" "Win32_UI_Input" "Win32_UI_Input_KeyboardAndMouse" "Win32_UI_Shell" "default" ];
       };
       "windows-targets 0.48.5" = rec {
         crateName = "windows-targets";

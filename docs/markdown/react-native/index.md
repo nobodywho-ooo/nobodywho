@@ -14,19 +14,48 @@ npm install react-native-nobodywho
 
 No additional initialization step is required — the native module is loaded automatically when you first import from the package.
 
-Now you are ready to download a GGUF model you like - if you don't have a specific model in mind, try [this one](https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf). Read more about [model selection](../model-selection.md).
+Now you are ready to pick a model. NobodyWho can download GGUF models directly from Hugging Face — just pass a `huggingface:` path. See [model selection](../model-selection.md) for recommendations.
 
-Once you have the `.gguf` file on the device, the next step is to create a `Chat` and call `.ask`!
+Then create a `Chat` object and call `.ask`!
 
 ```typescript
 import { Chat } from "react-native-nobodywho";
 
-const chat = await Chat.fromPath({ modelPath: "/path/to/model.gguf" });
+const chat = await Chat.fromPath({
+  modelPath: "huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf",
+});
 const response = await chat.ask("Is water wet?").completed();
 console.log(response); // Yes, indeed, water is wet!
 ```
 
 This is a super simple example, but we believe that examples which do simple things, should be simple!
+
+## Downloading gated model
+
+Some HuggingFace models are either private or gated by a license that you need to accept.
+For both scenarios, you need to be authorized to download the model weights.
+
+In that case, you can resort to manually accessing the model page through your web browser,
+getting the GGUF file downloaded to the device, and then pointing our chat instance to the path where you have stored it:
+```typescript
+import { Chat } from "react-native-nobodywho";
+
+const chat = await Chat.fromPath({ modelPath: "./model.gguf" });
+```
+
+Or you can use the `downloadModel` function, where you can pass in the authorization token:
+```typescript
+import { downloadModel, Chat } from "react-native-nobodywho";
+
+const modelPath = await downloadModel({
+  modelPath: "huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf",
+  headers: { Authorization: "Bearer your_hf_token" },
+});
+
+const chat = await Chat.fromPath({ modelPath });
+```
+
+The token can be then generated in [your account settings](https://huggingface.co/settings/tokens).
 
 ## Tracking download progress
 

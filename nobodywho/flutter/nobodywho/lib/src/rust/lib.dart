@@ -25,6 +25,26 @@ void noopOnDownloadProgress(PlatformInt64 downloaded, PlatformInt64 total) =>
 String toolCallArgumentsJson({required ToolCall toolCall}) =>
     NobodyWho.instance.api.crateToolCallArgumentsJson(toolCall: toolCall);
 
+/// Download a model from a remote URL or HuggingFace path and return the local file path.
+///
+/// Use this when you need custom headers, e.g. for gated models that require authentication.
+/// For unauthenticated downloads, pass the URL directly to `Model.load`.
+///
+/// Args:
+///     model_path: Path or URL to a GGUF model file.
+///     headers: Optional HTTP headers (e.g. `{"Authorization": "Bearer hf_..."}`).
+///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while downloading.
+Future<String> downloadModel({
+  required String modelPath,
+  Map<String, String> headers = const {},
+  FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
+      noopOnDownloadProgress,
+}) => NobodyWho.instance.api.crateDownloadModel(
+  modelPath: modelPath,
+  headers: headers,
+  onDownloadProgress: onDownloadProgress,
+);
+
 double cosineSimilarity({required List<double> a, required List<double> b}) =>
     NobodyWho.instance.api.crateCosineSimilarity(a: a, b: b);
 
@@ -163,9 +183,6 @@ abstract class Model implements RustOpaqueInterface {
     projectionModelPath: projectionModelPath,
   );
 }
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Rust2DartSendError>>
-abstract class Rust2DartSendError implements RustOpaqueInterface {}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustChat>>
 abstract class RustChat implements RustOpaqueInterface {

@@ -43,7 +43,7 @@ final class NobodyWhoTests: XCTestCase {
         // Streaming
         try await chat.resetContext(systemPrompt: "Reply briefly.")
         var tokens: [String] = []
-        for await token in chat.ask("Say hi") {
+        for try await token in chat.ask("Say hi") {
             tokens.append(token)
         }
         XCTAssertFalse(tokens.isEmpty)

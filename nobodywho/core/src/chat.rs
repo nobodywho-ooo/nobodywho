@@ -279,12 +279,12 @@ impl ChatBuilder {
     }
 
     /// Build a blocking chat handle and start the background worker.
-    pub fn build(self) -> ChatHandle {
+    pub fn build(self) -> Result<ChatHandle, InitWorkerError> {
         ChatHandle::new(self.model, self.config)
     }
 
     /// Build an async chat handle and start the background worker.
-    pub fn build_async(self) -> ChatHandleAsync {
+    pub fn build_async(self) -> Result<ChatHandleAsync, InitWorkerError> {
         ChatHandleAsync::new(self.model, self.config)
     }
 }
@@ -298,8 +298,9 @@ pub struct ChatHandle {
 
 impl ChatHandle {
     /// Create a new chat handle directly. Consider using [`ChatBuilder`] for a more ergonomic API.
-    pub fn new(model: Arc<llm::Model>, config: ChatConfig) -> Self {
+    pub fn new(model: Arc<llm::Model>, config: ChatConfig) -> Result<Self, InitWorkerError> {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
+        let (init_tx, init_rx) = std::sync::mpsc::channel::<Result<(), InitWorkerError>>();
 
         let should_stop = Arc::new(AtomicBool::new(false));
         let should_stop_clone = Arc::clone(&should_stop);
@@ -307,9 +308,13 @@ impl ChatHandle {
         let join_handle = std::thread::spawn(move || {
             let worker = Worker::new_chat_worker(&model, config, should_stop_clone);
             let mut worker_state = match worker {
-                Ok(worker_state) => worker_state,
-                Err(errmsg) => {
-                    return error!("Could not set up the worker initial state: {errmsg}")
+                Ok(w) => {
+                    let _ = init_tx.send(Ok(()));
+                    w
+                }
+                Err(e) => {
+                    let _ = init_tx.send(Err(e));
+                    return;
                 }
             };
 
@@ -320,9 +325,11 @@ impl ChatHandle {
             }
         });
 
-        Self {
+        init_rx.recv().map_err(|_| InitWorkerError::NoResponse)??;
+
+        Ok(Self {
             guard: WorkerGuard::new(msg_tx, join_handle, Some(should_stop)),
-        }
+        })
     }
 
     /// Send a message and get a tokio channel
@@ -567,8 +574,9 @@ pub struct ChatHandleAsync {
 
 impl ChatHandleAsync {
     /// Create a new chat handle directly. Consider using [`ChatBuilder`] for a more ergonomic API.
-    pub fn new(model: Arc<llm::Model>, config: ChatConfig) -> Self {
+    pub fn new(model: Arc<llm::Model>, config: ChatConfig) -> Result<Self, InitWorkerError> {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
+        let (init_tx, init_rx) = std::sync::mpsc::channel::<Result<(), InitWorkerError>>();
 
         let should_stop = Arc::new(AtomicBool::new(false));
         let should_stop_clone = Arc::clone(&should_stop);
@@ -576,9 +584,13 @@ impl ChatHandleAsync {
         let join_handle = std::thread::spawn(move || {
             let worker = Worker::new_chat_worker(&model, config, should_stop_clone);
             let mut worker_state = match worker {
-                Ok(worker_state) => worker_state,
-                Err(errmsg) => {
-                    return error!("Could not set up the worker initial state: {errmsg}")
+                Ok(w) => {
+                    let _ = init_tx.send(Ok(()));
+                    w
+                }
+                Err(e) => {
+                    let _ = init_tx.send(Err(e));
+                    return;
                 }
             };
 
@@ -589,9 +601,11 @@ impl ChatHandleAsync {
             }
         });
 
-        Self {
+        init_rx.recv().map_err(|_| InitWorkerError::NoResponse)??;
+
+        Ok(Self {
             guard: Arc::new(WorkerGuard::new(msg_tx, join_handle, Some(should_stop))),
-        }
+        })
     }
 
     /// Send a message and get a tokio channel
@@ -856,31 +870,35 @@ impl TokenStream {
     }
 
     /// Get the next token from the stream.
-    pub fn next_token(&mut self) -> Option<String> {
+    ///
+    /// Returns `Ok(Some(token))` for each generated token, `Ok(None)` when generation is
+    /// complete, and `Err(e)` if the worker encountered an error mid-generation.
+    pub fn next_token(&mut self) -> Result<Option<String>, crate::errors::CompletionError> {
         if self.completed_response.is_some() {
-            return None;
+            return Ok(None);
         }
 
         if let Some(output) = self.rx.blocking_recv() {
             match output {
-                llm::WriteOutput::Token(token) => return Some(token),
+                llm::WriteOutput::Token(token) => return Ok(Some(token)),
                 llm::WriteOutput::Done(completed_response) => {
                     self.completed_response = Some(completed_response);
-                    return None;
+                    return Ok(None);
+                }
+                llm::WriteOutput::Error(e) => {
+                    return Err(crate::errors::CompletionError::WorkerError(e));
                 }
             }
         }
-        None
+        Ok(None)
     }
 
-    /// Blocks until the  entire response is completed. Does not consume the response, so this
-    /// method is idempotent.
+    /// Blocks until the entire response is completed. Does not consume the response, so this
+    /// method is idempotent on success.
     pub fn completed(&mut self) -> Result<String, crate::errors::CompletionError> {
         loop {
-            match self.next_token() {
-                Some(_) => {
-                    continue;
-                }
+            match self.next_token()? {
+                Some(_) => continue,
                 None => {
                     return self
                         .completed_response
@@ -907,31 +925,35 @@ impl TokenStreamAsync {
     }
 
     /// Waits for the next token in the stream. Consumes the token when emitted.
-    pub async fn next_token(&mut self) -> Option<String> {
+    ///
+    /// Returns `Ok(Some(token))` for each generated token, `Ok(None)` when generation is
+    /// complete, and `Err(e)` if the worker encountered an error mid-generation.
+    pub async fn next_token(&mut self) -> Result<Option<String>, crate::errors::CompletionError> {
         if self.completed_response.is_some() {
-            return None;
+            return Ok(None);
         }
 
         if let Some(output) = self.rx.recv().await {
             match output {
-                llm::WriteOutput::Token(token) => return Some(token),
+                llm::WriteOutput::Token(token) => return Ok(Some(token)),
                 llm::WriteOutput::Done(completed_response) => {
                     self.completed_response = Some(completed_response);
-                    return None;
+                    return Ok(None);
+                }
+                llm::WriteOutput::Error(e) => {
+                    return Err(crate::errors::CompletionError::WorkerError(e));
                 }
             }
         }
-        None
+        Ok(None)
     }
 
     /// Waits for the entire response to be completed. Does not consume the response, so this
-    /// method is idempotent.
+    /// method is idempotent on success.
     pub async fn completed(&mut self) -> Result<String, crate::errors::CompletionError> {
         loop {
-            match self.next_token().await {
-                Some(_) => {
-                    continue;
-                }
+            match self.next_token().await? {
+                Some(_) => continue,
                 None => {
                     return self
                         .completed_response
@@ -1054,6 +1076,7 @@ fn process_worker_msg(
     match msg {
         ChatMsg::Ask { prompt, output_tx } => {
             let should_stop = Arc::clone(&worker_state.extra.should_stop);
+            let error_tx = output_tx.clone();
             let callback = move |out| {
                 if output_tx.send(out).is_err() {
                     // Receiver was dropped or the buffer is full with nobody consuming.
@@ -1061,7 +1084,10 @@ fn process_worker_msg(
                     should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
                 }
             };
-            worker_state.ask(prompt, callback)?;
+            if let Err(e) = worker_state.ask(prompt, callback) {
+                let _ = error_tx.send(llm::WriteOutput::Error(Box::new(e)));
+                // Return Ok — error is communicated through the channel, worker stays alive.
+            }
         }
         ChatMsg::ResetChat {
             system_prompt,
@@ -1234,6 +1260,14 @@ impl Worker<'_, ChatWorker> {
         config: ChatConfig,
         should_stop: Arc<AtomicBool>,
     ) -> Result<Worker<'_, ChatWorker>, InitWorkerError> {
+        if !model.is_generative_model() {
+            let architecture = model
+                .language_model
+                .meta_val_str("general.architecture")
+                .unwrap_or_else(|_| "unknown".into());
+            return Err(InitWorkerError::NotAnLLM { architecture });
+        }
+
         let template = select_template(&model.language_model, !config.tools.is_empty())?;
 
         // Only detect tool calling format if tools are provided
@@ -1375,19 +1409,15 @@ impl Worker<'_, ChatWorker> {
 
         // Find indices to preserve
         let system_end = if messages[0].is_system() { 1 } else { 0 };
-        let first_user_message_index =
-            self.find_next_user_message(&messages, system_end)
-                .ok_or(ShiftError::Message(
-                    "No first user message in chat history".into(),
-                ))?;
+        let first_user_message_index = self
+            .find_next_user_message(&messages, system_end)
+            .ok_or(ShiftError::NoUserMessages)?;
         let first_deletable_index = self
             .find_next_user_message(&messages, first_user_message_index + 1)
-            .ok_or(ShiftError::Message("No deletable messages".into()))?; // Assuming assistant after user
+            .ok_or(ShiftError::TooFewMessages)?;
         let mut last_deletable_index = self
             .find_start_of_last_n_user_messages(&messages, 2)
-            .ok_or(ShiftError::Message(
-                "Less than two user messages in chat history.".into(),
-            ))?
+            .ok_or(ShiftError::TooFewMessages)?
             - 1;
 
         // Two is the smallest number of messages we can delete as we need to preserve the message structure.
@@ -1418,8 +1448,8 @@ impl Worker<'_, ChatWorker> {
             // This is to ensure that resulting chat history still follows the user then assistant format
             let delete_index = min(
                 self.find_next_user_message(&messages, target_delete_index + 1)
-                    .ok_or(ShiftError::Message(
-                        "Could find user message supposed to be there".into(),
+                    .ok_or(ShiftError::InternalError(
+                        "Could not find user message supposed to be there".into(),
                     ))?
                     - 1,
                 last_deletable_index,
@@ -1978,7 +2008,7 @@ where
                     .send(resp.clone())
                     .expect("Failed sending response");
             }
-            llm::WriteOutput::Token(_) => (),
+            llm::WriteOutput::Token(_) | llm::WriteOutput::Error(_) => (),
         }
         if emitting {
             respond(x)
@@ -2145,6 +2175,7 @@ mod tests {
             llm::WriteOutput::Done(resp) => {
                 sender.send(resp).unwrap();
             }
+            llm::WriteOutput::Error(_) => (),
         };
 
         worker.ask("Count from 0 to 9".into(), f.clone())?;
@@ -2301,7 +2332,8 @@ mod tests {
         let chat = ChatBuilder::new(model)
             .with_context_size(2048)
             .with_system_prompt(Some("You are a dog. End all responses with woof."))
-            .build();
+            .build()
+            .expect("chat build failed in test");
 
         let dog_response = chat.ask("Hello!").completed().unwrap();
 
@@ -2713,7 +2745,8 @@ mod tests {
             let chat = ChatBuilder::new(model_clone)
                 .with_context_size(4096)
                 .with_template_variable("enable_thinking".to_string(), false)
-                .build();
+                .build()
+                .expect("chat build failed in test");
 
             chat.ask("What is the capital of Denmark?").completed()
         });
@@ -2723,7 +2756,8 @@ mod tests {
             let chat = ChatBuilder::new(model)
                 .with_context_size(4096)
                 .with_template_variable("enable_thinking".to_string(), false)
-                .build();
+                .build()
+                .expect("chat build failed in test");
 
             chat.ask("What is the capital of Germany?").completed()
         });
@@ -2751,7 +2785,9 @@ mod tests {
     async fn test_enable_thinking() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let chat = ChatBuilder::new(model).build_async();
+        let chat = ChatBuilder::new(model)
+            .build_async()
+            .expect("chat build_async failed in test");
 
         let res1: String = chat
             .ask("What is the capital of Denmark?".to_string())
@@ -2787,7 +2823,8 @@ mod tests {
         let chat = ChatBuilder::new(model)
             .with_context_size(2048)
             .with_template_variable("enable_thinking".to_string(), false)
-            .build();
+            .build()
+            .expect("chat build failed in test");
 
         chat.set_sampler_config(SamplerPresets::greedy()).unwrap();
 
@@ -2812,7 +2849,8 @@ mod tests {
         let chat = ChatBuilder::new(model)
             .with_context_size(2048)
             .with_template_variable("enable_thinking".to_string(), false)
-            .build();
+            .build()
+            .expect("chat build failed in test");
         let _ = chat.reset_history();
         let resp = chat
             .ask("What is the capital of Denmark?")
