@@ -184,9 +184,6 @@ abstract class Model implements RustOpaqueInterface {
   );
 }
 
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Rust2DartSendError>>
-abstract class Rust2DartSendError implements RustOpaqueInterface {}
-
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustChat>>
 abstract class RustChat implements RustOpaqueInterface {
   RustTokenStream ask(String message);

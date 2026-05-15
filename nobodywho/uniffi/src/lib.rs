@@ -475,11 +475,13 @@ pub struct RustTokenStream {
 
 #[uniffi::export]
 impl RustTokenStream {
-    /// Get the next token. Returns None when generation is complete.
-    pub async fn next_token(&self) -> Option<String> {
-        let token = self.inner.lock().await.next_token().await;
-        log::debug!("next_token: {:?}", token);
-        token
+    /// Get the next token. Returns None when generation is complete, or an error if generation failed.
+    pub async fn next_token(&self) -> Result<Option<String>, NobodyWhoError> {
+        let result = self.inner.lock().await.next_token().await;
+        log::debug!("next_token: {:?}", result);
+        result.map_err(|e| NobodyWhoError::Error {
+            message: nobodywho::render_miette(&e),
+        })
     }
 
     /// Wait for the full response to complete and return it.

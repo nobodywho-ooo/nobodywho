@@ -859,7 +859,6 @@ impl ChatHandleAsync {
 pub struct TokenStream {
     rx: tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>,
     completed_response: Option<String>,
-    error: Option<Box<dyn miette::Diagnostic + Send + Sync + 'static>>,
 }
 
 impl TokenStream {
@@ -867,42 +866,40 @@ impl TokenStream {
         Self {
             rx,
             completed_response: None,
-            error: None,
         }
     }
 
     /// Get the next token from the stream.
-    pub fn next_token(&mut self) -> Option<String> {
-        if self.completed_response.is_some() || self.error.is_some() {
-            return None;
+    ///
+    /// Returns `Ok(Some(token))` for each generated token, `Ok(None)` when generation is
+    /// complete, and `Err(e)` if the worker encountered an error mid-generation.
+    pub fn next_token(&mut self) -> Result<Option<String>, crate::errors::CompletionError> {
+        if self.completed_response.is_some() {
+            return Ok(None);
         }
 
         if let Some(output) = self.rx.blocking_recv() {
             match output {
-                llm::WriteOutput::Token(token) => return Some(token),
+                llm::WriteOutput::Token(token) => return Ok(Some(token)),
                 llm::WriteOutput::Done(completed_response) => {
                     self.completed_response = Some(completed_response);
-                    return None;
+                    return Ok(None);
                 }
                 llm::WriteOutput::Error(e) => {
-                    self.error = Some(e);
-                    return None;
+                    return Err(crate::errors::CompletionError::WorkerError(e));
                 }
             }
         }
-        None
+        Ok(None)
     }
 
     /// Blocks until the entire response is completed. Does not consume the response, so this
-    /// method is idempotent.
+    /// method is idempotent on success.
     pub fn completed(&mut self) -> Result<String, crate::errors::CompletionError> {
         loop {
-            match self.next_token() {
+            match self.next_token()? {
                 Some(_) => continue,
                 None => {
-                    if let Some(e) = self.error.take() {
-                        return Err(crate::errors::CompletionError::WorkerError(e));
-                    }
                     return self
                         .completed_response
                         .clone()
@@ -917,7 +914,6 @@ impl TokenStream {
 pub struct TokenStreamAsync {
     rx: tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>,
     completed_response: Option<String>,
-    error: Option<Box<dyn miette::Diagnostic + Send + Sync + 'static>>,
 }
 
 impl TokenStreamAsync {
@@ -925,42 +921,40 @@ impl TokenStreamAsync {
         Self {
             rx,
             completed_response: None,
-            error: None,
         }
     }
 
     /// Waits for the next token in the stream. Consumes the token when emitted.
-    pub async fn next_token(&mut self) -> Option<String> {
-        if self.completed_response.is_some() || self.error.is_some() {
-            return None;
+    ///
+    /// Returns `Ok(Some(token))` for each generated token, `Ok(None)` when generation is
+    /// complete, and `Err(e)` if the worker encountered an error mid-generation.
+    pub async fn next_token(&mut self) -> Result<Option<String>, crate::errors::CompletionError> {
+        if self.completed_response.is_some() {
+            return Ok(None);
         }
 
         if let Some(output) = self.rx.recv().await {
             match output {
-                llm::WriteOutput::Token(token) => return Some(token),
+                llm::WriteOutput::Token(token) => return Ok(Some(token)),
                 llm::WriteOutput::Done(completed_response) => {
                     self.completed_response = Some(completed_response);
-                    return None;
+                    return Ok(None);
                 }
                 llm::WriteOutput::Error(e) => {
-                    self.error = Some(e);
-                    return None;
+                    return Err(crate::errors::CompletionError::WorkerError(e));
                 }
             }
         }
-        None
+        Ok(None)
     }
 
     /// Waits for the entire response to be completed. Does not consume the response, so this
-    /// method is idempotent.
+    /// method is idempotent on success.
     pub async fn completed(&mut self) -> Result<String, crate::errors::CompletionError> {
         loop {
-            match self.next_token().await {
+            match self.next_token().await? {
                 Some(_) => continue,
                 None => {
-                    if let Some(e) = self.error.take() {
-                        return Err(crate::errors::CompletionError::WorkerError(e));
-                    }
                     return self
                         .completed_response
                         .clone()

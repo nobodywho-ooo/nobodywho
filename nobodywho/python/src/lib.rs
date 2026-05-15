@@ -214,10 +214,11 @@ impl TokenStream {
     ///
     /// Returns:
     ///     The next token as a string, or None if the stream has ended.
-    pub fn next_token(&mut self, py: Python) -> Option<String> {
+    pub fn next_token(&mut self, py: Python) -> PyResult<Option<String>> {
         // Release the GIL while waiting for the next token
         // This allows the background thread to acquire the GIL if needed for tool calls
         py.detach(|| self.stream.next_token())
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))
     }
 
     /// Wait for the entire response to be generated and return it as a single string.
@@ -238,8 +239,9 @@ impl TokenStream {
         slf
     }
 
-    pub fn __next__(&mut self, py: Python) -> Option<String> {
+    pub fn __next__(&mut self, py: Python) -> PyResult<Option<String>> {
         py.detach(|| self.stream.next_token())
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))
     }
 }
 
@@ -262,9 +264,14 @@ impl TokenStreamAsync {
     ///
     /// Returns:
     ///     The next token as a string, or None if the stream has ended.
-    pub async fn next_token(&mut self) -> Option<String> {
+    pub async fn next_token(&mut self) -> PyResult<Option<String>> {
         // no need to release GIL in async functions
-        self.stream.lock().await.next_token().await
+        self.stream
+            .lock()
+            .await
+            .next_token()
+            .await
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))
     }
 
     /// Wait for the entire response to be generated and return it as a single string.
@@ -291,10 +298,10 @@ impl TokenStreamAsync {
         let locals = pyo3_async_runtimes::TaskLocals::with_running_loop(py)?.copy_context(py)?;
         let stream_clone = self.stream.clone();
         pyo3_async_runtimes::tokio::future_into_py_with_locals(py, locals, async move {
-            let token = stream_clone.lock().await.next_token().await;
-            match token {
-                Some(t) => Ok(t),
-                None => Err(pyo3::exceptions::PyStopAsyncIteration::new_err(())),
+            match stream_clone.lock().await.next_token().await {
+                Ok(Some(t)) => Ok(t),
+                Ok(None) => Err(pyo3::exceptions::PyStopAsyncIteration::new_err(())),
+                Err(e) => Err(pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e))),
             }
         })
     }

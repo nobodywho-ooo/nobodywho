@@ -1,4 +1,4 @@
-use flutter_rust_bridge::{DartFnFuture, Rust2DartSendError};
+use flutter_rust_bridge::DartFnFuture;
 use nobodywho::chat::Asset;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -393,15 +393,22 @@ impl RustTokenStream {
     pub async fn iter(
         &mut self,
         sink: crate::frb_generated::StreamSink<String>,
-    ) -> Result<(), Rust2DartSendError> {
-        while let Some(token) = self.stream.next_token().await {
-            sink.add(token)?;
+    ) -> Result<(), String> {
+        loop {
+            match self.stream.next_token().await {
+                Ok(Some(token)) => sink.add(token).map_err(|e| e.to_string())?,
+                Ok(None) => break,
+                Err(e) => return Err(nobodywho::render_miette(&e)),
+            }
         }
         Ok(())
     }
 
-    pub async fn next_token(&mut self) -> Option<String> {
-        self.stream.next_token().await
+    pub async fn next_token(&mut self) -> Result<Option<String>, String> {
+        self.stream
+            .next_token()
+            .await
+            .map_err(|e| nobodywho::render_miette(&e))
     }
 
     pub async fn completed(&mut self) -> Result<String, nobodywho::errors::CompletionError> {
