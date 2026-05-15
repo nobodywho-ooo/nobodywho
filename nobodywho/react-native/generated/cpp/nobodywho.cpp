@@ -268,6 +268,8 @@ void uniffi_nobodywho_uniffi_fn_init_callback_vtable_rusttoolcallback(
     UniffiVTableCallbackInterfaceRustToolCallback *vtable);
 float uniffi_nobodywho_uniffi_fn_func_cosine_similarity(
     RustBuffer a, RustBuffer b, RustCallStatus *uniffi_out_err);
+/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_func_download_model(
+    RustBuffer model_path, RustBuffer headers, RustBuffer on_download_progress);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_func_load_model(
     RustBuffer model_path, int8_t use_gpu, RustBuffer projection_model_path,
     RustBuffer on_download_progress);
@@ -416,6 +418,7 @@ void ffi_nobodywho_uniffi_rust_future_free_void(
 void ffi_nobodywho_uniffi_rust_future_complete_void(
     /*handle*/ uint64_t handle, RustCallStatus *uniffi_out_err);
 uint16_t uniffi_nobodywho_uniffi_checksum_func_cosine_similarity();
+uint16_t uniffi_nobodywho_uniffi_checksum_func_download_model();
 uint16_t uniffi_nobodywho_uniffi_checksum_func_load_model();
 uint16_t
 uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar();
@@ -3372,6 +3375,17 @@ NativeNobodywho::NativeNobodywho(
             return this->cpp_uniffi_nobodywho_uniffi_fn_func_cosine_similarity(
                 rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_func_download_model"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_nobodywho_uniffi_fn_func_download_model"),
+          3,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_nobodywho_uniffi_fn_func_download_model(
+                rt, thisVal, args, count);
+          });
   props["ubrn_uniffi_nobodywho_uniffi_fn_func_load_model"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -4058,6 +4072,18 @@ NativeNobodywho::NativeNobodywho(
                  const jsi::Value *args, size_t count) -> jsi::Value {
             return this
                 ->cpp_uniffi_nobodywho_uniffi_checksum_func_cosine_similarity(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_func_download_model"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_nobodywho_uniffi_checksum_func_download_model"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_checksum_func_download_model(
                     rt, thisVal, args, count);
           });
   props["ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model"] =
@@ -5997,6 +6023,18 @@ NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_func_cosine_similarity(
 
   return uniffi_jsi::Bridging<float>::toJs(rt, callInvoker, value);
 }
+jsi::Value NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_func_download_model(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_nobodywho_uniffi_fn_func_download_model(
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[0]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                      args[2]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
 jsi::Value NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_func_load_model(
     jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
     size_t count) {
@@ -6719,6 +6757,14 @@ NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_func_cosine_similarity(
     jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
     size_t count) {
   auto value = uniffi_nobodywho_uniffi_checksum_func_cosine_similarity();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value
+NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_func_download_model(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_nobodywho_uniffi_checksum_func_download_model();
 
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
