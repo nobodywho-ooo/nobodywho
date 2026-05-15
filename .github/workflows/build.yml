@@ -191,6 +191,10 @@ jobs:
           - "aarch64-apple-darwin"
           - "aarch64-apple-ios"
           - "aarch64-apple-ios-sim"
+          - "aarch64-apple-visionos"
+          - "aarch64-apple-visionos-sim"
+          - "aarch64-apple-watchos"
+          - "aarch64-apple-watchos-sim"
         profile:
           - "debug"
           - "release"
@@ -199,11 +203,26 @@ jobs:
           - "flutter"
           - "uniffi"
         exclude:
-          # uniffi (React Native) only needs iOS targets, not macOS desktop
+          # uniffi needs iOS/macOS/visionOS/watchOS targets, but not macOS x86_64
           - integration: "uniffi"
             target: "x86_64-apple-darwin"
-          - integration: "uniffi"
-            target: "aarch64-apple-darwin"
+          # godot and flutter only support macOS and iOS
+          - integration: "godot"
+            target: "aarch64-apple-visionos"
+          - integration: "godot"
+            target: "aarch64-apple-visionos-sim"
+          - integration: "godot"
+            target: "aarch64-apple-watchos"
+          - integration: "godot"
+            target: "aarch64-apple-watchos-sim"
+          - integration: "flutter"
+            target: "aarch64-apple-visionos"
+          - integration: "flutter"
+            target: "aarch64-apple-visionos-sim"
+          - integration: "flutter"
+            target: "aarch64-apple-watchos"
+          - integration: "flutter"
+            target: "aarch64-apple-watchos-sim"
           # debug builds are only consumed by the godot .gdextension; other integrations ship release-only
           - integration: "flutter"
             profile: "debug"
@@ -211,13 +230,20 @@ jobs:
             profile: "debug"
     steps:
       - uses: actions/checkout@v4
-      - run: |
+      - name: "Setup Rust toolchain"
+        run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           . "$HOME/.cargo/env"
           rustup update stable
           rustup default stable
-          rustup target add ${{ matrix.target }}
+          rustup target add ${{ matrix.target }} || true
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: "Setup Rust nightly for tier 3 targets"
+        if: contains(matrix.target, 'visionos') || contains(matrix.target, 'watchos')
+        run: |
+          rustup toolchain install nightly
+          rustup +nightly component add rust-src
 
       - name: Setup Flutter SDK
         if: matrix.integration == 'flutter'
@@ -226,14 +252,17 @@ jobs:
           channel: stable
           version: 3.35.5
 
-      # name: SSHX for debugging
-      # if: matrix.target == 'aarch64-apple-ios'
-      # run: "curl -sSf https://sshx.io/get | sh -s run"
-
-      - run: cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
+      - name: "Build (stable targets)"
+        if: "!contains(matrix.target, 'visionos') && !contains(matrix.target, 'watchos')"
+        run: cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: ./nobodywho
         env:
           IPHONEOS_DEPLOYMENT_TARGET: "18.5"
+
+      - name: "Build (nightly tier 3 targets)"
+        if: contains(matrix.target, 'visionos') || contains(matrix.target, 'watchos')
+        run: cargo +nightly build -p nobodywho-${{ matrix.integration }} -Z build-std --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }}
+        working-directory: ./nobodywho
 
       - name: "Rename built file"
         run: |
@@ -368,6 +397,61 @@ jobs:
         with:
           name: nobodywho-react-native-xcframework
           path: ./NobodywhoFramework.xcframework.zip
+
+  # builds an xcframework containing static libraries + headers for Swift SPM
+  build-swift-xcframework:
+    if: inputs.full_ci
+    runs-on: macos-15
+    needs: [cargo-build-macos]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Download uniffi Apple artifacts"
+        uses: actions/download-artifact@v4
+        with:
+          pattern: nobodywho-uniffi-*-apple-*-release
+          merge-multiple: true
+
+      - name: "List downloaded artifacts"
+        run: ls -la libnobodywho-uniffi-*
+
+      - name: "Build XCFramework with headers"
+        run: |
+          mkdir -p ios-device/Headers ios-sim/Headers macos/Headers \
+                   visionos-device/Headers visionos-sim/Headers \
+                   watchos-device/Headers watchos-sim/Headers
+
+          cp libnobodywho-uniffi-aarch64-apple-ios-release.a ios-device/libnobodywho_uniffi.a
+          cp libnobodywho-uniffi-aarch64-apple-ios-sim-release.a ios-sim/libnobodywho_uniffi.a
+          cp libnobodywho-uniffi-aarch64-apple-darwin-release.a macos/libnobodywho_uniffi.a
+          cp libnobodywho-uniffi-aarch64-apple-visionos-release.a visionos-device/libnobodywho_uniffi.a
+          cp libnobodywho-uniffi-aarch64-apple-visionos-sim-release.a visionos-sim/libnobodywho_uniffi.a
+          cp libnobodywho-uniffi-aarch64-apple-watchos-release.a watchos-device/libnobodywho_uniffi.a
+          cp libnobodywho-uniffi-aarch64-apple-watchos-sim-release.a watchos-sim/libnobodywho_uniffi.a
+
+          for dir in ios-device ios-sim macos visionos-device visionos-sim watchos-device watchos-sim; do
+            cp nobodywho/swift/generated/nobodywhoFFI.h $dir/Headers/
+            cp nobodywho/swift/generated/nobodywhoFFI.modulemap $dir/Headers/module.modulemap
+          done
+
+          xcodebuild -create-xcframework \
+            -library ios-device/libnobodywho_uniffi.a -headers ios-device/Headers \
+            -library ios-sim/libnobodywho_uniffi.a -headers ios-sim/Headers \
+            -library macos/libnobodywho_uniffi.a -headers macos/Headers \
+            -library visionos-device/libnobodywho_uniffi.a -headers visionos-device/Headers \
+            -library visionos-sim/libnobodywho_uniffi.a -headers visionos-sim/Headers \
+            -library watchos-device/libnobodywho_uniffi.a -headers watchos-device/Headers \
+            -library watchos-sim/libnobodywho_uniffi.a -headers watchos-sim/Headers \
+            -output NobodyWhoNative.xcframework
+
+      - name: "Zip XCFramework"
+        run: zip -y -r NobodyWhoNative.xcframework.zip NobodyWhoNative.xcframework
+
+      - name: "Upload build artifact"
+        uses: actions/upload-artifact@v4
+        with:
+          name: nobodywho-swift-xcframework
+          path: ./NobodyWhoNative.xcframework.zip
 
   cargo-build-android:
     if: inputs.full_ci
