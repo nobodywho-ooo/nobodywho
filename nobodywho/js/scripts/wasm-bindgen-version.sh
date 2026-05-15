@@ -7,7 +7,7 @@
 # the version from here so they can never drift from the lockfile.
 #
 # Usage:
-#   WASM_BINDGEN_VERSION=$(bash nobodywho/wasm/scripts/wasm-bindgen-version.sh)
+#   WASM_BINDGEN_VERSION=$(bash nobodywho/js/scripts/wasm-bindgen-version.sh)
 #   cargo install wasm-bindgen-cli --version "$WASM_BINDGEN_VERSION" --locked
 set -euo pipefail
 

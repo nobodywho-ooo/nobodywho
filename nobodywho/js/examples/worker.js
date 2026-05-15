@@ -24,9 +24,9 @@ const envStubs = new Proxy({}, {
 async function init() {
   send('progress', { stage: 'fetching-wasm' });
   const [wasmBytes, bgModule] = await Promise.all([
-    fetch(new URL('../pkg-bundler/nobodywho_wasm_bg.wasm', import.meta.url))
+    fetch(new URL('../pkg-bundler/nobodywho_js_bg.wasm', import.meta.url))
       .then((r) => r.arrayBuffer()),
-    import(new URL('../pkg-bundler/nobodywho_wasm_bg.js', import.meta.url).href),
+    import(new URL('../pkg-bundler/nobodywho_js_bg.js', import.meta.url).href),
   ]);
   bg = bgModule;
 
@@ -38,7 +38,7 @@ async function init() {
   ]);
   const wmod = await WebAssembly.compile(wasmBytes);
   const inst = await WebAssembly.instantiate(wmod, {
-    './nobodywho_wasm_bg.js': bg,
+    './nobodywho_js_bg.js': bg,
     env: envStubs,
     wasi_snapshot_preview1: wasi.wasiImport,
   });

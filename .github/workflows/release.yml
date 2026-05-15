@@ -252,10 +252,10 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-  # Mirror of publish-react-native-npm but for the wasm binding.
-  # Tag your release like `nobodywho-wasm-v0.1.0` to trigger.
-  publish-wasm-npm:
-    if: startsWith(github.ref, 'refs/tags/nobodywho-wasm-v')
+  # Mirror of publish-react-native-npm but for the js binding.
+  # Tag your release like `nobodywho-js-v0.1.0` to trigger.
+  publish-js-npm:
+    if: startsWith(github.ref, 'refs/tags/nobodywho-js-v')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -283,22 +283,22 @@ jobs:
         # Version is read from Cargo.lock so the CLI and the runtime glue
         # baked into the .wasm always match. See wasm-bindgen-version.sh.
         run: |
-          version=$(bash nobodywho/wasm/scripts/wasm-bindgen-version.sh)
+          version=$(bash nobodywho/js/scripts/wasm-bindgen-version.sh)
           echo "Installing wasm-bindgen-cli v$version (from Cargo.lock)"
           cargo install wasm-bindgen-cli --version "$version" --locked
 
       - name: "Build the npm package"
         working-directory: ./nobodywho
-        run: bash wasm/scripts/build-pkg.sh
+        run: bash js/scripts/build-pkg.sh
 
       - name: "Verify Login"
-        working-directory: ./nobodywho/wasm/pkg-bundler
+        working-directory: ./nobodywho/js/pkg-bundler
         run: npm whoami
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: "Publish to npm"
-        working-directory: ./nobodywho/wasm/pkg-bundler
+        working-directory: ./nobodywho/js/pkg-bundler
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

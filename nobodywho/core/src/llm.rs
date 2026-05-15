@@ -269,7 +269,7 @@ pub fn get_model_from_bytes(bytes: &[u8], gpu_layers: u32) -> Result<Model, Load
 // the filesystem, or asks the OS for a cache directory. None of that works
 // in a browser sandbox, so it's gated to non-wasm32 targets. wasm consumers
 // will load models from in-memory bytes via a future `Model::load_from_bytes`
-// API (tracked in nobodywho/wasm/README.md, Step 2c).
+// API (tracked in nobodywho/js/README.md, Step 2c).
 
 #[cfg(not(target_arch = "wasm32"))]
 #[derive(Clone)]

@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Build the publishable npm package for nobodywho-wasm.
+# Build the publishable npm package for nobodywho-js.
 #
-# Produces nobodywho/wasm/pkg-bundler/ with:
-#   nobodywho_wasm.js          — entrypoint
-#   nobodywho_wasm_bg.js       — Chat/Model/Encoder classes + wasm-bindgen glue
-#   nobodywho_wasm_bg.wasm     — compiled wasm (release-stripped)
-#   nobodywho_wasm.d.ts        — TS typings
-#   nobodywho_wasm_bg.wasm.d.ts
+# Produces nobodywho/js/pkg-bundler/ with:
+#   nobodywho_js.js          — entrypoint
+#   nobodywho_js_bg.js       — Chat/Model/Encoder classes + wasm-bindgen glue
+#   nobodywho_js_bg.wasm     — compiled wasm (release-stripped)
+#   nobodywho_js.d.ts        — TS typings
+#   nobodywho_js_bg.wasm.d.ts
 #   package.json               — from package.json.tpl with version rewritten
-#                                from $WASM_PKG_VERSION or $GITHUB_REF_NAME
+#                                from $JS_PKG_VERSION or $GITHUB_REF_NAME
 #   README.md
 #
 # Prereqs:
@@ -27,14 +27,14 @@ if [[ ! -x "$WASI_SDK_PATH/bin/clang" ]]; then
   exit 1
 fi
 
-cd "$(dirname "$0")/.."   # nobodywho/wasm
-WASM_DIR="$(pwd)"
+cd "$(dirname "$0")/.."   # nobodywho/js
+JS_DIR="$(pwd)"
 WORKSPACE_ROOT="$(cd ../.. && pwd)"
 
 # wasm-bindgen-cli must match the wasm-bindgen crate version in Cargo.lock
 # exactly. If the installed CLI is different, surface that before doing a
 # long C++ build that would just produce an unloadable .wasm.
-EXPECTED_WBG=$(bash "$WASM_DIR/scripts/wasm-bindgen-version.sh")
+EXPECTED_WBG=$(bash "$JS_DIR/scripts/wasm-bindgen-version.sh")
 if ACTUAL_WBG_LINE=$("$(command -v wasm-bindgen || echo ~/.cargo/bin/wasm-bindgen)" --version 2>/dev/null); then
   ACTUAL_WBG=${ACTUAL_WBG_LINE##* }
   if [[ "$ACTUAL_WBG" != "$EXPECTED_WBG" ]]; then
@@ -55,38 +55,38 @@ echo "==> Building wasm32-unknown-unknown ($PROFILE)…"
 (
   cd "$WORKSPACE_ROOT/nobodywho"
   case "$PROFILE" in
-    release) "$(command -v cargo || echo ~/.cargo/bin/cargo)" build --target wasm32-unknown-unknown --release -p nobodywho-wasm ;;
-    debug)   "$(command -v cargo || echo ~/.cargo/bin/cargo)" build --target wasm32-unknown-unknown          -p nobodywho-wasm ;;
+    release) "$(command -v cargo || echo ~/.cargo/bin/cargo)" build --target wasm32-unknown-unknown --release -p nobodywho-js ;;
+    debug)   "$(command -v cargo || echo ~/.cargo/bin/cargo)" build --target wasm32-unknown-unknown          -p nobodywho-js ;;
     *)       echo "error: PROFILE must be release or debug, got $PROFILE" >&2; exit 1 ;;
   esac
 )
 
-WASM_PATH="$WORKSPACE_ROOT/nobodywho/target/wasm32-unknown-unknown/$PROFILE/nobodywho_wasm.wasm"
+WASM_PATH="$WORKSPACE_ROOT/nobodywho/target/wasm32-unknown-unknown/$PROFILE/nobodywho_js.wasm"
 ls -lh "$WASM_PATH"
 
 echo "==> Running wasm-bindgen…"
-rm -rf "$WASM_DIR/pkg-bundler"
+rm -rf "$JS_DIR/pkg-bundler"
 "$(command -v wasm-bindgen || echo ~/.cargo/bin/wasm-bindgen)" \
-  --target bundler "$WASM_PATH" --out-dir "$WASM_DIR/pkg-bundler/"
+  --target bundler "$WASM_PATH" --out-dir "$JS_DIR/pkg-bundler/"
 
 echo "==> Copying package.json + README…"
-cp "$WASM_DIR/package.json.tpl" "$WASM_DIR/pkg-bundler/package.json"
-cp "$WASM_DIR/README.md" "$WASM_DIR/pkg-bundler/README.md"
+cp "$JS_DIR/package.json.tpl" "$JS_DIR/pkg-bundler/package.json"
+cp "$JS_DIR/README.md" "$JS_DIR/pkg-bundler/README.md"
 
 # Rewrite the version in the bundled package.json. The template ships with
 # "0.0.0-PLACEHOLDER" so a forgotten substitution fails npm publish loudly
 # instead of silently re-publishing some old release version.
 #
 # Resolution order (first match wins):
-#   1. $WASM_PKG_VERSION — explicit override for local/manual builds
+#   1. $JS_PKG_VERSION — explicit override for local/manual builds
 #   2. $GITHUB_REF_NAME — the release CI sets this to the tag name
-#      (e.g. "nobodywho-wasm-v0.1.0"); we strip the "nobodywho-wasm-v" prefix
+#      (e.g. "nobodywho-js-v0.1.0"); we strip the "nobodywho-js-v" prefix
 #   3. nothing — leave the placeholder, useful for `npm link` workflows
 VERSION=""
-if [[ -n "${WASM_PKG_VERSION:-}" ]]; then
-  VERSION="$WASM_PKG_VERSION"
-elif [[ -n "${GITHUB_REF_NAME:-}" && "$GITHUB_REF_NAME" == nobodywho-wasm-v* ]]; then
-  VERSION="${GITHUB_REF_NAME#nobodywho-wasm-v}"
+if [[ -n "${JS_PKG_VERSION:-}" ]]; then
+  VERSION="$JS_PKG_VERSION"
+elif [[ -n "${GITHUB_REF_NAME:-}" && "$GITHUB_REF_NAME" == nobodywho-js-v* ]]; then
+  VERSION="${GITHUB_REF_NAME#nobodywho-js-v}"
 fi
 
 if [[ -n "$VERSION" ]]; then
@@ -96,36 +96,36 @@ if [[ -n "$VERSION" ]]; then
   # to a semver shape — digits + dots + optional `-suffix` of [A-Za-z0-9.-].
   if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]; then
     echo "error: VERSION '$VERSION' doesn't look like semver (X.Y.Z or X.Y.Z-suffix)." >&2
-    echo "       source: ${WASM_PKG_VERSION:+WASM_PKG_VERSION}${GITHUB_REF_NAME:+GITHUB_REF_NAME=$GITHUB_REF_NAME}" >&2
+    echo "       source: ${JS_PKG_VERSION:+JS_PKG_VERSION}${GITHUB_REF_NAME:+GITHUB_REF_NAME=$GITHUB_REF_NAME}" >&2
     echo "       refusing to interpolate it into sed; fix the tag/env then re-run." >&2
     exit 1
   fi
   echo "==> Setting package.json version to $VERSION"
   # `-i.bak` is the portable form that works on both GNU and BSD sed.
   sed -i.bak "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" \
-    "$WASM_DIR/pkg-bundler/package.json"
-  rm -f "$WASM_DIR/pkg-bundler/package.json.bak"
-elif [[ "${WASM_ALLOW_PLACEHOLDER:-0}" == "1" ]]; then
+    "$JS_DIR/pkg-bundler/package.json"
+  rm -f "$JS_DIR/pkg-bundler/package.json.bak"
+elif [[ "${JS_ALLOW_PLACEHOLDER:-0}" == "1" ]]; then
   # Opt-in for `npm link` workflows where the version doesn't matter.
-  echo "==> WASM_ALLOW_PLACEHOLDER=1 — leaving '0.0.0-PLACEHOLDER' as the version."
+  echo "==> JS_ALLOW_PLACEHOLDER=1 — leaving '0.0.0-PLACEHOLDER' as the version."
   echo "    Do NOT \`npm publish\` this build."
 else
   # Fail closed: '0.0.0-PLACEHOLDER' is valid semver (pre-release identifier),
   # so npm publish would happily accept it. Don't let that happen by accident.
   echo "error: no version provided." >&2
-  echo "       Set WASM_PKG_VERSION='X.Y.Z' to set one explicitly, or run" >&2
-  echo "       in CI under a 'refs/tags/nobodywho-wasm-v*' tag." >&2
+  echo "       Set JS_PKG_VERSION='X.Y.Z' to set one explicitly, or run" >&2
+  echo "       in CI under a 'refs/tags/nobodywho-js-v*' tag." >&2
   echo "       For \`npm link\` workflows that don't care about the version," >&2
-  echo "       set WASM_ALLOW_PLACEHOLDER=1 to skip this check." >&2
+  echo "       set JS_ALLOW_PLACEHOLDER=1 to skip this check." >&2
   exit 1
 fi
 
 echo "==> Done."
-ls -lh "$WASM_DIR/pkg-bundler/"
+ls -lh "$JS_DIR/pkg-bundler/"
 echo ""
 
 # `bash build-pkg.sh --link` runs `npm link` inside pkg-bundler/ so the
-# package becomes available to downstream projects via `npm link @nobodywho/wasm`
+# package becomes available to downstream projects via `npm link @nobodywho/js`
 # without going through a real npm publish. Mirrors maturin's `develop`
 # command — the Python binding equivalent.
 if [[ "${1:-}" == "--link" ]]; then
@@ -134,15 +134,15 @@ if [[ "${1:-}" == "--link" ]]; then
     exit 1
   fi
   echo "==> npm link…"
-  ( cd "$WASM_DIR/pkg-bundler" && npm link )
+  ( cd "$JS_DIR/pkg-bundler" && npm link )
   echo ""
-  echo "In a consumer project:  npm link @nobodywho/wasm"
+  echo "In a consumer project:  npm link @nobodywho/js"
   echo ""
 fi
 
 echo "To smoke-test:"
-echo "  node $WASM_DIR/examples/run.mjs --encode /path/to/embedding.gguf 'text'"
-echo "  node $WASM_DIR/examples/run.mjs /path/to/chat.gguf 'prompt'"
+echo "  node $JS_DIR/examples/run.mjs --encode /path/to/embedding.gguf 'text'"
+echo "  node $JS_DIR/examples/run.mjs /path/to/chat.gguf 'prompt'"
 echo ""
 echo "To publish (manually):"
-echo "  cd $WASM_DIR/pkg-bundler && npm publish --access public"
+echo "  cd $JS_DIR/pkg-bundler && npm publish --access public"

@@ -3,7 +3,7 @@
 //!
 //! Each test here was added in response to a specific finding from a
 //! code review on the `webassembly` branch (see commit history). They
-//! run on the *native* target — `cargo test -p nobodywho-wasm` — and
+//! run on the *native* target — `cargo test -p nobodywho-js` — and
 //! lint the wasm binding's source / examples / sibling Cargo.toml
 //! without needing a wasm toolchain.
 //!
@@ -83,7 +83,7 @@ fn out_of_scope_section_doesnt_mention_constraint() {
         .expect("missing 'Out of scope for v1' section header in lib.rs");
     assert!(
         !after_marker.contains("`Constraint`"),
-        "wasm/src/lib.rs: 'Out of scope for v1' section still lists `Constraint` \
+        "js/src/lib.rs: 'Out of scope for v1' section still lists `Constraint` \
          — but ConstraintSpec is exposed via Chat::new's options (see lib.rs \
          ~209-233 and ~253-254). Either remove the bullet or, if structured \
          output is still half-wired, describe the actual remaining gap \
@@ -110,7 +110,7 @@ fn chat_ask_docstring_warns_about_wasm_buffering() {
         || lower.contains("only drain");
     assert!(
         mentions_workaround,
-        "wasm/src/lib.rs: Chat::ask docstring doesn't warn that on wasm32 the \
+        "js/src/lib.rs: Chat::ask docstring doesn't warn that on wasm32 the \
          inference loop holds the JS thread, so the `nextToken()` loop only \
          drains AFTER generation completes — not in real time as the current \
          text implies ('Tokens arrive as they're generated'). Either point \
@@ -140,7 +140,7 @@ fn browser_chat_html_doesnt_claim_streaming() {
 
     assert!(
         !header.contains("streams tokens") && !header.contains("stream tokens"),
-        "wasm/examples/browser-chat.html: page header still claims it 'streams \
+        "js/examples/browser-chat.html: page header still claims it 'streams \
          tokens', but the JS uses `chat.ask().nextToken()` which batches on \
          wasm32 main-thread. Drop the streaming claim from the header, or \
          delete this file in favour of browser-chat-worker.html (which uses \
@@ -181,7 +181,7 @@ fn worker_ask_handler_does_not_create_chat_every_time() {
 
     assert!(
         !posts_create_chat || has_creation_guard,
-        "wasm/examples/browser-chat-worker.html: every $askBtn click \
+        "js/examples/browser-chat-worker.html: every $askBtn click \
          unconditionally posts 'create-chat' to the worker, which replaces \
          the existing chat session and loses conversation history between \
          turns. Create the chat once after 'model-loaded' (or gate the \
@@ -242,7 +242,7 @@ fn cargo_toml_monty_comment_adjacent_to_monty_dep() {
 ///
 /// `version: "0.1.0"` is copied verbatim by `build-pkg.sh` into
 /// `pkg-bundler/package.json`. First publish works; second tag (e.g.
-/// `nobodywho-wasm-v0.1.1`) would still publish version "0.1.0", which npm
+/// `nobodywho-js-v0.1.1`) would still publish version "0.1.0", which npm
 /// rejects. Acceptable fixes: rewrite the version in `build-pkg.sh` from
 /// `$GITHUB_REF_NAME` (or another env var), OR make the template version
 /// a clear placeholder so the build step knows it has to substitute.
@@ -279,8 +279,8 @@ fn package_version_is_placeholder_or_script_rewrites_it() {
 
     assert!(
         is_placeholder || script_rewrites_version,
-        "wasm/package.json.tpl declares a real-looking version ({:?}), but \
-         wasm/scripts/build-pkg.sh copies the template verbatim with no \
+        "js/package.json.tpl declares a real-looking version ({:?}), but \
+         js/scripts/build-pkg.sh copies the template verbatim with no \
          version rewrite. First publish works; second tag would try to \
          re-publish the same version and npm rejects it. Either (a) have \
          build-pkg.sh derive the version from $GITHUB_REF_NAME and rewrite \
@@ -318,7 +318,7 @@ fn chat_options_denies_unknown_fields() {
 
     assert!(
         attrs_block.contains("deny_unknown_fields"),
-        "wasm/src/lib.rs: ChatOptions doesn't have \
+        "js/src/lib.rs: ChatOptions doesn't have \
          #[serde(deny_unknown_fields)]. A JS caller passing an unknown \
          option (e.g. `new Chat(model, {{tools: [...]}})`) silently has the \
          field discarded by serde — same shape as ConstraintSpec (line \
@@ -350,7 +350,7 @@ fn build_pkg_sh_header_doesnt_lie_about_version_bumping() {
 
     assert!(
         !claims_bump || actually_bumps,
-        "wasm/scripts/build-pkg.sh: header docblock claims the produced \
+        "js/scripts/build-pkg.sh: header docblock claims the produced \
          package.json is 'version-bumped', but the script just copies \
          package.json.tpl unchanged. Either drop the 'version-bumped' claim \
          from the header or implement the bump (which also addresses #N1)."
@@ -388,7 +388,7 @@ fn worker_chat_demo_preserves_previous_turn_in_ui() {
 
         assert!(
             guarded,
-            "wasm/examples/browser-chat-worker.html: $askBtn click handler \
+            "js/examples/browser-chat-worker.html: $askBtn click handler \
              does `$out.textContent = ''` unconditionally at the top, wiping \
              the previous turn's response from the visible area. After \
              Fix #6 the model retains full history but the user sees only \
@@ -416,7 +416,7 @@ fn build_pkg_sh_no_version_path_exits_and_doesnt_lie() {
     // 1. The script must not contain the inaccurate claim.
     assert!(
         !BUILD_PKG_SH.contains("npm publish will refuse"),
-        "wasm/scripts/build-pkg.sh contains the inaccurate claim 'npm \
+        "js/scripts/build-pkg.sh contains the inaccurate claim 'npm \
          publish will refuse this' — but `0.0.0-PLACEHOLDER` is valid \
          semver (pre-release identifier) and npm would accept it. \
          Either tighten the script to actually refuse to proceed (exit \
@@ -440,7 +440,7 @@ fn build_pkg_sh_no_version_path_exits_and_doesnt_lie() {
 
     assert!(
         has_exit && has_allow_escape,
-        "wasm/scripts/build-pkg.sh's no-version else-branch must exit non-\
+        "js/scripts/build-pkg.sh's no-version else-branch must exit non-\
          zero (so accidental misuse fails loudly) AND provide an opt-in \
          escape (e.g. WASM_ALLOW_PLACEHOLDER=1) for `npm link` workflows \
          where the version doesn't matter.\n\n\
@@ -484,7 +484,7 @@ fn worker_chat_handler_cleans_up_on_error() {
 
     assert!(
         handles_error,
-        "wasm/examples/browser-chat-worker.html: onceChatReady listener \
+        "js/examples/browser-chat-worker.html: onceChatReady listener \
          only handles 'chat-ready'. If chat creation fails, the worker \
          sends 'error', the listener stays attached, and the next Ask \
          click registers ANOTHER listener — when create-chat finally \
@@ -515,7 +515,7 @@ fn build_pkg_sh_validates_version_before_sed() {
 
     assert!(
         validates_pre,
-        "wasm/scripts/build-pkg.sh: $VERSION is interpolated into a sed \
+        "js/scripts/build-pkg.sh: $VERSION is interpolated into a sed \
          expression without shape validation. Tested empirically: \
          WASM_PKG_VERSION='1.0.0&XXX' produces corrupted JSON because sed \
          treats `&` as the matched-pattern marker. Validate $VERSION (e.g. \
@@ -527,7 +527,7 @@ fn build_pkg_sh_validates_version_before_sed() {
 
 /// Finding #R4 — README status table contradicts the code.
 ///
-/// The status table in `wasm/README.md` previously said
+/// The status table in `js/README.md` previously said
 /// `Structured output (Constraint) | not yet wired up to the JS surface`.
 /// In fact `ConstraintSpec` IS wired through `Chat::new`'s options
 /// (see lib.rs `ChatOptions { constraint: Option<ConstraintSpec> }`
@@ -549,7 +549,7 @@ fn readme_status_table_doesnt_lie_about_constraint() {
         || row.contains("not exposed");
     assert!(
         !claims_not_wired,
-        "wasm/README.md: Constraint row in the status table claims the API \
+        "js/README.md: Constraint row in the status table claims the API \
          isn't wired up, but ConstraintSpec is exposed via Chat::new's \
          options (see lib.rs:184 ChatOptions.constraint). Update the row \
          to reflect what's actually wired and what the runtime caveat is.\n\n\
@@ -587,7 +587,7 @@ fn hook_restore_install_returns_result() {
     let snippet = &LIB_RS[install_pos..(install_pos + 200).min(LIB_RS.len())];
     assert!(
         snippet.contains("-> Result<Self, JsError>"),
-        "wasm/src/lib.rs: HookRestore::install must return \
+        "js/src/lib.rs: HookRestore::install must return \
          `Result<Self, JsError>`, not `Self`. A bare-Self return silently \
          overwrites whatever hook the previous in-flight `askStreaming` \
          installed, which routes its tokens to the wrong JS callback. The \
@@ -618,7 +618,7 @@ fn ask_streaming_doc_warns_about_concurrency() {
     let names_remedy = lower.contains("await") || lower.contains("serialize");
     assert!(
         names_constraint && names_remedy,
-        "wasm/src/lib.rs: Chat::ask_streaming docstring must warn that \
+        "js/src/lib.rs: Chat::ask_streaming docstring must warn that \
          overlapping calls are not supported and point users at the \
          remedy (await the previous promise). Without this, a JS user \
          who fires two askStreaming calls without awaiting gets a \
@@ -654,7 +654,7 @@ fn ask_streaming_doc_warns_about_mixing_with_ask() {
         || ask_streaming_doc.contains("serialize");
     assert!(
         mentions_ask && mentions_serialization,
-        "wasm/src/lib.rs: Chat::ask_streaming docstring must warn against \
+        "js/src/lib.rs: Chat::ask_streaming docstring must warn against \
          mixing with an in-flight `ask` call. The chat worker fires the \
          streaming hook for every token regardless of which API initiated \
          the Ask, so an unawaited `ask`'s tokens route through a later \

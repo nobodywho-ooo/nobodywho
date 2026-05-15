@@ -1,4 +1,4 @@
-# nobodywho-wasm
+# nobodywho-js
 
 WebAssembly binding for [NobodyWho](https://nobodywho.ooo) — runs local LLMs
 in a browser tab (or any wasm host) via llama.cpp compiled to wasm32.
@@ -54,11 +54,11 @@ Native (`cargo check --workspace`) is unchanged.
         | wasm-bindgen-cli --target bundler
         v
    pkg-bundler/
-     ├── nobodywho_wasm.js          (entry — calls __wbg_set_wasm)
-     ├── nobodywho_wasm_bg.js       (Chat/Model/Encoder classes + glue)
-     ├── nobodywho_wasm_bg.wasm     (compiled wasm)
-     ├── nobodywho_wasm.d.ts        (TS typings)
-     └── nobodywho_wasm_bg.wasm.d.ts
+     ├── nobodywho_js.js          (entry — calls __wbg_set_wasm)
+     ├── nobodywho_js_bg.js       (Chat/Model/Encoder classes + glue)
+     ├── nobodywho_js_bg.wasm     (compiled wasm)
+     ├── nobodywho_js.d.ts        (TS typings)
+     └── nobodywho_js_bg.wasm.d.ts
 ```
 
 ## Build it yourself
@@ -88,10 +88,10 @@ cargo install wasm-bindgen-cli \
 cd nobodywho
 
 WASI_SDK_PATH=$WASI_SDK_PATH \
-  cargo build --target wasm32-unknown-unknown --release -p nobodywho-wasm
+  cargo build --target wasm32-unknown-unknown --release -p nobodywho-js
 
 wasm-bindgen --target bundler \
-  target/wasm32-unknown-unknown/release/nobodywho_wasm.wasm \
+  target/wasm32-unknown-unknown/release/nobodywho_js.wasm \
   --out-dir wasm/pkg-bundler/
 ```
 
@@ -116,7 +116,7 @@ node wasm/examples/run.mjs /path/to/chat-model.gguf "your prompt"
 ### In a browser (uses `@bjorn3/browser_wasi_shim`)
 
 ```bash
-cd nobodywho/wasm
+cd nobodywho/js
 python3 -m http.server 8000
 # open http://localhost:8000/examples/browser.html
 # pick a GGUF, click Run

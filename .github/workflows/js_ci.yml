@@ -1,4 +1,4 @@
-name: "Wasm CI"
+name: "JS CI"
 
 # Builds the wasm32-unknown-unknown target via wasi-sdk + wasm-bindgen and
 # runs the no-model smoke test in Node. Skips actually loading a GGUF —
@@ -8,7 +8,7 @@ on:
   workflow_call: {}
 
 jobs:
-  wasm-build:
+  js-build:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -42,21 +42,21 @@ jobs:
         # Version is read from Cargo.lock so the CLI and the runtime glue
         # baked into the .wasm always match. See wasm-bindgen-version.sh.
         run: |
-          version=$(bash nobodywho/wasm/scripts/wasm-bindgen-version.sh)
+          version=$(bash nobodywho/js/scripts/wasm-bindgen-version.sh)
           echo "Installing wasm-bindgen-cli v$version (from Cargo.lock)"
           cargo install wasm-bindgen-cli --version "$version" --locked
 
       - name: Build wasm32-unknown-unknown (release)
         working-directory: nobodywho
-        run: cargo build --target wasm32-unknown-unknown --release -p nobodywho-wasm
+        run: cargo build --target wasm32-unknown-unknown --release -p nobodywho-js
 
       - name: Run wasm-bindgen
         working-directory: nobodywho
         run: |
-          mkdir -p wasm/pkg-bundler
+          mkdir -p js/pkg-bundler
           wasm-bindgen --target bundler \
-            target/wasm32-unknown-unknown/release/nobodywho_wasm.wasm \
-            --out-dir wasm/pkg-bundler/
+            target/wasm32-unknown-unknown/release/nobodywho_js.wasm \
+            --out-dir js/pkg-bundler/
 
       # Node 26+ is required. wasi-sdk's libc++ STL emits both noexternref
       # (WasmGC) and exn (wasm Exception Handling) types in functions like
@@ -78,7 +78,7 @@ jobs:
 
       - name: Smoke test under Node (no model)
         working-directory: nobodywho
-        run: node wasm/examples/run.mjs
+        run: node js/examples/run.mjs
 
       - name: Download a tiny embedding GGUF
         working-directory: /tmp
@@ -95,7 +95,7 @@ jobs:
         run: |
           # Run encode, parse out the first dim, sanity-check it's a finite
           # float (i.e. the model actually ran and produced an embedding).
-          output=$(node wasm/examples/run.mjs --encode /tmp/bge-small.gguf "the quick brown fox")
+          output=$(node js/examples/run.mjs --encode /tmp/bge-small.gguf "the quick brown fox")
           echo "$output"
           echo "$output" | grep -q "embedding generated: 384 dimensions" \
             || { echo "expected '384 dimensions' line in output"; exit 1; }
@@ -103,17 +103,17 @@ jobs:
             || { echo "expected 'first 8: [<float>...' line"; exit 1; }
 
       - name: Inspect artifact sizes
-        working-directory: nobodywho/wasm/pkg-bundler
+        working-directory: nobodywho/js/pkg-bundler
         run: |
           ls -lh
           echo ""
           echo "Brotli-compressed size of wasm (target for npm distribution):"
-          brotli -k -q 11 nobodywho_wasm_bg.wasm -o /tmp/wasm.br || true
+          brotli -k -q 11 nobodywho_js_bg.wasm -o /tmp/wasm.br || true
           ls -lh /tmp/wasm.br || true
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: nobodywho-wasm-pkg
-          path: nobodywho/wasm/pkg-bundler/
+          name: nobodywho-js-pkg
+          path: nobodywho/js/pkg-bundler/
           retention-days: 14

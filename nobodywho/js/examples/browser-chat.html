@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>nobodywho-wasm — browser chat demo</title>
+  <title>nobodywho-js — browser chat demo</title>
   <style>
     body { font: 14px/1.4 system-ui, sans-serif; max-width: 760px; margin: 2em auto; padding: 0 1em; }
     pre  { background: #f4f4f4; padding: 1em; white-space: pre-wrap; word-break: break-word; max-height: 50vh; overflow: auto; }
@@ -15,7 +15,7 @@
   </style>
 </head>
 <body>
-  <h1>nobodywho-wasm — chat in the browser (main-thread demo)</h1>
+  <h1>nobodywho-js — chat in the browser (main-thread demo)</h1>
   <p>
     Minimal demo that runs <code>Chat.ask</code> on the main thread and
     drains <code>TokenStream.nextToken()</code> into the page. Pick a
@@ -83,8 +83,8 @@
       try {
         log('Fetching wasm + glue…');
         const [wasmBytes, bg] = await Promise.all([
-          fetch('../pkg-bundler/nobodywho_wasm_bg.wasm').then((r) => r.arrayBuffer()),
-          import('../pkg-bundler/nobodywho_wasm_bg.js'),
+          fetch('../pkg-bundler/nobodywho_js_bg.wasm').then((r) => r.arrayBuffer()),
+          import('../pkg-bundler/nobodywho_js_bg.js'),
         ]);
         log(`  wasm: ${(wasmBytes.byteLength / 1024 / 1024).toFixed(1)} MB`, 'ok');
 
@@ -98,7 +98,7 @@
         log('Instantiating wasm…');
         const mod = await WebAssembly.compile(wasmBytes);
         const inst = await WebAssembly.instantiate(mod, {
-          './nobodywho_wasm_bg.js': bg,
+          './nobodywho_js_bg.js': bg,
           env: envStubs,
           wasi_snapshot_preview1: wasi.wasiImport,
         });

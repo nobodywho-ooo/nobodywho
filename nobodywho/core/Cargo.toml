@@ -52,7 +52,7 @@ indexmap = "2.13.0"
 # Native-only deps:
 # - `tokio` with `rt-multi-thread`: background workers spawn real OS threads.
 #   wasm32 has only a single-threaded JS event loop, so it gets `rt` (no
-#   multi-thread). See `nobodywho/wasm/README.md` for the worker-refactor
+#   multi-thread). See `nobodywho/js/README.md` for the worker-refactor
 #   follow-up that actually makes wasm32 builds run.
 # - `ureq` does raw TCP/TLS; not available in a browser sandbox. wasm32 fetches
 #   model bytes on the JS side via `fetch` and hands them to a future

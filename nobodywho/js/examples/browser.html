@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>nobodywho-wasm — browser demo</title>
+  <title>nobodywho-js — browser demo</title>
   <style>
     body { font: 14px/1.4 system-ui, sans-serif; max-width: 720px; margin: 2em auto; padding: 0 1em; }
     pre  { background: #f4f4f4; padding: 1em; white-space: pre-wrap; word-break: break-word; max-height: 60vh; overflow: auto; }
@@ -13,10 +13,10 @@
   </style>
 </head>
 <body>
-  <h1>nobodywho-wasm — browser demo</h1>
+  <h1>nobodywho-js — browser demo</h1>
   <p>
     Serve this directory over HTTP (e.g. <code>python3 -m http.server 8000</code> in
-    <code>nobodywho/wasm/</code>) and open <code>examples/browser.html</code>. Pick a
+    <code>nobodywho/js/</code>) and open <code>examples/browser.html</code>. Pick a
     GGUF (any embedding model — the demo calls <code>Encoder.encode</code>).
   </p>
 
@@ -64,8 +64,8 @@
       try {
         log('Fetching wasm + glue…');
         const [wasmBytes, bg] = await Promise.all([
-          fetch('../pkg-bundler/nobodywho_wasm_bg.wasm').then((r) => r.arrayBuffer()),
-          import('../pkg-bundler/nobodywho_wasm_bg.js'),
+          fetch('../pkg-bundler/nobodywho_js_bg.wasm').then((r) => r.arrayBuffer()),
+          import('../pkg-bundler/nobodywho_js_bg.js'),
         ]);
         log(`  wasm: ${(wasmBytes.byteLength / 1024 / 1024).toFixed(1)} MB`, 'ok');
 
@@ -83,7 +83,7 @@
         log('Instantiating wasm…');
         const mod = await WebAssembly.compile(wasmBytes);
         const inst = await WebAssembly.instantiate(mod, {
-          './nobodywho_wasm_bg.js': bg,
+          './nobodywho_js_bg.js': bg,
           env: envStubs,
           // @bjorn3/browser_wasi_shim exposes its import table as a property
           // (`wasiImport`), whereas `node:wasi` uses `getImportObject()`.

@@ -1,4 +1,4 @@
-// Run nobodywho-wasm under Node with a real WASI shim.
+// Run nobodywho-js under Node with a real WASI shim.
 //
 // Uses the `--target bundler` wasm-bindgen output but bypasses the missing
 // bundler: we manually instantiate the .wasm, then call __wbg_set_wasm on
@@ -24,11 +24,11 @@ const log = (...a) => console.log(...a);
 
 // ---------- Imports object ----------
 //
-// Three groups (from wasm-tools dump): ./nobodywho_wasm_bg.js (the
+// Three groups (from wasm-tools dump): ./nobodywho_js_bg.js (the
 // wasm-bindgen glue we'll fill from bg.js), env (unresolved C symbols —
 // mtmd_*, _Unwind_*, dlclose), wasi_snapshot_preview1 (real WASI).
 
-const bg = await import(join(pkgDir, 'nobodywho_wasm_bg.js'));
+const bg = await import(join(pkgDir, 'nobodywho_js_bg.js'));
 
 // node:wasi provides a fresh `WASI` instance whose getImportObject()
 // returns the wasi_snapshot_preview1 implementation. Empty preopens =
@@ -50,7 +50,7 @@ const envStubs = new Proxy(
   },
 );
 
-const wasmBytes = readFileSync(join(pkgDir, 'nobodywho_wasm_bg.wasm'));
+const wasmBytes = readFileSync(join(pkgDir, 'nobodywho_js_bg.wasm'));
 
 log(`Wasm size: ${(wasmBytes.length / (1024 * 1024)).toFixed(1)} MB`);
 log('Compiling…');
@@ -58,7 +58,7 @@ const mod = await WebAssembly.compile(wasmBytes);
 
 log('Instantiating with WASI + bg.js glue + env stubs…');
 const inst = await WebAssembly.instantiate(mod, {
-  './nobodywho_wasm_bg.js': bg,
+  './nobodywho_js_bg.js': bg,
   env: envStubs,
   ...wasi.getImportObject(),
 });

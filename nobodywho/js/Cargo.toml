@@ -1,5 +1,5 @@
 [package]
-name = "nobodywho-wasm"
+name = "nobodywho-js"
 version = "0.1.0"
 edition = "2021"
 
@@ -14,7 +14,7 @@ path = "src/lib.rs"
 # `mtmd` stays in the default features even on wasm32-unknown-unknown.
 # Core's mtmd code paths are cfg-gated so they compile out, but the C-side
 # `mtmd_*` symbols remain wasm imports (resolved by JS stubs at instantiation
-# time — see wasm/examples/worker.js). The actual miniaudio dependency that
+# time — see js/examples/worker.js). The actual miniaudio dependency that
 # breaks against wasi-libc is excluded one layer down, inside the
 # llama-cpp-sys-2 fork's build.rs (LLAMA_BUILD_AUDIO=OFF for the wasm target).
 # Flipping this to `default-features = false` would also drop mtmd on native

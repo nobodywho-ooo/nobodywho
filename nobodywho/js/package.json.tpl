@@ -1,12 +1,12 @@
 {
-  "name": "@nobodywho/wasm",
+  "name": "@nobodywho/js",
   "version": "0.0.0-PLACEHOLDER",
   "description": "Run local LLMs in the browser via llama.cpp compiled to WebAssembly.",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/nobodywho-ooo/nobodywho",
-    "directory": "nobodywho/wasm"
+    "directory": "nobodywho/js"
   },
   "homepage": "https://nobodywho.ooo",
   "keywords": [
@@ -19,19 +19,19 @@
     "inference",
     "gguf"
   ],
-  "main": "./nobodywho_wasm.js",
-  "types": "./nobodywho_wasm.d.ts",
+  "main": "./nobodywho_js.js",
+  "types": "./nobodywho_js.d.ts",
   "type": "module",
   "files": [
-    "nobodywho_wasm.js",
-    "nobodywho_wasm.d.ts",
-    "nobodywho_wasm_bg.js",
-    "nobodywho_wasm_bg.wasm",
-    "nobodywho_wasm_bg.wasm.d.ts",
+    "nobodywho_js.js",
+    "nobodywho_js.d.ts",
+    "nobodywho_js_bg.js",
+    "nobodywho_js_bg.wasm",
+    "nobodywho_js_bg.wasm.d.ts",
     "README.md"
   ],
   "sideEffects": [
-    "./nobodywho_wasm.js",
+    "./nobodywho_js.js",
     "./snippets/*"
   ],
   "peerDependencies": {
