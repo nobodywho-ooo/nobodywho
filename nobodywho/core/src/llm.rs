@@ -43,6 +43,23 @@ use tracing::info_span;
 // per-thread, and only one logical consumer can be active at a time — see
 // `set_streaming_hook` for why overlap is not supported. Enforcement lives
 // at the binding boundary, not here.
+//
+// The `thread_local!` below and the `AssertUnwindSafe` in the js binding's
+// `promisify()` both lean on the single-thread invariant. If wasm threads
+// were ever enabled, the slot would be per-OS-thread but our worker future
+// might run on a different thread from where the hook was installed — same
+// FIFO-vs-LIFO misroute as the concurrent-asks bug, but harder to even
+// detect. Guard against it at compile time.
+#[cfg(all(target_arch = "wasm32", target_feature = "atomics"))]
+compile_error!(
+    "nobodywho assumes single-threaded wasm in two places: the `thread_local!` \
+     streaming-hook slot in this file, and the `AssertUnwindSafe` wrap in the \
+     js binding's `promisify()`. `target_feature = \"atomics\"` indicates wasm \
+     threads, which break both assumptions. To enable wasm threads, redesign \
+     the streaming hook for cross-thread safety and audit every \
+     `tokio::sync::Mutex` lock held across an await — then remove this guard."
+);
+
 #[cfg(target_arch = "wasm32")]
 mod streaming_hook {
     use std::cell::RefCell;
