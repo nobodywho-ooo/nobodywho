@@ -2,6 +2,38 @@ import SwiftSyntax
 import SwiftSyntaxMacros
 import SwiftCompilerPlugin
 
+private let supportedPrimitives: Set<String> = [
+    "String",
+    "Int", "Int8", "Int16", "Int32", "Int64",
+    "UInt", "UInt8", "UInt16", "UInt32", "UInt64",
+    "Double", "Float", "Float32", "Float64", "CGFloat",
+    "Bool",
+]
+
+/// Check whether a Swift type is supported by @DeclareTool.
+private func isSupportedType(_ type: TypeSyntax) -> Bool {
+    if let array = type.as(ArrayTypeSyntax.self) {
+        return isSupportedType(array.element)
+    }
+    if let dict = type.as(DictionaryTypeSyntax.self) {
+        let key = dict.key.description.trimmingCharacters(in: .whitespaces)
+        return key == "String" && isSupportedType(dict.value)
+    }
+    if let ident = type.as(IdentifierTypeSyntax.self) {
+        let name = ident.name.text
+        if name == "Array", let args = ident.genericArgumentClause {
+            return isSupportedType(args.arguments.first!.argument)
+        }
+        if name == "Dictionary", let args = ident.genericArgumentClause {
+            let argsArray = Array(args.arguments)
+            let key = argsArray[0].argument.description.trimmingCharacters(in: .whitespaces)
+            return key == "String" && isSupportedType(argsArray[1].argument)
+        }
+        return supportedPrimitives.contains(name)
+    }
+    return false
+}
+
 /// Recursively generates a JSON Schema string from a Swift type syntax node.
 private func jsonSchema(for type: TypeSyntax) -> String {
     // [T] shorthand syntax
@@ -151,6 +183,20 @@ public struct ToolMacro: PeerMacro {
         let parameters = funcDecl.signature.parameterClause.parameters
         let isAsync = funcDecl.signature.effectSpecifiers?.asyncSpecifier != nil
 
+        // Validate return type is String
+        let returnType = funcDecl.signature.returnClause?.type.description.trimmingCharacters(in: .whitespaces)
+        if returnType != "String" {
+            throw ToolMacroError.unsupportedReturnType(returnType ?? "Void")
+        }
+
+        // Validate all parameter types are supported
+        for param in parameters {
+            if !isSupportedType(param.type) {
+                let typeName = param.type.description.trimmingCharacters(in: .whitespaces)
+                throw ToolMacroError.unsupportedParameterType(typeName)
+            }
+        }
+
         // Build parameter tuples and argument extraction lines
         var paramTuples: [String] = []
         var argLetBindings: [String] = []
@@ -214,13 +260,19 @@ public struct ToolMacro: PeerMacro {
 enum ToolMacroError: Error, CustomStringConvertible {
     case onlyApplicableToFunction
     case missingDescription
+    case unsupportedParameterType(String)
+    case unsupportedReturnType(String)
 
     var description: String {
         switch self {
         case .onlyApplicableToFunction:
-            return "@Tool can only be applied to a function"
+            return "@DeclareTool can only be applied to a function"
         case .missingDescription:
-            return "@Tool requires a description string argument, e.g. @Tool(\"Describes what the tool does\")"
+            return "@DeclareTool requires a description string argument, e.g. @DeclareTool(\"Describes what the tool does\")"
+        case .unsupportedParameterType(let type):
+            return "@DeclareTool: unsupported parameter type '\(type)'. Supported types: String, Int, Double, Float, Bool, [T], and [String: T]"
+        case .unsupportedReturnType(let type):
+            return "@DeclareTool: functions must return String, got '\(type)'"
         }
     }
 }

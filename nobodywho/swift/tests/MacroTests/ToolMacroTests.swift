@@ -265,6 +265,68 @@ final class ToolMacroTests: XCTestCase {
         )
     }
 
+    // MARK: - Unsupported types
+
+    func testUnsupportedParamType() throws {
+        assertMacroExpansion(
+            """
+            @DeclareTool("Process data")
+            func process(data: URL) -> String {
+                return "ok"
+            }
+            """,
+            expandedSource: """
+            func process(data: URL) -> String {
+                return "ok"
+            }
+            """,
+            diagnostics: [
+                DiagnosticSpec(message: "@DeclareTool: unsupported parameter type 'URL'. Supported types: String, Int, Double, Float, Bool, [T], and [String: T]", line: 1, column: 1)
+            ],
+            macros: testMacros
+        )
+    }
+
+    func testUnsupportedReturnType() throws {
+        assertMacroExpansion(
+            """
+            @DeclareTool("Get count")
+            func getCount() -> Int {
+                return 42
+            }
+            """,
+            expandedSource: """
+            func getCount() -> Int {
+                return 42
+            }
+            """,
+            diagnostics: [
+                DiagnosticSpec(message: "@DeclareTool: functions must return String, got 'Int'", line: 1, column: 1)
+            ],
+            macros: testMacros
+        )
+    }
+
+    func testUnsupportedNestedType() throws {
+        assertMacroExpansion(
+            """
+            @DeclareTool("Process")
+            func process(items: [URL]) -> String {
+                return "ok"
+            }
+            """,
+            expandedSource: """
+            func process(items: [URL]) -> String {
+                return "ok"
+            }
+            """,
+            diagnostics: [
+                DiagnosticSpec(message: "@DeclareTool: unsupported parameter type '[URL]'. Supported types: String, Int, Double, Float, Bool, [T], and [String: T]", line: 1, column: 1)
+            ],
+            macros: testMacros
+        )
+    }
+
     #else
     func testMacrosUnavailable() throws {
         XCTSkip("Macros are only supported when building with the host compiler")
