@@ -149,7 +149,7 @@ impl Chat {
     }
 
     /// Reset the conversation. Optionally provide a new system prompt.
-    /// Tools are cleared on reset.
+    /// (Tools aren't yet exposed in the wasm binding.)
     pub fn reset(&self, system_prompt: Option<String>) -> js_sys::Promise {
         let handle = self.handle.clone();
         promisify(async move {

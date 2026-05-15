@@ -280,8 +280,8 @@ impl ChatBuilder {
 
     /// Build a blocking chat handle and start the background worker.
     ///
-    /// Native-only. wasm32 has no real threads and no way to `.completed()`
-    /// the result; use `build_async` and await on the returned future instead.
+    /// Native-only. Uses `std::thread::spawn` internally, which doesn't
+    /// work on wasm without thread support enabled. Use `build_async` on wasm.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn build(self) -> ChatHandle {
         ChatHandle::new(self.model, self.config)
