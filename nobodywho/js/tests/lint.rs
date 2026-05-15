@@ -270,7 +270,7 @@ fn package_version_is_placeholder_or_script_rewrites_it() {
     // source of truth" is a comment saying we DON'T bump, not evidence we do.
     let code = strip_bash_comments(BUILD_PKG_SH);
     let script_rewrites_version = code.contains("GITHUB_REF_NAME")
-        || code.contains("WASM_PKG_VERSION")
+        || code.contains("JS_PKG_VERSION")
         || code.contains("npm version")
         || code.contains("npm --no-git-tag-version version")
         // sed/jq edit of the version field in the bundled package.json:
@@ -344,7 +344,7 @@ fn build_pkg_sh_header_doesnt_lie_about_version_bumping() {
     let code = strip_bash_comments(BUILD_PKG_SH);
     let actually_bumps = code.contains("npm version")
         || code.contains("GITHUB_REF_NAME")
-        || code.contains("WASM_PKG_VERSION")
+        || code.contains("JS_PKG_VERSION")
         || (code.contains("pkg-bundler/package.json")
             && (code.contains("sed -i") || code.contains("jq ")));
 
@@ -409,7 +409,7 @@ fn worker_chat_demo_preserves_previous_turn_in_ui() {
 /// npm would happily accept it. The behavior should be: by default, exit
 /// non-zero if no version is set (CI always has GITHUB_REF_NAME; this
 /// fails closed for local misuse), with an opt-in env var
-/// (`WASM_ALLOW_PLACEHOLDER=1`) for `npm link` workflows that don't care.
+/// (`JS_ALLOW_PLACEHOLDER=1`) for `npm link` workflows that don't care.
 /// Either way the script must not claim that npm rejects the placeholder.
 #[test]
 fn build_pkg_sh_no_version_path_exits_and_doesnt_lie() {
@@ -436,13 +436,13 @@ fn build_pkg_sh_no_version_path_exits_and_doesnt_lie() {
     let bounded = else_branch.split("\nfi").next().unwrap_or(else_branch);
     let has_exit = bounded.contains("exit ") || bounded.contains("exit\n");
     let has_allow_escape =
-        code.contains("WASM_ALLOW_PLACEHOLDER") || code.contains("ALLOW_PLACEHOLDER");
+        code.contains("JS_ALLOW_PLACEHOLDER") || code.contains("ALLOW_PLACEHOLDER");
 
     assert!(
         has_exit && has_allow_escape,
         "js/scripts/build-pkg.sh's no-version else-branch must exit non-\
          zero (so accidental misuse fails loudly) AND provide an opt-in \
-         escape (e.g. WASM_ALLOW_PLACEHOLDER=1) for `npm link` workflows \
+         escape (e.g. JS_ALLOW_PLACEHOLDER=1) for `npm link` workflows \
          where the version doesn't matter.\n\n\
          else-branch found:\n{}\n\
          has_exit = {}, has_allow_escape = {}",
@@ -499,7 +499,7 @@ fn worker_chat_handler_cleans_up_on_error() {
 /// Finding #R2 — sed substitution doesn't validate `$VERSION`.
 ///
 /// `build-pkg.sh` interpolates `$VERSION` directly into a sed expression.
-/// Demonstrated empirically: WASM_PKG_VERSION='1.0.0&XXX' produces
+/// Demonstrated empirically: JS_PKG_VERSION='1.0.0&XXX' produces
 /// `"version": "1.0.0"version": "0.0.0-PLACEHOLDER"XXX"` — corrupted JSON.
 /// VERSION should be validated against a semver-shaped regex before sed.
 #[test]
@@ -517,7 +517,7 @@ fn build_pkg_sh_validates_version_before_sed() {
         validates_pre,
         "js/scripts/build-pkg.sh: $VERSION is interpolated into a sed \
          expression without shape validation. Tested empirically: \
-         WASM_PKG_VERSION='1.0.0&XXX' produces corrupted JSON because sed \
+         JS_PKG_VERSION='1.0.0&XXX' produces corrupted JSON because sed \
          treats `&` as the matched-pattern marker. Validate $VERSION (e.g. \
          `[[ \"$VERSION\" =~ ^[0-9]+\\.[0-9]+\\.[0-9]+ ]]`) before sed and \
          exit with a clear error if the tag or env var has an unexpected \

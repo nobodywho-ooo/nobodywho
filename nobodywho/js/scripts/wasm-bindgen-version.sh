@@ -11,7 +11,7 @@
 #   cargo install wasm-bindgen-cli --version "$WASM_BINDGEN_VERSION" --locked
 set -euo pipefail
 
-# scripts/ → wasm/ → nobodywho/
+# scripts/ → js/ → nobodywho/
 LOCKFILE="$(cd "$(dirname "$0")/../.." && pwd)/Cargo.lock"
 
 if [[ ! -f "$LOCKFILE" ]]; then

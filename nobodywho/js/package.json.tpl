@@ -38,6 +38,6 @@
     "@bjorn3/browser_wasi_shim": "^0.4.0"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=24"
   }
 }

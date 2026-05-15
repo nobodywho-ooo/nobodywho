@@ -27,6 +27,16 @@ jobs:
           restore-keys: |
             js-${{ runner.os }}-
 
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Run lint regression tests (native target, no wasm toolchain needed)
+        # Source-text invariants over the binding + examples + scripts.
+        # Failing here means a docstring / example / build script drifted away
+        # from a contract a past code review pinned down. See js/tests/lint.rs.
+        working-directory: nobodywho
+        run: cargo test -p nobodywho-js
+
       - name: Install wasi-sdk
         run: |
           set -euo pipefail

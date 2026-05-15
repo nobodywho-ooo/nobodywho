@@ -112,6 +112,19 @@ hand-written `package.json` — see `js/package.json.tpl`).
 
 ### Under Node (uses `node:wasi` for WASI imports)
 
+The shipped `.wasm` uses wasm-gc and wasm exception-handling value types
+(emitted by wasi-sdk's libc++ STL — see `money_get<wchar_t>` and friends).
+Node version support:
+
+- **Node 26+** — works out of the box.
+- **Node 24-25** — pass `--experimental-wasm-exnref` to `node`.
+- **Node 22-23** — V8 has a SIGSEGV on Linux x86_64 (fixed in 24); macOS
+  arm64 works with the experimental flag. Not officially supported.
+- **Node 20 and older** — not supported; the wasm fails validation
+  before any code runs.
+
+The `engines.node` field is set to `>=24` to reflect this.
+
 ```bash
 # Smoke test (no model — just verifies wasm loads):
 node js/examples/run.mjs
