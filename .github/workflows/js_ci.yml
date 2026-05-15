@@ -23,9 +23,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             nobodywho/target
-          key: wasm-${{ runner.os }}-${{ hashFiles('nobodywho/Cargo.lock') }}
+          key: js-${{ runner.os }}-${{ hashFiles('nobodywho/Cargo.lock') }}
           restore-keys: |
-            wasm-${{ runner.os }}-
+            js-${{ runner.os }}-
 
       - name: Install wasi-sdk
         run: |
