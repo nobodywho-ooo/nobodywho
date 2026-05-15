@@ -99,6 +99,16 @@ rec {
       # File a bug if you depend on any for non-debug work!
       debug = internal.debugCrate { inherit packageId; };
     };
+    "nobodywho-js" = rec {
+      packageId = "nobodywho-js";
+      build = internal.buildRustCrateWithFeatures {
+        packageId = "nobodywho-js";
+      };
+
+      # Debug support which might change between releases.
+      # File a bug if you depend on any for non-debug work!
+      debug = internal.debugCrate { inherit packageId; };
+    };
     "nobodywho-python" = rec {
       packageId = "nobodywho-python";
       build = internal.buildRustCrateWithFeatures {
@@ -113,16 +123,6 @@ rec {
       packageId = "nobodywho-uniffi";
       build = internal.buildRustCrateWithFeatures {
         packageId = "nobodywho-uniffi";
-      };
-
-      # Debug support which might change between releases.
-      # File a bug if you depend on any for non-debug work!
-      debug = internal.debugCrate { inherit packageId; };
-    };
-    "nobodywho-wasm" = rec {
-      packageId = "nobodywho-wasm";
-      build = internal.buildRustCrateWithFeatures {
-        packageId = "nobodywho-wasm";
       };
 
       # Debug support which might change between releases.
@@ -7545,6 +7545,71 @@ rec {
         ];
 
       };
+      "nobodywho-js" = rec {
+        crateName = "nobodywho-js";
+        version = "0.1.0";
+        edition = "2021";
+        src = lib.cleanSourceWith { filter = sourceFilter;  src = ./js; };
+        libName = "nobodywho_js";type = [ "cdylib" "rlib" ];
+        dependencies = [
+          {
+            name = "console_error_panic_hook";
+            packageId = "console_error_panic_hook";
+          }
+          {
+            name = "futures";
+            packageId = "futures";
+          }
+          {
+            name = "js-sys";
+            packageId = "js-sys";
+          }
+          {
+            name = "nobodywho";
+            packageId = "nobodywho";
+          }
+          {
+            name = "serde";
+            packageId = "serde";
+            features = [ "derive" ];
+          }
+          {
+            name = "serde-wasm-bindgen";
+            packageId = "serde-wasm-bindgen";
+          }
+          {
+            name = "serde_json";
+            packageId = "serde_json";
+          }
+          {
+            name = "tokio";
+            packageId = "tokio";
+            features = [ "sync" ];
+          }
+          {
+            name = "tracing";
+            packageId = "tracing";
+          }
+          {
+            name = "tracing-wasm";
+            packageId = "tracing-wasm";
+          }
+          {
+            name = "wasm-bindgen";
+            packageId = "wasm-bindgen";
+          }
+          {
+            name = "wasm-bindgen-futures";
+            packageId = "wasm-bindgen-futures";
+          }
+          {
+            name = "web-sys";
+            packageId = "web-sys";
+            features = [ "console" ];
+          }
+        ];
+
+      };
       "nobodywho-python" = rec {
         crateName = "nobodywho-python";
         version = "1.3.0";
@@ -7679,71 +7744,6 @@ rec {
             name = "uniffi";
             packageId = "uniffi";
             features = [ "cli" ];
-          }
-        ];
-
-      };
-      "nobodywho-wasm" = rec {
-        crateName = "nobodywho-wasm";
-        version = "0.1.0";
-        edition = "2021";
-        src = lib.cleanSourceWith { filter = sourceFilter;  src = ./wasm; };
-        libName = "nobodywho_wasm";type = [ "cdylib" "rlib" ];
-        dependencies = [
-          {
-            name = "console_error_panic_hook";
-            packageId = "console_error_panic_hook";
-          }
-          {
-            name = "futures";
-            packageId = "futures";
-          }
-          {
-            name = "js-sys";
-            packageId = "js-sys";
-          }
-          {
-            name = "nobodywho";
-            packageId = "nobodywho";
-          }
-          {
-            name = "serde";
-            packageId = "serde";
-            features = [ "derive" ];
-          }
-          {
-            name = "serde-wasm-bindgen";
-            packageId = "serde-wasm-bindgen";
-          }
-          {
-            name = "serde_json";
-            packageId = "serde_json";
-          }
-          {
-            name = "tokio";
-            packageId = "tokio";
-            features = [ "sync" ];
-          }
-          {
-            name = "tracing";
-            packageId = "tracing";
-          }
-          {
-            name = "tracing-wasm";
-            packageId = "tracing-wasm";
-          }
-          {
-            name = "wasm-bindgen";
-            packageId = "wasm-bindgen";
-          }
-          {
-            name = "wasm-bindgen-futures";
-            packageId = "wasm-bindgen-futures";
-          }
-          {
-            name = "web-sys";
-            packageId = "web-sys";
-            features = [ "console" ];
           }
         ];
 
