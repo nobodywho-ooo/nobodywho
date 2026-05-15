@@ -10,6 +10,8 @@ pub enum MemoryError {
         available_gb: f64,
         suggestion: String,
     },
+    #[error("Could not read model metadata from {0}: file may be missing or not a valid GGUF")]
+    GgufReadError(String),
 }
 
 // Model errors
