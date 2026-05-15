@@ -59,7 +59,7 @@ jobs:
         if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'aarch64-unknown-linux-gnu'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libclang-dev cmake
+          sudo apt-get install -y libclang-dev cmake patchelf
           sudo apt-get install libshaderc-dev libvulkan-dev glslc
 
       - name: "Setup Flutter SDK (manual for ARM64)"
@@ -84,11 +84,46 @@ jobs:
         run: |
           cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.so ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
 
+      - name: "Collect GGML backend libs (Godot)"
+        if: matrix.integration == 'godot'
+        run: |
+          TARGET_DIR=./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}
+          SUFFIX="${{ matrix.target }}-${{ matrix.profile }}"
+          MAIN_LIB="./libnobodywho-godot-${SUFFIX}.so"
+
+          # Search $ORIGIN at runtime so sibling libs in the addon directory are found.
+          patchelf --set-rpath '$ORIGIN' "$MAIN_LIB"
+
+          # Rename libggml-base and libllama with target suffix to avoid conflicts when
+          # x86_64 and aarch64 libs coexist in addons/nobodywho/.
+          for libname in libggml-base libllama; do
+            if [ -f "$TARGET_DIR/${libname}.so" ]; then
+              cp "$TARGET_DIR/${libname}.so" "./${libname}-${SUFFIX}.so"
+              patchelf --replace-needed "${libname}.so" "${libname}-${SUFFIX}.so" "$MAIN_LIB"
+            fi
+          done
+
+          # Backend modules: rename with target suffix so wrong-arch files can coexist.
+          find "$TARGET_DIR" -maxdepth 1 -name 'libggml-*.so' ! -name 'libggml-base.so' | \
+            while read f; do
+              base=$(basename "${f%.so}")
+              cp "$f" "./${base}-${SUFFIX}.so"
+            done
+
       - name: "Upload build artifact"
+        if: matrix.integration == 'flutter'
         uses: actions/upload-artifact@v4
         with:
           name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
           path: ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
+
+      - name: "Upload build artifact (Godot, with GGML backend libs)"
+        if: matrix.integration == 'godot'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
+          path: ./*-${{ matrix.target }}-${{ matrix.profile }}.so
+          if-no-files-found: error
 
   cargo-build-windows:
     if: inputs.full_ci
@@ -172,13 +207,39 @@ jobs:
           cp C:/t/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.dll ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dll
           cp C:/t/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.pdb ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
 
+      - name: "Collect GGML backend libs (Godot)"
+        if: matrix.integration == 'godot'
+        run: |
+          $targetDir = "C:/t/${{ matrix.target }}/${{ matrix.profile }}"
+          $suffix = "${{ matrix.target }}-${{ matrix.profile }}"
+          foreach ($lib in @("ggml-base", "llama")) {
+            $src = Join-Path $targetDir "$lib.dll"
+            if (Test-Path $src) { Copy-Item $src ".\$lib-$suffix.dll" }
+          }
+          Get-ChildItem $targetDir -Filter "ggml-*.dll" |
+            Where-Object { $_.Name -ne "ggml-base.dll" } |
+            ForEach-Object { Copy-Item $_.FullName ".\$($_.BaseName)-$suffix.dll" }
+        shell: pwsh
+
       - name: "Upload build artifacts"
+        if: matrix.integration == 'flutter'
         uses: actions/upload-artifact@v4
         with:
           name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
           path: |
             ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dll
             ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
+
+      - name: "Upload build artifacts (Godot, with GGML backend libs)"
+        if: matrix.integration == 'godot'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
+          path: |
+            ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dll
+            ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
+            ./*-${{ matrix.target }}-${{ matrix.profile }}.dll
+          if-no-files-found: error
 
   cargo-build-macos:
     if: inputs.full_ci

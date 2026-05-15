@@ -48,11 +48,46 @@
         nobodywho-tested = workspace.workspaceMembers.nobodywho.build.override {
           runTests = true;
           testPreRun = ''
+            ${if pkgs.stdenv.isDarwin then ''
+              export PATH="${pkgs.darwin.cctools}/bin:${pkgs.darwin.sigtool}/bin:$PATH"
+            '' else ""}
+
             export TEST_MODEL=${test-models.TEST_MODEL}
             export TEST_EMBEDDINGS_MODEL=${test-models.TEST_EMBEDDINGS_MODEL}
             export TEST_CROSSENCODER_MODEL=${test-models.TEST_CROSSENCODER_MODEL}
 
-
+            # llama-cpp-2 bakes GGML_BACKENDS_DIR via option_env! at compile time. In the
+            # Nix sandbox that path is the llama-cpp-sys-2 build dir, which is destroyed
+            # when the sys derivation finishes — the test process finds zero dynamic backends
+            # and llama_model_load_from_file returns NULL. Find the installed backends dir
+            # from the Nix store and point GGML_BACKEND_DIR at it. On macOS we also need to
+            # patch the test binary's LC_RPATH so dyld can resolve @rpath/libggml-base.dylib.
+            for d in /nix/store/*-rust_llama-cpp-sys-2-*-lib/lib/llama-cpp-sys-2.out; do
+              if [ -d "$d/backends" ] && ls "$d"/backends/libggml-* >/dev/null 2>&1; then
+                export GGML_BACKEND_DIR="$d/backends"
+                libdir=""
+                for candidate in "$d/lib" "$d/lib64"; do
+                  if [ -d "$candidate" ] && ls "$candidate"/libggml-base.* >/dev/null 2>&1; then
+                    libdir="$candidate"
+                    break
+                  fi
+                done
+                if [ -n "$libdir" ]; then
+                  export LD_LIBRARY_PATH="$libdir''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+                  if command -v install_name_tool >/dev/null 2>&1; then
+                    for bin in target/debug/* target/debug/deps/*; do
+                      [ -f "$bin" ] || continue
+                      file "$bin" 2>/dev/null | grep -q 'Mach-O.*executable' || continue
+                      install_name_tool -add_rpath "$libdir" "$bin" 2>&1 || true
+                      if command -v codesign >/dev/null 2>&1; then
+                        codesign -fs - "$bin" 2>&1 || true
+                      fi
+                    done
+                  fi
+                fi
+                break
+              fi
+            done
           '';
         };
 
