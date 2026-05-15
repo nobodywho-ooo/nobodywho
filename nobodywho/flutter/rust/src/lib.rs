@@ -132,9 +132,13 @@ pub fn download_model(
         + 'static,
 ) -> Result<String, String> {
     let headers_vec: Vec<(String, String)> = headers.into_iter().collect();
-    nobodywho::llm::download_model(&model_path, headers_vec, Some(wrap_progress(on_download_progress)))
-        .map(|p| p.to_string_lossy().into_owned())
-        .map_err(|e| e.to_string())
+    nobodywho::llm::download_model(
+        &model_path,
+        headers_vec,
+        Some(wrap_progress(on_download_progress)),
+    )
+    .map(|p| p.to_string_lossy().into_owned())
+    .map_err(|e| e.to_string())
 }
 
 #[flutter_rust_bridge::frb(opaque)]

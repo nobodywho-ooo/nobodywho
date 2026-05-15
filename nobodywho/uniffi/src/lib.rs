@@ -238,18 +238,19 @@ pub async fn download_model(
     on_download_progress: Option<Box<dyn RustDownloadProgressCallback>>,
 ) -> Result<String, NobodyWhoError> {
     init_logging();
-    let headers_vec: Vec<(String, String)> = headers
-        .unwrap_or_default()
-        .into_iter()
-        .collect();
+    let headers_vec: Vec<(String, String)> = headers.unwrap_or_default().into_iter().collect();
     let progress = on_download_progress.map(wrap_progress);
     tokio::task::spawn_blocking(move || {
         nobodywho::llm::download_model(&model_path, headers_vec, progress)
             .map(|p| p.to_string_lossy().into_owned())
-            .map_err(|e| NobodyWhoError::Error { message: e.to_string() })
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })
     })
     .await
-    .map_err(|e| NobodyWhoError::Error { message: e.to_string() })?
+    .map_err(|e| NobodyWhoError::Error {
+        message: e.to_string(),
+    })?
 }
 
 // ---------- RustChat ----------
@@ -287,7 +288,9 @@ impl RustChat {
             .with_tools(core_tools)
             .with_sampler(sampler_config)
             .build_async()
-            .map_err(|e| NobodyWhoError::Error { message: e.to_string() })?;
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })?;
 
         Ok(Arc::new(Self { inner: chat }))
     }

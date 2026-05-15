@@ -308,8 +308,14 @@ impl ChatHandle {
         let join_handle = std::thread::spawn(move || {
             let worker = Worker::new_chat_worker(&model, config, should_stop_clone);
             let mut worker_state = match worker {
-                Ok(w) => { let _ = init_tx.send(Ok(())); w }
-                Err(e) => { let _ = init_tx.send(Err(e)); return; }
+                Ok(w) => {
+                    let _ = init_tx.send(Ok(()));
+                    w
+                }
+                Err(e) => {
+                    let _ = init_tx.send(Err(e));
+                    return;
+                }
             };
 
             while let Ok(msg) = msg_rx.recv() {
@@ -578,8 +584,14 @@ impl ChatHandleAsync {
         let join_handle = std::thread::spawn(move || {
             let worker = Worker::new_chat_worker(&model, config, should_stop_clone);
             let mut worker_state = match worker {
-                Ok(w) => { let _ = init_tx.send(Ok(())); w }
-                Err(e) => { let _ = init_tx.send(Err(e)); return; }
+                Ok(w) => {
+                    let _ = init_tx.send(Ok(()));
+                    w
+                }
+                Err(e) => {
+                    let _ = init_tx.send(Err(e));
+                    return;
+                }
             };
 
             while let Ok(msg) = msg_rx.recv() {
@@ -847,6 +859,7 @@ impl ChatHandleAsync {
 pub struct TokenStream {
     rx: tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>,
     completed_response: Option<String>,
+    error: Option<Box<dyn miette::Diagnostic + Send + Sync + 'static>>,
 }
 
 impl TokenStream {
@@ -854,12 +867,13 @@ impl TokenStream {
         Self {
             rx,
             completed_response: None,
+            error: None,
         }
     }
 
     /// Get the next token from the stream.
     pub fn next_token(&mut self) -> Option<String> {
-        if self.completed_response.is_some() {
+        if self.completed_response.is_some() || self.error.is_some() {
             return None;
         }
 
@@ -870,20 +884,25 @@ impl TokenStream {
                     self.completed_response = Some(completed_response);
                     return None;
                 }
+                llm::WriteOutput::Error(e) => {
+                    self.error = Some(e);
+                    return None;
+                }
             }
         }
         None
     }
 
-    /// Blocks until the  entire response is completed. Does not consume the response, so this
+    /// Blocks until the entire response is completed. Does not consume the response, so this
     /// method is idempotent.
     pub fn completed(&mut self) -> Result<String, crate::errors::CompletionError> {
         loop {
             match self.next_token() {
-                Some(_) => {
-                    continue;
-                }
+                Some(_) => continue,
                 None => {
+                    if let Some(e) = self.error.take() {
+                        return Err(crate::errors::CompletionError::WorkerError(e));
+                    }
                     return self
                         .completed_response
                         .clone()
@@ -898,6 +917,7 @@ impl TokenStream {
 pub struct TokenStreamAsync {
     rx: tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>,
     completed_response: Option<String>,
+    error: Option<Box<dyn miette::Diagnostic + Send + Sync + 'static>>,
 }
 
 impl TokenStreamAsync {
@@ -905,12 +925,13 @@ impl TokenStreamAsync {
         Self {
             rx,
             completed_response: None,
+            error: None,
         }
     }
 
     /// Waits for the next token in the stream. Consumes the token when emitted.
     pub async fn next_token(&mut self) -> Option<String> {
-        if self.completed_response.is_some() {
+        if self.completed_response.is_some() || self.error.is_some() {
             return None;
         }
 
@@ -919,6 +940,10 @@ impl TokenStreamAsync {
                 llm::WriteOutput::Token(token) => return Some(token),
                 llm::WriteOutput::Done(completed_response) => {
                     self.completed_response = Some(completed_response);
+                    return None;
+                }
+                llm::WriteOutput::Error(e) => {
+                    self.error = Some(e);
                     return None;
                 }
             }
@@ -931,10 +956,11 @@ impl TokenStreamAsync {
     pub async fn completed(&mut self) -> Result<String, crate::errors::CompletionError> {
         loop {
             match self.next_token().await {
-                Some(_) => {
-                    continue;
-                }
+                Some(_) => continue,
                 None => {
+                    if let Some(e) = self.error.take() {
+                        return Err(crate::errors::CompletionError::WorkerError(e));
+                    }
                     return self
                         .completed_response
                         .clone()
@@ -1056,6 +1082,7 @@ fn process_worker_msg(
     match msg {
         ChatMsg::Ask { prompt, output_tx } => {
             let should_stop = Arc::clone(&worker_state.extra.should_stop);
+            let error_tx = output_tx.clone();
             let callback = move |out| {
                 if output_tx.send(out).is_err() {
                     // Receiver was dropped or the buffer is full with nobody consuming.
@@ -1063,7 +1090,10 @@ fn process_worker_msg(
                     should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
                 }
             };
-            worker_state.ask(prompt, callback)?;
+            if let Err(e) = worker_state.ask(prompt, callback) {
+                let _ = error_tx.send(llm::WriteOutput::Error(Box::new(e)));
+                // Return Ok — error is communicated through the channel, worker stays alive.
+            }
         }
         ChatMsg::ResetChat {
             system_prompt,
@@ -1386,19 +1416,15 @@ impl Worker<'_, ChatWorker> {
 
         // Find indices to preserve
         let system_end = if messages[0].is_system() { 1 } else { 0 };
-        let first_user_message_index =
-            self.find_next_user_message(&messages, system_end)
-                .ok_or(ShiftError::Message(
-                    "No first user message in chat history".into(),
-                ))?;
+        let first_user_message_index = self
+            .find_next_user_message(&messages, system_end)
+            .ok_or(ShiftError::NoUserMessages)?;
         let first_deletable_index = self
             .find_next_user_message(&messages, first_user_message_index + 1)
-            .ok_or(ShiftError::Message("No deletable messages".into()))?; // Assuming assistant after user
+            .ok_or(ShiftError::TooFewMessages)?;
         let mut last_deletable_index = self
             .find_start_of_last_n_user_messages(&messages, 2)
-            .ok_or(ShiftError::Message(
-                "Less than two user messages in chat history.".into(),
-            ))?
+            .ok_or(ShiftError::TooFewMessages)?
             - 1;
 
         // Two is the smallest number of messages we can delete as we need to preserve the message structure.
@@ -1429,8 +1455,8 @@ impl Worker<'_, ChatWorker> {
             // This is to ensure that resulting chat history still follows the user then assistant format
             let delete_index = min(
                 self.find_next_user_message(&messages, target_delete_index + 1)
-                    .ok_or(ShiftError::Message(
-                        "Could find user message supposed to be there".into(),
+                    .ok_or(ShiftError::InternalError(
+                        "Could not find user message supposed to be there".into(),
                     ))?
                     - 1,
                 last_deletable_index,
@@ -1989,7 +2015,7 @@ where
                     .send(resp.clone())
                     .expect("Failed sending response");
             }
-            llm::WriteOutput::Token(_) => (),
+            llm::WriteOutput::Token(_) | llm::WriteOutput::Error(_) => (),
         }
         if emitting {
             respond(x)
@@ -2156,6 +2182,7 @@ mod tests {
             llm::WriteOutput::Done(resp) => {
                 sender.send(resp).unwrap();
             }
+            llm::WriteOutput::Error(_) => (),
         };
 
         worker.ask("Count from 0 to 9".into(), f.clone())?;
@@ -2312,7 +2339,8 @@ mod tests {
         let chat = ChatBuilder::new(model)
             .with_context_size(2048)
             .with_system_prompt(Some("You are a dog. End all responses with woof."))
-            .build().expect("chat build failed in test");
+            .build()
+            .expect("chat build failed in test");
 
         let dog_response = chat.ask("Hello!").completed().unwrap();
 
@@ -2724,7 +2752,8 @@ mod tests {
             let chat = ChatBuilder::new(model_clone)
                 .with_context_size(4096)
                 .with_template_variable("enable_thinking".to_string(), false)
-                .build().expect("chat build failed in test");
+                .build()
+                .expect("chat build failed in test");
 
             chat.ask("What is the capital of Denmark?").completed()
         });
@@ -2734,7 +2763,8 @@ mod tests {
             let chat = ChatBuilder::new(model)
                 .with_context_size(4096)
                 .with_template_variable("enable_thinking".to_string(), false)
-                .build().expect("chat build failed in test");
+                .build()
+                .expect("chat build failed in test");
 
             chat.ask("What is the capital of Germany?").completed()
         });
@@ -2762,7 +2792,9 @@ mod tests {
     async fn test_enable_thinking() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let chat = ChatBuilder::new(model).build_async().expect("chat build_async failed in test");
+        let chat = ChatBuilder::new(model)
+            .build_async()
+            .expect("chat build_async failed in test");
 
         let res1: String = chat
             .ask("What is the capital of Denmark?".to_string())
@@ -2798,7 +2830,8 @@ mod tests {
         let chat = ChatBuilder::new(model)
             .with_context_size(2048)
             .with_template_variable("enable_thinking".to_string(), false)
-            .build().expect("chat build failed in test");
+            .build()
+            .expect("chat build failed in test");
 
         chat.set_sampler_config(SamplerPresets::greedy()).unwrap();
 
@@ -2823,7 +2856,8 @@ mod tests {
         let chat = ChatBuilder::new(model)
             .with_context_size(2048)
             .with_template_variable("enable_thinking".to_string(), false)
-            .build().expect("chat build failed in test");
+            .build()
+            .expect("chat build failed in test");
         let _ = chat.reset_history();
         let resp = chat
             .ask("What is the capital of Denmark?")

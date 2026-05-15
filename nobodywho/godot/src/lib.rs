@@ -251,7 +251,10 @@ impl NobodyWhoDownloader {
                 .headers
                 .iter_shared()
                 .filter_map(|(k, v)| {
-                    Some((k.try_to::<GString>().ok()?.to_string(), v.try_to::<GString>().ok()?.to_string()))
+                    Some((
+                        k.try_to::<GString>().ok()?.to_string(),
+                        v.try_to::<GString>().ok()?.to_string(),
+                    ))
                 })
                 .collect();
             (path, headers)
@@ -284,7 +287,10 @@ impl NobodyWhoDownloader {
         };
 
         while let Ok((d, t)) = rx.try_recv() {
-            emit_node.signals().download_progress().emit(d as i64, t as i64);
+            emit_node
+                .signals()
+                .download_progress()
+                .emit(d as i64, t as i64);
         }
 
         Ok(local_path)
@@ -298,10 +304,16 @@ impl NobodyWhoDownloader {
         godot::task::spawn(async move {
             let me_emit = me.clone();
             match Self::download_detached(me).await {
-                Ok(path) => me_emit.signals().download_complete().emit(&GString::from(path.as_str())),
+                Ok(path) => me_emit
+                    .signals()
+                    .download_complete()
+                    .emit(&GString::from(path.as_str())),
                 Err(e) => {
                     godot_error!("Download failed: {}", e);
-                    me_emit.signals().download_failed().emit(&GString::from(e.as_str()));
+                    me_emit
+                        .signals()
+                        .download_failed()
+                        .emit(&GString::from(e.as_str()));
                 }
             }
         });
@@ -469,7 +481,8 @@ impl NobodyWhoChat {
                 template_variables,
                 sampler_config: None,
             },
-        ).map_err(|e| GString::from(e.to_string().as_str()))?;
+        )
+        .map_err(|e| GString::from(e.to_string().as_str()))?;
 
         // Safe: we're past an `.await`, so the caller's `&mut self` borrow is gone.
         // If a concurrent load raced us, prefer the existing handle.
@@ -633,6 +646,12 @@ impl NobodyWhoChat {
                         .signals()
                         .response_finished()
                         .emit(&GString::from(resp.as_str())),
+                    nobodywho::llm::WriteOutput::Error(e) => {
+                        let errmsg = e.to_string();
+                        godot_error!("Error during generation: {}", errmsg);
+                        emit_node.signals().worker_failed().emit(&errmsg);
+                        return;
+                    }
                 }
             }
         });

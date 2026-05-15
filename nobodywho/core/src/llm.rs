@@ -439,7 +439,9 @@ fn download_file(
         request = request.header(name.as_str(), value.as_str());
     }
     let response = request.call().map_err(|e| match e {
-        ureq::Error::StatusCode(status) => crate::errors::LoadModelError::from_http_status(url, status),
+        ureq::Error::StatusCode(status) => {
+            crate::errors::LoadModelError::from_http_status(url, status)
+        }
         e => crate::errors::LoadModelError::DownloadError(format!("HTTP request failed: {e}")),
     })?;
 
@@ -624,6 +626,9 @@ pub(crate) struct Worker<'a, S> {
     pub(crate) projection_model: Option<&'a ProjectionModel>,
     pub(crate) tokenizer: Tokenizer<'a>,
     pub(crate) use_embeddings: bool,
+    // The configured n_batch (= planned n_ctx before llama.cpp's internal rounding).
+    // Used to guard against sending more tokens than the context can decode in one batch.
+    pub(crate) n_batch: usize,
 
     pub(crate) extra: S,
 }
@@ -638,10 +643,10 @@ impl<'a, T> PoolingType for Worker<'a, T> {
     }
 }
 
-#[derive(Debug)]
 pub enum WriteOutput {
     Token(String),
     Done(String),
+    Error(Box<dyn miette::Diagnostic + Send + Sync + 'static>),
 }
 
 // Common methods for any workstate type
@@ -660,7 +665,7 @@ where
         let projection_model = model.projection_model.as_ref();
 
         // Set up context parameters using available parallelism
-        let ctx = {
+        let (ctx, n_batch) = {
             let n_threads = std::thread::available_parallelism()?.get() as i32;
             let ctx_plan = memory::plan_context(
                 std::cmp::min(n_ctx, model.language_model.n_ctx_train()),
@@ -688,9 +693,10 @@ where
                 .with_pooling_type(extra.pooling_type());
 
             // Create inference context and sampler
-            model
+            let ctx = model
                 .language_model
-                .new_context(&LLAMA_BACKEND, ctx_params)?
+                .new_context(&LLAMA_BACKEND, ctx_params)?;
+            (ctx, n_ctx as usize)
         };
 
         let big_batch = LlamaBatch::new(ctx.n_ctx() as usize, 1);
@@ -707,6 +713,7 @@ where
             big_batch,
             small_batch,
             projection_model,
+            n_batch,
             extra,
             tokenizer,
             use_embeddings,
@@ -799,8 +806,13 @@ where
 
         // can't read nothing
         debug_assert!(!tokens.is_empty());
-        // can't read more than the context size
-        debug_assert!(tokens.len() < self.ctx.n_ctx() as usize);
+
+        if n_tokens > self.n_batch {
+            return Err(ReadError::InputExceedsContext {
+                n_tokens,
+                n_ctx: self.n_batch,
+            });
+        }
 
         {
             debug!("Populating batch");

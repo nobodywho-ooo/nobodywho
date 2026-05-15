@@ -239,7 +239,7 @@ impl TokenStream {
     ///     RuntimeError: If generation fails.
     pub fn completed(&mut self, py: Python) -> PyResult<String> {
         py.detach(|| self.stream.completed())
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))
     }
 
     // sync iterator stuff
@@ -1350,7 +1350,7 @@ fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> PyResult<f32> {
 /// Raises:
 ///     RuntimeError: If the download fails
 #[pyfunction]
-#[pyo3(signature = (model_path, headers=None, on_download_progress=None))]
+#[pyo3(signature = (model_path, headers=None, on_download_progress: "typing.Callable[[int, int], None] | None" = None))]
 fn download_model(
     model_path: std::path::PathBuf,
     headers: Option<std::collections::HashMap<String, String>>,
@@ -1362,10 +1362,7 @@ fn download_model(
             model_path.display()
         ))
     })?;
-    let headers_vec: Vec<(String, String)> = headers
-        .unwrap_or_default()
-        .into_iter()
-        .collect();
+    let headers_vec: Vec<(String, String)> = headers.unwrap_or_default().into_iter().collect();
     let progress = resolve_on_download_progress(on_download_progress)?;
     nobodywho::llm::download_model(path_str, headers_vec, progress)
         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))
@@ -2613,11 +2610,11 @@ pub mod nobodywhopython {
     }
 
     #[pymodule_export]
-    use super::download_model;
-    #[pymodule_export]
     use super::bash_tool;
     #[pymodule_export]
     use super::cosine_similarity;
+    #[pymodule_export]
+    use super::download_model;
     #[pymodule_export]
     use super::python_tool;
     #[pymodule_export]

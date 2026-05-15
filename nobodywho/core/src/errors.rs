@@ -2,9 +2,10 @@ use llama_cpp_2::{context::kv_cache::KvCacheConversionError, TokenToStringError}
 
 // Memory errors
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum MemoryError {
-    #[error("Not enough memory for context. Required: ~{required_gb:.1} GB, available: ~{available_gb:.1} GB. {suggestion}")]
+    #[error("Not enough memory for context. Required: ~{required_gb:.1} GB, available: ~{available_gb:.1} GB")]
+    #[diagnostic(code(nobodywho::insufficient_memory), help("{suggestion}"))]
     InsufficientMemory {
         required_gb: f64,
         available_gb: f64,
@@ -147,12 +148,19 @@ fn extract_hf_model_page(url: &str) -> Option<String> {
 impl LoadModelError {
     pub fn from_http_status(url: &str, status: u16) -> Self {
         match status {
-            401 => LoadModelError::DownloadUnauthorized { url: url.to_owned() },
+            401 => LoadModelError::DownloadUnauthorized {
+                url: url.to_owned(),
+            },
             403 => {
                 let model_page_url = extract_hf_model_page(url).unwrap_or_else(|| url.to_owned());
-                LoadModelError::DownloadForbidden { url: url.to_owned(), model_page_url }
+                LoadModelError::DownloadForbidden {
+                    url: url.to_owned(),
+                    model_page_url,
+                }
             }
-            404 => LoadModelError::DownloadNotFound { url: url.to_owned() },
+            404 => LoadModelError::DownloadNotFound {
+                url: url.to_owned(),
+            },
             _ => LoadModelError::DownloadError(format!("http status: {status}")),
         }
     }
@@ -267,6 +275,7 @@ pub enum InitWorkerError {
     ProjectionModel(#[from] MultimodalError),
 
     #[error("Insufficient memory for context: {0}")]
+    #[diagnostic(transparent)]
     Memory(#[from] MemoryError),
 }
 
@@ -324,7 +333,7 @@ pub enum GetterError {
     GetterError(String),
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum ReadError {
     #[error("Could not add to batch: {0}")]
     BatchAdd(#[from] llama_cpp_2::llama_batch::BatchAddError),
@@ -340,6 +349,16 @@ pub enum ReadError {
 
     #[error("Could not tokenize string: {0}")]
     FailedToTokenize(#[from] TokenizationError),
+
+    #[error("Input is too large for the context window: {n_tokens} tokens but n_ctx is {n_ctx}")]
+    #[diagnostic(
+        code(nobodywho::input_exceeds_context),
+        help(
+            "The message is too large to fit in the context window.\n\
+             Either shorten the message, or increase n_ctx when constructing Chat."
+        )
+    )]
+    InputExceedsContext { n_tokens: usize, n_ctx: usize },
 }
 
 // CrossEncoderWorker errors
@@ -411,9 +430,10 @@ pub(crate) enum ChatWorkerError {
     SetTools(#[from] SetToolsError),
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum WrappedResponseError {
     #[error("Error during context shift: {0}")]
+    #[diagnostic(transparent)]
     Shift(#[from] ShiftError),
 
     #[error("Error rendering chat history with chat template: {0}")]
@@ -423,9 +443,11 @@ pub enum WrappedResponseError {
     KVCacheUpdate(#[from] KvCacheConversionError),
 
     #[error("Error syncing context and reading prompt: {0}")]
+    #[diagnostic(transparent)]
     ReadError(#[from] ContextSyncError),
 
     #[error("Error while generating response: {0}")]
+    #[diagnostic(transparent)]
     GenerateResponse(#[from] GenerateResponseError),
 
     #[error("Error receiving generated response: {0}")]
@@ -440,8 +462,7 @@ pub enum InferenceError {
     #[error("Error while generating response: {0}")]
     GenerateResponse(#[from] GenerateResponseError),
 }
-#[derive(Debug, thiserror::Error)]
-
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum GenerateResponseError {
     #[error("Error removing tokens from context after context shift")]
     KVCacheUpdate(#[from] KvCacheConversionError),
@@ -456,6 +477,13 @@ pub enum GenerateResponseError {
     ReadError(#[from] ContextSyncError),
 
     #[error("Error during context shift: {0}")]
+    #[diagnostic(
+        code(nobodywho::context_too_small_for_response),
+        help(
+            "The message fits in the context but there is not enough room left for the response.\n\
+             Either shorten the message or increase n_ctx when constructing Chat."
+        )
+    )]
     Shift(#[from] ShiftError),
 
     #[error("Error converting token to bytes: {0}")]
@@ -498,7 +526,7 @@ pub enum DecodingError {
     Decode(#[from] llama_cpp_2::DecodeError),
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum SayError {
     #[error("Error getting response: {0}")]
     Response(#[from] std::sync::mpsc::RecvError),
@@ -507,6 +535,7 @@ pub enum SayError {
     Render(#[from] RenderError),
 
     #[error("Error creating response: {0}")]
+    #[diagnostic(transparent)]
     WrappedResponse(#[from] WrappedResponseError),
 
     #[error("Tokenization error: {0}")]
@@ -516,6 +545,7 @@ pub enum SayError {
     Multimodal(#[from] MultimodalError),
 
     #[error("Error generating response: {0}")]
+    #[diagnostic(transparent)]
     GenerateResponse(#[from] GenerateResponseError),
 }
 
@@ -566,10 +596,30 @@ pub enum TokenizationError {
     },
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum ShiftError {
-    #[error("Missing expected message {0}")]
-    Message(String),
+    #[error("Context shift failed: no user messages in chat history")]
+    #[diagnostic(
+        code(nobodywho::context_shift_no_user_messages),
+        help(
+            "The chat history appears to be corrupted - it contains no user messages.\n\
+             Are you calling set_chat_history() with a history that has no user messages?"
+        )
+    )]
+    NoUserMessages,
+
+    #[error("Context shift failed: not enough messages to shift")]
+    #[diagnostic(
+        code(nobodywho::context_shift_too_few_messages),
+        help(
+            "There is likely only one large message which is larger than the context window.\n\
+             Either shorten the message so it fits into the context, or increase the context size by setting a larger n_ctx."
+        )
+    )]
+    TooFewMessages,
+
+    #[error("Context shift failed: internal error: {0}")]
+    InternalError(String),
 
     #[error("Could not tokenize template render {0}")]
     StringToToken(#[from] llama_cpp_2::StringToTokenError),
@@ -578,13 +628,14 @@ pub enum ShiftError {
     TemplateRender(#[from] RenderError),
 
     #[error("Error reading token render into model {0}")]
+    #[diagnostic(transparent)]
     KVCacheUpdate(#[from] ReadError),
 
     #[error("Could not tokenize string: {0}")]
     Tokenize(#[from] TokenizationError),
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum ContextSyncError {
     #[error("Error removing tokens from context {0}")]
     KvCacheConversionError(#[from] KvCacheConversionError),
@@ -596,12 +647,14 @@ pub enum ContextSyncError {
     TemplateRender(#[from] RenderError),
 
     #[error("Error reading token render into model {0}")]
+    #[diagnostic(transparent)]
     KVCacheUpdate(#[from] ReadError),
 
     #[error("Error tokenizing chunks: {0}")]
     Tokenize(#[from] TokenizationError),
 
     #[error("Error shifting context: {0}")]
+    #[diagnostic(transparent)]
     Shift(#[from] ShiftError),
 }
 
@@ -651,8 +704,12 @@ pub enum SetToolsError {
     Render(#[from] RenderError),
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum CompletionError {
     #[error("Worker thread terminated before completing the response. This usually indicates an error occurred during token generation (e.g., context shift failure, sampling error, or token decoding issue).")]
     WorkerCrashed,
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    WorkerError(Box<dyn miette::Diagnostic + Send + Sync + 'static>),
 }
