@@ -50,7 +50,7 @@ Another way to achieve the same thing is to load the model separately and then u
 import NobodyWho
 
 let model = try await Model.load(modelPath: "/path/to/model.gguf")
-let chat = Chat(model: model)
+let chat = try Chat(model: model)
 ```
 
 The `Model.load` function also supports `hf://` and `https://` URLs, as well as `onDownloadProgress`:
@@ -166,8 +166,8 @@ There are scenarios where you would like to keep separate chat contexts (e.g. fo
 
 ```swift
 let model = try await Model.load(modelPath: "/path/to/model.gguf")
-let chat1 = Chat(model: model)
-let chat2 = Chat(model: model)
+let chat1 = try Chat(model: model)
+let chat2 = try Chat(model: model)
 ```
 
 NobodyWho will then take care of the separation, such that your chat histories won't collide or interfere with each other, while having only one model loaded.

@@ -41,7 +41,7 @@ let model = try await Model.load(
     modelPath: "/path/to/vision-model.gguf",
     projectionModelPath: "/path/to/mmproj.gguf"
 )
-let chat = Chat(model: model, systemPrompt: "You are a helpful assistant.")
+let chat = try Chat(model: model, systemPrompt: "You are a helpful assistant.")
 ```
 
 !!! info ""
