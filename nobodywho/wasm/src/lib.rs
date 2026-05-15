@@ -32,31 +32,43 @@ use wasm_bindgen::prelude::*;
 #[no_mangle]
 pub extern "C" fn _initialize() {}
 
-// Override wasi-libc's `__cxa_atexit` to a no-op.
-//
-// The default rust-lld 22.1 wasm driver doesn't understand
-// `--mexec-model=reactor`, so it leaves the cdylib in the "command" exec
-// model: every wasm-bindgen export gets wrapped with __wasm_call_ctors +
-// __wasm_call_dtors. The dtor walk runs `__funcs_on_exit`, which iterates
-// `__cxa_atexit`-registered handlers and calls each. At least one of those
-// is registered with a wasm signature that doesn't match how
-// __funcs_on_exit invokes it, producing
-//
-//   RuntimeError: function signature mismatch
-//
-// on the FIRST export call after instantiation, before any of our code
-// runs. The handlers are global-destructor callbacks libc++ registers
-// during static init.
-//
-// Workaround: define `__cxa_atexit` ourselves and have it ignore the
-// registration. Global destructors won't run at module shutdown (which
-// is fine — the wasm instance lives for the lifetime of the JS process
-// anyway, and the OS reclaims the heap), but the dtor walk becomes a
-// no-op and the signature-mismatch goes away.
-//
-// `#[no_mangle]` puts the symbol at file scope; in the wasm link, ours
-// wins over wasi-libc's definition because rustc-emitted symbols are
-// resolved before sysroot archives.
+/// Override wasi-libc's `__cxa_atexit` to a no-op.
+///
+/// The default rust-lld 22.1 wasm driver doesn't understand
+/// `--mexec-model=reactor`, so it leaves the cdylib in the "command" exec
+/// model: every wasm-bindgen export gets wrapped with `__wasm_call_ctors` +
+/// `__wasm_call_dtors`. The dtor walk runs `__funcs_on_exit`, which iterates
+/// `__cxa_atexit`-registered handlers and calls each. At least one of those
+/// is registered with a wasm signature that doesn't match how
+/// `__funcs_on_exit` invokes it, producing
+///
+/// ```text
+///   RuntimeError: function signature mismatch
+/// ```
+///
+/// on the FIRST export call after instantiation, before any of our code
+/// runs. The handlers are global-destructor callbacks libc++ registers
+/// during static init.
+///
+/// Workaround: define `__cxa_atexit` ourselves and have it ignore the
+/// registration. Global destructors won't run at module shutdown (which
+/// is fine — the wasm instance lives for the lifetime of the JS process
+/// anyway, and the OS reclaims the heap), but the dtor walk becomes a
+/// no-op and the signature-mismatch goes away.
+///
+/// `#[no_mangle]` puts the symbol at file scope; in the wasm link, ours
+/// wins over wasi-libc's definition because rustc-emitted symbols are
+/// resolved before sysroot archives.
+///
+/// # Safety
+///
+/// Declared `unsafe` because the C ABI passes a function pointer and a raw
+/// `*mut c_void` argument we can neither validate nor dereference. We do
+/// neither — we ignore all three arguments and return success. That makes
+/// this implementation trivially safe to call from any caller (no UB
+/// regardless of what handlers libc++ tries to register), at the cost of
+/// silently dropping every registration. See the "Workaround:" paragraph
+/// above for why dropping them is acceptable on this target.
 #[cfg(target_arch = "wasm32")]
 #[no_mangle]
 pub unsafe extern "C" fn __cxa_atexit(
