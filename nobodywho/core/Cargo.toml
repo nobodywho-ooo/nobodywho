@@ -9,6 +9,18 @@ default = ["mtmd"]
 # C++ library. Default-on for native; the wasm binding opts out because
 # the underlying C++ pulls in libraries (miniaudio with pthread sched
 # APIs) that don't compile against wasi-libc.
+#
+# This feature is effectively a wasm-only opt-out — native consumers
+# should keep the default. On native, disabling it propagates to
+# llama-cpp-2, the mtmd Rust module disappears, and code in core that
+# refers to `MtmdBitmap` / `MtmdInputChunks` / etc. (in tokenizer.rs,
+# chat.rs, llm.rs) fails to compile. On wasm32, the fork of llama-cpp-2
+# keeps bindgen running against the mtmd headers even with the feature
+# off, so the Rust types stay in scope and only the C++ link is gated —
+# `mtmd_*` functions resolve to unresolved wasm imports that the JS
+# host stubs. That asymmetry is what lets the wasm crate `default-
+# features = false` cleanly while native still gets the full
+# multimodal API.
 mtmd = ["llama-cpp-2/mtmd"]
 
 [dependencies]
