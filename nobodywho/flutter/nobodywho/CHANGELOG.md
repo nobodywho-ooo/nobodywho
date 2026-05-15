@@ -1,3 +1,13 @@
+## 2.2.0
+
+### Improved error messages (#532)
+
+Clearer, more actionable errors for the three places users most often hit trouble: model loading, model downloading, and context shifting. Messages now point at the likely cause (bad path, network failure, OOM, context window exhausted) instead of surfacing raw lower-level errors.
+
+### watchOS build fix (#527)
+
+Updated the `llama-cpp-rs` fork so Metal isn't built for watchOS targets, unblocking watchOS builds.
+
 ## 2.1.0
 
 ### Grammar sampling revamp (#524)
