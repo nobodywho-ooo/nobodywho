@@ -117,25 +117,41 @@ where
 
 // ---------- Streaming hook RAII (wasm32 only) ----------
 //
-// Install a core::llm streaming hook on construction; restore the previous one
-// on drop. Lets `Chat::ask_streaming` thread a JS callback into the
-// (synchronous) chat-worker inference loop without leaking the hook past the
-// call's lifetime even if it's interrupted by an error.
+// RAII guard for the per-thread streaming hook in `core::llm`. `install`
+// refuses to overwrite an existing hook — overlapping `askStreaming` calls
+// can't share the slot because the chat worker processes asks FIFO but
+// installs are LIFO, so two concurrent installs would misroute tokens. See
+// the doc on `core::llm::set_streaming_hook` for the underlying reason.
+// Drop unconditionally clears, which is safe because we only construct when
+// the slot was empty before our write.
 #[cfg(target_arch = "wasm32")]
-struct HookRestore {
-    previous: Option<Box<dyn Fn(&str)>>,
-}
+struct HookRestore;
 #[cfg(target_arch = "wasm32")]
 impl HookRestore {
-    fn install(hook: Box<dyn Fn(&str)>) -> Self {
-        let previous = nobodywho::llm::set_streaming_hook(Some(hook));
-        Self { previous }
+    fn install(hook: Box<dyn Fn(&str)>) -> Result<Self, JsError> {
+        let displaced = nobodywho::llm::set_streaming_hook(Some(hook));
+        if displaced.is_some() {
+            // Put it back. set_streaming_hook returns Some(our_hook) here,
+            // which we drop on the floor — fine, because we're erroring out
+            // and the on_token capture inside it is no longer needed.
+            let _ = nobodywho::llm::set_streaming_hook(displaced);
+            return Err(JsError::new(
+                "askStreaming: another streaming call is already in progress; \
+                 await the previous askStreaming promise before starting a new one",
+            ));
+        }
+        Ok(Self)
     }
 }
 #[cfg(target_arch = "wasm32")]
 impl Drop for HookRestore {
     fn drop(&mut self) {
-        nobodywho::llm::set_streaming_hook(self.previous.take());
+        // `install` only constructs Self when the slot was empty before our
+        // write, so the slot stays "ours alone" for our lifetime (single-
+        // threaded wasm guarantees no other code can observe or mutate it
+        // while this future is suspended on an await). Clearing to None on
+        // drop is therefore equivalent to "restore previous."
+        nobodywho::llm::set_streaming_hook(None);
     }
 }
 
@@ -295,6 +311,20 @@ impl Chat {
     /// `self.postMessage(token)` from a Web Worker, which is non-blocking, so
     /// the main thread sees tokens as they're produced.
     ///
+    /// **Concurrency: one streaming call per thread at a time.** If a previous
+    /// `askStreaming` is still in flight when this is called, the returned
+    /// Promise rejects with an "already in progress" error — await the
+    /// previous one first. The constraint is per-thread, so it also applies
+    /// across `Chat` instances that share a thread (e.g. two `Chat`s in the
+    /// same Web Worker).
+    ///
+    /// **Don't mix with `ask` mid-flight.** The worker fires the streaming
+    /// hook for every generated token regardless of which API initiated the
+    /// Ask, so an in-flight (non-streaming) `ask`'s tokens would be misrouted
+    /// through a later `askStreaming` callback. Serialize: drain the
+    /// `TokenStream` (or await its `completed()`) before starting an
+    /// `askStreaming` on the same `Chat`.
+    ///
     /// JS usage from inside a Worker:
     /// ```js
     /// chat.askStreaming(prompt, (tok) => self.postMessage({type: 'token', token: tok}))
@@ -304,12 +334,14 @@ impl Chat {
     pub fn ask_streaming(&self, prompt: String, on_token: js_sys::Function) -> js_sys::Promise {
         let handle = self.handle.clone();
         promisify(async move {
-            // Install the streaming hook for the duration of this call.
-            // Save and restore so we don't clobber a nested caller's hook.
+            // Install the per-thread streaming hook for the duration of this
+            // call. `install` fails if another streaming call is already in
+            // flight on this thread — propagate that as a rejected Promise
+            // rather than silently misrouting tokens.
             #[cfg(target_arch = "wasm32")]
             let _restore = HookRestore::install(Box::new(move |tok| {
                 let _ = on_token.call1(&JsValue::null(), &JsValue::from_str(tok));
-            }));
+            }))?;
             #[cfg(not(target_arch = "wasm32"))]
             let _ = &on_token;
 

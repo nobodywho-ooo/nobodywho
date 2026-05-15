@@ -40,7 +40,9 @@ use tracing::info_span;
 // only drain after.
 //
 // Single-threaded only by construction: wasm32 has one thread, the hook is
-// per-thread, and `Worker::ask` is the only consumer.
+// per-thread, and only one logical consumer can be active at a time — see
+// `set_streaming_hook` for why overlap is not supported. Enforcement lives
+// at the binding boundary, not here.
 #[cfg(target_arch = "wasm32")]
 mod streaming_hook {
     use std::cell::RefCell;
@@ -49,9 +51,16 @@ mod streaming_hook {
         static HOOK: RefCell<Option<Hook>> = const { RefCell::new(None) };
     }
 
-    /// Install a streaming callback. Returns the previous one, if any —
-    /// callers (the wasm Chat binding) should save and restore it so nested
-    /// or concurrent asks each see their own hook.
+    /// Install a streaming callback. Returns whatever was in the slot before;
+    /// the caller decides whether to restore or discard it.
+    ///
+    /// Only one logical consumer can use this at a time. The chat worker
+    /// processes asks FIFO, but installs are stack-shaped (LIFO), so two
+    /// overlapping consumers would misroute tokens — the inner install
+    /// displaces the outer, and the outer's still-running inference would
+    /// fire tokens through the inner's hook. Enforcement is the caller's
+    /// responsibility: inspect the returned previous value and refuse to
+    /// proceed if it's `Some`.
     pub fn set_streaming_hook(hook: Option<Hook>) -> Option<Hook> {
         HOOK.with(|h| std::mem::replace(&mut *h.borrow_mut(), hook))
     }
