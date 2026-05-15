@@ -222,7 +222,7 @@ pub(crate) fn plan_context(
 
     if kv_estimate > total_available {
         let max_n_ctx = (total_available * n_ctx as u64 / kv_estimate) as u32;
-        return Err(MemoryError::InsufficientMemory {
+        return Err(MemoryError::ContextCreationFailed {
             required_gb: kv_estimate as f64 / 1e9,
             available_gb: available_gb_label,
             suggestion: format!("reduce n_ctx to {max_n_ctx}"),
