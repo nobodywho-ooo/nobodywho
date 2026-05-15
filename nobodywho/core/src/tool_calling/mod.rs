@@ -14,11 +14,16 @@ mod ministral3;
 mod qwen3;
 mod qwen35_36;
 
+#[cfg(not(target_arch = "wasm32"))]
 use bashkit::{ExecutionLimits, InMemoryFs};
 use llama_cpp_2::model::LlamaModel;
+#[cfg(not(target_arch = "wasm32"))]
 use monty::{LimitedTracker, MontyRun, PrintWriter, ResourceLimits};
 use serde::{ser::Serializer, Deserialize, Serialize};
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
+// `Duration` is only used by the native-only `Tool::python` builder.
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Duration;
 use tracing::debug;
 
 pub use functiongemma::FunctionGemmaHandler;
@@ -66,6 +71,10 @@ impl Tool {
         }
     }
 
+    /// Built-in Python tool, backed by the `monty` interpreter. Native-only:
+    /// `monty` does not currently target wasm32. wasm consumers can still call
+    /// `Tool::new` with their own JS-side Python implementation if needed.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn python(
         max_duration: Option<Duration>,
         max_memory: Option<usize>,
@@ -121,6 +130,11 @@ impl Tool {
         )
     }
 
+    /// Built-in bash tool, backed by the `bashkit` virtual interpreter.
+    /// Native-only: `bashkit` requires `tokio/full` (mio + sockets) which
+    /// doesn't compile to wasm32. wasm consumers don't typically have a
+    /// shell concept anyway; if needed, define a custom tool via `Tool::new`.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn bash(max_commands: Option<usize>) -> Self {
         Tool::new(
             "run_bash",

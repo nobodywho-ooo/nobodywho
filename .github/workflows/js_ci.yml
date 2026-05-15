@@ -1,0 +1,119 @@
+name: "JS CI"
+
+# Builds the wasm32-unknown-unknown target via wasi-sdk + wasm-bindgen and
+# runs the no-model smoke test in Node. Skips actually loading a GGUF —
+# that requires hosting a multi-MB model file somewhere.
+
+on:
+  workflow_call: {}
+
+jobs:
+  js-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Cache cargo registry + git deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            nobodywho/target
+          key: js-${{ runner.os }}-${{ hashFiles('nobodywho/Cargo.lock') }}
+          restore-keys: |
+            js-${{ runner.os }}-
+
+      - name: Install wasi-sdk
+        run: |
+          set -euo pipefail
+          cd ~
+          curl -L https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-33/wasi-sdk-33.0-x86_64-linux.tar.gz \
+            | tar -xz
+          echo "WASI_SDK_PATH=$HOME/wasi-sdk-33.0-x86_64-linux" >> "$GITHUB_ENV"
+
+      - name: Install rustup wasm target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Install wasm-bindgen-cli
+        # Version is read from Cargo.lock so the CLI and the runtime glue
+        # baked into the .wasm always match. See wasm-bindgen-version.sh.
+        run: |
+          version=$(bash nobodywho/js/scripts/wasm-bindgen-version.sh)
+          echo "Installing wasm-bindgen-cli v$version (from Cargo.lock)"
+          cargo install wasm-bindgen-cli --version "$version" --locked
+
+      - name: Build wasm32-unknown-unknown (release)
+        working-directory: nobodywho
+        run: cargo build --target wasm32-unknown-unknown --release -p nobodywho-js
+
+      - name: Run wasm-bindgen
+        working-directory: nobodywho
+        run: |
+          mkdir -p js/pkg-bundler
+          wasm-bindgen --target bundler \
+            target/wasm32-unknown-unknown/release/nobodywho_js.wasm \
+            --out-dir js/pkg-bundler/
+
+      # Node 26+ is required. wasi-sdk's libc++ STL emits both noexternref
+      # (WasmGC) and exn (wasm Exception Handling) types in functions like
+      # money_get<wchar_t>. Older Nodes flag these as experimental and
+      # refuse to compile without flags:
+      #   - Node 20.x: "invalid value type 'noexternref', enable with
+      #     --experimental-wasm-gc"
+      #   - Node 22.x: gets past compile but SIGSEGVs in V8 on Linux x86_64
+      #     once llama.cpp's compute path runs (likely SIMD128 codegen bug,
+      #     fixed in Node 24). Doesn't reproduce on macOS arm64.
+      #   - Node 24.x: "invalid value type 'exn', enable with
+      #     --experimental-wasm-exnref"
+      #   - Node 26.x: enables both by default — runs end-to-end with no
+      #     flag tweaking.
+      - name: Set up Node 26
+        uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+
+      - name: Smoke test under Node (no model)
+        working-directory: nobodywho
+        run: node js/examples/run.mjs
+
+      - name: Download a tiny embedding GGUF
+        working-directory: /tmp
+        run: |
+          # Use a small embedding model so we can exercise Model.loadBytes +
+          # Encoder.encode end-to-end in CI without burning a lot of time
+          # downloading. bge-small-en-v1.5 Q8_0 is 35 MB.
+          curl -L --fail -o bge-small.gguf \
+            'https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf'
+          ls -lh bge-small.gguf
+
+      - name: End-to-end embedding test
+        working-directory: nobodywho
+        run: |
+          # Run encode, parse out the first dim, sanity-check it's a finite
+          # float (i.e. the model actually ran and produced an embedding).
+          output=$(node js/examples/run.mjs --encode /tmp/bge-small.gguf "the quick brown fox")
+          echo "$output"
+          echo "$output" | grep -q "embedding generated: 384 dimensions" \
+            || { echo "expected '384 dimensions' line in output"; exit 1; }
+          echo "$output" | grep -q "first 8: \[-\?[0-9]" \
+            || { echo "expected 'first 8: [<float>...' line"; exit 1; }
+
+      - name: Inspect artifact sizes
+        working-directory: nobodywho/js/pkg-bundler
+        run: |
+          ls -lh
+          echo ""
+          echo "Brotli-compressed size of wasm (target for npm distribution):"
+          brotli -k -q 11 nobodywho_js_bg.wasm -o /tmp/wasm.br || true
+          ls -lh /tmp/wasm.br || true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nobodywho-js-pkg
+          path: nobodywho/js/pkg-bundler/
+          retention-days: 14

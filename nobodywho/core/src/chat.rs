@@ -42,6 +42,7 @@ use crate::tool_calling::{detect_tool_format, Tool, ToolCall, ToolFormat};
 use ahash::AHasher;
 use indexmap::IndexMap;
 use llama_cpp_2::context::params::LlamaPoolingType;
+#[cfg(feature = "mtmd")]
 use llama_cpp_2::mtmd::MtmdBitmap;
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
@@ -279,6 +280,10 @@ impl ChatBuilder {
     }
 
     /// Build a blocking chat handle and start the background worker.
+    ///
+    /// Native-only. Uses `std::thread::spawn` internally, which doesn't
+    /// work on wasm without thread support enabled. Use `build_async` on wasm.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn build(self) -> ChatHandle {
         ChatHandle::new(self.model, self.config)
     }
@@ -292,14 +297,17 @@ impl ChatBuilder {
 /// Interact with a ChatWorker in a blocking manner.
 ///
 /// Use [`ChatBuilder`] to create a new instance with a fluent API.
+/// Native-only synchronous chat handle. Use `ChatHandleAsync` on wasm.
+#[cfg(not(target_arch = "wasm32"))]
 pub struct ChatHandle {
     guard: WorkerGuard<ChatMsg>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl ChatHandle {
     /// Create a new chat handle directly. Consider using [`ChatBuilder`] for a more ergonomic API.
     pub fn new(model: Arc<llm::Model>, config: ChatConfig) -> Self {
-        let (msg_tx, msg_rx) = std::sync::mpsc::channel();
+        let (msg_tx, mut msg_rx) = tokio::sync::mpsc::unbounded_channel();
 
         let should_stop = Arc::new(AtomicBool::new(false));
         let should_stop_clone = Arc::clone(&should_stop);
@@ -313,7 +321,10 @@ impl ChatHandle {
                 }
             };
 
-            while let Ok(msg) = msg_rx.recv() {
+            // `blocking_recv` on a tokio unbounded channel is safe outside a
+            // tokio runtime context (we're in a raw `std::thread::spawn`'d
+            // thread). Returns `None` when the channel is closed.
+            while let Some(msg) = msg_rx.blocking_recv() {
                 if let Err(e) = process_worker_msg(&mut worker_state, msg) {
                     return error!("Worker crashed: {e}");
                 }
@@ -568,11 +579,17 @@ pub struct ChatHandleAsync {
 impl ChatHandleAsync {
     /// Create a new chat handle directly. Consider using [`ChatBuilder`] for a more ergonomic API.
     pub fn new(model: Arc<llm::Model>, config: ChatConfig) -> Self {
-        let (msg_tx, msg_rx) = std::sync::mpsc::channel();
+        let (msg_tx, mut msg_rx) = tokio::sync::mpsc::unbounded_channel();
 
         let should_stop = Arc::new(AtomicBool::new(false));
         let should_stop_clone = Arc::clone(&should_stop);
 
+        // Native: spawn a real OS thread that drives a blocking loop, so the
+        // inference work doesn't tie up any tokio runtime thread. Wasm: spawn
+        // a future on the JS event loop (single-threaded cooperative); decode
+        // calls block the loop until each message is processed, which is
+        // acceptable for v1. A Web-Worker variant can come later.
+        #[cfg(not(target_arch = "wasm32"))]
         let join_handle = std::thread::spawn(move || {
             let worker = Worker::new_chat_worker(&model, config, should_stop_clone);
             let mut worker_state = match worker {
@@ -582,16 +599,36 @@ impl ChatHandleAsync {
                 }
             };
 
-            while let Ok(msg) = msg_rx.recv() {
+            while let Some(msg) = msg_rx.blocking_recv() {
                 if let Err(e) = process_worker_msg(&mut worker_state, msg) {
                     return error!("Worker crashed: {e}");
                 }
             }
         });
 
-        Self {
-            guard: Arc::new(WorkerGuard::new(msg_tx, join_handle, Some(should_stop))),
-        }
+        #[cfg(target_arch = "wasm32")]
+        wasm_bindgen_futures::spawn_local(async move {
+            let worker = Worker::new_chat_worker(&model, config, should_stop_clone);
+            let mut worker_state = match worker {
+                Ok(worker_state) => worker_state,
+                Err(errmsg) => {
+                    return error!("Could not set up the worker initial state: {errmsg}")
+                }
+            };
+
+            while let Some(msg) = msg_rx.recv().await {
+                if let Err(e) = process_worker_msg(&mut worker_state, msg) {
+                    return error!("Worker crashed: {e}");
+                }
+            }
+        });
+
+        #[cfg(not(target_arch = "wasm32"))]
+        let guard = Arc::new(WorkerGuard::new(msg_tx, join_handle, Some(should_stop)));
+        #[cfg(target_arch = "wasm32")]
+        let guard = Arc::new(WorkerGuard::new(msg_tx, Some(should_stop)));
+
+        Self { guard }
     }
 
     /// Send a message and get a tokio channel
@@ -842,11 +879,17 @@ impl ChatHandleAsync {
 }
 
 /// A stream of tokens from the model.
+///
+/// Native-only synchronous stream — `next_token` calls `blocking_recv`, which
+/// would deadlock the single-threaded JS event loop. Wasm consumers use
+/// [`TokenStreamAsync`] instead, returned from [`ChatHandleAsync::ask`].
+#[cfg(not(target_arch = "wasm32"))]
 pub struct TokenStream {
     rx: tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>,
     completed_response: Option<String>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl TokenStream {
     fn new(rx: tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>) -> Self {
         Self {
@@ -1055,6 +1098,18 @@ fn process_worker_msg(
         ChatMsg::Ask { prompt, output_tx } => {
             let should_stop = Arc::clone(&worker_state.extra.should_stop);
             let callback = move |out| {
+                // wasm32: also fan the token out through the synchronous streaming
+                // hook (if set). The wasm binding installs one that calls
+                // self.postMessage(token), which is non-blocking from the worker
+                // thread — the main thread sees tokens as they're produced,
+                // instead of all at once after inference completes (the latter is
+                // what you'd get from the tokio-mpsc channel alone on wasm
+                // because the inference loop is sync Rust and doesn't yield back
+                // to the JS event loop between tokens).
+                #[cfg(target_arch = "wasm32")]
+                if let crate::llm::WriteOutput::Token(ref t) = out {
+                    crate::llm::with_streaming_hook(|hook| hook(t));
+                }
                 if output_tx.send(out).is_err() {
                     // Receiver was dropped or the buffer is full with nobody consuming.
                     // Either way, stop generating immediately.
@@ -1152,6 +1207,7 @@ struct ChatContext {
     /// Here we keep the current tokens + media embeddings, which are in the KV cache.
     chunks: TokenizerChunks,
     /// Here we keep a list of the media bitmaps, which are needed for tokenization.
+    #[cfg(feature = "mtmd")]
     bitmaps: IndexMap<ChunkId, MtmdBitmap>,
 }
 
@@ -1159,10 +1215,12 @@ impl ChatContext {
     fn new() -> Self {
         Self {
             chunks: TokenizerChunks::new(),
+            #[cfg(feature = "mtmd")]
             bitmaps: IndexMap::new(),
         }
     }
 
+    #[cfg(feature = "mtmd")]
     pub fn add_bitmaps(
         &mut self,
         bitmaps: Vec<MtmdBitmap>,
@@ -1177,6 +1235,7 @@ impl ChatContext {
         Ok(bitmap_ids)
     }
 
+    #[cfg(feature = "mtmd")]
     pub fn garbage_collect_bitmaps(&mut self, messages: &[Message]) {
         // Garbage collection for the bitmaps.
         let referenced_bitmaps: HashSet<String> = messages
@@ -1195,12 +1254,14 @@ impl ChatContext {
         self.remove_bitmaps(unreferenced_bitmap_ids);
     }
 
+    #[cfg(feature = "mtmd")]
     fn create_bitmap_id(&self, bitmap: &MtmdBitmap) -> String {
         let mut hasher = AHasher::default();
         hasher.write(bitmap.data());
         hasher.finish().to_string()
     }
 
+    #[cfg(feature = "mtmd")]
     fn remove_bitmaps(&mut self, bitmap_ids: Vec<String>) {
         for id in bitmap_ids {
             if let Some(bitmap) = self.bitmaps.shift_remove(&id) {
@@ -1598,22 +1659,31 @@ impl Worker<'_, ChatWorker> {
             .map(|fmt| fmt.begin_token().to_string());
 
         let media_assets = prompt.extract_media_assets();
-        let bitmaps = if let Some(projection_model) = self.projection_model.as_ref() {
-            media_assets
-                .iter()
-                .map(|part| match part {
-                    PromptPart::Image(path) => projection_model.load_image(path),
-                    PromptPart::Audio(path) => projection_model.load_audio(path),
-                    PromptPart::Text(_) => unreachable!(),
-                })
-                .collect::<Result<Vec<MtmdBitmap>, MultimodalError>>()?
-        } else {
-            vec![]
+
+        // Multimodal bitmap construction. Only enabled when the `mtmd` feature
+        // is on (i.e. native + Emscripten, not wasm32-unknown-unknown).
+        #[cfg(feature = "mtmd")]
+        let bitmap_ids = {
+            let bitmaps = if let Some(projection_model) = self.projection_model.as_ref() {
+                media_assets
+                    .iter()
+                    .map(|part| match part {
+                        PromptPart::Image(path) => projection_model.load_image(path),
+                        PromptPart::Audio(path) => projection_model.load_audio(path),
+                        PromptPart::Text(_) => unreachable!(),
+                    })
+                    .collect::<Result<Vec<MtmdBitmap>, MultimodalError>>()?
+            } else {
+                vec![]
+            };
+            debug!("Detected bitmaps: {:?}", bitmaps);
+            self.extra.context.add_bitmaps(bitmaps)?
         };
+        // Without the mtmd feature: no projection model, no bitmaps, no media
+        // assets. Tokenizer just sees text.
+        #[cfg(not(feature = "mtmd"))]
+        let bitmap_ids: Vec<String> = Vec::new();
 
-        debug!("Detected bitmaps: {:?}", bitmaps);
-
-        let bitmap_ids = self.extra.context.add_bitmaps(bitmaps)?;
         let assets = bitmap_ids
             .iter()
             .zip(media_assets.iter())

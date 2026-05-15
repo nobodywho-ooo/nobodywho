@@ -1,7 +1,12 @@
 use crate::errors::MemoryError;
+#[cfg(not(target_arch = "wasm32"))]
 use std::path::Path;
 use tracing::warn;
 
+// `GgufModelInfo` and the load-planning items below feed `plan_model_loading`,
+// which is only called from the native model-loader path (`get_model`). Gated
+// to non-wasm so the wasm build doesn't warn about unused items.
+#[cfg(not(target_arch = "wasm32"))]
 pub(crate) struct GgufModelInfo {
     pub n_layers: u32,
     pub file_size: u64,
@@ -46,6 +51,7 @@ fn select_best_gpu() -> Option<llama_cpp_2::LlamaBackendDevice> {
         })
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn read_gguf_model_info(path: &Path) -> Option<GgufModelInfo> {
     let ctx = llama_cpp_2::gguf::GgufContext::from_file(path)?;
     let file_size = std::fs::metadata(path).ok()?.len();
@@ -67,6 +73,7 @@ fn read_gguf_model_info(path: &Path) -> Option<GgufModelInfo> {
     })
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn estimate_per_layer_bytes(info: &GgufModelInfo) -> u64 {
     if info.n_layers == 0 {
         return info.file_size;
@@ -82,6 +89,7 @@ fn estimate_kv_cache_bytes(arch: &ModelArchitecture, n_ctx: u32) -> u64 {
 
 /// Compute how many GPU layers to offload based on available VRAM.
 /// This function never fails: on any estimation error it falls back to current behavior.
+#[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn plan_model_loading(
     model_path: &Path,
     mmproj_path: Option<&Path>,

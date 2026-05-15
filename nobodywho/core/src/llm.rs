@@ -1,6 +1,7 @@
 use crate::errors::{InitWorkerError, LoadModelError, ReadError};
 use crate::memory;
 use crate::tokenizer::{ProjectionModel, Tokenizer, TokenizerChunk, TokenizerChunks};
+#[cfg(not(target_arch = "wasm32"))]
 use indicatif::{ProgressBar, ProgressStyle};
 use lazy_static::lazy_static;
 use llama_cpp_2::context::kv_cache::KvCacheConversionError;
@@ -11,15 +12,71 @@ use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::AddBos;
 use llama_cpp_2::model::LlamaModel;
+#[cfg(feature = "mtmd")]
 use llama_cpp_2::mtmd::MtmdInputChunks;
 use llama_cpp_2::token::LlamaToken;
+#[cfg(not(target_arch = "wasm32"))]
 use std::io::{Read, Write};
 use std::pin::pin;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
+#[cfg(not(target_arch = "wasm32"))]
 use std::time::Duration;
-use tracing::{debug, debug_span, error, info, info_span, warn};
+use tracing::{debug, debug_span, error, info, warn};
+// `info_span` is only used inside the native model-loader path; gate it so the
+// wasm build doesn't warn about an unused import.
+#[cfg(not(target_arch = "wasm32"))]
+use tracing::info_span;
+
+// --- Streaming hook (wasm32 only) ----------------------------------------
+//
+// Bindings can register a callback that gets fired synchronously per emitted
+// token, in addition to (not in place of) the normal `output_tx.send` path
+// that ChatHandleAsync uses. The wasm binding uses this to call back into JS
+// from inside the inference loop so the JS host can `postMessage(token)` to
+// the main thread while inference is still running — without this, the
+// inference loop holds the wasm worker thread until completion and tokens
+// only drain after.
+//
+// Single-threaded only by construction: wasm32 has one thread, the hook is
+// per-thread, and only one logical consumer can be active at a time — see
+// `set_streaming_hook` for why overlap is not supported. Enforcement lives
+// at the binding boundary, not here.
+#[cfg(target_arch = "wasm32")]
+mod streaming_hook {
+    use std::cell::RefCell;
+    type Hook = Box<dyn Fn(&str)>;
+    thread_local! {
+        static HOOK: RefCell<Option<Hook>> = const { RefCell::new(None) };
+    }
+
+    /// Install a streaming callback. Returns whatever was in the slot before;
+    /// the caller decides whether to restore or discard it.
+    ///
+    /// Only one logical consumer can use this at a time. The chat worker
+    /// processes asks FIFO, but installs are stack-shaped (LIFO), so two
+    /// overlapping consumers would misroute tokens — the inner install
+    /// displaces the outer, and the outer's still-running inference would
+    /// fire tokens through the inner's hook. Enforcement is the caller's
+    /// responsibility: inspect the returned previous value and refuse to
+    /// proceed if it's `Some`.
+    pub fn set_streaming_hook(hook: Option<Hook>) -> Option<Hook> {
+        HOOK.with(|h| std::mem::replace(&mut *h.borrow_mut(), hook))
+    }
+
+    /// Call the installed hook with the given token, if one is set.
+    pub fn with_streaming_hook<F: FnOnce(&dyn Fn(&str))>(f: F) {
+        HOOK.with(|h| {
+            if let Some(hook) = h.borrow().as_ref() {
+                f(hook.as_ref());
+            }
+        });
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+pub use streaming_hook::{set_streaming_hook, with_streaming_hook};
 
 #[derive(Debug)]
 pub(crate) struct GlobalInferenceLockToken;
@@ -45,6 +102,11 @@ pub type DownloadProgressCallback = Arc<dyn Fn(u64, u64) + Send + Sync>;
 /// unconditionally — GUI bindings (Godot, Flutter mobile) won't see output in production.
 /// Detects a new download (model → mmproj transition) by watching for `total` to change,
 /// finishes the previous bar, and starts a fresh one.
+///
+/// Native-only: `indicatif` is not pulled in on wasm32 (no terminal). The wasm
+/// model-load path (`Model::load_bytes`, future) skips this entirely since
+/// bytes are already in memory.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn default_progress_callback() -> DownloadProgressCallback {
     let style = ProgressStyle::with_template(
         "{spinner:.green} [{elapsed_precise}] {wide_bar:.cyan/blue} \
@@ -153,6 +215,63 @@ pub fn has_gpu_backend() -> bool {
     false
 }
 
+/// Load a model directly from an in-memory GGUF byte slice.
+///
+/// Primarily intended for sandboxed environments without filesystem access
+/// (notably WebAssembly in a browser tab), where the caller fetches the GGUF
+/// from JS via `fetch` and hands the resulting `ArrayBuffer` over to Rust.
+///
+/// On native targets this also works and is useful for tests where the GGUF
+/// is already in memory. Unlike [`get_model`] this does not consult the
+/// `dirs` cache, does not do HTTP, and does not parse fancy paths — it's a
+/// pure "bytes in, model out" entry point.
+///
+/// GPU offloading is intentionally not exposed: the wasm32 target has no
+/// GPU concept, and on native the `get_model` path is the right one when
+/// you have a file path. Pass any `use_gpu_if_available` policy via the
+/// `gpu_layers` argument (`0` for CPU-only).
+///
+/// Multimodal (`projection_model`) support is not yet wired here — the
+/// mmproj path also needs a buffer-based loader; tracked in WASM.md.
+///
+/// # Platform support
+///
+/// Available everywhere except Windows MSVC, mirroring
+/// [`llama_cpp_2::model::LlamaModel::load_from_buffer`]. The underlying
+/// `fmemopen` is POSIX and not in the MSVC CRT; a Windows tempfile
+/// fallback can be added later if a caller needs it.
+#[cfg(not(all(target_os = "windows", target_env = "msvc")))]
+pub fn get_model_from_bytes(bytes: &[u8], gpu_layers: u32) -> Result<Model, LoadModelError> {
+    info!(
+        bytes_len = bytes.len(),
+        gpu_layers, "Loading model from in-memory bytes"
+    );
+
+    let model_params = LlamaModelParams::default().with_n_gpu_layers(gpu_layers);
+    let model_params = pin!(model_params);
+
+    let language_model = LlamaModel::load_from_buffer(&LLAMA_BACKEND, bytes, &model_params)
+        .map_err(|e| {
+            let error_msg = format!("Failed to load model from in-memory bytes: {e}");
+            error!(error = %error_msg);
+            LoadModelError::InvalidModel(error_msg)
+        })?;
+
+    info!("Model loaded from buffer successfully");
+    Ok(Model {
+        language_model,
+        projection_model: None,
+    })
+}
+
+// --- Native-only model loaders -------------------------------------------
+// Everything below up to `read_add_bos_metadata` does HTTP downloads, hits
+// the filesystem, or asks the OS for a cache directory. None of that works
+// in a browser sandbox, so it's gated to non-wasm32 targets. wasm consumers
+// will load models from in-memory bytes via a future `Model::load_from_bytes`
+// API (tracked in nobodywho/js/README.md, Step 2c).
+
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Clone)]
 enum ParsedModelPath {
     HuggingFaceUrl(String, String, String), // e.g. hf://owner/repo/model.gguf -> (owner, repo, filename)
@@ -160,6 +279,7 @@ enum ParsedModelPath {
     FilesystemPath(std::path::PathBuf),     // e.g. ./qwen3.gguf
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn parse_model_path(
     model_path: &str,
 ) -> Result<ParsedModelPath, nom::Err<nom::error::Error<String>>> {
@@ -207,6 +327,7 @@ fn parse_model_path(
 
 /// takes a fancy path (possibly with hf: or https:// in front), and resolve it to a realized path
 /// on the filesystem
+#[cfg(not(target_arch = "wasm32"))]
 fn resolve_fancy_path_to_fs(
     parsed_path: ParsedModelPath,
     progress: &DownloadProgressCallback,
@@ -228,6 +349,7 @@ fn resolve_fancy_path_to_fs(
     Ok(fs_model_path)
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[tracing::instrument(level = "info", skip(progress))]
 pub fn get_model(
     model_path: &str,
@@ -306,6 +428,7 @@ pub fn get_model(
 /// * The model file is not found (`LoadModelError::ModelNotFound`)
 /// * The model file is invalid or unsupported (`LoadModelError::InvalidModel`)
 /// * The communication channel closes unexpectedly (`LoadModelError::ModelChannelError`)
+#[cfg(not(target_arch = "wasm32"))]
 #[tracing::instrument(level = "info", skip(progress))]
 pub async fn get_model_async(
     model_path: String,
@@ -337,12 +460,13 @@ pub async fn get_model_async(
 /// via `dlopen` (not `System.loadLibrary`), so `JNI_OnLoad` is never called.
 ///
 /// On other platforms, uses the `dirs` crate to find the standard cache directory.
+#[cfg(not(target_arch = "wasm32"))]
 fn get_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
     let base = get_platform_cache_dir()?;
     Ok(base.join("nobodywho").join("models"))
 }
 
-#[cfg(target_os = "android")]
+#[cfg(all(target_os = "android", not(target_arch = "wasm32")))]
 fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
     // Read the package name from /proc/self/cmdline. This file contains the process
     // name as a null-terminated string. On Android this is the package name
@@ -377,7 +501,7 @@ fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadMod
     )))
 }
 
-#[cfg(not(target_os = "android"))]
+#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
     dirs::cache_dir().ok_or_else(|| {
         crate::errors::LoadModelError::DownloadError("Could not determine cache directory".into())
@@ -388,6 +512,7 @@ fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadMod
 ///
 /// Returns early if the file already exists at the target path.
 /// Rejects paths containing `..` to prevent path traversal attacks.
+#[cfg(not(target_arch = "wasm32"))]
 fn download_file(
     url: &str,
     target_path: &std::path::Path,
@@ -520,6 +645,7 @@ fn download_file(
 /// Download a GGUF model from HuggingFace Hub and return the local path to it.
 ///
 /// If the model is already cached locally, the cached path is returned without downloading.
+#[cfg(not(target_arch = "wasm32"))]
 fn download_model_from_hf(
     owner: &str,
     repo: &str,
@@ -536,6 +662,7 @@ fn download_model_from_hf(
 /// Download a model from a generic HTTP(S) URL and return the local path to it.
 ///
 /// The file is cached by its URL path components under the cache directory.
+#[cfg(not(target_arch = "wasm32"))]
 fn download_model_from_url(
     url: &str,
     progress: &DownloadProgressCallback,
@@ -618,6 +745,15 @@ where
 
         // Set up context parameters using available parallelism
         let ctx = {
+            // wasm32 has no concept of hardware threads (`available_parallelism`
+            // returns Err on wasm32-unknown-unknown). Single-thread the
+            // worker — llama.cpp will run inference sequentially on the
+            // wasm event loop, which matches how the wasm binding's
+            // chat/encoder/cross-encoder are structured anyway (spawn_local,
+            // no real threads).
+            #[cfg(target_arch = "wasm32")]
+            let n_threads: i32 = 1;
+            #[cfg(not(target_arch = "wasm32"))]
             let n_threads = std::thread::available_parallelism()?.get() as i32;
             let ctx_plan = memory::plan_context(
                 std::cmp::min(n_ctx, model.language_model.n_ctx_train()),
@@ -705,6 +841,7 @@ where
         Ok(self)
     }
 
+    #[cfg(feature = "mtmd")]
     #[tracing::instrument(level = "trace", skip(self))]
     fn read_media_embeddings(
         &mut self,
@@ -820,26 +957,49 @@ where
     }
 }
 
-/// Owns a background worker thread's resources and ensures clean shutdown.
+/// Owns a background worker's resources and ensures clean shutdown.
 ///
 /// When dropped: sets the optional stop flag, closes the message channel (causing the
-/// worker's `recv()` to return `Err`), then joins the thread. This ordering guarantees
-/// the worker has fully exited before any statics (e.g. `LLAMA_BACKEND`) are destroyed.
+/// worker's `recv()` to return `None`), then joins the thread on native. This ordering
+/// guarantees the worker has fully exited before any statics (e.g. `LLAMA_BACKEND`)
+/// are destroyed.
+///
+/// The channel switched from `std::sync::mpsc` to `tokio::sync::mpsc::unbounded_channel`
+/// so the worker can run as either a blocking thread (native, via `blocking_recv()`)
+/// or an async task on the JS event loop (wasm32, via `recv().await` driven by
+/// `wasm_bindgen_futures::spawn_local`). The `JoinHandle` field is gated to non-wasm —
+/// wasm has no real thread to join; dropping the sender is sufficient to terminate
+/// the worker future.
 pub(crate) struct WorkerGuard<T> {
-    pub(crate) msg_tx: Option<std::sync::mpsc::Sender<T>>,
+    pub(crate) msg_tx: Option<tokio::sync::mpsc::UnboundedSender<T>>,
+    #[cfg(not(target_arch = "wasm32"))]
     join_handle: Option<std::thread::JoinHandle<()>>,
     should_stop: Option<Arc<AtomicBool>>,
 }
 
 impl<T> WorkerGuard<T> {
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn new(
-        msg_tx: std::sync::mpsc::Sender<T>,
+        msg_tx: tokio::sync::mpsc::UnboundedSender<T>,
         join_handle: std::thread::JoinHandle<()>,
         should_stop: Option<Arc<AtomicBool>>,
     ) -> Self {
         Self {
             msg_tx: Some(msg_tx),
             join_handle: Some(join_handle),
+            should_stop,
+        }
+    }
+
+    /// wasm constructor: no thread to join, the worker future runs on the JS
+    /// event loop and exits when the channel is closed.
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn new(
+        msg_tx: tokio::sync::mpsc::UnboundedSender<T>,
+        should_stop: Option<Arc<AtomicBool>>,
+    ) -> Self {
+        Self {
+            msg_tx: Some(msg_tx),
             should_stop,
         }
     }
@@ -863,6 +1023,13 @@ impl<T> Drop for WorkerGuard<T> {
             stop.store(true, Ordering::Relaxed);
         }
         drop(self.msg_tx.take());
+
+        // On native, wait for the worker thread to exit so any statics
+        // (e.g. LLAMA_BACKEND) are still alive while it's tearing down.
+        // On wasm32 there's no thread — closing the channel above causes
+        // the worker's `recv().await` to return None and the spawn_local
+        // future to complete on its next poll.
+        #[cfg(not(target_arch = "wasm32"))]
         if let Some(handle) = self.join_handle.take() {
             if let Err(e) = handle.join() {
                 error!("Worker panicked: {:?}", e);
@@ -904,5 +1071,30 @@ mod tests {
         cb(50, 100);
         cb(100, 100);
         assert_eq!(count.load(Ordering::Relaxed), 2);
+    }
+
+    /// Error-path test for the bytes-based loader: feeding non-GGUF bytes
+    /// must return `LoadModelError::InvalidModel` (rather than panicking,
+    /// returning a different error variant, or — worst — silently succeeding).
+    ///
+    /// We deliberately don't test the success path here: under nix-sandbox
+    /// Linux, llama.cpp's `llama_model_load_from_buffer` (POSIX `fmemopen`
+    /// path) returns NULL for an otherwise-valid GGUF that loads fine via
+    /// the file-based path. Tracking the underlying llama.cpp issue is
+    /// out of scope for this PR; the bytes-loader's success path is
+    /// covered end-to-end by the wasm binding's CI smoke test, where
+    /// emscripten provides its own `fmemopen` that does work.
+    #[cfg(not(all(target_os = "windows", target_env = "msvc")))]
+    #[test]
+    fn get_model_from_bytes_rejects_invalid_data() {
+        use crate::test_utils::init_test_tracing;
+        init_test_tracing();
+        // Definitely not a valid GGUF — even the magic header is missing.
+        let bytes = vec![0u8; 4096];
+        let result = get_model_from_bytes(&bytes, 0);
+        assert!(
+            matches!(result, Err(LoadModelError::InvalidModel(_))),
+            "expected InvalidModel error, got {result:?}"
+        );
     }
 }

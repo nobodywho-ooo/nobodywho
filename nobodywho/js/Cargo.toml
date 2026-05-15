@@ -1,0 +1,37 @@
+[package]
+name = "nobodywho-js"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+# "cdylib" is necessary for wasm-pack to produce a .wasm artifact.
+# "rlib" lets `cargo check`/`cargo test` work on native targets so the workspace
+# stays buildable without the wasm toolchain installed.
+crate-type = ["cdylib", "rlib"]
+path = "src/lib.rs"
+
+[dependencies]
+# `mtmd` stays in the default features even on wasm32-unknown-unknown.
+# Core's mtmd code paths are cfg-gated so they compile out, but the C-side
+# `mtmd_*` symbols remain wasm imports (resolved by JS stubs at instantiation
+# time — see js/examples/worker.js). The actual miniaudio dependency that
+# breaks against wasi-libc is excluded one layer down, inside the
+# llama-cpp-sys-2 fork's build.rs (LLAMA_BUILD_AUDIO=OFF for the wasm target).
+# Flipping this to `default-features = false` would also drop mtmd on native
+# builds via this crate's rlib, which we don't want.
+nobodywho = { path = "../core" }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+serde = { version = "1.0.215", features = ["derive"] }
+serde_json = "1.0.140"
+serde-wasm-bindgen = "0.6"
+futures = "0.3.31"
+tokio = { version = "1.43.0", features = ["sync"] }
+tracing = "0.1.41"
+tracing-wasm = "0.2"
+console_error_panic_hook = "0.1"
+
+[dependencies.web-sys]
+version = "0.3"
+features = ["console"]

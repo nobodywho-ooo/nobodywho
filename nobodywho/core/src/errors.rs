@@ -129,6 +129,7 @@ pub enum ReadError {
     #[error("Projection model not initialized")]
     ProjectionModelNotInitialized,
 
+    #[cfg(feature = "mtmd")]
     #[error("Llama.cpp failed reading media embeddings: {0}")]
     FailedReadingMediaEmbeddings(#[from] llama_cpp_2::mtmd::MtmdEvalError),
 

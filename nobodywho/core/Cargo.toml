@@ -3,28 +3,39 @@ name = "nobodywho"
 version = "2.2.0"
 edition = "2021"
 
+[features]
+default = ["mtmd"]
+# Multimodal (image / audio) input support, backed by llama.cpp's `mtmd`
+# C++ library. Default-on for native; the wasm binding opts out because
+# the underlying C++ pulls in libraries (miniaudio with pthread sched
+# APIs) that don't compile against wasi-libc.
+#
+# This feature is effectively a wasm-only opt-out — native consumers
+# should keep the default. On native, disabling it propagates to
+# llama-cpp-2, the mtmd Rust module disappears, and code in core that
+# refers to `MtmdBitmap` / `MtmdInputChunks` / etc. (in tokenizer.rs,
+# chat.rs, llm.rs) fails to compile. On wasm32, the fork of llama-cpp-2
+# keeps bindgen running against the mtmd headers even with the feature
+# off, so the Rust types stay in scope and only the C++ link is gated —
+# `mtmd_*` functions resolve to unresolved wasm imports that the JS
+# host stubs. That asymmetry is what lets the wasm crate `default-
+# features = false` cleanly while native still gets the full
+# multimodal API.
+mtmd = ["llama-cpp-2/mtmd"]
+
 [dependencies]
 encoding_rs = "0.8.34"
 thiserror = "2.0.3"
 minijinja = { version = "2.11.0", features = ["builtins", "json", "loader"] }
 minijinja-contrib = { version = "2.11.0", features = ["pycompat"] }
-monty = { git = "https://github.com/pydantic/monty", tag = "v0.0.7" }
-bashkit = { git = "https://github.com/everruns/bashkit", tag = "v0.1.10" }
 serde = { version = "1.0.215", features = ["derive"] }
 chrono = "0.4.39"
-llama-cpp-2 = { git = "https://github.com/marek-hradil/llama-cpp-rs", branch = "main", default-features = false, features = [
+llama-cpp-2 = { git = "https://github.com/nobodywho-ooo/llama-cpp-rs", branch = "main", default-features = false, features = [
     "openmp",
     "android-static-stdcxx",
-    "mtmd",
     "llguidance",
 ] }
 lazy_static = "1.5.0"
-tokio = { version = "1.43.0", features = [
-    "sync",
-    "rt",
-    "rt-multi-thread",
-    "macros",
-] }
 tokio-stream = "0.1.17"
 tracing = { version = "0.1.41", features = ["log"] }
 tracing-subscriber = "0.3.19"
@@ -37,23 +48,50 @@ rand = "0.9.3"
 futures = "0.3.31"
 ahash = "0.8.12"
 indexmap = "2.13.0"
+
+# Native-only deps:
+# - `tokio` with `rt-multi-thread`: background workers spawn real OS threads.
+#   wasm32 has only a single-threaded JS event loop, so it gets `rt` (no
+#   multi-thread). See `nobodywho/js/README.md` for the worker-refactor
+#   follow-up that actually makes wasm32 builds run.
+# - `ureq` does raw TCP/TLS; not available in a browser sandbox. wasm32 fetches
+#   model bytes on the JS side via `fetch` and hands them to a future
+#   `Model::load_bytes` API instead.
+# - `indicatif` renders terminal progress bars. No terminal in a browser.
+# - `monty` (Python interpreter) and `bashkit` (virtual bash) back the
+#   `Tool::python` and `Tool::bash` built-in tools. Both have native-only
+#   dependencies (monty has no wasm32 target; bashkit forces `tokio/full`
+#   which pulls `mio` + raw sockets).
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { version = "1.43.0", features = ["sync", "rt", "rt-multi-thread", "macros"] }
 ureq = { version = "3", features = ["rustls"] }
 indicatif = "0.18"
+monty = { git = "https://github.com/pydantic/monty", tag = "v0.0.7" }
+bashkit = { git = "https://github.com/everruns/bashkit", tag = "v0.1.10" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+tokio = { version = "1.43.0", features = ["sync", "rt", "macros"] }
+# Used by ChatHandleAsync::new / EncoderAsync::new / CrossEncoderAsync::new
+# to spawn the worker future on the JS event loop in place of
+# `std::thread::spawn`.
+wasm-bindgen-futures = "0.4"
 
 [target.'cfg(target_os = "android")'.dependencies]
 libc = "0.2"
 
-[target.'cfg(not(target_os = "android"))'.dependencies]
+# `dirs` resolves OS-standard cache/config paths. Neither Android nor wasm32
+# fits that model: Android reads /proc/self/cmdline directly (see llm.rs),
+# wasm32 has no filesystem at all.
+[target.'cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))'.dependencies]
 dirs = "6"
 
 # Enable Vulkan for x86_64, x86, and aarch64 targets (excluding Apple platforms and Android).
 # Apple platforms use Metal, which is auto-enabled by llama-cpp-rs for all Apple targets
 # (except watchOS which has no Metal support — handled in llama-cpp-rs build.rs).
 [target.'cfg(all(not(target_os = "macos"), not(target_os = "ios"), not(target_os = "visionos"), not(target_os = "watchos"), not(target_os = "android"), any(target_arch = "x86_64", target_arch = "x86", target_arch = "aarch64")))'.dependencies]
-llama-cpp-2 = { git = "https://github.com/marek-hradil/llama-cpp-rs", branch = "main", default-features = false, features = [
+llama-cpp-2 = { git = "https://github.com/nobodywho-ooo/llama-cpp-rs", branch = "main", default-features = false, features = [
     "openmp",
     "vulkan",
-    "mtmd",
     "android-static-stdcxx",
     "llguidance",
 ] }
