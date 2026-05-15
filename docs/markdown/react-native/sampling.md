@@ -82,13 +82,14 @@ const chat = await Chat.fromPath({
   sampler: SamplerPresets.constrainWithJsonSchema({
     type: "object",
     properties: {
-      name: { type: "string" },
+      name: { type: "string", maxLength: 50 },
       age:  { type: "integer" },
     },
     required: ["name", "age"],
+    additionalProperties: false,
   }),
 });
-const response = await chat.ask("Give me a person.").completed();
+const response = await chat.ask("Give me a person as JSON with name and age fields.").completed();
 const person = JSON.parse(response); // always valid JSON matching the schema
 ```
 
