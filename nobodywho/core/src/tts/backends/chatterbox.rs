@@ -19,13 +19,12 @@ use crate::errors::TtsError;
 use crate::tts::backend::TtsBackendImpl;
 use crate::tts::ort_util::{
     self, build_continuation_embeds, collapse_logits, detect_num_layers, has_position_ids,
-    KvCacheLayout, SpeakerConditioning, SpeechGenerationState, TensorData,
+    KvCacheLayout, SpeakerConditioning, SpeechGenerationState, SpeechTokenModelConfig, TensorData,
 };
 use crate::tts::sampling;
 use crate::tts::{TtsDevice, TtsSampling, DEFAULT_SAMPLE_RATE};
 use ort::session::{Session, SessionInputValue, SessionInputs};
 use ort::value::{Tensor, Value};
-use serde::Deserialize;
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
@@ -70,6 +69,7 @@ impl ChatterboxBackend {
         sample_rate: u32,
         device: TtsDevice,
     ) -> Result<Self, TtsError> {
+        let language = validate_language_id(&language)?;
         let model_config = read_model_config(model_dir);
 
         let tokenizer = tokenizers::Tokenizer::from_file(model_dir.join(TOKENIZER_FILE))
@@ -134,21 +134,24 @@ impl ChatterboxBackend {
 impl TtsBackendImpl for ChatterboxBackend {
     fn synthesize_raw(&mut self, text: &str) -> Result<(Vec<f32>, u32), TtsError> {
         let sampling = self.sampling.clone();
-        let prepared_text = prepare_text(text, &self.language);
+        let normalized_text = ort_util::punc_norm(text, false);
+        let prepared_text = prepare_text(&normalized_text, &self.language);
         let (input_ids, position_ids) = self.tokenize_for_lm(&prepared_text)?;
         let cond = obtain_conditioning(
             &self.precomputed_cond,
             &mut self.speech_encoder,
             self.reference_audio.as_deref(),
         )?;
-        let speech_tokens =
+        let mut speech_tokens =
             self.generate_speech_tokens(&input_ids, &position_ids, &cond, &sampling)?;
+        ort_util::filter_valid_speech_tokens(&mut speech_tokens, self.start_speech_token);
 
         let prompt_token_count = cond.prompt_token.data.len();
         let mut full_speech_tokens = cond.prompt_token.data.clone();
         full_speech_tokens.extend_from_slice(&speech_tokens);
 
-        let pcm = self.decode_speech(&full_speech_tokens, &cond)?;
+        let mut pcm = self.decode_speech(&full_speech_tokens, &cond)?;
+        ort_util::trim_final_token_audio(&mut pcm, speech_tokens.len(), self.sample_rate);
 
         debug!(
             text_tokens = input_ids.len(),
@@ -173,16 +176,19 @@ impl ChatterboxBackend {
         // Mirror the reference tts.py padding:
         //   text_tokens = F.pad(text_tokens, (1, 0), value=sot)   # prepend 255
         //   text_tokens = F.pad(text_tokens, (0, 1), value=eot)   # append 0
-        // Followed by start_speech_token (6561) to trigger speech generation.
+        // T3 inference then feeds initial_speech_tokens=start_speech_token and
+        // appends one more BOS embedding before sampling the first speech token.
         let mut input_ids: Vec<i64> = vec![self.start_text_token];
         input_ids.extend(encoding.get_ids().iter().map(|&id| id as i64));
         input_ids.push(self.stop_text_token);
         input_ids.push(self.start_speech_token);
+        input_ids.push(self.start_speech_token);
 
         // Text tokens (including SOT/EOT) get sequential positions.
-        // start_speech_token is the first speech token, position 0 in speech space.
-        let n_text = input_ids.len() - 1;
+        // Both BOS speech tokens use speech position 0, matching upstream.
+        let n_text = input_ids.len() - 2;
         let mut position_ids: Vec<i64> = (0..n_text as i64).collect();
+        position_ids.push(0);
         position_ids.push(0);
 
         Ok((input_ids, position_ids))
@@ -260,7 +266,7 @@ impl ChatterboxBackend {
                 &mut final_logits,
                 &state.generated,
                 sampling_params.repetition_penalty,
-                false,
+                true,
             );
             let next_token = sampling::sample_token(&mut final_logits, sampling_params) as i64;
 
@@ -302,9 +308,24 @@ fn prepare_text(text: &str, language: &str) -> String {
     let with_lang = if language.is_empty() {
         normalized
     } else {
-        format!("[{}]{}", language.to_lowercase(), normalized)
+        format!("[{}]{}", language, normalized)
     };
     with_lang.replace(' ', "[SPACE]")
+}
+
+fn validate_language_id(language: &str) -> Result<String, TtsError> {
+    if language.is_empty() {
+        return Ok(String::new());
+    }
+
+    let language = language.to_lowercase();
+    if language.len() == 2 && language.bytes().all(|b| b.is_ascii_lowercase()) {
+        return Ok(language);
+    }
+
+    Err(TtsError::Init(format!(
+        "chatterbox: language must be empty or exactly two ASCII letters, got {language:?}"
+    )))
 }
 
 /// First LM step: `[cond_emb | text_embeds]` for batch 0, and when CFG is
@@ -451,35 +472,44 @@ fn load_reference_audio(wav_path: &Path, sample_rate: u32) -> Result<Vec<f32>, T
     }
 }
 
-/// Missing file or missing keys use the defaults
-/// matching the upstream multilingual Chatterbox export.
-#[derive(Deserialize)]
-#[serde(default)]
-struct ChatterboxModelConfig {
-    start_text_token: i64,
-    stop_text_token: i64,
-    start_speech_token: i64,
-    stop_speech_token: i64,
-    max_new_tokens: usize,
+fn read_model_config(model_dir: &Path) -> SpeechTokenModelConfig {
+    let Ok(s) = std::fs::read_to_string(model_dir.join("model_config.json")) else {
+        return SpeechTokenModelConfig::default();
+    };
+    serde_json::from_str(&s).unwrap_or_default()
 }
 
-impl Default for ChatterboxModelConfig {
-    fn default() -> Self {
+#[derive(Clone, Debug)]
+pub struct ChatterboxConfig {
+    pub model_dir: PathBuf,
+    pub reference_wav: Option<PathBuf>,
+    pub language: String,
+    pub sampling: TtsSampling,
+    pub sample_rate: u32,
+}
+
+impl ChatterboxConfig {
+    pub fn new(model_dir: impl Into<PathBuf>) -> Self {
         Self {
-            start_text_token: 255,
-            stop_text_token: 0,
-            start_speech_token: 6561,
-            stop_speech_token: 6562,
-            max_new_tokens: 1000,
+            model_dir: model_dir.into(),
+            reference_wav: None,
+            language: "en".into(),
+            sampling: chatterbox_default_sampling(),
+            sample_rate: DEFAULT_SAMPLE_RATE,
         }
+    }
+
+    pub fn with_sampling(mut self, sampling: TtsSampling) -> Self {
+        self.sampling = sampling;
+        self
     }
 }
 
-fn read_model_config(model_dir: &Path) -> ChatterboxModelConfig {
-    let Ok(s) = std::fs::read_to_string(model_dir.join("model_config.json")) else {
-        return ChatterboxModelConfig::default();
-    };
-    serde_json::from_str(&s).unwrap_or_default()
+fn chatterbox_default_sampling() -> TtsSampling {
+    TtsSampling {
+        repetition_penalty: 1.2,
+        ..TtsSampling::default()
+    }
 }
 
 #[cfg(test)]
@@ -488,7 +518,7 @@ mod tests {
 
     #[test]
     fn prepare_text_lowercases_and_tags_language() {
-        assert_eq!(prepare_text("Hej Verden", "DA"), "[da]hej[SPACE]verden");
+        assert_eq!(prepare_text("Hej Verden", "da"), "[da]hej[SPACE]verden");
     }
 
     #[test]
@@ -499,6 +529,22 @@ mod tests {
     #[test]
     fn prepare_text_replaces_spaces_with_marker() {
         assert_eq!(prepare_text("a b c", "en"), "[en]a[SPACE]b[SPACE]c");
+    }
+
+    #[test]
+    fn validate_language_id_accepts_empty() {
+        assert_eq!(validate_language_id("").unwrap(), "");
+    }
+
+    #[test]
+    fn validate_language_id_accepts_and_lowercases_two_letters() {
+        assert_eq!(validate_language_id("DA").unwrap(), "da");
+    }
+
+    #[test]
+    fn validate_language_id_rejects_locale_tag() {
+        let err = validate_language_id("en-us").unwrap_err().to_string();
+        assert!(err.contains("exactly two ASCII letters"));
     }
 
     #[test]
@@ -538,30 +584,20 @@ mod tests {
         assert_eq!(&data[20..28], &[1.0; 8]);
         assert_eq!(&data[28..40], &[0.0; 12]);
     }
-}
 
-#[derive(Clone, Debug)]
-pub struct ChatterboxConfig {
-    pub model_dir: PathBuf,
-    pub reference_wav: Option<PathBuf>,
-    pub language: String,
-    pub sampling: TtsSampling,
-    pub sample_rate: u32,
-}
+    #[test]
+    fn speech_bos_is_duplicated_with_position_zero() {
+        let start_text = 255;
+        let stop_text = 0;
+        let start_speech = 6561;
+        let mut ids = vec![start_text, 11, 22, stop_text, start_speech, start_speech];
 
-impl ChatterboxConfig {
-    pub fn new(model_dir: impl Into<PathBuf>) -> Self {
-        Self {
-            model_dir: model_dir.into(),
-            reference_wav: None,
-            language: "en-us".into(),
-            sampling: TtsSampling::default(),
-            sample_rate: DEFAULT_SAMPLE_RATE,
-        }
-    }
+        let n_text = ids.len() - 2;
+        let mut positions: Vec<i64> = (0..n_text as i64).collect();
+        positions.push(0);
+        positions.push(0);
 
-    pub fn with_sampling(mut self, sampling: TtsSampling) -> Self {
-        self.sampling = sampling;
-        self
+        assert_eq!(ids.split_off(n_text), vec![start_speech, start_speech]);
+        assert_eq!(positions, vec![0, 1, 2, 3, 0, 0]);
     }
 }

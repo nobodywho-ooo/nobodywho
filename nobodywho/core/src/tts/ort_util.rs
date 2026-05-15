@@ -11,8 +11,34 @@ use ort::memory::Allocator;
 use ort::session::builder::{GraphOptimizationLevel, SessionBuilder};
 use ort::session::{Session, SessionInputValue, SessionInputs};
 use ort::value::{PrimitiveTensorElementType, Shape, Tensor, Value};
+use serde::Deserialize;
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
+
+pub(super) const S3_TOKEN_RATE: u32 = 25;
+
+/// Common model metadata for Chatterbox-family token loops.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default)]
+pub(super) struct SpeechTokenModelConfig {
+    pub start_text_token: i64,
+    pub stop_text_token: i64,
+    pub start_speech_token: i64,
+    pub stop_speech_token: i64,
+    pub max_new_tokens: usize,
+}
+
+impl Default for SpeechTokenModelConfig {
+    fn default() -> Self {
+        Self {
+            start_text_token: 255,
+            stop_text_token: 0,
+            start_speech_token: 6561,
+            stop_speech_token: 6562,
+            max_new_tokens: 1000,
+        }
+    }
+}
 
 /// Owned tensor contents plus shape metadata, used to pass ONNX outputs around
 /// without losing the runtime-dynamic shape information.
@@ -478,6 +504,79 @@ pub(super) fn decoder_inputs<'a>(
     ])
 }
 
+/// Upstream Chatterbox drops the audio corresponding to the final generated
+/// speech token because it is emitted just before EOS and tends to decode as a
+/// short burst of noise.
+pub(super) fn trim_final_token_audio(
+    pcm: &mut Vec<f32>,
+    generated_tokens: usize,
+    sample_rate: u32,
+) {
+    if generated_tokens <= 1 {
+        return;
+    }
+
+    let samples_per_token = sample_rate as usize / S3_TOKEN_RATE as usize;
+    let target_len = (generated_tokens - 1) * samples_per_token;
+    if pcm.len() > target_len {
+        pcm.truncate(target_len);
+    }
+}
+
+pub(super) fn filter_valid_speech_tokens(tokens: &mut Vec<i64>, start_speech_token: i64) {
+    tokens.retain(|&token| token >= 0 && token < start_speech_token);
+}
+
+/// Normalize whitespace and punctuation to match the upstream Chatterbox
+/// dataset preprocessing. Applied before tokenizer-specific normalization.
+pub(super) fn punc_norm(text: &str, multilingual_enders: bool) -> String {
+    if text.is_empty() {
+        return "You need to add some text for me to talk.".into();
+    }
+
+    let mut text = text.to_string();
+    if let Some(first) = text.chars().next() {
+        if first.is_lowercase() {
+            let first_upper: String = first.to_uppercase().collect();
+            text.replace_range(0..first.len_utf8(), &first_upper);
+        }
+    }
+
+    text = text.split_whitespace().collect::<Vec<_>>().join(" ");
+
+    for (from, to) in [
+        ("...", ", "),
+        ("…", ", "),
+        (":", ","),
+        (" - ", ", "),
+        (";", ", "),
+        ("—", "-"),
+        ("–", "-"),
+        (" ,", ","),
+        ("\u{201C}", "\""),
+        ("\u{201D}", "\""),
+        ("\u{2018}", "'"),
+        ("\u{2019}", "'"),
+    ] {
+        text = text.replace(from, to);
+    }
+
+    while text.ends_with(' ') {
+        text.pop();
+    }
+
+    let has_ender = if multilingual_enders {
+        text.ends_with(['.', '!', '?', '-', ',', '、', '，', '。', '？', '！'])
+    } else {
+        text.ends_with(['.', '!', '?', '-', ','])
+    };
+    if !has_ender {
+        text.push('.');
+    }
+
+    text
+}
+
 /// Single speech-token continuation, duplicated across the CFG batch when
 /// enabled. Shared by Chatterbox-family language-model loops.
 pub(super) fn build_continuation_embeds(
@@ -580,6 +679,108 @@ mod tests {
         let st = SafeTensorsFile::open(&path, "test").unwrap();
         let err = st.f32("cond_emb", "test").unwrap_err().to_string();
         assert!(err.contains("cond_emb"));
+    }
+
+    // ── S3 token post-processing ───────────────────────────────────────────
+
+    #[test]
+    fn filter_valid_speech_tokens_removes_special_and_negative_ids() {
+        let mut tokens = vec![0, 42, 6560, 6561, 6562, -1];
+        filter_valid_speech_tokens(&mut tokens, 6561);
+        assert_eq!(tokens, vec![0, 42, 6560]);
+    }
+
+    #[test]
+    fn trim_final_token_audio_removes_one_token_window() {
+        let mut pcm = vec![0.0; 5 * 960];
+        trim_final_token_audio(&mut pcm, 5, 24_000);
+        assert_eq!(pcm.len(), 4 * 960);
+    }
+
+    #[test]
+    fn trim_final_token_audio_keeps_short_outputs() {
+        let mut pcm = vec![0.0; 960];
+        trim_final_token_audio(&mut pcm, 1, 24_000);
+        assert_eq!(pcm.len(), 960);
+    }
+
+    // ── text preprocessing ────────────────────────────────────────────────
+
+    #[test]
+    fn punc_norm_empty_returns_default_message() {
+        assert_eq!(
+            punc_norm("", true),
+            "You need to add some text for me to talk."
+        );
+    }
+
+    #[test]
+    fn punc_norm_capitalizes_first_letter() {
+        assert_eq!(punc_norm("hej", true), "Hej.");
+    }
+
+    #[test]
+    fn punc_norm_keeps_already_capital() {
+        assert_eq!(punc_norm("Hej.", true), "Hej.");
+    }
+
+    #[test]
+    fn punc_norm_collapses_extra_whitespace() {
+        assert_eq!(punc_norm("hej   verden", true), "Hej verden.");
+    }
+
+    #[test]
+    fn punc_norm_replaces_ellipsis_with_comma() {
+        assert_eq!(punc_norm("hej...", true), "Hej,");
+    }
+
+    #[test]
+    fn punc_norm_replaces_unicode_ellipsis() {
+        assert_eq!(punc_norm("hej\u{2026}", true), "Hej,");
+    }
+
+    #[test]
+    fn punc_norm_replaces_em_dash_with_hyphen() {
+        assert_eq!(punc_norm("hej\u{2014}verden", true), "Hej-verden.");
+    }
+
+    #[test]
+    fn punc_norm_replaces_dashed_phrase_with_comma() {
+        assert_eq!(punc_norm("hej - verden", true), "Hej, verden.");
+    }
+
+    #[test]
+    fn punc_norm_replaces_smart_double_quotes() {
+        assert_eq!(punc_norm("\u{201C}hej\u{201D}", true), "\"hej\".");
+    }
+
+    #[test]
+    fn punc_norm_appends_period_when_missing_terminator() {
+        assert_eq!(punc_norm("hej", true), "Hej.");
+    }
+
+    #[test]
+    fn punc_norm_keeps_existing_terminator() {
+        assert_eq!(punc_norm("hej!", true), "Hej!");
+        assert_eq!(punc_norm("hej?", true), "Hej?");
+    }
+
+    #[test]
+    fn punc_norm_keeps_multilingual_terminator_when_enabled() {
+        assert_eq!(punc_norm("hej。", true), "Hej。");
+    }
+
+    #[test]
+    fn punc_norm_appends_after_multilingual_terminator_when_disabled() {
+        assert_eq!(punc_norm("hej。", false), "Hej。.");
+    }
+
+    #[test]
+    fn punc_norm_english_replaces_uncommon_punctuation() {
+        assert_eq!(
+            punc_norm("hello... world; ok", false),
+            "Hello,  world,  ok."
+        );
     }
 
     // ── collapse_logits ────────────────────────────────────────────────────

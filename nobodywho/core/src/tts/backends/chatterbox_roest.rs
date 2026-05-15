@@ -27,7 +27,7 @@ use crate::errors::TtsError;
 use crate::tts::backend::TtsBackendImpl;
 use crate::tts::ort_util::{
     self, build_continuation_embeds, collapse_logits, detect_num_layers, has_position_ids,
-    KvCacheLayout, SpeakerConditioning, SpeechGenerationState, TensorData,
+    KvCacheLayout, SpeakerConditioning, SpeechGenerationState, SpeechTokenModelConfig, TensorData,
 };
 use crate::tts::sampling;
 use crate::tts::{TtsDevice, TtsSampling, DEFAULT_SAMPLE_RATE};
@@ -117,10 +117,10 @@ impl RoestBackend {
             num_layers,
             num_kv_heads,
             head_dim,
-            start_text_token = model_config.start_text_token,
-            stop_text_token = model_config.stop_text_token,
-            start_speech_token = model_config.start_speech_token,
-            stop_speech_token = model_config.stop_speech_token,
+            start_text_token = model_config.tokens.start_text_token,
+            stop_text_token = model_config.tokens.stop_text_token,
+            start_speech_token = model_config.tokens.start_speech_token,
+            stop_speech_token = model_config.tokens.stop_speech_token,
             cond_seq = cond.cond_emb.shape[1],
             "Loaded Røst TTS"
         );
@@ -136,11 +136,11 @@ impl RoestBackend {
             language,
             sampling,
             sample_rate,
-            start_text_token: model_config.start_text_token,
-            stop_text_token: model_config.stop_text_token,
-            start_speech_token: model_config.start_speech_token,
-            stop_speech_token: model_config.stop_speech_token,
-            max_new_tokens: model_config.max_new_tokens,
+            start_text_token: model_config.tokens.start_text_token,
+            stop_text_token: model_config.tokens.stop_text_token,
+            start_speech_token: model_config.tokens.start_speech_token,
+            stop_speech_token: model_config.tokens.stop_speech_token,
+            max_new_tokens: model_config.tokens.max_new_tokens,
             num_layers,
             num_kv_heads,
             head_dim,
@@ -400,94 +400,24 @@ fn text_position_slice(
 }
 
 fn prepare_text_for_mtl_tokenizer(text: &str, language: &str) -> String {
-    let punctuated = punc_norm(text);
+    let punctuated = ort_util::punc_norm(text, true);
     let normalized: String = punctuated.to_lowercase().nfkd().collect();
     let replaced_spaces = normalized.replace(' ', "[SPACE]");
     let language = if language.is_empty() { "da" } else { language }.to_lowercase();
     format!("[{}]{}", language, replaced_spaces)
 }
 
-/// Normalize whitespace and punctuation to match the upstream Chatterbox
-/// dataset preprocessing. Applied before `nfkd` + lowercasing.
-/// https://github.com/resemble-ai/chatterbox/blob/master/src/chatterbox/tts.py#L18
-fn punc_norm(text: &str) -> String {
-    if text.is_empty() {
-        return "You need to add some text for me to talk.".into();
-    }
-
-    let mut text = text.to_string();
-    if let Some(first) = text.chars().next() {
-        if first.is_lowercase() {
-            let first_upper: String = first.to_uppercase().collect();
-            text.replace_range(0..first.len_utf8(), &first_upper);
-        }
-    }
-
-    text = text.split_whitespace().collect::<Vec<_>>().join(" ");
-
-    for (from, to) in [
-        ("...", ", "),
-        ("…", ", "),
-        (":", ","),
-        (" - ", ", "),
-        (";", ", "),
-        ("—", "-"),
-        ("–", "-"),
-        (" ,", ","),
-        ("\u{201C}", "\""),
-        ("\u{201D}", "\""),
-        ("\u{2018}", "'"),
-        ("\u{2019}", "'"),
-    ] {
-        text = text.replace(from, to);
-    }
-
-    while text.ends_with(' ') {
-        text.pop();
-    }
-
-    if !text.ends_with(['.', '!', '?', '-', ',', '、', '，', '。', '？', '！']) {
-        text.push('.');
-    }
-
-    text
-}
-
 /// All fields are optional and default to the upstream Røst export values.
 #[derive(Deserialize, Default)]
 struct RoestModelConfig {
-    #[serde(default = "default_start_text_token")]
-    start_text_token: i64,
-    #[serde(default = "default_stop_text_token")]
-    stop_text_token: i64,
-    #[serde(default = "default_start_speech_token")]
-    start_speech_token: i64,
-    #[serde(default = "default_stop_speech_token")]
-    stop_speech_token: i64,
-    #[serde(default = "default_max_new_tokens")]
-    max_new_tokens: usize,
+    #[serde(flatten)]
+    tokens: SpeechTokenModelConfig,
     #[serde(default = "default_text_pos_emb_shape")]
     text_pos_emb_shape: [usize; 2],
 }
 
 fn default_text_pos_emb_shape() -> [usize; 2] {
     [2050, 1024]
-}
-
-fn default_start_text_token() -> i64 {
-    255
-}
-fn default_stop_text_token() -> i64 {
-    0
-}
-fn default_start_speech_token() -> i64 {
-    6561
-}
-fn default_stop_speech_token() -> i64 {
-    6562
-}
-fn default_max_new_tokens() -> usize {
-    1000
 }
 
 /// Load pre-computed conditioning from a directory of raw-binary tensors.
@@ -580,62 +510,6 @@ fn load_model_config(model_dir: &Path) -> Result<RoestModelConfig, TtsError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn punc_norm_empty_returns_default_message() {
-        assert_eq!(punc_norm(""), "You need to add some text for me to talk.");
-    }
-
-    #[test]
-    fn punc_norm_capitalizes_first_letter() {
-        assert_eq!(punc_norm("hej"), "Hej.");
-    }
-
-    #[test]
-    fn punc_norm_keeps_already_capital() {
-        assert_eq!(punc_norm("Hej."), "Hej.");
-    }
-
-    #[test]
-    fn punc_norm_collapses_extra_whitespace() {
-        assert_eq!(punc_norm("hej   verden"), "Hej verden.");
-    }
-
-    #[test]
-    fn punc_norm_replaces_ellipsis_with_comma() {
-        assert_eq!(punc_norm("hej..."), "Hej,");
-    }
-
-    #[test]
-    fn punc_norm_replaces_unicode_ellipsis() {
-        assert_eq!(punc_norm("hej\u{2026}"), "Hej,");
-    }
-
-    #[test]
-    fn punc_norm_replaces_em_dash_with_hyphen() {
-        assert_eq!(punc_norm("hej\u{2014}verden"), "Hej-verden.");
-    }
-
-    #[test]
-    fn punc_norm_replaces_dashed_phrase_with_comma() {
-        assert_eq!(punc_norm("hej - verden"), "Hej, verden.");
-    }
-
-    #[test]
-    fn punc_norm_replaces_smart_double_quotes() {
-        assert_eq!(punc_norm("\u{201C}hej\u{201D}"), "\"hej\".");
-    }
-
-    #[test]
-    fn punc_norm_appends_period_when_missing_terminator() {
-        assert_eq!(punc_norm("hej"), "Hej.");
-    }
-
-    #[test]
-    fn punc_norm_keeps_existing_terminator() {
-        assert_eq!(punc_norm("hej!"), "Hej!");
-        assert_eq!(punc_norm("hej?"), "Hej?");
-    }
 
     #[test]
     fn prepare_text_for_mtl_default_language_is_da() {
