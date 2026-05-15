@@ -1,5 +1,7 @@
 use crate::errors::{InitWorkerError, LoadModelError, ReadError};
 use crate::memory;
+#[cfg(not(target_os = "ios"))]
+use crate::platform::get_backends_path;
 use crate::tokenizer::{ProjectionModel, Tokenizer, TokenizerChunk, TokenizerChunks};
 use indicatif::{ProgressBar, ProgressStyle};
 use lazy_static::lazy_static;
@@ -28,8 +30,14 @@ lazy_static! {
         Mutex::new(GlobalInferenceLockToken);
 }
 
-static LLAMA_BACKEND: LazyLock<LlamaBackend> =
-    LazyLock::new(|| LlamaBackend::init().expect("Failed to initialize llama backend"));
+static LLAMA_BACKEND: LazyLock<LlamaBackend> = LazyLock::new(|| {
+    #[cfg(not(target_os = "ios"))]
+    match get_backends_path() {
+        Some(path) => llama_cpp_2::llama_backend::load_backends_from_path(&path),
+        None => warn!("No GGML backend directory found; hardware acceleration backends (Vulkan, CPU variants) will not be loaded"),
+    }
+    LlamaBackend::init().expect("Failed to initialize llama backend")
+});
 
 /// Callback invoked during model downloads with `(downloaded_bytes, total_bytes)`.
 ///

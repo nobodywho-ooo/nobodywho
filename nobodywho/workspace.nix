@@ -55,13 +55,40 @@ let
             mesa
           ];
 
+          # llama-cpp-sys-2's build.rs hard-links the just-built .dylib/.so files into
+          # `target_dir/deps/` so that cargo tests in downstream crates can find them at
+          # runtime. In the crate2nix Nix sandbox on macOS that directory doesn't exist
+          # yet when the build script runs, causing a NotFound panic. Patch the unwrap
+          # calls to create the parent dir first and ignore link errors.
+          postPatch = (attrs.postPatch or "") + ''
+            substituteInPlace llama-cpp-sys-2/build.rs \
+              --replace-fail 'std::fs::hard_link(asset.clone(), dst).unwrap();' \
+                'if let Some(p) = dst.parent() { let _ = std::fs::create_dir_all(p); } let _ = std::fs::hard_link(asset.clone(), dst);'
+          '';
 
+          # crate2nix preserves the entire cmake OUT_DIR in $out, including the transient
+          # build/ subdir. That subdir contains shadow copies of every .so with RPATHs
+          # pointing at /build/..., which Nix's fixupPhase rejects via disallowedReferences.
+          # The installed copies in $out/lib/llama-cpp-sys-2.out/{backends,lib64,...} have
+          # correct RPATHs and are what downstream crates link against — drop the build/ tree.
+          preFixup = ''
+            for d in $out $lib; do
+              if [ -d "$d/lib/llama-cpp-sys-2.out/build" ]; then
+                rm -rf "$d/lib/llama-cpp-sys-2.out/build"
+              fi
+            done
+          '';
         };
 
         nobodywho = attrs: {
           nativeBuildInputs = [
             # this needs to be available at link-time
             vulkan-loader
+          ] ++ lib.optionals pkgs.stdenv.isDarwin [
+            # testPreRun patches test binary rpaths with install_name_tool and re-signs
+            # with codesign so dyld can resolve @rpath/libggml-base.dylib at runtime.
+            pkgs.darwin.cctools
+            pkgs.darwin.sigtool
           ];
         };
 

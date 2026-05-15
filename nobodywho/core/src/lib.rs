@@ -4,6 +4,7 @@ pub mod encoder;
 pub mod errors;
 pub mod llm;
 pub mod memory;
+pub(crate) mod platform;
 pub mod sampler_config;
 pub mod template;
 pub mod tokenizer;
