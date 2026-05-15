@@ -1,8 +1,10 @@
-//! Text-to-speech synthesis supporting multiple backends.
+//! Text-to-speech synthesis supporting multiple model families.
 //!
 //! Every backend takes a single model directory ([`TtsConfig::kokoro`] /
 //! [`piper`][TtsConfig::piper] / [`chatterbox`][TtsConfig::chatterbox] /
 //! [`roest`][TtsConfig::roest]); see each `*Config` for the expected layout.
+//! To guarantee the expected layout, you can download the weights from our
+//! HuggingFace: https://huggingface.co/NobodyWho/collections
 //!
 //! | Backend      | Quality       | Voice cloning | Languages              |
 //! |--------------|---------------|---------------|------------------------|
@@ -15,7 +17,7 @@
 //! Synchronous handles take text and return WAV bytes:
 //!
 //! ```no_run
-//! # use nobodywho_core::tts::{RoestConfig, TtsBuilder, TtsConfig};
+//! # use nobodywho::tts::{RoestConfig, TtsBuilder, TtsConfig};
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let tts = TtsBuilder::new(TtsConfig::Roest(RoestConfig::new("roest500m_onnx"))).build()?;
 //! let wav = tts.synthesize("Hej fra NobodyWho")?;
@@ -27,7 +29,7 @@
 //! From an async context, call `synthesize_async`:
 //!
 //! ```no_run
-//! # use nobodywho_core::tts::{ChatterboxConfig, TtsBuilder, TtsConfig};
+//! # use nobodywho::tts::{ChatterboxConfig, TtsBuilder, TtsConfig};
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! let tts = TtsBuilder::new(TtsConfig::Chatterbox(ChatterboxConfig::new("chatterbox"))).build()?;
 //! let wav = tts.synthesize_async("Hello from NobodyWho").await?;
@@ -37,21 +39,66 @@
 //! ```
 
 mod backend;
-mod chatterbox;
-mod chatterbox_roest;
-mod config;
-mod kokoro;
+mod backends;
 mod ort_util;
-mod piper;
 mod sampling;
-mod sampling_config;
-mod worker;
 
 use crate::errors::TtsError;
-pub use config::{ChatterboxConfig, KokoroConfig, PiperConfig, RoestConfig, TtsBuilder, TtsConfig};
-pub use sampling_config::TtsSampling;
+pub use backends::{ChatterboxConfig, KokoroConfig, PiperConfig, RoestConfig};
+pub use sampling::TtsSampling;
+use std::path::PathBuf;
 use std::sync::Arc;
-use worker::TtsWorker;
+
+/// Backend selection and model directory for a [`Tts`] handle.
+#[derive(Clone, Debug)]
+pub enum TtsConfig {
+    Kokoro(KokoroConfig),
+    Piper(PiperConfig),
+    Chatterbox(ChatterboxConfig),
+    Roest(RoestConfig),
+}
+
+impl TtsConfig {
+    pub fn kokoro(model_dir: impl Into<PathBuf>) -> Self {
+        Self::Kokoro(KokoroConfig::new(model_dir))
+    }
+
+    pub fn piper(model_dir: impl Into<PathBuf>) -> Self {
+        Self::Piper(PiperConfig::new(model_dir))
+    }
+
+    pub fn chatterbox(model_dir: impl Into<PathBuf>) -> Self {
+        Self::Chatterbox(ChatterboxConfig::new(model_dir))
+    }
+
+    pub fn roest(model_dir: impl Into<PathBuf>) -> Self {
+        Self::Roest(RoestConfig::new(model_dir))
+    }
+}
+
+/// Builder for creating a [`Tts`] handle with an explicit backend config.
+pub struct TtsBuilder {
+    pub(crate) config: TtsConfig,
+    pub(crate) device: TtsDevice,
+}
+
+impl TtsBuilder {
+    pub fn new(config: TtsConfig) -> Self {
+        Self {
+            config,
+            device: TtsDevice::Auto,
+        }
+    }
+
+    pub fn with_device(mut self, device: TtsDevice) -> Self {
+        self.device = device;
+        self
+    }
+
+    pub fn build(self) -> Result<Tts, TtsError> {
+        Tts::from_config(self.config, self.device)
+    }
+}
 
 /// Hardware target for ONNX Runtime execution. All backends honor this.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -80,21 +127,24 @@ pub(crate) fn ort_execution_providers(
     }
 }
 
-/// Audio sample rate shared by Kokoro, Chatterbox, and Røst. Piper reports
-/// its own rate from its config.
-const DEFAULT_SAMPLE_RATE: u32 = 24000;
+/// Default audio sample rate for Kokoro, Chatterbox, and Røst. Each backend
+/// uses this unless the caller overrides `sample_rate` on the config. Piper
+/// always reports its own rate from its model config file.
+pub(crate) const DEFAULT_SAMPLE_RATE: u32 = 24000;
 
 /// TTS handle. Synthesis runs on a background worker; both sync and async
 /// entry points are provided.
 #[derive(Clone)]
 pub struct Tts {
-    worker: Arc<TtsWorker>,
+    worker: Arc<backend::TtsWorker>,
 }
 
 impl Tts {
     pub(crate) fn from_config(config: TtsConfig, device: TtsDevice) -> Result<Self, TtsError> {
         Ok(Self {
-            worker: Arc::new(TtsWorker::new(backend::load_backend(config, device)?)),
+            worker: Arc::new(backend::TtsWorker::new(backend::load_backend(
+                config, device,
+            )?)),
         })
     }
 
@@ -108,11 +158,6 @@ impl Tts {
         tokio::task::spawn_blocking(move || worker.synthesize(text))
             .await
             .map_err(|e| TtsError::Synthesis(format!("task join error: {e}")))?
-    }
-
-    /// List available voice names (Kokoro only; returns empty for other backends).
-    pub fn available_voices(&self) -> Vec<String> {
-        self.worker.available_voices()
     }
 }
 
@@ -132,14 +177,14 @@ mod tests {
 
     #[test]
     fn typed_roest_config_sets_sampling() {
-        let mut config = RoestConfig::new("model-dir");
-        config.sampling = TtsSampling {
+        let config = RoestConfig::new("model-dir").with_sampling(TtsSampling {
             temperature: 0.2,
             top_k: 40,
             top_p: 0.9,
             min_p: 0.02,
             cfg_weight: 0.0,
-        };
+            repetition_penalty: 1.5,
+        });
         let builder = TtsBuilder::new(TtsConfig::Roest(config));
         match builder.config {
             TtsConfig::Roest(config) => {
@@ -149,6 +194,7 @@ mod tests {
                 assert_eq!(config.sampling.top_p, 0.9);
                 assert_eq!(config.sampling.min_p, 0.02);
                 assert_eq!(config.sampling.cfg_weight, 0.0);
+                assert_eq!(config.sampling.repetition_penalty, 1.5);
             }
             _ => panic!("expected roest config"),
         }

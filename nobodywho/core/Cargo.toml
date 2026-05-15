@@ -48,6 +48,7 @@ libc = "0.2"
 dirs = "6"
 stft-rs = "0.6.0"
 hound = "3"
+safetensors = "0.5"
 ort = { version = "2.0.0-rc.12", default-features = true, features = ["cuda"] }
 espeak-rs = "0.1.9"
 tokenizers = { version = "0.22", default-features = false, features = ["onig"] }

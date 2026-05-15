@@ -1,33 +1,9 @@
 //! Token sampling for Chatterbox-family TTS language models.
 //!
-//! The pipeline — temperature → repetition penalty (applied by caller) →
-//! top-k → min-p → top-p → multinomial — follows Hugging Face's logit warpers
-//! so the Rust output can be compared against the reference torch path.
+//! Pipeline order: temperature → repetition penalty (applied by caller) →
+//! top-k → min-p → top-p → multinomial, matching HF's logit warpers.
 
 use std::cmp::Ordering;
-
-/// Sampling knobs shared by every Chatterbox-family backend.
-///
-/// `top_k`, `top_p`, `min_p`, and `cfg_weight` are all "disabled" at their
-/// neutral values (0, 1.0, 0.0, 0.0 respectively), so a caller that only sets
-/// `temperature` gets a plain temperature-scaled multinomial sample.
-#[derive(Clone, Debug)]
-pub(super) struct SamplingParams {
-    /// Temperature. Values `<= 1e-6` trigger greedy (argmax) sampling.
-    pub temperature: f32,
-    /// Top-k: keep the `k` highest-logit candidates. `0` disables the filter.
-    pub top_k: usize,
-    /// Top-p (nucleus): keep the smallest set whose cumulative probability
-    /// reaches `top_p`. `1.0` disables the filter.
-    pub top_p: f32,
-    /// Min-p: drop candidates whose probability is below `min_p × top_prob`.
-    /// `0.0` disables the filter.
-    pub min_p: f32,
-    /// Classifier-free guidance weight. `0.0` disables CFG; positive values
-    /// mix `logits = cond + cfg_weight × (cond − uncond)` and require the LM
-    /// to be called with a duplicated unconditioned batch.
-    pub cfg_weight: f32,
-}
 
 /// Return the index of the largest element, treating NaNs as smaller than
 /// everything else. Returns `0` on an empty slice.
@@ -40,9 +16,8 @@ pub(super) fn argmax(values: &[f32]) -> usize {
         .unwrap_or(0)
 }
 
-/// Divide every finite logit by `penalty`, raising it if negative (so the
-/// "away from this token" direction is always stronger). If `dedup` is true,
-/// each token id in `generated` contributes at most once.
+/// Divide every finite logit by `penalty`, raising it if negative. If `dedup`
+/// is true, each token id in `generated` contributes at most once.
 pub(super) fn apply_repetition_penalty(
     logits: &mut [f32],
     generated: &[i64],
@@ -114,8 +89,7 @@ pub(super) fn softmax(logits: &[f32]) -> Vec<f32> {
     probs
 }
 
-/// Keep only the top `k` logits (by value), masking the rest to −∞ so they
-/// survive through softmax as zero. `k == 0` is a no-op.
+/// Keep only the top `k` logits (by value), masking the rest to −∞. `k == 0` is a no-op.
 pub(super) fn apply_top_k(logits: &mut [f32], k: usize) {
     if k == 0 || k >= logits.len() {
         return;
@@ -127,8 +101,7 @@ pub(super) fn apply_top_k(logits: &mut [f32], k: usize) {
     }
 }
 
-/// Mask candidates whose probability is below `min_p × top_prob`. Always
-/// preserves at least the top-1 candidate (matching HF's `min_tokens_to_keep=1`).
+/// Mask candidates below `min_p × top_prob`. Always preserves at least the top-1 candidate.
 pub(super) fn apply_min_p(logits: &mut [f32], min_p: f32) {
     if min_p <= 0.0 {
         return;
@@ -154,8 +127,7 @@ pub(super) fn apply_min_p(logits: &mut [f32], min_p: f32) {
     }
 }
 
-/// Nucleus filter: ascending-sort logits and mask out the lowest-probability
-/// tail whose cumulative mass falls below `1 − top_p`. `top_p >= 1.0` is a no-op.
+/// Nucleus filter: mask the lowest-probability tail below `1 − top_p`. `top_p >= 1.0` is a no-op.
 pub(super) fn apply_top_p(logits: &mut [f32], top_p: f32) {
     if top_p >= 1.0 {
         return;
@@ -177,7 +149,6 @@ pub(super) fn apply_top_p(logits: &mut [f32], top_p: f32) {
     }
 }
 
-/// Draw one multinomial sample from a normalized probability distribution.
 fn sample_multinomial(probs: &[f32]) -> usize {
     let mut r = rand::random::<f64>();
     for (idx, &p) in probs.iter().enumerate() {
@@ -186,8 +157,6 @@ fn sample_multinomial(probs: &[f32]) -> usize {
             return idx;
         }
     }
-    // Fall through: float error ate the remaining mass. Return the last
-    // non-zero-probability index.
     probs
         .iter()
         .enumerate()
@@ -196,11 +165,9 @@ fn sample_multinomial(probs: &[f32]) -> usize {
         .unwrap_or(0)
 }
 
-/// Apply the full warper chain and draw one token.
-///
-/// `logits` is mutated in place. If `params.temperature <= 1e-6` the function
-/// short-circuits to [`argmax`] and skips the warpers entirely.
-pub(super) fn sample_token(logits: &mut [f32], params: &SamplingParams) -> usize {
+/// Apply the full warper chain and draw one token. `logits` is mutated in place.
+/// Short-circuits to [`argmax`] when `temperature <= 1e-6`.
+pub(super) fn sample_token(logits: &mut [f32], params: &TtsSampling) -> usize {
     if params.temperature <= 1e-6 {
         return argmax(logits);
     }
@@ -223,13 +190,14 @@ pub(super) fn sample_token(logits: &mut [f32], params: &SamplingParams) -> usize
 mod tests {
     use super::*;
 
-    fn params() -> SamplingParams {
-        SamplingParams {
+    fn params() -> TtsSampling {
+        TtsSampling {
             temperature: 1.0,
             top_k: 0,
             top_p: 1.0,
             min_p: 0.0,
             cfg_weight: 0.0,
+            repetition_penalty: 1.0,
         }
     }
 
@@ -300,7 +268,7 @@ mod tests {
     #[test]
     fn sample_token_greedy_when_temperature_zero() {
         let mut logits = vec![0.1, 0.9, 0.3];
-        let p = SamplingParams {
+        let p = TtsSampling {
             temperature: 0.0,
             ..params()
         };
@@ -320,5 +288,69 @@ mod tests {
         let probs = softmax(&[f32::NEG_INFINITY, f32::NEG_INFINITY]);
         assert_eq!(probs[0], 1.0);
         assert_eq!(probs[1], 0.0);
+    }
+}
+
+/// Sampling parameters for the autoregressive token loop in
+/// [`ChatterboxConfig`][crate::tts::ChatterboxConfig] and
+/// [`RoestConfig`][crate::tts::RoestConfig]. Has no effect on Kokoro / Piper.
+#[derive(Clone, Debug)]
+pub struct TtsSampling {
+    pub temperature: f32,
+    pub top_k: usize,
+    pub top_p: f32,
+    pub min_p: f32,
+    pub cfg_weight: f32,
+    pub repetition_penalty: f32,
+}
+
+impl Default for TtsSampling {
+    fn default() -> Self {
+        Self {
+            temperature: 0.8,
+            top_k: 0,
+            top_p: 1.0,
+            min_p: 0.05,
+            cfg_weight: 0.5,
+            repetition_penalty: 2.0,
+        }
+    }
+}
+
+impl TtsSampling {
+    /// Deterministic argmax; disables all filters and CFG.
+    pub fn greedy() -> Self {
+        Self {
+            temperature: 0.0,
+            top_k: 0,
+            top_p: 1.0,
+            min_p: 0.0,
+            cfg_weight: 0.0,
+            repetition_penalty: 1.0,
+        }
+    }
+
+    /// Temperature-only sampling; disables top-k, top-p, min-p, and CFG.
+    pub fn temperature(temperature: f32) -> Self {
+        Self {
+            temperature,
+            top_k: 0,
+            top_p: 1.0,
+            min_p: 0.0,
+            cfg_weight: 0.0,
+            repetition_penalty: 1.0,
+        }
+    }
+
+    /// Top-k sampling with temperature 1.0; disables top-p, min-p, and CFG.
+    pub fn top_k(k: usize) -> Self {
+        Self {
+            temperature: 1.0,
+            top_k: k,
+            top_p: 1.0,
+            min_p: 0.0,
+            cfg_weight: 0.0,
+            repetition_penalty: 1.0,
+        }
     }
 }

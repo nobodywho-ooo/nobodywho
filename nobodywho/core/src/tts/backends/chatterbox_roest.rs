@@ -2,22 +2,25 @@
 //!
 //! Røst reuses Chatterbox's ONNX graphs for the conditional decoder (speech
 //! tokens → PCM) but has its own finetuned text/speech embedding and
-//! `language_model` exports. The finetuned `cond_enc` weights were fused into the base export
-//! before the torch → ONNX conversion, so Røst cannot run the speech encoder
-//! — the pre-computed conditioning in `default_cond/` is mandatory.
+//! language_model exports. The finetuned cond_enc weights were fused into the
+//! base export before the torch → ONNX conversion, so Røst cannot run the
+//! speech encoder — `conditioning.safetensors` is mandatory.
+//!
+//! Model-specific token IDs and generation bounds are read from
+//! `model_config.json` (all fields optional, sensible defaults provided).
 //!
 //! Expected model directory layout:
 //!
 //! ```text
 //! dir/
-//!   tokenizer.json                 — Røst grapheme multilingual tokenizer
-//!   model_config.json              — {"text_pos_emb_shape": [...]}
-//!   text_pos_emb.bin               — learned text position embeddings (f32, row-major)
-//!   default_cond/                  — pre-computed conditioning (manifest.json + .bin)
-//!   onnx/text_embed.onnx           — exported from Røst text_emb + text_pos_emb
-//!   onnx/speech_embed.onnx         — exported from Røst speech_emb + speech_pos_emb
-//!   onnx/language_model.onnx       — exported from Røst
-//!   onnx/conditional_decoder.onnx  — from base Chatterbox (s3gen unchanged)
+//!   tokenizer.json
+//!   model_config.json              — optional token IDs and generation bounds
+//!   conditioning.safetensors       — cond_emb, prompt_token, ref_x_vector,
+//!                                    prompt_feat, text_pos_emb
+//!   text_embed.onnx
+//!   speech_embed.onnx
+//!   language_model.onnx
+//!   conditional_decoder.onnx
 //! ```
 
 use crate::errors::TtsError;
@@ -26,124 +29,98 @@ use crate::tts::ort_util::{
     self, build_continuation_embeds, collapse_logits, detect_num_layers, has_position_ids,
     KvCacheLayout, SpeakerConditioning, SpeechGenerationState, TensorData,
 };
-use crate::tts::sampling::{self, SamplingParams};
+use crate::tts::sampling;
 use crate::tts::{TtsDevice, TtsSampling, DEFAULT_SAMPLE_RATE};
 use ort::session::SessionInputs;
-use std::path::Path;
-use std::time::Instant;
-use tracing::info;
+use serde::Deserialize;
+use std::path::{Path, PathBuf};
+use tracing::{debug, info};
 use unicode_normalization::UnicodeNormalization;
 
-pub(super) struct RoestBackend {
-    model: RoestModel,
-    language: String,
-    sampling: TtsSampling,
-}
+const TEXT_EMBED_FILE: &str = "text_embed.onnx";
+const SPEECH_EMBED_FILE: &str = "speech_embed.onnx";
+const LANGUAGE_MODEL_FILE: &str = "language_model.onnx";
+const CONDITIONAL_DECODER_FILE: &str = "conditional_decoder.onnx";
+const TOKENIZER_FILE: &str = "tokenizer.json";
 
-impl RoestBackend {
-    pub fn new(model: RoestModel, language: String, sampling: TtsSampling) -> Self {
-        Self {
-            model,
-            language,
-            sampling,
-        }
+/// Resolve an ONNX model file: try `model_dir/file` first, fall back to
+/// `model_dir/onnx/file` to support repos that store ONNX files in a subdir.
+fn onnx_path(model_dir: &Path, file: &str) -> PathBuf {
+    let flat = model_dir.join(file);
+    if flat.exists() {
+        flat
+    } else {
+        model_dir.join("onnx").join(file)
     }
 }
 
-impl TtsBackendImpl for RoestBackend {
-    fn synthesize_raw(&mut self, text: &str) -> Result<(Vec<f32>, u32), TtsError> {
-        let sampling = SamplingParams::from(&self.sampling);
-        let samples = self.model.synthesize(text, &self.language, &sampling)?;
-        Ok((samples, DEFAULT_SAMPLE_RATE))
-    }
-}
-
-/// Sample rate of the S3Gen decoder (shared with base Chatterbox).
-const S3GEN_SR: u32 = 24000;
-
-/// Vocabulary IDs around the text span. These are raw text-token IDs passed to
-/// the text embedding table, matching the torch multilingual wrapper.
-const START_TEXT_TOKEN: i64 = 255;
-const STOP_TEXT_TOKEN: i64 = 0;
-
-/// Speech-token delimiters — the LM begins generation at `START_SPEECH_TOKEN`
-/// and stops when it emits `STOP_SPEECH_TOKEN`.
-const START_SPEECH_TOKEN: i64 = 6561;
-const STOP_SPEECH_TOKEN: i64 = 6562;
-
-/// Safety bound on the autoregressive loop. Real utterances stop well before
-/// this via `STOP_SPEECH_TOKEN`.
-const DEFAULT_MAX_NEW_TOKENS: usize = 1000;
-
-/// Divisor applied to logits of previously generated tokens. Matches upstream.
-const REPETITION_PENALTY: f32 = 2.0;
-
-/// Both multilingual (Llama) and turbo (GPT-2) variants use 16 KV heads of
-/// dim 64 — hard-coded rather than sniffed from the ONNX graph.
-const NUM_KV_HEADS: usize = 16;
-const HEAD_DIM: usize = 64;
-
-/// Fields parsed out of `model_config.json`.
-struct ModelConfig {
-    text_pos_emb_shape: Vec<usize>,
-}
-
-pub(crate) struct RoestModel {
+pub(in crate::tts) struct RoestBackend {
     text_embed: ort::session::Session,
     speech_embed: ort::session::Session,
     language_model: ort::session::Session,
     conditional_decoder: ort::session::Session,
     tokenizer: tokenizers::Tokenizer,
     cond: SpeakerConditioning,
-    /// Standalone text position embeddings, used to construct the
-    /// unconditioned CFG branch in the first LM step (torch substitutes pure
-    /// positions for the real text embeddings there). The conditioned
-    /// branch's positions are already baked into `text_embed.onnx`.
     text_pos_emb: TensorData<f32>,
+    language: String,
+    sampling: TtsSampling,
+    sample_rate: u32,
+    start_text_token: i64,
+    stop_text_token: i64,
+    start_speech_token: i64,
+    stop_speech_token: i64,
+    max_new_tokens: usize,
     num_layers: usize,
+    num_kv_heads: usize,
+    head_dim: usize,
     text_embed_has_position_ids: bool,
     speech_embed_has_position_ids: bool,
 }
 
-impl RoestModel {
-    pub fn new(model_dir: &Path, device: TtsDevice) -> Result<Self, TtsError> {
-        let onnx_dir = model_dir.join("onnx");
+impl RoestBackend {
+    pub fn new(
+        model_dir: &Path,
+        language: String,
+        sampling: TtsSampling,
+        sample_rate: u32,
+        device: TtsDevice,
+    ) -> Result<Self, TtsError> {
+        let model_config = load_model_config(model_dir)?;
 
-        let tokenizer = tokenizers::Tokenizer::from_file(model_dir.join("tokenizer.json"))
-            .map_err(|e| TtsError::Init(format!("failed to load tokenizer: {e}")))?;
+        let tokenizer = tokenizers::Tokenizer::from_file(model_dir.join(TOKENIZER_FILE))
+            .map_err(|e| TtsError::Init(format!("roest: load tokenizer: {e}")))?;
 
-        // The exported language_model breaks under ORT's default graph fusion
-        // passes (some weight-only quantization-friendly subgraphs are
-        // brittle); load it with optimization disabled. The other graphs are
-        // simple enough to optimize normally.
-        let text_embed = ort_util::load_session(&onnx_dir.join("text_embed.onnx"), device, false)?;
+        let text_embed =
+            ort_util::load_session(&onnx_path(model_dir, TEXT_EMBED_FILE), device, false)?;
         let speech_embed =
-            ort_util::load_session(&onnx_dir.join("speech_embed.onnx"), device, false)?;
-        let language_model = ort_util::find_language_model(
-            &onnx_dir,
+            ort_util::load_session(&onnx_path(model_dir, SPEECH_EMBED_FILE), device, false)?;
+        let language_model =
+            ort_util::load_session(&onnx_path(model_dir, LANGUAGE_MODEL_FILE), device, true)?;
+        let conditional_decoder = ort_util::load_session(
+            &onnx_path(model_dir, CONDITIONAL_DECODER_FILE),
             device,
-            true,
-            &[
-                "language_model.onnx",
-                "language_model_q4.onnx",
-                "language_model_fp16.onnx",
-            ],
+            false,
         )?;
-        let conditional_decoder =
-            ort_util::load_session(&onnx_dir.join("conditional_decoder.onnx"), device, false)?;
 
         let num_layers = detect_num_layers(&language_model);
+        let (num_kv_heads, head_dim) = ort_util::detect_kv_dims(&language_model)?;
         let text_embed_has_position_ids = has_position_ids(&text_embed);
         let speech_embed_has_position_ids = has_position_ids(&speech_embed);
 
-        let cond = load_precomputed_cond(&model_dir.join("default_cond"))?.ok_or_else(|| {
-            TtsError::Init("missing default_cond/ directory with pre-computed conditioning".into())
-        })?;
-        let config = load_model_config(model_dir)?;
-        let text_pos_emb = load_text_pos_emb(model_dir, &config.text_pos_emb_shape)?;
+        let cond = load_bin_conditioning(&model_dir.join("default_cond"))?;
+        let text_pos_emb = load_text_pos_emb(
+            &model_dir.join("text_pos_emb.bin"),
+            &model_config.text_pos_emb_shape,
+        )?;
 
         info!(
             num_layers,
+            num_kv_heads,
+            head_dim,
+            start_text_token = model_config.start_text_token,
+            stop_text_token = model_config.stop_text_token,
+            start_speech_token = model_config.start_speech_token,
+            stop_speech_token = model_config.stop_speech_token,
             cond_seq = cond.cond_emb.shape[1],
             "Loaded Røst TTS"
         );
@@ -156,43 +133,52 @@ impl RoestModel {
             tokenizer,
             cond,
             text_pos_emb,
+            language,
+            sampling,
+            sample_rate,
+            start_text_token: model_config.start_text_token,
+            stop_text_token: model_config.stop_text_token,
+            start_speech_token: model_config.start_speech_token,
+            stop_speech_token: model_config.stop_speech_token,
+            max_new_tokens: model_config.max_new_tokens,
             num_layers,
+            num_kv_heads,
+            head_dim,
             text_embed_has_position_ids,
             speech_embed_has_position_ids,
         })
     }
+}
 
-    pub(super) fn synthesize(
-        &mut self,
-        text: &str,
-        language: &str,
-        sampling: &SamplingParams,
-    ) -> Result<Vec<f32>, TtsError> {
-        let start = Instant::now();
-        let prepared = prepare_text_for_mtl_tokenizer(text, language);
+impl TtsBackendImpl for RoestBackend {
+    fn synthesize_raw(&mut self, text: &str) -> Result<(Vec<f32>, u32), TtsError> {
+        let sampling = self.sampling.clone();
+        let prepared = prepare_text_for_mtl_tokenizer(text, &self.language);
         let (text_input_ids, text_position_ids) = self.tokenize_for_lm(&prepared)?;
         let speech_tokens =
-            self.generate_speech_tokens(&text_input_ids, &text_position_ids, sampling)?;
+            self.generate_speech_tokens(&text_input_ids, &text_position_ids, &sampling)?;
 
+        let prompt_token_count = self.cond.prompt_token.data.len();
         let mut full_tokens: Vec<i64> = self.cond.prompt_token.data.clone();
         full_tokens.extend_from_slice(&speech_tokens);
 
         let pcm = self.decode_speech(&full_tokens)?;
 
-        info!(
-            input_tokens = text_input_ids.len(),
-            speech_tokens = speech_tokens.len(),
-            samples = pcm.len(),
-            duration_secs = pcm.len() as f32 / S3GEN_SR as f32,
-            elapsed = ?start.elapsed(),
-            "Røst: synthesis complete"
+        debug!(
+            text_tokens = text_input_ids.len(),
+            prompt_tokens = prompt_token_count,
+            generated_tokens = speech_tokens.len(),
+            pcm_samples = pcm.len(),
+            pcm_duration_s = pcm.len() as f32 / self.sample_rate as f32,
+            "Røst: decode complete"
         );
-        Ok(pcm)
-    }
 
-    /// Build the raw `[SOT, text..., EOT]` token sequence plus its parallel
-    /// position IDs. The speech span
-    /// is appended inside `generate_speech_tokens` as an explicit BOS embed.
+        Ok((pcm, self.sample_rate))
+    }
+}
+
+impl RoestBackend {
+    /// Build the `[SOT, text..., EOT]` token sequence plus parallel position IDs.
     fn tokenize_for_lm(&self, prepared_text: &str) -> Result<(Vec<i64>, Vec<i64>), TtsError> {
         let encoding = self
             .tokenizer
@@ -201,9 +187,9 @@ impl RoestModel {
         let raw_ids: Vec<i64> = encoding.get_ids().iter().map(|&id| id as i64).collect();
 
         let mut ids: Vec<i64> = Vec::with_capacity(raw_ids.len() + 2);
-        ids.push(START_TEXT_TOKEN);
+        ids.push(self.start_text_token);
         ids.extend(&raw_ids);
-        ids.push(STOP_TEXT_TOKEN);
+        ids.push(self.stop_text_token);
 
         let positions: Vec<i64> = (0..ids.len() as i64).collect();
         Ok((ids, positions))
@@ -213,13 +199,13 @@ impl RoestModel {
         &mut self,
         text_input_ids: &[i64],
         text_position_ids: &[i64],
-        sampling_params: &SamplingParams,
+        sampling_params: &TtsSampling,
     ) -> Result<Vec<i64>, TtsError> {
         let use_cfg = sampling_params.cfg_weight > 0.0;
         let kv_layout = KvCacheLayout {
             num_layers: self.num_layers,
-            num_kv_heads: NUM_KV_HEADS,
-            head_dim: HEAD_DIM,
+            num_kv_heads: self.num_kv_heads,
+            head_dim: self.head_dim,
             batch: if use_cfg { 2 } else { 1 },
         };
 
@@ -233,32 +219,31 @@ impl RoestModel {
         let bos_embeds = embed_speech_token(
             speech_embed_session,
             self.speech_embed_has_position_ids,
-            START_SPEECH_TOKEN,
+            self.start_speech_token,
             0,
         )?;
 
         let mut state = SpeechGenerationState::new(
             &kv_layout,
-            START_SPEECH_TOKEN,
-            DEFAULT_MAX_NEW_TOKENS,
-            cond_emb_seq + text_input_ids.len() + DEFAULT_MAX_NEW_TOKENS,
+            self.start_speech_token,
+            self.max_new_tokens,
+            cond_emb_seq + text_input_ids.len() + self.max_new_tokens,
         );
 
-        for step in 0..DEFAULT_MAX_NEW_TOKENS {
-            let step_start = Instant::now();
-
+        for step in 0..self.max_new_tokens {
             let token_embeds = if step == 0 {
                 ort_util::run_embed(
                     text_embed_session,
                     self.text_embed_has_position_ids,
+                    false,
                     text_input_ids,
                     text_position_ids,
                     "text_embeds",
                 )?
             } else {
                 // Speech position counter advances by 1 per loop iteration —
-                // the duplicated BOS in the first-step pack still resolves to
-                // position 0 (same embedding twice), so step 1 → position 1.
+                // the duplicated BOS in the first-step pack resolves to position 0
+                // (same embedding twice), so step 1 → position 1.
                 embed_speech_token(
                     speech_embed_session,
                     self.speech_embed_has_position_ids,
@@ -278,11 +263,9 @@ impl RoestModel {
             } else {
                 build_continuation_embeds(&token_embeds, use_cfg)
             };
-            state.timings.embed += step_start.elapsed();
 
             state.update_attention(step, lm_seq_len);
 
-            let lm_start = Instant::now();
             let logits = ort_util::run_language_model(
                 lm_session,
                 &kv_layout,
@@ -294,42 +277,39 @@ impl RoestModel {
                 &mut state.kv_cache,
                 state.kv_seq_len,
             )?;
-            state.timings.lm += lm_start.elapsed();
 
-            let sample_start = Instant::now();
             let mut final_logits = collapse_logits(&logits, use_cfg, sampling_params.cfg_weight);
+
+            if (self.stop_speech_token as usize) < final_logits.len() {
+                tracing::trace!(
+                    step,
+                    stop_logit = final_logits[self.stop_speech_token as usize],
+                    "roest: stop speech token logit (pre-penalty)"
+                );
+            }
 
             sampling::apply_repetition_penalty(
                 &mut final_logits,
                 &state.generated,
-                REPETITION_PENALTY,
+                sampling_params.repetition_penalty,
                 true,
             );
-
             let next_token = sampling::sample_token(&mut final_logits, sampling_params) as i64;
-            state.timings.sample += sample_start.elapsed();
 
-            if state.accept_token(next_token, lm_seq_len, STOP_SPEECH_TOKEN) {
+            if state.accept_token(next_token, lm_seq_len, &[self.stop_speech_token]) {
+                info!(steps = step + 1, "Røst: EOS reached");
                 break;
             }
         }
 
-        let generated_count = state.generated_count();
-        let loop_elapsed = state.timings.total();
-        info!(
-            generated = generated_count,
-            embed_elapsed = ?state.timings.embed,
-            lm_elapsed = ?state.timings.lm,
-            sample_elapsed = ?state.timings.sample,
-            tokens_per_sec = if loop_elapsed.is_zero() {
-                0.0
-            } else {
-                generated_count as f64 / loop_elapsed.as_secs_f64()
-            },
-            "Røst: generation timings"
-        );
+        if state.generated_count() >= self.max_new_tokens {
+            tracing::warn!(
+                max_new_tokens = self.max_new_tokens,
+                "Røst: reached max_new_tokens without EOS — output is truncated"
+            );
+        }
 
-        Ok(state.output_tokens(START_SPEECH_TOKEN, STOP_SPEECH_TOKEN))
+        Ok(state.output_tokens(self.start_speech_token, &[self.stop_speech_token]))
     }
 
     fn decode_speech(&mut self, speech_tokens: &[i64]) -> Result<Vec<f32>, TtsError> {
@@ -342,7 +322,6 @@ impl RoestModel {
     }
 }
 
-/// Compute one speech-token embedding at a fixed speech position.
 fn embed_speech_token(
     session: &mut ort::session::Session,
     has_position_ids: bool,
@@ -352,21 +331,18 @@ fn embed_speech_token(
     ort_util::run_embed(
         session,
         has_position_ids,
+        false,
         &[token],
         &[position],
         "speech_embeds",
     )
 }
 
-/// First LM step: mirrors the torch T3 inference path.
+/// First LM step — mirrors the torch T3 inference path.
 ///
 /// Batch 0 (conditioned):   `cond_emb | text_embeds | BOS | BOS`
 /// Batch 1 (unconditioned): `cond_emb | text_pos_emb | BOS | BOS`
-///
-/// Upstream's `prepare_input_embeds` already includes one `START_SPEECH`,
-/// and `inference()` then appends another BOS before the first LM call,
-/// hence the BOS appears twice. The unconditioned branch substitutes the
-/// learned text position embeddings for the real text embeddings.
+/// https://github.com/resemble-ai/chatterbox/blob/master/src/chatterbox/models/t3/t3.py#L310
 fn build_first_step_embeds(
     cond_emb: &TensorData<f32>,
     text_pos_emb: &TensorData<f32>,
@@ -382,7 +358,6 @@ fn build_first_step_embeds(
     let batch = if use_cfg { 2 } else { 1 };
 
     let mut data = Vec::with_capacity(batch * total_seq * hidden_dim);
-
     data.extend_from_slice(&cond_emb.data);
     data.extend_from_slice(&text_embeds.data);
     data.extend_from_slice(&bos_embeds.data);
@@ -399,7 +374,8 @@ fn build_first_step_embeds(
 }
 
 /// Return the leading `text_seq × hidden_dim` chunk of learned text
-/// position embeddings, after validating the saved shape.
+/// position embeddings, validating the shape first.
+/// https://github.com/resemble-ai/chatterbox/blob/master/src/chatterbox/models/t3/t3.py#L118
 fn text_position_slice(
     text_pos_emb: &TensorData<f32>,
     text_seq: usize,
@@ -426,12 +402,14 @@ fn text_position_slice(
 fn prepare_text_for_mtl_tokenizer(text: &str, language: &str) -> String {
     let punctuated = punc_norm(text);
     let normalized: String = punctuated.to_lowercase().nfkd().collect();
+    let replaced_spaces = normalized.replace(' ', "[SPACE]");
     let language = if language.is_empty() { "da" } else { language }.to_lowercase();
-    format!("[{}]{}", language, normalized).replace(' ', "[SPACE]")
+    format!("[{}]{}", language, replaced_spaces)
 }
 
 /// Normalize whitespace and punctuation to match the upstream Chatterbox
 /// dataset preprocessing. Applied before `nfkd` + lowercasing.
+/// https://github.com/resemble-ai/chatterbox/blob/master/src/chatterbox/tts.py#L18
 fn punc_norm(text: &str) -> String {
     if text.is_empty() {
         return "You need to add some text for me to talk.".into();
@@ -456,10 +434,10 @@ fn punc_norm(text: &str) -> String {
         ("—", "-"),
         ("–", "-"),
         (" ,", ","),
-        ("“", "\""),
-        ("”", "\""),
-        ("‘", "'"),
-        ("’", "'"),
+        ("\u{201C}", "\""),
+        ("\u{201D}", "\""),
+        ("\u{2018}", "'"),
+        ("\u{2019}", "'"),
     ] {
         text = text.replace(from, to);
     }
@@ -475,47 +453,133 @@ fn punc_norm(text: &str) -> String {
     text
 }
 
-fn load_precomputed_cond(dir: &Path) -> Result<Option<SpeakerConditioning>, TtsError> {
-    let Some(manifest) = ort_util::read_cond_manifest(dir)? else {
-        return Ok(None);
-    };
-    Ok(Some(SpeakerConditioning {
-        cond_emb: ort_util::load_tensor(dir, &manifest, "cond_emb")?,
-        prompt_token: ort_util::load_tensor(dir, &manifest, "prompt_token")?,
-        ref_x_vector: ort_util::load_tensor(dir, &manifest, "ref_x_vector")?,
-        prompt_feat: ort_util::load_tensor(dir, &manifest, "prompt_feat")?,
-    }))
+/// All fields are optional and default to the upstream Røst export values.
+#[derive(Deserialize, Default)]
+struct RoestModelConfig {
+    #[serde(default = "default_start_text_token")]
+    start_text_token: i64,
+    #[serde(default = "default_stop_text_token")]
+    stop_text_token: i64,
+    #[serde(default = "default_start_speech_token")]
+    start_speech_token: i64,
+    #[serde(default = "default_stop_speech_token")]
+    stop_speech_token: i64,
+    #[serde(default = "default_max_new_tokens")]
+    max_new_tokens: usize,
+    #[serde(default = "default_text_pos_emb_shape")]
+    text_pos_emb_shape: [usize; 2],
 }
 
-fn load_model_config(model_dir: &Path) -> Result<ModelConfig, TtsError> {
+fn default_text_pos_emb_shape() -> [usize; 2] {
+    [2050, 1024]
+}
+
+fn default_start_text_token() -> i64 {
+    255
+}
+fn default_stop_text_token() -> i64 {
+    0
+}
+fn default_start_speech_token() -> i64 {
+    6561
+}
+fn default_stop_speech_token() -> i64 {
+    6562
+}
+fn default_max_new_tokens() -> usize {
+    1000
+}
+
+/// Load pre-computed conditioning from a directory of raw-binary tensors.
+/// The directory must contain `manifest.json` (mapping name → shape + dtype)
+/// and one `<name>.bin` per tensor (row-major, little-endian).
+fn load_bin_conditioning(cond_dir: &Path) -> Result<SpeakerConditioning, TtsError> {
+    let manifest_path = cond_dir.join("manifest.json");
+    let raw = std::fs::read_to_string(&manifest_path)
+        .map_err(|e| TtsError::Init(format!("roest: read {}: {e}", manifest_path.display())))?;
+    let manifest: std::collections::HashMap<String, serde_json::Value> = serde_json::from_str(&raw)
+        .map_err(|e| TtsError::Init(format!("roest: parse {}: {e}", manifest_path.display())))?;
+
+    fn load_f32(
+        cond_dir: &Path,
+        name: &str,
+        manifest: &std::collections::HashMap<String, serde_json::Value>,
+    ) -> Result<TensorData<f32>, TtsError> {
+        let meta = manifest
+            .get(name)
+            .ok_or_else(|| TtsError::Init(format!("roest: {name} missing from manifest")))?;
+        let shape: Vec<usize> = meta["shape"]
+            .as_array()
+            .ok_or_else(|| TtsError::Init(format!("roest: {name}.shape not an array")))?
+            .iter()
+            .map(|v| v.as_u64().unwrap_or(0) as usize)
+            .collect();
+        let bytes = std::fs::read(cond_dir.join(format!("{name}.bin")))
+            .map_err(|e| TtsError::Init(format!("roest: read {name}.bin: {e}")))?;
+        let data = bytes
+            .chunks_exact(4)
+            .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
+            .collect();
+        Ok(TensorData { data, shape })
+    }
+
+    fn load_i64(
+        cond_dir: &Path,
+        name: &str,
+        manifest: &std::collections::HashMap<String, serde_json::Value>,
+    ) -> Result<TensorData<i64>, TtsError> {
+        let meta = manifest
+            .get(name)
+            .ok_or_else(|| TtsError::Init(format!("roest: {name} missing from manifest")))?;
+        let shape: Vec<usize> = meta["shape"]
+            .as_array()
+            .ok_or_else(|| TtsError::Init(format!("roest: {name}.shape not an array")))?
+            .iter()
+            .map(|v| v.as_u64().unwrap_or(0) as usize)
+            .collect();
+        let bytes = std::fs::read(cond_dir.join(format!("{name}.bin")))
+            .map_err(|e| TtsError::Init(format!("roest: read {name}.bin: {e}")))?;
+        let data = bytes
+            .chunks_exact(8)
+            .map(|b| i64::from_le_bytes(b.try_into().unwrap()))
+            .collect();
+        Ok(TensorData { data, shape })
+    }
+
+    Ok(SpeakerConditioning {
+        cond_emb: load_f32(cond_dir, "cond_emb", &manifest)?,
+        prompt_token: load_i64(cond_dir, "prompt_token", &manifest)?,
+        ref_x_vector: load_f32(cond_dir, "ref_x_vector", &manifest)?,
+        prompt_feat: load_f32(cond_dir, "prompt_feat", &manifest)?,
+    })
+}
+
+/// Load the text position embedding from a raw f32 binary file.
+fn load_text_pos_emb(path: &Path, shape: &[usize; 2]) -> Result<TensorData<f32>, TtsError> {
+    let bytes = std::fs::read(path)
+        .map_err(|e| TtsError::Init(format!("roest: read {}: {e}", path.display())))?;
+    let data = bytes
+        .chunks_exact(4)
+        .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
+        .collect();
+    Ok(TensorData {
+        data,
+        shape: shape.to_vec(),
+    })
+}
+
+fn load_model_config(model_dir: &Path) -> Result<RoestModelConfig, TtsError> {
     let path = model_dir.join("model_config.json");
-    let s = std::fs::read_to_string(&path)
-        .map_err(|e| TtsError::Init(format!("missing model_config.json: {e}")))?;
-    let v: serde_json::Value = serde_json::from_str(&s)
-        .map_err(|e| TtsError::Init(format!("invalid model_config.json: {e}")))?;
-    let text_pos_emb_shape = v["text_pos_emb_shape"]
-        .as_array()
-        .ok_or_else(|| TtsError::Init("model_config.json missing text_pos_emb_shape".into()))?
-        .iter()
-        .map(|value| {
-            value
-                .as_u64()
-                .map(|dim| dim as usize)
-                .ok_or_else(|| TtsError::Init("invalid text_pos_emb_shape entry".into()))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(ModelConfig { text_pos_emb_shape })
-}
-
-fn load_text_pos_emb(model_dir: &Path, shape: &[usize]) -> Result<TensorData<f32>, TtsError> {
-    ort_util::read_le_bin(&model_dir.join("text_pos_emb.bin"), shape.to_vec())
+    let Ok(s) = std::fs::read_to_string(&path) else {
+        return Ok(RoestModelConfig::default());
+    };
+    serde_json::from_str(&s)
+        .map_err(|e| TtsError::Init(format!("roest: parse {}: {e}", path.display())))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    // ── punc_norm ──────────────────────────────────────────────────────────
 
     #[test]
     fn punc_norm_empty_returns_default_message() {
@@ -573,8 +637,6 @@ mod tests {
         assert_eq!(punc_norm("hej?"), "Hej?");
     }
 
-    // ── prepare_text_for_mtl_tokenizer ─────────────────────────────────────
-
     #[test]
     fn prepare_text_for_mtl_default_language_is_da() {
         assert_eq!(prepare_text_for_mtl_tokenizer("Hej.", ""), "[da]hej.");
@@ -592,8 +654,6 @@ mod tests {
             "[en]a[SPACE]b[SPACE]c."
         );
     }
-
-    // ── build_first_step_embeds ────────────────────────────────────────────
 
     fn tensor_3d(batch: usize, seq: usize, hidden: usize, fill: f32) -> TensorData<f32> {
         TensorData {
@@ -619,20 +679,18 @@ mod tests {
         let (data, seq, hidden) =
             build_first_step_embeds(&cond, &text_pos, &text, &bos, false).unwrap();
 
-        // total_seq = 3 (cond) + 2 (text) + 1 + 1 (bos x 2) = 7, batch = 1.
         assert_eq!(seq, 7);
         assert_eq!(hidden, 4);
         assert_eq!(data.len(), 28);
-        assert_eq!(&data[..12], &[1.0; 12]); // cond
-        assert_eq!(&data[12..20], &[2.0; 8]); // text
-        assert_eq!(&data[20..28], &[3.0; 8]); // bos x 2
+        assert_eq!(&data[..12], &[1.0; 12]);
+        assert_eq!(&data[12..20], &[2.0; 8]);
+        assert_eq!(&data[20..28], &[3.0; 8]);
     }
 
     #[test]
     fn build_first_step_embeds_with_cfg_substitutes_text_pos_in_uncond() {
         let cond = tensor_3d(1, 3, 4, 1.0);
         let mut text_pos = pos_emb(8, 4, 0.0);
-        // Mark the first text_seq * hidden = 8 entries so we can recognize the slice.
         for v in &mut text_pos.data[..8] {
             *v = 7.0;
         }
@@ -644,19 +702,14 @@ mod tests {
 
         assert_eq!(seq, 7);
         assert_eq!(hidden, 4);
-        // batch = 2 → 56 floats total.
         assert_eq!(data.len(), 56);
-        // Conditioned branch (first 28).
         assert_eq!(&data[..12], &[1.0; 12]);
         assert_eq!(&data[12..20], &[2.0; 8]);
         assert_eq!(&data[20..28], &[3.0; 8]);
-        // Unconditioned branch (next 28).
-        assert_eq!(&data[28..40], &[1.0; 12]); // cond
-        assert_eq!(&data[40..48], &[7.0; 8]); // text_pos slice (substituted)
-        assert_eq!(&data[48..56], &[3.0; 8]); // bos x 2
+        assert_eq!(&data[28..40], &[1.0; 12]);
+        assert_eq!(&data[40..48], &[7.0; 8]);
+        assert_eq!(&data[48..56], &[3.0; 8]);
     }
-
-    // ── text_position_slice ────────────────────────────────────────────────
 
     #[test]
     fn text_position_slice_returns_leading_chunk() {
@@ -688,5 +741,29 @@ mod tests {
         let pos = pos_emb(2, 4, 0.0);
         let err = text_position_slice(&pos, 5, 4).unwrap_err().to_string();
         assert!(err.contains("too short"));
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct RoestConfig {
+    pub model_dir: PathBuf,
+    pub language: String,
+    pub sampling: TtsSampling,
+    pub sample_rate: u32,
+}
+
+impl RoestConfig {
+    pub fn new(model_dir: impl Into<PathBuf>) -> Self {
+        Self {
+            model_dir: model_dir.into(),
+            language: "da".into(),
+            sampling: TtsSampling::default(),
+            sample_rate: DEFAULT_SAMPLE_RATE,
+        }
+    }
+
+    pub fn with_sampling(mut self, sampling: TtsSampling) -> Self {
+        self.sampling = sampling;
+        self
     }
 }
