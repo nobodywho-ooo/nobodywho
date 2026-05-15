@@ -4,183 +4,91 @@
   <meta charset="utf-8" />
   <title>nobodywho-js — chat (Worker)</title>
   <style>
-    body { font: 14px/1.4 system-ui, sans-serif; max-width: 760px; margin: 2em auto; padding: 0 1em; }
-    .status { background: #eef; padding: 0.5em 1em; border-radius: 4px; margin: 0.5em 0; }
-    .status.ready { background: #efe; }
-    .status.err { background: #fee; color: #a00; }
-    pre  { background: #f4f4f4; padding: 1em; white-space: pre-wrap; word-break: break-word; max-height: 50vh; overflow: auto; }
-    .tok { color: #0a3a7a; }
-    input[type=file] { margin: 0.5em 0; }
-    button { padding: 0.4em 1em; }
-    button:disabled { opacity: 0.5; cursor: wait; }
+    body { font: 14px/1.4 system-ui, sans-serif; max-width: 720px; margin: 2em auto; padding: 0 1em; }
     textarea { width: 100%; padding: 0.4em; font: inherit; box-sizing: border-box; min-height: 4em; }
-    .meta { font: 12px/1.4 system-ui; color: #666; }
+    pre { background: #f4f4f4; padding: 1em; white-space: pre-wrap; word-break: break-word; max-height: 50vh; overflow: auto; }
+    button { padding: 0.4em 1em; }
   </style>
 </head>
 <body>
-  <h1>nobodywho-js — chat (Worker version)</h1>
+  <h1>nobodywho-js — chat (Worker)</h1>
   <p>
-    Same as <code>browser-chat.html</code> but the wasm runs in a Web Worker,
-    so the page stays responsive while llama.cpp grinds. Watch the status
-    line below to see what stage it's in.
-  </p>
-
-  <div id="status" class="status">Spinning up worker…</div>
-
-  <p>
-    <label>GGUF: <input id="model" type="file" accept=".gguf" disabled /></label>
-    <button id="load" disabled>Load model</button>
-    <span id="modelInfo" class="meta"></span>
+    Wasm runs in a Web Worker, so tokens are rendered as they're produced.
+    Pick a chat GGUF, type a prompt, click Ask. Follow-up Asks continue
+    the same conversation (the worker keeps the chat session alive).
   </p>
 
   <p>
-    <label>Context size: <input id="ctx" type="number" value="2048" min="256" max="8192" step="256" /></label><br />
-    <label>System prompt:<br />
-      <textarea id="sys">You are a concise, helpful assistant.</textarea>
-    </label><br />
-    <label>User prompt:<br />
-      <textarea id="prompt">What is 2 + 2? Answer in one sentence.</textarea>
-    </label><br />
+    <input id="model" type="file" accept=".gguf" />
     <button id="ask" disabled>Ask</button>
-    <span id="askInfo" class="meta"></span>
   </p>
-
-  <pre id="out"></pre>
+  <textarea id="prompt">What is 2 + 2? Answer in one sentence.</textarea>
+  <pre id="out">Loading wasm…</pre>
 
   <script type="module">
-    const $status = document.getElementById('status');
-    const $modelInput = document.getElementById('model');
-    const $modelInfo = document.getElementById('modelInfo');
-    const $loadBtn = document.getElementById('load');
+    const $model = document.getElementById('model');
     const $askBtn = document.getElementById('ask');
-    const $askInfo = document.getElementById('askInfo');
-    const $out = document.getElementById('out');
-    const $sys = document.getElementById('sys');
     const $prompt = document.getElementById('prompt');
-    const $ctx = document.getElementById('ctx');
+    const $out = document.getElementById('out');
 
-    const setStatus = (text, cls = '') => {
-      $status.textContent = text;
-      $status.className = 'status' + (cls ? ' ' + cls : '');
-    };
-    const writeTok = (s) => {
-      const span = document.createElement('span');
-      span.className = 'tok';
-      span.textContent = s;
-      $out.appendChild(span);
-      $out.scrollTop = $out.scrollHeight;
-    };
+    // Track whether the worker has a live `Chat` instance. Created once
+    // on the first Ask and reused so follow-ups see full conversation
+    // history. Reload the page (or wire a "New chat" button) for a fresh
+    // session.
+    let chatReady = false;
 
     const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
 
     worker.onmessage = (e) => {
       const m = e.data;
       switch (m.type) {
-        case 'progress':
-          setStatus(`Worker: ${m.stage}…`);
-          break;
-        case 'ready':
-          setStatus('Worker ready. Pick a GGUF and click "Load model".', 'ready');
-          $modelInput.disabled = false;
-          $loadBtn.disabled = false;
-          break;
-        case 'model-loaded':
-          setStatus('Model loaded.', 'ready');
-          $askBtn.disabled = false;
-          break;
-        case 'chat-ready':
-          setStatus('Chat ready. Click Ask.', 'ready');
-          break;
-        case 'token':
-          writeTok(m.token);
-          break;
-        case 'ask-done':
-          $askInfo.textContent =
-            ` (${m.count} tokens in ${m.seconds.toFixed(1)}s, ` +
-            `${(m.count / m.seconds).toFixed(1)} tok/s)`;
-          setStatus('Done. Ask another question to continue the conversation.', 'ready');
-          $askBtn.disabled = false;
-          break;
-        case 'error':
-          setStatus('Error: ' + m.message, 'err');
-          console.error(m);
-          $askBtn.disabled = false;
-          break;
-        default:
-          console.warn('Unknown msg from worker:', m);
+        case 'ready':        $out.textContent = 'Wasm ready. Pick a GGUF.'; break;
+        case 'model-loaded': $out.textContent = 'Model loaded. Click Ask.'; $askBtn.disabled = false; break;
+        case 'chat-ready':   break;  // handled by onceChatReady inside the Ask handler
+        case 'token':        $out.append(m.token); break;
+        case 'ask-done':     $askBtn.disabled = false; break;
+        case 'error':        $out.append(`\n[error: ${m.message}]`); $askBtn.disabled = false; break;
       }
     };
-    worker.onerror = (e) => setStatus('Worker crashed: ' + e.message, 'err');
+    worker.onerror = (e) => $out.append(`\n[worker crashed: ${e.message}]`);
 
-    worker.postMessage({ type: 'init' });
-
-    $loadBtn.addEventListener('click', async () => {
-      const file = $modelInput.files[0];
-      if (!file) { setStatus('Pick a GGUF first.', 'err'); return; }
-      $loadBtn.disabled = true;
-      $modelInfo.textContent = `${(file.size / 1024 / 1024).toFixed(1)} MB`;
-      setStatus('Reading file…');
+    $model.addEventListener('change', async () => {
+      const file = $model.files[0];
+      if (!file) return;
+      $out.textContent = `Loading model (${(file.size / 1e6).toFixed(0)} MB)…`;
       const bytes = new Uint8Array(await file.arrayBuffer());
-      setStatus('Sending to worker…');
-      // Transfer the underlying buffer (zero-copy). After this, `bytes` on
-      // the main thread is empty — the worker now owns it.
+      // Transfer the underlying buffer (zero-copy); after this `bytes`
+      // is empty on the main thread.
       worker.postMessage({ type: 'load-model', bytes }, [bytes.buffer]);
     });
 
-    // Track whether the worker has a live `Chat` instance. Created once
-    // (lazily, on the first Ask) and reused across follow-ups so the
-    // model sees the full conversation history. If you want a fresh
-    // conversation, reload the page — or wire a "New chat" button that
-    // flips chatReady back to false and re-posts 'create-chat'.
-    //
-    // Caveat: the context size and system prompt inputs are read only at
-    // chat creation time; later edits don't take effect for the existing
-    // session.
-    let chatReady = false;
-
     $askBtn.addEventListener('click', () => {
       $askBtn.disabled = true;
-      $askInfo.textContent = '';
-      // First turn: start with a clean output area. Follow-ups: append a
-      // visible separator so the conversation reads as multiple turns
-      // (the chat itself preserves history; this just makes that visible).
+      // First turn: clear the output. Follow-ups: append a separator so
+      // the visible transcript matches the conversation history the
+      // worker is maintaining.
       if (!chatReady) {
         $out.textContent = '';
       } else {
-        $out.appendChild(document.createElement('hr'));
+        $out.append('\n---\n');
       }
+      const sendAsk = () => worker.postMessage({ type: 'ask', prompt: $prompt.value });
+      if (chatReady) { sendAsk(); return; }
 
-      const sendAsk = () => {
-        setStatus('Generating…');
-        worker.postMessage({ type: 'ask', prompt: $prompt.value });
-      };
-
-      if (chatReady) {
-        sendAsk();
-        return;
-      }
-
-      setStatus('Creating chat session…');
       worker.postMessage({
         type: 'create-chat',
-        options: {
-          contextSize: parseInt($ctx.value, 10) || 2048,
-          systemPrompt: $sys.value,
-        },
+        options: { contextSize: 2048, systemPrompt: 'You are a concise, helpful assistant.' },
       });
+      // One-shot listener: resolves on success OR error. Without the
+      // 'error' branch, a failed create-chat would leak this listener
+      // and the next successful Ask would fire sendAsk() twice.
       const onceChatReady = (e) => {
-        // Resolve on either success or failure — otherwise the listener
-        // leaks and the next successful create-chat fires it twice
-        // (duplicate sendAsk calls).
         if (e.data.type === 'chat-ready') {
           worker.removeEventListener('message', onceChatReady);
           chatReady = true;
           sendAsk();
         } else if (e.data.type === 'error') {
           worker.removeEventListener('message', onceChatReady);
-          // Don't flip chatReady — leave it false so a later click retries
-          // creation. The global 'error' switch case has already updated
-          // status + re-enabled the button.
         }
       };
       worker.addEventListener('message', onceChatReady);

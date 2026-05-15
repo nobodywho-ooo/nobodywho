@@ -2,32 +2,22 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>nobodywho-js — browser chat demo</title>
+  <title>nobodywho-js — chat demo</title>
   <style>
     body { font: 14px/1.4 system-ui, sans-serif; max-width: 760px; margin: 2em auto; padding: 0 1em; }
     pre  { background: #f4f4f4; padding: 1em; white-space: pre-wrap; word-break: break-word; max-height: 50vh; overflow: auto; }
-    .ok  { color: #0a7a0a; }
-    .err { color: #a00; }
-    .tok { color: #0a3a7a; }
-    input[type=file] { margin: 0.5em 0; }
     button { padding: 0.4em 1em; }
     textarea { width: 100%; padding: 0.4em; font: inherit; box-sizing: border-box; min-height: 4em; }
   </style>
 </head>
 <body>
-  <h1>nobodywho-js — chat in the browser (main-thread demo)</h1>
+  <h1>nobodywho-js — chat (main-thread)</h1>
   <p>
-    Minimal demo that runs <code>Chat.ask</code> on the main thread and
-    drains <code>TokenStream.nextToken()</code> into the page. Pick a
-    chat-style GGUF (e.g. Qwen2.5-0.5B-Instruct or Qwen3-0.6B from
-    <code>~/Downloads/</code>).
-  </p>
-  <p>
-    <strong>Note:</strong> tokens do NOT appear incrementally here. The
-    Rust inference loop holds the JS thread until generation completes,
-    so the whole response lands at once. For real-time streaming run
-    the wasm inside a Web Worker and use <code>askStreaming</code> — see
-    <a href="./browser-chat-worker.html"><code>browser-chat-worker.html</code></a>.
+    Pick a chat-style GGUF, type a prompt, click Run. Note: the inference
+    loop blocks the JS event loop until generation completes — so the
+    response appears all at once when it finishes. For real-time
+    rendering see <a href="./browser-chat-worker.html"><code>browser-chat-worker.html</code></a>,
+    which runs the wasm in a Web Worker.
   </p>
 
   <p>
@@ -45,102 +35,34 @@
   <pre id="out"></pre>
 
   <script type="module">
-    import { WASI, OpenFile, File, ConsoleStdout } from
-      'https://esm.sh/@bjorn3/browser_wasi_shim@0.4.1';
+    import { Model, Chat } from './setup-browser.mjs';
 
     const out = document.getElementById('out');
-    const log = (s, cls = '') => {
-      const span = document.createElement('span');
-      if (cls) span.className = cls;
-      span.textContent = s + '\n';
-      out.appendChild(span);
-      out.scrollTop = out.scrollHeight;
-      console.log(s);
-    };
-    const write = (s) => {
-      const span = document.createElement('span');
-      span.className = 'tok';
-      span.textContent = s;
-      out.appendChild(span);
-      out.scrollTop = out.scrollHeight;
-    };
+    const log = (s) => { out.textContent += s + '\n'; };
 
-    const envStubs = new Proxy({}, {
-      get: (_t, name) => (...args) => {
-        throw new Error(`unresolved env.${String(name)} called with [${args}]`);
-      },
-    });
-
-    async function run() {
+    document.getElementById('go').addEventListener('click', async () => {
       out.textContent = '';
-      const modelInput = document.getElementById('model');
-      const sysPrompt = document.getElementById('sys').value;
-      const userPrompt = document.getElementById('prompt').value;
-      const ctxSize = parseInt(document.getElementById('ctx').value, 10) || 2048;
-      const file = modelInput.files[0];
-      if (!file) { log('Pick a GGUF first.', 'err'); return; }
+      const file = document.getElementById('model').files[0];
+      if (!file) { log('Pick a GGUF first.'); return; }
 
       try {
-        log('Fetching wasm + glue…');
-        const [wasmBytes, bg] = await Promise.all([
-          fetch('../pkg-bundler/nobodywho_js_bg.wasm').then((r) => r.arrayBuffer()),
-          import('../pkg-bundler/nobodywho_js_bg.js'),
-        ]);
-        log(`  wasm: ${(wasmBytes.byteLength / 1024 / 1024).toFixed(1)} MB`, 'ok');
-
-        log('Setting up WASI…');
-        const wasi = new WASI([], [], [
-          new OpenFile(new File([])),
-          ConsoleStdout.lineBuffered(() => {}),
-          ConsoleStdout.lineBuffered(() => {}),
-        ]);
-
-        log('Instantiating wasm…');
-        const mod = await WebAssembly.compile(wasmBytes);
-        const inst = await WebAssembly.instantiate(mod, {
-          './nobodywho_js_bg.js': bg,
-          env: envStubs,
-          wasi_snapshot_preview1: wasi.wasiImport,
+        log(`Loading model (${(file.size / 1024 / 1024).toFixed(1)} MB)…`);
+        const model = await Model.loadBytes(new Uint8Array(await file.arrayBuffer()));
+        const chat = new Chat(model, {
+          contextSize: parseInt(document.getElementById('ctx').value, 10) || 2048,
+          systemPrompt: document.getElementById('sys').value,
         });
-        wasi.initialize(inst);
-        bg.__wbg_set_wasm(inst.exports);
-        if (inst.exports.__wbindgen_start) inst.exports.__wbindgen_start();
-        bg.init();
-        log('  ✓ wasm ready', 'ok');
 
-        log('Loading model bytes…');
-        const modelBytes = new Uint8Array(await file.arrayBuffer());
-        log(`  model: ${(modelBytes.byteLength / 1024 / 1024).toFixed(1)} MB`);
-        const model = await bg.Model.loadBytes(modelBytes);
-        log('  ✓ model loaded', 'ok');
-
-        log('Creating chat…');
-        const chat = new bg.Chat(model, {
-          contextSize: ctxSize,
-          systemPrompt: sysPrompt,
-        });
-        log('  ✓ chat created', 'ok');
-
-        log(`Asking: ${JSON.stringify(userPrompt)}`);
-        log('');
-        log('Response:', 'ok');
-        const stream = await chat.ask(userPrompt);
         const t0 = performance.now();
-        let count = 0, tok;
-        while ((tok = await stream.nextToken()) !== undefined) {
-          write(tok);
-          count++;
-        }
+        const result = await (await chat.ask(document.getElementById('prompt').value)).completed();
         const dt = (performance.now() - t0) / 1000;
-        log('');
-        log(`  ✓ ${count} tokens in ${dt.toFixed(1)}s (${(count / dt).toFixed(1)} tok/s)`, 'ok');
+        log(result);
+        log(`(${dt.toFixed(1)}s)`);
       } catch (e) {
-        log(`FAILED: ${e}`, 'err');
+        log(`Error: ${e.message ?? e}`);
         console.error(e);
       }
-    }
-
-    document.getElementById('go').addEventListener('click', run);
+    });
   </script>
 </body>
 </html>
