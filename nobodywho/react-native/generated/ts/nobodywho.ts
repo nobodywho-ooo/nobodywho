@@ -2191,9 +2191,9 @@ export interface RustTokenStreamInterface {
      */
     completed(asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<string>;
     /**
-     * Get the next token. Returns None when generation is complete.
+     * Get the next token. Returns None when generation is complete, or an error if generation failed.
      */
-    nextToken(asyncOpts_?: { signal: AbortSignal }) : Promise<string | undefined>;
+    nextToken(asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<string | undefined>;
 }
 
 
@@ -2244,9 +2244,9 @@ async  completed(asyncOpts_?: { signal: AbortSignal }): Promise<string> /*throws
     }
     
     /**
-     * Get the next token. Returns None when generation is complete.
+     * Get the next token. Returns None when generation is complete, or an error if generation failed.
      */
-async  nextToken(asyncOpts_?: { signal: AbortSignal }): Promise<string | undefined> {
+async  nextToken(asyncOpts_?: { signal: AbortSignal }): Promise<string | undefined> /*throws*/ {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
         return await uniffiRustCallAsync(
@@ -2264,7 +2264,7 @@ async  nextToken(asyncOpts_?: { signal: AbortSignal }): Promise<string | undefin
             /*liftFunc:*/ FfiConverterOptionalString.lift.bind(FfiConverterOptionalString),
             /*liftString:*/ FfiConverterString.lift,
             /*asyncOpts:*/ asyncOpts_,
-            
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
         );
     } catch (__error: any) {
         if (uniffiIsDebug && __error instanceof Error) {
@@ -3212,7 +3212,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_completed() !== 26060) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_completed");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_next_token() !== 44770) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_next_token() !== 59210) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_next_token");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttool_get_schema_json() !== 4679) {
