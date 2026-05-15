@@ -15,6 +15,7 @@ const LIB_RS: &str = include_str!("../src/lib.rs");
 const BROWSER_CHAT_HTML: &str = include_str!("../examples/browser-chat.html");
 const BROWSER_CHAT_WORKER_HTML: &str = include_str!("../examples/browser-chat-worker.html");
 const CORE_CARGO_TOML: &str = include_str!("../../core/Cargo.toml");
+const CORE_LLM_RS: &str = include_str!("../../core/src/llm.rs");
 const PACKAGE_JSON_TPL: &str = include_str!("../package.json.tpl");
 const BUILD_PKG_SH: &str = include_str!("../scripts/build-pkg.sh");
 const README_MD: &str = include_str!("../README.md");
@@ -554,6 +555,146 @@ fn readme_status_table_doesnt_lie_about_constraint() {
          to reflect what's actually wired and what the runtime caveat is.\n\n\
          Current row:\n{}",
         row
+    );
+}
+
+// ---------- Streaming-hook concurrency findings ----------
+//
+// These cover a single class of bug: the per-thread streaming hook in
+// core::llm has one slot, and `Chat::askStreaming` is the only consumer,
+// but the original wiring used a save-and-restore pattern that wrongly
+// claimed to support "nested or concurrent asks." The worker queue is
+// FIFO; save-and-restore is LIFO. Two overlapping installs misroute
+// tokens. Fix: install refuses to overwrite an occupied slot and the
+// docs name the constraint.
+
+/// Finding #S1 — `HookRestore::install` must reject overlapping installs.
+///
+/// Originally returned bare `Self` and blindly overwrote the slot. Two
+/// `askStreaming` calls in flight at once would land their callbacks in
+/// LIFO order while the worker processes asks FIFO — the inner install
+/// receives the outer's tokens, then the outer's drop wipes the inner's
+/// hook before its tokens arrive. Fix: install returns
+/// `Result<Self, JsError>` and refuses an occupied slot, so the second
+/// `askStreaming` rejects loudly instead of misrouting silently.
+#[test]
+fn hook_restore_install_returns_result() {
+    let install_pos = LIB_RS
+        .find("fn install(hook:")
+        .expect("HookRestore::install signature not found in lib.rs");
+    // The signature may span lines; read forward enough to capture the
+    // return-type arrow + the next token.
+    let snippet = &LIB_RS[install_pos..(install_pos + 200).min(LIB_RS.len())];
+    assert!(
+        snippet.contains("-> Result<Self, JsError>"),
+        "wasm/src/lib.rs: HookRestore::install must return \
+         `Result<Self, JsError>`, not `Self`. A bare-Self return silently \
+         overwrites whatever hook the previous in-flight `askStreaming` \
+         installed, which routes its tokens to the wrong JS callback. The \
+         Result variant lets the second call reject with a clear JS error.\n\n\
+         First 120 chars of signature:\n{}",
+        snippet.chars().take(120).collect::<String>()
+    );
+}
+
+/// Finding #S2 — `ask_streaming` docstring must document the
+/// concurrent-call rejection so users know to serialize.
+///
+/// `HookRestore::install` errors when a hook is already installed, but a
+/// user who doesn't read the source has no way to predict that
+/// `Promise.all([chat.askStreaming(...), chat.askStreaming(...)])` will
+/// reject. The docstring is the contract.
+#[test]
+fn ask_streaming_doc_warns_about_concurrency() {
+    let ask_streaming_doc = doc_above(
+        LIB_RS,
+        "pub fn ask_streaming(&self, prompt: String, on_token:",
+    );
+    let lower = ask_streaming_doc.to_lowercase();
+    let names_constraint = lower.contains("already in progress")
+        || lower.contains("concurrent")
+        || lower.contains("one streaming call")
+        || lower.contains("one at a time");
+    let names_remedy = lower.contains("await") || lower.contains("serialize");
+    assert!(
+        names_constraint && names_remedy,
+        "wasm/src/lib.rs: Chat::ask_streaming docstring must warn that \
+         overlapping calls are not supported and point users at the \
+         remedy (await the previous promise). Without this, a JS user \
+         who fires two askStreaming calls without awaiting gets a \
+         confusing rejection with no docstring to consult.\n\n\
+         Current docstring:\n{}",
+        ask_streaming_doc
+    );
+}
+
+/// Finding #S3 — `ask_streaming` docstring must warn against mixing
+/// with in-flight `ask`.
+///
+/// `HookRestore::install` guards against two `askStreaming` calls
+/// overlapping, but NOT against an `ask` (non-streaming) being mid-flight
+/// when `askStreaming` starts. The worker fires the streaming hook for
+/// every token regardless of which API initiated the Ask, so the
+/// still-running `ask`'s tokens get misrouted to the new `askStreaming`
+/// callback. The install guard can't see this — `ask` doesn't install
+/// a hook, so the slot looks empty. The only mitigation is the
+/// docstring warning users to drain `TokenStream` first.
+#[test]
+fn ask_streaming_doc_warns_about_mixing_with_ask() {
+    let ask_streaming_doc = doc_above(
+        LIB_RS,
+        "pub fn ask_streaming(&self, prompt: String, on_token:",
+    );
+    let mentions_ask = ask_streaming_doc.contains("`ask`") || ask_streaming_doc.contains("`ask(");
+    let mentions_serialization = ask_streaming_doc.contains("drain")
+        || ask_streaming_doc.contains("mix")
+        || ask_streaming_doc.contains("in flight")
+        || ask_streaming_doc.contains("in-flight")
+        || ask_streaming_doc.contains("mid-flight")
+        || ask_streaming_doc.contains("serialize");
+    assert!(
+        mentions_ask && mentions_serialization,
+        "wasm/src/lib.rs: Chat::ask_streaming docstring must warn against \
+         mixing with an in-flight `ask` call. The chat worker fires the \
+         streaming hook for every token regardless of which API initiated \
+         the Ask, so an unawaited `ask`'s tokens route through a later \
+         `askStreaming` callback. The install-guard does NOT catch this \
+         (because `ask` doesn't install a hook), so the docstring is the \
+         only line of defence.\n\nCurrent docstring:\n{}",
+        ask_streaming_doc
+    );
+}
+
+/// Finding #S4 — `core::llm::set_streaming_hook` doc must explain why
+/// the slot supports only one consumer.
+///
+/// The original doc told callers to "save and restore" the previous hook
+/// for "nested or concurrent" asks. That's wrong for concurrent — the
+/// chat worker is FIFO but save/restore is LIFO, so two overlapping
+/// consumers would still misroute. The doc must instead name the
+/// constraint (one consumer at a time) and explain why, so a future
+/// caller doesn't reach for the same broken pattern.
+#[test]
+fn core_streaming_hook_doc_explains_overlap_constraint() {
+    let set_hook_doc = doc_above(CORE_LLM_RS, "pub fn set_streaming_hook(hook:");
+    let lower = set_hook_doc.to_lowercase();
+    let names_constraint = (lower.contains("one") && lower.contains("consumer"))
+        || lower.contains("overlap")
+        || lower.contains("misroute");
+    let explains_why = lower.contains("fifo")
+        || lower.contains("lifo")
+        || lower.contains("stack-shaped")
+        || lower.contains("worker")
+        || lower.contains("displace");
+    assert!(
+        names_constraint && explains_why,
+        "core/src/llm.rs: set_streaming_hook docstring must name the \
+         one-consumer-at-a-time constraint AND explain why (FIFO worker \
+         vs LIFO save/restore). Without the rationale, a future caller \
+         might reach for the same save-and-restore pattern thinking it \
+         handles concurrent installs — it doesn't.\n\n\
+         Current docstring:\n{}",
+        set_hook_doc
     );
 }
 
