@@ -6537,7 +6537,7 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/nobodywho-ooo/llama-cpp-rs";
-          rev = "2d1359f11bfcd89480c44551416719eda83257d8";
+          rev = "c12824feafbd37ef67d809727d2b223243295217";
           sha256 = "18pwz1r43dj6918dajlg61ak9zlhwazsblqj6hv9aj0qaks7rz4n";
         };
         libName = "llama_cpp_2";
@@ -6617,7 +6617,7 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/nobodywho-ooo/llama-cpp-rs";
-          rev = "2d1359f11bfcd89480c44551416719eda83257d8";
+          rev = "c12824feafbd37ef67d809727d2b223243295217";
           sha256 = "18pwz1r43dj6918dajlg61ak9zlhwazsblqj6hv9aj0qaks7rz4n";
         };
         libName = "llama_cpp_sys_2";
