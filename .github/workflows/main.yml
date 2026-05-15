@@ -37,6 +37,12 @@ jobs:
     with:
       full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
 
+  swift_ci:
+    needs: [build]
+    uses: ./.github/workflows/swift_ci.yml
+    with:
+      full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
+
   test:
     uses: ./.github/workflows/test.yml
     with:
@@ -46,12 +52,13 @@ jobs:
 
   release:
     if: startsWith(github.ref, 'refs/tags/nobodywho-')
-    needs: [linting, build, test, python_ci, react_native_ci]
+    needs: [linting, build, test, python_ci, react_native_ci, swift_ci]
     uses: ./.github/workflows/release.yml
     secrets:
       TEST_PYPI_AUTH_TOKEN: ${{ secrets.TEST_PYPI_AUTH_TOKEN }}
       PYPI_AUTH_TOKEN: ${{ secrets.PYPI_AUTH_TOKEN }}
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      SWIFT_MIRROR_TOKEN: ${{ secrets.SWIFT_MIRROR_TOKEN }}
 
   docs:
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/deploy-cloudflare-pages'
