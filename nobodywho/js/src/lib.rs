@@ -25,6 +25,10 @@ use std::sync::Arc;
 use futures::FutureExt;
 use wasm_bindgen::prelude::*;
 
+// Per-worker state for `runInWorker` — only used on wasm32 targets.
+#[cfg(target_arch = "wasm32")]
+use std::cell::RefCell;
+
 // Export `_initialize` so a WASI host can run static ctors via
 // wasi.initialize(). Body is empty — wasi-libc/libc++ ctors are emitted
 // into `__wasm_call_ctors`, which wasm-bindgen / node:wasi handle for us.
@@ -556,6 +560,196 @@ impl CrossEncoder {
             Ok(JsValue::from(outer))
         })
     }
+}
+
+// ---------- Worker dispatcher ----------
+//
+// The browser-side `Chat` wrapper in `examples/setup-browser.mjs` spawns a
+// Web Worker and talks to it over a small message protocol. The dispatcher
+// for that protocol used to live in `examples/worker.js` (~50 lines of JS).
+// Now it lives here — `runInWorker()` sets up `self.onmessage` and reacts
+// to `load-model` / `create-chat` / `ask` messages, posting `model-loaded`
+// / `chat-ready` / `token` / `ask-done` / `error` back. The worker file
+// itself is just `import './setup-browser.mjs'` — setup-browser.mjs calls
+// `runInWorker` when it detects DedicatedWorkerGlobalScope.
+//
+// Per-instance state lives in `thread_local!` because wasm32 is
+// single-threaded (one wasm instance per worker = one cell).
+
+#[cfg(target_arch = "wasm32")]
+thread_local! {
+    static WORKER_MODEL: RefCell<Option<Arc<nobodywho::llm::Model>>> = RefCell::new(None);
+    static WORKER_CHAT: RefCell<Option<nobodywho::chat::ChatHandleAsync>> = RefCell::new(None);
+}
+
+/// Take over `self.onmessage` for the Web Worker that hosts this wasm
+/// instance. Idempotent only in the sense that JS-side guards in
+/// `setup-browser.mjs` won't call it twice; calling it twice from Rust would
+/// install two closures and the second would overwrite the first's
+/// `set_onmessage` (which is also fine — the first closure leaks, the
+/// second is now the handler).
+///
+/// Errors if invoked outside a Web Worker (e.g. on the main thread).
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen(js_name = runInWorker)]
+pub fn run_in_worker() -> Result<(), JsError> {
+    use wasm_bindgen::closure::Closure;
+    use web_sys::{DedicatedWorkerGlobalScope, MessageEvent};
+
+    let scope: DedicatedWorkerGlobalScope = js_sys::global().dyn_into().map_err(|_| {
+        JsError::new("runInWorker must be called inside a DedicatedWorkerGlobalScope")
+    })?;
+
+    let scope_for_handler = scope.clone();
+    let on_message = Closure::wrap(Box::new(move |evt: MessageEvent| {
+        let scope = scope_for_handler.clone();
+        wasm_bindgen_futures::spawn_local(async move {
+            if let Err(err) = handle_worker_message(evt, &scope).await {
+                let _ = scope.post_message(&worker_reply_error(&err));
+            }
+        });
+    }) as Box<dyn FnMut(MessageEvent)>);
+
+    scope.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
+    // Leak: the closure outlives this function and runs for the worker's
+    // lifetime. The worker is terminated by main-thread `worker.terminate()`
+    // or page navigation, both of which tear down the wasm instance anyway.
+    on_message.forget();
+
+    let _ = scope.post_message(&worker_reply("ready"));
+    Ok(())
+}
+
+/// One per message-type. Returning `Err` is what produces the `error` reply
+/// — the caller wraps it via `worker_reply_error` and posts that.
+#[cfg(target_arch = "wasm32")]
+async fn handle_worker_message(
+    evt: web_sys::MessageEvent,
+    scope: &web_sys::DedicatedWorkerGlobalScope,
+) -> Result<(), String> {
+    let data = evt.data();
+    let msg_type = js_sys::Reflect::get(&data, &"type".into())
+        .map_err(|_| "missing 'type' field".to_string())?
+        .as_string()
+        .ok_or_else(|| "'type' must be a string".to_string())?;
+
+    match msg_type.as_str() {
+        // Back-compat: callers that post `init` right after `new Worker(...)`
+        // expecting a `ready` ack. The bootstrap already posted `ready` once;
+        // we re-ack here so those callers don't hang.
+        "init" => {
+            let _ = scope.post_message(&worker_reply("ready"));
+        }
+        "load-model" => {
+            let bytes_val = js_sys::Reflect::get(&data, &"bytes".into())
+                .map_err(|_| "missing 'bytes' field".to_string())?;
+            let u8_array: js_sys::Uint8Array = bytes_val
+                .dyn_into()
+                .map_err(|_| "'bytes' must be a Uint8Array".to_string())?;
+            let bytes = u8_array.to_vec();
+            let model = nobodywho::llm::get_model_from_bytes(&bytes, 0)
+                .map_err(|e| e.to_string())?;
+            WORKER_MODEL.with(|m| *m.borrow_mut() = Some(Arc::new(model)));
+            let _ = scope.post_message(&worker_reply("model-loaded"));
+        }
+        "create-chat" => {
+            let options = js_sys::Reflect::get(&data, &"options".into())
+                .unwrap_or(JsValue::UNDEFINED);
+            let opts: ChatOptions = if options.is_undefined() || options.is_null() {
+                ChatOptions::default()
+            } else {
+                serde_wasm_bindgen::from_value(options).map_err(|e| e.to_string())?
+            };
+            let model = WORKER_MODEL
+                .with(|m| m.borrow().clone())
+                .ok_or_else(|| "model not loaded; send 'load-model' first".to_string())?;
+            let handle = chat_handle_from_options(model, opts)?;
+            WORKER_CHAT.with(|c| *c.borrow_mut() = Some(handle));
+            let _ = scope.post_message(&worker_reply("chat-ready"));
+        }
+        "ask" => {
+            let prompt = js_sys::Reflect::get(&data, &"prompt".into())
+                .map_err(|_| "missing 'prompt' field".to_string())?
+                .as_string()
+                .ok_or_else(|| "'prompt' must be a string".to_string())?;
+            let handle = WORKER_CHAT
+                .with(|c| c.borrow().clone())
+                .ok_or_else(|| "chat not created; send 'create-chat' first".to_string())?;
+
+            // Install a streaming hook that turns each generated token into a
+            // postMessage. Held for the duration of this ask via `_restore`;
+            // dropped on exit so a subsequent ask can install its own hook.
+            // `HookRestore::install` rejects if another ask is already running
+            // on this thread — the main thread shouldn't allow this, but if it
+            // somehow does the error surfaces clearly here.
+            let scope_for_hook = scope.clone();
+            let _restore = HookRestore::install(Box::new(move |token: &str| {
+                let payload = js_sys::Object::new();
+                let _ = js_sys::Reflect::set(&payload, &"type".into(), &"token".into());
+                let _ = js_sys::Reflect::set(&payload, &"token".into(), &token.into());
+                let _ = scope_for_hook.post_message(&payload);
+            }))
+            .map_err(|_| "another ask is already in progress on this worker".to_string())?;
+
+            let mut stream = handle.ask(prompt);
+            let _full = stream.completed().await.map_err(|e| e.to_string())?;
+            let _ = scope.post_message(&worker_reply("ask-done"));
+        }
+        other => return Err(format!("unknown msg type: {other}")),
+    }
+
+    Ok(())
+}
+
+/// Build a `ChatHandleAsync` from a parsed `ChatOptions`. Same option-mapping
+/// logic as `Chat::new`'s constructor — factored out so the worker dispatcher
+/// doesn't duplicate it. Errors as `String` because the worker dispatcher
+/// turns them into `{ type: "error", message }` post-messages; `JsError`
+/// (used by the wasm-bindgen-exposed constructor) doesn't impl `Display`.
+#[cfg(target_arch = "wasm32")]
+fn chat_handle_from_options(
+    model: Arc<nobodywho::llm::Model>,
+    opts: ChatOptions,
+) -> Result<nobodywho::chat::ChatHandleAsync, String> {
+    let mut builder = nobodywho::chat::ChatBuilder::new(model);
+    if let Some(ctx) = opts.context_size {
+        builder = builder.with_context_size(ctx);
+    }
+    if let Some(sys) = opts.system_prompt {
+        builder = builder.with_system_prompt(Some(sys));
+    }
+    if let Some(constraint) = opts.constraint {
+        // ConstraintSpec::into_sampler returns Err(JsError) only when the
+        // exclusive-one-of check fails; reach into the JsError's underlying
+        // Error.message via Reflect.
+        let sampler = constraint.into_sampler().map_err(|e| {
+            let val: JsValue = e.into();
+            js_sys::Reflect::get(&val, &"message".into())
+                .ok()
+                .and_then(|m| m.as_string())
+                .unwrap_or_else(|| "invalid constraint".to_string())
+        })?;
+        builder = builder.with_sampler(sampler);
+    }
+    if let Some(vars) = opts.template_variables {
+        builder = builder.with_template_variables(vars);
+    }
+    Ok(builder.build_async())
+}
+
+#[cfg(target_arch = "wasm32")]
+fn worker_reply(type_name: &str) -> JsValue {
+    let obj = js_sys::Object::new();
+    let _ = js_sys::Reflect::set(&obj, &"type".into(), &type_name.into());
+    obj.into()
+}
+
+#[cfg(target_arch = "wasm32")]
+fn worker_reply_error(message: &str) -> JsValue {
+    let obj = js_sys::Object::new();
+    let _ = js_sys::Reflect::set(&obj, &"type".into(), &"error".into());
+    let _ = js_sys::Reflect::set(&obj, &"message".into(), &message.into());
+    obj.into()
 }
 
 // ---------- Out of scope for v1 ----------

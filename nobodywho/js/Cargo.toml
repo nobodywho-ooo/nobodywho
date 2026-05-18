@@ -34,4 +34,11 @@ console_error_panic_hook = "0.1"
 
 [dependencies.web-sys]
 version = "0.3"
-features = ["console"]
+features = [
+  "console",
+  # For `runInWorker` — message dispatch implemented in Rust instead of in a
+  # separate worker.js dispatcher. Set up self.onmessage / post_message from
+  # inside the wasm so worker.js can stay a one-line bootstrap.
+  "DedicatedWorkerGlobalScope",
+  "MessageEvent",
+]

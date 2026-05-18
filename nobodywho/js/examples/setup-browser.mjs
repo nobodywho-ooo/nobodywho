@@ -393,3 +393,16 @@ export class Chat {
     this._worker.terminate();
   }
 }
+
+// When this module is loaded inside a Web Worker (rather than the main
+// thread), hand the message loop over to Rust. The Rust `runInWorker`
+// export in js/src/lib.rs sets `self.onmessage` to handle the
+// load-model / create-chat / ask protocol; before this hand-off existed,
+// the dispatcher lived in worker.js as ~50 lines of JS.
+//
+// The main thread skips this branch (it's a Window, not a Worker scope),
+// so app code that imports `Chat` from this module works the same.
+if (typeof DedicatedWorkerGlobalScope !== 'undefined'
+    && self instanceof DedicatedWorkerGlobalScope) {
+  bg.runInWorker();
+}
