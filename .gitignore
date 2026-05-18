@@ -1,6 +1,7 @@
 *.gguf
 *.vscode
 .cursor*
+.idea/
 .envrc
 .direnv/
 .DS_Store
