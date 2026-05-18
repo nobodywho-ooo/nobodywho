@@ -12,8 +12,6 @@
 //! goes red and the message points at the file + the rationale.
 
 const LIB_RS: &str = include_str!("../src/lib.rs");
-const BROWSER_CHAT_HTML: &str = include_str!("../examples/browser-chat.html");
-const BROWSER_CHAT_WORKER_HTML: &str = include_str!("../examples/browser-chat-worker.html");
 const CORE_CARGO_TOML: &str = include_str!("../../core/Cargo.toml");
 const CORE_LLM_RS: &str = include_str!("../../core/src/llm.rs");
 const PACKAGE_JSON_TPL: &str = include_str!("../package.json.tpl");
@@ -117,77 +115,6 @@ fn chat_ask_docstring_warns_about_wasm_buffering() {
          readers at askStreaming or describe the buffering directly.\n\n\
          Current docstring:\n{}",
         ask_doc
-    );
-}
-
-/// Finding #5 — `browser-chat.html` claims to stream tokens, but doesn't.
-///
-/// The file's header text says it "streams tokens", but its script uses the
-/// `chat.ask().nextToken()` loop, which batches on wasm32 (see Finding #2).
-/// Either rewrite the demo to use `askStreaming` (then it'd duplicate
-/// `browser-chat-worker.html`), or stop claiming streaming in the header.
-#[test]
-fn browser_chat_html_doesnt_claim_streaming() {
-    // The interesting prose lives between <body> and the <script> block.
-    let body_start = BROWSER_CHAT_HTML
-        .find("<body>")
-        .expect("missing <body> in browser-chat.html");
-    let script_start = BROWSER_CHAT_HTML[body_start..]
-        .find("<script")
-        .map(|i| body_start + i)
-        .expect("missing <script in browser-chat.html");
-    let header = &BROWSER_CHAT_HTML[body_start..script_start];
-
-    assert!(
-        !header.contains("streams tokens") && !header.contains("stream tokens"),
-        "js/examples/browser-chat.html: page header still claims it 'streams \
-         tokens', but the JS uses `chat.ask().nextToken()` which batches on \
-         wasm32 main-thread. Drop the streaming claim from the header, or \
-         delete this file in favour of browser-chat-worker.html (which uses \
-         askStreaming + a Web Worker and actually streams)."
-    );
-}
-
-/// Finding #6 — `browser-chat-worker.html` recreates the chat on every Ask click.
-///
-/// The $askBtn click handler unconditionally posts `create-chat` to the
-/// worker. The worker's `createChat` reassigns the module-scope `chat`,
-/// so each click starts a fresh conversation — follow-ups have no memory
-/// of earlier turns. Should either be created once after `model-loaded`,
-/// or gated on a flag like "chat already exists for this model + options".
-#[test]
-fn worker_ask_handler_does_not_create_chat_every_time() {
-    let after_handler = BROWSER_CHAT_WORKER_HTML
-        .split("$askBtn.addEventListener('click', ")
-        .nth(1)
-        .expect("missing $askBtn click handler in browser-chat-worker.html");
-    // Capture everything up to the listener's closing `});`.
-    let handler_end = after_handler
-        .find("\n    });")
-        .expect("malformed click handler — no closing `});`");
-    let handler_body = &after_handler[..handler_end];
-
-    // Acceptable shapes: either the handler doesn't post 'create-chat' at
-    // all (chat created elsewhere — e.g. on model-loaded), or it gates the
-    // post on a flag/sentinel.
-    let posts_create_chat = handler_body.contains("'create-chat'");
-    let has_creation_guard = handler_body.contains("chatReady")
-        || handler_body.contains("chatCreated")
-        || handler_body.contains("chatExists")
-        || handler_body.contains("hasChat")
-        || handler_body.contains("if (!chat")
-        || handler_body.contains("if (chat == null")
-        || handler_body.contains("if (!hasChat");
-
-    assert!(
-        !posts_create_chat || has_creation_guard,
-        "js/examples/browser-chat-worker.html: every $askBtn click \
-         unconditionally posts 'create-chat' to the worker, which replaces \
-         the existing chat session and loses conversation history between \
-         turns. Create the chat once after 'model-loaded' (or gate the \
-         'create-chat' post on a flag), so follow-ups can build on previous \
-         answers.\n\nClick-handler body:\n{}",
-        handler_body
     );
 }
 
@@ -357,51 +284,6 @@ fn build_pkg_sh_header_doesnt_lie_about_version_bumping() {
     );
 }
 
-/// Finding #N5 — Worker chat demo wipes visible history on every Ask.
-///
-/// After Fix #6 the model keeps full conversation context across turns. But
-/// the click handler still does `$out.textContent = ''` unconditionally at
-/// the start of each click, so the previous turn's visible response gets
-/// wiped. The user sees a one-turn view even though the model has the full
-/// history. Either gate the clear on `!chatReady` (first turn only),
-/// append turns with role labels, or rename the demo to match what it does.
-#[test]
-fn worker_chat_demo_preserves_previous_turn_in_ui() {
-    let after_handler = BROWSER_CHAT_WORKER_HTML
-        .split("$askBtn.addEventListener('click', ")
-        .nth(1)
-        .expect("missing $askBtn click handler in browser-chat-worker.html");
-    let handler_end = after_handler
-        .find("\n    });")
-        .expect("malformed click handler — no closing `});`");
-    let handler_body = &after_handler[..handler_end];
-
-    // Find the `$out.textContent = ''` line and check if it's gated.
-    let clears_pos = handler_body.find("$out.textContent = ''");
-    if let Some(pos) = clears_pos {
-        // Heuristic: the clear is "guarded" if it appears either inside a
-        // visible `if (...)` block in the same handler (rough check: an `if`
-        // appears in the preceding 80 chars) or after a `chatReady` check.
-        let context_start = pos.saturating_sub(120);
-        let preceding = &handler_body[context_start..pos];
-        let guarded = preceding.contains("if (") && preceding.contains("chatReady");
-
-        assert!(
-            guarded,
-            "js/examples/browser-chat-worker.html: $askBtn click handler \
-             does `$out.textContent = ''` unconditionally at the top, wiping \
-             the previous turn's response from the visible area. After \
-             Fix #6 the model retains full history but the user sees only \
-             the latest turn. Either gate the clear on `!chatReady` (so \
-             only the first turn clears), append turns with role labels \
-             (`You: ...`, `Assistant: ...`), or be explicit in the demo's \
-             header that it shows only the latest turn.\n\n\
-             Handler body:\n{}",
-            handler_body
-        );
-    }
-}
-
 /// Finding #R1 — misleading "npm publish will refuse" warning.
 ///
 /// build-pkg.sh's no-version branch said "npm publish will refuse this" —
@@ -449,50 +331,6 @@ fn build_pkg_sh_no_version_path_exits_and_doesnt_lie() {
         bounded,
         has_exit,
         has_allow_escape
-    );
-}
-
-/// Finding #R3 — chat-creation failure leaves `onceChatReady` attached and
-/// produces duplicate `sendAsk` calls on the next successful Ask.
-///
-/// `onceChatReady` only checks `e.data.type === 'chat-ready'` before
-/// removing itself. If the worker sends `'error'` instead (e.g. unknown
-/// chat option after the N2 `deny_unknown_fields` fix), the listener
-/// stays. The next Ask click adds another listener. When create-chat
-/// finally succeeds, multiple listeners fire and each calls `sendAsk()`.
-/// The handler must also clean itself up on `'error'` (and ideally
-/// re-enable the button + reset chatReady).
-#[test]
-fn worker_chat_handler_cleans_up_on_error() {
-    let after_handler = BROWSER_CHAT_WORKER_HTML
-        .split("$askBtn.addEventListener('click', ")
-        .nth(1)
-        .expect("missing $askBtn click handler");
-    let handler_end = after_handler
-        .find("\n    });")
-        .expect("malformed click handler");
-    let handler_body = &after_handler[..handler_end];
-
-    // Locate the onceChatReady definition; its body has to handle 'error'
-    // as well as 'chat-ready'.
-    let listener_pos = handler_body
-        .find("onceChatReady")
-        .expect("onceChatReady listener missing");
-    let listener_block = &handler_body[listener_pos..];
-
-    let handles_error = listener_block.contains("'error'") || listener_block.contains("\"error\"");
-
-    assert!(
-        handles_error,
-        "js/examples/browser-chat-worker.html: onceChatReady listener \
-         only handles 'chat-ready'. If chat creation fails, the worker \
-         sends 'error', the listener stays attached, and the next Ask \
-         click registers ANOTHER listener — when create-chat finally \
-         succeeds, multiple listeners fire and each calls sendAsk(), \
-         producing duplicate generations. The listener must also clean \
-         itself up on 'error' (and re-enable the button).\n\n\
-         onceChatReady block:\n{}",
-        &listener_block[..listener_block.len().min(400)]
     );
 }
 

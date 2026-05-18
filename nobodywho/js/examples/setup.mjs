@@ -50,4 +50,4 @@ if (inst.exports.__wbindgen_start) inst.exports.__wbindgen_start();
 // Installs the panic hook + tracing subscriber. Idempotent.
 bg.init();
 
-export const { Model, Chat, Encoder, TokenStream } = bg;
+export const { Model, Chat, Encoder, CrossEncoder, TokenStream } = bg;

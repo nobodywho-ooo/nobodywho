@@ -1,10 +1,14 @@
-// Web Worker for browser-chat-worker.html. WASI + wasm bootstrap lives in
+// Web Worker for browser-chat.html. WASI + wasm bootstrap lives in
 // setup-browser.mjs — by the time this import resolves, the wasm is
 // loaded, ctors have run, and Model/Chat are usable. The worker then
 // answers a tiny message protocol from the main thread: load-model,
 // create-chat, ask.
 
-import { Model, Chat } from './setup-browser.mjs';
+// `ChatRaw` is the raw wasm-bindgen export; setup-browser.mjs renames it
+// because the bare `Chat` name now belongs to the user-facing worker-backed
+// class. Inside the worker, blocking inference is what we want, so we use
+// the raw class directly.
+import { Model, ChatRaw as Chat } from './setup-browser.mjs';
 
 // Bootstrap done — tell the main thread NOW, proactively. Don't wait for an
 // `init` message: depending on browser, a message posted before the worker

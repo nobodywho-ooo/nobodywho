@@ -214,6 +214,12 @@ struct ChatOptions {
     context_size: Option<u32>,
     system_prompt: Option<String>,
     constraint: Option<ConstraintSpec>,
+    /// Variables passed to the chat template, e.g. `{ enable_thinking: false }`
+    /// for Qwen-Thinking-style models that emit `<think>…</think>` blocks you
+    /// don't want in the response. Mirrors Python's `template_variables`. Only
+    /// boolean values are accepted (matches Python and the core template
+    /// layer); a non-bool value rejects at construction time.
+    template_variables: Option<std::collections::HashMap<String, bool>>,
 }
 
 /// Grammar constraint for structured-output generation, via llguidance.
@@ -287,6 +293,9 @@ impl Chat {
         }
         if let Some(constraint) = opts.constraint {
             builder = builder.with_sampler(constraint.into_sampler()?);
+        }
+        if let Some(vars) = opts.template_variables {
+            builder = builder.with_template_variables(vars);
         }
 
         Ok(Chat {
@@ -486,15 +495,80 @@ impl Encoder {
     }
 }
 
+// ---------- CrossEncoder ----------
+
+/// Cross-encoder for relevance-ranking documents against a query. Requires a
+/// cross-encoder model (e.g. a BGE reranker GGUF), not a chat or embedding
+/// model.
+#[wasm_bindgen]
+pub struct CrossEncoder {
+    inner: nobodywho::crossencoder::CrossEncoderAsync,
+}
+
+#[wasm_bindgen]
+impl CrossEncoder {
+    /// Create a new cross-encoder. `n_ctx` defaults to 4096 if omitted.
+    #[wasm_bindgen(constructor)]
+    pub fn new(model: &Model, n_ctx: Option<u32>) -> CrossEncoder {
+        CrossEncoder {
+            inner: nobodywho::crossencoder::CrossEncoderAsync::new(
+                Arc::clone(&model.inner),
+                n_ctx.unwrap_or(4096),
+            ),
+        }
+    }
+
+    /// Score each document against the query. Resolves to a `Float32Array`
+    /// in the same order as the input documents.
+    pub fn rank(&self, query: String, documents: Vec<String>) -> js_sys::Promise {
+        let inner = self.inner.clone();
+        promisify(async move {
+            let scores = inner
+                .rank(query, documents)
+                .await
+                .map_err(|e| JsError::new(&e.to_string()))?;
+            Ok(JsValue::from(js_sys::Float32Array::from(scores.as_slice())))
+        })
+    }
+
+    /// Score each document and resolve to an array of `[document, score]`
+    /// pairs sorted by descending score. Mirrors Python's
+    /// `CrossEncoder.rank_and_sort(...)` -> `list[tuple[str, float]]`.
+    #[wasm_bindgen(js_name = rankAndSort)]
+    pub fn rank_and_sort(&self, query: String, documents: Vec<String>) -> js_sys::Promise {
+        let inner = self.inner.clone();
+        promisify(async move {
+            let ranked = inner
+                .rank_and_sort(query, documents)
+                .await
+                .map_err(|e| JsError::new(&e.to_string()))?;
+            // Build `[[doc, score], ...]` as nested `js_sys::Array`. Returning a
+            // Vec<(String, f32)> directly would need serde_wasm_bindgen and the
+            // JS side would see plain Objects; nested Arrays keep the wire
+            // format obvious (`for (const [doc, score] of result)`).
+            let outer = js_sys::Array::new_with_length(ranked.len() as u32);
+            for (i, (doc, score)) in ranked.into_iter().enumerate() {
+                let pair = js_sys::Array::new_with_length(2);
+                pair.set(0, JsValue::from_str(&doc));
+                pair.set(1, JsValue::from_f64(score as f64));
+                outer.set(i as u32, pair.into());
+            }
+            Ok(JsValue::from(outer))
+        })
+    }
+}
+
 // ---------- Out of scope for v1 ----------
 //
 // The following are intentionally not yet wrapped. Each requires either a core
 // API change or a wasm-specific design decision:
 //
-// - `CrossEncoder` / reranking — straightforward, follow the Encoder pattern.
 // - Tool calling — depends on llguidance behavior on wasm.
 // - Multimodal (image / audio assets) — `mtmd` is not currently enabled on wasm.
-// - Progress callbacks during model load — moot since we load from `Uint8Array`.
+// - Progress callbacks during model load — moot since we load from `Uint8Array`
+//   (the browser-side `fetchModelBytes` helper in `examples/setup-browser.mjs`
+//   reports its own download progress via JS).
 //
 // Grammar-constrained generation IS wired through `Chat::new`'s options —
 // see `ConstraintSpec` above for the wire format and the runtime caveat.
+// `CrossEncoder` IS wired — see the section above.

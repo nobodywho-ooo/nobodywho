@@ -42,7 +42,9 @@ and exposes the binding's full surface to JS via wasm-bindgen.
 |---|---|
 | `Model.loadBytes(uint8Array)` | ✅ verified — loads GGUF into a real `LlamaModel` via `fmemopen` + `llama_model_load_from_file_ptr` |
 | `Encoder.encode(text)` → `Float32Array` | ✅ verified |
+| `CrossEncoder.rank(query, docs)` / `rankAndSort(...)` | ✅ verified |
 | `Chat.ask(prompt)` → `TokenStream` → tokens | ✅ verified |
+| `Chat`'s `templateVariables` option (e.g. `{ enable_thinking: false }`) | ✅ verified |
 | `TokenStream.nextToken()` / `completed()` | ✅ verified |
 | Multimodal (`MtmdBitmap` etc.) | not exposed — mtmd C++ doesn't compile against wasi-libc; the wasm has unresolved `mtmd_*` imports that JS replaces with stubs |
 | Structured output (`Constraint`) | wire format exposed via `Chat`'s options (see `ConstraintSpec` in `js/src/lib.rs`); runtime is blocked on llguidance's `Instant::now` panic on `wasm32-unknown-unknown` (tracked upstream) |
@@ -134,6 +136,9 @@ node js/examples/encoder_demo.mjs /path/to/embedding-model.gguf
 
 # Chat (when you have a chat-style GGUF):
 node js/examples/chat_demo.mjs /path/to/chat-model.gguf
+
+# Cross-encoder reranking (when you have a reranker GGUF):
+node js/examples/crossencoder_demo.mjs /path/to/crossencoder-model.gguf
 ```
 
 ### In a browser (uses `@bjorn3/browser_wasi_shim`)
@@ -141,13 +146,67 @@ node js/examples/chat_demo.mjs /path/to/chat-model.gguf
 ```bash
 cd nobodywho/js
 python3 -m http.server 8000
-# open http://localhost:8000/examples/browser.html
-# pick a GGUF, click Run
+# open http://localhost:8000/examples/browser-chat.html
 ```
 
-See `js/examples/browser.html` for a complete browser demo that loads the
-wasm, polyfills WASI via `@bjorn3/browser_wasi_shim`, and runs
-`Encoder.encode` on a user-uploaded GGUF.
+See `js/examples/browser-chat.html` for a chat demo (Web Worker so the
+page stays responsive during inference), `browser-encoder.html` for an
+embeddings demo, and `browser-crossencoder.html` for a reranker demo.
+All load the wasm, polyfill WASI via `@bjorn3/browser_wasi_shim`, and
+fetch a GGUF from HuggingFace through `setup-browser.mjs`'s
+`fetchModelBytes(url, onProgress)` helper. Model bytes are cached in
+the Cache API (`nobodywho-models-v1` store) so subsequent loads skip
+the download.
+
+Note: the native binding has `huggingface:` / `https://` paths that
+download and cache models on disk (see Python's `Model("hf://…")`), but
+that codepath is `cfg(not(wasm32))` — `ureq` has no browser equivalent
+and there's no filesystem to cache into. The browser-side equivalent is
+just `fetch()` + `Model.loadBytes(...)`, with caching via the Cache API
+(see next section).
+
+### Model caching
+
+`fetchModelBytes` (and therefore every browser demo) caches downloaded
+GGUFs in a [Cache API](https://developer.mozilla.org/en-US/docs/Web/API/Cache)
+store named `nobodywho-models-v1`, keyed by URL. After the first download
+on a given origin, reloads and other pages on the same origin get the
+bytes back instantly from disk — no re-download, no HTTP cache eviction
+surprises.
+
+Helpers on the `Model` class:
+
+```js
+import { Model, fetchModelBytes } from 'nobodywho-js';
+
+// Pre-populate the cache during a splash screen / onboarding step so the
+// user doesn't sit through a 400 MB download when they click "chat".
+await Model.preload('https://huggingface.co/.../model.gguf',
+  (got, total) => console.log(`${got}/${total}`));
+
+// Later in the app — instant if preload already ran on this origin.
+const bytes = await fetchModelBytes('https://huggingface.co/.../model.gguf');
+const model = await Model.loadBytes(bytes);
+
+// Wipe all cached models (e.g. from a "clear cache" button).
+await Model.clearCache();
+```
+
+**Across multiple apps on different origins:** the browser's storage is
+[origin-partitioned](https://developer.mozilla.org/en-US/docs/Web/API/Storage_API#storage_quotas_and_eviction_criteria)
+by design — `app1.example.com` and `app2.example.com` each have their own
+Cache API, and there's no way for one to read the other's entries. The
+best you can do cross-origin is point all apps at the same canonical
+HuggingFace URL: the HF CDN serves each origin's first download from a
+geographically-near edge, so it's fast even though every origin pays the
+download once. If you control the deployment, hosting multiple apps under
+one origin (subpath routing, e.g. `myco.com/chat`, `myco.com/embed`)
+lets them share the cache.
+
+The cache name is versioned (`-v1`). Bump the suffix in `setup-browser.mjs`
+if the cached representation ever changes (e.g. switching from raw bytes
+to a pre-decoded format) so old entries are abandoned rather than fed to
+a binding that can't read them.
 
 ## How it works (and why these specific choices)
 
@@ -223,8 +282,8 @@ And one workaround in the wasm crate itself (`js/src/lib.rs`):
 
 ## Outstanding
 
-- **Browser polyfill bundling.** `browser.html` / `browser-chat.html`
-  / `worker.js` all load `@bjorn3/browser_wasi_shim` from a CDN. The
+- **Browser polyfill bundling.** `setup-browser.mjs` and `worker.js`
+  load `@bjorn3/browser_wasi_shim` from a CDN. The
   npm package leaves that as a peer dep (see `package.json.tpl`);
   downstream bundlers resolve it. Worth verifying with at least one
   real bundler integration (webpack + esbuild + vite) before 1.0.

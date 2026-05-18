@@ -1,0 +1,34 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8" /><title>cross-encoder</title></head>
+<body>
+  <pre id="out"></pre>
+  <script type="module">
+    import { Model, CrossEncoder, fetchModelBytes } from './setup-browser.mjs';
+
+    const bytes = await fetchModelBytes(
+      'https://huggingface.co/gpustack/bge-reranker-v2-m3-GGUF/resolve/main/bge-reranker-v2-m3-Q8_0.gguf',
+    );
+    const model = await Model.loadBytes(bytes);
+    const crossencoder = new CrossEncoder(model, 4096);
+
+    const query = 'What is the capital of France?';
+    const documents = [
+      'Paris is the capital and largest city of France.',
+      'The Eiffel Tower is located in Paris, France.',
+      'Berlin is the capital of Germany.',
+      'London is the capital of the United Kingdom.',
+      'France is a country in Western Europe.',
+      'The French Revolution began in 1789.',
+      'Tokyo is the capital of Japan.',
+      'French cuisine is famous worldwide.',
+    ];
+
+    const ranked = await crossencoder.rankAndSort(query, documents);
+    const out = document.getElementById('out');
+    for (const [doc, score] of ranked) {
+      out.append(`${score.toFixed(3)} - ${doc}\n`);
+    }
+  </script>
+</body>
+</html>

@@ -1,68 +1,23 @@
 <!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <title>nobodywho-js — chat demo</title>
-  <style>
-    body { font: 14px/1.4 system-ui, sans-serif; max-width: 760px; margin: 2em auto; padding: 0 1em; }
-    pre  { background: #f4f4f4; padding: 1em; white-space: pre-wrap; word-break: break-word; max-height: 50vh; overflow: auto; }
-    button { padding: 0.4em 1em; }
-    textarea { width: 100%; padding: 0.4em; font: inherit; box-sizing: border-box; min-height: 4em; }
-  </style>
-</head>
+<html>
+<head><meta charset="utf-8" /><title>chat worker</title></head>
 <body>
-  <h1>nobodywho-js — chat (main-thread)</h1>
-  <p>
-    Pick a chat-style GGUF, type a prompt, click Run. Note: the inference
-    loop blocks the JS event loop until generation completes — so the
-    response appears all at once when it finishes. For real-time
-    rendering see <a href="./browser-chat-worker.html"><code>browser-chat-worker.html</code></a>,
-    which runs the wasm in a Web Worker.
-  </p>
-
-  <p>
-    <label>GGUF: <input id="model" type="file" accept=".gguf" /></label><br />
-    <label>Context size: <input id="ctx" type="number" value="2048" min="256" max="8192" step="256" /></label><br />
-    <label>System prompt:<br />
-      <textarea id="sys">You are a concise, helpful assistant.</textarea>
-    </label><br />
-    <label>User prompt:<br />
-      <textarea id="prompt">What is 2 + 2? Answer in one sentence.</textarea>
-    </label><br />
-    <button id="go">Run</button>
-  </p>
-
   <pre id="out"></pre>
-
   <script type="module">
-    import { Model, Chat } from './setup-browser.mjs';
+    import { Chat } from './setup-browser.mjs';
 
-    const out = document.getElementById('out');
-    const log = (s) => { out.textContent += s + '\n'; };
-
-    document.getElementById('go').addEventListener('click', async () => {
-      out.textContent = '';
-      const file = document.getElementById('model').files[0];
-      if (!file) { log('Pick a GGUF first.'); return; }
-
-      try {
-        log(`Loading model (${(file.size / 1024 / 1024).toFixed(1)} MB)…`);
-        const model = await Model.loadBytes(new Uint8Array(await file.arrayBuffer()));
-        const chat = new Chat(model, {
-          contextSize: parseInt(document.getElementById('ctx').value, 10) || 2048,
-          systemPrompt: document.getElementById('sys').value,
-        });
-
-        const t0 = performance.now();
-        const result = await (await chat.ask(document.getElementById('prompt').value)).completed();
-        const dt = (performance.now() - t0) / 1000;
-        log(result);
-        log(`(${dt.toFixed(1)}s)`);
-      } catch (e) {
-        log(`Error: ${e.message ?? e}`);
-        console.error(e);
-      }
+    const chat = await Chat.create({
+      modelUrl: 'https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
+      systemPrompt: 'You are a helpful assistant',
+      templateVariables: { enable_thinking: false },
     });
+
+    const result = await chat.ask('What is the capital of Denmark?').completed();
+    document.getElementById('out').textContent = result;
+    console.assert(
+      result.toLowerCase().includes('copenhagen'),
+      'Model does not know the capital of Denmark.',
+    );
   </script>
 </body>
 </html>
