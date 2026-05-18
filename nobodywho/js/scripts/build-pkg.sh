@@ -140,9 +140,10 @@ if [[ "${1:-}" == "--link" ]]; then
   echo ""
 fi
 
-echo "To smoke-test:"
-echo "  node $JS_DIR/examples/run.mjs --encode /path/to/embedding.gguf 'text'"
-echo "  node $JS_DIR/examples/run.mjs /path/to/chat.gguf 'prompt'"
+echo "To try it out:"
+echo "  node $JS_DIR/examples/encoder_demo.mjs /path/to/embedding.gguf"
+echo "  node $JS_DIR/examples/chat_demo.mjs /path/to/chat.gguf"
+echo "  node $JS_DIR/examples/crossencoder_demo.mjs /path/to/reranker.gguf"
 echo ""
 echo "To publish (manually):"
 echo "  cd $JS_DIR/pkg-bundler && npm publish --access public"

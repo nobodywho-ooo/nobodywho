@@ -128,9 +128,6 @@ Node version support:
 The `engines.node` field is set to `>=24` to reflect this.
 
 ```bash
-# Smoke test (no model — just verifies wasm loads):
-node js/examples/run.mjs
-
 # Real embedding inference with a GGUF:
 node js/examples/encoder_demo.mjs /path/to/embedding-model.gguf
 

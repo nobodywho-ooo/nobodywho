@@ -86,10 +86,6 @@ jobs:
         with:
           node-version: '26'
 
-      - name: Smoke test under Node (no model)
-        working-directory: nobodywho
-        run: node js/examples/run.mjs
-
       - name: Download a tiny embedding GGUF
         working-directory: /tmp
         run: |
