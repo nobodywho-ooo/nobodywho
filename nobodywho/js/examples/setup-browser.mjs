@@ -49,9 +49,11 @@ if (inst.exports.__wbindgen_start) inst.exports.__wbindgen_start();
 bg.init();
 
 // The raw wasm-bindgen `Chat` is re-exported as `ChatRaw` so the new
-// worker-backed `Chat` class below can own the bare name. `worker.js` (which
-// already runs inside a Web Worker, where blocking inference is fine) uses
-// `ChatRaw` directly. Application code uses `Chat`.
+// worker-backed `Chat` class below can own the bare name. The Rust-side
+// `runInWorker` dispatcher (in js/src/lib.rs) constructs ChatHandleAsync
+// directly via `chat_handle_from_options`, so it doesn't need the JS
+// `ChatRaw` reference — but advanced users wanting raw blocking inference
+// on the main thread can still import `ChatRaw`.
 export const { Model, Chat: ChatRaw, Encoder, CrossEncoder, TokenStream } = bg;
 
 // Versioned Cache API store. Bump the suffix if the cached representation
@@ -59,9 +61,12 @@ export const { Model, Chat: ChatRaw, Encoder, CrossEncoder, TokenStream } = bg;
 // entries are abandoned rather than fed to a binding that can't read them.
 const MODEL_CACHE_NAME = 'nobodywho-models-v1';
 
-// Stable for one page load; new value on every page reload. Used to
-// cache-bust the worker URL — see `Chat` constructor below.
-const WORKER_CACHE_BUST = Date.now();
+// The Web Worker is spawned from an inline Blob URL — no `worker.js` file
+// on disk. The blob's "code" is just `import('<setup-browser.mjs URL>')`;
+// the worker fetches setup-browser.mjs, which detects DedicatedWorker
+// context at module-load (bottom of this file) and calls `bg.runInWorker()`
+// to hand the message loop over to Rust.
+const WORKER_BOOTSTRAP_CODE = `import(${JSON.stringify(import.meta.url)});`;
 
 // Open the model cache, or return null if the Cache API isn't usable in
 // this context (insecure http origin, file://, sandboxed iframe without
@@ -241,8 +246,9 @@ class WorkerTokenStream {
   }
 }
 
-// User-facing chat. Spawns `worker.js` under the hood so inference runs off
-// the main thread, but the API mirrors the native Python binding's shape:
+// User-facing chat. Spawns a Web Worker under the hood (from an inline
+// Blob URL — see WORKER_BOOTSTRAP_CODE above) so inference runs off the
+// main thread, but the API mirrors the native Python binding's shape:
 //
 //   const chat = await Chat.create({
 //     modelUrl: '...gguf',
@@ -274,28 +280,24 @@ export class Chat {
   constructor(...args) {
     // Catch the wrong call site early. The raw wasm-bindgen Chat takes
     // `(model, options)`; this worker-backed wrapper takes no args (use
-    // `Chat.create({...})`). If a stale cached `worker.js` from before the
-    // ChatRaw rename calls `new Chat(model, options)` against the new
-    // setup-browser.mjs, you'd otherwise get an opaque "askStreaming is not
-    // a function" later. Throwing here points at the real cause.
+    // `Chat.create({...})`). Throwing here points at the real cause if
+    // someone confuses the two classes.
     if (args.length > 0) {
       throw new TypeError(
         'Chat: use `await Chat.create({ modelUrl, ... })` instead of `new Chat(model, options)`. ' +
-        'If you want the raw wasm-bindgen Chat class (e.g. inside a Worker), import `ChatRaw` instead. ' +
-        '(Often this means a cached worker.js is stale — hard-reload to refetch.)',
+        'If you want the raw wasm-bindgen Chat class (e.g. inside a Worker), import `ChatRaw` instead.',
       );
     }
-    // Cache-bust the worker URL. Browsers cache Web Worker scripts
-    // aggressively (using `Last-Modified` heuristic freshness from
-    // python -m http.server, the old worker.js sticks around across
-    // hard-reloads). The timestamp is generated once per setup-browser.mjs
-    // load — page reload → new timestamp → fresh worker.js. When this
-    // ships in the npm package, a proper bundler will replace this with
-    // a content-hashed filename and the param can go away.
-    this._worker = new Worker(
-      new URL(`./worker.js?t=${WORKER_CACHE_BUST}`, import.meta.url),
-      { type: 'module' },
+    // Spawn the worker from an inline Blob URL — no worker.js on disk. The
+    // worker module body is just `import('<setup-browser.mjs URL>')`; the
+    // worker then loads setup-browser.mjs (which detects worker context and
+    // calls bg.runInWorker). The Blob URL is not revoked because the
+    // Worker fetch is async and revoking too early can race; leaking one
+    // small blob URL per Chat instance is fine.
+    const blobUrl = URL.createObjectURL(
+      new Blob([WORKER_BOOTSTRAP_CODE], { type: 'text/javascript' }),
     );
+    this._worker = new Worker(blobUrl, { type: 'module' });
     this._currentStream = null;
     this._terminated = false;
     this._ready = this._waitForType('ready');

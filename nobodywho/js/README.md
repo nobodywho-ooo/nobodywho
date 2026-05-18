@@ -282,11 +282,11 @@ And one workaround in the wasm crate itself (`js/src/lib.rs`):
 
 ## Outstanding
 
-- **Browser polyfill bundling.** `setup-browser.mjs` and `worker.js`
-  load `@bjorn3/browser_wasi_shim` from a CDN. The
-  npm package leaves that as a peer dep (see `package.json.tpl`);
-  downstream bundlers resolve it. Worth verifying with at least one
-  real bundler integration (webpack + esbuild + vite) before 1.0.
+- **Browser polyfill bundling.** `setup-browser.mjs` loads
+  `@bjorn3/browser_wasi_shim` from a CDN. The npm package leaves that
+  as a peer dep (see `package.json.tpl`); downstream bundlers resolve
+  it. Worth verifying with at least one real bundler integration
+  (webpack + esbuild + vite) before 1.0.
 - **Structured-output generation at runtime.** The `Constraint` API is wired
   through `Chat::new`'s options (see `ConstraintSpec` in `js/src/lib.rs`),
   but constraints currently panic at generation time on

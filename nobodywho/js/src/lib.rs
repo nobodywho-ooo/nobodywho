@@ -602,9 +602,15 @@ pub fn run_in_worker() -> Result<(), JsError> {
 
     let scope_for_handler = scope.clone();
     let on_message = Closure::wrap(Box::new(move |evt: MessageEvent| {
+        // Read `evt.data()` synchronously here — Firefox throws
+        // NS_ERROR_NOT_AVAILABLE if you touch MessageEvent properties from an
+        // async continuation that runs after the synchronous handler returns.
+        // The cloned JsValue we move into spawn_local is just a regular JS
+        // value and safe to read whenever.
+        let data = evt.data();
         let scope = scope_for_handler.clone();
         wasm_bindgen_futures::spawn_local(async move {
-            if let Err(err) = handle_worker_message(evt, &scope).await {
+            if let Err(err) = handle_worker_message(data, &scope).await {
                 let _ = scope.post_message(&worker_reply_error(&err));
             }
         });
@@ -621,13 +627,15 @@ pub fn run_in_worker() -> Result<(), JsError> {
 }
 
 /// One per message-type. Returning `Err` is what produces the `error` reply
-/// — the caller wraps it via `worker_reply_error` and posts that.
+/// — the caller wraps it via `worker_reply_error` and posts that. Takes the
+/// already-extracted `data` JsValue (not the raw `MessageEvent`) because
+/// Firefox revokes access to event properties once the synchronous handler
+/// returns — see the comment on the `set_onmessage` call site.
 #[cfg(target_arch = "wasm32")]
 async fn handle_worker_message(
-    evt: web_sys::MessageEvent,
+    data: JsValue,
     scope: &web_sys::DedicatedWorkerGlobalScope,
 ) -> Result<(), String> {
-    let data = evt.data();
     let msg_type = js_sys::Reflect::get(&data, &"type".into())
         .map_err(|_| "missing 'type' field".to_string())?
         .as_string()
