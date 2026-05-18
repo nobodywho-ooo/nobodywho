@@ -8,7 +8,7 @@ import NobodyWhoGenerated
 ///     modelPath: "model.gguf",
 ///     systemPrompt: "You are a helpful assistant."
 /// )
-/// for await token in chat.ask("Hello!") {
+/// for try await token in chat.ask("Hello!") {
 ///     print(token, terminator: "")
 /// }
 /// ```
@@ -22,8 +22,8 @@ public class Chat {
         templateVariables: [String: Bool]? = nil,
         tools: [Tool]? = nil,
         sampler: SamplerConfig? = nil
-    ) {
-        self.inner = RustChat(
+    ) throws {
+        self.inner = try RustChat(
             model: model.inner,
             systemPrompt: systemPrompt,
             contextSize: contextSize,
@@ -52,7 +52,7 @@ public class Chat {
             projectionModelPath: projectionModelPath,
             onDownloadProgress: onDownloadProgress
         )
-        return Chat(
+        return try Chat(
             model: model,
             systemPrompt: systemPrompt,
             contextSize: contextSize,
