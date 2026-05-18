@@ -1320,14 +1320,14 @@ impl Chat {
                 .map_err(|e| JsError::new(&format!("post load-model: {e:?}")))?;
             wait_for_handshake(&state, "model-loaded").await?;
 
-            // Handshake step 3: post 'create-chat' with the chat options.
-            let chat_opts_jsval = serde_wasm_bindgen::to_value(&parsed.chat_opts)
-                .map_err(|e| JsError::new(&format!("serialize chat opts: {e}")))?;
+            // Handshake step 3: post 'create-chat' with the chat options
+            // (the original JS object minus the modelUrl/modelBytes/
+            // onDownloadProgress keys; see parse_chat_create_opts).
             let create_msg = js_sys::Object::new();
             let _ =
                 js_sys::Reflect::set(&create_msg, &"type".into(), &"create-chat".into());
             let _ =
-                js_sys::Reflect::set(&create_msg, &"options".into(), &chat_opts_jsval);
+                js_sys::Reflect::set(&create_msg, &"options".into(), &parsed.chat_opts_jsval);
             state
                 .borrow()
                 .worker
@@ -1476,13 +1476,20 @@ async fn wait_for_handshake(
     }
 }
 
-/// Parsed Chat.create options.
+/// Parsed Chat.create options. `chat_opts_jsval` is the original JS object
+/// minus the modelUrl / modelBytes / onDownloadProgress keys — passed
+/// through to the worker as-is via postMessage. We do NOT re-serialize via
+/// `serde_wasm_bindgen::to_value(&ChatOptions)` because that converts nested
+/// maps (e.g. `templateVariables: { enable_thinking: false }`) into JS Maps,
+/// and the worker's `serde_wasm_bindgen::from_value` round-trip doesn't
+/// always preserve the original Object-vs-Map shape — small differences
+/// caused `templateVariables` to silently come through empty.
 #[cfg(target_arch = "wasm32")]
 struct ChatCreateParsed {
     model_url: Option<String>,
     model_bytes: Option<js_sys::Uint8Array>,
     on_progress: Option<js_sys::Function>,
-    chat_opts: ChatOptions,
+    chat_opts_jsval: JsValue,
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -1506,10 +1513,8 @@ fn parse_chat_create_opts(opts: &JsValue) -> Result<ChatCreateParsed, JsError> {
         .filter(|v| !v.is_undefined() && !v.is_null())
         .and_then(|v| v.dyn_into::<js_sys::Function>().ok());
 
-    // Build a filtered object containing only the ChatOptions fields and
-    // parse it via serde (so the strict `deny_unknown_fields` invariant on
-    // ChatOptions still catches typos in nested options).
-    let serde_input = js_sys::Object::new();
+    // Build a filtered JS object containing only the ChatOptions fields.
+    let chat_opts_obj = js_sys::Object::new();
     let keys = js_sys::Object::keys(obj);
     for k in keys.iter() {
         let key_str = k.as_string().unwrap_or_default();
@@ -1520,87 +1525,25 @@ fn parse_chat_create_opts(opts: &JsValue) -> Result<ChatCreateParsed, JsError> {
             continue;
         }
         if let Ok(v) = js_sys::Reflect::get(obj, &k) {
-            let _ = js_sys::Reflect::set(&serde_input, &k, &v);
+            let _ = js_sys::Reflect::set(&chat_opts_obj, &k, &v);
         }
     }
-    let chat_opts: ChatOptions = if js_sys::Object::keys(&serde_input).length() == 0 {
-        ChatOptions::default()
-    } else {
-        serde_wasm_bindgen::from_value(serde_input.into())
-            .map_err(|e| JsError::new(&format!("Chat.create options: {e}")))?
-    };
+
+    // Validate by attempting to parse to ChatOptions. We don't keep the
+    // result — we pass the raw JS object to the worker — but parsing here
+    // catches typos and unsupported fields (`deny_unknown_fields`) at
+    // create time rather than at chat-creation time inside the worker.
+    if js_sys::Object::keys(&chat_opts_obj).length() > 0 {
+        let _: ChatOptions = serde_wasm_bindgen::from_value(chat_opts_obj.clone().into())
+            .map_err(|e| JsError::new(&format!("Chat.create options: {e}")))?;
+    }
 
     Ok(ChatCreateParsed {
         model_url,
         model_bytes,
         on_progress,
-        chat_opts,
+        chat_opts_jsval: chat_opts_obj.into(),
     })
-}
-
-// ChatOptions doesn't impl Serialize, but we need to send it across the
-// worker postMessage boundary. The fields are simple enough to construct
-// a JS object manually.
-#[cfg(target_arch = "wasm32")]
-impl serde::Serialize for ChatOptions {
-    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        use serde::ser::SerializeMap;
-        let mut len = 0;
-        if self.context_size.is_some() {
-            len += 1;
-        }
-        if self.system_prompt.is_some() {
-            len += 1;
-        }
-        if self.constraint.is_some() {
-            len += 1;
-        }
-        if self.template_variables.is_some() {
-            len += 1;
-        }
-        let mut m = s.serialize_map(Some(len))?;
-        if let Some(v) = &self.context_size {
-            m.serialize_entry("contextSize", v)?;
-        }
-        if let Some(v) = &self.system_prompt {
-            m.serialize_entry("systemPrompt", v)?;
-        }
-        if let Some(v) = &self.constraint {
-            m.serialize_entry("constraint", v)?;
-        }
-        if let Some(v) = &self.template_variables {
-            m.serialize_entry("templateVariables", v)?;
-        }
-        m.end()
-    }
-}
-
-#[cfg(target_arch = "wasm32")]
-impl serde::Serialize for ConstraintSpec {
-    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        use serde::ser::SerializeMap;
-        let mut len = 0;
-        if self.json_schema.is_some() {
-            len += 1;
-        }
-        if self.regex.is_some() {
-            len += 1;
-        }
-        if self.lark.is_some() {
-            len += 1;
-        }
-        let mut m = s.serialize_map(Some(len))?;
-        if let Some(v) = &self.json_schema {
-            m.serialize_entry("jsonSchema", v)?;
-        }
-        if let Some(v) = &self.regex {
-            m.serialize_entry("regex", v)?;
-        }
-        if let Some(v) = &self.lark {
-            m.serialize_entry("lark", v)?;
-        }
-        m.end()
-    }
 }
 
 // ---------- Out of scope for v1 ----------
