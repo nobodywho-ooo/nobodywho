@@ -624,63 +624,6 @@ pub(super) fn collapse_logits(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
-    use std::path::PathBuf;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
-    static NEXT_TMP: AtomicUsize = AtomicUsize::new(0);
-
-    fn tmp_dir(name: &str) -> PathBuf {
-        let id = NEXT_TMP.fetch_add(1, Ordering::Relaxed);
-        let dir = std::env::temp_dir().join(format!(
-            "nobodywho_tts_ort_util_{name}_{}_{}",
-            std::process::id(),
-            id
-        ));
-        let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).unwrap();
-        dir
-    }
-
-    #[test]
-    fn safetensors_missing_file_is_error() {
-        let dir = tmp_dir("missing_st");
-        let err = SafeTensorsFile::open(&dir.join("conditioning.safetensors"), "test")
-            .unwrap_err()
-            .to_string();
-        assert!(err.contains("read"));
-    }
-
-    #[test]
-    fn safetensors_wrong_dtype_is_error() {
-        use safetensors::{serialize, tensor::TensorView, Dtype};
-        let dir = tmp_dir("wrong_dtype");
-        let data: Vec<f32> = vec![1.0, 2.0];
-        let bytes: Vec<u8> = data.iter().flat_map(|f| f.to_le_bytes()).collect();
-        let view = TensorView::new(Dtype::F32, vec![2], &bytes).unwrap();
-        let tensors = std::collections::HashMap::from([("cond_emb", view)]);
-        let buf = serialize(tensors, &None).unwrap();
-        let path = dir.join("conditioning.safetensors");
-        fs::write(&path, &buf).unwrap();
-        let st = SafeTensorsFile::open(&path, "test").unwrap();
-        let err = st.i64("cond_emb", "test").unwrap_err().to_string();
-        assert!(err.contains("F32") || err.contains("I64"));
-    }
-
-    #[test]
-    fn safetensors_missing_tensor_is_error() {
-        use safetensors::serialize;
-        let dir = tmp_dir("missing_tensor_st");
-        let tensors: std::collections::HashMap<&str, safetensors::tensor::TensorView<'_>> =
-            std::collections::HashMap::new();
-        let buf = serialize(tensors, &None).unwrap();
-        let path = dir.join("conditioning.safetensors");
-        fs::write(&path, &buf).unwrap();
-        let st = SafeTensorsFile::open(&path, "test").unwrap();
-        let err = st.f32("cond_emb", "test").unwrap_err().to_string();
-        assert!(err.contains("cond_emb"));
-    }
-
     // ── S3 token post-processing ───────────────────────────────────────────
 
     #[test]

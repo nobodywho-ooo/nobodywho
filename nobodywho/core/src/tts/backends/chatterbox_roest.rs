@@ -107,11 +107,7 @@ impl RoestBackend {
         let text_embed_has_position_ids = has_position_ids(&text_embed);
         let speech_embed_has_position_ids = has_position_ids(&speech_embed);
 
-        let cond = load_bin_conditioning(&model_dir.join("default_cond"))?;
-        let text_pos_emb = load_text_pos_emb(
-            &model_dir.join("text_pos_emb.bin"),
-            &model_config.text_pos_emb_shape,
-        )?;
+        let (cond, text_pos_emb) = load_safetensors_conditioning(model_dir)?;
 
         info!(
             num_layers,
@@ -412,90 +408,20 @@ fn prepare_text_for_mtl_tokenizer(text: &str, language: &str) -> String {
 struct RoestModelConfig {
     #[serde(flatten)]
     tokens: SpeechTokenModelConfig,
-    #[serde(default = "default_text_pos_emb_shape")]
-    text_pos_emb_shape: [usize; 2],
 }
 
-fn default_text_pos_emb_shape() -> [usize; 2] {
-    [2050, 1024]
-}
-
-/// Load pre-computed conditioning from a directory of raw-binary tensors.
-/// The directory must contain `manifest.json` (mapping name → shape + dtype)
-/// and one `<name>.bin` per tensor (row-major, little-endian).
-fn load_bin_conditioning(cond_dir: &Path) -> Result<SpeakerConditioning, TtsError> {
-    let manifest_path = cond_dir.join("manifest.json");
-    let raw = std::fs::read_to_string(&manifest_path)
-        .map_err(|e| TtsError::Init(format!("roest: read {}: {e}", manifest_path.display())))?;
-    let manifest: std::collections::HashMap<String, serde_json::Value> = serde_json::from_str(&raw)
-        .map_err(|e| TtsError::Init(format!("roest: parse {}: {e}", manifest_path.display())))?;
-
-    fn load_f32(
-        cond_dir: &Path,
-        name: &str,
-        manifest: &std::collections::HashMap<String, serde_json::Value>,
-    ) -> Result<TensorData<f32>, TtsError> {
-        let meta = manifest
-            .get(name)
-            .ok_or_else(|| TtsError::Init(format!("roest: {name} missing from manifest")))?;
-        let shape: Vec<usize> = meta["shape"]
-            .as_array()
-            .ok_or_else(|| TtsError::Init(format!("roest: {name}.shape not an array")))?
-            .iter()
-            .map(|v| v.as_u64().unwrap_or(0) as usize)
-            .collect();
-        let bytes = std::fs::read(cond_dir.join(format!("{name}.bin")))
-            .map_err(|e| TtsError::Init(format!("roest: read {name}.bin: {e}")))?;
-        let data = bytes
-            .chunks_exact(4)
-            .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
-            .collect();
-        Ok(TensorData { data, shape })
-    }
-
-    fn load_i64(
-        cond_dir: &Path,
-        name: &str,
-        manifest: &std::collections::HashMap<String, serde_json::Value>,
-    ) -> Result<TensorData<i64>, TtsError> {
-        let meta = manifest
-            .get(name)
-            .ok_or_else(|| TtsError::Init(format!("roest: {name} missing from manifest")))?;
-        let shape: Vec<usize> = meta["shape"]
-            .as_array()
-            .ok_or_else(|| TtsError::Init(format!("roest: {name}.shape not an array")))?
-            .iter()
-            .map(|v| v.as_u64().unwrap_or(0) as usize)
-            .collect();
-        let bytes = std::fs::read(cond_dir.join(format!("{name}.bin")))
-            .map_err(|e| TtsError::Init(format!("roest: read {name}.bin: {e}")))?;
-        let data = bytes
-            .chunks_exact(8)
-            .map(|b| i64::from_le_bytes(b.try_into().unwrap()))
-            .collect();
-        Ok(TensorData { data, shape })
-    }
-
-    Ok(SpeakerConditioning {
-        cond_emb: load_f32(cond_dir, "cond_emb", &manifest)?,
-        prompt_token: load_i64(cond_dir, "prompt_token", &manifest)?,
-        ref_x_vector: load_f32(cond_dir, "ref_x_vector", &manifest)?,
-        prompt_feat: load_f32(cond_dir, "prompt_feat", &manifest)?,
-    })
-}
-
-/// Load the text position embedding from a raw f32 binary file.
-fn load_text_pos_emb(path: &Path, shape: &[usize; 2]) -> Result<TensorData<f32>, TtsError> {
-    let bytes = std::fs::read(path)
-        .map_err(|e| TtsError::Init(format!("roest: read {}: {e}", path.display())))?;
-    let data = bytes
-        .chunks_exact(4)
-        .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
-        .collect();
-    Ok(TensorData {
-        data,
-        shape: shape.to_vec(),
-    })
+fn load_safetensors_conditioning(
+    model_dir: &Path,
+) -> Result<(SpeakerConditioning, TensorData<f32>), TtsError> {
+    let st = ort_util::SafeTensorsFile::open(&model_dir.join("conditioning.safetensors"), "roest")?;
+    let cond = SpeakerConditioning {
+        cond_emb: st.f32("cond_emb", "roest")?,
+        prompt_token: st.i64("prompt_token", "roest")?,
+        ref_x_vector: st.f32("ref_x_vector", "roest")?,
+        prompt_feat: st.f32("prompt_feat", "roest")?,
+    };
+    let text_pos_emb = st.f32("text_pos_emb", "roest")?;
+    Ok((cond, text_pos_emb))
 }
 
 fn load_model_config(model_dir: &Path) -> Result<RoestModelConfig, TtsError> {

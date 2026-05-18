@@ -42,7 +42,6 @@ pub(in crate::tts) struct ChatterboxBackend {
     language_model: Session,
     conditional_decoder: Session,
     tokenizer: tokenizers::Tokenizer,
-    precomputed_cond: Option<SpeakerConditioning>,
     reference_audio: Option<Vec<f32>>,
     language: String,
     sampling: TtsSampling,
@@ -90,7 +89,6 @@ impl ChatterboxBackend {
         let embed_has_exaggeration = ort_util::has_exaggeration(&embed_tokens);
         let lm_has_position_ids = has_position_ids(&language_model);
 
-        let precomputed_cond = load_precomputed_cond(&model_dir.join("conditioning.safetensors"))?;
         let reference_audio = resolve_reference_audio(model_dir, reference_wav, sample_rate)?;
 
         info!(
@@ -101,7 +99,6 @@ impl ChatterboxBackend {
             stop_text_token = model_config.stop_text_token,
             start_speech_token = model_config.start_speech_token,
             stop_speech_token = model_config.stop_speech_token,
-            has_precomputed = precomputed_cond.is_some(),
             "Loaded Chatterbox TTS"
         );
 
@@ -111,7 +108,6 @@ impl ChatterboxBackend {
             language_model,
             conditional_decoder,
             tokenizer,
-            precomputed_cond,
             reference_audio,
             language,
             sampling,
@@ -137,11 +133,7 @@ impl TtsBackendImpl for ChatterboxBackend {
         let normalized_text = ort_util::punc_norm(text, false);
         let prepared_text = prepare_text(&normalized_text, &self.language);
         let (input_ids, position_ids) = self.tokenize_for_lm(&prepared_text)?;
-        let cond = obtain_conditioning(
-            &self.precomputed_cond,
-            &mut self.speech_encoder,
-            self.reference_audio.as_deref(),
-        )?;
+        let cond = obtain_conditioning(&mut self.speech_encoder, self.reference_audio.as_deref())?;
         let mut speech_tokens =
             self.generate_speech_tokens(&input_ids, &position_ids, &cond, &sampling)?;
         ort_util::filter_valid_speech_tokens(&mut speech_tokens, self.start_speech_token);
@@ -357,14 +349,9 @@ fn build_first_step_embeds(
 /// Reuse pre-computed conditioning if present,
 /// otherwise run the speech encoder on the provided reference audio.
 fn obtain_conditioning(
-    precomputed_cond: &Option<SpeakerConditioning>,
     speech_encoder: &mut Session,
     reference_audio: Option<&[f32]>,
 ) -> Result<SpeakerConditioning, TtsError> {
-    if let Some(pc) = precomputed_cond {
-        return Ok(pc.clone());
-    }
-
     let samples = reference_audio.ok_or_else(|| {
         TtsError::Synthesis(
             "reference audio is required for Chatterbox \
@@ -389,19 +376,6 @@ fn obtain_conditioning(
         ref_x_vector: TensorData::<f32>::extract(&outputs[2], "ref_x_vector")?,
         prompt_feat: TensorData::<f32>::extract(&outputs[3], "prompt_feat")?,
     })
-}
-
-fn load_precomputed_cond(path: &Path) -> Result<Option<SpeakerConditioning>, TtsError> {
-    if !path.exists() {
-        return Ok(None);
-    }
-    let st = ort_util::SafeTensorsFile::open(path, "chatterbox")?;
-    Ok(Some(SpeakerConditioning {
-        cond_emb: st.f32("cond_emb", "chatterbox")?,
-        prompt_token: st.i64("prompt_token", "chatterbox")?,
-        ref_x_vector: st.f32("ref_x_vector", "chatterbox")?,
-        prompt_feat: st.f32("prompt_feat", "chatterbox")?,
-    }))
 }
 
 /// Resolve the reference audio for a Chatterbox load: prefer an explicitly
