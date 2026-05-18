@@ -192,11 +192,17 @@ impl Model {
     }
 }
 
-// ---------- Chat ----------
+// ---------- ChatRaw (raw blocking class — see Chat below for the user-facing one) ----------
+//
+// Exposed in JS as `ChatRaw`. The user-facing worker-backed wrapper is the
+// `Chat` struct further down; `ChatRaw` is the direct wasm-bindgen wrapper
+// over `ChatHandleAsync` that the worker dispatcher uses internally and that
+// advanced callers can opt into if they want blocking inference on the main
+// thread.
 
 /// Chat session backed by a model. Manages conversation state, sampling, and tools.
 #[wasm_bindgen]
-pub struct Chat {
+pub struct ChatRaw {
     handle: nobodywho::chat::ChatHandleAsync,
 }
 
@@ -278,10 +284,10 @@ impl ConstraintSpec {
 }
 
 #[wasm_bindgen]
-impl Chat {
+impl ChatRaw {
     /// Create a new chat session bound to a loaded model.
     #[wasm_bindgen(constructor)]
-    pub fn new(model: &Model, options: JsValue) -> Result<Chat, JsError> {
+    pub fn new(model: &Model, options: JsValue) -> Result<ChatRaw, JsError> {
         let opts: ChatOptions = if options.is_undefined() || options.is_null() {
             ChatOptions::default()
         } else {
@@ -302,7 +308,7 @@ impl Chat {
             builder = builder.with_template_variables(vars);
         }
 
-        Ok(Chat {
+        Ok(ChatRaw {
             handle: builder.build_async(),
         })
     }
@@ -758,6 +764,843 @@ fn worker_reply_error(message: &str) -> JsValue {
     let _ = js_sys::Reflect::set(&obj, &"type".into(), &"error".into());
     let _ = js_sys::Reflect::set(&obj, &"message".into(), &message.into());
     obj.into()
+}
+
+// ---------- Cache API helpers ----------
+//
+// Browser-side model caching via the Cache API store named 'nobodywho-models-v1'.
+// Used to live in examples/setup-browser.mjs (~80 lines of JS); now lives here
+// via web-sys so the JS-side bootstrap stays a thin shim. Same store name as
+// before, so existing cached models survive the JS→Rust migration.
+
+#[cfg(target_arch = "wasm32")]
+const MODEL_CACHE_NAME: &str = "nobodywho-models-v1";
+
+/// Try to open the model cache. Returns None if the Cache API isn't usable
+/// in the current context (insecure http, file://, sandboxed iframe) — the
+/// caller falls through to a plain fetch in that case.
+///
+/// `caches` is available on both `Window` (main thread) and
+/// `WorkerGlobalScope` (web worker), with different web-sys types.
+#[cfg(target_arch = "wasm32")]
+async fn open_model_cache() -> Option<web_sys::Cache> {
+    let caches = caches_from_global()?;
+    let opened = wasm_bindgen_futures::JsFuture::from(caches.open(MODEL_CACHE_NAME))
+        .await
+        .ok()?;
+    opened.dyn_into::<web_sys::Cache>().ok()
+}
+
+#[cfg(target_arch = "wasm32")]
+fn caches_from_global() -> Option<web_sys::CacheStorage> {
+    if let Ok(window) = js_sys::global().dyn_into::<web_sys::Window>() {
+        return window.caches().ok();
+    }
+    if let Ok(scope) = js_sys::global().dyn_into::<web_sys::WorkerGlobalScope>() {
+        return scope.caches().ok();
+    }
+    None
+}
+
+#[cfg(target_arch = "wasm32")]
+fn fetch_from_global(url: &str) -> js_sys::Promise {
+    if let Ok(window) = js_sys::global().dyn_into::<web_sys::Window>() {
+        return window.fetch_with_str(url);
+    }
+    if let Ok(scope) = js_sys::global().dyn_into::<web_sys::WorkerGlobalScope>() {
+        return scope.fetch_with_str(url);
+    }
+    js_sys::Promise::reject(&JsValue::from_str(
+        "fetch() not available in this global context",
+    ))
+}
+
+/// Fetch a GGUF from a URL and resolve to its bytes, with optional progress
+/// reporting and Cache API caching. JS-exposed as `fetchModelBytes`.
+///
+/// Mirrors the deleted JS implementation. Cache hit returns immediately
+/// (firing `onProgress(size, size)` once for UIs that only update on
+/// progress events). Cache miss streams the body so progress is meaningful;
+/// on completion, populates the cache (swallows put failures).
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen(js_name = fetchModelBytes)]
+pub fn fetch_model_bytes(
+    url: String,
+    on_progress: Option<js_sys::Function>,
+) -> js_sys::Promise {
+    promisify(async move {
+        // --- Cache lookup ---
+        if let Some(cache) = open_model_cache().await {
+            let matched = wasm_bindgen_futures::JsFuture::from(cache.match_with_str(&url))
+                .await
+                .ok();
+            if let Some(matched_val) = matched {
+                if !matched_val.is_undefined() {
+                    let response: web_sys::Response = matched_val
+                        .dyn_into()
+                        .map_err(|_| JsError::new("cache hit returned non-Response"))?;
+                    let array_buffer_promise = response
+                        .array_buffer()
+                        .map_err(|e| JsError::new(&format!("array_buffer(): {e:?}")))?;
+                    let array_buffer = wasm_bindgen_futures::JsFuture::from(array_buffer_promise)
+                        .await
+                        .map_err(|e| JsError::new(&format!("array_buffer await: {e:?}")))?;
+                    let bytes = js_sys::Uint8Array::new(&array_buffer);
+                    if let Some(cb) = on_progress.as_ref() {
+                        let len = JsValue::from_f64(bytes.byte_length() as f64);
+                        let _ = cb.call2(&JsValue::null(), &len, &len);
+                    }
+                    return Ok(bytes);
+                }
+            }
+        }
+
+        // --- Cache miss: fetch from network ---
+        let response_jsval = wasm_bindgen_futures::JsFuture::from(fetch_from_global(&url))
+            .await
+            .map_err(|e| JsError::new(&format!("fetch failed: {e:?}")))?;
+        let response: web_sys::Response = response_jsval
+            .dyn_into()
+            .map_err(|_| JsError::new("fetch did not return a Response"))?;
+        if !response.ok() {
+            return Err(JsError::new(&format!(
+                "fetch {url}: HTTP {} {}",
+                response.status(),
+                response.status_text()
+            )));
+        }
+        let total: u64 = response
+            .headers()
+            .get("content-length")
+            .ok()
+            .flatten()
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(0);
+
+        let body = response
+            .body()
+            .ok_or_else(|| JsError::new("response.body is null"))?;
+        let reader: web_sys::ReadableStreamDefaultReader = body
+            .get_reader()
+            .dyn_into()
+            .map_err(|_| JsError::new("expected ReadableStreamDefaultReader"))?;
+
+        let mut chunks: Vec<u8> = Vec::with_capacity(total.max(1) as usize);
+        let mut downloaded: u64 = 0;
+        loop {
+            let read_result =
+                wasm_bindgen_futures::JsFuture::from(reader.read())
+                    .await
+                    .map_err(|e| JsError::new(&format!("reader.read(): {e:?}")))?;
+            let done = js_sys::Reflect::get(&read_result, &"done".into())
+                .map_err(|_| JsError::new("read result missing 'done'"))?
+                .as_bool()
+                .unwrap_or(false);
+            if done {
+                break;
+            }
+            let value = js_sys::Reflect::get(&read_result, &"value".into())
+                .map_err(|_| JsError::new("read result missing 'value'"))?;
+            let chunk: js_sys::Uint8Array = value
+                .dyn_into()
+                .map_err(|_| JsError::new("read chunk is not a Uint8Array"))?;
+            let chunk_len = chunk.byte_length() as usize;
+            let start = chunks.len();
+            chunks.resize(start + chunk_len, 0);
+            chunk.copy_to(&mut chunks[start..]);
+            downloaded += chunk_len as u64;
+            if let Some(cb) = on_progress.as_ref() {
+                let _ = cb.call2(
+                    &JsValue::null(),
+                    &JsValue::from_f64(downloaded as f64),
+                    &JsValue::from_f64(total as f64),
+                );
+            }
+        }
+
+        let bytes = js_sys::Uint8Array::from(&chunks[..]);
+
+        // --- Populate cache (best-effort) ---
+        if let Some(cache) = open_model_cache().await {
+            if let Ok(resp) = web_sys::Response::new_with_opt_buffer_source(Some(&bytes)) {
+                let _ = wasm_bindgen_futures::JsFuture::from(cache.put_with_str(&url, &resp))
+                    .await;
+            }
+        }
+
+        Ok(bytes)
+    })
+}
+
+// Static methods on the existing Model class. wasm-bindgen lets you add to
+// the same JS class from multiple `impl` blocks.
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+impl Model {
+    /// Pre-populate the Cache API model store without loading the model into
+    /// wasm. Useful during a splash screen so the user isn't waiting on a
+    /// 400 MB download when they click "chat".
+    #[wasm_bindgen(static_method_of = Model, js_name = preload)]
+    pub fn preload(url: String, on_progress: Option<js_sys::Function>) -> js_sys::Promise {
+        promisify(async move {
+            let _ = wasm_bindgen_futures::JsFuture::from(fetch_model_bytes(url, on_progress))
+                .await
+                .map_err(|e| JsError::new(&format!("preload: {e:?}")))?;
+            Ok(JsValue::UNDEFINED)
+        })
+    }
+
+    /// Delete the model cache store. Resolves to `true` if a store existed
+    /// and was removed, `false` otherwise (no Cache API in this context, or
+    /// the store didn't exist).
+    #[wasm_bindgen(static_method_of = Model, js_name = clearCache)]
+    pub fn clear_cache() -> js_sys::Promise {
+        promisify(async move {
+            let Some(caches) = caches_from_global() else {
+                return Ok(JsValue::from_bool(false));
+            };
+            let result = wasm_bindgen_futures::JsFuture::from(caches.delete(MODEL_CACHE_NAME))
+                .await
+                .map_err(|e| JsError::new(&format!("caches.delete: {e:?}")))?;
+            Ok(JsValue::from_bool(result.as_bool().unwrap_or(false)))
+        })
+    }
+}
+
+// ---------- WorkerTokenStream ----------
+//
+// User-facing token stream returned from `Chat::ask`. Implements the JS
+// async-iterator protocol (`next()` returning `Promise<{value, done}>`) so
+// callers can `for await (const tok of chat.ask(...))`, and exposes
+// `completed()` returning a `Promise<string>` that resolves to the full
+// concatenation.
+//
+// `[Symbol.asyncIterator]() { return this; }` can't be emitted by
+// wasm-bindgen 0.2.121 cleanly; setup-browser.mjs adds it at the prototype
+// level after import (~1 line of JS).
+//
+// State shared with `Chat` via `Rc<RefCell<WorkerStreamState>>`: Chat pushes
+// tokens/done/error into the state from inside its `onmessage` closure; the
+// stream's `next()`/`completed()` Promises resolve out of that state.
+
+#[cfg(target_arch = "wasm32")]
+struct WorkerStreamState {
+    /// Tokens that have arrived but haven't been pulled by `next()`.
+    buffer: std::collections::VecDeque<String>,
+    /// Accumulated text — `completed()` resolves to this.
+    full_text: String,
+    /// Set when the worker posts `ask-done`.
+    done: bool,
+    /// Set when the worker posts `error` or the worker errors.
+    error: Option<String>,
+    /// If `next()` is pending (no buffered token and not done/error), this
+    /// is the sender to fulfill when the next token / done / error arrives.
+    pending_next: Option<tokio::sync::oneshot::Sender<NextOutcome>>,
+    /// `completed()` may be called multiple times; queue all waiters.
+    pending_completed: Vec<tokio::sync::oneshot::Sender<Result<String, String>>>,
+}
+
+#[cfg(target_arch = "wasm32")]
+enum NextOutcome {
+    Token(String),
+    Done,
+    Err(String),
+}
+
+#[cfg(target_arch = "wasm32")]
+impl WorkerStreamState {
+    fn new() -> Self {
+        Self {
+            buffer: std::collections::VecDeque::new(),
+            full_text: String::new(),
+            done: false,
+            error: None,
+            pending_next: None,
+            pending_completed: Vec::new(),
+        }
+    }
+
+    fn push_token(state: &std::rc::Rc<RefCell<Self>>, token: String) {
+        let mut st = state.borrow_mut();
+        st.full_text.push_str(&token);
+        if let Some(tx) = st.pending_next.take() {
+            let _ = tx.send(NextOutcome::Token(token));
+        } else {
+            st.buffer.push_back(token);
+        }
+    }
+
+    fn complete(state: &std::rc::Rc<RefCell<Self>>) {
+        let mut st = state.borrow_mut();
+        st.done = true;
+        if let Some(tx) = st.pending_next.take() {
+            let _ = tx.send(NextOutcome::Done);
+        }
+        let full = st.full_text.clone();
+        for tx in st.pending_completed.drain(..) {
+            let _ = tx.send(Ok(full.clone()));
+        }
+    }
+
+    fn fail(state: &std::rc::Rc<RefCell<Self>>, err: String) {
+        let mut st = state.borrow_mut();
+        st.error = Some(err.clone());
+        if let Some(tx) = st.pending_next.take() {
+            let _ = tx.send(NextOutcome::Err(err.clone()));
+        }
+        for tx in st.pending_completed.drain(..) {
+            let _ = tx.send(Err(err.clone()));
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub struct WorkerTokenStream {
+    state: std::rc::Rc<RefCell<WorkerStreamState>>,
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+impl WorkerTokenStream {
+    /// Returns `Promise<{ value: string, done: false }>` for each token,
+    /// or `Promise<{ value: undefined, done: true }>` when the stream ends.
+    /// Rejects with the worker's error if the inference failed.
+    pub fn next(&self) -> js_sys::Promise {
+        let state = self.state.clone();
+        promisify(async move {
+            // Synchronous fast-path: check buffer / done / error.
+            let pending_rx = {
+                let mut st = state.borrow_mut();
+                if let Some(err) = st.error.clone() {
+                    return Err(JsError::new(&err));
+                }
+                if let Some(tok) = st.buffer.pop_front() {
+                    return Ok(iter_result(Some(&tok)));
+                }
+                if st.done {
+                    return Ok(iter_result(None));
+                }
+                let (tx, rx) = tokio::sync::oneshot::channel();
+                st.pending_next = Some(tx);
+                rx
+            };
+            // Async: park until Chat's onmessage routes a token / done / error.
+            match pending_rx.await {
+                Ok(NextOutcome::Token(tok)) => Ok(iter_result(Some(&tok))),
+                Ok(NextOutcome::Done) => Ok(iter_result(None)),
+                Ok(NextOutcome::Err(e)) => Err(JsError::new(&e)),
+                Err(_) => Err(JsError::new("stream sender dropped before token")),
+            }
+        })
+    }
+
+    /// Resolves to the full accumulated text once the stream completes.
+    /// Calling `completed()` multiple times is fine — each call queues an
+    /// independent waiter resolved with the same final text.
+    pub fn completed(&self) -> js_sys::Promise {
+        let state = self.state.clone();
+        promisify(async move {
+            let pending_rx = {
+                let mut st = state.borrow_mut();
+                if let Some(err) = st.error.clone() {
+                    return Err(JsError::new(&err));
+                }
+                if st.done {
+                    return Ok(JsValue::from_str(&st.full_text));
+                }
+                let (tx, rx) = tokio::sync::oneshot::channel();
+                st.pending_completed.push(tx);
+                rx
+            };
+            match pending_rx.await {
+                Ok(Ok(text)) => Ok(JsValue::from_str(&text)),
+                Ok(Err(e)) => Err(JsError::new(&e)),
+                Err(_) => Err(JsError::new("stream sender dropped before completion")),
+            }
+        })
+    }
+}
+
+/// Build a `{ value, done }` JS object matching the async-iterator protocol.
+#[cfg(target_arch = "wasm32")]
+fn iter_result(value: Option<&str>) -> JsValue {
+    let obj = js_sys::Object::new();
+    match value {
+        Some(v) => {
+            let _ = js_sys::Reflect::set(&obj, &"value".into(), &JsValue::from_str(v));
+            let _ = js_sys::Reflect::set(&obj, &"done".into(), &JsValue::from_bool(false));
+        }
+        None => {
+            let _ = js_sys::Reflect::set(&obj, &"value".into(), &JsValue::UNDEFINED);
+            let _ = js_sys::Reflect::set(&obj, &"done".into(), &JsValue::from_bool(true));
+        }
+    }
+    obj.into()
+}
+
+// ---------- Chat (worker-backed, user-facing) ----------
+//
+// User-facing chat class. Internally spawns a Web Worker from an inline Blob
+// URL, posts the load-model / create-chat / ask protocol, routes replies via
+// a Closure-wrapped onmessage. The worker side of the protocol is handled by
+// `runInWorker()` further up.
+//
+// The JS-side Chat class that used to live in examples/setup-browser.mjs is
+// now this Rust struct. App code is unchanged — same factory shape:
+//
+//     const chat = await Chat.create({ modelUrl, systemPrompt, ... });
+//     for await (const tok of chat.ask(prompt)) { ... }
+//     const full = await chat.ask(prompt).completed();
+
+// JS sets this at module load (`bg.setBootstrapUrl(import.meta.url)`).
+// `Chat::create` reads it to build the inline Blob worker bootstrap
+// (`import('<setup-browser.mjs URL>')`).
+#[cfg(target_arch = "wasm32")]
+thread_local! {
+    static BOOTSTRAP_URL: RefCell<Option<String>> = RefCell::new(None);
+}
+
+/// Called from setup-browser.mjs at module load to register the absolute URL
+/// of setup-browser.mjs itself. Required before the first `Chat.create()`.
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen(js_name = setBootstrapUrl)]
+pub fn set_bootstrap_url(url: String) {
+    BOOTSTRAP_URL.with(|u| *u.borrow_mut() = Some(url));
+}
+
+#[cfg(target_arch = "wasm32")]
+fn get_bootstrap_url() -> Result<String, JsError> {
+    BOOTSTRAP_URL
+        .with(|u| u.borrow().clone())
+        .ok_or_else(|| {
+            JsError::new(
+                "Chat.create: setBootstrapUrl was not called. \
+                 setup-browser.mjs must call bg.setBootstrapUrl(import.meta.url) \
+                 at module load before Chat.create() is invoked.",
+            )
+        })
+}
+
+#[cfg(target_arch = "wasm32")]
+struct ChatState {
+    worker: web_sys::Worker,
+    current_stream: Option<std::rc::Rc<RefCell<WorkerStreamState>>>,
+    /// While `Chat::create` is running through its load-model / create-chat
+    /// handshake, this holds `(expected_reply_type, sender)`. The onmessage
+    /// closure resolves the sender when a message of that type arrives.
+    pending_handshake:
+        Option<(String, tokio::sync::oneshot::Sender<Result<(), String>>)>,
+    terminated: bool,
+    _on_message: Option<wasm_bindgen::closure::Closure<dyn FnMut(web_sys::MessageEvent)>>,
+    _on_error: Option<wasm_bindgen::closure::Closure<dyn FnMut(web_sys::ErrorEvent)>>,
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub struct Chat {
+    state: std::rc::Rc<RefCell<ChatState>>,
+}
+
+#[cfg(target_arch = "wasm32")]
+impl Drop for Chat {
+    fn drop(&mut self) {
+        // Best-effort cleanup: terminate the worker so it doesn't hang around
+        // after the wasm-side Chat is released. The closures hold `Weak`
+        // refs to ChatState (no cycle), so dropping state here is safe.
+        if let Ok(st) = self.state.try_borrow() {
+            let _ = st.worker.terminate();
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+impl Chat {
+    /// Create a worker-backed chat. Spawns a Web Worker that loads the wasm,
+    /// fetches the model (Cache API hit if previously downloaded), and
+    /// initializes a `ChatHandleAsync`. Returns a Promise that resolves to
+    /// the `Chat` instance once all three handshake steps complete.
+    #[wasm_bindgen(js_name = create)]
+    pub fn create(opts: JsValue) -> js_sys::Promise {
+        promisify(async move {
+            let parsed = parse_chat_create_opts(&opts)?;
+            let bootstrap = get_bootstrap_url()?;
+
+            // Build the inline-Blob worker entrypoint.
+            // JSON-encode the URL so it's safely interpolated as a string literal.
+            let url_lit = serde_json::to_string(&bootstrap)
+                .map_err(|e| JsError::new(&format!("json url: {e}")))?;
+            let bootstrap_code = format!("import({url_lit});");
+
+            let blob_bag = web_sys::BlobPropertyBag::new();
+            blob_bag.set_type("text/javascript");
+            let parts = js_sys::Array::new();
+            parts.push(&JsValue::from_str(&bootstrap_code));
+            let blob = web_sys::Blob::new_with_str_sequence_and_options(&parts, &blob_bag)
+                .map_err(|e| JsError::new(&format!("new Blob: {e:?}")))?;
+            let url = web_sys::Url::create_object_url_with_blob(&blob)
+                .map_err(|e| JsError::new(&format!("createObjectURL: {e:?}")))?;
+
+            let worker_opts = web_sys::WorkerOptions::new();
+            worker_opts.set_type(web_sys::WorkerType::Module);
+            let worker = web_sys::Worker::new_with_options(&url, &worker_opts)
+                .map_err(|e| JsError::new(&format!("new Worker: {e:?}")))?;
+
+            // Construct the state. Closures install themselves into state.
+            let state = std::rc::Rc::new(RefCell::new(ChatState {
+                worker: worker.clone(),
+                current_stream: None,
+                pending_handshake: None,
+                terminated: false,
+                _on_message: None,
+                _on_error: None,
+            }));
+
+            let state_weak = std::rc::Rc::downgrade(&state);
+            let on_message = wasm_bindgen::closure::Closure::wrap(Box::new(
+                move |evt: web_sys::MessageEvent| {
+                    if let Some(state) = state_weak.upgrade() {
+                        handle_chat_message(&state, evt.data());
+                    }
+                },
+            )
+                as Box<dyn FnMut(web_sys::MessageEvent)>);
+
+            let state_weak2 = std::rc::Rc::downgrade(&state);
+            let on_error = wasm_bindgen::closure::Closure::wrap(Box::new(
+                move |evt: web_sys::ErrorEvent| {
+                    if let Some(state) = state_weak2.upgrade() {
+                        let msg = format!("worker crashed: {}", evt.message());
+                        handle_chat_error(&state, msg);
+                    }
+                },
+            )
+                as Box<dyn FnMut(web_sys::ErrorEvent)>);
+
+            worker.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
+            worker.set_onerror(Some(on_error.as_ref().unchecked_ref()));
+
+            {
+                let mut st = state.borrow_mut();
+                st._on_message = Some(on_message);
+                st._on_error = Some(on_error);
+            }
+
+            // Handshake step 1: wait for 'ready' from the worker.
+            wait_for_handshake(&state, "ready").await?;
+
+            // Handshake step 2: get the model bytes, post 'load-model'.
+            let model_bytes_value: JsValue = if let Some(bytes) = parsed.model_bytes {
+                bytes.into()
+            } else if let Some(url) = parsed.model_url {
+                let bytes_promise = fetch_model_bytes(url, parsed.on_progress);
+                wasm_bindgen_futures::JsFuture::from(bytes_promise)
+                    .await
+                    .map_err(|e| {
+                        let msg = js_sys::Reflect::get(&e, &"message".into())
+                            .ok()
+                            .and_then(|m| m.as_string())
+                            .unwrap_or_else(|| format!("{e:?}"));
+                        JsError::new(&format!("fetchModelBytes: {msg}"))
+                    })?
+            } else {
+                return Err(JsError::new(
+                    "Chat.create: pass either modelUrl or modelBytes",
+                ));
+            };
+
+            let load_msg = js_sys::Object::new();
+            let _ = js_sys::Reflect::set(&load_msg, &"type".into(), &"load-model".into());
+            let _ = js_sys::Reflect::set(&load_msg, &"bytes".into(), &model_bytes_value);
+            state
+                .borrow()
+                .worker
+                .post_message(&load_msg)
+                .map_err(|e| JsError::new(&format!("post load-model: {e:?}")))?;
+            wait_for_handshake(&state, "model-loaded").await?;
+
+            // Handshake step 3: post 'create-chat' with the chat options.
+            let chat_opts_jsval = serde_wasm_bindgen::to_value(&parsed.chat_opts)
+                .map_err(|e| JsError::new(&format!("serialize chat opts: {e}")))?;
+            let create_msg = js_sys::Object::new();
+            let _ =
+                js_sys::Reflect::set(&create_msg, &"type".into(), &"create-chat".into());
+            let _ =
+                js_sys::Reflect::set(&create_msg, &"options".into(), &chat_opts_jsval);
+            state
+                .borrow()
+                .worker
+                .post_message(&create_msg)
+                .map_err(|e| JsError::new(&format!("post create-chat: {e:?}")))?;
+            wait_for_handshake(&state, "chat-ready").await?;
+
+            Ok(Chat { state })
+        })
+    }
+
+    /// Send a prompt; returns a synchronously-constructed `WorkerTokenStream`
+    /// that resolves token-by-token (or all-at-once via `.completed()`).
+    /// Only one ask can be in flight at a time per Chat.
+    pub fn ask(&self, prompt: String) -> Result<WorkerTokenStream, JsError> {
+        let mut st = self.state.borrow_mut();
+        if st.terminated {
+            return Err(JsError::new("Chat: already terminated"));
+        }
+        if st.current_stream.is_some() {
+            return Err(JsError::new(
+                "Chat.ask: another ask is in progress; await its .completed() or finish iterating first",
+            ));
+        }
+
+        let stream_state = std::rc::Rc::new(RefCell::new(WorkerStreamState::new()));
+        st.current_stream = Some(stream_state.clone());
+
+        let ask_msg = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&ask_msg, &"type".into(), &"ask".into());
+        let _ = js_sys::Reflect::set(&ask_msg, &"prompt".into(), &JsValue::from_str(&prompt));
+        st.worker
+            .post_message(&ask_msg)
+            .map_err(|e| JsError::new(&format!("post ask: {e:?}")))?;
+        drop(st);
+
+        Ok(WorkerTokenStream {
+            state: stream_state,
+        })
+    }
+
+    /// Shut down the worker. Any in-flight stream is failed with "terminated";
+    /// subsequent calls to `ask` reject.
+    pub fn terminate(&self) {
+        let mut st = self.state.borrow_mut();
+        if st.terminated {
+            return;
+        }
+        st.terminated = true;
+        let stream = st.current_stream.take();
+        let _ = st.worker.terminate();
+        drop(st);
+        if let Some(s) = stream {
+            WorkerStreamState::fail(&s, "Chat terminated".to_string());
+        }
+    }
+}
+
+/// Synchronous router for messages from the chat worker. Runs from inside
+/// the onmessage Closure. Borrow rules: take what you need, then drop the
+/// borrow before invoking `WorkerStreamState::*` helpers (which take their
+/// own borrow on the stream's inner state).
+#[cfg(target_arch = "wasm32")]
+fn handle_chat_message(state: &std::rc::Rc<RefCell<ChatState>>, data: JsValue) {
+    let msg_type = js_sys::Reflect::get(&data, &"type".into())
+        .ok()
+        .and_then(|v| v.as_string())
+        .unwrap_or_default();
+
+    match msg_type.as_str() {
+        "token" => {
+            let token = js_sys::Reflect::get(&data, &"token".into())
+                .ok()
+                .and_then(|v| v.as_string())
+                .unwrap_or_default();
+            let stream = state.borrow().current_stream.clone();
+            if let Some(s) = stream {
+                WorkerStreamState::push_token(&s, token);
+            }
+        }
+        "ask-done" => {
+            let stream = state.borrow_mut().current_stream.take();
+            if let Some(s) = stream {
+                WorkerStreamState::complete(&s);
+            }
+        }
+        "error" => {
+            let err_msg = js_sys::Reflect::get(&data, &"message".into())
+                .ok()
+                .and_then(|v| v.as_string())
+                .unwrap_or_else(|| "unknown worker error".to_string());
+            handle_chat_error(state, err_msg);
+        }
+        // Handshake reply: resolve a pending oneshot if its expected type matches.
+        other => {
+            let mut st = state.borrow_mut();
+            let take_it = matches!(&st.pending_handshake, Some((t, _)) if t == other);
+            if take_it {
+                if let Some((_, tx)) = st.pending_handshake.take() {
+                    let _ = tx.send(Ok(()));
+                }
+            }
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn handle_chat_error(state: &std::rc::Rc<RefCell<ChatState>>, err: String) {
+    // Fail current handshake or current stream — whichever is active.
+    let (handshake, stream) = {
+        let mut st = state.borrow_mut();
+        (st.pending_handshake.take(), st.current_stream.take())
+    };
+    if let Some((_, tx)) = handshake {
+        let _ = tx.send(Err(err.clone()));
+    }
+    if let Some(s) = stream {
+        WorkerStreamState::fail(&s, err);
+    }
+}
+
+/// Park until the worker posts a message of the given type (or errors out).
+#[cfg(target_arch = "wasm32")]
+async fn wait_for_handshake(
+    state: &std::rc::Rc<RefCell<ChatState>>,
+    expected_type: &str,
+) -> Result<(), JsError> {
+    let rx = {
+        let mut st = state.borrow_mut();
+        // Sanity: the previous handshake should be settled.
+        if st.pending_handshake.is_some() {
+            return Err(JsError::new(
+                "wait_for_handshake called while another handshake is pending (internal bug)",
+            ));
+        }
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        st.pending_handshake = Some((expected_type.to_string(), tx));
+        rx
+    };
+    match rx.await {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(e)) => Err(JsError::new(&e)),
+        Err(_) => Err(JsError::new(&format!(
+            "handshake sender dropped before {expected_type}"
+        ))),
+    }
+}
+
+/// Parsed Chat.create options.
+#[cfg(target_arch = "wasm32")]
+struct ChatCreateParsed {
+    model_url: Option<String>,
+    model_bytes: Option<js_sys::Uint8Array>,
+    on_progress: Option<js_sys::Function>,
+    chat_opts: ChatOptions,
+}
+
+#[cfg(target_arch = "wasm32")]
+fn parse_chat_create_opts(opts: &JsValue) -> Result<ChatCreateParsed, JsError> {
+    if opts.is_undefined() || opts.is_null() {
+        return Err(JsError::new("Chat.create requires an options object"));
+    }
+    let obj = opts
+        .dyn_ref::<js_sys::Object>()
+        .ok_or_else(|| JsError::new("Chat.create options must be an object"))?;
+
+    let model_url = js_sys::Reflect::get(obj, &"modelUrl".into())
+        .ok()
+        .and_then(|v| v.as_string());
+    let model_bytes = js_sys::Reflect::get(obj, &"modelBytes".into())
+        .ok()
+        .filter(|v| !v.is_undefined() && !v.is_null())
+        .and_then(|v| v.dyn_into::<js_sys::Uint8Array>().ok());
+    let on_progress = js_sys::Reflect::get(obj, &"onDownloadProgress".into())
+        .ok()
+        .filter(|v| !v.is_undefined() && !v.is_null())
+        .and_then(|v| v.dyn_into::<js_sys::Function>().ok());
+
+    // Build a filtered object containing only the ChatOptions fields and
+    // parse it via serde (so the strict `deny_unknown_fields` invariant on
+    // ChatOptions still catches typos in nested options).
+    let serde_input = js_sys::Object::new();
+    let keys = js_sys::Object::keys(obj);
+    for k in keys.iter() {
+        let key_str = k.as_string().unwrap_or_default();
+        if matches!(
+            key_str.as_str(),
+            "modelUrl" | "modelBytes" | "onDownloadProgress"
+        ) {
+            continue;
+        }
+        if let Ok(v) = js_sys::Reflect::get(obj, &k) {
+            let _ = js_sys::Reflect::set(&serde_input, &k, &v);
+        }
+    }
+    let chat_opts: ChatOptions = if js_sys::Object::keys(&serde_input).length() == 0 {
+        ChatOptions::default()
+    } else {
+        serde_wasm_bindgen::from_value(serde_input.into())
+            .map_err(|e| JsError::new(&format!("Chat.create options: {e}")))?
+    };
+
+    Ok(ChatCreateParsed {
+        model_url,
+        model_bytes,
+        on_progress,
+        chat_opts,
+    })
+}
+
+// ChatOptions doesn't impl Serialize, but we need to send it across the
+// worker postMessage boundary. The fields are simple enough to construct
+// a JS object manually.
+#[cfg(target_arch = "wasm32")]
+impl serde::Serialize for ChatOptions {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap;
+        let mut len = 0;
+        if self.context_size.is_some() {
+            len += 1;
+        }
+        if self.system_prompt.is_some() {
+            len += 1;
+        }
+        if self.constraint.is_some() {
+            len += 1;
+        }
+        if self.template_variables.is_some() {
+            len += 1;
+        }
+        let mut m = s.serialize_map(Some(len))?;
+        if let Some(v) = &self.context_size {
+            m.serialize_entry("contextSize", v)?;
+        }
+        if let Some(v) = &self.system_prompt {
+            m.serialize_entry("systemPrompt", v)?;
+        }
+        if let Some(v) = &self.constraint {
+            m.serialize_entry("constraint", v)?;
+        }
+        if let Some(v) = &self.template_variables {
+            m.serialize_entry("templateVariables", v)?;
+        }
+        m.end()
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl serde::Serialize for ConstraintSpec {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap;
+        let mut len = 0;
+        if self.json_schema.is_some() {
+            len += 1;
+        }
+        if self.regex.is_some() {
+            len += 1;
+        }
+        if self.lark.is_some() {
+            len += 1;
+        }
+        let mut m = s.serialize_map(Some(len))?;
+        if let Some(v) = &self.json_schema {
+            m.serialize_entry("jsonSchema", v)?;
+        }
+        if let Some(v) = &self.regex {
+            m.serialize_entry("regex", v)?;
+        }
+        if let Some(v) = &self.lark {
+            m.serialize_entry("lark", v)?;
+        }
+        m.end()
+    }
 }
 
 // ---------- Out of scope for v1 ----------

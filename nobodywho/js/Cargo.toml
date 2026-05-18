@@ -42,4 +42,27 @@ features = [
   # inside the wasm so the worker bootstrap can be a one-line inline Blob.
   "DedicatedWorkerGlobalScope",
   "MessageEvent",
+  "ErrorEvent",
+  # For `Chat` (worker-backed) — Rust spawns the Web Worker from an inline
+  # Blob URL, posts the load-model/create-chat/ask protocol, routes replies
+  # via Closure-wrapped onmessage. The JS-side `Chat` class that used to
+  # live in examples/setup-browser.mjs is now this Rust struct.
+  "Worker",
+  "WorkerOptions",
+  "WorkerType",
+  "WorkerGlobalScope",
+  "Blob",
+  "BlobPropertyBag",
+  "Url",
+  # For `fetchModelBytes` + `Model.preload` / `Model.clearCache` — Cache API
+  # model storage and streaming fetch with progress.
+  "Window",
+  "Cache",
+  "CacheStorage",
+  "Request",
+  "RequestInit",
+  "Response",
+  "Headers",
+  "ReadableStream",
+  "ReadableStreamDefaultReader",
 ]
