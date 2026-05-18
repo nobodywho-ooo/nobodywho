@@ -588,7 +588,6 @@ fn download_model_from_url(
     Ok(target_path)
 }
 
-
 fn read_add_bos_metadata(model: &LlamaModel) -> Result<AddBos, InitWorkerError> {
     match model.meta_val_str("tokenizer.ggml.add_bos_token") {
         Ok(val) => match val.as_str() {
