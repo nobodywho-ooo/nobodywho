@@ -7,8 +7,9 @@ edition = "2021"
 default = ["mtmd"]
 # Multimodal (image / audio) input support, backed by llama.cpp's `mtmd`
 # C++ library. Default-on for native; the wasm binding opts out because
-# the underlying C++ pulls in libraries (miniaudio with pthread sched
-# APIs) that don't compile against wasi-libc.
+# the underlying C++ pulls in miniaudio, which needs pthread sched APIs
+# we deliberately avoid on wasm32-unknown-emscripten (Emscripten pthreads
+# conflict with wasm-bindgen-cli's thread-id injection).
 #
 # This feature is effectively a wasm-only opt-out — native consumers
 # should keep the default. On native, disabling it propagates to
@@ -30,7 +31,7 @@ minijinja = { version = "2.11.0", features = ["builtins", "json", "loader"] }
 minijinja-contrib = { version = "2.11.0", features = ["pycompat"] }
 serde = { version = "1.0.215", features = ["derive"] }
 chrono = "0.4.39"
-llama-cpp-2 = { git = "https://github.com/nobodywho-ooo/llama-cpp-rs", branch = "main", default-features = false, features = [
+llama-cpp-2 = { git = "https://github.com/nobodywho-ooo/llama-cpp-rs", branch = "wasm-emscripten", default-features = false, features = [
     "openmp",
     "android-static-stdcxx",
     "llguidance",
@@ -51,9 +52,11 @@ indexmap = "2.13.0"
 
 # Native-only deps:
 # - `tokio` with `rt-multi-thread`: background workers spawn real OS threads.
-#   wasm32 has only a single-threaded JS event loop, so it gets `rt` (no
-#   multi-thread). See `nobodywho/js/README.md` for the worker-refactor
-#   follow-up that actually makes wasm32 builds run.
+#   wasm32 (including wasm32-unknown-emscripten) only gets `rt + sync +
+#   macros` because tokio's `rt-multi-thread` is gated off on wasm by a
+#   compile_error in tokio itself. Off-main-thread inference on wasm is
+#   provided by the JS host spawning a Web Worker around the wasm, not
+#   by Rust spawning OS threads.
 # - `ureq` does raw TCP/TLS; not available in a browser sandbox. wasm32 fetches
 #   model bytes on the JS side via `fetch` and hands them to a future
 #   `Model::load_bytes` API instead.
@@ -76,6 +79,7 @@ tokio = { version = "1.43.0", features = ["sync", "rt", "macros"] }
 # `std::thread::spawn`.
 wasm-bindgen-futures = "0.4"
 
+
 [target.'cfg(target_os = "android")'.dependencies]
 libc = "0.2"
 
@@ -89,7 +93,7 @@ dirs = "6"
 # Apple platforms use Metal, which is auto-enabled by llama-cpp-rs for all Apple targets
 # (except watchOS which has no Metal support — handled in llama-cpp-rs build.rs).
 [target.'cfg(all(not(target_os = "macos"), not(target_os = "ios"), not(target_os = "visionos"), not(target_os = "watchos"), not(target_os = "android"), any(target_arch = "x86_64", target_arch = "x86", target_arch = "aarch64")))'.dependencies]
-llama-cpp-2 = { git = "https://github.com/nobodywho-ooo/llama-cpp-rs", branch = "main", default-features = false, features = [
+llama-cpp-2 = { git = "https://github.com/nobodywho-ooo/llama-cpp-rs", branch = "wasm-emscripten", default-features = false, features = [
     "openmp",
     "vulkan",
     "android-static-stdcxx",

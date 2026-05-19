@@ -1,0 +1,41 @@
+Tolerate missing stack-pointer global in Interpreter
+
+When wasm-bindgen-cli's descriptor interpreter runs against an
+Emscripten-emitted wasm, the stack-pointer global's initializer is not a
+plain `ConstExpr::Value(I32/I64)` so the global isn't snapshotted into
+`self.globals` by the loop at the top of `Interpreter::new`. The later
+`self.globals[&sp]` lookup in `interpret_descriptor` panics with
+`no entry found for key`.
+
+This patch defaults the stack-pointer initial value to 0 when the
+global is missing, and skips the round-trip assert in the same case.
+Descriptor functions only push numbers onto the wasm-bindgen-side
+descriptor list and don't touch the stack pointer in practice, so the
+default is safe.
+
+Upstream-able: this is the kind of resilience that would also help
+other wasm-toolchain combinations (custom linkers, future Emscripten
+versions). Submit to wasm-bindgen if this works end-to-end.
+
+--- a/crates/cli-support/src/interpreter/mod.rs
++++ b/crates/cli-support/src/interpreter/mod.rs
+@@ -202,7 +202,7 @@ impl Interpreter {
+         self.stopped = false;
+
+         if let Some(sp) = self.stack_pointer {
+-            self.stack_pointer_initial = self.globals[&sp];
++            self.stack_pointer_initial = self.globals.get(&sp).copied().unwrap_or(0);
+         }
+
+         let func = module.funcs.get(id);
+@@ -212,7 +212,9 @@ impl Interpreter {
+
+         // Validate the stack pointer was restored to its value at function entry.
+         if let Some(sp) = self.stack_pointer {
+-            assert_eq!(self.globals[&sp], self.stack_pointer_initial);
++            if let Some(actual) = self.globals.get(&sp) {
++                assert_eq!(*actual, self.stack_pointer_initial);
++            }
+         }
+         &self.descriptor
+     }

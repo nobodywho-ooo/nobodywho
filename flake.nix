@@ -11,6 +11,14 @@
     android-nixpkgs.url = "github:tadfisher/android-nixpkgs";
     crate2nix.url = "github:nix-community/crate2nix";
     crate2nix.inputs.nixpkgs.follows = "nixpkgs";
+    # walkingeyerobot's emscripten fork with -sWASM_BINDGEN support
+    # (draft PR: emscripten-core/emscripten#23493). Needed to build
+    # nobodywho-js against wasm32-unknown-emscripten with auto-generated
+    # JS bindings — emcc invokes wasm-bindgen-cli during link.
+    emscripten-wbg-src = {
+      url = "github:walkingeyerobot/emscripten/wbg-walkingeyerobot";
+      flake = false;
+    };
   };
   outputs =
     {
@@ -18,6 +26,7 @@
       flake-utils,
       android-nixpkgs,
       crate2nix,
+      emscripten-wbg-src,
       ...
     }:
     flake-utils.lib.eachDefaultSystem (
@@ -29,6 +38,48 @@
             config = {
               android_sdk.accept_license = true;
             };
+            overlays = [
+              # Override emscripten with walkingeyerobot's fork that adds
+              # -sWASM_BINDGEN. Pin wasm-bindgen-cli to 0.2.121 to match
+              # the wasm-bindgen crate version that's transitively pulled
+              # in by web-sys / js-sys / wasm-bindgen-futures (see
+              # nobodywho/Cargo.lock). The CLI and crate schemas must
+              # match exactly — wasm-bindgen errors out at link time
+              # otherwise.
+              #
+              # Caveat: this CLI is the stock 0.2.121, which panics on
+              # Emscripten-emitted wasm in `interpret_descriptor`
+              # (`no entry found for key`). For the Emscripten build path
+              # we shadow it with a locally-built patched CLI; see
+              # nobodywho/shell.nix's EM_WASM_BINDGEN env var. This
+              # entry is kept so nix-flake consumers that only need
+              # native wasm-bindgen (e.g. wasm32-unknown-unknown builds
+              # via the wasi-sdk path) still get a working binary.
+              (final: prev: {
+                wasm-bindgen-cli = prev.buildWasmBindgenCli rec {
+                  src = prev.fetchCrate {
+                    pname = "wasm-bindgen-cli";
+                    version = "0.2.121";
+                    hash = "sha256-ZOMgFNOcGkO66Jz/Z83eoIu+DIzo3Z/vq6Z5g6BDY/w=";
+                  };
+                  cargoDeps = prev.rustPlatform.fetchCargoVendor {
+                    inherit src;
+                    inherit (src) pname version;
+                    hash = "sha256-DPdCDPTAPBrbqLUqnCwQu1dePs9lGg85JCJOCIr9qjU=";
+                  };
+                };
+                emscripten = prev.emscripten.overrideAttrs (old: {
+                  src = emscripten-wbg-src;
+                  # The fork is merged with upstream main (past 5.0.0) so it
+                  # expects LLVM 23, but nixpkgs ships LLVM 21. The stock
+                  # derivation's buildPhase seds "22" -> "21.1"; also handle 23.
+                  buildPhase = builtins.replaceStrings
+                    [ "EXPECTED_LLVM_VERSION = 22" ]
+                    [ "EXPECTED_LLVM_VERSION = 23" ]
+                    old.buildPhase;
+                });
+              })
+            ];
           }
         );
 

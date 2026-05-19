@@ -194,6 +194,23 @@
         "type": "github"
       }
     },
+    "emscripten-wbg-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1778811326,
+        "narHash": "sha256-fSugQRsNUCOH/McBodFDmORHovbobC4KSTebm7qxkXQ=",
+        "owner": "walkingeyerobot",
+        "repo": "emscripten",
+        "rev": "aa920195bc1da8d11664653762027ab2a4850b67",
+        "type": "github"
+      },
+      "original": {
+        "owner": "walkingeyerobot",
+        "ref": "wbg-walkingeyerobot",
+        "repo": "emscripten",
+        "type": "github"
+      }
+    },
     "flake-compat": {
       "locked": {
         "lastModified": 1733328505,
@@ -621,6 +638,7 @@
       "inputs": {
         "android-nixpkgs": "android-nixpkgs",
         "crate2nix": "crate2nix",
+        "emscripten-wbg-src": "emscripten-wbg-src",
         "flake-utils": "flake-utils_2",
         "nixpkgs": "nixpkgs_5"
       }
