@@ -6,7 +6,9 @@
 //! download cache on first use, then reused on subsequent runs.
 
 use crate::errors::TtsError;
-use crate::llm::{default_progress_callback, download_file, get_cache_dir, DownloadProgressCallback};
+use crate::llm::{
+    default_progress_callback, download_file, get_cache_dir, DownloadProgressCallback,
+};
 use std::path::{Path, PathBuf};
 
 const HF_BASE: &str = "https://huggingface.co";
@@ -83,8 +85,7 @@ fn download_repo(
         .join(owner)
         .join(repo);
 
-    let tree_url =
-        format!("{HF_BASE}/api/models/{owner}/{repo}/tree/{revision}?recursive=true");
+    let tree_url = format!("{HF_BASE}/api/models/{owner}/{repo}/tree/{revision}?recursive=true");
     let body = ureq::get(&tree_url)
         .call()
         .map_err(|e| TtsError::Init(format!("tts: HF tree list failed ({owner}/{repo}): {e}")))?
