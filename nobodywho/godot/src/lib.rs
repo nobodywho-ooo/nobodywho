@@ -186,28 +186,27 @@ impl NobodyWhoModel {
     }
 
     #[func]
-    /// Returns all cached .gguf model paths and their combined byte size.
+    /// Returns every cached .gguf model paired with its byte size.
     ///
-    /// The dictionary contains:
-    /// - "paths": PackedStringArray of absolute paths to cached model files
-    /// - "total_size": int total size in bytes of all cached models
+    /// Each entry is a Dictionary with:
+    /// - "path": String absolute path to the cached model file
+    /// - "size": int size in bytes of that file
     ///
-    /// Returns an empty Dictionary on error.
-    fn get_cached_models() -> VarDictionary {
+    /// Returns an empty Array on error.
+    fn get_cached_models() -> Array<Variant> {
         match nobodywho::llm::get_cached_models() {
-            Ok((paths, total_size)) => {
-                let gstrings: Vec<GString> = paths
-                    .iter()
-                    .map(|p| GString::from(p.to_string_lossy().as_ref()))
-                    .collect();
-                let mut dict = VarDictionary::new();
-                dict.set("paths", PackedStringArray::from(gstrings));
-                dict.set("total_size", total_size as i64);
-                dict
-            }
+            Ok(models) => models
+                .into_iter()
+                .map(|(path, size)| {
+                    let mut dict = VarDictionary::new();
+                    dict.set("path", GString::from(path.to_string_lossy().as_ref()));
+                    dict.set("size", size as i64);
+                    Variant::from(dict)
+                })
+                .collect(),
             Err(e) => {
                 godot_error!("Failed to get cached models: {}", e);
-                VarDictionary::new()
+                Array::new()
             }
         }
     }

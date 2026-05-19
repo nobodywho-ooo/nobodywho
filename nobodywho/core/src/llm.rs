@@ -374,31 +374,27 @@ pub fn download_model(
 /// via `dlopen` (not `System.loadLibrary`), so `JNI_OnLoad` is never called.
 ///
 /// On other platforms, uses the `dirs` crate to find the standard cache directory.
-fn get_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
+fn get_cache_dir() -> Result<std::path::PathBuf, crate::errors::GetCacheDirError> {
     let base = get_platform_cache_dir()?;
     Ok(base.join("nobodywho").join("models"))
 }
 
 #[cfg(target_os = "android")]
-fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
+fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::GetCacheDirError> {
+    use crate::errors::GetCacheDirError;
+
     // Read the package name from /proc/self/cmdline. This file contains the process
     // name as a null-terminated string. On Android this is the package name
     // (e.g. "com.example.app"), possibly with a colon suffix for multi-process apps
     // (e.g. "com.example.app:remote").
-    let cmdline = std::fs::read("/proc/self/cmdline").map_err(|e| {
-        LoadModelError::DownloadError(format!("Failed to read /proc/self/cmdline: {e}"))
-    })?;
+    let cmdline = std::fs::read("/proc/self/cmdline")?;
 
     let package_name = cmdline
         .split(|&b| b == 0)
         .next()
         .and_then(|bytes| std::str::from_utf8(bytes).ok())
         .map(|s| s.split(':').next().unwrap_or(s))
-        .ok_or_else(|| {
-            LoadModelError::DownloadError(
-                "Could not determine Android package name from /proc/self/cmdline".into(),
-            )
-        })?;
+        .ok_or(GetCacheDirError::NoPackageName)?;
 
     // Derive the Android user ID from the Unix UID. Android assigns UIDs as:
     //   uid = user_id * 100000 + app_id
@@ -413,9 +409,8 @@ fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadMod
 }
 
 #[cfg(not(target_os = "android"))]
-fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
-    dirs::cache_dir()
-        .ok_or_else(|| LoadModelError::DownloadError("Could not determine cache directory".into()))
+fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::GetCacheDirError> {
+    dirs::cache_dir().ok_or(crate::errors::GetCacheDirError::NoCacheDir)
 }
 
 /// Download a file from a URL to a local path, streaming to disk with progress logging.
@@ -570,28 +565,32 @@ fn download_model_from_hf(
     Ok(target_path)
 }
 
-/// Get the paths and total byte size of every .gguf model in the nobodywho cache.
-pub fn get_cached_models() -> Result<(Vec<std::path::PathBuf>, u64), crate::errors::LoadModelError> {
+/// Every `.gguf` model in the nobodywho cache, paired with its byte size.
+pub fn get_cached_models(
+) -> Result<Vec<(std::path::PathBuf, usize)>, crate::errors::GetCachedModelsError> {
     let cache_dir = get_cache_dir()?;
-    let mut models = Vec::new();
-    let mut total_size: u64 = 0;
-    fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>, size: &mut u64) {
-        if let Ok(entries) = std::fs::read_dir(dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_dir() {
-                    walk(&path, out, size);
-                } else if path.extension().and_then(|e| e.to_str()) == Some("gguf") {
-                    *size += std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
-                    out.push(path);
-                }
+    if !cache_dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    walkdir::WalkDir::new(&cache_dir)
+        .into_iter()
+        .filter(|res| match res {
+            Ok(e) => {
+                e.file_type().is_file()
+                    && e.path()
+                        .extension()
+                        .and_then(|s| s.to_str())
+                        .is_some_and(|s| s.eq_ignore_ascii_case("gguf"))
             }
-        }
-    }
-    if cache_dir.exists() {
-        walk(&cache_dir, &mut models, &mut total_size);
-    }
-    Ok((models, total_size))
+            Err(_) => true,
+        })
+        .map(|res| {
+            let entry = res?;
+            let len = entry.metadata()?.len() as usize;
+            Ok((entry.into_path(), len))
+        })
+        .collect()
 }
 
 /// Download a model from a generic HTTP(S) URL and return the local path to it.
