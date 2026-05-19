@@ -1,4 +1,4 @@
-use nobodywho::tts::{KokoroConfig, TtsBuilder, TtsConfig};
+use nobodywho::tts::{KokoroConfig, Tts, TtsConfig};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
@@ -24,7 +24,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         cfg.language = l.clone();
     }
 
-    let tts = TtsBuilder::new(TtsConfig::Kokoro(cfg)).build()?;
+    let tts = Tts::new(TtsConfig::Kokoro(cfg))?;
     let wav = tts.synthesize(&args[2])?;
     play_wav(&wav);
     Ok(())
