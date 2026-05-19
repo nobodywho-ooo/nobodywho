@@ -321,17 +321,18 @@ void main() {
         sampler: nobodywho.SamplerPresets.constrainWithJsonSchema(schema: {
           'type': 'object',
           'properties': {
-            'name': {'type': 'string'},
+            'name': {'type': 'string', 'maxLength': 50},
             'age':  {'type': 'integer'},
           },
           'required': ['name', 'age'],
+          'additionalProperties': false,
         }),
       );
-      final response = await chat.ask("Give me a person.").completed();
+      final response = await chat.ask("Give me a person as JSON with name and age fields.").completed();
       final person = jsonDecode(response); // always valid JSON matching the schema
     });
 
-    test('sampling.md:97', () async {
+    test('sampling.md:98', () async {
       final sampler = nobodywho.SamplerPresets.constrainWithGrammar(grammar: """
           start: record (NEWLINE record)* NEWLINE?
           record: field ("," field)*
@@ -340,7 +341,7 @@ void main() {
       """);
     });
 
-    test('sampling.md:107', () async {
+    test('sampling.md:108', () async {
       final sampler = nobodywho.SamplerPresets.constrainWithGrammar(grammar: """
           file   ::= record (newline record)* newline?
           record ::= field ("," field)*
@@ -349,7 +350,7 @@ void main() {
       """);
     });
 
-    test('sampling.md:130', () async {
+    test('sampling.md:131', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         sampler: nobodywho.SamplerBuilder()

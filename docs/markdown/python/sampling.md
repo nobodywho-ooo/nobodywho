@@ -67,12 +67,13 @@ import json
 chat = Chat('./model.gguf', sampler=SamplerPresets.constrain_with_json_schema({
     "type": "object",
     "properties": {
-        "name": {"type": "string"},
+        "name": {"type": "string", "maxLength": 50},
         "age":  {"type": "integer"}
     },
-    "required": ["name", "age"]
+    "required": ["name", "age"],
+    "additionalProperties": False
 }))
-response = chat.ask("Give me a person.").completed()
+response = chat.ask("Give me a person as JSON with name and age fields.").completed()
 person = json.loads(response)  # always valid JSON matching the schema
 ```
 

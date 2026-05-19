@@ -7268,8 +7268,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/marek-hradil/llama-cpp-rs";
-          rev = "94e59043c4b0288dd752e0afc781d27e6ebd1124";
-          sha256 = "1mqshzkdkwkna4v5xs7p64lj5ac3j62fqjzw5anycf96j51ns07s";
+          rev = "d28302ac554598a62f43e88a60dc4cda20d924b4";
+          sha256 = "00vyanc8fk78ss4f8504vkbnmf69xj6fv1zz7k2gqmkgqzg6wng6";
         };
         libName = "llama_cpp_2";
         dependencies = [
@@ -7348,8 +7348,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/marek-hradil/llama-cpp-rs";
-          rev = "94e59043c4b0288dd752e0afc781d27e6ebd1124";
-          sha256 = "1mqshzkdkwkna4v5xs7p64lj5ac3j62fqjzw5anycf96j51ns07s";
+          rev = "d28302ac554598a62f43e88a60dc4cda20d924b4";
+          sha256 = "00vyanc8fk78ss4f8504vkbnmf69xj6fv1zz7k2gqmkgqzg6wng6";
         };
         libName = "llama_cpp_sys_2";
         buildDependencies = [
@@ -8282,7 +8282,7 @@ rec {
       };
       "nobodywho-flutter" = rec {
         crateName = "nobodywho-flutter";
-        version = "2.1.0";
+        version = "2.2.0";
         edition = "2021";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./flutter/rust; };
         libName = "nobodywho_flutter";type = [ "cdylib" ];
@@ -8330,7 +8330,7 @@ rec {
       };
       "nobodywho-godot" = rec {
         crateName = "nobodywho-godot";
-        version = "9.2.0";
+        version = "9.3.0";
         edition = "2021";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./godot; };
         libName = "nobodywho_godot";type = [ "cdylib" ];
@@ -8370,7 +8370,7 @@ rec {
       };
       "nobodywho-python" = rec {
         crateName = "nobodywho-python";
-        version = "1.3.0";
+        version = "1.4.0";
         edition = "2021";
         crateBin = [
           {
@@ -8448,7 +8448,7 @@ rec {
       };
       "nobodywho-uniffi" = rec {
         crateName = "nobodywho-uniffi";
-        version = "0.1.0";
+        version = "0.2.0";
         edition = "2021";
         crateBin = [
           {
