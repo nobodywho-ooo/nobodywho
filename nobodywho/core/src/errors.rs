@@ -405,7 +405,7 @@ pub enum EncoderWorkerError {
 
 // TTS errors
 
-#[cfg(all(not(target_os = "android"), feature = "tts"))]
+#[cfg(not(target_os = "android"))]
 #[derive(Debug, thiserror::Error)]
 pub enum TtsError {
     #[error("Error initializing TTS: {0}")]
