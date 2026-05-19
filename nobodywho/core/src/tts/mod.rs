@@ -29,10 +29,10 @@
 mod backend;
 mod backends;
 mod ort_util;
+mod source;
 
 use crate::errors::TtsError;
 pub use backends::KokoroConfig;
-use std::path::PathBuf;
 use std::sync::mpsc;
 
 /// Backend selection and model directory for a [`Tts`] handle.
@@ -42,8 +42,8 @@ pub enum TtsConfig {
 }
 
 impl TtsConfig {
-    pub fn kokoro(model_dir: impl Into<PathBuf>) -> Self {
-        Self::Kokoro(KokoroConfig::new(model_dir))
+    pub fn kokoro(source: impl AsRef<str>) -> Self {
+        Self::Kokoro(KokoroConfig::new(source))
     }
 }
 

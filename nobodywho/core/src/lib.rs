@@ -8,7 +8,7 @@ pub mod sampler_config;
 pub mod template;
 pub mod tokenizer;
 pub mod tool_calling;
-#[cfg(not(target_os = "android"))]
+#[cfg(all(not(target_os = "android"), feature = "tts"))]
 pub mod tts;
 
 /// Render a miette diagnostic to a plain-text string, including any `help` text,

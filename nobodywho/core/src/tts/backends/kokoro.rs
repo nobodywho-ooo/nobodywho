@@ -14,7 +14,7 @@ use ort::value::{Tensor, Value};
 use safetensors::tensor::{Dtype, SafeTensors};
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use tracing::{debug, info};
 
 const STYLE_DIM: usize = 256;
@@ -216,18 +216,22 @@ pub(super) fn load_vocab(config_path: &Path) -> Result<HashMap<String, i64>, Tts
     Ok(vocab)
 }
 
+/// Where the Kokoro model lives. `source` is either:
+/// - an existing local directory containing `model.onnx`, `config.json`, and `voices/*.safetensors`, or
+/// - a HuggingFace Hub repo ID in `owner/repo` form (e.g. `"NobodyWho/kokoro-v1"`);
+///   the whole repo is downloaded to the user's cache on first use.
 #[derive(Clone, Debug)]
 pub struct KokoroConfig {
-    pub model_dir: PathBuf,
+    pub source: String,
     pub voice: String,
     pub language: String,
     pub speed: f32,
 }
 
 impl KokoroConfig {
-    pub fn new(model_dir: impl Into<PathBuf>) -> Self {
+    pub fn new(source: impl AsRef<str>) -> Self {
         Self {
-            model_dir: model_dir.into(),
+            source: source.as_ref().to_string(),
             voice: "af_heart".into(),
             language: "en-us".into(),
             speed: 1.0,

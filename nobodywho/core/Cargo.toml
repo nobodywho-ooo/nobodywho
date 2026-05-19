@@ -3,6 +3,17 @@ name = "nobodywho"
 version = "2.2.0"
 edition = "2021"
 
+[features]
+# TTS is off by default because it links against espeak-ng (GPLv3), which would
+# propagate the GPL to any binary that enables this feature. Opt in explicitly
+# and accept the resulting GPLv3 obligations on your build.
+default = []
+tts = ["dep:hound", "dep:ort", "dep:espeak-rs", "dep:safetensors"]
+
+[[example]]
+name = "kokoro"
+required-features = ["tts"]
+
 [dependencies]
 encoding_rs = "0.8.34"
 thiserror = "2.0.3"
@@ -46,10 +57,12 @@ libc = "0.2"
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 dirs = "6"
-hound = "3"
-ort = { version = "2.0.0-rc.12", default-features = true, features = ["cuda"] }
-espeak-rs = "0.1.9"
-safetensors = "0.5"
+hound = { version = "3", optional = true }
+ort = { version = "2.0.0-rc.12", default-features = true, features = [
+    "cuda",
+], optional = true }
+espeak-rs = { version = "0.1.9", optional = true }
+safetensors = { version = "0.5", optional = true }
 
 # Enable Vulkan for x86_64, x86, and aarch64 targets (excluding Apple platforms and Android).
 # Apple platforms use Metal, which is auto-enabled by llama-cpp-rs for all Apple targets

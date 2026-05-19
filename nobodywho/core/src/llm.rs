@@ -374,7 +374,7 @@ pub fn download_model(
 /// via `dlopen` (not `System.loadLibrary`), so `JNI_OnLoad` is never called.
 ///
 /// On other platforms, uses the `dirs` crate to find the standard cache directory.
-fn get_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
+pub(crate) fn get_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
     let base = get_platform_cache_dir()?;
     Ok(base.join("nobodywho").join("models"))
 }
@@ -422,7 +422,7 @@ fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadMod
 ///
 /// Returns early if the file already exists at the target path.
 /// Rejects paths containing `..` to prevent path traversal attacks.
-fn download_file(
+pub(crate) fn download_file(
     url: &str,
     target_path: &std::path::Path,
     progress: &DownloadProgressCallback,
@@ -462,21 +462,25 @@ fn download_file(
         e => LoadModelError::DownloadError(format!("HTTP request failed: {e}")),
     })?;
 
-    let content_length: std::num::NonZeroU64 = response
+    // Content-Length is missing for many text/JSON responses served via chunked
+    // transfer (e.g. HuggingFace `.gitattributes`, `config.json`, README.md);
+    // we treat that as "unknown size" rather than an error — we still stream
+    // the body, just without progress denominator or post-download size check.
+    let content_length: u64 = response
         .headers()
         .get("content-length")
         .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.parse::<std::num::NonZeroU64>().ok())
-        .ok_or_else(|| {
-            LoadModelError::DownloadError(format!(
-                "Server returned missing or zero Content-Length for {url}"
-            ))
-        })?;
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(0);
 
-    info!(
-        "Download size: {:.1} GB",
-        content_length.get() as f64 / 1_073_741_824.0
-    );
+    if content_length > 0 {
+        info!(
+            "Download size: {:.1} GB",
+            content_length as f64 / 1_073_741_824.0
+        );
+    } else {
+        info!("Download size: unknown (no Content-Length)");
+    }
 
     // Write to a temp file first, then rename — avoids partial files on failure.
     let tmp_path = target_path.with_file_name(format!(
@@ -514,21 +518,21 @@ fn download_file(
             })?;
             downloaded += n as u64;
 
-            progress(downloaded, content_length.get());
+            progress(downloaded, content_length);
 
-            let pct = (downloaded * 100) / content_length;
-            if pct >= last_logged_pct + 5 {
-                info!(
-                    "Download progress: {pct}% ({downloaded}/{} bytes)",
-                    content_length
-                );
-                last_logged_pct = pct;
+            if content_length > 0 {
+                let pct = (downloaded * 100) / content_length;
+                if pct >= last_logged_pct + 5 {
+                    info!(
+                        "Download progress: {pct}% ({downloaded}/{content_length} bytes)"
+                    );
+                    last_logged_pct = pct;
+                }
             }
         }
-        if downloaded != content_length.get() {
+        if content_length > 0 && downloaded != content_length {
             return Err(LoadModelError::DownloadError(format!(
-                "Download incomplete: got {downloaded}/{} bytes",
-                content_length
+                "Download incomplete: got {downloaded}/{content_length} bytes"
             )));
         }
         Ok(())
