@@ -2503,6 +2503,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "ureq",
+ "walkdir",
 ]
 
 [[package]]

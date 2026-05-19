@@ -458,6 +458,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   List<(String, String)> dco_decode_list_record_string_string(dynamic raw);
 
   @protected
+  List<(String, BigInt)> dco_decode_list_record_string_usize(dynamic raw);
+
+  @protected
   Message dco_decode_message(dynamic raw);
 
   @protected
@@ -489,6 +492,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   (String, String) dco_decode_record_string_string(dynamic raw);
+
+  @protected
+  (String, BigInt) dco_decode_record_string_usize(dynamic raw);
 
   @protected
   Role dco_decode_role(dynamic raw);
@@ -887,6 +893,11 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
+  List<(String, BigInt)> sse_decode_list_record_string_usize(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   Message sse_decode_message(SseDeserializer deserializer);
 
   @protected
@@ -920,6 +931,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   (String, String) sse_decode_record_string_string(
     SseDeserializer deserializer,
   );
+
+  @protected
+  (String, BigInt) sse_decode_record_string_usize(SseDeserializer deserializer);
 
   @protected
   Role sse_decode_role(SseDeserializer deserializer);
@@ -1395,6 +1409,12 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
+  void sse_encode_list_record_string_usize(
+    List<(String, BigInt)> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_message(Message self, SseSerializer serializer);
 
   @protected
@@ -1434,6 +1454,12 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   @protected
   void sse_encode_record_string_string(
     (String, String) self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_record_string_usize(
+    (String, BigInt) self,
     SseSerializer serializer,
   );
 
