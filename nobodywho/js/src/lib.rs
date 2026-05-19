@@ -29,7 +29,9 @@ use wasm_bindgen::prelude::*;
 // Export `_initialize` so a WASI host can run static ctors via
 // wasi.initialize(). Body is empty — wasi-libc/libc++ ctors are emitted
 // into `__wasm_call_ctors`, which wasm-bindgen / node:wasi handle for us.
-#[cfg(target_arch = "wasm32")]
+// Not needed under Emscripten — its `crt1_reactor.o` already provides
+// `_initialize`, and defining ours conflicts at link time.
+#[cfg(all(target_arch = "wasm32", not(target_os = "emscripten")))]
 #[no_mangle]
 pub extern "C" fn _initialize() {}
 
@@ -105,15 +107,17 @@ where
     F: Future<Output = Result<T, JsError>> + 'static,
     T: Into<JsValue>,
 {
-    let safe = AssertUnwindSafe(async move {
+    // On wasm32-unknown-emscripten with C++ exceptions enabled in llama.cpp,
+    // `.catch_unwind()` sees C++ throws as "foreign exceptions" and Rust's
+    // panic_unwind runtime aborts the whole module before the JS side can
+    // observe the rejection. Skip the unwind wrapper — `AssertUnwindSafe`
+    // alone is enough to satisfy `future_to_promise`'s `UnwindSafe` bound.
+    wasm_bindgen_futures::future_to_promise(AssertUnwindSafe(async move {
         match fut.await {
             Ok(v) => Ok(v.into()),
             Err(e) => Err(JsValue::from(e)),
         }
-    })
-    .catch_unwind()
-    .map(|r| r.unwrap_or_else(|_| Err(JsValue::from_str("rust panic crossed wasm boundary"))));
-    wasm_bindgen_futures::future_to_promise(safe)
+    }))
 }
 
 // ---------- Model ----------

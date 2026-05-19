@@ -1,18 +1,24 @@
 <!doctype html>
 <html>
-<head><meta charset="utf-8" /><title>chat worker</title></head>
+<head><meta charset="utf-8" /><title>chat</title></head>
 <body>
   <pre id="out"></pre>
   <script type="module">
-    import { Chat } from './setup-browser.mjs';
+    const { default: createNobodyWhoModule } = await import('../pkg-bundler/nobodywho_js.js');
+    const m = await createNobodyWhoModule();
+    m.init();
 
-    const chat = await Chat.create({
-      modelUrl: 'https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
+    const bytes = await m.fetchModelBytes(
+      'https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
+    );
+    const model = await m.Model.loadBytes(bytes);
+    const chat = new m.Chat(model, {
       systemPrompt: 'You are a helpful assistant',
       templateVariables: { enable_thinking: false },
     });
 
-    const result = await chat.ask('What is the capital of Denmark?').completed();
+    const stream = await chat.ask('What is the capital of Denmark?');
+    const result = await stream.completed();
     document.getElementById('out').textContent = result;
     console.assert(
       result.toLowerCase().includes('copenhagen'),

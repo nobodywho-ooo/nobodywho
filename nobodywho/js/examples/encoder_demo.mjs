@@ -1,8 +1,14 @@
 import { readFileSync } from 'node:fs';
-import { Model, Encoder } from './setup.mjs';
+import { fileURLToPath } from 'node:url';
+import { join, dirname } from 'node:path';
 
-const model = await Model.loadBytes(new Uint8Array(readFileSync(process.argv[2])));
-const encoder = new Encoder(model, 2048);
+const pkgDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'pkg-bundler');
+const { default: createNobodyWhoModule } = await import(join(pkgDir, 'nobodywho_js.js'));
+const m = await createNobodyWhoModule({ locateFile: (p) => join(pkgDir, p) });
+m.init();
+
+const model = await m.Model.loadBytes(new Uint8Array(readFileSync(process.argv[2])));
+const encoder = new m.Encoder(model, 2048);
 
 const texts = [
   'The quick brown fox jumps over the lazy dog.',
@@ -15,7 +21,6 @@ const texts = [
 const embeddings = [];
 for (const text of texts) embeddings.push(await encoder.encode(text));
 
-// Python has nobodywho.cosine_similarity; the JS binding doesn't, so inline it.
 const cosine = (a, b) => {
   let dot = 0, na = 0, nb = 0;
   for (let i = 0; i < a.length; i++) {

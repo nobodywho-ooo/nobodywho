@@ -198,6 +198,15 @@ pub fn get_model_from_bytes(bytes: &[u8], gpu_layers: u32) -> Result<Model, Load
         gpu_layers, "Loading model from in-memory bytes"
     );
 
+    // On wasm32-unknown-emscripten, mmap on a fmemopen FILE* traps inside
+    // llama.cpp's init_mappings phase (Emscripten's mmap doesn't support
+    // memory-backed FILE handles). Disable it so the loader copies tensor
+    // data instead. Native targets keep the default (mmap on) for speed.
+    #[cfg(target_arch = "wasm32")]
+    let model_params = LlamaModelParams::default()
+        .with_n_gpu_layers(gpu_layers)
+        .with_use_mmap(false);
+    #[cfg(not(target_arch = "wasm32"))]
     let model_params = LlamaModelParams::default().with_n_gpu_layers(gpu_layers);
     let model_params = pin!(model_params);
 
@@ -730,6 +739,13 @@ where
                 .with_n_threads_batch(n_threads)
                 .with_embeddings(use_embeddings)
                 .with_pooling_type(extra.pooling_type());
+            // Disable Flash Attention on wasm32 — llama.cpp's FA kernels
+            // trip wasm memory-access-out-of-bounds during inference. The
+            // standard attention path works fine.
+            #[cfg(target_arch = "wasm32")]
+            let ctx_params = ctx_params.with_flash_attention_policy(
+                llama_cpp_sys_2::LLAMA_FLASH_ATTN_TYPE_DISABLED,
+            );
 
             // Create inference context and sampler
             model

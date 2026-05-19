@@ -1,9 +1,15 @@
 import { readFileSync } from 'node:fs';
 import { strict as assert } from 'node:assert';
-import { Model, Chat } from './setup.mjs';
+import { fileURLToPath } from 'node:url';
+import { join, dirname } from 'node:path';
 
-const model = await Model.loadBytes(new Uint8Array(readFileSync(process.argv[2])));
-const chat = new Chat(model, {
+const pkgDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'pkg-bundler');
+const { default: createNobodyWhoModule } = await import(join(pkgDir, 'nobodywho_js.js'));
+const m = await createNobodyWhoModule({ locateFile: (p) => join(pkgDir, p) });
+m.init();
+
+const model = await m.Model.loadBytes(new Uint8Array(readFileSync(process.argv[2])));
+const chat = new m.Chat(model, {
   systemPrompt: 'You are a helpful assistant',
   templateVariables: { enable_thinking: false },
 });

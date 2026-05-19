@@ -15,15 +15,25 @@ fn main() {
     // build hits emcc's link step.)
     println!("cargo:rustc-link-arg-cdylib=--no-entry");
 
-    // Run wasm-bindgen on the linked .wasm during emcc's link step.
-    // Auto-exports all #[wasm_bindgen] symbols + emits the JS glue and
-    // .d.ts — same outputs the standalone wasm-bindgen-cli would produce,
-    // just folded into the Emscripten loader. Requires walkingeyerobot's
-    // emscripten fork (draft upstream PR emscripten-core/emscripten#23493);
-    // see flake.nix for the overlay that supplies it.
+    // Run wasm-bindgen-cli during emcc's link step. Auto-exports all
+    // #[wasm_bindgen] symbols + emits the JS glue and .d.ts — same outputs
+    // the standalone wasm-bindgen-cli would produce, folded into the
+    // Emscripten loader. Requires walkingeyerobot's emscripten fork
+    // (PR emscripten-core/emscripten#23493) on PATH and `EM_WASM_BINDGEN`
+    // pointing at a stock wasm-bindgen-cli on the host.
     println!("cargo:rustc-link-arg-cdylib=-sWASM_BINDGEN");
 
-    // Allow memory growth so GGUF loads aren't capped at Emscripten's
+    // rustc passes `-shared` to emcc for cdylib output, which triggers
+    // SIDE_MODULE=1 in Emscripten and emits dynamic-linking-style imports
+    // (`env.__stack_pointer`, `GOT.func.*`, …). wasm-bindgen-cli's
+    // interpreter expects a "main module" with a defined `__stack_pointer`
+    // global; on a side module it panics with `no entry found for key`.
+    // Force a static main-module link so wasm-bindgen-cli can process the
+    // output afterwards.
+    println!("cargo:rustc-link-arg-cdylib=-sSIDE_MODULE=0");
+    println!("cargo:rustc-link-arg-cdylib=-sMAIN_MODULE=0");
+
+// Allow memory growth so GGUF loads aren't capped at Emscripten's
     // default 16 MB heap. MAXIMUM_MEMORY bumps the ceiling from the
     // default 2 GB to 4 GB — the hard cap for wasm on 32-bit browser
     // tabs. Loading a ~500 MB GGUF needs the raw bytes plus llama.cpp's
@@ -31,6 +41,14 @@ fn main() {
     // 2 GB when ALLOW_MEMORY_GROWTH hits the default ceiling.
     println!("cargo:rustc-link-arg-cdylib=-sALLOW_MEMORY_GROWTH=1");
     println!("cargo:rustc-link-arg-cdylib=-sMAXIMUM_MEMORY=4GB");
+
+    // Emscripten's default stack is 64 KB. minijinja's recursive-descent
+    // chat-template parser (parse_math2 → parse_pow → parse_unary →
+    // parse_postfix → …) overflows it on the first `chat.ask()` call,
+    // producing a wasm "memory access out of bounds" trap inside
+    // emscripten_builtin_malloc as the stack pointer dips below 0. 8 MB
+    // matches native default and is well within our 4 GB memory budget.
+    println!("cargo:rustc-link-arg-cdylib=-sSTACK_SIZE=8MB");
 
     // Wrap the output in a module factory so consumers do
     //   import createNobodyWhoModule from './nobodywho_js.js';
@@ -49,6 +67,31 @@ fn main() {
     // exist. Downgrade the missing-export error to a warning — the exports
     // are speculative and harmless when the target doesn't use them.
     println!("cargo:rustc-link-arg-cdylib=-Wno-undefined");
+
+    // Allow undefined symbols at static link — they become wasm imports
+    // that JS stubs at instantiation time. Needed because:
+    //   * the wasm-emscripten branch of llama-cpp-sys-2 compiles out
+    //     `mtmd` C++ but keeps the Rust bindgen declarations, leaving
+    //     `mtmd_*` symbols unresolved;
+    //   * C++ exception-handling intrinsics (`__resumeException`, …)
+    //     are not statically linked unless `-fwasm-exceptions` is on.
+    // Under SIDE_MODULE=1 this was implicit; in a main-module link we have
+    // to opt in.
+    println!("cargo:rustc-link-arg-cdylib=-sERROR_ON_UNDEFINED_SYMBOLS=0");
+
+    // Force compiler-rt's stack_ops.S into the link. wasm-bindgen's
+    // post-process step inserts calls to these from invoke_xxx shims in
+    // the generated library JS, but at our `cargo build` stage nothing in
+    // the input references them directly, so wasm-ld would leave them
+    // out and the runtime would abort with
+    //   Aborted(missing function: emscripten_stack_get_current)
+    // on the first JS->wasm closure call.
+    // `--export` pulls from libcompiler_rt AND marks as wasm export so the
+    // Emscripten JS-side `_emscripten_stack_get_current` stub is replaced
+    // with a passthrough to the wasm function. `--undefined` alone wasn't
+    // enough — wasm-ld emitted the symbols then dropped them again.
+    println!("cargo:rustc-link-arg-cdylib=-Wl,--export=emscripten_stack_get_current");
+    println!("cargo:rustc-link-arg-cdylib=-Wl,--export=_emscripten_stack_restore");
 
     // Clamp emcc's link-time optimization level so wasm-opt doesn't run.
     // At -O2/-O3, emcc runs binaryen/wasm-opt with aggressive DCE that

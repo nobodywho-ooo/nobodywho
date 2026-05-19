@@ -36,6 +36,7 @@ llama-cpp-2 = { git = "https://github.com/nobodywho-ooo/llama-cpp-rs", branch = 
     "android-static-stdcxx",
     "llguidance",
 ] }
+llama-cpp-sys-2 = { git = "https://github.com/nobodywho-ooo/llama-cpp-rs", branch = "wasm-emscripten", default-features = false }
 lazy_static = "1.5.0"
 tokio-stream = "0.1.17"
 tracing = { version = "0.1.41", features = ["log"] }

@@ -4,13 +4,15 @@
 <body>
   <pre id="out"></pre>
   <script type="module">
-    import { Model, Encoder, fetchModelBytes } from './setup-browser.mjs';
+    const { default: createNobodyWhoModule } = await import('../pkg-bundler/nobodywho_js.js');
+    const m = await createNobodyWhoModule();
+    m.init();
 
-    const bytes = await fetchModelBytes(
+    const bytes = await m.fetchModelBytes(
       'https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf',
     );
-    const model = await Model.loadBytes(bytes);
-    const encoder = new Encoder(model, 2048);
+    const model = await m.Model.loadBytes(bytes);
+    const encoder = new m.Encoder(model, 2048);
 
     const texts = [
       'The quick brown fox jumps over the lazy dog.',
@@ -23,7 +25,6 @@
     const embeddings = [];
     for (const text of texts) embeddings.push(await encoder.encode(text));
 
-    // Python has nobodywho.cosine_similarity; the JS binding doesn't, so inline it.
     const cosine = (a, b) => {
       let dot = 0, na = 0, nb = 0;
       for (let i = 0; i < a.length; i++) {
