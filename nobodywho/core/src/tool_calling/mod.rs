@@ -184,20 +184,51 @@ impl Tool {
 }
 
 // Serialize tools according to https://huggingface.co/blog/unified-tool-use
+//
+// IMPORTANT: emit keys in EXPLICIT INSERTION ORDER (`type` before `function`,
+// inner `name` -> `description` -> `parameters`). The default `serde_json::json!`
+// path materialises a `Value::Object` backed by `BTreeMap`, which re-sorts keys
+// alphabetically. LFM2.5-350M is sensitive to that order — when fed
+// `{"function":{...},"type":"function"}` (alphabetical), it hallucinates extra
+// Pythonic kwargs (`parameters=`, `type=`) in the tool call. Using `serialize_map`
+// directly with nested helpers preserves the canonical OpenAI key order and
+// avoids forcing the `serde_json/preserve_order` cargo feature globally.
 impl Serialize for Tool {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        serde_json::json!({
-            "type": "function",
-            "function": {
-                "name": &self.name,
-                "description": &self.description,
-                "parameters": &self.json_schema,
+        use serde::ser::SerializeMap;
+
+        struct OrderedFunction<'a> {
+            name: &'a str,
+            description: &'a str,
+            parameters: &'a serde_json::Value,
+        }
+
+        impl Serialize for OrderedFunction<'_> {
+            fn serialize<S2>(&self, serializer: S2) -> Result<S2::Ok, S2::Error>
+            where
+                S2: Serializer,
+            {
+                let mut m = serializer.serialize_map(Some(3))?;
+                m.serialize_entry("name", self.name)?;
+                m.serialize_entry("description", self.description)?;
+                m.serialize_entry("parameters", self.parameters)?;
+                m.end()
             }
-        })
-        .serialize(serializer)
+        }
+
+        let function = OrderedFunction {
+            name: &self.name,
+            description: &self.description,
+            parameters: &self.json_schema,
+        };
+
+        let mut map = serializer.serialize_map(Some(2))?;
+        map.serialize_entry("type", "function")?;
+        map.serialize_entry("function", &function)?;
+        map.end()
     }
 }
 
@@ -208,20 +239,48 @@ pub struct ToolCall {
     pub arguments: serde_json::Value,
 }
 
-// Serialize tools according to https://huggingface.co/blog/unified-tool-use
+// Serialize tool calls according to https://huggingface.co/blog/unified-tool-use
+// in canonical OpenAI key order (`type`, `function`, then within `function`:
+// `name`, `arguments`). Implemented via `serialize_map` rather than
+// `serde_json::json!({...}).serialize(serializer)` because the latter routes
+// through `serde_json::Value`'s default `BTreeMap` representation, which sorts
+// keys alphabetically (`{"function":{"arguments":...,"name":...},"type":...}`)
+// unless serde_json is built with the `preserve_order` feature — which is OFF
+// for the core/flutter/uniffi crates and which we cannot rely on downstream.
+// Same rationale as `Serialize for Tool` above.
 impl Serialize for ToolCall {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        serde_json::json!({
-            "type" : "function",
-            "function": {
-                "name": &self.name,
-                "arguments": &self.arguments,
+        use serde::ser::SerializeMap;
+
+        struct OrderedFunction<'a> {
+            name: &'a str,
+            arguments: &'a serde_json::Value,
+        }
+
+        impl Serialize for OrderedFunction<'_> {
+            fn serialize<S2>(&self, serializer: S2) -> Result<S2::Ok, S2::Error>
+            where
+                S2: Serializer,
+            {
+                let mut m = serializer.serialize_map(Some(2))?;
+                m.serialize_entry("name", self.name)?;
+                m.serialize_entry("arguments", self.arguments)?;
+                m.end()
             }
-        })
-        .serialize(serializer)
+        }
+
+        let function = OrderedFunction {
+            name: &self.name,
+            arguments: &self.arguments,
+        };
+
+        let mut map = serializer.serialize_map(Some(2))?;
+        map.serialize_entry("type", "function")?;
+        map.serialize_entry("function", &function)?;
+        map.end()
     }
 }
 
@@ -454,6 +513,29 @@ mod tests {
                     "parameters": {"type": "object"}
                 }
             })
+        );
+    }
+
+    #[test]
+    fn test_toolcall_serialization_preserves_canonical_key_order() {
+        // Regression guard for #519 review (gergelyvagujhelyi): the previous
+        // impl used `serde_json::json!({...}).serialize(serializer)`, which
+        // routes through `Value`'s default `BTreeMap` and emits keys in
+        // alphabetic order (`{"function":{"arguments":...,"name":...},...`)
+        // unless serde_json is built with `preserve_order` — OFF for the
+        // core/flutter/uniffi crates. Compare against the raw JSON string
+        // (NOT a Value) so any future regression to alphabetic ordering is
+        // caught even when a Value-equality check would still pass.
+        let call = ToolCall {
+            name: "circle_area".to_string(),
+            arguments: json!({"radius": 5}),
+        };
+        let serialized = serde_json::to_string(&call).expect("serialize ToolCall");
+        assert_eq!(
+            serialized,
+            r#"{"type":"function","function":{"name":"circle_area","arguments":{"radius":5}}}"#,
+            "ToolCall must serialize in canonical OpenAI key order \
+             (`type`, `function`, then `name`, `arguments`); got: {serialized}",
         );
     }
 

@@ -90,7 +90,34 @@ impl ChatTemplate {
             ),
             ("bos_token".to_string(), Value::from(self.bos_token.clone())),
             ("eos_token".to_string(), Value::from(self.eos_token.clone())),
-            ("tools".to_string(), Value::from_serialize(&ctx.tools)),
+            // Pre-serialise each tool to its canonical OpenAI JSON shape (insertion
+            // order preserved by `Tool`'s custom Serialize impl using
+            // `serialize_map`) and pass the list as STRINGS. The HF tool-aware
+            // chat templates (LFM2/LFM2.5/Qwen3 etc.) all guard with
+            // `{%- if tool is not string -%}{%- set tool = tool | tojson -%}{%- endif -%}`
+            // — so a string passes through unchanged. This bypasses minijinja's
+            // internal Value→tojson re-serialisation, which otherwise re-sorts
+            // object keys alphabetically (default `serde_json::Map` is `BTreeMap`).
+            // LFM2.5-350M is empirically sensitive to that order: alphabetical
+            // (`{"function":..., "type":"function"}`) makes it hallucinate kwargs
+            // (`parameters=`, `type=`) in the emitted Pythonic tool call.
+            //
+            // NOTE: `ctx.tools` is `Option<Vec<Tool>>`. `Option::iter` yields 0 or 1
+            // element of type `&Vec<Tool>` — so mapping on it would serialise the
+            // ENTIRE list as a single JSON-array string, producing `[[…]]` after the
+            // template's own `[…]` wrap. Flatten via `as_ref().into_iter().flatten()`
+            // so we map per-Tool.
+            (
+                "tools".to_string(),
+                Value::from_serialize(
+                    ctx.tools
+                        .as_ref()
+                        .into_iter()
+                        .flatten()
+                        .map(|t| serde_json::to_string(t).unwrap_or_default())
+                        .collect::<Vec<_>>(),
+                ),
+            ),
         ];
 
         // Add all template variables
@@ -462,5 +489,85 @@ mod tests {
         // The template now includes empty thinking blocks for assistant messages
         let expected5 = "<|im_start|>user\nHello<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\nHi there!<|im_end|>\n";
         assert_eq!(rendered5, expected5);
+    }
+
+    /// Regression guard for the `tools` template variable wiring (see PR
+    /// notes on tools-as-strings + canonical key order). Renders a minimal
+    /// tool-aware Qwen3-style template with one Tool, then asserts the
+    /// rendered string places the OpenAI canonical keys in canonical order:
+    /// outer `"type":"function"` BEFORE outer `"function":` value, inner
+    /// `"name":` BEFORE `"description":` BEFORE `"parameters":`.
+    ///
+    /// Without the engine fixes (Tool::serialize using BTreeMap-backed
+    /// serde_json::Map, or template variable as Vec<Tool> instead of
+    /// Vec<String>) the rendered string would order keys alphabetically:
+    /// `"function":...,"type":"function"`. Both regressions would fail
+    /// this test.
+    #[test]
+    fn test_render_template_with_tools_preserves_key_order() {
+        use std::sync::Arc;
+
+        // Minimal tool-aware template: dump the tools array verbatim.
+        // The HF tool-aware templates all guard with
+        // `{%- if tool is not string -%}{%- set tool = tool | tojson -%}{%- endif -%}`,
+        // so a pre-serialized JSON STRING passes through unchanged. A
+        // Tool struct serialized through minijinja's Value::from_serialize
+        // would re-sort keys alphabetically; this guard preserves order.
+        let template = "{%- for tool in tools -%}\n{%- if tool is not string -%}{%- set tool = tool | tojson -%}{%- endif -%}\n{{ tool }}\n{%- endfor -%}";
+
+        let tool = Tool::new(
+            "circle_area",
+            "Compute the area of a circle.",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "radius": {"type": "number"}
+                },
+                "required": ["radius"]
+            }),
+            Arc::new(|_| String::new()),
+        );
+
+        let template_vars: HashMap<String, bool> = HashMap::default();
+        let ctx = ChatTemplateContext::new(template_vars, Some(vec![tool]));
+        let chat_template = ChatTemplate::new(template, "", "").unwrap();
+
+        let rendered = chat_template.render(&[], &ctx).unwrap();
+
+        // Outer keys: `"type":"function"` must come before the outer
+        // `"function":` opening — i.e. type-first canonical order.
+        let type_idx = rendered
+            .find("\"type\":\"function\"")
+            .expect("expected outer \"type\":\"function\" in rendered output");
+        let function_idx = rendered
+            .find("\"function\":")
+            .expect("expected outer \"function\": in rendered output");
+        assert!(
+            type_idx < function_idx,
+            "outer key order regression: \"type\" should appear before \
+             \"function\" in the rendered template, got: {rendered}"
+        );
+
+        // Inner function keys: name -> description -> parameters.
+        let name_idx = rendered
+            .find("\"name\":\"circle_area\"")
+            .expect("expected inner \"name\":\"circle_area\" in rendered output");
+        let description_idx = rendered
+            .find("\"description\":")
+            .expect("expected inner \"description\": in rendered output");
+        let parameters_idx = rendered
+            .find("\"parameters\":")
+            .expect("expected inner \"parameters\": in rendered output");
+
+        assert!(
+            name_idx < description_idx,
+            "inner key order regression: \"name\" should appear before \
+             \"description\", got: {rendered}"
+        );
+        assert!(
+            description_idx < parameters_idx,
+            "inner key order regression: \"description\" should appear \
+             before \"parameters\", got: {rendered}"
+        );
     }
 }
