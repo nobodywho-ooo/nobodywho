@@ -403,6 +403,20 @@ pub enum EncoderWorkerError {
     Encode(String),
 }
 
+// TTS errors
+
+#[derive(Debug, thiserror::Error)]
+pub enum TtsError {
+    #[error("Error initializing TTS: {0}")]
+    Init(String),
+
+    #[error("Error during synthesis: {0}")]
+    Synthesis(String),
+
+    #[error("Error encoding WAV output: {0}")]
+    WavEncoding(String),
+}
+
 // ChatWorker errors
 
 #[derive(thiserror::Error, Debug)]

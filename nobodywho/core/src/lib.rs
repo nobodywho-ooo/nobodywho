@@ -8,6 +8,8 @@ pub mod sampler_config;
 pub mod template;
 pub mod tokenizer;
 pub mod tool_calling;
+#[cfg(not(target_os = "android"))]
+pub mod tts;
 
 /// Render a miette diagnostic to a plain-text string, including any `help` text,
 /// error codes, and related errors. Falls back to `to_string()` if rendering fails.
