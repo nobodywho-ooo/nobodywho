@@ -67,3 +67,40 @@ fn encode_wav(pcm: &[f32], sample_rate: u32) -> Result<Vec<u8>, TtsError> {
     }
     Ok(buffer)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hound::WavReader;
+    use std::io::Cursor;
+
+    #[test]
+    fn empty_pcm_produces_valid_wav_header() {
+        let bytes = encode_wav(&[], 24000).unwrap();
+        assert!(bytes.starts_with(b"RIFF"));
+        assert_eq!(&bytes[8..12], b"WAVE");
+        let reader = WavReader::new(Cursor::new(bytes)).unwrap();
+        assert_eq!(reader.spec().sample_rate, 24000);
+        assert_eq!(reader.spec().channels, 1);
+    }
+
+    #[test]
+    fn round_trips_samples() {
+        let pcm = vec![0.0, 0.5, -0.5, 1.0, -1.0];
+        let bytes = encode_wav(&pcm, 16000).unwrap();
+        let mut reader = WavReader::new(Cursor::new(bytes)).unwrap();
+        let samples: Vec<i16> = reader.samples::<i16>().map(Result::unwrap).collect();
+        // 0.5 * 32767 = 16383.5 → truncate-to-zero → 16383
+        // 1.0 * 32767 = 32767 = i16::MAX
+        assert_eq!(samples, vec![0, 16383, -16383, i16::MAX, -i16::MAX]);
+    }
+
+    #[test]
+    fn clamps_overshoot() {
+        let pcm = vec![1.5, -1.5, 100.0, -100.0];
+        let bytes = encode_wav(&pcm, 16000).unwrap();
+        let mut reader = WavReader::new(Cursor::new(bytes)).unwrap();
+        let samples: Vec<i16> = reader.samples::<i16>().map(Result::unwrap).collect();
+        assert_eq!(samples, vec![i16::MAX, i16::MIN, i16::MAX, i16::MIN]);
+    }
+}

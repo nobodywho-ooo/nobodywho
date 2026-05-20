@@ -118,3 +118,65 @@ fn download_repo(
 
     Ok(cache_dir)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_hf_repo_id() {
+        let Source::HuggingFace {
+            owner,
+            repo,
+            revision,
+        } = parse("NobodyWho/Kokoro-82M").unwrap()
+        else {
+            panic!("expected HuggingFace");
+        };
+        assert_eq!(owner, "NobodyWho");
+        assert_eq!(repo, "Kokoro-82M");
+        assert_eq!(revision, "main");
+    }
+
+    #[test]
+    fn accepts_dashes_underscores_dots_in_repo_parts() {
+        assert!(matches!(
+            parse("a-b/c_d.e").unwrap(),
+            Source::HuggingFace { .. }
+        ));
+    }
+
+    #[test]
+    fn existing_local_dir_resolves_to_local() {
+        let dir = std::env::temp_dir();
+        let s = dir.to_str().expect("temp_dir is valid utf-8");
+        assert!(matches!(parse(s).unwrap(), Source::Local(_)));
+    }
+
+    #[test]
+    fn rejects_no_slash() {
+        assert!(parse("nobodywho").is_err());
+    }
+
+    #[test]
+    fn rejects_too_many_slashes() {
+        assert!(parse("a/b/c").is_err());
+    }
+
+    #[test]
+    fn rejects_empty_owner() {
+        assert!(parse("/repo").is_err());
+    }
+
+    #[test]
+    fn rejects_empty_repo() {
+        assert!(parse("owner/").is_err());
+    }
+
+    #[test]
+    fn rejects_invalid_chars() {
+        assert!(parse("foo/bar baz").is_err());
+        assert!(parse("foo bar/baz").is_err());
+        assert!(parse("foo!/baz").is_err());
+    }
+}
