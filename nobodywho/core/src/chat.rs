@@ -292,6 +292,16 @@ impl ChatBuilder {
     pub fn build_async(self) -> ChatHandleAsync {
         ChatHandleAsync::new(self.model, self.config)
     }
+
+    /// Build a wasm-only synchronous chat handle. Equivalent to [`build`]
+    /// on native, but available on wasm32 where `std::thread::spawn` is
+    /// unavailable; the chat `Worker` runs inline on the caller's thread.
+    #[cfg(target_arch = "wasm32")]
+    pub fn build_sync(
+        self,
+    ) -> Result<ChatHandleSync, crate::errors::InitWorkerError> {
+        ChatHandleSync::new(self.model, self.config)
+    }
 }
 
 /// Interact with a ChatWorker in a blocking manner.
@@ -878,15 +888,160 @@ impl ChatHandleAsync {
     }
 }
 
+/// Wasm-only synchronous chat handle. Runs the chat `Worker` inline on the
+/// calling thread instead of in a `spawn_local`'d task — every method blocks
+/// until the worker is done with its work. Unlike [`ChatHandleAsync`], no
+/// futures are involved at the call site, so callers can use it from
+/// non-async code paths (Web Worker scripts, Node CLIs, anywhere blocking
+/// the JS thread is acceptable).
+///
+/// On native targets, use [`ChatHandle`] instead — it owns a real OS thread.
+#[cfg(target_arch = "wasm32")]
+pub struct ChatHandleSync {
+    // Drop order matters: `worker` borrows from the model inside `_model`,
+    // so worker MUST drop first. `ManuallyDrop` gives us explicit control
+    // over the sequence; the `Drop` impl below enforces it.
+    worker: std::mem::ManuallyDrop<Worker<'static, ChatWorker>>,
+    _model: std::mem::ManuallyDrop<Arc<llm::Model>>,
+    should_stop: Arc<AtomicBool>,
+}
+
+#[cfg(target_arch = "wasm32")]
+impl Drop for ChatHandleSync {
+    fn drop(&mut self) {
+        // SAFETY: Drop the worker first to release its borrow of *_model,
+        // then drop the Arc<Model> last. See safety comment in
+        // `ChatHandleSync::new` for the full invariant.
+        unsafe {
+            std::mem::ManuallyDrop::drop(&mut self.worker);
+            std::mem::ManuallyDrop::drop(&mut self._model);
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl ChatHandleSync {
+    /// Construct a new sync chat handle. The `Worker` is built inline and
+    /// owned by this struct; there is no background task.
+    pub fn new(
+        model: Arc<llm::Model>,
+        config: ChatConfig,
+    ) -> Result<Self, crate::errors::InitWorkerError> {
+        let should_stop = Arc::new(AtomicBool::new(false));
+        // SAFETY: we extend `&*model` to `'static` so the `Worker` can be
+        // stored alongside the `Arc<Model>` in this struct. This is sound
+        // because:
+        //   * `self._model` keeps the heap-allocated `Model` alive for the
+        //     full lifetime of `self`. The pointer is stable across the
+        //     struct's existence (`Arc<T>` is a heap pointer; it doesn't
+        //     move when the Arc itself moves).
+        //   * `self.worker` never escapes this struct — every method takes
+        //     `&mut self` and any handle we return (e.g. `TokenStream`)
+        //     does not reborrow `worker`.
+        //   * Our `Drop` impl above drops `worker` strictly before
+        //     `_model`, so the worker's borrow ends before the borrowed-
+        //     from `Model` is freed.
+        // The cast goes through `Arc::as_ptr` to get the address of the
+        // owned `Model` value; that address is stable for the Arc's
+        // lifetime.
+        let model_static: &'static llm::Model = unsafe { &*Arc::as_ptr(&model) };
+        let worker =
+            Worker::new_chat_worker(model_static, config, Arc::clone(&should_stop))?;
+        Ok(Self {
+            worker: std::mem::ManuallyDrop::new(worker),
+            _model: std::mem::ManuallyDrop::new(model),
+            should_stop,
+        })
+    }
+
+    /// Send a prompt; blocks until inference completes and returns a
+    /// [`TokenStream`] with all generated tokens already buffered.
+    ///
+    /// On single-threaded wasm there is no point at which the caller could
+    /// observe tokens before inference finishes — there are no other tasks
+    /// running concurrently to be unblocked. The `TokenStream` interface is
+    /// kept for API parity with [`ChatHandle::ask`].
+    pub fn ask(&mut self, prompt: impl Promptable) -> TokenStream {
+        let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
+        let should_stop = Arc::clone(&self.should_stop);
+        let callback = move |out: llm::WriteOutput| {
+            if output_tx.send(out).is_err() {
+                should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
+            }
+        };
+        // The callback captures `output_tx` by move; it's dropped at the
+        // end of `worker.ask`, closing the channel so the TokenStream
+        // sees `Disconnected` after the last token.
+        let _ = self.worker.ask(prompt.to_prompt(), callback);
+        TokenStream::new(output_rx)
+    }
+
+    /// Reset the chat: new system prompt + new tool set + cleared history.
+    pub fn reset_chat(
+        &mut self,
+        system_prompt: Option<String>,
+        tools: Vec<Tool>,
+    ) -> Result<(), crate::errors::SelectTemplateError> {
+        self.worker.reset_chat(system_prompt, tools)
+    }
+
+    /// Clear the conversation history, keeping the system prompt + tools.
+    pub fn reset_history(&mut self) -> Result<(), crate::errors::ContextSyncError> {
+        self.worker.set_chat_history(Vec::new())
+    }
+
+    /// Signal in-progress inference to stop at the next token boundary.
+    pub fn stop(&self) {
+        self.should_stop
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
 /// A stream of tokens from the model.
 ///
-/// Native-only synchronous stream — `next_token` calls `blocking_recv`, which
-/// would deadlock the single-threaded JS event loop. Wasm consumers use
-/// [`TokenStreamAsync`] instead, returned from [`ChatHandleAsync::ask`].
-#[cfg(not(target_arch = "wasm32"))]
+/// Two impls keyed on target:
+/// * Native: `next_token` calls `blocking_recv` to wait for the producer
+///   thread to push the next token.
+/// * Wasm: `next_token` calls `try_recv` because the producer ran inline
+///   on the caller's thread (see [`ChatHandleSync::ask`]) and the channel
+///   is fully drained by the time the `TokenStream` is returned. There is
+///   no thread to wait on.
 pub struct TokenStream {
     rx: tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>,
     completed_response: Option<String>,
+}
+
+#[cfg(target_arch = "wasm32")]
+impl TokenStream {
+    pub(crate) fn new(rx: tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>) -> Self {
+        Self {
+            rx,
+            completed_response: None,
+        }
+    }
+
+    /// Get the next token from the stream.
+    pub fn next_token(&mut self) -> Option<String> {
+        if self.completed_response.is_some() {
+            return None;
+        }
+        match self.rx.try_recv() {
+            Ok(llm::WriteOutput::Token(token)) => Some(token),
+            Ok(llm::WriteOutput::Done(completed_response)) => {
+                self.completed_response = Some(completed_response);
+                None
+            }
+            Err(_) => None,
+        }
+    }
+
+    /// Drain the stream and return the full generated text.
+    pub fn completed(&mut self) -> Result<String, crate::errors::CompletionError> {
+        while self.next_token().is_some() {}
+        self.completed_response
+            .clone()
+            .ok_or(crate::errors::CompletionError::WorkerCrashed)
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
