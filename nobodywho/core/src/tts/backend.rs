@@ -1,5 +1,6 @@
 use crate::errors::TtsError;
-use crate::tts::{backends, source, TtsConfig, TtsDevice};
+use crate::huggingface;
+use crate::tts::{backends, TtsConfig, TtsDevice};
 use std::time::Instant;
 use tracing::info;
 
@@ -14,7 +15,7 @@ pub(super) fn load_backend(
     match config {
         TtsConfig::Kokoro(config) => {
             let init_start = Instant::now();
-            let model_dir = source::resolve(source::parse(&config.source)?)?;
+            let model_dir = huggingface::resolve(huggingface::parse(&config.source)?)?;
             let backend = backends::KokoroBackend::new(
                 &model_dir,
                 config.voice,

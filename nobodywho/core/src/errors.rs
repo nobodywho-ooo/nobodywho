@@ -403,6 +403,17 @@ pub enum EncoderWorkerError {
     Encode(String),
 }
 
+// HuggingFace download errors
+
+#[derive(Debug, thiserror::Error)]
+pub enum HuggingFaceError {
+    #[error("invalid model source {0:?}: must be an existing directory or `owner/repo`")]
+    InvalidSource(String),
+
+    #[error("download failed: {0}")]
+    Download(String),
+}
+
 // TTS errors
 
 #[cfg(not(target_os = "android"))]
@@ -416,6 +427,13 @@ pub enum TtsError {
 
     #[error("Error encoding WAV output: {0}")]
     WavEncoding(String),
+}
+
+#[cfg(not(target_os = "android"))]
+impl From<HuggingFaceError> for TtsError {
+    fn from(e: HuggingFaceError) -> Self {
+        TtsError::Init(e.to_string())
+    }
 }
 
 // ChatWorker errors
