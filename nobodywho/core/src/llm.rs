@@ -1,7 +1,7 @@
 use crate::errors::{InitWorkerError, LoadModelError, ReadError};
+use crate::huggingface::{download_model_from_hf, download_model_from_url};
 use crate::memory;
 use crate::tokenizer::{ProjectionModel, Tokenizer, TokenizerChunk, TokenizerChunks};
-use indicatif::{ProgressBar, ProgressStyle};
 use lazy_static::lazy_static;
 use llama_cpp_2::context::kv_cache::KvCacheConversionError;
 use llama_cpp_2::context::params::{LlamaContextParams, LlamaPoolingType};
@@ -13,13 +13,17 @@ use llama_cpp_2::model::AddBos;
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::mtmd::MtmdInputChunks;
 use llama_cpp_2::token::LlamaToken;
-use std::io::{Read, Write};
 use std::pin::pin;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
-use std::time::Duration;
 use tracing::{debug, debug_span, error, info, info_span, warn};
+
+// Back-compat re-exports: bindings (Python, Godot, Flutter) import these via
+// `nobodywho::llm::*`. The implementations now live in `crate::huggingface`.
+pub use crate::huggingface::{
+    default_progress_callback, throttled_progress_callback, DownloadProgressCallback,
+};
 
 #[derive(Debug)]
 pub(crate) struct GlobalInferenceLockToken;
@@ -30,83 +34,6 @@ lazy_static! {
 
 static LLAMA_BACKEND: LazyLock<LlamaBackend> =
     LazyLock::new(|| LlamaBackend::init().expect("Failed to initialize llama backend"));
-
-/// Callback invoked during model downloads with `(downloaded_bytes, total_bytes)`.
-///
-/// Invoked on each read chunk from the single download thread. If the same callback
-/// is shared across concurrent downloads, the closure is responsible for its own
-/// synchronization (hence the `Sync` bound).
-pub type DownloadProgressCallback = Arc<dyn Fn(u64, u64) + Send + Sync>;
-
-/// Default terminal progress bar shown when the user doesn't pass their own callback.
-///
-/// Renders an `indicatif` bar with spinner, elapsed time, wide bar, binary byte counts,
-/// throughput, and ETA. indicatif auto-disables on non-TTY stderr, so this is safe to use
-/// unconditionally — GUI bindings (Godot, Flutter mobile) won't see output in production.
-/// Detects a new download (model → mmproj transition) by watching for `total` to change,
-/// finishes the previous bar, and starts a fresh one.
-pub fn default_progress_callback() -> DownloadProgressCallback {
-    let style = ProgressStyle::with_template(
-        "{spinner:.green} [{elapsed_precise}] {wide_bar:.cyan/blue} \
-         {binary_bytes}/{binary_total_bytes} ({binary_bytes_per_sec}, {eta})",
-    )
-    .expect("static progress bar template is valid")
-    .progress_chars("█▉▊▋▌▍▎▏ ");
-
-    let state: Arc<Mutex<(Option<ProgressBar>, u64)>> = Arc::new(Mutex::new((None, 0)));
-
-    Arc::new(move |downloaded: u64, total: u64| {
-        let mut s = state.lock().expect("progress bar mutex poisoned");
-        if s.0.is_none() || s.1 != total {
-            if let Some(old) = s.0.take() {
-                old.finish_and_clear();
-            }
-            let bar = ProgressBar::new(total);
-            bar.set_style(style.clone());
-            bar.enable_steady_tick(Duration::from_millis(100));
-            s.0 = Some(bar);
-            s.1 = total;
-        }
-        let bar = s.0.as_ref().unwrap();
-        bar.set_position(downloaded);
-        if downloaded >= total {
-            bar.finish();
-            s.0 = None;
-        }
-    })
-}
-
-/// Wrap a progress callback so it fires at most ~10 Hz, with a guaranteed
-/// final emit on completion.
-///
-/// Use this when each invocation of the user-provided callback is expensive —
-/// typically because it crosses a language boundary (Dart isolate hop, JSI
-/// hop, etc.). Without throttling, a fast download (thousands of chunks/sec)
-/// would saturate the cross-language bridge. The Python binding does NOT need
-/// this since a PyO3 callable invocation is cheap; it forwards every chunk.
-///
-/// Lock-free: nanoseconds since a process-wide epoch in an `AtomicU64`, with `0`
-/// as the never-emitted sentinel. The load/check/store can race, but an extra
-/// emit per ~100ms window is harmless and downloads are single-threaded anyway.
-pub fn throttled_progress_callback<F>(callback: F) -> DownloadProgressCallback
-where
-    F: Fn(u64, u64) + Send + Sync + 'static,
-{
-    static EPOCH: LazyLock<std::time::Instant> = LazyLock::new(std::time::Instant::now);
-    const THROTTLE_NS: u64 = 100_000_000;
-
-    let last_emit_ns = AtomicU64::new(0);
-    Arc::new(move |downloaded: u64, total: u64| {
-        let is_done = total > 0 && downloaded >= total;
-        let now_ns = EPOCH.elapsed().as_nanos() as u64;
-        let prev = last_emit_ns.load(Ordering::Relaxed);
-        let due = prev == 0 || now_ns.saturating_sub(prev) >= THROTTLE_NS;
-        if is_done || due {
-            last_emit_ns.store(now_ns, Ordering::Relaxed);
-            callback(downloaded, total);
-        }
-    })
-}
 
 #[derive(Debug)]
 pub struct Model {
@@ -364,235 +291,6 @@ pub fn download_model(
 ) -> Result<std::path::PathBuf, LoadModelError> {
     let progress = progress.unwrap_or_else(default_progress_callback);
     resolve_fancy_path_to_fs(parse_model_path(model_path)?, &progress, &headers)
-}
-
-/// Get the cache directory for downloaded models.
-///
-/// On Android, the package name is read from `/proc/self/cmdline` and the user ID
-/// is derived from the UID (`uid / 100000`). This avoids needing JNI or an Android
-/// Context object, which isn't reliably available — Flutter loads native libraries
-/// via `dlopen` (not `System.loadLibrary`), so `JNI_OnLoad` is never called.
-///
-/// On other platforms, uses the `dirs` crate to find the standard cache directory.
-pub(crate) fn get_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
-    let base = get_platform_cache_dir()?;
-    Ok(base.join("nobodywho").join("models"))
-}
-
-#[cfg(target_os = "android")]
-fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
-    // Read the package name from /proc/self/cmdline. This file contains the process
-    // name as a null-terminated string. On Android this is the package name
-    // (e.g. "com.example.app"), possibly with a colon suffix for multi-process apps
-    // (e.g. "com.example.app:remote").
-    let cmdline = std::fs::read("/proc/self/cmdline").map_err(|e| {
-        LoadModelError::DownloadError(format!("Failed to read /proc/self/cmdline: {e}"))
-    })?;
-
-    let package_name = cmdline
-        .split(|&b| b == 0)
-        .next()
-        .and_then(|bytes| std::str::from_utf8(bytes).ok())
-        .map(|s| s.split(':').next().unwrap_or(s))
-        .ok_or_else(|| {
-            LoadModelError::DownloadError(
-                "Could not determine Android package name from /proc/self/cmdline".into(),
-            )
-        })?;
-
-    // Derive the Android user ID from the Unix UID. Android assigns UIDs as:
-    //   uid = user_id * 100000 + app_id
-    // This gives the correct path on multi-user devices (e.g. GrapheneOS work
-    // profiles), where /data/data/ is a symlink only valid for user 0.
-    let uid = unsafe { libc::getuid() };
-    let user_id = uid / 100000;
-
-    Ok(std::path::PathBuf::from(format!(
-        "/data/user/{user_id}/{package_name}/cache"
-    )))
-}
-
-#[cfg(not(target_os = "android"))]
-fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
-    dirs::cache_dir()
-        .ok_or_else(|| LoadModelError::DownloadError("Could not determine cache directory".into()))
-}
-
-/// Download a file from a URL to a local path, streaming to disk with progress logging.
-///
-/// Returns early if the file already exists at the target path.
-/// Rejects paths containing `..` to prevent path traversal attacks.
-pub(crate) fn download_file(
-    url: &str,
-    target_path: &std::path::Path,
-    progress: &DownloadProgressCallback,
-    headers: &[(String, String)],
-) -> Result<(), crate::errors::LoadModelError> {
-    for component in target_path.components() {
-        if component == std::path::Component::ParentDir {
-            return Err(LoadModelError::DownloadError(
-                "Path traversal detected: '..' is not allowed in model paths".into(),
-            ));
-        }
-    }
-
-    if target_path.exists() {
-        info!("Using cached file: {}", target_path.display());
-        return Ok(());
-    }
-
-    // Create parent directories
-    if let Some(parent) = target_path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| {
-            LoadModelError::DownloadError(format!(
-                "Failed to create cache directory {}: {e}",
-                parent.display()
-            ))
-        })?;
-    }
-
-    info!("Downloading {} -> {}", url, target_path.display());
-
-    let mut request = ureq::get(url);
-    for (name, value) in headers {
-        request = request.header(name.as_str(), value.as_str());
-    }
-    let response = request.call().map_err(|e| match e {
-        ureq::Error::StatusCode(status) => LoadModelError::from_http_status(url, status),
-        e => LoadModelError::DownloadError(format!("HTTP request failed: {e}")),
-    })?;
-
-    // Content-Length is missing for many text/JSON responses served via chunked
-    // transfer (e.g. HuggingFace `.gitattributes`, `config.json`, README.md);
-    // we treat that as "unknown size" rather than an error — we still stream
-    // the body, just without progress denominator or post-download size check.
-    let content_length: u64 = response
-        .headers()
-        .get("content-length")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.parse::<u64>().ok())
-        .unwrap_or(0);
-
-    if content_length > 0 {
-        info!(
-            "Download size: {:.1} GB",
-            content_length as f64 / 1_073_741_824.0
-        );
-    } else {
-        info!("Download size: unknown (no Content-Length)");
-    }
-
-    // Write to a temp file first, then rename — avoids partial files on failure.
-    let tmp_path = target_path.with_file_name(format!(
-        "{}.{:x}.part",
-        target_path
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy(),
-        rand::random::<u32>(),
-    ));
-
-    let download_result: Result<(), crate::errors::LoadModelError> = (|| {
-        let mut file = std::fs::File::create(&tmp_path).map_err(|e| {
-            LoadModelError::DownloadError(format!(
-                "Failed to create temp file {}: {e}",
-                tmp_path.display()
-            ))
-        })?;
-
-        let body = response.into_body();
-        let mut reader = body.into_reader();
-        let mut downloaded: u64 = 0;
-        let mut last_logged_pct: u64 = 0;
-        let mut buf = vec![0u8; 256 * 1024]; // 256 KB chunks
-
-        loop {
-            let n = reader.read(&mut buf).map_err(|e| {
-                LoadModelError::DownloadError(format!("Read error during download: {e}"))
-            })?;
-            if n == 0 {
-                break;
-            }
-            file.write_all(&buf[..n]).map_err(|e| {
-                LoadModelError::DownloadError(format!("Write error during download: {e}"))
-            })?;
-            downloaded += n as u64;
-
-            progress(downloaded, content_length);
-
-            if content_length > 0 {
-                let pct = (downloaded * 100) / content_length;
-                if pct >= last_logged_pct + 5 {
-                    info!("Download progress: {pct}% ({downloaded}/{content_length} bytes)");
-                    last_logged_pct = pct;
-                }
-            }
-        }
-        if content_length > 0 && downloaded != content_length {
-            return Err(LoadModelError::DownloadError(format!(
-                "Download incomplete: got {downloaded}/{content_length} bytes"
-            )));
-        }
-        Ok(())
-    })();
-
-    if download_result.is_err() {
-        if let Err(e) = std::fs::remove_file(&tmp_path) {
-            warn!("Failed to clean up temp file {}: {e}", tmp_path.display());
-        }
-        return download_result;
-    }
-
-    // Rename temp file to final path
-    std::fs::rename(&tmp_path, target_path).map_err(|e| {
-        LoadModelError::DownloadError(format!(
-            "Failed to rename temp file to {}: {e}",
-            target_path.display()
-        ))
-    })?;
-
-    info!("Download complete: {}", target_path.display());
-    Ok(())
-}
-
-/// Download a GGUF model from HuggingFace Hub and return the local path to it.
-///
-/// If the model is already cached locally, the cached path is returned without downloading.
-fn download_model_from_hf(
-    owner: &str,
-    repo: &str,
-    filename: &str,
-    progress: &DownloadProgressCallback,
-    headers: &[(String, String)],
-) -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
-    let cache_dir = get_cache_dir()?;
-    let target_path = cache_dir.join(owner).join(repo).join(filename);
-    let url = hf_resolve_url(owner, repo, "main", filename);
-    download_file(&url, &target_path, progress, headers)?;
-    Ok(target_path)
-}
-
-/// HuggingFace Hub URL for resolving a file at a given revision.
-pub(crate) fn hf_resolve_url(owner: &str, repo: &str, revision: &str, path: &str) -> String {
-    format!("https://huggingface.co/{owner}/{repo}/resolve/{revision}/{path}")
-}
-
-/// Download a model from a generic HTTP(S) URL and return the local path to it.
-///
-/// The file is cached by its URL path components under the cache directory.
-fn download_model_from_url(
-    url: &str,
-    progress: &DownloadProgressCallback,
-    headers: &[(String, String)],
-) -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
-    let cache_dir = get_cache_dir()?;
-    // Derive a cache path from the URL: strip scheme, use the rest as path components
-    let path_part = url
-        .trim_start_matches("https://")
-        .trim_start_matches("http://");
-    let target_path = cache_dir.join("http").join(path_part);
-    download_file(url, &target_path, progress, headers)?;
-    Ok(target_path)
 }
 
 fn read_add_bos_metadata(model: &LlamaModel) -> Result<AddBos, InitWorkerError> {

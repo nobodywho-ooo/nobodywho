@@ -147,4 +147,3 @@ impl Tts {
             .ok_or_else(|| TtsError::Synthesis("tts worker dropped response sender".into()))?
     }
 }
-
