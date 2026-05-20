@@ -23,9 +23,9 @@ const STYLE_DIM: usize = 256;
 
 pub(in crate::tts) struct KokoroBackend {
     session: Session,
-    /// Flat f32 style matrix for the selected voice; row `i` is the style
-    /// vector for inputs of length `i`.
-    voice_style: Vec<f32>,
+    /// One style vector per possible input length. The style for an input of
+    /// length `i` is `voice_style[i]`.
+    voice_style: Vec<[f32; STYLE_DIM]>,
     /// IPA character → token id, loaded from `config.json` in the model dir.
     vocab: HashMap<String, i64>,
     language: String,
@@ -101,9 +101,7 @@ impl TtsBackendImpl for KokoroBackend {
             )));
         }
 
-        let style_idx = phoneme_ids.len();
-        let style: Vec<f32> =
-            self.voice_style[style_idx * STYLE_DIM..(style_idx + 1) * STYLE_DIM].to_vec();
+        let style: Vec<f32> = self.voice_style[phoneme_ids.len()].to_vec();
 
         // ONNX expects the sequence wrapped in BOS/EOS (both id 0).
         let mut tokens: Vec<i64> = Vec::with_capacity(phoneme_ids.len() + 2);
@@ -140,9 +138,9 @@ impl TtsBackendImpl for KokoroBackend {
 }
 
 /// Load a `<voice>.safetensors` file containing a single f32 tensor named
-/// `"style"` with shape `[rows, STYLE_DIM]`. Returns the matrix flattened
-/// row-major together with `max_input_phonemes` (= rows - 1).
-fn load_voice(voices_dir: &Path, voice: &str) -> Result<(Vec<f32>, usize), TtsError> {
+/// `"style"` with shape `[rows, STYLE_DIM]`. Returns one style vector per
+/// row together with `max_input_phonemes` (= rows - 1).
+fn load_voice(voices_dir: &Path, voice: &str) -> Result<(Vec<[f32; STYLE_DIM]>, usize), TtsError> {
     let path = voices_dir.join(format!("{voice}.safetensors"));
     let bytes = std::fs::read(&path)
         .map_err(|e| TtsError::Init(format!("kokoro: read voice {voice:?}: {e}")))?;
@@ -169,12 +167,16 @@ fn load_voice(voices_dir: &Path, voice: &str) -> Result<(Vec<f32>, usize), TtsEr
     }
     let rows = shape[0];
 
-    let floats: Vec<f32> = view
+    let floats = view
         .data()
         .chunks_exact(4)
-        .map(|c| f32::from_le_bytes(c.try_into().unwrap()))
+        .map(|c| f32::from_le_bytes(c.try_into().unwrap()));
+    let voice_style: Vec<[f32; STYLE_DIM]> = floats
+        .collect::<Vec<f32>>()
+        .chunks_exact(STYLE_DIM)
+        .map(|row| row.try_into().expect("STYLE_DIM-sized chunk"))
         .collect();
-    Ok((floats, rows - 1))
+    Ok((voice_style, rows - 1))
 }
 
 /// Read the IPA-character → token-id map from `config.json["vocab"]`.
