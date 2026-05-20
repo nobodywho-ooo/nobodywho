@@ -36,11 +36,24 @@ console_error_panic_hook = "0.1"
 version = "0.3"
 features = [
   "console",
-  # For Worker-context detection — fetchModelBytes calls global fetch()
-  # in either Window or WorkerGlobalScope contexts.
+  # For `runInWorker` — message dispatch implemented in Rust instead of in
+  # a separate JS dispatcher. Sets up self.onmessage / post_message from
+  # inside the wasm so the worker bootstrap can be a one-line inline Blob.
+  "DedicatedWorkerGlobalScope",
+  "MessageEvent",
+  "ErrorEvent",
+  # For `Chat` (worker-backed) — Rust spawns the Web Worker from an inline
+  # Blob URL, posts the load-model/create-chat/ask protocol, routes replies
+  # via Closure-wrapped onmessage.
+  "Worker",
+  "WorkerOptions",
+  "WorkerType",
   "WorkerGlobalScope",
-  # For `fetchModelBytes` + `Model.preload` / `Model.clearCache` —
-  # Cache API model storage and streaming fetch with progress.
+  "Blob",
+  "BlobPropertyBag",
+  "Url",
+  # For `fetchModelBytes` + `Model.preload` / `Model.clearCache` — Cache API
+  # model storage and streaming fetch with progress.
   "Window",
   "Cache",
   "CacheStorage",

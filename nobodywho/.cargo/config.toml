@@ -1,11 +1,18 @@
 # Per-target rustflags for the nobodywho workspace.
 #
-# Currently empty — wasm32-unknown-emscripten is built single-threaded
-# (no `-pthread` / `+atomics`), so the prebuilt std works and no special
-# rustflags are needed. The off-main-thread story is delegated to the JS
-# host spawning a Web Worker. Stable Rust suffices.
+# wasm32-unknown-emscripten is built single-threaded (no `-pthread` /
+# `+atomics`); the off-main-thread story is delegated to the JS host
+# spawning a Web Worker around the wasm.
 #
-# Why not multi-threaded: Emscripten's pthread runtime conflicts with
-# wasm-bindgen-cli's thread-id injection. See llama-cpp-rs/llama-cpp-
-# sys-2/build.rs (WasmEmscripten branch) and js/build.rs for the
-# matching reasoning.
+# `panic=abort` matches wasm32-unknown-unknown's default. Without it,
+# wasm-bindgen 0.2.121 enforces `MaybeUnwindSafe` (= UnwindSafe +
+# RefUnwindSafe) on every `Closure::new`/`Closure::wrap` callback, and
+# our worker-backed `Chat` captures `Rc<RefCell<ChatState>>` in the
+# Worker `onmessage`/`onerror` callbacks — neither is RefUnwindSafe.
+# Switching to abort drops the marker requirement to no-op. Trade-off:
+# Rust panics inside the wasm tear down the whole module instead of
+# unwinding to a rejected promise; in practice this is the same
+# failure mode as a C++ exception escaping ggml/llama.cpp, which we
+# already can't recover from on this target.
+[target.wasm32-unknown-emscripten]
+rustflags = ["-C", "panic=abort"]
