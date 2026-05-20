@@ -92,6 +92,12 @@ fn main() {
     // enough — wasm-ld emitted the symbols then dropped them again.
     println!("cargo:rustc-link-arg-cdylib=-Wl,--export=emscripten_stack_get_current");
     println!("cargo:rustc-link-arg-cdylib=-Wl,--export=_emscripten_stack_restore");
+    // emcc's --post-link asserts emscripten_stack_get_end is exported.
+    println!("cargo:rustc-link-arg-cdylib=-Wl,--export=emscripten_stack_get_end");
+    // emcc's stackCheckInit() runtime calls emscripten_stack_init() at
+    // module instantiation; without the export the JS loader throws
+    // ReferenceError before any user code runs.
+    println!("cargo:rustc-link-arg-cdylib=-Wl,--export=emscripten_stack_init");
 
     // Clamp emcc's link-time optimization level so wasm-opt doesn't run.
     // At -O2/-O3, emcc runs binaryen/wasm-opt with aggressive DCE that
