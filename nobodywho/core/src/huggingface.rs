@@ -264,8 +264,7 @@ pub(crate) fn download_file(
 
             progress(downloaded, content_length);
 
-            if content_length > 0 {
-                let pct = (downloaded * 100) / content_length;
+            if let Some(pct) = (downloaded * 100).checked_div(content_length) {
                 if pct >= last_logged_pct + 5 {
                     info!("Download progress: {pct}% ({downloaded}/{content_length} bytes)");
                     last_logged_pct = pct;
