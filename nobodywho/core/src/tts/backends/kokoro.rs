@@ -23,16 +23,12 @@ const STYLE_DIM: usize = 256;
 
 pub(in crate::tts) struct KokoroBackend {
     session: Session,
-    /// One style vector per possible input length. The style for an input of
-    /// length `i` is `voice_style[i]`.
     voice_style: Vec<[f32; STYLE_DIM]>,
-    /// IPA character → token id, loaded from `config.json` in the model dir.
+    /// IPA character → token id
     vocab: HashMap<String, i64>,
     language: String,
     speed: f32,
-    /// Maximum un-padded phoneme count. The ONNX run wraps the input in
-    /// BOS/EOS (id 0) so the actual sequence is two tokens longer; the style
-    /// row is indexed by un-padded count, so this caps at `style_rows - 1`.
+    /// Kokoro supports style for finite number of phonemes
     max_input_phonemes: usize,
 }
 
@@ -87,6 +83,7 @@ impl TtsBackendImpl for KokoroBackend {
                 phoneme_ids.push(id);
             }
             // Unmapped IPA characters are dropped silently — same as upstream.
+            // https://github.com/hexgrad/kokoro/blob/main/kokoro/model.py#L128
         }
         if phoneme_ids.is_empty() {
             return Err(TtsError::Synthesis(
@@ -103,7 +100,10 @@ impl TtsBackendImpl for KokoroBackend {
 
         let style: Vec<f32> = self.voice_style[phoneme_ids.len()].to_vec();
 
-        // ONNX expects the sequence wrapped in BOS/EOS (both id 0).
+        // Kokoro's KModel.forward wraps the sequence in BOS/EOS (both id 0)
+        // before calling forward_with_tokens; our ONNX export captures the
+        // latter, so we do the wrap here.
+        // See https://github.com/hexgrad/kokoro/blob/main/kokoro/model.py#L130
         let mut tokens: Vec<i64> = Vec::with_capacity(phoneme_ids.len() + 2);
         tokens.push(0);
         tokens.extend(phoneme_ids);
@@ -181,24 +181,18 @@ fn load_voice(voices_dir: &Path, voice: &str) -> Result<(Vec<[f32; STYLE_DIM]>, 
 
 /// Read the IPA-character → token-id map from `config.json["vocab"]`.
 fn load_vocab(config_path: &Path) -> Result<HashMap<String, i64>, TtsError> {
-    let raw = std::fs::read_to_string(config_path)
-        .map_err(|e| TtsError::Init(format!("kokoro: read {}: {e}", config_path.display())))?;
-    let json: serde_json::Value = serde_json::from_str(&raw)
-        .map_err(|e| TtsError::Init(format!("kokoro: parse {}: {e}", config_path.display())))?;
-    let vocab_value = json.get("vocab").ok_or_else(|| {
-        TtsError::Init(format!("kokoro: no `vocab` in {}", config_path.display()))
-    })?;
-    let vocab: HashMap<String, i64> = serde_json::from_value(vocab_value.clone()).map_err(|e| {
-        TtsError::Init(format!(
-            "kokoro: `vocab` in {} is not {{string: int}}: {e}",
-            config_path.display()
-        ))
-    })?;
+    #[derive(serde::Deserialize)]
+    struct Config {
+        vocab: HashMap<String, i64>,
+    }
+
+    let path = config_path.display();
+    let file = std::fs::File::open(config_path)
+        .map_err(|e| TtsError::Init(format!("kokoro: {path}: {e}")))?;
+    let Config { vocab } = serde_json::from_reader(file)
+        .map_err(|e| TtsError::Init(format!("kokoro: {path}: {e}")))?;
     if vocab.is_empty() {
-        return Err(TtsError::Init(format!(
-            "kokoro: `vocab` in {} is empty",
-            config_path.display()
-        )));
+        return Err(TtsError::Init(format!("kokoro: {path}: vocab is empty")));
     }
     Ok(vocab)
 }
