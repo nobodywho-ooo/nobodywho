@@ -1,0 +1,46 @@
+{
+glyphname = Dcroat;
+kernLeft = lslash;
+kernRight = O;
+layers = (
+{
+layerId = "8007C042-6FBA-4E49-99B8-8B738A4EBE86";
+shapes = (
+{
+ref = Eth;
+}
+);
+width = 664;
+},
+{
+layerId = "ADDE491E-C0C4-4659-943C-53377B387F47";
+shapes = (
+{
+ref = Eth;
+}
+);
+width = 660;
+},
+{
+layerId = "0CF550E6-48ED-4BA5-8C66-195B58FED074";
+shapes = (
+{
+ref = Eth;
+}
+);
+width = 662;
+},
+{
+layerId = m004;
+shapes = (
+{
+ref = Eth;
+}
+);
+width = 664;
+}
+);
+metricLeft = Eth;
+metricRight = Eth;
+unicode = 272;
+}

@@ -1,0 +1,34 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="comma" format="2">
+  <advance width="204"/>
+  <unicode hex="002C"/>
+  <outline>
+    <contour>
+      <point x="116" y="-104"/>
+      <point x="164" y="-42"/>
+      <point x="164" y="30" type="curve" smooth="yes"/>
+      <point x="164" y="85"/>
+      <point x="134" y="124"/>
+      <point x="92" y="124" type="curve" smooth="yes"/>
+      <point x="57" y="124"/>
+      <point x="32" y="97"/>
+      <point x="32" y="60" type="curve" smooth="yes"/>
+      <point x="32" y="19"/>
+      <point x="64" y="-8"/>
+      <point x="108" y="-4" type="curve"/>
+      <point x="108" y="-40"/>
+      <point x="72" y="-56"/>
+      <point x="36" y="-48" type="curve"/>
+      <point x="32" y="-92" type="line"/>
+    </contour>
+    <component base="inkstem_S" xOffset="-4" yOffset="-192"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>period</string>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>period</string>
+    </dict>
+  </lib>
+</glyph>

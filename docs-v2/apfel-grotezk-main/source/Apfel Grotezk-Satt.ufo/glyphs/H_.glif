@@ -1,0 +1,33 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="H" format="2">
+  <advance width="672"/>
+  <unicode hex="0048"/>
+  <outline>
+    <contour>
+      <point x="418" y="0" type="line"/>
+      <point x="630" y="0" type="line"/>
+      <point x="630" y="650" type="line"/>
+      <point x="418" y="650" type="line"/>
+    </contour>
+    <contour>
+      <point x="42" y="0" type="line"/>
+      <point x="254" y="0" type="line"/>
+      <point x="254" y="650" type="line"/>
+      <point x="42" y="650" type="line"/>
+    </contour>
+    <contour>
+      <point x="234" y="256" type="line"/>
+      <point x="438" y="256" type="line"/>
+      <point x="438" y="408" type="line"/>
+      <point x="234" y="408" type="line"/>
+    </contour>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>l</string>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>l</string>
+    </dict>
+  </lib>
+</glyph>

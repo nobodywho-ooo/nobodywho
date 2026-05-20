@@ -1,0 +1,28 @@
+FONTLOG for the Apfel Grotezk font
+
+This file provides detailed information on the Apfel Grotezk Font Software.
+This information should be distributed along with the Apfel Grotezk font
+and any derivative works.
+
+Basic Font Information
+
+Apfel Grotezk is a round and airy sans serif family, inspired by neo-grotesque and geometric typefaces.
+
+To contribute to the project contact Collletttivo
+at collletttivo@gmail.com
+
+ChangeLog
+
+31 Nov 2019 (v.1.000) Collletttivo
+- Initial release
+
+Acknowledgements
+
+If you make modifications be sure to add your name (N), 
+email (E), web-address (if you have one) (W) and 
+description (D). This list is in alphabetical order.
+
+N: Luigi Gorlero
+E: gorliluigi@gmail.com
+W: https://www.luigigorlero.com
+D: Principle designer, typeface development

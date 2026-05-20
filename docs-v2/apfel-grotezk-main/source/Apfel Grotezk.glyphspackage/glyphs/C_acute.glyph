@@ -1,0 +1,62 @@
+{
+glyphname = Cacute;
+kernLeft = O;
+kernRight = C;
+layers = (
+{
+layerId = "8007C042-6FBA-4E49-99B8-8B738A4EBE86";
+shapes = (
+{
+ref = C;
+},
+{
+pos = (44,130);
+ref = acutecomb.case;
+}
+);
+width = 664;
+},
+{
+layerId = "ADDE491E-C0C4-4659-943C-53377B387F47";
+shapes = (
+{
+ref = C;
+},
+{
+pos = (46,134);
+ref = acutecomb.case;
+}
+);
+width = 662;
+},
+{
+layerId = "0CF550E6-48ED-4BA5-8C66-195B58FED074";
+shapes = (
+{
+ref = C;
+},
+{
+pos = (44,138);
+ref = acutecomb.case;
+}
+);
+width = 656;
+},
+{
+layerId = m004;
+shapes = (
+{
+ref = C;
+},
+{
+pos = (44,130);
+ref = acutecomb.case;
+}
+);
+width = 664;
+}
+);
+metricLeft = C;
+metricRight = C;
+unicode = 262;
+}

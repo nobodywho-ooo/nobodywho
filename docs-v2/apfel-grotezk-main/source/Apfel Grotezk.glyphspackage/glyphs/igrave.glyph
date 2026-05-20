@@ -1,0 +1,130 @@
+{
+color = 10;
+glyphname = igrave;
+kernLeft = idieresis;
+kernRight = l;
+layers = (
+{
+background = {
+hints = (
+{
+horizontal = 1;
+place = (0,21);
+target = up;
+type = BottomGhost;
+},
+{
+horizontal = 1;
+place = (571,-20);
+target = down;
+type = TopGhost;
+},
+{
+horizontal = 1;
+place = (619,148);
+type = Stem;
+},
+{
+place = (67,89);
+type = Stem;
+}
+);
+shapes = (
+{
+ref = idotless;
+},
+{
+pos = (-232,0);
+ref = gravecomb;
+}
+);
+};
+layerId = "8007C042-6FBA-4E49-99B8-8B738A4EBE86";
+shapes = (
+{
+ref = idotless;
+},
+{
+pos = (-196,0);
+ref = gravecomb;
+}
+);
+width = 208;
+},
+{
+layerId = "ADDE491E-C0C4-4659-943C-53377B387F47";
+shapes = (
+{
+ref = idotless;
+},
+{
+pos = (-182,0);
+ref = gravecomb;
+}
+);
+width = 236;
+},
+{
+layerId = "0CF550E6-48ED-4BA5-8C66-195B58FED074";
+shapes = (
+{
+ref = idotless;
+},
+{
+pos = (-160,0);
+ref = gravecomb;
+}
+);
+width = 280;
+},
+{
+background = {
+hints = (
+{
+horizontal = 1;
+place = (0,21);
+target = up;
+type = BottomGhost;
+},
+{
+horizontal = 1;
+place = (571,-20);
+target = down;
+type = TopGhost;
+},
+{
+horizontal = 1;
+place = (619,148);
+type = Stem;
+},
+{
+place = (67,89);
+type = Stem;
+}
+);
+shapes = (
+{
+ref = idotless;
+},
+{
+pos = (-232,0);
+ref = gravecomb;
+}
+);
+};
+layerId = m004;
+shapes = (
+{
+ref = idotless;
+},
+{
+pos = (-196,0);
+ref = gravecomb;
+}
+);
+width = 208;
+}
+);
+metricRight = idotless;
+unicode = 236;
+}

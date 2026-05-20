@@ -1,0 +1,20 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="inkstem_S" format="2">
+  <advance width="200"/>
+  <outline>
+    <contour>
+      <point x="100" y="222" type="curve" smooth="yes"/>
+      <point x="84" y="222"/>
+      <point x="72" y="234"/>
+      <point x="72" y="250" type="curve" smooth="yes"/>
+      <point x="72" y="266"/>
+      <point x="84" y="278"/>
+      <point x="100" y="278" type="curve" smooth="yes"/>
+      <point x="116" y="278"/>
+      <point x="128" y="266"/>
+      <point x="128" y="250" type="curve" smooth="yes"/>
+      <point x="128" y="234"/>
+      <point x="116" y="222"/>
+    </contour>
+  </outline>
+</glyph>

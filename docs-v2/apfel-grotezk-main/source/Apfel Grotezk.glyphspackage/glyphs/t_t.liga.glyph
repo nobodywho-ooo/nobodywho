@@ -1,0 +1,65 @@
+{
+glyphname = t_t.liga;
+kernLeft = lslash;
+kernRight = t;
+layers = (
+{
+layerId = "8007C042-6FBA-4E49-99B8-8B738A4EBE86";
+shapes = (
+{
+ref = t;
+},
+{
+alignment = -1;
+pos = (270,0);
+ref = t;
+}
+);
+width = 578;
+},
+{
+layerId = "ADDE491E-C0C4-4659-943C-53377B387F47";
+shapes = (
+{
+ref = t;
+},
+{
+alignment = -1;
+pos = (316,0);
+ref = t;
+}
+);
+width = 680;
+},
+{
+layerId = "0CF550E6-48ED-4BA5-8C66-195B58FED074";
+shapes = (
+{
+ref = t;
+},
+{
+alignment = -1;
+pos = (372,0);
+ref = t;
+}
+);
+width = 780;
+},
+{
+layerId = m004;
+shapes = (
+{
+ref = t;
+},
+{
+alignment = -1;
+pos = (270,0);
+ref = t;
+}
+);
+width = 578;
+}
+);
+metricLeft = t;
+metricRight = t;
+}

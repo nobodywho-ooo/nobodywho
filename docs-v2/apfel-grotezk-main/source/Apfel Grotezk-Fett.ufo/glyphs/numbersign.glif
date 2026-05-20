@@ -1,0 +1,37 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="numbersign" format="2">
+  <advance width="612"/>
+  <unicode hex="0023"/>
+  <outline>
+    <contour>
+      <point x="109" y="-32" type="line"/>
+      <point x="253" y="-32" type="line"/>
+      <point x="253" y="618" type="line"/>
+      <point x="109" y="618" type="line"/>
+    </contour>
+    <contour>
+      <point x="359" y="-32" type="line"/>
+      <point x="503" y="-32" type="line"/>
+      <point x="503" y="618" type="line"/>
+      <point x="359" y="618" type="line"/>
+    </contour>
+    <contour>
+      <point x="36" y="112" type="line"/>
+      <point x="576" y="112" type="line"/>
+      <point x="576" y="230" type="line"/>
+      <point x="36" y="230" type="line"/>
+    </contour>
+    <contour>
+      <point x="36" y="364" type="line"/>
+      <point x="576" y="364" type="line"/>
+      <point x="576" y="480" type="line"/>
+      <point x="36" y="480" type="line"/>
+    </contour>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>=|</string>
+    </dict>
+  </lib>
+</glyph>

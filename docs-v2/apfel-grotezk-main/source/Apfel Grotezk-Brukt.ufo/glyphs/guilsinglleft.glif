@@ -1,0 +1,35 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="guilsinglleft" format="2">
+  <advance width="324"/>
+  <unicode hex="2039"/>
+  <outline>
+    <contour>
+      <point x="208" y="44" type="line"/>
+      <point x="264" y="96" type="line"/>
+      <point x="158" y="217" type="line" smooth="yes"/>
+      <point x="143" y="235"/>
+      <point x="142" y="223"/>
+      <point x="128" y="223" type="curve" smooth="yes"/>
+      <point x="112" y="223"/>
+      <point x="100" y="235"/>
+      <point x="100" y="251" type="curve" smooth="yes"/>
+      <point x="100" y="267"/>
+      <point x="112" y="279"/>
+      <point x="128" y="279" type="curve" smooth="yes"/>
+      <point x="142" y="279"/>
+      <point x="143" y="269"/>
+      <point x="158" y="287" type="curve" smooth="yes"/>
+      <point x="260" y="408" type="line"/>
+      <point x="204" y="460" type="line"/>
+      <point x="36" y="250" type="line"/>
+    </contour>
+    <component base="inkstem_S" xScale="0.7685" xyScale="0.6398" yScale="0.7685" yxScale="-0.6398" xOffset="283" yOffset="-144"/>
+    <component base="inkstem_M" xScale="-0.7915" xyScale="0.6111" yScale="-0.7915" yxScale="-0.6111" xOffset="429" yOffset="531"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>public.markColor</key>
+      <string>0.75,0.75,0.75,1</string>
+    </dict>
+  </lib>
+</glyph>

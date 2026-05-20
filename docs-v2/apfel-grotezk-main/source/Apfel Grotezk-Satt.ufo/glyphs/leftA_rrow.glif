@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="leftArrow" format="2">
+  <advance width="688"/>
+  <unicode hex="2190"/>
+  <outline>
+    <component base="rightArrow" xScale="-1" xOffset="688"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>=|rightArrow</string>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>=|rightArrow</string>
+    </dict>
+  </lib>
+</glyph>

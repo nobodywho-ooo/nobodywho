@@ -1,0 +1,47 @@
+{
+glyphname = periodcentered;
+layers = (
+{
+layerId = "8007C042-6FBA-4E49-99B8-8B738A4EBE86";
+shapes = (
+{
+pos = (92,218);
+ref = period;
+}
+);
+width = 376;
+},
+{
+layerId = "ADDE491E-C0C4-4659-943C-53377B387F47";
+shapes = (
+{
+pos = (70,196);
+ref = period;
+}
+);
+width = 376;
+},
+{
+layerId = "0CF550E6-48ED-4BA5-8C66-195B58FED074";
+shapes = (
+{
+pos = (52,184);
+ref = period;
+}
+);
+width = 376;
+},
+{
+layerId = m004;
+shapes = (
+{
+pos = (92,218);
+ref = period;
+}
+);
+width = 376;
+}
+);
+metricRight = "=|periodcentered";
+unicode = 183;
+}

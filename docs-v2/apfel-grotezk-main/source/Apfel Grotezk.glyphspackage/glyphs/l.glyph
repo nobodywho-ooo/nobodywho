@@ -1,0 +1,200 @@
+{
+color = 10;
+glyphname = l;
+kernLeft = l;
+kernRight = l;
+layers = (
+{
+anchors = (
+{
+name = bottom;
+pos = (104,0);
+},
+{
+name = top;
+pos = (104,660);
+},
+{
+name = topright;
+pos = (184,500);
+}
+);
+background = {
+hints = (
+{
+horizontal = 1;
+place = (0,21);
+target = up;
+type = BottomGhost;
+},
+{
+horizontal = 1;
+place = (741,-20);
+target = down;
+type = TopGhost;
+},
+{
+place = (67,89);
+type = Stem;
+}
+);
+shapes = (
+{
+closed = 1;
+nodes = (
+(64,0,l),
+(144,0,l),
+(144,680,l),
+(64,680,l)
+);
+}
+);
+};
+layerId = "8007C042-6FBA-4E49-99B8-8B738A4EBE86";
+shapes = (
+{
+closed = 1;
+nodes = (
+(144,0,l),
+(144,680,l),
+(64,680,l),
+(64,0,l)
+);
+}
+);
+width = 208;
+},
+{
+anchors = (
+{
+name = bottom;
+pos = (120,0);
+},
+{
+name = top;
+pos = (120,664);
+},
+{
+name = topright;
+pos = (230,500);
+}
+);
+layerId = "ADDE491E-C0C4-4659-943C-53377B387F47";
+shapes = (
+{
+closed = 1;
+nodes = (
+(190,0,l),
+(190,680,l),
+(50,680,l),
+(50,0,l)
+);
+}
+);
+width = 240;
+},
+{
+anchors = (
+{
+name = bottom;
+pos = (142,0);
+},
+{
+name = top;
+pos = (142,668);
+},
+{
+name = topright;
+pos = (282,500);
+}
+);
+layerId = "0CF550E6-48ED-4BA5-8C66-195B58FED074";
+shapes = (
+{
+closed = 1;
+nodes = (
+(242,0,l),
+(242,680,l),
+(42,680,l),
+(42,0,l)
+);
+}
+);
+width = 284;
+},
+{
+anchors = (
+{
+name = bottom;
+pos = (104,0);
+},
+{
+name = top;
+pos = (104,660);
+},
+{
+name = topright;
+pos = (184,500);
+}
+);
+background = {
+hints = (
+{
+horizontal = 1;
+place = (0,21);
+target = up;
+type = BottomGhost;
+},
+{
+horizontal = 1;
+place = (741,-20);
+target = down;
+type = TopGhost;
+},
+{
+place = (67,89);
+type = Stem;
+}
+);
+shapes = (
+{
+closed = 1;
+nodes = (
+(64,0,l),
+(144,0,l),
+(144,680,l),
+(64,680,l)
+);
+}
+);
+};
+layerId = m004;
+shapes = (
+{
+closed = 1;
+nodes = (
+(144,0,l),
+(144,680,l),
+(64,680,l),
+(64,0,l)
+);
+},
+{
+pos = (4,-194);
+ref = inkstem_L;
+},
+{
+pos = (4,320);
+ref = inkstem_M;
+},
+{
+pos = (4,194);
+ref = inkstem_S;
+}
+);
+width = 208;
+}
+);
+metricRight = "=|l";
+unicode = 108;
+}

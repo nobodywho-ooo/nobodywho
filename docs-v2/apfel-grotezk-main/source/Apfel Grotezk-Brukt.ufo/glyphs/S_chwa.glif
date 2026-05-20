@@ -1,0 +1,98 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="Schwa" format="2">
+  <advance width="672"/>
+  <unicode hex="018F"/>
+  <outline>
+    <contour>
+      <point x="336" y="-12" type="curve" smooth="yes"/>
+      <point x="511" y="-12"/>
+      <point x="636" y="128"/>
+      <point x="636" y="324" type="curve" smooth="yes"/>
+      <point x="636" y="521"/>
+      <point x="511" y="662"/>
+      <point x="336" y="662" type="curve" smooth="yes"/>
+      <point x="204" y="662"/>
+      <point x="87" y="581"/>
+      <point x="56" y="468" type="curve"/>
+      <point x="152" y="436" type="line"/>
+      <point x="170" y="524"/>
+      <point x="248" y="580"/>
+      <point x="340" y="580" type="curve" smooth="yes"/>
+      <point x="438" y="580"/>
+      <point x="510" y="518"/>
+      <point x="537" y="416" type="curve" smooth="yes"/>
+      <point x="540" y="406"/>
+      <point x="551" y="397"/>
+      <point x="562" y="395" type="curve" smooth="yes"/>
+      <point x="574" y="393"/>
+      <point x="581" y="381"/>
+      <point x="581" y="368" type="curve" smooth="yes"/>
+      <point x="581" y="352"/>
+      <point x="569" y="340"/>
+      <point x="553" y="340" type="curve" smooth="yes"/>
+      <point x="541" y="340"/>
+      <point x="531" y="347"/>
+      <point x="527" y="357" type="curve" smooth="yes"/>
+      <point x="525" y="364"/>
+      <point x="519" y="368"/>
+      <point x="511" y="368" type="curve" smooth="yes"/>
+      <point x="38" y="368" type="line"/>
+      <point x="18" y="144"/>
+      <point x="148" y="-12"/>
+    </contour>
+    <contour>
+      <point x="338" y="72" type="curve" smooth="yes"/>
+      <point x="231" y="72"/>
+      <point x="154" y="139"/>
+      <point x="133" y="248" type="curve" smooth="yes"/>
+      <point x="131" y="257"/>
+      <point x="124" y="259"/>
+      <point x="116" y="260" type="curve" smooth="yes"/>
+      <point x="102" y="262"/>
+      <point x="92" y="273"/>
+      <point x="92" y="288" type="curve" smooth="yes"/>
+      <point x="92" y="304"/>
+      <point x="104" y="316"/>
+      <point x="120" y="316" type="curve" smooth="yes"/>
+      <point x="132" y="316"/>
+      <point x="142" y="309"/>
+      <point x="146" y="299" type="curve" smooth="yes"/>
+      <point x="148" y="292"/>
+      <point x="154" y="288"/>
+      <point x="162" y="288" type="curve" smooth="yes"/>
+      <point x="511" y="288" type="line" smooth="yes"/>
+      <point x="519" y="288"/>
+      <point x="525" y="292"/>
+      <point x="527" y="299" type="curve" smooth="yes"/>
+      <point x="531" y="309"/>
+      <point x="541" y="316"/>
+      <point x="553" y="316" type="curve" smooth="yes"/>
+      <point x="569" y="316"/>
+      <point x="581" y="304"/>
+      <point x="581" y="288" type="curve" smooth="yes"/>
+      <point x="581" y="273"/>
+      <point x="571" y="262"/>
+      <point x="557" y="260" type="curve" smooth="yes"/>
+      <point x="549" y="259"/>
+      <point x="542" y="254"/>
+      <point x="540" y="247" type="curve" smooth="yes"/>
+      <point x="518" y="141"/>
+      <point x="446" y="72"/>
+    </contour>
+    <component base="inkstem_S" xOffset="42" yOffset="-128"/>
+    <component base="inkcurve_L" xScale="0" xyScale="1" yScale="0" yxScale="-1" xOffset="616" yOffset="-71"/>
+    <component base="inkstem_S" yScale="-1" xOffset="24" yOffset="752"/>
+    <component base="inkstem_S" xOffset="429" yOffset="-128"/>
+    <component base="inkcurve_L" xScale="0" xyScale="-1" yScale="0" yxScale="-1" xOffset="618" yOffset="722"/>
+    <component base="inkstem_S" yScale="-1" xOffset="428" yOffset="780"/>
+    <component base="inkstem_M" xScale="0" xyScale="-1" yScale="0" yxScale="1" xOffset="60" yOffset="428"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>O</string>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>O</string>
+    </dict>
+  </lib>
+</glyph>

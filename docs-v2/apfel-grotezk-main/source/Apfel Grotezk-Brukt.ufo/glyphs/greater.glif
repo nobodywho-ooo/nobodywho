@@ -1,0 +1,44 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="greater" format="2">
+  <advance width="600"/>
+  <unicode hex="003E"/>
+  <outline>
+    <contour>
+      <point x="100" y="112" type="line"/>
+      <point x="520" y="268" type="line"/>
+      <point x="520" y="360" type="line"/>
+      <point x="102" y="524" type="line"/>
+      <point x="94" y="436" type="line"/>
+      <point x="363" y="336" type="line" smooth="yes"/>
+      <point x="375" y="331"/>
+      <point x="388" y="333"/>
+      <point x="401" y="340" type="curve" smooth="yes"/>
+      <point x="405" y="342"/>
+      <point x="410" y="344"/>
+      <point x="416" y="344" type="curve" smooth="yes"/>
+      <point x="432" y="344"/>
+      <point x="444" y="332"/>
+      <point x="444" y="316" type="curve" smooth="yes"/>
+      <point x="444" y="300"/>
+      <point x="432" y="288"/>
+      <point x="416" y="288" type="curve" smooth="yes"/>
+      <point x="410" y="288"/>
+      <point x="405" y="290"/>
+      <point x="401" y="292" type="curve" smooth="yes"/>
+      <point x="388" y="299"/>
+      <point x="373" y="301"/>
+      <point x="361" y="297" type="curve" smooth="yes"/>
+      <point x="92" y="204" type="line"/>
+    </contour>
+    <component base="inkstem_M" xScale="0.3569" xyScale="0.9342" yScale="-0.3569" yxScale="0.9342" xOffset="-117" yOffset="456"/>
+    <component base="inkstem_S" yScale="-1" xOffset="50" yOffset="428"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>equal</string>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>minus</string>
+    </dict>
+  </lib>
+</glyph>

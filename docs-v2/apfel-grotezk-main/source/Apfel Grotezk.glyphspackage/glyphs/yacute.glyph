@@ -1,0 +1,62 @@
+{
+glyphname = yacute;
+kernLeft = v;
+kernRight = v;
+layers = (
+{
+layerId = "8007C042-6FBA-4E49-99B8-8B738A4EBE86";
+shapes = (
+{
+ref = y;
+},
+{
+pos = (-60,0);
+ref = acutecomb;
+}
+);
+width = 472;
+},
+{
+layerId = "ADDE491E-C0C4-4659-943C-53377B387F47";
+shapes = (
+{
+ref = y;
+},
+{
+pos = (-44,0);
+ref = acutecomb;
+}
+);
+width = 508;
+},
+{
+layerId = "0CF550E6-48ED-4BA5-8C66-195B58FED074";
+shapes = (
+{
+ref = y;
+},
+{
+pos = (-28,0);
+ref = acutecomb;
+}
+);
+width = 542;
+},
+{
+layerId = m004;
+shapes = (
+{
+ref = y;
+},
+{
+pos = (-60,0);
+ref = acutecomb;
+}
+);
+width = 472;
+}
+);
+metricLeft = y;
+metricRight = y;
+unicode = 253;
+}

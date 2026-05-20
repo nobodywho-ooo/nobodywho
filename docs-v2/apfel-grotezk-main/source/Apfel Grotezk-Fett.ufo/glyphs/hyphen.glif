@@ -1,0 +1,21 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="hyphen" format="2">
+  <advance width="404"/>
+  <unicode hex="002D"/>
+  <outline>
+    <contour>
+      <point x="20" y="200" type="line"/>
+      <point x="384" y="200" type="line"/>
+      <point x="384" y="312" type="line"/>
+      <point x="20" y="312" type="line"/>
+    </contour>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>=|</string>
+      <key>public.markColor</key>
+      <string>0.75,0.75,0.75,1</string>
+    </dict>
+  </lib>
+</glyph>

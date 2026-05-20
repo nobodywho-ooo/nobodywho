@@ -1,0 +1,22 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="asciicircum" format="2">
+  <advance width="400"/>
+  <unicode hex="005E"/>
+  <outline>
+    <contour>
+      <point x="12" y="346" type="line"/>
+      <point x="152" y="320" type="line"/>
+      <point x="200" y="524" type="line"/>
+      <point x="248" y="320" type="line"/>
+      <point x="388" y="346" type="line"/>
+      <point x="264" y="650" type="line"/>
+      <point x="136" y="650" type="line"/>
+    </contour>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>=|asciicircum</string>
+    </dict>
+  </lib>
+</glyph>

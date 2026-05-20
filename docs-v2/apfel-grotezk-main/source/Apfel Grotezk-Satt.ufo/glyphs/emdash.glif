@@ -1,0 +1,21 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="emdash" format="2">
+  <advance width="860"/>
+  <unicode hex="2014"/>
+  <outline>
+    <contour>
+      <point x="8" y="184" type="line"/>
+      <point x="852" y="184" type="line"/>
+      <point x="852" y="328" type="line"/>
+      <point x="8" y="328" type="line"/>
+    </contour>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>=hyphen-8</string>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>=hyphen-8</string>
+    </dict>
+  </lib>
+</glyph>

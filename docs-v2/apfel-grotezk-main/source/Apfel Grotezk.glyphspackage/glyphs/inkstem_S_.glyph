@@ -1,0 +1,41 @@
+{
+export = 0;
+glyphname = inkstem_S;
+layers = (
+{
+layerId = "8007C042-6FBA-4E49-99B8-8B738A4EBE86";
+width = 600;
+},
+{
+layerId = "ADDE491E-C0C4-4659-943C-53377B387F47";
+width = 600;
+},
+{
+layerId = "0CF550E6-48ED-4BA5-8C66-195B58FED074";
+width = 600;
+},
+{
+layerId = m004;
+shapes = (
+{
+closed = 1;
+nodes = (
+(84,222,o),
+(72,234,o),
+(72,250,cs),
+(72,266,o),
+(84,278,o),
+(100,278,cs),
+(116,278,o),
+(128,266,o),
+(128,250,cs),
+(128,234,o),
+(116,222,o),
+(100,222,cs)
+);
+}
+);
+width = 200;
+}
+);
+}

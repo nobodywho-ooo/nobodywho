@@ -1,0 +1,22 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="fraction" format="2">
+  <advance width="764"/>
+  <unicode hex="2044"/>
+  <outline>
+    <contour>
+      <point x="172" y="-12" type="line"/>
+      <point x="644" y="620" type="line"/>
+      <point x="594" y="662" type="line"/>
+      <point x="120" y="32" type="line"/>
+    </contour>
+    <component base="inkstem_M" xScale="0.796" xyScale="-0.6053" yScale="0.796" yxScale="0.6053" xOffset="322" yOffset="415"/>
+    <component base="inkstem_S" xScale="0.794" xyScale="-0.608" yScale="0.794" yxScale="0.608" xOffset="-52" yOffset="-83"/>
+    <component base="inkstem_L" xScale="0.803" xyScale="-0.596" yScale="0.803" yxScale="0.596" xOffset="176" yOffset="214"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>=|</string>
+    </dict>
+  </lib>
+</glyph>

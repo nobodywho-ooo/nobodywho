@@ -1,0 +1,35 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="r" format="2">
+  <advance width="400"/>
+  <unicode hex="0072"/>
+  <note>
+Rivedere orecchio
+</note>
+  <anchor x="144" y="0" name="bottom"/>
+  <anchor x="214" y="500" name="top"/>
+  <outline>
+    <contour>
+      <point x="40" y="0" type="line"/>
+      <point x="240" y="0" type="line"/>
+      <point x="240" y="220" type="line" smooth="yes"/>
+      <point x="240" y="292"/>
+      <point x="304" y="316"/>
+      <point x="364" y="288" type="curve"/>
+      <point x="396" y="500" type="line"/>
+      <point x="324" y="528"/>
+      <point x="240" y="504"/>
+      <point x="220" y="432" type="curve"/>
+      <point x="240" y="432" type="line"/>
+      <point x="188" y="500" type="line"/>
+      <point x="40" y="500" type="line"/>
+    </contour>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>n</string>
+      <key>public.markColor</key>
+      <string>0.75,0.75,0.75,1</string>
+    </dict>
+  </lib>
+</glyph>

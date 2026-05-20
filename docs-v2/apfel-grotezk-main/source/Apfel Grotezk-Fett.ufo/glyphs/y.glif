@@ -1,0 +1,32 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="y" format="2">
+  <advance width="508"/>
+  <unicode hex="0079"/>
+  <anchor x="256" y="500" name="top"/>
+  <outline>
+    <contour>
+      <point x="144" y="-212" type="line"/>
+      <point x="212" y="-209"/>
+      <point x="267" y="-156"/>
+      <point x="298" y="-72" type="curve" smooth="yes"/>
+      <point x="508" y="500" type="line"/>
+      <point x="354" y="500" type="line"/>
+      <point x="262" y="168" type="line"/>
+      <point x="156" y="500" type="line"/>
+      <point x="0" y="500" type="line"/>
+      <point x="198" y="16" type="line"/>
+      <point x="182" y="-20" type="line" smooth="yes"/>
+      <point x="165" y="-57"/>
+      <point x="122" y="-84"/>
+      <point x="78" y="-84" type="curve"/>
+    </contour>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>v</string>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>v</string>
+    </dict>
+  </lib>
+</glyph>

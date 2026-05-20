@@ -1,0 +1,26 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="jdotless" format="2">
+  <advance width="296"/>
+  <unicode hex="0237"/>
+  <anchor x="156" y="500" name="top"/>
+  <outline>
+    <contour>
+      <point x="66" y="-232" type="line"/>
+      <point x="178" y="-218"/>
+      <point x="256" y="-140"/>
+      <point x="256" y="-44" type="curve" smooth="yes"/>
+      <point x="256" y="500" type="line"/>
+      <point x="56" y="500" type="line"/>
+      <point x="56" y="32" type="line" smooth="yes"/>
+      <point x="56" y="-15"/>
+      <point x="26" y="-48"/>
+      <point x="-20" y="-52" type="curve"/>
+    </contour>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>idotless</string>
+    </dict>
+  </lib>
+</glyph>

@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="second" format="2">
+  <advance width="528"/>
+  <unicode hex="2033"/>
+  <outline>
+    <component base="minute" xOffset="244"/>
+    <component base="minute"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>minute</string>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>minute</string>
+    </dict>
+  </lib>
+</glyph>

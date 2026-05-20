@@ -1,0 +1,48 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="V" format="2">
+  <advance width="576"/>
+  <unicode hex="0056"/>
+  <outline>
+    <contour>
+      <point x="242" y="0" type="line"/>
+      <point x="338" y="0" type="line"/>
+      <point x="572" y="650" type="line"/>
+      <point x="482" y="650" type="line"/>
+      <point x="305" y="140" type="line" smooth="yes"/>
+      <point x="303" y="134"/>
+      <point x="305" y="128"/>
+      <point x="310" y="124" type="curve" smooth="yes"/>
+      <point x="316" y="119"/>
+      <point x="320" y="111"/>
+      <point x="320" y="102" type="curve" smooth="yes"/>
+      <point x="320" y="86"/>
+      <point x="308" y="74"/>
+      <point x="292" y="74" type="curve" smooth="yes"/>
+      <point x="276" y="74"/>
+      <point x="264" y="86"/>
+      <point x="264" y="102" type="curve" smooth="yes"/>
+      <point x="264" y="111"/>
+      <point x="267" y="119"/>
+      <point x="274" y="124" type="curve" smooth="yes"/>
+      <point x="279" y="128"/>
+      <point x="280" y="134"/>
+      <point x="278" y="140" type="curve" smooth="yes"/>
+      <point x="96" y="650" type="line"/>
+      <point x="4" y="650" type="line"/>
+    </contour>
+    <component base="inkstem_S" xOffset="100" yOffset="-14"/>
+    <component base="inkstem_M" xScale="-0.9385" xyScale="-0.3453" yScale="0.9385" yxScale="-0.3453" xOffset="333" yOffset="166"/>
+    <component base="inkstem_S" xOffset="280" yOffset="-14"/>
+    <component base="inkstem_S" xOffset="-30" yOffset="344"/>
+    <component base="inkstem_M" xScale="0.9385" xyScale="-0.3453" yScale="0.9385" yxScale="0.3453" xOffset="246" yOffset="166"/>
+    <component base="inkstem_S" xOffset="407" yOffset="344"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>=|</string>
+      <key>public.markColor</key>
+      <string>0.75,0.75,0.75,1</string>
+    </dict>
+  </lib>
+</glyph>

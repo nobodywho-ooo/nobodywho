@@ -1,0 +1,57 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="x" format="2">
+  <advance width="484"/>
+  <unicode hex="0078"/>
+  <outline>
+    <contour>
+      <point x="2" y="0" type="line"/>
+      <point x="106" y="0" type="line"/>
+      <point x="216" y="153" type="line" smooth="yes"/>
+      <point x="229" y="171"/>
+      <point x="214" y="172"/>
+      <point x="214" y="190" type="curve" smooth="yes"/>
+      <point x="214" y="206"/>
+      <point x="226" y="218"/>
+      <point x="242" y="218" type="curve" smooth="yes"/>
+      <point x="258" y="218"/>
+      <point x="270" y="206"/>
+      <point x="270" y="190" type="curve" smooth="yes"/>
+      <point x="270" y="172"/>
+      <point x="256" y="171"/>
+      <point x="270" y="153" type="curve" smooth="yes"/>
+      <point x="384" y="0" type="line"/>
+      <point x="482" y="0" type="line"/>
+      <point x="290" y="256" type="line"/>
+      <point x="466" y="500" type="line"/>
+      <point x="366" y="500" type="line"/>
+      <point x="268" y="361" type="line" smooth="yes"/>
+      <point x="256" y="343"/>
+      <point x="270" y="342"/>
+      <point x="270" y="324" type="curve" smooth="yes"/>
+      <point x="270" y="308"/>
+      <point x="258" y="296"/>
+      <point x="242" y="296" type="curve" smooth="yes"/>
+      <point x="226" y="296"/>
+      <point x="214" y="308"/>
+      <point x="214" y="324" type="curve" smooth="yes"/>
+      <point x="214" y="342"/>
+      <point x="228" y="343"/>
+      <point x="214" y="361" type="curve" smooth="yes"/>
+      <point x="110" y="500" type="line"/>
+      <point x="10" y="500" type="line"/>
+      <point x="192" y="256" type="line"/>
+    </contour>
+    <component base="inkstem_S" xOffset="-6" yOffset="-194"/>
+    <component base="inkstem_S" xOffset="290" yOffset="-194"/>
+    <component base="inkstem_M" xScale="0.8003" xyScale="0.5997" yScale="0.8003" yxScale="-0.5997" xOffset="208" yOffset="136"/>
+    <component base="inkstem_M" xScale="0.8155" xyScale="-0.5787" yScale="0.8155" yxScale="0.5787" xOffset="114" yOffset="249"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>=|</string>
+      <key>public.markColor</key>
+      <string>0.75,0.75,0.75,1</string>
+    </dict>
+  </lib>
+</glyph>

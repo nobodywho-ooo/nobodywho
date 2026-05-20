@@ -1,0 +1,24 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="emdash" format="2">
+  <advance width="828"/>
+  <unicode hex="2014"/>
+  <outline>
+    <contour>
+      <point x="16" y="219" type="line"/>
+      <point x="812" y="219" type="line"/>
+      <point x="812" y="297" type="line"/>
+      <point x="16" y="297" type="line"/>
+    </contour>
+    <component base="inkstem_L" xScale="0" xyScale="-1" yScale="0" yxScale="1" xOffset="104" yOffset="358"/>
+    <component base="inkstem_S" xScale="0" xyScale="-1" yScale="0" yxScale="1" xOffset="-170" yOffset="358"/>
+    <component base="inkstem_S" xScale="0" xyScale="-1" yScale="0" yxScale="1" xOffset="506" yOffset="358"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>=hyphen-8</string>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>=hyphen-8</string>
+    </dict>
+  </lib>
+</glyph>

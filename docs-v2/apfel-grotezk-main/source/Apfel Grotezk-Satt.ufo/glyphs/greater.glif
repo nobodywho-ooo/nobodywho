@@ -1,0 +1,24 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="greater" format="2">
+  <advance width="600"/>
+  <unicode hex="003E"/>
+  <outline>
+    <contour>
+      <point x="156" y="74" type="line"/>
+      <point x="520" y="228" type="line"/>
+      <point x="520" y="408" type="line"/>
+      <point x="158" y="572" type="line"/>
+      <point x="94" y="376" type="line"/>
+      <point x="344" y="324" type="line"/>
+      <point x="92" y="272" type="line"/>
+    </contour>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>equal</string>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>minus</string>
+    </dict>
+  </lib>
+</glyph>

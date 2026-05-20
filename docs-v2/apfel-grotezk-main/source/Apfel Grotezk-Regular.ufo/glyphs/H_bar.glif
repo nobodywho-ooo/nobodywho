@@ -1,0 +1,22 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="Hbar" format="2">
+  <advance width="668"/>
+  <unicode hex="0126"/>
+  <outline>
+    <contour>
+      <point x="8" y="510" type="line"/>
+      <point x="660" y="510" type="line"/>
+      <point x="660" y="582" type="line"/>
+      <point x="8" y="582" type="line"/>
+    </contour>
+    <component base="H" xOffset="4"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>Eth</string>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>=|Eth</string>
+    </dict>
+  </lib>
+</glyph>

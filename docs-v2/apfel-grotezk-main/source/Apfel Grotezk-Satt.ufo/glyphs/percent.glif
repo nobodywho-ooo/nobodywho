@@ -1,0 +1,13 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="percent" format="2">
+  <advance width="788"/>
+  <unicode hex="0025"/>
+  <note>
+barra spessa
+</note>
+  <outline>
+    <component base="degree"/>
+    <component base="degree" xOffset="416" yOffset="-338"/>
+    <component base="fraction"/>
+  </outline>
+</glyph>

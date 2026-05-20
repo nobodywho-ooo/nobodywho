@@ -1,0 +1,90 @@
+{
+glyphname = exclam;
+layers = (
+{
+layerId = "8007C042-6FBA-4E49-99B8-8B738A4EBE86";
+shapes = (
+{
+closed = 1;
+nodes = (
+(134,192,l),
+(142,680,l),
+(58,680,l),
+(66,192,l)
+);
+},
+{
+pos = (4,0);
+ref = period;
+}
+);
+width = 200;
+},
+{
+layerId = "ADDE491E-C0C4-4659-943C-53377B387F47";
+shapes = (
+{
+closed = 1;
+nodes = (
+(174,224,l),
+(194,680,l),
+(46,680,l),
+(66,224,l)
+);
+},
+{
+ref = period;
+}
+);
+width = 236;
+},
+{
+layerId = "0CF550E6-48ED-4BA5-8C66-195B58FED074";
+shapes = (
+{
+closed = 1;
+nodes = (
+(200,256,l),
+(232,680,l),
+(32,680,l),
+(64,256,l)
+);
+},
+{
+pos = (-4,0);
+ref = period;
+}
+);
+width = 264;
+},
+{
+layerId = m004;
+shapes = (
+{
+closed = 1;
+nodes = (
+(134,192,l),
+(142,680,l),
+(58,680,l),
+(66,192,l)
+);
+},
+{
+pos = (4,0);
+ref = period;
+},
+{
+pos = (0,320);
+ref = inkstem_M;
+},
+{
+pos = (0,194);
+ref = inkstem_S;
+}
+);
+width = 200;
+}
+);
+metricRight = "=|";
+unicode = 33;
+}

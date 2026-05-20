@@ -1,0 +1,31 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="W" format="2">
+  <advance width="792"/>
+  <unicode hex="0057"/>
+  <note>
+make alternate
+</note>
+  <outline>
+    <contour>
+      <point x="88" y="0" type="line"/>
+      <point x="334" y="0" type="line"/>
+      <point x="396" y="492" type="line"/>
+      <point x="460" y="0" type="line"/>
+      <point x="696" y="0" type="line"/>
+      <point x="764" y="650" type="line"/>
+      <point x="550" y="650" type="line"/>
+      <point x="524" y="192" type="line"/>
+      <point x="458" y="648" type="line"/>
+      <point x="334" y="648" type="line"/>
+      <point x="276" y="192" type="line"/>
+      <point x="242" y="650" type="line"/>
+      <point x="24" y="650" type="line"/>
+    </contour>
+  </outline>
+  <lib>
+    <dict>
+      <key>public.markColor</key>
+      <string>0.75,0.75,0.75,1</string>
+    </dict>
+  </lib>
+</glyph>

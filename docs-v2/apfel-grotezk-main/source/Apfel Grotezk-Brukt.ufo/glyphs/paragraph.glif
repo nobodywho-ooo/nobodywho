@@ -1,0 +1,55 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="paragraph" format="2">
+  <advance width="544"/>
+  <unicode hex="00B6"/>
+  <outline>
+    <contour>
+      <point x="252" y="-200" type="line"/>
+      <point x="332" y="-200" type="line"/>
+      <point x="332" y="650" type="line"/>
+      <point x="220" y="650" type="line" smooth="yes"/>
+      <point x="104" y="650"/>
+      <point x="20" y="566"/>
+      <point x="20" y="450" type="curve" smooth="yes"/>
+      <point x="20" y="336"/>
+      <point x="93" y="252"/>
+      <point x="198" y="241" type="curve" smooth="yes"/>
+      <point x="211" y="240"/>
+      <point x="221" y="244"/>
+      <point x="228" y="255" type="curve" smooth="yes"/>
+      <point x="233" y="263"/>
+      <point x="242" y="268"/>
+      <point x="252" y="268" type="curve" smooth="yes"/>
+      <point x="268" y="268"/>
+      <point x="280" y="256"/>
+      <point x="280" y="240" type="curve" smooth="yes"/>
+      <point x="280" y="230"/>
+      <point x="275" y="221"/>
+      <point x="267" y="216" type="curve" smooth="yes"/>
+      <point x="258" y="210"/>
+      <point x="252" y="200"/>
+      <point x="252" y="188" type="curve" smooth="yes"/>
+    </contour>
+    <contour>
+      <point x="400" y="-200" type="line"/>
+      <point x="480" y="-200" type="line"/>
+      <point x="480" y="650" type="line"/>
+      <point x="400" y="650" type="line"/>
+    </contour>
+    <component base="inkstem_S" xOffset="340" yOffset="-394"/>
+    <component base="inkstem_L" xOffset="340" yOffset="-194"/>
+    <component base="inkstem_M" xOffset="340" yOffset="290"/>
+    <component base="inkstem_M" xOffset="192" yOffset="-394"/>
+    <component base="inkstem_S" xOffset="192" yOffset="-194"/>
+    <component base="inkstem_M" xScale="0" xyScale="-1" yScale="0" yxScale="1" xOffset="-176" yOffset="550"/>
+    <component base="inkstem_S" xOffset="152" yOffset="344"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>=|P</string>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>l</string>
+    </dict>
+  </lib>
+</glyph>

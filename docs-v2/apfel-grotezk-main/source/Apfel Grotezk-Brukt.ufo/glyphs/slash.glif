@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="slash" format="2">
+  <advance width="244"/>
+  <unicode hex="002F"/>
+  <outline>
+    <contour>
+      <point x="72" y="-204" type="line"/>
+      <point x="240" y="672" type="line"/>
+      <point x="162" y="684" type="line"/>
+      <point x="-8" y="-192" type="line"/>
+    </contour>
+    <component base="inkstem_L" xScale="-0.9817" xyScale="0.1905" yScale="-0.9817" yxScale="-0.1905" xOffset="249" yOffset="398"/>
+    <component base="inkstem_M" xScale="-0.9866" xyScale="0.1631" yScale="-0.9866" yxScale="-0.1631" xOffset="192" yOffset="141"/>
+    <component base="inkstem_S" xOffset="90" yOffset="373"/>
+    <component base="inkstem_M" xScale="-0.9802" xyScale="0.1979" yScale="-0.9802" yxScale="-0.1979" xOffset="304" yOffset="671"/>
+  </outline>
+</glyph>

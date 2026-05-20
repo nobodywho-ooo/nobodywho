@@ -1,0 +1,20 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="Lslash" format="2">
+  <advance width="510"/>
+  <unicode hex="0141"/>
+  <outline>
+    <contour>
+      <point x="4" y="264" type="line"/>
+      <point x="368" y="360" type="line"/>
+      <point x="368" y="468" type="line"/>
+      <point x="4" y="372" type="line"/>
+    </contour>
+    <component base="L" xOffset="4"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>Eth</string>
+    </dict>
+  </lib>
+</glyph>

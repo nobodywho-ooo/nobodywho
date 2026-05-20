@@ -1,0 +1,23 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="hyphen" format="2">
+  <advance width="396"/>
+  <unicode hex="002D"/>
+  <outline>
+    <contour>
+      <point x="24" y="219" type="line"/>
+      <point x="372" y="219" type="line"/>
+      <point x="372" y="297" type="line"/>
+      <point x="24" y="297" type="line"/>
+    </contour>
+    <component base="inkstem_S" xScale="0" xyScale="-1" yScale="0" yxScale="1" xOffset="-170" yOffset="358"/>
+    <component base="inkstem_S" xScale="0" xyScale="-1" yScale="0" yxScale="1" xOffset="66" yOffset="358"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>=|</string>
+      <key>public.markColor</key>
+      <string>0.75,0.75,0.75,1</string>
+    </dict>
+  </lib>
+</glyph>
