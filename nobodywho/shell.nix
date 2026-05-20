@@ -20,10 +20,19 @@ pkgs.mkShell {
     # without us having to write an Emscripten config file.
     #
     # Pointing at a locally-built patched cli at /tmp/wbg-patched/bin/
-    # while we iterate on wasm-bindgen interpreter fixes. Source clone
-    # lives at /Users/user/git/wasm-bindgen (branch 0.2.121 + local
-    # patches in crates/cli-support/src/interpreter/mod.rs). Once the
-    # patches land upstream, switch this back to the Nix-store cli:
+    # while the descriptor-interpreter fixes are out-of-tree. Source
+    # clone lives at /Users/user/git/wasm-bindgen on branch
+    # `emscripten-descriptor-fixes` (one commit on top of upstream main
+    # @ 49457f2). The same diff is checked into this repo as
+    # ../wasm-bindgen-cli-emscripten.patch — regenerate it from the
+    # branch if/when the patches change:
+    #   ( cd /Users/user/git/wasm-bindgen && git format-patch -1 HEAD \
+    #     --stdout > /Users/user/git/nobodywho/wasm-bindgen-cli-emscripten.patch )
+    # Build/install the patched cli:
+    #   ( cd /Users/user/git/wasm-bindgen && cargo install --path \
+    #     crates/cli --root /tmp/wbg-patched --locked )
+    # Once the patches land upstream, switch this back to the
+    # Nix-store cli:
     #   EM_WASM_BINDGEN = "${pkgs.wasm-bindgen-cli}/bin/wasm-bindgen";
     EM_WASM_BINDGEN = "/tmp/wbg-patched/bin/wasm-bindgen";
     LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
