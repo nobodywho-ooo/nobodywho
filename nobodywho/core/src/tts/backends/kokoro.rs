@@ -2,17 +2,19 @@
 //!
 //! Pipeline: text → espeak IPA → phoneme IDs → ONNX → 24 kHz waveform.
 //!
-//! Each voice is a `voices/<voice>.safetensors` file holding one `"style"`
-//! tensor of shape `[rows, 256]`. Row `i` is the conditioning vector for an
-//! input of `i` un-padded phonemes; `max_phonemes = rows - 1`.
+//! Kokoro doesn't use a single "voice embedding" per voice — it ships a
+//! different style vector for each possible input length. So
+//! `voices/<voice>.safetensors` holds one `"style"` tensor of shape
+//! `[rows, 256]`, and at inference time we pick row `N` where
+//! `N == phoneme_ids.len()`. `max_input_phonemes = rows - 1` is the largest
+//! input length the voice has a style row for.
 
 use crate::errors::TtsError;
 use crate::tts::backend::TtsBackendImpl;
 use crate::tts::{ort_util, TtsDevice, DEFAULT_SAMPLE_RATE};
-use ort::session::{Session, SessionInputValue, SessionInputs};
-use ort::value::{Tensor, Value};
+use ort::session::Session;
+use ort::value::Tensor;
 use safetensors::tensor::{Dtype, SafeTensors};
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::Path;
 use tracing::{debug, info};
@@ -31,7 +33,7 @@ pub(in crate::tts) struct KokoroBackend {
     /// Maximum un-padded phoneme count. The ONNX run wraps the input in
     /// BOS/EOS (id 0) so the actual sequence is two tokens longer; the style
     /// row is indexed by un-padded count, so this caps at `style_rows - 1`.
-    max_phonemes: usize,
+    max_input_phonemes: usize,
 }
 
 impl KokoroBackend {
@@ -42,14 +44,14 @@ impl KokoroBackend {
         speed: f32,
         device: TtsDevice,
     ) -> Result<Self, TtsError> {
-        let session = ort_util::load_session(&model_dir.join("model.onnx"), device, false)?;
+        let session = ort_util::load_session(&model_dir.join("model.onnx"), device)?;
         let vocab = load_vocab(&model_dir.join("config.json"))?;
-        let (voice_style, max_phonemes) = load_voice(&model_dir.join("voices"), &voice)?;
+        let (voice_style, max_input_phonemes) = load_voice(&model_dir.join("voices"), &voice)?;
 
         info!(
             voice,
             language,
-            max_phonemes,
+            max_input_phonemes,
             vocab_len = vocab.len(),
             "Loaded Kokoro model"
         );
@@ -60,14 +62,13 @@ impl KokoroBackend {
             vocab,
             language,
             speed,
-            max_phonemes,
+            max_input_phonemes,
         })
     }
 }
 
 impl TtsBackendImpl for KokoroBackend {
     fn synthesize_raw(&mut self, text: &str) -> Result<(Vec<f32>, u32), TtsError> {
-        info!("Kokoro: synthesising");
         let phoneme_sentences =
             espeak_rs::text_to_phonemes(text, &self.language, None, true, false)
                 .map_err(|e| TtsError::Synthesis(format!("espeak phonemization failed: {e}")))?;
@@ -92,15 +93,14 @@ impl TtsBackendImpl for KokoroBackend {
                 "kokoro: no phonemes mapped to vocab IDs".into(),
             ));
         }
-        if phoneme_ids.len() > self.max_phonemes {
+        if phoneme_ids.len() > self.max_input_phonemes {
             return Err(TtsError::Synthesis(format!(
                 "kokoro input is {} phonemes; max {} (chunking not yet implemented)",
                 phoneme_ids.len(),
-                self.max_phonemes
+                self.max_input_phonemes
             )));
         }
 
-        // Style row indexed by un-padded phoneme count.
         let style_idx = phoneme_ids.len();
         let style: Vec<f32> =
             self.voice_style[style_idx * STYLE_DIM..(style_idx + 1) * STYLE_DIM].to_vec();
@@ -112,31 +112,16 @@ impl TtsBackendImpl for KokoroBackend {
         tokens.push(0);
         let token_len = tokens.len();
 
-        let token_tensor = Tensor::from_array(([1usize, token_len], tokens))
+        let tokens = Tensor::from_array(([1usize, token_len], tokens))
             .map_err(|e| TtsError::Synthesis(format!("tokens tensor: {e}")))?;
-        let style_tensor = Tensor::from_array(([1usize, STYLE_DIM], style))
+        let style = Tensor::from_array(([1usize, STYLE_DIM], style))
             .map_err(|e| TtsError::Synthesis(format!("style tensor: {e}")))?;
-        let speed_tensor = Tensor::from_array(([1usize], vec![self.speed as f64]))
+        let speed = Tensor::from_array(([1usize], vec![self.speed as f64]))
             .map_err(|e| TtsError::Synthesis(format!("speed tensor: {e}")))?;
-
-        let inputs: Vec<(Cow<'_, str>, SessionInputValue<'_>)> = vec![
-            (
-                Cow::Borrowed("input_ids"),
-                SessionInputValue::Owned(Value::from(token_tensor)),
-            ),
-            (
-                Cow::Borrowed("style"),
-                SessionInputValue::Owned(Value::from(style_tensor)),
-            ),
-            (
-                Cow::Borrowed("speed"),
-                SessionInputValue::Owned(Value::from(speed_tensor)),
-            ),
-        ];
 
         let outputs = self
             .session
-            .run(SessionInputs::from(inputs))
+            .run(ort::inputs!["input_ids" => tokens, "style" => style, "speed" => speed])
             .map_err(|e| TtsError::Synthesis(format!("ort inference failed: {e}")))?;
 
         let output = outputs[0]
@@ -156,8 +141,8 @@ impl TtsBackendImpl for KokoroBackend {
 
 /// Load a `<voice>.safetensors` file containing a single f32 tensor named
 /// `"style"` with shape `[rows, STYLE_DIM]`. Returns the matrix flattened
-/// row-major together with `max_phonemes` (= rows - 1).
-pub(super) fn load_voice(voices_dir: &Path, voice: &str) -> Result<(Vec<f32>, usize), TtsError> {
+/// row-major together with `max_input_phonemes` (= rows - 1).
+fn load_voice(voices_dir: &Path, voice: &str) -> Result<(Vec<f32>, usize), TtsError> {
     let path = voices_dir.join(format!("{voice}.safetensors"));
     let bytes = std::fs::read(&path)
         .map_err(|e| TtsError::Init(format!("kokoro: read voice {voice:?}: {e}")))?;
@@ -177,9 +162,9 @@ pub(super) fn load_voice(voices_dir: &Path, voice: &str) -> Result<(Vec<f32>, us
         )));
     }
     let shape = view.shape();
-    if shape.len() != 2 || shape[1] != STYLE_DIM {
+    if shape.len() != 2 || shape[1] != STYLE_DIM || shape[0] == 0 {
         return Err(TtsError::Init(format!(
-            "kokoro: voice {voice:?} `style` has shape {shape:?}, expected [rows, {STYLE_DIM}]"
+            "kokoro: voice {voice:?} `style` has shape {shape:?}, expected [rows, {STYLE_DIM}] with rows >= 1"
         )));
     }
     let rows = shape[0];
@@ -189,11 +174,11 @@ pub(super) fn load_voice(voices_dir: &Path, voice: &str) -> Result<(Vec<f32>, us
         .chunks_exact(4)
         .map(|c| f32::from_le_bytes(c.try_into().unwrap()))
         .collect();
-    Ok((floats, rows.saturating_sub(1)))
+    Ok((floats, rows - 1))
 }
 
 /// Read the IPA-character → token-id map from `config.json["vocab"]`.
-pub(super) fn load_vocab(config_path: &Path) -> Result<HashMap<String, i64>, TtsError> {
+fn load_vocab(config_path: &Path) -> Result<HashMap<String, i64>, TtsError> {
     let raw = std::fs::read_to_string(config_path)
         .map_err(|e| TtsError::Init(format!("kokoro: read {}: {e}", config_path.display())))?;
     let json: serde_json::Value = serde_json::from_str(&raw)

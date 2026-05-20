@@ -567,9 +567,14 @@ fn download_model_from_hf(
 ) -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
     let cache_dir = get_cache_dir()?;
     let target_path = cache_dir.join(owner).join(repo).join(filename);
-    let url = format!("https://huggingface.co/{owner}/{repo}/resolve/main/{filename}");
+    let url = hf_resolve_url(owner, repo, "main", filename);
     download_file(&url, &target_path, progress, headers)?;
     Ok(target_path)
+}
+
+/// HuggingFace Hub URL for resolving a file at a given revision.
+pub(crate) fn hf_resolve_url(owner: &str, repo: &str, revision: &str, path: &str) -> String {
+    format!("https://huggingface.co/{owner}/{repo}/resolve/{revision}/{path}")
 }
 
 /// Download a model from a generic HTTP(S) URL and return the local path to it.

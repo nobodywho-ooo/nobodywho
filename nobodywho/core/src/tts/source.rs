@@ -7,11 +7,11 @@
 
 use crate::errors::TtsError;
 use crate::llm::{
-    default_progress_callback, download_file, get_cache_dir, DownloadProgressCallback,
+    default_progress_callback, download_file, get_cache_dir, hf_resolve_url,
+    DownloadProgressCallback,
 };
 use std::path::{Path, PathBuf};
 
-const HF_BASE: &str = "https://huggingface.co";
 const DEFAULT_REVISION: &str = "main";
 
 #[derive(Clone, Debug)]
@@ -85,7 +85,8 @@ fn download_repo(
         .join(owner)
         .join(repo);
 
-    let tree_url = format!("{HF_BASE}/api/models/{owner}/{repo}/tree/{revision}?recursive=true");
+    let tree_url =
+        format!("https://huggingface.co/api/models/{owner}/{repo}/tree/{revision}?recursive=true");
     let body = ureq::get(&tree_url)
         .call()
         .map_err(|e| TtsError::Init(format!("tts: HF tree list failed ({owner}/{repo}): {e}")))?
@@ -109,7 +110,7 @@ fn download_repo(
     }
 
     for path in &files {
-        let url = format!("{HF_BASE}/{owner}/{repo}/resolve/{revision}/{path}");
+        let url = hf_resolve_url(owner, repo, revision, path);
         let target = cache_dir.join(path);
         download_file(&url, &target, progress, &[])
             .map_err(|e| TtsError::Init(format!("tts: download {path}: {e}")))?;

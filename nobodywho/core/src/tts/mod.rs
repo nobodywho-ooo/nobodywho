@@ -58,7 +58,7 @@ pub enum TtsDevice {
     Cuda,
 }
 
-pub(crate) fn ort_execution_providers(
+pub(super) fn ort_execution_providers(
     device: TtsDevice,
 ) -> Vec<ort::ep::ExecutionProviderDispatch> {
     match device {
@@ -74,7 +74,7 @@ pub(crate) fn ort_execution_providers(
     }
 }
 
-pub(crate) const DEFAULT_SAMPLE_RATE: u32 = 24000;
+pub(super) const DEFAULT_SAMPLE_RATE: u32 = 24000;
 
 type SynthRequest = (String, mpsc::Sender<Result<Vec<u8>, TtsError>>);
 

@@ -53,23 +53,16 @@ fn encode_wav(pcm: &[f32], sample_rate: u32) -> Result<Vec<u8>, TtsError> {
         sample_format: hound::SampleFormat::Int,
     };
 
-    let mut buffer = Vec::new();
+    let mut buffer = Vec::with_capacity(44 + pcm.len() * 2);
+    let wav_err = |e: hound::Error| TtsError::WavEncoding(e.to_string());
     {
         let cursor = std::io::Cursor::new(&mut buffer);
-        let mut writer = hound::WavWriter::new(cursor, spec)
-            .map_err(|e| TtsError::WavEncoding(e.to_string()))?;
-
+        let mut writer = hound::WavWriter::new(cursor, spec).map_err(wav_err)?;
         for &sample in pcm {
             let s = (sample * i16::MAX as f32).clamp(i16::MIN as f32, i16::MAX as f32) as i16;
-            writer
-                .write_sample(s)
-                .map_err(|e| TtsError::WavEncoding(e.to_string()))?;
+            writer.write_sample(s).map_err(wav_err)?;
         }
-
-        writer
-            .finalize()
-            .map_err(|e| TtsError::WavEncoding(e.to_string()))?;
+        writer.finalize().map_err(wav_err)?;
     }
-
     Ok(buffer)
 }
