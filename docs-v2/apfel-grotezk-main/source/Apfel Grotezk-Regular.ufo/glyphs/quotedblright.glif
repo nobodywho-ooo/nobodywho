@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="quotedblright" format="2">
+  <advance width="340"/>
+  <unicode hex="201D"/>
+  <outline>
+    <component base="comma" xOffset="-8" yOffset="530"/>
+    <component base="comma" xOffset="156" yOffset="530"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>=|quoteleft</string>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>=|quoteleft</string>
+    </dict>
+  </lib>
+</glyph>

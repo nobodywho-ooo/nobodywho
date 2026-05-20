@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="gbreve" format="2">
+  <advance width="592"/>
+  <unicode hex="011F"/>
+  <outline>
+    <component base="g"/>
+    <component base="brevecomb" xOffset="-8"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>g</string>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>g</string>
+    </dict>
+  </lib>
+</glyph>

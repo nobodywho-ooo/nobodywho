@@ -1,0 +1,23 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="inkcurve_S" format="2">
+  <advance width="200"/>
+  <outline>
+    <contour>
+      <point x="108" y="224" type="curve" smooth="yes"/>
+      <point x="87" y="224"/>
+      <point x="74" y="247"/>
+      <point x="74" y="278" type="curve" smooth="yes"/>
+      <point x="74" y="309"/>
+      <point x="87" y="332"/>
+      <point x="108" y="332" type="curve" smooth="yes"/>
+      <point x="126" y="332"/>
+      <point x="135" y="315"/>
+      <point x="128" y="298" type="curve" smooth="yes"/>
+      <point x="122" y="284"/>
+      <point x="122" y="272"/>
+      <point x="128" y="258" type="curve" smooth="yes"/>
+      <point x="135" y="241"/>
+      <point x="126" y="224"/>
+    </contour>
+  </outline>
+</glyph>

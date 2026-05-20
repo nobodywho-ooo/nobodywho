@@ -1,0 +1,60 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="n" format="2">
+  <advance width="554"/>
+  <unicode hex="006E"/>
+  <anchor x="276" y="0" name="bottom"/>
+  <anchor x="284" y="500" name="top"/>
+  <outline>
+    <contour>
+      <point x="64" y="0" type="line"/>
+      <point x="144" y="0" type="line"/>
+      <point x="144" y="272" type="line" smooth="yes"/>
+      <point x="144" y="365"/>
+      <point x="208" y="432"/>
+      <point x="292" y="432" type="curve" smooth="yes"/>
+      <point x="368" y="432"/>
+      <point x="422" y="376"/>
+      <point x="422" y="296" type="curve" smooth="yes"/>
+      <point x="422" y="0" type="line"/>
+      <point x="502" y="0" type="line"/>
+      <point x="502" y="304" type="line" smooth="yes"/>
+      <point x="502" y="424"/>
+      <point x="421" y="512"/>
+      <point x="308" y="512" type="curve" smooth="yes"/>
+      <point x="251" y="512"/>
+      <point x="199" y="490"/>
+      <point x="166" y="452" type="curve" smooth="yes"/>
+      <point x="155" y="439"/>
+      <point x="165" y="426"/>
+      <point x="165" y="414" type="curve" smooth="yes"/>
+      <point x="165" y="398"/>
+      <point x="153" y="386"/>
+      <point x="137" y="386" type="curve" smooth="yes"/>
+      <point x="121" y="386"/>
+      <point x="109" y="398"/>
+      <point x="109" y="414" type="curve" smooth="yes"/>
+      <point x="109" y="424"/>
+      <point x="114" y="433"/>
+      <point x="125" y="439" type="curve" smooth="yes"/>
+      <point x="132" y="443"/>
+      <point x="137" y="452"/>
+      <point x="136" y="461" type="curve" smooth="yes"/>
+      <point x="132" y="500" type="line"/>
+      <point x="64" y="500" type="line"/>
+    </contour>
+    <component base="inkstem_M" xOffset="4" yOffset="-196"/>
+    <component base="inkstem_S" xOffset="4"/>
+    <component base="inkstem_S" xOffset="362" yOffset="-194"/>
+    <component base="inkstem_M" xOffset="362" yOffset="-28"/>
+    <component base="inkcurve_L" xScale="0" xyScale="-1" yScale="0" yxScale="1" xOffset="24" yOffset="573"/>
+    <component base="inkstem_S" xOffset="332" yOffset="152"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>idotless</string>
+      <key>public.markColor</key>
+      <string>0.75,0.75,0.75,1</string>
+    </dict>
+  </lib>
+</glyph>

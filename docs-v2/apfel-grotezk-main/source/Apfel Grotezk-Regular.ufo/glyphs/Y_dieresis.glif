@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="Ydieresis" format="2">
+  <advance width="560"/>
+  <unicode hex="0178"/>
+  <outline>
+    <component base="Y"/>
+    <component base="dieresiscomb.case" xOffset="-12" yOffset="130"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>Y</string>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>Y</string>
+    </dict>
+  </lib>
+</glyph>

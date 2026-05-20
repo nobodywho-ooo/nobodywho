@@ -1,0 +1,29 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="onehalf" format="2">
+  <advance width="668"/>
+  <unicode hex="00BD"/>
+  <outline>
+    <component base="fraction" xOffset="-72" identifier="BF7E0BA1"/>
+    <component base="onesuperior" xOffset="16" identifier="86FFBE77"/>
+    <component base="twosuperior" xOffset="380" yOffset="-346"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>=|+4</string>
+      <key>public.objectLibs</key>
+      <dict>
+        <key>86FFBE77</key>
+        <dict>
+          <key>com.schriftgestaltung.alignment</key>
+          <integer>-1</integer>
+        </dict>
+        <key>BF7E0BA1</key>
+        <dict>
+          <key>com.schriftgestaltung.alignment</key>
+          <integer>-1</integer>
+        </dict>
+      </dict>
+    </dict>
+  </lib>
+</glyph>

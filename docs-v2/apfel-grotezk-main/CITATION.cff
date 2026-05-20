@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+title: Apfel Grotezk
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Luigi
+    family-names: Gorlero
+    email: gorliluigi@gmail.com
+    affiliation: Collletttivo
+identifiers:
+  - type: url
+    value: 'https://www.collletttivo.it/'
+    description: Type Foundry website
+repository-code: 'https://github.com/collletttivo/apfel-grotezk'
+url: 'https://www.collletttivo.it/typefaces/apfel-grotezk'
+abstract: A round and airy sans serif family, inspired by neo-grotesque and geometric typefaces.
+keywords:
+  - typeface
+  - font
+license: OFL-1.1-RFN
+version: 1.000
+date-released: '2019-11-31'

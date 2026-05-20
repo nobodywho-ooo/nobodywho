@@ -1,0 +1,23 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="lcaron" format="2">
+  <advance width="280"/>
+  <unicode hex="013E"/>
+  <outline>
+    <component base="l" identifier="AD66CC98"/>
+    <component base="caroncomb.alt" xOffset="-116"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>l</string>
+      <key>public.objectLibs</key>
+      <dict>
+        <key>AD66CC98</key>
+        <dict>
+          <key>com.schriftgestaltung.alignment</key>
+          <integer>-1</integer>
+        </dict>
+      </dict>
+    </dict>
+  </lib>
+</glyph>

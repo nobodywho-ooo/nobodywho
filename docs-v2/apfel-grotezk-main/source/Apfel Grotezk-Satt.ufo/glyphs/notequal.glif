@@ -1,0 +1,22 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="notequal" format="2">
+  <advance width="600"/>
+  <unicode hex="2260"/>
+  <outline>
+    <contour>
+      <point x="196" y="60" type="line"/>
+      <point x="464" y="548" type="line"/>
+      <point x="404" y="580" type="line"/>
+      <point x="136" y="92" type="line"/>
+    </contour>
+    <component base="equal"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>equal</string>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>equal</string>
+    </dict>
+  </lib>
+</glyph>

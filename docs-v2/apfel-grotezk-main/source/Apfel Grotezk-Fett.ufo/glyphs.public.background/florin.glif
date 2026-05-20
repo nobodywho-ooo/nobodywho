@@ -1,0 +1,18 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="florin" format="2">
+  <advance width="424"/>
+  <outline>
+    <contour>
+      <point x="48" y="-200" type="line"/>
+      <point x="128" y="-200" type="line"/>
+      <point x="206" y="540" type="line" smooth="yes"/>
+      <point x="214" y="612"/>
+      <point x="296" y="632"/>
+      <point x="340" y="584" type="curve"/>
+      <point x="372" y="672" type="line"/>
+      <point x="276" y="724"/>
+      <point x="142" y="680"/>
+      <point x="128" y="548" type="curve" smooth="yes"/>
+    </contour>
+  </outline>
+</glyph>

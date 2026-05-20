@@ -1,0 +1,82 @@
+{
+glyphname = downArrow;
+kernLeft = downArrow;
+kernRight = downArrow;
+layers = (
+{
+layerId = "8007C042-6FBA-4E49-99B8-8B738A4EBE86";
+shapes = (
+{
+pos = (0,650);
+ref = upArrow;
+scale = (1,-1);
+}
+);
+width = 592;
+},
+{
+layerId = "ADDE491E-C0C4-4659-943C-53377B387F47";
+shapes = (
+{
+pos = (0,650);
+ref = upArrow;
+scale = (1,-1);
+}
+);
+width = 646;
+},
+{
+layerId = "0CF550E6-48ED-4BA5-8C66-195B58FED074";
+shapes = (
+{
+pos = (0,650);
+ref = upArrow;
+scale = (1,-1);
+}
+);
+width = 688;
+},
+{
+associatedMasterId = "0CF550E6-48ED-4BA5-8C66-195B58FED074";
+layerId = "63423886-BB09-46CE-AFA2-271DF84A21FC";
+name = "23 feb 22, 19:51";
+shapes = (
+{
+closed = 1;
+nodes = (
+(688,330,l),
+(548,466,l),
+(344,262,l),
+(140,466,l),
+(0,330,l),
+(344,-12,l)
+);
+},
+{
+closed = 1;
+nodes = (
+(446,188,l),
+(446,650,l),
+(242,650,l),
+(242,188,l)
+);
+}
+);
+width = 688;
+},
+{
+layerId = m004;
+shapes = (
+{
+pos = (0,650);
+ref = upArrow;
+scale = (1,-1);
+}
+);
+width = 592;
+}
+);
+metricLeft = upArrow;
+metricRight = upArrow;
+unicode = 8595;
+}

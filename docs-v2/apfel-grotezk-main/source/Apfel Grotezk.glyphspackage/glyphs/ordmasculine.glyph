@@ -1,0 +1,44 @@
+{
+glyphname = ordmasculine;
+layers = (
+{
+layerId = "8007C042-6FBA-4E49-99B8-8B738A4EBE86";
+shapes = (
+{
+ref = degree;
+}
+);
+width = 360;
+},
+{
+layerId = "ADDE491E-C0C4-4659-943C-53377B387F47";
+shapes = (
+{
+ref = degree;
+}
+);
+width = 356;
+},
+{
+layerId = "0CF550E6-48ED-4BA5-8C66-195B58FED074";
+shapes = (
+{
+ref = degree;
+}
+);
+width = 352;
+},
+{
+layerId = m004;
+shapes = (
+{
+ref = degree;
+}
+);
+width = 360;
+}
+);
+metricLeft = degree;
+metricRight = degree;
+unicode = 186;
+}

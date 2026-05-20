@@ -1,0 +1,40 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="questiondown" format="2">
+  <advance width="508"/>
+  <unicode hex="00BF"/>
+  <outline>
+    <contour>
+      <point x="250" y="-212" type="curve" smooth="yes"/>
+      <point x="396" y="-212"/>
+      <point x="502" y="-113"/>
+      <point x="506" y="26" type="curve"/>
+      <point x="304" y="50" type="line"/>
+      <point x="304" y="2"/>
+      <point x="284" y="-26"/>
+      <point x="252" y="-26" type="curve" smooth="yes"/>
+      <point x="224" y="-26"/>
+      <point x="206" y="-5"/>
+      <point x="206" y="28" type="curve" smooth="yes"/>
+      <point x="206" y="112"/>
+      <point x="326" y="112"/>
+      <point x="338" y="260" type="curve"/>
+      <point x="198" y="260" type="line"/>
+      <point x="162" y="136"/>
+      <point x="14" y="152"/>
+      <point x="14" y="-12" type="curve" smooth="yes"/>
+      <point x="14" y="-131"/>
+      <point x="112" y="-212"/>
+    </contour>
+    <component base="period" xOffset="130" yOffset="316"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>=|question</string>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>=|question-4</string>
+      <key>public.markColor</key>
+      <string>0.97,0.9,0,1</string>
+    </dict>
+  </lib>
+</glyph>

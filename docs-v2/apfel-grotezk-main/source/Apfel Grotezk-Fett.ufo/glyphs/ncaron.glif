@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="ncaron" format="2">
+  <advance width="558"/>
+  <unicode hex="0148"/>
+  <outline>
+    <component base="n"/>
+    <component base="caroncomb" xOffset="-18"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>n</string>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>n</string>
+    </dict>
+  </lib>
+</glyph>

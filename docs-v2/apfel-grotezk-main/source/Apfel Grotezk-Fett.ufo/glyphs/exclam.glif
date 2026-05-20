@@ -1,0 +1,20 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="exclam" format="2">
+  <advance width="236"/>
+  <unicode hex="0021"/>
+  <outline>
+    <contour>
+      <point x="66" y="224" type="line"/>
+      <point x="174" y="224" type="line"/>
+      <point x="194" y="680" type="line"/>
+      <point x="46" y="680" type="line"/>
+    </contour>
+    <component base="period"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>=|</string>
+    </dict>
+  </lib>
+</glyph>

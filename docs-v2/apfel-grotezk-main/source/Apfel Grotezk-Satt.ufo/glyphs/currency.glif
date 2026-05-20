@@ -1,0 +1,38 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="currency" format="2">
+  <advance width="600"/>
+  <unicode hex="00A4"/>
+  <outline>
+    <contour>
+      <point x="170" y="80" type="line"/>
+      <point x="281" y="196" type="line"/>
+      <point x="180" y="301" type="line"/>
+      <point x="64" y="180" type="line"/>
+    </contour>
+    <contour>
+      <point x="430" y="80" type="line"/>
+      <point x="536" y="180" type="line"/>
+      <point x="442" y="277" type="line"/>
+      <point x="339" y="174" type="line"/>
+    </contour>
+    <contour>
+      <point x="420" y="341" type="line"/>
+      <point x="532" y="458" type="line"/>
+      <point x="428" y="558" type="line"/>
+      <point x="316" y="442" type="line"/>
+    </contour>
+    <contour>
+      <point x="174" y="346" type="line"/>
+      <point x="276" y="448" type="line"/>
+      <point x="172" y="556" type="line"/>
+      <point x="68" y="456" type="line"/>
+    </contour>
+    <component base="degree" xOffset="120" yOffset="-175"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>public.markColor</key>
+      <string>0.99,0.62,0.11,1</string>
+    </dict>
+  </lib>
+</glyph>

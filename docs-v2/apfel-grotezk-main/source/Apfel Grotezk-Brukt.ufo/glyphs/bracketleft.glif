@@ -1,0 +1,58 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="bracketleft" format="2">
+  <advance width="304"/>
+  <unicode hex="005B"/>
+  <outline>
+    <contour>
+      <point x="64" y="-200" type="line"/>
+      <point x="302" y="-200" type="line"/>
+      <point x="302" y="-118" type="line"/>
+      <point x="200" y="-118" type="line" smooth="yes"/>
+      <point x="188" y="-118"/>
+      <point x="178" y="-124"/>
+      <point x="172" y="-133" type="curve" smooth="yes"/>
+      <point x="167" y="-141"/>
+      <point x="158" y="-146"/>
+      <point x="148" y="-146" type="curve" smooth="yes"/>
+      <point x="132" y="-146"/>
+      <point x="120" y="-134"/>
+      <point x="120" y="-118" type="curve" smooth="yes"/>
+      <point x="120" y="-108"/>
+      <point x="125" y="-99"/>
+      <point x="133" y="-94" type="curve" smooth="yes"/>
+      <point x="142" y="-88"/>
+      <point x="148" y="-78"/>
+      <point x="148" y="-66" type="curve" smooth="yes"/>
+      <point x="148" y="548" type="line" smooth="yes"/>
+      <point x="148" y="560"/>
+      <point x="142" y="570"/>
+      <point x="133" y="576" type="curve" smooth="yes"/>
+      <point x="125" y="581"/>
+      <point x="120" y="590"/>
+      <point x="120" y="600" type="curve" smooth="yes"/>
+      <point x="120" y="616"/>
+      <point x="132" y="628"/>
+      <point x="148" y="628" type="curve" smooth="yes"/>
+      <point x="158" y="628"/>
+      <point x="167" y="623"/>
+      <point x="172" y="615" type="curve" smooth="yes"/>
+      <point x="178" y="606"/>
+      <point x="188" y="600"/>
+      <point x="200" y="600" type="curve" smooth="yes"/>
+      <point x="300" y="600" type="line"/>
+      <point x="300" y="680" type="line"/>
+      <point x="64" y="680" type="line"/>
+    </contour>
+    <component base="inkstem_M" xOffset="6" yOffset="-194"/>
+    <component base="inkstem_L" xOffset="6" yOffset="76"/>
+    <component base="inkstem_S" xOffset="144" yOffset="390"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>l</string>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>T</string>
+    </dict>
+  </lib>
+</glyph>

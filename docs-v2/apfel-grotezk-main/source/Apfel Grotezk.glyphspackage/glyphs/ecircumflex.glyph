@@ -1,0 +1,144 @@
+{
+glyphname = ecircumflex;
+kernLeft = o;
+kernRight = o;
+layers = (
+{
+background = {
+hints = (
+{
+horizontal = 1;
+place = (-12,77);
+type = Stem;
+},
+{
+horizontal = 1;
+place = (267,72);
+type = Stem;
+},
+{
+horizontal = 1;
+place = (507,77);
+type = Stem;
+},
+{
+horizontal = 1;
+place = (618,148);
+type = Stem;
+},
+{
+place = (37,94);
+type = Stem;
+},
+{
+place = (486,93);
+type = Stem;
+}
+);
+shapes = (
+{
+ref = e;
+},
+{
+pos = (-32,0);
+ref = circumflexcomb;
+}
+);
+};
+layerId = "8007C042-6FBA-4E49-99B8-8B738A4EBE86";
+shapes = (
+{
+ref = e;
+},
+{
+pos = (-28,0);
+ref = circumflexcomb;
+}
+);
+width = 540;
+},
+{
+layerId = "ADDE491E-C0C4-4659-943C-53377B387F47";
+shapes = (
+{
+ref = e;
+},
+{
+pos = (-26,0);
+ref = circumflexcomb;
+}
+);
+width = 542;
+},
+{
+layerId = "0CF550E6-48ED-4BA5-8C66-195B58FED074";
+shapes = (
+{
+ref = e;
+},
+{
+pos = (-24,0);
+ref = circumflexcomb;
+}
+);
+width = 544;
+},
+{
+background = {
+hints = (
+{
+horizontal = 1;
+place = (-12,77);
+type = Stem;
+},
+{
+horizontal = 1;
+place = (267,72);
+type = Stem;
+},
+{
+horizontal = 1;
+place = (507,77);
+type = Stem;
+},
+{
+horizontal = 1;
+place = (618,148);
+type = Stem;
+},
+{
+place = (37,94);
+type = Stem;
+},
+{
+place = (486,93);
+type = Stem;
+}
+);
+shapes = (
+{
+ref = e;
+},
+{
+pos = (-32,0);
+ref = circumflexcomb;
+}
+);
+};
+layerId = m004;
+shapes = (
+{
+ref = e;
+},
+{
+pos = (-28,0);
+ref = circumflexcomb;
+}
+);
+width = 540;
+}
+);
+metricLeft = e;
+metricRight = e;
+unicode = 234;
+}

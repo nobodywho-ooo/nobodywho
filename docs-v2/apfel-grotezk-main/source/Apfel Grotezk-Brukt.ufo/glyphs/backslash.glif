@@ -1,0 +1,25 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="backslash" format="2">
+  <advance width="244"/>
+  <unicode hex="005C"/>
+  <outline>
+    <contour>
+      <point x="170" y="-204" type="line"/>
+      <point x="252" y="-192" type="line"/>
+      <point x="84" y="684" type="line"/>
+      <point x="4" y="672" type="line"/>
+    </contour>
+    <component base="inkstem_M" xScale="0.9866" xyScale="0.1631" yScale="-0.9866" yxScale="0.1631" xOffset="52" yOffset="141"/>
+    <component base="inkstem_L" xScale="0.9817" xyScale="0.1905" yScale="-0.9817" yxScale="0.1905" xOffset="-5" yOffset="398"/>
+    <component base="inkstem_M" xScale="0.9802" xyScale="0.1979" yScale="-0.9802" yxScale="0.1979" xOffset="-60" yOffset="671"/>
+    <component base="inkstem_S" xScale="-1" xOffset="154" yOffset="373"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>=|slash</string>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>=|slash</string>
+    </dict>
+  </lib>
+</glyph>

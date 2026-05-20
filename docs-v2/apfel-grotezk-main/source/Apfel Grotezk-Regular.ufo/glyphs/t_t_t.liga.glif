@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="t_t_t.liga" format="2">
+  <advance width="846"/>
+  <outline>
+    <component base="t"/>
+    <component base="t" xOffset="538" identifier="8A17A202"/>
+    <component base="t" xOffset="270" identifier="4DFCC7A8"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>t</string>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>t</string>
+      <key>public.objectLibs</key>
+      <dict>
+        <key>4DFCC7A8</key>
+        <dict>
+          <key>com.schriftgestaltung.alignment</key>
+          <integer>-1</integer>
+        </dict>
+        <key>8A17A202</key>
+        <dict>
+          <key>com.schriftgestaltung.alignment</key>
+          <integer>-1</integer>
+        </dict>
+      </dict>
+    </dict>
+  </lib>
+</glyph>

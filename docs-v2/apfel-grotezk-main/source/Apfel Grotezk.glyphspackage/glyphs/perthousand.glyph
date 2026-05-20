@@ -1,0 +1,60 @@
+{
+glyphname = perthousand;
+layers = (
+{
+layerId = "8007C042-6FBA-4E49-99B8-8B738A4EBE86";
+shapes = (
+{
+ref = percent;
+},
+{
+pos = (780,-338);
+ref = degree;
+}
+);
+width = 1144;
+},
+{
+layerId = "ADDE491E-C0C4-4659-943C-53377B387F47";
+shapes = (
+{
+ref = percent;
+},
+{
+pos = (772,-338);
+ref = degree;
+}
+);
+width = 1140;
+},
+{
+layerId = "0CF550E6-48ED-4BA5-8C66-195B58FED074";
+shapes = (
+{
+ref = percent;
+},
+{
+pos = (764,-338);
+ref = degree;
+}
+);
+width = 1136;
+},
+{
+layerId = m004;
+shapes = (
+{
+ref = percent;
+},
+{
+pos = (780,-338);
+ref = degree;
+}
+);
+width = 1144;
+}
+);
+metricLeft = percent;
+metricRight = percent;
+unicode = 8240;
+}

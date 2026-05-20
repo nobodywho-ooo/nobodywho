@@ -1,0 +1,110 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="registered" format="2">
+  <advance width="776"/>
+  <unicode hex="00AE"/>
+  <outline>
+    <contour>
+      <point x="388" y="-56" type="curve" smooth="yes"/>
+      <point x="592" y="-56"/>
+      <point x="740" y="96"/>
+      <point x="740" y="305" type="curve" smooth="yes"/>
+      <point x="740" y="514"/>
+      <point x="592" y="666"/>
+      <point x="388" y="666" type="curve" smooth="yes"/>
+      <point x="184" y="666"/>
+      <point x="36" y="514"/>
+      <point x="36" y="305" type="curve" smooth="yes"/>
+      <point x="36" y="96"/>
+      <point x="184" y="-56"/>
+    </contour>
+    <contour>
+      <point x="388" y="24" type="curve" smooth="yes"/>
+      <point x="233" y="24"/>
+      <point x="120" y="142"/>
+      <point x="120" y="306" type="curve" smooth="yes"/>
+      <point x="120" y="470"/>
+      <point x="233" y="588"/>
+      <point x="388" y="588" type="curve" smooth="yes"/>
+      <point x="543" y="588"/>
+      <point x="656" y="470"/>
+      <point x="656" y="306" type="curve" smooth="yes"/>
+      <point x="656" y="142"/>
+      <point x="543" y="24"/>
+    </contour>
+    <contour>
+      <point x="248" y="120" type="line"/>
+      <point x="327" y="120" type="line"/>
+      <point x="327" y="203" type="line" smooth="yes"/>
+      <point x="327" y="215"/>
+      <point x="321" y="225"/>
+      <point x="312" y="231" type="curve" smooth="yes"/>
+      <point x="304" y="236"/>
+      <point x="299" y="245"/>
+      <point x="299" y="255" type="curve" smooth="yes"/>
+      <point x="299" y="271"/>
+      <point x="311" y="283"/>
+      <point x="327" y="283" type="curve" smooth="yes"/>
+      <point x="337" y="283"/>
+      <point x="346" y="278"/>
+      <point x="351" y="270" type="curve" smooth="yes"/>
+      <point x="357" y="261"/>
+      <point x="367" y="255"/>
+      <point x="379" y="255" type="curve" smooth="yes"/>
+      <point x="401" y="255" type="line"/>
+      <point x="458" y="120" type="line"/>
+      <point x="544" y="120" type="line"/>
+      <point x="473" y="269" type="line"/>
+      <point x="512" y="288"/>
+      <point x="536" y="326"/>
+      <point x="536" y="373" type="curve" smooth="yes"/>
+      <point x="536" y="443"/>
+      <point x="483" y="492"/>
+      <point x="408" y="492" type="curve" smooth="yes"/>
+      <point x="248" y="492" type="line"/>
+    </contour>
+    <contour>
+      <point x="327" y="328" type="line"/>
+      <point x="327" y="364" type="line" smooth="yes"/>
+      <point x="327" y="376"/>
+      <point x="321" y="386"/>
+      <point x="312" y="392" type="curve" smooth="yes"/>
+      <point x="304" y="397"/>
+      <point x="299" y="406"/>
+      <point x="299" y="416" type="curve" smooth="yes"/>
+      <point x="299" y="432"/>
+      <point x="311" y="444"/>
+      <point x="327" y="444" type="curve" smooth="yes"/>
+      <point x="337" y="444"/>
+      <point x="346" y="439"/>
+      <point x="351" y="431" type="curve" smooth="yes"/>
+      <point x="357" y="422"/>
+      <point x="367" y="416"/>
+      <point x="379" y="416" type="curve" smooth="yes"/>
+      <point x="410" y="416" type="line" smooth="yes"/>
+      <point x="437" y="416"/>
+      <point x="456" y="398"/>
+      <point x="456" y="372" type="curve" smooth="yes"/>
+      <point x="456" y="346"/>
+      <point x="438" y="328"/>
+      <point x="412" y="328" type="curve" smooth="yes"/>
+    </contour>
+    <component base="inkstem_S" xOffset="60" yOffset="-170"/>
+    <component base="inkcurve_L" xScale="0" xyScale="1" yScale="0" yxScale="-1" xOffset="666" yOffset="-118"/>
+    <component base="inkcurve_L" xOffset="-22" yOffset="28"/>
+    <component base="inkstem_S" xOffset="60" yOffset="280"/>
+    <component base="inkstem_S" xOffset="515" yOffset="-170"/>
+    <component base="inkcurve_L" xScale="-1" xOffset="798" yOffset="28"/>
+    <component base="inkcurve_L" xScale="0" xyScale="-1" yScale="0" yxScale="-1" xOffset="666" yOffset="728"/>
+    <component base="inkstem_S" xOffset="515" yOffset="280"/>
+    <component base="inkstem_S" xOffset="376" yOffset="-74"/>
+    <component base="inkstem_S" xOffset="395" yOffset="122"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>O</string>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>O</string>
+    </dict>
+  </lib>
+</glyph>

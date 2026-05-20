@@ -1,0 +1,28 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="euro" format="2">
+  <advance width="720"/>
+  <unicode hex="20AC"/>
+  <outline>
+    <contour>
+      <point x="8" y="350" type="line"/>
+      <point x="444" y="350" type="line"/>
+      <point x="480" y="424" type="line"/>
+      <point x="8" y="424" type="line"/>
+    </contour>
+    <contour>
+      <point x="8" y="224" type="line"/>
+      <point x="424" y="224" type="line"/>
+      <point x="456" y="300" type="line"/>
+      <point x="8" y="300" type="line"/>
+    </contour>
+    <component base="C" xOffset="56"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>Eth</string>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>C</string>
+    </dict>
+  </lib>
+</glyph>

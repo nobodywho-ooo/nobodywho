@@ -1,0 +1,52 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="braceleft" format="2">
+  <advance width="348"/>
+  <unicode hex="007B"/>
+  <outline>
+    <contour>
+      <point x="244" y="-200" type="curve" smooth="yes"/>
+      <point x="346" y="-200" type="line"/>
+      <point x="346" y="-46" type="line"/>
+      <point x="340" y="-46" type="line" smooth="yes"/>
+      <point x="291" y="-46"/>
+      <point x="260" y="-16"/>
+      <point x="260" y="30" type="curve" smooth="yes"/>
+      <point x="260" y="112" type="line" smooth="yes"/>
+      <point x="260" y="180"/>
+      <point x="220" y="238"/>
+      <point x="156" y="246" type="curve"/>
+      <point x="220" y="254"/>
+      <point x="260" y="311"/>
+      <point x="260" y="376" type="curve" smooth="yes"/>
+      <point x="260" y="444" type="line" smooth="yes"/>
+      <point x="260" y="495"/>
+      <point x="291" y="528"/>
+      <point x="340" y="528" type="curve" smooth="yes"/>
+      <point x="344" y="528" type="line"/>
+      <point x="344" y="680" type="line"/>
+      <point x="244" y="680" type="line" smooth="yes"/>
+      <point x="143" y="680"/>
+      <point x="72" y="612"/>
+      <point x="72" y="516" type="curve" smooth="yes"/>
+      <point x="72" y="398" type="line" smooth="yes"/>
+      <point x="72" y="364"/>
+      <point x="49" y="342"/>
+      <point x="12" y="342" type="curve" smooth="yes"/>
+      <point x="8" y="342" type="line"/>
+      <point x="8" y="146" type="line"/>
+      <point x="12" y="146" type="line" smooth="yes"/>
+      <point x="49" y="146"/>
+      <point x="72" y="124"/>
+      <point x="72" y="90" type="curve" smooth="yes"/>
+      <point x="72" y="-36" type="line" smooth="yes"/>
+      <point x="72" y="-132"/>
+      <point x="143" y="-200"/>
+    </contour>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>T</string>
+    </dict>
+  </lib>
+</glyph>

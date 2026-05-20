@@ -1,0 +1,19 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="fraction" format="2">
+  <advance width="764"/>
+  <unicode hex="2044"/>
+  <outline>
+    <contour>
+      <point x="172" y="-12" type="line"/>
+      <point x="644" y="620" type="line"/>
+      <point x="594" y="662" type="line"/>
+      <point x="120" y="32" type="line"/>
+    </contour>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>=|</string>
+    </dict>
+  </lib>
+</glyph>

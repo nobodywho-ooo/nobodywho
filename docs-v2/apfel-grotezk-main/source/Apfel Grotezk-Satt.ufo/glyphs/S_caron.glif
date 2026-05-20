@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="Scaron" format="2">
+  <advance width="596"/>
+  <unicode hex="0160"/>
+  <outline>
+    <component base="S"/>
+    <component base="caroncomb.case" yOffset="138"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>S</string>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>S</string>
+    </dict>
+  </lib>
+</glyph>

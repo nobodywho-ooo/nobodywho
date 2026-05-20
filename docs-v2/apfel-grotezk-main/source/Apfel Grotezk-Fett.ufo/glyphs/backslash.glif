@@ -1,0 +1,21 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="backslash" format="2">
+  <advance width="308"/>
+  <unicode hex="005C"/>
+  <outline>
+    <contour>
+      <point x="180" y="-212" type="line"/>
+      <point x="320" y="-180" type="line"/>
+      <point x="140" y="692" type="line"/>
+      <point x="0" y="664" type="line"/>
+    </contour>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>=|slash</string>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>=|slash</string>
+    </dict>
+  </lib>
+</glyph>

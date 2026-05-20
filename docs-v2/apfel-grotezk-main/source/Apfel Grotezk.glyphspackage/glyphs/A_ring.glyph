@@ -1,0 +1,62 @@
+{
+glyphname = Aring;
+kernLeft = A;
+kernRight = A;
+layers = (
+{
+layerId = "8007C042-6FBA-4E49-99B8-8B738A4EBE86";
+shapes = (
+{
+ref = A;
+},
+{
+pos = (4,130);
+ref = ringcomb.case;
+}
+);
+width = 608;
+},
+{
+layerId = "ADDE491E-C0C4-4659-943C-53377B387F47";
+shapes = (
+{
+ref = A;
+},
+{
+pos = (24,134);
+ref = ringcomb.case;
+}
+);
+width = 648;
+},
+{
+layerId = "0CF550E6-48ED-4BA5-8C66-195B58FED074";
+shapes = (
+{
+ref = A;
+},
+{
+pos = (34,138);
+ref = ringcomb.case;
+}
+);
+width = 672;
+},
+{
+layerId = m004;
+shapes = (
+{
+ref = A;
+},
+{
+pos = (4,130);
+ref = ringcomb.case;
+}
+);
+width = 608;
+}
+);
+metricLeft = A;
+metricRight = A;
+unicode = 197;
+}

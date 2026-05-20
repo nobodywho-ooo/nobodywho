@@ -1,0 +1,62 @@
+{
+glyphname = emacron;
+kernLeft = o;
+kernRight = o;
+layers = (
+{
+layerId = "8007C042-6FBA-4E49-99B8-8B738A4EBE86";
+shapes = (
+{
+ref = e;
+},
+{
+pos = (-28,0);
+ref = macroncomb;
+}
+);
+width = 540;
+},
+{
+layerId = "ADDE491E-C0C4-4659-943C-53377B387F47";
+shapes = (
+{
+ref = e;
+},
+{
+pos = (-26,0);
+ref = macroncomb;
+}
+);
+width = 542;
+},
+{
+layerId = "0CF550E6-48ED-4BA5-8C66-195B58FED074";
+shapes = (
+{
+ref = e;
+},
+{
+pos = (-24,0);
+ref = macroncomb;
+}
+);
+width = 544;
+},
+{
+layerId = m004;
+shapes = (
+{
+ref = e;
+},
+{
+pos = (-28,0);
+ref = macroncomb;
+}
+);
+width = 540;
+}
+);
+metricLeft = e;
+metricRight = e;
+unicode = 275;
+}

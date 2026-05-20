@@ -1,0 +1,15 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="lacute" format="2">
+  <advance width="284"/>
+  <unicode hex="013A"/>
+  <outline>
+    <component base="l"/>
+    <component base="acutecomb.case" xOffset="-158" yOffset="156"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>l</string>
+    </dict>
+  </lib>
+</glyph>

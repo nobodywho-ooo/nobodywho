@@ -1,0 +1,23 @@
+{
+glyphname = .null;
+kernLeft = .null;
+kernRight = .null;
+layers = (
+{
+layerId = "8007C042-6FBA-4E49-99B8-8B738A4EBE86";
+width = 0;
+},
+{
+layerId = "ADDE491E-C0C4-4659-943C-53377B387F47";
+width = 0;
+},
+{
+layerId = "0CF550E6-48ED-4BA5-8C66-195B58FED074";
+width = 600;
+},
+{
+layerId = m004;
+width = 0;
+}
+);
+}

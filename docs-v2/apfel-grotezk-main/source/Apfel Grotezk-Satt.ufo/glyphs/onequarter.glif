@@ -1,0 +1,36 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="onequarter" format="2">
+  <advance width="724"/>
+  <unicode hex="00BC"/>
+  <outline>
+    <component base="onesuperior" xOffset="24" identifier="7E0D0A1A"/>
+    <component base="fraction" xOffset="-58" identifier="D300C1B5"/>
+    <component base="foursuperior" xOffset="382" yOffset="-338" identifier="0DE551A2"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>onehalf</string>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>onehalf</string>
+      <key>public.objectLibs</key>
+      <dict>
+        <key>0DE551A2</key>
+        <dict>
+          <key>com.schriftgestaltung.alignment</key>
+          <integer>-1</integer>
+        </dict>
+        <key>7E0D0A1A</key>
+        <dict>
+          <key>com.schriftgestaltung.alignment</key>
+          <integer>-1</integer>
+        </dict>
+        <key>D300C1B5</key>
+        <dict>
+          <key>com.schriftgestaltung.alignment</key>
+          <integer>-1</integer>
+        </dict>
+      </dict>
+    </dict>
+  </lib>
+</glyph>

@@ -1,0 +1,41 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="zerosuperior" format="2">
+  <advance width="328"/>
+  <unicode hex="2070"/>
+  <outline>
+    <contour>
+      <point x="164" y="332" type="curve" smooth="yes"/>
+      <point x="246" y="332"/>
+      <point x="304" y="399"/>
+      <point x="304" y="494" type="curve" smooth="yes"/>
+      <point x="304" y="589"/>
+      <point x="246" y="656"/>
+      <point x="164" y="656" type="curve" smooth="yes"/>
+      <point x="82" y="656"/>
+      <point x="24" y="589"/>
+      <point x="24" y="494" type="curve" smooth="yes"/>
+      <point x="24" y="399"/>
+      <point x="82" y="332"/>
+    </contour>
+    <contour>
+      <point x="164" y="394" type="curve" smooth="yes"/>
+      <point x="119" y="394"/>
+      <point x="88" y="436"/>
+      <point x="88" y="495" type="curve" smooth="yes"/>
+      <point x="88" y="554"/>
+      <point x="119" y="596"/>
+      <point x="164" y="596" type="curve" smooth="yes"/>
+      <point x="209" y="596"/>
+      <point x="240" y="554"/>
+      <point x="240" y="495" type="curve" smooth="yes"/>
+      <point x="240" y="436"/>
+      <point x="209" y="394"/>
+    </contour>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>=|</string>
+    </dict>
+  </lib>
+</glyph>

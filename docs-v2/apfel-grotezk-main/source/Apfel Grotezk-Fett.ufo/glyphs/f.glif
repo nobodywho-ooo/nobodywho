@@ -1,0 +1,34 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="f" format="2">
+  <advance width="378"/>
+  <unicode hex="0066"/>
+  <note>
+Ascendente corta?
+</note>
+  <outline>
+    <contour>
+      <point x="88" y="0" type="line"/>
+      <point x="228" y="0" type="line"/>
+      <point x="228" y="500" type="line" smooth="yes"/>
+      <point x="228" y="552"/>
+      <point x="292" y="568"/>
+      <point x="340" y="540" type="curve"/>
+      <point x="376" y="664" type="line"/>
+      <point x="264" y="728"/>
+      <point x="88" y="676"/>
+      <point x="88" y="512" type="curve" smooth="yes"/>
+    </contour>
+    <contour>
+      <point x="12" y="338" type="line"/>
+      <point x="346" y="338" type="line"/>
+      <point x="346" y="462" type="line"/>
+      <point x="12" y="462" type="line"/>
+    </contour>
+  </outline>
+  <lib>
+    <dict>
+      <key>public.markColor</key>
+      <string>0.75,0.75,0.75,1</string>
+    </dict>
+  </lib>
+</glyph>

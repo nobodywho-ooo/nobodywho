@@ -1,0 +1,62 @@
+{
+glyphname = sacute;
+kernLeft = s;
+kernRight = s;
+layers = (
+{
+layerId = "8007C042-6FBA-4E49-99B8-8B738A4EBE86";
+shapes = (
+{
+ref = s;
+},
+{
+pos = (-72,0);
+ref = acutecomb;
+}
+);
+width = 456;
+},
+{
+layerId = "ADDE491E-C0C4-4659-943C-53377B387F47";
+shapes = (
+{
+ref = s;
+},
+{
+pos = (-48,0);
+ref = acutecomb;
+}
+);
+width = 488;
+},
+{
+layerId = "0CF550E6-48ED-4BA5-8C66-195B58FED074";
+shapes = (
+{
+ref = s;
+},
+{
+pos = (-34,0);
+ref = acutecomb;
+}
+);
+width = 520;
+},
+{
+layerId = m004;
+shapes = (
+{
+ref = s;
+},
+{
+pos = (-72,0);
+ref = acutecomb;
+}
+);
+width = 456;
+}
+);
+metricLeft = s;
+metricRight = s;
+unicode = 347;
+}

@@ -1,0 +1,62 @@
+{
+glyphname = abreve;
+kernLeft = a;
+kernRight = n;
+layers = (
+{
+layerId = "8007C042-6FBA-4E49-99B8-8B738A4EBE86";
+shapes = (
+{
+ref = a;
+},
+{
+pos = (-54,0);
+ref = brevecomb;
+}
+);
+width = 488;
+},
+{
+layerId = "ADDE491E-C0C4-4659-943C-53377B387F47";
+shapes = (
+{
+ref = a;
+},
+{
+pos = (-46,0);
+ref = brevecomb;
+}
+);
+width = 512;
+},
+{
+layerId = "0CF550E6-48ED-4BA5-8C66-195B58FED074";
+shapes = (
+{
+ref = a;
+},
+{
+pos = (-14,0);
+ref = brevecomb;
+}
+);
+width = 552;
+},
+{
+layerId = m004;
+shapes = (
+{
+ref = a;
+},
+{
+pos = (-54,0);
+ref = brevecomb;
+}
+);
+width = 488;
+}
+);
+metricLeft = a;
+metricRight = a;
+unicode = 259;
+}

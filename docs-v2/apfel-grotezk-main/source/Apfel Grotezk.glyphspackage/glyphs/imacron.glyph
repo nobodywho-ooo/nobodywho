@@ -1,0 +1,61 @@
+{
+color = 10;
+glyphname = imacron;
+kernLeft = idieresis;
+kernRight = idieresis;
+layers = (
+{
+layerId = "8007C042-6FBA-4E49-99B8-8B738A4EBE86";
+shapes = (
+{
+ref = idotless;
+},
+{
+pos = (-196,0);
+ref = macroncomb;
+}
+);
+width = 208;
+},
+{
+layerId = "ADDE491E-C0C4-4659-943C-53377B387F47";
+shapes = (
+{
+ref = idotless;
+},
+{
+pos = (-182,0);
+ref = macroncomb;
+}
+);
+width = 236;
+},
+{
+layerId = "0CF550E6-48ED-4BA5-8C66-195B58FED074";
+shapes = (
+{
+ref = idotless;
+},
+{
+pos = (-160,0);
+ref = macroncomb;
+}
+);
+width = 280;
+},
+{
+layerId = m004;
+shapes = (
+{
+ref = idotless;
+},
+{
+pos = (-196,0);
+ref = macroncomb;
+}
+);
+width = 208;
+}
+);
+unicode = 299;
+}

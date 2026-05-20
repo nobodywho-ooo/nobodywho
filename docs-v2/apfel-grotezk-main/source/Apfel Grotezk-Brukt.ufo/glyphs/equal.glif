@@ -1,0 +1,29 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="equal" format="2">
+  <advance width="600"/>
+  <unicode hex="003D"/>
+  <outline>
+    <contour>
+      <point x="92" y="367" type="line"/>
+      <point x="508" y="367" type="line"/>
+      <point x="508" y="450" type="line"/>
+      <point x="92" y="450" type="line"/>
+    </contour>
+    <contour>
+      <point x="92" y="190" type="line"/>
+      <point x="508" y="190" type="line"/>
+      <point x="508" y="274" type="line"/>
+      <point x="92" y="274" type="line"/>
+    </contour>
+    <component base="inkstem_S" xScale="0" xyScale="-1" yScale="0" yxScale="1" xOffset="-102" yOffset="509"/>
+    <component base="inkstem_S" xScale="0" xyScale="-1" yScale="0" yxScale="1" xOffset="202" yOffset="509"/>
+    <component base="inkstem_S" xScale="0" xyScale="-1" yScale="0" yxScale="1" xOffset="-102" yOffset="332"/>
+    <component base="inkstem_S" xScale="0" xyScale="-1" yScale="0" yxScale="1" xOffset="202" yOffset="332"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>=|</string>
+    </dict>
+  </lib>
+</glyph>

@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="northWestArrow" format="2">
+  <advance width="688"/>
+  <unicode hex="2196"/>
+  <outline>
+    <component base="northEastArrow" xScale="-1" xOffset="688"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>=|northEastArrow</string>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>=|northEastArrow</string>
+    </dict>
+  </lib>
+</glyph>

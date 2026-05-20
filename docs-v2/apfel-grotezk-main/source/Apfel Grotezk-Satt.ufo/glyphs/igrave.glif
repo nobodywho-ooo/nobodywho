@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="igrave" format="2">
+  <advance width="280"/>
+  <unicode hex="00EC"/>
+  <outline>
+    <component base="idotless"/>
+    <component base="gravecomb" xOffset="-160"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>idotless</string>
+      <key>public.markColor</key>
+      <string>0.75,0.75,0.75,1</string>
+    </dict>
+  </lib>
+</glyph>

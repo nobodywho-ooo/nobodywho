@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="Cacute" format="2">
+  <advance width="662"/>
+  <unicode hex="0106"/>
+  <outline>
+    <component base="C"/>
+    <component base="acutecomb.case" xOffset="46" yOffset="134"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>C</string>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>C</string>
+    </dict>
+  </lib>
+</glyph>

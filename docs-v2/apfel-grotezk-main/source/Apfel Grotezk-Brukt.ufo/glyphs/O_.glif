@@ -1,0 +1,52 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="O" format="2">
+  <advance width="704"/>
+  <unicode hex="004F"/>
+  <anchor x="352" y="650" name="top"/>
+  <outline>
+    <contour>
+      <point x="352" y="-12" type="curve" smooth="yes"/>
+      <point x="535" y="-12"/>
+      <point x="668" y="130"/>
+      <point x="668" y="325" type="curve" smooth="yes"/>
+      <point x="668" y="520"/>
+      <point x="535" y="662"/>
+      <point x="352" y="662" type="curve" smooth="yes"/>
+      <point x="169" y="662"/>
+      <point x="36" y="520"/>
+      <point x="36" y="325" type="curve" smooth="yes"/>
+      <point x="36" y="130"/>
+      <point x="169" y="-12"/>
+    </contour>
+    <contour>
+      <point x="352" y="72" type="curve" smooth="yes"/>
+      <point x="220" y="72"/>
+      <point x="124" y="178"/>
+      <point x="124" y="325" type="curve" smooth="yes"/>
+      <point x="124" y="473"/>
+      <point x="220" y="580"/>
+      <point x="352" y="580" type="curve" smooth="yes"/>
+      <point x="484" y="580"/>
+      <point x="580" y="473"/>
+      <point x="580" y="325" type="curve" smooth="yes"/>
+      <point x="580" y="178"/>
+      <point x="484" y="72"/>
+    </contour>
+    <component base="inkstem_S" xOffset="50" yOffset="-128"/>
+    <component base="inkcurve_L" xScale="0" xyScale="1" yScale="0" yxScale="-1" xOffset="630" yOffset="-70"/>
+    <component base="inkcurve_L" xOffset="-21" yOffset="47"/>
+    <component base="inkstem_S" xOffset="452" yOffset="-128"/>
+    <component base="inkstem_S" yScale="-1" xOffset="52" yOffset="780"/>
+    <component base="inkcurve_L" xScale="-1" xOffset="725" yOffset="47"/>
+    <component base="inkcurve_L" xScale="0" xyScale="-1" yScale="0" yxScale="-1" xOffset="630" yOffset="722"/>
+    <component base="inkstem_S" yScale="-1" xOffset="450" yOffset="780"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>=|O</string>
+      <key>public.markColor</key>
+      <string>0.75,0.75,0.75,1</string>
+    </dict>
+  </lib>
+</glyph>

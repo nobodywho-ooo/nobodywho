@@ -1,0 +1,61 @@
+{
+glyphname = aogonek;
+kernLeft = a;
+kernRight = n;
+layers = (
+{
+layerId = "8007C042-6FBA-4E49-99B8-8B738A4EBE86";
+shapes = (
+{
+ref = a;
+},
+{
+pos = (64,0);
+ref = ogonekcomb;
+}
+);
+width = 488;
+},
+{
+layerId = "ADDE491E-C0C4-4659-943C-53377B387F47";
+shapes = (
+{
+ref = a;
+},
+{
+pos = (76,0);
+ref = ogonekcomb;
+}
+);
+width = 512;
+},
+{
+layerId = "0CF550E6-48ED-4BA5-8C66-195B58FED074";
+shapes = (
+{
+ref = a;
+},
+{
+pos = (84,0);
+ref = ogonekcomb;
+}
+);
+width = 552;
+},
+{
+layerId = m004;
+shapes = (
+{
+ref = a;
+},
+{
+pos = (64,0);
+ref = ogonekcomb;
+}
+);
+width = 488;
+}
+);
+metricLeft = a;
+unicode = 261;
+}

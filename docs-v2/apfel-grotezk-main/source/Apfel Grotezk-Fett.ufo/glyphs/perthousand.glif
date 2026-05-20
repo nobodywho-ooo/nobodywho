@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="perthousand" format="2">
+  <advance width="1140"/>
+  <unicode hex="2030"/>
+  <outline>
+    <component base="percent"/>
+    <component base="degree" xOffset="772" yOffset="-338"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>percent</string>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>percent</string>
+    </dict>
+  </lib>
+</glyph>

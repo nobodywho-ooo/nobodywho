@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="Edieresis" format="2">
+  <advance width="554"/>
+  <unicode hex="00CB"/>
+  <outline>
+    <component base="E"/>
+    <component base="dieresiscomb.case" xOffset="-12" yOffset="134"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>E</string>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>E</string>
+    </dict>
+  </lib>
+</glyph>

@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="Ecircumflex" format="2">
+  <advance width="554"/>
+  <unicode hex="00CA"/>
+  <outline>
+    <component base="E"/>
+    <component base="circumflexcomb.case" xOffset="-12" yOffset="134"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.leftMetricsKey</key>
+      <string>E</string>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>E</string>
+    </dict>
+  </lib>
+</glyph>

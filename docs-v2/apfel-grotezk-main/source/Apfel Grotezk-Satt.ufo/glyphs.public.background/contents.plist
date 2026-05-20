@@ -1,0 +1,22 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>ae</key>
+    <string>ae.glif</string>
+    <key>cent</key>
+    <string>cent.glif</string>
+    <key>e</key>
+    <string>e.glif</string>
+    <key>m</key>
+    <string>m.glif</string>
+    <key>northEastArrow</key>
+    <string>northE_astA_rrow.glif</string>
+    <key>oe</key>
+    <string>oe.glif</string>
+    <key>questiondown</key>
+    <string>questiondown.glif</string>
+    <key>r</key>
+    <string>r.glif</string>
+  </dict>
+</plist>

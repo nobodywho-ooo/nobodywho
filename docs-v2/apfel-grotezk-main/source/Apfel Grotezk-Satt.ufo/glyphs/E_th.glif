@@ -1,0 +1,20 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="Eth" format="2">
+  <advance width="662"/>
+  <unicode hex="00D0"/>
+  <outline>
+    <contour>
+      <point x="0" y="278" type="line"/>
+      <point x="360" y="278" type="line"/>
+      <point x="360" y="378" type="line"/>
+      <point x="0" y="378" type="line"/>
+    </contour>
+    <component base="D" xOffset="10"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.rightMetricsKey</key>
+      <string>O</string>
+    </dict>
+  </lib>
+</glyph>

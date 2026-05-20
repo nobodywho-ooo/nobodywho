@@ -1,0 +1,25 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="caroncomb.alt" format="2">
+  <advance width="600"/>
+  <anchor x="300" y="500" name="_topright"/>
+  <outline>
+    <contour>
+      <point x="300" y="539" type="line"/>
+      <point x="360" y="519"/>
+      <point x="448" y="563"/>
+      <point x="448" y="659" type="curve" smooth="yes"/>
+      <point x="448" y="715"/>
+      <point x="416" y="752"/>
+      <point x="370" y="752" type="curve" smooth="yes"/>
+      <point x="328" y="752"/>
+      <point x="300" y="723"/>
+      <point x="300" y="682" type="curve" smooth="yes"/>
+      <point x="300" y="644"/>
+      <point x="328" y="615"/>
+      <point x="364" y="613" type="curve"/>
+      <point x="352" y="597"/>
+      <point x="334" y="592"/>
+      <point x="302" y="596" type="curve"/>
+    </contour>
+  </outline>
+</glyph>

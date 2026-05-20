@@ -1,0 +1,28 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Ze-cy</key>
+    <string>Z_e-cy.glif</string>
+    <key>ae</key>
+    <string>ae.glif</string>
+    <key>e</key>
+    <string>e.glif</string>
+    <key>florin</key>
+    <string>florin.glif</string>
+    <key>h</key>
+    <string>h.glif</string>
+    <key>m</key>
+    <string>m.glif</string>
+    <key>oe</key>
+    <string>oe.glif</string>
+    <key>questiondown</key>
+    <string>questiondown.glif</string>
+    <key>r</key>
+    <string>r.glif</string>
+    <key>section</key>
+    <string>section.glif</string>
+    <key>ze-cy</key>
+    <string>ze-cy.glif</string>
+  </dict>
+</plist>
