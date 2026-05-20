@@ -1148,11 +1148,18 @@ impl WorkerChat {
             let parsed = parse_chat_create_opts(&opts)?;
             let bootstrap = get_bootstrap_url()?;
 
-            // Build the inline-Blob worker entrypoint.
+            // Build the inline-Blob worker entrypoint. The Emscripten loader
+            // is an ES module exporting `default createNobodyWhoModule`;
+            // *importing* it just declares the factory, so we also have to
+            // invoke it for the `postRun` hook in `pre.js` to fire (that's
+            // what calls `init()` + `runInWorker()` on the worker side).
+            //
             // JSON-encode the URL so it's safely interpolated as a string literal.
             let url_lit = serde_json::to_string(&bootstrap)
                 .map_err(|e| JsError::new(&format!("json url: {e}")))?;
-            let bootstrap_code = format!("import({url_lit});");
+            let bootstrap_code = format!(
+                "import({url_lit}).then(({{default:c}})=>c());"
+            );
 
             let blob_bag = web_sys::BlobPropertyBag::new();
             blob_bag.set_type("text/javascript");
