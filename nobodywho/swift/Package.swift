@@ -51,6 +51,7 @@ let package = Package(
             sources: ["nobodywho.swift"],
             linkerSettings: [
                 .linkedFramework("Accelerate"),
+                .linkedLibrary("c++"),
             ]
         ),
         .testTarget(
