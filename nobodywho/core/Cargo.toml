@@ -46,6 +46,10 @@ libc = "0.2"
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 dirs = "6"
+hound = "3"
+ort = { version = "2.0.0-rc.12", default-features = true, features = ["cuda"] }
+espeak-rs = "0.1.9"
+safetensors = "0.5"
 
 # Enable Vulkan for x86_64, x86, and aarch64 targets (excluding Apple platforms and Android).
 # Apple platforms use Metal, which is auto-enabled by llama-cpp-rs for all Apple targets
