@@ -1080,7 +1080,7 @@ mod tests {
         init_test_tracing();
         // Definitely not a valid GGUF — even the magic header is missing.
         let bytes = vec![0u8; 4096];
-        let result = get_model_from_bytes(&bytes, 0);
+        let result = get_model_from_bytes(&bytes, None, 0);
         assert!(
             matches!(result, Err(LoadModelError::InvalidModel(_))),
             "expected InvalidModel error, got {result:?}"

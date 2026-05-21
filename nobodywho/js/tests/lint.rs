@@ -98,7 +98,7 @@ fn out_of_scope_section_doesnt_mention_constraint() {
 /// `askStreaming` for real-time, or describe the buffering explicitly.
 #[test]
 fn chat_ask_docstring_warns_about_wasm_buffering() {
-    let ask_doc = doc_above(LIB_RS, "pub fn ask(&self, prompt: String)");
+    let ask_doc = doc_above(LIB_RS, "pub fn ask(&self, prompt: JsValue)");
     let lower = ask_doc.to_lowercase();
     let mentions_workaround = lower.contains("askstreaming")
         || lower.contains("blocks the thread")

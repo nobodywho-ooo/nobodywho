@@ -279,9 +279,31 @@ And one workaround in the wasm crate itself (`js/src/lib.rs`):
 
 ## Multimodal status
 
-Vision and audio input compile into the wasm. The Rust + C++ side ships
-`mtmd`/`mtmd-helper` linked against a stripped-down miniaudio (playback
-removed, decoder kept), and the JS surface adds two factory namespaces.
+Vision and audio input work end-to-end through bytes — no filesystem,
+no path-based APIs surfaced to JS callers. Architecturally the JS
+binding virtualizes a filesystem in Emscripten's MEMFS, lands bytes
+there, and lets llama.cpp's path-based loaders read them from the
+inside. All of upstream mtmd is used unchanged.
+
+**End-to-end validation.** `js/scripts/vision-smoke.mjs` against
+Qwen2-VL-2B-Instruct (Q4_K_M model + Q8_0 mmproj, ~1.7 GB total):
+
+```
+mmproj_path = Some("/home/web_user/nbw-mmproj-...gguf");
+loaded meta data with 33 key-value pairs and 338 tensors from (file*)
+load_tensors: loaded 520 tensors from /home/web_user/nbw-mmproj-...gguf
+MTMD context initialized successfully
+Loading image for MTMD path = /home/web_user/nbw-image-...bin;
+image_tokens->nx = 46, ny = 54
+=== Response (1099.0 s) ===
+penguin
+contains "penguin": true
+```
+
+The whole chain — `Model.loadBytes(model, mmproj)` → `Image.fromBytes(uint8)`
+→ `chat.ask([...])` → "penguin" — verified inside `node`. 1099 s CPU
+inference reflects the wasm32 single-threaded ceiling; architecture
+is the point of this section, not throughput.
 
 **What's compiled in.** The Emscripten build of `llama-cpp-sys-2`
 defines `MA_NO_DEVICE_IO`, `MA_NO_THREADING`, `MA_NO_ENGINE`,
@@ -289,91 +311,91 @@ defines `MA_NO_DEVICE_IO`, `MA_NO_THREADING`, `MA_NO_ENGINE`,
 adds `-fexceptions` to the mtmd TUs. That removes every pthread-using
 piece of miniaudio (the audio device thread, the engine, the
 resource-manager IO thread) while keeping the file-header sniffer and
-the format decoders — so `mtmd_helper_bitmap_init_from_buf` can ingest
-raw image and audio bytes the same way the native build does.
+the format decoders.
 
 **JS API.**
 
 ```js
 import { Model, Chat, Image, Audio } from 'nobodywho-js';
 
-const model = await Model.loadBytes(modelBytes);
-// Vision-language model: load main model + projection mmproj
+const modelBytes  = new Uint8Array(await (await fetch('/model.gguf')).arrayBuffer());
+const mmprojBytes = new Uint8Array(await (await fetch('/mmproj.gguf')).arrayBuffer());
+
+// Optional mmproj as a second arg — promotes the Model to multimodal.
+const model = await Model.loadBytes(modelBytes, mmprojBytes);
+
 const chat = new Chat(model, {
   systemPrompt: 'Describe the image.',
-  // mmproj is wired by the same `Chat` builder used for native; the
-  // JS side just forwards the bytes (planned — see below).
+  contextSize: 4096,            // ≥ image embedding + reply
 });
 
-// fetch a PNG / JPEG in the browser, hand the bytes off:
 const imgResp = await fetch('/cat.jpg');
 const img = Image.fromBytes(new Uint8Array(await imgResp.arrayBuffer()));
 
-const answer = await chat.ask(['What is in this image?', img]).completed();
+const answer = await (await chat.ask(['What is in this image?', img])).completed();
 ```
 
-`Image.fromBytes(uint8)` and `Audio.fromBytes(uint8)` return plain JS
+`Image.fromBytes(uint8)` / `Audio.fromBytes(uint8)` return plain JS
 objects of shape `{__nbwKind: 'image' | 'audio', bytes: Uint8Array}`.
 They are structured-cloneable, which is what lets them survive the
-postMessage hop into the `WorkerChat`'s background worker without
-custom serialization. There is no `Image(path)` constructor — a
-browser tab has no filesystem; everything goes through bytes.
+postMessage hop into the `WorkerChat`'s background worker.
 
 The same array-of-parts shape is accepted by both `Chat.ask` (in-
 process, advanced) and `WorkerChat.ask` (worker-backed, recommended).
 Plain strings still work for text-only prompts — `chat.ask('hi')` is
 unchanged.
 
+**How it works under the hood** (see `js/src/syscall_imports.rs` and
+`js/src/lib.rs` for code, this is just the shape):
+1. JS calls `Image.fromBytes(uint8)` → tagged object.
+2. `WorkerChat.ask([...])` postMessages the array to the worker.
+3. Worker-side Rust receives the bytes, calls `Module.FS.writeFile`
+   via `js_sys::Reflect` to land them at a content-hashed path like
+   `/home/web_user/nbw-image-<hash>.bin` in Emscripten's MEMFS.
+4. The same Rust calls the existing `Prompt::push_image(&Path)`.
+5. mtmd's C++ side opens the file via libc `fopen("rb")`. Libc's
+   `__syscall_openat` is satisfied by a strong Rust override (also in
+   `syscall_imports.rs`) that resolves the call back into
+   `Module.FS.open` via `js_sys::Reflect` — completing the loop.
+
+The strong override is necessary because Emscripten's
+`system/lib/standalone/standalone.c` provides weak `__syscall_openat`
+stubs that always return `-EPERM`. wasm-ld silently satisfies libc's
+syscall references against the weak stubs unless a strong symbol is
+present. The Rust override wins symbol resolution at link time.
+
 **What's known to work.**
 
 - Image decoding via `stb_image`: JPEG, PNG, BMP, GIF, TGA, PSD, PIC,
-  PNM. Format is sniffed from the file header inside
-  `mtmd_helper_bitmap_init_from_buf`.
-- WAV audio (`miniaudio`'s built-in WAV decoder — no `MA_NO_WAV`).
-- All of mtmd's existing chunk-tokenize / encode-chunk pipeline,
+  PNM. Format is sniffed from the file header by mtmd.
+- WAV audio (miniaudio's built-in WAV decoder — no `MA_NO_WAV`).
+- mmproj loading from bytes via `Model.loadBytes(model, mmproj)`.
+- Full mtmd chunk-tokenize / encode-chunk / decode pipeline,
   unchanged from native.
 
-**What's known not to work.**
+**What's known not to work / untested.**
 
 - Audio playback / device IO. `MA_NO_DEVICE_IO` removes the
-  `ma_context` / `ma_device` machinery, including the pthread-owned
-  audio thread. The wasm has no `AudioContext` / `WebAudio` bridge.
-  Models that *generate* audio (TTS) won't be able to play it back
-  from inside the wasm — they'd need to post their PCM samples to the
-  page for Web Audio playback.
-- MP3 / FLAC / Ogg / Vorbis: untested. miniaudio's `MA_NO_MP3` /
-  `MA_NO_FLAC` / `MA_NO_VORBIS` are *not* set in the build, so the
-  decoders should be linked in, but no end-to-end test has run them.
-  WAV is the safe default.
-- `mmproj` (multimodal projection model) loading from the JS side:
-  the core builder accepts a path. Browser equivalent (load mmproj
-  bytes the same way as the main model) is a one-line addition to
-  `ChatOptions` / `Chat::new`, not yet wired up.
-- Vision smoke test against a real VLM: the Rust + C++ side compiles
-  and the wasm-bindgen surface is in place, but I have not yet run
-  inference against e.g. Qwen-VL or LLaVA-Phi3 to confirm
-  end-to-end. The build link step also currently requires
-  walkingeyerobot's `-sWASM_BINDGEN` emcc fork, which is what
-  blocked a smoke test in this session.
-
-**Cross-binding bonus.** The core's `PromptPart` enum was extended
-with `ImageBytes(Vec<u8>)` / `AudioBytes(Vec<u8>)` variants for this
-change. The Python binding gained `Image.from_bytes(data: bytes)` and
-`Audio.from_bytes(data: bytes)` classmethods as a side effect —
-useful for serving an image fetched into memory (`requests.get(...).
-content`) without writing a tempfile.
+  `ma_context` / `ma_device` machinery (pthread-owned). The wasm has
+  no `AudioContext` / `WebAudio` bridge — models that *generate*
+  audio (TTS) would need to post their PCM samples to the page for
+  Web Audio playback.
+- MP3 / FLAC / Ogg / Vorbis decoding: untested end-to-end. The
+  decoders are linked in (no `MA_NO_MP3` / `MA_NO_FLAC` /
+  `MA_NO_VORBIS`) but no smoke run.
+- Chat templates that use OpenAI-style typed-content arrays (SmolVLM,
+  some Phi-3-Vision variants). Our `core/src/template.rs` emits the
+  older string-with-markers shape (`<__media__>` placeholder). Qwen,
+  Gemma, LLaVA, etc. use the string-with-markers convention and
+  work fine; OpenAI-typed-content models would need a renderer
+  update.
+- Models larger than ~2 GB on disk. Node's `readFileSync` caps at
+  2 GiB; for larger models the JS caller has to chunk-read into a
+  Uint8Array. Wasm32's hard 4 GB ceiling also bounds model + mmproj +
+  KV cache + compute buffer.
 
 ## Outstanding
 
-- **Wire `mmproj` bytes through `Chat`'s options.** The core builder
-  takes a path; in the browser we need a `mmprojBytes` option that
-  mirrors `Model.loadBytes`. One-line addition to `ChatOptions` plus
-  a `nobodywho::chat::ChatBuilder::with_mmproj_bytes` if core doesn't
-  already have one.
-- **Vision smoke test.** End-to-end inference against a small VLM
-  (Qwen2.5-VL-2B, LLaVA-Phi3-Mini, etc.) inside the browser /
-  Node. Blocked locally on the emcc-wbg link step (see "Build it
-  yourself").
 - **MP3 / FLAC / Ogg audio.** Decoders are linked in but unverified.
   Worth one short test per format.
 - **Browser polyfill bundling.** `setup-browser.mjs` loads
