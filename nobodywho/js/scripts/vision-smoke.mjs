@@ -62,11 +62,15 @@ const t0 = performance.now();
 const model = await m.Model.loadBytes(modelBytes, mmprojBytes);
 console.log(`  loaded in ${(performance.now() - t0).toFixed(0)} ms`);
 
-console.log('\nBuilding Chat (n_ctx=16384 to fit one image)...');
+// On wasm32 core::memory::plan_context floors n_ubatch at 1024 (not
+// 2048 as on native) — keeps the compute buffer to ~600 MB and lets
+// us afford a larger context. 4096 fits Qwen2-VL-2B's ~2500-token
+// penguin image embedding + system prompt + reply, with margin.
+console.log('\nBuilding Chat (contextSize=4096 — fits the image embedding)...');
 const chat = new m.Chat(model, {
   systemPrompt: 'You are a helpful assistant. Be brief.',
   templateVariables: { enable_thinking: false },
-  nCtx: 16384,
+  contextSize: 4096,
 });
 
 console.log('\nCalling chat.ask([text, Image.fromBytes(uint8)])...');

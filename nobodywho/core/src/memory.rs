@@ -199,19 +199,31 @@ pub(crate) fn plan_context(
     has_projection_model: bool,
     arch: ModelArchitecture,
 ) -> Result<ContextPlan, MemoryError> {
+    // n_ubatch floor: large enough to fit one image embedding in a
+    // single decode pass. Default 2048 covers typical VLM image sizes;
+    // on wasm32 we drop to 1024 because the compute buffer scales
+    // linearly with n_ubatch and 2048 forces a contiguous ~1.2 GB
+    // alloc that fragments out of the 4 GB wasm heap after model +
+    // mmproj are already loaded. mtmd's encoder splits oversized image
+    // embeddings across multiple ubatches; the only visible cost is
+    // more decode passes per image.
+    #[cfg(target_arch = "wasm32")]
+    let ubatch_floor: u32 = 1024;
+    #[cfg(not(target_arch = "wasm32"))]
+    let ubatch_floor: u32 = 2048;
+
     let n_ubatch = if has_projection_model {
-        n_ctx.min(2048)
+        n_ctx.min(ubatch_floor)
     } else {
         n_ctx.min(512)
     };
 
     let mut warnings = vec![];
-    if has_projection_model && n_ctx < 2048 {
-        warnings.push(
-            "Context size is less than 2048, which is the default minimum for ingesting images. \
-             This can cause issues."
-                .to_string(),
-        );
+    if has_projection_model && n_ctx < ubatch_floor {
+        warnings.push(format!(
+            "Context size is less than {ubatch_floor}, which is the default minimum for \
+             ingesting images. This can cause issues."
+        ));
     }
 
     let devices = llama_cpp_2::list_llama_ggml_backend_devices();
