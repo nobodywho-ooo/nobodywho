@@ -313,30 +313,22 @@ impl ChatHandle {
         let should_stop_clone = Arc::clone(&should_stop);
 
         let join_handle = std::thread::spawn(move || {
-            // process_worker_msg is async (so tool dispatch can `.await` an
-            // async callback). Spin up a single-threaded tokio runtime on
-            // this worker thread to drive it. `new_current_thread` keeps
-            // futures pinned to this thread, so the returned futures don't
-            // need `Send`.
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .expect("failed to build worker tokio runtime");
-            rt.block_on(async move {
-                let worker = Worker::new_chat_worker(&model, config, should_stop_clone);
-                let mut worker_state = match worker {
-                    Ok(worker_state) => worker_state,
-                    Err(errmsg) => {
-                        return error!("Could not set up the worker initial state: {errmsg}")
-                    }
-                };
-
-                while let Some(msg) = msg_rx.recv().await {
-                    if let Err(e) = process_worker_msg(&mut worker_state, msg).await {
-                        return error!("Worker crashed: {e}");
-                    }
+            let worker = Worker::new_chat_worker(&model, config, should_stop_clone);
+            let mut worker_state = match worker {
+                Ok(worker_state) => worker_state,
+                Err(errmsg) => {
+                    return error!("Could not set up the worker initial state: {errmsg}")
                 }
-            });
+            };
+
+            // `blocking_recv` on a tokio unbounded channel is safe outside a
+            // tokio runtime context (we're in a raw `std::thread::spawn`'d
+            // thread). Returns `None` when the channel is closed.
+            while let Some(msg) = msg_rx.blocking_recv() {
+                if let Err(e) = process_worker_msg(&mut worker_state, msg) {
+                    return error!("Worker crashed: {e}");
+                }
+            }
         });
 
         Self {
@@ -599,25 +591,19 @@ impl ChatHandleAsync {
         // acceptable for v1. A Web-Worker variant can come later.
         #[cfg(not(target_arch = "wasm32"))]
         let join_handle = std::thread::spawn(move || {
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .expect("failed to build worker tokio runtime");
-            rt.block_on(async move {
-                let worker = Worker::new_chat_worker(&model, config, should_stop_clone);
-                let mut worker_state = match worker {
-                    Ok(worker_state) => worker_state,
-                    Err(errmsg) => {
-                        return error!("Could not set up the worker initial state: {errmsg}")
-                    }
-                };
-
-                while let Some(msg) = msg_rx.recv().await {
-                    if let Err(e) = process_worker_msg(&mut worker_state, msg).await {
-                        return error!("Worker crashed: {e}");
-                    }
+            let worker = Worker::new_chat_worker(&model, config, should_stop_clone);
+            let mut worker_state = match worker {
+                Ok(worker_state) => worker_state,
+                Err(errmsg) => {
+                    return error!("Could not set up the worker initial state: {errmsg}")
                 }
-            });
+            };
+
+            while let Some(msg) = msg_rx.blocking_recv() {
+                if let Err(e) = process_worker_msg(&mut worker_state, msg) {
+                    return error!("Worker crashed: {e}");
+                }
+            }
         });
 
         #[cfg(target_arch = "wasm32")]
@@ -631,7 +617,7 @@ impl ChatHandleAsync {
             };
 
             while let Some(msg) = msg_rx.recv().await {
-                if let Err(e) = process_worker_msg(&mut worker_state, msg).await {
+                if let Err(e) = process_worker_msg(&mut worker_state, msg) {
                     return error!("Worker crashed: {e}");
                 }
             }
@@ -1103,7 +1089,7 @@ impl std::fmt::Debug for ChatMsg {
     }
 }
 
-async fn process_worker_msg(
+fn process_worker_msg(
     worker_state: &mut Worker<'_, ChatWorker>,
     msg: ChatMsg,
 ) -> Result<(), ChatWorkerError> {
@@ -1118,7 +1104,7 @@ async fn process_worker_msg(
                     should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
                 }
             };
-            worker_state.ask(prompt, callback).await?;
+            worker_state.ask(prompt, callback)?;
         }
         ChatMsg::ResetChat {
             system_prompt,
@@ -1126,29 +1112,29 @@ async fn process_worker_msg(
             output_tx,
         } => {
             worker_state.reset_chat(system_prompt, tools)?;
-            let _ = output_tx.send(()).await;
+            let _ = output_tx.blocking_send(());
         }
         ChatMsg::SetTools { tools, output_tx } => {
             worker_state.set_tools(tools)?;
-            let _ = output_tx.send(()).await;
+            let _ = output_tx.blocking_send(());
         }
         ChatMsg::SetSystemPrompt {
             system_prompt,
             output_tx,
         } => {
             worker_state.set_system_prompt(system_prompt)?;
-            let _ = output_tx.send(()).await;
+            let _ = output_tx.blocking_send(());
         }
         ChatMsg::GetSystemPrompt { output_tx } => {
             let system_prompt = worker_state.get_system_prompt();
-            let _ = output_tx.send(system_prompt).await;
+            let _ = output_tx.blocking_send(system_prompt);
         }
         ChatMsg::SetThinking {
             allow_thinking,
             output_tx,
         } => {
             worker_state.set_template_variable("enable_thinking".to_string(), allow_thinking)?;
-            let _ = output_tx.send(()).await;
+            let _ = output_tx.blocking_send(());
         }
         ChatMsg::SetTemplateVariable {
             name,
@@ -1156,40 +1142,40 @@ async fn process_worker_msg(
             output_tx,
         } => {
             worker_state.set_template_variable(name, value)?;
-            let _ = output_tx.send(()).await;
+            let _ = output_tx.blocking_send(());
         }
         ChatMsg::SetTemplateVariables {
             variables,
             output_tx,
         } => {
             worker_state.set_template_variables(variables)?;
-            let _ = output_tx.send(()).await;
+            let _ = output_tx.blocking_send(());
         }
         ChatMsg::GetTemplateVariables { output_tx } => {
             let vars = worker_state.get_template_variables();
-            let _ = output_tx.send(vars).await;
+            let _ = output_tx.blocking_send(vars);
         }
         ChatMsg::SetSamplerConfig {
             sampler_config,
             output_tx,
         } => {
             worker_state.set_sampler_config(sampler_config);
-            let _ = output_tx.send(()).await;
+            let _ = output_tx.blocking_send(());
         }
         ChatMsg::GetChatHistory { output_tx } => {
             let msgs = worker_state.get_chat_history();
-            let _ = output_tx.send(msgs).await;
+            let _ = output_tx.blocking_send(msgs);
         }
         ChatMsg::SetChatHistory {
             messages,
             output_tx,
         } => {
             worker_state.set_chat_history(messages)?;
-            let _ = output_tx.send(()).await;
+            let _ = output_tx.blocking_send(());
         }
         ChatMsg::GetSamplerConfig { output_tx } => {
             let sampler_config = worker_state.get_sampler_config();
-            let _ = output_tx.send(sampler_config).await;
+            let _ = output_tx.blocking_send(sampler_config);
         }
     };
 
@@ -1644,7 +1630,7 @@ impl Worker<'_, ChatWorker> {
         Ok(new_token)
     }
 
-    pub async fn ask<F>(&mut self, prompt: Prompt, respond: F) -> Result<&mut Self, SayError>
+    pub fn ask<F>(&mut self, prompt: Prompt, respond: F) -> Result<&mut Self, SayError>
     where
         F: Fn(llm::WriteOutput) + Clone,
     {
@@ -1751,7 +1737,7 @@ impl Worker<'_, ChatWorker> {
 
                     // call the tool
                     debug!("Calling the tool now!");
-                    let response = (tool.function)(tool_call.arguments).await;
+                    let response = (tool.function)(tool_call.arguments);
                     debug!(%tool_call.name, %response, "Tool call result:");
 
                     // add to chat history
@@ -2110,8 +2096,8 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_chat_worker() -> Result<(), Box<dyn std::error::Error>> {
+    #[test]
+    fn test_chat_worker() -> Result<(), Box<dyn std::error::Error>> {
         // test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
 
@@ -2131,14 +2117,14 @@ mod tests {
             }
         };
 
-        worker.ask("What is the capital of Denmark?".into(), f.clone()).await?;
+        worker.ask("What is the capital of Denmark?".into(), f.clone())?;
 
         let resp = receiver.recv()?;
         println!("{}", resp);
 
         assert!(resp.contains("Copenhagen"));
 
-        worker.ask("What language do they speak there?".into(), f).await?;
+        worker.ask("What language do they speak there?".into(), f)?;
         let resp = receiver.recv()?;
         println!("{}", resp);
 
@@ -2147,8 +2133,8 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
-    async fn test_reset_chat() -> Result<(), Box<dyn std::error::Error>> {
+    #[test]
+    fn test_reset_chat() -> Result<(), Box<dyn std::error::Error>> {
         // test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let mut worker = Worker::new_chat_worker(
@@ -2169,7 +2155,7 @@ mod tests {
         };
 
         // do it once
-        worker.ask("What is the capital of Denmark?".into(), f.clone()).await?;
+        worker.ask("What is the capital of Denmark?".into(), f.clone())?;
         let resp1 = receiver.recv()?;
         println!("{}", resp1);
         assert!(resp1.to_lowercase().contains("woof"));
@@ -2181,7 +2167,7 @@ mod tests {
         );
 
         // do it again
-        worker.ask("What is the capital of Denmark?".into(), f.clone()).await?;
+        worker.ask("What is the capital of Denmark?".into(), f.clone())?;
         let resp2 = receiver.recv()?;
         println!("{}", resp2);
         assert!(resp2.to_lowercase().contains("meow"));
@@ -2189,8 +2175,8 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
-    async fn test_stop_mid_write() -> Result<(), Box<dyn std::error::Error>> {
+    #[test]
+    fn test_stop_mid_write() -> Result<(), Box<dyn std::error::Error>> {
         // test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let mut worker = Worker::new_chat_worker(
@@ -2219,7 +2205,7 @@ mod tests {
             }
         };
 
-        worker.ask("Count from 0 to 9".into(), f.clone()).await?;
+        worker.ask("Count from 0 to 9".into(), f.clone())?;
 
         let response = receiver.recv()?;
         println!("{}", response);
@@ -2230,10 +2216,10 @@ mod tests {
     }
 
     fn test_tool() -> Tool {
-        Tool::new(
-            "get_current_temperature",
-            "Gets the temperature at a given location",
-            serde_json::json!({
+        Tool {
+            name: "get_current_temperature".into(),
+            description: "Gets the temperature at a given location".into(),
+            json_schema: serde_json::json!({
                 "type": "object",
                 "properties": {
                     "location": {
@@ -2245,7 +2231,7 @@ mod tests {
                     "location"
                 ]
             }),
-            Arc::new(|args: serde_json::Value| {
+            function: Arc::new(|args: serde_json::Value| {
                 let Some(location) = args.get("location") else {
                     return "Bad arguments format. Location key was missing.".into();
                 };
@@ -2260,14 +2246,14 @@ mod tests {
 
                 "Unknown location.".into()
             }),
-        )
+        }
     }
 
     fn dkk_exchange_rate() -> Tool {
-        Tool::new(
-            "dkk_exchange_rate",
-            "Gets the exchange rate for DKK to a given currency.",
-            serde_json::json!({
+        Tool {
+            name: "dkk_exchange_rate".into(),
+            description: "Gets the exchange rate for DKK to a given currency.".into(),
+            json_schema: serde_json::json!({
                 "type": "object",
                 "properties": {
                     "to-currency": {
@@ -2279,7 +2265,7 @@ mod tests {
                     "to-currency"
                 ]
             }),
-            Arc::new(|args: serde_json::Value| {
+            function: Arc::new(|args: serde_json::Value| {
                 let Some(to_currency) = args.get("to-currency") else {
                     return "Bad arguments format. To currency key was missing.".into();
                 };
@@ -2291,11 +2277,11 @@ mod tests {
 
                 "Exchange rate not available".into()
             }),
-        )
+        }
     }
 
-    #[tokio::test]
-    async fn test_tool_chat() {
+    #[test]
+    fn test_tool_chat() {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let mut worker = Worker::new_chat_worker(
@@ -2323,7 +2309,6 @@ mod tests {
                     .into(),
                 f,
             )
-            .await
             .expect("fuck");
 
         let result = receiver.recv().unwrap();
@@ -2333,8 +2318,8 @@ mod tests {
         assert!(result.contains("42.69"));
     }
 
-    #[tokio::test]
-    async fn test_multi_tool_call() {
+    #[test]
+    fn test_multi_tool_call() {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let mut worker = Worker::new_chat_worker(
@@ -2359,7 +2344,6 @@ mod tests {
                 .into(),
             f,
         )
-        .await
         .expect("dammit");
 
         let result = receiver.recv().unwrap();
@@ -2613,8 +2597,8 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
-    async fn test_context_shift_on_say() -> Result<(), Box<dyn std::error::Error>> {
+    #[test]
+    fn test_context_shift_on_say() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
 
@@ -2654,8 +2638,7 @@ mod tests {
         worker.ask(
             "This is a new question that will not fit in the context! What is 10 * 10?".into(),
             f,
-        )
-        .await?;
+        )?;
 
         let _response = receiver.recv()?;
         let messages_after = worker.extra.messages.clone();
@@ -2695,8 +2678,8 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
-    async fn test_context_while_writing() -> Result<(), Box<dyn std::error::Error>> {
+    #[test]
+    fn test_context_while_writing() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
 
@@ -2735,7 +2718,7 @@ mod tests {
         };
 
         // This should trigger context shift internally because there's not enough space
-        worker.ask("What is 10 * 10?".into(), f).await?;
+        worker.ask("What is 10 * 10?".into(), f)?;
 
         let _response = receiver.recv()?;
         let messages_after = worker.extra.messages.clone();

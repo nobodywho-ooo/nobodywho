@@ -626,63 +626,48 @@ fn tool_from_tagged(part: &JsValue) -> Result<nobodywho::tool_calling::Tool, Str
         .dyn_into::<js_sys::Function>()
         .map_err(|_| "callback is not a function".to_string())?;
 
-    // `Tool::new_async` to accept JS callbacks that return Promises. If the
-    // callback returns a plain string, we use it directly. If it returns a
-    // Promise, we `JsFuture::from(...).await` to drive it to completion —
-    // the Rust async/await yield gives the JS event loop a chance to tick
-    // and resolve the Promise without blocking the wasm thread.
-    Ok(nobodywho::tool_calling::Tool::new_async(
+    let wrapper = std::sync::Arc::new(move |args: serde_json::Value| -> String {
+        // serde_json::Value → JsValue for the JS-side function.
+        // serde_wasm_bindgen rather than JSON.parse for fidelity
+        // (preserves number vs. string types as the LLM emitted
+        // them, modulo serde's JSON shape).
+        let args_js = match serde_wasm_bindgen::to_value(&args) {
+            Ok(v) => v,
+            Err(e) => return format!("ERROR: tool arg conversion: {e}"),
+        };
+        match callback.call1(&JsValue::NULL, &args_js) {
+            Ok(result) => {
+                if let Some(s) = result.as_string() {
+                    return s;
+                }
+                // Non-string return: JSON.stringify as a fallback so
+                // the model gets something legible. A common shape
+                // here is a JS object or number — treating it as
+                // text-ish JSON is the least-surprising default.
+                js_sys::JSON::stringify(&result)
+                    .ok()
+                    .and_then(|s| s.as_string())
+                    .unwrap_or_else(|| {
+                        "ERROR: tool returned a non-serializable value".to_string()
+                    })
+            }
+            Err(e) => {
+                // Surface JS exceptions back to the model as an error
+                // string so it can recover (or stop calling the tool).
+                let msg = js_sys::Reflect::get(&e, &"message".into())
+                    .ok()
+                    .and_then(|m| m.as_string())
+                    .unwrap_or_else(|| format!("{e:?}"));
+                format!("ERROR: {msg}")
+            }
+        }
+    });
+
+    Ok(nobodywho::tool_calling::Tool::new(
         name,
         description,
         schema,
-        move |args: serde_json::Value| {
-            let callback = callback.clone();
-            async move {
-                // serde_json::Value → JsValue for the JS-side function.
-                // serde_wasm_bindgen rather than JSON.parse for fidelity
-                // (preserves number vs. string types as the LLM emitted
-                // them, modulo serde's JSON shape).
-                let args_js = match serde_wasm_bindgen::to_value(&args) {
-                    Ok(v) => v,
-                    Err(e) => return format!("ERROR: tool arg conversion: {e}"),
-                };
-                let result = match callback.call1(&JsValue::NULL, &args_js) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        let msg = js_sys::Reflect::get(&e, &"message".into())
-                            .ok()
-                            .and_then(|m| m.as_string())
-                            .unwrap_or_else(|| format!("{e:?}"));
-                        return format!("ERROR: {msg}");
-                    }
-                };
-                // If the JS callback returned a Promise, await its
-                // resolution. Otherwise use the value directly.
-                let resolved = if result.is_instance_of::<js_sys::Promise>() {
-                    match wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(result)).await {
-                        Ok(v) => v,
-                        Err(e) => {
-                            let msg = js_sys::Reflect::get(&e, &"message".into())
-                                .ok()
-                                .and_then(|m| m.as_string())
-                                .unwrap_or_else(|| format!("{e:?}"));
-                            return format!("ERROR: tool promise rejected: {msg}");
-                        }
-                    }
-                } else {
-                    result
-                };
-                if let Some(s) = resolved.as_string() {
-                    return s;
-                }
-                // Non-string return (or resolved value): JSON.stringify
-                // as a fallback so the model gets something legible.
-                js_sys::JSON::stringify(&resolved)
-                    .ok()
-                    .and_then(|s| s.as_string())
-                    .unwrap_or_else(|| "ERROR: tool returned a non-serializable value".to_string())
-            }
-        },
+        wrapper,
     ))
 }
 

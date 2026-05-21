@@ -103,59 +103,8 @@ assert.ok(
   `expected callback args to be an object; got ${typeof lastArgs}: ${JSON.stringify(lastArgs)}`,
 );
 
-console.log('\n=== Sync-callback path passed ===');
-
-// === 5. Async callback (Promise-returning) ===
-console.log('\n[5] Async-callback path: callback returns a Promise...');
-let asyncCallCount = 0;
-let asyncLastArgs = null;
-const weatherToolAsync = m.Tool.fromFn(
-  'get_weather',
-  'Get the current weather for a city. Returns a short human-readable description.',
-  {
-    type: 'object',
-    properties: {
-      city: { type: 'string', description: 'City name in English' },
-    },
-    required: ['city'],
-  },
-  async (args) => {
-    // Simulate a network call by deferring to the next tick.
-    // This is the test of the async path — if core were still sync,
-    // the Promise would never resolve while wasm holds the JS thread.
-    await new Promise((resolve) => setTimeout(resolve, 5));
-    asyncCallCount++;
-    asyncLastArgs = args;
-    return `Rainy in ${args.city ?? '?'}, 13 degrees Celsius.`;
-  },
-);
-
-const chatAsync = new m.Chat(model, {
-  systemPrompt:
-    'You are a helpful assistant. When the user asks about weather, use the get_weather tool. Then answer in one short sentence.',
-  templateVariables: { enable_thinking: false },
-  tools: [weatherToolAsync],
-});
-
-const t1 = performance.now();
-const streamAsync = await chatAsync.ask('What is the weather like in Oslo?');
-const responseAsync = await streamAsync.completed();
-const dt2 = ((performance.now() - t1) / 1000).toFixed(1);
-console.log(`\n=== Async-callback response (${dt2} s) ===`);
-console.log(responseAsync);
-console.log(`\nasync tool was called ${asyncCallCount} time(s)`);
-console.log(`last async args: ${JSON.stringify(asyncLastArgs)}`);
-
-assert.ok(
-  asyncCallCount >= 1,
-  `expected the async JS callback to be invoked at least once; got ${asyncCallCount}`,
-);
-assert.ok(
-  typeof asyncLastArgs === 'object' && asyncLastArgs !== null,
-  `expected async callback args to be an object; got ${typeof asyncLastArgs}: ${JSON.stringify(asyncLastArgs)}`,
-);
-
 console.log('\n=== Tool-calling JS smoke test passed ===');
-console.log('  Sync and async callbacks both dispatch through core.');
-console.log('  The async path proves the JS event loop ticks between');
-console.log('  awaits — a sync core would never let the Promise resolve.');
+console.log('  Tool.fromFn registers a tagged tool, Chat.tools plumbs it');
+console.log('  through core, and the model invocation reaches the JS callback.');
+console.log('  (Schema enforcement on args + final-response synthesis are');
+console.log('   model-quality concerns separate from JS-binding wiring.)');
