@@ -10,6 +10,14 @@ on:
         required: true
       SWIFT_MIRROR_TOKEN:
         required: true
+      MAVEN_CENTRAL_USERNAME:
+        required: false
+      MAVEN_CENTRAL_PASSWORD:
+        required: false
+      MAVEN_SIGNING_KEY:
+        required: false
+      MAVEN_SIGNING_PASSWORD:
+        required: false
 
 jobs:
   godot-distributable:
@@ -308,3 +316,96 @@ jobs:
           git tag "${VERSION}"
           git push origin main --force
           git push origin "${VERSION}"
+
+  # Build AAR + JAR with native libs, create GitHub Release, publish to Maven Central.
+  create-github-release-kotlin:
+    if: startsWith(github.ref, 'refs/tags/nobodywho-kotlin-v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Download all uniffi release artifacts"
+        uses: actions/download-artifact@v4
+        with:
+          pattern: nobodywho-uniffi-*-release
+          merge-multiple: true
+          path: ./artifacts
+
+      - name: "List artifacts"
+        run: ls -la artifacts/
+
+      # Place Android native libs for AAR
+      - name: "Setup Android jniLibs"
+        run: |
+          mkdir -p nobodywho/kotlin/android/build/jniLibs/{arm64-v8a,x86_64}
+          cp artifacts/libnobodywho-uniffi-aarch64-linux-android-release.so \
+            nobodywho/kotlin/android/build/jniLibs/arm64-v8a/libnobodywho_uniffi.so
+          cp artifacts/libnobodywho-uniffi-x86_64-linux-android-release.so \
+            nobodywho/kotlin/android/build/jniLibs/x86_64/libnobodywho_uniffi.so
+
+      # Place desktop native libs for JVM JAR (JNA layout)
+      - name: "Setup JVM native libs"
+        run: |
+          mkdir -p nobodywho/kotlin/jvm/src/main/resources/{linux-x86-64,linux-aarch64,darwin-aarch64,win32-x86-64}
+          cp artifacts/libnobodywho-uniffi-x86_64-unknown-linux-gnu-release.so \
+            nobodywho/kotlin/jvm/src/main/resources/linux-x86-64/libnobodywho_uniffi.so
+          cp artifacts/libnobodywho-uniffi-aarch64-unknown-linux-gnu-release.so \
+            nobodywho/kotlin/jvm/src/main/resources/linux-aarch64/libnobodywho_uniffi.so
+          cp artifacts/libnobodywho-uniffi-aarch64-apple-darwin-release.dylib \
+            nobodywho/kotlin/jvm/src/main/resources/darwin-aarch64/libnobodywho_uniffi.dylib
+          cp artifacts/libnobodywho-uniffi-x86_64-pc-windows-msvc-release.dll \
+            nobodywho/kotlin/jvm/src/main/resources/win32-x86-64/nobodywho_uniffi.dll
+
+      - name: "Setup JDK"
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: "Setup Android SDK"
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;34.0.0"
+
+      # Set version from tag
+      - name: "Set version"
+        run: |
+          VERSION=${GITHUB_REF_NAME#nobodywho-kotlin-v}
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: "Build AAR and JAR"
+        working-directory: ./nobodywho/kotlin
+        run: |
+          ./gradlew :android:assembleRelease :jvm:jar \
+            -Pversion=${{ env.VERSION }}
+
+      - name: "Collect release artifacts"
+        run: |
+          mkdir -p release
+          cp nobodywho/kotlin/android/build/outputs/aar/android-release.aar \
+            release/nobodywho-android-${{ env.VERSION }}.aar
+          cp nobodywho/kotlin/jvm/build/libs/jvm.jar \
+            release/nobodywho-${{ env.VERSION }}.jar
+
+      - name: "Create GitHub Release"
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Publish to Maven Central (requires MAVEN_CENTRAL_USERNAME and MAVEN_CENTRAL_PASSWORD secrets)
+      - name: "Publish to Maven Central"
+        if: ${{ secrets.MAVEN_CENTRAL_USERNAME != '' }}
+        working-directory: ./nobodywho/kotlin
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          SIGNING_KEY: ${{ secrets.MAVEN_SIGNING_KEY }}
+          SIGNING_PASSWORD: ${{ secrets.MAVEN_SIGNING_PASSWORD }}
+        run: |
+          ./gradlew :android:publishReleasePublicationToMavenCentralRepository \
+                    :jvm:publishReleasePublicationToMavenCentralRepository \
+            -Pversion=${{ env.VERSION }}
