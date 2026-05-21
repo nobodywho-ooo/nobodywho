@@ -18,8 +18,8 @@ pub(super) fn load_backend(
             let model_dir = huggingface::resolve(huggingface::parse(&config.source)?)?;
             let backend = backends::KokoroBackend::new(
                 &model_dir,
-                config.voice,
-                config.language,
+                &config.voice,
+                &config.language,
                 config.speed,
                 device,
             )?;
@@ -55,16 +55,15 @@ fn encode_wav(pcm: &[f32], sample_rate: u32) -> Result<Vec<u8>, TtsError> {
     };
 
     let mut buffer = Vec::with_capacity(44 + pcm.len() * 2);
-    let wav_err = |e: hound::Error| TtsError::WavEncoding(e.to_string());
     {
         let cursor = std::io::Cursor::new(&mut buffer);
-        let mut writer = hound::WavWriter::new(cursor, spec).map_err(wav_err)?;
+        let mut writer = hound::WavWriter::new(cursor, spec)?;
         for &sample in pcm {
             // https://docs.rs/hound/3.5.1/hound/#examples
             let s = (sample * i16::MAX as f32).clamp(i16::MIN as f32, i16::MAX as f32) as i16;
-            writer.write_sample(s).map_err(wav_err)?;
+            writer.write_sample(s)?;
         }
-        writer.finalize().map_err(wav_err)?;
+        writer.finalize()?;
     }
     Ok(buffer)
 }

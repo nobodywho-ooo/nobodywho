@@ -35,14 +35,14 @@ pub(in crate::tts) struct KokoroBackend {
 impl KokoroBackend {
     pub fn new(
         model_dir: &Path,
-        voice: String,
-        language: String,
+        voice: &str,
+        language: &str,
         speed: f32,
         device: TtsDevice,
     ) -> Result<Self, TtsError> {
         let session = ort_util::load_session(&model_dir.join("model.onnx"), device)?;
         let vocab = load_vocab(&model_dir.join("config.json"))?;
-        let (voice_style, max_input_phonemes) = load_voice(&model_dir.join("voices"), &voice)?;
+        let (voice_style, max_input_phonemes) = load_voice(&model_dir.join("voices"), voice)?;
 
         info!(
             voice,
@@ -56,7 +56,7 @@ impl KokoroBackend {
             session,
             voice_style,
             vocab,
-            language,
+            language: language.to_string(),
             speed,
             max_input_phonemes,
         })
@@ -110,21 +110,15 @@ impl TtsBackendImpl for KokoroBackend {
         tokens.push(0);
         let token_len = tokens.len();
 
-        let tokens = Tensor::from_array(([1usize, token_len], tokens))
-            .map_err(|e| TtsError::Synthesis(format!("tokens tensor: {e}")))?;
-        let style = Tensor::from_array(([1usize, STYLE_DIM], style))
-            .map_err(|e| TtsError::Synthesis(format!("style tensor: {e}")))?;
-        let speed = Tensor::from_array(([1usize], vec![self.speed as f64]))
-            .map_err(|e| TtsError::Synthesis(format!("speed tensor: {e}")))?;
+        let tokens = Tensor::from_array(([1usize, token_len], tokens))?;
+        let style = Tensor::from_array(([1usize, STYLE_DIM], style))?;
+        let speed = Tensor::from_array(([1usize], vec![self.speed as f64]))?;
 
         let outputs = self
             .session
-            .run(ort::inputs!["input_ids" => tokens, "style" => style, "speed" => speed])
-            .map_err(|e| TtsError::Synthesis(format!("ort inference failed: {e}")))?;
+            .run(ort::inputs!["input_ids" => tokens, "style" => style, "speed" => speed])?;
 
-        let output = outputs[0]
-            .try_extract_tensor::<f32>()
-            .map_err(|e| TtsError::Synthesis(format!("extract waveform: {e}")))?;
+        let output = outputs[0].try_extract_tensor::<f32>()?;
 
         let pcm = output.1.to_vec();
         debug!(

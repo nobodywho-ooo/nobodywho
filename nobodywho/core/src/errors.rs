@@ -425,8 +425,11 @@ pub enum TtsError {
     #[error("Error during synthesis: {0}")]
     Synthesis(String),
 
-    #[error("Error encoding WAV output: {0}")]
-    WavEncoding(String),
+    #[error("ONNX Runtime error: {0}")]
+    Ort(#[from] ort::Error),
+
+    #[error("WAV encoding: {0}")]
+    Wav(#[from] hound::Error),
 }
 
 #[cfg(not(target_os = "android"))]
