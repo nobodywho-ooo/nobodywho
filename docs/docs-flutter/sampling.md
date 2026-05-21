@@ -148,7 +148,7 @@ to always end the chain with one of the sampling steps (e.g. `dist()`, `greedy()
 
 You can also change the sampler configuration on an existing chat instance:
 
-```dart
+```dart continuation
 final sampler = nobodywho.SamplerBuilder()
     .temperature(temperature: 0.8)
     .topK(topK: 5)

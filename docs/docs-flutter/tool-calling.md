@@ -35,7 +35,7 @@ final circleAreaTool = nobodywho.Tool(
 As you can see, every `Tool()` call needs a function, a name, and a description
 of what such tool does. To let your LLM use it, simply add it when creating `Chat`:
 
-```dart
+```dart continuation
 final chat = nobodywho.Chat.fromPath(
   modelPath: './model.gguf',
   tools: [circleAreaTool]

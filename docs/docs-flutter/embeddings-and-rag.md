@@ -146,7 +146,7 @@ print(scores);  // [0.23, 0.89, 0.45] - second doc scores highest
 
 For convenience, use `rankAndSort` to get documents sorted by relevance:
 
-```dart
+```dart continuation
 // Returns list of (document, score) tuples, sorted by score
 final rankedDocs = await crossencoder.rankAndSort(query: query, documents: documents);
 

@@ -45,7 +45,7 @@ to work together.
 With the model configured, all that is left is to compose the prompt and send it to the model.
 That is done through `askWithPrompt`, which accepts a `Prompt` containing a list of `PromptPart` values.
 
-```dart
+```dart continuation
 final response = await chat.askWithPrompt(nobodywho.Prompt([
   nobodywho.TextPart("Tell me what you see in the image and what you hear in the audio."),
   nobodywho.ImagePart("./dog.png"),
@@ -58,7 +58,7 @@ As with textual prompts, the format in which you supply the multimodal prompt ca
 scenarios. If the model performs poorly, try to mess around with the order of supplying the text
 and the multimodal files, or the descriptions you supply. For example, the following prompt may perform better than the previously presented one.
 
-```dart
+```dart continuation
 await chat.resetHistory();
 final response2 = await chat.askWithPrompt(nobodywho.Prompt([
   nobodywho.TextPart("Tell me what you see in the image."),
@@ -71,7 +71,7 @@ final response2 = await chat.askWithPrompt(nobodywho.Prompt([
 Also, there is still a lot of variance between how the models internally process the images.
 This, for example, causes differences in how quickly the model consumes context - for some models like Gemma 3, the number of tokens per image is constant; for others like Qwen 3, they scale with the size of the image. In that case, you can increase the context size if the resources allow:
 
-```dart
+```dart continuation
 final chat2 = nobodywho.Chat(
   model: model,
   systemPrompt: "You are a helpful assistant.",

@@ -40,7 +40,7 @@ The return type of `ask` is a `TokenStream`.
 If you want to start reading the response as soon as possible, you can just iterate over the `TokenStream`.
 Each token is either an individual word or fragments of a word.
 
-```dart
+```dart continuation
 await for (final token in response) {
    print(token);
 }
@@ -49,7 +49,7 @@ await for (final token in response) {
 If you just want to get the complete response, you can call `TokenStream.completed()`.
 This will return the entire response string once the model is done generating its entire response.
 
-```dart
+```dart continuation
 final fullResponse = await response.completed();
 ```
 
@@ -59,14 +59,14 @@ All of your messages and the model's responses are stored in the `Chat` object, 
 
 If you want to inspect the messages inside the `Chat` object, you can use `getChatHistory`.
 
-```dart
+```dart continuation
 final msgs = await chat.getChatHistory();
 print(msgs[0].content); // "Is water wet?"
 ```
 
 Similarly, if you want to edit what messages are in the context, you can use `setChatHistory`:
 
-```dart
+```dart continuation
 await chat.setChatHistory([
   nobodywho.Message.user(content: "What is water?")
 ]);
@@ -108,7 +108,7 @@ Even with properly selected context size it might happen that you fill up your e
 
 Again, `contextSize` is fixed to the `Chat` instance, so it is currently not possible to change the size after `Chat` is created. To reset the current context content, just call `resetContext()` with the new system prompt and potentially changed tools.
 
-```dart
+```dart continuation
 await chat.resetContext(systemPrompt: "New system prompt", tools: []);
 ```
 
@@ -162,7 +162,7 @@ final chat = await nobodywho.Chat.fromPath(
 
 You can also modify template variables on an existing chat instance:
 
-```dart
+```dart continuation
 // Set a single template variable
 await chat.setTemplateVariable("enable_thinking", true);
 
