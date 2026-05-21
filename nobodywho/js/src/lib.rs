@@ -458,6 +458,233 @@ fn js_to_serializable_parts(input: &JsValue) -> Result<JsValue, JsError> {
     ))
 }
 
+// ---------- Tool (LLM-callable JS function) ----------
+//
+// JS API:
+//
+//     import { Tool, Chat } from 'nobodywho-js';
+//
+//     const weather = Tool.fromFn(
+//       'get_weather',
+//       'Get current weather for a city',
+//       { type: 'object', properties: { city: { type: 'string' } }, required: ['city'] },
+//       ({ city }) => `Sunny in ${city}, 21°C`,
+//     );
+//
+//     const chat = new Chat(model, { tools: [weather], systemPrompt: '...' });
+//     const reply = await (await chat.ask('Weather in CPH?')).completed();
+//
+// v1 limitations (documented in README):
+// - Only the in-process `Chat` accepts tools. `WorkerChat` doesn't — JS
+//   function refs can't survive postMessage and we don't yet have an RPC
+//   bridge between worker and main thread to dispatch tool calls.
+// - JS callbacks must be SYNCHRONOUS (return a string, not a Promise).
+//   Core's tool-call dispatcher is `Fn(Value) -> String + Send + Sync`
+//   and the wasm32 inference loop holds the single JS thread, so a
+//   Promise returned from a callback would never resolve until inference
+//   finishes — defeating the point. Async support needs core to grow an
+//   `AsyncFn` variant of Tool, or for the dispatch to happen on a
+//   separate worker. Tracked.
+
+/// Factory namespace for LLM-callable tools. Built via [`Tool::from_fn`]
+/// and passed to `Chat`'s `tools` option.
+///
+/// Tools are returned as plain JS objects of shape
+/// `{__nbwKind: 'tool', name, description, jsonSchema, callback}` rather
+/// than wasm-bindgen class instances — wasm-bindgen 0.2.121's
+/// Rust-defined structs don't `impl JsCast`, so we can't `dyn_into`
+/// them out of a generic options-object on the way back. Tagged plain
+/// objects sidestep that and let the extract step do a brand check.
+#[wasm_bindgen]
+pub struct Tool;
+
+#[wasm_bindgen]
+impl Tool {
+    /// Wrap a JS function as an LLM-callable tool.
+    ///
+    /// - `name`: identifier the model uses when emitting a tool-call.
+    /// - `description`: shown to the model so it can decide when to call.
+    /// - `jsonSchema`: JSON-Schema (as a plain JS object) describing the
+    ///   argument shape. Used by the grammar sampler to constrain what
+    ///   the model emits to match this schema exactly.
+    /// - `callback`: synchronous JS function. Receives the parsed
+    ///   arguments object as its first argument and must return a string
+    ///   (the value the model sees as the tool's result). Non-string
+    ///   returns are JSON.stringify'd as a best-effort fallback.
+    ///
+    /// Returns a plain JS object `{__nbwKind:'tool', name, description,
+    /// jsonSchema, callback}`. `Chat`'s constructor checks for the brand
+    /// when reading the `tools` option and rebuilds the closure form
+    /// expected by core.
+    #[wasm_bindgen(js_name = fromFn)]
+    pub fn from_fn(
+        name: String,
+        description: String,
+        json_schema: JsValue,
+        callback: js_sys::Function,
+    ) -> Result<JsValue, JsError> {
+        // Sanity-check the schema up-front so a typo errors at Tool
+        // construction time rather than mid-inference. The Rust side
+        // re-parses in `tool_from_tagged`; this is just a fast-fail.
+        let schema_str = js_sys::JSON::stringify(&json_schema)
+            .ok()
+            .and_then(|s| s.as_string())
+            .ok_or_else(|| {
+                JsError::new("Tool.fromFn: jsonSchema must be JSON-serializable")
+            })?;
+        let _: serde_json::Value = serde_json::from_str(&schema_str)
+            .map_err(|e| JsError::new(&format!("Tool.fromFn: jsonSchema parse: {e}")))?;
+
+        let obj = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&obj, &"__nbwKind".into(), &"tool".into());
+        let _ = js_sys::Reflect::set(&obj, &"name".into(), &JsValue::from_str(&name));
+        let _ = js_sys::Reflect::set(
+            &obj,
+            &"description".into(),
+            &JsValue::from_str(&description),
+        );
+        let _ = js_sys::Reflect::set(&obj, &"jsonSchema".into(), &json_schema);
+        let _ = js_sys::Reflect::set(&obj, &"callback".into(), &callback);
+        Ok(obj.into())
+    }
+}
+
+/// Read the `tools` array off a `Chat` options object and materialize
+/// each entry as a `nobodywho::tool_calling::Tool` (the core's Arc'd
+/// closure form). Returns an empty vec for missing / null / undefined
+/// `tools`. Each array element must be a `Tool.fromFn(...)` return
+/// value (tagged with `__nbwKind: 'tool'`); rejects anything else with
+/// a clear error pointing the caller at `Tool.fromFn`.
+fn extract_tools(opts: &JsValue) -> Result<Vec<nobodywho::tool_calling::Tool>, JsError> {
+    if opts.is_undefined() || opts.is_null() {
+        return Ok(Vec::new());
+    }
+    let tools_val = match js_sys::Reflect::get(opts, &JsValue::from_str("tools")) {
+        Ok(v) => v,
+        Err(_) => return Ok(Vec::new()),
+    };
+    if tools_val.is_undefined() || tools_val.is_null() {
+        return Ok(Vec::new());
+    }
+    let arr = tools_val
+        .dyn_ref::<js_sys::Array>()
+        .ok_or_else(|| {
+            JsError::new("Chat options.tools must be an array of Tool.fromFn(...) values")
+        })?;
+    let mut out = Vec::with_capacity(arr.length() as usize);
+    for i in 0..arr.length() {
+        let elem = arr.get(i);
+        out.push(tool_from_tagged(&elem).map_err(|e| {
+            JsError::new(&format!("Chat options.tools[{i}]: {e}"))
+        })?);
+    }
+    Ok(out)
+}
+
+/// Return a clone of `opts` with the named keys removed. Used to strip
+/// `tools` (whose entries are tagged JS objects with non-serde-friendly
+/// JS function values inside) before passing the rest through
+/// `serde_wasm_bindgen` for ChatOptions deserialization.
+fn strip_keys(opts: &JsValue, keys: &[&str]) -> Result<JsValue, JsError> {
+    if opts.is_undefined() || opts.is_null() {
+        return Ok(opts.clone());
+    }
+    let src = opts
+        .dyn_ref::<js_sys::Object>()
+        .ok_or_else(|| JsError::new("Chat options must be a plain object"))?;
+    let out = js_sys::Object::new();
+    for k in js_sys::Object::keys(src).iter() {
+        let key_str = k.as_string().unwrap_or_default();
+        if keys.contains(&key_str.as_str()) {
+            continue;
+        }
+        if let Ok(v) = js_sys::Reflect::get(src, &k) {
+            let _ = js_sys::Reflect::set(&out, &k, &v);
+        }
+    }
+    Ok(out.into())
+}
+
+/// Take a tagged tool object (the shape `Tool::from_fn` returns) and
+/// rebuild it as a core `Tool`. The JS callback is wrapped in an
+/// `Arc<Fn(Value) -> String + Send + Sync>` that the inference loop
+/// invokes when the model emits a matching tool-call.
+fn tool_from_tagged(part: &JsValue) -> Result<nobodywho::tool_calling::Tool, String> {
+    let kind = js_sys::Reflect::get(part, &"__nbwKind".into())
+        .ok()
+        .and_then(|v| v.as_string());
+    if kind.as_deref() != Some("tool") {
+        return Err(
+            "not a Tool.fromFn(...) value — missing or wrong __nbwKind brand".to_string(),
+        );
+    }
+    let name = js_sys::Reflect::get(part, &"name".into())
+        .ok()
+        .and_then(|v| v.as_string())
+        .ok_or_else(|| "missing name".to_string())?;
+    let description = js_sys::Reflect::get(part, &"description".into())
+        .ok()
+        .and_then(|v| v.as_string())
+        .ok_or_else(|| "missing description".to_string())?;
+    let schema_jsval = js_sys::Reflect::get(part, &"jsonSchema".into())
+        .map_err(|_| "missing jsonSchema".to_string())?;
+    let schema_str = js_sys::JSON::stringify(&schema_jsval)
+        .ok()
+        .and_then(|s| s.as_string())
+        .ok_or_else(|| "jsonSchema is not JSON-serializable".to_string())?;
+    let schema: serde_json::Value =
+        serde_json::from_str(&schema_str).map_err(|e| format!("jsonSchema parse: {e}"))?;
+    let callback_jsval = js_sys::Reflect::get(part, &"callback".into())
+        .map_err(|_| "missing callback".to_string())?;
+    let callback: js_sys::Function = callback_jsval
+        .dyn_into::<js_sys::Function>()
+        .map_err(|_| "callback is not a function".to_string())?;
+
+    let wrapper = std::sync::Arc::new(move |args: serde_json::Value| -> String {
+        // serde_json::Value → JsValue for the JS-side function.
+        // serde_wasm_bindgen rather than JSON.parse for fidelity
+        // (preserves number vs. string types as the LLM emitted
+        // them, modulo serde's JSON shape).
+        let args_js = match serde_wasm_bindgen::to_value(&args) {
+            Ok(v) => v,
+            Err(e) => return format!("ERROR: tool arg conversion: {e}"),
+        };
+        match callback.call1(&JsValue::NULL, &args_js) {
+            Ok(result) => {
+                if let Some(s) = result.as_string() {
+                    return s;
+                }
+                // Non-string return: JSON.stringify as a fallback so
+                // the model gets something legible. A common shape
+                // here is a JS object or number — treating it as
+                // text-ish JSON is the least-surprising default.
+                js_sys::JSON::stringify(&result)
+                    .ok()
+                    .and_then(|s| s.as_string())
+                    .unwrap_or_else(|| {
+                        "ERROR: tool returned a non-serializable value".to_string()
+                    })
+            }
+            Err(e) => {
+                // Surface JS exceptions back to the model as an error
+                // string so it can recover (or stop calling the tool).
+                let msg = js_sys::Reflect::get(&e, &"message".into())
+                    .ok()
+                    .and_then(|m| m.as_string())
+                    .unwrap_or_else(|| format!("{e:?}"));
+                format!("ERROR: {msg}")
+            }
+        }
+    });
+
+    Ok(nobodywho::tool_calling::Tool::new(
+        name,
+        description,
+        schema,
+        wrapper,
+    ))
+}
+
 // ---------- Chat (raw blocking class — see WorkerChat below for the user-facing one) ----------
 //
 // Exposed in JS as `Chat`. The user-facing worker-backed wrapper is the
@@ -554,10 +781,18 @@ impl Chat {
     /// Create a new chat session bound to a loaded model.
     #[wasm_bindgen(constructor)]
     pub fn new(model: &Model, options: JsValue) -> Result<Chat, JsError> {
-        let opts: ChatOptions = if options.is_undefined() || options.is_null() {
+        // Tools are wasm-bindgen instances that can't go through
+        // serde_wasm_bindgen, so extract + strip them from the options
+        // object before deserializing the rest. Mirrors how
+        // `parse_chat_create_opts` handles modelBytes / mmprojBytes.
+        let tools = extract_tools(&options)?;
+        let opts_jsval = strip_keys(&options, &["tools"])?;
+
+        let opts: ChatOptions = if opts_jsval.is_undefined() || opts_jsval.is_null() {
             ChatOptions::default()
         } else {
-            serde_wasm_bindgen::from_value(options).map_err(|e| JsError::new(&e.to_string()))?
+            serde_wasm_bindgen::from_value(opts_jsval)
+                .map_err(|e| JsError::new(&e.to_string()))?
         };
 
         let mut builder = nobodywho::chat::ChatBuilder::new(Arc::clone(&model.inner));
@@ -572,6 +807,9 @@ impl Chat {
         }
         if let Some(vars) = opts.template_variables {
             builder = builder.with_template_variables(vars);
+        }
+        if !tools.is_empty() {
+            builder = builder.with_tools(tools);
         }
 
         Ok(Chat {
