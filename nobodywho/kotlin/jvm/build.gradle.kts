@@ -1,6 +1,7 @@
 plugins {
     id("org.jetbrains.kotlin.jvm")
     id("maven-publish")
+    signing
 }
 
 kotlin {
