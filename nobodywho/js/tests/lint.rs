@@ -43,28 +43,6 @@ fn doc_above(src: &str, signature: &str) -> String {
 
 // ---------- Findings ----------
 
-/// Finding #1 — stale "Out of scope for v1" comment.
-///
-/// `ConstraintSpec` is defined (lib.rs ~209-233) and wired into `Chat::new`
-/// via `builder.with_sampler(...)` (~lib.rs:253-254). But the comment block
-/// at the bottom of lib.rs still lists `Constraint / structured output` as
-/// "intentionally not yet wrapped." Confusing to anyone reading the binding
-/// to see what's available.
-#[test]
-fn out_of_scope_section_doesnt_mention_constraint() {
-    let after_marker = LIB_RS
-        .split("// ---------- Out of scope for v1 ----------")
-        .nth(1)
-        .expect("missing 'Out of scope for v1' section header in lib.rs");
-    assert!(
-        !after_marker.contains("`Constraint`"),
-        "js/src/lib.rs: 'Out of scope for v1' section still lists `Constraint` \
-         — but ConstraintSpec is exposed via Chat::new's options (see lib.rs \
-         ~209-233 and ~253-254). Either remove the bullet or, if structured \
-         output is still half-wired, describe the actual remaining gap."
-    );
-}
-
 /// Finding #2 — `Chat::ask` docstring promises streaming that doesn't happen on wasm.
 ///
 /// `Chat::ask`'s docstring says tokens arrive as they're generated. On

@@ -2071,18 +2071,3 @@ fn parse_chat_create_opts(opts: &JsValue) -> Result<ChatCreateParsed, JsError> {
         chat_opts_jsval: chat_opts_obj.into(),
     })
 }
-
-// ---------- Out of scope for v1 ----------
-//
-// The following are intentionally not yet wrapped. Each requires either a core
-// API change or a wasm-specific design decision:
-//
-// - Tool calling — depends on llguidance behavior on wasm.
-// - Multimodal (image / audio assets) — `mtmd` is not currently enabled on wasm.
-// - Progress callbacks during model load — moot since we load from `Uint8Array`
-//   (the browser-side `fetchModelBytes` helper in `examples/setup-browser.mjs`
-//   reports its own download progress via JS).
-//
-// Grammar-constrained generation IS wired through `WorkerChat::new`'s options —
-// see `ConstraintSpec` above for the wire format and the runtime caveat.
-// `CrossEncoder` IS wired — see the section above.
