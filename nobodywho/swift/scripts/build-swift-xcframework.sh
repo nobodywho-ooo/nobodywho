@@ -53,6 +53,19 @@ cp target/aarch64-apple-visionos-sim/release/libnobodywho_uniffi.a "$TMPDIR/visi
 cp target/aarch64-apple-watchos/release/libnobodywho_uniffi.a "$TMPDIR/watchos-device/"
 cp target/aarch64-apple-watchos-sim/release/libnobodywho_uniffi.a "$TMPDIR/watchos-sim/"
 
+# Pre-link watchOS archives into single object files. Without this, Xcode release
+# builds (with WMO and -dead_strip) can fail to pull in .o files from the 1293-member
+# archive, causing undefined symbol errors. Merging into a single .o forces the linker
+# to load all symbols atomically. The linker's -dead_strip pass still removes
+# unreachable code, so there is no final binary size impact.
+echo "Pre-linking watchOS archives into single object files..."
+for dir in watchos-device watchos-sim; do
+    ld -r -all_load "$TMPDIR/$dir/libnobodywho_uniffi.a" -o "$TMPDIR/$dir/libnobodywho_uniffi.o"
+    rm "$TMPDIR/$dir/libnobodywho_uniffi.a"
+    ar rcs "$TMPDIR/$dir/libnobodywho_uniffi.a" "$TMPDIR/$dir/libnobodywho_uniffi.o"
+    rm "$TMPDIR/$dir/libnobodywho_uniffi.o"
+done
+
 rm -rf swift/Frameworks/NobodyWhoNative.xcframework
 mkdir -p swift/Frameworks
 
