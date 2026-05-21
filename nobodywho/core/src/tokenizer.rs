@@ -50,10 +50,7 @@ impl Display for Prompt {
             .iter()
             .map(|part| match part {
                 PromptPart::Text(text) => text.clone(),
-                PromptPart::Image(_)
-                | PromptPart::Audio(_)
-                | PromptPart::ImageBytes(_)
-                | PromptPart::AudioBytes(_) => marker.to_string(),
+                PromptPart::Image(_) | PromptPart::Audio(_) => marker.to_string(),
             })
             .collect::<Vec<String>>()
             .join("");
@@ -89,30 +86,12 @@ impl Prompt {
         self.parts.push(PromptPart::Audio(audio_path.into()));
     }
 
-    /// Add image bytes (raw file contents — JPEG, PNG, etc.). mtmd-helper
-    /// auto-detects the format via the file-header. Use this when you have
-    /// the image in memory (e.g. a fetch() response in the browser, or a
-    /// `requests.get(...).content` in Python) and don't want to write a
-    /// tempfile just to call `push_image`.
-    pub fn push_image_bytes(&mut self, bytes: Vec<u8>) {
-        self.parts.push(PromptPart::ImageBytes(bytes));
-    }
-
-    /// Add audio bytes (raw file contents — WAV/MP3/FLAC/Ogg). Same
-    /// rationale as [`push_image_bytes`].
-    pub fn push_audio_bytes(&mut self, bytes: Vec<u8>) {
-        self.parts.push(PromptPart::AudioBytes(bytes));
-    }
-
     pub fn extract_asset_paths(&self) -> Vec<&Path> {
         self.parts
             .iter()
             .filter_map(|part| match part {
                 PromptPart::Image(path) | PromptPart::Audio(path) => Some(path.as_path()),
-                // Bytes parts have no path — caller asked for paths only.
-                PromptPart::Text(_)
-                | PromptPart::ImageBytes(_)
-                | PromptPart::AudioBytes(_) => None,
+                PromptPart::Text(_) => None,
             })
             .collect()
     }
@@ -130,14 +109,6 @@ pub(crate) enum PromptPart {
     Text(String),
     Image(PathBuf),
     Audio(PathBuf),
-    /// Raw image-file bytes (any format `mtmd-helper`/`stb_image` can
-    /// decode: JPEG, PNG, BMP, TGA, GIF, etc.). The C-side calls
-    /// `mtmd_helper_bitmap_init_from_buf` which sniffs the header.
-    ImageBytes(Vec<u8>),
-    /// Raw audio-file bytes (any format the linked miniaudio decoder
-    /// supports — WAV, MP3, FLAC, Ogg Vorbis on default builds). Same
-    /// header-sniffing dispatch as `ImageBytes` inside `mtmd-helper`.
-    AudioBytes(Vec<u8>),
 }
 
 pub trait Promptable {
@@ -477,36 +448,6 @@ impl ProjectionModel {
         })?;
 
         info!(path = %p, "Loading audio for MTMD");
-
-        Ok(bitmap)
-    }
-
-    /// Decode raw image-file bytes (JPEG/PNG/BMP/...) into a bitmap. Useful
-    /// on targets without a real filesystem (wasm) or when the image is
-    /// already in memory.
-    pub fn load_image_bytes(&self, bytes: &[u8]) -> Result<MtmdBitmap, MultimodalError> {
-        let bitmap = MtmdBitmap::from_buffer(&self.ctx, bytes).map_err(|e| {
-            MultimodalError::LoadImageBytes {
-                len: bytes.len(),
-                error: e.to_string(),
-            }
-        })?;
-
-        info!(bytes = bytes.len(), "Loading image bytes for MTMD");
-
-        Ok(bitmap)
-    }
-
-    /// Decode raw audio-file bytes (WAV/MP3/FLAC/...) into a bitmap.
-    pub fn load_audio_bytes(&self, bytes: &[u8]) -> Result<MtmdBitmap, MultimodalError> {
-        let bitmap = MtmdBitmap::from_buffer(&self.ctx, bytes).map_err(|e| {
-            MultimodalError::LoadAudioBytes {
-                len: bytes.len(),
-                error: e.to_string(),
-            }
-        })?;
-
-        info!(bytes = bytes.len(), "Loading audio bytes for MTMD");
 
         Ok(bitmap)
     }
@@ -1093,90 +1034,5 @@ mod tests {
 
         assert_eq!(prefix_index, 300); // 100 chunks * 3 tokens each
         assert_eq!(new.tail(prefix_index).n_tokens(), 2); // Final different chunk
-    }
-
-    // ===== Path B: bytes-variant prompt parts =====
-
-    #[test]
-    fn test_push_image_bytes_appends_variant() {
-        let mut prompt = Prompt::new();
-        prompt.push_text("look at this:");
-        prompt.push_image_bytes(vec![0xFF, 0xD8, 0xFF, 0xE0]); // JPEG magic-bytes prefix
-
-        assert_eq!(prompt.parts.len(), 2);
-        match &prompt.parts[0] {
-            PromptPart::Text(s) => assert_eq!(s, "look at this:"),
-            other => panic!("expected Text, got {other:?}"),
-        }
-        match &prompt.parts[1] {
-            PromptPart::ImageBytes(b) => assert_eq!(b, &[0xFF, 0xD8, 0xFF, 0xE0]),
-            other => panic!("expected ImageBytes, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn test_push_audio_bytes_appends_variant() {
-        let mut prompt = Prompt::new();
-        prompt.push_audio_bytes(b"RIFF\x00\x00\x00\x00WAVE".to_vec()); // WAV header prefix
-
-        assert_eq!(prompt.parts.len(), 1);
-        match &prompt.parts[0] {
-            PromptPart::AudioBytes(b) => assert!(b.starts_with(b"RIFF")),
-            other => panic!("expected AudioBytes, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn test_display_renders_marker_for_bytes_variants() {
-        // The chat-template rendering replaces non-text parts with the
-        // MTMD media marker (default `<__media__>`). Path B's new variants
-        // must behave identically to the path-based variants here.
-        let mut prompt = Prompt::new();
-        prompt.push_text("before ");
-        prompt.push_image_bytes(vec![1, 2, 3]);
-        prompt.push_text(" middle ");
-        prompt.push_audio_bytes(vec![4, 5, 6]);
-        prompt.push_text(" after");
-
-        let rendered = prompt.to_string();
-        let marker = mtmd_marker_string();
-        let expected = format!("before {marker} middle {marker} after");
-        assert_eq!(rendered, expected);
-    }
-
-    #[test]
-    fn test_extract_media_assets_includes_bytes_variants() {
-        // `extract_media_assets` is used by `Worker::ask` to drive bitmap
-        // construction. It must return every non-text part — including
-        // both path-based and bytes-based — in order.
-        let mut prompt = Prompt::new();
-        prompt.push_text("intro");
-        prompt.push_image(std::path::Path::new("/tmp/foo.png"));
-        prompt.push_image_bytes(vec![10, 20]);
-        prompt.push_audio_bytes(vec![30, 40]);
-        prompt.push_text("outro");
-
-        let assets = prompt.extract_media_assets();
-        assert_eq!(assets.len(), 3);
-        assert!(matches!(assets[0], PromptPart::Image(_)));
-        assert!(matches!(assets[1], PromptPart::ImageBytes(_)));
-        assert!(matches!(assets[2], PromptPart::AudioBytes(_)));
-    }
-
-    #[test]
-    fn test_extract_asset_paths_ignores_bytes_variants() {
-        // `extract_asset_paths` is path-only by definition (its return
-        // type is `Vec<&Path>`); the bytes variants don't have paths so
-        // they must be filtered out, not coerced to empty paths.
-        let mut prompt = Prompt::new();
-        prompt.push_image(std::path::Path::new("/tmp/a.png"));
-        prompt.push_image_bytes(vec![1, 2, 3]);
-        prompt.push_audio(std::path::Path::new("/tmp/b.wav"));
-        prompt.push_audio_bytes(vec![4, 5, 6]);
-
-        let paths = prompt.extract_asset_paths();
-        assert_eq!(paths.len(), 2);
-        assert_eq!(paths[0], std::path::Path::new("/tmp/a.png"));
-        assert_eq!(paths[1], std::path::Path::new("/tmp/b.wav"));
     }
 }

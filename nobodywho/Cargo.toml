@@ -23,6 +23,15 @@ pyo3-macros = { git = "https://github.com/PyO3/pyo3", branch = "main" }
 pyo3-macros-backend = { git = "https://github.com/PyO3/pyo3", branch = "main" }
 pyo3-build-config = { git = "https://github.com/PyO3/pyo3", branch = "main" }
 pyo3-introspection = { git = "https://github.com/PyO3/pyo3", branch = "main" }
+# wasm-bindgen 0.2.121 stock crates.io release predates the upstream
+# `__wasm_bindgen_emscripten_marker` custom section that the patched CLI
+# uses to switch to Emscripten output mode (library_bindgen.js + addToLibrary
+# format). Without the marker the CLI emits bundler-shape output, which
+# emcc-wbg's -sWASM_BINDGEN post-link step then can't find — silently
+# leaving pkg-bundler stale. Point the runtime at the local fork (which is
+# upstream main + the descriptor-interpreter cli-support tolerance patch)
+# so the marker section is emitted into the compiled wasm.
+wasm-bindgen = { path = "/Users/user/git/wasm-bindgen" }
 
 # Local-checkout override for llama-cpp-rs while the wasm-emscripten branch
 # carries unpublished commits (CMAKE_SYSTEM_PROCESSOR=wasm32 fix + mtmd

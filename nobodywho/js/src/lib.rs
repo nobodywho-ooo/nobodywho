@@ -25,6 +25,11 @@ use std::sync::Arc;
 use futures::FutureExt;
 use wasm_bindgen::prelude::*;
 
+// Force-import file-open syscalls into the wasm; see the module's
+// doc-comment + js/build.rs.
+#[cfg(target_arch = "wasm32")]
+mod syscall_imports;
+
 // Per-worker state for `runInWorker` — only used on wasm32 targets.
 #[cfg(target_arch = "wasm32")]
 use std::cell::RefCell;
@@ -149,13 +154,61 @@ impl Model {
     /// has no filesystem. For HuggingFace / URL fetching, do it on the JS side
     /// before calling this.
     ///
+    /// Pass `mmprojBytes` to enable multimodal (vision / audio) input. The
+    /// bytes are written to Emscripten's MEMFS at a content-hashed path
+    /// and loaded via the existing path-based projection model loader. Pass
+    /// `null`/`undefined` for text-only models.
+    ///
+    /// ```js
+    /// // text-only
+    /// const model = await Model.loadBytes(modelBytes);
+    /// // multimodal — both arguments are Uint8Array
+    /// const model = await Model.loadBytes(modelBytes, mmprojBytes);
+    /// ```
+    ///
     /// CPU-only; the wasm32 target has no GPU concept. `gpu_layers` is fixed
     /// at 0 internally.
     #[wasm_bindgen(js_name = loadBytes)]
-    pub fn load_bytes(bytes: Vec<u8>) -> js_sys::Promise {
+    pub fn load_bytes(bytes: Vec<u8>, mmproj_bytes: JsValue) -> js_sys::Promise {
+        let mmproj_vec: Option<Vec<u8>> = if mmproj_bytes.is_undefined()
+            || mmproj_bytes.is_null()
+        {
+            None
+        } else {
+            match mmproj_bytes.dyn_into::<js_sys::Uint8Array>() {
+                Ok(arr) => Some(arr.to_vec()),
+                Err(_) => {
+                    return js_sys::Promise::reject(
+                        &JsError::new("Model.loadBytes: mmprojBytes must be Uint8Array").into(),
+                    )
+                }
+            }
+        };
+
+        // If we got mmproj bytes, land them in MEMFS via the JS-side
+        // FS.writeFile (libc open(2) from inside the wasm returns EPERM
+        // against MEMFS for reasons we haven't tracked down) and pass
+        // the synthetic path to core. The path is content-hashed so
+        // identical mmproj bytes share one file.
+        let mmproj_path = match mmproj_vec.as_deref() {
+            Some(b) => match write_bytes_to_memfs("mmproj", b) {
+                Ok(p) => Some(p),
+                Err(e) => {
+                    return js_sys::Promise::reject(
+                        &JsError::new(&format!("mmproj write to MEMFS: {e}")).into(),
+                    )
+                }
+            },
+            None => None,
+        };
+
         promisify(async move {
-            let model = nobodywho::llm::get_model_from_bytes(&bytes, 0)
-                .map_err(|e| JsError::new(&e.to_string()))?;
+            let model = nobodywho::llm::get_model_from_bytes(
+                &bytes,
+                mmproj_path.as_deref(),
+                0,
+            )
+            .map_err(|e| JsError::new(&e.to_string()))?;
             Ok(Model {
                 inner: Arc::new(model),
             })
@@ -163,7 +216,7 @@ impl Model {
     }
 }
 
-// ---------- Multimodal: Image / Audio / prompt assembly ----------
+// ---------- Multimodal: Image / Audio / prompt assembly (Path A) ----------
 //
 // JS API:
 //
@@ -177,11 +230,20 @@ impl Model {
 // parts. There is no `Image(path)` constructor in the wasm binding: a
 // browser tab has no filesystem.
 //
-// `Image.fromBytes` / `Audio.fromBytes` return plain tagged JS objects of
-// the shape `{__nbwKind: 'image'|'audio', bytes: Uint8Array}`. They are
-// structured-cloneable, which is what lets them survive the postMessage
-// hop to the chat worker without any custom serialization. The Rust side
-// recognises a part by the `__nbwKind` brand.
+// Path A approach: `Image.fromBytes` / `Audio.fromBytes` return plain
+// tagged JS objects of the shape `{__nbwKind: 'image'|'audio', bytes:
+// Uint8Array}`. The same shape survives the postMessage hop into the chat
+// worker. The Rust side (whether running in the main thread for `Chat` or
+// inside the worker for `WorkerChat`) calls `write_bytes_to_memfs(kind,
+// bytes)` to land the bytes in Emscripten's in-memory filesystem at a
+// content-hashed path like `/tmp/nbw-image-<hash>.bin`, then pushes that
+// path through the existing `Prompt::push_image(&Path)` / `push_audio`
+// API. mtmd's `from_file` loader uses `fopen`, which under Emscripten
+// goes through MEMFS; the file appears real to llama.cpp.
+//
+// Why the hash-named path: identical bytes get the same path, so two
+// `Image.fromBytes(sameBuf)` calls share one MEMFS entry (deduplication
+// for free, KV-cache friendly via the existing bitmap-ID logic).
 
 /// Image factory namespace for multimodal prompts. The only method is
 /// [`Image::from_bytes`] — there is no path-based constructor because a
@@ -194,7 +256,8 @@ impl Image {
     /// Build an image prompt part from raw file bytes (JPEG / PNG / BMP /
     /// GIF / TGA / PSD / PIC / PNM — anything `stb_image` can decode).
     /// The format is sniffed via the file header inside
-    /// `mtmd_helper_bitmap_init_from_buf`.
+    /// `mtmd_helper_bitmap_init_from_file` (Path A goes through the file
+    /// loader, with the bytes mounted into MEMFS at a synthetic path).
     ///
     /// Returns a plain JS object `{__nbwKind: 'image', bytes: Uint8Array}`
     /// suitable for inclusion in a `chat.ask([...])` array.
@@ -252,10 +315,84 @@ fn read_media_bytes(part: &JsValue) -> Result<Vec<u8>, String> {
     Ok(u8a.to_vec())
 }
 
+/// Mount `bytes` into Emscripten's MEMFS under `/home/web_user/nbw-<kind>-
+/// <hash>.bin` and return the path. The path is content-addressed so
+/// identical bytes produce the same file and identical bitmap IDs
+/// downstream.
+///
+/// Writes through `Module.FS.writeFile` on the JS side — libc
+/// `open(2)`/`fopen` from inside the wasm returns EPERM (errno 63) on
+/// `wasm32-unknown-emscripten`'s MEMFS for reasons we haven't tracked
+/// down, but the JS-side FS API works fine on the same paths. Going via
+/// `js_sys::Reflect` against the global `Module.FS` keeps the Rust-side
+/// call site clean and depends only on the build pipeline exporting
+/// `FS` (which `-sEXPORTED_RUNTIME_METHODS=FS` in the emcc post-link
+/// step takes care of).
+fn write_bytes_to_memfs(kind: &str, bytes: &[u8]) -> Result<std::path::PathBuf, String> {
+    use std::hash::{Hash, Hasher};
+
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    bytes.hash(&mut hasher);
+    let hash = hasher.finish();
+    let path = std::path::PathBuf::from(format!("/home/web_user/nbw-{kind}-{hash:016x}.bin"));
+
+    if path.exists() {
+        return Ok(path);
+    }
+
+    js_fs_write_file(&path.to_string_lossy(), bytes)?;
+    Ok(path)
+}
+
+/// Call `Module.FS.writeFile(path, bytes)` from Rust. Used by both
+/// [`write_bytes_to_memfs`] (image/audio prompt parts) and core's
+/// mmproj-from-bytes loader path.
+///
+/// `Module` is the Emscripten module-factory result; in the JS glue
+/// emitted by emcc-MODULARIZE this lives as a top-level local that's
+/// accessible via `globalThis.Module` from inside the wasm-bindgen-
+/// generated JS (since `pre.js` runs `Module.preRun.push(() => { ... })`
+/// it has `Module` in scope). `Module.FS` is the Emscripten FS API,
+/// exported here by `-sEXPORTED_RUNTIME_METHODS=FS`.
+fn js_fs_write_file(path: &str, bytes: &[u8]) -> Result<(), String> {
+    let global_obj = js_sys::global();
+    let module = js_sys::Reflect::get(&global_obj, &JsValue::from_str("Module"))
+        .map_err(|_| "globalThis.Module not found".to_string())?;
+    if module.is_undefined() || module.is_null() {
+        return Err("globalThis.Module is undefined".to_string());
+    }
+    let fs = js_sys::Reflect::get(&module, &JsValue::from_str("FS"))
+        .map_err(|_| "Module.FS not accessible".to_string())?;
+    if fs.is_undefined() || fs.is_null() {
+        return Err(
+            "Module.FS is undefined — build with -sEXPORTED_RUNTIME_METHODS=FS".to_string(),
+        );
+    }
+    let write_file_val = js_sys::Reflect::get(&fs, &JsValue::from_str("writeFile"))
+        .map_err(|_| "Module.FS.writeFile not accessible".to_string())?;
+    let write_file: js_sys::Function = write_file_val
+        .dyn_into()
+        .map_err(|_| "Module.FS.writeFile is not a function".to_string())?;
+
+    let bytes_js: JsValue = js_sys::Uint8Array::from(bytes).into();
+    write_file
+        .call2(&fs, &JsValue::from_str(path), &bytes_js)
+        .map_err(|e| {
+            let msg = js_sys::Reflect::get(&e, &"message".into())
+                .ok()
+                .and_then(|m| m.as_string())
+                .unwrap_or_else(|| format!("{e:?}"));
+            format!("FS.writeFile({path}) failed: {msg}")
+        })?;
+    Ok(())
+}
+
 /// Convert a `JsValue` (a bare string OR an array containing strings and
 /// tagged media-part objects) into a core `Prompt`. Used by the in-process
-/// `Chat::ask`.
-fn js_to_prompt(input: &JsValue) -> Result<nobodywho::tokenizer::Prompt, JsError> {
+/// `Chat::ask` AND (post-postMessage) by the worker dispatcher's `"ask"`
+/// branch — same logic for both since `{__nbwKind, bytes}` is the wire
+/// shape on both sides. Media bytes are written to MEMFS here.
+fn js_to_prompt(input: &JsValue) -> Result<nobodywho::tokenizer::Prompt, String> {
     let mut prompt = nobodywho::tokenizer::Prompt::new();
 
     if let Some(s) = input.as_string() {
@@ -264,9 +401,8 @@ fn js_to_prompt(input: &JsValue) -> Result<nobodywho::tokenizer::Prompt, JsError
     }
 
     let arr: &js_sys::Array = input.dyn_ref::<js_sys::Array>().ok_or_else(|| {
-        JsError::new(
-            "ask: prompt must be a string or an array of (string | Image.fromBytes | Audio.fromBytes)",
-        )
+        "ask: prompt must be a string or an array of (string | Image.fromBytes | Audio.fromBytes)"
+            .to_string()
     })?;
 
     for i in 0..arr.length() {
@@ -275,23 +411,24 @@ fn js_to_prompt(input: &JsValue) -> Result<nobodywho::tokenizer::Prompt, JsError
             prompt.push_text(s);
             continue;
         }
-        match read_media_kind(&part).as_deref() {
-            Some("image") => prompt.push_image_bytes(
-                read_media_bytes(&part).map_err(|e| JsError::new(&e))?,
-            ),
-            Some("audio") => prompt.push_audio_bytes(
-                read_media_bytes(&part).map_err(|e| JsError::new(&e))?,
-            ),
-            Some(other) => {
-                return Err(JsError::new(&format!(
-                    "ask: unknown media kind '{other}' at index {i}"
-                )))
+        let kind = read_media_kind(&part);
+        match kind.as_deref() {
+            Some("image") => {
+                let bytes = read_media_bytes(&part)?;
+                let path = write_bytes_to_memfs("image", &bytes)?;
+                prompt.push_image(&path);
             }
+            Some("audio") => {
+                let bytes = read_media_bytes(&part)?;
+                let path = write_bytes_to_memfs("audio", &bytes)?;
+                prompt.push_audio(&path);
+            }
+            Some(other) => return Err(format!("ask: parts[{i}] unknown kind '{other}'")),
             None => {
-                return Err(JsError::new(&format!(
-                    "ask: parts must be strings or Image.fromBytes(...) / Audio.fromBytes(...) results (got {:?} at index {})",
-                    part, i
-                )))
+                return Err(format!(
+                    "ask: parts[{i}] must be a string or Image.fromBytes(...) / Audio.fromBytes(...) result (got {:?})",
+                    part
+                ));
             }
         }
     }
@@ -299,8 +436,13 @@ fn js_to_prompt(input: &JsValue) -> Result<nobodywho::tokenizer::Prompt, JsError
     Ok(prompt)
 }
 
-/// `js_to_prompt` produces a structured-cloneable shape already, so for the
-/// worker hop we just normalize the input to a JS Array and pass it through.
+/// Pass-through normaliser for the worker hop. Main-thread `WorkerChat.ask`
+/// calls this on its input, then post-messages the result. The worker's
+/// `"ask"` dispatcher then runs `js_to_prompt` on the received array.
+///
+/// Since `{__nbwKind, bytes: Uint8Array}` is already structured-cloneable
+/// the only thing this does is wrap a bare string in an Array so the
+/// worker has a single shape to deserialize.
 #[cfg(target_arch = "wasm32")]
 fn js_to_serializable_parts(input: &JsValue) -> Result<JsValue, JsError> {
     if let Some(s) = input.as_string() {
@@ -308,41 +450,12 @@ fn js_to_serializable_parts(input: &JsValue) -> Result<JsValue, JsError> {
         arr.push(&JsValue::from_str(&s));
         return Ok(arr.into());
     }
-
     if input.dyn_ref::<js_sys::Array>().is_some() {
-        // Already an Array; structured-clone will deep-copy strings and
-        // the `{__nbwKind, bytes}` objects transparently.
         return Ok(input.clone());
     }
-
     Err(JsError::new(
         "ask: prompt must be a string or an array of (string | Image.fromBytes | Audio.fromBytes)",
     ))
-}
-
-/// Inverse on the worker side: rebuild a `Prompt` from the structured-clone
-/// payload. Same matching logic as `js_to_prompt` but errors as `String`
-/// because the worker dispatcher post-messages errors back as plain text.
-#[cfg(target_arch = "wasm32")]
-fn build_prompt_from_parts(parts: &JsValue) -> Result<nobodywho::tokenizer::Prompt, String> {
-    let mut prompt = nobodywho::tokenizer::Prompt::new();
-    let arr = parts
-        .dyn_ref::<js_sys::Array>()
-        .ok_or_else(|| "ask: 'parts' must be an array".to_string())?;
-    for i in 0..arr.length() {
-        let part = arr.get(i);
-        if let Some(s) = part.as_string() {
-            prompt.push_text(s);
-            continue;
-        }
-        match read_media_kind(&part).as_deref() {
-            Some("image") => prompt.push_image_bytes(read_media_bytes(&part)?),
-            Some("audio") => prompt.push_audio_bytes(read_media_bytes(&part)?),
-            Some(other) => return Err(format!("ask: parts[{i}] unknown kind '{other}'")),
-            None => return Err(format!("ask: parts[{i}] missing __nbwKind brand")),
-        }
-    }
-    Ok(prompt)
 }
 
 // ---------- Chat (raw blocking class — see WorkerChat below for the user-facing one) ----------
@@ -490,7 +603,7 @@ impl Chat {
         // synchronous rejection rather than a JsValue panic.
         let prompt = match js_to_prompt(&prompt) {
             Ok(p) => p,
-            Err(e) => return js_sys::Promise::reject(&e.into()),
+            Err(e) => return js_sys::Promise::reject(&JsError::new(&e).into()),
         };
         promisify(async move {
             let stream = handle.ask(prompt);
@@ -782,8 +895,25 @@ async fn handle_worker_message(
                 .dyn_into()
                 .map_err(|_| "'bytes' must be a Uint8Array".to_string())?;
             let bytes = u8_array.to_vec();
-            let model = nobodywho::llm::get_model_from_bytes(&bytes, 0)
-                .map_err(|e| e.to_string())?;
+
+            // Optional mmproj-bytes — write to MEMFS via the JS-side
+            // FS.writeFile and pass the path to core. Field is missing/
+            // undefined for text-only loads.
+            let mmproj_path = match js_sys::Reflect::get(&data, &"mmprojBytes".into())
+                .ok()
+                .filter(|v| !v.is_undefined() && !v.is_null())
+                .and_then(|v| v.dyn_into::<js_sys::Uint8Array>().ok())
+            {
+                Some(u8a) => Some(write_bytes_to_memfs("mmproj", &u8a.to_vec())?),
+                None => None,
+            };
+
+            let model = nobodywho::llm::get_model_from_bytes(
+                &bytes,
+                mmproj_path.as_deref(),
+                0,
+            )
+            .map_err(|e| e.to_string())?;
             WORKER_MODEL.with(|m| *m.borrow_mut() = Some(Arc::new(model)));
             let _ = scope.post_message(&worker_reply("model-loaded"));
         }
@@ -805,7 +935,7 @@ async fn handle_worker_message(
         "ask" => {
             let parts = js_sys::Reflect::get(&data, &"parts".into())
                 .map_err(|_| "missing 'parts' field".to_string())?;
-            let prompt = build_prompt_from_parts(&parts)?;
+            let prompt = js_to_prompt(&parts)?;
             let handle = WORKER_CHAT
                 .with(|c| c.borrow().clone())
                 .ok_or_else(|| "chat not created; send 'create-chat' first".to_string())?;
@@ -1413,10 +1543,13 @@ impl WorkerChat {
             wait_for_handshake(&state, "ready").await?;
 
             // Handshake step 2: get the model bytes, post 'load-model'.
+            // Model bytes come from modelBytes or modelUrl; mmproj is
+            // optional and follows the same shape (mmprojBytes / mmprojUrl).
+            // The progress callback is shared between both downloads.
             let model_bytes_value: JsValue = if let Some(bytes) = parsed.model_bytes {
                 bytes.into()
             } else if let Some(url) = parsed.model_url {
-                let bytes_promise = fetch_model_bytes(url, parsed.on_progress);
+                let bytes_promise = fetch_model_bytes(url, parsed.on_progress.clone());
                 wasm_bindgen_futures::JsFuture::from(bytes_promise)
                     .await
                     .map_err(|e| {
@@ -1432,9 +1565,31 @@ impl WorkerChat {
                 ));
             };
 
+            let mmproj_bytes_value: Option<JsValue> = if let Some(bytes) = parsed.mmproj_bytes {
+                Some(bytes.into())
+            } else if let Some(url) = parsed.mmproj_url {
+                let bytes_promise = fetch_model_bytes(url, parsed.on_progress);
+                Some(
+                    wasm_bindgen_futures::JsFuture::from(bytes_promise)
+                        .await
+                        .map_err(|e| {
+                            let msg = js_sys::Reflect::get(&e, &"message".into())
+                                .ok()
+                                .and_then(|m| m.as_string())
+                                .unwrap_or_else(|| format!("{e:?}"));
+                            JsError::new(&format!("fetchModelBytes(mmproj): {msg}"))
+                        })?,
+                )
+            } else {
+                None
+            };
+
             let load_msg = js_sys::Object::new();
             let _ = js_sys::Reflect::set(&load_msg, &"type".into(), &"load-model".into());
             let _ = js_sys::Reflect::set(&load_msg, &"bytes".into(), &model_bytes_value);
+            if let Some(mmproj) = mmproj_bytes_value {
+                let _ = js_sys::Reflect::set(&load_msg, &"mmprojBytes".into(), &mmproj);
+            }
             state
                 .borrow()
                 .worker
@@ -1618,6 +1773,11 @@ async fn wait_for_handshake(
 struct ChatCreateParsed {
     model_url: Option<String>,
     model_bytes: Option<js_sys::Uint8Array>,
+    /// Optional URL to fetch the mmproj GGUF from. Mutually exclusive with
+    /// `mmproj_bytes`. Both null/undefined ⇒ text-only model.
+    mmproj_url: Option<String>,
+    /// Optional pre-fetched mmproj bytes. Same shape as `model_bytes`.
+    mmproj_bytes: Option<js_sys::Uint8Array>,
     on_progress: Option<js_sys::Function>,
     chat_opts_jsval: JsValue,
 }
@@ -1638,6 +1798,13 @@ fn parse_chat_create_opts(opts: &JsValue) -> Result<ChatCreateParsed, JsError> {
         .ok()
         .filter(|v| !v.is_undefined() && !v.is_null())
         .and_then(|v| v.dyn_into::<js_sys::Uint8Array>().ok());
+    let mmproj_url = js_sys::Reflect::get(obj, &"mmprojUrl".into())
+        .ok()
+        .and_then(|v| v.as_string());
+    let mmproj_bytes = js_sys::Reflect::get(obj, &"mmprojBytes".into())
+        .ok()
+        .filter(|v| !v.is_undefined() && !v.is_null())
+        .and_then(|v| v.dyn_into::<js_sys::Uint8Array>().ok());
     let on_progress = js_sys::Reflect::get(obj, &"onDownloadProgress".into())
         .ok()
         .filter(|v| !v.is_undefined() && !v.is_null())
@@ -1650,7 +1817,11 @@ fn parse_chat_create_opts(opts: &JsValue) -> Result<ChatCreateParsed, JsError> {
         let key_str = k.as_string().unwrap_or_default();
         if matches!(
             key_str.as_str(),
-            "modelUrl" | "modelBytes" | "onDownloadProgress"
+            "modelUrl"
+                | "modelBytes"
+                | "mmprojUrl"
+                | "mmprojBytes"
+                | "onDownloadProgress"
         ) {
             continue;
         }
@@ -1671,6 +1842,8 @@ fn parse_chat_create_opts(opts: &JsValue) -> Result<ChatCreateParsed, JsError> {
     Ok(ChatCreateParsed {
         model_url,
         model_bytes,
+        mmproj_url,
+        mmproj_bytes,
         on_progress,
         chat_opts_jsval: chat_opts_obj.into(),
     })

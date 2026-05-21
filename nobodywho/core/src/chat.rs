@@ -1658,12 +1658,6 @@ impl Worker<'_, ChatWorker> {
                     .map(|part| match part {
                         PromptPart::Image(path) => projection_model.load_image(path),
                         PromptPart::Audio(path) => projection_model.load_audio(path),
-                        PromptPart::ImageBytes(bytes) => {
-                            projection_model.load_image_bytes(bytes)
-                        }
-                        PromptPart::AudioBytes(bytes) => {
-                            projection_model.load_audio_bytes(bytes)
-                        }
                         PromptPart::Text(_) => unreachable!(),
                     })
                     .collect::<Result<Vec<MtmdBitmap>, MultimodalError>>()?
@@ -1685,10 +1679,6 @@ impl Worker<'_, ChatWorker> {
                 id: id.clone(),
                 path: match part {
                     PromptPart::Image(path) | PromptPart::Audio(path) => path.to_path_buf(),
-                    // Bytes-variants have no source path. The asset is still
-                    // identified by `id` (a hash of its bitmap data) for KV
-                    // lookup; the empty path just indicates "no file".
-                    PromptPart::ImageBytes(_) | PromptPart::AudioBytes(_) => PathBuf::new(),
                     PromptPart::Text(_) => unreachable!(),
                 },
             })

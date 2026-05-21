@@ -1803,27 +1803,14 @@ impl Text {
     }
 }
 
-/// Either a filesystem path or an in-memory byte buffer. Used by both
-/// `Image` and `Audio` so the `Prompt` builder can route each variant
-/// through the matching core `PromptPart`.
-#[derive(Clone)]
-enum MediaSource {
-    Path(String),
-    Bytes(Vec<u8>),
-}
-
 /// An `Image` prompt part, used to build multimodal `Prompt`s.
-///
-/// Two constructors:
-///     Image("./img.jpg")              # from a filesystem path
-///     Image.from_bytes(open("img.jpg", "rb").read())  # from raw file bytes
 ///
 /// Example:
 ///     prompt = Prompt([Text("Describe this"), Image("./img.jpg")])
 #[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct Image {
-    source: MediaSource,
+    path: String,
 }
 
 #[pymethods]
@@ -1838,49 +1825,28 @@ impl Image {
             ))
         })?;
         Ok(Self {
-            source: MediaSource::Path(path_str.to_string()),
+            path: path_str.to_string(),
         })
     }
 
-    /// Build an `Image` from raw file bytes (JPEG/PNG/BMP/...). The image
-    /// format is auto-detected via the file header by `stb_image`.
-    #[classmethod]
-    #[pyo3(signature = (data: "bytes") -> "Image")]
-    pub fn from_bytes(_cls: &Bound<'_, pyo3::types::PyType>, data: Vec<u8>) -> Self {
-        Self {
-            source: MediaSource::Bytes(data),
-        }
-    }
-
-    /// Source path if the image was created from a path, else None.
     #[getter]
-    pub fn path(&self) -> Option<String> {
-        match &self.source {
-            MediaSource::Path(p) => Some(p.clone()),
-            MediaSource::Bytes(_) => None,
-        }
+    pub fn path(&self) -> String {
+        self.path.clone()
     }
 
     fn __repr__(&self) -> String {
-        match &self.source {
-            MediaSource::Path(p) => format!("Image({:?})", p),
-            MediaSource::Bytes(b) => format!("Image.from_bytes(<{} bytes>)", b.len()),
-        }
+        format!("Image({:?})", self.path)
     }
 }
 
 /// An `Audio` prompt part, used to build multimodal `Prompt`s.
-///
-/// Two constructors:
-///     Audio("./clip.wav")             # from a filesystem path
-///     Audio.from_bytes(open("clip.wav", "rb").read())  # from raw file bytes
 ///
 /// Example:
 ///     prompt = Prompt([Text("Transcribe this:"), Audio("./clip.wav")])
 #[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct Audio {
-    source: MediaSource,
+    path: String,
 }
 
 #[pymethods]
@@ -1895,34 +1861,17 @@ impl Audio {
             ))
         })?;
         Ok(Self {
-            source: MediaSource::Path(path_str.to_string()),
+            path: path_str.to_string(),
         })
     }
 
-    /// Build an `Audio` from raw file bytes (WAV/MP3/FLAC/Ogg/...). The
-    /// audio format is auto-detected via the file header by miniaudio.
-    #[classmethod]
-    #[pyo3(signature = (data: "bytes") -> "Audio")]
-    pub fn from_bytes(_cls: &Bound<'_, pyo3::types::PyType>, data: Vec<u8>) -> Self {
-        Self {
-            source: MediaSource::Bytes(data),
-        }
-    }
-
-    /// Source path if the audio was created from a path, else None.
     #[getter]
-    pub fn path(&self) -> Option<String> {
-        match &self.source {
-            MediaSource::Path(p) => Some(p.clone()),
-            MediaSource::Bytes(_) => None,
-        }
+    pub fn path(&self) -> String {
+        self.path.clone()
     }
 
     fn __repr__(&self) -> String {
-        match &self.source {
-            MediaSource::Path(p) => format!("Audio({:?})", p),
-            MediaSource::Bytes(b) => format!("Audio.from_bytes(<{} bytes>)", b.len()),
-        }
+        format!("Audio({:?})", self.path)
     }
 }
 
@@ -1953,19 +1902,13 @@ impl Prompt {
 
             if let Ok(image_part) = part.extract::<Bound<Image>>() {
                 let image_ref = image_part.borrow();
-                match &image_ref.source {
-                    MediaSource::Path(p) => prompt.push_image(p.as_ref()),
-                    MediaSource::Bytes(b) => prompt.push_image_bytes(b.clone()),
-                }
+                prompt.push_image(image_ref.path.as_ref());
                 continue;
             }
 
             if let Ok(audio_part) = part.extract::<Bound<Audio>>() {
                 let audio_ref = audio_part.borrow();
-                match &audio_ref.source {
-                    MediaSource::Path(p) => prompt.push_audio(p.as_ref()),
-                    MediaSource::Bytes(b) => prompt.push_audio_bytes(b.clone()),
-                }
+                prompt.push_audio(audio_ref.path.as_ref());
                 continue;
             }
 

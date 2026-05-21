@@ -15,13 +15,25 @@ fn main() {
     // build hits emcc's link step.)
     println!("cargo:rustc-link-arg-cdylib=--no-entry");
 
-    // Run wasm-bindgen-cli during emcc's link step. Auto-exports all
-    // #[wasm_bindgen] symbols + emits the JS glue and .d.ts — same outputs
-    // the standalone wasm-bindgen-cli would produce, folded into the
-    // Emscripten loader. Requires walkingeyerobot's emscripten fork
-    // (PR emscripten-core/emscripten#23493) on PATH and `EM_WASM_BINDGEN`
-    // pointing at a stock wasm-bindgen-cli on the host.
-    println!("cargo:rustc-link-arg-cdylib=-sWASM_BINDGEN");
+    // -sWASM_BINDGEN is INTENTIONALLY NOT SET here. We used to rely on
+    // emcc-wbg's `-sWASM_BINDGEN` post-link step to auto-invoke
+    // wasm-bindgen-cli on the linked wasm, but that step runs in
+    // BUNDLER output mode (the `__wasm_bindgen_emscripten_marker` custom
+    // section that switches it to Emscripten mode doesn't survive the
+    // wasm-ld pass on this target — `#[link_section]` data is preserved
+    // as symbols but not as a wasm custom section). The auto-invocation
+    // then strips the wasm-bindgen descriptor functions from the wasm
+    // and emits bundler-shape JS files we can't use, so by the time
+    // js/scripts/build-pkg-emscripten.sh wants to re-process the wasm
+    // for Emscripten output there's nothing left to process.
+    //
+    // The script instead:
+    //   1. cargo build → target/.../nobodywho_js.wasm (still has
+    //      descriptors)
+    //   2. inject-emscripten-marker.py → inserts the custom section
+    //   3. wasm-bindgen-cli manually → emits library_bindgen.js
+    //   4. emcc --post-link → loader + final wasm
+    // See js/scripts/build-pkg-emscripten.sh for the full pipeline.
 
     // rustc passes `-shared` to emcc for cdylib output, which triggers
     // SIDE_MODULE=1 in Emscripten and emits dynamic-linking-style imports
@@ -56,6 +68,55 @@ fn main() {
     // instead of relying on global side effects at script-tag time.
     println!("cargo:rustc-link-arg-cdylib=-sMODULARIZE=1");
     println!("cargo:rustc-link-arg-cdylib=-sEXPORT_NAME='createNobodyWhoModule'");
+
+    // Expose Emscripten's `Module.FS` (MEMFS API) and `Module.SYSCALLS`
+    // (internal syscall plumbing) on the JS module object. Path A uses
+    // both:
+    //   - `Module.FS.writeFile(path, uint8)` from the JS side to land
+    //     image / audio / mmproj bytes into MEMFS at content-hashed
+    //     paths.
+    //   - `Module.FS.open(path, flags, mode)` from inside the wasm via
+    //     `js_sys::Reflect` — called by the strong `__syscall_openat`
+    //     override in src/syscall_imports.rs that satisfies libc fopen
+    //     against MEMFS paths.
+    //   - `Module.SYSCALLS.writeStat(buf, stat)` from the wasm — used
+    //     by the `__syscall_stat64` / `_lstat64` / `_fstat64` overrides
+    //     to write the Emscripten struct stat layout without
+    //     duplicating it in Rust.
+    println!("cargo:rustc-link-arg-cdylib=-sEXPORTED_RUNTIME_METHODS=FS,SYSCALLS");
+
+    // Force-include Emscripten's filesystem implementation. Without
+    // FORCE_FILESYSTEM emcc generates no FS JS code at all — even
+    // though we'd still get the wasm-side `__syscall_openat` (via our
+    // override), there'd be no `Module.FS` object on the JS side to
+    // route to. With FORCE_FILESYSTEM=1 the FS namespace is present
+    // and our strong override can use it.
+    println!("cargo:rustc-link-arg-cdylib=-sFORCE_FILESYSTEM=1");
+
+    // Force-keep libc stdio in the wasm against wasm-ld's
+    // --gc-sections pass. Without these the linker decides nothing in
+    // the Rust crate directly references fopen / fread / etc. (the
+    // C/C++ side of llama.cpp does, but those references are in
+    // archive members that --gc-sections can elide as "unreachable").
+    // `-Wl,--export=` is per-symbol — it keeps the symbol alive AND
+    // exports it without disturbing the wasm-bindgen-generated export
+    // list (which `-sEXPORTED_FUNCTIONS=` would clobber as a SET op).
+    for sym in [
+        "fopen", "fclose", "fread", "fwrite", "fseek", "ftell", "feof", "ferror",
+    ] {
+        println!("cargo:rustc-link-arg-cdylib=-Wl,--export={sym}");
+    }
+
+    // The file-open syscalls themselves (`__syscall_openat` /
+    // `_stat64` / `_lstat64` / `_fstat64` / `_newfstatat`) are
+    // provided as STRONG Rust overrides in src/syscall_imports.rs.
+    // Emscripten's `system/lib/standalone/standalone.c` declares
+    // these as WEAK stubs that return -EPERM (for openat) or -ENOSYS
+    // (for stat); wasm-ld is happy to satisfy our references against
+    // the weak stubs and never emits the syscalls as wasm imports.
+    // The strong Rust overrides win symbol resolution and route to
+    // Module.FS via `js_sys::Reflect`, completing the libc fopen
+    // chain into our JS-populated MEMFS.
 
     // emcc auto-populates EXPORTED_FUNCTIONS with every wasm-bindgen-related
     // symbol it discovers in the input .o files (describe functions,

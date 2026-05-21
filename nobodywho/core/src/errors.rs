@@ -322,12 +322,6 @@ pub enum MultimodalError {
     #[error("Failed to load audio from '{path}': {error}")]
     LoadAudio { path: String, error: String },
 
-    #[error("Failed to load image from {len}-byte buffer: {error}")]
-    LoadImageBytes { len: usize, error: String },
-
-    #[error("Failed to load audio from {len}-byte buffer: {error}")]
-    LoadAudioBytes { len: usize, error: String },
-
     #[error("Multimodal context not initialized. Use with_mmproj() when building ChatHandle.")]
     ContextNotInitialized,
 

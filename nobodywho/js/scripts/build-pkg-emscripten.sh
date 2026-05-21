@@ -58,7 +58,16 @@ TARGET_DIR="$ROOT/nobodywho/target/wasm32-unknown-emscripten/release"
 
 EMSDK_DIR="${EMSDK_DIR:-/Users/user/git/emscripten-wbg}"
 EM_CONFIG="${EM_CONFIG:-$EMSDK_DIR/.emscripten}"
-WASM_BINDGEN_BIN="${EM_WASM_BINDGEN:-$HOME/.cargo/bin/wasm-bindgen}"
+# IMPORTANT: must be the patched wasm-bindgen CLI (descriptor-interpreter
+# fixes + Emscripten output mode), not stock 0.2.121 from crates.io. Build
+# it from the local fork checkout per shell.nix's instructions:
+#   ( cd /Users/user/git/wasm-bindgen && cargo install --path crates/cli \
+#       --root /tmp/wbg-patched --locked )
+# Using ~/.cargo/bin/wasm-bindgen here silently fails — stock CLI emits
+# bundler-shape output instead of library_bindgen.js, and the post-link
+# step below errors with "library_bindgen.js not found" while leaving
+# pkg-bundler stale.
+WASM_BINDGEN_BIN="${EM_WASM_BINDGEN:-/tmp/wbg-patched/bin/wasm-bindgen}"
 
 if [[ ! -x "$EMSDK_DIR/emcc" ]]; then
   echo "error: emcc not found at $EMSDK_DIR/emcc" >&2
@@ -70,17 +79,11 @@ if [[ ! -x "$WASM_BINDGEN_BIN" ]]; then
   echo "       cargo install wasm-bindgen-cli --version \$(bash $JS_DIR/scripts/wasm-bindgen-version.sh) --locked" >&2
   exit 1
 fi
-if [[ ! -f "$PKG_DIR/pre.js" ]]; then
-  echo "error: $PKG_DIR/pre.js missing — needed as --pre-js input to emcc post-link." >&2
-  exit 1
-fi
-
-# Emscripten's temp dir; emcc drops wasm-bindgen output here during the
-# cargo-driven link step. We grab library_bindgen.js from this exact path
-# in the post-link step below.
-EMCC_TEMP="${EMCC_TEMP:-${TMPDIR:-/tmp}/emscripten_temp}"
-EMCC_TEMP="${EMCC_TEMP%/}"  # strip trailing slash
-mkdir -p "$EMCC_TEMP"
+# `pre.js` is checked in under scripts/ (the pkg-bundler/ dir is
+# gitignored, so the file there is a build-time copy). Copy fresh on
+# every build so edits to scripts/pre.js take effect.
+mkdir -p "$PKG_DIR"
+cp "$JS_DIR/scripts/pre.js" "$PKG_DIR/pre.js"
 
 echo "==> cargo build --target wasm32-unknown-emscripten --release -p nobodywho-js"
 rm -rf "$TARGET_DIR"
@@ -93,27 +96,63 @@ rm -rf "$TARGET_DIR"
   cargo build --release --target wasm32-unknown-emscripten -p nobodywho-js
 )
 
-# The cargo build only emits target/.../release/nobodywho_js.wasm. The
-# matching library_bindgen.js (wasm-bindgen JS glue, addToLibrary form) gets
-# left behind in $EMCC_TEMP/bindgen_out/ by em++'s -sWASM_BINDGEN handler.
-EMCC_BINDGEN_OUT="$(ls -dt "$EMCC_TEMP"*/bindgen_out 2>/dev/null | head -n1 || true)"
-if [[ -z "$EMCC_BINDGEN_OUT" || ! -f "$EMCC_BINDGEN_OUT/library_bindgen.js" ]]; then
-  # Some Emscripten versions don't suffix the temp dir; fall back to the
-  # un-suffixed location.
-  EMCC_BINDGEN_OUT="$EMCC_TEMP/bindgen_out"
-fi
-if [[ ! -f "$EMCC_BINDGEN_OUT/library_bindgen.js" ]]; then
-  echo "error: library_bindgen.js not found under $EMCC_TEMP" >&2
-  echo "       Looked at: $EMCC_BINDGEN_OUT/library_bindgen.js" >&2
-  echo "       Did the cargo build actually run em++ with -sWASM_BINDGEN?" >&2
+echo "==> injecting __wasm_bindgen_emscripten_marker custom section"
+# The wasm-bindgen runtime declares the marker via
+# `#[link_section = "__wasm_bindgen_emscripten_marker"]` on a `#[used]`
+# static. Under `wasm32-unknown-unknown` LLVM's wasm backend emits this
+# as a wasm custom section (which is what wasm-bindgen-cli looks for).
+# Under `wasm32-unknown-emscripten` the same attribute ends up in a
+# regular data section instead — the symbol is preserved but the custom
+# section is not, so wasm-bindgen-cli never sees the marker and falls
+# back to bundler-shape output. The Python script below patches the
+# wasm post-link to add a real wasm custom section with the expected
+# name, restoring the trigger for OutputMode::Emscripten in
+# `cli-support/src/lib.rs:768`.
+python3 "$JS_DIR/scripts/inject-emscripten-marker.py" \
+  "$TARGET_DIR/nobodywho_js.wasm" \
+  "$TARGET_DIR/nobodywho_js.marked.wasm"
+
+echo "==> wasm-bindgen-cli on the marked wasm → library_bindgen.js"
+# Doing this manually rather than relying on emcc's `-sWASM_BINDGEN`
+# auto-invocation: rustc invokes wasm-ld for the cdylib link directly,
+# bypassing emcc's `phase_post_link` where the auto-invocation would
+# fire. So `-sWASM_BINDGEN` reaches the linker as a no-op rather than
+# triggering wasm-bindgen-cli. Calling wasm-bindgen-cli ourselves with
+# the same flags emcc would have used (--keep-lld-exports --keep-debug)
+# closes that gap without depending on emcc's auto-invocation working.
+BINDGEN_OUT="$TARGET_DIR/bindgen-out"
+rm -rf "$BINDGEN_OUT"
+mkdir -p "$BINDGEN_OUT"
+"$WASM_BINDGEN_BIN" \
+  "$TARGET_DIR/nobodywho_js.marked.wasm" \
+  --keep-lld-exports \
+  --keep-debug \
+  --out-dir "$BINDGEN_OUT"
+
+if [[ ! -f "$BINDGEN_OUT/library_bindgen.js" ]]; then
+  echo "error: wasm-bindgen-cli did not produce library_bindgen.js." >&2
+  echo "       Output dir contents:" >&2
+  ls -la "$BINDGEN_OUT" >&2
+  echo "       Did the marker injection succeed? Re-check the python step above." >&2
+  echo "       wasm-bindgen-cli must be the patched fork (with Emscripten" >&2
+  echo "       output mode); stock 0.2.121 from crates.io won't work." >&2
   exit 1
 fi
-echo "==> using $EMCC_BINDGEN_OUT/library_bindgen.js"
+echo "==> using $BINDGEN_OUT/library_bindgen.js"
 
 echo "==> copying artifacts into pkg-bundler/"
 mkdir -p "$PKG_DIR"
-cp "$EMCC_BINDGEN_OUT/library_bindgen.js" "$PKG_DIR/library_bindgen.js"
-cp "$TARGET_DIR/nobodywho_js.wasm"        "$PKG_DIR/nobodywho_js_bg.wasm"
+cp "$BINDGEN_OUT/library_bindgen.js" "$PKG_DIR/library_bindgen.js"
+# wasm-bindgen-cli writes a processed wasm next to library_bindgen.js
+# under whatever stem name it picks from the input. Find it without
+# hard-coding the name, since wasm-bindgen-cli's stem-naming logic has
+# changed across versions.
+WBG_WASM="$(ls "$BINDGEN_OUT"/*.wasm 2>/dev/null | head -n1)"
+if [[ -z "$WBG_WASM" ]]; then
+  echo "error: wasm-bindgen-cli produced no .wasm under $BINDGEN_OUT" >&2
+  exit 1
+fi
+cp "$WBG_WASM" "$PKG_DIR/nobodywho_js_bg.wasm"
 
 echo "==> applying sed patches to library_bindgen.js"
 # See block comment at top of file for why each substitution is needed.
@@ -158,6 +197,8 @@ echo "==> em++ --post-link to build nobodywho_js.js"
     -sMODULARIZE=1 \
     -sEXPORT_ES6=1 \
     -sEXPORT_NAME='createNobodyWhoModule' \
+    -sEXPORTED_RUNTIME_METHODS=FS,SYSCALLS \
+    -sFORCE_FILESYSTEM=1 \
     -sERROR_ON_UNDEFINED_SYMBOLS=0 \
     -sINVOKE_RUN=0 \
     -Wno-undefined \

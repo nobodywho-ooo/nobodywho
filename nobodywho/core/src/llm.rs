@@ -182,8 +182,11 @@ pub fn has_gpu_backend() -> bool {
 /// you have a file path. Pass any `use_gpu_if_available` policy via the
 /// `gpu_layers` argument (`0` for CPU-only).
 ///
-/// Multimodal (`projection_model`) support is not yet wired here — the
-/// mmproj path also needs a buffer-based loader; tracked in WASM.md.
+/// Multimodal (`projection_model`) support is wired via the
+/// `mmproj_path` parameter. Caller is responsible for landing the
+/// bytes at this path beforehand (e.g. via Emscripten's MEMFS on the
+/// wasm target, or just writing a real tempfile on native). Pass
+/// `None` for text-only models.
 ///
 /// # Platform support
 ///
@@ -192,10 +195,16 @@ pub fn has_gpu_backend() -> bool {
 /// `fmemopen` is POSIX and not in the MSVC CRT; a Windows tempfile
 /// fallback can be added later if a caller needs it.
 #[cfg(not(all(target_os = "windows", target_env = "msvc")))]
-pub fn get_model_from_bytes(bytes: &[u8], gpu_layers: u32) -> Result<Model, LoadModelError> {
+pub fn get_model_from_bytes(
+    bytes: &[u8],
+    mmproj_path: Option<&std::path::Path>,
+    gpu_layers: u32,
+) -> Result<Model, LoadModelError> {
     info!(
         bytes_len = bytes.len(),
-        gpu_layers, "Loading model from in-memory bytes"
+        mmproj_path = ?mmproj_path,
+        gpu_layers,
+        "Loading model from in-memory bytes"
     );
 
     // On wasm32-unknown-emscripten, mmap on a fmemopen FILE* traps inside
@@ -218,9 +227,22 @@ pub fn get_model_from_bytes(bytes: &[u8], gpu_layers: u32) -> Result<Model, Load
         })?;
 
     info!("Model loaded from buffer successfully");
+
+    let projection_model = if let Some(path) = mmproj_path {
+        let pm = crate::tokenizer::ProjectionModel::from_path(
+            path,
+            &language_model,
+            gpu_layers > 0,
+        )
+        .map_err(LoadModelError::Multimodal)?;
+        Some(pm)
+    } else {
+        None
+    };
+
     Ok(Model {
         language_model,
-        projection_model: None,
+        projection_model,
     })
 }
 
