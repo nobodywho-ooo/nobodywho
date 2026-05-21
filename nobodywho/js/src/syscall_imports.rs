@@ -2,11 +2,11 @@
 //!
 //! Emscripten's `system/lib/standalone/standalone.c` declares `__syscall_openat`
 //! / `__syscall_stat64` / etc. as `weak` symbols that always return -EPERM or
-//! -ENOSYS. They're meant for "standalone WASI" mode where there's no JS host
-//! to route filesystem calls through. The weak stubs get silently linked in
-//! to OUR build too — we DO have a JS host with a working MEMFS, but
-//! wasm-ld is happy to satisfy `__syscall_openat` references against the
-//! weak stub and never emit an import for us to override.
+//! -ENOSYS. They're meant for the standalone (no-JS-host) build mode. The
+//! weak stubs get silently linked in to OUR build too — we DO have a JS host
+//! with a working MEMFS, but wasm-ld is happy to satisfy `__syscall_openat`
+//! references against the weak stub and never emit an import for us to
+//! override.
 //!
 //! Result before this module: libc `fopen` → libc internals → weak
 //! `__syscall_openat` → returns -EPERM → fopen returns NULL with errno=EPERM.
@@ -31,8 +31,8 @@ use std::os::raw::{c_char, c_int};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 
-// errno constants — values from Emscripten's wasi-style errno table
-// (musl-derived). Used as -errno return codes per the syscall ABI.
+// errno constants — values from Emscripten's musl-derived errno table.
+// Used as -errno return codes per the syscall ABI.
 const EBADF: c_int = 8;
 const ENOENT: c_int = 44;
 const EIO: c_int = 29;

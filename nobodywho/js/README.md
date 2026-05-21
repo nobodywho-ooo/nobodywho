@@ -1,42 +1,41 @@
 # nobodywho-js
 
 WebAssembly binding for [NobodyWho](https://nobodywho.ooo) — runs local LLMs
-in a browser tab (or any wasm host) via llama.cpp compiled to wasm32.
+in a browser tab (or any wasm host) via llama.cpp compiled to wasm32 with
+Emscripten.
 
 ## Status: working end-to-end
 
 Real LLM inference verified under Node. The demos mirror the Python
 examples next door — load a model, call the API:
 
-**Chat** (`chat_demo.mjs`, ~15 lines):
+**Chat** (`chat_demo.mjs`):
 ```js
 import { readFileSync } from 'node:fs';
-import { Model, Chat } from './setup.mjs';
+const { default: createNobodyWhoModule } = await import('./pkg-bundler/nobodywho_js.js');
+const m = await createNobodyWhoModule();
+m.init();
 
-const model = await Model.loadBytes(new Uint8Array(readFileSync(process.argv[2])));
-const chat = new Chat(model, { systemPrompt: 'You are a helpful assistant' });
+const model = await m.Model.loadBytes(new Uint8Array(readFileSync(process.argv[2])));
+const chat = new m.Chat(model, { systemPrompt: 'You are a helpful assistant' });
 
 const result = await (await chat.ask('What is the capital of Denmark?')).completed();
 console.log(result);
 ```
 
-**Embedding** (`encoder_demo.mjs`, ~40 lines including cosine similarity):
+**Embedding** (`encoder_demo.mjs`):
 ```js
-import { Model, Encoder } from './setup.mjs';
+const m = await createNobodyWhoModule();
+m.init();
 
-const model = await Model.loadBytes(modelBytes);
-const encoder = new Encoder(model, 2048);
+const model = await m.Model.loadBytes(modelBytes);
+const encoder = new m.Encoder(model, 2048);
 const vec = await encoder.encode('the quick brown fox');
 // -> Float32Array(384) — pass to cosineSimilarity() etc.
 ```
 
-`setup.mjs` hides the WASI + wasm-bindgen wiring (~50 lines) so each demo
-stays focused on the API. The eventual `nobodywho-js` npm package will
-fold that bootstrap into its own entry point, at which point the demos
-collapse to `import { Model, Chat } from 'nobodywho-js'`.
-
-The wasm binary contains all of llama.cpp (~9.5 MB release, ~21 MB debug)
-and exposes the binding's full surface to JS via wasm-bindgen.
+The wasm binary contains all of llama.cpp and exposes the binding's full
+surface to JS via wasm-bindgen.
 
 | Surface | Status |
 |---|---|
@@ -46,8 +45,9 @@ and exposes the binding's full surface to JS via wasm-bindgen.
 | `Chat.ask(prompt)` → `TokenStream` → tokens | ✅ verified |
 | `Chat`'s `templateVariables` option (e.g. `{ enable_thinking: false }`) | ✅ verified |
 | `TokenStream.nextToken()` / `completed()` | ✅ verified |
-| Multimodal vision/audio (`Image.fromBytes` / `Audio.fromBytes`) | ✅ compiles — see "Multimodal status" below for what's actually supported on Emscripten |
-| Structured output (`Constraint`) | wire format exposed via `Chat`'s options (see `ConstraintSpec` in `js/src/lib.rs`); should now work on Emscripten (libc has `clock_gettime`), unverified |
+| Multimodal vision/audio (`Image.fromBytes` / `Audio.fromBytes`) | ✅ verified — see "Multimodal status" below |
+| Tool calling (`Tool.fromFn(...)`, `Chat(model, {tools: [...]})`) | ✅ verified — sync callbacks only in v1, see `js/scripts/tool-smoke.mjs` |
+| Structured output (`Constraint`) | wire format exposed via `Chat`'s options; should work on Emscripten (libc has `clock_gettime`), unverified end-to-end |
 
 Native (`cargo check --workspace`) is unchanged.
 
@@ -56,89 +56,76 @@ Native (`cargo check --workspace`) is unchanged.
 ```
    nobodywho/core (Rust)
         +
-   llama-cpp-2 fork @ nobodywho-ooo/llama-cpp-rs branch wasm
+   llama-cpp-2 fork @ nobodywho-ooo/llama-cpp-rs branch wasm-emscripten
         |
-        | wasi-sdk clang for the C/C++ side
+        | emcc (Emscripten C/C++ toolchain) for the llama.cpp side
         | rustc + wasm-bindgen attrs for the Rust side
         v
-   wasm32-unknown-unknown .wasm (21 MB debug, 9.5 MB release)
+   wasm32-unknown-emscripten .wasm
         |
-        | wasm-bindgen-cli --target bundler
+        | patched wasm-bindgen-cli (nobodywho-ooo/wasm-bindgen fork)
+        | + post-link emcc invocation with --js-library
         v
    pkg-bundler/
-     ├── nobodywho_js.js          (entry — calls __wbg_set_wasm)
-     ├── nobodywho_js_bg.js       (Chat/Model/Encoder classes + glue)
-     ├── nobodywho_js_bg.wasm     (compiled wasm)
-     ├── nobodywho_js.d.ts        (TS typings)
-     └── nobodywho_js_bg.wasm.d.ts
+     ├── nobodywho_js.js          (Emscripten loader factory)
+     ├── nobodywho_js_bg.wasm     (linked wasm)
+     ├── nobodywho_js.wasm        (mirrored copy some consumers expect)
+     ├── library_bindgen.js       (kept for debugging)
+     └── pre.js                   (HEAP_DATA_VIEW shim, inlined by emcc)
 ```
 
 ## Build it yourself
 
 ### Prerequisites
 
-```bash
-# wasi-sdk for compiling the C/C++ side of llama.cpp.
-# Builds tested with v33; older versions likely work.
-curl -L https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-33/wasi-sdk-33.0-arm64-macos.tar.gz \
-  | tar -xz -C ~
-export WASI_SDK_PATH=~/wasi-sdk-33.0-arm64-macos
-# Linux: replace arm64-macos with x86_64-linux or arm64-linux.
+You need a patched Emscripten fork plus a patched wasm-bindgen fork. Both
+are intermediate — the patches are filed upstream and we'll drop the forks
+when they land.
 
-# rustc target + wasm-bindgen-cli.
-# The CLI version must match the wasm-bindgen crate in Cargo.lock — the
-# helper script reads it from there so there's one source of truth.
-rustup target add wasm32-unknown-unknown
-cargo install wasm-bindgen-cli \
-  --version "$(bash js/scripts/wasm-bindgen-version.sh)" \
-  --locked
+```bash
+# 1. Emscripten with the -sWASM_BINDGEN setting
+#    (PR emscripten-core/emscripten#23493)
+git clone https://github.com/walkingeyerobot/emscripten ~/emscripten-wbg
+cd ~/emscripten-wbg
+./bootstrap   # downloads the matching binaryen + node bundle
+
+# 2. wasm-bindgen with descriptor-interpreter + Emscripten-output-mode fixes
+git clone https://github.com/nobodywho-ooo/wasm-bindgen ~/wasm-bindgen
+cargo install --path ~/wasm-bindgen/crates/cli \
+  --root /tmp/wbg-patched --locked
+
+# 3. rustc target
+rustup target add wasm32-unknown-emscripten
 ```
 
 ### Build
 
 ```bash
-cd nobodywho
-
-WASI_SDK_PATH=$WASI_SDK_PATH \
-  cargo build --target wasm32-unknown-unknown --release -p nobodywho-js
-
-wasm-bindgen --target bundler \
-  target/wasm32-unknown-unknown/release/nobodywho_js.wasm \
-  --out-dir js/pkg-bundler/
+bash nobodywho/js/scripts/build-pkg-emscripten.sh
 ```
+
+This invokes cargo → injects the `__wasm_bindgen_emscripten_marker` custom
+section into the linked wasm → runs the patched wasm-bindgen-cli to emit
+`library_bindgen.js` → applies a handful of sed patches for codegen
+quirks → runs emcc again in `--post-link` mode with the resulting JS
+library, producing the runnable bundle in `pkg-bundler/`.
 
 The `pkg-bundler/` directory is the npm-publishable artifact (minus a
 hand-written `package.json` — see `js/package.json.tpl`).
 
 ## Run it
 
-### Under Node (uses `node:wasi` for WASI imports)
-
-The shipped `.wasm` uses wasm-gc and wasm exception-handling value types
-(emitted by wasi-sdk's libc++ STL — see `money_get<wchar_t>` and friends).
-Node version support:
-
-- **Node 26+** — works out of the box.
-- **Node 24-25** — pass `--experimental-wasm-exnref` to `node`.
-- **Node 22-23** — V8 has a SIGSEGV on Linux x86_64 (fixed in 24); macOS
-  arm64 works with the experimental flag. Not officially supported.
-- **Node 20 and older** — not supported; the wasm fails validation
-  before any code runs.
-
-The `engines.node` field is set to `>=24` to reflect this.
+### Under Node
 
 ```bash
-# Real embedding inference with a GGUF:
 node js/examples/encoder_demo.mjs /path/to/embedding-model.gguf
-
-# Chat (when you have a chat-style GGUF):
-node js/examples/chat_demo.mjs /path/to/chat-model.gguf
-
-# Cross-encoder reranking (when you have a reranker GGUF):
+node js/examples/chat_demo.mjs    /path/to/chat-model.gguf
 node js/examples/crossencoder_demo.mjs /path/to/crossencoder-model.gguf
 ```
 
-### In a browser (uses `@bjorn3/browser_wasi_shim`)
+Node 20+ should work; 22+ is verified.
+
+### In a browser
 
 ```bash
 cd nobodywho/js
@@ -149,11 +136,10 @@ python3 -m http.server 8000
 See `js/examples/browser-chat.html` for a chat demo (Web Worker so the
 page stays responsive during inference), `browser-encoder.html` for an
 embeddings demo, and `browser-crossencoder.html` for a reranker demo.
-All load the wasm, polyfill WASI via `@bjorn3/browser_wasi_shim`, and
-fetch a GGUF from HuggingFace through `setup-browser.mjs`'s
-`fetchModelBytes(url, onProgress)` helper. Model bytes are cached in
-the Cache API (`nobodywho-models-v1` store) so subsequent loads skip
-the download.
+All load the wasm via `createNobodyWhoModule()` and fetch a GGUF from
+HuggingFace through `Model.fetchModelBytes(url, onProgress)` (exposed
+from the Rust side). Model bytes are cached in the Cache API
+(`nobodywho-models-v1` store) so subsequent loads skip the download.
 
 Note: the native binding has `huggingface:` / `https://` paths that
 download and cache models on disk (see Python's `Model("hf://…")`), but
@@ -164,8 +150,8 @@ just `fetch()` + `Model.loadBytes(...)`, with caching via the Cache API
 
 ### Model caching
 
-`fetchModelBytes` (and therefore every browser demo) caches downloaded
-GGUFs in a [Cache API](https://developer.mozilla.org/en-US/docs/Web/API/Cache)
+`Model.fetchModelBytes` caches downloaded GGUFs in a
+[Cache API](https://developer.mozilla.org/en-US/docs/Web/API/Cache)
 store named `nobodywho-models-v1`, keyed by URL. After the first download
 on a given origin, reloads and other pages on the same origin get the
 bytes back instantly from disk — no re-download, no HTTP cache eviction
@@ -174,19 +160,21 @@ surprises.
 Helpers on the `Model` class:
 
 ```js
-import { Model, fetchModelBytes } from 'nobodywho-js';
+const { default: createNobodyWhoModule } = await import('nobodywho-js');
+const m = await createNobodyWhoModule();
+m.init();
 
 // Pre-populate the cache during a splash screen / onboarding step so the
 // user doesn't sit through a 400 MB download when they click "chat".
-await Model.preload('https://huggingface.co/.../model.gguf',
+await m.Model.preload('https://huggingface.co/.../model.gguf',
   (got, total) => console.log(`${got}/${total}`));
 
 // Later in the app — instant if preload already ran on this origin.
-const bytes = await fetchModelBytes('https://huggingface.co/.../model.gguf');
-const model = await Model.loadBytes(bytes);
+const bytes = await m.Model.fetchModelBytes('https://huggingface.co/.../model.gguf');
+const model = await m.Model.loadBytes(bytes);
 
 // Wipe all cached models (e.g. from a "clear cache" button).
-await Model.clearCache();
+await m.Model.clearCache();
 ```
 
 **Across multiple apps on different origins:** the browser's storage is
@@ -200,55 +188,43 @@ download once. If you control the deployment, hosting multiple apps under
 one origin (subpath routing, e.g. `myco.com/chat`, `myco.com/embed`)
 lets them share the cache.
 
-The cache name is versioned (`-v1`). Bump the suffix in `setup-browser.mjs`
-if the cached representation ever changes (e.g. switching from raw bytes
-to a pre-decoded format) so old entries are abandoned rather than fed to
-a binding that can't read them.
+The cache name is versioned (`-v1`). Bump the suffix if the cached
+representation ever changes (e.g. switching from raw bytes to a
+pre-decoded format) so old entries are abandoned rather than fed to a
+binding that can't read them.
 
 ## How it works (and why these specific choices)
 
-### Target: `wasm32-unknown-unknown` (not Emscripten, not WASI Preview 1/2)
+### Target: `wasm32-unknown-emscripten`
 
-- **Emscripten** also works (`cargo build --target wasm32-unknown-emscripten`
-  produces a 113 MB debug .wasm) but its output isn't processable by
-  `wasm-bindgen-cli` — wasm-bindgen's interpreter doesn't understand
-  Emscripten's section layout. Browser distribution via wasm-bindgen + npm
-  is the path that fits the rustwasm ecosystem.
-- **WASI Preview 2** would be the future-proof choice, but tooling is
-  still maturing and browser support is uneven.
+Emscripten provides the C/C++ toolchain (libc, libc++, malloc, an
+in-memory filesystem, syscall shims) that llama.cpp's C/C++ side needs.
+Compiling Rust to wasm32 directly and linking against Emscripten's
+libraries gives us a single wasm that hosts both halves of the binding.
 
-### libc: wasi-sdk's `wasi-libc`
-
-The Rust target `wasm32-unknown-unknown` has no libc. llama.cpp is C/C++ and
-needs `<stdio.h>`, `<malloc.h>`, etc. We compile the C/C++ side targeting
-`wasm32-wasip1` (via the wasi-sdk clang) and link `wasi-libc` + `libc++`
-explicitly in the final cdylib link. The result is a wasm with
-`wasi_snapshot_preview1` imports that the JS host polyfills via
-`node:wasi` (Node) or `@bjorn3/browser_wasi_shim` (browser).
+The Rust side uses wasm-bindgen attributes to expose typed JS classes
+(`Model`, `Chat`, `Encoder`, `CrossEncoder`, `Image`, `Audio`,
+`Tool`, etc.). Stock wasm-bindgen-cli doesn't yet ship Emscripten
+output mode, so we use a temporary fork
+(`nobodywho-ooo/wasm-bindgen`) until upstream merges those changes.
 
 ### Source-level patches to llama.cpp
 
-The fork at [`nobodywho-ooo/llama-cpp-rs` branch `wasm`](https://github.com/nobodywho-ooo/llama-cpp-rs/tree/wasm)
-patches a handful of files in `llama.cpp/common/` at build time, because
-wasi-libc deliberately doesn't ship POSIX features the upstream code
-assumes:
+The fork at [`nobodywho-ooo/llama-cpp-rs` branch
+`wasm-emscripten`](https://github.com/nobodywho-ooo/llama-cpp-rs/tree/wasm-emscripten)
+carries a small set of build-system tweaks:
 
-- `cpp-httplib` excised entirely (no `<net/if.h>`, no sockets).
-- `arg.cpp`, `console.cpp`, `download.cpp`, `hf-cache.cpp`, `http.h`
-  stripped from the source list (POSIX `<sys/syslimits.h>`, `<termios.h>`,
-  HTTP).
-- `_WASI_EMULATED_SIGNAL` + `_WASI_EMULATED_PROCESS_CLOCKS` compile defines
-  + their matching link libs, so `<signal.h>` and `<sys/resource.h>`
-  resolve to best-effort no-ops.
-- `common/common.cpp` `fs_get_cache_directory` extended with an
-  `#elif defined(__wasi__)` arm.
-- `common/common.cpp` `set_process_priority` stubbed for `__wasi__`
-  (no `PRIO_PROCESS` in wasi-libc).
-- `mtmd` (multimodal) C++ skipped — depends on `vendor/miniaudio` which
-  needs pthread sched APIs wasi-libc doesn't provide.
+- `CMAKE_SYSTEM_PROCESSOR=wasm32` so the SIMD quant kernels select the
+  right code path under the Emscripten toolchain.
+- `-fexceptions` on the mtmd C++ TUs (multimodal needs C++ exception
+  support for `std::ifstream` error paths).
+- `MA_NO_DEVICE_IO`, `MA_NO_THREADING`, `MA_NO_ENGINE`,
+  `MA_NO_NODE_GRAPH`, `MA_NO_RESOURCE_MANAGER`, `MA_NO_GENERATION`
+  defines for miniaudio — removes every pthread-using piece while
+  keeping the file-header sniffer and the format decoders.
 
-These patches should eventually land upstream in llama.cpp as
-`LLAMA_BUILD_HTTPLIB=OFF`, `LLAMA_BUILD_AUDIO=OFF`, etc.
+These will land upstream as opt-in cmake flags once a few rounds of
+review settle.
 
 ### Runtime workarounds in nobodywho
 
@@ -260,22 +236,19 @@ A few cfg-gates in `nobodywho/core` for wasm32:
   `std::sync::mpsc` → `tokio::sync::mpsc::unbounded_channel`.
 - Model loading: `get_model_from_bytes` constructor that bypasses the
   filesystem (`fmemopen` + `llama_model_load_from_file_ptr`).
-- `Tokenizer::tokenize_text` inlines the `mtmd_default_marker` literal
-  (the real C function isn't compiled).
+- `Tokenizer::tokenize_text` inlines the `mtmd_default_marker` literal.
 - `Worker` n_threads hardcoded to 1 (`available_parallelism` errors on
   wasm).
-- `mtmd` cargo feature on core (default on), wasm crate keeps it enabled
-  for FFI declarations but the C++ implementation isn't compiled —
-  `mtmd_*` symbols become wasm imports stubbed by the JS host.
+- `mtmd` cargo feature on core stays enabled — Emscripten compiles it
+  in (see "Multimodal status").
 
 And one workaround in the wasm crate itself (`js/src/lib.rs`):
-- `__cxa_atexit` overridden as a no-op. `rust-lld 22.1`'s wasm driver
-  doesn't accept `--mexec-model=reactor`, so the linker stays in
-  "command" mode and wraps every export in `__wasm_call_ctors` +
-  `__wasm_call_dtors`. The dtor walk iterates registered handlers and
-  trips on a signature mismatch. Suppressing the registration entirely
-  makes the dtor walk a no-op. Global destructors don't run at module
-  shutdown — fine, the wasm instance lives for the JS process anyway.
+- `__cxa_atexit` overridden as a no-op. The cdylib's link wraps every
+  export in `__wasm_call_ctors` / `__wasm_call_dtors`, and the dtor
+  walk trips on a signature mismatch in one of libc++'s static
+  destructors. Suppressing the registration entirely makes the dtor
+  walk a no-op. Global destructors don't run at module shutdown —
+  fine, the wasm instance lives for the JS process anyway.
 
 ## Multimodal status
 
@@ -305,32 +278,26 @@ The whole chain — `Model.loadBytes(model, mmproj)` → `Image.fromBytes(uint8)
 inference reflects the wasm32 single-threaded ceiling; architecture
 is the point of this section, not throughput.
 
-**What's compiled in.** The Emscripten build of `llama-cpp-sys-2`
-defines `MA_NO_DEVICE_IO`, `MA_NO_THREADING`, `MA_NO_ENGINE`,
-`MA_NO_NODE_GRAPH`, `MA_NO_RESOURCE_MANAGER`, `MA_NO_GENERATION` and
-adds `-fexceptions` to the mtmd TUs. That removes every pthread-using
-piece of miniaudio (the audio device thread, the engine, the
-resource-manager IO thread) while keeping the file-header sniffer and
-the format decoders.
-
 **JS API.**
 
 ```js
-import { Model, Chat, Image, Audio } from 'nobodywho-js';
+const { default: createNobodyWhoModule } = await import('nobodywho-js');
+const m = await createNobodyWhoModule();
+m.init();
 
 const modelBytes  = new Uint8Array(await (await fetch('/model.gguf')).arrayBuffer());
 const mmprojBytes = new Uint8Array(await (await fetch('/mmproj.gguf')).arrayBuffer());
 
 // Optional mmproj as a second arg — promotes the Model to multimodal.
-const model = await Model.loadBytes(modelBytes, mmprojBytes);
+const model = await m.Model.loadBytes(modelBytes, mmprojBytes);
 
-const chat = new Chat(model, {
+const chat = new m.Chat(model, {
   systemPrompt: 'Describe the image.',
   contextSize: 4096,            // ≥ image embedding + reply
 });
 
 const imgResp = await fetch('/cat.jpg');
-const img = Image.fromBytes(new Uint8Array(await imgResp.arrayBuffer()));
+const img = m.Image.fromBytes(new Uint8Array(await imgResp.arrayBuffer()));
 
 const answer = await (await chat.ask(['What is in this image?', img])).completed();
 ```
@@ -398,21 +365,23 @@ present. The Rust override wins symbol resolution at link time.
 
 - **MP3 / FLAC / Ogg audio.** Decoders are linked in but unverified.
   Worth one short test per format.
-- **Browser polyfill bundling.** `setup-browser.mjs` loads
-  `@bjorn3/browser_wasi_shim` from a CDN. The npm package leaves that
-  as a peer dep (see `package.json.tpl`); downstream bundlers resolve
-  it. Worth verifying with at least one real bundler integration
-  (webpack + esbuild + vite) before 1.0.
 - **Structured-output generation at runtime.** `ConstraintSpec` is
-  wired through `Chat::new`'s options. Should now work on Emscripten
-  (libc has `clock_gettime`, which was the blocker on
-  `wasm32-unknown-unknown`); unverified.
-- **Upstream llama.cpp PRs** for the build-time patches in
-  `llama-cpp-sys-2` (`LLAMA_BUILD_HTTPLIB=OFF`, `LLAMA_BUILD_AUDIO=OFF`,
-  `__wasi__` arms in `common/common.cpp`).
-- **Push `wasm-emscripten` branch updates.** The fork's
-  `wasm-emscripten` branch carries two local-only commits
-  (`CMAKE_SYSTEM_PROCESSOR=wasm32` for the SIMD quant kernels;
-  `MA_NO_*` + `-fexceptions` for mtmd). Until those are pushed, the
-  workspace `Cargo.toml` uses a `[patch]` block pointing at a
-  sibling `/Users/user/git/llama-cpp-rs` checkout.
+  wired through `Chat::new`'s options. Should work on Emscripten
+  (libc has `clock_gettime`); unverified end-to-end.
+- **Async tool callbacks.** v1 of tool calling accepts JS functions
+  whose return type is a String. Functions that return a Promise
+  don't currently resolve before the value is fed back into the
+  model. See the open design discussion in `js/src/lib.rs`'s `Tool`
+  block-comment for the two paths forward.
+- **`WorkerChat` + tools.** Same v1 limit: tools today only work with
+  in-process `Chat` because the JS function references can't survive
+  `postMessage`. Solving requires an RPC bridge worker ↔ main; shares
+  infrastructure with the async-callback work.
+- **Upstream the build patches.** `nobodywho-ooo/llama-cpp-rs` branch
+  `wasm-emscripten` carries `CMAKE_SYSTEM_PROCESSOR=wasm32` and the
+  `MA_NO_*` + `-fexceptions` for mtmd. Workspace `Cargo.toml` pins a
+  `[patch]` block at a sibling `/Users/user/git/llama-cpp-rs` checkout
+  until those land upstream and we can drop the patch.
+- **Upstream the wasm-bindgen fork.** Until upstream wasm-bindgen
+  ships Emscripten output mode, the build depends on
+  `nobodywho-ooo/wasm-bindgen`.

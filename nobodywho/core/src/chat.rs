@@ -1648,8 +1648,8 @@ impl Worker<'_, ChatWorker> {
 
         let media_assets = prompt.extract_media_assets();
 
-        // Multimodal bitmap construction. Only enabled when the `mtmd` feature
-        // is on (i.e. native + Emscripten, not wasm32-unknown-unknown).
+        // Multimodal bitmap construction. Only enabled when the `mtmd`
+        // feature is on (native + Emscripten wasm).
         #[cfg(feature = "mtmd")]
         let bitmap_ids = {
             let bitmaps = if let Some(projection_model) = self.projection_model.as_ref() {

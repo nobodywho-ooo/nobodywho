@@ -1,6 +1,6 @@
 // Emscripten link flags. Only fire when the target is
-// wasm32-unknown-emscripten — native + wasm32-unknown-unknown ignore this
-// block. Ported from nobodywho_old/nobodywho/flutter/rust/build.rs.
+// wasm32-unknown-emscripten — native builds ignore this block.
+// Ported from nobodywho_old/nobodywho/flutter/rust/build.rs.
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");

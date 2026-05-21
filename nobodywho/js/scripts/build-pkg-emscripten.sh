@@ -99,14 +99,12 @@ rm -rf "$TARGET_DIR"
 echo "==> injecting __wasm_bindgen_emscripten_marker custom section"
 # The wasm-bindgen runtime declares the marker via
 # `#[link_section = "__wasm_bindgen_emscripten_marker"]` on a `#[used]`
-# static. Under `wasm32-unknown-unknown` LLVM's wasm backend emits this
-# as a wasm custom section (which is what wasm-bindgen-cli looks for).
-# Under `wasm32-unknown-emscripten` the same attribute ends up in a
-# regular data section instead — the symbol is preserved but the custom
-# section is not, so wasm-bindgen-cli never sees the marker and falls
-# back to bundler-shape output. The Python script below patches the
-# wasm post-link to add a real wasm custom section with the expected
-# name, restoring the trigger for OutputMode::Emscripten in
+# static. Under `wasm32-unknown-emscripten` the attribute ends up in a
+# regular data section instead of a wasm custom section — the symbol is
+# preserved but the section is not, so wasm-bindgen-cli never sees the
+# marker and falls back to bundler-shape output. The Python script below
+# patches the wasm post-link to add a real wasm custom section with the
+# expected name, restoring the trigger for OutputMode::Emscripten in
 # `cli-support/src/lib.rs:768`.
 python3 "$JS_DIR/scripts/inject-emscripten-marker.py" \
   "$TARGET_DIR/nobodywho_js.wasm" \
@@ -216,4 +214,3 @@ ls -lh "$PKG_DIR" | sed 's/^/    /'
 echo
 echo "Smoke test:"
 echo "  PATH=/opt/homebrew/bin:\$PATH node $JS_DIR/scripts/emscripten-smoke.mjs <embedding.gguf>"
-echo "  PATH=/opt/homebrew/bin:\$PATH node $JS_DIR/scripts/path-b-smoke.mjs   [chat.gguf]"

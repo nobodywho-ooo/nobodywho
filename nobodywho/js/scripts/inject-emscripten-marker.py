@@ -8,9 +8,7 @@ emit one via `#[link_section = "__wasm_bindgen_emscripten_marker"]` on a
 static, but the Rust → LLVM → wasm-ld chain for the
 `wasm32-unknown-emscripten` target doesn't preserve plain `#[link_section]`
 data as wasm custom sections — they end up merged into regular data
-sections instead. (Same code is verified to work on `wasm32-unknown-unknown`
-where LLVM's wasm backend does treat `#[link_section]` as custom-section
-metadata.)
+sections instead.
 
 The marker payload is a single byte `0x01`. The wasm-bindgen-cli only
 checks for the section's existence (via `module.customs.remove_raw(...)`)

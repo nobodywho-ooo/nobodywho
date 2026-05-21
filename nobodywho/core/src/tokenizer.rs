@@ -20,11 +20,9 @@ use crate::{errors::MultimodalError, errors::TokenizationError};
 
 /// Get the media-marker string used to split text from media in rendered
 /// chat templates. Native reads this from llama.cpp's
-/// `mtmd_default_marker()`. The cfg gate routes all wasm32 targets to the
-/// inlined literal (`"<__media__>"`) — necessary for wasm32-unknown-unknown
-/// (which can't resolve the mtmd C++ symbol) and harmless for the other
-/// wasm32 OSes like Emscripten, since the literal is the same string the
-/// FFI call would return.
+/// `mtmd_default_marker()`. On wasm32 we inline the literal
+/// (`"<__media__>"`) directly — the same string the FFI call would
+/// return — to avoid the FFI hop.
 #[inline]
 fn mtmd_marker_string() -> String {
     #[cfg(target_arch = "wasm32")]

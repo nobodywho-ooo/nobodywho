@@ -727,9 +727,9 @@ where
 
         // Set up context parameters using available parallelism
         let ctx = {
-            // wasm32 has no concept of hardware threads (`available_parallelism`
-            // returns Err on wasm32-unknown-unknown). Single-thread the
-            // worker — llama.cpp will run inference sequentially on the
+            // wasm32 has no concept of hardware threads
+            // (`available_parallelism` returns Err on wasm32). Single-thread
+            // the worker — llama.cpp will run inference sequentially on the
             // wasm event loop, which matches how the wasm binding's
             // chat/encoder/cross-encoder are structured anyway (spawn_local,
             // no real threads).

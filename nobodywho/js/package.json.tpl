@@ -34,10 +34,7 @@
     "./nobodywho_js.js",
     "./snippets/*"
   ],
-  "peerDependencies": {
-    "@bjorn3/browser_wasi_shim": "^0.4.0"
-  },
   "engines": {
-    "node": ">=24"
+    "node": ">=20"
   }
 }

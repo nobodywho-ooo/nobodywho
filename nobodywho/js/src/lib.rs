@@ -34,32 +34,18 @@ mod syscall_imports;
 #[cfg(target_arch = "wasm32")]
 use std::cell::RefCell;
 
-// Export `_initialize` so a WASI host can run static ctors via
-// wasi.initialize(). Body is empty — wasi-libc/libc++ ctors are emitted
-// into `__wasm_call_ctors`, which wasm-bindgen / node:wasi handle for us.
-// Not needed under Emscripten — its `crt1_reactor.o` already provides
-// `_initialize`, and defining ours conflicts at link time.
-#[cfg(all(target_arch = "wasm32", not(target_os = "emscripten")))]
-#[no_mangle]
-pub extern "C" fn _initialize() {}
-
-/// Override wasi-libc's `__cxa_atexit` to a no-op.
+/// Override libc's `__cxa_atexit` to a no-op.
 ///
-/// The default rust-lld 22.1 wasm driver doesn't understand
-/// `--mexec-model=reactor`, so it leaves the cdylib in the "command" exec
-/// model: every wasm-bindgen export gets wrapped with `__wasm_call_ctors` +
-/// `__wasm_call_dtors`. The dtor walk runs `__funcs_on_exit`, which iterates
-/// `__cxa_atexit`-registered handlers and calls each. At least one of those
-/// is registered with a wasm signature that doesn't match how
-/// `__funcs_on_exit` invokes it, producing
+/// At least one global-destructor handler libc++ registers during static
+/// init has a wasm signature that doesn't match how `__funcs_on_exit`
+/// invokes it, producing
 ///
 /// ```text
 ///   RuntimeError: function signature mismatch
 /// ```
 ///
 /// on the FIRST export call after instantiation, before any of our code
-/// runs. The handlers are global-destructor callbacks libc++ registers
-/// during static init.
+/// runs.
 ///
 /// Workaround: define `__cxa_atexit` ourselves and have it ignore the
 /// registration. Global destructors won't run at module shutdown (which
@@ -68,7 +54,7 @@ pub extern "C" fn _initialize() {}
 /// no-op and the signature-mismatch goes away.
 ///
 /// `#[no_mangle]` puts the symbol at file scope; in the wasm link, ours
-/// wins over wasi-libc's definition because rustc-emitted symbols are
+/// wins over the sysroot's definition because rustc-emitted symbols are
 /// resolved before sysroot archives.
 ///
 /// # Safety
@@ -743,10 +729,9 @@ struct ChatOptions {
 /// All three are documented in core's `GrammarConstraint`; this is just the
 /// JS-facing wire format.
 ///
-/// **Runtime caveat on wasm32-unknown-unknown:** llguidance currently panics
-/// on `std::time::Instant::now()` (no monotonic clock), so any constraint
-/// that reaches the grammar sampler will trip an upstream bug at generation
-/// time. Tracked upstream; the wire format here is stable.
+/// The wire format is stable; the grammar sampler runs through llguidance,
+/// which needs a monotonic clock — Emscripten's libc has `clock_gettime`,
+/// so this should work at runtime, but end-to-end is unverified.
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ConstraintSpec {
@@ -1076,9 +1061,9 @@ pub fn run_in_worker() -> Result<(), JsError> {
 
     let scope_for_handler = scope.clone();
     // Closure::new (not Closure::wrap) — the latter requires UnwindSafe
-    // bounds that wasm-bindgen 0.2.121 enforces on wasm32-unknown-emscripten
-    // but not on wasm32-unknown-unknown. Closure::new takes the closure
-    // directly and avoids the MaybeUnwindSafe trait check entirely.
+    // bounds that wasm-bindgen 0.2.121 enforces on wasm32-unknown-emscripten.
+    // Closure::new takes the closure directly and avoids the
+    // MaybeUnwindSafe trait check entirely.
     let on_message = Closure::<dyn FnMut(MessageEvent)>::new(move |evt: MessageEvent| {
         // Read `evt.data()` synchronously here — Firefox throws
         // NS_ERROR_NOT_AVAILABLE if you touch MessageEvent properties from an
