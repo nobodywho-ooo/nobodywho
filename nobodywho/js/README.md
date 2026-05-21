@@ -46,8 +46,8 @@ and exposes the binding's full surface to JS via wasm-bindgen.
 | `Chat.ask(prompt)` → `TokenStream` → tokens | ✅ verified |
 | `Chat`'s `templateVariables` option (e.g. `{ enable_thinking: false }`) | ✅ verified |
 | `TokenStream.nextToken()` / `completed()` | ✅ verified |
-| Multimodal (`MtmdBitmap` etc.) | not exposed — mtmd C++ doesn't compile against wasi-libc; the wasm has unresolved `mtmd_*` imports that JS replaces with stubs |
-| Structured output (`Constraint`) | wire format exposed via `Chat`'s options (see `ConstraintSpec` in `js/src/lib.rs`); runtime is blocked on llguidance's `Instant::now` panic on `wasm32-unknown-unknown` (tracked upstream) |
+| Multimodal vision/audio (`Image.fromBytes` / `Audio.fromBytes`) | ✅ compiles — see "Multimodal status" below for what's actually supported on Emscripten |
+| Structured output (`Constraint`) | wire format exposed via `Chat`'s options (see `ConstraintSpec` in `js/src/lib.rs`); should now work on Emscripten (libc has `clock_gettime`), unverified |
 
 Native (`cargo check --workspace`) is unchanged.
 
@@ -277,18 +277,120 @@ And one workaround in the wasm crate itself (`js/src/lib.rs`):
   makes the dtor walk a no-op. Global destructors don't run at module
   shutdown — fine, the wasm instance lives for the JS process anyway.
 
+## Multimodal status
+
+Vision and audio input compile into the wasm. The Rust + C++ side ships
+`mtmd`/`mtmd-helper` linked against a stripped-down miniaudio (playback
+removed, decoder kept), and the JS surface adds two factory namespaces.
+
+**What's compiled in.** The Emscripten build of `llama-cpp-sys-2`
+defines `MA_NO_DEVICE_IO`, `MA_NO_THREADING`, `MA_NO_ENGINE`,
+`MA_NO_NODE_GRAPH`, `MA_NO_RESOURCE_MANAGER`, `MA_NO_GENERATION` and
+adds `-fexceptions` to the mtmd TUs. That removes every pthread-using
+piece of miniaudio (the audio device thread, the engine, the
+resource-manager IO thread) while keeping the file-header sniffer and
+the format decoders — so `mtmd_helper_bitmap_init_from_buf` can ingest
+raw image and audio bytes the same way the native build does.
+
+**JS API.**
+
+```js
+import { Model, Chat, Image, Audio } from 'nobodywho-js';
+
+const model = await Model.loadBytes(modelBytes);
+// Vision-language model: load main model + projection mmproj
+const chat = new Chat(model, {
+  systemPrompt: 'Describe the image.',
+  // mmproj is wired by the same `Chat` builder used for native; the
+  // JS side just forwards the bytes (planned — see below).
+});
+
+// fetch a PNG / JPEG in the browser, hand the bytes off:
+const imgResp = await fetch('/cat.jpg');
+const img = Image.fromBytes(new Uint8Array(await imgResp.arrayBuffer()));
+
+const answer = await chat.ask(['What is in this image?', img]).completed();
+```
+
+`Image.fromBytes(uint8)` and `Audio.fromBytes(uint8)` return plain JS
+objects of shape `{__nbwKind: 'image' | 'audio', bytes: Uint8Array}`.
+They are structured-cloneable, which is what lets them survive the
+postMessage hop into the `WorkerChat`'s background worker without
+custom serialization. There is no `Image(path)` constructor — a
+browser tab has no filesystem; everything goes through bytes.
+
+The same array-of-parts shape is accepted by both `Chat.ask` (in-
+process, advanced) and `WorkerChat.ask` (worker-backed, recommended).
+Plain strings still work for text-only prompts — `chat.ask('hi')` is
+unchanged.
+
+**What's known to work.**
+
+- Image decoding via `stb_image`: JPEG, PNG, BMP, GIF, TGA, PSD, PIC,
+  PNM. Format is sniffed from the file header inside
+  `mtmd_helper_bitmap_init_from_buf`.
+- WAV audio (`miniaudio`'s built-in WAV decoder — no `MA_NO_WAV`).
+- All of mtmd's existing chunk-tokenize / encode-chunk pipeline,
+  unchanged from native.
+
+**What's known not to work.**
+
+- Audio playback / device IO. `MA_NO_DEVICE_IO` removes the
+  `ma_context` / `ma_device` machinery, including the pthread-owned
+  audio thread. The wasm has no `AudioContext` / `WebAudio` bridge.
+  Models that *generate* audio (TTS) won't be able to play it back
+  from inside the wasm — they'd need to post their PCM samples to the
+  page for Web Audio playback.
+- MP3 / FLAC / Ogg / Vorbis: untested. miniaudio's `MA_NO_MP3` /
+  `MA_NO_FLAC` / `MA_NO_VORBIS` are *not* set in the build, so the
+  decoders should be linked in, but no end-to-end test has run them.
+  WAV is the safe default.
+- `mmproj` (multimodal projection model) loading from the JS side:
+  the core builder accepts a path. Browser equivalent (load mmproj
+  bytes the same way as the main model) is a one-line addition to
+  `ChatOptions` / `Chat::new`, not yet wired up.
+- Vision smoke test against a real VLM: the Rust + C++ side compiles
+  and the wasm-bindgen surface is in place, but I have not yet run
+  inference against e.g. Qwen-VL or LLaVA-Phi3 to confirm
+  end-to-end. The build link step also currently requires
+  walkingeyerobot's `-sWASM_BINDGEN` emcc fork, which is what
+  blocked a smoke test in this session.
+
+**Cross-binding bonus.** The core's `PromptPart` enum was extended
+with `ImageBytes(Vec<u8>)` / `AudioBytes(Vec<u8>)` variants for this
+change. The Python binding gained `Image.from_bytes(data: bytes)` and
+`Audio.from_bytes(data: bytes)` classmethods as a side effect —
+useful for serving an image fetched into memory (`requests.get(...).
+content`) without writing a tempfile.
+
 ## Outstanding
 
+- **Wire `mmproj` bytes through `Chat`'s options.** The core builder
+  takes a path; in the browser we need a `mmprojBytes` option that
+  mirrors `Model.loadBytes`. One-line addition to `ChatOptions` plus
+  a `nobodywho::chat::ChatBuilder::with_mmproj_bytes` if core doesn't
+  already have one.
+- **Vision smoke test.** End-to-end inference against a small VLM
+  (Qwen2.5-VL-2B, LLaVA-Phi3-Mini, etc.) inside the browser /
+  Node. Blocked locally on the emcc-wbg link step (see "Build it
+  yourself").
+- **MP3 / FLAC / Ogg audio.** Decoders are linked in but unverified.
+  Worth one short test per format.
 - **Browser polyfill bundling.** `setup-browser.mjs` loads
   `@bjorn3/browser_wasi_shim` from a CDN. The npm package leaves that
   as a peer dep (see `package.json.tpl`); downstream bundlers resolve
   it. Worth verifying with at least one real bundler integration
   (webpack + esbuild + vite) before 1.0.
-- **Structured-output generation at runtime.** The `Constraint` API is wired
-  through `Chat::new`'s options (see `ConstraintSpec` in `js/src/lib.rs`),
-  but constraints currently panic at generation time on
-  `wasm32-unknown-unknown` because llguidance calls `Instant::now`, which
-  isn't supported on that target. Tracked upstream.
+- **Structured-output generation at runtime.** `ConstraintSpec` is
+  wired through `Chat::new`'s options. Should now work on Emscripten
+  (libc has `clock_gettime`, which was the blocker on
+  `wasm32-unknown-unknown`); unverified.
 - **Upstream llama.cpp PRs** for the build-time patches in
   `llama-cpp-sys-2` (`LLAMA_BUILD_HTTPLIB=OFF`, `LLAMA_BUILD_AUDIO=OFF`,
   `__wasi__` arms in `common/common.cpp`).
+- **Push `wasm-emscripten` branch updates.** The fork's
+  `wasm-emscripten` branch carries two local-only commits
+  (`CMAKE_SYSTEM_PROCESSOR=wasm32` for the SIMD quant kernels;
+  `MA_NO_*` + `-fexceptions` for mtmd). Until those are pushed, the
+  workspace `Cargo.toml` uses a `[patch]` block pointing at a
+  sibling `/Users/user/git/llama-cpp-rs` checkout.

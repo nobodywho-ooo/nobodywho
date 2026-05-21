@@ -163,6 +163,188 @@ impl Model {
     }
 }
 
+// ---------- Multimodal: Image / Audio / prompt assembly ----------
+//
+// JS API:
+//
+//     import { Image, Audio } from 'nobodywho-js';
+//
+//     const img = Image.fromBytes(new Uint8Array(await blob.arrayBuffer()));
+//     const reply = await chat.ask(['What is in this image?', img]).completed();
+//
+// `Chat.ask` and `WorkerChat.ask` accept either a plain string (text-only
+// prompt — fast path, unchanged) or a JS array of `string | Image | Audio`
+// parts. There is no `Image(path)` constructor in the wasm binding: a
+// browser tab has no filesystem.
+//
+// `Image.fromBytes` / `Audio.fromBytes` return plain tagged JS objects of
+// the shape `{__nbwKind: 'image'|'audio', bytes: Uint8Array}`. They are
+// structured-cloneable, which is what lets them survive the postMessage
+// hop to the chat worker without any custom serialization. The Rust side
+// recognises a part by the `__nbwKind` brand.
+
+/// Image factory namespace for multimodal prompts. The only method is
+/// [`Image::from_bytes`] — there is no path-based constructor because a
+/// browser tab has no filesystem.
+#[wasm_bindgen]
+pub struct Image;
+
+#[wasm_bindgen]
+impl Image {
+    /// Build an image prompt part from raw file bytes (JPEG / PNG / BMP /
+    /// GIF / TGA / PSD / PIC / PNM — anything `stb_image` can decode).
+    /// The format is sniffed via the file header inside
+    /// `mtmd_helper_bitmap_init_from_buf`.
+    ///
+    /// Returns a plain JS object `{__nbwKind: 'image', bytes: Uint8Array}`
+    /// suitable for inclusion in a `chat.ask([...])` array.
+    #[wasm_bindgen(js_name = fromBytes)]
+    pub fn from_bytes(bytes: Vec<u8>) -> js_sys::Object {
+        make_media_part("image", &bytes)
+    }
+}
+
+/// Audio factory namespace for multimodal prompts.
+#[wasm_bindgen]
+pub struct Audio;
+
+#[wasm_bindgen]
+impl Audio {
+    /// Build an audio prompt part from raw file bytes. Supported formats
+    /// depend on the linked miniaudio decoder: WAV always; MP3/FLAC/Ogg
+    /// when their `MA_NO_*` switches are off (note: the wasm-Emscripten
+    /// build has playback/threading/engine cut out, but the decoder front
+    /// is still in for WAV). The format is sniffed via the file header.
+    ///
+    /// Returns `{__nbwKind: 'audio', bytes: Uint8Array}`.
+    #[wasm_bindgen(js_name = fromBytes)]
+    pub fn from_bytes(bytes: Vec<u8>) -> js_sys::Object {
+        make_media_part("audio", &bytes)
+    }
+}
+
+/// Build a tagged media part object. `kind` is `"image"` or `"audio"`.
+fn make_media_part(kind: &str, bytes: &[u8]) -> js_sys::Object {
+    let o = js_sys::Object::new();
+    let _ = js_sys::Reflect::set(&o, &"__nbwKind".into(), &JsValue::from_str(kind));
+    let _ = js_sys::Reflect::set(
+        &o,
+        &"bytes".into(),
+        &js_sys::Uint8Array::from(bytes).into(),
+    );
+    o
+}
+
+/// Pull `__nbwKind` off a candidate part. Returns None if the object is not
+/// a tagged media part (e.g. plain string, foreign object).
+fn read_media_kind(part: &JsValue) -> Option<String> {
+    js_sys::Reflect::get(part, &"__nbwKind".into())
+        .ok()
+        .and_then(|v| v.as_string())
+}
+
+fn read_media_bytes(part: &JsValue) -> Result<Vec<u8>, String> {
+    let v = js_sys::Reflect::get(part, &"bytes".into())
+        .map_err(|_| "media part missing 'bytes' field".to_string())?;
+    let u8a = v
+        .dyn_into::<js_sys::Uint8Array>()
+        .map_err(|_| "media part 'bytes' must be a Uint8Array".to_string())?;
+    Ok(u8a.to_vec())
+}
+
+/// Convert a `JsValue` (a bare string OR an array containing strings and
+/// tagged media-part objects) into a core `Prompt`. Used by the in-process
+/// `Chat::ask`.
+fn js_to_prompt(input: &JsValue) -> Result<nobodywho::tokenizer::Prompt, JsError> {
+    let mut prompt = nobodywho::tokenizer::Prompt::new();
+
+    if let Some(s) = input.as_string() {
+        prompt.push_text(s);
+        return Ok(prompt);
+    }
+
+    let arr: &js_sys::Array = input.dyn_ref::<js_sys::Array>().ok_or_else(|| {
+        JsError::new(
+            "ask: prompt must be a string or an array of (string | Image.fromBytes | Audio.fromBytes)",
+        )
+    })?;
+
+    for i in 0..arr.length() {
+        let part = arr.get(i);
+        if let Some(s) = part.as_string() {
+            prompt.push_text(s);
+            continue;
+        }
+        match read_media_kind(&part).as_deref() {
+            Some("image") => prompt.push_image_bytes(
+                read_media_bytes(&part).map_err(|e| JsError::new(&e))?,
+            ),
+            Some("audio") => prompt.push_audio_bytes(
+                read_media_bytes(&part).map_err(|e| JsError::new(&e))?,
+            ),
+            Some(other) => {
+                return Err(JsError::new(&format!(
+                    "ask: unknown media kind '{other}' at index {i}"
+                )))
+            }
+            None => {
+                return Err(JsError::new(&format!(
+                    "ask: parts must be strings or Image.fromBytes(...) / Audio.fromBytes(...) results (got {:?} at index {})",
+                    part, i
+                )))
+            }
+        }
+    }
+
+    Ok(prompt)
+}
+
+/// `js_to_prompt` produces a structured-cloneable shape already, so for the
+/// worker hop we just normalize the input to a JS Array and pass it through.
+#[cfg(target_arch = "wasm32")]
+fn js_to_serializable_parts(input: &JsValue) -> Result<JsValue, JsError> {
+    if let Some(s) = input.as_string() {
+        let arr = js_sys::Array::new();
+        arr.push(&JsValue::from_str(&s));
+        return Ok(arr.into());
+    }
+
+    if input.dyn_ref::<js_sys::Array>().is_some() {
+        // Already an Array; structured-clone will deep-copy strings and
+        // the `{__nbwKind, bytes}` objects transparently.
+        return Ok(input.clone());
+    }
+
+    Err(JsError::new(
+        "ask: prompt must be a string or an array of (string | Image.fromBytes | Audio.fromBytes)",
+    ))
+}
+
+/// Inverse on the worker side: rebuild a `Prompt` from the structured-clone
+/// payload. Same matching logic as `js_to_prompt` but errors as `String`
+/// because the worker dispatcher post-messages errors back as plain text.
+#[cfg(target_arch = "wasm32")]
+fn build_prompt_from_parts(parts: &JsValue) -> Result<nobodywho::tokenizer::Prompt, String> {
+    let mut prompt = nobodywho::tokenizer::Prompt::new();
+    let arr = parts
+        .dyn_ref::<js_sys::Array>()
+        .ok_or_else(|| "ask: 'parts' must be an array".to_string())?;
+    for i in 0..arr.length() {
+        let part = arr.get(i);
+        if let Some(s) = part.as_string() {
+            prompt.push_text(s);
+            continue;
+        }
+        match read_media_kind(&part).as_deref() {
+            Some("image") => prompt.push_image_bytes(read_media_bytes(&part)?),
+            Some("audio") => prompt.push_audio_bytes(read_media_bytes(&part)?),
+            Some(other) => return Err(format!("ask: parts[{i}] unknown kind '{other}'")),
+            None => return Err(format!("ask: parts[{i}] missing __nbwKind brand")),
+        }
+    }
+    Ok(prompt)
+}
+
 // ---------- Chat (raw blocking class — see WorkerChat below for the user-facing one) ----------
 //
 // Exposed in JS as `Chat`. The user-facing worker-backed wrapper is the
@@ -287,6 +469,14 @@ impl Chat {
     /// Send a prompt and receive a `TokenStream`. Await `nextToken()` in a
     /// loop, or call `completed()` to resolve to the full response.
     ///
+    /// `prompt` is either a plain string (text-only) or an array of mixed
+    /// `string | Image | Audio` parts (multimodal). Examples:
+    ///
+    /// ```js
+    /// chat.ask('hi')                                      // text only
+    /// chat.ask(['describe this:', Image.fromBytes(bytes)]) // image + text
+    /// ```
+    ///
     /// **Wasm note: this does NOT stream in real time.** The Rust inference
     /// loop holds the single JS thread until generation completes, so the
     /// `nextToken()` loop only drains tokens AFTER the response is fully
@@ -294,8 +484,14 @@ impl Chat {
     /// a Web Worker and use [`WorkerChat::ask_streaming`] (`askStreaming` in JS),
     /// which calls a JS callback synchronously from inside the inference loop
     /// — the callback can then `self.postMessage(token)` to the main thread.
-    pub fn ask(&self, prompt: String) -> js_sys::Promise {
+    pub fn ask(&self, prompt: JsValue) -> js_sys::Promise {
         let handle = self.handle.clone();
+        // Convert outside the promisify body so the error surfaces as a
+        // synchronous rejection rather than a JsValue panic.
+        let prompt = match js_to_prompt(&prompt) {
+            Ok(p) => p,
+            Err(e) => return js_sys::Promise::reject(&e.into()),
+        };
         promisify(async move {
             let stream = handle.ask(prompt);
             Ok(TokenStream {
@@ -607,10 +803,9 @@ async fn handle_worker_message(
             let _ = scope.post_message(&worker_reply("chat-ready"));
         }
         "ask" => {
-            let prompt = js_sys::Reflect::get(&data, &"prompt".into())
-                .map_err(|_| "missing 'prompt' field".to_string())?
-                .as_string()
-                .ok_or_else(|| "'prompt' must be a string".to_string())?;
+            let parts = js_sys::Reflect::get(&data, &"parts".into())
+                .map_err(|_| "missing 'parts' field".to_string())?;
+            let prompt = build_prompt_from_parts(&parts)?;
             let handle = WORKER_CHAT
                 .with(|c| c.borrow().clone())
                 .ok_or_else(|| "chat not created; send 'create-chat' first".to_string())?;
@@ -1269,7 +1464,15 @@ impl WorkerChat {
     /// Send a prompt; returns a synchronously-constructed `WorkerTokenStream`
     /// that resolves token-by-token (or all-at-once via `.completed()`).
     /// Only one ask can be in flight at a time per WorkerChat.
-    pub fn ask(&self, prompt: String) -> Result<WorkerTokenStream, JsError> {
+    ///
+    /// `prompt` is either a plain string (text-only) or an array of mixed
+    /// `string | Image | Audio` parts (multimodal). Bytes ride along by
+    /// structured-clone copy on the postMessage to the worker.
+    pub fn ask(&self, prompt: JsValue) -> Result<WorkerTokenStream, JsError> {
+        // Serialize before taking the state borrow so we don't hold it across
+        // an early-return.
+        let parts = js_to_serializable_parts(&prompt)?;
+
         let mut st = self.state.borrow_mut();
         if st.terminated {
             return Err(JsError::new("WorkerChat: already terminated"));
@@ -1285,7 +1488,7 @@ impl WorkerChat {
 
         let ask_msg = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&ask_msg, &"type".into(), &"ask".into());
-        let _ = js_sys::Reflect::set(&ask_msg, &"prompt".into(), &JsValue::from_str(&prompt));
+        let _ = js_sys::Reflect::set(&ask_msg, &"parts".into(), &parts);
         st.worker
             .post_message(&ask_msg)
             .map_err(|e| JsError::new(&format!("post ask: {e:?}")))?;
