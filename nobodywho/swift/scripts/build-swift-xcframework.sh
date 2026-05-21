@@ -29,8 +29,11 @@ cargo +nightly build -p nobodywho-uniffi -Z build-std --target aarch64-apple-vis
 echo "Building nobodywho-uniffi for visionOS simulator (aarch64-apple-visionos-sim)..."
 cargo +nightly build -p nobodywho-uniffi -Z build-std --target aarch64-apple-visionos-sim --release
 
-echo "Building nobodywho-uniffi for watchOS device (aarch64-apple-watchos)..."
+echo "Building nobodywho-uniffi for watchOS device arm64 (aarch64-apple-watchos)..."
 cargo +nightly build -p nobodywho-uniffi -Z build-std --target aarch64-apple-watchos --release
+
+echo "Building nobodywho-uniffi for watchOS device arm64_32 (arm64_32-apple-watchos)..."
+cargo +nightly build -p nobodywho-uniffi -Z build-std --target arm64_32-apple-watchos --release
 
 echo "Building nobodywho-uniffi for watchOS simulator (aarch64-apple-watchos-sim)..."
 cargo +nightly build -p nobodywho-uniffi -Z build-std --target aarch64-apple-watchos-sim --release
@@ -50,21 +53,15 @@ cp target/aarch64-apple-ios-sim/release/libnobodywho_uniffi.a "$TMPDIR/ios-sim/"
 cp target/aarch64-apple-darwin/release/libnobodywho_uniffi.a "$TMPDIR/macos/"
 cp target/aarch64-apple-visionos/release/libnobodywho_uniffi.a "$TMPDIR/visionos-device/"
 cp target/aarch64-apple-visionos-sim/release/libnobodywho_uniffi.a "$TMPDIR/visionos-sim/"
-cp target/aarch64-apple-watchos/release/libnobodywho_uniffi.a "$TMPDIR/watchos-device/"
+# Combine arm64 and arm64_32 watchOS device libraries into a fat binary.
+# arm64_32: Apple Watch Series 4–8, Ultra 1, SE (32-bit pointers)
+# arm64: newer watches with true 64-bit support
+echo "Creating fat watchOS device library (arm64 + arm64_32)..."
+lipo -create \
+    target/aarch64-apple-watchos/release/libnobodywho_uniffi.a \
+    target/arm64_32-apple-watchos/release/libnobodywho_uniffi.a \
+    -output "$TMPDIR/watchos-device/libnobodywho_uniffi.a"
 cp target/aarch64-apple-watchos-sim/release/libnobodywho_uniffi.a "$TMPDIR/watchos-sim/"
-
-# Pre-link watchOS archives into single object files. Without this, Xcode release
-# builds (with WMO and -dead_strip) can fail to pull in .o files from the 1293-member
-# archive, causing undefined symbol errors. Merging into a single .o forces the linker
-# to load all symbols atomically. The linker's -dead_strip pass still removes
-# unreachable code, so there is no final binary size impact.
-echo "Pre-linking watchOS archives into single object files..."
-for dir in watchos-device watchos-sim; do
-    ld -r -all_load "$TMPDIR/$dir/libnobodywho_uniffi.a" -o "$TMPDIR/$dir/libnobodywho_uniffi.o"
-    rm "$TMPDIR/$dir/libnobodywho_uniffi.a"
-    ar rcs "$TMPDIR/$dir/libnobodywho_uniffi.a" "$TMPDIR/$dir/libnobodywho_uniffi.o"
-    rm "$TMPDIR/$dir/libnobodywho_uniffi.o"
-done
 
 rm -rf swift/Frameworks/NobodyWhoNative.xcframework
 mkdir -p swift/Frameworks

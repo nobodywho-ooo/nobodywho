@@ -194,6 +194,7 @@ jobs:
           - "aarch64-apple-visionos"
           - "aarch64-apple-visionos-sim"
           - "aarch64-apple-watchos"
+          - "arm64_32-apple-watchos"
           - "aarch64-apple-watchos-sim"
         profile:
           - "debug"
@@ -214,6 +215,8 @@ jobs:
           - integration: "godot"
             target: "aarch64-apple-watchos"
           - integration: "godot"
+            target: "arm64_32-apple-watchos"
+          - integration: "godot"
             target: "aarch64-apple-watchos-sim"
           - integration: "flutter"
             target: "aarch64-apple-visionos"
@@ -221,6 +224,8 @@ jobs:
             target: "aarch64-apple-visionos-sim"
           - integration: "flutter"
             target: "aarch64-apple-watchos"
+          - integration: "flutter"
+            target: "arm64_32-apple-watchos"
           - integration: "flutter"
             target: "aarch64-apple-watchos-sim"
           # debug builds are only consumed by the godot .gdextension; other integrations ship release-only
@@ -426,7 +431,10 @@ jobs:
           cp libnobodywho-uniffi-aarch64-apple-darwin-release.a macos/libnobodywho_uniffi.a
           cp libnobodywho-uniffi-aarch64-apple-visionos-release.a visionos-device/libnobodywho_uniffi.a
           cp libnobodywho-uniffi-aarch64-apple-visionos-sim-release.a visionos-sim/libnobodywho_uniffi.a
-          cp libnobodywho-uniffi-aarch64-apple-watchos-release.a watchos-device/libnobodywho_uniffi.a
+          lipo -create \
+            libnobodywho-uniffi-aarch64-apple-watchos-release.a \
+            libnobodywho-uniffi-arm64_32-apple-watchos-release.a \
+            -output watchos-device/libnobodywho_uniffi.a
           cp libnobodywho-uniffi-aarch64-apple-watchos-sim-release.a watchos-sim/libnobodywho_uniffi.a
 
           for dir in ios-device ios-sim macos visionos-device visionos-sim watchos-device watchos-sim; do
