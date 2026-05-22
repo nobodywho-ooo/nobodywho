@@ -5,6 +5,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assume
 import org.junit.Assert.*
 import org.junit.Test
+import java.io.File
 
 fun ping(): String = "pong"
 
@@ -14,6 +15,24 @@ class IntegrationTest {
         val value = System.getenv(name)
         Assume.assumeNotNull(value)
         return value!!
+    }
+
+    @Test
+    fun testDownloadModel() = runBlocking {
+        val modelUrl = "hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
+
+        // First download to discover the cache path, then delete to force a fresh download
+        val cachedPath = Model.download(modelUrl)
+        File(cachedPath).delete()
+
+        var progressCalled = false
+        val localPath = Model.download(modelUrl) { downloaded, total ->
+            progressCalled = true
+            assertTrue("downloaded should be <= total", downloaded <= total)
+        }
+        assertTrue("Downloaded file should exist", File(localPath).exists())
+        assertTrue("Downloaded file should be non-empty", File(localPath).length() > 0)
+        assertTrue("Progress callback should have been called", progressCalled)
     }
 
     @Test

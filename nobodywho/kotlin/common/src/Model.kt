@@ -3,6 +3,7 @@ package ai.nobodywho
 import java.io.Closeable
 import uniffi.nobodywho.RustModel as InternalModel
 import uniffi.nobodywho.loadModel
+import uniffi.nobodywho.downloadModel as internalDownloadModel
 import uniffi.nobodywho.RustDownloadProgressCallback
 
 /**
@@ -37,6 +38,29 @@ class Model internal constructor(
                 }
             }
             return Model(loadModel(modelPath, useGpu, projectionModelPath, callback))
+        }
+
+        /**
+         * Download a model from a remote URL or HuggingFace path and return the local file path.
+         *
+         * Use this when you need custom headers, e.g. for gated models that require authentication.
+         * For unauthenticated downloads, pass the URL directly to [load].
+         *
+         * @param modelPath `hf://owner/repo/file.gguf` or an `https://` URL.
+         * @param headers Optional HTTP headers (e.g. `mapOf("Authorization" to "Bearer token")`).
+         * @param onDownloadProgress Optional callback receiving (downloadedBytes, totalBytes).
+         */
+        suspend fun download(
+            modelPath: String,
+            headers: Map<String, String>? = null,
+            onDownloadProgress: ((downloaded: ULong, total: ULong) -> Unit)? = null
+        ): String {
+            val callback = onDownloadProgress?.let { cb ->
+                object : RustDownloadProgressCallback {
+                    override fun onDownloadProgress(downloaded: ULong, total: ULong) = cb(downloaded, total)
+                }
+            }
+            return internalDownloadModel(modelPath, headers, callback)
         }
     }
 
