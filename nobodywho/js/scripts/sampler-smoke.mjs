@@ -9,6 +9,11 @@
 //   * Combining `sampler` and `constraint` doesn't break anything (constraint
 //     prepends a shift step to the user's sampler chain).
 //
+// Runs through `WorkerChat.create({modelBytes, ...})` so the same smoke
+// exercises both browser and Node (Node uses `worker_threads` under the
+// hood via `__nbw_spawn_worker`). Each section spawns a fresh WorkerChat
+// and terminates it when done so workers don't pile up.
+//
 // Uses Qwen3-0.6B — small enough to iterate quickly.
 //
 // Run after `bash js/scripts/build-pkg-emscripten.sh`:
@@ -32,24 +37,27 @@ const m = await createNobodyWhoModule({ locateFile: (p) => join(pkgDir, p) });
 m.init();
 
 const modelBytes = new Uint8Array(readFileSync(modelPath));
-const model = await m.Model.loadBytes(modelBytes);
 
 const PROMPT = 'Reply with exactly one word: hello';
 
+async function runGreedyOnce() {
+  const chat = await m.WorkerChat.create({
+    modelBytes,
+    systemPrompt: 'Reply briefly.',
+    templateVariables: { enable_thinking: false },
+    sampler: { sampleStep: 'greedy' },
+  });
+  try {
+    return await chat.ask(PROMPT).completed();
+  } finally {
+    chat.terminate();
+  }
+}
+
 // === 1. Greedy sampling is deterministic ===
 console.log('\n[1] Greedy sampling: two runs with same prompt → identical output...');
-const greedyChat1 = new m.Chat(model, {
-  systemPrompt: 'Reply briefly.',
-  templateVariables: { enable_thinking: false },
-  sampler: { sampleStep: 'greedy' },
-});
-const greedyChat2 = new m.Chat(model, {
-  systemPrompt: 'Reply briefly.',
-  templateVariables: { enable_thinking: false },
-  sampler: { sampleStep: 'greedy' },
-});
-const greedy1 = await (await greedyChat1.ask(PROMPT)).completed();
-const greedy2 = await (await greedyChat2.ask(PROMPT)).completed();
+const greedy1 = await runGreedyOnce();
+const greedy2 = await runGreedyOnce();
 console.log(`    run 1: ${JSON.stringify(greedy1.slice(0, 80))}`);
 console.log(`    run 2: ${JSON.stringify(greedy2.slice(0, 80))}`);
 assert.equal(
@@ -61,7 +69,8 @@ console.log('    ✓ identical');
 
 // === 2. Temperature / topK / topP accepted at construction time ===
 console.log('\n[2] Custom sampler with temperature/topK/topP/minP/repeatPenalty...');
-const _customChat = new m.Chat(model, {
+const customChat = await m.WorkerChat.create({
+  modelBytes,
   systemPrompt: 'You are helpful.',
   templateVariables: { enable_thinking: false },
   sampler: {
@@ -74,34 +83,37 @@ const _customChat = new m.Chat(model, {
     sampleStep: 'dist',
   },
 });
+customChat.terminate();
 console.log('    ✓ constructed without error');
 
 // === 3. Invalid sampleStep rejects ===
 console.log('\n[3] Invalid sampleStep rejects with clear error...');
 let threw = false;
 try {
-  new m.Chat(model, { sampler: { sampleStep: 'bogus' } });
+  await m.WorkerChat.create({ modelBytes, sampler: { sampleStep: 'bogus' } });
 } catch (e) {
   threw = true;
   console.log(`    caught: ${e.message ?? e}`);
   assert.match(String(e.message ?? e), /sampleStep/i);
   assert.match(String(e.message ?? e), /bogus/i);
 }
-assert.ok(threw, 'expected invalid sampleStep to throw at construction time');
+assert.ok(threw, 'expected invalid sampleStep to reject the create Promise');
 console.log('    ✓ rejected');
 
 // === 4. Sampler + constraint compose ===
 console.log('\n[4] sampler + constraint together (constraint prepended to chain)...');
-const _composedChat = new m.Chat(model, {
+const composedChat = await m.WorkerChat.create({
+  modelBytes,
   systemPrompt: 'Reply with exactly one word.',
   templateVariables: { enable_thinking: false },
   sampler: { temperature: 0.5, topP: 0.9, sampleStep: 'dist' },
   constraint: { regex: '[a-z]+' },
 });
+composedChat.terminate();
 console.log('    ✓ constructed without error');
 
 console.log('\n=== Sampler-config JS smoke test passed ===');
-console.log('  Greedy sampling is deterministic across runs.');
+console.log('  Greedy sampling is deterministic across two WorkerChats.');
 console.log('  Custom temperature/topK/topP/minP/repeatPenalty fields accepted.');
-console.log('  Invalid sampleStep rejected with a clear error.');
+console.log('  Invalid sampleStep rejects the create Promise with a clear error.');
 console.log('  Sampler + constraint compose without conflict.');

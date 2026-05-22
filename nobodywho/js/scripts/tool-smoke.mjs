@@ -3,12 +3,14 @@
 // Validates:
 //   * `Tool.fromFn(name, description, jsonSchema, callback)` builds a
 //     tagged tool object.
-//   * Passing `tools: [tool]` through `new Chat(model, { ... })` plumbs
-//     the JS callback all the way down to core's `Fn(Value) -> String`
-//     dispatcher.
-//   * The model emits a tool-call → core invokes our JS callback →
-//     callback's return value gets injected into the conversation →
-//     model produces a final response that reflects the tool's output.
+//   * Passing `tools: [tool]` through `WorkerChat.create({...})` plumbs
+//     the JS callback all the way down through the worker-side tool RPC
+//     bridge: worker emits `tool-call` postMessage → main looks up the
+//     callback → invokes it (awaiting if it returns a Promise) → posts
+//     `tool-reply` back → worker resumes inference with the result.
+//   * Both sync and Promise-returning callbacks resolve correctly. The
+//     async path is the proof that the wasm correctly yields to the JS
+//     event loop while parked at the tool-dispatch boundary.
 //
 // Uses Qwen3-0.6B (text-only, ~480 MB) — small enough to iterate
 // quickly and known to handle tool calls via the grammar sampler.
@@ -64,22 +66,22 @@ assert.equal(weatherTool.name, 'get_weather');
 assert.equal(typeof weatherTool.callback, 'function');
 console.log(`    ✓ name=${weatherTool.name} __nbwKind=${weatherTool.__nbwKind}`);
 
-// === 3. Chat with tools — model decides whether to call ===
-console.log('\n[3] Loading model + building Chat with tools...');
+// === 3. WorkerChat with tools — model decides whether to call ===
+console.log('\n[3] Spawning WorkerChat with tools...');
 const modelBytes = new Uint8Array(readFileSync(modelPath));
-const model = await m.Model.loadBytes(modelBytes);
-const chat = new m.Chat(model, {
+const chat = await m.WorkerChat.create({
+  modelBytes,
   systemPrompt:
     'You are a helpful assistant. When the user asks about weather, use the get_weather tool. Then answer in one short sentence.',
   templateVariables: { enable_thinking: false },
   tools: [weatherTool],
 });
-console.log('    chat constructed ✓');
+console.log('    WorkerChat ready ✓');
 
 // === 4. Ask a weather question — model should call the tool ===
 console.log('\n[4] Asking weather question (expect tool invocation)...');
 const t0 = performance.now();
-const stream = await chat.ask('What is the weather like in Copenhagen?');
+const stream = chat.ask('What is the weather like in Copenhagen?');
 const response = await stream.completed();
 const dt = ((performance.now() - t0) / 1000).toFixed(1);
 console.log(`\n=== Response (${dt} s) ===`);
@@ -130,7 +132,9 @@ const weatherToolAsync = m.Tool.fromFn(
   },
 );
 
-const chatAsync = new m.Chat(model, {
+chat.terminate();
+const chatAsync = await m.WorkerChat.create({
+  modelBytes,
   systemPrompt:
     'You are a helpful assistant. When the user asks about weather, use the get_weather tool. Then answer in one short sentence.',
   templateVariables: { enable_thinking: false },
@@ -138,7 +142,7 @@ const chatAsync = new m.Chat(model, {
 });
 
 const t1 = performance.now();
-const streamAsync = await chatAsync.ask('What is the weather like in Oslo?');
+const streamAsync = chatAsync.ask('What is the weather like in Oslo?');
 const responseAsync = await streamAsync.completed();
 const dt2 = ((performance.now() - t1) / 1000).toFixed(1);
 console.log(`\n=== Async-callback response (${dt2} s) ===`);
@@ -155,7 +159,11 @@ assert.ok(
   `expected async callback args to be an object; got ${typeof asyncLastArgs}: ${JSON.stringify(asyncLastArgs)}`,
 );
 
+chatAsync.terminate();
+
 console.log('\n=== Tool-calling JS smoke test passed ===');
-console.log('  Sync and async callbacks both dispatch through core.');
-console.log('  The async path proves the JS event loop ticks between');
-console.log('  awaits — a sync core would never let the Promise resolve.');
+console.log('  Sync and async callbacks both dispatch through the WorkerChat');
+console.log('  tool-call / tool-reply RPC bridge. The async path proves the');
+console.log('  wasm yields control to the JS event loop while parked at the');
+console.log('  tool-dispatch await, letting the user-side Promise resolve');
+console.log('  before inference resumes.');
