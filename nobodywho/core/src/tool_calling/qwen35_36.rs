@@ -329,10 +329,10 @@ mod tests {
     #[test]
     fn grammar_builds_for_typical_schema() {
         let h = Qwen35_36Handler;
-        let tool = Tool {
-            name: "get_weather".to_string(),
-            description: "Get weather".to_string(),
-            json_schema: json!({
+        let tool = Tool::new(
+            "get_weather",
+            "Get weather",
+            json!({
                 "type": "object",
                 "properties": {
                     "city": {"type": "string"},
@@ -341,8 +341,8 @@ mod tests {
                 },
                 "required": ["city"]
             }),
-            function: std::sync::Arc::new(|_| "".to_string()),
-        };
+            std::sync::Arc::new(|_| "".to_string()),
+        );
         let gram = h.generate_grammar(&[tool]).expect("grammar should build");
         let s = gram.as_str();
         assert!(s.contains("<tool_call>"));
@@ -353,10 +353,10 @@ mod tests {
     #[test]
     fn grammar_reuses_json_scalar_rules_for_non_strings() {
         let h = Qwen35_36Handler;
-        let tool = Tool {
-            name: "f".to_string(),
-            description: "test".to_string(),
-            json_schema: json!({
+        let tool = Tool::new(
+            "f",
+            "test",
+            json!({
                 "type": "object",
                 "properties": {
                     "n": {"type": "integer"},
@@ -365,8 +365,8 @@ mod tests {
                     "z": {"type": "null"}
                 }
             }),
-            function: std::sync::Arc::new(|_| "".to_string()),
-        };
+            std::sync::Arc::new(|_| "".to_string()),
+        );
 
         let grammar = h.generate_grammar(&[tool]).expect("grammar should build");
         let s = grammar.as_str();

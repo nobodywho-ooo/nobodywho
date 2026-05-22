@@ -2102,7 +2102,12 @@ fn python_tool(
                 ));
             };
 
-            Ok(tool_fn(serde_json::json!({ "code": code })))
+            // tool_fn returns a future to give wasm bindings room to
+            // await JS Promises. Built-in Python tool is sync — the
+            // future resolves immediately, so block_on is fine here.
+            Ok(futures::executor::block_on(tool_fn(serde_json::json!({
+                "code": code
+            }))))
         },
     )?;
 
@@ -2150,7 +2155,19 @@ fn bash_tool(max_commands: Option<usize>, py: Python) -> PyResult<Tool> {
                 ));
             };
 
-            Ok(tool_fn(serde_json::json!({ "commands": commands })))
+            // tool_fn returns a future for wasm parity. Bashkit needs a
+            // tokio runtime (timers, mio reactor), so spin one up here for
+            // the direct-pyfunc invocation path (the LLM-driven dispatch
+            // already runs inside the chat worker's tokio runtime).
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(
+                    format!("failed to build runtime for bash_tool: {e}"),
+                ))?;
+            Ok(rt.block_on(tool_fn(serde_json::json!({
+                "commands": commands
+            }))))
         },
     )?;
 
