@@ -1219,9 +1219,13 @@ impl CrossEncoder {
 thread_local! {
     static WORKER_MODEL: RefCell<Option<Arc<nobodywho::llm::Model>>> = RefCell::new(None);
     static WORKER_CHAT: RefCell<Option<nobodywho::chat::ChatHandleAsync>> = RefCell::new(None);
-    /// Cached `DedicatedWorkerGlobalScope` for posting RPC messages from
-    /// inside tool callback stubs. Set once in `run_in_worker`.
-    static WORKER_SCOPE: RefCell<Option<web_sys::DedicatedWorkerGlobalScope>> = RefCell::new(None);
+    /// Cached worker-global scope as a generic JsValue. Set once in
+    /// `run_in_worker`. We don't pin the type to
+    /// `web_sys::DedicatedWorkerGlobalScope` so the same code runs on
+    /// browsers (real DedicatedWorkerGlobalScope) AND in Node's
+    /// `worker_threads` workers (a polyfilled globalThis with
+    /// `postMessage`/`onmessage` shimmed from `parentPort`).
+    static WORKER_SCOPE: RefCell<Option<JsValue>> = RefCell::new(None);
     /// In-flight tool RPC calls. The worker's tool callback registers a
     /// oneshot sender keyed by request id, then awaits the receiver. The
     /// 'tool-reply' message arm from main resolves it.
@@ -1230,6 +1234,18 @@ thread_local! {
     /// Monotonic counter for unique tool-call IDs (one worker = one wasm
     /// instance, so a simple per-worker counter is enough).
     static TOOL_CALL_ID_COUNTER: RefCell<u64> = const { RefCell::new(0) };
+}
+
+/// Worker-side helper: post a message back to the main thread by calling
+/// `globalThis.postMessage(msg)` via Reflect. Env-agnostic — works on
+/// browser `DedicatedWorkerGlobalScope` and on a Node `worker_threads`
+/// worker whose globalThis has been polyfilled to expose `postMessage`.
+#[cfg(target_arch = "wasm32")]
+fn worker_post(scope: &JsValue, msg: &JsValue) -> Result<(), JsValue> {
+    let post_fn: js_sys::Function = js_sys::Reflect::get(scope, &"postMessage".into())?
+        .dyn_into()
+        .map_err(|_| JsValue::from_str("worker scope has no postMessage function"))?;
+    post_fn.call1(scope, msg).map(|_| ())
 }
 
 /// Tool metadata sent across the worker boundary. The user's JS callback
@@ -1253,54 +1269,79 @@ fn next_tool_call_id() -> String {
     })
 }
 
-/// Take over `self.onmessage` for the Web Worker that hosts this wasm
-/// instance. Idempotent only in the sense that JS-side guards in
-/// `setup-browser.mjs` won't call it twice; calling it twice from Rust would
-/// install two closures and the second would overwrite the first's
-/// `set_onmessage` (which is also fine — the first closure leaks, the
-/// second is now the handler).
+/// Take over `globalThis.onmessage` for the Worker that hosts this wasm
+/// instance. Env-agnostic — works in browser Web Workers (where
+/// globalThis is a DedicatedWorkerGlobalScope) and in Node's
+/// `worker_threads` workers (where the bootstrap polyfills `postMessage`
+/// and `onmessage` on globalThis to forward through `parentPort`).
 ///
-/// Errors if invoked outside a Web Worker (e.g. on the main thread).
+/// Idempotent only in the sense that JS-side guards won't call it
+/// twice; calling it twice from Rust would install two closures and the
+/// second would overwrite the first's onmessage assignment.
+///
+/// Errors if `globalThis.postMessage` isn't a function (i.e. invoked
+/// outside a worker context altogether).
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen(js_name = runInWorker)]
 pub fn run_in_worker() -> Result<(), JsError> {
     use wasm_bindgen::closure::Closure;
-    use web_sys::{DedicatedWorkerGlobalScope, MessageEvent};
 
-    let scope: DedicatedWorkerGlobalScope = js_sys::global().dyn_into().map_err(|_| {
-        JsError::new("runInWorker must be called inside a DedicatedWorkerGlobalScope")
-    })?;
+    let scope = js_sys::global();
+
+    // Sanity: confirm we're in a context that has `postMessage`. If not,
+    // this isn't a worker (or the polyfill wasn't installed) and the
+    // rest of the bootstrap would silently fail.
+    let _post_check: js_sys::Function = js_sys::Reflect::get(&scope, &"postMessage".into())
+        .ok()
+        .and_then(|v| v.dyn_into::<js_sys::Function>().ok())
+        .ok_or_else(|| {
+            JsError::new(
+                "runInWorker: globalThis.postMessage is not a function — \
+                 not inside a Web Worker (browser) or worker_threads worker (Node)",
+            )
+        })?;
 
     // Cache the scope for tool-call RPC stubs to post back to main.
-    WORKER_SCOPE.with(|s| *s.borrow_mut() = Some(scope.clone()));
+    WORKER_SCOPE.with(|s| *s.borrow_mut() = Some(scope.clone().into()));
 
-    let scope_for_handler = scope.clone();
+    let scope_for_handler: JsValue = scope.clone().into();
     // Closure::new (not Closure::wrap) — the latter requires UnwindSafe
     // bounds that wasm-bindgen 0.2.121 enforces on wasm32-unknown-emscripten.
     // Closure::new takes the closure directly and avoids the
     // MaybeUnwindSafe trait check entirely.
-    let on_message = Closure::<dyn FnMut(MessageEvent)>::new(move |evt: MessageEvent| {
-        // Read `evt.data()` synchronously here — Firefox throws
+    let on_message = Closure::<dyn FnMut(JsValue)>::new(move |evt: JsValue| {
+        // Read `evt.data` synchronously here — Firefox throws
         // NS_ERROR_NOT_AVAILABLE if you touch MessageEvent properties from an
         // async continuation that runs after the synchronous handler returns.
         // The cloned JsValue we move into spawn_local is just a regular JS
         // value and safe to read whenever.
-        let data = evt.data();
+        //
+        // `evt` is either a real browser MessageEvent (with a `data`
+        // getter) or a polyfilled `{ data }` plain object from the Node
+        // worker shim — both shapes respond to Reflect-get('data').
+        let data =
+            js_sys::Reflect::get(&evt, &"data".into()).unwrap_or(JsValue::UNDEFINED);
         let scope = scope_for_handler.clone();
         wasm_bindgen_futures::spawn_local(async move {
             if let Err(err) = handle_worker_message(data, &scope).await {
-                let _ = scope.post_message(&worker_reply_error(&err));
+                let _ = worker_post(&scope, &worker_reply_error(&err));
             }
         });
     });
 
-    scope.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
+    let scope_jsval: JsValue = scope.clone().into();
+    js_sys::Reflect::set(
+        &scope_jsval,
+        &"onmessage".into(),
+        on_message.as_ref().unchecked_ref(),
+    )
+    .map_err(|_| JsError::new("runInWorker: failed to set globalThis.onmessage"))?;
     // Leak: the closure outlives this function and runs for the worker's
     // lifetime. The worker is terminated by main-thread `worker.terminate()`
     // or page navigation, both of which tear down the wasm instance anyway.
     on_message.forget();
 
-    let _ = scope.post_message(&worker_reply("ready"));
+    let _ = worker_post(&scope_jsval, &worker_reply("ready"));
     Ok(())
 }
 
@@ -1312,8 +1353,15 @@ pub fn run_in_worker() -> Result<(), JsError> {
 #[cfg(target_arch = "wasm32")]
 async fn handle_worker_message(
     data: JsValue,
-    scope: &web_sys::DedicatedWorkerGlobalScope,
+    scope: &JsValue,
 ) -> Result<(), String> {
+    // Local helper so each arm doesn't repeat the Reflect-call pattern.
+    // We discard the post_message Result here for the same reason the
+    // browser code did with `let _ =`: there's nothing useful to do if
+    // the host has gone away.
+    let post = |msg: &JsValue| {
+        let _ = worker_post(scope, msg);
+    };
     let msg_type = js_sys::Reflect::get(&data, &"type".into())
         .map_err(|_| "missing 'type' field".to_string())?
         .as_string()
@@ -1324,7 +1372,7 @@ async fn handle_worker_message(
         // expecting a `ready` ack. The bootstrap already posted `ready` once;
         // we re-ack here so those callers don't hang.
         "init" => {
-            let _ = scope.post_message(&worker_reply("ready"));
+            post(&worker_reply("ready"));
         }
         "load-model" => {
             let bytes_val = js_sys::Reflect::get(&data, &"bytes".into())
@@ -1353,7 +1401,7 @@ async fn handle_worker_message(
             )
             .map_err(|e| e.to_string())?;
             WORKER_MODEL.with(|m| *m.borrow_mut() = Some(Arc::new(model)));
-            let _ = scope.post_message(&worker_reply("model-loaded"));
+            post(&worker_reply("model-loaded"));
         }
         "create-chat" => {
             let options = js_sys::Reflect::get(&data, &"options".into())
@@ -1385,7 +1433,7 @@ async fn handle_worker_message(
                 .ok_or_else(|| "model not loaded; send 'load-model' first".to_string())?;
             let handle = chat_handle_from_options(model, opts, tools)?;
             WORKER_CHAT.with(|c| *c.borrow_mut() = Some(handle));
-            let _ = scope.post_message(&worker_reply("chat-ready"));
+            post(&worker_reply("chat-ready"));
         }
         "tool-reply" => {
             let id = js_sys::Reflect::get(&data, &"id".into())
@@ -1432,8 +1480,8 @@ async fn handle_worker_message(
             let payload = js_sys::Object::new();
             let _ = js_sys::Reflect::set(&payload, &"type".into(), &"token".into());
             let _ = js_sys::Reflect::set(&payload, &"token".into(), &full.as_str().into());
-            let _ = scope.post_message(&payload);
-            let _ = scope.post_message(&worker_reply("ask-done"));
+            post(&payload);
+            post(&worker_reply("ask-done"));
         }
         other => return Err(format!("unknown msg type: {other}")),
     }
@@ -1482,7 +1530,7 @@ fn build_rpc_tool(meta: ToolMeta) -> nobodywho::tool_calling::Tool {
                 let _ = js_sys::Reflect::set(&payload, &"args".into(), &args_js);
 
                 let post_res = WORKER_SCOPE.with(|s| match s.borrow().as_ref() {
-                    Some(scope) => scope.post_message(&payload).map_err(|e| format!("{e:?}")),
+                    Some(scope) => worker_post(scope, &payload).map_err(|e| format!("{e:?}")),
                     None => Err("worker scope not initialized".to_string()),
                 });
                 if let Err(e) = post_res {
