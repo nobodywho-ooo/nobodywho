@@ -56,7 +56,7 @@ surface to JS via wasm-bindgen.
 | `TokenStream.next()` / `completed()` | ✅ verified |
 | Multimodal vision/audio (`Image.fromBytes` / `Audio.fromBytes`) | ✅ verified — see "Multimodal status" below |
 | Tool calling (`Tool.fromFn(...)`, `Chat.create({tools: [...]})`) | ✅ verified — both sync and async (Promise-returning) callbacks work via the worker ↔ main RPC bridge |
-| Structured output (`Constraint`) | wire format exposed via `Chat.create`'s options; should work on Emscripten (libc has `clock_gettime`), unverified end-to-end |
+| Structured output (`Chat.create({constraint: {regex \| jsonSchema \| lark}})`) | ✅ verified — see `js/scripts/constraint-smoke.mjs` (regex + JSON Schema) |
 
 Native (`cargo check --workspace`) is unchanged.
 
@@ -372,9 +372,6 @@ present. The Rust override wins symbol resolution at link time.
 
 - **MP3 / FLAC / Ogg audio.** Decoders are linked in but unverified.
   Worth one short test per format.
-- **Structured-output generation at runtime.** `ConstraintSpec` is
-  wired through `Chat.create`'s options. Should work on Emscripten
-  (libc has `clock_gettime`); unverified end-to-end.
 - **Upstream the three forks pinned by this PR.** Each carries
   changes that need to land in their respective upstream projects so we
   can drop the fork pointer. All three are publicly hosted under
