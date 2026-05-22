@@ -375,11 +375,18 @@ present. The Rust override wins symbol resolution at link time.
 - **Structured-output generation at runtime.** `ConstraintSpec` is
   wired through `Chat.create`'s options. Should work on Emscripten
   (libc has `clock_gettime`); unverified end-to-end.
-- **Upstream the build patches.** `nobodywho-ooo/llama-cpp-rs` branch
-  `wasm-emscripten` carries `CMAKE_SYSTEM_PROCESSOR=wasm32` and the
-  `MA_NO_*` + `-fexceptions` for mtmd. Workspace `Cargo.toml` pins a
-  `[patch]` block at a sibling `/Users/user/git/llama-cpp-rs` checkout
-  until those land upstream and we can drop the patch.
-- **Upstream the wasm-bindgen fork.** Until upstream wasm-bindgen
-  ships Emscripten output mode, the build depends on
-  `nobodywho-ooo/wasm-bindgen`.
+- **Upstream the three forks pinned by this PR.** Each carries
+  changes that need to land in their respective upstream projects so we
+  can drop the fork pointer. All three are publicly hosted under
+  `nobodywho-ooo/` for transparency / reproducibility:
+  - [`nobodywho-ooo/llama-cpp-rs` branch `wasm-emscripten`](https://github.com/nobodywho-ooo/llama-cpp-rs/tree/wasm-emscripten)
+    — `CMAKE_SYSTEM_PROCESSOR=wasm32` for ggml's wasm SIMD quants, `MA_NO_*`
+    defines + `-fexceptions` for mtmd. Pulled directly via `core/Cargo.toml`
+    `{ git = "...", branch = "wasm-emscripten" }`.
+  - [`nobodywho-ooo/wasm-bindgen` branch `emscripten-descriptor-fixes`](https://github.com/nobodywho-ooo/wasm-bindgen/tree/emscripten-descriptor-fixes)
+    — descriptor-interpreter tolerance for Emscripten-shaped wasm.
+    Pinned via the workspace `Cargo.toml` `[patch.crates-io]` block.
+  - [`nobodywho-ooo/emscripten` branch `wbg-walkingeyerobot`](https://github.com/nobodywho-ooo/emscripten/tree/wbg-walkingeyerobot)
+    — fork of `walkingeyerobot/emscripten` (which itself carries the
+    `-sWASM_BINDGEN` flag tracked in [emscripten-core/emscripten#23493](https://github.com/emscripten-core/emscripten/pull/23493)).
+    Consumed at build time via `$EMSDK_DIR` pointing at a local clone.

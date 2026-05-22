@@ -28,17 +28,13 @@ pyo3-introspection = { git = "https://github.com/PyO3/pyo3", branch = "main" }
 # uses to switch to Emscripten output mode (library_bindgen.js + addToLibrary
 # format). Without the marker the CLI emits bundler-shape output, which
 # emcc-wbg's -sWASM_BINDGEN post-link step then can't find — silently
-# leaving pkg-bundler stale. Point the runtime at the local fork (which is
-# upstream main + the descriptor-interpreter cli-support tolerance patch)
-# so the marker section is emitted into the compiled wasm.
-wasm-bindgen = { path = "/Users/user/git/wasm-bindgen" }
+# leaving pkg-bundler stale. Point at our fork (which is upstream main +
+# the descriptor-interpreter cli-support tolerance patch) so the marker
+# section is emitted into the compiled wasm. Drop this patch once the
+# fix lands upstream in wasm-bindgen.
+wasm-bindgen = { git = "https://github.com/nobodywho-ooo/wasm-bindgen", branch = "emscripten-descriptor-fixes" }
 
-# Local-checkout override for llama-cpp-rs while the wasm-emscripten branch
-# carries unpublished commits (CMAKE_SYSTEM_PROCESSOR=wasm32 fix + mtmd
-# `MA_NO_*` defines). Remove this block once those commits land on the
-# remote `wasm-emscripten` branch and the regular git+branch dep above
-# resolves to them. The path is hardcoded to a sibling checkout; if your
-# clone lives elsewhere, adjust or push your branch.
-[patch."https://github.com/nobodywho-ooo/llama-cpp-rs"]
-llama-cpp-2 = { path = "/Users/user/git/llama-cpp-rs/llama-cpp-2" }
-llama-cpp-sys-2 = { path = "/Users/user/git/llama-cpp-rs/llama-cpp-sys-2" }
+# llama-cpp-2 / llama-cpp-sys-2 are pulled directly from the
+# `nobodywho-ooo/llama-cpp-rs` `wasm-emscripten` branch via the
+# git+branch declarations in `core/Cargo.toml` — no [patch] override
+# needed now that those commits are pushed to the public branch.
