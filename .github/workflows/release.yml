@@ -15,10 +15,10 @@ jobs:
   godot-distributable:
     runs-on: ubuntu-24.04
     steps:
-        - uses: actions/checkout@v4
+        - uses: actions/checkout@v5
   
         - name: "Download all build artifacts"
-          uses: actions/download-artifact@v4
+          uses: actions/download-artifact@v5
           with:
             path: ./artifacts
   
@@ -31,7 +31,7 @@ jobs:
             cp ./nobodywho/godot/nobodywho.gdextension ./nobodywho-release/bin/addons/nobodywho/
             cp ./assets/icon.svg ./nobodywho-release/bin/addons/nobodywho/
         - name: "Upload zipped godot build artifacts"
-          uses: actions/upload-artifact@v4
+          uses: actions/upload-artifact@v5
           with:
             name: nobodywho-godot-all-platforms
             path: ./nobodywho-release
@@ -42,7 +42,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: "Download build artifacts"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nobodywho-godot-all-platforms
           path: ./nobodywho-release-godot
@@ -52,7 +52,7 @@ jobs:
         run: zip -r "../nobodywho-godot-${{ github.ref_name }}.zip" ./**
 
       - name: "Create GitHub Release"
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: "./nobodywho-godot-${{ github.ref_name }}.zip"
         env:
@@ -63,7 +63,7 @@ jobs:
       if: startsWith(github.ref, 'refs/tags/nobodywho-python-')
       steps:
         - name: Download all wheels
-          uses: actions/download-artifact@v4
+          uses: actions/download-artifact@v5
           with:
             pattern: nobodywho_python_*
             merge-multiple: true
@@ -102,7 +102,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/nobodywho-python-')
     steps:
       - name: Download all wheels
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           pattern: nobodywho_python_*
           merge-multiple: true
@@ -131,7 +131,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "Download all Python wheels"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           pattern: nobodywho_python_*
           merge-multiple: true
@@ -141,7 +141,7 @@ jobs:
         run: ls -la ./nobodywho-python-release/
 
       - name: "Create GitHub Release"
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: ./nobodywho-python-release/*
         env:
@@ -153,10 +153,10 @@ jobs:
     permissions:
       contents: write # Required to create github release
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: "Download all Flutter artifacts"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           pattern: nobodywho-flutter-*
           merge-multiple: true
@@ -176,7 +176,7 @@ jobs:
           fi
 
       - name: "Create GitHub Release"
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: ./nobodywho-flutter-release/*
         env:
@@ -199,19 +199,19 @@ jobs:
       contents: write
     steps:
       - name: "Download Android ARM64 artifact"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nobodywho-uniffi-aarch64-linux-android-release
           path: ./nobodywho-react-native-release
 
       - name: "Download Android x86_64 artifact"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nobodywho-uniffi-x86_64-linux-android-release
           path: ./nobodywho-react-native-release
 
       - name: "Download iOS XCFramework"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nobodywho-react-native-xcframework
           path: ./nobodywho-react-native-release
@@ -223,7 +223,7 @@ jobs:
           ls -la
 
       - name: "Create GitHub Release"
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: ./nobodywho-react-native-release/*
         env:
@@ -234,10 +234,10 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/nobodywho-react-native-v')
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: "Setup Node.js"
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
@@ -261,16 +261,16 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: "Download Swift XCFramework"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nobodywho-swift-xcframework
           path: ./release
 
       - name: "Create GitHub Release"
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: ./release/NobodyWhoNative.xcframework.zip
         env:
