@@ -1219,6 +1219,38 @@ impl CrossEncoder {
 thread_local! {
     static WORKER_MODEL: RefCell<Option<Arc<nobodywho::llm::Model>>> = RefCell::new(None);
     static WORKER_CHAT: RefCell<Option<nobodywho::chat::ChatHandleAsync>> = RefCell::new(None);
+    /// Cached `DedicatedWorkerGlobalScope` for posting RPC messages from
+    /// inside tool callback stubs. Set once in `run_in_worker`.
+    static WORKER_SCOPE: RefCell<Option<web_sys::DedicatedWorkerGlobalScope>> = RefCell::new(None);
+    /// In-flight tool RPC calls. The worker's tool callback registers a
+    /// oneshot sender keyed by request id, then awaits the receiver. The
+    /// 'tool-reply' message arm from main resolves it.
+    static PENDING_TOOL_CALLS: RefCell<std::collections::HashMap<String, tokio::sync::oneshot::Sender<Result<String, String>>>> =
+        RefCell::new(std::collections::HashMap::new());
+    /// Monotonic counter for unique tool-call IDs (one worker = one wasm
+    /// instance, so a simple per-worker counter is enough).
+    static TOOL_CALL_ID_COUNTER: RefCell<u64> = const { RefCell::new(0) };
+}
+
+/// Tool metadata sent across the worker boundary. The user's JS callback
+/// stays on the main thread (function refs can't survive postMessage); the
+/// worker just sees this metadata and synthesizes an RPC stub.
+#[cfg(target_arch = "wasm32")]
+#[derive(serde::Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct ToolMeta {
+    name: String,
+    description: String,
+    json_schema: serde_json::Value,
+}
+
+#[cfg(target_arch = "wasm32")]
+fn next_tool_call_id() -> String {
+    TOOL_CALL_ID_COUNTER.with(|c| {
+        let mut id = c.borrow_mut();
+        *id += 1;
+        format!("tc-{}", *id)
+    })
 }
 
 /// Take over `self.onmessage` for the Web Worker that hosts this wasm
@@ -1238,6 +1270,9 @@ pub fn run_in_worker() -> Result<(), JsError> {
     let scope: DedicatedWorkerGlobalScope = js_sys::global().dyn_into().map_err(|_| {
         JsError::new("runInWorker must be called inside a DedicatedWorkerGlobalScope")
     })?;
+
+    // Cache the scope for tool-call RPC stubs to post back to main.
+    WORKER_SCOPE.with(|s| *s.borrow_mut() = Some(scope.clone()));
 
     let scope_for_handler = scope.clone();
     // Closure::new (not Closure::wrap) — the latter requires UnwindSafe
@@ -1328,12 +1363,54 @@ async fn handle_worker_message(
             } else {
                 serde_wasm_bindgen::from_value(options).map_err(|e| e.to_string())?
             };
+
+            // Tools come in as a separate `tools` field on the message,
+            // not embedded in `options`. The user's callbacks stay on the
+            // main thread (function refs can't survive postMessage); we
+            // build RPC-stub `Tool::new_async` instances that round-trip
+            // through `tool-call` / `tool-reply` messages.
+            let tools_jsval = js_sys::Reflect::get(&data, &"tools".into())
+                .unwrap_or(JsValue::UNDEFINED);
+            let tools: Vec<nobodywho::tool_calling::Tool> =
+                if tools_jsval.is_undefined() || tools_jsval.is_null() {
+                    vec![]
+                } else {
+                    let metas: Vec<ToolMeta> = serde_wasm_bindgen::from_value(tools_jsval)
+                        .map_err(|e| format!("tools: {e}"))?;
+                    metas.into_iter().map(build_rpc_tool).collect()
+                };
+
             let model = WORKER_MODEL
                 .with(|m| m.borrow().clone())
                 .ok_or_else(|| "model not loaded; send 'load-model' first".to_string())?;
-            let handle = chat_handle_from_options(model, opts)?;
+            let handle = chat_handle_from_options(model, opts, tools)?;
             WORKER_CHAT.with(|c| *c.borrow_mut() = Some(handle));
             let _ = scope.post_message(&worker_reply("chat-ready"));
+        }
+        "tool-reply" => {
+            let id = js_sys::Reflect::get(&data, &"id".into())
+                .ok()
+                .and_then(|v| v.as_string())
+                .ok_or_else(|| "missing 'id' field on tool-reply".to_string())?;
+            let result = js_sys::Reflect::get(&data, &"result".into())
+                .ok()
+                .and_then(|v| v.as_string());
+            let err = js_sys::Reflect::get(&data, &"error".into())
+                .ok()
+                .and_then(|v| v.as_string());
+            let sender =
+                PENDING_TOOL_CALLS.with(|m| m.borrow_mut().remove(&id));
+            if let Some(tx) = sender {
+                let value = match (result, err) {
+                    (Some(s), _) => Ok(s),
+                    (None, Some(e)) => Err(e),
+                    (None, None) => Err("tool-reply missing both result and error".into()),
+                };
+                let _ = tx.send(value);
+            }
+            // No reply needed; this is the final leg of an RPC the worker
+            // initiated. If `id` isn't in the map (stale / spurious),
+            // silently drop.
         }
         "ask" => {
             let parts = js_sys::Reflect::get(&data, &"parts".into())
@@ -1364,15 +1441,78 @@ async fn handle_worker_message(
     Ok(())
 }
 
-/// Build a `ChatHandleAsync` from a parsed `ChatOptions`. Same option-mapping
-/// logic as `WorkerChat::new`'s constructor — factored out so the worker dispatcher
-/// doesn't duplicate it. Errors as `String` because the worker dispatcher
-/// turns them into `{ type: "error", message }` post-messages; `JsError`
-/// (used by the wasm-bindgen-exposed constructor) doesn't impl `Display`.
+/// Build a `Tool` whose async callback is an RPC stub: it postMessages a
+/// `tool-call` request back to the main thread (carrying the call id, the
+/// tool name, and the serialized args) and parks on a oneshot until the
+/// main thread replies with `tool-reply`. Used by the worker-side
+/// `create-chat` handler when WorkerChat is constructed with tools.
+#[cfg(target_arch = "wasm32")]
+fn build_rpc_tool(meta: ToolMeta) -> nobodywho::tool_calling::Tool {
+    let name_for_closure = meta.name.clone();
+    nobodywho::tool_calling::Tool::new_async(
+        meta.name,
+        meta.description,
+        meta.json_schema,
+        move |args: serde_json::Value| {
+            let name = name_for_closure.clone();
+            async move {
+                let id = next_tool_call_id();
+
+                let (tx, rx) = tokio::sync::oneshot::channel::<Result<String, String>>();
+                PENDING_TOOL_CALLS.with(|m| {
+                    m.borrow_mut().insert(id.clone(), tx);
+                });
+
+                // Build the tool-call message: { type, id, name, args }.
+                // serde_wasm_bindgen for args so nested objects survive
+                // postMessage's structured-clone faithfully.
+                let payload = js_sys::Object::new();
+                let _ = js_sys::Reflect::set(&payload, &"type".into(), &"tool-call".into());
+                let _ = js_sys::Reflect::set(&payload, &"id".into(), &id.as_str().into());
+                let _ = js_sys::Reflect::set(&payload, &"name".into(), &name.as_str().into());
+                let args_js = match serde_wasm_bindgen::to_value(&args) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        PENDING_TOOL_CALLS.with(|m| {
+                            m.borrow_mut().remove(&id);
+                        });
+                        return format!("ERROR: tool args conversion: {e}");
+                    }
+                };
+                let _ = js_sys::Reflect::set(&payload, &"args".into(), &args_js);
+
+                let post_res = WORKER_SCOPE.with(|s| match s.borrow().as_ref() {
+                    Some(scope) => scope.post_message(&payload).map_err(|e| format!("{e:?}")),
+                    None => Err("worker scope not initialized".to_string()),
+                });
+                if let Err(e) = post_res {
+                    PENDING_TOOL_CALLS.with(|m| {
+                        m.borrow_mut().remove(&id);
+                    });
+                    return format!("ERROR: post tool-call: {e}");
+                }
+
+                match rx.await {
+                    Ok(Ok(s)) => s,
+                    Ok(Err(e)) => format!("ERROR: {e}"),
+                    Err(_) => "ERROR: tool-reply sender dropped".to_string(),
+                }
+            }
+        },
+    )
+}
+
+/// Build a `ChatHandleAsync` from a parsed `ChatOptions` plus a list of
+/// (already-built) tools. Same option-mapping logic as `WorkerChat::new`'s
+/// constructor — factored out so the worker dispatcher doesn't duplicate
+/// it. Errors as `String` because the worker dispatcher turns them into
+/// `{ type: "error", message }` post-messages; `JsError` (used by the
+/// wasm-bindgen-exposed constructor) doesn't impl `Display`.
 #[cfg(target_arch = "wasm32")]
 fn chat_handle_from_options(
     model: Arc<nobodywho::llm::Model>,
     opts: ChatOptions,
+    tools: Vec<nobodywho::tool_calling::Tool>,
 ) -> Result<nobodywho::chat::ChatHandleAsync, String> {
     let mut builder = nobodywho::chat::ChatBuilder::new(model);
     if let Some(ctx) = opts.context_size {
@@ -1395,6 +1535,9 @@ fn chat_handle_from_options(
     }
     if let Some(vars) = opts.template_variables {
         builder = builder.with_template_variables(vars);
+    }
+    if !tools.is_empty() {
+        builder = builder.with_tools(tools);
     }
     Ok(builder.build_async())
 }
@@ -1839,6 +1982,12 @@ struct ChatState {
     /// closure resolves the sender when a message of that type arrives.
     pending_handshake:
         Option<(String, tokio::sync::oneshot::Sender<Result<(), String>>)>,
+    /// Main-thread registry of tool callbacks. JS function refs can't
+    /// survive `postMessage` (structured clone rejects functions), so the
+    /// worker only ever sees tool metadata (name + description + schema).
+    /// When the worker emits a `tool-call` RPC for a given name, main
+    /// looks up the callback here, invokes it, and posts back the result.
+    tool_callbacks: std::collections::HashMap<String, js_sys::Function>,
     terminated: bool,
     _on_message: Option<wasm_bindgen::closure::Closure<dyn FnMut(web_sys::MessageEvent)>>,
     _on_error: Option<wasm_bindgen::closure::Closure<dyn FnMut(web_sys::ErrorEvent)>>,
@@ -1902,11 +2051,18 @@ impl WorkerChat {
             let worker = web_sys::Worker::new_with_options(&url, &worker_opts)
                 .map_err(|e| JsError::new(&format!("new Worker: {e:?}")))?;
 
+            // Take the tool callbacks out of `parsed` and install them in
+            // state. They stay on the main thread; the worker only sees
+            // the metadata-only array we built alongside.
+            let tool_callbacks = parsed.tool_callbacks;
+            let tools_jsval = parsed.tools_jsval;
+
             // Construct the state. Closures install themselves into state.
             let state = std::rc::Rc::new(RefCell::new(ChatState {
                 worker: worker.clone(),
                 current_stream: None,
                 pending_handshake: None,
+                tool_callbacks,
                 terminated: false,
                 _on_message: None,
                 _on_error: None,
@@ -2001,12 +2157,16 @@ impl WorkerChat {
 
             // Handshake step 3: post 'create-chat' with the chat options
             // (the original JS object minus the modelUrl/modelBytes/
-            // onDownloadProgress keys; see parse_chat_create_opts).
+            // onDownloadProgress/tools keys; see parse_chat_create_opts)
+            // plus a separate `tools` field carrying just metadata.
+            // Callbacks stay main-thread; the worker synthesizes RPC stubs
+            // that round-trip via `tool-call` / `tool-reply`.
             let create_msg = js_sys::Object::new();
             let _ =
                 js_sys::Reflect::set(&create_msg, &"type".into(), &"create-chat".into());
             let _ =
                 js_sys::Reflect::set(&create_msg, &"options".into(), &parsed.chat_opts_jsval);
+            let _ = js_sys::Reflect::set(&create_msg, &"tools".into(), &tools_jsval);
             state
                 .borrow()
                 .worker
@@ -2108,6 +2268,92 @@ fn handle_chat_message(state: &std::rc::Rc<RefCell<ChatState>>, data: JsValue) {
                 .unwrap_or_else(|| "unknown worker error".to_string());
             handle_chat_error(state, err_msg);
         }
+        "tool-call" => {
+            // Worker is asking us to dispatch a tool. Look up the callback
+            // by name, invoke it (awaiting if it returns a Promise), then
+            // post back `tool-reply` with the same id.
+            let id = js_sys::Reflect::get(&data, &"id".into())
+                .ok()
+                .and_then(|v| v.as_string())
+                .unwrap_or_default();
+            let name = js_sys::Reflect::get(&data, &"name".into())
+                .ok()
+                .and_then(|v| v.as_string())
+                .unwrap_or_default();
+            let args = js_sys::Reflect::get(&data, &"args".into())
+                .unwrap_or(JsValue::UNDEFINED);
+
+            let callback = state.borrow().tool_callbacks.get(&name).cloned();
+            let worker = state.borrow().worker.clone();
+            wasm_bindgen_futures::spawn_local(async move {
+                let reply = js_sys::Object::new();
+                let _ = js_sys::Reflect::set(&reply, &"type".into(), &"tool-reply".into());
+                let _ = js_sys::Reflect::set(&reply, &"id".into(), &id.as_str().into());
+
+                let Some(cb) = callback else {
+                    let _ = js_sys::Reflect::set(
+                        &reply,
+                        &"error".into(),
+                        &format!("no tool callback registered for {name:?}").into(),
+                    );
+                    let _ = worker.post_message(&reply);
+                    return;
+                };
+
+                // Invoke the JS callback. If it returns a Promise, await
+                // its resolution (this is the path that needs Plan A's
+                // async core — inference suspends here, JS event loop
+                // ticks, Promise resolves, control returns to worker).
+                let result_val = match cb.call1(&JsValue::NULL, &args) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        let msg = js_sys::Reflect::get(&e, &"message".into())
+                            .ok()
+                            .and_then(|m| m.as_string())
+                            .unwrap_or_else(|| format!("{e:?}"));
+                        let _ = js_sys::Reflect::set(&reply, &"error".into(), &msg.into());
+                        let _ = worker.post_message(&reply);
+                        return;
+                    }
+                };
+
+                let resolved = if result_val.is_instance_of::<js_sys::Promise>() {
+                    match wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(result_val))
+                        .await
+                    {
+                        Ok(v) => v,
+                        Err(e) => {
+                            let msg = js_sys::Reflect::get(&e, &"message".into())
+                                .ok()
+                                .and_then(|m| m.as_string())
+                                .unwrap_or_else(|| format!("{e:?}"));
+                            let _ = js_sys::Reflect::set(
+                                &reply,
+                                &"error".into(),
+                                &format!("tool promise rejected: {msg}").into(),
+                            );
+                            let _ = worker.post_message(&reply);
+                            return;
+                        }
+                    }
+                } else {
+                    result_val
+                };
+
+                let result_str = if let Some(s) = resolved.as_string() {
+                    s
+                } else {
+                    js_sys::JSON::stringify(&resolved)
+                        .ok()
+                        .and_then(|s| s.as_string())
+                        .unwrap_or_else(|| {
+                            "ERROR: tool returned a non-serializable value".to_string()
+                        })
+                };
+                let _ = js_sys::Reflect::set(&reply, &"result".into(), &result_str.into());
+                let _ = worker.post_message(&reply);
+            });
+        }
         // Handshake reply: resolve a pending oneshot if its expected type matches.
         other => {
             let mut st = state.borrow_mut();
@@ -2164,7 +2410,7 @@ async fn wait_for_handshake(
 }
 
 /// Parsed WorkerChat.create options. `chat_opts_jsval` is the original JS object
-/// minus the modelUrl / modelBytes / onDownloadProgress keys — passed
+/// minus the modelUrl / modelBytes / onDownloadProgress / tools keys — passed
 /// through to the worker as-is via postMessage. We do NOT re-serialize via
 /// `serde_wasm_bindgen::to_value(&ChatOptions)` because that converts nested
 /// maps (e.g. `templateVariables: { enable_thinking: false }`) into JS Maps,
@@ -2182,6 +2428,13 @@ struct ChatCreateParsed {
     mmproj_bytes: Option<js_sys::Uint8Array>,
     on_progress: Option<js_sys::Function>,
     chat_opts_jsval: JsValue,
+    /// Tool metadata for the worker. Just `{name, description, jsonSchema}`
+    /// per entry — the user's JS callback stays main-thread-only and goes
+    /// into `tool_callbacks` below.
+    tools_jsval: JsValue,
+    /// Map of tool name → JS callback. Stays on the main thread; the
+    /// worker round-trips each invocation via `tool-call` / `tool-reply`.
+    tool_callbacks: std::collections::HashMap<String, js_sys::Function>,
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -2212,6 +2465,64 @@ fn parse_chat_create_opts(opts: &JsValue) -> Result<ChatCreateParsed, JsError> {
         .filter(|v| !v.is_undefined() && !v.is_null())
         .and_then(|v| v.dyn_into::<js_sys::Function>().ok());
 
+    // Split `tools` (each entry tagged via `Tool.fromFn`) into:
+    //   - tools_meta_array (name + description + jsonSchema) → JsValue
+    //     for the worker, structured-cloneable
+    //   - tool_callbacks (name → js_sys::Function) → stays on main thread
+    //
+    // Anything not shaped like `{__nbwKind: 'tool', name, description,
+    // jsonSchema, callback}` errors out at create time so misuse surfaces
+    // clearly rather than failing inside the worker.
+    let tools_input = js_sys::Reflect::get(obj, &"tools".into())
+        .ok()
+        .filter(|v| !v.is_undefined() && !v.is_null());
+    let tools_meta_array = js_sys::Array::new();
+    let mut tool_callbacks: std::collections::HashMap<String, js_sys::Function> =
+        std::collections::HashMap::new();
+    if let Some(tools_val) = tools_input {
+        let arr: js_sys::Array = tools_val.dyn_into().map_err(|_| {
+            JsError::new("WorkerChat.create: `tools` must be an array of Tool.fromFn(...) values")
+        })?;
+        for (idx, raw) in arr.iter().enumerate() {
+            let kind = js_sys::Reflect::get(&raw, &"__nbwKind".into())
+                .ok()
+                .and_then(|v| v.as_string());
+            if kind.as_deref() != Some("tool") {
+                return Err(JsError::new(&format!(
+                    "WorkerChat.create: tools[{idx}] is not a Tool.fromFn(...) value (missing __nbwKind=tool)",
+                )));
+            }
+            let name = js_sys::Reflect::get(&raw, &"name".into())
+                .ok()
+                .and_then(|v| v.as_string())
+                .ok_or_else(|| JsError::new(&format!("tools[{idx}]: missing name")))?;
+            let description = js_sys::Reflect::get(&raw, &"description".into())
+                .ok()
+                .and_then(|v| v.as_string())
+                .ok_or_else(|| JsError::new(&format!("tools[{idx}]: missing description")))?;
+            let schema = js_sys::Reflect::get(&raw, &"jsonSchema".into())
+                .map_err(|_| JsError::new(&format!("tools[{idx}]: missing jsonSchema")))?;
+            let callback = js_sys::Reflect::get(&raw, &"callback".into())
+                .map_err(|_| JsError::new(&format!("tools[{idx}]: missing callback")))?
+                .dyn_into::<js_sys::Function>()
+                .map_err(|_| {
+                    JsError::new(&format!("tools[{idx}]: callback is not a function"))
+                })?;
+
+            let meta_obj = js_sys::Object::new();
+            let _ = js_sys::Reflect::set(&meta_obj, &"name".into(), &name.as_str().into());
+            let _ = js_sys::Reflect::set(
+                &meta_obj,
+                &"description".into(),
+                &description.as_str().into(),
+            );
+            let _ = js_sys::Reflect::set(&meta_obj, &"jsonSchema".into(), &schema);
+            tools_meta_array.push(&meta_obj);
+
+            tool_callbacks.insert(name, callback);
+        }
+    }
+
     // Build a filtered JS object containing only the ChatOptions fields.
     let chat_opts_obj = js_sys::Object::new();
     let keys = js_sys::Object::keys(obj);
@@ -2224,6 +2535,7 @@ fn parse_chat_create_opts(opts: &JsValue) -> Result<ChatCreateParsed, JsError> {
                 | "mmprojUrl"
                 | "mmprojBytes"
                 | "onDownloadProgress"
+                | "tools"
         ) {
             continue;
         }
@@ -2248,5 +2560,7 @@ fn parse_chat_create_opts(opts: &JsValue) -> Result<ChatCreateParsed, JsError> {
         mmproj_bytes,
         on_progress,
         chat_opts_jsval: chat_opts_obj.into(),
+        tools_jsval: tools_meta_array.into(),
+        tool_callbacks,
     })
 }
