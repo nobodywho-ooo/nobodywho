@@ -29,11 +29,8 @@ cargo +nightly build -p nobodywho-uniffi -Z build-std --target aarch64-apple-vis
 echo "Building nobodywho-uniffi for visionOS simulator (aarch64-apple-visionos-sim)..."
 cargo +nightly build -p nobodywho-uniffi -Z build-std --target aarch64-apple-visionos-sim --release
 
-echo "Building nobodywho-uniffi for watchOS device arm64 (aarch64-apple-watchos)..."
+echo "Building nobodywho-uniffi for watchOS device (aarch64-apple-watchos)..."
 cargo +nightly build -p nobodywho-uniffi -Z build-std --target aarch64-apple-watchos --release
-
-echo "Building nobodywho-uniffi for watchOS device arm64_32 (arm64_32-apple-watchos)..."
-cargo +nightly build -p nobodywho-uniffi -Z build-std --target arm64_32-apple-watchos --release
 
 echo "Building nobodywho-uniffi for watchOS simulator (aarch64-apple-watchos-sim)..."
 cargo +nightly build -p nobodywho-uniffi -Z build-std --target aarch64-apple-watchos-sim --release
@@ -53,14 +50,7 @@ cp target/aarch64-apple-ios-sim/release/libnobodywho_uniffi.a "$TMPDIR/ios-sim/"
 cp target/aarch64-apple-darwin/release/libnobodywho_uniffi.a "$TMPDIR/macos/"
 cp target/aarch64-apple-visionos/release/libnobodywho_uniffi.a "$TMPDIR/visionos-device/"
 cp target/aarch64-apple-visionos-sim/release/libnobodywho_uniffi.a "$TMPDIR/visionos-sim/"
-# Combine arm64 and arm64_32 watchOS device libraries into a fat binary.
-# arm64_32: Apple Watch Series 4–8, Ultra 1, SE (32-bit pointers)
-# arm64: newer watches with true 64-bit support
-echo "Creating fat watchOS device library (arm64 + arm64_32)..."
-lipo -create \
-    target/aarch64-apple-watchos/release/libnobodywho_uniffi.a \
-    target/arm64_32-apple-watchos/release/libnobodywho_uniffi.a \
-    -output "$TMPDIR/watchos-device/libnobodywho_uniffi.a"
+cp target/aarch64-apple-watchos/release/libnobodywho_uniffi.a "$TMPDIR/watchos-device/"
 cp target/aarch64-apple-watchos-sim/release/libnobodywho_uniffi.a "$TMPDIR/watchos-sim/"
 
 rm -rf swift/Frameworks/NobodyWhoNative.xcframework
