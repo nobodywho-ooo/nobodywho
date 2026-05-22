@@ -41,7 +41,7 @@ const modelBytes = new Uint8Array(readFileSync(modelPath));
 const PROMPT = 'Reply with exactly one word: hello';
 
 async function runGreedyOnce() {
-  const chat = await m.WorkerChat.create({
+  const chat = await m.Chat.create({
     modelBytes,
     systemPrompt: 'Reply briefly.',
     templateVariables: { enable_thinking: false },
@@ -69,7 +69,7 @@ console.log('    ✓ identical');
 
 // === 2. Temperature / topK / topP accepted at construction time ===
 console.log('\n[2] Custom sampler with temperature/topK/topP/minP/repeatPenalty...');
-const customChat = await m.WorkerChat.create({
+const customChat = await m.Chat.create({
   modelBytes,
   systemPrompt: 'You are helpful.',
   templateVariables: { enable_thinking: false },
@@ -90,7 +90,7 @@ console.log('    ✓ constructed without error');
 console.log('\n[3] Invalid sampleStep rejects with clear error...');
 let threw = false;
 try {
-  await m.WorkerChat.create({ modelBytes, sampler: { sampleStep: 'bogus' } });
+  await m.Chat.create({ modelBytes, sampler: { sampleStep: 'bogus' } });
 } catch (e) {
   threw = true;
   console.log(`    caught: ${e.message ?? e}`);
@@ -102,7 +102,7 @@ console.log('    ✓ rejected');
 
 // === 4. Sampler + constraint compose ===
 console.log('\n[4] sampler + constraint together (constraint prepended to chain)...');
-const composedChat = await m.WorkerChat.create({
+const composedChat = await m.Chat.create({
   modelBytes,
   systemPrompt: 'Reply with exactly one word.',
   templateVariables: { enable_thinking: false },

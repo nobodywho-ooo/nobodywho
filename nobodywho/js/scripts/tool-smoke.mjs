@@ -69,7 +69,7 @@ console.log(`    ✓ name=${weatherTool.name} __nbwKind=${weatherTool.__nbwKind}
 // === 3. WorkerChat with tools — model decides whether to call ===
 console.log('\n[3] Spawning WorkerChat with tools...');
 const modelBytes = new Uint8Array(readFileSync(modelPath));
-const chat = await m.WorkerChat.create({
+const chat = await m.Chat.create({
   modelBytes,
   systemPrompt:
     'You are a helpful assistant. When the user asks about weather, use the get_weather tool. Then answer in one short sentence.',
@@ -133,7 +133,7 @@ const weatherToolAsync = m.Tool.fromFn(
 );
 
 chat.terminate();
-const chatAsync = await m.WorkerChat.create({
+const chatAsync = await m.Chat.create({
   modelBytes,
   systemPrompt:
     'You are a helpful assistant. When the user asks about weather, use the get_weather tool. Then answer in one short sentence.',

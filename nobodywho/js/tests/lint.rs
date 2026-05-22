@@ -43,35 +43,6 @@ fn doc_above(src: &str, signature: &str) -> String {
 
 // ---------- Findings ----------
 
-/// Finding #2 — `Chat::ask` docstring promises streaming that doesn't happen on wasm.
-///
-/// `Chat::ask`'s docstring says tokens arrive as they're generated. On
-/// wasm32 the inference loop holds the JS event-loop thread until
-/// completion, so a `chat.ask(...).then(s => s.nextToken())` loop only
-/// drains AFTER the whole generation is done — explicitly documented in
-/// `ask_streaming`'s docstring. The `ask` docstring must either point at
-/// `askStreaming` for real-time, or describe the buffering explicitly.
-#[test]
-fn chat_ask_docstring_warns_about_wasm_buffering() {
-    let ask_doc = doc_above(LIB_RS, "pub fn ask(&self, prompt: JsValue)");
-    let lower = ask_doc.to_lowercase();
-    let mentions_workaround = lower.contains("askstreaming")
-        || lower.contains("blocks the thread")
-        || lower.contains("buffer")
-        || lower.contains("only see")
-        || lower.contains("only drain");
-    assert!(
-        mentions_workaround,
-        "js/src/lib.rs: Chat::ask docstring doesn't warn that on wasm32 the \
-         inference loop holds the JS thread, so the `nextToken()` loop only \
-         drains AFTER generation completes — not in real time as the current \
-         text implies ('Tokens arrive as they're generated'). Either point \
-         readers at askStreaming or describe the buffering directly.\n\n\
-         Current docstring:\n{}",
-        ask_doc
-    );
-}
-
 /// Finding #7 — Cargo.toml comment is orphaned from its subject.
 ///
 /// The paragraph about `monty` and `bashkit` being native-only sits at the

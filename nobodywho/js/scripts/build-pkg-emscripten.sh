@@ -162,8 +162,7 @@ echo "==> applying sed patches to library_bindgen.js"
   -e 's/HEAP320()/HEAP32/g' \
   -E -e 's/(^|[^A-Za-z_])Model\.__wrap/\1Module.Model.__wrap/g' \
      -e 's/(^|[^A-Za-z_])TokenStream\.__wrap/\1Module.TokenStream.__wrap/g' \
-     -e 's/(^|[^A-Za-z_])WorkerChat\.__wrap/\1Module.WorkerChat.__wrap/g' \
-     -e 's/(^|[^A-Za-z_])WorkerTokenStream\.__wrap/\1Module.WorkerTokenStream.__wrap/g' \
+     -e 's/(^|[^A-Za-z_])Chat\.__wrap/\1Module.Chat.__wrap/g' \
   "$PKG_DIR/library_bindgen.js"
 
 /usr/bin/sed -i.bak2 \

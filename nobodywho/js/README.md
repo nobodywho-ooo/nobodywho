@@ -16,12 +16,19 @@ const { default: createNobodyWhoModule } = await import('./pkg-bundler/nobodywho
 const m = await createNobodyWhoModule();
 m.init();
 
-const model = await m.Model.loadBytes(new Uint8Array(readFileSync(process.argv[2])));
-const chat = new m.Chat(model, { systemPrompt: 'You are a helpful assistant' });
+const modelBytes = new Uint8Array(readFileSync(process.argv[2]));
+const chat = await m.Chat.create({
+  modelBytes,
+  systemPrompt: 'You are a helpful assistant',
+});
 
-const result = await (await chat.ask('What is the capital of Denmark?')).completed();
+const result = await chat.ask('What is the capital of Denmark?').completed();
 console.log(result);
 ```
+
+`Chat` runs inference in a separate worker thread — a Web Worker in
+browsers, a `worker_threads.Worker` in Node — so the calling thread
+stays responsive during inference and tokens stream in real time.
 
 **Embedding** (`encoder_demo.mjs`):
 ```js
@@ -39,15 +46,17 @@ surface to JS via wasm-bindgen.
 
 | Surface | Status |
 |---|---|
-| `Model.loadBytes(uint8Array)` | ✅ verified — loads GGUF into a real `LlamaModel` via `fmemopen` + `llama_model_load_from_file_ptr` |
+| `Model.loadBytes(uint8Array)` | ✅ verified — loads GGUF into a real `LlamaModel` via `fmemopen` + `llama_model_load_from_file_ptr` (used by `Encoder` / `CrossEncoder`; `Chat.create` takes `modelBytes` inline) |
 | `Encoder.encode(text)` → `Float32Array` | ✅ verified |
 | `CrossEncoder.rank(query, docs)` / `rankAndSort(...)` | ✅ verified |
-| `Chat.ask(prompt)` → `TokenStream` → tokens | ✅ verified |
+| `Chat.create({modelBytes, ...})` → `Chat` | ✅ verified — async factory, spawns a worker (Web Worker in browser, `worker_threads.Worker` in Node) |
+| `Chat.ask(prompt)` → `TokenStream` → tokens (real-time) | ✅ verified |
 | `Chat`'s `templateVariables` option (e.g. `{ enable_thinking: false }`) | ✅ verified |
-| `TokenStream.nextToken()` / `completed()` | ✅ verified |
+| `Chat`'s `sampler` option (temperature/topK/topP/minP/repeatPenalty/sampleStep) | ✅ verified |
+| `TokenStream.next()` / `completed()` | ✅ verified |
 | Multimodal vision/audio (`Image.fromBytes` / `Audio.fromBytes`) | ✅ verified — see "Multimodal status" below |
-| Tool calling (`Tool.fromFn(...)`, `Chat(model, {tools: [...]})`) | ✅ verified — sync callbacks only in v1, see `js/scripts/tool-smoke.mjs` |
-| Structured output (`Constraint`) | wire format exposed via `Chat`'s options; should work on Emscripten (libc has `clock_gettime`), unverified end-to-end |
+| Tool calling (`Tool.fromFn(...)`, `Chat.create({tools: [...]})`) | ✅ verified — both sync and async (Promise-returning) callbacks work via the worker ↔ main RPC bridge |
+| Structured output (`Constraint`) | wire format exposed via `Chat.create`'s options; should work on Emscripten (libc has `clock_gettime`), unverified end-to-end |
 
 Native (`cargo check --workspace`) is unchanged.
 
@@ -305,17 +314,15 @@ const answer = await (await chat.ask(['What is in this image?', img])).completed
 `Image.fromBytes(uint8)` / `Audio.fromBytes(uint8)` return plain JS
 objects of shape `{__nbwKind: 'image' | 'audio', bytes: Uint8Array}`.
 They are structured-cloneable, which is what lets them survive the
-postMessage hop into the `WorkerChat`'s background worker.
+postMessage hop into `Chat`'s background worker.
 
-The same array-of-parts shape is accepted by both `Chat.ask` (in-
-process, advanced) and `WorkerChat.ask` (worker-backed, recommended).
-Plain strings still work for text-only prompts — `chat.ask('hi')` is
-unchanged.
+The array-of-parts shape is accepted by `Chat.ask`. Plain strings
+still work for text-only prompts — `chat.ask('hi')` is unchanged.
 
 **How it works under the hood** (see `js/src/syscall_imports.rs` and
 `js/src/lib.rs` for code, this is just the shape):
 1. JS calls `Image.fromBytes(uint8)` → tagged object.
-2. `WorkerChat.ask([...])` postMessages the array to the worker.
+2. `Chat.ask([...])` postMessages the array to the worker.
 3. Worker-side Rust receives the bytes, calls `Module.FS.writeFile`
    via `js_sys::Reflect` to land them at a content-hashed path like
    `/home/web_user/nbw-image-<hash>.bin` in Emscripten's MEMFS.
@@ -366,17 +373,8 @@ present. The Rust override wins symbol resolution at link time.
 - **MP3 / FLAC / Ogg audio.** Decoders are linked in but unverified.
   Worth one short test per format.
 - **Structured-output generation at runtime.** `ConstraintSpec` is
-  wired through `Chat::new`'s options. Should work on Emscripten
+  wired through `Chat.create`'s options. Should work on Emscripten
   (libc has `clock_gettime`); unverified end-to-end.
-- **Async tool callbacks.** v1 of tool calling accepts JS functions
-  whose return type is a String. Functions that return a Promise
-  don't currently resolve before the value is fed back into the
-  model. See the open design discussion in `js/src/lib.rs`'s `Tool`
-  block-comment for the two paths forward.
-- **`WorkerChat` + tools.** Same v1 limit: tools today only work with
-  in-process `Chat` because the JS function references can't survive
-  `postMessage`. Solving requires an RPC bridge worker ↔ main; shares
-  infrastructure with the async-callback work.
 - **Upstream the build patches.** `nobodywho-ooo/llama-cpp-rs` branch
   `wasm-emscripten` carries `CMAKE_SYSTEM_PROCESSOR=wasm32` and the
   `MA_NO_*` + `-fexceptions` for mtmd. Workspace `Cargo.toml` pins a

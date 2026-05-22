@@ -102,7 +102,7 @@ where
     T: Into<JsValue>,
 {
     // No catch_unwind: the (Rc<RefCell<ChatState>> + other) captures in the
-    // worker-backed WorkerChat futures aren't RefUnwindSafe and can't be made so
+    // worker-backed Chat futures aren't RefUnwindSafe and can't be made so
     // without a deeper refactor. AssertUnwindSafe satisfies future_to_promise's
     // own UnwindSafe bound; we accept that a Rust panic propagates as a hard
     // wasm abort instead of a rejected promise — the same failure mode as a
@@ -123,7 +123,7 @@ where
 
 // ---------- Model ----------
 
-/// A loaded GGUF model. Share between `WorkerChat` and `Encoder` instances; the
+/// A loaded GGUF model. Share between `Chat` and `Encoder` instances; the
 /// underlying model data is reference-counted.
 #[wasm_bindgen]
 pub struct Model {
@@ -211,7 +211,7 @@ impl Model {
 //     const img = Image.fromBytes(new Uint8Array(await blob.arrayBuffer()));
 //     const reply = await chat.ask(['What is in this image?', img]).completed();
 //
-// `Chat.ask` and `WorkerChat.ask` accept either a plain string (text-only
+// `Chat.ask` and `Chat.ask` accept either a plain string (text-only
 // prompt — fast path, unchanged) or a JS array of `string | Image | Audio`
 // parts. There is no `Image(path)` constructor in the wasm binding: a
 // browser tab has no filesystem.
@@ -220,7 +220,7 @@ impl Model {
 // tagged JS objects of the shape `{__nbwKind: 'image'|'audio', bytes:
 // Uint8Array}`. The same shape survives the postMessage hop into the chat
 // worker. The Rust side (whether running in the main thread for `Chat` or
-// inside the worker for `WorkerChat`) calls `write_bytes_to_memfs(kind,
+// inside the worker for `Chat`) calls `write_bytes_to_memfs(kind,
 // bytes)` to land the bytes in Emscripten's in-memory filesystem at a
 // content-hashed path like `/tmp/nbw-image-<hash>.bin`, then pushes that
 // path through the existing `Prompt::push_image(&Path)` / `push_audio`
@@ -422,7 +422,7 @@ fn js_to_prompt(input: &JsValue) -> Result<nobodywho::tokenizer::Prompt, String>
     Ok(prompt)
 }
 
-/// Pass-through normaliser for the worker hop. Main-thread `WorkerChat.ask`
+/// Pass-through normaliser for the worker hop. Main-thread `Chat.ask`
 /// calls this on its input, then post-messages the result. The worker's
 /// `"ask"` dispatcher then runs `js_to_prompt` on the received array.
 ///
@@ -461,7 +461,7 @@ fn js_to_serializable_parts(input: &JsValue) -> Result<JsValue, JsError> {
 //     const reply = await (await chat.ask('Weather in CPH?')).completed();
 //
 // v1 limitations (documented in README):
-// - Only the in-process `Chat` accepts tools. `WorkerChat` doesn't — JS
+// - Only the in-process `Chat` accepts tools. `Chat` doesn't — JS
 //   function refs can't survive postMessage and we don't yet have an RPC
 //   bridge between worker and main thread to dispatch tool calls.
 // - JS callbacks must be SYNCHRONOUS (return a string, not a Promise).
@@ -691,24 +691,11 @@ fn tool_from_tagged(part: &JsValue) -> Result<nobodywho::tool_calling::Tool, Str
     ))
 }
 
-// ---------- Chat (raw blocking class — see WorkerChat below for the user-facing one) ----------
-//
-// Exposed in JS as `Chat`. The user-facing worker-backed wrapper is the
-// `WorkerChat` struct further down; `Chat` is the direct wasm-bindgen wrapper
-// over `ChatHandleAsync` that the worker dispatcher uses internally and that
-// advanced callers can opt into if they want blocking inference on the main
-// thread.
 
-/// WorkerChat session backed by a model. Manages conversation state, sampling, and tools.
-#[wasm_bindgen]
-pub struct Chat {
-    handle: nobodywho::chat::ChatHandleAsync,
-}
-
-/// Optional config passed to the `WorkerChat` constructor. Pass as a plain JS object:
+/// Optional config passed to the `Chat` constructor. Pass as a plain JS object:
 ///
 /// ```js
-/// new WorkerChat(model, {
+/// new Chat(model, {
 ///   contextSize: 4096,
 ///   systemPrompt: "You are helpful.",
 ///   constraint: { jsonSchema: '{"type":"object","properties":{...}}' },
@@ -946,164 +933,6 @@ fn build_sampler(
     }
 }
 
-#[wasm_bindgen]
-impl Chat {
-    /// Create a new chat session bound to a loaded model.
-    #[wasm_bindgen(constructor)]
-    pub fn new(model: &Model, options: JsValue) -> Result<Chat, JsError> {
-        // Tools are wasm-bindgen instances that can't go through
-        // serde_wasm_bindgen, so extract + strip them from the options
-        // object before deserializing the rest. Mirrors how
-        // `parse_chat_create_opts` handles modelBytes / mmprojBytes.
-        let tools = extract_tools(&options)?;
-        let opts_jsval = strip_keys(&options, &["tools"])?;
-
-        let opts: ChatOptions = if opts_jsval.is_undefined() || opts_jsval.is_null() {
-            ChatOptions::default()
-        } else {
-            serde_wasm_bindgen::from_value(opts_jsval)
-                .map_err(|e| JsError::new(&e.to_string()))?
-        };
-
-        let mut builder = nobodywho::chat::ChatBuilder::new(Arc::clone(&model.inner));
-        if let Some(ctx) = opts.context_size {
-            builder = builder.with_context_size(ctx);
-        }
-        if let Some(sys) = opts.system_prompt {
-            builder = builder.with_system_prompt(Some(sys));
-        }
-        if let Some(sampler) = build_sampler(opts.sampler, opts.constraint)? {
-            builder = builder.with_sampler(sampler);
-        }
-        if let Some(vars) = opts.template_variables {
-            builder = builder.with_template_variables(vars);
-        }
-        if !tools.is_empty() {
-            builder = builder.with_tools(tools);
-        }
-
-        Ok(Chat {
-            handle: builder.build_async(),
-        })
-    }
-
-    /// Send a prompt and receive a `TokenStream`. Await `nextToken()` in a
-    /// loop, or call `completed()` to resolve to the full response.
-    ///
-    /// `prompt` is either a plain string (text-only) or an array of mixed
-    /// `string | Image | Audio` parts (multimodal). Examples:
-    ///
-    /// ```js
-    /// chat.ask('hi')                                      // text only
-    /// chat.ask(['describe this:', Image.fromBytes(bytes)]) // image + text
-    /// ```
-    ///
-    /// **Wasm note: this does NOT stream in real time.** The Rust inference
-    /// loop holds the single JS thread until generation completes, so the
-    /// `nextToken()` loop only drains tokens AFTER the response is fully
-    /// generated. To see tokens arrive as they're produced, run the wasm in
-    /// a Web Worker and use [`WorkerChat::ask_streaming`] (`askStreaming` in JS),
-    /// which calls a JS callback synchronously from inside the inference loop
-    /// — the callback can then `self.postMessage(token)` to the main thread.
-    pub fn ask(&self, prompt: JsValue) -> js_sys::Promise {
-        let handle = self.handle.clone();
-        // Convert outside the promisify body so the error surfaces as a
-        // synchronous rejection rather than a JsValue panic.
-        let prompt = match js_to_prompt(&prompt) {
-            Ok(p) => p,
-            Err(e) => return js_sys::Promise::reject(&JsError::new(&e).into()),
-        };
-        promisify(async move {
-            let stream = handle.ask(prompt);
-            Ok(TokenStream {
-                inner: Arc::new(tokio::sync::Mutex::new(stream)),
-            })
-        })
-    }
-
-    // `askStreaming` removed: depended on `nobodywho::llm::set_streaming_hook`
-    // which no longer exists in core. Tokens can only be drained from the
-    // returned `TokenStream` after inference completes (see the `ask` doc
-    // comment above). Restore this method when the core API returns.
-
-    /// Reset the conversation. Optionally provide a new system prompt.
-    /// (Tools aren't yet exposed in the wasm binding.)
-    pub fn reset(&self, system_prompt: Option<String>) -> js_sys::Promise {
-        let handle = self.handle.clone();
-        promisify(async move {
-            handle
-                .reset_chat(system_prompt, vec![])
-                .await
-                .map_err(|e| JsError::new(&e.to_string()))?;
-            Ok(JsValue::UNDEFINED)
-        })
-    }
-
-    /// Clear the chat history, keeping the system prompt and tools.
-    #[wasm_bindgen(js_name = resetHistory)]
-    pub fn reset_history(&self) -> js_sys::Promise {
-        let handle = self.handle.clone();
-        promisify(async move {
-            handle
-                .reset_history()
-                .await
-                .map_err(|e| JsError::new(&e.to_string()))?;
-            Ok(JsValue::UNDEFINED)
-        })
-    }
-}
-
-// ---------- TokenStream ----------
-
-/// An in-progress text completion. JS usage:
-///
-/// ```js
-/// const stream = await chat.ask("Hello");
-/// let tok;
-/// while ((tok = await stream.nextToken()) !== undefined) {
-///   process.stdout.write(tok);
-/// }
-/// ```
-///
-/// `Symbol.asyncIterator` is intentionally not exposed yet — the `nextToken()`
-/// loop is portable across all JS runtimes including older Node versions.
-/// Adding it later is non-breaking.
-#[wasm_bindgen]
-pub struct TokenStream {
-    inner: Arc<tokio::sync::Mutex<nobodywho::chat::TokenStreamAsync>>,
-}
-
-#[wasm_bindgen]
-impl TokenStream {
-    /// Resolves to the next token, or `undefined` when generation ends.
-    #[wasm_bindgen(js_name = nextToken)]
-    pub fn next_token(&self) -> js_sys::Promise {
-        let inner = self.inner.clone();
-        promisify(async move {
-            let token = inner.lock().await.next_token().await;
-            // Map `Option<String>` to JsValue: Some -> string, None -> undefined.
-            // This is how JS callers detect end-of-stream.
-            Ok(match token {
-                Some(s) => JsValue::from_str(&s),
-                None => JsValue::UNDEFINED,
-            })
-        })
-    }
-
-    /// Drain the stream and resolve to the full generated text.
-    pub fn completed(&self) -> js_sys::Promise {
-        let inner = self.inner.clone();
-        promisify(async move {
-            inner
-                .lock()
-                .await
-                .completed()
-                .await
-                .map_err(|e| JsError::new(&e.to_string()))
-        })
-    }
-}
-
 // ---------- Encoder ----------
 
 /// Generate embedding vectors. Requires an embedding model (not a chat model).
@@ -1208,7 +1037,7 @@ impl CrossEncoder {
 
 // ---------- Worker dispatcher ----------
 //
-// The browser-side `WorkerChat` wrapper in `examples/setup-browser.mjs` spawns a
+// The browser-side `Chat` wrapper in `examples/setup-browser.mjs` spawns a
 // Web Worker and talks to it over a small message protocol. The dispatcher
 // for that protocol used to live in `examples/worker.js` (~50 lines of JS).
 // Now it lives here — `runInWorker()` sets up `self.onmessage` and reacts
@@ -1498,7 +1327,7 @@ async fn handle_worker_message(
 /// `tool-call` request back to the main thread (carrying the call id, the
 /// tool name, and the serialized args) and parks on a oneshot until the
 /// main thread replies with `tool-reply`. Used by the worker-side
-/// `create-chat` handler when WorkerChat is constructed with tools.
+/// `create-chat` handler when Chat is constructed with tools.
 #[cfg(target_arch = "wasm32")]
 fn build_rpc_tool(meta: ToolMeta) -> nobodywho::tool_calling::Tool {
     let name_for_closure = meta.name.clone();
@@ -1564,7 +1393,7 @@ fn build_rpc_tool(meta: ToolMeta) -> nobodywho::tool_calling::Tool {
 }
 
 /// Build a `ChatHandleAsync` from a parsed `ChatOptions` plus a list of
-/// (already-built) tools. Same option-mapping logic as `WorkerChat::new`'s
+/// (already-built) tools. Same option-mapping logic as `Chat::new`'s
 /// constructor — factored out so the worker dispatcher doesn't duplicate
 /// it. Errors as `String` because the worker dispatcher turns them into
 /// `{ type: "error", message }` post-messages; `JsError` (used by the
@@ -1819,9 +1648,9 @@ impl Model {
     }
 }
 
-// ---------- WorkerTokenStream ----------
+// ---------- TokenStream ----------
 //
-// User-facing token stream returned from `WorkerChat::ask`. Implements the JS
+// User-facing token stream returned from `Chat::ask`. Implements the JS
 // async-iterator protocol (`next()` returning `Promise<{value, done}>`) so
 // callers can `for await (const tok of chat.ask(...))`, and exposes
 // `completed()` returning a `Promise<string>` that resolves to the full
@@ -1831,7 +1660,7 @@ impl Model {
 // wasm-bindgen 0.2.121 cleanly; setup-browser.mjs adds it at the prototype
 // level after import (~1 line of JS).
 //
-// State shared with `WorkerChat` via `Rc<RefCell<WorkerStreamState>>`: WorkerChat pushes
+// State shared with `Chat` via `Rc<RefCell<WorkerStreamState>>`: Chat pushes
 // tokens/done/error into the state from inside its `onmessage` closure; the
 // stream's `next()`/`completed()` Promises resolve out of that state.
 
@@ -1908,13 +1737,13 @@ impl WorkerStreamState {
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
-pub struct WorkerTokenStream {
+pub struct TokenStream {
     state: std::rc::Rc<RefCell<WorkerStreamState>>,
 }
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
-impl WorkerTokenStream {
+impl TokenStream {
     /// Returns `Promise<{ value: string, done: false }>` for each token,
     /// or `Promise<{ value: undefined, done: true }>` when the stream ends.
     /// Rejects with the worker's error if the inference failed.
@@ -1937,7 +1766,7 @@ impl WorkerTokenStream {
                 st.pending_next = Some(tx);
                 rx
             };
-            // Async: park until WorkerChat's onmessage routes a token / done / error.
+            // Async: park until Chat's onmessage routes a token / done / error.
             match pending_rx.await {
                 Ok(NextOutcome::Token(tok)) => Ok(iter_result(Some(&tok))),
                 Ok(NextOutcome::Done) => Ok(iter_result(None)),
@@ -1991,22 +1820,22 @@ fn iter_result(value: Option<&str>) -> JsValue {
     obj.into()
 }
 
-// ---------- WorkerChat (worker-backed, user-facing) ----------
+// ---------- Chat (worker-backed, user-facing) ----------
 //
 // User-facing chat class. Internally spawns a Web Worker from an inline Blob
 // URL, posts the load-model / create-chat / ask protocol, routes replies via
 // a Closure-wrapped onmessage. The worker side of the protocol is handled by
 // `runInWorker()` further up.
 //
-// The JS-side WorkerChat class that used to live in examples/setup-browser.mjs is
+// The JS-side Chat class that used to live in examples/setup-browser.mjs is
 // now this Rust struct. App code is unchanged — same factory shape:
 //
-//     const chat = await WorkerChat.create({ modelUrl, systemPrompt, ... });
+//     const chat = await Chat.create({ modelUrl, systemPrompt, ... });
 //     for await (const tok of chat.ask(prompt)) { ... }
 //     const full = await chat.ask(prompt).completed();
 
 // JS sets this at module load (`bg.setBootstrapUrl(import.meta.url)`).
-// `WorkerChat::create` reads it to build the inline Blob worker bootstrap
+// `Chat::create` reads it to build the inline Blob worker bootstrap
 // (`import('<setup-browser.mjs URL>')`).
 #[cfg(target_arch = "wasm32")]
 thread_local! {
@@ -2014,7 +1843,7 @@ thread_local! {
 }
 
 /// Called from setup-browser.mjs at module load to register the absolute URL
-/// of setup-browser.mjs itself. Required before the first `WorkerChat.create()`.
+/// of setup-browser.mjs itself. Required before the first `Chat.create()`.
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen(js_name = setBootstrapUrl)]
 pub fn set_bootstrap_url(url: String) {
@@ -2027,9 +1856,9 @@ fn get_bootstrap_url() -> Result<String, JsError> {
         .with(|u| u.borrow().clone())
         .ok_or_else(|| {
             JsError::new(
-                "WorkerChat.create: setBootstrapUrl was not called. \
+                "Chat.create: setBootstrapUrl was not called. \
                  setup-browser.mjs must call bg.setBootstrapUrl(import.meta.url) \
-                 at module load before WorkerChat.create() is invoked.",
+                 at module load before Chat.create() is invoked.",
             )
         })
 }
@@ -2043,7 +1872,7 @@ struct ChatState {
     /// `__nbw_spawn_worker`).
     worker: JsValue,
     current_stream: Option<std::rc::Rc<RefCell<WorkerStreamState>>>,
-    /// While `WorkerChat::create` is running through its load-model / create-chat
+    /// While `Chat::create` is running through its load-model / create-chat
     /// handshake, this holds `(expected_reply_type, sender)`. The onmessage
     /// closure resolves the sender when a message of that type arrives.
     pending_handshake:
@@ -2073,15 +1902,15 @@ fn worker_terminate(worker: &JsValue) {
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
-pub struct WorkerChat {
+pub struct Chat {
     state: std::rc::Rc<RefCell<ChatState>>,
 }
 
 #[cfg(target_arch = "wasm32")]
-impl Drop for WorkerChat {
+impl Drop for Chat {
     fn drop(&mut self) {
         // Best-effort cleanup: terminate the worker so it doesn't hang around
-        // after the wasm-side WorkerChat is released. The closures hold `Weak`
+        // after the wasm-side Chat is released. The closures hold `Weak`
         // refs to ChatState (no cycle), so dropping state here is safe.
         if let Ok(st) = self.state.try_borrow() {
             worker_terminate(&st.worker);
@@ -2091,11 +1920,11 @@ impl Drop for WorkerChat {
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
-impl WorkerChat {
+impl Chat {
     /// Create a worker-backed chat. Spawns a Web Worker that loads the wasm,
     /// fetches the model (Cache API hit if previously downloaded), and
     /// initializes a `ChatHandleAsync`. Returns a Promise that resolves to
-    /// the `WorkerChat` instance once all three handshake steps complete.
+    /// the `Chat` instance once all three handshake steps complete.
     #[wasm_bindgen(js_name = create)]
     pub fn create(opts: JsValue) -> js_sys::Promise {
         promisify(async move {
@@ -2114,7 +1943,7 @@ impl WorkerChat {
                     .and_then(|v| v.dyn_into::<js_sys::Function>().ok())
                     .ok_or_else(|| {
                         JsError::new(
-                            "WorkerChat.create: globalThis.__nbw_spawn_worker is not defined \
+                            "Chat.create: globalThis.__nbw_spawn_worker is not defined \
                              — pre.js was not loaded (build artifact incomplete)",
                         )
                     })?;
@@ -2212,7 +2041,7 @@ impl WorkerChat {
                     })?
             } else {
                 return Err(JsError::new(
-                    "WorkerChat.create: pass either modelUrl or modelBytes",
+                    "Chat.create: pass either modelUrl or modelBytes",
                 ));
             };
 
@@ -2261,29 +2090,29 @@ impl WorkerChat {
                 .map_err(|e| JsError::new(&format!("post create-chat: {e:?}")))?;
             wait_for_handshake(&state, "chat-ready").await?;
 
-            Ok(WorkerChat { state })
+            Ok(Chat { state })
         })
     }
 
-    /// Send a prompt; returns a synchronously-constructed `WorkerTokenStream`
+    /// Send a prompt; returns a synchronously-constructed `TokenStream`
     /// that resolves token-by-token (or all-at-once via `.completed()`).
-    /// Only one ask can be in flight at a time per WorkerChat.
+    /// Only one ask can be in flight at a time per Chat.
     ///
     /// `prompt` is either a plain string (text-only) or an array of mixed
     /// `string | Image | Audio` parts (multimodal). Bytes ride along by
     /// structured-clone copy on the postMessage to the worker.
-    pub fn ask(&self, prompt: JsValue) -> Result<WorkerTokenStream, JsError> {
+    pub fn ask(&self, prompt: JsValue) -> Result<TokenStream, JsError> {
         // Serialize before taking the state borrow so we don't hold it across
         // an early-return.
         let parts = js_to_serializable_parts(&prompt)?;
 
         let mut st = self.state.borrow_mut();
         if st.terminated {
-            return Err(JsError::new("WorkerChat: already terminated"));
+            return Err(JsError::new("Chat: already terminated"));
         }
         if st.current_stream.is_some() {
             return Err(JsError::new(
-                "WorkerChat.ask: another ask is in progress; await its .completed() or finish iterating first",
+                "Chat.ask: another ask is in progress; await its .completed() or finish iterating first",
             ));
         }
 
@@ -2297,7 +2126,7 @@ impl WorkerChat {
             .map_err(|e| JsError::new(&format!("post ask: {e:?}")))?;
         drop(st);
 
-        Ok(WorkerTokenStream {
+        Ok(TokenStream {
             state: stream_state,
         })
     }
@@ -2314,7 +2143,7 @@ impl WorkerChat {
         worker_terminate(&st.worker);
         drop(st);
         if let Some(s) = stream {
-            WorkerStreamState::fail(&s, "WorkerChat terminated".to_string());
+            WorkerStreamState::fail(&s, "Chat terminated".to_string());
         }
     }
 }
@@ -2495,7 +2324,7 @@ async fn wait_for_handshake(
     }
 }
 
-/// Parsed WorkerChat.create options. `chat_opts_jsval` is the original JS object
+/// Parsed Chat.create options. `chat_opts_jsval` is the original JS object
 /// minus the modelUrl / modelBytes / onDownloadProgress / tools keys — passed
 /// through to the worker as-is via postMessage. We do NOT re-serialize via
 /// `serde_wasm_bindgen::to_value(&ChatOptions)` because that converts nested
@@ -2526,11 +2355,11 @@ struct ChatCreateParsed {
 #[cfg(target_arch = "wasm32")]
 fn parse_chat_create_opts(opts: &JsValue) -> Result<ChatCreateParsed, JsError> {
     if opts.is_undefined() || opts.is_null() {
-        return Err(JsError::new("WorkerChat.create requires an options object"));
+        return Err(JsError::new("Chat.create requires an options object"));
     }
     let obj = opts
         .dyn_ref::<js_sys::Object>()
-        .ok_or_else(|| JsError::new("WorkerChat.create options must be an object"))?;
+        .ok_or_else(|| JsError::new("Chat.create options must be an object"))?;
 
     let model_url = js_sys::Reflect::get(obj, &"modelUrl".into())
         .ok()
@@ -2567,7 +2396,7 @@ fn parse_chat_create_opts(opts: &JsValue) -> Result<ChatCreateParsed, JsError> {
         std::collections::HashMap::new();
     if let Some(tools_val) = tools_input {
         let arr: js_sys::Array = tools_val.dyn_into().map_err(|_| {
-            JsError::new("WorkerChat.create: `tools` must be an array of Tool.fromFn(...) values")
+            JsError::new("Chat.create: `tools` must be an array of Tool.fromFn(...) values")
         })?;
         for (idx, raw) in arr.iter().enumerate() {
             let kind = js_sys::Reflect::get(&raw, &"__nbwKind".into())
@@ -2575,7 +2404,7 @@ fn parse_chat_create_opts(opts: &JsValue) -> Result<ChatCreateParsed, JsError> {
                 .and_then(|v| v.as_string());
             if kind.as_deref() != Some("tool") {
                 return Err(JsError::new(&format!(
-                    "WorkerChat.create: tools[{idx}] is not a Tool.fromFn(...) value (missing __nbwKind=tool)",
+                    "Chat.create: tools[{idx}] is not a Tool.fromFn(...) value (missing __nbwKind=tool)",
                 )));
             }
             let name = js_sys::Reflect::get(&raw, &"name".into())
@@ -2636,7 +2465,7 @@ fn parse_chat_create_opts(opts: &JsValue) -> Result<ChatCreateParsed, JsError> {
     // create time rather than at chat-creation time inside the worker.
     if js_sys::Object::keys(&chat_opts_obj).length() > 0 {
         let _: ChatOptions = serde_wasm_bindgen::from_value(chat_opts_obj.clone().into())
-            .map_err(|e| JsError::new(&format!("WorkerChat.create options: {e}")))?;
+            .map_err(|e| JsError::new(&format!("Chat.create options: {e}")))?;
     }
 
     Ok(ChatCreateParsed {
