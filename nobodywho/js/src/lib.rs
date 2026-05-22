@@ -703,6 +703,14 @@ struct ChatOptions {
     context_size: Option<u32>,
     system_prompt: Option<String>,
     constraint: Option<ConstraintSpec>,
+    /// Sampling knobs (temperature, top_p, top_k, etc.). All fields are
+    /// optional; absent fields are not applied. When `sampler` is omitted
+    /// entirely, the core's default sampler is used (top_k=20, top_p=0.95,
+    /// temperature=0.6, dist sampling). When `sampler` is provided
+    /// alongside `constraint`, the constraint's grammar shift step is
+    /// prepended to the user's sampler chain — same compose pattern that
+    /// tool-call grammars use internally.
+    sampler: Option<SamplerSpec>,
     /// Variables passed to the chat template, e.g. `{ enable_thinking: false }`
     /// for Qwen-Thinking-style models that emit `<think>…</think>` blocks you
     /// don't want in the response. Mirrors Python's `template_variables`. Only
@@ -741,8 +749,32 @@ struct ConstraintSpec {
 }
 
 impl ConstraintSpec {
+    /// Build a full SamplerConfig from this constraint alone — used when
+    /// `ChatOptions.sampler` is not provided. Equivalent to the matching
+    /// `SamplerPresets::constrain_with_*` shape (constraint shift + Dist).
     fn into_sampler(self) -> Result<nobodywho::sampler_config::SamplerConfig, JsError> {
         use nobodywho::sampler_config::SamplerPresets;
+        Ok(match self.into_shift_step()? {
+            nobodywho::sampler_config::ShiftStep::JsonSchema(s) => {
+                SamplerPresets::constrain_with_json_schema(s)
+            }
+            nobodywho::sampler_config::ShiftStep::Regex(p) => {
+                SamplerPresets::constrain_with_regex(p)
+            }
+            nobodywho::sampler_config::ShiftStep::Lark(l) => {
+                SamplerPresets::constrain_with_grammar(l)
+            }
+            // `into_shift_step` only ever returns one of the three above.
+            _ => unreachable!("ConstraintSpec::into_shift_step variant invariant"),
+        })
+    }
+
+    /// Extract just the constraint shift step. Lets callers compose the
+    /// constraint with their own sampler chain (prepend the constraint so
+    /// it runs before temperature / top-k / top-p, matching how core's
+    /// tool-call grammar prepending works in `Worker::ask`).
+    fn into_shift_step(self) -> Result<nobodywho::sampler_config::ShiftStep, JsError> {
+        use nobodywho::sampler_config::ShiftStep;
         let n_set = self.json_schema.is_some() as u8
             + self.regex.is_some() as u8
             + self.lark.is_some() as u8;
@@ -752,12 +784,145 @@ impl ConstraintSpec {
             ));
         }
         Ok(if let Some(s) = self.json_schema {
-            SamplerPresets::constrain_with_json_schema(s)
+            ShiftStep::JsonSchema(s)
         } else if let Some(p) = self.regex {
-            SamplerPresets::constrain_with_regex(p)
+            ShiftStep::Regex(p)
         } else {
-            SamplerPresets::constrain_with_grammar(self.lark.unwrap())
+            ShiftStep::Lark(self.lark.unwrap())
         })
+    }
+}
+
+/// JS-facing sampler configuration. All fields optional; absent ones are
+/// not applied. To get the standard preset, omit `sampler` from
+/// `ChatOptions` entirely (which falls back to core's default).
+///
+/// Shift steps are applied in llama.cpp's canonical order:
+/// penalties → top_k → top_p → min_p → temperature → sample_step.
+///
+/// JS shape:
+/// ```js
+/// new Chat(model, {
+///   sampler: {
+///     temperature: 0.7,
+///     topK: 40,
+///     topP: 0.95,
+///     minP: 0.05,
+///     repeatPenalty: 1.1,
+///     repeatLastN: 64,
+///     sampleStep: 'dist', // 'dist' | 'greedy' | 'mirostatV1' | 'mirostatV2'
+///   },
+/// });
+/// ```
+///
+/// `sampleStep: 'greedy'` ignores temperature / topK / topP and always
+/// picks the highest-probability token — useful for deterministic output.
+#[derive(serde::Deserialize, Default, Debug)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SamplerSpec {
+    temperature: Option<f32>,
+    top_k: Option<i32>,
+    top_p: Option<f32>,
+    min_p: Option<f32>,
+    /// Repeat penalty — sets `ShiftStep::Penalties.penalty_repeat`. Setting
+    /// any of `repeat*` adds a Penalties step (other repeat fields default
+    /// to 0/1/64 if unset).
+    repeat_penalty: Option<f32>,
+    repeat_last_n: Option<i32>,
+    repeat_freq_penalty: Option<f32>,
+    repeat_present_penalty: Option<f32>,
+    /// `'dist'` (default) | `'greedy'` | `'mirostatV1'` | `'mirostatV2'`.
+    sample_step: Option<String>,
+    /// MirostatV1 / MirostatV2 only.
+    mirostat_tau: Option<f32>,
+    /// MirostatV1 / MirostatV2 only.
+    mirostat_eta: Option<f32>,
+    /// MirostatV1 only.
+    mirostat_m: Option<i32>,
+}
+
+impl SamplerSpec {
+    fn into_sampler(self) -> Result<nobodywho::sampler_config::SamplerConfig, JsError> {
+        use nobodywho::sampler_config::{SampleStep, SamplerConfig, ShiftStep};
+
+        let mut config = SamplerConfig::new();
+
+        if self.repeat_penalty.is_some()
+            || self.repeat_last_n.is_some()
+            || self.repeat_freq_penalty.is_some()
+            || self.repeat_present_penalty.is_some()
+        {
+            config = config.shift(ShiftStep::Penalties {
+                penalty_last_n: self.repeat_last_n.unwrap_or(64),
+                penalty_repeat: self.repeat_penalty.unwrap_or(1.0),
+                penalty_freq: self.repeat_freq_penalty.unwrap_or(0.0),
+                penalty_present: self.repeat_present_penalty.unwrap_or(0.0),
+            });
+        }
+        if let Some(k) = self.top_k {
+            config = config.shift(ShiftStep::TopK { top_k: k });
+        }
+        if let Some(p) = self.top_p {
+            config = config.shift(ShiftStep::TopP {
+                top_p: p,
+                min_keep: 1,
+            });
+        }
+        if let Some(p) = self.min_p {
+            config = config.shift(ShiftStep::MinP {
+                min_p: p,
+                min_keep: 1,
+            });
+        }
+        if let Some(t) = self.temperature {
+            config = config.shift(ShiftStep::Temperature { temperature: t });
+        }
+
+        let sample_step = match self.sample_step.as_deref() {
+            None | Some("dist") => SampleStep::Dist,
+            Some("greedy") => SampleStep::Greedy,
+            Some("mirostatV1") => SampleStep::MirostatV1 {
+                tau: self.mirostat_tau.unwrap_or(5.0),
+                eta: self.mirostat_eta.unwrap_or(0.1),
+                m: self.mirostat_m.unwrap_or(100),
+            },
+            Some("mirostatV2") => SampleStep::MirostatV2 {
+                tau: self.mirostat_tau.unwrap_or(5.0),
+                eta: self.mirostat_eta.unwrap_or(0.1),
+            },
+            Some(other) => {
+                return Err(JsError::new(&format!(
+                    "sampler.sampleStep must be 'dist' | 'greedy' | 'mirostatV1' | 'mirostatV2'; got {other:?}",
+                )));
+            }
+        };
+        config = config.sample(sample_step);
+
+        Ok(config)
+    }
+}
+
+/// Build a sampler from the four possible combinations of `sampler` and
+/// `constraint` on `ChatOptions`.
+///
+/// | sampler | constraint | result                                              |
+/// |---------|------------|-----------------------------------------------------|
+/// | None    | None       | None (caller falls back to core's default sampler)  |
+/// | None    | Some(c)    | constraint-only sampler                             |
+/// | Some(s) | None       | user's sampler                                       |
+/// | Some(s) | Some(c)    | user's sampler with constraint shift PREPENDED       |
+fn build_sampler(
+    sampler: Option<SamplerSpec>,
+    constraint: Option<ConstraintSpec>,
+) -> Result<Option<nobodywho::sampler_config::SamplerConfig>, JsError> {
+    match (sampler, constraint) {
+        (None, None) => Ok(None),
+        (None, Some(c)) => Ok(Some(c.into_sampler()?)),
+        (Some(s), None) => Ok(Some(s.into_sampler()?)),
+        (Some(s), Some(c)) => {
+            let cfg = s.into_sampler()?;
+            Ok(Some(cfg.prepend(c.into_shift_step()?)))
+        }
     }
 }
 
@@ -787,8 +952,8 @@ impl Chat {
         if let Some(sys) = opts.system_prompt {
             builder = builder.with_system_prompt(Some(sys));
         }
-        if let Some(constraint) = opts.constraint {
-            builder = builder.with_sampler(constraint.into_sampler()?);
+        if let Some(sampler) = build_sampler(opts.sampler, opts.constraint)? {
+            builder = builder.with_sampler(sampler);
         }
         if let Some(vars) = opts.template_variables {
             builder = builder.with_template_variables(vars);
@@ -1201,17 +1366,16 @@ fn chat_handle_from_options(
     if let Some(sys) = opts.system_prompt {
         builder = builder.with_system_prompt(Some(sys));
     }
-    if let Some(constraint) = opts.constraint {
-        // ConstraintSpec::into_sampler returns Err(JsError) only when the
-        // exclusive-one-of check fails; reach into the JsError's underlying
-        // Error.message via Reflect.
-        let sampler = constraint.into_sampler().map_err(|e| {
-            let val: JsValue = e.into();
-            js_sys::Reflect::get(&val, &"message".into())
-                .ok()
-                .and_then(|m| m.as_string())
-                .unwrap_or_else(|| "invalid constraint".to_string())
-        })?;
+    if let Some(sampler) = build_sampler(opts.sampler, opts.constraint).map_err(|e| {
+        // build_sampler returns Err(JsError) only when the spec is invalid
+        // (constraint not exclusive-one-of, unknown sampleStep, etc.); reach
+        // into the underlying Error.message via Reflect.
+        let val: JsValue = e.into();
+        js_sys::Reflect::get(&val, &"message".into())
+            .ok()
+            .and_then(|m| m.as_string())
+            .unwrap_or_else(|| "invalid sampler / constraint".to_string())
+    })? {
         builder = builder.with_sampler(sampler);
     }
     if let Some(vars) = opts.template_variables {
