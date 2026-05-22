@@ -50,7 +50,7 @@ jobs:
         working-directory: ./nobodywho
         run: |
           cargo run --bin uniffi-bindgen -- generate \
-            --library ${{ github.workspace }}/native-lib/libnobodywho-uniffi-x86_64-unknown-linux-gnu-release.so \
+            --library ${{ github.workspace }}/native-lib/libnobodywho_uniffi.so \
             --language kotlin \
             --out-dir kotlin/common/generated
 
