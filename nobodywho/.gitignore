@@ -8,9 +8,6 @@ __pycache__/
 .venv/
 */result
 
-# Swift standalone package (not yet released)
-swift/
-
 # React Native (uniffi-bindgen-react-native)
 react-native/node_modules/
 react-native/android/build/

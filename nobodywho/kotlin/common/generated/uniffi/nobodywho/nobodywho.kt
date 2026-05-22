@@ -687,6 +687,8 @@ internal object IntegrityCheckingUniffiLib {
     }
     external fun uniffi_nobodywho_uniffi_checksum_func_cosine_similarity(
     ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_func_download_model(
+    ): Short
     external fun uniffi_nobodywho_uniffi_checksum_func_load_model(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar(
@@ -945,6 +947,8 @@ external fun uniffi_nobodywho_uniffi_fn_init_callback_vtable_rusttoolcallback(`v
 ): Unit
 external fun uniffi_nobodywho_uniffi_fn_func_cosine_similarity(`a`: RustBuffer.ByValue,`b`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Float
+external fun uniffi_nobodywho_uniffi_fn_func_download_model(`modelPath`: RustBuffer.ByValue,`headers`: RustBuffer.ByValue,`onDownloadProgress`: RustBuffer.ByValue,
+): Long
 external fun uniffi_nobodywho_uniffi_fn_func_load_model(`modelPath`: RustBuffer.ByValue,`useGpu`: Byte,`projectionModelPath`: RustBuffer.ByValue,`onDownloadProgress`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(`grammar`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -1091,6 +1095,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_func_cosine_similarity() != 63439.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_download_model() != 31331.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_nobodywho_uniffi_checksum_func_load_model() != 33587.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1181,7 +1188,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_completed() != 26060.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_next_token() != 44770.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_next_token() != 59210.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rusttool_get_schema_json() != 4679.toShort()) {
@@ -1235,7 +1242,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json() != 51798.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 38902.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 24505.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() != 9022.toShort()) {
@@ -1866,7 +1873,7 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
      */
     constructor(`model`: RustModel, `systemPrompt`: kotlin.String?, `contextSize`: kotlin.UInt, `templateVariables`: Map<kotlin.String, kotlin.Boolean>?, `tools`: List<RustTool>?, `sampler`: SamplerConfig?) :
         this(UniffiWithHandle, 
-    uniffiRustCall() { _status ->
+    uniffiRustCallWithError(NobodyWhoException) { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(
     
         FfiConverterTypeRustModel.lower(`model`),FfiConverterOptionalString.lower(`systemPrompt`),FfiConverterUInt.lower(`contextSize`),FfiConverterOptionalMapStringBoolean.lower(`templateVariables`),FfiConverterOptionalSequenceTypeRustTool.lower(`tools`),FfiConverterOptionalTypeSamplerConfig.lower(`sampler`),_status)
@@ -3229,7 +3236,7 @@ public interface RustTokenStreamInterface {
     suspend fun `completed`(): kotlin.String
     
     /**
-     * Get the next token. Returns None when generation is complete.
+     * Get the next token. Returns None when generation is complete, or an error if generation failed.
      */
     suspend fun `nextToken`(): kotlin.String?
     
@@ -3358,8 +3365,9 @@ open class RustTokenStream: Disposable, AutoCloseable, RustTokenStreamInterface
 
     
     /**
-     * Get the next token. Returns None when generation is complete.
+     * Get the next token. Returns None when generation is complete, or an error if generation failed.
      */
+    @Throws(NobodyWhoException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
     override suspend fun `nextToken`() : kotlin.String? {
         return uniffiRustCallAsync(
@@ -3375,7 +3383,7 @@ open class RustTokenStream: Disposable, AutoCloseable, RustTokenStreamInterface
         // lift function
         { FfiConverterOptionalString.lift(it) },
         // Error FFI converter
-        UniffiNullRustCallStatusErrorHandler,
+        NobodyWhoException.ErrorHandler,
     )
     }
 
@@ -5370,6 +5378,38 @@ public object FfiConverterOptionalMapStringBoolean: FfiConverterRustBuffer<Map<k
 /**
  * @suppress
  */
+public object FfiConverterOptionalMapStringString: FfiConverterRustBuffer<Map<kotlin.String, kotlin.String>?> {
+    override fun read(buf: ByteBuffer): Map<kotlin.String, kotlin.String>? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterMapStringString.read(buf)
+    }
+
+    override fun allocationSize(value: Map<kotlin.String, kotlin.String>?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterMapStringString.allocationSize(value)
+        }
+    }
+
+    override fun write(value: Map<kotlin.String, kotlin.String>?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterMapStringString.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
 public object FfiConverterSequenceFloat: FfiConverterRustBuffer<List<kotlin.Float>> {
     override fun read(buf: ByteBuffer): List<kotlin.Float> {
         val len = buf.getInt()
@@ -5630,6 +5670,45 @@ public object FfiConverterMapStringBoolean: FfiConverterRustBuffer<Map<kotlin.St
 
 
 
+/**
+ * @suppress
+ */
+public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.String, kotlin.String>> {
+    override fun read(buf: ByteBuffer): Map<kotlin.String, kotlin.String> {
+        val len = buf.getInt()
+        return buildMap<kotlin.String, kotlin.String>(len) {
+            repeat(len) {
+                val k = FfiConverterString.read(buf)
+                val v = FfiConverterString.read(buf)
+                this[k] = v
+            }
+        }
+    }
+
+    override fun allocationSize(value: Map<kotlin.String, kotlin.String>): ULong {
+        val spaceForMapSize = 4UL
+        val spaceForChildren = value.map { (k, v) ->
+            FfiConverterString.allocationSize(k) +
+            FfiConverterString.allocationSize(v)
+        }.sum()
+        return spaceForMapSize + spaceForChildren
+    }
+
+    override fun write(value: Map<kotlin.String, kotlin.String>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        // The parens on `(k, v)` here ensure we're calling the right method,
+        // which is important for compatibility with older android devices.
+        // Ref https://blog.danlew.net/2017/03/16/kotlin-puzzler-whose-line-is-it-anyways/
+        value.forEach { (k, v) ->
+            FfiConverterString.write(k, buf)
+            FfiConverterString.write(v, buf)
+        }
+    }
+}
+
+
+
+
 
 
 
@@ -5646,6 +5725,27 @@ public object FfiConverterMapStringBoolean: FfiConverterRustBuffer<Map<kotlin.St
     )
     }
     
+
+        /**
+         * Download a GGUF model from a remote URL or HuggingFace path and return the local file path.
+         *
+         * Use this when you need custom headers, e.g. for gated models that require authentication.
+         * For unauthenticated downloads, pass the URL directly to `load_model`.
+         */
+    @Throws(NobodyWhoException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `downloadModel`(`modelPath`: kotlin.String, `headers`: Map<kotlin.String, kotlin.String>?, `onDownloadProgress`: RustDownloadProgressCallback?) : kotlin.String {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_nobodywho_uniffi_fn_func_download_model(FfiConverterString.lower(`modelPath`),FfiConverterOptionalMapStringString.lower(`headers`),FfiConverterOptionalTypeRustDownloadProgressCallback.lower(`onDownloadProgress`),),
+        { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterString.lift(it) },
+        // Error FFI converter
+        NobodyWhoException.ErrorHandler,
+    )
+    }
 
         /**
          * Load a GGUF model from a local path or remote URL.
