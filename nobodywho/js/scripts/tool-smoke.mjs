@@ -132,7 +132,7 @@ const weatherToolAsync = m.Tool.fromFn(
   },
 );
 
-chat.terminate();
+await chat.terminate();
 const chatAsync = await m.Chat.create({
   modelBytes,
   systemPrompt:
@@ -159,7 +159,7 @@ assert.ok(
   `expected async callback args to be an object; got ${typeof asyncLastArgs}: ${JSON.stringify(asyncLastArgs)}`,
 );
 
-chatAsync.terminate();
+await chatAsync.terminate();
 
 console.log('\n=== Tool-calling JS smoke test passed ===');
 console.log('  Sync and async callbacks both dispatch through the WorkerChat');
@@ -167,3 +167,5 @@ console.log('  tool-call / tool-reply RPC bridge. The async path proves the');
 console.log('  wasm yields control to the JS event loop while parked at the');
 console.log('  tool-dispatch await, letting the user-side Promise resolve');
 console.log('  before inference resumes.');
+
+process.exit(0);

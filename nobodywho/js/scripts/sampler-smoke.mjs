@@ -50,7 +50,7 @@ async function runGreedyOnce() {
   try {
     return await chat.ask(PROMPT).completed();
   } finally {
-    chat.terminate();
+    await chat.terminate();
   }
 }
 
@@ -83,7 +83,7 @@ const customChat = await m.Chat.create({
     sampleStep: 'dist',
   },
 });
-customChat.terminate();
+await customChat.terminate();
 console.log('    ✓ constructed without error');
 
 // === 3. Invalid sampleStep rejects ===
@@ -109,7 +109,7 @@ const composedChat = await m.Chat.create({
   sampler: { temperature: 0.5, topP: 0.9, sampleStep: 'dist' },
   constraint: { regex: '[a-z]+' },
 });
-composedChat.terminate();
+await composedChat.terminate();
 console.log('    ✓ constructed without error');
 
 console.log('\n=== Sampler-config JS smoke test passed ===');
@@ -117,3 +117,5 @@ console.log('  Greedy sampling is deterministic across two WorkerChats.');
 console.log('  Custom temperature/topK/topP/minP/repeatPenalty fields accepted.');
 console.log('  Invalid sampleStep rejects the create Promise with a clear error.');
 console.log('  Sampler + constraint compose without conflict.');
+
+process.exit(0);

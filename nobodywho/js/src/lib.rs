@@ -2131,20 +2131,53 @@ impl Chat {
         })
     }
 
-    /// Shut down the worker. Any in-flight stream is failed with "terminated";
-    /// subsequent calls to `ask` reject.
-    pub fn terminate(&self) {
-        let mut st = self.state.borrow_mut();
-        if st.terminated {
-            return;
+    /// Shut down the worker. Any in-flight stream is failed with
+    /// "terminated"; subsequent calls to `ask` reject. Returns a Promise
+    /// that resolves once the underlying worker has fully shut down — on
+    /// Node, that's `worker_threads.Worker.terminate()` returning a
+    /// Promise. Awaiting it before spawning another `Chat` avoids
+    /// piling up workers (each loads ~480 MB of model, so memory
+    /// pressure climbs fast). On the browser, `Worker.terminate()` is
+    /// synchronous; the returned Promise resolves on the next tick.
+    pub fn terminate(&self) -> js_sys::Promise {
+        let already_terminated = {
+            let mut st = self.state.borrow_mut();
+            if st.terminated {
+                true
+            } else {
+                st.terminated = true;
+                let stream = st.current_stream.take();
+                if let Some(s) = stream {
+                    WorkerStreamState::fail(&s, "Chat terminated".to_string());
+                }
+                false
+            }
+        };
+        if already_terminated {
+            return js_sys::Promise::resolve(&JsValue::UNDEFINED);
         }
-        st.terminated = true;
-        let stream = st.current_stream.take();
-        worker_terminate(&st.worker);
-        drop(st);
-        if let Some(s) = stream {
-            WorkerStreamState::fail(&s, "Chat terminated".to_string());
-        }
+        let worker = self.state.borrow().worker.clone();
+        promisify(async move {
+            // Call worker.terminate() via Reflect. In Node the shim
+            // returns the Promise from `worker_threads.Worker.terminate()`;
+            // in the browser the real `Worker.terminate()` returns
+            // undefined. We await either shape — JsFuture::from on
+            // a non-Promise just resolves immediately.
+            let terminate_fn: js_sys::Function =
+                match js_sys::Reflect::get(&worker, &"terminate".into()) {
+                    Ok(v) => match v.dyn_into::<js_sys::Function>() {
+                        Ok(f) => f,
+                        Err(_) => return Ok(JsValue::UNDEFINED),
+                    },
+                    Err(_) => return Ok(JsValue::UNDEFINED),
+                };
+            if let Ok(ret) = terminate_fn.call0(&worker) {
+                if ret.is_instance_of::<js_sys::Promise>() {
+                    let _ = wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(ret)).await;
+                }
+            }
+            Ok(JsValue::UNDEFINED)
+        })
     }
 }
 
