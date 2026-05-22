@@ -175,7 +175,7 @@
       const m = await createNobodyWhoModule({ locateFile: (p) => '../pkg-bundler/' + p });
       // pre.js postRun has already called m.init() and m.setBootstrapUrl(_scriptName).
       statusEl.textContent = 'downloading model (≈460 MB, cached after first run)…';
-      chat = await m.WorkerChat.create({
+      chat = await m.Chat.create({
         modelUrl: 'https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
         systemPrompt: 'You are a helpful assistant. Answer in one short sentence.',
         templateVariables: { enable_thinking: false },

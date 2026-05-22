@@ -8,13 +8,15 @@ const { default: createNobodyWhoModule } = await import(join(pkgDir, 'nobodywho_
 const m = await createNobodyWhoModule({ locateFile: (p) => join(pkgDir, p) });
 m.init();
 
-const model = await m.Model.loadBytes(new Uint8Array(readFileSync(process.argv[2])));
-const chat = new m.Chat(model, {
+const chat = await m.Chat.create({
+  modelBytes: new Uint8Array(readFileSync(process.argv[2])),
   systemPrompt: 'You are a helpful assistant',
   templateVariables: { enable_thinking: false },
 });
 
-const stream = await chat.ask('What is the capital of Denmark?');
-const result = await stream.completed();
+const result = await chat.ask('What is the capital of Denmark?').completed();
 console.log(result);
 assert(result.toLowerCase().includes('copenhagen'), 'Model does not know the capital of Denmark.');
+
+await chat.terminate();
+process.exit(0);
