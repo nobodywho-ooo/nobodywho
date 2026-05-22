@@ -20,7 +20,7 @@ jobs:
     name: "Ubuntu (apt)"
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust
         run: |
@@ -41,7 +41,7 @@ jobs:
     name: "macOS"
     runs-on: warp-macos-latest-arm64-6x
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust
         run: |
@@ -64,7 +64,7 @@ jobs:
     name: "Windows"
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust
         run: |
@@ -89,7 +89,7 @@ jobs:
     name: "Nix"
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: cachix/install-nix-action@v31
         with:

@@ -15,9 +15,9 @@ jobs:
   static-checks:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install uv
-        uses: astral-sh/setup-uv@v2
+        uses: astral-sh/setup-uv@v5
         with:
           version: "latest"
 
@@ -72,7 +72,7 @@ jobs:
     env:
       RUSTFLAGS: ${{ matrix.runner == 'ubuntu-24.04' && '-C target-cpu=x86-64-v3' || '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust
         run: |
@@ -140,7 +140,7 @@ jobs:
         run: auditwheel repair --plat ${{ matrix.manylinux_target }} nobodywho/target/wheels/nobodywho*.whl
 
       - name: Upload wheel
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: nobodywho_python_linux_${{ matrix.manylinux_target }}
           path: ./wheelhouse/nobodywho*.whl
@@ -156,7 +156,7 @@ jobs:
     env:
       RUSTFLAGS: -l Advapi32 -C target-cpu=x86-64-v3
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           target: ${{ matrix.target }}
@@ -189,7 +189,7 @@ jobs:
           # Ninja's simpler build structure avoids this problem entirely.
           CMAKE_GENERATOR: "Ninja"
       - name: "Upload wheel artifact"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: nobodywho_python_windows_${{ matrix.target }}
           path: C:/target/wheels/nobodywho*.whl
@@ -200,7 +200,7 @@ jobs:
     strategy:
       fail-fast: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - uses: actions/setup-python@v6
         with:
@@ -211,7 +211,7 @@ jobs:
         working-directory: ./nobodywho/python
 
       - name: "Upload build artifact"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: nobodywho_python_macos
           path: ./nobodywho/target/wheels/nobodywho*.whl
@@ -221,13 +221,13 @@ jobs:
     needs: [linux-build]
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install uv
-        uses: astral-sh/setup-uv@v2
+        uses: astral-sh/setup-uv@v5
         with:
           version: "latest"
       - name: Download wheel
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nobodywho_python_linux_manylinux_2_34_x86_64
           path: ./wheels
@@ -267,13 +267,13 @@ jobs:
     needs: [linux-build]
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install uv
-        uses: astral-sh/setup-uv@v2
+        uses: astral-sh/setup-uv@v5
         with:
           version: "latest"
       - name: Download wheel
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nobodywho_python_linux_manylinux_2_34_x86_64
           path: ./wheels
@@ -302,15 +302,15 @@ jobs:
     needs: [linux-build]
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v2
+        uses: astral-sh/setup-uv@v5
         with:
           version: "latest"
 
       - name: Download wheel artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nobodywho_python_linux_manylinux_2_34_x86_64
           path: ./wheels
@@ -363,15 +363,15 @@ jobs:
             format: Gemma4
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v2
+        uses: astral-sh/setup-uv@v5
         with:
           version: "latest"
 
       - name: Download wheel artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nobodywho_python_linux_manylinux_2_34_x86_64
           path: ./wheels
@@ -430,12 +430,12 @@ jobs:
             manylinux_target: manylinux_2_34_aarch64
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
       - name: "Download wheel"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nobodywho_python_linux_${{ matrix.manylinux_target }}
           path: ./wheels
@@ -474,12 +474,12 @@ jobs:
             target: x86_64-pc-windows-msvc
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
       - name: "Download wheel"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nobodywho_python_windows_${{ matrix.target }}
           path: ./wheels
@@ -522,13 +522,13 @@ jobs:
             model_iterations: 10
             model_link: https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-Q4_1.gguf
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
       - name: "Download wheel"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
 
       - name: Install wheel
         run: |

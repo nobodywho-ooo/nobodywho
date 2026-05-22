@@ -15,10 +15,10 @@ jobs:
   generate-and-check:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: "Cache Cargo Home"
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo
@@ -71,10 +71,10 @@ jobs:
     if: inputs.full_ci
     runs-on: warp-macos-15-arm64-6x
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: "Download xcframework artifact"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nobodywho-swift-xcframework
           path: ./xcframework-zip

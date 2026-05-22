@@ -36,10 +36,10 @@ jobs:
     env:
       RUSTFLAGS: ${{ matrix.runner == 'ubuntu-24.04' && '-C target-cpu=x86-64-v3' || '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: "Cache Cargo Home"
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo
@@ -85,7 +85,7 @@ jobs:
           cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.so ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
 
       - name: "Upload build artifact"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
           path: ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
@@ -114,10 +114,10 @@ jobs:
         -C target-cpu=x86-64-v3
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "Cache Cargo Home"
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo
@@ -173,7 +173,7 @@ jobs:
           cp C:/t/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.pdb ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
 
       - name: "Upload build artifacts"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
           path: |
@@ -229,7 +229,7 @@ jobs:
           - integration: "uniffi"
             profile: "debug"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: "Setup Rust toolchain"
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
@@ -276,7 +276,7 @@ jobs:
           fi
 
       - name: "Upload build artifact"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
           # wildcard path to match both .dylib and .a
@@ -289,10 +289,10 @@ jobs:
     runs-on: warp-macos-15-arm64-6x
     needs: [cargo-build-macos]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: "Download all build artifacts"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           pattern: nobodywho-flutter-*-apple-*
           merge-multiple: true
@@ -357,7 +357,7 @@ jobs:
         run: zip -y -r nobodywho_flutter.xcframework.zip nobodywho_flutter.xcframework
 
       - name: "Upload build artifact"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: nobodywho-flutter-xcframework
           path: ./nobodywho_flutter.xcframework.zip
@@ -368,10 +368,10 @@ jobs:
     runs-on: warp-macos-15-arm64-6x
     needs: [cargo-build-macos]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: "Download uniffi iOS artifacts"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           pattern: nobodywho-uniffi-*-apple-ios*-release
           merge-multiple: true
@@ -393,7 +393,7 @@ jobs:
         run: zip -y -r NobodywhoFramework.xcframework.zip NobodywhoFramework.xcframework
 
       - name: "Upload build artifact"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: nobodywho-react-native-xcframework
           path: ./NobodywhoFramework.xcframework.zip
@@ -404,10 +404,10 @@ jobs:
     runs-on: macos-15
     needs: [cargo-build-macos]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: "Download uniffi Apple artifacts"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           pattern: nobodywho-uniffi-*-apple-*-release
           merge-multiple: true
@@ -448,7 +448,7 @@ jobs:
         run: zip -y -r NobodyWhoNative.xcframework.zip NobodyWhoNative.xcframework
 
       - name: "Upload build artifact"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: nobodywho-swift-xcframework
           path: ./NobodyWhoNative.xcframework.zip
@@ -476,10 +476,10 @@ jobs:
           - integration: "uniffi"
             profile: "debug"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: "Cache Cargo Home"
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo
@@ -547,7 +547,7 @@ jobs:
           fi
 
       - name: "Upload build artifact"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
           path: ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.*
