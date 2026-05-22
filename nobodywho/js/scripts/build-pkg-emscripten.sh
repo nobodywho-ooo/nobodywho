@@ -33,10 +33,13 @@
 #     used by the bundler target. Emscripten's runtime expects the plain
 #     HEAPU8/HEAP32 globals (no parens). When upstream wasm-bindgen learns
 #     to emit Emscripten-shaped globals, drop the substitutions.
-#   - Model.__wrap / TokenStream.__wrap — wasm-bindgen's "constructor"
-#     attribute generates a static-method call on the bare class. emcc wraps
-#     classes onto `Module.*`, so the static-method call needs to be
-#     redirected to `Module.Model.__wrap`. Same upstream fix applies.
+#   - Model.__wrap / TokenStream.__wrap / WorkerChat.__wrap — wasm-bindgen's
+#     "constructor" attribute generates a static-method call on the bare
+#     class. emcc wraps classes onto `Module.*`, so the static-method call
+#     needs to be redirected to `Module.Model.__wrap`. Same upstream fix
+#     applies. New classes that get returned from Rust as wasm-bindgen
+#     wrappers (i.e. constructed via `Ok(Foo { ... })` in Rust) need
+#     a sed line added here.
 #   - __wbg_terminated_addr / __wbg_called_abort — wasm-bindgen-cli
 #     references these inside __wbg_call_guard without declaring them
 #     anywhere. Without the `var` hoist Emscripten's JS compiler throws
@@ -157,8 +160,10 @@ echo "==> applying sed patches to library_bindgen.js"
 /usr/bin/sed -i.bak \
   -e 's/HEAPU80()/HEAPU8/g' \
   -e 's/HEAP320()/HEAP32/g' \
-  -e 's/Model\.__wrap/Module.Model.__wrap/g' \
-  -e 's/TokenStream\.__wrap/Module.TokenStream.__wrap/g' \
+  -E -e 's/(^|[^A-Za-z_])Model\.__wrap/\1Module.Model.__wrap/g' \
+     -e 's/(^|[^A-Za-z_])TokenStream\.__wrap/\1Module.TokenStream.__wrap/g' \
+     -e 's/(^|[^A-Za-z_])WorkerChat\.__wrap/\1Module.WorkerChat.__wrap/g' \
+     -e 's/(^|[^A-Za-z_])WorkerTokenStream\.__wrap/\1Module.WorkerTokenStream.__wrap/g' \
   "$PKG_DIR/library_bindgen.js"
 
 /usr/bin/sed -i.bak2 \

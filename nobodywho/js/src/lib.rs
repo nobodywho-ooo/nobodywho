@@ -638,13 +638,18 @@ fn tool_from_tagged(part: &JsValue) -> Result<nobodywho::tool_calling::Tool, Str
         move |args: serde_json::Value| {
             let callback = callback.clone();
             async move {
-                // serde_json::Value → JsValue for the JS-side function.
-                // serde_wasm_bindgen rather than JSON.parse for fidelity
-                // (preserves number vs. string types as the LLM emitted
-                // them, modulo serde's JSON shape).
-                let args_js = match serde_wasm_bindgen::to_value(&args) {
-                    Ok(v) => v,
-                    Err(e) => return format!("ERROR: tool arg conversion: {e}"),
+                // serde_json::Value → JsValue for the JS-side function,
+                // with `serialize_maps_as_objects(true)` so the user's
+                // callback sees a plain JS object (so `args.city` works)
+                // rather than a JS Map (where it wouldn't).
+                let args_js = {
+                    use serde::Serialize as _;
+                    let ser = serde_wasm_bindgen::Serializer::new()
+                        .serialize_maps_as_objects(true);
+                    match args.serialize(&ser) {
+                        Ok(v) => v,
+                        Err(e) => return format!("ERROR: tool arg conversion: {e}"),
+                    }
                 };
                 let result = match callback.call1(&JsValue::NULL, &args_js) {
                     Ok(v) => v,
@@ -1512,19 +1517,27 @@ fn build_rpc_tool(meta: ToolMeta) -> nobodywho::tool_calling::Tool {
                 });
 
                 // Build the tool-call message: { type, id, name, args }.
-                // serde_wasm_bindgen for args so nested objects survive
-                // postMessage's structured-clone faithfully.
+                // serde_wasm_bindgen with `serialize_maps_as_objects(true)`
+                // so `args.city` reads as a plain-Object property on the JS
+                // side. The default `to_value` would convert
+                // `serde_json::Value::Object` to a JS `Map`, which the user's
+                // callback can't access via `args.city`.
                 let payload = js_sys::Object::new();
                 let _ = js_sys::Reflect::set(&payload, &"type".into(), &"tool-call".into());
                 let _ = js_sys::Reflect::set(&payload, &"id".into(), &id.as_str().into());
                 let _ = js_sys::Reflect::set(&payload, &"name".into(), &name.as_str().into());
-                let args_js = match serde_wasm_bindgen::to_value(&args) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        PENDING_TOOL_CALLS.with(|m| {
-                            m.borrow_mut().remove(&id);
-                        });
-                        return format!("ERROR: tool args conversion: {e}");
+                let args_js = {
+                    use serde::Serialize as _;
+                    let ser = serde_wasm_bindgen::Serializer::new()
+                        .serialize_maps_as_objects(true);
+                    match args.serialize(&ser) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            PENDING_TOOL_CALLS.with(|m| {
+                                m.borrow_mut().remove(&id);
+                            });
+                            return format!("ERROR: tool args conversion: {e}");
+                        }
                     }
                 };
                 let _ = js_sys::Reflect::set(&payload, &"args".into(), &args_js);
@@ -2023,7 +2036,12 @@ fn get_bootstrap_url() -> Result<String, JsError> {
 
 #[cfg(target_arch = "wasm32")]
 struct ChatState {
-    worker: web_sys::Worker,
+    /// The spawned worker as an opaque JS handle. Reached via Reflect for
+    /// postMessage / terminate / onmessage / onerror, so the same code
+    /// works whether the underlying object is a real browser `Worker` or
+    /// the Node shim wrapping a `worker_threads.Worker` (see pre.js's
+    /// `__nbw_spawn_worker`).
+    worker: JsValue,
     current_stream: Option<std::rc::Rc<RefCell<WorkerStreamState>>>,
     /// While `WorkerChat::create` is running through its load-model / create-chat
     /// handshake, this holds `(expected_reply_type, sender)`. The onmessage
@@ -2037,8 +2055,20 @@ struct ChatState {
     /// looks up the callback here, invokes it, and posts back the result.
     tool_callbacks: std::collections::HashMap<String, js_sys::Function>,
     terminated: bool,
-    _on_message: Option<wasm_bindgen::closure::Closure<dyn FnMut(web_sys::MessageEvent)>>,
-    _on_error: Option<wasm_bindgen::closure::Closure<dyn FnMut(web_sys::ErrorEvent)>>,
+    _on_message: Option<wasm_bindgen::closure::Closure<dyn FnMut(JsValue)>>,
+    _on_error: Option<wasm_bindgen::closure::Closure<dyn FnMut(JsValue)>>,
+}
+
+/// Best-effort terminate of a worker handle via Reflect — works for
+/// both browser `Worker` and Node shim. Errors are swallowed (we're
+/// already cleaning up).
+#[cfg(target_arch = "wasm32")]
+fn worker_terminate(worker: &JsValue) {
+    if let Ok(f) = js_sys::Reflect::get(worker, &"terminate".into()) {
+        if let Ok(fun) = f.dyn_into::<js_sys::Function>() {
+            let _ = fun.call0(worker);
+        }
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -2054,7 +2084,7 @@ impl Drop for WorkerChat {
         // after the wasm-side WorkerChat is released. The closures hold `Weak`
         // refs to ChatState (no cycle), so dropping state here is safe.
         if let Ok(st) = self.state.try_borrow() {
-            let _ = st.worker.terminate();
+            worker_terminate(&st.worker);
         }
     }
 }
@@ -2072,32 +2102,30 @@ impl WorkerChat {
             let parsed = parse_chat_create_opts(&opts)?;
             let bootstrap = get_bootstrap_url()?;
 
-            // Build the inline-Blob worker entrypoint. The Emscripten loader
-            // is an ES module exporting `default createNobodyWhoModule`;
-            // *importing* it just declares the factory, so we also have to
-            // invoke it for the `postRun` hook in `pre.js` to fire (that's
-            // what calls `init()` + `runInWorker()` on the worker side).
-            //
-            // JSON-encode the URL so it's safely interpolated as a string literal.
-            let url_lit = serde_json::to_string(&bootstrap)
-                .map_err(|e| JsError::new(&format!("json url: {e}")))?;
-            let bootstrap_code = format!(
-                "import({url_lit}).then(({{default:c}})=>c());"
-            );
-
-            let blob_bag = web_sys::BlobPropertyBag::new();
-            blob_bag.set_type("text/javascript");
-            let parts = js_sys::Array::new();
-            parts.push(&JsValue::from_str(&bootstrap_code));
-            let blob = web_sys::Blob::new_with_str_sequence_and_options(&parts, &blob_bag)
-                .map_err(|e| JsError::new(&format!("new Blob: {e:?}")))?;
-            let url = web_sys::Url::create_object_url_with_blob(&blob)
-                .map_err(|e| JsError::new(&format!("createObjectURL: {e:?}")))?;
-
-            let worker_opts = web_sys::WorkerOptions::new();
-            worker_opts.set_type(web_sys::WorkerType::Module);
-            let worker = web_sys::Worker::new_with_options(&url, &worker_opts)
-                .map_err(|e| JsError::new(&format!("new Worker: {e:?}")))?;
+            // Delegate Worker construction to pre.js's `__nbw_spawn_worker`
+            // helper, which picks between the browser `Worker(blobURL)` path
+            // and the Node `worker_threads.Worker` path. It returns a
+            // Worker-shaped object (real Worker in browser, JS shim in Node);
+            // we treat it as a generic JsValue and access methods via Reflect.
+            let global = js_sys::global();
+            let spawn_fn: js_sys::Function =
+                js_sys::Reflect::get(&global, &"__nbw_spawn_worker".into())
+                    .ok()
+                    .and_then(|v| v.dyn_into::<js_sys::Function>().ok())
+                    .ok_or_else(|| {
+                        JsError::new(
+                            "WorkerChat.create: globalThis.__nbw_spawn_worker is not defined \
+                             — pre.js was not loaded (build artifact incomplete)",
+                        )
+                    })?;
+            let worker_promise = spawn_fn
+                .call1(&JsValue::NULL, &JsValue::from_str(&bootstrap))
+                .map_err(|e| JsError::new(&format!("__nbw_spawn_worker threw: {e:?}")))?;
+            let worker: JsValue = wasm_bindgen_futures::JsFuture::from(
+                js_sys::Promise::from(worker_promise),
+            )
+            .await
+            .map_err(|e| JsError::new(&format!("__nbw_spawn_worker rejected: {e:?}")))?;
 
             // Take the tool callbacks out of `parsed` and install them in
             // state. They stay on the main thread; the worker only sees
@@ -2118,26 +2146,43 @@ impl WorkerChat {
 
             let state_weak = std::rc::Rc::downgrade(&state);
             let on_message =
-                wasm_bindgen::closure::Closure::<dyn FnMut(web_sys::MessageEvent)>::new(
-                    move |evt: web_sys::MessageEvent| {
-                        if let Some(state) = state_weak.upgrade() {
-                            handle_chat_message(&state, evt.data());
-                        }
-                    },
-                );
+                wasm_bindgen::closure::Closure::<dyn FnMut(JsValue)>::new(move |evt: JsValue| {
+                    if let Some(state) = state_weak.upgrade() {
+                        // `evt` is either a browser MessageEvent (with `.data`)
+                        // or the Node shim's `{ data }` plain object — both
+                        // respond to Reflect-get('data').
+                        let data = js_sys::Reflect::get(&evt, &"data".into())
+                            .unwrap_or(JsValue::UNDEFINED);
+                        handle_chat_message(&state, data);
+                    }
+                });
 
             let state_weak2 = std::rc::Rc::downgrade(&state);
-            let on_error = wasm_bindgen::closure::Closure::<dyn FnMut(web_sys::ErrorEvent)>::new(
-                move |evt: web_sys::ErrorEvent| {
+            let on_error =
+                wasm_bindgen::closure::Closure::<dyn FnMut(JsValue)>::new(move |evt: JsValue| {
                     if let Some(state) = state_weak2.upgrade() {
-                        let msg = format!("worker crashed: {}", evt.message());
-                        handle_chat_error(&state, msg);
+                        // Browser ErrorEvent has `.message`; the Node shim
+                        // synthesizes `{ message }`. Read via Reflect.
+                        let msg = js_sys::Reflect::get(&evt, &"message".into())
+                            .ok()
+                            .and_then(|v| v.as_string())
+                            .unwrap_or_else(|| format!("{evt:?}"));
+                        handle_chat_error(&state, format!("worker crashed: {msg}"));
                     }
-                },
-            );
+                });
 
-            worker.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
-            worker.set_onerror(Some(on_error.as_ref().unchecked_ref()));
+            js_sys::Reflect::set(
+                &worker,
+                &"onmessage".into(),
+                on_message.as_ref().unchecked_ref(),
+            )
+            .map_err(|e| JsError::new(&format!("set worker.onmessage: {e:?}")))?;
+            js_sys::Reflect::set(
+                &worker,
+                &"onerror".into(),
+                on_error.as_ref().unchecked_ref(),
+            )
+            .map_err(|e| JsError::new(&format!("set worker.onerror: {e:?}")))?;
 
             {
                 let mut st = state.borrow_mut();
@@ -2196,10 +2241,7 @@ impl WorkerChat {
             if let Some(mmproj) = mmproj_bytes_value {
                 let _ = js_sys::Reflect::set(&load_msg, &"mmprojBytes".into(), &mmproj);
             }
-            state
-                .borrow()
-                .worker
-                .post_message(&load_msg)
+            worker_post(&state.borrow().worker, &load_msg)
                 .map_err(|e| JsError::new(&format!("post load-model: {e:?}")))?;
             wait_for_handshake(&state, "model-loaded").await?;
 
@@ -2215,10 +2257,7 @@ impl WorkerChat {
             let _ =
                 js_sys::Reflect::set(&create_msg, &"options".into(), &parsed.chat_opts_jsval);
             let _ = js_sys::Reflect::set(&create_msg, &"tools".into(), &tools_jsval);
-            state
-                .borrow()
-                .worker
-                .post_message(&create_msg)
+            worker_post(&state.borrow().worker, &create_msg)
                 .map_err(|e| JsError::new(&format!("post create-chat: {e:?}")))?;
             wait_for_handshake(&state, "chat-ready").await?;
 
@@ -2254,8 +2293,7 @@ impl WorkerChat {
         let ask_msg = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&ask_msg, &"type".into(), &"ask".into());
         let _ = js_sys::Reflect::set(&ask_msg, &"parts".into(), &parts);
-        st.worker
-            .post_message(&ask_msg)
+        worker_post(&st.worker, &ask_msg)
             .map_err(|e| JsError::new(&format!("post ask: {e:?}")))?;
         drop(st);
 
@@ -2273,7 +2311,7 @@ impl WorkerChat {
         }
         st.terminated = true;
         let stream = st.current_stream.take();
-        let _ = st.worker.terminate();
+        worker_terminate(&st.worker);
         drop(st);
         if let Some(s) = stream {
             WorkerStreamState::fail(&s, "WorkerChat terminated".to_string());
@@ -2344,7 +2382,7 @@ fn handle_chat_message(state: &std::rc::Rc<RefCell<ChatState>>, data: JsValue) {
                         &"error".into(),
                         &format!("no tool callback registered for {name:?}").into(),
                     );
-                    let _ = worker.post_message(&reply);
+                    let _ = worker_post(&worker, &reply);
                     return;
                 };
 
@@ -2360,7 +2398,7 @@ fn handle_chat_message(state: &std::rc::Rc<RefCell<ChatState>>, data: JsValue) {
                             .and_then(|m| m.as_string())
                             .unwrap_or_else(|| format!("{e:?}"));
                         let _ = js_sys::Reflect::set(&reply, &"error".into(), &msg.into());
-                        let _ = worker.post_message(&reply);
+                        let _ = worker_post(&worker, &reply);
                         return;
                     }
                 };
@@ -2380,7 +2418,7 @@ fn handle_chat_message(state: &std::rc::Rc<RefCell<ChatState>>, data: JsValue) {
                                 &"error".into(),
                                 &format!("tool promise rejected: {msg}").into(),
                             );
-                            let _ = worker.post_message(&reply);
+                            let _ = worker_post(&worker, &reply);
                             return;
                         }
                     }
@@ -2399,7 +2437,7 @@ fn handle_chat_message(state: &std::rc::Rc<RefCell<ChatState>>, data: JsValue) {
                         })
                 };
                 let _ = js_sys::Reflect::set(&reply, &"result".into(), &result_str.into());
-                let _ = worker.post_message(&reply);
+                let _ = worker_post(&worker, &reply);
             });
         }
         // Handshake reply: resolve a pending oneshot if its expected type matches.
