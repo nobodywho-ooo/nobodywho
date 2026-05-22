@@ -396,9 +396,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Publish to Maven Central (requires MAVEN_CENTRAL_USERNAME and MAVEN_CENTRAL_PASSWORD secrets)
       - name: "Publish to Maven Central"
-        if: ${{ secrets.MAVEN_CENTRAL_USERNAME != '' }}
         working-directory: ./nobodywho/kotlin
         env:
           MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
