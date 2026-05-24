@@ -7,18 +7,16 @@
 // once it has accepted the decoded samples).
 //
 // Full audio inference (decode + mmproj encode + LLM forward) works
-// end-to-end for audio mmprojs after the mtmd-audio.cpp `n_threads = 1`
-// patch on Emscripten (nobodywho-ooo/llama.cpp wasm-emscripten branch).
-// Verified against Qwen3-ASR-0.6B: the model produces real
-// transcripts of the test clips.
+// end-to-end for WAV / MP3 / FLAC against Qwen3-ASR after the
+// mtmd-audio.cpp `n_threads = 1` patch on Emscripten
+// (nobodywho-ooo/llama.cpp wasm-emscripten branch). The model
+// produces real transcripts of the test clips.
 //
-// The smoke is lenient about completing all 4 sequential workers:
-// `worker_threads.Worker.terminate()` resolves async, so spawning
-// four chats back-to-back can hit cumulative memory pressure on the
-// 4th (each chat carries the model + mmproj bytes via structured
-// clone). Sections that fail late are still flagged `decoder-ok` —
-// proves the bytes survived the wasm boundary even if the worker
-// died before producing tokens.
+// Ogg/Vorbis is currently expected to fail with "Unable to read
+// audio file" — mtmd's `is_audio_file` doesn't recognize Ogg
+// (the upstream-correctness patch for that was reverted on our
+// wasm fork because it surfaces a deeper silent-crash bug in the
+// chat-worker; see README "Outstanding" → Ogg/Vorbis audio).
 //
 // Run after `bash js/scripts/build-pkg-emscripten.sh`:
 //   PATH=/opt/homebrew/bin:$PATH node js/scripts/audio-smoke.mjs

@@ -2127,7 +2127,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-2"
 version = "0.1.147"
-source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=wasm-emscripten#f9debf3dc015e252dc603a62248046b092124d9e"
+source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=wasm-emscripten#e27b164bc089ad473dd35a035e2fa44ffc40d645"
 dependencies = [
  "encoding_rs",
  "enumflags2",
@@ -2142,7 +2142,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-sys-2"
 version = "0.1.147"
-source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=wasm-emscripten#f9debf3dc015e252dc603a62248046b092124d9e"
+source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=wasm-emscripten#e27b164bc089ad473dd35a035e2fa44ffc40d645"
 dependencies = [
  "bindgen",
  "cc",
@@ -4432,7 +4432,7 @@ dependencies = [
 [[package]]
 name = "wasm-bindgen"
 version = "0.2.121"
-source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=emscripten-descriptor-fixes#49457f2db4465688cb597e9030ccfdefbd2b662e"
+source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=emscripten-descriptor-fixes#f4fc33dc7f505b6aa19bdfc2c9672e8680f76168"
 dependencies = [
  "cfg-if",
  "once_cell",
@@ -4454,7 +4454,7 @@ dependencies = [
 [[package]]
 name = "wasm-bindgen-macro"
 version = "0.2.121"
-source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=emscripten-descriptor-fixes#49457f2db4465688cb597e9030ccfdefbd2b662e"
+source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=emscripten-descriptor-fixes#f4fc33dc7f505b6aa19bdfc2c9672e8680f76168"
 dependencies = [
  "quote",
  "wasm-bindgen-macro-support",
@@ -4463,7 +4463,7 @@ dependencies = [
 [[package]]
 name = "wasm-bindgen-macro-support"
 version = "0.2.121"
-source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=emscripten-descriptor-fixes#49457f2db4465688cb597e9030ccfdefbd2b662e"
+source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=emscripten-descriptor-fixes#f4fc33dc7f505b6aa19bdfc2c9672e8680f76168"
 dependencies = [
  "bumpalo",
  "proc-macro2",
@@ -4475,7 +4475,7 @@ dependencies = [
 [[package]]
 name = "wasm-bindgen-shared"
 version = "0.2.121"
-source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=emscripten-descriptor-fixes#49457f2db4465688cb597e9030ccfdefbd2b662e"
+source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=emscripten-descriptor-fixes#f4fc33dc7f505b6aa19bdfc2c9672e8680f76168"
 dependencies = [
  "unicode-ident",
 ]
