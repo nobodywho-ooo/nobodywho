@@ -1,0 +1,119 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>chat (streaming + tools)</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; max-width: 720px; }
+    h1 { font-size: 1.4rem; margin-bottom: 0.5rem; }
+    p#status { color: #666; font-size: 0.9em; margin-top: 0; }
+    #prompt { display: block; margin: 1rem 0 0.5rem; color: #555; }
+    #out {
+      white-space: pre-wrap; background: #f6f6f6; padding: 1rem;
+      border-radius: 4px; min-height: 4em; line-height: 1.5;
+    }
+    #tools-log {
+      margin-top: 1rem; padding: 0.75rem 1rem;
+      border-left: 3px solid #4a9; background: #eef9f3; border-radius: 0 4px 4px 0;
+      font-family: ui-monospace, monospace; font-size: 0.85em;
+    }
+    #tools-log:empty { display: none; }
+    .tool-call { margin: 0.25rem 0; }
+    .tool-call .name { font-weight: bold; color: #287; }
+  </style>
+</head>
+<body>
+  <h1>NobodyWho — streaming + tool calling</h1>
+  <p id="status">loading wasm…</p>
+  <p id="prompt"></p>
+  <pre id="out"></pre>
+  <div id="tools-log"></div>
+
+  <script type="module">
+    const status = document.getElementById('status');
+    const out = document.getElementById('out');
+    const promptEl = document.getElementById('prompt');
+    const toolsLog = document.getElementById('tools-log');
+
+    function logTool(name, args, result) {
+      const div = document.createElement('div');
+      div.className = 'tool-call';
+      div.innerHTML = `<span class="name">${name}</span>(${JSON.stringify(args)}) → ${JSON.stringify(result)}`;
+      toolsLog.appendChild(div);
+    }
+
+    const { default: createNobodyWhoModule } = await import('../pkg-bundler/nobodywho_js.js');
+    const m = await createNobodyWhoModule();
+    m.init();
+
+    // Two trivial tools. The model is free to call neither, either, or
+    // both, and to chain them. The callbacks are plain JS functions
+    // that stay on the main thread — they go over the worker↔main RPC
+    // bridge automatically when the worker emits a tool_call.
+    const getWeather = m.Tool.fromFn(
+      'get_weather',
+      'Get the current weather for a city in Celsius.',
+      {
+        type: 'object',
+        properties: { city: { type: 'string', description: 'City name' } },
+        required: ['city'],
+      },
+      (args) => {
+        // Fake weather data — real apps would call a weather API here.
+        const data = { city: args.city, tempC: 14, conditions: 'overcast with light rain' };
+        logTool('get_weather', args, data);
+        return JSON.stringify(data);
+      },
+    );
+
+    const getTime = m.Tool.fromFn(
+      'get_local_time',
+      'Get the current local time in a city as an ISO-8601 string.',
+      {
+        type: 'object',
+        properties: { city: { type: 'string', description: 'City name' } },
+        required: ['city'],
+      },
+      (args) => {
+        const data = { city: args.city, time: new Date().toISOString() };
+        logTool('get_local_time', args, data);
+        return JSON.stringify(data);
+      },
+    );
+
+    status.textContent = 'fetching / loading model (~480 MB; cached after first run)…';
+    const chat = await m.Chat.create({
+      modelUrl: 'https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
+      systemPrompt:
+        'You are a helpful assistant. ' +
+        'When the user asks about weather or time in a city, ' +
+        'call the matching tool and then answer in one or two sentences.',
+      templateVariables: { enable_thinking: false },
+      tools: [getWeather, getTime],
+    });
+
+    const userPrompt = 'What is the weather and current local time in Copenhagen?';
+    promptEl.textContent = `User: ${userPrompt}`;
+
+    status.textContent = 'streaming…';
+    const t0 = performance.now();
+    let ttftMs = null;
+
+    // Async-iterate the stream. The per-token hook in core fires
+    // postMessage per sampled token, so out.textContent fills in
+    // visibly. Tool-call grammar tokens (<tool_call>{"name":...}</tool_call>)
+    // are NOT emitted — wrap_respond in core/src/chat.rs suppresses
+    // them before they reach the hook, so app code sees a clean answer
+    // stream without tool-call syntax leaking through.
+    for await (const tok of chat.ask(userPrompt)) {
+      if (ttftMs === null) ttftMs = performance.now() - t0;
+      out.textContent += tok;
+    }
+
+    const totalMs = performance.now() - t0;
+    status.textContent =
+      `done — ttft ${ttftMs?.toFixed(0)} ms, total ${totalMs.toFixed(0)} ms`;
+    await chat.terminate();
+  </script>
+</body>
+</html>
