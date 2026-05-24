@@ -744,9 +744,10 @@ struct ChatOptions {
 /// All three are documented in core's `GrammarConstraint`; this is just the
 /// JS-facing wire format.
 ///
-/// The wire format is stable; the grammar sampler runs through llguidance,
-/// which needs a monotonic clock — Emscripten's libc has `clock_gettime`,
-/// so this should work at runtime, but end-to-end is unverified.
+/// The grammar sampler runs through llguidance, which needs a monotonic
+/// clock — Emscripten's libc has `clock_gettime`, so this works at
+/// runtime. End-to-end verified on Emscripten via
+/// `js/scripts/constraint-smoke.mjs` (regex + json_schema + lark).
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ConstraintSpec {
