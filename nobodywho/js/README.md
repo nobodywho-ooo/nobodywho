@@ -52,10 +52,6 @@ while (true) {
 }
 ```
 
-Browser demo: `examples/browser-chat-streaming.html` — `<pre>` fills in
-token-by-token. TTFT (time to first token) is roughly one-token sampling
-time plus prompt prefill, instead of the full generation duration.
-
 **Embedding** (`encoder_demo.mjs`):
 ```js
 const m = await createNobodyWhoModule();
