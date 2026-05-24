@@ -1665,21 +1665,19 @@ impl Model {
 
 // ---------- TokenStream ----------
 //
-// User-facing token stream returned from `Chat::ask`. Two consumption
+// User-facing token stream returned from `Chat::ask`. Three consumption
 // modes:
 //
+//   - `for await (const tok of stream)` — idiomatic JS async iteration.
+//     Wired via a one-line `[Symbol.asyncIterator]` shim attached to
+//     `Module.TokenStream.prototype` in `pkg-bundler/pre.js`'s `postRun`
+//     hook (wasm-bindgen 0.2.121 can't emit the protocol cleanly on a
+//     pyclass-style binding, so we patch it in).
 //   - `stream.next()` → `Promise<{value: string, done: boolean}>` — pull
-//     one token at a time. This is the streaming path: each resolution
-//     fires as soon as the worker postMessages a `token` payload.
+//     one token at a time manually. Each resolution fires as soon as the
+//     worker postMessages a `token` payload.
 //   - `stream.completed()` → `Promise<string>` — wait for EOS and resolve
 //     to the full concatenated text. Equivalent to draining `next()`.
-//
-// `[Symbol.asyncIterator]` is NOT wired today, so
-// `for await (const tok of stream)` does not work — use the explicit
-// `next()` loop instead (see `examples/browser-chat-streaming.html`).
-// wasm-bindgen 0.2.121 can't emit it cleanly; a one-line shim in
-// `pkg-bundler/pre.js` (Module.TokenStream.prototype[Symbol.asyncIterator]
-// = function() { return this; }) would restore the for-await ergonomic.
 //
 // State shared with `Chat` via `Rc<RefCell<WorkerStreamState>>`: Chat pushes
 // tokens/done/error into the state from inside its `onmessage` closure; the
@@ -1853,12 +1851,9 @@ fn iter_result(value: Option<&str>) -> JsValue {
 // App code shape:
 //
 //     const chat = await Chat.create({ modelUrl, systemPrompt, ... });
-//     // streaming: explicit next() loop (Symbol.asyncIterator not wired)
-//     const stream = chat.ask(prompt);
-//     while (true) {
-//         const { value, done } = await stream.next();
-//         if (done) break;
-//         process.stdout.write(value);
+//     // streaming via async iteration:
+//     for await (const tok of chat.ask(prompt)) {
+//         process.stdout.write(tok);
 //     }
 //     // or get the full text at once:
 //     const full = await chat.ask(prompt).completed();

@@ -82,6 +82,17 @@ Module.postRun.push(() => {
   if (typeof Module.setBootstrapUrl === 'function' && typeof _scriptName === 'string') {
     Module.setBootstrapUrl(_scriptName);
   }
+  // Make `for await (const tok of chat.ask(prompt))` work. wasm-bindgen
+  // 0.2.121 emits `next()` returning `Promise<{value, done}>` on the
+  // TokenStream class but can't emit `[Symbol.asyncIterator]` cleanly,
+  // so we attach the canonical "iterator returns itself" shim on the
+  // prototype. One line of glue, unlocks the idiomatic JS streaming
+  // pattern that the docs already assume.
+  if (typeof Module.TokenStream === 'function'
+      && Module.TokenStream.prototype
+      && !Module.TokenStream.prototype[Symbol.asyncIterator]) {
+    Module.TokenStream.prototype[Symbol.asyncIterator] = function () { return this; };
+  }
   const isBrowserWorker = typeof DedicatedWorkerGlobalScope !== 'undefined'
     && typeof self !== 'undefined'
     && self instanceof DedicatedWorkerGlobalScope;
