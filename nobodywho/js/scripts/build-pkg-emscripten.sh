@@ -29,10 +29,13 @@
 #
 # Why the sed patches: workarounds for codegen bugs in stock wasm-bindgen-cli
 # 0.2.121 when targeting the emscripten module shape:
-#   - HEAPU80()/HEAP320() — wasm-bindgen emits the typed-array getter form
-#     used by the bundler target. Emscripten's runtime expects the plain
-#     HEAPU8/HEAP32 globals (no parens). When upstream wasm-bindgen learns
-#     to emit Emscripten-shaped globals, drop the substitutions.
+#   - HEAPU80()/HEAP320() and HEAPU8()/HEAP32() — wasm-bindgen emits the
+#     typed-array getter form used by the bundler target. The "0" suffix
+#     comes from wasm-bindgen's identifier mangling for some call sites;
+#     others emit without the "0". Emscripten's runtime expects the plain
+#     HEAPU8/HEAP32 globals (no parens, no suffix). Patch both forms.
+#     When upstream wasm-bindgen learns to emit Emscripten-shaped globals,
+#     drop the substitutions.
 #   - Model.__wrap / TokenStream.__wrap / WorkerChat.__wrap — wasm-bindgen's
 #     "constructor" attribute generates a static-method call on the bare
 #     class. emcc wraps classes onto `Module.*`, so the static-method call
@@ -158,8 +161,10 @@ cp "$WBG_WASM" "$PKG_DIR/nobodywho_js_bg.wasm"
 echo "==> applying sed patches to library_bindgen.js"
 # See block comment at top of file for why each substitution is needed.
 /usr/bin/sed -i.bak \
-  -e 's/HEAPU80()/HEAPU8/g' \
-  -e 's/HEAP320()/HEAP32/g' \
+  -e 's/HEAPU80\(\)/HEAPU8/g' \
+  -e 's/HEAP320\(\)/HEAP32/g' \
+  -e 's/HEAPU8\(\)/HEAPU8/g' \
+  -e 's/HEAP32\(\)/HEAP32/g' \
   -E -e 's/(^|[^A-Za-z_])Model\.__wrap/\1Module.Model.__wrap/g' \
      -e 's/(^|[^A-Za-z_])TokenStream\.__wrap/\1Module.TokenStream.__wrap/g' \
      -e 's/(^|[^A-Za-z_])Chat\.__wrap/\1Module.Chat.__wrap/g' \
