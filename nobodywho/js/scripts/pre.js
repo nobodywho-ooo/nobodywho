@@ -48,6 +48,24 @@ Module.printErr = (line) => {
   catch (e) { console.error('[wasm stderr]', line); }
 };
 
+// Emscripten's default `abort()` handler in a Node host calls
+// `process.exit(1)` — bypassing both `process.on('uncaughtException')`
+// and `process.on('exit')`-emitting-error paths. Override `onAbort` so
+// abort messages reach stderr first, and override `quit` so the worker
+// throws (which then triggers the uncaughtException handler set above
+// in the worker's bootstrap preamble — see the Node spawn helper).
+Module.onAbort = (what) => {
+  try { process.stderr.write('[wasm abort] ' + (what === undefined ? '(no message)' : String(what)) + '\n'); }
+  catch (e) { /* ignore */ }
+  throw new Error('wasm aborted: ' + (what === undefined ? '(no message)' : String(what)));
+};
+Module.quit = (status, toThrow) => {
+  // Emscripten calls quit() during abort and during natural exit. We
+  // never want the worker to silently process.exit() — that hides
+  // wasm traps and Rust panics from the parent. Always throw.
+  throw toThrow || new Error('wasm quit(' + status + ')');
+};
+
 // Self-init: avoid making callers wire up panic hooks, the bootstrap URL,
 // or worker-side message dispatch by hand. The Emscripten loader closure
 // has `_scriptName = import.meta.url` in scope when `postRun` fires, so
@@ -134,6 +152,26 @@ globalThis.__nbw_spawn_worker = async function(wasmEntryUrl) {
       `  process.stderr.write('[worker unhandledRejection] ' + (reason && reason.stack ? reason.stack : String(reason)) + '\\n');`,
       `  process.exit(1);`,
       `});`,
+      // Catch process.exit() invocations so the parent sees WHY the
+      // worker exited. Emscripten's default abort handler in Node
+      // calls process.exit(1) silently. The 'exit' event fires even
+      // for explicit exit(); 'beforeExit' fires when the event loop
+      // empties naturally. Both log to stderr so the parent's pipe
+      // captures the signal.
+      `process.on('exit', (code) => {`,
+      `  process.stderr.write('[worker exit] code=' + code + ' stack=' + (new Error().stack || '') + '\\n');`,
+      `});`,
+      `process.on('beforeExit', (code) => {`,
+      `  process.stderr.write('[worker beforeExit] code=' + code + '\\n');`,
+      `});`,
+      // Wrap process.exit so we capture WHO called it. The stack
+      // trace in the wrapped call tells us if it was Emscripten's
+      // abort path, a user-side process.exit, or some library.
+      `const __real_exit = process.exit;`,
+      `process.exit = function(code) {`,
+      `  process.stderr.write('[worker process.exit called] code=' + code + ' stack=' + (new Error().stack || '') + '\\n');`,
+      `  return __real_exit.call(process, code);`,
+      `};`,
       `import(${JSON.stringify(wasmEntryUrl)}).then(({default:c}) => c());`,
     ].join('\n');
     const dataUrl =

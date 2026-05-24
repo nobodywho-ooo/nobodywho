@@ -20,7 +20,13 @@ path = "src/lib.rs"
 # Flipping this to `default-features = false` would also drop mtmd on native
 # builds via this crate's rlib, which we don't want.
 nobodywho = { path = "../core" }
-wasm-bindgen = "0.2"
+# Pin wasm-bindgen to 0.2.121 — the workspace [patch.crates-io] block
+# redirects this to nobodywho-ooo/wasm-bindgen branch
+# emscripten-descriptor-fixes (also 0.2.121). Cargo silently drops the
+# patch if any other dep wants a different version, so the rebuilt wasm
+# ends up with the upstream 0.2.122 schema which our patched
+# wasm-bindgen-cli (0.2.121) can't process.
+wasm-bindgen = "=0.2.121"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
 serde = { version = "1.0.215", features = ["derive"] }

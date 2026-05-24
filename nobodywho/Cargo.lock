@@ -2003,9 +2003,9 @@ dependencies = [
 
 [[package]]
 name = "js-sys"
-version = "0.3.99"
+version = "0.3.98"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "142bc4740e452c1e57ade0cbc129f139c9093e354346f0872ef985f4f5cf5f11"
+checksum = "67df7112613f8bfd9150013a0314e196f4800d3201ae742489d999db2f979f08"
 dependencies = [
  "cfg-if",
  "futures-util",
@@ -2127,7 +2127,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-2"
 version = "0.1.147"
-source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=wasm-emscripten#3713df1ea15d2e7246b014286f463bfd1651e034"
+source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=wasm-emscripten#f9debf3dc015e252dc603a62248046b092124d9e"
 dependencies = [
  "encoding_rs",
  "enumflags2",
@@ -2142,7 +2142,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-sys-2"
 version = "0.1.147"
-source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=wasm-emscripten#3713df1ea15d2e7246b014286f463bfd1651e034"
+source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=wasm-emscripten#f9debf3dc015e252dc603a62248046b092124d9e"
 dependencies = [
  "bindgen",
  "cc",
@@ -2823,7 +2823,7 @@ dependencies = [
 [[package]]
 name = "pyo3"
 version = "0.28.3"
-source = "git+https://github.com/PyO3/pyo3?branch=main#6917b357d2226155105b7e6ad604ab7cc27662eb"
+source = "git+https://github.com/PyO3/pyo3?branch=main#3a7c0f0645fa4c8450f89515670b70b88799de88"
 dependencies = [
  "libc",
  "once_cell",
@@ -2862,7 +2862,7 @@ dependencies = [
 [[package]]
 name = "pyo3-build-config"
 version = "0.28.3"
-source = "git+https://github.com/PyO3/pyo3?branch=main#6917b357d2226155105b7e6ad604ab7cc27662eb"
+source = "git+https://github.com/PyO3/pyo3?branch=main#3a7c0f0645fa4c8450f89515670b70b88799de88"
 dependencies = [
  "target-lexicon",
 ]
@@ -2870,7 +2870,7 @@ dependencies = [
 [[package]]
 name = "pyo3-ffi"
 version = "0.28.3"
-source = "git+https://github.com/PyO3/pyo3?branch=main#6917b357d2226155105b7e6ad604ab7cc27662eb"
+source = "git+https://github.com/PyO3/pyo3?branch=main#3a7c0f0645fa4c8450f89515670b70b88799de88"
 dependencies = [
  "libc",
  "pyo3-build-config",
@@ -2879,7 +2879,7 @@ dependencies = [
 [[package]]
 name = "pyo3-introspection"
 version = "0.28.3"
-source = "git+https://github.com/PyO3/pyo3?branch=main#6917b357d2226155105b7e6ad604ab7cc27662eb"
+source = "git+https://github.com/PyO3/pyo3?branch=main#3a7c0f0645fa4c8450f89515670b70b88799de88"
 dependencies = [
  "anyhow",
  "goblin 0.10.5",
@@ -2901,7 +2901,7 @@ dependencies = [
 [[package]]
 name = "pyo3-macros"
 version = "0.28.3"
-source = "git+https://github.com/PyO3/pyo3?branch=main#6917b357d2226155105b7e6ad604ab7cc27662eb"
+source = "git+https://github.com/PyO3/pyo3?branch=main#3a7c0f0645fa4c8450f89515670b70b88799de88"
 dependencies = [
  "proc-macro2",
  "pyo3-macros-backend",
@@ -2912,7 +2912,7 @@ dependencies = [
 [[package]]
 name = "pyo3-macros-backend"
 version = "0.28.3"
-source = "git+https://github.com/PyO3/pyo3?branch=main#6917b357d2226155105b7e6ad604ab7cc27662eb"
+source = "git+https://github.com/PyO3/pyo3?branch=main#3a7c0f0645fa4c8450f89515670b70b88799de88"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
@@ -4431,9 +4431,8 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen"
-version = "0.2.122"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ed04576f974d2b2fba0f38c51dbc5518011e38c36bf1143164be765528fd409"
+version = "0.2.121"
+source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=emscripten-descriptor-fixes#49457f2db4465688cb597e9030ccfdefbd2b662e"
 dependencies = [
  "cfg-if",
  "once_cell",
@@ -4444,9 +4443,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-futures"
-version = "0.4.72"
+version = "0.4.71"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9473dbd2991ae90b6291c3c32c30c6187ac49aa32f9905d1cce280ec1e110b0f"
+checksum = "96492d0d3ffba25305a7dc88720d250b1401d7edca02cc3bcd50633b424673b8"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
@@ -4454,9 +4453,8 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro"
-version = "0.2.122"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "916151b09da36bd82f6615cbf3a419e2f0ba23a03c6160e8e92eb6bd4aa1dec6"
+version = "0.2.121"
+source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=emscripten-descriptor-fixes#49457f2db4465688cb597e9030ccfdefbd2b662e"
 dependencies = [
  "quote",
  "wasm-bindgen-macro-support",
@@ -4464,9 +4462,8 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro-support"
-version = "0.2.122"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "299047362ccbfce148b67ab7e73349f77748e00c8296f9542adfad2ad82c5c5e"
+version = "0.2.121"
+source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=emscripten-descriptor-fixes#49457f2db4465688cb597e9030ccfdefbd2b662e"
 dependencies = [
  "bumpalo",
  "proc-macro2",
@@ -4477,9 +4474,8 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-shared"
-version = "0.2.122"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a929b2c61f11ba3e9bc35b50c1f25cb38e0e892c0c231ae2b8cf78d5dad4437"
+version = "0.2.121"
+source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=emscripten-descriptor-fixes#49457f2db4465688cb597e9030ccfdefbd2b662e"
 dependencies = [
  "unicode-ident",
 ]
@@ -4520,9 +4516,9 @@ dependencies = [
 
 [[package]]
 name = "web-sys"
-version = "0.3.99"
+version = "0.3.98"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d621441cfc37b84979402712047321980c178f299193a3589d05b99e8763436"
+checksum = "4b572dff8bcf38bad0fa19729c89bb5748b2b9b1d8be70cf90df697e3a8f32aa"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
@@ -5017,8 +5013,3 @@ name = "zmij"
 version = "1.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b8848ee67ecc8aedbaf3e4122217aff892639231befc6a1b58d29fff4c2cabaa"
-
-[[patch.unused]]
-name = "wasm-bindgen"
-version = "0.2.121"
-source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=emscripten-descriptor-fixes#f4fc33dc7f505b6aa19bdfc2c9672e8680f76168"
