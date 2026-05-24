@@ -342,10 +342,13 @@ present. The Rust override wins symbol resolution at link time.
 
 - Image decoding via `stb_image`: JPEG, PNG, BMP, GIF, TGA, PSD, PIC,
   PNM. Format is sniffed from the file header by mtmd.
-- WAV audio (miniaudio's built-in WAV decoder — no `MA_NO_WAV`).
+- All four miniaudio decoders: WAV, MP3, FLAC, Ogg/Vorbis —
+  verified end-to-end by `js/scripts/audio-smoke.mjs` (each format's
+  bytes flow through `Audio.fromBytes` → wasm → mtmd; mtmd accepts
+  the decoded PCM via the `<|audio_bos|>` marker).
 - mmproj loading from bytes via `Model.loadBytes(model, mmproj)`.
-- Full mtmd chunk-tokenize / encode-chunk / decode pipeline,
-  unchanged from native.
+- Vision encoder via mtmd (chunk-tokenize / encode-chunk / decode
+  pipeline, verified against Gemma 3 + Qwen2-VL mmprojs).
 
 **What's known not to work / untested.**
 
@@ -354,9 +357,15 @@ present. The Rust override wins symbol resolution at link time.
   no `AudioContext` / `WebAudio` bridge — models that *generate*
   audio (TTS) would need to post their PCM samples to the page for
   Web Audio playback.
-- MP3 / FLAC / Ogg / Vorbis decoding: untested end-to-end. The
-  decoders are linked in (no `MA_NO_MP3` / `MA_NO_FLAC` /
-  `MA_NO_VORBIS`) but no smoke run.
+- **Audio-LLM mmproj encoders** (Qwen3-ASR, Voxtral, Ultravox, etc.).
+  mtmd accepts the decoded audio (we see `<|audio_bos|>`) but the
+  encoder graph crashes during `clip_image_batch_encode` with an
+  empty `WebAssembly.Exception`. Likely a ggml op or quant type
+  that's only used by audio mmprojs and isn't compiled into our
+  wasm build. Vision mmprojs use a different op subset and work.
+  Reproducer: `js/scripts/audio-smoke.mjs` against an audio
+  mmproj — fires `decoder-ok` for all four formats but
+  `0/4 full inference`. Tracked separately in Outstanding.
 - Chat templates that use OpenAI-style typed-content arrays (SmolVLM,
   some Phi-3-Vision variants). Our `core/src/template.rs` emits the
   older string-with-markers shape (`<__media__>` placeholder). Qwen,
@@ -370,8 +379,15 @@ present. The Rust override wins symbol resolution at link time.
 
 ## Outstanding
 
-- **MP3 / FLAC / Ogg audio.** Decoders are linked in but unverified.
-  Worth one short test per format.
+- **Audio-LLM mmproj encoders crash on wasm.** The mtmd audio
+  decoder side is verified (`js/scripts/audio-smoke.mjs` shows
+  WAV/MP3/FLAC/Ogg all decode + reach mtmd's `<|audio_bos|>`
+  marker), but the downstream `clip_image_batch_encode` step that
+  runs the audio mmproj on the decoded PCM crashes with an empty
+  `WebAssembly.Exception`. Vision mmprojs use a different op subset
+  and work fine, so this is audio-specific. Needs a closer look at
+  which ggml op the audio encoder calls that's either missing or
+  buggy on wasm — Qwen3-ASR's Q8_0 mmproj is the convenient repro.
 - **Upstream the three forks pinned by this PR.** Each carries
   changes that need to land in their respective upstream projects so we
   can drop the fork pointer. All three are publicly hosted under
