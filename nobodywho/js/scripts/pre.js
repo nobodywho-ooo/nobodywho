@@ -38,6 +38,16 @@ Module.preRun.push(() => {
   FS.ignorePermissions = true;
 });
 
+// Capture wasm stderr (Module.printErr) explicitly. Otherwise C-level
+// abort() messages and ggml LOG_ERR output are written to console.error
+// which in Node worker_threads doesn't always make it back to the main
+// stderr stream with full content. We tee to process.stderr so panics
+// and aborts are visible in test logs.
+Module.printErr = (line) => {
+  try { process.stderr.write('[wasm stderr] ' + line + '\n'); }
+  catch (e) { console.error('[wasm stderr]', line); }
+};
+
 // Self-init: avoid making callers wire up panic hooks, the bootstrap URL,
 // or worker-side message dispatch by hand. The Emscripten loader closure
 // has `_scriptName = import.meta.url` in scope when `postRun` fires, so
@@ -106,6 +116,23 @@ globalThis.__nbw_spawn_worker = async function(wasmEntryUrl) {
       `      parentPort.__nbw_wired = true;`,
       `    }`,
       `  },`,
+      `});`,
+      // Worker-side uncaughtException handler: prints the FULL error
+      // (including .stack) to stderr before the worker dies. Without
+      // this, main only sees an empty Error and "WebAssembly.Exception {}"
+      // — no message, no stack — so wasm traps + C++ aborts are invisible.
+      `process.on('uncaughtException', (err) => {`,
+      `  process.stderr.write('[worker uncaughtException] ' + (err && err.stack ? err.stack : String(err)) + '\\n');`,
+      `  if (err && typeof err === 'object') {`,
+      `    for (const k of Object.getOwnPropertyNames(err)) {`,
+      `      try { process.stderr.write('  err.' + k + ' = ' + JSON.stringify(err[k]) + '\\n'); } catch {}`,
+      `    }`,
+      `  }`,
+      `  process.exit(1);`,
+      `});`,
+      `process.on('unhandledRejection', (reason) => {`,
+      `  process.stderr.write('[worker unhandledRejection] ' + (reason && reason.stack ? reason.stack : String(reason)) + '\\n');`,
+      `  process.exit(1);`,
       `});`,
       `import(${JSON.stringify(wasmEntryUrl)}).then(({default:c}) => c());`,
     ].join('\n');

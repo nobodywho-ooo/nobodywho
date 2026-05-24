@@ -349,6 +349,12 @@ present. The Rust override wins symbol resolution at link time.
 - mmproj loading from bytes via `Model.loadBytes(model, mmproj)`.
 - Vision encoder via mtmd (chunk-tokenize / encode-chunk / decode
   pipeline, verified against Gemma 3 + Qwen2-VL mmprojs).
+- Audio-LLM mmproj encoder via mtmd (Qwen3-ASR verified end-to-end —
+  the model produces real transcripts from WAV / MP3 / FLAC clips).
+  Requires our patched `mtmd-audio.cpp` (cfg-gates the mel
+  preprocessor's `n_threads` to 1 on Emscripten); upstream's
+  hardcoded `n_threads=4` traps on `pthread_create` in a wasm
+  build without pthread.
 
 **What's known not to work / untested.**
 
@@ -357,15 +363,6 @@ present. The Rust override wins symbol resolution at link time.
   no `AudioContext` / `WebAudio` bridge — models that *generate*
   audio (TTS) would need to post their PCM samples to the page for
   Web Audio playback.
-- **Audio-LLM mmproj encoders** (Qwen3-ASR, Voxtral, Ultravox, etc.).
-  mtmd accepts the decoded audio (we see `<|audio_bos|>`) but the
-  encoder graph crashes during `clip_image_batch_encode` with an
-  empty `WebAssembly.Exception`. Likely a ggml op or quant type
-  that's only used by audio mmprojs and isn't compiled into our
-  wasm build. Vision mmprojs use a different op subset and work.
-  Reproducer: `js/scripts/audio-smoke.mjs` against an audio
-  mmproj — fires `decoder-ok` for all four formats but
-  `0/4 full inference`. Tracked separately in Outstanding.
 - Chat templates that use OpenAI-style typed-content arrays (SmolVLM,
   some Phi-3-Vision variants). Our `core/src/template.rs` emits the
   older string-with-markers shape (`<__media__>` placeholder). Qwen,
@@ -379,23 +376,20 @@ present. The Rust override wins symbol resolution at link time.
 
 ## Outstanding
 
-- **Audio-LLM mmproj encoders crash on wasm.** The mtmd audio
-  decoder side is verified (`js/scripts/audio-smoke.mjs` shows
-  WAV/MP3/FLAC/Ogg all decode + reach mtmd's `<|audio_bos|>`
-  marker), but the downstream `clip_image_batch_encode` step that
-  runs the audio mmproj on the decoded PCM crashes with an empty
-  `WebAssembly.Exception`. Vision mmprojs use a different op subset
-  and work fine, so this is audio-specific. Needs a closer look at
-  which ggml op the audio encoder calls that's either missing or
-  buggy on wasm — Qwen3-ASR's Q8_0 mmproj is the convenient repro.
-- **Upstream the three forks pinned by this PR.** Each carries
+- **Upstream the four forks pinned by this PR.** Each carries
   changes that need to land in their respective upstream projects so we
-  can drop the fork pointer. All three are publicly hosted under
+  can drop the fork pointer. All four are publicly hosted under
   `nobodywho-ooo/` for transparency / reproducibility:
   - [`nobodywho-ooo/llama-cpp-rs` branch `wasm-emscripten`](https://github.com/nobodywho-ooo/llama-cpp-rs/tree/wasm-emscripten)
     — `CMAKE_SYSTEM_PROCESSOR=wasm32` for ggml's wasm SIMD quants, `MA_NO_*`
     defines + `-fexceptions` for mtmd. Pulled directly via `core/Cargo.toml`
-    `{ git = "...", branch = "wasm-emscripten" }`.
+    `{ git = "...", branch = "wasm-emscripten" }`. Its `llama.cpp`
+    submodule is pinned at our fork (next bullet).
+  - [`nobodywho-ooo/llama.cpp` branch `wasm-emscripten`](https://github.com/nobodywho-ooo/llama.cpp/tree/wasm-emscripten)
+    — one mtmd-audio.cpp patch on top of upstream: cfg-gates the mel
+    spectrogram's `n_threads` to 1 on `__EMSCRIPTEN__` so audio mmprojs
+    don't trap on `pthread_create` in a wasm build without pthread.
+    Pulled via the llama-cpp-rs submodule.
   - [`nobodywho-ooo/wasm-bindgen` branch `emscripten-descriptor-fixes`](https://github.com/nobodywho-ooo/wasm-bindgen/tree/emscripten-descriptor-fixes)
     — descriptor-interpreter tolerance for Emscripten-shaped wasm.
     Pinned via the workspace `Cargo.toml` `[patch.crates-io]` block.

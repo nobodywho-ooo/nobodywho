@@ -6,16 +6,19 @@
 // decoded PCM as audio chunks (mtmd emits `add_text: <|audio_bos|>`
 // once it has accepted the decoded samples).
 //
-// We DON'T require full inference to succeed. Inference downstream of
-// the decoder runs the audio mmproj encoder, and the encoder for
-// audio-LLM mmprojs (Qwen3-ASR, Voxtral, etc.) currently crashes on
-// wasm with an empty `WebAssembly.Exception` — likely a ggml op or
-// quant type that isn't compiled into our wasm build. That's a
-// separate piece of work tracked in the README's "Outstanding".
+// Full audio inference (decode + mmproj encode + LLM forward) works
+// end-to-end for audio mmprojs after the mtmd-audio.cpp `n_threads = 1`
+// patch on Emscripten (nobodywho-ooo/llama.cpp wasm-emscripten branch).
+// Verified against Qwen3-ASR-0.6B: the model produces real
+// transcripts of the test clips.
 //
-// The smoke counts as passing if Audio.fromBytes succeeds for each
-// format AND the worker emits the `<|audio_bos|>` marker (visible in
-// stdout because worker_threads inherits parent stdio in Node).
+// The smoke is lenient about completing all 4 sequential workers:
+// `worker_threads.Worker.terminate()` resolves async, so spawning
+// four chats back-to-back can hit cumulative memory pressure on the
+// 4th (each chat carries the model + mmproj bytes via structured
+// clone). Sections that fail late are still flagged `decoder-ok` —
+// proves the bytes survived the wasm boundary even if the worker
+// died before producing tokens.
 //
 // Run after `bash js/scripts/build-pkg-emscripten.sh`:
 //   PATH=/opt/homebrew/bin:$PATH node js/scripts/audio-smoke.mjs
@@ -127,8 +130,9 @@ if (allOk) {
   console.log(`  ${fullPassed}/${formats.length} full inference, ${decoderPassed}/${formats.length} decoder-only, ${skipped} skipped`);
   console.log(`  miniaudio decoders are linked + functional through the JS API for each verified format.`);
   if (decoderPassed > 0) {
-    console.log(`  ${decoderPassed} format(s) crashed downstream of the decoder (likely audio-encoder`);
-    console.log(`  ggml op missing on wasm); see README "Outstanding" for the audio-LLM status.`);
+    console.log(`  ${decoderPassed} format(s) reached the worker but didn't complete full inference;`);
+    console.log(`  most commonly the 4th sequential worker hits cumulative memory pressure`);
+    console.log(`  before previous workers fully clean up. Run formats individually to verify.`);
   }
   process.exit(0);
 } else {
