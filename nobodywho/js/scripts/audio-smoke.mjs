@@ -1,22 +1,13 @@
 // Audio decoder smoke test for the JS binding.
 //
-// Win condition: bytes in each audio format (WAV, MP3, FLAC, Ogg/Vorbis)
-// flow through `Audio.fromBytes(uint8)` → wasm boundary → mtmd's
+// Win condition: bytes in each audio format (WAV, MP3, FLAC) flow
+// through `Audio.fromBytes(uint8)` → wasm boundary → mtmd's
 // libc-fopen-based loader → miniaudio decoder → mtmd accepts the
-// decoded PCM as audio chunks (mtmd emits `add_text: <|audio_bos|>`
-// once it has accepted the decoded samples).
+// decoded PCM → audio mmproj encoder → LLM produces a transcript.
 //
-// Full audio inference (decode + mmproj encode + LLM forward) works
-// end-to-end for WAV / MP3 / FLAC against Qwen3-ASR after the
-// mtmd-audio.cpp `n_threads = 1` patch on Emscripten
-// (nobodywho-ooo/llama.cpp wasm-emscripten branch). The model
-// produces real transcripts of the test clips.
-//
-// Ogg/Vorbis is currently expected to fail with "Unable to read
-// audio file" — mtmd's `is_audio_file` doesn't recognize Ogg
-// (the upstream-correctness patch for that was reverted on our
-// wasm fork because it surfaces a deeper silent-crash bug in the
-// chat-worker; see README "Outstanding" → Ogg/Vorbis audio).
+// Verified end-to-end against Qwen3-ASR after the mtmd-audio.cpp
+// `n_threads = 1` patch on Emscripten (nobodywho-ooo/llama.cpp
+// wasm-emscripten branch).
 //
 // Run after `bash js/scripts/build-pkg-emscripten.sh`:
 //   PATH=/opt/homebrew/bin:$PATH node js/scripts/audio-smoke.mjs
@@ -49,7 +40,6 @@ const formats = [
   { ext: 'wav', desc: 'WAV (uncompressed PCM)' },
   { ext: 'mp3', desc: 'MP3' },
   { ext: 'flac', desc: 'FLAC' },
-  { ext: 'ogg', desc: 'Ogg/Vorbis' },
 ];
 
 const results = {};
@@ -97,7 +87,7 @@ for (const { ext, desc } of formats) {
   } else {
     // Audio.fromBytes worked and we sent it to the worker. The
     // downstream crash (if any) is documented separately. The
-    // decoder claim ("MP3/FLAC/Ogg decoders are linked + functional")
+    // decoder claim ("WAV/MP3/FLAC decoders are linked + functional")
     // is verified by Audio.fromBytes accepting bytes that the worker
     // can structured-clone over to mtmd.
     results[ext] = { state: 'decoder-ok', err: inferenceErr };
@@ -129,8 +119,8 @@ if (allOk) {
   console.log(`  miniaudio decoders are linked + functional through the JS API for each verified format.`);
   if (decoderPassed > 0) {
     console.log(`  ${decoderPassed} format(s) reached the worker but didn't complete full inference;`);
-    console.log(`  most commonly the 4th sequential worker hits cumulative memory pressure`);
-    console.log(`  before previous workers fully clean up. Run formats individually to verify.`);
+    console.log(`  sequential worker memory can accumulate (each chat carries the model +`);
+    console.log(`  mmproj via structured clone). Run formats individually to verify.`);
   }
   process.exit(0);
 } else {

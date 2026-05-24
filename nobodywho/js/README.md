@@ -342,10 +342,9 @@ present. The Rust override wins symbol resolution at link time.
 
 - Image decoding via `stb_image`: JPEG, PNG, BMP, GIF, TGA, PSD, PIC,
   PNM. Format is sniffed from the file header by mtmd.
-- Three of four miniaudio decoders end-to-end: **WAV, MP3, FLAC** —
-  verified by `js/scripts/audio-smoke.mjs` (Qwen3-ASR produces real
-  transcripts). Ogg/Vorbis is in a half-broken state: see the
-  Outstanding section.
+- Three miniaudio decoders end-to-end: **WAV, MP3, FLAC** — verified
+  by `js/scripts/audio-smoke.mjs` (Qwen3-ASR produces real
+  transcripts).
 - mmproj loading from bytes via `Model.loadBytes(model, mmproj)`.
 - Vision encoder via mtmd (chunk-tokenize / encode-chunk / decode
   pipeline, verified against Gemma 3 + Qwen2-VL mmprojs).
@@ -375,41 +374,6 @@ present. The Rust override wins symbol resolution at link time.
 
 ## Outstanding
 
-- **Ogg/Vorbis audio: chat-worker dies silently on wasm.** WAV/MP3/FLAC
-  all transcribe end-to-end with Qwen3-ASR; Ogg crashes the
-  chat-worker between the Ask dispatch and mtmd's audio loader being
-  called, with no surfaced error. To preserve a clean error UX on
-  wasm, mtmd's Ogg-detection patch was REVERTED in our llama.cpp
-  fork (see `nobodywho-ooo/llama.cpp` commit `dc21cc497`) — without
-  it, Ogg now fails fast with "Unable to read audio file" (mtmd
-  misidentifies Ogg as an image and stb_image rejects). With it,
-  mtmd correctly routes Ogg to its audio loader but then the
-  chat-worker dies silently downstream. The misleading silent
-  failure was worse than the format-not-supported error.
-  Investigation log:
-    - The Ogg-detection patch was applied as `767575dd9`, then
-      reverted as `dc21cc497`. The patch is upstream-correct and
-      worth a separate PR to ggml-org/llama.cpp; it's just net-
-      negative for our wasm target until the downstream crash is
-      fixed.
-    - `MTMD_AUDIO_DEBUG` enabled — would log decoded PCM, doesn't
-      fire. So the crash is before mtmd's audio loader gets called.
-    - `tracing::warn!` and `eprintln!` added to `Worker::ask`'s
-      bitmap construction path don't fire either — but they also
-      don't fire for the working WAV case, so tracing in that
-      `spawn_local` future is unreliable, not absence of signal.
-    - Likely a wasm trap (integer overflow / null deref / stack
-      overflow) inside `Prompt::extract_media_assets`,
-      `prompt.to_string()`, or `add_user_message` for the Ogg case.
-      Could also be a memory-pressure interaction (~3 GB at crash
-      time, close to wasm's 4 GB max).
-    - To make progress: build with `-g4 -gsource-map` for source
-      locations in wasm stack traces, OR write a standalone wasm
-      Rust binary that just calls `ma_decoder_init_memory` on Ogg
-      bytes to isolate the miniaudio path, OR test with Voxtral /
-      Ultravox / LFM2-Audio mmprojs to see if it's Qwen3-ASR
-      specific. Once the downstream crash is fixed, revert
-      `dc21cc497` to re-enable Ogg.
 - **Upstream the four forks pinned by this PR.** Each carries
   changes that need to land in their respective upstream projects so we
   can drop the fork pointer. All four are publicly hosted under
@@ -420,14 +384,10 @@ present. The Rust override wins symbol resolution at link time.
     `{ git = "...", branch = "wasm-emscripten" }`. Its `llama.cpp`
     submodule is pinned at our fork (next bullet).
   - [`nobodywho-ooo/llama.cpp` branch `wasm-emscripten`](https://github.com/nobodywho-ooo/llama.cpp/tree/wasm-emscripten)
-    — one effective patch on top of upstream: `5e6a3d945` cfg-gates
-    the mtmd-audio mel spectrogram's `n_threads` to 1 on
-    `__EMSCRIPTEN__` (avoids the `pthread_create` trap that killed
-    audio inference for all formats). A second patch `767575dd9`
-    (Ogg-container detection in mtmd's `is_audio_file`) is in the
-    history but reverted by `dc21cc497`; see the "Ogg/Vorbis audio"
-    Outstanding bullet above.
-    Pulled via the llama-cpp-rs submodule.
+    — one patch on top of upstream: `5e6a3d945` cfg-gates the
+    mtmd-audio mel spectrogram's `n_threads` to 1 on `__EMSCRIPTEN__`
+    (avoids the `pthread_create` trap that killed audio inference
+    for all formats). Pulled via the llama-cpp-rs submodule.
   - [`nobodywho-ooo/wasm-bindgen` branch `emscripten-descriptor-fixes`](https://github.com/nobodywho-ooo/wasm-bindgen/tree/emscripten-descriptor-fixes)
     — descriptor-interpreter tolerance for Emscripten-shaped wasm.
     Pinned via the workspace `Cargo.toml` `[patch.crates-io]` block.

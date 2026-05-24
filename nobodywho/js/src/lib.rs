@@ -260,10 +260,10 @@ pub struct Audio;
 #[wasm_bindgen]
 impl Audio {
     /// Build an audio prompt part from raw file bytes. Supported formats
-    /// depend on the linked miniaudio decoder: WAV always; MP3/FLAC/Ogg
-    /// when their `MA_NO_*` switches are off (note: the wasm-Emscripten
-    /// build has playback/threading/engine cut out, but the decoder front
-    /// is still in for WAV). The format is sniffed via the file header.
+    /// on the wasm-Emscripten build: WAV, MP3, FLAC (the playback /
+    /// threading / engine layers are cut out via `MA_NO_*`, but the
+    /// decoders front-end stays linked). The format is sniffed via the
+    /// file header by mtmd's `is_audio_file`.
     ///
     /// Returns `{__nbwKind: 'audio', bytes: Uint8Array}`.
     #[wasm_bindgen(js_name = fromBytes)]
