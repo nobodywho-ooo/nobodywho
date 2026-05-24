@@ -330,7 +330,7 @@ dependencies = [
  "bitflags 2.11.1",
  "cexpr",
  "clang-sys",
- "itertools 0.13.0",
+ "itertools 0.10.5",
  "log",
  "prettyplease",
  "proc-macro2",
@@ -1012,7 +1012,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -1908,7 +1908,7 @@ checksum = "3640c1c38b8e4e43584d8df18be5fc6b0aa314ce6ebf51b53313d4306cca8e46"
 dependencies = [
  "hermit-abi",
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -1922,15 +1922,6 @@ name = "itertools"
 version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b0fd2260e829bddf4cb6ea802289de2f86d6a7a690192fbe91b3f46e0f2c8473"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
 dependencies = [
  "either",
 ]
@@ -2127,7 +2118,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-2"
 version = "0.1.147"
-source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=wasm-emscripten#3329120b5e90b9f4c9d5b382923a8b11f47b5570"
+source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=wasm-emscripten#ddb03a042be938f64e810199b94d898fd3df332f"
 dependencies = [
  "encoding_rs",
  "enumflags2",
@@ -2142,7 +2133,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-sys-2"
 version = "0.1.147"
-source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=wasm-emscripten#3329120b5e90b9f4c9d5b382923a8b11f47b5570"
+source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=wasm-emscripten#ddb03a042be938f64e810199b94d898fd3df332f"
 dependencies = [
  "bindgen",
  "cc",
@@ -3267,7 +3258,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3759,7 +3750,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4574,7 +4565,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
