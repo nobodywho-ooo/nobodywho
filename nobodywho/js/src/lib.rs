@@ -457,20 +457,16 @@ fn js_to_serializable_parts(input: &JsValue) -> Result<JsValue, JsError> {
 //       ({ city }) => `Sunny in ${city}, 21°C`,
 //     );
 //
-//     const chat = new Chat(model, { tools: [weather], systemPrompt: '...' });
-//     const reply = await (await chat.ask('Weather in CPH?')).completed();
+//     const chat = await Chat.create({
+//       modelBytes, tools: [weather], systemPrompt: '...',
+//     });
+//     const reply = await chat.ask('Weather in CPH?').completed();
 //
-// v1 limitations (documented in README):
-// - Only the in-process `Chat` accepts tools. `Chat` doesn't — JS
-//   function refs can't survive postMessage and we don't yet have an RPC
-//   bridge between worker and main thread to dispatch tool calls.
-// - JS callbacks must be SYNCHRONOUS (return a string, not a Promise).
-//   Core's tool-call dispatcher is `Fn(Value) -> String + Send + Sync`
-//   and the wasm32 inference loop holds the single JS thread, so a
-//   Promise returned from a callback would never resolve until inference
-//   finishes — defeating the point. Async support needs core to grow an
-//   `AsyncFn` variant of Tool, or for the dispatch to happen on a
-//   separate worker. Tracked.
+// JS callbacks can be either synchronous (return a string) or async
+// (return a Promise<string>) — the worker ↔ main RPC bridge dispatches
+// each tool call back to the main thread, awaits the result, and feeds
+// it into the next inference step. See `js/scripts/tool-smoke.mjs` for
+// both shapes.
 
 /// Factory namespace for LLM-callable tools. Built via [`Tool::from_fn`]
 /// and passed to `Chat`'s `tools` option.
@@ -692,10 +688,11 @@ fn tool_from_tagged(part: &JsValue) -> Result<nobodywho::tool_calling::Tool, Str
 }
 
 
-/// Optional config passed to the `Chat` constructor. Pass as a plain JS object:
+/// Optional config passed to `Chat.create`. Pass as a plain JS object:
 ///
 /// ```js
-/// new Chat(model, {
+/// await Chat.create({
+///   modelBytes,
 ///   contextSize: 4096,
 ///   systemPrompt: "You are helpful.",
 ///   constraint: { jsonSchema: '{"type":"object","properties":{...}}' },
@@ -810,7 +807,8 @@ impl ConstraintSpec {
 ///
 /// JS shape:
 /// ```js
-/// new Chat(model, {
+/// await Chat.create({
+///   modelBytes,
 ///   sampler: {
 ///     temperature: 0.7,
 ///     topK: 40,

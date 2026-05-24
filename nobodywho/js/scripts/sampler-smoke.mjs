@@ -9,9 +9,9 @@
 //   * Combining `sampler` and `constraint` doesn't break anything (constraint
 //     prepends a shift step to the user's sampler chain).
 //
-// Runs through `WorkerChat.create({modelBytes, ...})` so the same smoke
+// Runs through `Chat.create({modelBytes, ...})` so the same smoke
 // exercises both browser and Node (Node uses `worker_threads` under the
-// hood via `__nbw_spawn_worker`). Each section spawns a fresh WorkerChat
+// hood via `__nbw_spawn_worker`). Each section spawns a fresh Chat
 // and terminates it when done so workers don't pile up.
 //
 // Uses Qwen3-0.6B — small enough to iterate quickly.
@@ -113,7 +113,7 @@ await composedChat.terminate();
 console.log('    ✓ constructed without error');
 
 console.log('\n=== Sampler-config JS smoke test passed ===');
-console.log('  Greedy sampling is deterministic across two WorkerChats.');
+console.log('  Greedy sampling is deterministic across two Chats.');
 console.log('  Custom temperature/topK/topP/minP/repeatPenalty fields accepted.');
 console.log('  Invalid sampleStep rejects the create Promise with a clear error.');
 console.log('  Sampler + constraint compose without conflict.');

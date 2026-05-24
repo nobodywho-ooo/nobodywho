@@ -3,7 +3,7 @@
 // Validates:
 //   * `Tool.fromFn(name, description, jsonSchema, callback)` builds a
 //     tagged tool object.
-//   * Passing `tools: [tool]` through `WorkerChat.create({...})` plumbs
+//   * Passing `tools: [tool]` through `Chat.create({...})` plumbs
 //     the JS callback all the way down through the worker-side tool RPC
 //     bridge: worker emits `tool-call` postMessage → main looks up the
 //     callback → invokes it (awaiting if it returns a Promise) → posts
@@ -66,8 +66,8 @@ assert.equal(weatherTool.name, 'get_weather');
 assert.equal(typeof weatherTool.callback, 'function');
 console.log(`    ✓ name=${weatherTool.name} __nbwKind=${weatherTool.__nbwKind}`);
 
-// === 3. WorkerChat with tools — model decides whether to call ===
-console.log('\n[3] Spawning WorkerChat with tools...');
+// === 3. Chat with tools — model decides whether to call ===
+console.log('\n[3] Spawning Chat with tools...');
 const modelBytes = new Uint8Array(readFileSync(modelPath));
 const chat = await m.Chat.create({
   modelBytes,
@@ -76,7 +76,7 @@ const chat = await m.Chat.create({
   templateVariables: { enable_thinking: false },
   tools: [weatherTool],
 });
-console.log('    WorkerChat ready ✓');
+console.log('    Chat ready ✓');
 
 // === 4. Ask a weather question — model should call the tool ===
 console.log('\n[4] Asking weather question (expect tool invocation)...');
@@ -162,7 +162,7 @@ assert.ok(
 await chatAsync.terminate();
 
 console.log('\n=== Tool-calling JS smoke test passed ===');
-console.log('  Sync and async callbacks both dispatch through the WorkerChat');
+console.log('  Sync and async callbacks both dispatch through the Chat worker');
 console.log('  tool-call / tool-reply RPC bridge. The async path proves the');
 console.log('  wasm yields control to the JS event loop while parked at the');
 console.log('  tool-dispatch await, letting the user-side Promise resolve');

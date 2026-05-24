@@ -129,7 +129,7 @@ fn package_version_is_placeholder() {
 ///
 /// `ConstraintSpec` (lib.rs:213) has `#[serde(deny_unknown_fields, ...)]`.
 /// `ChatOptions` (lib.rs:183) doesn't. A JS caller writing
-/// `new Chat(model, { tools: [...] })` gets no error — serde drops `tools`
+/// `Chat.create({modelBytes, foo: 'bar'})` gets no error — serde drops `foo`
 /// and the user wonders why nothing changed. Match `ConstraintSpec`.
 #[test]
 fn chat_options_denies_unknown_fields() {
@@ -155,7 +155,7 @@ fn chat_options_denies_unknown_fields() {
         attrs_block.contains("deny_unknown_fields"),
         "js/src/lib.rs: ChatOptions doesn't have \
          #[serde(deny_unknown_fields)]. A JS caller passing an unknown \
-         option (e.g. `new Chat(model, {{tools: [...]}})`) silently has the \
+         option (e.g. `Chat.create({{modelBytes, foo: 'bar'}})`) silently has the \
          field discarded by serde — same shape as ConstraintSpec (line \
          213) which DOES deny unknown fields. Add the attribute for \
          consistency and to make typos surface as errors.\n\n\

@@ -36,7 +36,7 @@
 #     HEAPU8/HEAP32 globals (no parens, no suffix). Patch both forms.
 #     When upstream wasm-bindgen learns to emit Emscripten-shaped globals,
 #     drop the substitutions.
-#   - Model.__wrap / TokenStream.__wrap / WorkerChat.__wrap — wasm-bindgen's
+#   - Model.__wrap / TokenStream.__wrap / Chat.__wrap — wasm-bindgen's
 #     "constructor" attribute generates a static-method call on the bare
 #     class. emcc wraps classes onto `Module.*`, so the static-method call
 #     needs to be redirected to `Module.Model.__wrap`. Same upstream fix

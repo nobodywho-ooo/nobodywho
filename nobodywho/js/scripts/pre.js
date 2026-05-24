@@ -70,7 +70,7 @@ Module.quit = (status, toThrow) => {
 // or worker-side message dispatch by hand. The Emscripten loader closure
 // has `_scriptName = import.meta.url` in scope when `postRun` fires, so
 // it can tell Rust where this loader lives — that's the URL the inline
-// Blob worker in `WorkerChat.create` re-imports.
+// Blob worker in `Chat.create` re-imports.
 //
 // Auto-runs `runInWorker()` in any worker context — browser
 // `DedicatedWorkerGlobalScope` OR a Node `worker_threads` worker whose
