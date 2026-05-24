@@ -115,11 +115,16 @@ where
     }))
 }
 
-// Streaming hook RAII removed: `nobodywho::llm::set_streaming_hook` was
-// removed from core during the Emscripten migration. Without it, the worker
-// can only post the full response at completion (no real-time per-token
-// streaming). Restore HookRestore + askStreaming if/when the core API
-// returns.
+// Per-token streaming on wasm32: the worker's `"ask"` arm builds a
+// synchronous `Rc<dyn Fn(&str)>` and passes it to
+// `ChatHandleAsync::ask_with_token_hook` (wasm-only API in core). The
+// hook fires from inside the inference loop on each sampled token and
+// `postMessage`s a `{type:'token', token}` payload directly to main.
+// The channel-based path (`ChatHandleAsync::ask`) can't stream on
+// single-threaded wasm because the receiver task only wakes after the
+// synchronous inference loop completes; the hook bypasses that. Measured
+// effect: TTFT 10.8 s → 1.85 s on Qwen3-0.6B-Q4_K_M, ~1% wall-time
+// overhead from the per-token postMessage.
 
 // ---------- Model ----------
 
@@ -1036,14 +1041,19 @@ impl CrossEncoder {
 
 // ---------- Worker dispatcher ----------
 //
-// The browser-side `Chat` wrapper in `examples/setup-browser.mjs` spawns a
-// Web Worker and talks to it over a small message protocol. The dispatcher
-// for that protocol used to live in `examples/worker.js` (~50 lines of JS).
-// Now it lives here — `runInWorker()` sets up `self.onmessage` and reacts
-// to `load-model` / `create-chat` / `ask` messages, posting `model-loaded`
-// / `chat-ready` / `token` / `ask-done` / `error` back. The worker file
-// itself is just `import './setup-browser.mjs'` — setup-browser.mjs calls
-// `runInWorker` when it detects DedicatedWorkerGlobalScope.
+// The user-facing `Chat` (further down) spawns a Web Worker (browser) or
+// `worker_threads.Worker` (Node) via `globalThis.__nbw_spawn_worker`
+// (defined in `pkg-bundler/pre.js`) and talks to it over a small
+// message protocol. `runInWorker()` below sets up `globalThis.onmessage`
+// and reacts to incoming `load-model` / `create-chat` / `ask` /
+// `tool-reply` messages, posting `ready` / `model-loaded` / `chat-ready`
+// / `token` / `ask-done` / `tool-call` / `error` back. `pre.js`'s
+// `postRun` hook calls `runInWorker` automatically inside any worker
+// context, so the worker file is just an import of this wasm bundle.
+//
+// `token` messages are emitted per sampled token by the wasm-only
+// per-token hook passed to `ChatHandleAsync::ask_with_token_hook` from
+// the `"ask"` arm — see the streaming notes near the top of this file.
 //
 // Per-instance state lives in `thread_local!` because wasm32 is
 // single-threaded (one wasm instance per worker = one cell).
@@ -1301,19 +1311,26 @@ async fn handle_worker_message(
                 .with(|c| c.borrow().clone())
                 .ok_or_else(|| "chat not created; send 'create-chat' first".to_string())?;
 
-            // Run inference to completion, then post the full response as a
-            // single "token" message followed by "ask-done". Without
-            // `set_streaming_hook` in core we can't deliver tokens in real
-            // time — inference blocks the worker thread for its full
-            // duration, then the result is delivered in one chunk. The
-            // worker is still off the main thread, so the page stays
-            // responsive.
-            let mut stream = handle.ask(prompt);
-            let full = stream.completed().await.map_err(|e| e.to_string())?;
-            let payload = js_sys::Object::new();
-            let _ = js_sys::Reflect::set(&payload, &"type".into(), &"token".into());
-            let _ = js_sys::Reflect::set(&payload, &"token".into(), &full.as_str().into());
-            post(&payload);
+            // Per-token streaming: pass a sync hook to core that fires
+            // from inside the inference loop and postMessages each token
+            // directly to main. `postMessage` doesn't need the worker's
+            // event loop to run between tokens — it enqueues on main's
+            // task queue, which is on a separate browser thread. The
+            // channel path can't stream on single-threaded wasm because
+            // the receiver task only wakes after the synchronous loop
+            // completes; the hook bypasses that.
+            let scope_for_hook = scope.clone();
+            let hook = std::rc::Rc::new(move |token: &str| {
+                let payload = js_sys::Object::new();
+                let _ = js_sys::Reflect::set(&payload, &"type".into(), &"token".into());
+                let _ = js_sys::Reflect::set(&payload, &"token".into(), &token.into());
+                let _ = worker_post(&scope_for_hook, &payload);
+            });
+            let mut stream = handle.ask_with_token_hook(prompt, hook);
+            // Await completion to detect errors and to wait for EOS
+            // before signalling ask-done. The returned full text is
+            // ignored — tokens were already streamed via the hook.
+            stream.completed().await.map_err(|e| e.to_string())?;
             post(&worker_reply("ask-done"));
         }
         other => return Err(format!("unknown msg type: {other}")),
@@ -1449,9 +1466,8 @@ fn worker_reply_error(message: &str) -> JsValue {
 // ---------- Cache API helpers ----------
 //
 // Browser-side model caching via the Cache API store named 'nobodywho-models-v1'.
-// Used to live in examples/setup-browser.mjs (~80 lines of JS); now lives here
-// via web-sys so the JS-side bootstrap stays a thin shim. Same store name as
-// before, so existing cached models survive the JS→Rust migration.
+// Implemented here in Rust (via web-sys) so the JS-side bootstrap stays a
+// thin shim. Used by `fetchModelBytes` / `Model.preload`.
 
 #[cfg(target_arch = "wasm32")]
 const MODEL_CACHE_NAME: &str = "nobodywho-models-v1";
@@ -1649,15 +1665,21 @@ impl Model {
 
 // ---------- TokenStream ----------
 //
-// User-facing token stream returned from `Chat::ask`. Implements the JS
-// async-iterator protocol (`next()` returning `Promise<{value, done}>`) so
-// callers can `for await (const tok of chat.ask(...))`, and exposes
-// `completed()` returning a `Promise<string>` that resolves to the full
-// concatenation.
+// User-facing token stream returned from `Chat::ask`. Two consumption
+// modes:
 //
-// `[Symbol.asyncIterator]() { return this; }` can't be emitted by
-// wasm-bindgen 0.2.121 cleanly; setup-browser.mjs adds it at the prototype
-// level after import (~1 line of JS).
+//   - `stream.next()` → `Promise<{value: string, done: boolean}>` — pull
+//     one token at a time. This is the streaming path: each resolution
+//     fires as soon as the worker postMessages a `token` payload.
+//   - `stream.completed()` → `Promise<string>` — wait for EOS and resolve
+//     to the full concatenated text. Equivalent to draining `next()`.
+//
+// `[Symbol.asyncIterator]` is NOT wired today, so
+// `for await (const tok of stream)` does not work — use the explicit
+// `next()` loop instead (see `examples/browser-chat-streaming.html`).
+// wasm-bindgen 0.2.121 can't emit it cleanly; a one-line shim in
+// `pkg-bundler/pre.js` (Module.TokenStream.prototype[Symbol.asyncIterator]
+// = function() { return this; }) would restore the for-await ergonomic.
 //
 // State shared with `Chat` via `Rc<RefCell<WorkerStreamState>>`: Chat pushes
 // tokens/done/error into the state from inside its `onmessage` closure; the
@@ -1821,28 +1843,40 @@ fn iter_result(value: Option<&str>) -> JsValue {
 
 // ---------- Chat (worker-backed, user-facing) ----------
 //
-// User-facing chat class. Internally spawns a Web Worker from an inline Blob
-// URL, posts the load-model / create-chat / ask protocol, routes replies via
-// a Closure-wrapped onmessage. The worker side of the protocol is handled by
-// `runInWorker()` further up.
+// User-facing chat class. `Chat::create` spawns a worker (browser
+// `Worker(blobURL)` or Node `worker_threads.Worker`) via the JS-side
+// `globalThis.__nbw_spawn_worker` helper defined in `pkg-bundler/pre.js`,
+// posts the `load-model` / `create-chat` / `ask` protocol, and routes
+// replies via a Closure-wrapped `onmessage`. The worker side is handled
+// by `runInWorker()` further up.
 //
-// The JS-side Chat class that used to live in examples/setup-browser.mjs is
-// now this Rust struct. App code is unchanged — same factory shape:
+// App code shape:
 //
 //     const chat = await Chat.create({ modelUrl, systemPrompt, ... });
-//     for await (const tok of chat.ask(prompt)) { ... }
+//     // streaming: explicit next() loop (Symbol.asyncIterator not wired)
+//     const stream = chat.ask(prompt);
+//     while (true) {
+//         const { value, done } = await stream.next();
+//         if (done) break;
+//         process.stdout.write(value);
+//     }
+//     // or get the full text at once:
 //     const full = await chat.ask(prompt).completed();
 
-// JS sets this at module load (`bg.setBootstrapUrl(import.meta.url)`).
-// `Chat::create` reads it to build the inline Blob worker bootstrap
-// (`import('<setup-browser.mjs URL>')`).
+// JS sets this at module load — see `pre.js`'s `postRun` hook, which
+// calls `Module.setBootstrapUrl(_scriptName)` where `_scriptName` is the
+// Emscripten loader's `import.meta.url`. `Chat::create` reads it to
+// build the inline Blob worker bootstrap that re-imports this wasm
+// loader inside the spawned worker.
 #[cfg(target_arch = "wasm32")]
 thread_local! {
     static BOOTSTRAP_URL: RefCell<Option<String>> = RefCell::new(None);
 }
 
-/// Called from setup-browser.mjs at module load to register the absolute URL
-/// of setup-browser.mjs itself. Required before the first `Chat.create()`.
+/// Register the absolute URL of the Emscripten loader (`nobodywho_js.js`)
+/// so `Chat::create` knows what to `import()` inside the spawned worker.
+/// Called automatically from `pre.js`'s `postRun` hook; you should never
+/// need to call this from app code.
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen(js_name = setBootstrapUrl)]
 pub fn set_bootstrap_url(url: String) {
@@ -1856,8 +1890,9 @@ fn get_bootstrap_url() -> Result<String, JsError> {
         .ok_or_else(|| {
             JsError::new(
                 "Chat.create: setBootstrapUrl was not called. \
-                 setup-browser.mjs must call bg.setBootstrapUrl(import.meta.url) \
-                 at module load before Chat.create() is invoked.",
+                 pkg-bundler/pre.js's postRun hook must invoke \
+                 Module.setBootstrapUrl(_scriptName) at module load before \
+                 Chat.create() is invoked.",
             )
         })
 }

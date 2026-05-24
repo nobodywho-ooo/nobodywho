@@ -652,7 +652,12 @@ impl ChatHandleAsync {
         prompt: Prompt,
     ) -> tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput> {
         let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
-        self.guard.send(ChatMsg::Ask { prompt, output_tx });
+        self.guard.send(ChatMsg::Ask {
+            prompt,
+            output_tx,
+            #[cfg(target_arch = "wasm32")]
+            token_hook: None,
+        });
         output_rx
     }
 
@@ -670,6 +675,33 @@ impl ChatHandleAsync {
     /// ```
     pub fn ask(&self, prompt: impl Promptable) -> TokenStreamAsync {
         TokenStreamAsync::new(self.ask_channel(prompt.to_prompt()))
+    }
+
+    /// Wasm-only: ask with a synchronous per-token hook.
+    ///
+    /// The hook fires from inside the inference loop, before each token is
+    /// pushed to the channel. Use this on `wasm32-unknown-emscripten` to
+    /// deliver tokens out-of-band (e.g. `postMessage` from a Web Worker)
+    /// without waiting for the channel receiver to be polled — the
+    /// receiver task can only run when the inference loop yields, but
+    /// the loop is fully synchronous on wasm.
+    ///
+    /// The returned `TokenStreamAsync` still fires `Done` at EOS, so
+    /// `.completed().await` is the right way to wait for inference to
+    /// finish (its accumulated text is also available there).
+    #[cfg(target_arch = "wasm32")]
+    pub fn ask_with_token_hook(
+        &self,
+        prompt: impl Promptable,
+        token_hook: std::rc::Rc<dyn Fn(&str)>,
+    ) -> TokenStreamAsync {
+        let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
+        self.guard.send(ChatMsg::Ask {
+            prompt: prompt.to_prompt(),
+            output_tx,
+            token_hook: Some(token_hook),
+        });
+        TokenStreamAsync::new(output_rx)
     }
 
     // internal helper function for async setters
@@ -1004,6 +1036,14 @@ enum ChatMsg {
     Ask {
         prompt: Prompt,
         output_tx: tokio::sync::mpsc::UnboundedSender<llm::WriteOutput>,
+        /// Wasm-only synchronous per-token hook. Fires from inside the
+        /// inference loop (before the channel push) so callers can deliver
+        /// tokens out-of-band — e.g. `postMessage` from a Web Worker —
+        /// without waiting for the loop to yield. The channel-based path
+        /// can't stream on single-threaded wasm because the receiver task
+        /// only wakes after the synchronous loop completes.
+        #[cfg(target_arch = "wasm32")]
+        token_hook: Option<std::rc::Rc<dyn Fn(&str)>>,
     },
     ResetChat {
         system_prompt: Option<String>,
@@ -1109,8 +1149,30 @@ async fn process_worker_msg(
 ) -> Result<(), ChatWorkerError> {
     info!(?msg, "Worker processing:");
     match msg {
-        ChatMsg::Ask { prompt, output_tx } => {
+        ChatMsg::Ask {
+            prompt,
+            output_tx,
+            #[cfg(target_arch = "wasm32")]
+            token_hook,
+        } => {
             let should_stop = Arc::clone(&worker_state.extra.should_stop);
+            #[cfg(target_arch = "wasm32")]
+            let callback = move |out: llm::WriteOutput| {
+                // Fire the per-token hook synchronously inside the
+                // inference loop before pushing to the channel. On wasm
+                // this is the only path that delivers tokens to JS in
+                // real time — the channel receiver task can't wake
+                // until the loop completes.
+                if let llm::WriteOutput::Token(ref tok) = out {
+                    if let Some(hook) = token_hook.as_ref() {
+                        hook(tok);
+                    }
+                }
+                if output_tx.send(out).is_err() {
+                    should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
+                }
+            };
+            #[cfg(not(target_arch = "wasm32"))]
             let callback = move |out| {
                 if output_tx.send(out).is_err() {
                     // Receiver was dropped or the buffer is full with nobody consuming.

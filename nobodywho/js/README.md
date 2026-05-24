@@ -28,7 +28,28 @@ console.log(result);
 
 `Chat` runs inference in a separate worker thread — a Web Worker in
 browsers, a `worker_threads.Worker` in Node — so the calling thread
-stays responsive during inference and tokens stream in real time.
+stays responsive during inference. Tokens stream in real time: the
+worker `postMessage`s each sampled token to main as it's generated.
+
+**Streaming** — to consume tokens incrementally, drive the `TokenStream`
+with `next()` and update the UI per token:
+
+```js
+const stream = chat.ask('Write a short paragraph about Copenhagen.');
+while (true) {
+  const { value, done } = await stream.next();
+  if (done) break;
+  process.stdout.write(value);   // or: outputEl.textContent += value
+}
+```
+
+Browser demo: `examples/browser-chat-streaming.html` — `<pre>` fills in
+token-by-token. TTFT (time to first token) is roughly one-token sampling
+time plus prompt prefill, instead of the full generation duration.
+
+Note: `for await (const tok of stream)` does **not** work today —
+`Symbol.asyncIterator` is not currently wired on the `TokenStream`
+prototype. Use the explicit `next()` loop above.
 
 **Embedding** (`encoder_demo.mjs`):
 ```js
