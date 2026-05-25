@@ -1466,6 +1466,36 @@ async fn handle_worker_message(
                 handle.stop_generation();
             }
         }
+        "get-history" => {
+            let handle = WORKER_CHAT
+                .with(|c| c.borrow().clone())
+                .ok_or_else(|| "chat not created".to_string())?;
+            let messages = handle
+                .get_chat_history()
+                .await
+                .map_err(|e| e.to_string())?;
+            let reply = js_sys::Object::new();
+            let _ = js_sys::Reflect::set(&reply, &"type".into(), &"history-reply".into());
+            let messages_jsval = serde_wasm_bindgen::to_value(&messages)
+                .map_err(|e| format!("history serialize: {e}"))?;
+            let _ = js_sys::Reflect::set(&reply, &"messages".into(), &messages_jsval);
+            post(&reply);
+        }
+        "set-history" => {
+            let handle = WORKER_CHAT
+                .with(|c| c.borrow().clone())
+                .ok_or_else(|| "chat not created".to_string())?;
+            let messages_jsval = js_sys::Reflect::get(&data, &"messages".into())
+                .map_err(|_| "missing 'messages' field".to_string())?;
+            let messages: Vec<nobodywho::chat::Message> =
+                serde_wasm_bindgen::from_value(messages_jsval)
+                    .map_err(|e| format!("messages: {e}"))?;
+            handle
+                .set_chat_history(messages)
+                .await
+                .map_err(|e| e.to_string())?;
+            post(&worker_reply("history-set"));
+        }
         other => return Err(format!("unknown msg type: {other}")),
     }
 
@@ -2034,11 +2064,15 @@ struct ChatState {
     /// `__nbw_spawn_worker`).
     worker: JsValue,
     current_stream: Option<std::rc::Rc<RefCell<WorkerStreamState>>>,
-    /// While `Chat::create` is running through its load-model / create-chat
-    /// handshake, this holds `(expected_reply_type, sender)`. The onmessage
-    /// closure resolves the sender when a message of that type arrives.
+    /// While the main thread is awaiting a typed reply from the worker
+    /// (Chat.create's load/create handshake, or any of the getter /
+    /// setter request-reply pairs like getChatHistory), this holds
+    /// `(expected_reply_type, sender)`. The onmessage closure resolves
+    /// the sender with the full reply data when a message of that type
+    /// arrives. Callers extract whatever payload they need from the
+    /// data JsValue.
     pending_handshake:
-        Option<(String, tokio::sync::oneshot::Sender<Result<(), String>>)>,
+        Option<(String, tokio::sync::oneshot::Sender<Result<JsValue, String>>)>,
     /// Main-thread registry of tool callbacks. JS function refs can't
     /// survive `postMessage` (structured clone rejects functions), so the
     /// worker only ever sees tool metadata (name + description + schema).
@@ -2305,6 +2339,56 @@ impl Chat {
         })
     }
 
+    /// Snapshot the conversation history (excluding the system prompt).
+    /// Returns the messages as serialized JS objects matching core's
+    /// `Message` enum shape: `{role: 'user'|'assistant'|'system'|'tool',
+    /// content: '...', ...}`. Useful for save/load, branching, or
+    /// inspecting what the model has been told.
+    #[wasm_bindgen(js_name = getChatHistory)]
+    pub fn get_chat_history(&self) -> js_sys::Promise {
+        let state = self.state.clone();
+        promisify(async move {
+            {
+                let st = state.borrow();
+                if st.terminated {
+                    return Err(JsError::new("Chat: already terminated"));
+                }
+            }
+            let msg = js_sys::Object::new();
+            let _ = js_sys::Reflect::set(&msg, &"type".into(), &"get-history".into());
+            worker_post(&state.borrow().worker, &msg)
+                .map_err(|e| JsError::new(&format!("post get-history: {e:?}")))?;
+            let reply = wait_for_handshake(&state, "history-reply").await?;
+            let messages = js_sys::Reflect::get(&reply, &"messages".into())
+                .map_err(|_| JsError::new("history-reply missing 'messages' field"))?;
+            Ok(messages)
+        })
+    }
+
+    /// Replace the conversation history with the given messages. Pass
+    /// an array of `{role, content, ...}` objects matching core's
+    /// `Message` enum (the same shape `getChatHistory()` returns). Use
+    /// for loading a saved conversation or rewinding to a branch point.
+    #[wasm_bindgen(js_name = setChatHistory)]
+    pub fn set_chat_history(&self, messages: JsValue) -> js_sys::Promise {
+        let state = self.state.clone();
+        promisify(async move {
+            {
+                let st = state.borrow();
+                if st.terminated {
+                    return Err(JsError::new("Chat: already terminated"));
+                }
+            }
+            let msg = js_sys::Object::new();
+            let _ = js_sys::Reflect::set(&msg, &"type".into(), &"set-history".into());
+            let _ = js_sys::Reflect::set(&msg, &"messages".into(), &messages);
+            worker_post(&state.borrow().worker, &msg)
+                .map_err(|e| JsError::new(&format!("post set-history: {e:?}")))?;
+            let _ = wait_for_handshake(&state, "history-set").await?;
+            Ok(JsValue::UNDEFINED)
+        })
+    }
+
     /// Interrupt the currently-running `ask`. Posts a `stop` message to
     /// the worker, which calls `ChatHandleAsync::stop_generation` —
     /// core's inference loop checks the stop flag between tokens and
@@ -2500,13 +2584,15 @@ fn handle_chat_message(state: &std::rc::Rc<RefCell<ChatState>>, data: JsValue) {
                 let _ = worker_post(&worker, &reply);
             });
         }
-        // Handshake reply: resolve a pending oneshot if its expected type matches.
+        // Handshake / request-reply: resolve a pending oneshot if its
+        // expected type matches. The full reply data is handed to the
+        // waiter so request-reply pairs can extract payload fields.
         other => {
             let mut st = state.borrow_mut();
             let take_it = matches!(&st.pending_handshake, Some((t, _)) if t == other);
             if take_it {
                 if let Some((_, tx)) = st.pending_handshake.take() {
-                    let _ = tx.send(Ok(()));
+                    let _ = tx.send(Ok(data));
                 }
             }
         }
@@ -2529,11 +2615,14 @@ fn handle_chat_error(state: &std::rc::Rc<RefCell<ChatState>>, err: String) {
 }
 
 /// Park until the worker posts a message of the given type (or errors out).
+/// Returns the full reply data JsValue — callers that just need the
+/// signal can ignore it, callers that need a payload field can pull
+/// it out via Reflect.
 #[cfg(target_family = "wasm")]
 async fn wait_for_handshake(
     state: &std::rc::Rc<RefCell<ChatState>>,
     expected_type: &str,
-) -> Result<(), JsError> {
+) -> Result<JsValue, JsError> {
     let rx = {
         let mut st = state.borrow_mut();
         // Sanity: the previous handshake should be settled.
@@ -2547,7 +2636,7 @@ async fn wait_for_handshake(
         rx
     };
     match rx.await {
-        Ok(Ok(())) => Ok(()),
+        Ok(Ok(data)) => Ok(data),
         Ok(Err(e)) => Err(JsError::new(&e)),
         Err(_) => Err(JsError::new(&format!(
             "handshake sender dropped before {expected_type}"
