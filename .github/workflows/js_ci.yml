@@ -86,8 +86,13 @@ jobs:
         with:
           path: ~/emscripten-wbg
           # Bump the v# suffix when the fork URL or bootstrap behavior
-          # changes in a way the cached tree would miss.
-          key: emsdk-wbg-${{ runner.os }}-v2
+          # changes in a way the cached tree would miss. v2->v3 forced
+          # because the wbg-walkingeyerobot branch advanced (commits
+          # like 311eba5e) bringing newer libc++ source whose headers
+          # cross-reference internals not present in the cached
+          # cache/sysroot from earlier runs — emcc errored with
+          # `'__utility/private_constructor_tag.h' file not found`.
+          key: emsdk-wbg-${{ runner.os }}-v3
 
       - name: Clone + bootstrap + configure patched Emscripten fork
         if: steps.emsdk-cache.outputs.cache-hit != 'true'
