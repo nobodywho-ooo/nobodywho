@@ -75,15 +75,24 @@ for (const { ext, desc } of formats) {
 
   let inferenceErr = null;
   let response = null;
+  let chunkCount = 0;
   try {
-    response = await chat.ask([audio, 'Transcribe.']).completed();
+    // for-await streams tokens via the per-token hook (same path as
+    // text/vision). Multi-chunk return confirms streaming engages on
+    // audio prompts too.
+    response = '';
+    for await (const tok of chat.ask([audio, 'Transcribe.'])) {
+      chunkCount++;
+      response += tok;
+    }
   } catch (e) {
     inferenceErr = e.message ?? String(e);
+    response = null;
   }
 
   if (response) {
-    results[ext] = { state: 'full-ok', response: response.slice(0, 200) };
-    console.log(`    ✓ full inference: ${JSON.stringify(response.slice(0, 100))}`);
+    results[ext] = { state: 'full-ok', response: response.slice(0, 200), chunkCount };
+    console.log(`    ✓ full inference: ${chunkCount} chunks, ${JSON.stringify(response.slice(0, 100))}`);
   } else {
     // Audio.fromBytes worked and we sent it to the worker. The
     // downstream crash (if any) is documented separately. The
