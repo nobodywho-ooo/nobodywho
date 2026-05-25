@@ -277,6 +277,200 @@ impl Audio {
     }
 }
 
+/// Static factory namespace for common sampler presets. Each method
+/// returns a plain JS object shaped like `Chat.create({sampler: ...})`,
+/// ready to drop in. Mirrors Python's `SamplerPresets`.
+///
+/// ```js
+/// import { SamplerPresets } from 'nobodywho-js';
+/// await Chat.create({ modelBytes, sampler: SamplerPresets.greedy() });
+/// await Chat.create({ modelBytes, sampler: SamplerPresets.temperature(0.8) });
+/// ```
+///
+/// The constrain-* presets return `{constraint: ...}` instead of a
+/// sampler spec, because grammars are wired through `Chat.create`'s
+/// `constraint` option rather than the sampler chain in this binding:
+///
+/// ```js
+/// const cfg = SamplerPresets.constrainWithRegex('^\\d+$');
+/// await Chat.create({ modelBytes, ...cfg });
+/// ```
+#[wasm_bindgen]
+pub struct SamplerPresets;
+
+#[wasm_bindgen]
+impl SamplerPresets {
+    /// Empty sampler — defaults to core's preset (top_k=20, top_p=0.95,
+    /// temperature=0.6, dist).
+    #[wasm_bindgen(static_method_of = SamplerPresets, js_name = default)]
+    pub fn default_preset() -> js_sys::Object {
+        js_sys::Object::new()
+    }
+
+    /// Always picks the most probable token. Deterministic.
+    #[wasm_bindgen(static_method_of = SamplerPresets)]
+    pub fn greedy() -> js_sys::Object {
+        let o = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&o, &"sampleStep".into(), &"greedy".into());
+        o
+    }
+
+    /// Temperature-only sampler.
+    #[wasm_bindgen(static_method_of = SamplerPresets)]
+    pub fn temperature(temperature: f32) -> js_sys::Object {
+        let o = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&o, &"temperature".into(), &temperature.into());
+        o
+    }
+
+    /// Top-K filtering only.
+    #[wasm_bindgen(static_method_of = SamplerPresets, js_name = topK)]
+    pub fn top_k(top_k: i32) -> js_sys::Object {
+        let o = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&o, &"topK".into(), &top_k.into());
+        o
+    }
+
+    /// Nucleus (top-P) sampling only.
+    #[wasm_bindgen(static_method_of = SamplerPresets, js_name = topP)]
+    pub fn top_p(top_p: f32) -> js_sys::Object {
+        let o = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&o, &"topP".into(), &top_p.into());
+        o
+    }
+
+    /// Constrain generation to a regular expression. Returns a
+    /// `{constraint: {regex}}` shape — pass to `Chat.create` via
+    /// `Chat.create({modelBytes, ...preset})`.
+    #[wasm_bindgen(static_method_of = SamplerPresets, js_name = constrainWithRegex)]
+    pub fn constrain_with_regex(pattern: String) -> js_sys::Object {
+        let inner = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&inner, &"regex".into(), &pattern.as_str().into());
+        let outer = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&outer, &"constraint".into(), &inner.into());
+        outer
+    }
+
+    /// Constrain generation to a JSON schema (string-form).
+    #[wasm_bindgen(static_method_of = SamplerPresets, js_name = constrainWithJsonSchema)]
+    pub fn constrain_with_json_schema(schema: String) -> js_sys::Object {
+        let inner = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&inner, &"jsonSchema".into(), &schema.as_str().into());
+        let outer = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&outer, &"constraint".into(), &inner.into());
+        outer
+    }
+
+    /// Constrain generation to a Lark grammar.
+    #[wasm_bindgen(static_method_of = SamplerPresets, js_name = constrainWithGrammar)]
+    pub fn constrain_with_grammar(grammar: String) -> js_sys::Object {
+        let inner = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&inner, &"lark".into(), &grammar.as_str().into());
+        let outer = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&outer, &"constraint".into(), &inner.into());
+        outer
+    }
+}
+
+/// Fluent builder for sampler chains. Each shift method returns the
+/// builder for chaining; each terminal method (`dist`, `greedy`,
+/// `mirostatV1`, `mirostatV2`) returns the finished sampler spec as a
+/// plain JS object — pass directly to `Chat.create({sampler: ...})`.
+/// Mirrors Python's `SamplerBuilder`.
+///
+/// ```js
+/// import { SamplerBuilder } from 'nobodywho-js';
+/// const sampler = new SamplerBuilder()
+///   .topK(40)
+///   .topP(0.95)
+///   .temperature(0.7)
+///   .dist();
+/// await Chat.create({ modelBytes, sampler });
+/// ```
+#[wasm_bindgen]
+pub struct SamplerBuilder {
+    spec: js_sys::Object,
+}
+
+#[wasm_bindgen]
+impl SamplerBuilder {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> SamplerBuilder {
+        SamplerBuilder {
+            spec: js_sys::Object::new(),
+        }
+    }
+
+    /// Shift step: temperature scaling. Returns self for chaining.
+    pub fn temperature(self, temperature: f32) -> SamplerBuilder {
+        let _ = js_sys::Reflect::set(&self.spec, &"temperature".into(), &temperature.into());
+        self
+    }
+
+    /// Shift step: top-K filtering. Returns self for chaining.
+    #[wasm_bindgen(js_name = topK)]
+    pub fn top_k(self, top_k: i32) -> SamplerBuilder {
+        let _ = js_sys::Reflect::set(&self.spec, &"topK".into(), &top_k.into());
+        self
+    }
+
+    /// Shift step: nucleus (top-P) sampling. Returns self for chaining.
+    #[wasm_bindgen(js_name = topP)]
+    pub fn top_p(self, top_p: f32) -> SamplerBuilder {
+        let _ = js_sys::Reflect::set(&self.spec, &"topP".into(), &top_p.into());
+        self
+    }
+
+    /// Shift step: min-P sampling. Returns self for chaining.
+    #[wasm_bindgen(js_name = minP)]
+    pub fn min_p(self, min_p: f32) -> SamplerBuilder {
+        let _ = js_sys::Reflect::set(&self.spec, &"minP".into(), &min_p.into());
+        self
+    }
+
+    /// Shift step: repeat-penalty. Returns self for chaining.
+    #[wasm_bindgen(js_name = repeatPenalty)]
+    pub fn repeat_penalty(self, penalty: f32, last_n: i32) -> SamplerBuilder {
+        let _ = js_sys::Reflect::set(&self.spec, &"repeatPenalty".into(), &penalty.into());
+        let _ = js_sys::Reflect::set(&self.spec, &"repeatLastN".into(), &last_n.into());
+        self
+    }
+
+    /// Terminal: weighted-random sample from the shifted distribution.
+    /// Returns the completed sampler spec.
+    pub fn dist(self) -> js_sys::Object {
+        let _ = js_sys::Reflect::set(&self.spec, &"sampleStep".into(), &"dist".into());
+        self.spec
+    }
+
+    /// Terminal: always pick the most probable token. Returns the
+    /// completed sampler spec.
+    pub fn greedy(self) -> js_sys::Object {
+        let _ = js_sys::Reflect::set(&self.spec, &"sampleStep".into(), &"greedy".into());
+        self.spec
+    }
+
+    /// Terminal: Mirostat v1. Returns the completed sampler spec.
+    #[wasm_bindgen(js_name = mirostatV1)]
+    pub fn mirostat_v1(self, tau: f32, eta: f32, m: i32) -> js_sys::Object {
+        let _ = js_sys::Reflect::set(&self.spec, &"sampleStep".into(), &"mirostatV1".into());
+        let _ = js_sys::Reflect::set(&self.spec, &"mirostatTau".into(), &tau.into());
+        let _ = js_sys::Reflect::set(&self.spec, &"mirostatEta".into(), &eta.into());
+        let _ = js_sys::Reflect::set(&self.spec, &"mirostatM".into(), &m.into());
+        self.spec
+    }
+
+    /// Terminal: Mirostat v2 (simpler than v1; usually preferred).
+    /// Returns the completed sampler spec.
+    #[wasm_bindgen(js_name = mirostatV2)]
+    pub fn mirostat_v2(self, tau: f32, eta: f32) -> js_sys::Object {
+        let _ = js_sys::Reflect::set(&self.spec, &"sampleStep".into(), &"mirostatV2".into());
+        let _ = js_sys::Reflect::set(&self.spec, &"mirostatTau".into(), &tau.into());
+        let _ = js_sys::Reflect::set(&self.spec, &"mirostatEta".into(), &eta.into());
+        self.spec
+    }
+}
+
 /// Build a tagged media part object. `kind` is `"image"` or `"audio"`.
 fn make_media_part(kind: &str, bytes: &[u8]) -> js_sys::Object {
     let o = js_sys::Object::new();
