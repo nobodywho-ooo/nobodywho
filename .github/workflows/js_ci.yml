@@ -50,15 +50,17 @@ jobs:
         # libclang for bindgen (consumed via $LIBCLANG_PATH below);
         # cmake + python3 are needed by Emscripten + llama.cpp's cmake;
         # build-essential gets us a C compiler for emscripten's bootstrap.
-        # Vulkan (libvulkan-dev + glslc) is pre-installed on GitHub's
-        # ubuntu-24.04 runner image — the native lint step needs it
-        # because cargo test transitively builds llama-cpp-sys-2 with
-        # the `vulkan` feature. If using a slimmer Docker image (e.g.
-        # act locally), add `libvulkan-dev glslc` to this list.
+        # libvulkan-dev + libshaderc-dev + glslc: the native lint step
+        # (`cargo test -p nobodywho-js`) transitively builds
+        # llama-cpp-sys-2 for the host target with the `vulkan` ggml
+        # backend enabled, which requires Vulkan headers + the glslc
+        # shader compiler. Mirrors the apt set used by the other linux
+        # binding workflows.
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            cmake python3 python3-pip build-essential libclang-dev clang brotli
+            cmake python3 python3-pip build-essential libclang-dev clang brotli \
+            libvulkan-dev libshaderc-dev glslc
 
       - name: Run lint regression tests (native target, no wasm toolchain needed)
         # Source-text invariants over the binding + examples + scripts.
