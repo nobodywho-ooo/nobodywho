@@ -99,7 +99,8 @@ verify locally after a build, run:
 | `emscripten-smoke.mjs` | `Model.loadBytes` + basic ask round-trip (plus the `chat_demo.mjs` example end-to-end) |
 | `forawait-smoke.mjs` | `for await (const tok of chat.ask(...))` iteration |
 | `sampler-smoke.mjs` | sampler-config knobs end-to-end |
-| `sampler-ergo-smoke.mjs` | `SamplerBuilder` + `SamplerPresets` |
+| `sampler-ergo-smoke.mjs` | `SamplerBuilder` + `SamplerPresets` (core shift + sample steps) |
+| `sampler-extra-smoke.mjs` | DRY / XTC / TypicalP / full Penalties shift steps + `dry()` / `json()` presets |
 | `constraint-smoke.mjs` | structured output (regex / JSON Schema / lark) |
 | `tool-smoke.mjs` | sync + async tool callbacks via the worker RPC bridge |
 | `audio-smoke.mjs` | WAV / MP3 / FLAC decoder paths end-to-end |

@@ -455,6 +455,39 @@ impl SamplerPresets {
         let _ = js_sys::Reflect::set(&outer, &"constraint".into(), &inner.into());
         outer
     }
+
+    /// DRY repetition penalty preset. Uses core's defaults (multiplier=0,
+    /// base=1.75, allowed_length=2, full-context window, common
+    /// newline/colon/quote/star seq breakers). Override individual knobs
+    /// by spreading + replacing: `{...SamplerPresets.dry(), dryMultiplier: 0.8}`.
+    #[wasm_bindgen(static_method_of = SamplerPresets)]
+    pub fn dry() -> js_sys::Object {
+        let o = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&o, &"dryMultiplier".into(), &0.0_f64.into());
+        let _ = js_sys::Reflect::set(&o, &"dryBase".into(), &1.75_f64.into());
+        let _ = js_sys::Reflect::set(&o, &"dryAllowedLength".into(), &2_i32.into());
+        let _ = js_sys::Reflect::set(&o, &"dryPenaltyLastN".into(), &(-1_i32).into());
+        let breakers = js_sys::Array::new();
+        breakers.push(&"\n".into());
+        breakers.push(&":".into());
+        breakers.push(&"\"".into());
+        breakers.push(&"*".into());
+        let _ = js_sys::Reflect::set(&o, &"drySeqBreakers".into(), &breakers.into());
+        o
+    }
+
+    /// Constrain output to ANY valid JSON (no schema). For schema-validated
+    /// JSON, use `constrainWithJsonSchema(schema)` instead. Returns a
+    /// `{constraint: {jsonSchema}}` shape with `{}` schema (which
+    /// llguidance accepts as "any valid JSON value").
+    #[wasm_bindgen(static_method_of = SamplerPresets)]
+    pub fn json() -> js_sys::Object {
+        let inner = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&inner, &"jsonSchema".into(), &"{}".into());
+        let outer = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&outer, &"constraint".into(), &inner.into());
+        outer
+    }
 }
 
 /// Fluent builder for sampler chains. Each shift method returns the
@@ -513,11 +546,74 @@ impl SamplerBuilder {
         self
     }
 
-    /// Shift step: repeat-penalty. Returns self for chaining.
+    /// Shift step: repeat-penalty (penalty only). Returns self for
+    /// chaining. For all four repeat-penalty knobs in one call, use
+    /// `.penalties()`.
     #[wasm_bindgen(js_name = repeatPenalty)]
     pub fn repeat_penalty(self, penalty: f32, last_n: i32) -> SamplerBuilder {
         let _ = js_sys::Reflect::set(&self.spec, &"repeatPenalty".into(), &penalty.into());
         let _ = js_sys::Reflect::set(&self.spec, &"repeatLastN".into(), &last_n.into());
+        self
+    }
+
+    /// Shift step: full repeat-penalty step with all four knobs —
+    /// matches Python's `SamplerBuilder.penalties()`. Returns self for
+    /// chaining.
+    pub fn penalties(
+        self,
+        penalty_repeat: f32,
+        penalty_last_n: i32,
+        penalty_freq: f32,
+        penalty_present: f32,
+    ) -> SamplerBuilder {
+        let _ = js_sys::Reflect::set(&self.spec, &"repeatPenalty".into(), &penalty_repeat.into());
+        let _ = js_sys::Reflect::set(&self.spec, &"repeatLastN".into(), &penalty_last_n.into());
+        let _ = js_sys::Reflect::set(&self.spec, &"repeatFreqPenalty".into(), &penalty_freq.into());
+        let _ = js_sys::Reflect::set(
+            &self.spec,
+            &"repeatPresentPenalty".into(),
+            &penalty_present.into(),
+        );
+        self
+    }
+
+    /// Shift step: DRY ("Don't Repeat Yourself") repetition penalty.
+    /// Returns self for chaining. `seqBreakers` defaults to common
+    /// punctuation breakers when not supplied; pass an empty array to
+    /// disable.
+    pub fn dry(
+        self,
+        multiplier: f32,
+        base: f32,
+        allowed_length: i32,
+        penalty_last_n: i32,
+        seq_breakers: js_sys::Array,
+    ) -> SamplerBuilder {
+        let _ = js_sys::Reflect::set(&self.spec, &"dryMultiplier".into(), &multiplier.into());
+        let _ = js_sys::Reflect::set(&self.spec, &"dryBase".into(), &base.into());
+        let _ =
+            js_sys::Reflect::set(&self.spec, &"dryAllowedLength".into(), &allowed_length.into());
+        let _ =
+            js_sys::Reflect::set(&self.spec, &"dryPenaltyLastN".into(), &penalty_last_n.into());
+        let _ = js_sys::Reflect::set(&self.spec, &"drySeqBreakers".into(), &seq_breakers.into());
+        self
+    }
+
+    /// Shift step: XTC ("Exclude Top Choices") sampling. Returns self
+    /// for chaining.
+    pub fn xtc(self, probability: f32, threshold: f32, min_keep: u32) -> SamplerBuilder {
+        let _ = js_sys::Reflect::set(&self.spec, &"xtcProbability".into(), &probability.into());
+        let _ = js_sys::Reflect::set(&self.spec, &"xtcThreshold".into(), &threshold.into());
+        let _ = js_sys::Reflect::set(&self.spec, &"xtcMinKeep".into(), &min_keep.into());
+        self
+    }
+
+    /// Shift step: Typical-P (locally typical) sampling. Returns self
+    /// for chaining.
+    #[wasm_bindgen(js_name = typicalP)]
+    pub fn typical_p(self, typ_p: f32, min_keep: u32) -> SamplerBuilder {
+        let _ = js_sys::Reflect::set(&self.spec, &"typicalP".into(), &typ_p.into());
+        let _ = js_sys::Reflect::set(&self.spec, &"typicalPMinKeep".into(), &min_keep.into());
         self
     }
 
@@ -1218,6 +1314,33 @@ struct SamplerSpec {
     mirostat_eta: Option<f32>,
     /// MirostatV1 only.
     mirostat_m: Option<i32>,
+    /// Typical-P (locally typical) sampling threshold. Adds a TypicalP
+    /// shift step when set.
+    typical_p: Option<f32>,
+    /// Typical-P minimum tokens to keep. Defaults to 1 when only
+    /// `typical_p` is given.
+    typical_p_min_keep: Option<u32>,
+    /// XTC ("Exclude Top Choices") probability of triggering. Setting
+    /// any of the `xtc_*` fields adds an XTC shift step.
+    xtc_probability: Option<f32>,
+    /// XTC threshold — tokens above this probability become candidates
+    /// for exclusion.
+    xtc_threshold: Option<f32>,
+    /// XTC minimum tokens to keep.
+    xtc_min_keep: Option<u32>,
+    /// DRY ("Don't Repeat Yourself") repetition-penalty multiplier.
+    /// Setting any of the `dry_*` fields adds a DRY shift step.
+    dry_multiplier: Option<f32>,
+    /// DRY base — exponent base for the per-repeat-length penalty.
+    dry_base: Option<f32>,
+    /// DRY maximum allowed repeat length before penalty applies.
+    dry_allowed_length: Option<i32>,
+    /// DRY scope: how many recent tokens to consider. `-1` (default in
+    /// core) means the full context.
+    dry_penalty_last_n: Option<i32>,
+    /// DRY sequence breakers — strings that reset the repetition
+    /// detector. Common defaults: `["\n", ":", "\"", "*"]`.
+    dry_seq_breakers: Option<Vec<String>>,
 }
 
 impl SamplerSpec {
@@ -1251,6 +1374,43 @@ impl SamplerSpec {
             config = config.shift(ShiftStep::MinP {
                 min_p: p,
                 min_keep: 1,
+            });
+        }
+        if let Some(p) = self.typical_p {
+            config = config.shift(ShiftStep::TypicalP {
+                typ_p: p,
+                min_keep: self.typical_p_min_keep.unwrap_or(1),
+            });
+        }
+        if self.xtc_probability.is_some()
+            || self.xtc_threshold.is_some()
+            || self.xtc_min_keep.is_some()
+        {
+            config = config.shift(ShiftStep::XTC {
+                xtc_probability: self.xtc_probability.unwrap_or(0.0),
+                xtc_threshold: self.xtc_threshold.unwrap_or(0.1),
+                min_keep: self.xtc_min_keep.unwrap_or(1),
+            });
+        }
+        if self.dry_multiplier.is_some()
+            || self.dry_base.is_some()
+            || self.dry_allowed_length.is_some()
+            || self.dry_penalty_last_n.is_some()
+            || self.dry_seq_breakers.is_some()
+        {
+            config = config.shift(ShiftStep::DRY {
+                multiplier: self.dry_multiplier.unwrap_or(0.0),
+                base: self.dry_base.unwrap_or(1.75),
+                allowed_length: self.dry_allowed_length.unwrap_or(2),
+                penalty_last_n: self.dry_penalty_last_n.unwrap_or(-1),
+                seq_breakers: self.dry_seq_breakers.unwrap_or_else(|| {
+                    vec![
+                        "\n".to_string(),
+                        ":".to_string(),
+                        "\"".to_string(),
+                        "*".to_string(),
+                    ]
+                }),
             });
         }
         if let Some(t) = self.temperature {
