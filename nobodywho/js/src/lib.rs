@@ -1496,6 +1496,155 @@ async fn handle_worker_message(
                 .map_err(|e| e.to_string())?;
             post(&worker_reply("history-set"));
         }
+        "reset-history" => {
+            let handle = WORKER_CHAT
+                .with(|c| c.borrow().clone())
+                .ok_or_else(|| "chat not created".to_string())?;
+            handle
+                .reset_history()
+                .await
+                .map_err(|e| e.to_string())?;
+            // Reuse history-set ack — same semantics (history is now cleared).
+            post(&worker_reply("history-set"));
+        }
+        "get-system-prompt" => {
+            let handle = WORKER_CHAT
+                .with(|c| c.borrow().clone())
+                .ok_or_else(|| "chat not created".to_string())?;
+            let prompt = handle
+                .get_system_prompt()
+                .await
+                .map_err(|e| e.to_string())?;
+            let reply = js_sys::Object::new();
+            let _ = js_sys::Reflect::set(&reply, &"type".into(), &"system-prompt-reply".into());
+            let prompt_jsval = match prompt {
+                Some(s) => JsValue::from_str(&s),
+                None => JsValue::NULL,
+            };
+            let _ = js_sys::Reflect::set(&reply, &"prompt".into(), &prompt_jsval);
+            post(&reply);
+        }
+        "set-system-prompt" => {
+            let handle = WORKER_CHAT
+                .with(|c| c.borrow().clone())
+                .ok_or_else(|| "chat not created".to_string())?;
+            let prompt_val = js_sys::Reflect::get(&data, &"prompt".into())
+                .unwrap_or(JsValue::NULL);
+            let prompt: Option<String> = if prompt_val.is_null() || prompt_val.is_undefined() {
+                None
+            } else {
+                prompt_val.as_string()
+            };
+            handle
+                .set_system_prompt(prompt)
+                .await
+                .map_err(|e| e.to_string())?;
+            post(&worker_reply("system-prompt-set"));
+        }
+        "get-sampler" => {
+            let handle = WORKER_CHAT
+                .with(|c| c.borrow().clone())
+                .ok_or_else(|| "chat not created".to_string())?;
+            let sampler = handle
+                .get_sampler_config()
+                .await
+                .map_err(|e| e.to_string())?;
+            let reply = js_sys::Object::new();
+            let _ = js_sys::Reflect::set(&reply, &"type".into(), &"sampler-reply".into());
+            let sampler_jsval = serde_wasm_bindgen::to_value(&sampler)
+                .map_err(|e| format!("sampler serialize: {e}"))?;
+            let _ = js_sys::Reflect::set(&reply, &"sampler".into(), &sampler_jsval);
+            post(&reply);
+        }
+        "set-sampler" => {
+            let handle = WORKER_CHAT
+                .with(|c| c.borrow().clone())
+                .ok_or_else(|| "chat not created".to_string())?;
+            let sampler_jsval = js_sys::Reflect::get(&data, &"sampler".into())
+                .map_err(|_| "missing 'sampler' field".to_string())?;
+            // SamplerSpec is the JS-friendly shape; convert to core's SamplerConfig.
+            let spec: SamplerSpec = serde_wasm_bindgen::from_value(sampler_jsval)
+                .map_err(|e| format!("sampler: {e}"))?;
+            let cfg = spec.into_sampler().map_err(|e| format!("{e:?}"))?;
+            handle
+                .set_sampler_config(cfg)
+                .await
+                .map_err(|e| e.to_string())?;
+            post(&worker_reply("sampler-set"));
+        }
+        "get-template-vars" => {
+            let handle = WORKER_CHAT
+                .with(|c| c.borrow().clone())
+                .ok_or_else(|| "chat not created".to_string())?;
+            let vars = handle
+                .get_template_variables()
+                .await
+                .map_err(|e| e.to_string())?;
+            let reply = js_sys::Object::new();
+            let _ = js_sys::Reflect::set(&reply, &"type".into(), &"template-vars-reply".into());
+            // serialize_maps_as_objects so HashMap becomes a plain JS
+            // Object rather than a JS Map. Maps don't iterate as own
+            // properties, so JSON.stringify(map) gives `{}` and the
+            // payload would arrive empty on the channel hop.
+            use serde::Serialize;
+            let ser = serde_wasm_bindgen::Serializer::new()
+                .serialize_maps_as_objects(true);
+            let vars_jsval = vars
+                .serialize(&ser)
+                .map_err(|e| format!("template vars serialize: {e}"))?;
+            let _ = js_sys::Reflect::set(&reply, &"variables".into(), &vars_jsval);
+            post(&reply);
+        }
+        "set-template-var" => {
+            let handle = WORKER_CHAT
+                .with(|c| c.borrow().clone())
+                .ok_or_else(|| "chat not created".to_string())?;
+            let name = js_sys::Reflect::get(&data, &"name".into())
+                .ok()
+                .and_then(|v| v.as_string())
+                .ok_or_else(|| "missing 'name' field".to_string())?;
+            let value = js_sys::Reflect::get(&data, &"value".into())
+                .ok()
+                .and_then(|v| v.as_bool())
+                .ok_or_else(|| "missing 'value' field (must be bool)".to_string())?;
+            handle
+                .set_template_variable(name, value)
+                .await
+                .map_err(|e| e.to_string())?;
+            post(&worker_reply("template-var-set"));
+        }
+        "set-template-vars" => {
+            let handle = WORKER_CHAT
+                .with(|c| c.borrow().clone())
+                .ok_or_else(|| "chat not created".to_string())?;
+            let vars_jsval = js_sys::Reflect::get(&data, &"variables".into())
+                .map_err(|_| "missing 'variables' field".to_string())?;
+            let vars: std::collections::HashMap<String, bool> =
+                serde_wasm_bindgen::from_value(vars_jsval)
+                    .map_err(|e| format!("variables: {e}"))?;
+            handle
+                .set_template_variables(vars)
+                .await
+                .map_err(|e| e.to_string())?;
+            post(&worker_reply("template-vars-set"));
+        }
+        "set-tools" => {
+            let handle = WORKER_CHAT
+                .with(|c| c.borrow().clone())
+                .ok_or_else(|| "chat not created".to_string())?;
+            let tools_jsval = js_sys::Reflect::get(&data, &"tools".into())
+                .unwrap_or(JsValue::UNDEFINED);
+            let tools: Vec<nobodywho::tool_calling::Tool> =
+                if tools_jsval.is_undefined() || tools_jsval.is_null() {
+                    vec![]
+                } else {
+                    let metas: Vec<ToolMeta> = serde_wasm_bindgen::from_value(tools_jsval)
+                        .map_err(|e| format!("tools: {e}"))?;
+                    metas.into_iter().map(build_rpc_tool).collect()
+                };
+            handle.set_tools(tools).await.map_err(|e| e.to_string())?;
+            post(&worker_reply("tools-set"));
+        }
         other => return Err(format!("unknown msg type: {other}")),
     }
 
@@ -1624,6 +1773,79 @@ fn worker_reply_error(message: &str) -> JsValue {
     let _ = js_sys::Reflect::set(&obj, &"type".into(), &"error".into());
     let _ = js_sys::Reflect::set(&obj, &"message".into(), &message.into());
     obj.into()
+}
+
+/// Used by every Chat setter / getter to early-return if the worker has
+/// been terminated. Borrow scope is tight so we don't hold it across the
+/// later `worker_post`.
+#[cfg(target_family = "wasm")]
+fn check_not_terminated(state: &std::rc::Rc<RefCell<ChatState>>) -> Result<(), JsError> {
+    if state.borrow().terminated {
+        return Err(JsError::new("Chat: already terminated"));
+    }
+    Ok(())
+}
+
+/// Split a JS `tools` array (`[Tool.fromFn(...), ...]`) into the
+/// main-thread callback map (name → JS function ref) plus a
+/// structured-cloneable metadata array (`[{name, description,
+/// jsonSchema}, ...]`) for postMessage to the worker. Used by both
+/// `Chat.create` and `Chat.setTools`. Returns `(empty, empty array)`
+/// if `tools_jsval` is null / undefined.
+#[cfg(target_family = "wasm")]
+fn extract_tool_callbacks(
+    tools_jsval: &JsValue,
+) -> Result<
+    (
+        std::collections::HashMap<String, js_sys::Function>,
+        JsValue,
+    ),
+    JsError,
+> {
+    let mut tool_callbacks: std::collections::HashMap<String, js_sys::Function> =
+        std::collections::HashMap::new();
+    let tools_meta_array = js_sys::Array::new();
+    if tools_jsval.is_undefined() || tools_jsval.is_null() {
+        return Ok((tool_callbacks, tools_meta_array.into()));
+    }
+    let arr: js_sys::Array = tools_jsval.clone().dyn_into().map_err(|_| {
+        JsError::new("tools must be an array of Tool.fromFn(...) values")
+    })?;
+    for (idx, raw) in arr.iter().enumerate() {
+        let kind = js_sys::Reflect::get(&raw, &"__nbwKind".into())
+            .ok()
+            .and_then(|v| v.as_string());
+        if kind.as_deref() != Some("tool") {
+            return Err(JsError::new(&format!(
+                "tools[{idx}] is not a Tool.fromFn(...) value (missing __nbwKind=tool)",
+            )));
+        }
+        let name = js_sys::Reflect::get(&raw, &"name".into())
+            .ok()
+            .and_then(|v| v.as_string())
+            .ok_or_else(|| JsError::new(&format!("tools[{idx}]: missing name")))?;
+        let description = js_sys::Reflect::get(&raw, &"description".into())
+            .ok()
+            .and_then(|v| v.as_string())
+            .ok_or_else(|| JsError::new(&format!("tools[{idx}]: missing description")))?;
+        let schema = js_sys::Reflect::get(&raw, &"jsonSchema".into())
+            .map_err(|_| JsError::new(&format!("tools[{idx}]: missing jsonSchema")))?;
+        let callback = js_sys::Reflect::get(&raw, &"callback".into())
+            .map_err(|_| JsError::new(&format!("tools[{idx}]: missing callback")))?
+            .dyn_into::<js_sys::Function>()
+            .map_err(|_| JsError::new(&format!("tools[{idx}]: callback is not a function")))?;
+        let meta_obj = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&meta_obj, &"name".into(), &name.as_str().into());
+        let _ = js_sys::Reflect::set(
+            &meta_obj,
+            &"description".into(),
+            &description.as_str().into(),
+        );
+        let _ = js_sys::Reflect::set(&meta_obj, &"jsonSchema".into(), &schema);
+        tools_meta_array.push(&meta_obj);
+        tool_callbacks.insert(name, callback);
+    }
+    Ok((tool_callbacks, tools_meta_array.into()))
 }
 
 // ---------- Cache API helpers ----------
@@ -2067,12 +2289,19 @@ struct ChatState {
     /// While the main thread is awaiting a typed reply from the worker
     /// (Chat.create's load/create handshake, or any of the getter /
     /// setter request-reply pairs like getChatHistory), this holds
-    /// `(expected_reply_type, sender)`. The onmessage closure resolves
-    /// the sender with the full reply data when a message of that type
-    /// arrives. Callers extract whatever payload they need from the
-    /// data JsValue.
+    /// `(expected_reply_type, sender)`. The onmessage closure
+    /// JSON-stringifies the reply data and signals via this oneshot.
+    /// The waiter parses the JSON back into JS via `JSON.parse` and
+    /// extracts whatever payload field it needs.
+    ///
+    /// The payload type is `String` (a serialized JSON object) rather
+    /// than `JsValue` because `JsValue` contains an UnsafeCell, which
+    /// transitively makes the onmessage closure !UnwindSafe and breaks
+    /// `Closure::new`. Round-tripping via JSON is fine here: every
+    /// reply payload we use (`messages`, `prompt`, `sampler`,
+    /// `variables`) is already JSON-serializable.
     pending_handshake:
-        Option<(String, tokio::sync::oneshot::Sender<Result<JsValue, String>>)>,
+        Option<(String, tokio::sync::oneshot::Sender<Result<String, String>>)>,
     /// Main-thread registry of tool callbacks. JS function refs can't
     /// survive `postMessage` (structured clone rejects functions), so the
     /// worker only ever sees tool metadata (name + description + schema).
@@ -2389,6 +2618,170 @@ impl Chat {
         })
     }
 
+    /// Read the current system prompt. Resolves to a string or `null`
+    /// (matching Python's `Optional[str]`).
+    #[wasm_bindgen(js_name = getSystemPrompt)]
+    pub fn get_system_prompt(&self) -> js_sys::Promise {
+        let state = self.state.clone();
+        promisify(async move {
+            check_not_terminated(&state)?;
+            let msg = js_sys::Object::new();
+            let _ = js_sys::Reflect::set(&msg, &"type".into(), &"get-system-prompt".into());
+            worker_post(&state.borrow().worker, &msg)
+                .map_err(|e| JsError::new(&format!("post get-system-prompt: {e:?}")))?;
+            let reply = wait_for_handshake(&state, "system-prompt-reply").await?;
+            let prompt = js_sys::Reflect::get(&reply, &"prompt".into())
+                .unwrap_or(JsValue::NULL);
+            Ok(prompt)
+        })
+    }
+
+    /// Replace the system prompt. Pass `null` to clear it. Takes effect
+    /// on the next ask (existing chat history is preserved).
+    #[wasm_bindgen(js_name = setSystemPrompt)]
+    pub fn set_system_prompt(&self, prompt: JsValue) -> js_sys::Promise {
+        let state = self.state.clone();
+        promisify(async move {
+            check_not_terminated(&state)?;
+            let msg = js_sys::Object::new();
+            let _ = js_sys::Reflect::set(&msg, &"type".into(), &"set-system-prompt".into());
+            let _ = js_sys::Reflect::set(&msg, &"prompt".into(), &prompt);
+            worker_post(&state.borrow().worker, &msg)
+                .map_err(|e| JsError::new(&format!("post set-system-prompt: {e:?}")))?;
+            let _ = wait_for_handshake(&state, "system-prompt-set").await?;
+            Ok(JsValue::UNDEFINED)
+        })
+    }
+
+    /// Read the current sampler config. Returns the JSON shape used by
+    /// `Chat.create({sampler: ...})`.
+    #[wasm_bindgen(js_name = getSamplerConfig)]
+    pub fn get_sampler_config(&self) -> js_sys::Promise {
+        let state = self.state.clone();
+        promisify(async move {
+            check_not_terminated(&state)?;
+            let msg = js_sys::Object::new();
+            let _ = js_sys::Reflect::set(&msg, &"type".into(), &"get-sampler".into());
+            worker_post(&state.borrow().worker, &msg)
+                .map_err(|e| JsError::new(&format!("post get-sampler: {e:?}")))?;
+            let reply = wait_for_handshake(&state, "sampler-reply").await?;
+            let sampler = js_sys::Reflect::get(&reply, &"sampler".into())
+                .unwrap_or(JsValue::NULL);
+            Ok(sampler)
+        })
+    }
+
+    /// Replace the sampler config. Takes the same shape as
+    /// `Chat.create({sampler: ...})`.
+    #[wasm_bindgen(js_name = setSamplerConfig)]
+    pub fn set_sampler_config(&self, sampler: JsValue) -> js_sys::Promise {
+        let state = self.state.clone();
+        promisify(async move {
+            check_not_terminated(&state)?;
+            let msg = js_sys::Object::new();
+            let _ = js_sys::Reflect::set(&msg, &"type".into(), &"set-sampler".into());
+            let _ = js_sys::Reflect::set(&msg, &"sampler".into(), &sampler);
+            worker_post(&state.borrow().worker, &msg)
+                .map_err(|e| JsError::new(&format!("post set-sampler: {e:?}")))?;
+            let _ = wait_for_handshake(&state, "sampler-set").await?;
+            Ok(JsValue::UNDEFINED)
+        })
+    }
+
+    /// Read all template variables — returns a plain JS object like
+    /// `{enable_thinking: false, ...}`.
+    #[wasm_bindgen(js_name = getTemplateVariables)]
+    pub fn get_template_variables(&self) -> js_sys::Promise {
+        let state = self.state.clone();
+        promisify(async move {
+            check_not_terminated(&state)?;
+            let msg = js_sys::Object::new();
+            let _ = js_sys::Reflect::set(&msg, &"type".into(), &"get-template-vars".into());
+            worker_post(&state.borrow().worker, &msg)
+                .map_err(|e| JsError::new(&format!("post get-template-vars: {e:?}")))?;
+            let reply = wait_for_handshake(&state, "template-vars-reply").await?;
+            let vars = js_sys::Reflect::get(&reply, &"variables".into())
+                .unwrap_or(JsValue::UNDEFINED);
+            Ok(vars)
+        })
+    }
+
+    /// Set a single template variable (must be a boolean).
+    #[wasm_bindgen(js_name = setTemplateVariable)]
+    pub fn set_template_variable(&self, name: String, value: bool) -> js_sys::Promise {
+        let state = self.state.clone();
+        promisify(async move {
+            check_not_terminated(&state)?;
+            let msg = js_sys::Object::new();
+            let _ = js_sys::Reflect::set(&msg, &"type".into(), &"set-template-var".into());
+            let _ = js_sys::Reflect::set(&msg, &"name".into(), &name.as_str().into());
+            let _ = js_sys::Reflect::set(&msg, &"value".into(), &value.into());
+            worker_post(&state.borrow().worker, &msg)
+                .map_err(|e| JsError::new(&format!("post set-template-var: {e:?}")))?;
+            let _ = wait_for_handshake(&state, "template-var-set").await?;
+            Ok(JsValue::UNDEFINED)
+        })
+    }
+
+    /// Replace all template variables. Pass a plain JS object of
+    /// string → boolean (e.g. `{enable_thinking: false}`).
+    #[wasm_bindgen(js_name = setTemplateVariables)]
+    pub fn set_template_variables(&self, variables: JsValue) -> js_sys::Promise {
+        let state = self.state.clone();
+        promisify(async move {
+            check_not_terminated(&state)?;
+            let msg = js_sys::Object::new();
+            let _ = js_sys::Reflect::set(&msg, &"type".into(), &"set-template-vars".into());
+            let _ = js_sys::Reflect::set(&msg, &"variables".into(), &variables);
+            worker_post(&state.borrow().worker, &msg)
+                .map_err(|e| JsError::new(&format!("post set-template-vars: {e:?}")))?;
+            let _ = wait_for_handshake(&state, "template-vars-set").await?;
+            Ok(JsValue::UNDEFINED)
+        })
+    }
+
+    /// Replace the available tools. Accepts the same `Tool.fromFn(...)`
+    /// array shape as `Chat.create({tools: ...})`. Updates both the
+    /// main-thread callback registry and the worker's tool dispatch.
+    #[wasm_bindgen(js_name = setTools)]
+    pub fn set_tools(&self, tools: JsValue) -> js_sys::Promise {
+        let state = self.state.clone();
+        promisify(async move {
+            check_not_terminated(&state)?;
+            // Split the same way Chat.create does: callbacks stay on
+            // main thread, only metadata crosses postMessage.
+            let (callbacks, tools_meta) = extract_tool_callbacks(&tools)?;
+            {
+                let mut st = state.borrow_mut();
+                st.tool_callbacks = callbacks;
+            }
+            let msg = js_sys::Object::new();
+            let _ = js_sys::Reflect::set(&msg, &"type".into(), &"set-tools".into());
+            let _ = js_sys::Reflect::set(&msg, &"tools".into(), &tools_meta);
+            worker_post(&state.borrow().worker, &msg)
+                .map_err(|e| JsError::new(&format!("post set-tools: {e:?}")))?;
+            let _ = wait_for_handshake(&state, "tools-set").await?;
+            Ok(JsValue::UNDEFINED)
+        })
+    }
+
+    /// Clear the conversation history (preserves system prompt, tools,
+    /// sampler, template variables — only the user/assistant/tool
+    /// turns get wiped).
+    #[wasm_bindgen(js_name = resetHistory)]
+    pub fn reset_history(&self) -> js_sys::Promise {
+        let state = self.state.clone();
+        promisify(async move {
+            check_not_terminated(&state)?;
+            let msg = js_sys::Object::new();
+            let _ = js_sys::Reflect::set(&msg, &"type".into(), &"reset-history".into());
+            worker_post(&state.borrow().worker, &msg)
+                .map_err(|e| JsError::new(&format!("post reset-history: {e:?}")))?;
+            let _ = wait_for_handshake(&state, "history-set").await?;
+            Ok(JsValue::UNDEFINED)
+        })
+    }
+
     /// Interrupt the currently-running `ask`. Posts a `stop` message to
     /// the worker, which calls `ChatHandleAsync::stop_generation` —
     /// core's inference loop checks the stop flag between tokens and
@@ -2585,14 +2978,21 @@ fn handle_chat_message(state: &std::rc::Rc<RefCell<ChatState>>, data: JsValue) {
             });
         }
         // Handshake / request-reply: resolve a pending oneshot if its
-        // expected type matches. The full reply data is handed to the
-        // waiter so request-reply pairs can extract payload fields.
+        // expected type matches. The full reply data is JSON-stringified
+        // and handed to the waiter; the waiter parses it back into JS
+        // and extracts payload fields. JSON round-trip is needed
+        // because raw JsValue isn't UnwindSafe — see the
+        // pending_handshake field doc.
         other => {
             let mut st = state.borrow_mut();
             let take_it = matches!(&st.pending_handshake, Some((t, _)) if t == other);
             if take_it {
                 if let Some((_, tx)) = st.pending_handshake.take() {
-                    let _ = tx.send(Ok(data));
+                    let json = js_sys::JSON::stringify(&data)
+                        .ok()
+                        .and_then(|s| s.as_string())
+                        .unwrap_or_else(|| "null".to_string());
+                    let _ = tx.send(Ok(json));
                 }
             }
         }
@@ -2615,9 +3015,10 @@ fn handle_chat_error(state: &std::rc::Rc<RefCell<ChatState>>, err: String) {
 }
 
 /// Park until the worker posts a message of the given type (or errors out).
-/// Returns the full reply data JsValue — callers that just need the
-/// signal can ignore it, callers that need a payload field can pull
-/// it out via Reflect.
+/// Returns the full reply data as a JsValue (JSON-parsed from the
+/// stringified channel payload). Callers ignore it for signal-only
+/// handshakes (`ready`, `model-loaded`, `chat-ready`); callers that
+/// need a payload field pull it out via Reflect.
 #[cfg(target_family = "wasm")]
 async fn wait_for_handshake(
     state: &std::rc::Rc<RefCell<ChatState>>,
@@ -2636,7 +3037,8 @@ async fn wait_for_handshake(
         rx
     };
     match rx.await {
-        Ok(Ok(data)) => Ok(data),
+        Ok(Ok(json)) => js_sys::JSON::parse(&json)
+            .map_err(|e| JsError::new(&format!("reply JSON parse: {e:?}"))),
         Ok(Err(e)) => Err(JsError::new(&e)),
         Err(_) => Err(JsError::new(&format!(
             "handshake sender dropped before {expected_type}"
