@@ -99,7 +99,7 @@ echo "==> cargo build --target wasm32-unknown-emscripten --release -p nobodywho-
 rm -rf "$TARGET_DIR"
 (
   cd "$ROOT/nobodywho"
-  PATH="$EMSDK_DIR:$HOME/.rustup/toolchains/stable-aarch64-apple-darwin/bin:$HOME/.cargo/bin:/opt/homebrew/bin:$PATH" \
+  PATH="$EMSDK_DIR:$HOME/.cargo/bin:/opt/homebrew/bin:$PATH" \
   EM_CONFIG="$EM_CONFIG" \
   EM_WASM_BINDGEN="$WASM_BINDGEN_BIN" \
   LIBCLANG_PATH="${LIBCLANG_PATH:-/Library/Developer/CommandLineTools/usr/lib}" \

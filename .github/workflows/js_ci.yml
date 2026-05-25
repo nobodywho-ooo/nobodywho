@@ -1,16 +1,27 @@
 name: "JS CI"
 
-# Builds the wasm32-unknown-unknown target via wasi-sdk + wasm-bindgen and
-# runs the no-model smoke test in Node. Skips actually loading a GGUF —
-# that requires hosting a multi-MB model file somewhere.
+# Builds the wasm32-unknown-emscripten target via the patched Emscripten
+# fork + patched wasm-bindgen-cli, then runs the no-model lint suite
+# plus an end-to-end Encoder smoke against a tiny 35 MB embedding GGUF.
+# Mirrors what `js/scripts/build-pkg-emscripten.sh` does locally.
+#
+# The two patched forks (Emscripten + wasm-bindgen) are slow to build
+# from source but are cached across runs — first run is ~12 min, cached
+# subsequent runs ~4 min.
 
 on:
   workflow_call: {}
 
+env:
+  EMSDK_FORK_URL: https://github.com/walkingeyerobot/emscripten
+  EMSDK_FORK_REF: master
+  WBG_FORK_URL: https://github.com/nobodywho-ooo/wasm-bindgen
+  WBG_FORK_REF: emscripten-descriptor-fixes
+
 jobs:
   js-build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -23,91 +34,113 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             nobodywho/target
-          key: js-${{ runner.os }}-${{ hashFiles('nobodywho/Cargo.lock') }}
+          key: js-${{ runner.os }}-emsc-${{ hashFiles('nobodywho/Cargo.lock') }}
           restore-keys: |
-            js-${{ runner.os }}-
+            js-${{ runner.os }}-emsc-
 
       - name: Setup Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: wasm32-unknown-emscripten
+
+      - name: Install system deps for emscripten + bindgen
+        # libclang for bindgen (consumed via $LIBCLANG_PATH below);
+        # cmake + python3 are needed by Emscripten + llama.cpp's cmake;
+        # build-essential gets us a C compiler for emscripten's bootstrap.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake python3 python3-pip build-essential libclang-dev clang brotli
 
       - name: Run lint regression tests (native target, no wasm toolchain needed)
         # Source-text invariants over the binding + examples + scripts.
-        # Failing here means a docstring / example / build script drifted away
-        # from a contract a past code review pinned down. See js/tests/lint.rs.
+        # Failing here means a docstring / example / build script drifted
+        # from a contract a past code review pinned. See js/tests/lint.rs.
         working-directory: nobodywho
         run: cargo test -p nobodywho-js
 
-      - name: Install wasi-sdk
+      - name: Cache patched Emscripten fork
+        id: emsdk-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/emscripten-wbg
+          # Bump the v# suffix when the fork URL or bootstrap behavior
+          # changes in a way the cached tree would miss.
+          key: emsdk-wbg-${{ runner.os }}-v1
+
+      - name: Build patched Emscripten fork (if not cached)
+        if: steps.emsdk-cache.outputs.cache-hit != 'true'
+        # walkingeyerobot's fork carries the -sWASM_BINDGEN setting
+        # tracked in PR emscripten-core/emscripten#23493. `./bootstrap`
+        # downloads the matching binaryen + node bundle and wires up
+        # .emscripten. ~10 min on a cold cache, then re-used as-is.
         run: |
-          set -euo pipefail
-          cd ~
-          curl -L https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-33/wasi-sdk-33.0-x86_64-linux.tar.gz \
-            | tar -xz
-          echo "WASI_SDK_PATH=$HOME/wasi-sdk-33.0-x86_64-linux" >> "$GITHUB_ENV"
+          git clone --depth 1 --branch "$EMSDK_FORK_REF" "$EMSDK_FORK_URL" ~/emscripten-wbg
+          cd ~/emscripten-wbg
+          ./bootstrap
 
-      - name: Install rustup wasm target
-        run: rustup target add wasm32-unknown-unknown
+      - name: Cache patched wasm-bindgen-cli
+        id: wbg-cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/wbg-patched
+          key: wbg-patched-${{ runner.os }}-${{ env.WBG_FORK_REF }}-v1
 
-      - name: Install wasm-bindgen-cli
-        # Version is read from Cargo.lock so the CLI and the runtime glue
-        # baked into the .wasm always match. See wasm-bindgen-version.sh.
+      - name: Build patched wasm-bindgen-cli (if not cached)
+        if: steps.wbg-cache.outputs.cache-hit != 'true'
+        # Patched fork adds descriptor-interpreter tolerance for the
+        # Emscripten output mode that emcc-wbg's post-link step uses.
+        # Stock CLI silently emits bundler-shape output instead and the
+        # post-link step then can't find library_bindgen.js.
         run: |
-          version=$(bash nobodywho/js/scripts/wasm-bindgen-version.sh)
-          echo "Installing wasm-bindgen-cli v$version (from Cargo.lock)"
-          cargo install wasm-bindgen-cli --version "$version" --locked
+          git clone --depth 1 --branch "$WBG_FORK_REF" "$WBG_FORK_URL" /tmp/wbg-src
+          cargo install --path /tmp/wbg-src/crates/cli --root /tmp/wbg-patched --locked
 
-      - name: Build wasm32-unknown-unknown (release)
-        working-directory: nobodywho
-        run: cargo build --target wasm32-unknown-unknown --release -p nobodywho-js
-
-      - name: Run wasm-bindgen
-        working-directory: nobodywho
-        run: |
-          mkdir -p js/pkg-bundler
-          wasm-bindgen --target bundler \
-            target/wasm32-unknown-unknown/release/nobodywho_js.wasm \
-            --out-dir js/pkg-bundler/
-
-      # Node 26+ is required. wasi-sdk's libc++ STL emits both noexternref
-      # (WasmGC) and exn (wasm Exception Handling) types in functions like
-      # money_get<wchar_t>. Older Nodes flag these as experimental and
-      # refuse to compile without flags:
-      #   - Node 20.x: "invalid value type 'noexternref', enable with
-      #     --experimental-wasm-gc"
-      #   - Node 22.x: gets past compile but SIGSEGVs in V8 on Linux x86_64
-      #     once llama.cpp's compute path runs (likely SIMD128 codegen bug,
-      #     fixed in Node 24). Doesn't reproduce on macOS arm64.
-      #   - Node 24.x: "invalid value type 'exn', enable with
-      #     --experimental-wasm-exnref"
-      #   - Node 26.x: enables both by default — runs end-to-end with no
-      #     flag tweaking.
       - name: Set up Node 26
+        # Node 26+: wasi-sdk/libcxx STL emits noexternref (WasmGC) +
+        # exn (wasm EH) types that older Nodes flag as experimental.
+        # Node 26 enables both by default.
         uses: actions/setup-node@v4
         with:
           node-version: '26'
 
-      - name: Download a tiny embedding GGUF
+      - name: Build pkg-bundler (wasm32-unknown-emscripten)
+        env:
+          EMSDK_DIR: /home/runner/emscripten-wbg
+          EM_WASM_BINDGEN: /tmp/wbg-patched/bin/wasm-bindgen
+          # llvm-config-* on ubuntu-24.04 points at /usr/lib/llvm-*/lib
+          LIBCLANG_PATH: /usr/lib/llvm-18/lib
+        # Builds llama.cpp + the Rust binding for wasm32-unknown-emscripten,
+        # injects the wasm-bindgen marker custom section, runs the patched
+        # wasm-bindgen-cli, applies the codegen sed patches, runs em++
+        # in --post-link mode to emit the modularized loader.
+        run: bash nobodywho/js/scripts/build-pkg-emscripten.sh
+
+      - name: Download tiny embedding GGUF
         working-directory: /tmp
         run: |
-          # Use a small embedding model so we can exercise Model.loadBytes +
-          # Encoder.encode end-to-end in CI without burning a lot of time
-          # downloading. bge-small-en-v1.5 Q8_0 is 35 MB.
+          # bge-small-en-v1.5 Q8_0 is 35 MB — enough to exercise
+          # Model.loadBytes + Encoder.encode without burning CI time.
           curl -L --fail -o bge-small.gguf \
             'https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf'
           ls -lh bge-small.gguf
 
-      - name: End-to-end embedding test
+      - name: End-to-end embedding smoke
+        # Sanity check that the binding can actually load a model and
+        # produce embeddings. Parses the demo's output to confirm finite
+        # floats came out, not zeros / NaNs.
         working-directory: nobodywho
         run: |
-          # Run the encoder demo, parse out the dimension + first values to
-          # sanity-check it's finite floats (i.e. the model actually ran
-          # and produced an embedding).
           output=$(node js/examples/encoder_demo.mjs /tmp/bge-small.gguf)
           echo "$output"
           echo "$output" | grep -q "Embedding dimension: 384" \
             || { echo "expected 'Embedding dimension: 384' line in output"; exit 1; }
           echo "$output" | grep -q "first 8: \[-\?[0-9]" \
             || { echo "expected 'first 8: [<float>...' line"; exit 1; }
+
+      - name: emscripten-smoke (Model.loadBytes + Encoder.encode)
+        working-directory: nobodywho
+        run: node js/scripts/emscripten-smoke.mjs /tmp/bge-small.gguf
 
       - name: Inspect artifact sizes
         working-directory: nobodywho/js/pkg-bundler
