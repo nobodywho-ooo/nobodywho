@@ -1991,11 +1991,16 @@ impl Worker<'_, ChatWorker> {
             }
         }
 
-        // Reuse cached prefix
-
-        let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
-        let inference_lock_token = _gil_guard.unwrap();
-        self.sync_context_with_render(&inference_lock_token)?;
+        // Skip the render when messages is empty for the same reason
+        // `set_chat_history` does — some chat templates dereference
+        // `messages[0]` unconditionally and panic on an empty list.
+        // The KV cache stays as-is until the next ask, which will
+        // re-render with whatever messages are present at that point.
+        if !self.extra.messages.is_empty() {
+            let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
+            let inference_lock_token = _gil_guard.unwrap();
+            self.sync_context_with_render(&inference_lock_token)?;
+        }
 
         Ok(())
     }

@@ -51,11 +51,12 @@ await chat.setSystemPrompt('Updated system prompt.');
 const sp2 = await chat.getSystemPrompt();
 console.log(`    after set: ${JSON.stringify(sp2)}`);
 assert.equal(sp2, 'Updated system prompt.');
-// Note: setSystemPrompt(null) triggers a core-level sync_context_with_render
-// error path; the API supports it but the behavior needs core work.
-// Tracked as follow-up; the common case (set to a non-null string) works.
+await chat.setSystemPrompt(null);
+const sp3 = await chat.getSystemPrompt();
+console.log(`    after set null: ${JSON.stringify(sp3)}`);
+assert.equal(sp3, null);
 await chat.setSystemPrompt('Reply concisely.');  // restore for later asks
-console.log('    ✓ system prompt round-trips');
+console.log('    ✓ system prompt round-trips (incl. null)');
 
 console.log('\n[2] Sampler config round-trip...');
 const sCfg = await chat.getSamplerConfig();
