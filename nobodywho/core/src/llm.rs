@@ -246,6 +246,79 @@ pub fn get_model_from_bytes(
     })
 }
 
+/// Wasm-only: load a model from a path that already exists in
+/// Emscripten's MEMFS (or any libc-fopen-reachable filesystem). The JS
+/// binding uses this when the caller passed `modelPath` to
+/// `Chat.create({...})` — main passes the host path to the worker,
+/// the worker's Node-fs helper streams chunks into MEMFS, and we
+/// hand off the MEMFS path here.
+///
+/// Why this exists alongside `get_model_from_bytes`: bytes-based
+/// loading forces the caller to hold the entire model in a JS
+/// `Buffer` first, which trips Node's 2 GiB `fs.readFileSync` cap on
+/// large models. Going via path lets the worker stream chunks into
+/// MEMFS directly without ever materializing the full model in
+/// main-thread memory. (The wasm32 4 GiB linear-memory ceiling still
+/// applies to the model + tensors + KV cache total; this loader
+/// doesn't fix that.)
+///
+/// `mmproj_path` is the same as `get_model_from_bytes`'s mmproj
+/// parameter — an already-on-MEMFS GGUF for the projection model.
+#[cfg(target_arch = "wasm32")]
+pub fn get_model_from_path(
+    model_path: &std::path::Path,
+    mmproj_path: Option<&std::path::Path>,
+    gpu_layers: u32,
+) -> Result<Model, LoadModelError> {
+    info!(
+        model_path = %model_path.display(),
+        mmproj_path = ?mmproj_path,
+        gpu_layers,
+        "Loading model from MEMFS path"
+    );
+
+    // mmap is off on wasm regardless of path: Emscripten's mmap
+    // doesn't work on MEMFS files either (tried; traps inside
+    // llama.cpp's init_mappings phase the same way as on
+    // fmemopen-backed FILE*s). Tensors get copied into separate
+    // wasm-heap allocations during load, doubling memory pressure.
+    // For models that don't fit, the only fix is memory64 or
+    // NODEFS+host-fs+working-mmap — neither in this change.
+    let model_params = LlamaModelParams::default()
+        .with_n_gpu_layers(gpu_layers)
+        .with_use_mmap(false);
+    let model_params = pin!(model_params);
+
+    let language_model = LlamaModel::load_from_file(&LLAMA_BACKEND, model_path, &model_params)
+        .map_err(|e| {
+            let error_msg = format!(
+                "Failed to load model from MEMFS path {}: {e}",
+                model_path.display()
+            );
+            error!(error = %error_msg);
+            LoadModelError::InvalidModel(error_msg)
+        })?;
+
+    info!("Model loaded from path successfully");
+
+    let projection_model = if let Some(path) = mmproj_path {
+        let pm = crate::tokenizer::ProjectionModel::from_path(
+            path,
+            &language_model,
+            gpu_layers > 0,
+        )
+        .map_err(LoadModelError::Multimodal)?;
+        Some(pm)
+    } else {
+        None
+    };
+
+    Ok(Model {
+        language_model,
+        projection_model,
+    })
+}
+
 // --- Native-only model loaders -------------------------------------------
 // Everything below up to `read_add_bos_metadata` does HTTP downloads, hits
 // the filesystem, or asks the OS for a cache directory. None of that works

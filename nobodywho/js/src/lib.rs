@@ -335,6 +335,66 @@ fn write_bytes_to_memfs(kind: &str, bytes: &[u8]) -> Result<std::path::PathBuf, 
     Ok(path)
 }
 
+/// Stream a host filesystem file into MEMFS at a fixed `nbw-{kind}.bin`
+/// path. Delegates to the Node-only JS helper
+/// `globalThis.__nbw_node_file_to_memfs(srcPath, memfsPath)` which reads
+/// the host file in 64 MiB chunks via Node `fs` and writes them into
+/// MEMFS via `Module.FS.write` — never materializing the full file in
+/// JS memory.
+///
+/// Returns the MEMFS path the caller should pass to the path-based
+/// loader. Errors clearly if the helper isn't present (i.e. the binding
+/// is running in a browser worker without Node).
+#[cfg(target_arch = "wasm32")]
+async fn stream_host_file_to_memfs(
+    kind: &str,
+    src_path: &str,
+) -> Result<std::path::PathBuf, String> {
+    // Fixed MEMFS destination per kind. Each worker hosts one model at
+    // a time, so there's no need to content-hash.
+    let memfs_path = std::path::PathBuf::from(format!("/home/web_user/nbw-{kind}.gguf"));
+
+    let global = js_sys::global();
+    let helper = js_sys::Reflect::get(&global, &"__nbw_node_file_to_memfs".into())
+        .map_err(|_| "stream_host_file_to_memfs: lookup failed".to_string())?;
+    if helper.is_undefined() || helper.is_null() {
+        return Err(
+            "modelPath/mmprojPath is Node-only; in browser use modelBytes or modelUrl".to_string(),
+        );
+    }
+    let helper_fn: js_sys::Function = helper.dyn_into().map_err(|_| {
+        "stream_host_file_to_memfs: __nbw_node_file_to_memfs is not a function".to_string()
+    })?;
+
+    let promise_val = helper_fn
+        .call2(
+            &JsValue::NULL,
+            &JsValue::from_str(src_path),
+            &JsValue::from_str(&memfs_path.to_string_lossy()),
+        )
+        .map_err(|e| {
+            let msg = js_sys::Reflect::get(&e, &"message".into())
+                .ok()
+                .and_then(|m| m.as_string())
+                .unwrap_or_else(|| format!("{e:?}"));
+            format!("__nbw_node_file_to_memfs threw: {msg}")
+        })?;
+    let promise: js_sys::Promise = promise_val.dyn_into().map_err(|_| {
+        "__nbw_node_file_to_memfs did not return a Promise".to_string()
+    })?;
+    wasm_bindgen_futures::JsFuture::from(promise)
+        .await
+        .map_err(|e| {
+            let msg = js_sys::Reflect::get(&e, &"message".into())
+                .ok()
+                .and_then(|m| m.as_string())
+                .unwrap_or_else(|| format!("{e:?}"));
+            format!("__nbw_node_file_to_memfs rejected: {msg}")
+        })?;
+
+    Ok(memfs_path)
+}
+
 /// Call `Module.FS.writeFile(path, bytes)` from Rust. Used by both
 /// [`write_bytes_to_memfs`] (image/audio prompt parts) and core's
 /// mmproj-from-bytes loader path.
@@ -1218,27 +1278,56 @@ async fn handle_worker_message(
             post(&worker_reply("ready"));
         }
         "load-model" => {
-            let bytes_val = js_sys::Reflect::get(&data, &"bytes".into())
-                .map_err(|_| "missing 'bytes' field".to_string())?;
-            let u8_array: js_sys::Uint8Array = bytes_val
-                .dyn_into()
-                .map_err(|_| "'bytes' must be a Uint8Array".to_string())?;
-            let bytes = u8_array.to_vec();
+            // Two input shapes per slot:
+            //   - bytes / mmprojBytes: Uint8Array, written to MEMFS via FS.writeFile.
+            //   - srcPath / mmprojSrcPath: host filesystem path string. Node-only;
+            //     streamed into MEMFS chunk-by-chunk via the
+            //     `__nbw_node_file_to_memfs` helper in pre.js. Saves a main-thread
+            //     Buffer of the model bytes and bypasses Node's 2 GiB readFileSync
+            //     cap.
+            // Mutual exclusion enforced main-side in parse_chat_create_opts; here
+            // we just take whichever one came through.
 
-            // Optional mmproj-bytes — write to MEMFS via the JS-side
-            // FS.writeFile and pass the path to core. Field is missing/
-            // undefined for text-only loads.
-            let mmproj_path = match js_sys::Reflect::get(&data, &"mmprojBytes".into())
+            // Resolve the main model into a MEMFS path. If srcPath was given,
+            // stream it in chunks; otherwise materialize bytes into MEMFS via
+            // the existing write_bytes_to_memfs.
+            let model_memfs_path: std::path::PathBuf = if let Some(p) =
+                js_sys::Reflect::get(&data, &"srcPath".into())
+                    .ok()
+                    .and_then(|v| v.as_string())
+            {
+                stream_host_file_to_memfs("model", &p).await?
+            } else {
+                let bytes_val = js_sys::Reflect::get(&data, &"bytes".into())
+                    .map_err(|_| "missing 'bytes' or 'srcPath' field".to_string())?;
+                let u8_array: js_sys::Uint8Array = bytes_val
+                    .dyn_into()
+                    .map_err(|_| "'bytes' must be a Uint8Array".to_string())?;
+                write_bytes_to_memfs("model", &u8_array.to_vec())?
+            };
+
+            // Same shape for mmproj, but optional.
+            let mmproj_path: Option<std::path::PathBuf> = if let Some(p) =
+                js_sys::Reflect::get(&data, &"mmprojSrcPath".into())
+                    .ok()
+                    .and_then(|v| v.as_string())
+            {
+                Some(stream_host_file_to_memfs("mmproj", &p).await?)
+            } else if let Some(u8a) = js_sys::Reflect::get(&data, &"mmprojBytes".into())
                 .ok()
                 .filter(|v| !v.is_undefined() && !v.is_null())
                 .and_then(|v| v.dyn_into::<js_sys::Uint8Array>().ok())
             {
-                Some(u8a) => Some(write_bytes_to_memfs("mmproj", &u8a.to_vec())?),
-                None => None,
+                Some(write_bytes_to_memfs("mmproj", &u8a.to_vec())?)
+            } else {
+                None
             };
 
-            let model = nobodywho::llm::get_model_from_bytes(
-                &bytes,
+            // Always go via the path-based loader now that the main model
+            // is always in MEMFS — covers both the srcPath and bytes
+            // input modes uniformly.
+            let model = nobodywho::llm::get_model_from_path(
+                &model_memfs_path,
                 mmproj_path.as_deref(),
                 0,
             )
@@ -2051,15 +2140,28 @@ impl Chat {
             // Handshake step 1: wait for 'ready' from the worker.
             wait_for_handshake(&state, "ready").await?;
 
-            // Handshake step 2: get the model bytes, post 'load-model'.
-            // Model bytes come from modelBytes or modelUrl; mmproj is
-            // optional and follows the same shape (mmprojBytes / mmprojUrl).
-            // The progress callback is shared between both downloads.
-            let model_bytes_value: JsValue = if let Some(bytes) = parsed.model_bytes {
-                bytes.into()
+            // Handshake step 2: tell the worker how to find the model.
+            // Three input modes per slot (main and mmproj), in precedence
+            // order: bytes > path > url. modelPath/mmprojPath are Node-
+            // only and pass a host filesystem path string to the worker,
+            // which then chunk-streams it into MEMFS via the
+            // `__nbw_node_file_to_memfs` helper from pre.js. This
+            // bypasses the main-thread Buffer of model bytes entirely
+            // (and Node's 2 GiB fs.readFileSync cap).
+            let load_msg = js_sys::Object::new();
+            let _ = js_sys::Reflect::set(&load_msg, &"type".into(), &"load-model".into());
+
+            if let Some(bytes) = parsed.model_bytes {
+                let _ = js_sys::Reflect::set(&load_msg, &"bytes".into(), &bytes.into());
+            } else if let Some(path) = parsed.model_path.as_ref() {
+                let _ = js_sys::Reflect::set(
+                    &load_msg,
+                    &"srcPath".into(),
+                    &JsValue::from_str(path),
+                );
             } else if let Some(url) = parsed.model_url {
                 let bytes_promise = fetch_model_bytes(url, parsed.on_progress.clone());
-                wasm_bindgen_futures::JsFuture::from(bytes_promise)
+                let bytes_val: JsValue = wasm_bindgen_futures::JsFuture::from(bytes_promise)
                     .await
                     .map_err(|e| {
                         let msg = js_sys::Reflect::get(&e, &"message".into())
@@ -2067,38 +2169,37 @@ impl Chat {
                             .and_then(|m| m.as_string())
                             .unwrap_or_else(|| format!("{e:?}"));
                         JsError::new(&format!("fetchModelBytes: {msg}"))
-                    })?
+                    })?;
+                let _ = js_sys::Reflect::set(&load_msg, &"bytes".into(), &bytes_val);
             } else {
                 return Err(JsError::new(
-                    "Chat.create: pass either modelUrl or modelBytes",
+                    "Chat.create: pass one of modelUrl / modelBytes / modelPath",
                 ));
-            };
+            }
 
-            let mmproj_bytes_value: Option<JsValue> = if let Some(bytes) = parsed.mmproj_bytes {
-                Some(bytes.into())
+            if let Some(bytes) = parsed.mmproj_bytes {
+                let _ = js_sys::Reflect::set(&load_msg, &"mmprojBytes".into(), &bytes.into());
+            } else if let Some(path) = parsed.mmproj_path.as_ref() {
+                let _ = js_sys::Reflect::set(
+                    &load_msg,
+                    &"mmprojSrcPath".into(),
+                    &JsValue::from_str(path),
+                );
             } else if let Some(url) = parsed.mmproj_url {
                 let bytes_promise = fetch_model_bytes(url, parsed.on_progress);
-                Some(
-                    wasm_bindgen_futures::JsFuture::from(bytes_promise)
-                        .await
-                        .map_err(|e| {
-                            let msg = js_sys::Reflect::get(&e, &"message".into())
-                                .ok()
-                                .and_then(|m| m.as_string())
-                                .unwrap_or_else(|| format!("{e:?}"));
-                            JsError::new(&format!("fetchModelBytes(mmproj): {msg}"))
-                        })?,
-                )
-            } else {
-                None
-            };
-
-            let load_msg = js_sys::Object::new();
-            let _ = js_sys::Reflect::set(&load_msg, &"type".into(), &"load-model".into());
-            let _ = js_sys::Reflect::set(&load_msg, &"bytes".into(), &model_bytes_value);
-            if let Some(mmproj) = mmproj_bytes_value {
-                let _ = js_sys::Reflect::set(&load_msg, &"mmprojBytes".into(), &mmproj);
+                let bytes_val: JsValue = wasm_bindgen_futures::JsFuture::from(bytes_promise)
+                    .await
+                    .map_err(|e| {
+                        let msg = js_sys::Reflect::get(&e, &"message".into())
+                            .ok()
+                            .and_then(|m| m.as_string())
+                            .unwrap_or_else(|| format!("{e:?}"));
+                        JsError::new(&format!("fetchModelBytes(mmproj): {msg}"))
+                    })?;
+                let _ = js_sys::Reflect::set(&load_msg, &"mmprojBytes".into(), &bytes_val);
             }
+            // (no mmproj provided ⇒ text-only model)
+
             worker_post(&state.borrow().worker, &load_msg)
                 .map_err(|e| JsError::new(&format!("post load-model: {e:?}")))?;
             wait_for_handshake(&state, "model-loaded").await?;
@@ -2398,11 +2499,21 @@ async fn wait_for_handshake(
 struct ChatCreateParsed {
     model_url: Option<String>,
     model_bytes: Option<js_sys::Uint8Array>,
+    /// Node-only: absolute host path to the model GGUF. The worker
+    /// streams it into MEMFS in chunks via the Node-fs helper
+    /// `globalThis.__nbw_node_file_to_memfs`, bypassing Node's
+    /// 2 GiB `fs.readFileSync` cap and avoiding a main-thread
+    /// `Buffer` of the model bytes entirely. Errors if used in a
+    /// browser context (no Node fs available).
+    model_path: Option<String>,
     /// Optional URL to fetch the mmproj GGUF from. Mutually exclusive with
     /// `mmproj_bytes`. Both null/undefined ⇒ text-only model.
     mmproj_url: Option<String>,
     /// Optional pre-fetched mmproj bytes. Same shape as `model_bytes`.
     mmproj_bytes: Option<js_sys::Uint8Array>,
+    /// Node-only: absolute host path to the mmproj GGUF. Same
+    /// constraints and mechanism as `model_path`.
+    mmproj_path: Option<String>,
     on_progress: Option<js_sys::Function>,
     chat_opts_jsval: JsValue,
     /// Tool metadata for the worker. Just `{name, description, jsonSchema}`
@@ -2430,6 +2541,9 @@ fn parse_chat_create_opts(opts: &JsValue) -> Result<ChatCreateParsed, JsError> {
         .ok()
         .filter(|v| !v.is_undefined() && !v.is_null())
         .and_then(|v| v.dyn_into::<js_sys::Uint8Array>().ok());
+    let model_path = js_sys::Reflect::get(obj, &"modelPath".into())
+        .ok()
+        .and_then(|v| v.as_string());
     let mmproj_url = js_sys::Reflect::get(obj, &"mmprojUrl".into())
         .ok()
         .and_then(|v| v.as_string());
@@ -2437,10 +2551,32 @@ fn parse_chat_create_opts(opts: &JsValue) -> Result<ChatCreateParsed, JsError> {
         .ok()
         .filter(|v| !v.is_undefined() && !v.is_null())
         .and_then(|v| v.dyn_into::<js_sys::Uint8Array>().ok());
+    let mmproj_path = js_sys::Reflect::get(obj, &"mmprojPath".into())
+        .ok()
+        .and_then(|v| v.as_string());
     let on_progress = js_sys::Reflect::get(obj, &"onDownloadProgress".into())
         .ok()
         .filter(|v| !v.is_undefined() && !v.is_null())
         .and_then(|v| v.dyn_into::<js_sys::Function>().ok());
+
+    // Reject more-than-one source for model and mmproj (clear
+    // error rather than silent precedence rules).
+    let model_sources = model_url.is_some() as u8
+        + model_bytes.is_some() as u8
+        + model_path.is_some() as u8;
+    if model_sources > 1 {
+        return Err(JsError::new(
+            "Chat.create: pass exactly one of modelUrl / modelBytes / modelPath, not multiple",
+        ));
+    }
+    let mmproj_sources = mmproj_url.is_some() as u8
+        + mmproj_bytes.is_some() as u8
+        + mmproj_path.is_some() as u8;
+    if mmproj_sources > 1 {
+        return Err(JsError::new(
+            "Chat.create: pass at most one of mmprojUrl / mmprojBytes / mmprojPath",
+        ));
+    }
 
     // Split `tools` (each entry tagged via `Tool.fromFn`) into:
     //   - tools_meta_array (name + description + jsonSchema) → JsValue
@@ -2509,8 +2645,10 @@ fn parse_chat_create_opts(opts: &JsValue) -> Result<ChatCreateParsed, JsError> {
             key_str.as_str(),
             "modelUrl"
                 | "modelBytes"
+                | "modelPath"
                 | "mmprojUrl"
                 | "mmprojBytes"
+                | "mmprojPath"
                 | "onDownloadProgress"
                 | "tools"
         ) {
@@ -2533,8 +2671,10 @@ fn parse_chat_create_opts(opts: &JsValue) -> Result<ChatCreateParsed, JsError> {
     Ok(ChatCreateParsed {
         model_url,
         model_bytes,
+        model_path,
         mmproj_url,
         mmproj_bytes,
+        mmproj_path,
         on_progress,
         chat_opts_jsval: chat_opts_obj.into(),
         tools_jsval: tools_meta_array.into(),
