@@ -2918,23 +2918,10 @@ impl Chat {
                 _on_error: None,
             }));
 
-            // The captured `Weak<RefCell<ChatState>>` is !UnwindSafe
-            // because ChatState contains JsValue (UnsafeCell) and Rc
-            // strong/weak counts are Cell<usize> (also UnsafeCell).
-            // Closure::new on wasm-bindgen 0.2.121 enforces UnwindSafe
-            // on its captures on Linux/aarch64 rustc (CI), though local
-            // macOS/aarch64 accepts the same code without the bound
-            // firing — probably a minor codegen difference.
-            //
-            // AssertUnwindSafe wraps the Weak ref so the captured type
-            // is UnwindSafe-by-assertion. There's no real unwind safety
-            // concern here: JS event handlers run on the JS event loop,
-            // not through Rust catch_unwind, so the bound is moot. The
-            // body unwraps via `.0` to get the Weak back.
-            let state_weak = std::panic::AssertUnwindSafe(std::rc::Rc::downgrade(&state));
+            let state_weak = std::rc::Rc::downgrade(&state);
             let on_message =
                 wasm_bindgen::closure::Closure::<dyn FnMut(JsValue)>::new(move |evt: JsValue| {
-                    if let Some(state) = state_weak.0.upgrade() {
+                    if let Some(state) = state_weak.upgrade() {
                         // `evt` is either a browser MessageEvent (with `.data`)
                         // or the Node shim's `{ data }` plain object — both
                         // respond to Reflect-get('data').
@@ -2944,10 +2931,10 @@ impl Chat {
                     }
                 });
 
-            let state_weak2 = std::panic::AssertUnwindSafe(std::rc::Rc::downgrade(&state));
+            let state_weak2 = std::rc::Rc::downgrade(&state);
             let on_error =
                 wasm_bindgen::closure::Closure::<dyn FnMut(JsValue)>::new(move |evt: JsValue| {
-                    if let Some(state) = state_weak2.0.upgrade() {
+                    if let Some(state) = state_weak2.upgrade() {
                         // Browser ErrorEvent has `.message`; the Node shim
                         // synthesizes `{ message }`. Read via Reflect.
                         let msg = js_sys::Reflect::get(&evt, &"message".into())

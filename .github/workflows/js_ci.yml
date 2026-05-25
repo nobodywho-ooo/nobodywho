@@ -31,20 +31,12 @@ jobs:
           submodules: recursive
 
       - name: Cache cargo registry + git deps
-        # `nobodywho/target` intentionally NOT cached: a half-completed
-        # cmake configure (e.g. failing at "Could NOT find Vulkan"
-        # before a Makefile is generated) leaves a poisoned build
-        # dir behind, and the next run sees "CMake project was
-        # already configured. Skipping configuration step" then dies
-        # with "gmake: Makefile: No such file or directory". The
-        # rust-cache action embedded in setup-rust handles
-        # incremental builds via its own targeted target/ caching;
-        # this step only persists the immutable source caches.
         uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
+            nobodywho/target
           key: js-${{ runner.os }}-emsc-${{ hashFiles('nobodywho/Cargo.lock') }}
           restore-keys: |
             js-${{ runner.os }}-emsc-
@@ -54,22 +46,19 @@ jobs:
         with:
           target: wasm32-unknown-emscripten
 
-      - name: Install system deps for emscripten + bindgen + native lint
-        # - libclang for bindgen (consumed via $LIBCLANG_PATH below).
-        # - cmake + python3 are needed by Emscripten + llama.cpp's cmake.
-        # - build-essential gets us a C compiler for emscripten's bootstrap.
-        # - libvulkan-dev + glslc: the lint suite runs `cargo test -p
-        #   nobodywho-js` natively, which transitively builds
-        #   llama-cpp-sys-2 with the `vulkan` feature on Linux x86_64 /
-        #   aarch64 (it's a default feature on those targets). Without
-        #   Vulkan headers the cmake configure step fails with
-        #   "Could NOT find Vulkan". GitHub's real ubuntu-24.04 image
-        #   ships these; smaller act images don't.
+      - name: Install system deps for emscripten + bindgen
+        # libclang for bindgen (consumed via $LIBCLANG_PATH below);
+        # cmake + python3 are needed by Emscripten + llama.cpp's cmake;
+        # build-essential gets us a C compiler for emscripten's bootstrap.
+        # Vulkan (libvulkan-dev + glslc) is pre-installed on GitHub's
+        # ubuntu-24.04 runner image — the native lint step needs it
+        # because cargo test transitively builds llama-cpp-sys-2 with
+        # the `vulkan` feature. If using a slimmer Docker image (e.g.
+        # act locally), add `libvulkan-dev glslc` to this list.
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            cmake python3 python3-pip build-essential libclang-dev clang \
-            brotli libvulkan-dev glslc
+            cmake python3 python3-pip build-essential libclang-dev clang brotli
 
       - name: Run lint regression tests (native target, no wasm toolchain needed)
         # Source-text invariants over the binding + examples + scripts.
