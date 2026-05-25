@@ -71,14 +71,49 @@ surface to JS via wasm-bindgen.
 | `Model.loadBytes(uint8Array)` | ✅ verified — loads GGUF into a real `LlamaModel` via `fmemopen` + `llama_model_load_from_file_ptr` (used by `Encoder` / `CrossEncoder`; `Chat.create` takes `modelBytes` inline) |
 | `Encoder.encode(text)` → `Float32Array` | ✅ verified |
 | `CrossEncoder.rank(query, docs)` / `rankAndSort(...)` | ✅ verified |
-| `Chat.create({modelBytes, ...})` → `Chat` | ✅ verified — async factory, spawns a worker (Web Worker in browser, `worker_threads.Worker` in Node) |
-| `Chat.ask(prompt)` → `TokenStream` → tokens (real-time) | ✅ verified |
+| `cosineSimilarity(a, b)` → number | ✅ verified — pairs with `Encoder.encode()`; matches Python's `nobodywho.cosine_similarity` |
+| `Chat.create({modelBytes \| modelPath \| modelUrl, ...})` → `Chat` | ✅ verified — async factory, spawns a worker (Web Worker in browser, `worker_threads.Worker` in Node). `modelPath` is Node-only and streams the GGUF into MEMFS in chunks (no 2 GiB `readFileSync` cap, no main-thread Buffer) |
+| `Chat.ask(prompt)` → `TokenStream` → tokens (real-time, `for await`-iterable) | ✅ verified |
+| `Chat.stopGeneration()` — interrupt the current ask | ✅ verified (Node) — drains pending messages in the per-token hook and calls `stopCurrentAsk`. Browser only takes effect after the current ask completes (SAB+Atomics is the path forward, tracked as follow-up) |
+| `Chat.getChatHistory()` / `setChatHistory(messages)` | ✅ verified — round-trips `{role, content, ...}` arrays; loaded history is real context for subsequent asks |
+| `Chat.getSystemPrompt()` / `setSystemPrompt(prompt \| null)` | ✅ verified (incl. clear-to-null after the core fix in `chat.rs`) |
+| `Chat.getSamplerConfig()` / `setSamplerConfig(spec)` | ✅ verified |
+| `Chat.getTemplateVariables()` / `setTemplateVariable(name, value)` / `setTemplateVariables(vars)` | ✅ verified |
+| `Chat.setTools(tools)` — replace tool registry mid-session | ✅ verified |
+| `Chat.reset(opts?)` — atomic clear-history + optional swap of system prompt + tools | ✅ verified |
+| `Chat.resetHistory()` — clear history, preserve system prompt + tools + sampler | ✅ verified |
+| `Chat.terminate()` — shut down the worker (returns Promise) | ✅ verified |
 | `Chat`'s `templateVariables` option (e.g. `{ enable_thinking: false }`) | ✅ verified |
 | `Chat`'s `sampler` option (temperature/topK/topP/minP/repeatPenalty/sampleStep) | ✅ verified |
-| `TokenStream.next()` / `completed()` | ✅ verified |
-| Multimodal vision/audio (`Image.fromBytes` / `Audio.fromBytes`) | ✅ verified — see "Multimodal status" below |
+| `SamplerBuilder` (fluent) / `SamplerPresets` (static factory) | ✅ verified — JS-side ergonomic wrappers over the sampler JSON shape; matches Python's `SamplerBuilder` / `SamplerPresets` |
+| `TokenStream.next()` / `completed()` / async-iteration via `for await` | ✅ verified |
+| Multimodal vision/audio (`Image.fromBytes` / `Audio.fromBytes`, plus Node-only `fromPath`) | ✅ verified — see "Multimodal status" below |
 | Tool calling (`Tool.fromFn(...)`, `Chat.create({tools: [...]})`) | ✅ verified — both sync and async (Promise-returning) callbacks work via the worker ↔ main RPC bridge |
 | Structured output (`Chat.create({constraint: {regex \| jsonSchema \| lark}})`) | ✅ verified — see `js/scripts/constraint-smoke.mjs` (regex + JSON Schema) |
+
+Each row above is backed by a smoke test under `js/scripts/`. To
+verify locally after a build, run:
+
+| Smoke | Covers |
+|---|---|
+| `emscripten-smoke.mjs` | `Model.loadBytes` + basic ask round-trip (plus the `chat_demo.mjs` example end-to-end) |
+| `forawait-smoke.mjs` | `for await (const tok of chat.ask(...))` iteration |
+| `sampler-smoke.mjs` | sampler-config knobs end-to-end |
+| `sampler-ergo-smoke.mjs` | `SamplerBuilder` + `SamplerPresets` |
+| `constraint-smoke.mjs` | structured output (regex / JSON Schema / lark) |
+| `tool-smoke.mjs` | sync + async tool callbacks via the worker RPC bridge |
+| `audio-smoke.mjs` | WAV / MP3 / FLAC decoder paths end-to-end |
+| `vision-smoke.mjs` | image input through mtmd (Qwen2-VL / Gemma 3 etc.) |
+| `stop-smoke.mjs` | `Chat.stopGeneration()` interrupting an in-flight ask |
+| `terminate-mid-stream-smoke.mjs` | `Chat.terminate()` cleanly fails an in-flight TokenStream |
+| `history-smoke.mjs` | `getChatHistory` / `setChatHistory` round-trip + loaded-context use |
+| `setters-smoke.mjs` | `setSystemPrompt` (incl. `null`) / sampler / template vars / `setTools` / `resetHistory` |
+| `parity-extras-smoke.mjs` | `Audio.fromPath` / `Image.fromPath` / `cosineSimilarity` / `Chat.reset({systemPrompt, tools})` |
+| `modelpath-smoke.mjs` | Node-only `Chat.create({modelPath, mmprojPath})` |
+| `context-shift-smoke.mjs` | KV-cache shift when the conversation grows past `contextSize` |
+
+Each smoke prints a `=== passed ===` line on success and exits 0; CI
+runs them in sequence.
 
 Native (`cargo check --workspace`) is unchanged.
 
