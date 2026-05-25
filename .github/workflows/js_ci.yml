@@ -13,8 +13,11 @@ on:
   workflow_call: {}
 
 env:
+  # walkingeyerobot's emscripten fork carries the -sWASM_BINDGEN flag
+  # (tracked in emscripten-core/emscripten#23493). The patch lives on
+  # the `wbg-walkingeyerobot` branch, not main.
   EMSDK_FORK_URL: https://github.com/walkingeyerobot/emscripten
-  EMSDK_FORK_REF: master
+  EMSDK_FORK_REF: wbg-walkingeyerobot
   WBG_FORK_URL: https://github.com/nobodywho-ooo/wasm-bindgen
   WBG_FORK_REF: emscripten-descriptor-fixes
 
