@@ -3,3 +3,4 @@ target/
 node_modules/
 pkg-node/
 pkg-bundler/
+pkg-bundler-wasm64/

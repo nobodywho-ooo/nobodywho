@@ -283,7 +283,7 @@ impl ChatBuilder {
     ///
     /// Native-only. Uses `std::thread::spawn` internally, which doesn't
     /// work on wasm without thread support enabled. Use `build_async` on wasm.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(target_family = "wasm"))]
     pub fn build(self) -> ChatHandle {
         ChatHandle::new(self.model, self.config)
     }
@@ -298,12 +298,12 @@ impl ChatBuilder {
 ///
 /// Use [`ChatBuilder`] to create a new instance with a fluent API.
 /// Native-only synchronous chat handle. Use `ChatHandleAsync` on wasm.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 pub struct ChatHandle {
     guard: WorkerGuard<ChatMsg>,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 impl ChatHandle {
     /// Create a new chat handle directly. Consider using [`ChatBuilder`] for a more ergonomic API.
     pub fn new(model: Arc<llm::Model>, config: ChatConfig) -> Self {
@@ -597,7 +597,7 @@ impl ChatHandleAsync {
         // a future on the JS event loop (single-threaded cooperative); decode
         // calls block the loop until each message is processed, which is
         // acceptable for v1. A Web-Worker variant can come later.
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(target_family = "wasm"))]
         let join_handle = std::thread::spawn(move || {
             let rt = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
@@ -620,7 +620,7 @@ impl ChatHandleAsync {
             });
         });
 
-        #[cfg(target_arch = "wasm32")]
+        #[cfg(target_family = "wasm")]
         wasm_bindgen_futures::spawn_local(async move {
             let worker = Worker::new_chat_worker(&model, config, should_stop_clone);
             let mut worker_state = match worker {
@@ -637,9 +637,9 @@ impl ChatHandleAsync {
             }
         });
 
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(target_family = "wasm"))]
         let guard = Arc::new(WorkerGuard::new(msg_tx, join_handle, Some(should_stop)));
-        #[cfg(target_arch = "wasm32")]
+        #[cfg(target_family = "wasm")]
         let guard = Arc::new(WorkerGuard::new(msg_tx, Some(should_stop)));
 
         Self { guard }
@@ -655,7 +655,7 @@ impl ChatHandleAsync {
         self.guard.send(ChatMsg::Ask {
             prompt,
             output_tx,
-            #[cfg(target_arch = "wasm32")]
+            #[cfg(target_family = "wasm")]
             token_hook: None,
         });
         output_rx
@@ -689,7 +689,7 @@ impl ChatHandleAsync {
     /// The returned `TokenStreamAsync` still fires `Done` at EOS, so
     /// `.completed().await` is the right way to wait for inference to
     /// finish (its accumulated text is also available there).
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(target_family = "wasm")]
     pub fn ask_with_token_hook(
         &self,
         prompt: impl Promptable,
@@ -929,13 +929,13 @@ impl ChatHandleAsync {
 /// Native-only synchronous stream — `next_token` calls `blocking_recv`, which
 /// would deadlock the single-threaded JS event loop. Wasm consumers use
 /// [`TokenStreamAsync`] instead, returned from [`ChatHandleAsync::ask`].
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 pub struct TokenStream {
     rx: tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>,
     completed_response: Option<String>,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 impl TokenStream {
     fn new(rx: tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>) -> Self {
         Self {
@@ -1042,7 +1042,7 @@ enum ChatMsg {
         /// without waiting for the loop to yield. The channel-based path
         /// can't stream on single-threaded wasm because the receiver task
         /// only wakes after the synchronous loop completes.
-        #[cfg(target_arch = "wasm32")]
+        #[cfg(target_family = "wasm")]
         token_hook: Option<std::rc::Rc<dyn Fn(&str)>>,
     },
     ResetChat {
@@ -1152,11 +1152,11 @@ async fn process_worker_msg(
         ChatMsg::Ask {
             prompt,
             output_tx,
-            #[cfg(target_arch = "wasm32")]
+            #[cfg(target_family = "wasm")]
             token_hook,
         } => {
             let should_stop = Arc::clone(&worker_state.extra.should_stop);
-            #[cfg(target_arch = "wasm32")]
+            #[cfg(target_family = "wasm")]
             let callback = move |out: llm::WriteOutput| {
                 // Fire the per-token hook synchronously inside the
                 // inference loop before pushing to the channel. On wasm
@@ -1172,7 +1172,7 @@ async fn process_worker_msg(
                     should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
                 }
             };
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(not(target_family = "wasm"))]
             let callback = move |out| {
                 if output_tx.send(out).is_err() {
                     // Receiver was dropped or the buffer is full with nobody consuming.

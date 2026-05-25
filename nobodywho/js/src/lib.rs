@@ -27,11 +27,11 @@ use wasm_bindgen::prelude::*;
 
 // Force-import file-open syscalls into the wasm; see the module's
 // doc-comment + js/build.rs.
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 mod syscall_imports;
 
 // Per-worker state for `runInWorker` — only used on wasm32 targets.
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 use std::cell::RefCell;
 
 /// Override libc's `__cxa_atexit` to a no-op.
@@ -66,7 +66,7 @@ use std::cell::RefCell;
 /// regardless of what handlers libc++ tries to register), at the cost of
 /// silently dropping every registration. See the "Workaround:" paragraph
 /// above for why dropping them is acceptable on this target.
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 #[no_mangle]
 pub unsafe extern "C" fn __cxa_atexit(
     _func: Option<unsafe extern "C" fn(*mut std::ffi::c_void)>,
@@ -83,7 +83,7 @@ pub unsafe extern "C" fn __cxa_atexit(
 #[wasm_bindgen(js_name = init)]
 pub fn init() {
     console_error_panic_hook::set_once();
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(target_family = "wasm")]
     {
         // `set_as_global_default` panics if called twice; the `try_*` variant
         // returns Err which we discard, making this idempotent from JS.
@@ -345,7 +345,7 @@ fn write_bytes_to_memfs(kind: &str, bytes: &[u8]) -> Result<std::path::PathBuf, 
 /// Returns the MEMFS path the caller should pass to the path-based
 /// loader. Errors clearly if the helper isn't present (i.e. the binding
 /// is running in a browser worker without Node).
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 async fn stream_host_file_to_memfs(
     kind: &str,
     src_path: &str,
@@ -494,7 +494,7 @@ fn js_to_prompt(input: &JsValue) -> Result<nobodywho::tokenizer::Prompt, String>
 /// Since `{__nbwKind, bytes: Uint8Array}` is already structured-cloneable
 /// the only thing this does is wrap a bare string in an Array so the
 /// worker has a single shape to deserialize.
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 fn js_to_serializable_parts(input: &JsValue) -> Result<JsValue, JsError> {
     if let Some(s) = input.as_string() {
         let arr = js_sys::Array::new();
@@ -1118,7 +1118,7 @@ impl CrossEncoder {
 // Per-instance state lives in `thread_local!` because wasm32 is
 // single-threaded (one wasm instance per worker = one cell).
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 thread_local! {
     static WORKER_MODEL: RefCell<Option<Arc<nobodywho::llm::Model>>> = RefCell::new(None);
     static WORKER_CHAT: RefCell<Option<nobodywho::chat::ChatHandleAsync>> = RefCell::new(None);
@@ -1143,7 +1143,7 @@ thread_local! {
 /// `globalThis.postMessage(msg)` via Reflect. Env-agnostic — works on
 /// browser `DedicatedWorkerGlobalScope` and on a Node `worker_threads`
 /// worker whose globalThis has been polyfilled to expose `postMessage`.
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 fn worker_post(scope: &JsValue, msg: &JsValue) -> Result<(), JsValue> {
     let post_fn: js_sys::Function = js_sys::Reflect::get(scope, &"postMessage".into())?
         .dyn_into()
@@ -1154,7 +1154,7 @@ fn worker_post(scope: &JsValue, msg: &JsValue) -> Result<(), JsValue> {
 /// Tool metadata sent across the worker boundary. The user's JS callback
 /// stays on the main thread (function refs can't survive postMessage); the
 /// worker just sees this metadata and synthesizes an RPC stub.
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 #[derive(serde::Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 struct ToolMeta {
@@ -1163,7 +1163,7 @@ struct ToolMeta {
     json_schema: serde_json::Value,
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 fn next_tool_call_id() -> String {
     TOOL_CALL_ID_COUNTER.with(|c| {
         let mut id = c.borrow_mut();
@@ -1184,7 +1184,7 @@ fn next_tool_call_id() -> String {
 ///
 /// Errors if `globalThis.postMessage` isn't a function (i.e. invoked
 /// outside a worker context altogether).
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 #[wasm_bindgen(js_name = runInWorker)]
 pub fn run_in_worker() -> Result<(), JsError> {
     use wasm_bindgen::closure::Closure;
@@ -1253,7 +1253,7 @@ pub fn run_in_worker() -> Result<(), JsError> {
 /// already-extracted `data` JsValue (not the raw `MessageEvent`) because
 /// Firefox revokes access to event properties once the synchronous handler
 /// returns — see the comment on the `set_onmessage` call site.
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 async fn handle_worker_message(
     data: JsValue,
     scope: &JsValue,
@@ -1433,7 +1433,7 @@ async fn handle_worker_message(
 /// tool name, and the serialized args) and parks on a oneshot until the
 /// main thread replies with `tool-reply`. Used by the worker-side
 /// `create-chat` handler when Chat is constructed with tools.
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 fn build_rpc_tool(meta: ToolMeta) -> nobodywho::tool_calling::Tool {
     let name_for_closure = meta.name.clone();
     nobodywho::tool_calling::Tool::new_async(
@@ -1503,7 +1503,7 @@ fn build_rpc_tool(meta: ToolMeta) -> nobodywho::tool_calling::Tool {
 /// it. Errors as `String` because the worker dispatcher turns them into
 /// `{ type: "error", message }` post-messages; `JsError` (used by the
 /// wasm-bindgen-exposed constructor) doesn't impl `Display`.
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 fn chat_handle_from_options(
     model: Arc<nobodywho::llm::Model>,
     opts: ChatOptions,
@@ -1537,14 +1537,14 @@ fn chat_handle_from_options(
     Ok(builder.build_async())
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 fn worker_reply(type_name: &str) -> JsValue {
     let obj = js_sys::Object::new();
     let _ = js_sys::Reflect::set(&obj, &"type".into(), &type_name.into());
     obj.into()
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 fn worker_reply_error(message: &str) -> JsValue {
     let obj = js_sys::Object::new();
     let _ = js_sys::Reflect::set(&obj, &"type".into(), &"error".into());
@@ -1558,7 +1558,7 @@ fn worker_reply_error(message: &str) -> JsValue {
 // Implemented here in Rust (via web-sys) so the JS-side bootstrap stays a
 // thin shim. Used by `fetchModelBytes` / `Model.preload`.
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 const MODEL_CACHE_NAME: &str = "nobodywho-models-v1";
 
 /// Try to open the model cache. Returns None if the Cache API isn't usable
@@ -1567,7 +1567,7 @@ const MODEL_CACHE_NAME: &str = "nobodywho-models-v1";
 ///
 /// `caches` is available on both `Window` (main thread) and
 /// `WorkerGlobalScope` (web worker), with different web-sys types.
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 async fn open_model_cache() -> Option<web_sys::Cache> {
     let caches = caches_from_global()?;
     let opened = wasm_bindgen_futures::JsFuture::from(caches.open(MODEL_CACHE_NAME))
@@ -1576,7 +1576,7 @@ async fn open_model_cache() -> Option<web_sys::Cache> {
     opened.dyn_into::<web_sys::Cache>().ok()
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 fn caches_from_global() -> Option<web_sys::CacheStorage> {
     if let Ok(window) = js_sys::global().dyn_into::<web_sys::Window>() {
         return window.caches().ok();
@@ -1587,7 +1587,7 @@ fn caches_from_global() -> Option<web_sys::CacheStorage> {
     None
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 fn fetch_from_global(url: &str) -> js_sys::Promise {
     if let Ok(window) = js_sys::global().dyn_into::<web_sys::Window>() {
         return window.fetch_with_str(url);
@@ -1607,7 +1607,7 @@ fn fetch_from_global(url: &str) -> js_sys::Promise {
 /// (firing `onProgress(size, size)` once for UIs that only update on
 /// progress events). Cache miss streams the body so progress is meaningful;
 /// on completion, populates the cache (swallows put failures).
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 #[wasm_bindgen(js_name = fetchModelBytes)]
 pub fn fetch_model_bytes(
     url: String,
@@ -1719,7 +1719,7 @@ pub fn fetch_model_bytes(
 
 // Static methods on the existing Model class. wasm-bindgen lets you add to
 // the same JS class from multiple `impl` blocks.
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 #[wasm_bindgen]
 impl Model {
     /// Pre-populate the Cache API model store without loading the model into
@@ -1772,7 +1772,7 @@ impl Model {
 // tokens/done/error into the state from inside its `onmessage` closure; the
 // stream's `next()`/`completed()` Promises resolve out of that state.
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 struct WorkerStreamState {
     /// Tokens that have arrived but haven't been pulled by `next()`.
     buffer: std::collections::VecDeque<String>,
@@ -1789,14 +1789,14 @@ struct WorkerStreamState {
     pending_completed: Vec<tokio::sync::oneshot::Sender<Result<String, String>>>,
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 enum NextOutcome {
     Token(String),
     Done,
     Err(String),
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 impl WorkerStreamState {
     fn new() -> Self {
         Self {
@@ -1843,13 +1843,13 @@ impl WorkerStreamState {
     }
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 #[wasm_bindgen]
 pub struct TokenStream {
     state: std::rc::Rc<RefCell<WorkerStreamState>>,
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 #[wasm_bindgen]
 impl TokenStream {
     /// Returns `Promise<{ value: string, done: false }>` for each token,
@@ -1912,7 +1912,7 @@ impl TokenStream {
 }
 
 /// Build a `{ value, done }` JS object matching the async-iterator protocol.
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 fn iter_result(value: Option<&str>) -> JsValue {
     let obj = js_sys::Object::new();
     match value {
@@ -1952,7 +1952,7 @@ fn iter_result(value: Option<&str>) -> JsValue {
 // Emscripten loader's `import.meta.url`. `Chat::create` reads it to
 // build the inline Blob worker bootstrap that re-imports this wasm
 // loader inside the spawned worker.
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 thread_local! {
     static BOOTSTRAP_URL: RefCell<Option<String>> = RefCell::new(None);
 }
@@ -1961,13 +1961,13 @@ thread_local! {
 /// so `Chat::create` knows what to `import()` inside the spawned worker.
 /// Called automatically from `pre.js`'s `postRun` hook; you should never
 /// need to call this from app code.
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 #[wasm_bindgen(js_name = setBootstrapUrl)]
 pub fn set_bootstrap_url(url: String) {
     BOOTSTRAP_URL.with(|u| *u.borrow_mut() = Some(url));
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 fn get_bootstrap_url() -> Result<String, JsError> {
     BOOTSTRAP_URL
         .with(|u| u.borrow().clone())
@@ -1981,7 +1981,7 @@ fn get_bootstrap_url() -> Result<String, JsError> {
         })
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 struct ChatState {
     /// The spawned worker as an opaque JS handle. Reached via Reflect for
     /// postMessage / terminate / onmessage / onerror, so the same code
@@ -2009,7 +2009,7 @@ struct ChatState {
 /// Best-effort terminate of a worker handle via Reflect — works for
 /// both browser `Worker` and Node shim. Errors are swallowed (we're
 /// already cleaning up).
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 fn worker_terminate(worker: &JsValue) {
     if let Ok(f) = js_sys::Reflect::get(worker, &"terminate".into()) {
         if let Ok(fun) = f.dyn_into::<js_sys::Function>() {
@@ -2018,13 +2018,13 @@ fn worker_terminate(worker: &JsValue) {
     }
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 #[wasm_bindgen]
 pub struct Chat {
     state: std::rc::Rc<RefCell<ChatState>>,
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 impl Drop for Chat {
     fn drop(&mut self) {
         // Best-effort cleanup: terminate the worker so it doesn't hang around
@@ -2036,7 +2036,7 @@ impl Drop for Chat {
     }
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 #[wasm_bindgen]
 impl Chat {
     /// Create a worker-backed chat. Spawns a Web Worker that loads the wasm,
@@ -2315,7 +2315,7 @@ impl Chat {
 /// the onmessage Closure. Borrow rules: take what you need, then drop the
 /// borrow before invoking `WorkerStreamState::*` helpers (which take their
 /// own borrow on the stream's inner state).
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 fn handle_chat_message(state: &std::rc::Rc<RefCell<ChatState>>, data: JsValue) {
     let msg_type = js_sys::Reflect::get(&data, &"type".into())
         .ok()
@@ -2445,7 +2445,7 @@ fn handle_chat_message(state: &std::rc::Rc<RefCell<ChatState>>, data: JsValue) {
     }
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 fn handle_chat_error(state: &std::rc::Rc<RefCell<ChatState>>, err: String) {
     // Fail current handshake or current stream — whichever is active.
     let (handshake, stream) = {
@@ -2461,7 +2461,7 @@ fn handle_chat_error(state: &std::rc::Rc<RefCell<ChatState>>, err: String) {
 }
 
 /// Park until the worker posts a message of the given type (or errors out).
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 async fn wait_for_handshake(
     state: &std::rc::Rc<RefCell<ChatState>>,
     expected_type: &str,
@@ -2495,7 +2495,7 @@ async fn wait_for_handshake(
 /// and the worker's `serde_wasm_bindgen::from_value` round-trip doesn't
 /// always preserve the original Object-vs-Map shape — small differences
 /// caused `templateVariables` to silently come through empty.
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 struct ChatCreateParsed {
     model_url: Option<String>,
     model_bytes: Option<js_sys::Uint8Array>,
@@ -2525,7 +2525,7 @@ struct ChatCreateParsed {
     tool_callbacks: std::collections::HashMap<String, js_sys::Function>,
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 fn parse_chat_create_opts(opts: &JsValue) -> Result<ChatCreateParsed, JsError> {
     if opts.is_undefined() || opts.is_null() {
         return Err(JsError::new("Chat.create requires an options object"));

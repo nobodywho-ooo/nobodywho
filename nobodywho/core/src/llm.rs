@@ -1,7 +1,7 @@
 use crate::errors::{InitWorkerError, LoadModelError, ReadError};
 use crate::memory;
 use crate::tokenizer::{ProjectionModel, Tokenizer, TokenizerChunk, TokenizerChunks};
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 use indicatif::{ProgressBar, ProgressStyle};
 use lazy_static::lazy_static;
 use llama_cpp_2::context::kv_cache::KvCacheConversionError;
@@ -15,18 +15,18 @@ use llama_cpp_2::model::LlamaModel;
 #[cfg(feature = "mtmd")]
 use llama_cpp_2::mtmd::MtmdInputChunks;
 use llama_cpp_2::token::LlamaToken;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 use std::io::{Read, Write};
 use std::pin::pin;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 use std::time::Duration;
 use tracing::{debug, debug_span, error, info, warn};
 // `info_span` is only used inside the native model-loader path; gate it so the
 // wasm build doesn't warn about an unused import.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 use tracing::info_span;
 
 #[derive(Debug)]
@@ -57,7 +57,7 @@ pub type DownloadProgressCallback = Arc<dyn Fn(u64, u64) + Send + Sync>;
 /// Native-only: `indicatif` is not pulled in on wasm32 (no terminal). The wasm
 /// model-load path (`Model::load_bytes`, future) skips this entirely since
 /// bytes are already in memory.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 pub fn default_progress_callback() -> DownloadProgressCallback {
     let style = ProgressStyle::with_template(
         "{spinner:.green} [{elapsed_precise}] {wide_bar:.cyan/blue} \
@@ -211,11 +211,11 @@ pub fn get_model_from_bytes(
     // llama.cpp's init_mappings phase (Emscripten's mmap doesn't support
     // memory-backed FILE handles). Disable it so the loader copies tensor
     // data instead. Native targets keep the default (mmap on) for speed.
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(target_family = "wasm")]
     let model_params = LlamaModelParams::default()
         .with_n_gpu_layers(gpu_layers)
         .with_use_mmap(false);
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(target_family = "wasm"))]
     let model_params = LlamaModelParams::default().with_n_gpu_layers(gpu_layers);
     let model_params = pin!(model_params);
 
@@ -264,7 +264,7 @@ pub fn get_model_from_bytes(
 ///
 /// `mmproj_path` is the same as `get_model_from_bytes`'s mmproj
 /// parameter — an already-on-MEMFS GGUF for the projection model.
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 pub fn get_model_from_path(
     model_path: &std::path::Path,
     mmproj_path: Option<&std::path::Path>,
@@ -326,7 +326,7 @@ pub fn get_model_from_path(
 // will load models from in-memory bytes via a future `Model::load_from_bytes`
 // API (tracked in nobodywho/js/README.md, Step 2c).
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 #[derive(Clone)]
 enum ParsedModelPath {
     HuggingFaceUrl(String, String, String), // e.g. hf://owner/repo/model.gguf -> (owner, repo, filename)
@@ -334,7 +334,7 @@ enum ParsedModelPath {
     FilesystemPath(std::path::PathBuf),     // e.g. ./qwen3.gguf
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 fn parse_model_path(
     model_path: &str,
 ) -> Result<ParsedModelPath, nom::Err<nom::error::Error<String>>> {
@@ -382,7 +382,7 @@ fn parse_model_path(
 
 /// takes a fancy path (possibly with hf: or https:// in front), and resolve it to a realized path
 /// on the filesystem
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 fn resolve_fancy_path_to_fs(
     parsed_path: ParsedModelPath,
     progress: &DownloadProgressCallback,
@@ -404,7 +404,7 @@ fn resolve_fancy_path_to_fs(
     Ok(fs_model_path)
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 #[tracing::instrument(level = "info", skip(progress))]
 pub fn get_model(
     model_path: &str,
@@ -483,7 +483,7 @@ pub fn get_model(
 /// * The model file is not found (`LoadModelError::ModelNotFound`)
 /// * The model file is invalid or unsupported (`LoadModelError::InvalidModel`)
 /// * The communication channel closes unexpectedly (`LoadModelError::ModelChannelError`)
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 #[tracing::instrument(level = "info", skip(progress))]
 pub async fn get_model_async(
     model_path: String,
@@ -515,7 +515,7 @@ pub async fn get_model_async(
 /// via `dlopen` (not `System.loadLibrary`), so `JNI_OnLoad` is never called.
 ///
 /// On other platforms, uses the `dirs` crate to find the standard cache directory.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 fn get_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
     let base = get_platform_cache_dir()?;
     Ok(base.join("nobodywho").join("models"))
@@ -556,7 +556,7 @@ fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadMod
     )))
 }
 
-#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+#[cfg(all(not(target_os = "android"), not(target_family = "wasm")))]
 fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
     dirs::cache_dir().ok_or_else(|| {
         crate::errors::LoadModelError::DownloadError("Could not determine cache directory".into())
@@ -567,7 +567,7 @@ fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadMod
 ///
 /// Returns early if the file already exists at the target path.
 /// Rejects paths containing `..` to prevent path traversal attacks.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 fn download_file(
     url: &str,
     target_path: &std::path::Path,
@@ -700,7 +700,7 @@ fn download_file(
 /// Download a GGUF model from HuggingFace Hub and return the local path to it.
 ///
 /// If the model is already cached locally, the cached path is returned without downloading.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 fn download_model_from_hf(
     owner: &str,
     repo: &str,
@@ -717,7 +717,7 @@ fn download_model_from_hf(
 /// Download a model from a generic HTTP(S) URL and return the local path to it.
 ///
 /// The file is cached by its URL path components under the cache directory.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 fn download_model_from_url(
     url: &str,
     progress: &DownloadProgressCallback,
@@ -806,9 +806,9 @@ where
             // wasm event loop, which matches how the wasm binding's
             // chat/encoder/cross-encoder are structured anyway (spawn_local,
             // no real threads).
-            #[cfg(target_arch = "wasm32")]
+            #[cfg(target_family = "wasm")]
             let n_threads: i32 = 1;
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(not(target_family = "wasm"))]
             let n_threads = std::thread::available_parallelism()?.get() as i32;
             let ctx_plan = memory::plan_context(
                 std::cmp::min(n_ctx, model.language_model.n_ctx_train()),
@@ -837,7 +837,7 @@ where
             // Disable Flash Attention on wasm32 — llama.cpp's FA kernels
             // trip wasm memory-access-out-of-bounds during inference. The
             // standard attention path works fine.
-            #[cfg(target_arch = "wasm32")]
+            #[cfg(target_family = "wasm")]
             let ctx_params = ctx_params.with_flash_attention_policy(
                 llama_cpp_sys_2::LLAMA_FLASH_ATTN_TYPE_DISABLED,
             );
@@ -1034,13 +1034,13 @@ where
 /// the worker future.
 pub(crate) struct WorkerGuard<T> {
     pub(crate) msg_tx: Option<tokio::sync::mpsc::UnboundedSender<T>>,
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(target_family = "wasm"))]
     join_handle: Option<std::thread::JoinHandle<()>>,
     should_stop: Option<Arc<AtomicBool>>,
 }
 
 impl<T> WorkerGuard<T> {
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(target_family = "wasm"))]
     pub(crate) fn new(
         msg_tx: tokio::sync::mpsc::UnboundedSender<T>,
         join_handle: std::thread::JoinHandle<()>,
@@ -1055,7 +1055,7 @@ impl<T> WorkerGuard<T> {
 
     /// wasm constructor: no thread to join, the worker future runs on the JS
     /// event loop and exits when the channel is closed.
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(target_family = "wasm")]
     pub(crate) fn new(
         msg_tx: tokio::sync::mpsc::UnboundedSender<T>,
         should_stop: Option<Arc<AtomicBool>>,
@@ -1091,7 +1091,7 @@ impl<T> Drop for WorkerGuard<T> {
         // On wasm32 there's no thread — closing the channel above causes
         // the worker's `recv().await` to return None and the spawn_local
         // future to complete on its next poll.
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(target_family = "wasm"))]
         if let Some(handle) = self.join_handle.take() {
             if let Err(e) = handle.join() {
                 error!("Worker panicked: {:?}", e);

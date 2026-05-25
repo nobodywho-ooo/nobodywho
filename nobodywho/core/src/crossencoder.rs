@@ -46,7 +46,7 @@ impl CrossEncoderAsync {
 
         // Native: real OS thread with blocking_recv.
         // wasm32: spawn_local. See ChatHandleAsync::new for rationale.
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(target_family = "wasm"))]
         let join_handle = std::thread::spawn(move || {
             let worker = Worker::new_crossencoder_worker(&model, n_ctx);
             let mut worker_state = match worker {
@@ -63,7 +63,7 @@ impl CrossEncoderAsync {
             }
         });
 
-        #[cfg(target_arch = "wasm32")]
+        #[cfg(target_family = "wasm")]
         wasm_bindgen_futures::spawn_local(async move {
             let worker = Worker::new_crossencoder_worker(&model, n_ctx);
             let mut worker_state = match worker {
@@ -80,9 +80,9 @@ impl CrossEncoderAsync {
             }
         });
 
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(target_family = "wasm"))]
         let guard = Arc::new(WorkerGuard::new(msg_tx, join_handle, None));
-        #[cfg(target_arch = "wasm32")]
+        #[cfg(target_family = "wasm")]
         let guard = Arc::new(WorkerGuard::new(msg_tx, None));
 
         Self { guard }

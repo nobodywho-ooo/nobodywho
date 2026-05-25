@@ -34,7 +34,7 @@ impl EncoderAsync {
         // Native: real OS thread with blocking_recv.
         // wasm32: spawn_local async future. See ChatHandleAsync::new for the
         // rationale and caveats.
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(target_family = "wasm"))]
         let join_handle = std::thread::spawn(move || {
             let worker = Worker::new_encoder_worker(&model, n_ctx);
             let mut worker_state = match worker {
@@ -51,7 +51,7 @@ impl EncoderAsync {
             }
         });
 
-        #[cfg(target_arch = "wasm32")]
+        #[cfg(target_family = "wasm")]
         wasm_bindgen_futures::spawn_local(async move {
             let worker = Worker::new_encoder_worker(&model, n_ctx);
             let mut worker_state = match worker {
@@ -68,9 +68,9 @@ impl EncoderAsync {
             }
         });
 
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(target_family = "wasm"))]
         let guard = Arc::new(WorkerGuard::new(msg_tx, join_handle, None));
-        #[cfg(target_arch = "wasm32")]
+        #[cfg(target_family = "wasm")]
         let guard = Arc::new(WorkerGuard::new(msg_tx, None));
 
         Self { guard }

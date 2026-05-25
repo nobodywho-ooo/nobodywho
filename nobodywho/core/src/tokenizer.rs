@@ -25,11 +25,11 @@ use crate::{errors::MultimodalError, errors::TokenizationError};
 /// return — to avoid the FFI hop.
 #[inline]
 fn mtmd_marker_string() -> String {
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(target_family = "wasm")]
     {
         "<__media__>".to_string()
     }
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(target_family = "wasm"))]
     {
         llama_cpp_2::mtmd::mtmd_default_marker().to_string()
     }
@@ -382,9 +382,9 @@ impl ProjectionModel {
         // which routes n_threads to ggml's threadpool. Either trips
         // pthread_create on wasm. Force n_threads = 1 so all of mtmd's
         // and ggml's parallelism short-circuits to single-thread loops.
-        #[cfg(target_arch = "wasm32")]
+        #[cfg(target_family = "wasm")]
         let n_threads: i32 = 1;
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(target_family = "wasm"))]
         let n_threads = std::thread::available_parallelism()
             .map(|p| p.get() as i32)
             .unwrap_or(4);

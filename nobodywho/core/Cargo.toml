@@ -66,14 +66,14 @@ indexmap = "2.13.0"
 #   `Tool::python` and `Tool::bash` built-in tools. Both have native-only
 #   dependencies (monty has no wasm32 target; bashkit forces `tokio/full`
 #   which pulls `mio` + raw sockets).
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
 tokio = { version = "1.43.0", features = ["sync", "rt", "rt-multi-thread", "macros"] }
 ureq = { version = "3", features = ["rustls"] }
 indicatif = "0.18"
 monty = { git = "https://github.com/pydantic/monty", tag = "v0.0.7" }
 bashkit = { git = "https://github.com/everruns/bashkit", tag = "v0.1.10" }
 
-[target.'cfg(target_arch = "wasm32")'.dependencies]
+[target.'cfg(target_family = "wasm")'.dependencies]
 tokio = { version = "1.43.0", features = ["sync", "rt", "macros"] }
 # Used by ChatHandleAsync::new / EncoderAsync::new / CrossEncoderAsync::new
 # to spawn the worker future on the JS event loop in place of
@@ -87,7 +87,7 @@ libc = "0.2"
 # `dirs` resolves OS-standard cache/config paths. Neither Android nor wasm32
 # fits that model: Android reads /proc/self/cmdline directly (see llm.rs),
 # wasm32 has no filesystem at all.
-[target.'cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))'.dependencies]
+[target.'cfg(all(not(target_os = "android"), not(target_family = "wasm")))'.dependencies]
 dirs = "6"
 
 # Enable Vulkan for x86_64, x86, and aarch64 targets (excluding Apple platforms and Android).

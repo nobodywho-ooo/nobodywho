@@ -24,7 +24,7 @@
 //! `pkg-bundler/pre.js` at module init and lives for the lifetime of the
 //! wasm instance.
 
-#![cfg(target_arch = "wasm32")]
+#![cfg(target_family = "wasm")]
 
 use std::ffi::CStr;
 use std::os::raw::{c_char, c_int};
@@ -88,12 +88,16 @@ fn fs_call(fs: &JsValue, method: &str, args: &[JsValue]) -> Result<JsValue, c_in
 /// `path` must be a NUL-terminated C string valid for the duration of the
 /// call. Callers are libc's openat path which always passes a valid C
 /// string from the user's `fopen` argument.
+// `mode` is declared as `intptr_t` in Emscripten's wasm64 standalone
+// libc (i64 on wasm64, i32 on wasm32). Using `isize` makes the Rust
+// signature match the linker's expectation on both pointer widths.
+// We narrow back to c_int when calling FS.open.
 #[no_mangle]
 pub unsafe extern "C" fn __syscall_openat(
     _dirfd: c_int,
     path: *const c_char,
     flags: c_int,
-    mode: c_int,
+    mode: isize,
 ) -> c_int {
     let fs = match fs_namespace() {
         Ok(fs) => fs,

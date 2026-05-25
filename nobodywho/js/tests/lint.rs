@@ -47,7 +47,7 @@ fn doc_above(src: &str, signature: &str) -> String {
 ///
 /// The paragraph about `monty` and `bashkit` being native-only sits at the
 /// top of `[dependencies]`, but those crates are declared 35+ lines below
-/// in the `[target.'cfg(not(target_arch = "wasm32"))'.dependencies]` block.
+/// in the `[target.'cfg(not(target_family = "wasm"))'.dependencies]` block.
 /// A reader follows the comment expecting to see the deps it describes;
 /// instead they see `serde`, `chrono`, `llama-cpp-2`. Move the comment
 /// to be adjacent to the deps it explains.

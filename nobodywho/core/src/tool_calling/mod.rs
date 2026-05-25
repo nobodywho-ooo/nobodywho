@@ -14,17 +14,17 @@ mod ministral3;
 mod qwen3;
 mod qwen35_36;
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 use bashkit::{ExecutionLimits, InMemoryFs};
 use llama_cpp_2::model::LlamaModel;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 use monty::{LimitedTracker, MontyRun, PrintWriter, ResourceLimits};
 use serde::{ser::Serializer, Deserialize, Serialize};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 // `Duration` is only used by the native-only `Tool::python` builder.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 use std::time::Duration;
 use tracing::debug;
 
@@ -123,7 +123,7 @@ impl Tool {
     /// Built-in Python tool, backed by the `monty` interpreter. Native-only:
     /// `monty` does not currently target wasm32. wasm consumers can still call
     /// `Tool::new` with their own JS-side Python implementation if needed.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(target_family = "wasm"))]
     pub fn python(
         max_duration: Option<Duration>,
         max_memory: Option<usize>,
@@ -183,7 +183,7 @@ impl Tool {
     /// Native-only: `bashkit` requires `tokio/full` (mio + sockets) which
     /// doesn't compile to wasm32. wasm consumers don't typically have a
     /// shell concept anyway; if needed, define a custom tool via `Tool::new`.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(target_family = "wasm"))]
     pub fn bash(max_commands: Option<usize>) -> Self {
         // Uses `Tool::new_async` rather than `Tool::new` because bashkit is
         // itself async. The chat-worker dispatcher already runs inside a
