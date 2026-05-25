@@ -1185,6 +1185,24 @@ fn next_tool_call_id() -> String {
 /// Errors if `globalThis.postMessage` isn't a function (i.e. invoked
 /// outside a worker context altogether).
 #[cfg(target_family = "wasm")]
+/// Sync wasm export called from pre.js's per-token drain helper when a
+/// `stop` postMessage arrives mid-inference. Flips the same flag that
+/// `ChatHandleAsync::stop_generation` does — the inference loop checks
+/// it between tokens and breaks out cleanly. Exported as a sync function
+/// (not Promise-returning) so the drain helper, which runs from inside
+/// the synchronous wasm inference loop, can invoke it directly without
+/// going through `spawn_local` (which couldn't tick anyway while wasm
+/// is blocking the event loop). No-op if no chat is active.
+#[cfg(target_family = "wasm")]
+#[wasm_bindgen(js_name = stopCurrentAsk)]
+pub fn stop_current_ask() {
+    WORKER_CHAT.with(|c| {
+        if let Some(h) = c.borrow().as_ref() {
+            h.stop_generation();
+        }
+    });
+}
+
 #[wasm_bindgen(js_name = runInWorker)]
 pub fn run_in_worker() -> Result<(), JsError> {
     use wasm_bindgen::closure::Closure;
@@ -1414,6 +1432,22 @@ async fn handle_worker_message(
                 let _ = js_sys::Reflect::set(&payload, &"type".into(), &"token".into());
                 let _ = js_sys::Reflect::set(&payload, &"token".into(), &token.into());
                 let _ = worker_post(&scope_for_hook, &payload);
+                // Drain any pending parentPort messages synchronously
+                // (Node-only; the helper is defined by the Node worker
+                // preamble in pre.js — absent in browser Web Workers).
+                // Dispatches queued messages like 'stop' through the
+                // worker's onmessage handler so they take effect between
+                // tokens instead of waiting for the whole ask to finish.
+                // Browser stop only takes effect after the current ask
+                // completes; SharedArrayBuffer + Atomics is the browser
+                // path forward and is tracked as a follow-up.
+                if let Ok(drain) =
+                    js_sys::Reflect::get(&scope_for_hook, &"__nbw_drain_messages".into())
+                {
+                    if let Ok(drain_fn) = drain.dyn_into::<js_sys::Function>() {
+                        let _ = drain_fn.call0(&JsValue::NULL);
+                    }
+                }
             });
             let mut stream = handle.ask_with_token_hook(prompt, hook);
             // Await completion to detect errors and to wait for EOS
@@ -1421,6 +1455,16 @@ async fn handle_worker_message(
             // ignored — tokens were already streamed via the hook.
             stream.completed().await.map_err(|e| e.to_string())?;
             post(&worker_reply("ask-done"));
+        }
+        "stop" => {
+            // Backstop for when stop is processed via the normal async
+            // dispatch (e.g. between asks). The fast in-flight path uses
+            // the wasm-exported `stopCurrentAsk` called directly from
+            // the drain helper — bypasses spawn_local since the wasm
+            // event loop can't tick futures while inference is running.
+            if let Some(handle) = WORKER_CHAT.with(|c| c.borrow().clone()) {
+                handle.stop_generation();
+            }
         }
         other => return Err(format!("unknown msg type: {other}")),
     }
@@ -2259,6 +2303,30 @@ impl Chat {
         Ok(TokenStream {
             state: stream_state,
         })
+    }
+
+    /// Interrupt the currently-running `ask`. Posts a `stop` message to
+    /// the worker, which calls `ChatHandleAsync::stop_generation` —
+    /// core's inference loop checks the stop flag between tokens and
+    /// breaks out. The in-flight `TokenStream` resolves normally with
+    /// whatever tokens were already generated (the partial response is
+    /// also recorded in the chat history, matching native behavior).
+    ///
+    /// No-op if no ask is in progress, or if the chat has been
+    /// terminated. The chat remains usable after a stop — `ask` again
+    /// to continue the conversation.
+    #[wasm_bindgen(js_name = stopGeneration)]
+    pub fn stop_generation(&self) -> Result<(), JsError> {
+        let st = self.state.borrow();
+        if st.terminated {
+            // Match Python's silent no-op for stop-after-terminate.
+            return Ok(());
+        }
+        let stop_msg = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&stop_msg, &"type".into(), &"stop".into());
+        worker_post(&st.worker, &stop_msg)
+            .map_err(|e| JsError::new(&format!("post stop: {e:?}")))?;
+        Ok(())
     }
 
     /// Shut down the worker. Any in-flight stream is failed with

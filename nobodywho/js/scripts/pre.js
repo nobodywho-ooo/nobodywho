@@ -173,7 +173,7 @@ globalThis.__nbw_spawn_worker = async function(wasmEntryUrl) {
   if (typeof process !== 'undefined' && process.versions && process.versions.node) {
     const { Worker: NodeWorker } = await import('node:worker_threads');
     const preamble = [
-      `import { parentPort } from 'node:worker_threads';`,
+      `import { parentPort, receiveMessageOnPort } from 'node:worker_threads';`,
       `globalThis.__nbw_node_worker = true;`,
       `globalThis.postMessage = (m) => parentPort.postMessage(m);`,
       `let __nbw_onmessage;`,
@@ -188,6 +188,33 @@ globalThis.__nbw_spawn_worker = async function(wasmEntryUrl) {
       `    }`,
       `  },`,
       `});`,
+      // Sync-drain pending parentPort messages from inside the wasm
+      // inference loop. Needed for Chat.stopGeneration() to take
+      // effect mid-ask: the worker is busy running wasm and won't
+      // dispatch onmessage until the call returns, so the 'stop'
+      // message sits in the queue. Calling this from the per-token
+      // hook lets the existing onmessage handler fire between
+      // tokens, which routes 'stop' to ChatHandleAsync::stop_generation
+      // and the inference loop breaks on the next token.
+      // Node-only — Web Workers have no synchronous message
+      // receive primitive. Browser stop only takes effect after the
+      // current ask completes (or via Chat.terminate() to nuke).
+      `globalThis.__nbw_drain_messages = () => {`,
+      `  let m;`,
+      `  while ((m = receiveMessageOnPort(parentPort)) !== undefined) {`,
+      `    const data = m.message;`,
+      `    // Special-case 'stop': call the sync wasm export directly so the`,
+      `    // inference loop sees the flag on the next token. Going through`,
+      `    // __nbw_onmessage (which schedules an async dispatcher via`,
+      `    // spawn_local) wouldn't work mid-ask because spawn_local-queued`,
+      `    // futures can't run while the wasm event loop is blocked.`,
+      `    if (data && data.type === 'stop' && typeof Module !== 'undefined' && typeof Module.stopCurrentAsk === 'function') {`,
+      `      Module.stopCurrentAsk();`,
+      `      continue;`,
+      `    }`,
+      `    if (__nbw_onmessage) __nbw_onmessage({ data });`,
+      `  }`,
+      `};`,
       // Worker-side uncaughtException handler: prints the FULL error
       // (including .stack) to stderr before the worker dies. Without
       // this, main only sees an empty Error and "WebAssembly.Exception {}"
