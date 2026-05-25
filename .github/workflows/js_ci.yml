@@ -98,14 +98,21 @@ jobs:
           # changes in a way the cached tree would miss.
           key: emsdk-wbg-${{ runner.os }}-v2
 
-      - name: Clone + configure patched Emscripten fork
+      - name: Clone + bootstrap + configure patched Emscripten fork
         if: steps.emsdk-cache.outputs.cache-hit != 'true'
-        # Clone walkingeyerobot's patched wrappers, then write an
-        # .emscripten config that points at emsdk's LLVM / binaryen /
-        # node bundle. The local setup uses homebrew emscripten as the
-        # LLVM provider; in CI we use the emsdk-installed bundle.
+        # Clone walkingeyerobot's patched wrappers, then:
+        # 1. Run ./bootstrap to generate the emcc / em++ / etc. entry-
+        #    point shell wrappers from emcc.py / em++.py etc.
+        #    (bootstrap calls tools/maint/create_entry_points.py).
+        #    Without this, only the .py files exist — emcc as a
+        #    callable command doesn't.
+        # 2. Write `.emscripten` pointing at emsdk's LLVM / binaryen /
+        #    node bundle. The local setup uses homebrew emscripten as
+        #    the LLVM provider; in CI we reuse emsdk's.
         run: |
           git clone --depth 1 --branch "$EMSDK_FORK_REF" "$EMSDK_FORK_URL" "$HOME/emscripten-wbg"
+          cd "$HOME/emscripten-wbg"
+          ./bootstrap
           cat > "$HOME/emscripten-wbg/.emscripten" <<EMSCRIPTEN_CONFIG
           LLVM_ROOT = '$EMSDK/upstream/bin'
           BINARYEN_ROOT = '$EMSDK/upstream'
@@ -114,8 +121,7 @@ jobs:
           JS_ENGINES = [NODE_JS]
           CACHE = '$HOME/emscripten-wbg/cache'
           EMSCRIPTEN_CONFIG
-          ls -la "$HOME/emscripten-wbg/.emscripten"
-          cat "$HOME/emscripten-wbg/.emscripten"
+          ls -la "$HOME/emscripten-wbg/emcc" "$HOME/emscripten-wbg/.emscripten"
 
       - name: Export EMSDK_DIR + EM_CONFIG to job env
         # Runs whether or not the cache hit. The build script reads both
