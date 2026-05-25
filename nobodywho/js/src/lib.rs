@@ -3,6 +3,17 @@
 //! Mirrors the Python binding's API for JS/TS consumers. Async-only, since a
 //! browser tab has no thread to block on. See `README.md` for build instructions.
 //!
+
+// Native builds (used by `cargo test -p nobodywho-js` for the lint suite +
+// `cargo check` for IDE integration) trip dead-code warnings on every
+// wasm-only item (SamplerSpec, into_sampler, build_sampler, all the
+// worker_* helpers, etc.) because the wasm_bindgen-exported callers that
+// use them are cfg-gated to wasm. With CI's `RUSTFLAGS=-D warnings`
+// these escalate to compile errors. The items ARE used on wasm; suppress
+// the warning only when we're on native to keep that signal alive for
+// the wasm build.
+#![cfg_attr(not(target_family = "wasm"), allow(dead_code, unused))]
+
 //! # Why everything returns `js_sys::Promise` instead of being `pub async fn`
 //!
 //! `#[wasm_bindgen] pub async fn` desugars through

@@ -1,3 +1,8 @@
+// `doc_above` is a helper that's currently unused by every shipped test
+// arm — kept because pending findings are likely to need it. CI sets
+// `RUSTFLAGS=-D warnings` which would otherwise fail the suite on this.
+#![allow(dead_code)]
+
 //! Source-text invariants that exist because past code-review passes
 //! kept missing them on the human-eye-on-the-PR pass.
 //!
