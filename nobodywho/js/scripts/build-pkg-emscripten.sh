@@ -29,13 +29,17 @@
 #
 # Why the sed patches: workarounds for codegen bugs in stock wasm-bindgen-cli
 # 0.2.121 when targeting the emscripten module shape:
-#   - HEAPU80()/HEAP320() and HEAPU8()/HEAP32() — wasm-bindgen emits the
-#     typed-array getter form used by the bundler target. The "0" suffix
-#     comes from wasm-bindgen's identifier mangling for some call sites;
-#     others emit without the "0". Emscripten's runtime expects the plain
-#     HEAPU8/HEAP32 globals (no parens, no suffix). Patch both forms.
-#     When upstream wasm-bindgen learns to emit Emscripten-shaped globals,
-#     drop the substitutions.
+#   - HEAPX0()/HEAPX() (where X = U8/8/U16/16/U32/32/F32/F64) — wasm-bindgen
+#     emits the typed-array getter form used by the bundler target. The "0"
+#     suffix comes from wasm-bindgen's identifier mangling for some call
+#     sites; others emit without the "0". Emscripten's runtime expects the
+#     plain HEAPX globals (no parens, no suffix). Patch both forms across
+#     every typed-array variant — adding a new one without its sed line
+#     produces a `HEAPX0 is not defined` runtime error the moment a binding
+#     takes that array type as an arg or returns it (e.g. cosineSimilarity
+#     accepting Vec<f32> needed the HEAPF32 patch). When upstream
+#     wasm-bindgen learns to emit Emscripten-shaped globals, drop the
+#     substitutions.
 #   - Model.__wrap / TokenStream.__wrap / Chat.__wrap — wasm-bindgen's
 #     "constructor" attribute generates a static-method call on the bare
 #     class. emcc wraps classes onto `Module.*`, so the static-method call
@@ -165,6 +169,18 @@ echo "==> applying sed patches to library_bindgen.js"
   -e 's/HEAP320\(\)/HEAP32/g' \
   -e 's/HEAPU8\(\)/HEAPU8/g' \
   -e 's/HEAP32\(\)/HEAP32/g' \
+  -e 's/HEAPF320\(\)/HEAPF32/g' \
+  -e 's/HEAPF32\(\)/HEAPF32/g' \
+  -e 's/HEAPF640\(\)/HEAPF64/g' \
+  -e 's/HEAPF64\(\)/HEAPF64/g' \
+  -e 's/HEAPU160\(\)/HEAPU16/g' \
+  -e 's/HEAPU16\(\)/HEAPU16/g' \
+  -e 's/HEAP160\(\)/HEAP16/g' \
+  -e 's/HEAP16\(\)/HEAP16/g' \
+  -e 's/HEAPU320\(\)/HEAPU32/g' \
+  -e 's/HEAPU32\(\)/HEAPU32/g' \
+  -e 's/HEAP80\(\)/HEAP8/g' \
+  -e 's/HEAP8\(\)/HEAP8/g' \
   -E -e 's/(^|[^A-Za-z_])Model\.__wrap/\1Module.Model.__wrap/g' \
      -e 's/(^|[^A-Za-z_])TokenStream\.__wrap/\1Module.TokenStream.__wrap/g' \
      -e 's/(^|[^A-Za-z_])Chat\.__wrap/\1Module.Chat.__wrap/g' \

@@ -93,6 +93,39 @@ pub fn init() {
 
 // ---------- Promise helper ----------
 
+/// Cosine similarity between two embedding vectors. Convenience
+/// helper paired with `Encoder.encode()`. Mirrors Python's
+/// `nobodywho.cosine_similarity`.
+///
+/// ```js
+/// import { Encoder, Model, cosineSimilarity } from 'nobodywho-js';
+/// const v1 = await encoder.encode('the quick brown fox');
+/// const v2 = await encoder.encode('a fast brown fox');
+/// const sim = cosineSimilarity(v1, v2);  // 0..1
+/// ```
+///
+/// Accepts `Float32Array | number[]`. Throws on length mismatch.
+/// Returns NaN if either vector has zero magnitude (matches Python).
+#[wasm_bindgen(js_name = cosineSimilarity)]
+pub fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> Result<f32, JsError> {
+    if a.len() != b.len() {
+        return Err(JsError::new(&format!(
+            "cosineSimilarity: vectors have different lengths ({} vs {})",
+            a.len(),
+            b.len()
+        )));
+    }
+    let mut dot = 0f32;
+    let mut na = 0f32;
+    let mut nb = 0f32;
+    for i in 0..a.len() {
+        dot += a[i] * b[i];
+        na += a[i] * a[i];
+        nb += b[i] * b[i];
+    }
+    Ok(dot / (na.sqrt() * nb.sqrt()))
+}
+
 /// Wrap a `Future<Output = Result<T, JsError>>` into a `js_sys::Promise`,
 /// asserting it's unwind-safe and catching panics so they reject the promise
 /// rather than tearing down the whole wasm instance.
@@ -244,6 +277,32 @@ pub struct Image;
 
 #[wasm_bindgen]
 impl Image {
+    /// Build an image prompt part by reading a file from a host
+    /// filesystem path. Node-only — in the browser, fetch the bytes
+    /// yourself and use `fromBytes()`. Returns a Promise because the
+    /// underlying Node fs lookup goes through an `await import('node:fs')`
+    /// dynamic-import shim. Mirrors Python's `Image("/path/to/file.png")`
+    /// one-liner ergonomics (modulo the await).
+    ///
+    /// ```js
+    /// const img = await Image.fromPath('/path/to/dog.png');
+    /// ```
+    #[wasm_bindgen(js_name = fromPath)]
+    pub fn from_path(path: String) -> js_sys::Promise {
+        promisify(async move {
+            #[cfg(target_family = "wasm")]
+            {
+                let bytes = read_node_file_bytes(&path).await?;
+                Ok(JsValue::from(make_media_part("image", &bytes)))
+            }
+            #[cfg(not(target_family = "wasm"))]
+            {
+                let _ = path;
+                Err(JsError::new("fromPath: not supported on this target"))
+            }
+        })
+    }
+
     /// Build an image prompt part from raw file bytes (JPEG / PNG / BMP /
     /// GIF / TGA / PSD / PIC / PNM — anything `stb_image` can decode).
     /// The format is sniffed via the file header inside
@@ -264,6 +323,32 @@ pub struct Audio;
 
 #[wasm_bindgen]
 impl Audio {
+    /// Build an audio prompt part by reading a file from a host
+    /// filesystem path. Node-only — in the browser, fetch the bytes
+    /// yourself and use `fromBytes()`. Returns a Promise because the
+    /// underlying Node fs lookup goes through an `await import('node:fs')`
+    /// dynamic-import shim. Mirrors Python's `Audio("/path/to/file.wav")`
+    /// one-liner ergonomics (modulo the await).
+    ///
+    /// ```js
+    /// const audio = await Audio.fromPath('/path/to/foo.wav');
+    /// ```
+    #[wasm_bindgen(js_name = fromPath)]
+    pub fn from_path(path: String) -> js_sys::Promise {
+        promisify(async move {
+            #[cfg(target_family = "wasm")]
+            {
+                let bytes = read_node_file_bytes(&path).await?;
+                Ok(JsValue::from(make_media_part("audio", &bytes)))
+            }
+            #[cfg(not(target_family = "wasm"))]
+            {
+                let _ = path;
+                Err(JsError::new("fromPath: not supported on this target"))
+            }
+        })
+    }
+
     /// Build an audio prompt part from raw file bytes. Supported formats
     /// on the wasm-Emscripten build: WAV, MP3, FLAC (the playback /
     /// threading / engine layers are cut out via `MA_NO_*`, but the
@@ -469,6 +554,35 @@ impl SamplerBuilder {
         let _ = js_sys::Reflect::set(&self.spec, &"mirostatEta".into(), &eta.into());
         self.spec
     }
+}
+
+/// Read a host filesystem file into a `Vec<u8>` via the Node helper
+/// `globalThis.__nbw_node_read_file` (defined in pre.js, Node-only).
+/// Returns a future so the caller can await the JS dynamic import that
+/// the helper uses under the hood. Errors clearly with browser-friendly
+/// guidance if the Node helper isn't available.
+#[cfg(target_family = "wasm")]
+async fn read_node_file_bytes(path: &str) -> Result<Vec<u8>, JsError> {
+    let global = js_sys::global();
+    let helper: js_sys::Function = js_sys::Reflect::get(&global, &"__nbw_node_read_file".into())
+        .ok()
+        .and_then(|v| v.dyn_into::<js_sys::Function>().ok())
+        .ok_or_else(|| {
+            JsError::new(
+                "fromPath is Node-only. In a browser, fetch() the bytes \
+                 yourself and pass them to fromBytes().",
+            )
+        })?;
+    let promise = helper
+        .call1(&JsValue::NULL, &path.into())
+        .map_err(|e| JsError::new(&format!("__nbw_node_read_file({path}) threw: {e:?}")))?;
+    let result = wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(promise))
+        .await
+        .map_err(|e| JsError::new(&format!("read failed: {e:?}")))?;
+    let u8: js_sys::Uint8Array = result
+        .dyn_into()
+        .map_err(|_| JsError::new("__nbw_node_read_file returned a non-Uint8Array"))?;
+    Ok(u8.to_vec())
 }
 
 /// Build a tagged media part object. `kind` is `"image"` or `"audio"`.
@@ -1839,6 +1953,33 @@ async fn handle_worker_message(
             handle.set_tools(tools).await.map_err(|e| e.to_string())?;
             post(&worker_reply("tools-set"));
         }
+        "reset-chat" => {
+            let handle = WORKER_CHAT
+                .with(|c| c.borrow().clone())
+                .ok_or_else(|| "chat not created".to_string())?;
+            let prompt_val = js_sys::Reflect::get(&data, &"prompt".into())
+                .unwrap_or(JsValue::NULL);
+            let prompt: Option<String> = if prompt_val.is_null() || prompt_val.is_undefined() {
+                None
+            } else {
+                prompt_val.as_string()
+            };
+            let tools_jsval = js_sys::Reflect::get(&data, &"tools".into())
+                .unwrap_or(JsValue::UNDEFINED);
+            let tools: Vec<nobodywho::tool_calling::Tool> =
+                if tools_jsval.is_undefined() || tools_jsval.is_null() {
+                    vec![]
+                } else {
+                    let metas: Vec<ToolMeta> = serde_wasm_bindgen::from_value(tools_jsval)
+                        .map_err(|e| format!("tools: {e}"))?;
+                    metas.into_iter().map(build_rpc_tool).collect()
+                };
+            handle
+                .reset_chat(prompt, tools)
+                .await
+                .map_err(|e| e.to_string())?;
+            post(&worker_reply("chat-reset"));
+        }
         other => return Err(format!("unknown msg type: {other}")),
     }
 
@@ -2955,6 +3096,54 @@ impl Chat {
             worker_post(&state.borrow().worker, &msg)
                 .map_err(|e| JsError::new(&format!("post set-tools: {e:?}")))?;
             let _ = wait_for_handshake(&state, "tools-set").await?;
+            Ok(JsValue::UNDEFINED)
+        })
+    }
+
+    /// Reset the chat to a fresh state — clears history AND (optionally)
+    /// replaces the system prompt and tool list in one atomic worker
+    /// round-trip. Mirrors Python's `Chat.reset(system_prompt, tools)`.
+    ///
+    /// `opts` is `{ systemPrompt?, tools? }`:
+    /// - `systemPrompt`: string sets it; null / undefined clears it.
+    /// - `tools`: an array of `Tool.fromFn(...)` replaces the registry;
+    ///   undefined or [] clears all tools.
+    ///
+    /// To clear history only (preserving system prompt + tools + sampler
+    /// + template variables), use `resetHistory()` instead.
+    #[wasm_bindgen(js_name = reset)]
+    pub fn reset(&self, opts: JsValue) -> js_sys::Promise {
+        let state = self.state.clone();
+        promisify(async move {
+            check_not_terminated(&state)?;
+
+            // Pull systemPrompt + tools out of opts. Missing object → both null/empty.
+            let (prompt_jsval, tools_jsval) = if opts.is_undefined() || opts.is_null() {
+                (JsValue::NULL, JsValue::UNDEFINED)
+            } else {
+                let p = js_sys::Reflect::get(&opts, &"systemPrompt".into())
+                    .unwrap_or(JsValue::NULL);
+                let t = js_sys::Reflect::get(&opts, &"tools".into())
+                    .unwrap_or(JsValue::UNDEFINED);
+                (p, t)
+            };
+
+            // Update the main-thread tool callback registry to match the new
+            // list. Same shape as setTools: callbacks stay on main, only
+            // metadata crosses postMessage.
+            let (callbacks, tools_meta) = extract_tool_callbacks(&tools_jsval)?;
+            {
+                let mut st = state.borrow_mut();
+                st.tool_callbacks = callbacks;
+            }
+
+            let msg = js_sys::Object::new();
+            let _ = js_sys::Reflect::set(&msg, &"type".into(), &"reset-chat".into());
+            let _ = js_sys::Reflect::set(&msg, &"prompt".into(), &prompt_jsval);
+            let _ = js_sys::Reflect::set(&msg, &"tools".into(), &tools_meta);
+            worker_post(&state.borrow().worker, &msg)
+                .map_err(|e| JsError::new(&format!("post reset-chat: {e:?}")))?;
+            let _ = wait_for_handshake(&state, "chat-reset").await?;
             Ok(JsValue::UNDEFINED)
         })
     }

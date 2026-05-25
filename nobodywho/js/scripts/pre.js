@@ -100,6 +100,14 @@ Module.postRun.push(() => {
   // Note: doesn't help wasm32's 4 GiB linear-memory ceiling — model
   // tensors still have to fit in wasm memory once loaded.
   if (typeof process !== 'undefined' && process.versions && process.versions.node) {
+    // Async sync-style read for Audio.fromPath / Image.fromPath. Returns
+    // a Uint8Array. Node-only — the helper isn't defined in browser, so
+    // the Rust side's lookup fails clearly there.
+    globalThis.__nbw_node_read_file = async function (srcPath) {
+      const fs = await import('node:fs');
+      return new Uint8Array(fs.readFileSync(srcPath));
+    };
+
     globalThis.__nbw_node_file_to_memfs = async function (srcPath, memfsPath) {
       const fs = await import('node:fs');
       const size = fs.statSync(srcPath).size;
