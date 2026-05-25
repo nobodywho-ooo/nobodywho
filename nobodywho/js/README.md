@@ -174,7 +174,7 @@ from the Rust side). Model bytes are cached in the Cache API
 
 Note: the native binding has `huggingface:` / `https://` paths that
 download and cache models on disk (see Python's `Model("hf://…")`), but
-that codepath is `cfg(not(wasm32))` — `ureq` has no browser equivalent
+that codepath is `cfg(not(target_family = "wasm"))` — `ureq` has no browser equivalent
 and there's no filesystem to cache into. The browser-side equivalent is
 just `fetch()` + `Model.loadBytes(...)`, with caching via the Cache API
 (see next section).
@@ -389,10 +389,21 @@ present. The Rust override wins symbol resolution at link time.
   Gemma, LLaVA, etc. use the string-with-markers convention and
   work fine; OpenAI-typed-content models would need a renderer
   update.
-- Models larger than ~2 GB on disk. Node's `readFileSync` caps at
-  2 GiB; for larger models the JS caller has to chunk-read into a
-  Uint8Array. Wasm32's hard 4 GB ceiling also bounds model + mmproj +
-  KV cache + compute buffer.
+- Models >2 GiB on disk via `modelBytes` in Node. Node's
+  `fs.readFileSync` caps at 2 GiB. Use `Chat.create({ modelPath })`
+  instead — the worker streams the file into MEMFS in 64 MiB chunks
+  with no main-thread Buffer of the model bytes, bypassing the cap.
+  Browser is unaffected (`modelUrl` streams via fetch + Cache API).
+- Models whose total working set exceeds 4 GiB on the wasm32 build.
+  Model tensors + mmproj + KV cache + compute buffer must fit in
+  wasm32's hard 4 GiB linear-memory ceiling. Gemma 3 4B Q4_K_M +
+  mmproj overflows. The sibling wasm64 build pipeline
+  (`scripts/build-pkg-emscripten-wasm64.sh`) lifts the ceiling to
+  16 GiB, but is currently spike-quality and requires manual
+  toolchain setup (nightly Rust + one-line rustlib unwind patch
+  pending in [rust-lang/rust#156912][rust-pr156912]).
+
+[rust-pr156912]: https://github.com/rust-lang/rust/pull/156912
 
 ## Outstanding
 
