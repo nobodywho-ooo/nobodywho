@@ -40,7 +40,7 @@
 
 ## Platforms
 
-We support Swift, Python, Flutter, React Native and Godot.
+We support Swift, Python, Flutter, React Native, Godot, and JavaScript (browser / Node).
 
 | Platform | Installation | Documentation |
 |----------|-------------|---------------|
@@ -48,6 +48,7 @@ We support Swift, Python, Flutter, React Native and Godot.
 | **React Native** | [npm](#react-native) | [docs.nobodywho.ooo/react-native](https://docs.nobodywho.ooo/react-native/) |
 | **Flutter** | [pub.dev](#flutter) | [docs.nobodywho.ooo/flutter](https://docs.nobodywho.ooo/flutter/) |
 | **Python** | [pypi](#python) | [docs.nobodywho.ooo/python](https://docs.nobodywho.ooo/python/) |
+| **JavaScript** (browser / Node) | [build from source](#javascript) — npm publish pending | [nobodywho/js/README.md](nobodywho/js/README.md) |
 | **Godot** | [AssetLib](#godot) | [docs.nobodywho.ooo/godot](https://docs.nobodywho.ooo/godot/install/) |
 
 ## Quick Start
@@ -146,6 +147,31 @@ pip install nobodywho
 
 ---
 
+### JavaScript
+
+```js
+import { readFileSync } from 'node:fs';
+import createNobodyWhoModule from 'nobodywho-js';
+
+const m = await createNobodyWhoModule();
+m.init();
+const modelBytes = new Uint8Array(readFileSync('Qwen3-0.6B-Q4_K_M.gguf'));
+const chat = await m.Chat.create({ modelBytes });
+
+const response = await chat.ask('What is the capital of Denmark?').completed();
+console.log(response); // The capital of Denmark is Copenhagen.
+```
+
+Runs in browsers (via Web Worker + Cache API for model storage) and
+Node 20+ (via `worker_threads`). llama.cpp is compiled to
+`wasm32-unknown-emscripten`; everything stays off the main thread.
+
+Currently builds from source — see [nobodywho/js/README.md](nobodywho/js/README.md)
+for the build pipeline (Emscripten + patched wasm-bindgen fork). npm
+publish is on the roadmap.
+
+---
+
 ## Godot
 
 You can install it from inside the Godot editor: In Godot 4.5+, go to AssetLib and search for "NobodyWho".
@@ -175,7 +201,12 @@ For further instructions on how to setup NobodyWho in Godot please refer to our 
 
 Desktop (Linux, macOS, Windows) is supported across all bindings. Android is supported on Godot, Flutter and React Native. iOS is supported on Swift, Flutter and React Native. visionOS and watchOS are supported via the Swift package.
 
-Web exports will be a bit trickier to get right. See issue [#111](https://github.com/nobodywho-ooo/nobodywho/issues/111).
+For the web, the `nobodywho-js` binding compiles llama.cpp to
+`wasm32-unknown-emscripten` and runs in a browser tab (via Web Worker
++ Cache API for model storage) or in Node. See the
+[JavaScript section](#javascript) above and
+[nobodywho/js/README.md](nobodywho/js/README.md) for the current
+status and build pipeline.
 
 
 ## Licensing
