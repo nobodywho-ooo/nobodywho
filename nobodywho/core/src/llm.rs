@@ -251,12 +251,9 @@ pub fn get_model_from_bytes(
     info!("Model loaded from buffer successfully");
 
     let projection_model = if let Some(path) = mmproj_path {
-        let pm = crate::tokenizer::ProjectionModel::from_path(
-            path,
-            &language_model,
-            gpu_layers > 0,
-        )
-        .map_err(LoadModelError::Multimodal)?;
+        let pm =
+            crate::tokenizer::ProjectionModel::from_path(path, &language_model, gpu_layers > 0)
+                .map_err(LoadModelError::Multimodal)?;
         Some(pm)
     } else {
         None
@@ -326,12 +323,9 @@ pub fn get_model_from_path(
     info!("Model loaded from path successfully");
 
     let projection_model = if let Some(path) = mmproj_path {
-        let pm = crate::tokenizer::ProjectionModel::from_path(
-            path,
-            &language_model,
-            gpu_layers > 0,
-        )
-        .map_err(LoadModelError::Multimodal)?;
+        let pm =
+            crate::tokenizer::ProjectionModel::from_path(path, &language_model, gpu_layers > 0)
+                .map_err(LoadModelError::Multimodal)?;
         Some(pm)
     } else {
         None
@@ -537,6 +531,7 @@ pub async fn get_model_async(
     }
 }
 
+#[cfg(not(target_family = "wasm"))]
 pub fn download_model(
     model_path: &str,
     headers: Vec<(String, String)>,
@@ -881,9 +876,8 @@ where
             // trip wasm memory-access-out-of-bounds during inference. The
             // standard attention path works fine.
             #[cfg(target_family = "wasm")]
-            let ctx_params = ctx_params.with_flash_attention_policy(
-                llama_cpp_sys_2::LLAMA_FLASH_ATTN_TYPE_DISABLED,
-            );
+            let ctx_params = ctx_params
+                .with_flash_attention_policy(llama_cpp_sys_2::LLAMA_FLASH_ATTN_TYPE_DISABLED);
 
             // Create inference context and sampler
             let ctx = model

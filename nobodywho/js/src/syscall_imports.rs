@@ -44,8 +44,8 @@ const EIO: c_int = 29;
 /// but we don't want to panic from inside an EH-disabled C++ callstack.
 fn fs_namespace() -> Result<JsValue, c_int> {
     let global_obj = js_sys::global();
-    let module = js_sys::Reflect::get(&global_obj, &JsValue::from_str("Module"))
-        .map_err(|_| EIO)?;
+    let module =
+        js_sys::Reflect::get(&global_obj, &JsValue::from_str("Module")).map_err(|_| EIO)?;
     if module.is_undefined() || module.is_null() {
         return Err(EIO);
     }
@@ -59,8 +59,7 @@ fn fs_namespace() -> Result<JsValue, c_int> {
 /// Look up a method on the FS namespace and invoke it. The trailing
 /// generic is just here to keep the call sites short.
 fn fs_call(fs: &JsValue, method: &str, args: &[JsValue]) -> Result<JsValue, c_int> {
-    let func_val =
-        js_sys::Reflect::get(fs, &JsValue::from_str(method)).map_err(|_| EIO)?;
+    let func_val = js_sys::Reflect::get(fs, &JsValue::from_str(method)).map_err(|_| EIO)?;
     let func: js_sys::Function = func_val.dyn_ref::<js_sys::Function>().ok_or(EIO)?.clone();
     let args_array = js_sys::Array::new();
     for a in args {
@@ -159,11 +158,10 @@ fn stat_into_buf(path_str: &str, buf: *mut u8, lstat: bool) -> c_int {
         Ok(s) if !s.is_undefined() && !s.is_null() => s,
         _ => return -EIO,
     };
-    let write_stat_val =
-        match js_sys::Reflect::get(&syscalls, &"writeStat".into()) {
-            Ok(v) => v,
-            Err(_) => return -EIO,
-        };
+    let write_stat_val = match js_sys::Reflect::get(&syscalls, &"writeStat".into()) {
+        Ok(v) => v,
+        Err(_) => return -EIO,
+    };
     let write_stat = match write_stat_val.dyn_ref::<js_sys::Function>() {
         Some(f) => f.clone(),
         None => return -EIO,

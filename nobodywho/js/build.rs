@@ -45,7 +45,7 @@ fn main() {
     println!("cargo:rustc-link-arg-cdylib=-sSIDE_MODULE=0");
     println!("cargo:rustc-link-arg-cdylib=-sMAIN_MODULE=0");
 
-// Allow memory growth so GGUF loads aren't capped at Emscripten's
+    // Allow memory growth so GGUF loads aren't capped at Emscripten's
     // default 16 MB heap. MAXIMUM_MEMORY bumps the ceiling from the
     // default 2 GB to 4 GB — the hard cap for wasm on 32-bit browser
     // tabs. Loading a ~500 MB GGUF needs the raw bytes plus llama.cpp's

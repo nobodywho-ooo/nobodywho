@@ -2249,14 +2249,18 @@ mod tests {
             }
         };
 
-        worker.ask("What is the capital of Denmark?".into(), f.clone()).await?;
+        worker
+            .ask("What is the capital of Denmark?".into(), f.clone())
+            .await?;
 
         let resp = receiver.recv()?;
         println!("{}", resp);
 
         assert!(resp.contains("Copenhagen"));
 
-        worker.ask("What language do they speak there?".into(), f).await?;
+        worker
+            .ask("What language do they speak there?".into(), f)
+            .await?;
         let resp = receiver.recv()?;
         println!("{}", resp);
 
@@ -2287,7 +2291,9 @@ mod tests {
         };
 
         // do it once
-        worker.ask("What is the capital of Denmark?".into(), f.clone()).await?;
+        worker
+            .ask("What is the capital of Denmark?".into(), f.clone())
+            .await?;
         let resp1 = receiver.recv()?;
         println!("{}", resp1);
         assert!(resp1.to_lowercase().contains("woof"));
@@ -2299,7 +2305,9 @@ mod tests {
         );
 
         // do it again
-        worker.ask("What is the capital of Denmark?".into(), f.clone()).await?;
+        worker
+            .ask("What is the capital of Denmark?".into(), f.clone())
+            .await?;
         let resp2 = receiver.recv()?;
         println!("{}", resp2);
         assert!(resp2.to_lowercase().contains("meow"));
@@ -2771,11 +2779,12 @@ mod tests {
         };
 
         // This should trigger context shift internally because there's not enough space
-        worker.ask(
-            "This is a new question that will not fit in the context! What is 10 * 10?".into(),
-            f,
-        )
-        .await?;
+        worker
+            .ask(
+                "This is a new question that will not fit in the context! What is 10 * 10?".into(),
+                f,
+            )
+            .await?;
 
         let _response = receiver.recv()?;
         let messages_after = worker.extra.messages.clone();

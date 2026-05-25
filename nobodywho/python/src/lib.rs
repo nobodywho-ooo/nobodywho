@@ -2217,9 +2217,11 @@ fn bash_tool(max_commands: Option<usize>, py: Python) -> PyResult<Tool> {
             let rt = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
-                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(
-                    format!("failed to build runtime for bash_tool: {e}"),
-                ))?;
+                .map_err(|e| {
+                    pyo3::exceptions::PyRuntimeError::new_err(format!(
+                        "failed to build runtime for bash_tool: {e}"
+                    ))
+                })?;
             Ok(rt.block_on(tool_fn(serde_json::json!({
                 "commands": commands
             }))))

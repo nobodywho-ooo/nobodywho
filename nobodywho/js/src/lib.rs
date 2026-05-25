@@ -212,9 +212,7 @@ impl Model {
     /// at 0 internally.
     #[wasm_bindgen(js_name = loadBytes)]
     pub fn load_bytes(bytes: Vec<u8>, mmproj_bytes: JsValue) -> js_sys::Promise {
-        let mmproj_vec: Option<Vec<u8>> = if mmproj_bytes.is_undefined()
-            || mmproj_bytes.is_null()
-        {
+        let mmproj_vec: Option<Vec<u8>> = if mmproj_bytes.is_undefined() || mmproj_bytes.is_null() {
             None
         } else {
             match mmproj_bytes.dyn_into::<js_sys::Uint8Array>() {
@@ -245,12 +243,8 @@ impl Model {
         };
 
         promisify(async move {
-            let model = nobodywho::llm::get_model_from_bytes(
-                &bytes,
-                mmproj_path.as_deref(),
-                0,
-            )
-            .map_err(|e| JsError::new(&e.to_string()))?;
+            let model = nobodywho::llm::get_model_from_bytes(&bytes, mmproj_path.as_deref(), 0)
+                .map_err(|e| JsError::new(&e.to_string()))?;
             Ok(Model {
                 inner: Arc::new(model),
             })
@@ -592,7 +586,11 @@ impl SamplerBuilder {
     ) -> SamplerBuilder {
         let _ = js_sys::Reflect::set(&self.spec, &"repeatPenalty".into(), &penalty_repeat.into());
         let _ = js_sys::Reflect::set(&self.spec, &"repeatLastN".into(), &penalty_last_n.into());
-        let _ = js_sys::Reflect::set(&self.spec, &"repeatFreqPenalty".into(), &penalty_freq.into());
+        let _ = js_sys::Reflect::set(
+            &self.spec,
+            &"repeatFreqPenalty".into(),
+            &penalty_freq.into(),
+        );
         let _ = js_sys::Reflect::set(
             &self.spec,
             &"repeatPresentPenalty".into(),
@@ -615,10 +613,16 @@ impl SamplerBuilder {
     ) -> SamplerBuilder {
         let _ = js_sys::Reflect::set(&self.spec, &"dryMultiplier".into(), &multiplier.into());
         let _ = js_sys::Reflect::set(&self.spec, &"dryBase".into(), &base.into());
-        let _ =
-            js_sys::Reflect::set(&self.spec, &"dryAllowedLength".into(), &allowed_length.into());
-        let _ =
-            js_sys::Reflect::set(&self.spec, &"dryPenaltyLastN".into(), &penalty_last_n.into());
+        let _ = js_sys::Reflect::set(
+            &self.spec,
+            &"dryAllowedLength".into(),
+            &allowed_length.into(),
+        );
+        let _ = js_sys::Reflect::set(
+            &self.spec,
+            &"dryPenaltyLastN".into(),
+            &penalty_last_n.into(),
+        );
         let _ = js_sys::Reflect::set(&self.spec, &"drySeqBreakers".into(), &seq_breakers.into());
         self
     }
@@ -709,11 +713,7 @@ async fn read_node_file_bytes(path: &str) -> Result<Vec<u8>, JsError> {
 fn make_media_part(kind: &str, bytes: &[u8]) -> js_sys::Object {
     let o = js_sys::Object::new();
     let _ = js_sys::Reflect::set(&o, &"__nbwKind".into(), &JsValue::from_str(kind));
-    let _ = js_sys::Reflect::set(
-        &o,
-        &"bytes".into(),
-        &js_sys::Uint8Array::from(bytes).into(),
-    );
+    let _ = js_sys::Reflect::set(&o, &"bytes".into(), &js_sys::Uint8Array::from(bytes).into());
     o
 }
 
@@ -807,9 +807,9 @@ async fn stream_host_file_to_memfs(
                 .unwrap_or_else(|| format!("{e:?}"));
             format!("__nbw_node_file_to_memfs threw: {msg}")
         })?;
-    let promise: js_sys::Promise = promise_val.dyn_into().map_err(|_| {
-        "__nbw_node_file_to_memfs did not return a Promise".to_string()
-    })?;
+    let promise: js_sys::Promise = promise_val
+        .dyn_into()
+        .map_err(|_| "__nbw_node_file_to_memfs did not return a Promise".to_string())?;
     wasm_bindgen_futures::JsFuture::from(promise)
         .await
         .map_err(|e| {
@@ -1004,9 +1004,7 @@ impl Tool {
         let schema_str = js_sys::JSON::stringify(&json_schema)
             .ok()
             .and_then(|s| s.as_string())
-            .ok_or_else(|| {
-                JsError::new("Tool.fromFn: jsonSchema must be JSON-serializable")
-            })?;
+            .ok_or_else(|| JsError::new("Tool.fromFn: jsonSchema must be JSON-serializable"))?;
         let _: serde_json::Value = serde_json::from_str(&schema_str)
             .map_err(|e| JsError::new(&format!("Tool.fromFn: jsonSchema parse: {e}")))?;
 
@@ -1041,17 +1039,16 @@ fn extract_tools(opts: &JsValue) -> Result<Vec<nobodywho::tool_calling::Tool>, J
     if tools_val.is_undefined() || tools_val.is_null() {
         return Ok(Vec::new());
     }
-    let arr = tools_val
-        .dyn_ref::<js_sys::Array>()
-        .ok_or_else(|| {
-            JsError::new("Chat options.tools must be an array of Tool.fromFn(...) values")
-        })?;
+    let arr = tools_val.dyn_ref::<js_sys::Array>().ok_or_else(|| {
+        JsError::new("Chat options.tools must be an array of Tool.fromFn(...) values")
+    })?;
     let mut out = Vec::with_capacity(arr.length() as usize);
     for i in 0..arr.length() {
         let elem = arr.get(i);
-        out.push(tool_from_tagged(&elem).map_err(|e| {
-            JsError::new(&format!("Chat options.tools[{i}]: {e}"))
-        })?);
+        out.push(
+            tool_from_tagged(&elem)
+                .map_err(|e| JsError::new(&format!("Chat options.tools[{i}]: {e}")))?,
+        );
     }
     Ok(out)
 }
@@ -1089,9 +1086,7 @@ fn tool_from_tagged(part: &JsValue) -> Result<nobodywho::tool_calling::Tool, Str
         .ok()
         .and_then(|v| v.as_string());
     if kind.as_deref() != Some("tool") {
-        return Err(
-            "not a Tool.fromFn(...) value — missing or wrong __nbwKind brand".to_string(),
-        );
+        return Err("not a Tool.fromFn(...) value — missing or wrong __nbwKind brand".to_string());
     }
     let name = js_sys::Reflect::get(part, &"name".into())
         .ok()
@@ -1133,8 +1128,7 @@ fn tool_from_tagged(part: &JsValue) -> Result<nobodywho::tool_calling::Tool, Str
                 // rather than a JS Map (where it wouldn't).
                 let args_js = {
                     use serde::Serialize as _;
-                    let ser = serde_wasm_bindgen::Serializer::new()
-                        .serialize_maps_as_objects(true);
+                    let ser = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
                     match args.serialize(&ser) {
                         Ok(v) => v,
                         Err(e) => return format!("ERROR: tool arg conversion: {e}"),
@@ -1153,7 +1147,8 @@ fn tool_from_tagged(part: &JsValue) -> Result<nobodywho::tool_calling::Tool, Str
                 // If the JS callback returned a Promise, await its
                 // resolution. Otherwise use the value directly.
                 let resolved = if result.is_instance_of::<js_sys::Promise>() {
-                    match wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(result)).await {
+                    match wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(result)).await
+                    {
                         Ok(v) => v,
                         Err(e) => {
                             let msg = js_sys::Reflect::get(&e, &"message".into())
@@ -1179,7 +1174,6 @@ fn tool_from_tagged(part: &JsValue) -> Result<nobodywho::tool_calling::Tool, Str
         },
     ))
 }
-
 
 /// Optional config passed to `Chat.create`. Pass as a plain JS object:
 ///
@@ -1733,8 +1727,7 @@ pub fn run_in_worker() -> Result<(), JsError> {
         // `evt` is either a real browser MessageEvent (with a `data`
         // getter) or a polyfilled `{ data }` plain object from the Node
         // worker shim — both shapes respond to Reflect-get('data').
-        let data =
-            js_sys::Reflect::get(&evt, &"data".into()).unwrap_or(JsValue::UNDEFINED);
+        let data = js_sys::Reflect::get(&evt, &"data".into()).unwrap_or(JsValue::UNDEFINED);
         let scope = scope_for_handler.clone();
         wasm_bindgen_futures::spawn_local(async move {
             if let Err(err) = handle_worker_message(data, &scope).await {
@@ -1765,10 +1758,7 @@ pub fn run_in_worker() -> Result<(), JsError> {
 /// Firefox revokes access to event properties once the synchronous handler
 /// returns — see the comment on the `set_onmessage` call site.
 #[cfg(target_family = "wasm")]
-async fn handle_worker_message(
-    data: JsValue,
-    scope: &JsValue,
-) -> Result<(), String> {
+async fn handle_worker_message(data: JsValue, scope: &JsValue) -> Result<(), String> {
     // Local helper so each arm doesn't repeat the Reflect-call pattern.
     // We discard the post_message Result here for the same reason the
     // browser code did with `let _ =`: there's nothing useful to do if
@@ -1837,18 +1827,15 @@ async fn handle_worker_message(
             // Always go via the path-based loader now that the main model
             // is always in MEMFS — covers both the srcPath and bytes
             // input modes uniformly.
-            let model = nobodywho::llm::get_model_from_path(
-                &model_memfs_path,
-                mmproj_path.as_deref(),
-                0,
-            )
-            .map_err(|e| e.to_string())?;
+            let model =
+                nobodywho::llm::get_model_from_path(&model_memfs_path, mmproj_path.as_deref(), 0)
+                    .map_err(|e| e.to_string())?;
             WORKER_MODEL.with(|m| *m.borrow_mut() = Some(Arc::new(model)));
             post(&worker_reply("model-loaded"));
         }
         "create-chat" => {
-            let options = js_sys::Reflect::get(&data, &"options".into())
-                .unwrap_or(JsValue::UNDEFINED);
+            let options =
+                js_sys::Reflect::get(&data, &"options".into()).unwrap_or(JsValue::UNDEFINED);
             let opts: ChatOptions = if options.is_undefined() || options.is_null() {
                 ChatOptions::default()
             } else {
@@ -1860,8 +1847,8 @@ async fn handle_worker_message(
             // main thread (function refs can't survive postMessage); we
             // build RPC-stub `Tool::new_async` instances that round-trip
             // through `tool-call` / `tool-reply` messages.
-            let tools_jsval = js_sys::Reflect::get(&data, &"tools".into())
-                .unwrap_or(JsValue::UNDEFINED);
+            let tools_jsval =
+                js_sys::Reflect::get(&data, &"tools".into()).unwrap_or(JsValue::UNDEFINED);
             let tools: Vec<nobodywho::tool_calling::Tool> =
                 if tools_jsval.is_undefined() || tools_jsval.is_null() {
                     vec![]
@@ -1889,8 +1876,7 @@ async fn handle_worker_message(
             let err = js_sys::Reflect::get(&data, &"error".into())
                 .ok()
                 .and_then(|v| v.as_string());
-            let sender =
-                PENDING_TOOL_CALLS.with(|m| m.borrow_mut().remove(&id));
+            let sender = PENDING_TOOL_CALLS.with(|m| m.borrow_mut().remove(&id));
             if let Some(tx) = sender {
                 let value = match (result, err) {
                     (Some(s), _) => Ok(s),
@@ -1963,10 +1949,7 @@ async fn handle_worker_message(
             let handle = WORKER_CHAT
                 .with(|c| c.borrow().clone())
                 .ok_or_else(|| "chat not created".to_string())?;
-            let messages = handle
-                .get_chat_history()
-                .await
-                .map_err(|e| e.to_string())?;
+            let messages = handle.get_chat_history().await.map_err(|e| e.to_string())?;
             let reply = js_sys::Object::new();
             let _ = js_sys::Reflect::set(&reply, &"type".into(), &"history-reply".into());
             let messages_jsval = serde_wasm_bindgen::to_value(&messages)
@@ -1993,10 +1976,7 @@ async fn handle_worker_message(
             let handle = WORKER_CHAT
                 .with(|c| c.borrow().clone())
                 .ok_or_else(|| "chat not created".to_string())?;
-            handle
-                .reset_history()
-                .await
-                .map_err(|e| e.to_string())?;
+            handle.reset_history().await.map_err(|e| e.to_string())?;
             // Reuse history-set ack — same semantics (history is now cleared).
             post(&worker_reply("history-set"));
         }
@@ -2021,8 +2001,7 @@ async fn handle_worker_message(
             let handle = WORKER_CHAT
                 .with(|c| c.borrow().clone())
                 .ok_or_else(|| "chat not created".to_string())?;
-            let prompt_val = js_sys::Reflect::get(&data, &"prompt".into())
-                .unwrap_or(JsValue::NULL);
+            let prompt_val = js_sys::Reflect::get(&data, &"prompt".into()).unwrap_or(JsValue::NULL);
             let prompt: Option<String> = if prompt_val.is_null() || prompt_val.is_undefined() {
                 None
             } else {
@@ -2080,8 +2059,7 @@ async fn handle_worker_message(
             // properties, so JSON.stringify(map) gives `{}` and the
             // payload would arrive empty on the channel hop.
             use serde::Serialize;
-            let ser = serde_wasm_bindgen::Serializer::new()
-                .serialize_maps_as_objects(true);
+            let ser = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
             let vars_jsval = vars
                 .serialize(&ser)
                 .map_err(|e| format!("template vars serialize: {e}"))?;
@@ -2125,8 +2103,8 @@ async fn handle_worker_message(
             let handle = WORKER_CHAT
                 .with(|c| c.borrow().clone())
                 .ok_or_else(|| "chat not created".to_string())?;
-            let tools_jsval = js_sys::Reflect::get(&data, &"tools".into())
-                .unwrap_or(JsValue::UNDEFINED);
+            let tools_jsval =
+                js_sys::Reflect::get(&data, &"tools".into()).unwrap_or(JsValue::UNDEFINED);
             let tools: Vec<nobodywho::tool_calling::Tool> =
                 if tools_jsval.is_undefined() || tools_jsval.is_null() {
                     vec![]
@@ -2142,15 +2120,14 @@ async fn handle_worker_message(
             let handle = WORKER_CHAT
                 .with(|c| c.borrow().clone())
                 .ok_or_else(|| "chat not created".to_string())?;
-            let prompt_val = js_sys::Reflect::get(&data, &"prompt".into())
-                .unwrap_or(JsValue::NULL);
+            let prompt_val = js_sys::Reflect::get(&data, &"prompt".into()).unwrap_or(JsValue::NULL);
             let prompt: Option<String> = if prompt_val.is_null() || prompt_val.is_undefined() {
                 None
             } else {
                 prompt_val.as_string()
             };
-            let tools_jsval = js_sys::Reflect::get(&data, &"tools".into())
-                .unwrap_or(JsValue::UNDEFINED);
+            let tools_jsval =
+                js_sys::Reflect::get(&data, &"tools".into()).unwrap_or(JsValue::UNDEFINED);
             let tools: Vec<nobodywho::tool_calling::Tool> =
                 if tools_jsval.is_undefined() || tools_jsval.is_null() {
                     vec![]
@@ -2205,8 +2182,7 @@ fn build_rpc_tool(meta: ToolMeta) -> nobodywho::tool_calling::Tool {
                 let _ = js_sys::Reflect::set(&payload, &"name".into(), &name.as_str().into());
                 let args_js = {
                     use serde::Serialize as _;
-                    let ser = serde_wasm_bindgen::Serializer::new()
-                        .serialize_maps_as_objects(true);
+                    let ser = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
                     match args.serialize(&ser) {
                         Ok(v) => v,
                         Err(e) => {
@@ -2277,7 +2253,10 @@ fn chat_handle_from_options(
     if !tools.is_empty() {
         builder = builder.with_tools(tools);
     }
-    Ok(builder.build_async())
+    // build_async() now returns Result (main added init-handshake error
+    // propagation in commit on main); collapse into our String-error
+    // worker channel.
+    builder.build_async().map_err(|e| e.to_string())
 }
 
 #[cfg(target_family = "wasm")]
@@ -2315,22 +2294,17 @@ fn check_not_terminated(state: &std::rc::Rc<RefCell<ChatState>>) -> Result<(), J
 #[cfg(target_family = "wasm")]
 fn extract_tool_callbacks(
     tools_jsval: &JsValue,
-) -> Result<
-    (
-        std::collections::HashMap<String, js_sys::Function>,
-        JsValue,
-    ),
-    JsError,
-> {
+) -> Result<(std::collections::HashMap<String, js_sys::Function>, JsValue), JsError> {
     let mut tool_callbacks: std::collections::HashMap<String, js_sys::Function> =
         std::collections::HashMap::new();
     let tools_meta_array = js_sys::Array::new();
     if tools_jsval.is_undefined() || tools_jsval.is_null() {
         return Ok((tool_callbacks, tools_meta_array.into()));
     }
-    let arr: js_sys::Array = tools_jsval.clone().dyn_into().map_err(|_| {
-        JsError::new("tools must be an array of Tool.fromFn(...) values")
-    })?;
+    let arr: js_sys::Array = tools_jsval
+        .clone()
+        .dyn_into()
+        .map_err(|_| JsError::new("tools must be an array of Tool.fromFn(...) values"))?;
     for (idx, raw) in arr.iter().enumerate() {
         let kind = js_sys::Reflect::get(&raw, &"__nbwKind".into())
             .ok()
@@ -2425,10 +2399,7 @@ fn fetch_from_global(url: &str) -> js_sys::Promise {
 /// on completion, populates the cache (swallows put failures).
 #[cfg(target_family = "wasm")]
 #[wasm_bindgen(js_name = fetchModelBytes)]
-pub fn fetch_model_bytes(
-    url: String,
-    on_progress: Option<js_sys::Function>,
-) -> js_sys::Promise {
+pub fn fetch_model_bytes(url: String, on_progress: Option<js_sys::Function>) -> js_sys::Promise {
     promisify(async move {
         // --- Cache lookup ---
         if let Some(cache) = open_model_cache().await {
@@ -2489,10 +2460,9 @@ pub fn fetch_model_bytes(
         let mut chunks: Vec<u8> = Vec::with_capacity(total.max(1) as usize);
         let mut downloaded: u64 = 0;
         loop {
-            let read_result =
-                wasm_bindgen_futures::JsFuture::from(reader.read())
-                    .await
-                    .map_err(|e| JsError::new(&format!("reader.read(): {e:?}")))?;
+            let read_result = wasm_bindgen_futures::JsFuture::from(reader.read())
+                .await
+                .map_err(|e| JsError::new(&format!("reader.read(): {e:?}")))?;
             let done = js_sys::Reflect::get(&read_result, &"done".into())
                 .map_err(|_| JsError::new("read result missing 'done'"))?
                 .as_bool()
@@ -2524,8 +2494,7 @@ pub fn fetch_model_bytes(
         // --- Populate cache (best-effort) ---
         if let Some(cache) = open_model_cache().await {
             if let Ok(resp) = web_sys::Response::new_with_opt_buffer_source(Some(&bytes)) {
-                let _ = wasm_bindgen_futures::JsFuture::from(cache.put_with_str(&url, &resp))
-                    .await;
+                let _ = wasm_bindgen_futures::JsFuture::from(cache.put_with_str(&url, &resp)).await;
             }
         }
 
@@ -2785,16 +2754,14 @@ pub fn set_bootstrap_url(url: String) {
 
 #[cfg(target_family = "wasm")]
 fn get_bootstrap_url() -> Result<String, JsError> {
-    BOOTSTRAP_URL
-        .with(|u| u.borrow().clone())
-        .ok_or_else(|| {
-            JsError::new(
-                "Chat.create: setBootstrapUrl was not called. \
+    BOOTSTRAP_URL.with(|u| u.borrow().clone()).ok_or_else(|| {
+        JsError::new(
+            "Chat.create: setBootstrapUrl was not called. \
                  pkg-bundler/pre.js's postRun hook must invoke \
                  Module.setBootstrapUrl(_scriptName) at module load before \
                  Chat.create() is invoked.",
-            )
-        })
+        )
+    })
 }
 
 #[cfg(target_family = "wasm")]
@@ -2820,8 +2787,7 @@ struct ChatState {
     /// `Closure::new`. Round-tripping via JSON is fine here: every
     /// reply payload we use (`messages`, `prompt`, `sampler`,
     /// `variables`) is already JSON-serializable.
-    pending_handshake:
-        Option<(String, tokio::sync::oneshot::Sender<Result<String, String>>)>,
+    pending_handshake: Option<(String, tokio::sync::oneshot::Sender<Result<String, String>>)>,
     /// Main-thread registry of tool callbacks. JS function refs can't
     /// survive `postMessage` (structured clone rejects functions), so the
     /// worker only ever sees tool metadata (name + description + schema).
@@ -2895,11 +2861,10 @@ impl Chat {
             let worker_promise = spawn_fn
                 .call1(&JsValue::NULL, &JsValue::from_str(&bootstrap))
                 .map_err(|e| JsError::new(&format!("__nbw_spawn_worker threw: {e:?}")))?;
-            let worker: JsValue = wasm_bindgen_futures::JsFuture::from(
-                js_sys::Promise::from(worker_promise),
-            )
-            .await
-            .map_err(|e| JsError::new(&format!("__nbw_spawn_worker rejected: {e:?}")))?;
+            let worker: JsValue =
+                wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(worker_promise))
+                    .await
+                    .map_err(|e| JsError::new(&format!("__nbw_spawn_worker rejected: {e:?}")))?;
 
             // Take the tool callbacks out of `parsed` and install them in
             // state. They stay on the main thread; the worker only sees
@@ -2918,10 +2883,31 @@ impl Chat {
                 _on_error: None,
             }));
 
-            let state_weak = std::rc::Rc::downgrade(&state);
+            // The captured `Weak<RefCell<ChatState>>` chain is naturally
+            // !UnwindSafe (Rc strong/weak counts are `Cell<usize>`;
+            // ChatState contains JsValue which is `UnsafeCell`-backed).
+            // wasm-bindgen's `Closure::new` enforces UnwindSafe on its
+            // captures. There's no actual unwind concern: JS event
+            // handlers don't run through Rust catch_unwind. Wrap the
+            // captures in AssertUnwindSafe to satisfy the bound; access
+            // via `.0` inside the body.
+            // The captured `Weak<RefCell<ChatState>>` chain is naturally
+            // !UnwindSafe (Rc strong/weak counts are `Cell<usize>`;
+            // ChatState contains JsValue which is `UnsafeCell`-backed).
+            // wasm-bindgen's `Closure::new` enforces `MaybeUnwindSafe`
+            // on its captures. There's no actual unwind concern: JS
+            // event handlers don't run through Rust catch_unwind.
+            //
+            // Wrap the Weak in AssertUnwindSafe and force the WHOLE
+            // wrapper to be captured by rebinding the inner name to
+            // the wrapper at the top of the closure body. Rust 2021
+            // disjoint captures would otherwise see only `.0` is used
+            // and capture just the bare Weak (bypassing the wrap).
+            let state_weak = std::panic::AssertUnwindSafe(std::rc::Rc::downgrade(&state));
             let on_message =
                 wasm_bindgen::closure::Closure::<dyn FnMut(JsValue)>::new(move |evt: JsValue| {
-                    if let Some(state) = state_weak.upgrade() {
+                    let state_weak = &state_weak;
+                    if let Some(state) = state_weak.0.upgrade() {
                         // `evt` is either a browser MessageEvent (with `.data`)
                         // or the Node shim's `{ data }` plain object — both
                         // respond to Reflect-get('data').
@@ -2931,10 +2917,11 @@ impl Chat {
                     }
                 });
 
-            let state_weak2 = std::rc::Rc::downgrade(&state);
+            let state_weak2 = std::panic::AssertUnwindSafe(std::rc::Rc::downgrade(&state));
             let on_error =
                 wasm_bindgen::closure::Closure::<dyn FnMut(JsValue)>::new(move |evt: JsValue| {
-                    if let Some(state) = state_weak2.upgrade() {
+                    let state_weak2 = &state_weak2;
+                    if let Some(state) = state_weak2.0.upgrade() {
                         // Browser ErrorEvent has `.message`; the Node shim
                         // synthesizes `{ message }`. Read via Reflect.
                         let msg = js_sys::Reflect::get(&evt, &"message".into())
@@ -2981,11 +2968,8 @@ impl Chat {
             if let Some(bytes) = parsed.model_bytes {
                 let _ = js_sys::Reflect::set(&load_msg, &"bytes".into(), &bytes.into());
             } else if let Some(path) = parsed.model_path.as_ref() {
-                let _ = js_sys::Reflect::set(
-                    &load_msg,
-                    &"srcPath".into(),
-                    &JsValue::from_str(path),
-                );
+                let _ =
+                    js_sys::Reflect::set(&load_msg, &"srcPath".into(), &JsValue::from_str(path));
             } else if let Some(url) = parsed.model_url {
                 let bytes_promise = fetch_model_bytes(url, parsed.on_progress.clone());
                 let bytes_val: JsValue = wasm_bindgen_futures::JsFuture::from(bytes_promise)
@@ -3038,10 +3022,8 @@ impl Chat {
             // Callbacks stay main-thread; the worker synthesizes RPC stubs
             // that round-trip via `tool-call` / `tool-reply`.
             let create_msg = js_sys::Object::new();
-            let _ =
-                js_sys::Reflect::set(&create_msg, &"type".into(), &"create-chat".into());
-            let _ =
-                js_sys::Reflect::set(&create_msg, &"options".into(), &parsed.chat_opts_jsval);
+            let _ = js_sys::Reflect::set(&create_msg, &"type".into(), &"create-chat".into());
+            let _ = js_sys::Reflect::set(&create_msg, &"options".into(), &parsed.chat_opts_jsval);
             let _ = js_sys::Reflect::set(&create_msg, &"tools".into(), &tools_jsval);
             worker_post(&state.borrow().worker, &create_msg)
                 .map_err(|e| JsError::new(&format!("post create-chat: {e:?}")))?;
@@ -3130,11 +3112,7 @@ impl Chat {
                     }
                     Ok(NextOutcome::Done) => return Ok(JsValue::from_str(&full)),
                     Ok(NextOutcome::Err(e)) => return Err(JsError::new(&e)),
-                    Err(_) => {
-                        return Err(JsError::new(
-                            "stream sender dropped before token",
-                        ))
-                    }
+                    Err(_) => return Err(JsError::new("stream sender dropped before token")),
                 }
             }
         })
@@ -3168,8 +3146,7 @@ impl Chat {
         let ask_msg = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&ask_msg, &"type".into(), &"ask".into());
         let _ = js_sys::Reflect::set(&ask_msg, &"parts".into(), &parts);
-        worker_post(&st.worker, &ask_msg)
-            .map_err(|e| JsError::new(&format!("post ask: {e:?}")))?;
+        worker_post(&st.worker, &ask_msg).map_err(|e| JsError::new(&format!("post ask: {e:?}")))?;
         drop(st);
 
         Ok(TokenStream {
@@ -3239,8 +3216,7 @@ impl Chat {
             worker_post(&state.borrow().worker, &msg)
                 .map_err(|e| JsError::new(&format!("post get-system-prompt: {e:?}")))?;
             let reply = wait_for_handshake(&state, "system-prompt-reply").await?;
-            let prompt = js_sys::Reflect::get(&reply, &"prompt".into())
-                .unwrap_or(JsValue::NULL);
+            let prompt = js_sys::Reflect::get(&reply, &"prompt".into()).unwrap_or(JsValue::NULL);
             Ok(prompt)
         })
     }
@@ -3274,8 +3250,7 @@ impl Chat {
             worker_post(&state.borrow().worker, &msg)
                 .map_err(|e| JsError::new(&format!("post get-sampler: {e:?}")))?;
             let reply = wait_for_handshake(&state, "sampler-reply").await?;
-            let sampler = js_sys::Reflect::get(&reply, &"sampler".into())
-                .unwrap_or(JsValue::NULL);
+            let sampler = js_sys::Reflect::get(&reply, &"sampler".into()).unwrap_or(JsValue::NULL);
             Ok(sampler)
         })
     }
@@ -3309,8 +3284,8 @@ impl Chat {
             worker_post(&state.borrow().worker, &msg)
                 .map_err(|e| JsError::new(&format!("post get-template-vars: {e:?}")))?;
             let reply = wait_for_handshake(&state, "template-vars-reply").await?;
-            let vars = js_sys::Reflect::get(&reply, &"variables".into())
-                .unwrap_or(JsValue::UNDEFINED);
+            let vars =
+                js_sys::Reflect::get(&reply, &"variables".into()).unwrap_or(JsValue::UNDEFINED);
             Ok(vars)
         })
     }
@@ -3395,10 +3370,9 @@ impl Chat {
             let (prompt_jsval, tools_jsval) = if opts.is_undefined() || opts.is_null() {
                 (JsValue::NULL, JsValue::UNDEFINED)
             } else {
-                let p = js_sys::Reflect::get(&opts, &"systemPrompt".into())
-                    .unwrap_or(JsValue::NULL);
-                let t = js_sys::Reflect::get(&opts, &"tools".into())
-                    .unwrap_or(JsValue::UNDEFINED);
+                let p =
+                    js_sys::Reflect::get(&opts, &"systemPrompt".into()).unwrap_or(JsValue::NULL);
+                let t = js_sys::Reflect::get(&opts, &"tools".into()).unwrap_or(JsValue::UNDEFINED);
                 (p, t)
             };
 
@@ -3560,8 +3534,7 @@ fn handle_chat_message(state: &std::rc::Rc<RefCell<ChatState>>, data: JsValue) {
                 .ok()
                 .and_then(|v| v.as_string())
                 .unwrap_or_default();
-            let args = js_sys::Reflect::get(&data, &"args".into())
-                .unwrap_or(JsValue::UNDEFINED);
+            let args = js_sys::Reflect::get(&data, &"args".into()).unwrap_or(JsValue::UNDEFINED);
 
             let callback = state.borrow().tool_callbacks.get(&name).cloned();
             let worker = state.borrow().worker.clone();
@@ -3777,17 +3750,15 @@ fn parse_chat_create_opts(opts: &JsValue) -> Result<ChatCreateParsed, JsError> {
 
     // Reject more-than-one source for model and mmproj (clear
     // error rather than silent precedence rules).
-    let model_sources = model_url.is_some() as u8
-        + model_bytes.is_some() as u8
-        + model_path.is_some() as u8;
+    let model_sources =
+        model_url.is_some() as u8 + model_bytes.is_some() as u8 + model_path.is_some() as u8;
     if model_sources > 1 {
         return Err(JsError::new(
             "Chat.create: pass exactly one of modelUrl / modelBytes / modelPath, not multiple",
         ));
     }
-    let mmproj_sources = mmproj_url.is_some() as u8
-        + mmproj_bytes.is_some() as u8
-        + mmproj_path.is_some() as u8;
+    let mmproj_sources =
+        mmproj_url.is_some() as u8 + mmproj_bytes.is_some() as u8 + mmproj_path.is_some() as u8;
     if mmproj_sources > 1 {
         return Err(JsError::new(
             "Chat.create: pass at most one of mmprojUrl / mmprojBytes / mmprojPath",
@@ -3834,9 +3805,7 @@ fn parse_chat_create_opts(opts: &JsValue) -> Result<ChatCreateParsed, JsError> {
             let callback = js_sys::Reflect::get(&raw, &"callback".into())
                 .map_err(|_| JsError::new(&format!("tools[{idx}]: missing callback")))?
                 .dyn_into::<js_sys::Function>()
-                .map_err(|_| {
-                    JsError::new(&format!("tools[{idx}]: callback is not a function"))
-                })?;
+                .map_err(|_| JsError::new(&format!("tools[{idx}]: callback is not a function")))?;
 
             let meta_obj = js_sys::Object::new();
             let _ = js_sys::Reflect::set(&meta_obj, &"name".into(), &name.as_str().into());

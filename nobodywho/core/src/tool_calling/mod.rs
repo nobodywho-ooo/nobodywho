@@ -44,11 +44,8 @@ pub use qwen35_36::Qwen35_36Handler;
 /// itself is **not** required to be `Send`. That concession lets bindings
 /// like the JS one return futures that capture `!Send` JS handles
 /// (`JsFuture`, `js_sys::Function`).
-pub type ToolCallback = Arc<
-    dyn Fn(serde_json::Value) -> Pin<Box<dyn Future<Output = String>>>
-        + Send
-        + Sync,
->;
+pub type ToolCallback =
+    Arc<dyn Fn(serde_json::Value) -> Pin<Box<dyn Future<Output = String>>> + Send + Sync>;
 
 /// A tool that can be called by the LLM.
 #[derive(Clone)]
