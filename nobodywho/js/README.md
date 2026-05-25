@@ -90,7 +90,7 @@ surface to JS via wasm-bindgen.
 | `TokenStream.next()` / `completed()` / async-iteration via `for await` | ✅ verified |
 | Multimodal vision/audio (`Image.fromBytes` / `Audio.fromBytes`, plus Node-only `fromPath`) | ✅ verified — see "Multimodal status" below |
 | Tool calling (`Tool.fromFn(...)`, `Chat.create({tools: [...]})`) | ✅ verified — both sync and async (Promise-returning) callbacks work via the worker ↔ main RPC bridge |
-| Structured output (`Chat.create({constraint: {regex \| jsonSchema \| lark}})`) | ✅ verified — see `js/scripts/constraint-smoke.mjs` (regex + JSON Schema) |
+| Structured output / Constraint (`Chat.create({constraint: {regex \| jsonSchema \| lark}})`) | ✅ verified — see `js/scripts/constraint-smoke.mjs` (regex + JSON Schema) |
 
 Each row above is backed by a smoke test under `js/scripts/`. To
 verify locally after a build, run:

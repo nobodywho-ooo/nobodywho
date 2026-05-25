@@ -298,7 +298,10 @@ impl Image {
             #[cfg(not(target_family = "wasm"))]
             {
                 let _ = path;
-                Err(JsError::new("fromPath: not supported on this target"))
+                // Type-annotate so `promisify`'s `T: Into<JsValue>` bound
+                // can be inferred on native — the Err-only branch can't
+                // figure it out on its own.
+                Err::<JsValue, _>(JsError::new("fromPath: not supported on this target"))
             }
         })
     }
@@ -344,7 +347,10 @@ impl Audio {
             #[cfg(not(target_family = "wasm"))]
             {
                 let _ = path;
-                Err(JsError::new("fromPath: not supported on this target"))
+                // Type-annotate so `promisify`'s `T: Into<JsValue>` bound
+                // can be inferred on native — the Err-only branch can't
+                // figure it out on its own.
+                Err::<JsValue, _>(JsError::new("fromPath: not supported on this target"))
             }
         })
     }
@@ -1671,6 +1677,7 @@ pub fn stop_current_ask() {
     });
 }
 
+#[cfg(target_family = "wasm")]
 #[wasm_bindgen(js_name = runInWorker)]
 pub fn run_in_worker() -> Result<(), JsError> {
     use wasm_bindgen::closure::Closure;
