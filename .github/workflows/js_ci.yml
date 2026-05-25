@@ -78,6 +78,17 @@ jobs:
         working-directory: nobodywho
         run: cargo test -p nobodywho-js
 
+      - name: Install upstream emsdk (provides LLVM + binaryen)
+        # walkingeyerobot's fork is just patched Python wrappers — it
+        # doesn't bundle LLVM. Install emsdk separately for the LLVM /
+        # binaryen / node bundle, then point the fork's .emscripten at
+        # them. Mirrors the local setup (homebrew emscripten as the
+        # LLVM source paired with the fork's wrappers).
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 5.0.7
+          actions-cache-folder: emsdk-cache-v1
+
       - name: Cache patched Emscripten fork
         id: emsdk-cache
         uses: actions/cache@v4
@@ -85,18 +96,34 @@ jobs:
           path: ~/emscripten-wbg
           # Bump the v# suffix when the fork URL or bootstrap behavior
           # changes in a way the cached tree would miss.
-          key: emsdk-wbg-${{ runner.os }}-v1
+          key: emsdk-wbg-${{ runner.os }}-v2
 
-      - name: Build patched Emscripten fork (if not cached)
+      - name: Clone + configure patched Emscripten fork
         if: steps.emsdk-cache.outputs.cache-hit != 'true'
-        # walkingeyerobot's fork carries the -sWASM_BINDGEN setting
-        # tracked in PR emscripten-core/emscripten#23493. `./bootstrap`
-        # downloads the matching binaryen + node bundle and wires up
-        # .emscripten. ~10 min on a cold cache, then re-used as-is.
+        # Clone walkingeyerobot's patched wrappers, then write an
+        # .emscripten config that points at emsdk's LLVM / binaryen /
+        # node bundle. The local setup uses homebrew emscripten as the
+        # LLVM provider; in CI we use the emsdk-installed bundle.
         run: |
-          git clone --depth 1 --branch "$EMSDK_FORK_REF" "$EMSDK_FORK_URL" ~/emscripten-wbg
-          cd ~/emscripten-wbg
-          ./bootstrap
+          git clone --depth 1 --branch "$EMSDK_FORK_REF" "$EMSDK_FORK_URL" "$HOME/emscripten-wbg"
+          cat > "$HOME/emscripten-wbg/.emscripten" <<EMSCRIPTEN_CONFIG
+          LLVM_ROOT = '$EMSDK/upstream/bin'
+          BINARYEN_ROOT = '$EMSDK/upstream'
+          NODE_JS = '$EMSDK_NODE'
+          COMPILER_ENGINE = NODE_JS
+          JS_ENGINES = [NODE_JS]
+          CACHE = '$HOME/emscripten-wbg/cache'
+          EMSCRIPTEN_CONFIG
+          ls -la "$HOME/emscripten-wbg/.emscripten"
+          cat "$HOME/emscripten-wbg/.emscripten"
+
+      - name: Export EMSDK_DIR + EM_CONFIG to job env
+        # Runs whether or not the cache hit. The build script reads both
+        # of these (EMSDK_DIR has emcc on $PATH; EM_CONFIG tells emcc
+        # where to find LLVM/binaryen/node).
+        run: |
+          echo "EMSDK_DIR=$HOME/emscripten-wbg" >> "$GITHUB_ENV"
+          echo "EM_CONFIG=$HOME/emscripten-wbg/.emscripten" >> "$GITHUB_ENV"
 
       - name: Cache patched wasm-bindgen-cli
         id: wbg-cache
@@ -125,7 +152,10 @@ jobs:
 
       - name: Build pkg-bundler (wasm32-unknown-emscripten)
         env:
-          EMSDK_DIR: /home/runner/emscripten-wbg
+          # EMSDK_DIR + EM_CONFIG are exported via $GITHUB_ENV in the
+          # "Export EMSDK_DIR" step above so they resolve to the right
+          # $HOME on both real GitHub runners (/home/runner) and act
+          # containers (/root).
           EM_WASM_BINDGEN: /tmp/wbg-patched/bin/wasm-bindgen
           # llvm-config-* on ubuntu-24.04 points at /usr/lib/llvm-*/lib
           LIBCLANG_PATH: /usr/lib/llvm-18/lib
