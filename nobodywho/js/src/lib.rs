@@ -13,6 +13,13 @@
 // the warning only when we're on native to keep that signal alive for
 // the wasm build.
 #![cfg_attr(not(target_family = "wasm"), allow(dead_code, unused))]
+// wasm_bindgen's `#[wasm_bindgen(static_method_of = ..., js_name = ...)]`
+// macro generates an `unused variable: static_method_of` warning that we
+// can't suppress at the call site (the warning fires inside the macro
+// expansion). Same for the `unused_imports` cases — they're generated
+// by macros. CI sets RUSTFLAGS=-D warnings which turns these into hard
+// errors. Allow at crate level.
+#![allow(unused_variables, unused_imports)]
 
 //! # Why everything returns `js_sys::Promise` instead of being `pub async fn`
 //!
