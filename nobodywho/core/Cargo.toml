@@ -27,6 +27,7 @@ mtmd = ["llama-cpp-2/mtmd"]
 [dependencies]
 encoding_rs = "0.8.34"
 thiserror = "2.0.3"
+miette = { version = "5", features = ["fancy"] }
 minijinja = { version = "2.11.0", features = ["builtins", "json", "loader"] }
 minijinja-contrib = { version = "2.11.0", features = ["pycompat"] }
 serde = { version = "1.0.215", features = ["derive"] }

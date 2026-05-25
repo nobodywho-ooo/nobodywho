@@ -3,6 +3,8 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
 
+use nobodywho::render_miette;
+
 mod parse;
 
 /// Gate for forwarding tracing events to Python's logging module.
@@ -98,7 +100,9 @@ impl Model {
             Ok(model) => Ok(Self {
                 model: Arc::new(model),
             }),
-            Err(err) => Err(pyo3::exceptions::PyRuntimeError::new_err(err.to_string())),
+            Err(err) => Err(pyo3::exceptions::PyRuntimeError::new_err(render_miette(
+                &err,
+            ))),
         }
     }
 
@@ -156,7 +160,9 @@ impl Model {
             Ok(model) => Ok(Self {
                 model: Arc::new(model),
             }),
-            Err(err) => Err(pyo3::exceptions::PyRuntimeError::new_err(err.to_string())),
+            Err(err) => Err(pyo3::exceptions::PyRuntimeError::new_err(render_miette(
+                &err,
+            ))),
         }
     }
 }
@@ -185,7 +191,7 @@ impl<'py> ModelOrPath<'py> {
                     ))
                 })?;
                 nobodywho::llm::get_model(path_str, true, None, None)
-                    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+                    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))
                     .map(Arc::new)
             }
         }
@@ -208,10 +214,11 @@ impl TokenStream {
     ///
     /// Returns:
     ///     The next token as a string, or None if the stream has ended.
-    pub fn next_token(&mut self, py: Python) -> Option<String> {
+    pub fn next_token(&mut self, py: Python) -> PyResult<Option<String>> {
         // Release the GIL while waiting for the next token
         // This allows the background thread to acquire the GIL if needed for tool calls
         py.detach(|| self.stream.next_token())
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))
     }
 
     /// Wait for the entire response to be generated and return it as a single string.
@@ -224,7 +231,7 @@ impl TokenStream {
     ///     RuntimeError: If generation fails.
     pub fn completed(&mut self, py: Python) -> PyResult<String> {
         py.detach(|| self.stream.completed())
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))
     }
 
     // sync iterator stuff
@@ -232,8 +239,9 @@ impl TokenStream {
         slf
     }
 
-    pub fn __next__(&mut self, py: Python) -> Option<String> {
+    pub fn __next__(&mut self, py: Python) -> PyResult<Option<String>> {
         py.detach(|| self.stream.next_token())
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))
     }
 }
 
@@ -256,9 +264,14 @@ impl TokenStreamAsync {
     ///
     /// Returns:
     ///     The next token as a string, or None if the stream has ended.
-    pub async fn next_token(&mut self) -> Option<String> {
+    pub async fn next_token(&mut self) -> PyResult<Option<String>> {
         // no need to release GIL in async functions
-        self.stream.lock().await.next_token().await
+        self.stream
+            .lock()
+            .await
+            .next_token()
+            .await
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))
     }
 
     /// Wait for the entire response to be generated and return it as a single string.
@@ -285,10 +298,10 @@ impl TokenStreamAsync {
         let locals = pyo3_async_runtimes::TaskLocals::with_running_loop(py)?.copy_context(py)?;
         let stream_clone = self.stream.clone();
         pyo3_async_runtimes::tokio::future_into_py_with_locals(py, locals, async move {
-            let token = stream_clone.lock().await.next_token().await;
-            match token {
-                Some(t) => Ok(t),
-                None => Err(pyo3::exceptions::PyStopAsyncIteration::new_err(())),
+            match stream_clone.lock().await.next_token().await {
+                Ok(Some(t)) => Ok(t),
+                Ok(None) => Err(pyo3::exceptions::PyStopAsyncIteration::new_err(())),
+                Err(e) => Err(pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e))),
             }
         })
     }
@@ -682,13 +695,17 @@ impl Chat {
             template_vars.insert("enable_thinking".to_string(), allow);
         }
 
-        let chat_handle = nobodywho::chat::ChatBuilder::new(nw_model)
-            .with_context_size(n_ctx)
-            .with_tools(tools.into_iter().map(|t| t.tool).collect())
-            .with_template_variables(template_vars)
-            .with_system_prompt(system_prompt)
-            .with_sampler(sampler.sampler_config)
-            .build();
+        let build_result = py.detach(|| {
+            nobodywho::chat::ChatBuilder::new(nw_model)
+                .with_context_size(n_ctx)
+                .with_tools(tools.into_iter().map(|t| t.tool).collect())
+                .with_template_variables(template_vars)
+                .with_system_prompt(system_prompt)
+                .with_sampler(sampler.sampler_config)
+                .build()
+        });
+        let chat_handle = build_result
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))?;
 
         Ok(Self {
             chat_handle: Some(chat_handle),
@@ -1027,13 +1044,17 @@ impl ChatAsync {
             template_vars.insert("enable_thinking".to_string(), allow);
         }
 
-        let chat_handle = nobodywho::chat::ChatBuilder::new(nw_model)
-            .with_context_size(n_ctx)
-            .with_tools(tools.into_iter().map(|t| t.tool).collect())
-            .with_template_variables(template_vars)
-            .with_system_prompt(system_prompt)
-            .with_sampler(sampler.sampler_config)
-            .build_async();
+        let build_result = py.detach(|| {
+            nobodywho::chat::ChatBuilder::new(nw_model)
+                .with_context_size(n_ctx)
+                .with_tools(tools.into_iter().map(|t| t.tool).collect())
+                .with_template_variables(template_vars)
+                .with_system_prompt(system_prompt)
+                .with_sampler(sampler.sampler_config)
+                .build_async()
+        });
+        let chat_handle = build_result
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))?;
         Ok(Self {
             chat_handle: Some(chat_handle),
         })
@@ -1309,6 +1330,40 @@ fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> PyResult<f32> {
         ));
     }
     Ok(nobodywho::encoder::cosine_similarity(&a, &b))
+}
+
+/// Download a model from a remote URL or HuggingFace path and return the local path.
+///
+/// This is useful when you need to pass custom headers (e.g. for authentication).
+/// For unauthenticated downloads, you can pass the path directly to `Chat` or `Model`.
+///
+/// Args:
+///     model_path: Path or URL to a GGUF model file. Accepts a local file path, a `huggingface:` path, or an `https://` URL.
+///     headers: Optional dict of HTTP headers to include in the download request (e.g. `{"Authorization": "Bearer hf_..."}`).
+///     on_download_progress: Optional callable invoked during downloads with `(downloaded_bytes, total_bytes)`.
+///
+/// Returns:
+///     Local path to the downloaded model file, which can be passed to `Model` or `Chat`.
+///
+/// Raises:
+///     RuntimeError: If the download fails
+#[pyfunction]
+#[pyo3(signature = (model_path, headers=None, on_download_progress: "typing.Callable[[int, int], None] | None" = None))]
+fn download_model(
+    model_path: std::path::PathBuf,
+    headers: Option<std::collections::HashMap<String, String>>,
+    on_download_progress: Option<Py<PyAny>>,
+) -> PyResult<std::path::PathBuf> {
+    let path_str = model_path.to_str().ok_or_else(|| {
+        pyo3::exceptions::PyValueError::new_err(format!(
+            "Path contains invalid UTF-8: {}",
+            model_path.display()
+        ))
+    })?;
+    let headers_vec: Vec<(String, String)> = headers.unwrap_or_default().into_iter().collect();
+    let progress = resolve_on_download_progress(on_download_progress)?;
+    nobodywho::llm::download_model(path_str, headers_vec, progress)
+        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))
 }
 
 /// `SamplerConfig` contains the configuration for a token sampler. The mechanism by which
@@ -2573,6 +2628,8 @@ pub mod nobodywhopython {
     use super::bash_tool;
     #[pymodule_export]
     use super::cosine_similarity;
+    #[pymodule_export]
+    use super::download_model;
     #[pymodule_export]
     use super::python_tool;
     #[pymodule_export]

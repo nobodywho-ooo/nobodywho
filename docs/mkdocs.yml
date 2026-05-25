@@ -23,6 +23,13 @@ nav:
       - Vision: react-native/vision.md
       - Sampling: react-native/sampling.md
       - Embeddings & RAG: react-native/embeddings-and-rag.md
+  - Swift:
+      - Getting started with Swift: swift/index.md
+      - Chat: swift/chat.md
+      - Tool Calling: swift/tool-calling.md
+      - Vision & Hearing: swift/vision.md
+      - Sampling: swift/sampling.md
+      - Embeddings & RAG: swift/embeddings-and-rag.md
   - Flutter:
       - Getting started with Flutter: flutter/index.md
       - Chat: flutter/chat.md
@@ -70,7 +77,7 @@ extra_javascript:
 plugins:
   - search
   - llms-source:
-      description: "Local-first LLM inference for Python, Godot, Flutter, and React Native, built on llama.cpp. Streaming chat, tool calling, embeddings, and RAG with offline GPU-accelerated inference."
+      description: "Local-first LLM inference for Swift, Python, Godot, Flutter, and React Native, built on llama.cpp. Streaming chat, tool calling, embeddings, and RAG with offline GPU-accelerated inference."
 # theme:
 #   # use eyes icon to trigger people clicking on images and gifs.
 #   icon:

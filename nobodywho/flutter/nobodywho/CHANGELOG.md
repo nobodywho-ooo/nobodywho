@@ -1,3 +1,9 @@
+## 2.2.0
+
+### Improved error messages (#532)
+
+Clearer, more actionable errors for the three places users most often hit trouble: model loading, model downloading, and context shifting. Messages now point at the likely cause (bad path, network failure, OOM, context window exhausted) instead of surfacing raw lower-level errors.
+
 ## 2.1.0
 
 ### Grammar sampling revamp (#524)

@@ -2,9 +2,8 @@ use crate::errors::{EncoderWorkerError, InitWorkerError};
 use crate::llm;
 use crate::llm::{Worker, WorkerGuard};
 use llama_cpp_2::context::params::LlamaPoolingType;
-use llama_cpp_2::model::LlamaModel;
 use std::sync::Arc;
-use tracing::{error, info, warn};
+use tracing::error;
 
 #[derive(Clone)]
 pub struct Encoder {
@@ -115,43 +114,23 @@ impl llm::PoolingType for EncoderWorker {
     }
 }
 
-/// Read `<arch>.pooling_type` from the GGUF metadata. Falls back to `Unspecified`
-/// (which makes llama.cpp resolve the pooling type itself) when the metadata is
-/// missing or unparseable, so models without an explicit pooling key still work.
-fn read_pooling_type_metadata(model: &LlamaModel) -> LlamaPoolingType {
-    let arch = match model.meta_val_str("general.architecture") {
-        Ok(arch) => arch,
-        Err(e) => {
-            warn!(error = %e, "general.architecture missing from GGUF; using Unspecified pooling");
-            return LlamaPoolingType::Unspecified;
-        }
-    };
-    let key = format!("{arch}.pooling_type");
-    match model.meta_val_str(&key) {
-        Ok(val) => match val.parse::<i32>() {
-            Ok(n) => {
-                let pt = LlamaPoolingType::from(n);
-                info!(?pt, %key, "Encoder pooling type from GGUF metadata");
-                pt
-            }
-            Err(e) => {
-                warn!(error = %e, %key, %val, "Couldn't parse pooling_type as i32; using Unspecified");
-                LlamaPoolingType::Unspecified
-            }
-        },
-        Err(e) => {
-            warn!(error = %e, %key, "pooling_type missing from GGUF; using Unspecified");
-            LlamaPoolingType::Unspecified
-        }
-    }
-}
-
 impl<'a> Worker<'a, EncoderWorker> {
     pub fn new_encoder_worker(
         model: &llm::Model,
         n_ctx: u32,
     ) -> Result<Worker<'_, EncoderWorker>, InitWorkerError> {
-        let pooling = read_pooling_type_metadata(&model.language_model);
+        let arch = model
+            .language_model
+            .meta_val_str("general.architecture")
+            .unwrap_or_default();
+        let key = format!("{arch}.pooling_type");
+        let pooling = model
+            .language_model
+            .meta_val_str(&key)
+            .ok()
+            .and_then(|val| val.parse::<i32>().ok())
+            .map(LlamaPoolingType::from)
+            .unwrap_or(LlamaPoolingType::Unspecified);
         Worker::new_with_type(model, n_ctx, true, EncoderWorker { pooling })
     }
 

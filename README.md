@@ -40,16 +40,40 @@
 
 ## Platforms
 
-We support Python, Flutter, React Native and Godot, with more integrations on the way.
+We support Swift, Python, Flutter, React Native and Godot.
 
 | Platform | Installation | Documentation |
 |----------|-------------|---------------|
+| **Swift** | [SPM](#swift) | [docs.nobodywho.ooo/swift](https://docs.nobodywho.ooo/swift/) |
 | **React Native** | [npm](#react-native) | [docs.nobodywho.ooo/react-native](https://docs.nobodywho.ooo/react-native/) |
 | **Flutter** | [pub.dev](#flutter) | [docs.nobodywho.ooo/flutter](https://docs.nobodywho.ooo/flutter/) |
 | **Python** | [pypi](#python) | [docs.nobodywho.ooo/python](https://docs.nobodywho.ooo/python/) |
 | **Godot** | [AssetLib](#godot) | [docs.nobodywho.ooo/godot](https://docs.nobodywho.ooo/godot/install/) |
 
 ## Quick Start
+
+### Swift
+
+```swift
+import NobodyWho
+
+let chat = try await Chat.fromPath(
+    modelPath: "hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
+)
+
+let response = try await chat.ask("What is the capital of Denmark?").completed()
+print(response) // The capital of Denmark is Copenhagen.
+```
+
+Add via Swift Package Manager:
+
+```
+https://github.com/nobodywho-ooo/nobodywho-swift.git
+```
+
+[Swift documentation](https://docs.nobodywho.ooo/swift/) - [GitHub](https://github.com/nobodywho-ooo/nobodywho-swift)
+
+---
 
 ### React Native
 
@@ -149,7 +173,7 @@ For further instructions on how to setup NobodyWho in Godot please refer to our 
 
 ### Can I export to HTML5 or iOS?
 
-Desktop (Linux, MacOS, Windows) is supported across all bindings. Android is supported on Godot, Flutter and React Native. iOS is supported on Flutter and React Native.
+Desktop (Linux, macOS, Windows) is supported across all bindings. Android is supported on Godot, Flutter and React Native. iOS is supported on Swift, Flutter and React Native. visionOS and watchOS are supported via the Swift package.
 
 Web exports will be a bit trickier to get right. See issue [#111](https://github.com/nobodywho-ooo/nobodywho/issues/111).
 

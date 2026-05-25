@@ -80,6 +80,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_fn_init_callback_vtable_rustdownloadprogresscallback(vtable: UniffiVTableCallbackInterfaceRustDownloadProgressCallback): void;
     ubrn_uniffi_nobodywho_uniffi_fn_init_callback_vtable_rusttoolcallback(vtable: UniffiVTableCallbackInterfaceRustToolCallback): void;
     ubrn_uniffi_nobodywho_uniffi_fn_func_cosine_similarity(a: Uint8Array, b: Uint8Array, uniffi_out_err: UniffiRustCallStatus): number;
+    ubrn_uniffi_nobodywho_uniffi_fn_func_download_model(modelPath: Uint8Array, headers: Uint8Array, onDownloadProgress: Uint8Array): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_func_load_model(modelPath: Uint8Array, useGpu: number, projectionModelPath: Uint8Array, onDownloadProgress: Uint8Array): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(grammar: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_json_schema(schema: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
@@ -141,6 +142,7 @@ interface NativeModuleInterface {
     ubrn_ffi_nobodywho_uniffi_rust_future_free_void(handle: bigint): void;
     ubrn_ffi_nobodywho_uniffi_rust_future_complete_void(handle: bigint, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_nobodywho_uniffi_checksum_func_cosine_similarity(): number;
+    ubrn_uniffi_nobodywho_uniffi_checksum_func_download_model(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_json_schema(): number;

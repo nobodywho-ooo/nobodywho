@@ -1,0 +1,95 @@
+import XCTest
+import NobodyWho
+
+/// Integration tests for the NobodyWho Swift bindings.
+///
+/// Requires the `NobodyWhoNative` xcframework built locally
+/// (`swift/scripts/build-swift-xcframework.sh`).
+///
+/// Environment variables (matching nobodywho/models.nix):
+/// - `TEST_MODEL` — path to a chat GGUF model (required)
+/// - `TEST_VISION_MODEL` — path to a vision GGUF model (optional, for vision test)
+/// - `TEST_MMPROJ` — path to a multimodal projector GGUF (optional, for vision test)
+///
+/// Run: TEST_MODEL=/path/to/model.gguf swift test --filter NobodyWhoTests
+
+// Top-level tool declaration using the macro (peer macros don't work inside function bodies)
+@DeclareTool("Echo back the input")
+func echo(message: String) -> String {
+    return message
+}
+
+final class NobodyWhoTests: XCTestCase {
+
+    private func requireEnv(_ name: String) throws -> String {
+        guard let value = ProcessInfo.processInfo.environment[name] else {
+            throw XCTSkip("\(name) environment variable not set")
+        }
+        return value
+    }
+
+    // MARK: - Chat (completion, streaming, tools)
+
+    func testChat() async throws {
+        let modelPath = try requireEnv("TEST_MODEL")
+        let model = try await Model.load(modelPath: modelPath)
+        let noThinking = ["enable_thinking": false]
+        let chat = try Chat(model: model, systemPrompt: "Reply with one word only.", templateVariables: noThinking)
+
+        // Completion
+        let response = try await chat.ask("Say hello").completed()
+        XCTAssertFalse(response.isEmpty)
+
+        // Streaming
+        try await chat.resetContext(systemPrompt: "Reply briefly.")
+        var tokens: [String] = []
+        for try await token in chat.ask("Say hi") {
+            tokens.append(token)
+        }
+        XCTAssertFalse(tokens.isEmpty)
+
+        // Macro-generated tool
+        try await chat.resetContext(systemPrompt: "Use the echo tool to echo back exactly what the user says.", tools: [echoTool])
+        let echoResponse = try await chat.ask("Echo: hello").completed()
+        XCTAssertFalse(echoResponse.isEmpty)
+
+        // Manual tool with callback verification
+        var called = false
+        let pingTool = Tool(
+            name: "ping",
+            description: "Ping the server",
+            parameters: []
+        ) { _ in
+            called = true
+            return "pong"
+        }
+        try await chat.resetContext(systemPrompt: "Use the ping tool now.", tools: [pingTool])
+        let _ = try await chat.ask("Ping the server").completed()
+        XCTAssertTrue(called)
+    }
+
+    // MARK: - Vision
+
+    func testVision() async throws {
+        let modelPath = try requireEnv("TEST_VISION_MODEL")
+        let mmprojPath = try requireEnv("TEST_MMPROJ")
+
+        // Use the test image from the python tests
+        let imagePath = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent() // tests/NobodyWhoTests
+            .deletingLastPathComponent() // tests
+            .deletingLastPathComponent() // swift
+            .appendingPathComponent("../python/tests/img/dog.png")
+            .standardized.path
+
+        let model = try await Model.load(modelPath: modelPath, projectionModelPath: mmprojPath)
+        let chat = try Chat(model: model, systemPrompt: "Describe what you see briefly.")
+
+        let prompt = Prompt([
+            Prompt.image(imagePath),
+            Prompt.text("What is in this image?"),
+        ])
+        let response = try await chat.ask(prompt).completed()
+        XCTAssertFalse(response.isEmpty)
+    }
+}

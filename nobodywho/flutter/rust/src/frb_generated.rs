@@ -44,7 +44,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1141766527;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1088055976;
 
 // Section: executor
 
@@ -867,7 +867,7 @@ fn wire__crate__RustChat_new_impl(
             let api_tools = <Vec<RustTool>>::sse_decode(&mut deserializer);
             let api_sampler = <Option<SamplerConfig>>::sse_decode(&mut deserializer);
             deserializer.end();
-            transform_result_sse::<_, ()>((move || {
+            transform_result_sse::<_, String>((move || {
                 let mut api_model_guard = None;
                 let decode_indices_ =
                     flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
@@ -882,7 +882,7 @@ fn wire__crate__RustChat_new_impl(
                     }
                 }
                 let api_model_guard = api_model_guard.unwrap();
-                let output_ok = Result::<_, ()>::Ok(crate::RustChat::new(
+                let output_ok = crate::RustChat::new(
                     &*api_model_guard,
                     api_system_prompt,
                     api_context_size,
@@ -890,7 +890,7 @@ fn wire__crate__RustChat_new_impl(
                     api_template_variables,
                     api_tools,
                     api_sampler,
-                ))?;
+                )?;
                 Ok(output_ok)
             })())
         },
@@ -1564,7 +1564,7 @@ fn wire__crate__RustTokenStream_iter_impl(
                 );
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, Rust2DartSendError>(
+                transform_result_sse::<_, String>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -1620,7 +1620,7 @@ fn wire__crate__RustTokenStream_next_token_impl(
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, ()>(
+                transform_result_sse::<_, String>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -1639,9 +1639,8 @@ fn wire__crate__RustTokenStream_next_token_impl(
                             }
                         }
                         let mut api_that_guard = api_that_guard.unwrap();
-                        let output_ok = Result::<_, ()>::Ok(
-                            crate::RustTokenStream::next_token(&mut *api_that_guard).await,
-                        )?;
+                        let output_ok =
+                            crate::RustTokenStream::next_token(&mut *api_that_guard).await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -3034,6 +3033,49 @@ fn wire__crate__cosine_similarity_impl(
         },
     )
 }
+fn wire__crate__download_model_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "download_model",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_model_path = <String>::sse_decode(&mut deserializer);
+            let api_headers =
+                <std::collections::HashMap<String, String>>::sse_decode(&mut deserializer);
+            let api_on_download_progress =
+                decode_DartFn_Inputs_i_64_i_64_Output_unit_AnyhowException(
+                    <flutter_rust_bridge::DartOpaque>::sse_decode(&mut deserializer),
+                );
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::download_model(
+                        api_model_path,
+                        api_headers,
+                        api_on_download_progress,
+                    )?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__init_app_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -3378,9 +3420,6 @@ flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
     flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Model>
 );
 flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
-    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Rust2DartSendError>
-);
-flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
     flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustChat>
 );
 flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
@@ -3493,16 +3532,6 @@ impl SseDecode for Model {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <RustOpaqueMoi<
             flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Model>,
-        >>::sse_decode(deserializer);
-        return flutter_rust_bridge::for_generated::rust_auto_opaque_decode_owned(inner);
-    }
-}
-
-impl SseDecode for Rust2DartSendError {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut inner = <RustOpaqueMoi<
-            flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Rust2DartSendError>,
         >>::sse_decode(deserializer);
         return flutter_rust_bridge::for_generated::rust_auto_opaque_decode_owned(inner);
     }
@@ -3691,16 +3720,6 @@ impl SseDecode
 }
 
 impl SseDecode for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Model>> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut inner = <usize>::sse_decode(deserializer);
-        return decode_rust_opaque_moi(inner);
-    }
-}
-
-impl SseDecode
-    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Rust2DartSendError>>
-{
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <usize>::sse_decode(deserializer);
@@ -4205,7 +4224,8 @@ fn pde_ffi_dispatcher_primary_impl(
         27 => wire__crate__RustTokenStream_completed_impl(port, ptr, rust_vec_len, data_len),
         28 => wire__crate__RustTokenStream_iter_impl(port, ptr, rust_vec_len, data_len),
         29 => wire__crate__RustTokenStream_next_token_impl(port, ptr, rust_vec_len, data_len),
-        63 => wire__crate__init_app_impl(port, ptr, rust_vec_len, data_len),
+        63 => wire__crate__download_model_impl(port, ptr, rust_vec_len, data_len),
+        64 => wire__crate__init_app_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -4259,11 +4279,11 @@ fn pde_ffi_dispatcher_sync_impl(
         60 => wire__crate__ToolCall_auto_accessor_set_arguments_impl(ptr, rust_vec_len, data_len),
         61 => wire__crate__ToolCall_auto_accessor_set_name_impl(ptr, rust_vec_len, data_len),
         62 => wire__crate__cosine_similarity_impl(ptr, rust_vec_len, data_len),
-        64 => wire__crate__new_bash_tool_impl(ptr, rust_vec_len, data_len),
-        65 => wire__crate__new_python_tool_impl(ptr, rust_vec_len, data_len),
-        66 => wire__crate__new_tool_impl_impl(ptr, rust_vec_len, data_len),
-        67 => wire__crate__noop_on_download_progress_impl(ptr, rust_vec_len, data_len),
-        68 => wire__crate__tool_call_arguments_json_impl(ptr, rust_vec_len, data_len),
+        65 => wire__crate__new_bash_tool_impl(ptr, rust_vec_len, data_len),
+        66 => wire__crate__new_python_tool_impl(ptr, rust_vec_len, data_len),
+        67 => wire__crate__new_tool_impl_impl(ptr, rust_vec_len, data_len),
+        68 => wire__crate__noop_on_download_progress_impl(ptr, rust_vec_len, data_len),
+        69 => wire__crate__tool_call_arguments_json_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -4394,24 +4414,6 @@ impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<
 
 impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<Model>> for Model {
     fn into_into_dart(self) -> FrbWrapper<Model> {
-        self.into()
-    }
-}
-
-// Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<Rust2DartSendError> {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self.0)
-            .into_dart()
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<Rust2DartSendError>
-{
-}
-
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<Rust2DartSendError>> for Rust2DartSendError {
-    fn into_into_dart(self) -> FrbWrapper<Rust2DartSendError> {
         self.into()
     }
 }
@@ -4691,13 +4693,6 @@ impl SseEncode for Model {
     }
 }
 
-impl SseEncode for Rust2DartSendError {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Rust2DartSendError>>>::sse_encode(flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self), serializer);
-    }
-}
-
 impl SseEncode for RustChat {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -4861,17 +4856,6 @@ impl SseEncode
 }
 
 impl SseEncode for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Model>> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        let (ptr, size) = self.sse_encode_raw();
-        <usize>::sse_encode(ptr, serializer);
-        <i32>::sse_encode(size, serializer);
-    }
-}
-
-impl SseEncode
-    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Rust2DartSendError>>
-{
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         let (ptr, size) = self.sse_encode_raw();
@@ -5452,20 +5436,6 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRust2DartSendError(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Rust2DartSendError>>::increment_strong_count(ptr as _);
-    }
-
-    #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRust2DartSendError(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Rust2DartSendError>>::decrement_strong_count(ptr as _);
-    }
-
-    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustChat(
         ptr: *const std::ffi::c_void,
     ) {
@@ -5731,20 +5701,6 @@ mod web {
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Model>>::decrement_strong_count(ptr as _);
-    }
-
-    #[wasm_bindgen]
-    pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRust2DartSendError(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Rust2DartSendError>>::increment_strong_count(ptr as _);
-    }
-
-    #[wasm_bindgen]
-    pub fn rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRust2DartSendError(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Rust2DartSendError>>::decrement_strong_count(ptr as _);
     }
 
     #[wasm_bindgen]

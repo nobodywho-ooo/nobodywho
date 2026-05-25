@@ -8,15 +8,17 @@ on:
         required: true
       NPM_TOKEN:
         required: true
+      SWIFT_MIRROR_TOKEN:
+        required: true
 
 jobs:
   godot-distributable:
     runs-on: ubuntu-24.04
     steps:
-        - uses: actions/checkout@v4
+        - uses: actions/checkout@v5
   
         - name: "Download all build artifacts"
-          uses: actions/download-artifact@v4
+          uses: actions/download-artifact@v5
           with:
             path: ./artifacts
   
@@ -29,7 +31,7 @@ jobs:
             cp ./nobodywho/godot/nobodywho.gdextension ./nobodywho-release/bin/addons/nobodywho/
             cp ./assets/icon.svg ./nobodywho-release/bin/addons/nobodywho/
         - name: "Upload zipped godot build artifacts"
-          uses: actions/upload-artifact@v4
+          uses: actions/upload-artifact@v5
           with:
             name: nobodywho-godot-all-platforms
             path: ./nobodywho-release
@@ -40,7 +42,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: "Download build artifacts"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nobodywho-godot-all-platforms
           path: ./nobodywho-release-godot
@@ -50,7 +52,7 @@ jobs:
         run: zip -r "../nobodywho-godot-${{ github.ref_name }}.zip" ./**
 
       - name: "Create GitHub Release"
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: "./nobodywho-godot-${{ github.ref_name }}.zip"
         env:
@@ -61,7 +63,7 @@ jobs:
       if: startsWith(github.ref, 'refs/tags/nobodywho-python-')
       steps:
         - name: Download all wheels
-          uses: actions/download-artifact@v4
+          uses: actions/download-artifact@v5
           with:
             pattern: nobodywho_python_*
             merge-multiple: true
@@ -100,7 +102,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/nobodywho-python-')
     steps:
       - name: Download all wheels
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           pattern: nobodywho_python_*
           merge-multiple: true
@@ -129,7 +131,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "Download all Python wheels"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           pattern: nobodywho_python_*
           merge-multiple: true
@@ -139,7 +141,7 @@ jobs:
         run: ls -la ./nobodywho-python-release/
 
       - name: "Create GitHub Release"
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: ./nobodywho-python-release/*
         env:
@@ -151,10 +153,10 @@ jobs:
     permissions:
       contents: write # Required to create github release
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: "Download all Flutter artifacts"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           pattern: nobodywho-flutter-*
           merge-multiple: true
@@ -174,7 +176,7 @@ jobs:
           fi
 
       - name: "Create GitHub Release"
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: ./nobodywho-flutter-release/*
         env:
@@ -197,19 +199,19 @@ jobs:
       contents: write
     steps:
       - name: "Download Android ARM64 artifact"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nobodywho-uniffi-aarch64-linux-android-release
           path: ./nobodywho-react-native-release
 
       - name: "Download Android x86_64 artifact"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nobodywho-uniffi-x86_64-linux-android-release
           path: ./nobodywho-react-native-release
 
       - name: "Download iOS XCFramework"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nobodywho-react-native-xcframework
           path: ./nobodywho-react-native-release
@@ -221,7 +223,7 @@ jobs:
           ls -la
 
       - name: "Create GitHub Release"
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: ./nobodywho-react-native-release/*
         env:
@@ -232,10 +234,10 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/nobodywho-react-native-v')
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: "Setup Node.js"
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
@@ -254,6 +256,12 @@ jobs:
 
   # Mirror of publish-react-native-npm but for the js binding.
   # Tag your release like `nobodywho-js-v0.1.0` to trigger.
+  # NOTE: still uses the OLD wasi-sdk pipeline. The dev/CI build moved
+  # to wasm32-unknown-emscripten (see js_ci.yml + build-pkg-emscripten.sh);
+  # the release path needs the same emsdk + patched-fork install before
+  # `nobodywho-js-v*` tags will produce a working npm artifact again.
+  # Tracked as follow-up — the JS binding isn't currently shipped via
+  # npm, so this job is dormant.
   publish-js-npm:
     if: startsWith(github.ref, 'refs/tags/nobodywho-js-v')
     runs-on: ubuntu-24.04
@@ -302,3 +310,58 @@ jobs:
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # Create GitHub Release with xcframework, then push to nobodywho-swift mirror repo.
+  create-github-release-swift:
+    if: startsWith(github.ref, 'refs/tags/nobodywho-swift-')
+    runs-on: macos-15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: "Download Swift XCFramework"
+        uses: actions/download-artifact@v5
+        with:
+          name: nobodywho-swift-xcframework
+          path: ./release
+
+      - name: "Create GitHub Release"
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ./release/NobodyWhoNative.xcframework.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Push to nobodywho-swift mirror repo"
+        run: |
+          TAG=$GITHUB_REF_NAME
+          VERSION=${TAG#nobodywho-swift-v}
+          CHECKSUM=$(shasum -a 256 release/NobodyWhoNative.xcframework.zip | cut -d' ' -f1)
+          URL="https://github.com/nobodywho-ooo/nobodywho/releases/download/${TAG}/NobodyWhoNative.xcframework.zip"
+
+          # Clone mirror repo
+          git clone https://x-access-token:${{ secrets.SWIFT_MIRROR_TOKEN }}@github.com/nobodywho-ooo/nobodywho-swift.git mirror
+          cd mirror
+
+          # Clear and copy sources
+          rm -rf src generated macros tests Package.swift README.md
+          cp -r ../nobodywho/swift/src .
+          mkdir -p generated
+          cp ../nobodywho/swift/generated/nobodywho.swift generated/
+          cp -r ../nobodywho/swift/macros .
+          cp -r ../nobodywho/swift/tests .
+          cp ../nobodywho/swift/Package.swift .
+          cp ../nobodywho/swift/README.md .
+
+          # Patch Package.swift: replace path: with url: + checksum:
+          sed -i '' "s|path: \"Frameworks/NobodyWhoNative.xcframework\"|url: \"${URL}\",\n            checksum: \"${CHECKSUM}\"|" Package.swift
+
+          # Commit, tag, push
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Release ${VERSION}"
+          git tag "${VERSION}"
+          git push origin main --force
+          git push origin "${VERSION}"

@@ -1,6 +1,8 @@
 import os
 import typing
 from collections.abc import Sequence
+from os import PathLike
+from pathlib import Path
 from typing import final
 
 T = typing.TypeVar('T', str, typing.Awaitable[str])  # Type variable for tool return types (sync str or async Awaitable[str])
@@ -982,6 +984,25 @@ def cosine_similarity(a: Sequence[float], b: Sequence[float]) -> float:
     
     Raises:
         ValueError: If vectors have different lengths
+    """
+
+def download_model(model_path: str |PathLike[str], headers: dict[str, str] | None = None, on_download_progress: "typing.Callable[[int, int], None] | None" = None) -> Path:
+    """
+    Download a model from a remote URL or HuggingFace path and return the local path.
+    
+    This is useful when you need to pass custom headers (e.g. for authentication).
+    For unauthenticated downloads, you can pass the path directly to `Chat` or `Model`.
+    
+    Args:
+        model_path: Path or URL to a GGUF model file. Accepts a local file path, a `huggingface:` path, or an `https://` URL.
+        headers: Optional dict of HTTP headers to include in the download request (e.g. `{"Authorization": "Bearer hf_..."}`).
+        on_download_progress: Optional callable invoked during downloads with `(downloaded_bytes, total_bytes)`.
+    
+    Returns:
+        Local path to the downloaded model file, which can be passed to `Model` or `Chat`.
+    
+    Raises:
+        RuntimeError: If the download fails
     """
 
 def python_tool(max_duration: int | None = None, max_memory: int | None = None, max_recursion_depth: int | None = None) -> Tool:

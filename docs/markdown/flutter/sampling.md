@@ -77,13 +77,14 @@ final chat = await nobodywho.Chat.fromPath(
   sampler: nobodywho.SamplerPresets.constrainWithJsonSchema(schema: {
     'type': 'object',
     'properties': {
-      'name': {'type': 'string'},
+      'name': {'type': 'string', 'maxLength': 50},
       'age':  {'type': 'integer'},
     },
     'required': ['name', 'age'],
+    'additionalProperties': false,
   }),
 );
-final response = await chat.ask("Give me a person.").completed();
+final response = await chat.ask("Give me a person as JSON with name and age fields.").completed();
 final person = jsonDecode(response); // always valid JSON matching the schema
 ```
 

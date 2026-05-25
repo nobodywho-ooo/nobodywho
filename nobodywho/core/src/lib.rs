@@ -9,6 +9,23 @@ pub mod template;
 pub mod tokenizer;
 pub mod tool_calling;
 
+/// Render a miette diagnostic to a plain-text string, including any `help` text,
+/// error codes, and related errors. Falls back to `to_string()` if rendering fails.
+///
+/// Uses `NarratableReportHandler` (no ANSI colour codes) so the output is safe
+/// to embed in Python exceptions, Dart/Flutter error objects, GDScript strings,
+/// and React Native JS errors.
+pub fn render_miette(err: &dyn miette::Diagnostic) -> String {
+    let mut out = String::new();
+    if miette::NarratableReportHandler::new()
+        .render_report(&mut out, err)
+        .is_err()
+    {
+        out = err.to_string();
+    }
+    out
+}
+
 pub fn send_llamacpp_logs_to_tracing() {
     llama_cpp_2::send_logs_to_tracing(llama_cpp_2::LogOptions::default().with_logs_enabled(true));
 }
