@@ -224,10 +224,14 @@ jobs:
 
       - name: Build pkg-bundler (wasm32-unknown-emscripten)
         env:
-          # EMSDK_DIR + EM_CONFIG are exported via $GITHUB_ENV in the
-          # "Export EMSDK_DIR" step above so they resolve to the right
-          # $HOME on both real GitHub runners (/home/runner) and act
-          # containers (/root).
+          # Override EMSDK so llama-cpp-sys-2's detect_emscripten_root()
+          # finds the fork's cmake/Modules/Platform/Emscripten.cmake
+          # instead of the upstream emsdk's. Without this, cmake uses
+          # upstream emcc (5.0.7) which detects a sanity-version
+          # mismatch with the fork (5.0.8-git), calls cache.erase(),
+          # then lazily re-populates the upstream cache under parallel
+          # cmake — the race that causes missing libc++ headers.
+          EMSDK: ${{ env.EMSDK_DIR }}
           EM_WASM_BINDGEN: /tmp/wbg-patched/bin/wasm-bindgen
           # llvm-config-* on ubuntu-24.04 points at /usr/lib/llvm-*/lib
           LIBCLANG_PATH: /usr/lib/llvm-18/lib

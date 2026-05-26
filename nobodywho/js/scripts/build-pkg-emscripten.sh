@@ -95,35 +95,6 @@ fi
 mkdir -p "$PKG_DIR"
 cp "$JS_DIR/scripts/pre.js" "$PKG_DIR/pre.js"
 
-echo "==> [DEBUG] sysroot state BEFORE cargo build"
-(
-  cd "$EMSDK_DIR" || true
-  echo "  cachedir: $EMSDK_DIR/cache"
-  echo "  stamp: $([ -f cache/sysroot_install.stamp ] && echo PRESENT || echo MISSING)"
-  echo "  sanity.txt: $([ -f cache/sanity.txt ] && echo PRESENT || echo MISSING)"
-  echo "  c++/v1 entries: $(ls cache/sysroot/include/c++/v1/ 2>/dev/null | wc -l)"
-  echo "  include top entries: $(ls cache/sysroot/include/ 2>/dev/null | wc -l)"
-  echo -n "  __functional/hash.h: "; [ -f cache/sysroot/include/c++/v1/__functional/hash.h ] && echo PRESENT || echo MISSING
-  echo -n "  functional: "; [ -f cache/sysroot/include/c++/v1/functional ] && echo PRESENT || echo MISSING
-  echo -n "  math.h: "; [ -f cache/sysroot/include/math.h ] && echo PRESENT || echo MISSING
-)
-
-echo "==> [DEBUG] running a single em++ invocation to see if it wipes the cache"
-echo 'int main(){}' > /tmp/probe.cpp
-EM_CONFIG="$EM_CONFIG" \
-  "$EMSDK_DIR/emcc" -c /tmp/probe.cpp -o /tmp/probe.o 2>&1 | head -20 || true
-
-echo "==> [DEBUG] sysroot state AFTER probe emcc invocation"
-(
-  cd "$EMSDK_DIR" || true
-  echo "  stamp: $([ -f cache/sysroot_install.stamp ] && echo PRESENT || echo MISSING)"
-  echo "  sanity.txt: $([ -f cache/sanity.txt ] && echo PRESENT || echo MISSING)"
-  echo "  c++/v1 entries: $(ls cache/sysroot/include/c++/v1/ 2>/dev/null | wc -l)"
-  echo -n "  __functional/hash.h: "; [ -f cache/sysroot/include/c++/v1/__functional/hash.h ] && echo PRESENT || echo MISSING
-  echo -n "  functional: "; [ -f cache/sysroot/include/c++/v1/functional ] && echo PRESENT || echo MISSING
-  echo -n "  math.h: "; [ -f cache/sysroot/include/math.h ] && echo PRESENT || echo MISSING
-)
-
 echo "==> cargo build --target wasm32-unknown-emscripten --release -p nobodywho-js"
 rm -rf "$TARGET_DIR"
 (
