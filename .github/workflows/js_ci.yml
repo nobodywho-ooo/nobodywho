@@ -200,6 +200,28 @@ jobs:
         with:
           node-version: '26'
 
+      - name: Verify sysroot cache is intact (debug)
+        # Re-run the assertion just before pkg-bundler so we can tell if
+        # the cache survives all intermediate steps or is being clobbered.
+        # Also dump some stats about what's actually in there.
+        run: |
+          echo "== file counts =="
+          echo "c++/v1 entries: $(ls $HOME/emscripten-wbg/cache/sysroot/include/c++/v1/ | wc -l)"
+          echo "include top entries: $(ls $HOME/emscripten-wbg/cache/sysroot/include/ | wc -l)"
+          echo "stamp present: $([ -f $HOME/emscripten-wbg/cache/sysroot_install.stamp ] && echo YES || echo NO)"
+          echo "== first 50 c++/v1 entries =="
+          ls $HOME/emscripten-wbg/cache/sysroot/include/c++/v1/ | head -50
+          echo "== explicit file checks =="
+          for h in c++/v1/functional c++/v1/__functional/hash.h \
+                   c++/v1/map c++/v1/algorithm c++/v1/utility \
+                   stdio.h math.h errno.h stdint.h; do
+            if [ ! -f "$HOME/emscripten-wbg/cache/sysroot/include/$h" ]; then
+              echo "::error::missing $h"
+              exit 1
+            fi
+          done
+          echo "All present."
+
       - name: Build pkg-bundler (wasm32-unknown-emscripten)
         env:
           # EMSDK_DIR + EM_CONFIG are exported via $GITHUB_ENV in the
