@@ -86,13 +86,12 @@ jobs:
         with:
           path: ~/emscripten-wbg
           # Bump the v# suffix when the fork URL or bootstrap behavior
-          # changes in a way the cached tree would miss. v4->v5 forced
-          # because the v4 cache had a sysroot populated only by
-          # embuilder + an inert cp overlay (emcc clobbered it on
-          # first compile); the bootstrap now runs a primer C++ compile
-          # so the cached sysroot is what the parallel cmake build
-          # actually sees, not a fresh re-populate that races.
-          key: emsdk-wbg-${{ runner.os }}-v5
+          # changes in a way the cached tree would miss. v5->v6 forced
+          # because v5's primer compile ran without EM_CONFIG set, so
+          # emcc may have used a fallback config and populated the wrong
+          # cache; v6 sets EM_CONFIG explicitly and asserts both libc
+          # and libc++ headers landed.
+          key: emsdk-wbg-${{ runner.os }}-v6
 
       - name: Clone + bootstrap + configure patched Emscripten fork
         if: steps.emsdk-cache.outputs.cache-hit != 'true'
@@ -146,16 +145,31 @@ jobs:
           #include <vector>
           int main() { return 0; }
           PRIMER
-          ./em++ -c /tmp/primer.cpp -o /tmp/primer.o
-          # Sanity-check a few headers known to live in subdirs that
-          # earlier bootstrap variants missed.
-          for h in __atomic/aliases.h __utility/private_constructor_tag.h \
-                   __locale_dir/messages.h cassert; do
-            if [ ! -f "cache/sysroot/include/c++/v1/$h" ]; then
-              echo "::error::primer left $h missing from cache/sysroot"
-              exit 1
+          EM_CONFIG="$HOME/emscripten-wbg/.emscripten" ./em++ -c /tmp/primer.cpp -o /tmp/primer.o
+          # Debug: dump high-level cache content so we can see exactly
+          # what got populated.
+          echo "--- cache/sysroot/include (top-level libc headers) ---"
+          ls cache/sysroot/include/ | head -30
+          echo "--- cache/sysroot/include/c++/v1 (libcxx headers) ---"
+          ls cache/sysroot/include/c++/v1/ | head -30
+          # Sanity-check headers in both libc (top-level) and libc++
+          # (c++/v1/) — earlier bootstrap variants left one tree partial.
+          missing=0
+          for h in \
+              c++/v1/__atomic/aliases.h \
+              c++/v1/__utility/private_constructor_tag.h \
+              c++/v1/__locale_dir/messages.h \
+              c++/v1/cassert \
+              c++/v1/cstdint \
+              stdio.h \
+              errno.h \
+              stdint.h; do
+            if [ ! -f "cache/sysroot/include/$h" ]; then
+              echo "::error::missing cache/sysroot/include/$h"
+              missing=1
             fi
           done
+          [ "$missing" = 0 ]
 
       - name: Export EMSDK_DIR + EM_CONFIG to job env
         # Runs whether or not the cache hit. The build script reads both
