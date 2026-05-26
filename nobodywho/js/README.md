@@ -428,15 +428,20 @@ present. The Rust override wins symbol resolution at link time.
   work fine; OpenAI-typed-content models would need a renderer
   update.
 - Models >2 GiB on disk via `modelBytes` in Node. Node's
-  `fs.readFileSync` caps at 2 GiB. Use `Chat.create({ modelPath })`
-  instead — the worker streams the file into MEMFS in 64 MiB chunks
-  with no main-thread Buffer of the model bytes, bypassing the cap.
-  Browser is unaffected (`modelUrl` streams via fetch + Cache API).
-- Models whose total working set exceeds 4 GiB on the wasm32 build.
-  Model tensors + mmproj + KV cache + compute buffer must fit in
-  wasm32's hard 4 GiB linear-memory ceiling. Gemma 3 4B Q4_K_M +
-  mmproj overflows. A future wasm64 (memory64) build would lift this
-  ceiling but is not yet shipped.
+  `fs.readFileSync` caps at 2 GiB. Workaround: use
+  `Chat.create({ modelPath })` instead — the worker streams the file
+  into MEMFS in 64 MiB chunks with no main-thread Buffer. Browser is
+  unaffected (`modelUrl` streams via fetch + Cache API).
+- Models whose total working set exceeds 4 GiB. Model tensors +
+  mmproj + KV cache + compute buffer must fit in wasm32's hard 4 GiB
+  linear-memory ceiling. A future wasm64 (memory64) build would lift
+  this ceiling but is not yet shipped.
+- Single-threaded inference. ggml's SIMD128 matmul kernels are
+  enabled, but pthreads are off. Multi-core matmul would require
+  `-sUSE_PTHREADS` + `SharedArrayBuffer` + COOP/COEP cross-origin
+  isolation on the hosting page.
+- Audio: WAV/MP3/FLAC only — Ogg/Vorbis is not supported under
+  Emscripten (surfaces a clean error).
 
 ## Outstanding
 
