@@ -3320,7 +3320,7 @@ dependencies = [
 [[package]]
 name = "pyo3"
 version = "0.28.3"
-source = "git+https://github.com/PyO3/pyo3?branch=main#6d0c1ee1923faa26b95c652d7947d1927a5c86ae"
+source = "git+https://github.com/PyO3/pyo3?rev=20246a895718baa603f836b187b498cedc6941ca#20246a895718baa603f836b187b498cedc6941ca"
 dependencies = [
  "libc",
  "once_cell",
@@ -3359,7 +3359,7 @@ dependencies = [
 [[package]]
 name = "pyo3-build-config"
 version = "0.28.3"
-source = "git+https://github.com/PyO3/pyo3?branch=main#6d0c1ee1923faa26b95c652d7947d1927a5c86ae"
+source = "git+https://github.com/PyO3/pyo3?rev=20246a895718baa603f836b187b498cedc6941ca#20246a895718baa603f836b187b498cedc6941ca"
 dependencies = [
  "target-lexicon",
 ]
@@ -3367,7 +3367,7 @@ dependencies = [
 [[package]]
 name = "pyo3-ffi"
 version = "0.28.3"
-source = "git+https://github.com/PyO3/pyo3?branch=main#6d0c1ee1923faa26b95c652d7947d1927a5c86ae"
+source = "git+https://github.com/PyO3/pyo3?rev=20246a895718baa603f836b187b498cedc6941ca#20246a895718baa603f836b187b498cedc6941ca"
 dependencies = [
  "libc",
  "pyo3-build-config",
@@ -3376,7 +3376,7 @@ dependencies = [
 [[package]]
 name = "pyo3-introspection"
 version = "0.28.3"
-source = "git+https://github.com/PyO3/pyo3?branch=main#6d0c1ee1923faa26b95c652d7947d1927a5c86ae"
+source = "git+https://github.com/PyO3/pyo3?rev=20246a895718baa603f836b187b498cedc6941ca#20246a895718baa603f836b187b498cedc6941ca"
 dependencies = [
  "anyhow",
  "goblin 0.10.5",
@@ -3398,7 +3398,7 @@ dependencies = [
 [[package]]
 name = "pyo3-macros"
 version = "0.28.3"
-source = "git+https://github.com/PyO3/pyo3?branch=main#6d0c1ee1923faa26b95c652d7947d1927a5c86ae"
+source = "git+https://github.com/PyO3/pyo3?rev=20246a895718baa603f836b187b498cedc6941ca#20246a895718baa603f836b187b498cedc6941ca"
 dependencies = [
  "proc-macro2",
  "pyo3-macros-backend",
@@ -3409,7 +3409,7 @@ dependencies = [
 [[package]]
 name = "pyo3-macros-backend"
 version = "0.28.3"
-source = "git+https://github.com/PyO3/pyo3?branch=main#6d0c1ee1923faa26b95c652d7947d1927a5c86ae"
+source = "git+https://github.com/PyO3/pyo3?rev=20246a895718baa603f836b187b498cedc6941ca#20246a895718baa603f836b187b498cedc6941ca"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",

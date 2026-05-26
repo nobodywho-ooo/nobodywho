@@ -15,10 +15,12 @@ resolver = "2"
 # Patched to git main because pyo3-introspection's support for including docstrings
 # in generated type stubs (PR #5782) landed on main but hasn't been released yet.
 # Remove this once pyo3 0.29 (or whichever release includes it) is published.
+# Pinned to a known-good rev: later commits temporarily dropped the `resolve-config`
+# feature from pyo3-ffi's pyo3-build-config dep while build.rs still relies on it.
 [patch.crates-io]
-pyo3 = { git = "https://github.com/PyO3/pyo3", branch = "main" }
-pyo3-ffi = { git = "https://github.com/PyO3/pyo3", branch = "main" }
-pyo3-macros = { git = "https://github.com/PyO3/pyo3", branch = "main" }
-pyo3-macros-backend = { git = "https://github.com/PyO3/pyo3", branch = "main" }
-pyo3-build-config = { git = "https://github.com/PyO3/pyo3", branch = "main" }
-pyo3-introspection = { git = "https://github.com/PyO3/pyo3", branch = "main" }
+pyo3 = { git = "https://github.com/PyO3/pyo3", rev = "20246a895718baa603f836b187b498cedc6941ca" }
+pyo3-ffi = { git = "https://github.com/PyO3/pyo3", rev = "20246a895718baa603f836b187b498cedc6941ca" }
+pyo3-macros = { git = "https://github.com/PyO3/pyo3", rev = "20246a895718baa603f836b187b498cedc6941ca" }
+pyo3-macros-backend = { git = "https://github.com/PyO3/pyo3", rev = "20246a895718baa603f836b187b498cedc6941ca" }
+pyo3-build-config = { git = "https://github.com/PyO3/pyo3", rev = "20246a895718baa603f836b187b498cedc6941ca" }
+pyo3-introspection = { git = "https://github.com/PyO3/pyo3", rev = "20246a895718baa603f836b187b498cedc6941ca" }

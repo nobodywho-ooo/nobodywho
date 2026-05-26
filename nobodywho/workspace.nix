@@ -58,6 +58,20 @@ let
 
         };
 
+        espeak-rs-sys = attrs: {
+          nativeBuildInputs = [
+            cmake
+            rustPlatform.bindgenHook
+          ];
+          buildInputs = [ pkgs.sonic ];
+          env.LIBCLANG_PATH = "${llvmPackages.libclang.lib}/lib/libclang.so";
+          prePatch = ''
+            substituteInPlace build.rs \
+              --replace-fail 'get_cargo_target_dir().unwrap()' \
+                             'get_cargo_target_dir().unwrap_or_else(|_| out_dir.clone())'
+          '';
+        };
+
         nobodywho = attrs: {
           nativeBuildInputs = [
             # this needs to be available at link-time
