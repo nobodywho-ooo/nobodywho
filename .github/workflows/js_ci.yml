@@ -86,10 +86,12 @@ jobs:
         with:
           path: ~/emscripten-wbg
           # Bump the v# suffix when the fork URL or bootstrap behavior
-          # changes in a way the cached tree would miss. v7->v8: no
-          # longer pre-populating cache/sysroot (breaks bindgen); let
-          # emcc populate it at cmake time under its own file lock.
-          key: emsdk-wbg-${{ runner.os }}-v8
+          # changes in a way the cached tree would miss. v8->v9: patch
+          # the fork's emscripten-version.txt to match upstream emsdk
+          # so emcc's check_sanity sees matching versions and doesn't
+          # call cache.erase() when the fork's emcc (via PATH) and the
+          # upstream emcc (via $EMSDK for cmake) share the same cache.
+          key: emsdk-wbg-${{ runner.os }}-v9
 
       - name: Clone + bootstrap + configure patched Emscripten fork
         if: steps.emsdk-cache.outputs.cache-hit != 'true'
@@ -102,16 +104,16 @@ jobs:
         # 2. Write `.emscripten` pointing at emsdk's LLVM / binaryen /
         #    node bundle. The local setup uses homebrew emscripten as
         #    the LLVM provider; in CI we reuse emsdk's.
-        # NOTE: we deliberately do NOT pre-populate cache/sysroot here.
-        #    llama-cpp-sys-2's build.rs runs bindgen BEFORE cmake. If
-        #    cache/sysroot exists at bindgen time, bindgen passes
-        #    --sysroot to libclang, which then fails because
-        #    emscripten's sysroot lacks glibc's bits/ headers. Leaving
-        #    cache/sysroot absent lets bindgen fall back to host
-        #    headers (which work fine for struct-layout generation).
-        #    cmake's emcc invocations later populate cache/sysroot
-        #    under emcc's built-in file lock (cache.get + lock()),
-        #    so parallel cmake workers don't race.
+        # 3. Patch emscripten-version.txt to match the upstream emsdk
+        #    version (5.0.7). The fork tip reports 5.0.8-git. When
+        #    cmake invokes the upstream emsdk's emcc (which build.rs's
+        #    detect_emscripten_root selects via $EMSDK), emcc's
+        #    check_sanity compares its expected version string
+        #    (5.0.7|...) against cache/sanity.txt. If the fork's emcc
+        #    ran first (via PATH) and wrote 5.0.8-git, the upstream
+        #    emcc sees a mismatch and calls cache.erase(), wiping
+        #    the sysroot mid-compile. Patching the version makes both
+        #    emcc's write the same sanity string → no erase.
         run: |
           git clone --depth 1 --branch "$EMSDK_FORK_REF" "$EMSDK_FORK_URL" "$HOME/emscripten-wbg"
           cd "$HOME/emscripten-wbg"
@@ -124,6 +126,10 @@ jobs:
           JS_ENGINES = [NODE_JS]
           CACHE = '$HOME/emscripten-wbg/cache'
           EMSCRIPTEN_CONFIG
+          # Align fork version with upstream emsdk to prevent sanity mismatch
+          UPSTREAM_VER=$("$EMSDK/upstream/emscripten/emcc" --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          echo "${UPSTREAM_VER:-5.0.7}" > emscripten-version.txt
+          echo "Patched fork version to $(cat emscripten-version.txt)"
           ls -la "$HOME/emscripten-wbg/emcc" "$HOME/emscripten-wbg/.emscripten"
 
       - name: Export EMSDK_DIR + EM_CONFIG to job env
@@ -161,14 +167,10 @@ jobs:
 
       - name: Build pkg-bundler (wasm32-unknown-emscripten)
         env:
-          # Override EMSDK so llama-cpp-sys-2's detect_emscripten_root()
-          # finds the fork's cmake/Modules/Platform/Emscripten.cmake
-          # instead of the upstream emsdk's. Without this, cmake uses
-          # upstream emcc (5.0.7) which detects a sanity-version
-          # mismatch with the fork (5.0.8-git), calls cache.erase(),
-          # then lazily re-populates the upstream cache under parallel
-          # cmake — the race that causes missing libc++ headers.
-          EMSDK: ${{ env.EMSDK_DIR }}
+          # EMSDK_DIR + EM_CONFIG are exported via $GITHUB_ENV in the
+          # "Export EMSDK_DIR" step above so they resolve to the right
+          # $HOME on both real GitHub runners (/home/runner) and act
+          # containers (/root).
           EM_WASM_BINDGEN: /tmp/wbg-patched/bin/wasm-bindgen
           # llvm-config-* on ubuntu-24.04 points at /usr/lib/llvm-*/lib
           LIBCLANG_PATH: /usr/lib/llvm-18/lib
