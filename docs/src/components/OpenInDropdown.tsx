@@ -2,7 +2,8 @@ import React, {useState, useRef, useEffect} from 'react';
 
 const GH_BASE =
   'https://github.com/nobodywho-ooo/nobodywho/blob/main/docs/';
-const SITE_URL = 'https://docs.nobodywho.ooo';
+const RAW_BASE =
+  'https://raw.githubusercontent.com/nobodywho-ooo/nobodywho/main/docs/';
 
 // Icons from Simple Icons (CC0) + Markdown mark + Tabler icons
 const ICONS = {
@@ -88,10 +89,10 @@ export default function PageActions(): React.JSX.Element | null {
 
   const pathname = window.location.pathname;
   const sourcePath = deriveSourcePath(pathname);
-  const mdUrl = `${SITE_URL}/${sourcePath.replace(/\.md$/, '')}`;
-  const rawMdUrl = `${SITE_URL}/${sourcePath}`;
+  const pageUrl = window.location.href;
+  const rawMdUrl = `${RAW_BASE}${sourcePath}`;
   const githubUrl = `${GH_BASE}${sourcePath}`;
-  const q = encodeURIComponent(`Read ${mdUrl}, I want to ask questions about it.`);
+  const q = encodeURIComponent(`Read ${pageUrl}, I want to ask questions about it.`);
 
   const items = [
     {label: 'ChatGPT', icon: 'chatgpt' as const, href: `https://chatgpt.com/?hints=search&q=${q}`},

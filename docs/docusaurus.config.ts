@@ -37,8 +37,8 @@ const config: Config = {
 
   markdown: {
     hooks: {
-      onBrokenMarkdownImages: 'warn',
-      onBrokenMarkdownLinks: 'warn',
+      onBrokenMarkdownImages: 'throw',
+      onBrokenMarkdownLinks: 'throw',
     },
   },
 
