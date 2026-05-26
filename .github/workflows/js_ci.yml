@@ -224,9 +224,9 @@ jobs:
         working-directory: /tmp
         run: |
           curl -L --fail -o qwen3.5-0.8b-q4km.gguf \
-            'https://huggingface.co/bartowski/Qwen_Qwen3.5-0.8B-GGUF/resolve/main/Qwen_Qwen3.5-0.8B-Q4_K_M.gguf'
+            'https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q4_K_M.gguf'
           curl -L --fail -o qwen3.5-0.8b-mmproj-f16.gguf \
-            'https://huggingface.co/bartowski/Qwen_Qwen3.5-0.8B-GGUF/resolve/main/mmproj-Qwen_Qwen3.5-0.8B-f16.gguf'
+            'https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/mmproj-F16.gguf'
           ls -lh qwen3.5-0.8b-q4km.gguf qwen3.5-0.8b-mmproj-f16.gguf
 
       - name: End-to-end vision smoke (multimodal)
