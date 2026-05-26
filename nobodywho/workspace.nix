@@ -58,6 +58,12 @@ let
 
         };
 
+        ort-sys = attrs: {
+          env.ORT_LIB_PATH = "${pkgs.onnxruntime}/lib";
+          env.ORT_PREFER_DYNAMIC_LINK = "1";
+          buildInputs = [ pkgs.onnxruntime ];
+        };
+
         espeak-rs-sys = attrs: {
           nativeBuildInputs = [
             cmake
@@ -76,6 +82,7 @@ let
           nativeBuildInputs = [
             # this needs to be available at link-time
             vulkan-loader
+            pkgs.onnxruntime
           ];
         };
 
@@ -84,6 +91,7 @@ let
           nativeBuildInputs = [
             # this needs to be available at link-time
             vulkan-loader
+            pkgs.onnxruntime
             flutter335
           ];
         };
@@ -93,12 +101,14 @@ let
             # XXX: can we do this with propagatedNativeBuildInputs??
             # this needs to be available at link-time
             vulkan-loader
+            pkgs.onnxruntime
           ];
         };
 
         nobodywho-python = attrs: {
           nativeBuildInputs = [
             vulkan-loader
+            pkgs.onnxruntime
             pkgs.python3
           ];
         };
