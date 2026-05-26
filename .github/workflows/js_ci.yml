@@ -209,7 +209,7 @@ jobs:
         # floats came out, not zeros / NaNs.
         working-directory: nobodywho
         run: |
-          output=$(node js/examples/encoder_demo.mjs /tmp/bge-small.gguf 2>/dev/null)
+          output=$(node js/examples/encoder_demo.mjs /tmp/bge-small.gguf)
           echo "$output"
           echo "$output" | grep -q "Embedding dimension: 384" \
             || { echo "expected 'Embedding dimension: 384' line in output"; exit 1; }
@@ -218,7 +218,7 @@ jobs:
 
       - name: emscripten-smoke (Model.loadBytes + Encoder.encode)
         working-directory: nobodywho
-        run: node js/scripts/emscripten-smoke.mjs /tmp/bge-small.gguf 2>/dev/null
+        run: node js/scripts/emscripten-smoke.mjs /tmp/bge-small.gguf
 
       - name: Inspect artifact sizes
         working-directory: nobodywho/js/pkg-bundler
