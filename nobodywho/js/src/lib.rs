@@ -12,7 +12,8 @@
 // these escalate to compile errors. The items ARE used on wasm; suppress
 // the warning only when we're on native to keep that signal alive for
 // the wasm build.
-#![cfg_attr(not(target_family = "wasm"), allow(dead_code, unused))]
+#![allow(dead_code)]
+#![cfg_attr(not(target_family = "wasm"), allow(unused))]
 // wasm_bindgen's `#[wasm_bindgen(static_method_of = ..., js_name = ...)]`
 // macro generates an `unused variable: static_method_of` warning that we
 // can't suppress at the call site (the warning fires inside the macro
