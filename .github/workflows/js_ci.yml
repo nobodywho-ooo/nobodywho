@@ -86,12 +86,10 @@ jobs:
         with:
           path: ~/emscripten-wbg
           # Bump the v# suffix when the fork URL or bootstrap behavior
-          # changes in a way the cached tree would miss. v6->v7 forced
-          # because the v6 cache was built by `embuilder build sysroot`
-          # which silently missed files on Linux (CI). v7 is populated
-          # manually via cp -r of the full source include trees, with a
-          # written stamp file so emcc doesn't re-run install.
-          key: emsdk-wbg-${{ runner.os }}-v7
+          # changes in a way the cached tree would miss. v7->v8: no
+          # longer pre-populating cache/sysroot (breaks bindgen); let
+          # emcc populate it at cmake time under its own file lock.
+          key: emsdk-wbg-${{ runner.os }}-v8
 
       - name: Clone + bootstrap + configure patched Emscripten fork
         if: steps.emsdk-cache.outputs.cache-hit != 'true'
@@ -104,16 +102,16 @@ jobs:
         # 2. Write `.emscripten` pointing at emsdk's LLVM / binaryen /
         #    node bundle. The local setup uses homebrew emscripten as
         #    the LLVM provider; in CI we reuse emsdk's.
-        # 3. Pre-populate cache/sysroot with `embuilder build sysroot`,
-        #    then run a single-threaded C++ primer compile that pulls in
-        #    every libc++ header llama.cpp transitively needs. The
-        #    primer forces emcc to invoke its sanity-check + cache
-        #    population path once, in series — so when cmake later spawns
-        #    4 parallel emcc workers, they all hit a fully-populated
-        #    cache rather than racing to populate it.
-        #    A previous attempt at `cp -r system/lib/libcxx/include`
-        #    proved insufficient: emcc's first-compile-time sanity check
-        #    seems to overwrite the cache with a curated subset.
+        # NOTE: we deliberately do NOT pre-populate cache/sysroot here.
+        #    llama-cpp-sys-2's build.rs runs bindgen BEFORE cmake. If
+        #    cache/sysroot exists at bindgen time, bindgen passes
+        #    --sysroot to libclang, which then fails because
+        #    emscripten's sysroot lacks glibc's bits/ headers. Leaving
+        #    cache/sysroot absent lets bindgen fall back to host
+        #    headers (which work fine for struct-layout generation).
+        #    cmake's emcc invocations later populate cache/sysroot
+        #    under emcc's built-in file lock (cache.get + lock()),
+        #    so parallel cmake workers don't race.
         run: |
           git clone --depth 1 --branch "$EMSDK_FORK_REF" "$EMSDK_FORK_URL" "$HOME/emscripten-wbg"
           cd "$HOME/emscripten-wbg"
@@ -127,45 +125,6 @@ jobs:
           CACHE = '$HOME/emscripten-wbg/cache'
           EMSCRIPTEN_CONFIG
           ls -la "$HOME/emscripten-wbg/emcc" "$HOME/emscripten-wbg/.emscripten"
-          # Manually populate cache/sysroot — emcc's own
-          # install_system_headers silently misses files on CI's Linux
-          # Python (locally on macOS it's complete; on Ubuntu runners
-          # files like __functional/hash.h and math.h end up absent).
-          # Replicate the install_dirs mapping from system_libs.py by
-          # hand, then write the stamp so emcc skips its own install
-          # and doesn't clobber the overlay.
-          mkdir -p cache/sysroot/include/bits cache/sysroot/include/c++/v1
-          cp -r system/include/.                          cache/sysroot/include/
-          cp -r system/lib/compiler-rt/include/.          cache/sysroot/include/
-          cp -r system/lib/libunwind/include/.            cache/sysroot/include/
-          cp -r system/lib/libc/musl/arch/generic/bits/.  cache/sysroot/include/bits/
-          cp -r system/lib/libc/musl/arch/emscripten/bits/. cache/sysroot/include/bits/
-          cp -r system/lib/libc/musl/include/.            cache/sysroot/include/
-          cp -r system/lib/libcxx/include/.               cache/sysroot/include/c++/v1/
-          cp -r system/lib/libcxxabi/include/.            cache/sysroot/include/c++/v1/
-          cp -r system/lib/mimalloc/include/.             cache/sysroot/include/
-          mkdir -p cache
-          echo 'x' > cache/sysroot_install.stamp
-          # Spot-check that the explicitly-named victims from prior runs
-          # are present so we fail loud at bootstrap if the cp set drifts.
-          missing=0
-          for h in \
-              c++/v1/__atomic/aliases.h \
-              c++/v1/__utility/private_constructor_tag.h \
-              c++/v1/__locale_dir/messages.h \
-              c++/v1/__functional/hash.h \
-              c++/v1/cassert \
-              c++/v1/cstdint \
-              stdio.h \
-              errno.h \
-              math.h \
-              stdint.h; do
-            if [ ! -f "cache/sysroot/include/$h" ]; then
-              echo "::error::missing cache/sysroot/include/$h"
-              missing=1
-            fi
-          done
-          [ "$missing" = 0 ]
 
       - name: Export EMSDK_DIR + EM_CONFIG to job env
         # Runs whether or not the cache hit. The build script reads both
@@ -199,28 +158,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '26'
-
-      - name: Verify sysroot cache is intact (debug)
-        # Re-run the assertion just before pkg-bundler so we can tell if
-        # the cache survives all intermediate steps or is being clobbered.
-        # Also dump some stats about what's actually in there.
-        run: |
-          echo "== file counts =="
-          echo "c++/v1 entries: $(ls $HOME/emscripten-wbg/cache/sysroot/include/c++/v1/ | wc -l)"
-          echo "include top entries: $(ls $HOME/emscripten-wbg/cache/sysroot/include/ | wc -l)"
-          echo "stamp present: $([ -f $HOME/emscripten-wbg/cache/sysroot_install.stamp ] && echo YES || echo NO)"
-          echo "== first 50 c++/v1 entries =="
-          ls $HOME/emscripten-wbg/cache/sysroot/include/c++/v1/ | head -50
-          echo "== explicit file checks =="
-          for h in c++/v1/functional c++/v1/__functional/hash.h \
-                   c++/v1/map c++/v1/algorithm c++/v1/utility \
-                   stdio.h math.h errno.h stdint.h; do
-            if [ ! -f "$HOME/emscripten-wbg/cache/sysroot/include/$h" ]; then
-              echo "::error::missing $h"
-              exit 1
-            fi
-          done
-          echo "All present."
 
       - name: Build pkg-bundler (wasm32-unknown-emscripten)
         env:
