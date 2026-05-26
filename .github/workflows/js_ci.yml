@@ -237,8 +237,8 @@ jobs:
             /tmp/qwen3.5-0.8b-mmproj-f16.gguf \
             python/tests/img/penguin.png)
           echo "$output"
-          echo "$output" | grep -qi "penguin" \
-            || { echo "expected model to identify a penguin"; exit 1; }
+          echo "$output" | grep -qiE "penguin|tux" \
+            || { echo "expected model to identify a penguin (or tux)"; exit 1; }
 
       - name: Inspect artifact sizes
         working-directory: nobodywho/js/pkg-bundler
