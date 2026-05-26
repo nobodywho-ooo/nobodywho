@@ -86,13 +86,13 @@ jobs:
         with:
           path: ~/emscripten-wbg
           # Bump the v# suffix when the fork URL or bootstrap behavior
-          # changes in a way the cached tree would miss. v3->v4 forced
-          # because the v3 cache was created by an earlier bootstrap
-          # variant that only ran `embuilder build sysroot` (which
-          # skipped some libc++ subdirs); the bootstrap now also
-          # overlays the full libcxx/libcxxabi include trees, so the
-          # cached sysroot needs to be regenerated.
-          key: emsdk-wbg-${{ runner.os }}-v4
+          # changes in a way the cached tree would miss. v4->v5 forced
+          # because the v4 cache had a sysroot populated only by
+          # embuilder + an inert cp overlay (emcc clobbered it on
+          # first compile); the bootstrap now runs a primer C++ compile
+          # so the cached sysroot is what the parallel cmake build
+          # actually sees, not a fresh re-populate that races.
+          key: emsdk-wbg-${{ runner.os }}-v5
 
       - name: Clone + bootstrap + configure patched Emscripten fork
         if: steps.emsdk-cache.outputs.cache-hit != 'true'
@@ -105,16 +105,16 @@ jobs:
         # 2. Write `.emscripten` pointing at emsdk's LLVM / binaryen /
         #    node bundle. The local setup uses homebrew emscripten as
         #    the LLVM provider; in CI we reuse emsdk's.
-        # 3. Pre-populate cache/sysroot (libc/libcxx headers etc.) with
-        #    `embuilder build sysroot` AND a brute-force header overlay.
-        #    Without pre-population, the first emcc invocation populates
-        #    lazily — and under cmake's parallel build (4 concurrent
-        #    emcc on a 4-core runner) the populate races, leaving
-        #    partial headers (e.g. unique_ptr.h present but its includee
-        #    __utility/private_constructor_tag.h missing). embuilder
-        #    alone proved insufficient — it skipped some libc++ subdirs
-        #    (__locale_dir, __utility, __thread) — so we additionally
-        #    overlay the entire libcxx + libcxxabi include trees on top.
+        # 3. Pre-populate cache/sysroot with `embuilder build sysroot`,
+        #    then run a single-threaded C++ primer compile that pulls in
+        #    every libc++ header llama.cpp transitively needs. The
+        #    primer forces emcc to invoke its sanity-check + cache
+        #    population path once, in series — so when cmake later spawns
+        #    4 parallel emcc workers, they all hit a fully-populated
+        #    cache rather than racing to populate it.
+        #    A previous attempt at `cp -r system/lib/libcxx/include`
+        #    proved insufficient: emcc's first-compile-time sanity check
+        #    seems to overwrite the cache with a curated subset.
         run: |
           git clone --depth 1 --branch "$EMSDK_FORK_REF" "$EMSDK_FORK_URL" "$HOME/emscripten-wbg"
           cd "$HOME/emscripten-wbg"
@@ -129,9 +129,33 @@ jobs:
           EMSCRIPTEN_CONFIG
           ls -la "$HOME/emscripten-wbg/emcc" "$HOME/emscripten-wbg/.emscripten"
           ./embuilder build sysroot
-          mkdir -p cache/sysroot/include/c++/v1
-          cp -r system/lib/libcxx/include/.    cache/sysroot/include/c++/v1/
-          cp -r system/lib/libcxxabi/include/. cache/sysroot/include/c++/v1/
+          # Primer compile — forces single-threaded sysroot population
+          # via the exact same code path the parallel cmake build uses.
+          cat > /tmp/primer.cpp <<'PRIMER'
+          #include <algorithm>
+          #include <atomic>
+          #include <cassert>
+          #include <cstring>
+          #include <cstdio>
+          #include <locale>
+          #include <memory>
+          #include <mutex>
+          #include <string>
+          #include <thread>
+          #include <utility>
+          #include <vector>
+          int main() { return 0; }
+          PRIMER
+          ./em++ -c /tmp/primer.cpp -o /tmp/primer.o
+          # Sanity-check a few headers known to live in subdirs that
+          # earlier bootstrap variants missed.
+          for h in __atomic/aliases.h __utility/private_constructor_tag.h \
+                   __locale_dir/messages.h cassert; do
+            if [ ! -f "cache/sysroot/include/c++/v1/$h" ]; then
+              echo "::error::primer left $h missing from cache/sysroot"
+              exit 1
+            fi
+          done
 
       - name: Export EMSDK_DIR + EM_CONFIG to job env
         # Runs whether or not the cache hit. The build script reads both
