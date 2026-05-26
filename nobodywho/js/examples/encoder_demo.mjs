@@ -21,6 +21,9 @@ const texts = [
 const embeddings = [];
 for (const text of texts) embeddings.push(await encoder.encode(text));
 
+console.log(`Embedding dimension: ${embeddings[0].length}`);
+console.log(`first 8: [${embeddings[0].slice(0, 8).map(v => v.toFixed(4)).join(', ')}]`);
+
 const cosine = (a, b) => {
   let dot = 0, na = 0, nb = 0;
   for (let i = 0; i < a.length; i++) {
