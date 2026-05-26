@@ -136,9 +136,23 @@ jobs:
         # Runs whether or not the cache hit. The build script reads both
         # of these (EMSDK_DIR has emcc on $PATH; EM_CONFIG tells emcc
         # where to find LLVM/binaryen/node).
+        # Also rewrite .emscripten with the CURRENT run's emsdk paths —
+        # the cached copy has absolute paths from the previous runner's
+        # temp dir (different UUID each run), which don't exist anymore.
+        # The version patch also needs refreshing on cache hit.
         run: |
           echo "EMSDK_DIR=$HOME/emscripten-wbg" >> "$GITHUB_ENV"
           echo "EM_CONFIG=$HOME/emscripten-wbg/.emscripten" >> "$GITHUB_ENV"
+          cat > "$HOME/emscripten-wbg/.emscripten" <<EMSCRIPTEN_CONFIG
+          LLVM_ROOT = '$EMSDK/upstream/bin'
+          BINARYEN_ROOT = '$EMSDK/upstream'
+          NODE_JS = '$EMSDK_NODE'
+          COMPILER_ENGINE = NODE_JS
+          JS_ENGINES = [NODE_JS]
+          CACHE = '$HOME/emscripten-wbg/cache'
+          EMSCRIPTEN_CONFIG
+          UPSTREAM_VER=$("$EMSDK/upstream/emscripten/emcc" --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          echo "${UPSTREAM_VER:-5.0.7}" > "$HOME/emscripten-wbg/emscripten-version.txt"
 
       - name: Cache patched wasm-bindgen-cli
         id: wbg-cache
