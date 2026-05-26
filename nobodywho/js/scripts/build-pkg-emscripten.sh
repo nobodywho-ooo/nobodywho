@@ -164,29 +164,29 @@ cp "$WBG_WASM" "$PKG_DIR/nobodywho_js_bg.wasm"
 
 echo "==> applying sed patches to library_bindgen.js"
 # See block comment at top of file for why each substitution is needed.
-/usr/bin/sed -i.bak \
-  -e 's/HEAPU80\(\)/HEAPU8/g' \
-  -e 's/HEAP320\(\)/HEAP32/g' \
-  -e 's/HEAPU8\(\)/HEAPU8/g' \
-  -e 's/HEAP32\(\)/HEAP32/g' \
-  -e 's/HEAPF320\(\)/HEAPF32/g' \
-  -e 's/HEAPF32\(\)/HEAPF32/g' \
-  -e 's/HEAPF640\(\)/HEAPF64/g' \
-  -e 's/HEAPF64\(\)/HEAPF64/g' \
-  -e 's/HEAPU160\(\)/HEAPU16/g' \
-  -e 's/HEAPU16\(\)/HEAPU16/g' \
-  -e 's/HEAP160\(\)/HEAP16/g' \
-  -e 's/HEAP16\(\)/HEAP16/g' \
-  -e 's/HEAPU320\(\)/HEAPU32/g' \
-  -e 's/HEAPU32\(\)/HEAPU32/g' \
-  -e 's/HEAP80\(\)/HEAP8/g' \
-  -e 's/HEAP8\(\)/HEAP8/g' \
+sed -i.bak \
+  -e 's/HEAPU80()/HEAPU8/g' \
+  -e 's/HEAP320()/HEAP32/g' \
+  -e 's/HEAPU8()/HEAPU8/g' \
+  -e 's/HEAP32()/HEAP32/g' \
+  -e 's/HEAPF320()/HEAPF32/g' \
+  -e 's/HEAPF32()/HEAPF32/g' \
+  -e 's/HEAPF640()/HEAPF64/g' \
+  -e 's/HEAPF64()/HEAPF64/g' \
+  -e 's/HEAPU160()/HEAPU16/g' \
+  -e 's/HEAPU16()/HEAPU16/g' \
+  -e 's/HEAP160()/HEAP16/g' \
+  -e 's/HEAP16()/HEAP16/g' \
+  -e 's/HEAPU320()/HEAPU32/g' \
+  -e 's/HEAPU32()/HEAPU32/g' \
+  -e 's/HEAP80()/HEAP8/g' \
+  -e 's/HEAP8()/HEAP8/g' \
   -E -e 's/(^|[^A-Za-z_])Model\.__wrap/\1Module.Model.__wrap/g' \
      -e 's/(^|[^A-Za-z_])TokenStream\.__wrap/\1Module.TokenStream.__wrap/g' \
      -e 's/(^|[^A-Za-z_])Chat\.__wrap/\1Module.Chat.__wrap/g' \
   "$PKG_DIR/library_bindgen.js"
 
-/usr/bin/sed -i.bak2 \
+sed -i.bak2 \
   's|        function __wbg_call_guard() {$|        var __wbg_terminated_addr; var __wbg_called_abort;\n        function __wbg_call_guard() {|' \
   "$PKG_DIR/library_bindgen.js"
 
