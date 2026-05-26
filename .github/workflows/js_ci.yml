@@ -105,6 +105,14 @@ jobs:
         # 2. Write `.emscripten` pointing at emsdk's LLVM / binaryen /
         #    node bundle. The local setup uses homebrew emscripten as
         #    the LLVM provider; in CI we reuse emsdk's.
+        # 3. Pre-populate cache/sysroot (libc/libcxx headers etc.) with
+        #    `embuilder build sysroot`. Without this, the first emcc
+        #    invocation populates lazily — and under cmake's parallel
+        #    build (4 concurrent emcc on a 4-core runner) the populate
+        #    races, leaving partial headers (e.g. unique_ptr.h present
+        #    but its includee __utility/private_constructor_tag.h
+        #    missing). Doing it single-threaded once up-front sidesteps
+        #    the race.
         run: |
           git clone --depth 1 --branch "$EMSDK_FORK_REF" "$EMSDK_FORK_URL" "$HOME/emscripten-wbg"
           cd "$HOME/emscripten-wbg"
@@ -118,6 +126,7 @@ jobs:
           CACHE = '$HOME/emscripten-wbg/cache'
           EMSCRIPTEN_CONFIG
           ls -la "$HOME/emscripten-wbg/emcc" "$HOME/emscripten-wbg/.emscripten"
+          ./embuilder build sysroot
 
       - name: Export EMSDK_DIR + EM_CONFIG to job env
         # Runs whether or not the cache hit. The build script reads both
