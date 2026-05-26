@@ -278,10 +278,8 @@ pub fn get_model_from_bytes(
 /// large models. Going via path lets the worker stream chunks into
 /// MEMFS directly without ever materializing the full model in
 /// main-thread memory. (The wasm32 4 GiB linear-memory ceiling still
-/// applies to the model + tensors + KV cache total on the wasm32
-/// build; this loader doesn't fix that. The sibling wasm64 build —
-/// `js/scripts/build-pkg-emscripten-wasm64.sh` — raises the ceiling
-/// to 16 GiB.)
+/// applies to the model + tensors + KV cache total; this loader
+/// doesn't fix that.)
 ///
 /// `mmproj_path` is the same as `get_model_from_bytes`'s mmproj
 /// parameter — an already-on-MEMFS GGUF for the projection model.

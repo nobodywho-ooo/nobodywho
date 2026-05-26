@@ -435,13 +435,8 @@ present. The Rust override wins symbol resolution at link time.
 - Models whose total working set exceeds 4 GiB on the wasm32 build.
   Model tensors + mmproj + KV cache + compute buffer must fit in
   wasm32's hard 4 GiB linear-memory ceiling. Gemma 3 4B Q4_K_M +
-  mmproj overflows. The sibling wasm64 build pipeline
-  (`scripts/build-pkg-emscripten-wasm64.sh`) lifts the ceiling to
-  16 GiB, but is currently spike-quality and requires manual
-  toolchain setup (nightly Rust + one-line rustlib unwind patch
-  pending in [rust-lang/rust#156912][rust-pr156912]).
-
-[rust-pr156912]: https://github.com/rust-lang/rust/pull/156912
+  mmproj overflows. A future wasm64 (memory64) build would lift this
+  ceiling but is not yet shipped.
 
 ## Outstanding
 
