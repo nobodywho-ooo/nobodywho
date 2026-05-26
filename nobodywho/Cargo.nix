@@ -8933,7 +8933,6 @@ rec {
         crateName = "pyo3";
         version = "0.28.3";
         edition = "2021";
-        links = "pyo3-python";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/PyO3/pyo3";
@@ -8971,18 +8970,18 @@ rec {
           {
             name = "pyo3-build-config";
             packageId = "pyo3-build-config";
+            features = [ "resolve-config" ];
           }
         ];
         features = {
-          "abi3" = [ "pyo3-ffi/abi3" ];
-          "abi3-py310" = [ "abi3-py311" "pyo3-ffi/abi3-py310" ];
-          "abi3-py311" = [ "abi3-py312" "pyo3-ffi/abi3-py311" ];
-          "abi3-py312" = [ "abi3-py313" "pyo3-ffi/abi3-py312" ];
-          "abi3-py313" = [ "abi3-py314" "pyo3-ffi/abi3-py313" ];
-          "abi3-py314" = [ "abi3-py315" "pyo3-ffi/abi3-py314" ];
-          "abi3-py315" = [ "abi3" "pyo3-ffi/abi3-py315" ];
-          "abi3-py38" = [ "abi3-py39" "pyo3-ffi/abi3-py38" ];
-          "abi3-py39" = [ "abi3-py310" "pyo3-ffi/abi3-py39" ];
+          "abi3" = [ "pyo3-build-config/abi3" "pyo3-ffi/abi3" ];
+          "abi3-py310" = [ "abi3-py311" "pyo3-build-config/abi3-py310" "pyo3-ffi/abi3-py310" ];
+          "abi3-py311" = [ "abi3-py312" "pyo3-build-config/abi3-py311" "pyo3-ffi/abi3-py311" ];
+          "abi3-py312" = [ "abi3-py313" "pyo3-build-config/abi3-py312" "pyo3-ffi/abi3-py312" ];
+          "abi3-py313" = [ "abi3-py314" "pyo3-build-config/abi3-py313" "pyo3-ffi/abi3-py313" ];
+          "abi3-py314" = [ "abi3" "pyo3-build-config/abi3-py314" "pyo3-ffi/abi3-py314" ];
+          "abi3-py38" = [ "abi3-py39" "pyo3-build-config/abi3-py38" "pyo3-ffi/abi3-py38" ];
+          "abi3-py39" = [ "abi3-py310" "pyo3-build-config/abi3-py39" "pyo3-ffi/abi3-py39" ];
           "anyhow" = [ "dep:anyhow" ];
           "arc_lock" = [ "lock_api" "lock_api/arc_lock" "parking_lot?/arc_lock" ];
           "bigdecimal" = [ "dep:bigdecimal" "num-bigint" ];
@@ -9017,7 +9016,7 @@ rec {
           "time" = [ "dep:time" ];
           "uuid" = [ "dep:uuid" ];
         };
-        resolvedDefaultFeatures = [ "abi3" "abi3-py310" "abi3-py311" "abi3-py312" "abi3-py313" "abi3-py314" "abi3-py315" "abi3-py38" "abi3-py39" "default" "experimental-async" "experimental-inspect" "extension-module" "macros" "pyo3-macros" ];
+        resolvedDefaultFeatures = [ "abi3" "abi3-py310" "abi3-py311" "abi3-py312" "abi3-py313" "abi3-py314" "abi3-py38" "abi3-py39" "default" "experimental-async" "experimental-inspect" "extension-module" "macros" "pyo3-macros" ];
       };
       "pyo3-async-runtimes" = rec {
         crateName = "pyo3-async-runtimes";
@@ -9139,8 +9138,15 @@ rec {
           }
         ];
         features = {
+          "abi3-py310" = [ "abi3-py311" ];
+          "abi3-py311" = [ "abi3-py312" ];
+          "abi3-py312" = [ "abi3-py313" ];
+          "abi3-py313" = [ "abi3-py314" ];
+          "abi3-py314" = [ "abi3" ];
+          "abi3-py38" = [ "abi3-py39" ];
+          "abi3-py39" = [ "abi3-py310" ];
         };
-        resolvedDefaultFeatures = [ "default" "extension-module" ];
+        resolvedDefaultFeatures = [ "abi3" "abi3-py310" "abi3-py311" "abi3-py312" "abi3-py313" "abi3-py314" "abi3-py38" "abi3-py39" "default" "extension-module" "resolve-config" ];
       };
       "pyo3-ffi" = rec {
         crateName = "pyo3-ffi";
@@ -9167,27 +9173,27 @@ rec {
           {
             name = "pyo3-build-config";
             packageId = "pyo3-build-config";
+            features = [ "resolve-config" ];
           }
         ];
         features = {
-          "abi3-py310" = [ "abi3-py311" ];
-          "abi3-py311" = [ "abi3-py312" ];
-          "abi3-py312" = [ "abi3-py313" ];
-          "abi3-py313" = [ "abi3-py314" ];
-          "abi3-py314" = [ "abi3-py315" ];
-          "abi3-py315" = [ "abi3" ];
-          "abi3-py38" = [ "abi3-py39" ];
-          "abi3-py39" = [ "abi3-py310" ];
+          "abi3" = [ "pyo3-build-config/abi3" ];
+          "abi3-py310" = [ "abi3-py311" "pyo3-build-config/abi3-py310" ];
+          "abi3-py311" = [ "abi3-py312" "pyo3-build-config/abi3-py311" ];
+          "abi3-py312" = [ "abi3-py313" "pyo3-build-config/abi3-py312" ];
+          "abi3-py313" = [ "abi3-py314" "pyo3-build-config/abi3-py313" ];
+          "abi3-py314" = [ "abi3" "pyo3-build-config/abi3-py314" ];
+          "abi3-py38" = [ "abi3-py39" "pyo3-build-config/abi3-py38" ];
+          "abi3-py39" = [ "abi3-py310" "pyo3-build-config/abi3-py39" ];
           "extension-module" = [ "pyo3-build-config/extension-module" ];
           "generate-import-lib" = [ "pyo3-build-config/generate-import-lib" ];
         };
-        resolvedDefaultFeatures = [ "abi3" "abi3-py310" "abi3-py311" "abi3-py312" "abi3-py313" "abi3-py314" "abi3-py315" "abi3-py38" "abi3-py39" "default" "extension-module" ];
+        resolvedDefaultFeatures = [ "abi3" "abi3-py310" "abi3-py311" "abi3-py312" "abi3-py313" "abi3-py314" "abi3-py38" "abi3-py39" "default" "extension-module" ];
       };
       "pyo3-introspection" = rec {
         crateName = "pyo3-introspection";
         version = "0.28.3";
         edition = "2021";
-        crateBin = [];
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/PyO3/pyo3";
