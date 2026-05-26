@@ -86,12 +86,12 @@ jobs:
         with:
           path: ~/emscripten-wbg
           # Bump the v# suffix when the fork URL or bootstrap behavior
-          # changes in a way the cached tree would miss. v5->v6 forced
-          # because v5's primer compile ran without EM_CONFIG set, so
-          # emcc may have used a fallback config and populated the wrong
-          # cache; v6 sets EM_CONFIG explicitly and asserts both libc
-          # and libc++ headers landed.
-          key: emsdk-wbg-${{ runner.os }}-v6
+          # changes in a way the cached tree would miss. v6->v7 forced
+          # because the v6 cache was built by `embuilder build sysroot`
+          # which silently missed files on Linux (CI). v7 is populated
+          # manually via cp -r of the full source include trees, with a
+          # written stamp file so emcc doesn't re-run install.
+          key: emsdk-wbg-${{ runner.os }}-v7
 
       - name: Clone + bootstrap + configure patched Emscripten fork
         if: steps.emsdk-cache.outputs.cache-hit != 'true'
@@ -127,42 +127,38 @@ jobs:
           CACHE = '$HOME/emscripten-wbg/cache'
           EMSCRIPTEN_CONFIG
           ls -la "$HOME/emscripten-wbg/emcc" "$HOME/emscripten-wbg/.emscripten"
-          ./embuilder build sysroot
-          # Primer compile — forces single-threaded sysroot population
-          # via the exact same code path the parallel cmake build uses.
-          cat > /tmp/primer.cpp <<'PRIMER'
-          #include <algorithm>
-          #include <atomic>
-          #include <cassert>
-          #include <cstring>
-          #include <cstdio>
-          #include <locale>
-          #include <memory>
-          #include <mutex>
-          #include <string>
-          #include <thread>
-          #include <utility>
-          #include <vector>
-          int main() { return 0; }
-          PRIMER
-          EM_CONFIG="$HOME/emscripten-wbg/.emscripten" ./em++ -c /tmp/primer.cpp -o /tmp/primer.o
-          # Debug: dump high-level cache content so we can see exactly
-          # what got populated.
-          echo "--- cache/sysroot/include (top-level libc headers) ---"
-          ls cache/sysroot/include/ | head -30
-          echo "--- cache/sysroot/include/c++/v1 (libcxx headers) ---"
-          ls cache/sysroot/include/c++/v1/ | head -30
-          # Sanity-check headers in both libc (top-level) and libc++
-          # (c++/v1/) — earlier bootstrap variants left one tree partial.
+          # Manually populate cache/sysroot — emcc's own
+          # install_system_headers silently misses files on CI's Linux
+          # Python (locally on macOS it's complete; on Ubuntu runners
+          # files like __functional/hash.h and math.h end up absent).
+          # Replicate the install_dirs mapping from system_libs.py by
+          # hand, then write the stamp so emcc skips its own install
+          # and doesn't clobber the overlay.
+          mkdir -p cache/sysroot/include/bits cache/sysroot/include/c++/v1
+          cp -r system/include/.                          cache/sysroot/include/
+          cp -r system/lib/compiler-rt/include/.          cache/sysroot/include/
+          cp -r system/lib/libunwind/include/.            cache/sysroot/include/
+          cp -r system/lib/libc/musl/arch/generic/bits/.  cache/sysroot/include/bits/
+          cp -r system/lib/libc/musl/arch/emscripten/bits/. cache/sysroot/include/bits/
+          cp -r system/lib/libc/musl/include/.            cache/sysroot/include/
+          cp -r system/lib/libcxx/include/.               cache/sysroot/include/c++/v1/
+          cp -r system/lib/libcxxabi/include/.            cache/sysroot/include/c++/v1/
+          cp -r system/lib/mimalloc/include/.             cache/sysroot/include/
+          mkdir -p cache
+          echo 'x' > cache/sysroot_install.stamp
+          # Spot-check that the explicitly-named victims from prior runs
+          # are present so we fail loud at bootstrap if the cp set drifts.
           missing=0
           for h in \
               c++/v1/__atomic/aliases.h \
               c++/v1/__utility/private_constructor_tag.h \
               c++/v1/__locale_dir/messages.h \
+              c++/v1/__functional/hash.h \
               c++/v1/cassert \
               c++/v1/cstdint \
               stdio.h \
               errno.h \
+              math.h \
               stdint.h; do
             if [ ! -f "cache/sysroot/include/$h" ]; then
               echo "::error::missing cache/sysroot/include/$h"
