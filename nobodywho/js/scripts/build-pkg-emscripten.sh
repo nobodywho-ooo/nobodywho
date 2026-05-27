@@ -244,7 +244,7 @@ echo "==> em++ --post-link to build nobodywho_js.js"
     -Wno-undefined \
     -O1 \
     -pthread \
-    -sPTHREAD_POOL_SIZE=4 \
+    -sPTHREAD_POOL_SIZE=navigator.hardwareConcurrency \
     -sDEFAULT_PTHREAD_STACK_SIZE=2097152 \
     -o nobodywho_js.js
 )
