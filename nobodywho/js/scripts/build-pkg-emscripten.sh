@@ -222,6 +222,7 @@ echo "==> em++ --post-link to build nobodywho_js.js"
     -sEXPORT_NAME='createNobodyWhoModule' \
     -sEXPORTED_RUNTIME_METHODS=FS,SYSCALLS \
     -sFORCE_FILESYSTEM=1 \
+    -lnodefs.js \
     -sERROR_ON_UNDEFINED_SYMBOLS=0 \
     -sINVOKE_RUN=0 \
     -Wno-undefined \

@@ -112,12 +112,17 @@ Module.postRun.push(() => {
     // directly from disk without copying into MEMFS. Returns the mount
     // point. Idempotent — re-mounting the same directory is a no-op.
     globalThis.__nbw_mount_nodefs = function (hostDir, mountpoint) {
-      try { FS.mkdir(mountpoint); } catch (e) { /* EEXIST is fine */ }
+      // Ensure the full mountpoint path exists.
+      const parts = mountpoint.split('/').filter(Boolean);
+      let cur = '';
+      for (const p of parts) {
+        cur += '/' + p;
+        try { FS.mkdir(cur); } catch (e) { /* EEXIST is fine */ }
+      }
       try {
         FS.mount(NODEFS, { root: hostDir }, mountpoint);
       } catch (e) {
-        if (!e.message || !e.message.includes('EBUSY')) throw e;
-        // Already mounted — reuse.
+        if (e.errno !== 10) throw e; // 10 = EBUSY → already mounted
       }
       return mountpoint;
     };

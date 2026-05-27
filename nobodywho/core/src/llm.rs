@@ -290,15 +290,14 @@ pub fn get_model_from_path(
         "Loading model from path (NODEFS or MEMFS)"
     );
 
-    // Enable mmap: on NODEFS (Node modelPath) Emscripten's mmap
-    // reads the file into a wasm-heap allocation via the FS backend,
-    // and llama.cpp points tensor data directly at that region. On
-    // MEMFS (browser bytes path) mmap also works but still copies
-    // because ALLOW_MEMORY_GROWTH prevents MEMFS from holding
-    // wasm-heap references.
+    // mmap is off on wasm: Emscripten's mmap doesn't work on either
+    // NODEFS or MEMFS files (traps inside llama.cpp's init_mappings).
+    // Tensors are loaded via fread instead. With NODEFS (Node
+    // modelPath) the file stays on disk — fread streams directly into
+    // tensor allocations, so only 1x model size in wasm memory.
     let model_params = LlamaModelParams::default()
         .with_n_gpu_layers(gpu_layers)
-        .with_use_mmap(true);
+        .with_use_mmap(false);
     let model_params = pin!(model_params);
 
     let language_model = LlamaModel::load_from_file(&LLAMA_BACKEND, model_path, &model_params)
