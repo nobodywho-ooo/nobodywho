@@ -240,16 +240,19 @@ pub async fn download_model(
     init_logging();
     let headers_vec: Vec<(String, String)> = headers.unwrap_or_default().into_iter().collect();
     let progress = on_download_progress.map(wrap_progress);
-    tokio::task::spawn_blocking(move || {
-        nobodywho::llm::download_model(&model_path, headers_vec, progress)
+    // Use std::thread::spawn + tokio channel instead of tokio::task::spawn_blocking,
+    // because UniFFI's async bridge doesn't provide a Tokio runtime.
+    let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+    std::thread::spawn(move || {
+        let result = nobodywho::llm::download_model(&model_path, headers_vec, progress)
             .map(|p| p.to_string_lossy().into_owned())
             .map_err(|e| NobodyWhoError::Error {
                 message: nobodywho::render_miette(&e),
-            })
-    })
-    .await
-    .map_err(|e| NobodyWhoError::Error {
-        message: e.to_string(), // JoinError, not a miette diagnostic
+            });
+        let _ = tx.blocking_send(result);
+    });
+    rx.recv().await.ok_or_else(|| NobodyWhoError::Error {
+        message: "Download thread terminated unexpectedly".into(),
     })?
 }
 

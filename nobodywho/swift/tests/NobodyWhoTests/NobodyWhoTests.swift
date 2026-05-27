@@ -28,6 +28,26 @@ final class NobodyWhoTests: XCTestCase {
         return value
     }
 
+    // MARK: - Download
+
+    func testDownloadModel() async throws {
+        let modelUrl = "hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
+
+        // First download to discover the cache path, then delete to force a fresh download
+        let cachedPath = try await Model.downloadModel(modelPath: modelUrl)
+        try FileManager.default.removeItem(atPath: cachedPath)
+
+        var progressCalled = false
+        let localPath = try await Model.downloadModel(modelPath: modelUrl) { downloaded, total in
+            progressCalled = true
+            XCTAssertLessThanOrEqual(downloaded, total)
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: localPath))
+        let attrs = try FileManager.default.attributesOfItem(atPath: localPath)
+        XCTAssertGreaterThan(attrs[.size] as? UInt64 ?? 0, 0)
+        XCTAssertTrue(progressCalled, "Progress callback should have been called")
+    }
+
     // MARK: - Chat (completion, streaming, tools)
 
     func testChat() async throws {
