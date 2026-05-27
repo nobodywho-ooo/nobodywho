@@ -72,7 +72,6 @@ surface to JS via wasm-bindgen.
 | `cosineSimilarity(a, b)` → number | ✅ verified — pairs with `Encoder.encode()`; matches Python's `nobodywho.cosine_similarity` |
 | `Chat.create({modelBytes \| modelPath \| modelUrl, ...})` → `Chat` | ✅ verified — async factory, spawns a worker (Web Worker in browser, `worker_threads.Worker` in Node). `modelPath` is Node-only and streams the GGUF into MEMFS in chunks (no 2 GiB `readFileSync` cap, no main-thread Buffer) |
 | `Chat.ask(prompt)` → `TokenStream` → tokens (real-time, `for await`-iterable) | ✅ verified |
-| `Chat.askStreaming(prompt, callback)` → `Promise<string>` | ✅ verified — fires `callback(token)` per token, resolves to the full response. Sugar over the for-await pattern; mirrors the older binding's API name for migration ease |
 | `Chat.stopGeneration()` — interrupt the current ask | ✅ verified (Node) — drains pending messages in the per-token hook and calls `stopCurrentAsk`. Browser only takes effect after the current ask completes (SAB+Atomics is the path forward, tracked as follow-up) |
 | `Chat.getChatHistory()` / `setChatHistory(messages)` | ✅ verified — round-trips `{role, content, ...}` arrays; loaded history is real context for subsequent asks |
 | `Chat.getSystemPrompt()` / `setSystemPrompt(prompt \| null)` | ✅ verified (incl. clear-to-null after the core fix in `chat.rs`) |
@@ -97,7 +96,6 @@ verify locally after a build, run:
 |---|---|
 | `emscripten-smoke.mjs` | `Model.loadBytes` + basic ask round-trip (plus the `chat_demo.mjs` example end-to-end) |
 | `forawait-smoke.mjs` | `for await (const tok of chat.ask(...))` iteration |
-| `askstreaming-smoke.mjs` | `Chat.askStreaming(prompt, callback)` per-token callback shape |
 | `sampler-smoke.mjs` | sampler-config knobs end-to-end |
 | `sampler-ergo-smoke.mjs` | `SamplerBuilder` + `SamplerPresets` (core shift + sample steps) |
 | `sampler-extra-smoke.mjs` | DRY / XTC / TypicalP / full Penalties shift steps + `dry()` / `json()` presets |
