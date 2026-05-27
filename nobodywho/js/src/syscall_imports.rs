@@ -31,6 +31,8 @@ use std::os::raw::{c_char, c_int};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 
+type SizeT = usize;
+
 // errno constants — values from Emscripten's musl-derived errno table.
 // Used as -errno return codes per the syscall ABI.
 const EBADF: c_int = 8;
@@ -268,4 +270,95 @@ pub unsafe extern "C" fn __syscall_newfstatat(
     }
     let nofollow = (flags & 0x100) != 0; // AT_SYMLINK_NOFOLLOW
     stat_into_buf(path_str, buf, nofollow)
+}
+
+/// Look up a `SYSCALLS` method and invoke it.
+fn syscalls_call(method: &str, args: &[JsValue]) -> Result<JsValue, c_int> {
+    let global = js_sys::global();
+    let module = js_sys::Reflect::get(&global, &"Module".into()).map_err(|_| EIO)?;
+    let syscalls = js_sys::Reflect::get(&module, &"SYSCALLS".into()).map_err(|_| EIO)?;
+    let func_val = js_sys::Reflect::get(&syscalls, &JsValue::from_str(method)).map_err(|_| EIO)?;
+    let func: js_sys::Function = func_val.dyn_ref::<js_sys::Function>().ok_or(EIO)?.clone();
+    let args_array = js_sys::Array::new();
+    for a in args {
+        args_array.push(a);
+    }
+    js_sys::Reflect::apply(&func, &syscalls, &args_array).map_err(|e| {
+        if let Ok(errno) = js_sys::Reflect::get(&e, &"errno".into()) {
+            if let Some(n) = errno.as_f64() {
+                return n as c_int;
+            }
+        }
+        EIO
+    })
+}
+
+/// `_mmap_js` strong override.
+///
+/// Musl's mmap calls this to perform the actual mapping. The weak stub
+/// in `standalone.c` returns -ENOSYS. We route through `FS.mmap` which
+/// supports both MEMFS and NODEFS.
+///
+/// # Safety
+///
+/// `allocated` and `addr` must be valid writable pointers (caller's
+/// responsibility — musl passes stack addresses).
+#[no_mangle]
+pub unsafe extern "C" fn _mmap_js(
+    len: SizeT,
+    prot: c_int,
+    flags: c_int,
+    fd: c_int,
+    offset: i64,
+    allocated: *mut c_int,
+    addr: *mut *mut u8,
+) -> c_int {
+    let stream = match syscalls_call("getStreamFromFD", &[JsValue::from_f64(fd as f64)]) {
+        Ok(s) => s,
+        Err(e) => return -e,
+    };
+
+    let fs = match fs_namespace() {
+        Ok(fs) => fs,
+        Err(e) => return -e,
+    };
+    let mmap_result = fs_call(
+        &fs,
+        "mmap",
+        &[
+            stream,
+            JsValue::from_f64(len as f64),
+            JsValue::from_f64(offset as f64),
+            JsValue::from_f64(prot as f64),
+            JsValue::from_f64(flags as f64),
+        ],
+    );
+    match mmap_result {
+        Ok(res) => {
+            let ptr_val = js_sys::Reflect::get(&res, &"ptr".into()).unwrap_or(JsValue::from_f64(0.0));
+            let alloc_val = js_sys::Reflect::get(&res, &"allocated".into()).unwrap_or(JsValue::FALSE);
+            let ptr = ptr_val.as_f64().unwrap_or(0.0) as usize;
+            let alloc = if alloc_val.as_bool().unwrap_or(false) { 1 } else { 0 };
+            *addr = ptr as *mut u8;
+            *allocated = alloc;
+            0
+        }
+        Err(e) => e, // already negated
+    }
+}
+
+/// `_munmap_js` strong override.
+///
+/// For read-only mappings (our use case) this is a no-op. The weak stub
+/// returns -ENOSYS which would make munmap fail.
+#[no_mangle]
+pub unsafe extern "C" fn _munmap_js(
+    _addr: usize,
+    _len: SizeT,
+    _prot: c_int,
+    _flags: c_int,
+    _fd: c_int,
+    _offset: i64,
+) -> c_int {
+    0
 }
