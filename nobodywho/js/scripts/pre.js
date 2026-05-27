@@ -127,40 +127,6 @@ Module.postRun.push(() => {
       return mountpoint;
     };
 
-    globalThis.__nbw_node_file_to_memfs = async function (srcPath, memfsPath) {
-      const fs = await import('node:fs');
-      const size = fs.statSync(srcPath).size;
-      const CHUNK = 64 * 1024 * 1024;
-      const srcFd = fs.openSync(srcPath, 'r');
-      const memfsStream = FS.open(memfsPath, 'w');
-      try {
-        let offset = 0;
-        while (offset < size) {
-          const toRead = Math.min(CHUNK, size - offset);
-          // Allocate a fresh Uint8Array per chunk and read the slice
-          // into its own backing storage. Buffer.allocUnsafe + FS.write
-          // with the (offset,length,position) form had FS.write writing
-          // wrong bytes (bad GGUF magic in the resulting MEMFS file) —
-          // suspected interaction between Node Buffer view + FS.write's
-          // offset/length handling. A fresh exactly-sized Uint8Array
-          // per chunk avoids any aliasing confusion at FS.write time.
-          const chunkBuf = new Uint8Array(toRead);
-          const bytesRead = fs.readSync(srcFd, chunkBuf, 0, toRead, offset);
-          if (bytesRead === 0) {
-            throw new Error(`__nbw_node_file_to_memfs: unexpected EOF at ${offset} (expected ${size})`);
-          }
-          const written = FS.write(memfsStream, chunkBuf, 0, bytesRead);
-          if (written !== bytesRead) {
-            throw new Error(`__nbw_node_file_to_memfs: short write (${written}/${bytesRead}) at offset ${offset}`);
-          }
-          offset += bytesRead;
-        }
-      } finally {
-        fs.closeSync(srcFd);
-        FS.close(memfsStream);
-      }
-      return memfsPath;
-    };
   }
   const isBrowserWorker = typeof DedicatedWorkerGlobalScope !== 'undefined'
     && typeof self !== 'undefined'
