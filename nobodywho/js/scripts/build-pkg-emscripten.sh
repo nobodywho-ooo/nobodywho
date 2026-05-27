@@ -9,7 +9,7 @@
 #   library_bindgen.js      — kept around so debugging post-link is easy
 #
 # Prereqs (see ../README.md for setup details):
-#   - walkingeyerobot's emscripten fork at /Users/user/git/emscripten-wbg
+#   - walkingeyerobot's emscripten fork at $HOME/emscripten-wbg
 #     providing the -sWASM_BINDGEN setting (PR emscripten-core/emscripten#23493).
 #   - stock wasm-bindgen-cli 0.2.121 at ~/.cargo/bin/wasm-bindgen — used by
 #     em++ as the actual descriptor interpreter, controlled via $EM_WASM_BINDGEN.
@@ -66,12 +66,12 @@ JS_DIR="$ROOT/nobodywho/js"
 PKG_DIR="$JS_DIR/pkg-bundler"
 TARGET_DIR="$ROOT/nobodywho/target/wasm32-unknown-emscripten/release"
 
-EMSDK_DIR="${EMSDK_DIR:-/Users/user/git/emscripten-wbg}"
+EMSDK_DIR="${EMSDK_DIR:-$HOME/emscripten-wbg}"
 EM_CONFIG="${EM_CONFIG:-$EMSDK_DIR/.emscripten}"
 # IMPORTANT: must be the patched wasm-bindgen CLI (descriptor-interpreter
 # fixes + Emscripten output mode), not stock 0.2.121 from crates.io. Build
 # it from the local fork checkout per shell.nix's instructions:
-#   ( cd /Users/user/git/wasm-bindgen && cargo install --path crates/cli \
+#   ( cd ~/wasm-bindgen && cargo install --path crates/cli \
 #       --root /tmp/wbg-patched --locked )
 # Using ~/.cargo/bin/wasm-bindgen here silently fails — stock CLI emits
 # bundler-shape output instead of library_bindgen.js, and the post-link
