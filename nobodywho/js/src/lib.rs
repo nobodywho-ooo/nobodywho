@@ -1338,7 +1338,7 @@ fn tool_from_tagged(part: &JsValue) -> Result<nobodywho::tool_calling::Tool, Str
 /// `sampler` is serialized by the main thread from a `SamplerConfig`
 /// wasm-bindgen class (via `serde_wasm_bindgen::to_value`).
 #[derive(serde::Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ChatOptions {
     context_size: Option<u32>,
     system_prompt: Option<String>,
