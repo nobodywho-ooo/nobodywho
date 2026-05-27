@@ -6,7 +6,7 @@
 
 // Native builds (used by `cargo test -p nobodywho-js` for the lint suite +
 // `cargo check` for IDE integration) trip dead-code warnings on every
-// wasm-only item (SamplerSpec, into_sampler, build_sampler, all the
+// wasm-only item (SamplerConfig, SamplerBuilder, SamplerPresets, all the
 // worker_* helpers, etc.) because the wasm_bindgen-exported callers that
 // use them are cfg-gated to wasm. With CI's `RUSTFLAGS=-D warnings`
 // these escalate to compile errors. The items ARE used on wasm; suppress
@@ -396,143 +396,128 @@ impl Audio {
     }
 }
 
-/// Static factory namespace for common sampler presets. Each method
-/// returns a plain JS object shaped like `Chat.create({sampler: ...})`,
-/// ready to drop in. Mirrors Python's `SamplerPresets`.
+/// A completed sampler configuration. Created via `SamplerBuilder` or
+/// `SamplerPresets`. Pass to `Chat.create({sampler: ...})`. Mirrors
+/// Python's `SamplerConfig`.
+#[wasm_bindgen]
+pub struct SamplerConfig {
+    inner: nobodywho::sampler_config::SamplerConfig,
+}
+
+#[wasm_bindgen]
+impl SamplerConfig {
+    /// Serialize to a JSON string.
+    #[wasm_bindgen(js_name = toJSON)]
+    pub fn to_json(&self) -> Result<String, JsError> {
+        serde_json::to_string(&self.inner).map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// Deserialize from a JSON string.
+    #[wasm_bindgen(js_name = fromJSON)]
+    pub fn from_json(json: &str) -> Result<SamplerConfig, JsError> {
+        let inner: nobodywho::sampler_config::SamplerConfig =
+            serde_json::from_str(json).map_err(|e| JsError::new(&e.to_string()))?;
+        Ok(SamplerConfig { inner })
+    }
+}
+
+/// Static factory for common sampler presets. Mirrors Python's
+/// `SamplerPresets`.
 ///
 /// ```js
-/// import { SamplerPresets } from 'nobodywho-js';
 /// await Chat.create({ modelUrl, sampler: SamplerPresets.greedy() });
 /// await Chat.create({ modelUrl, sampler: SamplerPresets.temperature(0.8) });
-/// ```
-///
-/// The constrain-* presets return a sampler object with a `constraint`
-/// field — pass directly as `sampler`:
-///
-/// ```js
-/// await Chat.create({ modelUrl, sampler: SamplerPresets.constrainWithRegex('^\\d+$') });
+/// await Chat.create({ modelUrl, sampler: SamplerPresets.constrainWithJsonSchema({type: "object"}) });
 /// ```
 #[wasm_bindgen]
 pub struct SamplerPresets;
 
 #[wasm_bindgen]
 impl SamplerPresets {
-    /// Empty sampler — defaults to core's preset (top_k=20, top_p=0.95,
-    /// temperature=0.6, dist).
     #[wasm_bindgen(static_method_of = SamplerPresets, js_name = default)]
-    pub fn default_preset() -> js_sys::Object {
-        js_sys::Object::new()
+    pub fn default_preset() -> SamplerConfig {
+        SamplerConfig {
+            inner: nobodywho::sampler_config::SamplerConfig::default(),
+        }
     }
 
-    /// Always picks the most probable token. Deterministic.
     #[wasm_bindgen(static_method_of = SamplerPresets)]
-    pub fn greedy() -> js_sys::Object {
-        let o = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&o, &"sampleStep".into(), &"greedy".into());
-        o
+    pub fn greedy() -> SamplerConfig {
+        SamplerConfig {
+            inner: nobodywho::sampler_config::SamplerPresets::greedy(),
+        }
     }
 
-    /// Temperature-only sampler.
     #[wasm_bindgen(static_method_of = SamplerPresets)]
-    pub fn temperature(temperature: f32) -> js_sys::Object {
-        let o = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&o, &"temperature".into(), &temperature.into());
-        o
+    pub fn temperature(temperature: f32) -> SamplerConfig {
+        SamplerConfig {
+            inner: nobodywho::sampler_config::SamplerPresets::temperature(temperature),
+        }
     }
 
-    /// Top-K filtering only.
     #[wasm_bindgen(static_method_of = SamplerPresets, js_name = topK)]
-    pub fn top_k(top_k: i32) -> js_sys::Object {
-        let o = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&o, &"topK".into(), &top_k.into());
-        o
+    pub fn top_k(top_k: i32) -> SamplerConfig {
+        SamplerConfig {
+            inner: nobodywho::sampler_config::SamplerPresets::top_k(top_k),
+        }
     }
 
-    /// Nucleus (top-P) sampling only.
     #[wasm_bindgen(static_method_of = SamplerPresets, js_name = topP)]
-    pub fn top_p(top_p: f32) -> js_sys::Object {
-        let o = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&o, &"topP".into(), &top_p.into());
-        o
+    pub fn top_p(top_p: f32) -> SamplerConfig {
+        SamplerConfig {
+            inner: nobodywho::sampler_config::SamplerPresets::top_p(top_p),
+        }
     }
 
-    /// Constrain generation to a regular expression. Returns a sampler
-    /// object — pass as `Chat.create({modelUrl, sampler: preset})`.
     #[wasm_bindgen(static_method_of = SamplerPresets, js_name = constrainWithRegex)]
-    pub fn constrain_with_regex(pattern: String) -> js_sys::Object {
-        let inner = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&inner, &"regex".into(), &pattern.as_str().into());
-        let outer = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&outer, &"constraint".into(), &inner.into());
-        outer
+    pub fn constrain_with_regex(pattern: String) -> SamplerConfig {
+        SamplerConfig {
+            inner: nobodywho::sampler_config::SamplerPresets::constrain_with_regex(pattern),
+        }
     }
 
-    /// Constrain generation to a JSON schema (plain object).
     #[wasm_bindgen(static_method_of = SamplerPresets, js_name = constrainWithJsonSchema)]
-    pub fn constrain_with_json_schema(schema: JsValue) -> js_sys::Object {
-        let inner = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&inner, &"jsonSchema".into(), &schema);
-        let outer = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&outer, &"constraint".into(), &inner.into());
-        outer
+    pub fn constrain_with_json_schema(schema: JsValue) -> Result<SamplerConfig, JsError> {
+        let schema_str = if schema.is_string() {
+            schema.as_string().unwrap()
+        } else {
+            js_sys::JSON::stringify(&schema)
+                .map_err(|_| JsError::new("failed to stringify JSON schema"))?
+                .as_string()
+                .unwrap_or_default()
+        };
+        Ok(SamplerConfig {
+            inner: nobodywho::sampler_config::SamplerPresets::constrain_with_json_schema(
+                schema_str,
+            ),
+        })
     }
 
-    /// Constrain generation to a Lark grammar.
     #[wasm_bindgen(static_method_of = SamplerPresets, js_name = constrainWithGrammar)]
-    pub fn constrain_with_grammar(grammar: String) -> js_sys::Object {
-        let inner = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&inner, &"lark".into(), &grammar.as_str().into());
-        let outer = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&outer, &"constraint".into(), &inner.into());
-        outer
+    pub fn constrain_with_grammar(grammar: String) -> SamplerConfig {
+        SamplerConfig {
+            inner: nobodywho::sampler_config::SamplerPresets::constrain_with_grammar(grammar),
+        }
     }
 
-    /// DRY repetition penalty preset. Uses core's defaults (multiplier=0,
-    /// base=1.75, allowed_length=2, full-context window, common
-    /// newline/colon/quote/star seq breakers). Override individual knobs
-    /// by spreading + replacing: `{...SamplerPresets.dry(), dryMultiplier: 0.8}`.
     #[wasm_bindgen(static_method_of = SamplerPresets)]
-    pub fn dry() -> js_sys::Object {
-        let o = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&o, &"dryMultiplier".into(), &0.0_f64.into());
-        let _ = js_sys::Reflect::set(&o, &"dryBase".into(), &1.75_f64.into());
-        let _ = js_sys::Reflect::set(&o, &"dryAllowedLength".into(), &2_i32.into());
-        let _ = js_sys::Reflect::set(&o, &"dryPenaltyLastN".into(), &(-1_i32).into());
-        let breakers = js_sys::Array::new();
-        breakers.push(&"\n".into());
-        breakers.push(&":".into());
-        breakers.push(&"\"".into());
-        breakers.push(&"*".into());
-        let _ = js_sys::Reflect::set(&o, &"drySeqBreakers".into(), &breakers.into());
-        o
+    pub fn dry() -> SamplerConfig {
+        SamplerConfig {
+            inner: nobodywho::sampler_config::SamplerPresets::dry(),
+        }
     }
 
-    /// Constrain output to ANY valid JSON (no schema). For schema-validated
-    /// JSON, use `constrainWithJsonSchema(schema)` instead. Returns a
-    /// sampler object with an empty `{}` JSON Schema (which llguidance
-    /// accepts as "any valid JSON value").
     #[wasm_bindgen(static_method_of = SamplerPresets)]
-    pub fn json() -> js_sys::Object {
-        let inner = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(
-            &inner,
-            &"jsonSchema".into(),
-            &js_sys::Object::new().into(),
-        );
-        let outer = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&outer, &"constraint".into(), &inner.into());
-        outer
+    pub fn json() -> SamplerConfig {
+        SamplerConfig {
+            inner: nobodywho::sampler_config::SamplerPresets::json(),
+        }
     }
 }
 
-/// Fluent builder for sampler chains. Each shift method returns the
-/// builder for chaining; each terminal method (`dist`, `greedy`,
-/// `mirostatV1`, `mirostatV2`) returns the finished sampler spec as a
-/// plain JS object — pass directly to `Chat.create({sampler: ...})`.
-/// Mirrors Python's `SamplerBuilder`.
+/// Fluent builder for sampler chains. Mirrors Python's `SamplerBuilder`.
 ///
 /// ```js
-/// import { SamplerBuilder } from 'nobodywho-js';
 /// const sampler = new SamplerBuilder()
 ///   .topK(40)
 ///   .topP(0.95)
@@ -542,7 +527,19 @@ impl SamplerPresets {
 /// ```
 #[wasm_bindgen]
 pub struct SamplerBuilder {
-    spec: js_sys::Object,
+    inner: nobodywho::sampler_config::SamplerConfig,
+}
+
+fn shift(builder: SamplerBuilder, step: nobodywho::sampler_config::ShiftStep) -> SamplerBuilder {
+    SamplerBuilder {
+        inner: builder.inner.shift(step),
+    }
+}
+
+fn sample(builder: SamplerBuilder, step: nobodywho::sampler_config::SampleStep) -> SamplerConfig {
+    SamplerConfig {
+        inner: builder.inner.sample(step),
+    }
 }
 
 #[wasm_bindgen]
@@ -550,50 +547,29 @@ impl SamplerBuilder {
     #[wasm_bindgen(constructor)]
     pub fn new() -> SamplerBuilder {
         SamplerBuilder {
-            spec: js_sys::Object::new(),
+            inner: nobodywho::sampler_config::SamplerConfig::new(),
         }
     }
 
-    /// Shift step: temperature scaling. Returns self for chaining.
     pub fn temperature(self, temperature: f32) -> SamplerBuilder {
-        let _ = js_sys::Reflect::set(&self.spec, &"temperature".into(), &temperature.into());
-        self
+        shift(self, nobodywho::sampler_config::ShiftStep::Temperature { temperature })
     }
 
-    /// Shift step: top-K filtering. Returns self for chaining.
     #[wasm_bindgen(js_name = topK)]
     pub fn top_k(self, top_k: i32) -> SamplerBuilder {
-        let _ = js_sys::Reflect::set(&self.spec, &"topK".into(), &top_k.into());
-        self
+        shift(self, nobodywho::sampler_config::ShiftStep::TopK { top_k })
     }
 
-    /// Shift step: nucleus (top-P) sampling. Returns self for chaining.
     #[wasm_bindgen(js_name = topP)]
-    pub fn top_p(self, top_p: f32) -> SamplerBuilder {
-        let _ = js_sys::Reflect::set(&self.spec, &"topP".into(), &top_p.into());
-        self
+    pub fn top_p(self, top_p: f32, min_keep: u32) -> SamplerBuilder {
+        shift(self, nobodywho::sampler_config::ShiftStep::TopP { top_p, min_keep })
     }
 
-    /// Shift step: min-P sampling. Returns self for chaining.
     #[wasm_bindgen(js_name = minP)]
-    pub fn min_p(self, min_p: f32) -> SamplerBuilder {
-        let _ = js_sys::Reflect::set(&self.spec, &"minP".into(), &min_p.into());
-        self
+    pub fn min_p(self, min_p: f32, min_keep: u32) -> SamplerBuilder {
+        shift(self, nobodywho::sampler_config::ShiftStep::MinP { min_p, min_keep })
     }
 
-    /// Shift step: repeat-penalty (penalty only). Returns self for
-    /// chaining. For all four repeat-penalty knobs in one call, use
-    /// `.penalties()`.
-    #[wasm_bindgen(js_name = repeatPenalty)]
-    pub fn repeat_penalty(self, penalty: f32, last_n: i32) -> SamplerBuilder {
-        let _ = js_sys::Reflect::set(&self.spec, &"repeatPenalty".into(), &penalty.into());
-        let _ = js_sys::Reflect::set(&self.spec, &"repeatLastN".into(), &last_n.into());
-        self
-    }
-
-    /// Shift step: full repeat-penalty step with all four knobs —
-    /// matches Python's `SamplerBuilder.penalties()`. Returns self for
-    /// chaining.
     pub fn penalties(
         self,
         penalty_repeat: f32,
@@ -601,99 +577,78 @@ impl SamplerBuilder {
         penalty_freq: f32,
         penalty_present: f32,
     ) -> SamplerBuilder {
-        let _ = js_sys::Reflect::set(&self.spec, &"repeatPenalty".into(), &penalty_repeat.into());
-        let _ = js_sys::Reflect::set(&self.spec, &"repeatLastN".into(), &penalty_last_n.into());
-        let _ = js_sys::Reflect::set(
-            &self.spec,
-            &"repeatFreqPenalty".into(),
-            &penalty_freq.into(),
-        );
-        let _ = js_sys::Reflect::set(
-            &self.spec,
-            &"repeatPresentPenalty".into(),
-            &penalty_present.into(),
-        );
-        self
+        shift(
+            self,
+            nobodywho::sampler_config::ShiftStep::Penalties {
+                penalty_last_n,
+                penalty_repeat,
+                penalty_freq,
+                penalty_present,
+            },
+        )
     }
 
-    /// Shift step: DRY ("Don't Repeat Yourself") repetition penalty.
-    /// Returns self for chaining. `seqBreakers` defaults to common
-    /// punctuation breakers when not supplied; pass an empty array to
-    /// disable.
     pub fn dry(
         self,
         multiplier: f32,
         base: f32,
         allowed_length: i32,
         penalty_last_n: i32,
-        seq_breakers: js_sys::Array,
+        seq_breakers: Vec<String>,
     ) -> SamplerBuilder {
-        let _ = js_sys::Reflect::set(&self.spec, &"dryMultiplier".into(), &multiplier.into());
-        let _ = js_sys::Reflect::set(&self.spec, &"dryBase".into(), &base.into());
-        let _ = js_sys::Reflect::set(
-            &self.spec,
-            &"dryAllowedLength".into(),
-            &allowed_length.into(),
-        );
-        let _ = js_sys::Reflect::set(
-            &self.spec,
-            &"dryPenaltyLastN".into(),
-            &penalty_last_n.into(),
-        );
-        let _ = js_sys::Reflect::set(&self.spec, &"drySeqBreakers".into(), &seq_breakers.into());
-        self
+        shift(
+            self,
+            nobodywho::sampler_config::ShiftStep::DRY {
+                multiplier,
+                base,
+                allowed_length,
+                penalty_last_n,
+                seq_breakers,
+            },
+        )
     }
 
-    /// Shift step: XTC ("Exclude Top Choices") sampling. Returns self
-    /// for chaining.
-    pub fn xtc(self, probability: f32, threshold: f32, min_keep: u32) -> SamplerBuilder {
-        let _ = js_sys::Reflect::set(&self.spec, &"xtcProbability".into(), &probability.into());
-        let _ = js_sys::Reflect::set(&self.spec, &"xtcThreshold".into(), &threshold.into());
-        let _ = js_sys::Reflect::set(&self.spec, &"xtcMinKeep".into(), &min_keep.into());
-        self
+    pub fn xtc(self, xtc_probability: f32, xtc_threshold: f32, min_keep: u32) -> SamplerBuilder {
+        shift(
+            self,
+            nobodywho::sampler_config::ShiftStep::XTC {
+                xtc_probability,
+                xtc_threshold,
+                min_keep,
+            },
+        )
     }
 
-    /// Shift step: Typical-P (locally typical) sampling. Returns self
-    /// for chaining.
     #[wasm_bindgen(js_name = typicalP)]
     pub fn typical_p(self, typ_p: f32, min_keep: u32) -> SamplerBuilder {
-        let _ = js_sys::Reflect::set(&self.spec, &"typicalP".into(), &typ_p.into());
-        let _ = js_sys::Reflect::set(&self.spec, &"typicalPMinKeep".into(), &min_keep.into());
-        self
+        shift(
+            self,
+            nobodywho::sampler_config::ShiftStep::TypicalP { typ_p, min_keep },
+        )
     }
 
-    /// Terminal: weighted-random sample from the shifted distribution.
-    /// Returns the completed sampler spec.
-    pub fn dist(self) -> js_sys::Object {
-        let _ = js_sys::Reflect::set(&self.spec, &"sampleStep".into(), &"dist".into());
-        self.spec
+    pub fn dist(self) -> SamplerConfig {
+        sample(self, nobodywho::sampler_config::SampleStep::Dist)
     }
 
-    /// Terminal: always pick the most probable token. Returns the
-    /// completed sampler spec.
-    pub fn greedy(self) -> js_sys::Object {
-        let _ = js_sys::Reflect::set(&self.spec, &"sampleStep".into(), &"greedy".into());
-        self.spec
+    pub fn greedy(self) -> SamplerConfig {
+        sample(self, nobodywho::sampler_config::SampleStep::Greedy)
     }
 
-    /// Terminal: Mirostat v1. Returns the completed sampler spec.
     #[wasm_bindgen(js_name = mirostatV1)]
-    pub fn mirostat_v1(self, tau: f32, eta: f32, m: i32) -> js_sys::Object {
-        let _ = js_sys::Reflect::set(&self.spec, &"sampleStep".into(), &"mirostatV1".into());
-        let _ = js_sys::Reflect::set(&self.spec, &"mirostatTau".into(), &tau.into());
-        let _ = js_sys::Reflect::set(&self.spec, &"mirostatEta".into(), &eta.into());
-        let _ = js_sys::Reflect::set(&self.spec, &"mirostatM".into(), &m.into());
-        self.spec
+    pub fn mirostat_v1(self, tau: f32, eta: f32, m: i32) -> SamplerConfig {
+        sample(
+            self,
+            nobodywho::sampler_config::SampleStep::MirostatV1 { tau, eta, m },
+        )
     }
 
-    /// Terminal: Mirostat v2 (simpler than v1; usually preferred).
-    /// Returns the completed sampler spec.
     #[wasm_bindgen(js_name = mirostatV2)]
-    pub fn mirostat_v2(self, tau: f32, eta: f32) -> js_sys::Object {
-        let _ = js_sys::Reflect::set(&self.spec, &"sampleStep".into(), &"mirostatV2".into());
-        let _ = js_sys::Reflect::set(&self.spec, &"mirostatTau".into(), &tau.into());
-        let _ = js_sys::Reflect::set(&self.spec, &"mirostatEta".into(), &eta.into());
-        self.spec
+    pub fn mirostat_v2(self, tau: f32, eta: f32) -> SamplerConfig {
+        sample(
+            self,
+            nobodywho::sampler_config::SampleStep::MirostatV2 { tau, eta },
+        )
     }
 }
 
@@ -1376,278 +1331,18 @@ fn tool_from_tagged(part: &JsValue) -> Result<nobodywho::tool_calling::Tool, Str
     ))
 }
 
-/// Optional config passed to `Chat.create`. Pass as a plain JS object:
+/// Optional config passed to `Chat.create`. Deserialized on the worker
+/// side from the postMessage'd JS object.
 ///
-/// ```js
-/// await Chat.create({
-///   modelUrl,
-///   contextSize: 4096,
-///   systemPrompt: "You are helpful.",
-///   sampler: { temperature: 0.7, constraint: { jsonSchema: {type: "object"} } },
-/// });
-/// ```
-// `deny_unknown_fields` matches ConstraintSpec below and surfaces JS-side
-// typos / unsupported options (e.g. `tools: [...]`) as a JsError at
-// construction time, rather than serde silently dropping the field.
+/// `sampler` is serialized by the main thread from a `SamplerConfig`
+/// wasm-bindgen class (via `serde_wasm_bindgen::to_value`).
 #[derive(serde::Deserialize, Default)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct ChatOptions {
     context_size: Option<u32>,
     system_prompt: Option<String>,
-    /// Sampling knobs (temperature, top_p, top_k, etc.) and optional
-    /// constraint for structured output. All fields are optional; absent
-    /// fields are not applied. When `sampler` is omitted entirely, the
-    /// core's default sampler is used (top_k=20, top_p=0.95,
-    /// temperature=0.6, dist sampling).
-    sampler: Option<SamplerSpec>,
-    /// Variables passed to the chat template, e.g. `{ enable_thinking: false }`
-    /// for Qwen-Thinking-style models that emit `<think>…</think>` blocks you
-    /// don't want in the response. Mirrors Python's `template_variables`. Only
-    /// boolean values are accepted (matches Python and the core template
-    /// layer); a non-bool value rejects at construction time.
+    sampler: Option<nobodywho::sampler_config::SamplerConfig>,
     template_variables: Option<std::collections::HashMap<String, bool>>,
-}
-
-/// Grammar constraint for structured-output generation, via llguidance.
-///
-/// Exactly one of the fields should be set. JS-side examples:
-///
-/// ```js
-/// // JSON Schema (plain object — no JSON.stringify needed):
-/// { jsonSchema: {type: "object", properties: {answer: {type: "string"}}} }
-///
-/// // Regex:
-/// { regex: "[A-Z][a-z]+" }
-///
-/// // Lark CFG:
-/// { lark: 'start: "yes" | "no"' }
-/// ```
-///
-/// All three are documented in core's `GrammarConstraint`; this is just the
-/// JS-facing wire format.
-///
-/// The grammar sampler runs through llguidance, which needs a monotonic
-/// clock — Emscripten's libc has `clock_gettime`, so this works at
-/// runtime. End-to-end verified on Emscripten via
-/// `js/scripts/constraint-smoke.mjs` (regex + json_schema + lark).
-#[derive(serde::Deserialize, Debug)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct ConstraintSpec {
-    json_schema: Option<serde_json::Value>,
-    regex: Option<String>,
-    lark: Option<String>,
-}
-
-impl ConstraintSpec {
-    /// Extract the constraint as a shift step for the sampler chain.
-    fn into_shift_step(self) -> Result<nobodywho::sampler_config::ShiftStep, JsError> {
-        use nobodywho::sampler_config::ShiftStep;
-        let n_set = self.json_schema.is_some() as u8
-            + self.regex.is_some() as u8
-            + self.lark.is_some() as u8;
-        if n_set != 1 {
-            return Err(JsError::new(
-                "constraint must set exactly one of jsonSchema / regex / lark",
-            ));
-        }
-        Ok(if let Some(v) = self.json_schema {
-            ShiftStep::JsonSchema(serde_json::to_string(&v).unwrap())
-        } else if let Some(p) = self.regex {
-            ShiftStep::Regex(p)
-        } else {
-            ShiftStep::Lark(self.lark.unwrap())
-        })
-    }
-}
-
-/// JS-facing sampler configuration. All fields optional; absent ones are
-/// not applied. To get the standard preset, omit `sampler` from
-/// `ChatOptions` entirely (which falls back to core's default).
-///
-/// Shift steps are applied in llama.cpp's canonical order:
-/// constraint → penalties → top_k → top_p → min_p → temperature → sample_step.
-///
-/// JS shape:
-/// ```js
-/// await Chat.create({
-///   modelUrl,
-///   sampler: {
-///     temperature: 0.7,
-///     topK: 40,
-///     topP: 0.95,
-///     minP: 0.05,
-///     repeatPenalty: 1.1,
-///     repeatLastN: 64,
-///     sampleStep: 'dist', // 'dist' | 'greedy' | 'mirostatV1' | 'mirostatV2'
-///     constraint: { jsonSchema: {type: "object", properties: {answer: {type: "string"}}} },
-///   },
-/// });
-/// ```
-///
-/// `sampleStep: 'greedy'` ignores temperature / topK / topP and always
-/// picks the highest-probability token — useful for deterministic output.
-#[derive(serde::Deserialize, Default, Debug)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct SamplerSpec {
-    /// Structured-output constraint (jsonSchema / regex / lark). When set,
-    /// the grammar shift step is prepended to the sampler chain.
-    constraint: Option<ConstraintSpec>,
-    temperature: Option<f32>,
-    top_k: Option<i32>,
-    top_p: Option<f32>,
-    min_p: Option<f32>,
-    /// Repeat penalty — sets `ShiftStep::Penalties.penalty_repeat`. Setting
-    /// any of `repeat*` adds a Penalties step (other repeat fields default
-    /// to 0/1/64 if unset).
-    repeat_penalty: Option<f32>,
-    repeat_last_n: Option<i32>,
-    repeat_freq_penalty: Option<f32>,
-    repeat_present_penalty: Option<f32>,
-    /// `'dist'` (default) | `'greedy'` | `'mirostatV1'` | `'mirostatV2'`.
-    sample_step: Option<String>,
-    /// MirostatV1 / MirostatV2 only.
-    mirostat_tau: Option<f32>,
-    /// MirostatV1 / MirostatV2 only.
-    mirostat_eta: Option<f32>,
-    /// MirostatV1 only.
-    mirostat_m: Option<i32>,
-    /// Typical-P (locally typical) sampling threshold. Adds a TypicalP
-    /// shift step when set.
-    typical_p: Option<f32>,
-    /// Typical-P minimum tokens to keep. Defaults to 1 when only
-    /// `typical_p` is given.
-    typical_p_min_keep: Option<u32>,
-    /// XTC ("Exclude Top Choices") probability of triggering. Setting
-    /// any of the `xtc_*` fields adds an XTC shift step.
-    xtc_probability: Option<f32>,
-    /// XTC threshold — tokens above this probability become candidates
-    /// for exclusion.
-    xtc_threshold: Option<f32>,
-    /// XTC minimum tokens to keep.
-    xtc_min_keep: Option<u32>,
-    /// DRY ("Don't Repeat Yourself") repetition-penalty multiplier.
-    /// Setting any of the `dry_*` fields adds a DRY shift step.
-    dry_multiplier: Option<f32>,
-    /// DRY base — exponent base for the per-repeat-length penalty.
-    dry_base: Option<f32>,
-    /// DRY maximum allowed repeat length before penalty applies.
-    dry_allowed_length: Option<i32>,
-    /// DRY scope: how many recent tokens to consider. `-1` (default in
-    /// core) means the full context.
-    dry_penalty_last_n: Option<i32>,
-    /// DRY sequence breakers — strings that reset the repetition
-    /// detector. Common defaults: `["\n", ":", "\"", "*"]`.
-    dry_seq_breakers: Option<Vec<String>>,
-}
-
-impl SamplerSpec {
-    fn into_sampler(self) -> Result<nobodywho::sampler_config::SamplerConfig, JsError> {
-        use nobodywho::sampler_config::{SampleStep, SamplerConfig, ShiftStep};
-
-        let mut config = SamplerConfig::new();
-
-        if let Some(c) = self.constraint {
-            config = config.shift(c.into_shift_step()?);
-        }
-
-        if self.repeat_penalty.is_some()
-            || self.repeat_last_n.is_some()
-            || self.repeat_freq_penalty.is_some()
-            || self.repeat_present_penalty.is_some()
-        {
-            config = config.shift(ShiftStep::Penalties {
-                penalty_last_n: self.repeat_last_n.unwrap_or(64),
-                penalty_repeat: self.repeat_penalty.unwrap_or(1.0),
-                penalty_freq: self.repeat_freq_penalty.unwrap_or(0.0),
-                penalty_present: self.repeat_present_penalty.unwrap_or(0.0),
-            });
-        }
-        if let Some(k) = self.top_k {
-            config = config.shift(ShiftStep::TopK { top_k: k });
-        }
-        if let Some(p) = self.top_p {
-            config = config.shift(ShiftStep::TopP {
-                top_p: p,
-                min_keep: 1,
-            });
-        }
-        if let Some(p) = self.min_p {
-            config = config.shift(ShiftStep::MinP {
-                min_p: p,
-                min_keep: 1,
-            });
-        }
-        if let Some(p) = self.typical_p {
-            config = config.shift(ShiftStep::TypicalP {
-                typ_p: p,
-                min_keep: self.typical_p_min_keep.unwrap_or(1),
-            });
-        }
-        if self.xtc_probability.is_some()
-            || self.xtc_threshold.is_some()
-            || self.xtc_min_keep.is_some()
-        {
-            config = config.shift(ShiftStep::XTC {
-                xtc_probability: self.xtc_probability.unwrap_or(0.0),
-                xtc_threshold: self.xtc_threshold.unwrap_or(0.1),
-                min_keep: self.xtc_min_keep.unwrap_or(1),
-            });
-        }
-        if self.dry_multiplier.is_some()
-            || self.dry_base.is_some()
-            || self.dry_allowed_length.is_some()
-            || self.dry_penalty_last_n.is_some()
-            || self.dry_seq_breakers.is_some()
-        {
-            config = config.shift(ShiftStep::DRY {
-                multiplier: self.dry_multiplier.unwrap_or(0.0),
-                base: self.dry_base.unwrap_or(1.75),
-                allowed_length: self.dry_allowed_length.unwrap_or(2),
-                penalty_last_n: self.dry_penalty_last_n.unwrap_or(-1),
-                seq_breakers: self.dry_seq_breakers.unwrap_or_else(|| {
-                    vec![
-                        "\n".to_string(),
-                        ":".to_string(),
-                        "\"".to_string(),
-                        "*".to_string(),
-                    ]
-                }),
-            });
-        }
-        if let Some(t) = self.temperature {
-            config = config.shift(ShiftStep::Temperature { temperature: t });
-        }
-
-        let sample_step = match self.sample_step.as_deref() {
-            None | Some("dist") => SampleStep::Dist,
-            Some("greedy") => SampleStep::Greedy,
-            Some("mirostatV1") => SampleStep::MirostatV1 {
-                tau: self.mirostat_tau.unwrap_or(5.0),
-                eta: self.mirostat_eta.unwrap_or(0.1),
-                m: self.mirostat_m.unwrap_or(100),
-            },
-            Some("mirostatV2") => SampleStep::MirostatV2 {
-                tau: self.mirostat_tau.unwrap_or(5.0),
-                eta: self.mirostat_eta.unwrap_or(0.1),
-            },
-            Some(other) => {
-                return Err(JsError::new(&format!(
-                    "sampler.sampleStep must be 'dist' | 'greedy' | 'mirostatV1' | 'mirostatV2'; got {other:?}",
-                )));
-            }
-        };
-        config = config.sample(sample_step);
-
-        Ok(config)
-    }
-}
-
-/// Build a sampler from the optional `SamplerSpec`. Returns `None` when
-/// `sampler` is omitted (caller falls back to core's default).
-fn build_sampler(
-    sampler: Option<SamplerSpec>,
-) -> Result<Option<nobodywho::sampler_config::SamplerConfig>, JsError> {
-    sampler.map(|s| s.into_sampler()).transpose()
 }
 
 // ---------- Encoder ----------
@@ -2188,10 +1883,9 @@ async fn handle_worker_message(data: JsValue, scope: &JsValue) -> Result<(), Str
                 .ok_or_else(|| "chat not created".to_string())?;
             let sampler_jsval = js_sys::Reflect::get(&data, &"sampler".into())
                 .map_err(|_| "missing 'sampler' field".to_string())?;
-            // SamplerSpec is the JS-friendly shape; convert to core's SamplerConfig.
-            let spec: SamplerSpec = serde_wasm_bindgen::from_value(sampler_jsval)
-                .map_err(|e| format!("sampler: {e}"))?;
-            let cfg = spec.into_sampler().map_err(|e| format!("{e:?}"))?;
+            let cfg: nobodywho::sampler_config::SamplerConfig =
+                serde_wasm_bindgen::from_value(sampler_jsval)
+                    .map_err(|e| format!("sampler: {e}"))?;
             handle
                 .set_sampler_config(cfg)
                 .await
@@ -2389,16 +2083,7 @@ fn chat_handle_from_options(
     if let Some(sys) = opts.system_prompt {
         builder = builder.with_system_prompt(Some(sys));
     }
-    if let Some(sampler) = build_sampler(opts.sampler).map_err(|e| {
-        // build_sampler returns Err(JsError) only when the spec is invalid
-        // (constraint not exclusive-one-of, unknown sampleStep, etc.); reach
-        // into the underlying Error.message via Reflect.
-        let val: JsValue = e.into();
-        js_sys::Reflect::get(&val, &"message".into())
-            .ok()
-            .and_then(|m| m.as_string())
-            .unwrap_or_else(|| "invalid sampler".to_string())
-    })? {
+    if let Some(sampler) = opts.sampler {
         builder = builder.with_sampler(sampler);
     }
     if let Some(vars) = opts.template_variables {
@@ -3149,6 +2834,7 @@ impl Chat {
 
     /// Read the current sampler config. Returns the JSON shape used by
     /// `Chat.create({sampler: ...})`.
+    /// Get the current sampler config. Returns a `SamplerConfig`.
     #[wasm_bindgen(js_name = getSamplerConfig)]
     pub fn get_sampler_config(&self) -> js_sys::Promise {
         let state = self.state.clone();
@@ -3159,21 +2845,27 @@ impl Chat {
             worker_post(&state.borrow().worker, &msg)
                 .map_err(|e| JsError::new(&format!("post get-sampler: {e:?}")))?;
             let reply = wait_for_handshake(&state, "sampler-reply").await?;
-            let sampler = js_sys::Reflect::get(&reply, &"sampler".into()).unwrap_or(JsValue::NULL);
-            Ok(sampler)
+            let sampler_jsval =
+                js_sys::Reflect::get(&reply, &"sampler".into()).unwrap_or(JsValue::NULL);
+            let inner: nobodywho::sampler_config::SamplerConfig =
+                serde_wasm_bindgen::from_value(sampler_jsval)
+                    .map_err(|e| JsError::new(&format!("sampler deserialize: {e}")))?;
+            Ok(SamplerConfig { inner })
         })
     }
 
-    /// Replace the sampler config. Takes the same shape as
-    /// `Chat.create({sampler: ...})`.
+    /// Replace the sampler config. Takes a `SamplerConfig` (from
+    /// `SamplerBuilder` or `SamplerPresets`).
     #[wasm_bindgen(js_name = setSamplerConfig)]
-    pub fn set_sampler_config(&self, sampler: JsValue) -> js_sys::Promise {
+    pub fn set_sampler_config(&self, sampler: &SamplerConfig) -> js_sys::Promise {
+        let serialized = serde_wasm_bindgen::to_value(&sampler.inner)
+            .unwrap_or(JsValue::NULL);
         let state = self.state.clone();
         promisify(async move {
             check_not_terminated(&state)?;
             let msg = js_sys::Object::new();
             let _ = js_sys::Reflect::set(&msg, &"type".into(), &"set-sampler".into());
-            let _ = js_sys::Reflect::set(&msg, &"sampler".into(), &sampler);
+            let _ = js_sys::Reflect::set(&msg, &"sampler".into(), &serialized);
             worker_post(&state.borrow().worker, &msg)
                 .map_err(|e| JsError::new(&format!("post set-sampler: {e:?}")))?;
             let _ = wait_for_handshake(&state, "sampler-set").await?;
@@ -3704,6 +3396,9 @@ fn parse_chat_create_opts(opts: &JsValue) -> Result<ChatCreateParsed, JsError> {
     }
 
     // Build a filtered JS object containing only the ChatOptions fields.
+    // The sampler field needs special handling: it's a SamplerConfig
+    // wasm-bindgen class that can't be structured-cloned. Serialize its
+    // inner core config to a plain JS value for the worker.
     let chat_opts_obj = js_sys::Object::new();
     let keys = js_sys::Object::keys(obj);
     for k in keys.iter() {
@@ -3716,6 +3411,7 @@ fn parse_chat_create_opts(opts: &JsValue) -> Result<ChatCreateParsed, JsError> {
                 | "mmprojPath"
                 | "onDownloadProgress"
                 | "tools"
+                | "sampler"
         ) {
             continue;
         }
@@ -3724,13 +3420,18 @@ fn parse_chat_create_opts(opts: &JsValue) -> Result<ChatCreateParsed, JsError> {
         }
     }
 
-    // Validate by attempting to parse to ChatOptions. We don't keep the
-    // result — we pass the raw JS object to the worker — but parsing here
-    // catches typos and unsupported fields (`deny_unknown_fields`) at
-    // create time rather than at chat-creation time inside the worker.
-    if js_sys::Object::keys(&chat_opts_obj).length() > 0 {
-        let _: ChatOptions = serde_wasm_bindgen::from_value(chat_opts_obj.clone().into())
-            .map_err(|e| JsError::new(&format!("Chat.create options: {e}")))?;
+    // Serialize the SamplerConfig class → plain JS value for the worker.
+    if let Ok(sampler_val) = js_sys::Reflect::get(obj, &"sampler".into()) {
+        if !sampler_val.is_undefined() && !sampler_val.is_null() {
+            let sampler_ref: &SamplerConfig = sampler_val
+                .dyn_ref::<SamplerConfig>()
+                .ok_or_else(|| {
+                    JsError::new("sampler must be a SamplerConfig (from SamplerBuilder or SamplerPresets)")
+                })?;
+            let serialized = serde_wasm_bindgen::to_value(&sampler_ref.inner)
+                .map_err(|e| JsError::new(&format!("sampler serialization: {e}")))?;
+            let _ = js_sys::Reflect::set(&chat_opts_obj, &"sampler".into(), &serialized);
+        }
     }
 
     Ok(ChatCreateParsed {
