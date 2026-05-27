@@ -1116,5 +1116,4 @@ mod tests {
         cb(100, 100);
         assert_eq!(count.load(Ordering::Relaxed), 2);
     }
-
 }

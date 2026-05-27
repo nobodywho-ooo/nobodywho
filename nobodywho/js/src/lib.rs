@@ -3392,12 +3392,7 @@ fn parse_chat_create_opts(opts: &JsValue) -> Result<ChatCreateParsed, JsError> {
         let key_str = k.as_string().unwrap_or_default();
         if matches!(
             key_str.as_str(),
-            "modelUrl"
-                | "modelPath"
-                | "mmprojUrl"
-                | "mmprojPath"
-                | "tools"
-                | "sampler"
+            "modelUrl" | "modelPath" | "mmprojUrl" | "mmprojPath" | "tools" | "sampler"
         ) {
             continue;
         }
