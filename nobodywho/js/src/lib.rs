@@ -863,6 +863,116 @@ fn js_fs_write_file(path: &str, bytes: &[u8]) -> Result<(), String> {
     Ok(())
 }
 
+/// Stream a fetch() response directly into a MEMFS file. Runs on the
+/// worker so the download goes straight to the virtual FS without an
+/// intermediate JS buffer or main-thread copy.
+///
+/// `on_progress` is an optional JS callback `(downloaded, total) => void`
+/// posted back to main via the worker's postMessage.
+#[cfg(target_family = "wasm")]
+async fn stream_url_to_memfs(
+    kind: &str,
+    url: &str,
+    on_progress: Option<&js_sys::Function>,
+) -> Result<std::path::PathBuf, String> {
+    let memfs_path = format!("/home/web_user/nbw-{kind}.gguf");
+
+    let response_jsval = wasm_bindgen_futures::JsFuture::from(fetch_from_global(url))
+        .await
+        .map_err(|e| format!("fetch failed: {e:?}"))?;
+    let response: web_sys::Response = response_jsval
+        .dyn_into()
+        .map_err(|_| "fetch did not return a Response".to_string())?;
+    if !response.ok() {
+        return Err(format!(
+            "fetch {url}: HTTP {} {}",
+            response.status(),
+            response.status_text()
+        ));
+    }
+    let total: f64 = response
+        .headers()
+        .get("content-length")
+        .ok()
+        .flatten()
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(0.0);
+
+    let body = response
+        .body()
+        .ok_or_else(|| "response.body is null".to_string())?;
+    let reader: web_sys::ReadableStreamDefaultReader = body
+        .get_reader()
+        .dyn_into()
+        .map_err(|_| "expected ReadableStreamDefaultReader".to_string())?;
+
+    let fs = {
+        let global_obj = js_sys::global();
+        let module = js_sys::Reflect::get(&global_obj, &"Module".into())
+            .map_err(|_| "Module not found".to_string())?;
+        js_sys::Reflect::get(&module, &"FS".into())
+            .map_err(|_| "Module.FS not found".to_string())?
+    };
+    let fs_open: js_sys::Function = js_sys::Reflect::get(&fs, &"open".into())
+        .ok()
+        .and_then(|v| v.dyn_into().ok())
+        .ok_or("FS.open not found")?;
+    let fs_write: js_sys::Function = js_sys::Reflect::get(&fs, &"write".into())
+        .ok()
+        .and_then(|v| v.dyn_into().ok())
+        .ok_or("FS.write not found")?;
+    let fs_close: js_sys::Function = js_sys::Reflect::get(&fs, &"close".into())
+        .ok()
+        .and_then(|v| v.dyn_into().ok())
+        .ok_or("FS.close not found")?;
+
+    let stream = fs_open
+        .call2(&fs, &JsValue::from_str(&memfs_path), &JsValue::from_str("w"))
+        .map_err(|e| format!("FS.open({memfs_path}, w) failed: {e:?}"))?;
+
+    let mut downloaded: f64 = 0.0;
+    loop {
+        let read_result = wasm_bindgen_futures::JsFuture::from(reader.read())
+            .await
+            .map_err(|e| format!("reader.read(): {e:?}"))?;
+        let done = js_sys::Reflect::get(&read_result, &"done".into())
+            .ok()
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        if done {
+            break;
+        }
+        let value = js_sys::Reflect::get(&read_result, &"value".into())
+            .map_err(|_| "read result missing 'value'".to_string())?;
+        let chunk: js_sys::Uint8Array = value
+            .dyn_into()
+            .map_err(|_| "read chunk is not a Uint8Array".to_string())?;
+        let chunk_len = chunk.byte_length() as f64;
+        let written = fs_write
+            .call3(&fs, &stream, &chunk.into(), &JsValue::UNDEFINED)
+            .map_err(|e| format!("FS.write failed: {e:?}"))?
+            .as_f64()
+            .unwrap_or(0.0);
+        if (written - chunk_len).abs() > 0.5 {
+            let _ = fs_close.call1(&fs, &stream);
+            return Err(format!(
+                "FS.write short write: {written}/{chunk_len} at offset {downloaded}"
+            ));
+        }
+        downloaded += chunk_len;
+        if let Some(cb) = on_progress {
+            let _ = cb.call2(
+                &JsValue::null(),
+                &JsValue::from_f64(downloaded),
+                &JsValue::from_f64(total),
+            );
+        }
+    }
+    let _ = fs_close.call1(&fs, &stream);
+
+    Ok(std::path::PathBuf::from(memfs_path))
+}
+
 /// Convert a `JsValue` (a bare string OR an array containing strings and
 /// tagged media-part objects) into a core `Prompt`. Used by the in-process
 /// `Chat::ask` AND (post-postMessage) by the worker dispatcher's `"ask"`
@@ -1742,38 +1852,44 @@ async fn handle_worker_message(data: JsValue, scope: &JsValue) -> Result<(), Str
             post(&worker_reply("ready"));
         }
         "load-model" => {
-            // Two input shapes per slot:
+            // Three input shapes per slot:
+            //   - url / mmprojUrl: fetch streamed directly into MEMFS.
             //   - bytes / mmprojBytes: Uint8Array, written to MEMFS via FS.writeFile.
-            //   - srcPath / mmprojSrcPath: host filesystem path string. Node-only;
-            //     mounted via NODEFS so llama.cpp reads directly from disk
-            //     (no MEMFS copy, no 2 GiB readFileSync cap).
-            // Mutual exclusion enforced main-side in parse_chat_create_opts; here
-            // we just take whichever one came through.
+            //   - srcPath / mmprojSrcPath: host path string. Node-only;
+            //     mounted via NODEFS so llama.cpp reads directly from disk.
+            // Mutual exclusion enforced main-side in parse_chat_create_opts.
 
-            // Resolve the main model path. srcPath → NODEFS mount (disk),
-            // bytes → MEMFS write.
             let model_path: std::path::PathBuf = if let Some(p) =
                 js_sys::Reflect::get(&data, &"srcPath".into())
                     .ok()
                     .and_then(|v| v.as_string())
             {
                 mount_host_path_via_nodefs("model", &p)?
+            } else if let Some(url) = js_sys::Reflect::get(&data, &"url".into())
+                .ok()
+                .and_then(|v| v.as_string())
+            {
+                stream_url_to_memfs("model", &url, None).await?
             } else {
                 let bytes_val = js_sys::Reflect::get(&data, &"bytes".into())
-                    .map_err(|_| "missing 'bytes' or 'srcPath' field".to_string())?;
+                    .map_err(|_| "missing 'bytes', 'url', or 'srcPath' field".to_string())?;
                 let u8_array: js_sys::Uint8Array = bytes_val
                     .dyn_into()
                     .map_err(|_| "'bytes' must be a Uint8Array".to_string())?;
                 write_bytes_to_memfs("model", &u8_array.to_vec())?
             };
 
-            // Same shape for mmproj, but optional.
             let mmproj_path: Option<std::path::PathBuf> = if let Some(p) =
                 js_sys::Reflect::get(&data, &"mmprojSrcPath".into())
                     .ok()
                     .and_then(|v| v.as_string())
             {
                 Some(mount_host_path_via_nodefs("mmproj", &p)?)
+            } else if let Some(url) = js_sys::Reflect::get(&data, &"mmprojUrl".into())
+                .ok()
+                .and_then(|v| v.as_string())
+            {
+                Some(stream_url_to_memfs("mmproj", &url, None).await?)
             } else if let Some(u8a) = js_sys::Reflect::get(&data, &"mmprojBytes".into())
                 .ok()
                 .filter(|v| !v.is_undefined() && !v.is_null())
@@ -2913,10 +3029,9 @@ impl Chat {
 
             // Handshake step 2: tell the worker how to find the model.
             // Three input modes per slot (main and mmproj), in precedence
-            // order: bytes > path > url. modelPath/mmprojPath are Node-
-            // only and pass a host filesystem path to the worker, which
-            // mounts the directory via NODEFS so llama.cpp reads directly
-            // from disk (no MEMFS copy, no 2 GiB cap).
+            // order: bytes > path > url. modelPath/mmprojPath mount via
+            // NODEFS (Node-only). modelUrl/mmprojUrl pass the URL to
+            // the worker which streams fetch() directly into MEMFS.
             let load_msg = js_sys::Object::new();
             let _ = js_sys::Reflect::set(&load_msg, &"type".into(), &"load-model".into());
 
@@ -2926,17 +3041,8 @@ impl Chat {
                 let _ =
                     js_sys::Reflect::set(&load_msg, &"srcPath".into(), &JsValue::from_str(path));
             } else if let Some(url) = parsed.model_url {
-                let bytes_promise = fetch_model_bytes(url, parsed.on_progress.clone());
-                let bytes_val: JsValue = wasm_bindgen_futures::JsFuture::from(bytes_promise)
-                    .await
-                    .map_err(|e| {
-                        let msg = js_sys::Reflect::get(&e, &"message".into())
-                            .ok()
-                            .and_then(|m| m.as_string())
-                            .unwrap_or_else(|| format!("{e:?}"));
-                        JsError::new(&format!("fetchModelBytes: {msg}"))
-                    })?;
-                let _ = js_sys::Reflect::set(&load_msg, &"bytes".into(), &bytes_val);
+                let _ =
+                    js_sys::Reflect::set(&load_msg, &"url".into(), &JsValue::from_str(&url));
             } else {
                 return Err(JsError::new(
                     "Chat.create: pass one of modelUrl / modelBytes / modelPath",
@@ -2952,17 +3058,11 @@ impl Chat {
                     &JsValue::from_str(path),
                 );
             } else if let Some(url) = parsed.mmproj_url {
-                let bytes_promise = fetch_model_bytes(url, parsed.on_progress);
-                let bytes_val: JsValue = wasm_bindgen_futures::JsFuture::from(bytes_promise)
-                    .await
-                    .map_err(|e| {
-                        let msg = js_sys::Reflect::get(&e, &"message".into())
-                            .ok()
-                            .and_then(|m| m.as_string())
-                            .unwrap_or_else(|| format!("{e:?}"));
-                        JsError::new(&format!("fetchModelBytes(mmproj): {msg}"))
-                    })?;
-                let _ = js_sys::Reflect::set(&load_msg, &"mmprojBytes".into(), &bytes_val);
+                let _ = js_sys::Reflect::set(
+                    &load_msg,
+                    &"mmprojUrl".into(),
+                    &JsValue::from_str(&url),
+                );
             }
             // (no mmproj provided ⇒ text-only model)
 
