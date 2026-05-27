@@ -2499,8 +2499,7 @@ fn extract_tool_callbacks(
 // ---------- Cache API helpers ----------
 //
 // Browser-side model caching via the Cache API store named 'nobodywho-models-v1'.
-// Implemented here in Rust (via web-sys) so the JS-side bootstrap stays a
-// thin shim. Used by `fetchModelBytes` / `Model.preload`.
+// Used internally by `stream_url_to_memfs` for modelUrl downloads.
 
 #[cfg(target_family = "wasm")]
 const MODEL_CACHE_NAME: &str = "nobodywho-models-v1";
