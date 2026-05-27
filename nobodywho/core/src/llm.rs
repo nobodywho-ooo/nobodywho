@@ -290,11 +290,12 @@ pub fn get_model_from_path(
         "Loading model from path (NODEFS or MEMFS)"
     );
 
-    // mmap is off on wasm: Emscripten's mmap doesn't work on either
-    // NODEFS or MEMFS files (traps inside llama.cpp's init_mappings).
+    // mmap is off on wasm: Emscripten's mmap traps on all FS backends
+    // (NODEFS, MEMFS, fmemopen) inside llama.cpp's init_mappings.
     // Tensors are loaded via fread instead. With NODEFS (Node
     // modelPath) the file stays on disk — fread streams directly into
     // tensor allocations, so only 1x model size in wasm memory.
+    // Browser (MEMFS) remains 2x.
     let model_params = LlamaModelParams::default()
         .with_n_gpu_layers(gpu_layers)
         .with_use_mmap(false);
