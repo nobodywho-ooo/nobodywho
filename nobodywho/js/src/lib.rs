@@ -948,8 +948,13 @@ async fn stream_url_to_memfs(
             .dyn_into()
             .map_err(|_| "read chunk is not a Uint8Array".to_string())?;
         let chunk_len = chunk.byte_length() as f64;
-        let written = fs_write
-            .call3(&fs, &stream, &chunk.into(), &JsValue::UNDEFINED)
+        let args = js_sys::Array::of4(
+            &stream,
+            &chunk.into(),
+            &JsValue::from_f64(0.0),
+            &JsValue::from_f64(chunk_len),
+        );
+        let written = js_sys::Reflect::apply(&fs_write, &fs, &args)
             .map_err(|e| format!("FS.write failed: {e:?}"))?
             .as_f64()
             .unwrap_or(0.0);
@@ -2457,6 +2462,17 @@ fn fetch_from_global(url: &str) -> js_sys::Promise {
     }
     if let Ok(scope) = js_sys::global().dyn_into::<web_sys::WorkerGlobalScope>() {
         return scope.fetch_with_str(url);
+    }
+    // Node worker_threads: fetch is a global but the context isn't a
+    // web-sys Window or WorkerGlobalScope. Fall back to raw Reflect.
+    if let Ok(fetch_fn) = js_sys::Reflect::get(&js_sys::global(), &"fetch".into()) {
+        if let Some(f) = fetch_fn.dyn_ref::<js_sys::Function>() {
+            if let Ok(result) = f.call1(&JsValue::NULL, &JsValue::from_str(url)) {
+                if let Ok(promise) = result.dyn_into::<js_sys::Promise>() {
+                    return promise;
+                }
+            }
+        }
     }
     js_sys::Promise::reject(&JsValue::from_str(
         "fetch() not available in this global context",
