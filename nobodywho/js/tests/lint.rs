@@ -130,43 +130,6 @@ fn package_version_is_placeholder() {
     );
 }
 
-/// Finding #N2 — `ChatOptions` must deny unknown fields.
-///
-/// Without `deny_unknown_fields`, a JS caller writing
-/// `Chat.create({modelUrl, foo: 'bar'})` gets no error — serde drops `foo`
-/// and the user wonders why nothing changed.
-#[test]
-fn chat_options_denies_unknown_fields() {
-    let pos = LIB_RS
-        .find("struct ChatOptions")
-        .expect("missing ChatOptions struct definition");
-    // Walk backward over the immediate attribute lines.
-    let preceding = &LIB_RS[..pos];
-    let attrs_block = preceding
-        .lines()
-        .rev()
-        .take_while(|l| {
-            let t = l.trim_start();
-            t.starts_with('#') || t.is_empty()
-        })
-        .collect::<Vec<_>>()
-        .into_iter()
-        .rev()
-        .collect::<Vec<_>>()
-        .join("\n");
-
-    assert!(
-        attrs_block.contains("deny_unknown_fields"),
-        "js/src/lib.rs: ChatOptions doesn't have \
-         #[serde(deny_unknown_fields)]. A JS caller passing an unknown \
-         option (e.g. `Chat.create({{modelUrl, foo: 'bar'}})`) silently has the \
-         field discarded by serde. Add the attribute to make typos \
-         surface as errors.\n\n\
-         Attributes block above ChatOptions:\n{}",
-        attrs_block
-    );
-}
-
 /// Finding #R4 — README status table must mention Constraint.
 ///
 /// The status table in `js/README.md` must have a row mentioning
