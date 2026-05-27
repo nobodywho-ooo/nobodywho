@@ -194,16 +194,6 @@ pub unsafe extern "C" fn __syscall_stat64(path: *const c_char, buf: *mut u8) -> 
     stat_into_buf(path_str, buf, false)
 }
 
-/// `__syscall_lstat64` strong override (doesn't follow symlinks).
-#[no_mangle]
-pub unsafe extern "C" fn __syscall_lstat64(path: *const c_char, buf: *mut u8) -> c_int {
-    let path_str = match CStr::from_ptr(path).to_str() {
-        Ok(s) => s,
-        Err(_) => return -EBADF,
-    };
-    stat_into_buf(path_str, buf, true)
-}
-
 /// `__syscall_fstat64` strong override — stat by fd.
 #[no_mangle]
 pub unsafe extern "C" fn __syscall_fstat64(fd: c_int, buf: *mut u8) -> c_int {
@@ -245,31 +235,6 @@ pub unsafe extern "C" fn __syscall_fstat64(fd: c_int, buf: *mut u8) -> c_int {
     };
     let _ = fs; // suppress warning if `fs` is unused on this branch
     stat_into_buf(&path_str, buf, false)
-}
-
-/// `__syscall_newfstatat` strong override — stat-at-fd-relative-path.
-///
-/// libc fopen doesn't usually go through this, but glibc-style
-/// callers might. Implementation routes to stat/lstat by path with
-/// the AT_SYMLINK_NOFOLLOW flag.
-#[no_mangle]
-pub unsafe extern "C" fn __syscall_newfstatat(
-    _dirfd: c_int,
-    path: *const c_char,
-    buf: *mut u8,
-    flags: c_int,
-) -> c_int {
-    let path_str = match CStr::from_ptr(path).to_str() {
-        Ok(s) => s,
-        Err(_) => return -EBADF,
-    };
-    if path_str.is_empty() {
-        // AT_EMPTY_PATH would stat the dirfd itself; not used by our
-        // callers, so reject.
-        return -ENOENT;
-    }
-    let nofollow = (flags & 0x100) != 0; // AT_SYMLINK_NOFOLLOW
-    stat_into_buf(path_str, buf, nofollow)
 }
 
 /// Look up a `SYSCALLS` method and invoke it.
