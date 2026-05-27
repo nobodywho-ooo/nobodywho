@@ -44,9 +44,6 @@ impl CrossEncoderAsync {
     pub fn new(model: Arc<llm::Model>, n_ctx: u32) -> Self {
         let (msg_tx, mut msg_rx) = tokio::sync::mpsc::unbounded_channel();
 
-        // Native: real OS thread with blocking_recv.
-        // wasm32: spawn_local. See ChatHandleAsync::new for rationale.
-        #[cfg(not(target_family = "wasm"))]
         let join_handle = std::thread::spawn(move || {
             let worker = Worker::new_crossencoder_worker(&model, n_ctx);
             let mut worker_state = match worker {
@@ -63,27 +60,7 @@ impl CrossEncoderAsync {
             }
         });
 
-        #[cfg(target_family = "wasm")]
-        wasm_bindgen_futures::spawn_local(async move {
-            let worker = Worker::new_crossencoder_worker(&model, n_ctx);
-            let mut worker_state = match worker {
-                Ok(worker_state) => worker_state,
-                Err(errmsg) => {
-                    return error!(error=%errmsg, "Could not set up the worker initial state")
-                }
-            };
-
-            while let Some(msg) = msg_rx.recv().await {
-                if let Err(e) = process_worker_msg(&mut worker_state, msg) {
-                    return error!(error=%e, "Cross-encoder worker crashed");
-                }
-            }
-        });
-
-        #[cfg(not(target_family = "wasm"))]
         let guard = Arc::new(WorkerGuard::new(msg_tx, join_handle, None));
-        #[cfg(target_family = "wasm")]
-        let guard = Arc::new(WorkerGuard::new(msg_tx, None));
 
         Self { guard }
     }

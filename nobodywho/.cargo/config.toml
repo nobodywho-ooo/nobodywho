@@ -1,8 +1,12 @@
 # Per-target rustflags for the nobodywho workspace.
 #
-# wasm32-unknown-emscripten is built single-threaded (no `-pthread` /
-# `+atomics`); the off-main-thread story is delegated to the JS host
-# spawning a Web Worker around the wasm.
+# `+atomics,+bulk-memory,+mutable-globals` enable Emscripten pthreads
+# support in the Rust compiler output. This lets llama.cpp use multiple
+# threads for matrix multiplication inside the wasm instance (via real
+# Web Workers managed by Emscripten's pthread runtime). The JS host
+# still spawns a user-facing Web Worker around the whole wasm module
+# (see js/src/lib.rs Chat.create); the pthreads are sub-workers WITHIN
+# that instance for compute parallelism.
 #
 # `panic=abort` matches wasm32-unknown-unknown's default. Without it,
 # wasm-bindgen 0.2.121 enforces `MaybeUnwindSafe` (= UnwindSafe +
@@ -15,4 +19,7 @@
 # failure mode as a C++ exception escaping ggml/llama.cpp, which we
 # already can't recover from on this target.
 [target.wasm32-unknown-emscripten]
-rustflags = ["-C", "panic=abort"]
+rustflags = [
+    "-C", "panic=abort",
+    "-C", "target-feature=+atomics,+bulk-memory,+mutable-globals",
+]

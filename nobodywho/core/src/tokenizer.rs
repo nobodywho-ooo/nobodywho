@@ -374,17 +374,6 @@ impl ProjectionModel {
         parent_model: &LlamaModel,
         use_gpu: bool,
     ) -> Result<Self, MultimodalError> {
-        // wasm32 has no pthread support in this build; mtmd's audio Mel
-        // spectrogram preprocessor unconditionally spawns
-        // `std::thread`s when n_threads > 1 (see llama.cpp
-        // tools/mtmd/mtmd-audio.cpp's `log_mel_spectrogram_worker_thread`),
-        // and ggml's audio-encode path calls `clip_image_batch_encode`
-        // which routes n_threads to ggml's threadpool. Either trips
-        // pthread_create on wasm. Force n_threads = 1 so all of mtmd's
-        // and ggml's parallelism short-circuits to single-thread loops.
-        #[cfg(target_family = "wasm")]
-        let n_threads: i32 = 1;
-        #[cfg(not(target_family = "wasm"))]
         let n_threads = std::thread::available_parallelism()
             .map(|p| p.get() as i32)
             .unwrap_or(4);

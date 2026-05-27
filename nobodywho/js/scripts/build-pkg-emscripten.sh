@@ -103,7 +103,8 @@ rm -rf "$TARGET_DIR"
   EM_CONFIG="$EM_CONFIG" \
   EM_WASM_BINDGEN="$WASM_BINDGEN_BIN" \
   LIBCLANG_PATH="${LIBCLANG_PATH:-/Library/Developer/CommandLineTools/usr/lib}" \
-  cargo build --release --target wasm32-unknown-emscripten -p nobodywho-js
+  cargo +nightly build --release --target wasm32-unknown-emscripten -p nobodywho-js \
+    -Zbuild-std=std,panic_abort
 )
 
 echo "==> injecting __wasm_bindgen_emscripten_marker custom section"
@@ -191,6 +192,20 @@ sed -i.bak2 \
   's|        function __wbg_call_guard() {$|        var __wbg_terminated_addr; var __wbg_called_abort;\n        function __wbg_call_guard() {|' \
   "$PKG_DIR/library_bindgen.js"
 
+# wasm-bindgen emits `addToLibrary({ memory: memory || new
+# WebAssembly.Memory({...,shared:true}) })` when it sees shared memory.
+# Emscripten manages `wasmMemory` itself; the bare `memory` reference
+# is undefined in the library scope. Strip the entire addToLibrary
+# block that contains the memory line.
+python3 -c "
+import re, sys
+path = sys.argv[1]
+text = open(path).read()
+text = re.sub(r'addToLibrary\(\{\n\s*memory:.*\n\}\);\n*', '', text)
+open(path, 'w').write(text)
+" "$PKG_DIR/library_bindgen.js"
+
+
 echo "==> appending extraLibraryFuncs.push(...) for \$-prefixed helpers"
 FUNCS=$(
   grep -oE "'\\\$[a-zA-Z_0-9]+'" "$PKG_DIR/library_bindgen.js" \
@@ -228,8 +243,51 @@ echo "==> em++ --post-link to build nobodywho_js.js"
     -sINVOKE_RUN=0 \
     -Wno-undefined \
     -O1 \
+    -pthread \
+    -sPTHREAD_POOL_SIZE=4 \
+    -sDEFAULT_PTHREAD_STACK_SIZE=2097152 \
     -o nobodywho_js.js
 )
+
+echo "==> patching nobodywho_js.js: defer _initialize for pthread pool"
+# _initialize() runs C++ static constructors. With pthreads, mutexes in
+# the ctors use memory.atomic.wait32 which needs the pthread pool workers
+# to be running. The pool workers are started asynchronously (new Worker)
+# and need the event loop to tick. _initialize blocks the event loop, so
+# the workers never start → deadlock. Fix: defer _initialize to a
+# setTimeout(0) so the event loop starts the workers first, then run
+# _initialize on the next tick.
+python3 -c "
+import sys
+path = sys.argv[1]
+text = open(path).read()
+
+# 1. Skip _initialize in initBindgen (runs sync, can't await the
+#    setTimeout needed to let pthread pool workers start).
+text = text.replace(
+    'if (wasmExports[\"_initialize\"]) {\n    wasmExports[\"_initialize\"]();\n  }',
+    '// _initialize deferred — see below'
+)
+
+# 2. After the main-thread createWasm + run(), defer _initialize behind
+#    a setTimeout so the event loop can start the pthread pool workers.
+text = text.replace(
+    'wasmExports = await (createWasm());\n  run();',
+    'wasmExports = await (createWasm());\n  run();\n  if (wasmExports[\"_initialize\"]) {\n    await new Promise(r => setTimeout(r, 200));\n    wasmExports[\"_initialize\"]();\n  }'
+)
+
+# 3. Set the wasm-bindgen 'wasm' binding object in receiveInstance()
+#    so it's available in pthread workers (not just the main thread).
+#    Without this, JS callbacks from the inference thread hit
+#    'Cannot read properties of null' because initBindgen (which sets
+#    wasm = wasmExports) only runs on the main thread.
+text = text.replace(
+    'wasmExports = instance.exports;',
+    'wasmExports = instance.exports;\n    wasm = wasmExports;'
+)
+
+open(path, 'w').write(text)
+" "$PKG_DIR/nobodywho_js.js"
 
 # Some consumers expect the wasm under the bare name too. emcc post-link
 # only writes _bg.wasm; mirror it.

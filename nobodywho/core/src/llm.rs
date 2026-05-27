@@ -776,14 +776,10 @@ where
 
         // Set up context parameters using available parallelism
         let (ctx, n_batch) = {
-            // wasm32 has no concept of hardware threads
-            // (`available_parallelism` returns Err on wasm32). Single-thread
-            // the worker — llama.cpp will run inference sequentially on the
-            // wasm event loop, which matches how the wasm binding's
-            // chat/encoder/cross-encoder are structured anyway (spawn_local,
-            // no real threads).
             #[cfg(target_family = "wasm")]
-            let n_threads: i32 = 1;
+            let n_threads: i32 = std::thread::available_parallelism()
+                .map(|p| p.get() as i32)
+                .unwrap_or(1);
             #[cfg(not(target_family = "wasm"))]
             let n_threads = std::thread::available_parallelism()?.get() as i32;
             let ctx_plan = memory::plan_context(
@@ -1011,18 +1007,13 @@ where
 /// The channel switched from `std::sync::mpsc` to `tokio::sync::mpsc::unbounded_channel`
 /// so the worker can run as either a blocking thread (native, via `blocking_recv()`)
 /// or an async task on the JS event loop (wasm32, via `recv().await` driven by
-/// `wasm_bindgen_futures::spawn_local`). The `JoinHandle` field is gated to non-wasm —
-/// wasm has no real thread to join; dropping the sender is sufficient to terminate
-/// the worker future.
 pub(crate) struct WorkerGuard<T> {
     pub(crate) msg_tx: Option<tokio::sync::mpsc::UnboundedSender<T>>,
-    #[cfg(not(target_family = "wasm"))]
     join_handle: Option<std::thread::JoinHandle<()>>,
     should_stop: Option<Arc<AtomicBool>>,
 }
 
 impl<T> WorkerGuard<T> {
-    #[cfg(not(target_family = "wasm"))]
     pub(crate) fn new(
         msg_tx: tokio::sync::mpsc::UnboundedSender<T>,
         join_handle: std::thread::JoinHandle<()>,
@@ -1031,19 +1022,6 @@ impl<T> WorkerGuard<T> {
         Self {
             msg_tx: Some(msg_tx),
             join_handle: Some(join_handle),
-            should_stop,
-        }
-    }
-
-    /// wasm constructor: no thread to join, the worker future runs on the JS
-    /// event loop and exits when the channel is closed.
-    #[cfg(target_family = "wasm")]
-    pub(crate) fn new(
-        msg_tx: tokio::sync::mpsc::UnboundedSender<T>,
-        should_stop: Option<Arc<AtomicBool>>,
-    ) -> Self {
-        Self {
-            msg_tx: Some(msg_tx),
             should_stop,
         }
     }
@@ -1068,12 +1046,6 @@ impl<T> Drop for WorkerGuard<T> {
         }
         drop(self.msg_tx.take());
 
-        // On native, wait for the worker thread to exit so any statics
-        // (e.g. LLAMA_BACKEND) are still alive while it's tearing down.
-        // On wasm32 there's no thread — closing the channel above causes
-        // the worker's `recv().await` to return None and the spawn_local
-        // future to complete on its next poll.
-        #[cfg(not(target_family = "wasm"))]
         if let Some(handle) = self.join_handle.take() {
             if let Err(e) = handle.join() {
                 error!("Worker panicked: {:?}", e);

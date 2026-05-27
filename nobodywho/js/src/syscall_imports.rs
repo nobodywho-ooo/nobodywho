@@ -19,10 +19,10 @@
 //! `Module.FS.writeFile` populates from JS, so reads land on the bytes
 //! we wrote there.
 //!
-//! For the wasm32 (single-threaded) target we don't have to worry about
-//! `Module` racing or going away — it's installed on `globalThis` by
-//! `pkg-bundler/pre.js` at module init and lives for the lifetime of the
-//! wasm instance.
+//! `Module` is installed on `globalThis` by `pkg-bundler/pre.js` at
+//! module init and lives for the lifetime of the wasm instance. The
+//! syscall overrides are called from the main JS thread; pthreads
+//! (compute threads) don't invoke file syscalls.
 
 #![cfg(target_family = "wasm")]
 

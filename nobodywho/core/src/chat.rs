@@ -600,12 +600,6 @@ impl ChatHandleAsync {
         let should_stop = Arc::new(AtomicBool::new(false));
         let should_stop_clone = Arc::clone(&should_stop);
 
-        // Native: spawn a real OS thread that drives a blocking loop, so the
-        // inference work doesn't tie up any tokio runtime thread. Wasm: spawn
-        // a future on the JS event loop (single-threaded cooperative); decode
-        // calls block the loop until each message is processed, which is
-        // acceptable for v1. A Web-Worker variant can come later.
-        #[cfg(not(target_family = "wasm"))]
         let join_handle = std::thread::spawn(move || {
             let rt = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
@@ -632,41 +626,16 @@ impl ChatHandleAsync {
             });
         });
 
-        #[cfg(target_family = "wasm")]
-        wasm_bindgen_futures::spawn_local(async move {
-            let worker = Worker::new_chat_worker(&model, config, should_stop_clone);
-            let mut worker_state = match worker {
-                Ok(w) => {
-                    let _ = init_tx.send(Ok(()));
-                    w
-                }
-                Err(e) => {
-                    let _ = init_tx.send(Err(e));
-                    return;
-                }
-            };
-
-            while let Some(msg) = msg_rx.recv().await {
-                if let Err(e) = process_worker_msg(&mut worker_state, msg).await {
-                    return error!("Worker crashed: {e}");
-                }
-            }
-        });
-
-        // Wait for worker init on native; on wasm the constructor is sync
-        // (no tokio runtime to .await in) so we can't block here. Init
-        // errors on wasm surface on the first ask via the worker not
-        // responding. init_tx is still wired up so the codepath stays
-        // symmetric.
+        // On native, block until the worker thread is ready. On wasm,
+        // skip the blocking wait — the spawned pthread needs the event
+        // loop to tick before it can start, and recv() would block the
+        // event loop. Init errors surface on the first ask instead.
         #[cfg(not(target_family = "wasm"))]
         init_rx.recv().map_err(|_| InitWorkerError::NoResponse)??;
         #[cfg(target_family = "wasm")]
         let _ = init_rx;
 
-        #[cfg(not(target_family = "wasm"))]
         let guard = Arc::new(WorkerGuard::new(msg_tx, join_handle, Some(should_stop)));
-        #[cfg(target_family = "wasm")]
-        let guard = Arc::new(WorkerGuard::new(msg_tx, Some(should_stop)));
 
         Ok(Self { guard })
     }
@@ -681,8 +650,6 @@ impl ChatHandleAsync {
         self.guard.send(ChatMsg::Ask {
             prompt,
             output_tx,
-            #[cfg(target_family = "wasm")]
-            token_hook: None,
         });
         output_rx
     }
@@ -703,32 +670,6 @@ impl ChatHandleAsync {
         TokenStreamAsync::new(self.ask_channel(prompt.to_prompt()))
     }
 
-    /// Wasm-only: ask with a synchronous per-token hook.
-    ///
-    /// The hook fires from inside the inference loop, before each token is
-    /// pushed to the channel. Use this on `wasm32-unknown-emscripten` to
-    /// deliver tokens out-of-band (e.g. `postMessage` from a Web Worker)
-    /// without waiting for the channel receiver to be polled — the
-    /// receiver task can only run when the inference loop yields, but
-    /// the loop is fully synchronous on wasm.
-    ///
-    /// The returned `TokenStreamAsync` still fires `Done` at EOS, so
-    /// `.completed().await` is the right way to wait for inference to
-    /// finish (its accumulated text is also available there).
-    #[cfg(target_family = "wasm")]
-    pub fn ask_with_token_hook(
-        &self,
-        prompt: impl Promptable,
-        token_hook: std::rc::Rc<dyn Fn(&str)>,
-    ) -> TokenStreamAsync {
-        let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
-        self.guard.send(ChatMsg::Ask {
-            prompt: prompt.to_prompt(),
-            output_tx,
-            token_hook: Some(token_hook),
-        });
-        TokenStreamAsync::new(output_rx)
-    }
 
     // internal helper function for async setters
     async fn set_and_wait_async<F>(&self, make_msg: F) -> Option<()>
@@ -1070,14 +1011,6 @@ enum ChatMsg {
     Ask {
         prompt: Prompt,
         output_tx: tokio::sync::mpsc::UnboundedSender<llm::WriteOutput>,
-        /// Wasm-only synchronous per-token hook. Fires from inside the
-        /// inference loop (before the channel push) so callers can deliver
-        /// tokens out-of-band — e.g. `postMessage` from a Web Worker —
-        /// without waiting for the loop to yield. The channel-based path
-        /// can't stream on single-threaded wasm because the receiver task
-        /// only wakes after the synchronous loop completes.
-        #[cfg(target_family = "wasm")]
-        token_hook: Option<std::rc::Rc<dyn Fn(&str)>>,
     },
     ResetChat {
         system_prompt: Option<String>,
@@ -1186,39 +1119,12 @@ async fn process_worker_msg(
         ChatMsg::Ask {
             prompt,
             output_tx,
-            #[cfg(target_family = "wasm")]
-            token_hook,
         } => {
             let should_stop = Arc::clone(&worker_state.extra.should_stop);
-            // Clone the output channel for the error path. Sending the
-            // inference error through the response channel (rather than
-            // bubbling it up via `?`) keeps the chat worker alive for
-            // subsequent asks — a single failed prompt shouldn't kill
-            // the whole chat.
             let error_tx = output_tx.clone();
 
-            #[cfg(target_family = "wasm")]
-            let callback = move |out: llm::WriteOutput| {
-                // Fire the per-token hook synchronously inside the
-                // inference loop before pushing to the channel. On wasm
-                // this is the only path that delivers tokens to JS in
-                // real time — the channel receiver task can't wake
-                // until the loop completes.
-                if let llm::WriteOutput::Token(ref tok) = out {
-                    if let Some(hook) = token_hook.as_ref() {
-                        hook(tok);
-                    }
-                }
-                if output_tx.send(out).is_err() {
-                    should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
-                }
-            };
-
-            #[cfg(not(target_family = "wasm"))]
             let callback = move |out| {
                 if output_tx.send(out).is_err() {
-                    // Receiver was dropped or the buffer is full with nobody consuming.
-                    // Either way, stop generating immediately.
                     should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
                 }
             };

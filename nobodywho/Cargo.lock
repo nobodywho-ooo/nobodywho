@@ -2133,7 +2133,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-2"
 version = "0.1.147"
-source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=wasm-emscripten#ddb03a042be938f64e810199b94d898fd3df332f"
+source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=wasm-emscripten#34cd6d54a907cb8deeb042de57b8550aad6bc0b3"
 dependencies = [
  "encoding_rs",
  "enumflags2",
@@ -2148,7 +2148,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-sys-2"
 version = "0.1.147"
-source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=wasm-emscripten#ddb03a042be938f64e810199b94d898fd3df332f"
+source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=wasm-emscripten#34cd6d54a907cb8deeb042de57b8550aad6bc0b3"
 dependencies = [
  "bindgen",
  "cc",
@@ -2414,7 +2414,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "ureq",
- "wasm-bindgen-futures",
 ]
 
 [[package]]

@@ -6,22 +6,14 @@ edition = "2021"
 [features]
 default = ["mtmd"]
 # Multimodal (image / audio) input support, backed by llama.cpp's `mtmd`
-# C++ library. Default-on for native; the wasm binding opts out because
-# the underlying C++ pulls in miniaudio, which needs pthread sched APIs
-# we deliberately avoid on wasm32-unknown-emscripten (Emscripten pthreads
-# conflict with wasm-bindgen-cli's thread-id injection).
-#
-# This feature is effectively a wasm-only opt-out — native consumers
-# should keep the default. On native, disabling it propagates to
-# llama-cpp-2, the mtmd Rust module disappears, and code in core that
-# refers to `MtmdBitmap` / `MtmdInputChunks` / etc. (in tokenizer.rs,
-# chat.rs, llm.rs) fails to compile. On wasm32, the fork of llama-cpp-2
+# C++ library. Default-on for native. On wasm32, the fork of llama-cpp-2
 # keeps bindgen running against the mtmd headers even with the feature
 # off, so the Rust types stay in scope and only the C++ link is gated —
-# `mtmd_*` functions resolve to unresolved wasm imports that the JS
-# host stubs. That asymmetry is what lets the wasm crate `default-
-# features = false` cleanly while native still gets the full
-# multimodal API.
+# `mtmd_*` functions resolve to unresolved wasm imports that the JS host
+# stubs. On native, disabling it propagates to llama-cpp-2, the mtmd
+# Rust module disappears, and code in core that refers to `MtmdBitmap` /
+# `MtmdInputChunks` / etc. (in tokenizer.rs, chat.rs, llm.rs) fails to
+# compile.
 mtmd = ["llama-cpp-2/mtmd"]
 
 [dependencies]
@@ -54,11 +46,10 @@ indexmap = "2.13.0"
 
 # Native-only deps:
 # - `tokio` with `rt-multi-thread`: background workers spawn real OS threads.
-#   wasm32 (including wasm32-unknown-emscripten) only gets `rt + sync +
-#   macros` because tokio's `rt-multi-thread` is gated off on wasm by a
-#   compile_error in tokio itself. Off-main-thread inference on wasm is
-#   provided by the JS host spawning a Web Worker around the wasm, not
-#   by Rust spawning OS threads.
+#   wasm32 only gets `rt + sync + macros` because tokio's `rt-multi-thread`
+#   is gated off on wasm by a compile_error in tokio itself. (Emscripten
+#   pthreads are used by llama.cpp's ggml threadpool for compute
+#   parallelism, not by the Rust async runtime.)
 # - `ureq` does raw TCP/TLS; not available in a browser sandbox. wasm32 fetches
 #   model bytes on the JS side via `fetch` and hands them to a future
 #   `Model::load_bytes` API instead.
@@ -76,10 +67,6 @@ bashkit = { git = "https://github.com/everruns/bashkit", tag = "v0.1.10" }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 tokio = { version = "1.43.0", features = ["sync", "rt", "macros"] }
-# Used by ChatHandleAsync::new / EncoderAsync::new / CrossEncoderAsync::new
-# to spawn the worker future on the JS event loop in place of
-# `std::thread::spawn`.
-wasm-bindgen-futures = "0.4"
 
 
 [target.'cfg(target_os = "android")'.dependencies]

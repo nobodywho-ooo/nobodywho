@@ -14,11 +14,9 @@ path = "src/lib.rs"
 # `mtmd` stays in the default features even on wasm32-unknown-emscripten.
 # Core's mtmd code paths are cfg-gated so they compile out, but the C-side
 # `mtmd_*` symbols remain wasm imports (resolved by Emscripten's runtime
-# at instantiation time). The actual miniaudio dependency that needs
-# pthread sched APIs is excluded one layer down, inside the
-# llama-cpp-sys-2 fork's build.rs (mtmd C++ gate covers WasmEmscripten).
-# Flipping this to `default-features = false` would also drop mtmd on native
-# builds via this crate's rlib, which we don't want.
+# at instantiation time). Flipping this to `default-features = false`
+# would also drop mtmd on native builds via this crate's rlib, which we
+# don't want.
 nobodywho = { path = "../core" }
 # Pin wasm-bindgen to 0.2.121 — the workspace [patch.crates-io] block
 # redirects this to nobodywho-ooo/wasm-bindgen branch
@@ -42,26 +40,13 @@ console_error_panic_hook = "0.1"
 version = "0.3"
 features = [
   "console",
-  # For `runInWorker` — message dispatch implemented in Rust instead of in
-  # a separate JS dispatcher. Sets up self.onmessage / post_message from
-  # inside the wasm so the worker bootstrap can be a one-line inline Blob.
-  "DedicatedWorkerGlobalScope",
-  "MessageEvent",
-  "ErrorEvent",
-  # For `Chat` (worker-backed) — Rust spawns the Web Worker from an inline
-  # Blob URL, posts the load-model/create-chat/ask protocol, routes replies
-  # via Closure-wrapped onmessage.
-  "Worker",
-  "WorkerOptions",
-  "WorkerType",
-  "WorkerGlobalScope",
-  "Blob",
-  "BlobPropertyBag",
-  "Url",
   # Cache API for modelUrl streaming + fetch.
+  "DedicatedWorkerGlobalScope",
+  "WorkerGlobalScope",
   "Window",
   "Cache",
   "CacheStorage",
+  "Headers",
   "Response",
   "ReadableStream",
   "ReadableStreamDefaultReader",

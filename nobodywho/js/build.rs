@@ -1,6 +1,6 @@
-// Emscripten link flags. Only fire when the target is
-// wasm32-unknown-emscripten — native builds ignore this block.
-// Ported from nobodywho_old/nobodywho/flutter/rust/build.rs.
+// Emscripten link flags for the pthreads-enabled wasm build.
+// Only fire when the target is wasm32-unknown-emscripten — native
+// builds ignore this block.
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
@@ -172,11 +172,15 @@ fn main() {
     // OPT_LEVEL >= 2.
     println!("cargo:rustc-link-arg-cdylib=-O1");
 
-    // No -pthread: Emscripten pthreads conflict with wasm-bindgen-cli's
-    // own thread-id injection (wasm-bindgen looks for __heap_base which
-    // Emscripten doesn't expose). For off-main-thread inference, the JS
-    // host spawns a Web Worker that imports this loader; the wasm stays
-    // single-threaded inside that worker. See
-    // llama-cpp-rs/llama-cpp-sys-2/build.rs (WasmEmscripten branch) for
-    // the matching CMake config.
+    // Enable Emscripten pthreads. llama.cpp uses pthreads for compute
+    // parallelism (ggml threadpool), and the Rust core uses
+    // std::thread::spawn (mapped to pthread_create by emscripten).
+    //
+    // Browser deployment requirement: the serving origin MUST set
+    //   Cross-Origin-Opener-Policy: same-origin
+    //   Cross-Origin-Embedder-Policy: require-corp
+    // headers for SharedArrayBuffer to be available.
+    println!("cargo:rustc-link-arg-cdylib=-pthread");
+
+    println!("cargo:rustc-link-arg-cdylib=-sDEFAULT_PTHREAD_STACK_SIZE=2MB");
 }

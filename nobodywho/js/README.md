@@ -24,10 +24,10 @@ const result = await chat.ask('What is the capital of Denmark?').completed();
 console.log(result);
 ```
 
-`Chat` runs inference in a separate worker thread — a Web Worker in
-browsers, a `worker_threads.Worker` in Node — so the calling thread
-stays responsive during inference. Tokens stream in real time: the
-worker `postMessage`s each sampled token to main as it's generated.
+`Chat` runs inference on a background pthread (via Emscripten's
+pthreads support backed by `SharedArrayBuffer`), so the calling
+thread stays responsive during inference. Tokens stream through a
+channel and arrive in real time via async iteration.
 
 **Streaming** — to consume tokens incrementally, async-iterate the
 `TokenStream` and update the UI per token:
@@ -69,7 +69,7 @@ surface to JS via wasm-bindgen.
 | `Encoder.encode(text)` → `Float32Array` | ✅ verified |
 | `CrossEncoder.rank(query, docs)` / `rankAndSort(...)` | ✅ verified |
 | `cosineSimilarity(a, b)` → number | ✅ verified — pairs with `Encoder.encode()`; matches Python's `nobodywho.cosine_similarity` |
-| `Chat.create({modelUrl \| modelPath, ...})` → `Chat` | ✅ verified — async factory, spawns a worker. `modelUrl` streams fetch() into MEMFS with Cache API caching. `modelPath` (Node-only) mounts host dir via NODEFS. |
+| `Chat.create({modelUrl \| modelPath, ...})` → `Chat` | ✅ verified — async factory. `modelUrl` streams fetch() into MEMFS with Cache API caching. `modelPath` (Node-only) mounts host dir via NODEFS. |
 | `Chat.ask(prompt)` → `TokenStream` → tokens (real-time, `for await`-iterable) | ✅ verified |
 | `Chat.stopGeneration()` — interrupt the current ask | ✅ verified (Node) |
 | `Chat.getChatHistory()` / `setChatHistory(messages)` | ✅ verified |
@@ -79,12 +79,12 @@ surface to JS via wasm-bindgen.
 | `Chat.setTools(tools)` — replace tool registry mid-session | ✅ verified |
 | `Chat.reset(opts?)` — atomic clear-history + optional swap of system prompt + tools | ✅ verified |
 | `Chat.resetHistory()` — clear history, preserve system prompt + tools + sampler | ✅ verified |
-| `Chat.terminate()` — shut down the worker (returns Promise) | ✅ verified |
+| `Chat.terminate()` — no-op (returns resolved Promise; kept for API compat) | ✅ verified |
 | `SamplerConfig` / `SamplerBuilder` / `SamplerPresets` — typed sampler API matching Python | ✅ verified |
 | Structured output / Constraint via `SamplerPresets.constrainWithJsonSchema()` / `constrainWithRegex()` / `constrainWithGrammar()` | ✅ verified |
 | `TokenStream.next()` / `completed()` / async-iteration via `for await` | ✅ verified |
 | Multimodal vision/audio (`Image.fromBytes` / `Audio.fromBytes`, plus Node-only `fromPath`) | ✅ verified |
-| Tool calling (`Tool.fromFn(...)`, `Chat.create({tools: [...]})`) | ✅ verified — sync and async callbacks via worker ↔ main RPC bridge |
+| Tool calling (`Tool.fromFn(...)`, `Chat.create({tools: [...]})`) | ✅ verified — sync and async JS callbacks |
 | mmap-backed tensor loading (`CPU_Mapped`) | ✅ verified — strong `_mmap_js`/`_munmap_js` syscall overrides route through `FS.mmap` |
 
 Each row above is backed by a smoke test under `js/scripts/`. To
@@ -98,11 +98,11 @@ verify locally after a build, run:
 | `sampler-ergo-smoke.mjs` | `SamplerBuilder` + `SamplerPresets` (core shift + sample steps) |
 | `sampler-extra-smoke.mjs` | DRY / XTC / TypicalP / full Penalties shift steps + `dry()` / `json()` presets |
 | `constraint-smoke.mjs` | structured output (regex / JSON Schema / lark) |
-| `tool-smoke.mjs` | sync + async tool callbacks via the worker RPC bridge |
+| `tool-smoke.mjs` | sync + async tool callbacks |
 | `audio-smoke.mjs` | WAV / MP3 / FLAC decoder paths end-to-end |
 | `vision-smoke.mjs` | image input through mtmd (Qwen2-VL / Gemma 3 etc.) |
 | `stop-smoke.mjs` | `Chat.stopGeneration()` interrupting an in-flight ask |
-| `terminate-mid-stream-smoke.mjs` | `Chat.terminate()` cleanly fails an in-flight TokenStream |
+| `terminate-mid-stream-smoke.mjs` | `Chat.terminate()` during an in-flight TokenStream |
 | `history-smoke.mjs` | `getChatHistory` / `setChatHistory` round-trip + loaded-context use |
 | `setters-smoke.mjs` | `setSystemPrompt` (incl. `null`) / sampler / template vars / `setTools` / `resetHistory` |
 | `parity-extras-smoke.mjs` | `Audio.fromPath` / `Image.fromPath` / `cosineSimilarity` / `Chat.reset({systemPrompt, tools})` |
@@ -120,7 +120,7 @@ Three model input modes, each optimized to minimize memory copies:
 
 | Mode | Environment | Flow | Memory |
 |---|---|---|---|
-| `modelUrl` | Browser + Node | Worker streams `fetch()` into MEMFS via tee'd body + Cache API (downloaded once, cached on disk) | MEMFS + mmap (CPU_Mapped) |
+| `modelUrl` | Browser + Node | Streams `fetch()` into MEMFS via tee'd body + Cache API (downloaded once, cached on disk) | MEMFS + mmap (CPU_Mapped) |
 | `modelPath` | Node only | Host directory mounted via NODEFS — llama.cpp reads directly from disk | Disk + fread (no MEMFS copy) |
 
 **Syscall overrides.** Emscripten's `standalone.c` ships weak syscall
@@ -150,22 +150,21 @@ thread.
 ## Build pipeline
 
 ```
-   nobodywho/core (Rust)
-        +
-   llama-cpp-2 fork @ nobodywho-ooo/llama-cpp-rs branch wasm-emscripten
+   nobodywho/core (Rust)  +  llama-cpp-2 fork (wasm-emscripten branch)
         |
-        | emcc (Emscripten C/C++ toolchain) for the llama.cpp side
-        | rustc + wasm-bindgen attrs for the Rust side
+        | cargo +nightly -Zbuild-std=std,panic_abort
+        | (recompiles std with +atomics for pthreads)
+        | emcc for C/C++ side, rustc for Rust side
         v
-   wasm32-unknown-emscripten .wasm
+   wasm32-unknown-emscripten .wasm  (with -pthread, SharedArrayBuffer)
         |
-        | patched wasm-bindgen-cli (nobodywho-ooo/wasm-bindgen fork)
-        | + post-link emcc invocation with --js-library
+        | patched wasm-bindgen-cli (pthreads-compatible)
+        | + post-link emcc with -pthread + --js-library
         v
    pkg-bundler/
-     ├── nobodywho_js.js          (Emscripten loader factory)
-     ├── nobodywho_js_bg.wasm     (linked wasm)
-     ├── nobodywho_js.wasm        (mirrored copy some consumers expect)
+     ├── nobodywho_js.js          (Emscripten loader with pthread runtime)
+     ├── nobodywho_js_bg.wasm     (linked wasm, shared memory)
+     ├── nobodywho_js.wasm        (mirrored copy)
      ├── library_bindgen.js       (kept for debugging)
      └── pre.js                   (HEAP_DATA_VIEW shim, inlined by emcc)
 ```
@@ -174,9 +173,8 @@ thread.
 
 ### Prerequisites
 
-You need a patched Emscripten fork plus a patched wasm-bindgen fork. Both
-are intermediate — the patches are filed upstream and we'll drop the forks
-when they land.
+You need a patched Emscripten fork, a patched wasm-bindgen fork, and
+Rust nightly (for `-Zbuild-std` to recompile std with atomics).
 
 ```bash
 # 1. Emscripten with the -sWASM_BINDGEN setting
@@ -185,12 +183,15 @@ git clone https://github.com/walkingeyerobot/emscripten ~/emscripten-wbg
 cd ~/emscripten-wbg
 ./bootstrap   # downloads the matching binaryen + node bundle
 
-# 2. wasm-bindgen with descriptor-interpreter + Emscripten-output-mode fixes
+# 2. wasm-bindgen with descriptor-interpreter + Emscripten-output-mode
+#    + pthreads compatibility fixes
 git clone https://github.com/nobodywho-ooo/wasm-bindgen ~/wasm-bindgen
 cargo install --path ~/wasm-bindgen/crates/cli \
   --root /tmp/wbg-patched --locked
 
-# 3. rustc target
+# 3. Rust nightly + rust-src (needed for -Zbuild-std with atomics)
+rustup toolchain install nightly
+rustup component add rust-src --toolchain nightly
 rustup target add wasm32-unknown-emscripten
 ```
 
@@ -229,13 +230,14 @@ python3 -m http.server 8000
 # open http://localhost:8000/examples/browser-chat.html
 ```
 
-See `js/examples/browser-chat.html` for a chat demo (Web Worker so the
-page stays responsive during inference), `browser-encoder.html` for an
-embeddings demo, and `browser-crossencoder.html` for a reranker demo.
-All load the wasm via `createNobodyWhoModule()` and load models via
+See `js/examples/browser-chat.html` for a chat demo,
+`browser-encoder.html` for an embeddings demo, and
+`browser-crossencoder.html` for a reranker demo. All load the wasm
+via `createNobodyWhoModule()` and load models via
 `Model.load({ modelUrl })` or `Chat.create({ modelUrl })`. Models are
 cached in the Cache API (`nobodywho-models-v1` store) so subsequent
-loads skip the download.
+loads skip the download. The server must set COOP/COEP headers for
+`SharedArrayBuffer` (required by pthreads).
 
 ## How it works (and why these specific choices)
 
@@ -270,19 +272,37 @@ carries a small set of build-system tweaks:
 These will land upstream as opt-in cmake flags once a few rounds of
 review settle.
 
+### Threading model
+
+The wasm build uses Emscripten pthreads (`-pthread` on the linker,
+`+atomics,+bulk-memory,+mutable-globals` Rust target features). This
+enables `std::thread::spawn` on wasm — the same code path as native.
+`ChatHandleAsync::new()` spawns a real pthread for inference, and
+llama.cpp's ggml threadpool uses `available_parallelism()` to set
+`n_threads` (maps to `navigator.hardwareConcurrency` in browser,
+`os.cpus().length` in Node).
+
+**Browser requirement:** the serving origin must set
+`Cross-Origin-Opener-Policy: same-origin` and
+`Cross-Origin-Embedder-Policy: require-corp` headers for
+`SharedArrayBuffer` to be available.
+
+**Build requirement:** Rust nightly with `-Zbuild-std=std,panic_abort`
+(the pre-compiled std for `wasm32-unknown-emscripten` doesn't include
+atomics; `-Zbuild-std` recompiles it with the target features).
+
 ### Runtime workarounds in nobodywho
 
 A few cfg-gates in `nobodywho/core` for wasm32:
 
-- `tokio` features: drop `rt-multi-thread` (no OS threads).
+- `tokio` features: drop `rt-multi-thread` (tokio blocks it on wasm).
+  Emscripten pthreads handle compute parallelism directly.
 - `ureq`, `indicatif`, `dirs`, `monty`, `bashkit`: native-only.
-- Worker pattern: `std::thread::spawn` → `wasm_bindgen_futures::spawn_local`,
-  `std::sync::mpsc` → `tokio::sync::mpsc::unbounded_channel`.
+- `ChatHandleAsync::new()`: skips blocking `init_rx.recv()` on wasm
+  (the spawned pthread needs the event loop to tick before it can start;
+  blocking would deadlock).
 - Model loading: `get_model_from_path` with `use_mmap(true)` via NODEFS
   or MEMFS.
-- `Tokenizer::tokenize_text` inlines the `mtmd_default_marker` literal.
-- `Worker` n_threads hardcoded to 1 (`available_parallelism` errors on
-  wasm).
 - `mtmd` cargo feature on core stays enabled — Emscripten compiles it
   in (see "Multimodal status").
 
@@ -329,21 +349,17 @@ const answer = await chat.ask(['What is in this image?', img]).completed();
 
 `Image.fromBytes(uint8)` / `Audio.fromBytes(uint8)` return plain JS
 objects of shape `{__nbwKind: 'image' | 'audio', bytes: Uint8Array}`.
-They are structured-cloneable, which is what lets them survive the
-postMessage hop into `Chat`'s background worker.
-
 The array-of-parts shape is accepted by `Chat.ask`. Plain strings
 still work for text-only prompts — `chat.ask('hi')` is unchanged.
 
 **How it works under the hood** (see `js/src/syscall_imports.rs` and
 `js/src/lib.rs` for code, this is just the shape):
 1. JS calls `Image.fromBytes(uint8)` → tagged object.
-2. `Chat.ask([...])` postMessages the array to the worker.
-3. Worker-side Rust receives the bytes, calls `Module.FS.writeFile`
+2. `Chat.ask([...])` extracts the bytes and calls `Module.FS.writeFile`
    via `js_sys::Reflect` to land them at a content-hashed path like
    `/home/web_user/nbw-image-<hash>.bin` in Emscripten's MEMFS.
-4. The same Rust calls the existing `Prompt::push_image(&Path)`.
-5. mtmd's C++ side opens the file via libc `fopen("rb")`. Libc's
+3. The same Rust calls the existing `Prompt::push_image(&Path)`.
+4. mtmd's C++ side opens the file via libc `fopen("rb")`. Libc's
    `__syscall_openat` is satisfied by a strong Rust override (also in
    `syscall_imports.rs`) that resolves the call back into
    `Module.FS.open` via `js_sys::Reflect` — completing the loop.
@@ -359,10 +375,7 @@ still work for text-only prompts — `chat.ask('hi')` is unchanged.
 - Vision encoder via mtmd (chunk-tokenize / encode-chunk / decode
   pipeline, verified against Gemma 3 + Qwen2-VL mmprojs).
 - Audio-LLM mmproj encoder via mtmd (Qwen3-ASR verified end-to-end
-  for WAV/MP3/FLAC — the model produces real transcripts). Requires
-  our patched `mtmd-audio.cpp` (cfg-gates the mel preprocessor's
-  `n_threads` to 1 on Emscripten); upstream's hardcoded `n_threads=4`
-  traps on `pthread_create` in a wasm build without pthread.
+  for WAV/MP3/FLAC — the model produces real transcripts).
 
 **What's known not to work / untested.**
 
@@ -381,10 +394,10 @@ still work for text-only prompts — `chat.ask('hi')` is unchanged.
   mmproj + KV cache + compute buffer must fit in wasm32's hard 4 GiB
   linear-memory ceiling. A future wasm64 (memory64) build would lift
   this ceiling but is not yet shipped.
-- Single-threaded inference. ggml's SIMD128 matmul kernels are
-  enabled, but pthreads are off. Multi-core matmul would require
-  `-sUSE_PTHREADS` + `SharedArrayBuffer` + COOP/COEP cross-origin
-  isolation on the hosting page.
+- Browser COOP/COEP headers. Pthreads are enabled but require
+  `Cross-Origin-Opener-Policy: same-origin` and
+  `Cross-Origin-Embedder-Policy: require-corp` headers on the
+  serving origin for `SharedArrayBuffer` to be available.
 - Audio: WAV/MP3/FLAC only — Ogg/Vorbis is not supported under
   Emscripten (surfaces a clean error).
 

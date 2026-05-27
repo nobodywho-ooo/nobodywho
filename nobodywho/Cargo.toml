@@ -36,7 +36,4 @@ wasm-bindgen = { git = "https://github.com/nobodywho-ooo/wasm-bindgen", branch =
 
 # llama-cpp-2 / llama-cpp-sys-2 are pulled directly from the
 # `nobodywho-ooo/llama-cpp-rs` `wasm-emscripten` branch via the
-# git+branch declarations in `core/Cargo.toml`. That branch's
-# llama.cpp submodule is also pinned at `nobodywho-ooo/llama.cpp`
-# `wasm-emscripten` (one mtmd-audio.cpp patch on top of upstream).
-# No [patch] override needed.
+# git+branch declarations in `core/Cargo.toml`.
