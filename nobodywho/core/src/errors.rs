@@ -416,7 +416,6 @@ pub enum HuggingFaceError {
 
 // TTS errors
 
-#[cfg(not(target_os = "android"))]
 #[derive(Debug, thiserror::Error)]
 pub enum TtsError {
     #[error("Error initializing TTS: {0}")]
@@ -432,7 +431,6 @@ pub enum TtsError {
     Wav(#[from] hound::Error),
 }
 
-#[cfg(not(target_os = "android"))]
 impl From<HuggingFaceError> for TtsError {
     fn from(e: HuggingFaceError) -> Self {
         TtsError::Init(e.to_string())

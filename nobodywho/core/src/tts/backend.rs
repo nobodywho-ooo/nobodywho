@@ -22,6 +22,7 @@ pub(super) fn load_backend(
                 &config.language,
                 config.speed,
                 device,
+                config.espeak_data_dir.as_deref(),
             )?;
             info!(elapsed = ?init_start.elapsed(), "Initialized Kokoro TTS");
             Ok(Box::new(backend))

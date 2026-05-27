@@ -4,7 +4,7 @@
 //! or a HuggingFace Hub repo ID (`owner/repo`). HF repos are downloaded
 //! into the user's cache on first use, then reused.
 //!
-//! Default voice is `af_heart` at 1.0× speed, `en-us`:
+//! Default voice is `bf_emma` at 1.0× speed, `en-us`:
 //!
 //! ```no_run
 //! # use nobodywho::tts::{Tts, TtsConfig};
@@ -23,9 +23,9 @@
 //! # use nobodywho::tts::{KokoroConfig, Tts, TtsConfig};
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let mut cfg = KokoroConfig::new("NobodyWho/Kokoro-82M");
-//! cfg.voice = "bf_emma".into();
+//! cfg.voice = "am_michael".into();
 //! cfg.speed = 1.1;
-//! cfg.language = "en-gb".into();
+//! cfg.language = "en-us".into();
 //! let tts = Tts::new(TtsConfig::Kokoro(cfg))?;
 //! # Ok(())
 //! # }
