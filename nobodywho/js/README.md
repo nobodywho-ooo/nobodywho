@@ -6,18 +6,17 @@ Emscripten.
 
 ## Status: working end-to-end
 
-Real LLM inference verified under Node. The demos mirror the Python
-examples next door — load a model, call the API:
+Real LLM inference verified under Node and browser. The API mirrors the
+Python binding — load a model from a URL or path, call the API:
 
 **Chat** (`chat_demo.mjs`):
 ```js
-import { readFileSync } from 'node:fs';
 const { default: createNobodyWhoModule } = await import('./pkg-bundler/nobodywho_js.js');
 const m = await createNobodyWhoModule();
 
-const modelBytes = new Uint8Array(readFileSync(process.argv[2]));
 const chat = await m.Chat.create({
-  modelBytes,
+  modelPath: process.argv[2],   // Node: host filesystem path via NODEFS
+  // modelUrl: 'https://...',   // Browser: fetched + cached via Cache API
   systemPrompt: 'You are a helpful assistant',
 });
 
@@ -55,7 +54,7 @@ while (true) {
 ```js
 const m = await createNobodyWhoModule();
 
-const model = await m.Model.loadBytes(modelBytes);
+const model = await m.Model.load({ modelPath: process.argv[2] });
 const encoder = new m.Encoder(model, 2048);
 const vec = await encoder.encode('the quick brown fox');
 // -> Float32Array(384) — pass to cosineSimilarity() etc.
@@ -66,35 +65,35 @@ surface to JS via wasm-bindgen.
 
 | Surface | Status |
 |---|---|
-| `Model.loadBytes(uint8Array)` | ✅ verified — loads GGUF into a real `LlamaModel` via `fmemopen` + `llama_model_load_from_file_ptr` (used by `Encoder` / `CrossEncoder`; `Chat.create` takes `modelBytes` inline) |
+| `Model.load({modelUrl \| modelPath, mmprojUrl \| mmprojPath})` | ✅ verified — async factory for `Encoder` / `CrossEncoder`; URL cached via Cache API, path via NODEFS |
 | `Encoder.encode(text)` → `Float32Array` | ✅ verified |
 | `CrossEncoder.rank(query, docs)` / `rankAndSort(...)` | ✅ verified |
 | `cosineSimilarity(a, b)` → number | ✅ verified — pairs with `Encoder.encode()`; matches Python's `nobodywho.cosine_similarity` |
-| `Chat.create({modelBytes \| modelPath \| modelUrl, ...})` → `Chat` | ✅ verified — async factory, spawns a worker (Web Worker in browser, `worker_threads.Worker` in Node). `modelPath` is Node-only and streams the GGUF into MEMFS in chunks (no 2 GiB `readFileSync` cap, no main-thread Buffer) |
+| `Chat.create({modelUrl \| modelPath, ...})` → `Chat` | ✅ verified — async factory, spawns a worker. `modelUrl` streams fetch() into MEMFS with Cache API caching. `modelPath` (Node-only) mounts host dir via NODEFS. |
 | `Chat.ask(prompt)` → `TokenStream` → tokens (real-time, `for await`-iterable) | ✅ verified |
-| `Chat.stopGeneration()` — interrupt the current ask | ✅ verified (Node) — drains pending messages in the per-token hook and calls `stopCurrentAsk`. Browser only takes effect after the current ask completes (SAB+Atomics is the path forward, tracked as follow-up) |
-| `Chat.getChatHistory()` / `setChatHistory(messages)` | ✅ verified — round-trips `{role, content, ...}` arrays; loaded history is real context for subsequent asks |
-| `Chat.getSystemPrompt()` / `setSystemPrompt(prompt \| null)` | ✅ verified (incl. clear-to-null after the core fix in `chat.rs`) |
+| `Chat.stopGeneration()` — interrupt the current ask | ✅ verified (Node) |
+| `Chat.getChatHistory()` / `setChatHistory(messages)` | ✅ verified |
+| `Chat.getSystemPrompt()` / `setSystemPrompt(prompt \| null)` | ✅ verified |
 | `Chat.getSamplerConfig()` / `setSamplerConfig(spec)` | ✅ verified |
 | `Chat.getTemplateVariables()` / `setTemplateVariable(name, value)` / `setTemplateVariables(vars)` | ✅ verified |
 | `Chat.setTools(tools)` — replace tool registry mid-session | ✅ verified |
 | `Chat.reset(opts?)` — atomic clear-history + optional swap of system prompt + tools | ✅ verified |
 | `Chat.resetHistory()` — clear history, preserve system prompt + tools + sampler | ✅ verified |
 | `Chat.terminate()` — shut down the worker (returns Promise) | ✅ verified |
-| `Chat`'s `templateVariables` option (e.g. `{ enable_thinking: false }`) | ✅ verified |
 | `Chat`'s `sampler` option (temperature/topK/topP/minP/repeatPenalty/sampleStep) | ✅ verified |
-| `SamplerBuilder` (fluent) / `SamplerPresets` (static factory) | ✅ verified — JS-side ergonomic wrappers over the sampler JSON shape; matches Python's `SamplerBuilder` / `SamplerPresets` |
+| Structured output / Constraint (`sampler: {constraint: {regex \| jsonSchema \| lark}}`) | ✅ verified |
+| `SamplerBuilder` (fluent) / `SamplerPresets` (static factory) | ✅ verified |
 | `TokenStream.next()` / `completed()` / async-iteration via `for await` | ✅ verified |
-| Multimodal vision/audio (`Image.fromBytes` / `Audio.fromBytes`, plus Node-only `fromPath`) | ✅ verified — see "Multimodal status" below |
-| Tool calling (`Tool.fromFn(...)`, `Chat.create({tools: [...]})`) | ✅ verified — both sync and async (Promise-returning) callbacks work via the worker ↔ main RPC bridge |
-| Structured output / Constraint (`sampler: {constraint: {regex \| jsonSchema \| lark}}`) | ✅ verified — see `js/scripts/constraint-smoke.mjs` (regex + JSON Schema) |
+| Multimodal vision/audio (`Image.fromBytes` / `Audio.fromBytes`, plus Node-only `fromPath`) | ✅ verified |
+| Tool calling (`Tool.fromFn(...)`, `Chat.create({tools: [...]})`) | ✅ verified — sync and async callbacks via worker ↔ main RPC bridge |
+| mmap-backed tensor loading (`CPU_Mapped`) | ✅ verified — strong `_mmap_js`/`_munmap_js` syscall overrides route through `FS.mmap` |
 
 Each row above is backed by a smoke test under `js/scripts/`. To
 verify locally after a build, run:
 
 | Smoke | Covers |
 |---|---|
-| `emscripten-smoke.mjs` | `Model.loadBytes` + basic ask round-trip (plus the `chat_demo.mjs` example end-to-end) |
+| `emscripten-smoke.mjs` | `Model.load` + `Encoder.encode` round-trip |
 | `forawait-smoke.mjs` | `for await (const tok of chat.ask(...))` iteration |
 | `sampler-smoke.mjs` | sampler-config knobs end-to-end |
 | `sampler-ergo-smoke.mjs` | `SamplerBuilder` + `SamplerPresets` (core shift + sample steps) |
@@ -108,13 +107,46 @@ verify locally after a build, run:
 | `history-smoke.mjs` | `getChatHistory` / `setChatHistory` round-trip + loaded-context use |
 | `setters-smoke.mjs` | `setSystemPrompt` (incl. `null`) / sampler / template vars / `setTools` / `resetHistory` |
 | `parity-extras-smoke.mjs` | `Audio.fromPath` / `Image.fromPath` / `cosineSimilarity` / `Chat.reset({systemPrompt, tools})` |
-| `modelpath-smoke.mjs` | Node-only `Chat.create({modelPath, mmprojPath})` |
+| `modelpath-smoke.mjs` | Node-only `Chat.create({modelPath, mmprojPath})` via NODEFS |
 | `context-shift-smoke.mjs` | KV-cache shift when the conversation grows past `contextSize` |
 
 Each smoke prints a `=== passed ===` line on success and exits 0; CI
 runs them in sequence.
 
 Native (`cargo check --workspace`) is unchanged.
+
+## Model loading & memory optimization
+
+Three model input modes, each optimized to minimize memory copies:
+
+| Mode | Environment | Flow | Memory |
+|---|---|---|---|
+| `modelUrl` | Browser + Node | Worker streams `fetch()` into MEMFS via tee'd body + Cache API (downloaded once, cached on disk) | MEMFS + mmap (CPU_Mapped) |
+| `modelPath` | Node only | Host directory mounted via NODEFS — llama.cpp reads directly from disk | Disk + fread (no MEMFS copy) |
+
+**Syscall overrides.** Emscripten's `standalone.c` ships weak syscall
+stubs that return `-EPERM` / `-ENOSYS`. We provide strong Rust overrides
+in `js/src/syscall_imports.rs` for `openat`, `stat64`, `fstat64`,
+`_mmap_js`, and `_munmap_js` — routing each through `Module.FS` /
+`Module.SYSCALLS` via `js_sys::Reflect`. This makes `fopen`, `stat`,
+`fstat`, and `mmap` work on MEMFS and NODEFS files.
+
+**mmap on wasm.** The `_mmap_js` override enables llama.cpp's
+`CPU_Mapped` tensor loading path (`use_mmap = true`). On MEMFS,
+Emscripten's mmap allocates wasm memory and copies the file data in;
+llama.cpp then maps tensors directly into that region.
+
+**NODEFS (Node `modelPath`)** mounts the host filesystem directory via
+`FS.mount(NODEFS, ...)` in `pre.js`. llama.cpp opens and reads the file
+through Emscripten's VFS layer backed by Node's `fs` module. The model
+file stays on disk — only tensor data enters wasm memory via fread.
+
+**Cache API (`modelUrl`).** On first visit, the fetch response body is
+tee'd: one stream goes into MEMFS, the other is stored in the Cache API
+(`nobodywho-models-v1`) in the background — no slowdown vs a plain
+download. On subsequent visits, `cache.match(url)` streams the model
+directly from disk cache into MEMFS. Model bytes never touch the main
+thread.
 
 ## Build pipeline
 
@@ -201,61 +233,10 @@ python3 -m http.server 8000
 See `js/examples/browser-chat.html` for a chat demo (Web Worker so the
 page stays responsive during inference), `browser-encoder.html` for an
 embeddings demo, and `browser-crossencoder.html` for a reranker demo.
-All load the wasm via `createNobodyWhoModule()` and fetch a GGUF from
-HuggingFace through `Model.fetchModelBytes(url, onProgress)` (exposed
-from the Rust side). Model bytes are cached in the Cache API
-(`nobodywho-models-v1` store) so subsequent loads skip the download.
-
-Note: the native binding has `huggingface:` / `https://` paths that
-download and cache models on disk (see Python's `Model("hf://…")`), but
-that codepath is `cfg(not(target_family = "wasm"))` — `ureq` has no browser equivalent
-and there's no filesystem to cache into. The browser-side equivalent is
-just `fetch()` + `Model.loadBytes(...)`, with caching via the Cache API
-(see next section).
-
-### Model caching
-
-`Model.fetchModelBytes` caches downloaded GGUFs in a
-[Cache API](https://developer.mozilla.org/en-US/docs/Web/API/Cache)
-store named `nobodywho-models-v1`, keyed by URL. After the first download
-on a given origin, reloads and other pages on the same origin get the
-bytes back instantly from disk — no re-download, no HTTP cache eviction
-surprises.
-
-Helpers on the `Model` class:
-
-```js
-const { default: createNobodyWhoModule } = await import('nobodywho-js');
-const m = await createNobodyWhoModule();
-
-// Pre-populate the cache during a splash screen / onboarding step so the
-// user doesn't sit through a 400 MB download when they click "chat".
-await m.Model.preload('https://huggingface.co/.../model.gguf',
-  (got, total) => console.log(`${got}/${total}`));
-
-// Later in the app — instant if preload already ran on this origin.
-const bytes = await m.Model.fetchModelBytes('https://huggingface.co/.../model.gguf');
-const model = await m.Model.loadBytes(bytes);
-
-// Wipe all cached models (e.g. from a "clear cache" button).
-await m.Model.clearCache();
-```
-
-**Across multiple apps on different origins:** the browser's storage is
-[origin-partitioned](https://developer.mozilla.org/en-US/docs/Web/API/Storage_API#storage_quotas_and_eviction_criteria)
-by design — `app1.example.com` and `app2.example.com` each have their own
-Cache API, and there's no way for one to read the other's entries. The
-best you can do cross-origin is point all apps at the same canonical
-HuggingFace URL: the HF CDN serves each origin's first download from a
-geographically-near edge, so it's fast even though every origin pays the
-download once. If you control the deployment, hosting multiple apps under
-one origin (subpath routing, e.g. `myco.com/chat`, `myco.com/embed`)
-lets them share the cache.
-
-The cache name is versioned (`-v1`). Bump the suffix if the cached
-representation ever changes (e.g. switching from raw bytes to a
-pre-decoded format) so old entries are abandoned rather than fed to a
-binding that can't read them.
+All load the wasm via `createNobodyWhoModule()` and load models via
+`Model.load({ modelUrl })` or `Chat.create({ modelUrl })`. Models are
+cached in the Cache API (`nobodywho-models-v1` store) so subsequent
+loads skip the download.
 
 ## How it works (and why these specific choices)
 
@@ -298,13 +279,19 @@ A few cfg-gates in `nobodywho/core` for wasm32:
 - `ureq`, `indicatif`, `dirs`, `monty`, `bashkit`: native-only.
 - Worker pattern: `std::thread::spawn` → `wasm_bindgen_futures::spawn_local`,
   `std::sync::mpsc` → `tokio::sync::mpsc::unbounded_channel`.
-- Model loading: `get_model_from_bytes` constructor that bypasses the
-  filesystem (`fmemopen` + `llama_model_load_from_file_ptr`).
+- Model loading: `get_model_from_path` with `use_mmap(true)` via NODEFS
+  or MEMFS; `get_model_from_bytes` with `fmemopen` for the fmemopen path.
 - `Tokenizer::tokenize_text` inlines the `mtmd_default_marker` literal.
 - `Worker` n_threads hardcoded to 1 (`available_parallelism` errors on
   wasm).
 - `mtmd` cargo feature on core stays enabled — Emscripten compiles it
   in (see "Multimodal status").
+
+Strong syscall overrides in `js/src/syscall_imports.rs`:
+- `__syscall_openat` — routes `fopen` through `Module.FS.open`.
+- `__syscall_stat64` / `__syscall_fstat64` — routes stat through `Module.FS.stat`.
+- `_mmap_js` / `_munmap_js` — routes mmap through `FS.mmap`, enabling
+  llama.cpp's `CPU_Mapped` tensor loading.
 
 And one workaround in the wasm crate itself (`js/src/lib.rs`):
 - `__cxa_atexit` overridden as a no-op. The cdylib's link wraps every
@@ -322,47 +309,23 @@ binding virtualizes a filesystem in Emscripten's MEMFS, lands bytes
 there, and lets llama.cpp's path-based loaders read them from the
 inside. All of upstream mtmd is used unchanged.
 
-**End-to-end validation.** `js/scripts/vision-smoke.mjs` against
-Qwen2-VL-2B-Instruct (Q4_K_M model + Q8_0 mmproj, ~1.7 GB total):
-
-```
-mmproj_path = Some("/home/web_user/nbw-mmproj-...gguf");
-loaded meta data with 33 key-value pairs and 338 tensors from (file*)
-load_tensors: loaded 520 tensors from /home/web_user/nbw-mmproj-...gguf
-MTMD context initialized successfully
-Loading image for MTMD path = /home/web_user/nbw-image-...bin;
-image_tokens->nx = 46, ny = 54
-=== Response (1099.0 s) ===
-penguin
-contains "penguin": true
-```
-
-The whole chain — `Model.loadBytes(model, mmproj)` → `Image.fromBytes(uint8)`
-→ `chat.ask([...])` → "penguin" — verified inside `node`. 1099 s CPU
-inference reflects the wasm32 single-threaded ceiling; architecture
-is the point of this section, not throughput.
-
 **JS API.**
 
 ```js
 const { default: createNobodyWhoModule } = await import('nobodywho-js');
 const m = await createNobodyWhoModule();
 
-const modelBytes  = new Uint8Array(await (await fetch('/model.gguf')).arrayBuffer());
-const mmprojBytes = new Uint8Array(await (await fetch('/mmproj.gguf')).arrayBuffer());
-
-// Optional mmproj as a second arg — promotes the Model to multimodal.
-const model = await m.Model.loadBytes(modelBytes, mmprojBytes);
-
-const chat = new m.Chat(model, {
+const chat = await m.Chat.create({
+  modelUrl: '/model.gguf',
+  mmprojUrl: '/mmproj.gguf',
   systemPrompt: 'Describe the image.',
-  contextSize: 4096,            // ≥ image embedding + reply
+  contextSize: 4096,
 });
 
 const imgResp = await fetch('/cat.jpg');
 const img = m.Image.fromBytes(new Uint8Array(await imgResp.arrayBuffer()));
 
-const answer = await (await chat.ask(['What is in this image?', img])).completed();
+const answer = await chat.ask(['What is in this image?', img]).completed();
 ```
 
 `Image.fromBytes(uint8)` / `Audio.fromBytes(uint8)` return plain JS
@@ -386,12 +349,6 @@ still work for text-only prompts — `chat.ask('hi')` is unchanged.
    `syscall_imports.rs`) that resolves the call back into
    `Module.FS.open` via `js_sys::Reflect` — completing the loop.
 
-The strong override is necessary because Emscripten's
-`system/lib/standalone/standalone.c` provides weak `__syscall_openat`
-stubs that always return `-EPERM`. wasm-ld silently satisfies libc's
-syscall references against the weak stubs unless a strong symbol is
-present. The Rust override wins symbol resolution at link time.
-
 **What's known to work.**
 
 - Image decoding via `stb_image`: JPEG, PNG, BMP, GIF, TGA, PSD, PIC,
@@ -399,7 +356,7 @@ present. The Rust override wins symbol resolution at link time.
 - Three miniaudio decoders end-to-end: **WAV, MP3, FLAC** — verified
   by `js/scripts/audio-smoke.mjs` (Qwen3-ASR produces real
   transcripts).
-- mmproj loading from bytes via `Model.loadBytes(model, mmproj)`.
+- mmproj loading via `mmprojUrl` / `mmprojPath`.
 - Vision encoder via mtmd (chunk-tokenize / encode-chunk / decode
   pipeline, verified against Gemma 3 + Qwen2-VL mmprojs).
 - Audio-LLM mmproj encoder via mtmd (Qwen3-ASR verified end-to-end
@@ -421,11 +378,6 @@ present. The Rust override wins symbol resolution at link time.
   Gemma, LLaVA, etc. use the string-with-markers convention and
   work fine; OpenAI-typed-content models would need a renderer
   update.
-- Models >2 GiB on disk via `modelBytes` in Node. Node's
-  `fs.readFileSync` caps at 2 GiB. Workaround: use
-  `Chat.create({ modelPath })` instead — the worker streams the file
-  into MEMFS in 64 MiB chunks with no main-thread Buffer. Browser is
-  unaffected (`modelUrl` streams via fetch + Cache API).
 - Models whose total working set exceeds 4 GiB. Model tensors +
   mmproj + KV cache + compute buffer must fit in wasm32's hard 4 GiB
   linear-memory ceiling. A future wasm64 (memory64) build would lift
