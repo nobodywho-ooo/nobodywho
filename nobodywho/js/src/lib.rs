@@ -161,12 +161,9 @@ where
     F: Future<Output = Result<T, JsError>> + 'static,
     T: Into<JsValue>,
 {
-    // No catch_unwind: the (Rc<RefCell<ChatState>> + other) captures in the
-    // worker-backed Chat futures aren't RefUnwindSafe and can't be made so
-    // without a deeper refactor. AssertUnwindSafe satisfies future_to_promise's
-    // own UnwindSafe bound; we accept that a Rust panic propagates as a hard
-    // wasm abort instead of a rejected promise — the same failure mode as a
-    // C++ exception crossing the wasm boundary on Emscripten.
+    // AssertUnwindSafe satisfies future_to_promise's UnwindSafe bound.
+    // A Rust panic propagates as a hard wasm abort — the same failure
+    // mode as a C++ exception crossing the wasm boundary on Emscripten.
     wasm_bindgen_futures::future_to_promise(AssertUnwindSafe(async move {
         match fut.await {
             Ok(v) => Ok(v.into()),
@@ -280,10 +277,8 @@ impl Model {
 //
 // Path A approach: `Image.fromBytes` / `Audio.fromBytes` return plain
 // tagged JS objects of the shape `{__nbwKind: 'image'|'audio', bytes:
-// Uint8Array}`. The same shape survives the postMessage hop into the chat
-// worker. The Rust side (whether running in the main thread for `Chat` or
-// inside the worker for `Chat`) calls `write_bytes_to_memfs(kind,
-// bytes)` to land the bytes in Emscripten's in-memory filesystem at a
+// Uint8Array}`. The Rust side calls `write_bytes_to_memfs(kind, bytes)`
+// to land the bytes in Emscripten's in-memory filesystem at a
 // content-hashed path like `/tmp/nbw-image-<hash>.bin`, then pushes that
 // path through the existing `Prompt::push_image(&Path)` / `push_audio`
 // API. mtmd's `from_file` loader uses `fopen`, which under Emscripten
@@ -1021,10 +1016,8 @@ async fn stream_url_to_memfs(
 }
 
 /// Convert a `JsValue` (a bare string OR an array containing strings and
-/// tagged media-part objects) into a core `Prompt`. Used by the in-process
-/// `Chat::ask` AND (post-postMessage) by the worker dispatcher's `"ask"`
-/// branch — same logic for both since `{__nbwKind, bytes}` is the wire
-/// shape on both sides. Media bytes are written to MEMFS here.
+/// tagged media-part objects) into a core `Prompt`. Media bytes are
+/// written to MEMFS here.
 fn js_to_prompt(input: &JsValue) -> Result<nobodywho::tokenizer::Prompt, String> {
     let mut prompt = nobodywho::tokenizer::Prompt::new();
 
@@ -1067,28 +1060,6 @@ fn js_to_prompt(input: &JsValue) -> Result<nobodywho::tokenizer::Prompt, String>
     }
 
     Ok(prompt)
-}
-
-/// Pass-through normaliser for the worker hop. Main-thread `Chat.ask`
-/// calls this on its input, then post-messages the result. The worker's
-/// `"ask"` dispatcher then runs `js_to_prompt` on the received array.
-///
-/// Since `{__nbwKind, bytes: Uint8Array}` is already structured-cloneable
-/// the only thing this does is wrap a bare string in an Array so the
-/// worker has a single shape to deserialize.
-#[cfg(target_family = "wasm")]
-fn js_to_serializable_parts(input: &JsValue) -> Result<JsValue, JsError> {
-    if let Some(s) = input.as_string() {
-        let arr = js_sys::Array::new();
-        arr.push(&JsValue::from_str(&s));
-        return Ok(arr.into());
-    }
-    if input.dyn_ref::<js_sys::Array>().is_some() {
-        return Ok(input.clone());
-    }
-    Err(JsError::new(
-        "ask: prompt must be a string or an array of (string | Image.fromBytes | Audio.fromBytes)",
-    ))
 }
 
 // ---------- Tool (LLM-callable JS function) ----------
@@ -1207,30 +1178,6 @@ fn extract_tools(opts: &JsValue) -> Result<Vec<nobodywho::tool_calling::Tool>, J
     Ok(out)
 }
 
-/// Return a clone of `opts` with the named keys removed. Used to strip
-/// `tools` (whose entries are tagged JS objects with non-serde-friendly
-/// JS function values inside) before passing the rest through
-/// `serde_wasm_bindgen` for ChatOptions deserialization.
-fn strip_keys(opts: &JsValue, keys: &[&str]) -> Result<JsValue, JsError> {
-    if opts.is_undefined() || opts.is_null() {
-        return Ok(opts.clone());
-    }
-    let src = opts
-        .dyn_ref::<js_sys::Object>()
-        .ok_or_else(|| JsError::new("Chat options must be a plain object"))?;
-    let out = js_sys::Object::new();
-    for k in js_sys::Object::keys(src).iter() {
-        let key_str = k.as_string().unwrap_or_default();
-        if keys.contains(&key_str.as_str()) {
-            continue;
-        }
-        if let Ok(v) = js_sys::Reflect::get(src, &k) {
-            let _ = js_sys::Reflect::set(&out, &k, &v);
-        }
-    }
-    Ok(out.into())
-}
-
 /// Take a tagged tool object (the shape `Tool::from_fn` returns) and
 /// rebuild it as a core `Tool`. The JS callback is wrapped in an
 /// `Arc<Fn(Value) -> String + Send + Sync>` that the inference loop
@@ -1324,20 +1271,6 @@ fn tool_from_tagged(part: &JsValue) -> Result<nobodywho::tool_calling::Tool, Str
             }
         },
     ))
-}
-
-/// Optional config passed to `Chat.create`. Deserialized on the worker
-/// side from the postMessage'd JS object.
-///
-/// `sampler` is serialized by the main thread from a `SamplerConfig`
-/// wasm-bindgen class (via `serde_wasm_bindgen::to_value`).
-#[derive(serde::Deserialize, Default)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct ChatOptions {
-    context_size: Option<u32>,
-    system_prompt: Option<String>,
-    sampler: Option<nobodywho::sampler_config::SamplerConfig>,
-    template_variables: Option<std::collections::HashMap<String, bool>>,
 }
 
 // ---------- Encoder ----------
