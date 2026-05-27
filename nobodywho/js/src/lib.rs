@@ -765,64 +765,59 @@ fn write_bytes_to_memfs(kind: &str, bytes: &[u8]) -> Result<std::path::PathBuf, 
     Ok(path)
 }
 
-/// Stream a host filesystem file into MEMFS at a fixed `nbw-{kind}.bin`
-/// path. Delegates to the Node-only JS helper
-/// `globalThis.__nbw_node_file_to_memfs(srcPath, memfsPath)` which reads
-/// the host file in 64 MiB chunks via Node `fs` and writes them into
-/// MEMFS via `Module.FS.write` — never materializing the full file in
-/// JS memory.
+/// Mount the host directory containing `src_path` via NODEFS and return
+/// a virtual-FS path that llama.cpp can `fopen` directly. The file stays
+/// on the host disk — `fread` streams bytes straight into wasm tensor
+/// allocations without an intermediate MEMFS copy.
 ///
-/// Returns the MEMFS path the caller should pass to the path-based
-/// loader. Errors clearly if the helper isn't present (i.e. the binding
-/// is running in a browser worker without Node).
+/// Node-only; errors clearly in browser.
 #[cfg(target_family = "wasm")]
-async fn stream_host_file_to_memfs(
+fn mount_host_path_via_nodefs(
     kind: &str,
     src_path: &str,
 ) -> Result<std::path::PathBuf, String> {
-    // Fixed MEMFS destination per kind. Each worker hosts one model at
-    // a time, so there's no need to content-hash.
-    let memfs_path = std::path::PathBuf::from(format!("/home/web_user/nbw-{kind}.gguf"));
+    let path = std::path::Path::new(src_path);
+    let dir = path
+        .parent()
+        .ok_or("mount_nodefs: path has no parent directory")?
+        .to_str()
+        .ok_or("mount_nodefs: non-UTF-8 path")?;
+    let filename = path
+        .file_name()
+        .ok_or("mount_nodefs: path has no filename")?
+        .to_str()
+        .ok_or("mount_nodefs: non-UTF-8 filename")?;
+
+    let mountpoint = format!("/mnt/nbw-{kind}");
 
     let global = js_sys::global();
-    let helper = js_sys::Reflect::get(&global, &"__nbw_node_file_to_memfs".into())
-        .map_err(|_| "stream_host_file_to_memfs: lookup failed".to_string())?;
+    let helper = js_sys::Reflect::get(&global, &"__nbw_mount_nodefs".into())
+        .map_err(|_| "mount_nodefs: lookup failed".to_string())?;
     if helper.is_undefined() || helper.is_null() {
         return Err(
             "modelPath/mmprojPath is Node-only; in browser use modelBytes or modelUrl".to_string(),
         );
     }
-    let helper_fn: js_sys::Function = helper.dyn_into().map_err(|_| {
-        "stream_host_file_to_memfs: __nbw_node_file_to_memfs is not a function".to_string()
-    })?;
-
-    let promise_val = helper_fn
+    let helper_fn: js_sys::Function = helper
+        .dyn_into()
+        .map_err(|_| "__nbw_mount_nodefs is not a function".to_string())?;
+    helper_fn
         .call2(
             &JsValue::NULL,
-            &JsValue::from_str(src_path),
-            &JsValue::from_str(&memfs_path.to_string_lossy()),
+            &JsValue::from_str(dir),
+            &JsValue::from_str(&mountpoint),
         )
         .map_err(|e| {
             let msg = js_sys::Reflect::get(&e, &"message".into())
                 .ok()
                 .and_then(|m| m.as_string())
                 .unwrap_or_else(|| format!("{e:?}"));
-            format!("__nbw_node_file_to_memfs threw: {msg}")
-        })?;
-    let promise: js_sys::Promise = promise_val
-        .dyn_into()
-        .map_err(|_| "__nbw_node_file_to_memfs did not return a Promise".to_string())?;
-    wasm_bindgen_futures::JsFuture::from(promise)
-        .await
-        .map_err(|e| {
-            let msg = js_sys::Reflect::get(&e, &"message".into())
-                .ok()
-                .and_then(|m| m.as_string())
-                .unwrap_or_else(|| format!("{e:?}"));
-            format!("__nbw_node_file_to_memfs rejected: {msg}")
+            format!("__nbw_mount_nodefs failed: {msg}")
         })?;
 
-    Ok(memfs_path)
+    Ok(std::path::PathBuf::from(format!(
+        "{mountpoint}/{filename}"
+    )))
 }
 
 /// Call `Module.FS.writeFile(path, bytes)` from Rust. Used by both
@@ -1750,22 +1745,19 @@ async fn handle_worker_message(data: JsValue, scope: &JsValue) -> Result<(), Str
             // Two input shapes per slot:
             //   - bytes / mmprojBytes: Uint8Array, written to MEMFS via FS.writeFile.
             //   - srcPath / mmprojSrcPath: host filesystem path string. Node-only;
-            //     streamed into MEMFS chunk-by-chunk via the
-            //     `__nbw_node_file_to_memfs` helper in pre.js. Saves a main-thread
-            //     Buffer of the model bytes and bypasses Node's 2 GiB readFileSync
-            //     cap.
+            //     mounted via NODEFS so llama.cpp reads directly from disk
+            //     (no MEMFS copy, no 2 GiB readFileSync cap).
             // Mutual exclusion enforced main-side in parse_chat_create_opts; here
             // we just take whichever one came through.
 
-            // Resolve the main model into a MEMFS path. If srcPath was given,
-            // stream it in chunks; otherwise materialize bytes into MEMFS via
-            // the existing write_bytes_to_memfs.
-            let model_memfs_path: std::path::PathBuf = if let Some(p) =
+            // Resolve the main model path. srcPath → NODEFS mount (disk),
+            // bytes → MEMFS write.
+            let model_path: std::path::PathBuf = if let Some(p) =
                 js_sys::Reflect::get(&data, &"srcPath".into())
                     .ok()
                     .and_then(|v| v.as_string())
             {
-                stream_host_file_to_memfs("model", &p).await?
+                mount_host_path_via_nodefs("model", &p)?
             } else {
                 let bytes_val = js_sys::Reflect::get(&data, &"bytes".into())
                     .map_err(|_| "missing 'bytes' or 'srcPath' field".to_string())?;
@@ -1781,7 +1773,7 @@ async fn handle_worker_message(data: JsValue, scope: &JsValue) -> Result<(), Str
                     .ok()
                     .and_then(|v| v.as_string())
             {
-                Some(stream_host_file_to_memfs("mmproj", &p).await?)
+                Some(mount_host_path_via_nodefs("mmproj", &p)?)
             } else if let Some(u8a) = js_sys::Reflect::get(&data, &"mmprojBytes".into())
                 .ok()
                 .filter(|v| !v.is_undefined() && !v.is_null())
@@ -1792,11 +1784,8 @@ async fn handle_worker_message(data: JsValue, scope: &JsValue) -> Result<(), Str
                 None
             };
 
-            // Always go via the path-based loader now that the main model
-            // is always in MEMFS — covers both the srcPath and bytes
-            // input modes uniformly.
             let model =
-                nobodywho::llm::get_model_from_path(&model_memfs_path, mmproj_path.as_deref(), 0)
+                nobodywho::llm::get_model_from_path(&model_path, mmproj_path.as_deref(), 0)
                     .map_err(|e| e.to_string())?;
             WORKER_MODEL.with(|m| *m.borrow_mut() = Some(Arc::new(model)));
             post(&worker_reply("model-loaded"));
@@ -2925,11 +2914,9 @@ impl Chat {
             // Handshake step 2: tell the worker how to find the model.
             // Three input modes per slot (main and mmproj), in precedence
             // order: bytes > path > url. modelPath/mmprojPath are Node-
-            // only and pass a host filesystem path string to the worker,
-            // which then chunk-streams it into MEMFS via the
-            // `__nbw_node_file_to_memfs` helper from pre.js. This
-            // bypasses the main-thread Buffer of model bytes entirely
-            // (and Node's 2 GiB fs.readFileSync cap).
+            // only and pass a host filesystem path to the worker, which
+            // mounts the directory via NODEFS so llama.cpp reads directly
+            // from disk (no MEMFS copy, no 2 GiB cap).
             let load_msg = js_sys::Object::new();
             let _ = js_sys::Reflect::set(&load_msg, &"type".into(), &"load-model".into());
 
@@ -3572,11 +3559,9 @@ struct ChatCreateParsed {
     model_url: Option<String>,
     model_bytes: Option<js_sys::Uint8Array>,
     /// Node-only: absolute host path to the model GGUF. The worker
-    /// streams it into MEMFS in chunks via the Node-fs helper
-    /// `globalThis.__nbw_node_file_to_memfs`, bypassing Node's
-    /// 2 GiB `fs.readFileSync` cap and avoiding a main-thread
-    /// `Buffer` of the model bytes entirely. Errors if used in a
-    /// browser context (no Node fs available).
+    /// mounts the containing directory via NODEFS so llama.cpp reads
+    /// directly from disk — no MEMFS copy, no 2 GiB cap. Errors if
+    /// used in a browser context (no Node fs available).
     model_path: Option<String>,
     /// Optional URL to fetch the mmproj GGUF from. Mutually exclusive with
     /// `mmproj_bytes`. Both null/undefined ⇒ text-only model.

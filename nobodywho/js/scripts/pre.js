@@ -108,6 +108,20 @@ Module.postRun.push(() => {
       return new Uint8Array(fs.readFileSync(srcPath));
     };
 
+    // Mount a host directory via NODEFS so llama.cpp can fopen/fread
+    // directly from disk without copying into MEMFS. Returns the mount
+    // point. Idempotent — re-mounting the same directory is a no-op.
+    globalThis.__nbw_mount_nodefs = function (hostDir, mountpoint) {
+      try { FS.mkdir(mountpoint); } catch (e) { /* EEXIST is fine */ }
+      try {
+        FS.mount(NODEFS, { root: hostDir }, mountpoint);
+      } catch (e) {
+        if (!e.message || !e.message.includes('EBUSY')) throw e;
+        // Already mounted — reuse.
+      }
+      return mountpoint;
+    };
+
     globalThis.__nbw_node_file_to_memfs = async function (srcPath, memfsPath) {
       const fs = await import('node:fs');
       const size = fs.statSync(srcPath).size;
